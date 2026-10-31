@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    io.kompose.service: postgres-data
+  name: postgres-data
+  namespace: astrolabe
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      # Generous for the foundation's tiny data set; a storage class without allowVolumeExpansion
+      # (local-path) cannot grow a bound claim in place: back up, recreate the claim, restore.
+      storage: 5Gi

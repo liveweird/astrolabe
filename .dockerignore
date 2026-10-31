@@ -1,0 +1,23 @@
+# Build outputs — rebuilt inside the image
+**/build/
+.gradle/
+**/.kotlin/
+web/dist/
+web/coverage/
+e2e/playwright-report/
+e2e/test-results/
+
+# Installed dependencies (every stage runs its own `npm ci` / Gradle resolve). Recursive so a nested
+# workspace can never leak a host-built node_modules (native binaries) into a COPY.
+**/node_modules/
+
+# Agent/tooling state: skills, docs, settings and — in a primary checkout — every git worktree
+# under .claude/worktrees/ (each with its own node_modules/build). Measured on the primary
+# checkout: the context transfer fell from 3.84 GB to 17.7 MB. No Dockerfile stage reads .claude/.
+.claude/
+
+# IDE / local cruft (.git stays IN the context — the SPA build stage reads the
+# commit sha/timestamp from it for the version stamp)
+**/.idea/
+**/*.iml
+server/h2.mv.db

@@ -1,0 +1,89 @@
+services:
+  postgres:
+    image: postgres:18.6-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
+    container_name: astrolabe-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: astrolabe
+      POSTGRES_USER: astrolabe
+      POSTGRES_PASSWORD: astrolabe
+    ports:
+      # Host port 5437 (not 5432-5436) so Astrolabe can run beside other local stacks on the same
+      # machine; in-network consumers still use postgres:5432. Loopback-bound: the demo database
+      # is never reachable from the LAN.
+      - "127.0.0.1:5437:5432"
+    volumes:
+      # postgres 18+ images keep data in a versioned subdir of /var/lib/postgresql;
+      # mounting the pre-18 /var/lib/postgresql/data path makes the container unhealthy.
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U astrolabe -d astrolabe"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    # Bounded; the foundation's data is tiny. Raise it when real datasets arrive.
+    mem_limit: 512m
+
+  mailpit:
+    # Local mail catcher for the demo: password-reset and MFA email lands here.
+    # Read it at http://localhost:8029 (8025-8028 belong to other local stacks).
+    image: axllent/mailpit:v1.31.6@sha256:23fe39e81bde596a918000b3135c0f85dc8bb4c9ea6be274b051143f3e300387
+    container_name: astrolabe-mailpit
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8029:8025"
+    mem_limit: 128m
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      # Optional build identity for the telemetry process rows (unset = empty = recorded as null).
+      args:
+        ASTROLABE_BUILD_VERSION: ${ASTROLABE_BUILD_VERSION:-}
+        ASTROLABE_BUILD_COMMIT: ${ASTROLABE_BUILD_COMMIT:-}
+    container_name: astrolabe-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_JDBC_URL: jdbc:postgresql://postgres:5432/astrolabe
+      POSTGRES_R2DBC_URL: r2dbc:postgresql://postgres:5432/astrolabe
+      POSTGRES_USER: astrolabe
+      POSTGRES_PASSWORD: astrolabe
+      # This compose file is the LOCAL DEMO (clone & run over plain http://localhost:8086).
+      # Development mode keeps HSTS/HTTPS-redirect off and tolerates the demo credentials
+      # below. Any real deployment runs the image as shipped (KTOR_DEVELOPMENT=false), which
+      # fail-closes on this JWT key and on the seeded 'changeme' password.
+      KTOR_DEVELOPMENT: "true"
+      # Bundled-demo signing key so tokens can't be forged with the placeholder "secret".
+      # It is committed to the repo and therefore BURNED: production mode refuses to start
+      # with it. Set your own (e.g. `openssl rand -hex 32`) for any real deployment.
+      JWT_SECRET: "${JWT_SECRET:-dev-only-e6ff3a373320b01eedd36dc3d5e03f03b10cfaacc19e2e885ebb63d40297d0e3}"
+      # Demo key for stored credentials (encrypted at rest). Committed and
+      # therefore BURNED like the JWT key: production mode refuses it. `openssl rand -hex 32`.
+      DATA_ENCRYPTION_KEY: "${DATA_ENCRYPTION_KEY:-d68246b14fd596319e5f3ee40be4d3ded6f53cd873a1285df6a53950de4c5126}"
+      # Real SMTP delivery into the bundled Mailpit (the image default is MAIL_TRANSPORT=disabled).
+      MAIL_TRANSPORT: smtp
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      SMTP_STARTTLS: "false"
+      MAIL_FROM: astrolabe@localhost
+      # The password-reset link's origin; the isolated e2e stack points it at its own port.
+      MAIL_APP_URL: ${MAIL_APP_URL:-http://localhost:8086}
+    ports:
+      - "127.0.0.1:8086:8086"
+    # Mirrors the image's HEALTHCHECK (stated here so `depends_on: service_healthy` and the e2e
+    # global setup can wait on the app the way the app waits on postgres).
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8086/api/v1/health >/dev/null || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 30s
+    # One process (no worker role): the image's baked -Xmx256m heap plus non-heap (~150 MiB) fits 512m with headroom.
+    mem_limit: 512m
+
+volumes:
+  postgres-data:

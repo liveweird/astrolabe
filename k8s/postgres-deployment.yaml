@@ -1,0 +1,97 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    io.kompose.service: postgres
+  name: postgres
+  namespace: astrolabe
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: postgres
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        io.kompose.service: postgres
+    spec:
+      # No pod ever calls the Kubernetes API — do not mount a ServiceAccount token into it.
+      automountServiceAccountToken: false
+      # Runs as the image's own `postgres` user (uid/gid 70 in the alpine image; 999 in the Debian
+      # one) instead of starting as root and dropping privileges: the entrypoint's chown/gosu
+      # step is skipped for a non-root start, which is fine because the PVC's data directory is
+      # already owned by that user (a root start chowns it) and `fsGroup` makes a fresh volume
+      # group-writable on drivers that honour it (local-path volumes are world-writable already).
+      # Keep the uid in step with the image variant when the postgres tag or base changes.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 70
+        runAsGroup: 70
+        fsGroup: 70
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - env:
+            - name: POSTGRES_DB
+              value: astrolabe
+            # Credentials come from the `astrolabe-secrets` Secret (see k8s/secret.yaml) so the
+            # same values feed both this container and the app's connection settings.
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: astrolabe-secrets
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: astrolabe-secrets
+                  key: POSTGRES_USER
+          image: postgres:18.6-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
+          # Keep the probe command as a proper argv list (a single-string argv can't exec).
+          # The readinessProbe gates the Service endpoint (the compose
+          # `depends_on: service_healthy` equivalent).
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "astrolabe", "-d", "astrolabe"]
+            failureThreshold: 5
+            periodSeconds: 5
+            timeoutSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "astrolabe", "-d", "astrolabe"]
+            initialDelaySeconds: 10
+            failureThreshold: 5
+            periodSeconds: 5
+            timeoutSeconds: 5
+          name: astrolabe-postgres
+          ports:
+            - containerPort: 5432
+              protocol: TCP
+          # Without requests the pod is BestEffort — the first thing evicted under node pressure,
+          # taking the database with it. The limit matches docker-compose.yaml (the foundation's data is tiny; raise
+          # both when real datasets arrive).
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              memory: "512Mi"
+          # No readOnlyRootFilesystem: postgres writes its socket/lock files under
+          # /var/run/postgresql and temp files under /tmp of the container filesystem.
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            # postgres 18+ images keep data in a versioned subdir of /var/lib/postgresql;
+            # mounting the pre-18 /var/lib/postgresql/data path breaks the container.
+            - mountPath: /var/lib/postgresql
+              name: postgres-data
+      restartPolicy: Always
+      volumes:
+        - name: postgres-data
+          persistentVolumeClaim:
+            claimName: postgres-data
