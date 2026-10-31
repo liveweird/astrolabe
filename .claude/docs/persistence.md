@@ -14,16 +14,16 @@ in-network consumers use `postgres:5432`). There is one persistence stack:
   makes every long-lived database refuse to boot (a failure no fresh-container CI run can see).
   `MigrationChecksumTest` pins every file's checksum; a new migration adds one manifest line, and
   a red pin means REVERT the edit (clarifications go into this doc), never update the pinned
-  value. The range today is **V1–V13**: V1 `users`, V2 `revoked_tokens`, V3 the seed admin, V4 the
+  value. The range today is **V1–V14**: V1 `users`, V2 `revoked_tokens`, V3 the seed admin, V4 the
   `unaccent` extension, V5 `user_disabled_features` (V1–V5 are Flow's), V6 `teams` (with the optional
   manager), V7 `users.credential_revision`, V8 `password_reset_tokens`, V9 the `ops` telemetry
-  schema, V10 `people` (the people directory) with `teams.manager_person_id` replacing `manager_user_id`, V11 `user_permissions` (the per-user permission grants), V12 `plan_state` + `work_streams`/`programs`/`projects` (the plan structure), V13 `roadmap_entries` (the global project rank). (Astrolabe renumbered Flow's history when it was bootstrapped; from V10 on, migrations are
+  schema, V10 `people` (the people directory) with `teams.manager_person_id` replacing `manager_user_id`, V11 `user_permissions` (the per-user permission grants), V12 `plan_state` + `work_streams`/`programs`/`projects` (the plan structure), V13 `roadmap_entries` (the global project rank), V14 `milestones` (the fourth plan level). (Astrolabe renumbered Flow's history when it was bootstrapped; from V10 on, migrations are
   append-only like any other.)
 - **Exposed + R2DBC** (`infra/db/Database.kt` + the feature services) — runtime DB access.
   `Database.kt` connects the `R2dbcDatabase` and is the composition root: it constructs the
-  services and publishes them into `Application.attributes` (`UserServiceKey`, `PersonServiceKey`, `TeamServiceKey`, the four planning keys,
+  services and publishes them into `Application.attributes` (`UserServiceKey`, `PersonServiceKey`, `TeamServiceKey`, the five planning keys,
   `TokenBlocklistServiceKey`, `PasswordResetServiceKey` today); each service itself lives next to the feature it serves
-  (`users/UserService.kt`, `people/PersonService.kt`, `teams/TeamService.kt`, `planning/{WorkStream,Program,Project,PlanView}Service.kt`, `auth/TokenBlocklistService.kt`, `auth/PasswordResetService.kt`). The Exposed
+  (`users/UserService.kt`, `people/PersonService.kt`, `teams/TeamService.kt`, `planning/{WorkStream,Program,Project,Milestone,PlanView,Roadmap}Service.kt`, `auth/TokenBlocklistService.kt`, `auth/PasswordResetService.kt`). The Exposed
   table `object`s (e.g. `UserService.Users`, nested inside their service) are used for queries
   only, not DDL. Ids are `UIntIdTable` — unsigned end-to-end (the spec declares `minimum: 0`, and
   `ErrorHandling.kt` 400s negative path segments before kotlinx's `UInt` decoding can silently
@@ -163,6 +163,15 @@ place:
   refuses (409) while an ACTIVE node names the person. `PlanViewService` reads the three tables (and `people` names) in ONE transaction, the revision first.
 - `planning/` (V13): `RoadmapService` reads `ProjectService.Projects`, `ProgramService.Programs`, `WorkStreamService.WorkStreams` (the view's names, the active-id check of a ranking write) and `PersonService.People`
   (owner names, via `OwnerChains.kt`); it owns `roadmap_entries`, and `ProjectService.delete` WRITES it through `removeFromRanking` (same package, same locked transaction — no other feature touches the table).
+- `planning/` (V14): `MilestoneService` reads and joins `ProjectService.Projects`/`ProgramService.Programs`/`WorkStreamService.WorkStreams` (`milestoneChain`, beside the other chains in `OwnerChains.kt`) and reads/locks
+  `TeamService.Teams`: `requireActiveTeam` (the team of a milestone being created or changed must be ACTIVE, else 400; it locks the team row `FOR SHARE`, which conflicts with `TeamService.delete`'s
+  `lockActiveForWrite` — `FOR NO KEY UPDATE`: a delete racing a milestone write either commits first and the write is a 400, or waits and then counts the milestone and answers 409 — never an active milestone on a
+  deleted team; `TeamTest` pins both halves) and `teamName` (no `active()` filter: an active milestone's team is always active). `TeamService.delete` READS `Milestones` through `hasActiveMilestones` (the 409 "Team still has
+  milestones", ACTIVE rows only, counted under the team row lock) and `ProjectService.delete` WRITES `Milestones` through `deleteMilestonesOf` (the cascade: the project's ACTIVE milestones are soft-deleted in the same plan-locked
+  transaction, the count goes to the `project.deleted` audit). `TeamService.lockedIsActiveManager` (the schedule PUT's re-guard under the plan lock) is `isActiveManager`'s join with `FOR SHARE OF teams, people` — Exposed's
+  `ForUpdateOption.PostgreSQL.ForShare(null, Teams, People)`, NOT the parameterless `ForShare` companion (which locks every joined row, the USER row included, and would queue a drag behind a password reset): a manager change
+  (`TeamService.update`, `FOR NO KEY UPDATE`) or a re-link/delete of the manager's person either commits first (403 under the lock, no bump) or waits. `FOR SHARE` is refused with an aggregate, so the twin reads rows, never `count()`.
+  `milestones.project_id → projects(id)` and `team_id → teams(id)` have no `ON DELETE` rule: projects and teams are only soft-deleted.
 - `PersonService` reads `UserService.Users` (the linked login: the active-user check on create AND update, the login's email on read/list
   through ACTIVE users) and `TeamService.Teams` (the delete 409 while the person manages an ACTIVE team; since V12 `planning/OwnerChains.kt`'s `ownsActivePlanNode` extends it to an ACTIVE work stream, program or project the person owns). `people.user_id` has no `ON DELETE` rule: users are only ever soft-deleted and the link stays INERT while the user is deleted
   (guards resolve the caller's person through `people.user_id = caller AND people.active()`, and a deleted login never passes the access
@@ -190,7 +199,7 @@ List each new cross-feature read/write here as it lands — the list IS the perm
 Astrolabe's PostgreSQL database is split across schemas:
 
 - **`public`** — the foundation tables (`users`, `people`, `teams`, `revoked_tokens`, `user_disabled_features`, `password_reset_tokens`) and the planning tables
-  (`plan_state`, `work_streams`, `programs`, `projects` since V12, `roadmap_entries` since V13; `planning-model.md`). Flyway's own history table also stays here — `flyway.schemas` is left at its default.
+  (`plan_state`, `work_streams`, `programs`, `projects` since V12, `roadmap_entries` since V13, `milestones` since V14; `planning-model.md`). Flyway's own history table also stays here — `flyway.schemas` is left at its default.
 - **`ops`** — Astrolabe's own operational telemetry (V9, "Telemetry (V9)" below): the process registry and the metric samples each
   process writes about itself. Numbers and labels only, never project data.
 
@@ -247,7 +256,7 @@ transaction under `TELEMETRY_LOCK_KEY`, and a row exactly at its cutoff stays. T
 
 ### Soft delete (convention)
 
-`users`, `people`, `teams`, `work_streams`, `programs` and `projects` are **soft-deleted** — rows are flagged, never physically removed; every
+`users`, `people`, `teams`, `work_streams`, `programs`, `projects` and `milestones` are **soft-deleted** — rows are flagged, never physically removed; every
 business entity follows the same convention. Only join/token tables (today: `revoked_tokens`, a
 pure token registry, `password_reset_tokens` (V8, expiring single-use credentials, not history), `user_disabled_features`, a pure flag join
 whose PUT is a wholesale replace, `user_permissions` (V11, the same shape: a pure grant join rewritten wholesale), `roadmap_entries` (V13, a pure position join: the global rank is rewritten wholesale by `PUT /roadmap/ranking` and compacted when a project is deleted, so a project that leaves the rank has no history worth keeping — the soft-deleted project row stays), and the `ops.telemetry_*` samples (the prune above)) hard-delete — a new
@@ -283,7 +292,7 @@ clash with an **active** row still raises `23505 → 409` (mapped centrally in
 (`uq_users_email_active`, `V1`), the team name (`uq_teams_name_active`, `V6` — an expression
 index over `LOWER(name)`), and in V10 the person email (`uq_people_email_active`, over `LOWER(email)`, only when set) and the login link
 (`uq_people_user_id_active`, one active person per login); person names are deliberately NOT unique. V12 adds `uq_work_streams_name_active` and `uq_programs_name_active` (global,
-over `LOWER("name")`) and `uq_projects_program_name_active` (per program, over `(program_id, LOWER("name"))`) — the 409 wording for all three is in `UNIQUE_CONSTRAINT_DETAILS`.
+over `LOWER("name")`) and `uq_projects_program_name_active` (per program, over `(program_id, LOWER("name"))`) — the 409 wording for all three is in `UNIQUE_CONSTRAINT_DETAILS`. V14 adds `uq_milestones_project_name_active` (per project, over `(project_id, LOWER("name"))`).
 
 **`infra/db/Sql.kt`** (ported from Lettuce with the first list endpoint): `containsNormalized` —
 the case- AND accent-insensitive substring filter over `public.unaccent` (V4); every per-column
@@ -311,7 +320,7 @@ long transaction (`users` is referenced only by columns no long transaction inse
 
 `plan_state` (one row, `CHECK id = 1`: the plan's monotonic `revision` and the lock row), `work_streams`, `programs`, `projects` (`planning/*Service.kt`; DDL, constraints and uniqueness scopes in `planning-model.md`).
 Dates are `DATE` through `LocalDateColumn.kt` (`start_date`/`end_date`, `target_start`/`target_end`, each with a `CHECK` backstop); ids are `SERIAL`; every node has `owner_person_id INTEGER NOT NULL REFERENCES people(id)`.
-**Every write of these tables runs in `withPlanWrite`** (`planning/PlanState.kt`): `SELECT revision FROM plan_state WHERE id = 1 FOR UPDATE`, the block, `UPDATE … revision = revision + 1`. **This is the one deliberate PLAIN
+**Every write of these tables (and of `milestones`, V14) runs in `withPlanWrite`** (`planning/PlanState.kt`): `SELECT revision FROM plan_state WHERE id = 1 FOR UPDATE`, the block, `UPDATE … revision = revision + 1`. **This is the one deliberate PLAIN
 `FOR UPDATE` on a table the code treats as a lock row** — justified by the rule above: nothing references `plan_state` by a foreign key (no FK check can queue behind or in front of it) and its key never changes, so the
 `FOR NO KEY UPDATE` refinement buys nothing. Because all plan writers serialize there, the node services take no per-row locks; the plan lock is held across the whole block, which makes the delete's child count race-free
 and lets the ranking (V13) compare `expectedRevision` atomically. A block that throws rolls the bump back. Reads (`PlanViewService`, `RoadmapService.view`) read the revision first without the lock. `ProjectService.delete` calls
@@ -351,6 +360,14 @@ Warsaw, Sao_Paulo); `greaterEq`/`orderBy` follow date order; and a `CHECK (other
 (without the override) passed a narrower spike and was caught by review; had the override not been enough, the fallback was Flow's `VARCHAR(10)` ISO idiom
 (the same wire format and validator, `varchar(…, 10)` + a regex `CHECK`).
 
+### The NUMERIC column idiom (milestone estimate, V14)
+
+`milestones.estimate_md` is `NUMERIC(8,2) NOT NULL CHECK (estimate_md >= 0)`, declared in Exposed as `decimal("estimate_md", 8, 2)` (`Column<BigDecimal>`) — **no repo-local column type**: none of `exposed-r2dbc` 1.6.0's type
+mappers names `BigDecimal`, so the binding rides the default mapper, and `DecimalColumnTest` (a scratch table by raw DDL, the `LocalDateColumnTest` shape) is the proof: insert/select/update and a WHERE parameter for `0`, `0.1`, `12.25`,
+`999999.99`, the stored `::text` over raw JDBC equal to the sent value at scale two (`0.1` is stored `0.10`), and `greaterEq`/`orderBy` in numeric (not text) order. Had it gone red the fallback was a repo-local column type binding the
+`BigDecimal` through its plain-text literal (the `JavaLocalDateColumnType` shape) with the same wire format. The wire is a JSON number (`estimateMd: Double`, `type: number, format: double`); the server validates it (finite,
+`0 <= x < 1_000_000`, and `BigDecimal(x.toString())` with at most two decimals — `validateEstimate`, `planning/Milestone.kt`) so the stored value is EXACTLY the sent one, never a silent rounding; `MilestoneTest` pins the same values over HTTP.
+
 ### `infra/db/Jsonb.kt` and canonical JSON
 
 `infra/db/Jsonb.kt` — a repo-local `jsonb` column type, because `exposed-r2dbc` 1.5.0 ships no
@@ -378,4 +395,4 @@ text and sha256 are compared against stored rows.
 
 ### Planned persistence (not yet built)
 
-The rest of the planning tables (milestones, dependencies, capacity periods, the team milestone order) arrive with v0.3–v0.5; their sketch is in `planning-model.md`. The schema list, the soft-delete list and the cross-feature list above grow in the same commit as each migration.
+The rest of the planning tables (dependencies, capacity periods, the team milestone order) arrive with v0.4–v0.5; their sketch is in `planning-model.md`. The schema list, the soft-delete list and the cross-feature list above grow in the same commit as each migration.

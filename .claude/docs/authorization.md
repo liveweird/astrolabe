@@ -75,7 +75,7 @@ Layered RBAC. Implemented in the `server/src/main/kotlin/authz/` package.
   throw `UnauthorizedException`) and then invokes the relevant guard: `isAdmin(caller)`,
   `requireAdmin(caller)`, `requireSelfOrAdmin(caller, targetUserId)`, `requireTeamManagerOrAdmin(caller, teamId,
   isManager)` (ADMIN, or the team's ACTIVE manager via the injected `TeamService.isActiveManager` lookup, which
-  answers false for a missing team so the 403 is uniform — awaiting its first consumer, the v0.5 capacity writes), plus
+  answers false for a missing team so the 403 is uniform — consumed by the milestone schedule PUT since V14, below), plus
   `requireFeatureEnabled` (awaiting its first area-gating consumer), and the planning guards (V11; each pure-tested in `GuardsTest`):
   `requireOwnerOrAdmin(caller, callerPersonId, chain)` (ADMIN, or the caller's person is on the node's `OwnerChain` — work stream, program, project owners
   top-down; a caller with no active person owns nothing) and `requireTargetWindowEditorOrAdmin(caller, callerPersonId, chain, hasPermission)` (given the node's
@@ -102,7 +102,7 @@ Layered RBAC. Implemented in the `server/src/main/kotlin/authz/` package.
     else `400` ("Unknown or deleted manager ids"); `TeamResponse`/`TeamListItem` carry `managerPersonId` +
     `managerName`, both null for a soft-deleted manager person. Being a team's manager grants NO write on the team
     record itself (still ADMIN only) — the manager's rights are the team-scoped ones the planning increments add
-    (capacity, milestone scheduling, team order; `product.md`), via `requireTeamManagerOrAdmin`. Since V10 the manager is a
+    (milestone scheduling since V14, capacity and team order later; `product.md`), via `requireTeamManagerOrAdmin`. A team delete is `409` ("Team still has milestones") while an ACTIVE milestone names the team. Since V10 the manager is a
     person of the people directory (`teams.manager_person_id` replaced `manager_user_id`; the manager's login is `people.user_id`). Mutations audit `team.created/updated/deleted` and `team.manager_changed`
     (only on an actual change). Tests: `TeamTest`, `GuardsTest`.
   - `/api/v1/people` (V10, the people directory) → `GET` list and `GET /{id}` **any authenticated user, emails included** (the owner and
@@ -179,8 +179,9 @@ Layered RBAC. Implemented in the `server/src/main/kotlin/authz/` package.
     soft-deleted manager's token is already a `401` at the access check; the ACTIVE-user predicate stays as the second
     line); its ADMIN short-circuit rides the (verified) JWT roles. Never cache the verdict in a claim. A route that merely
     SHAPES its answer by the grant (e.g. whether a block of per-person figures is returned) asks `isActiveManager` the same way, after
-    the ADMIN short-circuit; the `ETag` of such an answer carries the verdict ("Caching" in `security.md`). No route consumes the guard in v0.1.0; it is
-    the Flow-donated seam for the v0.5 capacity writes, and V10 re-pointed it at `manager_person_id` → `people.user_id`.
+    the ADMIN short-circuit; the `ETag` of such an answer carries the verdict ("Caching" in `security.md`). It is
+    the Flow-donated seam; V10 re-pointed it at `manager_person_id` → `people.user_id`. Its first consumer is `PUT /milestones/{id}/schedule` (V14, below), which re-runs it inside the plan lock through
+    `TeamService.lockedIsActiveManager` (`FOR SHARE OF teams, people`), so a manager change commits first (403) or waits; the v0.5 capacity writes are the next.
   - **The plan nodes (V12, built) — the owner-scoped matrix** (`product.md` "Domain decisions"; `planning/*Routes.kt`): ADMIN everything; ownership cascades down (work
     stream → program → project: an owner at ANY level of a node's chain acts on the node); reads open to every authenticated user. **Read-before-guard**, the sanctioned
     idiom (ids are sequential and every signed-in user reads the whole plan anyway, so existence is no secret): resolve the node's owner chain (`WorkStreamService.chain`
@@ -210,8 +211,24 @@ Layered RBAC. Implemented in the `server/src/main/kotlin/authz/` package.
     the same TOCTOU rule as the owner guards (a failure there is a 403, no revision bump, the central `authz.denied`). The `409` stale-revision and the `400` id errors come after the guard. `can.editRank` is
     `PlanPermissions.canEditRank` (ADMIN or the grant), pinned against the guard by `PlanPermissionsTest` and against the real PUT by `RoadmapRankingTest`.
     Tests: `PlanStructureTest` (every route × ADMIN, the three owners, a stranger, a person-less login, a roadmap editor; 404 vs 403 ordering), `PlanViewTest`, `PlanPermissionsTest`, `RoadmapRankingTest` (ADMIN, a roadmap editor, an owner without the grant, a stranger, a person-less login; the revocation under a held lock).
-  - **Still planned (v0.3+):** a project owner edits the project and its milestones' plan fields but not their dates; milestone dates only by the team's manager or ADMIN; the global
-    rank by ADMIN plus the `ROADMAP_EDITOR` grant (built, V13); a team manager edits capacity and team order. Each new rule lands here with its
+  - **Milestones (V14, built) — the plan fields and the dates have different audiences.** A milestone has no owner: its plan fields (name, description, team, estimate) are written by the owner chain of its PROJECT
+    (any of the three, the project's own owner included) or ADMIN; its DATES only by the manager of its team or ADMIN. A project owner who is not that manager gets 403 on the schedule PUT (the product rule of v0.3.0), and a
+    team manager who owns nothing on the chain gets 403 on every plan-field write. Reads open to every authenticated user. Read-before-guard throughout; the guard runs twice (outside for the 404 → 403 → 400 ordering, inside
+    `withPlanWrite` against the chain re-read there — for the schedule PUT against the milestone's STORED team, the manager re-looked up with `FOR SHARE OF teams, people`); the schedule PUT then compares the milestone's
+    `schedule_revision` (409 stale-revision only after the guard: a manager revoked meanwhile is a 403, not a 409).
+
+    | Route | Guard (in order) |
+    |---|---|
+    | `GET /milestones/{id}` | authenticated; 404 when the milestone or any ancestor is gone |
+    | `POST /projects/{id}/milestones` | chain(project) ?: 404 → `requireOwnerOrAdmin` (the project's own owner included) → body 400 (inactive team, estimate, name), 409 name in project; 201 + `Location` |
+    | `PUT`/`DELETE /milestones/{id}` | `milestoneChain` ?: 404 → `requireOwnerOrAdmin(chain.owners)` |
+    | `PUT /milestones/{id}/schedule` | `milestoneChain` ?: 404 → `requireTeamManagerOrAdmin(caller, chain.teamId, teams::isActiveManager)` → body/validation 400 (a negative `expectedRevision` included) → (under the lock) chain re-read 404 → the guard again with `lockedIsActiveManager` 403 → 409 stale (below the milestone's own revision or above the plan's) |
+    | `DELETE /projects/{id}` | unchanged guard; cascades the project's milestones |
+    | `DELETE /teams/{id}` | `requireAdmin` (unchanged); 409 while an ACTIVE milestone names the team |
+
+    Tests: `MilestoneTest` (every plan-field route × ADMIN, the three owners, a stranger, a person-less login, a roadmap editor, a team manager), `MilestoneScheduleTest` (the manager, the other team's manager, ADMIN, the project
+    owner — named — and the rest; the held-request re-guard cases).
+  - **Still planned (v0.4+):** a team manager edits capacity and team order. Each new rule lands here with its
     guard order (403 before 400/404, guard-before-read where existence is sensitive) in the same commit as its route.
 - **Existence disclosure (403 vs 404) — deliberate policy (API-ERR-006)**: two sanctioned idioms,
   and every new resource picks one consciously rather than mixing them. **Guard-before-read**

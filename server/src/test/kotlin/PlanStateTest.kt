@@ -1,5 +1,9 @@
 package ch.nokillswit
 
+import ch.nokillswit.planning.MilestoneCreateRequest
+import ch.nokillswit.planning.MilestoneResponse
+import ch.nokillswit.planning.MilestoneScheduleRequest
+import ch.nokillswit.planning.MilestoneUpdateRequest
 import ch.nokillswit.planning.PlanView
 import ch.nokillswit.planning.ProgramCreateRequest
 import ch.nokillswit.planning.ProgramResponse
@@ -95,6 +99,65 @@ class PlanStateTest {
         bumps(1, "delete program", { admin.delete("/api/v1/programs/$programId").status }, HttpStatusCode.NoContent)
         bumps(1, "delete work stream", { admin.delete("/api/v1/work-streams/$streamId").status }, HttpStatusCode.NoContent)
         assertEquals(TestPlan.revision(), admin.get("/api/v1/views/plan").body<PlanView>().revision)
+    }
+
+    @Test
+    fun `every milestone write bumps the revision by one and a rejected or read-only request leaves it alone`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("msrev", teams = true)
+        val t = w.requireTeams()
+        val admin = w.admin.client
+
+        suspend fun bumps(expected: Long, label: String, call: suspend () -> HttpStatusCode, status: HttpStatusCode) {
+            val before = TestPlan.revision()
+            assertEquals(status, call(), label)
+            assertEquals(before + expected, TestPlan.revision(), label)
+        }
+
+        var id = 0u
+        val name = planName("msrev")
+        bumps(1, "create milestone", {
+            val response = admin.postJson("/api/v1/projects/${w.projectId}/milestones", MilestoneCreateRequest(name, null, t.teamId, 1.0))
+            if (response.status == HttpStatusCode.Created) id = response.body<MilestoneResponse>().id
+            response.status
+        }, HttpStatusCode.Created)
+        bumps(1, "update milestone", {
+            admin.putJson("/api/v1/milestones/$id", MilestoneUpdateRequest(name, "d", t.teamId, 2.0)).status
+        }, HttpStatusCode.NoContent)
+        bumps(1, "schedule", {
+            t.manager.client.putJson("/api/v1/milestones/$id/schedule", MilestoneScheduleRequest(TestPlan.revision(), "2026-11-02",
+                "2026-11-06")).status
+        }, HttpStatusCode.OK)
+        bumps(1, "a no-op schedule", {
+            t.manager.client.putJson("/api/v1/milestones/$id/schedule", MilestoneScheduleRequest(TestPlan.revision(), "2026-11-02",
+                "2026-11-06")).status
+        }, HttpStatusCode.OK)
+
+        bumps(0, "409 on a name clash", {
+            admin.postJson("/api/v1/projects/${w.projectId}/milestones", MilestoneCreateRequest(name, null, t.teamId, 1.0)).status
+        }, HttpStatusCode.Conflict)
+        bumps(0, "400 on an unknown team", {
+            admin.putJson("/api/v1/milestones/$id", MilestoneUpdateRequest(name, null, 999999u, 1.0)).status
+        }, HttpStatusCode.BadRequest)
+        bumps(0, "403 for the project owner scheduling", {
+            w.projectOwner.client.putJson("/api/v1/milestones/$id/schedule", MilestoneScheduleRequest(TestPlan.revision(), null,
+                null)).status
+        }, HttpStatusCode.Forbidden)
+        bumps(0, "409 on a stale schedule", {
+            t.manager.client.putJson("/api/v1/milestones/$id/schedule", MilestoneScheduleRequest(0, "2026-11-09", "2026-11-10")).status
+        }, HttpStatusCode.Conflict)
+        bumps(0, "400 on a weekend-only schedule", {
+            t.manager.client.putJson("/api/v1/milestones/$id/schedule", MilestoneScheduleRequest(TestPlan.revision(), "2026-11-07",
+                "2026-11-08")).status
+        }, HttpStatusCode.BadRequest)
+        bumps(0, "a milestone read", { admin.get("/api/v1/milestones/$id").status }, HttpStatusCode.OK)
+
+        bumps(1, "delete milestone", { admin.delete("/api/v1/milestones/$id").status }, HttpStatusCode.NoContent)
+        val other = TestPlan.milestone(w.projectId, t.teamId)
+        bumps(1, "delete a project with milestones (one bump for the cascade)", {
+            admin.delete("/api/v1/projects/${w.projectId}").status
+        }, HttpStatusCode.NoContent)
+        assertEquals(HttpStatusCode.NotFound, admin.get("/api/v1/milestones/$other").status)
     }
 
     @Test

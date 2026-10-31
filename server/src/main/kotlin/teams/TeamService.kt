@@ -1,9 +1,11 @@
 package ch.nokillswit.teams
 
+import ch.nokillswit.authz.ConflictException
 import ch.nokillswit.infra.db.containsNormalized
 import ch.nokillswit.infra.paging.PageRequest
 import ch.nokillswit.infra.paging.applyPaging
 import ch.nokillswit.people.PersonService
+import ch.nokillswit.planning.hasActiveMilestones
 import ch.nokillswit.users.UserService
 import io.ktor.server.plugins.BadRequestException
 import io.ktor.util.AttributeKey
@@ -142,9 +144,36 @@ class TeamService(private val database: R2dbcDatabase) {
             .count() > 0
     }
 
-    /** Soft delete: the team stops reading as active and frees its name. `0` = missing or already deleted (404). */
+    /**
+     * [isActiveManager] for a write that runs INSIDE a plan-locked transaction (the milestone schedule PUT): the same join, but the TEAM
+     * row and the manager's PERSON row are locked `FOR SHARE` (`FOR SHARE OF teams, people`), so a manager change ([update], `FOR NO KEY
+     * UPDATE` on the team), a re-link or delete of the manager's person (`PersonService.update`/`delete`, `FOR NO KEY UPDATE`) either
+     * commits first (this answers false) or waits for the write. The USER row is deliberately not locked: `PasswordResetService.lockUser`
+     * and the users writers take `FOR UPDATE`/`FOR NO KEY UPDATE` there and must not queue behind a drag; the access check already
+     * refuses a deleted login's token. Nests into the caller's transaction.
+     */
+    suspend fun lockedIsActiveManager(teamId: UInt, userId: UInt): Boolean = suspendTransaction(database) {
+        val people = PersonService.People
+        Teams.innerJoin(people, { managerPersonId }, { people.id })
+            .innerJoin(UserService.Users, { people.userId }, { UserService.Users.id })
+            .select(Teams.id)
+            .where {
+                (Teams.id eq teamId) and Teams.active() and people.active() and
+                    (people.userId eq userId) and UserService.Users.active()
+            }
+            .forUpdate(ForUpdateOption.PostgreSQL.ForShare(null, Teams, people))
+            .toList() // not count(): FOR SHARE is refused with an aggregate
+            .isNotEmpty()
+    }
+
+    /**
+     * Soft delete: the team stops reading as active and frees its name. `0` = missing or already deleted (404). A team that an ACTIVE
+     * milestone names is a 409 (move or delete the milestones first): the count runs under the team row lock, and a milestone write locks
+     * the team row `FOR SHARE` (`MilestoneService.requireActiveTeam`), so "count, then delete" cannot interleave with an assignment.
+     */
     suspend fun delete(id: UInt): Int = suspendTransaction(database) {
         if (!Teams.lockActiveForWrite(id)) return@suspendTransaction 0
+        if (hasActiveMilestones(id)) throw ConflictException("Team still has milestones")
         Teams.update({ (Teams.id eq id) and Teams.active() }) {
             it[markedAsDeleted] = true
             it[updatedAt] = nowMillis()

@@ -68,6 +68,41 @@ internal suspend fun projectChain(id: UInt): OwnerChain? {
 }
 
 /**
+ * A milestone's chain: the [owners] of its project's chain (work stream first, the project's own last — a milestone has no owner of
+ * its own), the milestone's [teamId] (who may schedule it) and its [projectId].
+ */
+data class MilestoneChain(val owners: OwnerChain, val teamId: UInt, val projectId: UInt)
+
+/**
+ * The chain of a milestone, or null when the milestone or its project, program or work stream is missing or deleted — the route's 404.
+ * Re-read under the plan lock by every milestone write, where the STORED team is the one the schedule guard checks (never a body field).
+ */
+internal suspend fun milestoneChain(id: UInt): MilestoneChain? {
+    val streams = WorkStreamService.WorkStreams
+    val programs = ProgramService.Programs
+    val projects = ProjectService.Projects
+    val milestones = MilestoneService.Milestones
+    return milestones.innerJoin(projects, { milestones.projectId }, { projects.id })
+        .innerJoin(programs, { projects.programId }, { programs.id })
+        .innerJoin(streams, { programs.workStreamId }, { streams.id })
+        .select(streams.ownerPersonId, programs.ownerPersonId, projects.ownerPersonId, milestones.teamId, milestones.projectId)
+        .where {
+            (milestones.id eq id) and milestones.active() and projects.active() and programs.active() and streams.active()
+        }
+        .toList()
+        .singleOrNull()
+        ?.let {
+            MilestoneChain(
+                owners = OwnerChain(
+                    listOf(it[streams.ownerPersonId].value, it[programs.ownerPersonId].value, it[projects.ownerPersonId].value),
+                ),
+                teamId = it[milestones.teamId].value,
+                projectId = it[milestones.projectId].value,
+            )
+        }
+}
+
+/**
  * One batched lookup of the display names of the owners [ids]. The name is read WITHOUT an `active()` filter on purpose: an
  * ACTIVE node's owner is always an active person (the owner check below on every write, and `PersonService.delete`'s 409 while a
  * person still owns a node), so the foreign key guarantees the row and a missing name would be a broken invariant, not a state.

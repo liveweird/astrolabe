@@ -419,7 +419,8 @@ object TestSeedState {
 object TestTeams {
     val service: ch.nokillswit.teams.TeamService by lazy { ch.nokillswit.teams.TeamService(sharedTestDatabase) }
 
-    suspend fun seed(name: String): UInt = service.create(ch.nokillswit.teams.TeamCreateRequest(name = name))
+    suspend fun seed(name: String, managerPersonId: UInt? = null): UInt =
+        service.create(ch.nokillswit.teams.TeamCreateRequest(name = name, managerPersonId = managerPersonId))
 
     data class RawTeam(val id: UInt, val name: String, val markedAsDeleted: Boolean)
 

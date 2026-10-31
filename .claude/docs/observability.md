@@ -120,7 +120,13 @@ with `hasKeyValue` from `TestEnvironment.kt`). Emitted today:
   `program.deleted` (byUserId/programId),
 - `project.created` (byUserId/projectId/programId/name/ownerPersonId) / `project.updated` (byUserId/projectId/name) / `project.owner_changed` (byUserId/projectId/ownerFrom/ownerTo) /
   `project.target_window_changed` (byUserId/projectId/startFrom/endFrom/startTo/endTo — ISO dates as STORED, null = no window; only when the window actually changes; `PUT /projects/{id}/target-window`) /
-  `project.deleted` (byUserId/projectId) — every plan-node mutation (`planning/*Routes.kt`); a rejected save (403/404/409/400) emits nothing of its own (a 403 is the central `authz.denied`),
+  `project.deleted` (byUserId/projectId/milestoneCount — the number of ACTIVE milestones the delete cascaded, 0 for none) — every plan-node mutation (`planning/*Routes.kt`); a rejected save (403/404/409/400) emits nothing of its own (a 403 is the central `authz.denied`),
+- `milestone.created` (byUserId/milestoneId/projectId/name/teamId/estimateMd — the estimate as the Double the client sent) / `milestone.updated` (byUserId/milestoneId/name/estimateMd) / `milestone.team_changed` (byUserId/milestoneId/teamFrom/teamTo — team ids as
+  STORED, only when a PUT actually changes the team: it changes WHO may schedule the milestone and where the bar sits in the team view, so it is its own trail line, the `team.manager_changed` precedent; the dates stay) /
+  `milestone.scheduled` (byUserId/milestoneId/teamId/startFrom/endFrom/startTo/endTo/revisionTo — ISO dates as STORED, null = unscheduled; only when the dates actually change — a no-op PUT still bumps the plan revision but emits nothing;
+  `PUT /milestones/{id}/schedule`, the manager's/ADMIN's write, `teamId` the stored team the guard checked, `revisionTo` the plan revision it left behind) / `milestone.deleted` (byUserId/milestoneId/projectId) — every milestone
+  mutation (`planning/MilestoneRoutes.kt`, the create in `ProjectRoutes.kt`); a rejected one (403/404/409/400, a stale 409 included) emits nothing of its own (a 403 is the central `authz.denied`). A project delete's cascade is
+  audited as `project.deleted` (with `milestoneCount`) only,
 - `roadmap.ranked` (byUserId/revisionFrom/revisionTo/orderFrom/orderTo — the ranked project ids before and after as comma-joined text, "" = empty; on EVERY accepted `PUT /roadmap/ranking`, even one that keeps the
   order, since it bumps the plan revision, and the revision pair ties the line to the plan history; a stale 409 or a 400 emits nothing, a 403 is the central `authz.denied`; `planning/RoadmapRoutes.kt`). A project
   delete that compacts the rank is audited as `project.deleted` only,

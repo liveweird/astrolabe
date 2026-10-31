@@ -6,8 +6,11 @@ import ch.nokillswit.authz.isAdmin
 import ch.nokillswit.authz.orNotFound
 import ch.nokillswit.authz.requireOwnerOrAdmin
 import ch.nokillswit.authz.requireTargetWindowEditorOrAdmin
+import ch.nokillswit.authz.requireTeamManagerOrAdmin
 import ch.nokillswit.people.PersonService
 import ch.nokillswit.people.PersonServiceKey
+import ch.nokillswit.teams.TeamService
+import ch.nokillswit.teams.TeamServiceKey
 import ch.nokillswit.users.Permission
 import ch.nokillswit.users.UserService
 import ch.nokillswit.users.UserServiceKey
@@ -16,9 +19,9 @@ import io.ktor.server.auth.authenticate
 import io.ktor.server.routing.routing
 
 /**
- * The planning REST surface (`/api/v1/work-streams`, `/programs`, `/projects`, `/views/plan`, `/views/roadmap`, `/roadmap/ranking`),
- * registered by this ONE module function and split per entity (`WorkStreamRoutes.kt`, `ProgramRoutes.kt`, `ProjectRoutes.kt`,
- * `PlanViewRoutes.kt`, `RoadmapRoutes.kt`) — the first
+ * The planning REST surface (`/api/v1/work-streams`, `/programs`, `/projects`, `/milestones`, `/views/plan`, `/views/roadmap`,
+ * `/roadmap/ranking`), registered by this ONE module function and split per entity (`WorkStreamRoutes.kt`, `ProgramRoutes.kt`,
+ * `ProjectRoutes.kt`, `MilestoneRoutes.kt`, `PlanViewRoutes.kt`, `RoadmapRoutes.kt`) — the first
  * deliberate exception to the one-routes-file template (`conventions.md`): five resources with different guards would blow the
  * 400-line file cap. Every node route is READ-BEFORE-GUARD (chain -> 404, guard -> 403, body -> 400, validate -> 400, write;
  * `authorization.md`): plan ids are sequential and every signed-in user reads the whole plan anyway, so existence is no secret.
@@ -33,6 +36,8 @@ fun Application.configurePlanningRoutes() {
         workStreams = attributes[WorkStreamServiceKey],
         programs = attributes[ProgramServiceKey],
         projects = attributes[ProjectServiceKey],
+        milestones = attributes[MilestoneServiceKey],
+        teams = attributes[TeamServiceKey],
         view = attributes[PlanViewServiceKey],
         roadmap = attributes[RoadmapServiceKey],
     )
@@ -41,6 +46,7 @@ fun Application.configurePlanningRoutes() {
             workStreamRoutes(deps)
             programRoutes(deps)
             projectRoutes(deps)
+            milestoneRoutes(deps)
             planViewRoutes(deps)
             roadmapRoutes(deps)
         }
@@ -54,6 +60,8 @@ internal class PlanRouteDeps(
     val workStreams: WorkStreamService,
     val programs: ProgramService,
     val projects: ProjectService,
+    val milestones: MilestoneService,
+    val teams: TeamService,
     val view: PlanViewService,
     val roadmap: RoadmapService,
 ) {
@@ -84,6 +92,26 @@ internal class PlanRouteDeps(
     /** [ownerGuard] for the target window: also re-reads the `ROADMAP_EDITOR` grant in the same transaction. */
     fun windowGuard(caller: CallerPrincipal): PlanGuard = { chain ->
         requireTargetWindowEditorOrAdmin(caller, lockedCallerPersonId(caller), chain, hasPermission)
+    }
+
+    /**
+     * The read-before-guard preamble of the schedule write: a missing [chain] is the 404, then the caller must be ADMIN or the ACTIVE
+     * manager of the milestone's STORED team (`requireTeamManagerOrAdmin`, asked of the database per request). The project's owner is
+     * deliberately NOT enough. Returns the resolved chain.
+     */
+    suspend fun requireManager(caller: CallerPrincipal, chain: MilestoneChain?): MilestoneChain {
+        val resolved = chain.orNotFound("Milestone")
+        requireTeamManagerOrAdmin(caller, resolved.teamId, teams::isActiveManager)
+        return resolved
+    }
+
+    /**
+     * The guard the schedule write re-runs INSIDE the plan lock (see [ScheduleGuard]): the same `requireTeamManagerOrAdmin`, against the
+     * team of the chain re-read there, with the manager lookup locking the team and the manager's person `FOR SHARE`
+     * ([TeamService.lockedIsActiveManager]). ADMIN short-circuits without a lookup.
+     */
+    fun managerGuard(caller: CallerPrincipal): ScheduleGuard = { chain ->
+        requireTeamManagerOrAdmin(caller, chain.teamId, teams::lockedIsActiveManager)
     }
 
     private suspend fun lockedCallerPersonId(caller: CallerPrincipal): UInt? =

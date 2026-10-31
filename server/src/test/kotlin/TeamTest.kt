@@ -1,5 +1,6 @@
 package ch.nokillswit
 
+import ch.nokillswit.planning.MilestoneCreateRequest
 import ch.nokillswit.plugins.ProblemDetail
 import ch.nokillswit.teams.TeamCreateRequest
 import ch.nokillswit.teams.TeamPageResponse
@@ -16,6 +17,8 @@ import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.testing.testApplication
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -339,5 +342,97 @@ class TeamTest {
                 "only the actual change is audited",
             )
         }
+    }
+
+    @Test
+    fun `a team that an active milestone names cannot be deleted - 409 until the milestone is deleted or moved`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("teamms", teams = true)
+        val t = w.requireTeams()
+        val milestone = TestPlan.milestone(w.projectId, t.teamId)
+        val response = w.admin.client.delete("/api/v1/teams/${t.teamId}")
+        assertEquals(HttpStatusCode.Conflict, response.status)
+        assertEquals("Team still has milestones", response.body<ProblemDetail>().detail)
+        assertEquals(HttpStatusCode.OK, w.admin.client.get("/api/v1/teams/${t.teamId}").status, "the refused delete changed nothing")
+        // Moving the milestone to another team frees the first team; deleting the milestone frees the second.
+        val moved = ch.nokillswit.planning.MilestoneUpdateRequest(planName("moved"), null, t.otherTeamId, 1.0)
+        assertEquals(HttpStatusCode.NoContent, w.admin.client.putJson("/api/v1/milestones/$milestone", moved).status)
+        assertEquals(HttpStatusCode.NoContent, w.admin.client.delete("/api/v1/teams/${t.teamId}").status)
+        assertEquals(HttpStatusCode.Conflict, w.admin.client.delete("/api/v1/teams/${t.otherTeamId}").status)
+        assertEquals(HttpStatusCode.NoContent, w.admin.client.delete("/api/v1/milestones/$milestone").status)
+        assertEquals(HttpStatusCode.NoContent, w.admin.client.delete("/api/v1/teams/${t.otherTeamId}").status,
+            "a deleted milestone no longer counts")
+    }
+
+    @Test
+    fun `a team delete waits for a concurrent milestone write that locked the team and then answers 409`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("teamrace1", teams = true)
+        val t = w.requireTeams()
+        PostgresTestSupport.connect().use { raw ->
+            raw.autoCommit = false
+            // What a milestone write holds before its INSERT: the team row FOR SHARE (MilestoneService.requireActiveTeam).
+            raw.prepareStatement("SELECT id FROM teams WHERE id = ? FOR SHARE").use { st ->
+                st.setInt(1, t.teamId.toInt())
+                st.executeQuery().close()
+            }
+            raw.prepareStatement(
+                "INSERT INTO milestones (project_id, team_id, \"name\", estimate_md, schedule_revision, created_at, updated_at) " +
+                    "VALUES (?, ?, ?, 1, 0, 1, 1)",
+            ).use { st ->
+                st.setInt(1, w.projectId.toInt())
+                st.setInt(2, t.teamId.toInt())
+                st.setString(3, planName("raced-milestone"))
+                st.executeUpdate()
+            }
+            try {
+                coroutineScope {
+                    val deleting = async { w.admin.client.delete("/api/v1/teams/${t.teamId}") }
+                    awaitLockWait("FOR NO KEY UPDATE")
+                    raw.commit()
+                    assertEquals(
+                        HttpStatusCode.Conflict,
+                        deleting.await().status,
+                        "the delete counts after the milestone committed: never an active milestone on a deleted team",
+                    )
+                }
+            } finally {
+                raw.rollback()
+            }
+        }
+        assertEquals(HttpStatusCode.OK, w.admin.client.get("/api/v1/teams/${t.teamId}").status)
+    }
+
+    @Test
+    fun `a milestone create waits for a concurrent team delete and then answers 400 for the deleted team`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("teamrace2", teams = true)
+        val t = w.requireTeams()
+        val revision = TestPlan.revision()
+        PostgresTestSupport.connect().use { raw ->
+            raw.autoCommit = false
+            // What TeamService.delete holds while it counts the team's milestones.
+            raw.prepareStatement("SELECT id FROM teams WHERE id = ? FOR NO KEY UPDATE").use { st ->
+                st.setInt(1, t.teamId.toInt())
+                st.executeQuery().close()
+            }
+            try {
+                coroutineScope {
+                    val creating = async {
+                        w.admin.client.postJson(
+                            "/api/v1/projects/${w.projectId}/milestones",
+                            MilestoneCreateRequest(planName("raced"), null, t.teamId, 1.0),
+                        )
+                    }
+                    awaitLockWait("FOR SHARE")
+                    raw.exec("UPDATE teams SET marked_as_deleted = TRUE WHERE id = ?", t.teamId.toInt())
+                    raw.commit()
+                    assertEquals(HttpStatusCode.BadRequest, creating.await().status, "no active milestone is left on a deleted team")
+                }
+            } finally {
+                raw.rollback()
+            }
+        }
+        assertEquals(revision, TestPlan.revision(), "the rejected create rolled the revision bump back")
     }
 }

@@ -538,7 +538,8 @@ export interface paths {
         post?: never;
         /**
          * Delete a team (soft)
-         * @description ADMIN only, guard before the id lookup. Soft delete — the name is freed for reuse.
+         * @description ADMIN only, guard before the id lookup. Soft delete — the name is freed for reuse. `409` ("Team still has milestones") while an
+         *     ACTIVE milestone names the team: move those milestones to another team or delete them first (a deleted milestone no longer counts).
          */
         delete: operations["deleteTeam"];
         options?: never;
@@ -712,7 +713,8 @@ export interface paths {
         /**
          * Delete a project (soft)
          * @description An owner on the project's chain - the project's own owner included - or ADMIN, read-before-guard (404, then 403). Soft
-         *     delete - the name is freed. A project has no children yet, so there is no `409`.
+         *     delete - the name is freed. The project's ACTIVE milestones are soft-deleted with it, in the same locked transaction (there is
+         *     no `409`; the audit event `project.deleted` carries their `milestoneCount`), and the project leaves the roadmap ranking.
          */
         delete: operations["deleteProject"];
         options?: never;
@@ -738,6 +740,98 @@ export interface paths {
          *     `project.target_window_changed` on a change.
          */
         put: operations["setProjectTargetWindow"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{id}/milestones": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create a milestone under a project
+         * @description An owner on the project's chain - the project's own owner included - or ADMIN, read-before-guard (404, then 403, then the
+         *     body). A milestone has a name, an optional description, exactly ONE team and a man-day estimate, and no owner. It is created
+         *     UNSCHEDULED (no dates, for every caller): dates enter only through `PUT /milestones/{id}/schedule`, which is the team
+         *     manager's or ADMIN's. `teamId` must name an active team (`400` "Unknown or deleted team ids: N"); `estimateMd` must be finite,
+         *     `0 <= x < 1000000` with at most two decimals (`400`). The name must be unique among the active milestones of THIS project,
+         *     case-insensitively (`409`). Audited as `milestone.created`.
+         */
+        post: operations["createMilestone"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/milestones/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Get a milestone
+         * @description Any authenticated user. `404` when the milestone, or its project, program or work stream, is deleted.
+         */
+        get: operations["getMilestone"];
+        /**
+         * Replace a milestone's plan fields
+         * @description An owner on the milestone's project chain - the project's own owner included - or ADMIN; a TEAM MANAGER who owns nothing on the
+         *     chain gets `403` (a manager schedules, never edits plan fields). Read-before-guard (404, then 403, then the body). A full replace
+         *     of name, description, team and estimate; the dates never change here (`PUT .../schedule`). A change of team keeps the dates: the
+         *     new team's manager inherits the bar and may move or unschedule it (audited as `milestone.team_changed`, besides
+         *     `milestone.updated`). The team must be active and the estimate valid (`400`); a name clash within the project is `409`.
+         */
+        put: operations["updateMilestone"];
+        post?: never;
+        /**
+         * Delete a milestone (soft)
+         * @description An owner on the milestone's project chain - the project's own owner included - or ADMIN, read-before-guard (404, then 403). Soft
+         *     delete - the name is freed in its project and the milestone leaves its team's timeline. Audited as `milestone.deleted`.
+         */
+        delete: operations["deleteMilestone"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/milestones/{id}/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set or clear a milestone's dates
+         * @description ADMIN or the ACTIVE manager of the milestone's team - the project's owner is NOT enough (`403`). Read-before-guard (404, then 403,
+         *     then the body); the guard is re-run under the plan lock against the milestone's stored team, so a manager revoked meanwhile is a
+         *     `403`, not a `409`. `startDate` and `endDate` are both set or both null (`400` otherwise); both null unschedules (back to the
+         *     tray). Dates are inclusive, the end not before the start, and the span must contain a Monday-Friday day (`400` "A milestone
+         *     must cover at least one working day"). Concurrency is PER MILESTONE: `expectedRevision` is the plan revision of the client's view
+         *     (the `revision` of a plan view document, or of its previous schedule answer); the write is `409` with `type`
+         *     `urn:astrolabe:problem:stale-revision` only when THIS milestone's schedule was written at a later revision (or the value is
+         *     above the current plan revision) - unrelated plan writes never stale it. A negative value is `400`. The answer carries the new plan revision. Every accepted PUT bumps the plan revision; it is audited as
+         *     `milestone.scheduled` when the dates actually change.
+         */
+        put: operations["scheduleMilestone"];
         post?: never;
         delete?: never;
         options?: never;
@@ -1331,6 +1425,92 @@ export interface components {
              */
             updatedAt: number;
         };
+        MilestoneCreateRequest: {
+            name: string;
+            description?: string | null;
+            /**
+             * Format: int32
+             * @description The milestone's one team, an active team (`400` otherwise). It decides who may schedule the milestone.
+             */
+            teamId: number;
+            /**
+             * Format: double
+             * @description Man-days, `0 <= x < 1000000` with at most two decimals (quarter days fit), else `400`; zero is a zero-effort checkpoint.
+             */
+            estimateMd: number;
+        };
+        MilestoneUpdateRequest: {
+            name: string;
+            /** @description Omitted on PUT (a full replace) = none. */
+            description?: string | null;
+            /**
+             * Format: int32
+             * @description The milestone's one team, an active team (`400` otherwise). Changing it keeps the dates.
+             */
+            teamId: number;
+            /**
+             * Format: double
+             * @description Man-days, `0 <= x < 1000000` with at most two decimals, else `400`.
+             */
+            estimateMd: number;
+        };
+        MilestoneScheduleRequest: {
+            /**
+             * Format: int64
+             * @description The plan revision of the client's view; a `409` only when THIS milestone's schedule was written at a later revision.
+             */
+            expectedRevision: number;
+            /**
+             * Format: date
+             * @description Inclusive. Both dates or neither (neither unschedules).
+             */
+            startDate?: string | null;
+            /**
+             * Format: date
+             * @description Inclusive; not before `startDate`; the span needs a working day.
+             */
+            endDate?: string | null;
+        };
+        ScheduleResponse: {
+            /**
+             * Format: int64
+             * @description The plan revision after this write.
+             */
+            revision: number;
+        };
+        MilestoneResponse: {
+            /** Format: int32 */
+            id: number;
+            /** Format: int32 */
+            projectId: number;
+            name: string;
+            description: string | null;
+            /** Format: int32 */
+            teamId: number;
+            teamName: string;
+            /**
+             * Format: double
+             * @description Man-days with at most two decimals.
+             */
+            estimateMd: number;
+            /**
+             * Format: date
+             * @description Null = unscheduled (both dates are null together).
+             */
+            startDate: string | null;
+            /** Format: date */
+            endDate: string | null;
+            /**
+             * Format: int64
+             * @description Epoch millis
+             */
+            createdAt: number;
+            /**
+             * Format: int64
+             * @description Epoch millis
+             */
+            updatedAt: number;
+        };
         PlanView: {
             /**
              * Format: int64
@@ -1478,7 +1658,7 @@ export interface components {
         /** @description RFC 7807 problem detail. Served as `application/problem+json`; instance is the request path without query parameters. */
         ProblemDetail: {
             /**
-             * @description A URI reference identifying the problem type; `about:blank` unless a problem names its own (`urn:astrolabe:problem:stale-revision` on a stale ranking PUT).
+             * @description A URI reference identifying the problem type; `about:blank` unless a problem names its own (`urn:astrolabe:problem:stale-revision` on a stale ranking or milestone-schedule PUT).
              * @default about:blank
              */
             type: string;
@@ -2721,6 +2901,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
             500: components["responses"]["InternalServerError"];
         };
     };
@@ -3103,6 +3284,166 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    createMilestone: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MilestoneCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Created; `Location` points at the new milestone (`/api/v1/milestones/{id}`) */
+            201: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MilestoneResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    getMilestone: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The milestone */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MilestoneResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    updateMilestone: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MilestoneUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    deleteMilestone: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    scheduleMilestone: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MilestoneScheduleRequest"];
+            };
+        };
+        responses: {
+            /** @description The schedule was written; the body carries the new plan revision */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduleResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description `expectedRevision` is stale for THIS milestone (`type` is `urn:astrolabe:problem:stale-revision`) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
             413: components["responses"]["PayloadTooLarge"];
             415: components["responses"]["UnsupportedMediaType"];
             500: components["responses"]["InternalServerError"];

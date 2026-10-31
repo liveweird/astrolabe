@@ -852,7 +852,9 @@ paths:
       tags: [teams]
       operationId: deleteTeam
       summary: Delete a team (soft)
-      description: ADMIN only, guard before the id lookup. Soft delete — the name is freed for reuse.
+      description: |
+        ADMIN only, guard before the id lookup. Soft delete — the name is freed for reuse. `409` ("Team still has milestones") while an
+        ACTIVE milestone names the team: move those milestones to another team or delete them first (a deleted milestone no longer counts).
       responses:
         '204':
           description: Deleted
@@ -860,6 +862,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
         '500': { $ref: '#/components/responses/InternalServerError' }
   /api/v1/work-streams:
     post:
@@ -1138,7 +1141,8 @@ paths:
       summary: Delete a project (soft)
       description: |
         An owner on the project's chain - the project's own owner included - or ADMIN, read-before-guard (404, then 403). Soft
-        delete - the name is freed. A project has no children yet, so there is no `409`.
+        delete - the name is freed. The project's ACTIVE milestones are soft-deleted with it, in the same locked transaction (there is
+        no `409`; the audit event `project.deleted` carries their `milestoneCount`), and the project leaves the roadmap ranking.
       responses:
         '204':
           description: Deleted
@@ -1173,6 +1177,147 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/projects/{id}/milestones:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    post:
+      tags: [plan]
+      operationId: createMilestone
+      summary: Create a milestone under a project
+      description: |
+        An owner on the project's chain - the project's own owner included - or ADMIN, read-before-guard (404, then 403, then the
+        body). A milestone has a name, an optional description, exactly ONE team and a man-day estimate, and no owner. It is created
+        UNSCHEDULED (no dates, for every caller): dates enter only through `PUT /milestones/{id}/schedule`, which is the team
+        manager's or ADMIN's. `teamId` must name an active team (`400` "Unknown or deleted team ids: N"); `estimateMd` must be finite,
+        `0 <= x < 1000000` with at most two decimals (`400`). The name must be unique among the active milestones of THIS project,
+        case-insensitively (`409`). Audited as `milestone.created`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MilestoneCreateRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '201':
+          description: Created; `Location` points at the new milestone (`/api/v1/milestones/{id}`)
+          headers:
+            Location:
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MilestoneResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/milestones/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    get:
+      tags: [plan]
+      operationId: getMilestone
+      summary: Get a milestone
+      description: Any authenticated user. `404` when the milestone, or its project, program or work stream, is deleted.
+      responses:
+        '200':
+          description: The milestone
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MilestoneResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    put:
+      tags: [plan]
+      operationId: updateMilestone
+      summary: Replace a milestone's plan fields
+      description: |
+        An owner on the milestone's project chain - the project's own owner included - or ADMIN; a TEAM MANAGER who owns nothing on the
+        chain gets `403` (a manager schedules, never edits plan fields). Read-before-guard (404, then 403, then the body). A full replace
+        of name, description, team and estimate; the dates never change here (`PUT .../schedule`). A change of team keeps the dates: the
+        new team's manager inherits the bar and may move or unschedule it (audited as `milestone.team_changed`, besides
+        `milestone.updated`). The team must be active and the estimate valid (`400`); a name clash within the project is `409`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MilestoneUpdateRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '204':
+          description: Updated
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    delete:
+      tags: [plan]
+      operationId: deleteMilestone
+      summary: Delete a milestone (soft)
+      description: |
+        An owner on the milestone's project chain - the project's own owner included - or ADMIN, read-before-guard (404, then 403). Soft
+        delete - the name is freed in its project and the milestone leaves its team's timeline. Audited as `milestone.deleted`.
+      responses:
+        '204':
+          description: Deleted
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/milestones/{id}/schedule:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    put:
+      tags: [plan]
+      operationId: scheduleMilestone
+      summary: Set or clear a milestone's dates
+      description: |
+        ADMIN or the ACTIVE manager of the milestone's team - the project's owner is NOT enough (`403`). Read-before-guard (404, then 403,
+        then the body); the guard is re-run under the plan lock against the milestone's stored team, so a manager revoked meanwhile is a
+        `403`, not a `409`. `startDate` and `endDate` are both set or both null (`400` otherwise); both null unschedules (back to the
+        tray). Dates are inclusive, the end not before the start, and the span must contain a Monday-Friday day (`400` "A milestone
+        must cover at least one working day"). Concurrency is PER MILESTONE: `expectedRevision` is the plan revision of the client's view
+        (the `revision` of a plan view document, or of its previous schedule answer); the write is `409` with `type`
+        `urn:astrolabe:problem:stale-revision` only when THIS milestone's schedule was written at a later revision (or the value is
+        above the current plan revision) - unrelated plan writes never stale it. A negative value is `400`. The answer carries the new plan revision. Every accepted PUT bumps the plan revision; it is audited as
+        `milestone.scheduled` when the dates actually change.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MilestoneScheduleRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '200':
+          description: The schedule was written; the body carries the new plan revision
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduleResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: '`expectedRevision` is stale for THIS milestone (`type` is `urn:astrolabe:problem:stale-revision`)'
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetail' }
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
         '500': { $ref: '#/components/responses/InternalServerError' }
   /api/v1/views/plan:
@@ -1935,6 +2080,69 @@ components:
         targetEnd: { type: string, format: date, nullable: true }
         createdAt: { type: integer, format: int64, description: Epoch millis }
         updatedAt: { type: integer, format: int64, description: Epoch millis }
+    MilestoneCreateRequest:
+      type: object
+      required: [name, teamId, estimateMd]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        description: { type: string, maxLength: 500, nullable: true }
+        teamId:
+          type: integer
+          format: int32
+          minimum: 0
+          description: The milestone's one team, an active team (`400` otherwise). It decides who may schedule the milestone.
+        estimateMd:
+          type: number
+          format: double
+          minimum: 0
+          description: Man-days, `0 <= x < 1000000` with at most two decimals (quarter days fit), else `400`; zero is a zero-effort checkpoint.
+    MilestoneUpdateRequest:
+      type: object
+      required: [name, teamId, estimateMd]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        description: { type: string, maxLength: 500, nullable: true, description: Omitted on PUT (a full replace) = none. }
+        teamId:
+          type: integer
+          format: int32
+          minimum: 0
+          description: The milestone's one team, an active team (`400` otherwise). Changing it keeps the dates.
+        estimateMd:
+          type: number
+          format: double
+          minimum: 0
+          description: Man-days, `0 <= x < 1000000` with at most two decimals, else `400`.
+    MilestoneScheduleRequest:
+      type: object
+      required: [expectedRevision]
+      properties:
+        expectedRevision:
+          type: integer
+          format: int64
+          minimum: 0
+          description: The plan revision of the client's view; a `409` only when THIS milestone's schedule was written at a later revision.
+        startDate: { type: string, format: date, nullable: true, description: Inclusive. Both dates or neither (neither unschedules). }
+        endDate: { type: string, format: date, nullable: true, description: Inclusive; not before `startDate`; the span needs a working day. }
+    ScheduleResponse:
+      type: object
+      required: [revision]
+      properties:
+        revision: { type: integer, format: int64, minimum: 0, description: The plan revision after this write. }
+    MilestoneResponse:
+      type: object
+      required: [id, projectId, name, description, teamId, teamName, estimateMd, startDate, endDate, createdAt, updatedAt]
+      properties:
+        id: { type: integer, format: int32, minimum: 0 }
+        projectId: { type: integer, format: int32, minimum: 0 }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        teamId: { type: integer, format: int32, minimum: 0 }
+        teamName: { type: string }
+        estimateMd: { type: number, format: double, minimum: 0, description: Man-days with at most two decimals. }
+        startDate: { type: string, format: date, nullable: true, description: Null = unscheduled (both dates are null together). }
+        endDate: { type: string, format: date, nullable: true }
+        createdAt: { type: integer, format: int64, description: Epoch millis }
+        updatedAt: { type: integer, format: int64, description: Epoch millis }
     PlanView:
       type: object
       required: [revision, can, workStreams]
@@ -2096,7 +2304,7 @@ components:
           type: string
           default: about:blank
           description: >-
-            A URI reference identifying the problem type; `about:blank` unless a problem names its own (`urn:astrolabe:problem:stale-revision` on a stale ranking PUT).
+            A URI reference identifying the problem type; `about:blank` unless a problem names its own (`urn:astrolabe:problem:stale-revision` on a stale ranking or milestone-schedule PUT).
         title:
           type: string
           description: Short, human-readable summary of the problem type.

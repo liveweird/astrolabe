@@ -33,6 +33,7 @@ class MigrationChecksumTest {
         "V11__user_permissions.sql" to 1624709150,
         "V12__plan_structure.sql" to -2119029713,
         "V13__roadmap_entries.sql" to 356464108,
+        "V14__milestones.sql" to -1637747327,
     )
 
     @Test

@@ -129,19 +129,21 @@ class ProjectService(private val database: R2dbcDatabase) {
     }
 
     /**
-     * Soft delete under the plan lock. A project has no children in v0.2, so there is no 409. The same locked transaction takes the
-     * project out of the ranking ([removeFromRanking]: its `roadmap_entries` row is hard-deleted and the positions above it shift
-     * down), so the dense 1..n ranking never holds a deleted project.
+     * Soft delete under the plan lock. A project's ACTIVE milestones are soft-deleted in the same locked transaction
+     * ([deleteMilestonesOf]: the project's own work breakdown, no owner of their own — the returned count is the audit's
+     * `milestoneCount`), so there is no 409. The same transaction takes the project out of the ranking ([removeFromRanking]: its
+     * `roadmap_entries` row is hard-deleted and the positions above it shift down), so the dense 1..n ranking never holds a
+     * deleted project.
      */
-    suspend fun delete(id: UInt, guard: PlanGuard) {
-        database.withPlanWrite {
-            guard(projectChain(id) ?: throw NotFoundException("Project not found"))
-            val affected = Projects.update({ (Projects.id eq id) and Projects.active() }) {
-                it[markedAsDeleted] = true
-                it[updatedAt] = nowMillis()
-            }
-            if (affected == 0) throw NotFoundException("Project not found")
-            removeFromRanking(id)
+    suspend fun delete(id: UInt, guard: PlanGuard): Int = database.withPlanWrite {
+        guard(projectChain(id) ?: throw NotFoundException("Project not found"))
+        val affected = Projects.update({ (Projects.id eq id) and Projects.active() }) {
+            it[markedAsDeleted] = true
+            it[updatedAt] = nowMillis()
         }
-    }
+        if (affected == 0) throw NotFoundException("Project not found")
+        val milestoneCount = deleteMilestonesOf(id)
+        removeFromRanking(id)
+        milestoneCount
+    }.value
 }

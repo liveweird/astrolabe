@@ -1,5 +1,8 @@
 package ch.nokillswit
 
+import ch.nokillswit.planning.MilestoneCreateRequest
+import ch.nokillswit.planning.MilestoneScheduleRequest
+import ch.nokillswit.planning.MilestoneService
 import ch.nokillswit.planning.ProgramCreateRequest
 import ch.nokillswit.planning.ProgramService
 import ch.nokillswit.planning.ProjectCreateRequest
@@ -30,6 +33,9 @@ suspend fun ApplicationTestBuilder.planCaller(prefix: String, role: UserRole = U
     return PlanCaller(authedClient(email, "pw"), userId, personId)
 }
 
+/** The teams of a [PlanWorld] built with `teams = true`: two teams, each managed by its own login (a person linked to a user). */
+class PlanTeams(val manager: PlanCaller, val otherManager: PlanCaller, val teamId: UInt, val otherTeamId: UInt)
+
 /**
  * The standard plan world for the authorization matrix: one work stream -> program -> project chain, each owned by its own person,
  * and every kind of caller — ADMIN, the three owners, a stranger with a person, a person-less login and a `ROADMAP_EDITOR` holder
@@ -46,12 +52,16 @@ class PlanWorld(
     val streamId: UInt,
     val programId: UInt,
     val projectId: UInt,
+    val teams: PlanTeams? = null,
 ) {
+    /** The teams and their managers; only a world built with `planWorld(prefix, teams = true)` has them. */
+    fun requireTeams(): PlanTeams = checkNotNull(teams) { "build the world with planWorld(prefix, teams = true)" }
+
     /** Everyone who owns nothing on the chain. */
     val outsiders: List<Pair<String, PlanCaller>> get() = listOf("stranger" to stranger, "personless" to personless, "editor" to editor)
 }
 
-suspend fun ApplicationTestBuilder.planWorld(prefix: String): PlanWorld {
+suspend fun ApplicationTestBuilder.planWorld(prefix: String, teams: Boolean = false): PlanWorld {
     val streamOwner = planCaller("$prefix-so")
     val programOwner = planCaller("$prefix-po")
     val projectOwner = planCaller("$prefix-jo")
@@ -60,6 +70,18 @@ suspend fun ApplicationTestBuilder.planWorld(prefix: String): PlanWorld {
     val streamId = TestPlan.workStream(streamOwner.personId!!)
     val programId = TestPlan.program(streamId, programOwner.personId!!)
     val projectId = TestPlan.project(programId, projectOwner.personId!!)
+    val planTeams = if (teams) {
+        val manager = planCaller("$prefix-mg")
+        val otherManager = planCaller("$prefix-om")
+        PlanTeams(
+            manager = manager,
+            otherManager = otherManager,
+            teamId = TestTeams.seed(planName("$prefix-team"), manager.personId),
+            otherTeamId = TestTeams.seed(planName("$prefix-other"), otherManager.personId),
+        )
+    } else {
+        null
+    }
     return PlanWorld(
         admin = planCaller("$prefix-ad", UserRole.ADMIN, withPerson = false),
         streamOwner = streamOwner,
@@ -71,6 +93,7 @@ suspend fun ApplicationTestBuilder.planWorld(prefix: String): PlanWorld {
         streamId = streamId,
         programId = programId,
         projectId = projectId,
+        teams = planTeams,
     )
 }
 
@@ -79,6 +102,7 @@ object TestPlan {
     private val streams by lazy { WorkStreamService(sharedDatabaseForTests()) }
     private val programs by lazy { ProgramService(sharedDatabaseForTests()) }
     private val projects by lazy { ProjectService(sharedDatabaseForTests()) }
+    private val milestones by lazy { MilestoneService(sharedDatabaseForTests()) }
 
     suspend fun workStream(owner: UInt, name: String = planName("ws"), startDate: String = "2026-01-01", endDate: String? = null): UInt =
         streams.create(WorkStreamCreateRequest(name = name, ownerPersonId = owner, startDate = startDate, endDate = endDate))
@@ -96,6 +120,14 @@ object TestPlan {
         programId,
         ProjectCreateRequest(name = name, ownerPersonId = owner, targetStart = targetStart, targetEnd = targetEnd),
     ) { } // fixtures seed past the guard
+
+    /** An UNSCHEDULED milestone under [projectId] for [teamId], through the service (the plan lock and the revision bump apply). */
+    suspend fun milestone(projectId: UInt, teamId: UInt, name: String = planName("ms"), estimate: Double = 2.0): UInt =
+        milestones.create(projectId, MilestoneCreateRequest(name = name, teamId = teamId, estimateMd = estimate)) { } // past the guard
+
+    /** Schedules (or, with null dates, unschedules) a milestone past the guard; the answer is the plan revision it left behind. */
+    suspend fun schedule(milestoneId: UInt, start: String?, end: String?): Long =
+        milestones.schedule(milestoneId, MilestoneScheduleRequest(revision(), start, end)) { }.revision
 
     /** The current `plan_state.revision`, read over raw JDBC. */
     fun revision(): Long = PostgresTestSupport.connect().use { c ->

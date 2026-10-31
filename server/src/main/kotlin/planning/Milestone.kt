@@ -1,0 +1,129 @@
+package ch.nokillswit.planning
+
+import ch.nokillswit.infra.time.containsWorkingDay
+import ch.nokillswit.infra.validation.parseIsoDate
+import ch.nokillswit.infra.validation.requireDateOrder
+import ch.nokillswit.infra.validation.requireNameAndDescription
+import ch.nokillswit.infra.validation.sanitizeSingleLine
+import ch.nokillswit.infra.validation.sanitizedDescription
+import io.ktor.server.plugins.BadRequestException
+import kotlinx.serialization.Serializable
+import java.math.BigDecimal
+import java.time.LocalDate
+
+/**
+ * Milestones (V14), the fourth level of the plan, under a project: a name (unique among the ACTIVE milestones of the SAME project), an
+ * optional description, EXACTLY ONE team (an ACTIVE team, 400 otherwise) and a man-day estimate; no owner. The plan fields below are
+ * edited by the owner chain of the project (`PUT /milestones/{id}`), the DATES only by the team's manager or ADMIN
+ * ([MilestoneScheduleRequest], `PUT /milestones/{id}/schedule`). A new milestone is always UNSCHEDULED: the create body carries no dates.
+ * The parent project is fixed at create (`POST /projects/{id}/milestones`).
+ */
+@Serializable
+data class MilestoneCreateRequest(
+    val name: String,
+    val description: String? = null,
+    /** The milestone's team — an ACTIVE team (400 otherwise). */
+    val teamId: UInt,
+    /** Man-days: finite, `0 <= x < 1_000_000`, at most two decimals ([validateEstimate]). */
+    val estimateMd: Double,
+)
+
+/** The plan fields of a milestone — never the dates (that is [MilestoneScheduleRequest]). PUT is a full replace. */
+@Serializable
+data class MilestoneUpdateRequest(
+    val name: String,
+    val description: String? = null,
+    val teamId: UInt,
+    val estimateMd: Double,
+)
+
+/**
+ * The schedule write: [startDate] and [endDate] both set or both null (the null pair unschedules), inclusive, the end not before the
+ * start, covering at least one working day. [expectedRevision] is the plan revision of the client's view; the write is a 409 only when
+ * THIS milestone's schedule was written at a later revision (`milestones.schedule_revision`, per-milestone optimistic concurrency).
+ */
+@Serializable
+data class MilestoneScheduleRequest(
+    val expectedRevision: Long,
+    val startDate: String? = null,
+    val endDate: String? = null,
+)
+
+/** The plan revision after a schedule write — the client's next `expectedRevision` for any milestone it still holds. */
+@Serializable
+data class ScheduleResponse(val revision: Long)
+
+@Serializable
+data class MilestoneResponse(
+    val id: UInt,
+    val projectId: UInt,
+    val name: String,
+    val description: String?,
+    val teamId: UInt,
+    val teamName: String,
+    val estimateMd: Double,
+    val startDate: String?,
+    val endDate: String?,
+    val createdAt: Long,
+    val updatedAt: Long,
+)
+
+/** A validated milestone schedule: an inclusive span of days. */
+data class MilestoneSpan(val start: LocalDate, val end: LocalDate)
+
+/** What a plan-field update replaced, for the audit delta: the STORED team before the write. */
+data class MilestoneUpdateOutcome(val teamFrom: UInt)
+
+/** What a schedule write replaced: the STORED span before it (null = unscheduled), the team it was checked against and the new revision. */
+data class ScheduleOutcome(val from: MilestoneSpan?, val teamId: UInt, val revision: Long)
+
+// `estimateMd + 0.0` normalises a negative zero (which passes `>= 0`) to 0.0, so the audit never logs `-0.0`.
+fun MilestoneCreateRequest.sanitized(): MilestoneCreateRequest =
+    copy(name = sanitizeSingleLine(name, "Name"), description = sanitizedDescription(description), estimateMd = estimateMd + 0.0)
+
+fun MilestoneUpdateRequest.sanitized(): MilestoneUpdateRequest =
+    copy(name = sanitizeSingleLine(name, "Name"), description = sanitizedDescription(description), estimateMd = estimateMd + 0.0)
+
+/** The milestone field rules — enforced by the route AND re-checked by the service; returns the estimate as the exact stored decimal. */
+fun validateMilestoneFields(name: String, description: String?, estimateMd: Double): BigDecimal {
+    requireNameAndDescription(name, description, MAX_PLAN_NAME_LENGTH, MAX_PLAN_DESCRIPTION_LENGTH)
+    return validateEstimate(estimateMd)
+}
+
+private const val MAX_ESTIMATE_MD = 1_000_000.0
+private const val ESTIMATE_SCALE = 2
+
+/**
+ * A man-day estimate: finite, non-negative, below one million and with at most two decimals, so the stored `NUMERIC(8,2)` is exactly the
+ * sent value (never a silent rounding). The decimals are read off the double's shortest decimal text (`12.25`, `0.1`), the form the JSON
+ * parser produced it from; zero is allowed (a zero-effort checkpoint).
+ */
+fun validateEstimate(estimateMd: Double): BigDecimal {
+    val message = "Estimate must be a non-negative man-day figure with at most two decimals"
+    if (!estimateMd.isFinite() || estimateMd < 0.0 || estimateMd >= MAX_ESTIMATE_MD) throw BadRequestException(message)
+    val exact = BigDecimal(estimateMd.toString()).stripTrailingZeros()
+    if (exact.scale() > ESTIMATE_SCALE) throw BadRequestException(message)
+    return exact.setScale(ESTIMATE_SCALE)
+}
+
+/** The schedule request rules: a non-negative `expectedRevision` (400, as the spec's `minimum: 0` promises), then [validateSchedule]. */
+fun validateScheduleRequest(request: MilestoneScheduleRequest): MilestoneSpan? {
+    if (request.expectedRevision < 0) throw BadRequestException("expectedRevision must not be negative")
+    return validateSchedule(request.startDate, request.endDate)
+}
+
+/**
+ * The schedule rules: both dates or neither (400 otherwise; neither = unschedule, null result), each an ISO date, the end not before the
+ * start, and at least one Monday-Friday day inside the span ("A milestone must cover at least one working day").
+ */
+fun validateSchedule(startDate: String?, endDate: String?): MilestoneSpan? {
+    if ((startDate == null) != (endDate == null)) {
+        throw BadRequestException("Start date and end date must be set together or both omitted")
+    }
+    if (startDate == null || endDate == null) return null
+    val start = parseIsoDate(startDate, "Start date")
+    val end = parseIsoDate(endDate, "End date")
+    requireDateOrder(start, end)
+    if (!containsWorkingDay(start, end)) throw BadRequestException("A milestone must cover at least one working day")
+    return MilestoneSpan(start, end)
+}

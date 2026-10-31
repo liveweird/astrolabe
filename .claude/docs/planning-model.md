@@ -1,7 +1,7 @@
 ### Planning model
 
-The binding reference for the planning domain as it is built (v0.2.0: people, permissions and dates, the plan structure, the roadmap ranking). The product intent and the user's domain
-decisions are in `product.md`; the parts not built yet stay a **sketch** at the end (milestones, dependencies, capacity — the v0.3+ increments confirm or amend each line and rewrite it here when
+The binding reference for the planning domain as it is built (v0.2.0: people, permissions and dates, the plan structure, the roadmap ranking; v0.3.0: milestones). The product intent and the user's domain
+decisions are in `product.md`; the parts not built yet stay a **sketch** at the end (dependencies, capacity — the v0.4+ increments confirm or amend each line and rewrite it here when
 their migration lands).
 
 ## Conventions every planning table follows
@@ -38,8 +38,8 @@ a 400), 1-100 characters; descriptions optional, at most 500.
 ## The plan structure (built — V12, v0.2.0; `planning/`)
 
 Hierarchy **work stream → program → project**; every node has an OWNER, a person of the people directory, REQUIRED (`owner_person_id NOT NULL`: ownership-scoped rights need an owner). Parents are
-immutable — a node is created under its parent and its update body carries no parent (a reparent endpoint is deferred to v0.3, when milestones make delete-and-recreate expensive; adding
-`POST /projects/{id}/move` later is purely additive). Nothing hangs under a project yet.
+immutable — a node is created under its parent and its update body carries no parent (a reparent endpoint is planned for v0.3.0's last feature commit; adding
+`POST /projects/{id}/move` is purely additive). Milestones hang under a project since V14 (below).
 
 ### Entities (V12)
 
@@ -51,13 +51,13 @@ immutable — a node is created under its parent and its update body carries no 
 | `projects` | `program_id → programs`, `name`, `description`, `owner_person_id → people`, `target_start`/`target_end DATE NULL` | `ck_projects_target_window` (both or neither), `ck_projects_target_order` (end ≥ start); `uq_projects_program_name_active ON (program_id, LOWER(name))` (per program: "Discovery"/"MVP"/"Rollout" recur) |
 
 All three uniqueness indexes are partial over ACTIVE rows, so a deleted or renamed node frees its name; the 409 wording is in `UNIQUE_CONSTRAINT_DETAILS` (`ErrorHandling.kt`). A program's span is
-derived from its projects and a project's real span from its milestones (later) — nothing is stored for them. A closed work stream (end date set) still accepts new programs and projects in v0.2 (the
+derived from its projects and a project's real span from its milestones — nothing is stored for them (the derivation is the v0.3.0 project view's job). A closed work stream (end date set) still accepts new programs and projects in v0.2 (the
 timeline will show it closed later). The owner is changed through the ordinary full-replace PUT.
 
 ### The `plan_state` lock protocol and the 409 contract (`planning/PlanState.kt`)
 
 `R2dbcDatabase.withPlanWrite { revision -> … }` = one transaction: `SELECT revision FROM plan_state WHERE id = 1 FOR UPDATE`, run the block, `UPDATE plan_state SET revision = revision + 1`. **Every
-mutation of `work_streams`, `programs`, `projects` and `roadmap_entries` (V13) runs inside it** — people and teams are not plan state. A block that throws (404/409/400 found after the lock) rolls
+mutation of `work_streams`, `programs`, `projects`, `roadmap_entries` (V13) and `milestones` (V14) runs inside it** — people and teams are not plan state. A block that throws (404/409/400 found after the lock) rolls
 back the bump with everything else, so a rejected write never moves the revision; a no-op PUT still bumps (conservative). Consequences the code relies on:
 
 - **"Count the children, then delete" is race-free**: the delete counts ACTIVE children under the plan lock, so a concurrent child create (which holds the same lock) either commits first and the
@@ -136,10 +136,44 @@ positions, and the renumber sweep below, are single statements an immediate uniq
 - **Tests**: `RoadmapRankingTest` (guard matrix, revocation under the lock, stale `409`, the `400`s, permutations -> dense rows, delete first/middle/last, the deferrable constraint, the same-revision race, the
   view, `can.editRank` vs. the guard, audit).
 
-## Not built yet — the sketch (v0.3–v0.5, confirmed by each increment)
+## Milestones (built — V14, v0.3.0; `planning/Milestone*.kt`)
+
+The fourth level, under a project: a **name**, an optional **description**, **exactly one team** and a **man-day estimate**, **no owner**, and an optional inclusive **start/end** (null = *unscheduled*, the Unscheduled tray).
+
+- **Table `milestones`** (`MilestoneService.Milestones`, `SoftDeletable`): `id SERIAL`, `project_id → projects`, `team_id → teams` (neither with an `ON DELETE` rule: projects and teams are only soft-deleted), `name VARCHAR(100)`, `description VARCHAR(500)`,
+  `estimate_md NUMERIC(8,2) NOT NULL CHECK (>= 0)` (`persistence.md` "The NUMERIC column idiom"), `start_date`/`end_date DATE NULL` (`ck_milestones_schedule`: both or neither; `ck_milestones_schedule_order`: end ≥ start),
+  `schedule_revision BIGINT NOT NULL` (internal, never on the wire), epoch-millis `created_at`/`updated_at`, `marked_as_deleted`. Names are unique per project among ACTIVE rows, case-insensitively
+  (`uq_milestones_project_name_active`, 409 "A milestone with this name already exists in this project"; "Discovery" recurs across projects).
+- **Two audiences, two routes.** The **plan fields** (name, description, team, estimate) are written by the owner chain of the project — the project's own owner included — or ADMIN (`POST /projects/{id}/milestones`,
+  `PUT`/`DELETE /milestones/{id}`; a team manager who owns nothing on the chain gets 403). The **dates** are written ONLY by `PUT /milestones/{id}/schedule`, whose guard is `requireTeamManagerOrAdmin` against the milestone's STORED
+  team: the manager of that team or ADMIN — **never the project's owner** (the product rule of this increment; `MilestoneScheduleTest` "the project owner cannot schedule"). Reads (`GET /milestones/{id}`) are open to every authenticated
+  user and 404 when the milestone or any ancestor is gone. Everything is read-before-guard and the guard is re-run under the plan lock (`authorization.md`); the schedule PUT's full order is **404 → 403 → body/validation 400 → lock → 404 (re-read) → 403 (re-guard) → 409 stale**.
+- **A new milestone is ALWAYS unscheduled**: the create body carries no dates, for every caller including ADMIN (one shape, one matrix; dates enter only through the schedule PUT).
+- **Estimate**: a JSON number (`estimateMd: Double`, `type: number, format: double, minimum: 0`), validated server-side: finite, `0 <= x < 1_000_000`, at most two decimals — 400 "Estimate must be a non-negative man-day figure with at
+  most two decimals" — so the stored value is exactly the sent one. Zero is allowed (a zero-effort checkpoint). No `multipleOf` in the spec (float `multipleOf` is unreliable in validators).
+- **Dates** are inclusive: `[start, end]`, end ≥ start, a one-day milestone has `start == end` (the rule every dated record follows, `Dates.kt`). The schedule body is `{expectedRevision, startDate, endDate}` with both dates nullable,
+  **both or neither** (400 otherwise); **the null pair unschedules** (same guard — there is no separate unschedule operation). The span must contain at least one Monday–Friday day (400 "A milestone must cover at least one working
+  day"; `infra/time/WorkingDays.kt`, a three-line placeholder that v0.7's ported `WorkingCalendar`/`WorkingDayIndex` replaces, as does the v0.5 load kernel's counting).
+- **Per-milestone optimistic concurrency** (`schedule_revision`). It holds the plan revision at which THIS milestone's schedule was last written (`revision + 1` inside `withPlanWrite`, which hands the block the OLD revision; also set at
+  create). The schedule PUT, under the lock, in this order: the chain is re-read (missing = 404, nothing written) → the guard against the stored team (a manager revoked meanwhile is a **403, not a 409**) →
+  `stored.schedule_revision > expectedRevision`, or `expectedRevision` above the current plan revision (a view from the future), is a **409** `type = urn:astrolabe:problem:stale-revision` (nothing written, no bump) → the write. A negative `expectedRevision` is a 400 before the lock. The client sends the view's `revision` and adopts the `revision` the PUT answers
+  (`ScheduleResponse{revision}`). So a 409 happens only when THIS milestone moved after the client's view was read; unrelated plan writes (another team's drags, a rename elsewhere, a plan-field edit or team change of this milestone)
+  never stale a drag. Every accepted PUT bumps the plan revision, even a no-op one (the conservative rule); the v0.8 batch schedule reuses the same per-milestone check.
+- **The re-guard locks.** `TeamService.lockedIsActiveManager` takes `FOR SHARE OF teams, people` (not the user row), so a manager change or a re-link of the manager's person either commits first (403) or waits (`persistence.md`).
+  The team id the guard checks is the milestone's STORED team re-read under the lock (`milestoneChain`), never a body field.
+- **A team change keeps the dates.** `PUT /milestones/{id}` with another `teamId` (an ACTIVE team, else 400 "Unknown or deleted team ids: N", locked `FOR SHARE`) leaves `start_date`/`end_date`/`schedule_revision` untouched: the new team's
+  manager inherits the bar and may move or unschedule it — nothing but the manager/ADMIN ever moves a bar. It is its own audit line (`milestone.team_changed`: it changes WHO may schedule — a rights path).
+- **Deletes.** A milestone delete is a soft delete under the plan lock (the name is freed). **A project delete cascades**: its ACTIVE milestones are soft-deleted in the same locked transaction (`project.deleted` carries
+  `milestoneCount`), so a project with milestones deletes without a 409 (it has no children with their OWN owners). **A team delete is 409 "Team still has milestones"** while an ACTIVE milestone names it (counted under the team row lock).
+- **API** (tag `plan`): `POST /projects/{id}/milestones` → 201 + `Location`; `GET`/`PUT`/`DELETE /milestones/{id}`; `PUT /milestones/{id}/schedule` → `200 {revision}`. **No list endpoint** in v0.3: milestones are read through the
+  project view (v0.3.0 C2).
+- **Audit** (`observability.md`): `milestone.created`, `milestone.updated`, `milestone.team_changed` (only on a change), `milestone.scheduled` (stored before and after, only on an actual change), `milestone.deleted`.
+- **Tests**: `MilestoneTest` (the plan-field matrix, validation, the stored `::text`, names, the team change, the cascade, audit), `MilestoneScheduleTest` (the manager matrix with the named project-owner test, the 400s, stale 409,
+  per-milestone semantics, the held-request re-guard cases, the lock wait), `DecimalColumnTest`, `TeamTest` (the team 409 and both lock races), `PlanStateTest` (a milestone write bumps by one), `MigrationChecksumTest`.
+
+## Not built yet — the sketch (v0.4–v0.5, confirmed by each increment)
 
 - `team_milestone_orders(team_id, milestone_id, position)` — the roadmap's sibling (above): dense integers, `UNIQUE … DEFERRABLE`, wholesale PUT with `expectedRevision` (409 on stale) under the `plan_state` lock.
-- `milestones` (null dates = unscheduled, `estimate_md NUMERIC(8,2)`, exactly one team, no owner).
 - `dependencies`: nullable `pred_milestone_id|pred_project_id` and `succ_milestone_id|succ_project_id` with `num_nonnulls = 1` CHECKs, `type` FS/SS/FF/SF, `lag_days` (working days), `UNIQUE NULLS NOT DISTINCT`.
 - Cycle detection on a start/end time-point graph including containment edges (DFS under the plan lock; reused by the critical path and the scheduler).
 - `team_capacity_periods(team_id, effective_from, md_per_week)`.

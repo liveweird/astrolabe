@@ -188,7 +188,10 @@ above any legitimate statement (a lock wait behind another transaction) and belo
   person, plus the callers ADMIN / the three owners / a stranger / a person-less login / a `ROADMAP_EDITOR`: the authorization matrix's cast) and `TestPlan` (`workStream`/`program`/`project` seeding through the
   services, so the plan lock and revision bump apply; `revision()` and `scalar(sql)` over raw JDBC). The plan-lock barrier tests (`PlanStateTest`, `RoadmapRankingTest`) hold `plan_state FOR UPDATE` on a raw session and use
   `awaitLockWait("plan_state")` (`waiters = 2` when two requests race for the lock); `requestHeldAtPlanLock(request) { raw -> … }` + `Connection.exec` are the "change something while the request waits at the lock" scaffold
-  of the re-guard tests. The ranking is shared state too: `RoadmapRankingTest` starts every test with a wholesale PUT of its own list, so its raw-table assertions are exact.
+  of the re-guard tests. **Milestone fixtures** (V14): `planWorld(prefix, teams = true)` adds `PlanTeams` (`w.requireTeams()`: `teamId` managed by `manager`, `otherTeamId` managed by `otherManager` — both `PlanCaller`s, a login with a linked person —
+and nobody on the plan chain), `TestPlan.milestone(projectId, teamId, name, estimate)` and `TestPlan.schedule(id, start, end)` (through `MilestoneService`, past the guard, the lock and the bump applying; `schedule` expects the current revision and
+answers the revision it left behind), and `TestTeams.seed(name, managerPersonId?)`. `DecimalColumnTest` is the `NUMERIC(8,2)` binding spike. A held-request test for the schedule guard mutates the TEAM (`UPDATE teams SET manager_person_id = NULL`), the MILESTONE
+(`UPDATE milestones SET team_id = …`) or the manager's PERSON (`UPDATE people SET user_id = …`) inside `requestHeldAtPlanLock`; the team-row lock wait is `awaitLockWait("FOR SHARE")` with a raw session holding `teams … FOR NO KEY UPDATE`. The ranking is shared state too: `RoadmapRankingTest` starts every test with a wholesale PUT of its own list, so its raw-table assertions are exact.
 - `TestSeedState.restoreSeedAccounts()` — bootstrap/production-mode tests rotate the seed admin's
   password in the SHARED container; call this afterwards so later tests (and re-runs) see the
   pristine V3 state. Production-mode boots must also override `"mail.transport" to "disabled"` —

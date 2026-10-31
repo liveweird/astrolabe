@@ -47,7 +47,7 @@ theme-level `foldedOptionsFilter` (`web/src/utils/text.ts`).
 `{revision, can, workStreams[…programs[…projects[…]]]}` (every node with its own `can:{…}` flags), the roadmap view `{revision, can{editRank}, ranked[{position, project}], unranked[]}` (≈100 projects, no
 paging, `ranked` in position order); the timeline pages (`/views/project/{id}`, `/views/team/{id}`, `/views/programs`, `planning-model.md`) follow the same shape. Their sub-lists are
 bounded by the plan's scale and the endpoint documents its cap (the plan view: ~5 work streams, ~20 programs, ~100 projects). Every ordinary resource list keeps the envelope; work streams, programs and projects have
-NO list endpoint in v0.2 (a list lands with its first consumer). (Flow's report drill lists — `{meta, bar, items[<=500], total, truncated}` — were the precedent.)
+NO list endpoint in v0.2 (a list lands with its first consumer; milestones, v0.3, none either: the project view carries them). (Flow's report drill lists — `{meta, bar, items[<=500], total, truncated}` — were the precedent.)
 
 **Sub-collections and facets:** a record's own unbounded sub-collection is paged like any other list; the plain `{items}`
 wrapper is reserved for genuinely bounded, admin-curated sets. Facet counts (`GET .../facets`) are not implemented — port Covenant's
