@@ -21,12 +21,11 @@ The `backlog` mod (`liveweird/claude-mods`) summarises the tags on the status li
 
 Each increment gets its own plan (architect) before implementation. The domain sketch is `.claude/docs/planning-model.md`; the timeline approach is `.claude/docs/timeline.md`.
 
-- [new] **v0.3.0 Timeline + project view.** The shared `Timeline*` component (zoom, non-working hatching, today line, virtualisation, drag/resize with a keyboard path); milestones CRUD; `PUT /milestones/{id}/schedule` (team manager or ADMIN); the Unscheduled tray; derived project span and target band.
 - [new] **Paged lists for work streams, programs and projects.** v0.2 has no list endpoints for the plan nodes (the plan and roadmap views are the read surface); add them per `list-endpoints.md` with their first consumer, the v0.4 dependency pickers.
 - [new] **v0.4.0 Dependencies.** Four types (FS/SS/FF/SF) plus lag across all three endpoint kinds; SVG arrows; cycles answer 409; red violations and a conflict list (warn only); ghost rows for external endpoints.
 - [new] **v0.5.0 Team view + capacity.** Capacity periods; the weekly load strip and overload warning; team order override/reset; scheduling from the team view; a deterministic scale dataset `sample-data/plan/` (≈15 teams, 5 streams, 20 programs, 100 projects, 1,000 milestones).
 - [new] **v0.6.0 Roadmap + programs timelines.** Spans derived upward; the target window by drag; drift flags; rank-vs-time flags (an inversion between projects sharing a team is a warning, otherwise info); the program pick.
-- [new] **v0.7.0 Calendar + critical path.** Port Flow's `PublicHoliday*`/`WorkingCalendar`/`WorkingDayIndex`; the critical path; idle gaps per project and team.
+- [new] **v0.7.0 Calendar + critical path.** Port Flow's `PublicHoliday*`/`WorkingCalendar`/`WorkingDayIndex` (replaces `infra/time/WorkingDays.kt`, the Mon–Fri placeholder); the critical path; idle gaps per project and team.
 - [new] **v0.8.0 Auto-proposal.** A server scheduler (rank + dependencies + capacity) → a diff preview → accept all or some through the batch schedule endpoint, under the same guards.
 - [new] **v0.9.0 Baselines.** Named snapshots at a plan revision; an overlay and a comparison view.
 
@@ -37,6 +36,9 @@ Each increment gets its own plan (architect) before implementation. The domain s
 
 ## Engineering follow-ups
 
+- [new] **Time-axis virtualisation of the Timeline.** Rows are virtualised; the time axis is not (one wide track per row), which is fine for a project's months but not for the multi-year v0.6 roadmap range: virtualise the header and bands horizontally, or cap the range per zoom.
+- [new] **Batch schedule reuses `schedule_revision`.** The v0.8 auto-proposal accepts several moves at once through a batch schedule endpoint; keep the per-milestone staleness check of `PUT /milestones/{id}/schedule` (a 409 per milestone moved since the proposal), not a global revision compare.
+- [new] **Timeline print/export.** A printable or exported (PNG/PDF) project timeline for status reports.
 - [new] **Re-baseline the build-time budgets and coverage after v0.1.0.** Every row of `scripts/timings/budgets.json` is PROVISIONAL (carried over from Flow); record a `scripts/gates.sh all` series and the first CI medians, set the targets from them, add the first dated entry to `.claude/docs/build-times.md`, and re-measure the Kover floors (`server/build.gradle.kts`) and the vitest thresholds (`web/vite.config.ts`).
 - [new] **Fork balancing.** Port Flow's weight-balanced class order (`balancedCandidateOrder`, `server/test-weights.tsv`, `local-times.mjs test-weights`) when `server-tests` outgrows its budget and a second fork starts to pay (`.claude/docs/test-fixtures.md` "Fork balancing (not ported)").
 - [new] **kotlinx-datetime compile/runtime version skew.** `kotlinx-datetime-jvm` is only transitive (via Exposed): it resolves to 0.7.1 on the compile classpath and 0.8.0 at runtime (`server/gradle.lockfile`). The repo-local `LocalDateColumn` touches only `toKotlinLocalDate`/`toJavaLocalDate`, which both carry (`LocalDateColumnTest` runs on the runtime set), so nothing breaks today; find out why the two disagree (a platform/constraint in the Exposed or Ktor graph) and align them, or pin one version with a `checkDependencyAlignment` family, the next time Exposed or the Kotlin plugin moves.

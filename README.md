@@ -5,14 +5,17 @@ data in a four-level hierarchy — **work stream → program → project → mil
 globally, teams schedule their milestones against capacity, and dependencies and overload only ever warn. Later it syncs with Jira and Flow only to detect deviations; corrections are made in
 Astrolabe. The name is the instrument: a tool for reading where everything stands against time.
 
-## What's here today (0.2.0 — plan structure)
+## What's here today (0.3.0 — the timeline and the project view)
 
-Astrolabe's repository started as an exact copy of [Flow](https://github.com/liveweird/flow) (1.35.0, `e9c3b726`), trimmed to its generic foundation. 0.2.0 adds the plan's structure;
-**the timeline views arrive from 0.3.0 on**:
+Astrolabe's repository started as an exact copy of [Flow](https://github.com/liveweird/flow) (1.35.0, `e9c3b726`), trimmed to its generic foundation. 0.2.0 added the plan's structure and 0.3.0 the first timeline view;
+the team, roadmap and programs timelines follow:
 
 - **People** — the directory of the plan's owners and managers, each optionally linked to a login; a team's manager is a person.
 - **Work streams, programs and projects**, each with an owner; owners edit what they own and everything below it, ADMIN everything. A project carries an optional target window; a work
   stream is closed by setting its end date. The **Plan** page shows the whole hierarchy with the actions the caller may take.
+- **Milestones** in a project (one team, a man-day estimate), scheduled only by the manager of the milestone's team or ADMIN. The **project view** (`/projects/:id`) shows them on the
+  shared timeline — week/month/quarter zoom, hatched weekends, a today line, the target window as a band, the derived span and its drift — with drag/resize, a full keyboard path and an
+  Unscheduled tray. Projects and programs can be moved to another parent by the owners above them.
 - The **Roadmap** — one global project ranking, reordered by drag or keyboard by an ADMIN or a holder of the per-user `ROADMAP_EDITOR` permission; a concurrent edit is detected and reloaded.
 - **Sign-in** with a JWT access/refresh pair, a server-side revocation blocklist, per-account lockout and per-IP rate limits; opt-in **email MFA**; **self-service password reset** by an
   emailed single-use link.
@@ -24,7 +27,7 @@ Astrolabe's repository started as an exact copy of [Flow](https://github.com/liv
 
 ## Roadmap
 
-0.1.0 the foundation · 0.2.0 plan structure (shipped) · 0.3.0 the timeline and the project view · 0.4.0 dependencies · 0.5.0 the team view
+0.1.0 the foundation · 0.2.0 plan structure · 0.3.0 the timeline and the project view (shipped) · 0.4.0 dependencies · 0.5.0 the team view
 and capacity · 0.6.0 roadmap and programs timelines · 0.7.0 calendar and critical path · 0.8.0 auto-proposal · 0.9.0 baselines · 1.0.0 checkup. The scope of each version and the decisions
 behind it: `.claude/docs/product.md`; open items: `BACKLOG.md`. `CLAUDE.md`'s "Product" and "Donors" sections say which sibling project each capability ports from.
 

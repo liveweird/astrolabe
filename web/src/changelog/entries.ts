@@ -17,6 +17,26 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "0.3.0",
+    date: "2026-11-01",
+    en: `**Astrolabe 0.3.0: the timeline and the project view.**
+
+- Milestones in a project: a name, a description, one team and an estimate in man-days. The project's owners edit them; their dates are set by the manager of the milestone's team or by an administrator.
+- The project page, on the new shared timeline: week, month and quarter zoom, hatched weekends, a today line, the project's target window as a band, and the project's real span with its drift against the target.
+- Drag a bar to move it, or drag its edge to change its length; the keyboard and the schedule dialog do the same.
+- The Unscheduled tray: drag a milestone onto the timeline, or press Schedule to give it its first week.
+- A change someone else made in the meantime is detected and the timeline reloaded.
+- Move a project to another program, or a program to another work stream (the owners above it or an administrator).`,
+    pl: `**Astrolabe 0.3.0: oś czasu i widok projektu.**
+
+- Kamienie milowe w projekcie: nazwa, opis, jeden zespół i szacunek w osobodniach. Właściciele/ki projektu je edytują, a terminy ustala kierownik/czka zespołu kamienia milowego albo administrator/ka.
+- Strona projektu na nowej wspólnej osi czasu: przybliżenie Tydzień, Miesiąc i Kwartał, zakreskowane weekendy, linia „dziś”, okno docelowe projektu jako pas oraz faktyczny zakres projektu z odchyleniem od celu.
+- Przeciągnij pasek, aby go przesunąć, albo jego krawędź, aby zmienić długość; to samo zrobisz klawiaturą i w oknie terminu.
+- Taca „Niezaplanowane”: przeciągnij kamień milowy na oś czasu albo kliknij Zaplanuj, aby nadać mu pierwszy tydzień.
+- Zmianę wprowadzoną w międzyczasie przez inną osobę wykrywamy i przeładowujemy oś czasu.
+- Przenieś projekt do innego programu albo program do innego strumienia pracy (mogą to zrobić właściciele/ki wyżej w hierarchii albo administrator/ka).`,
+  },
+  {
     version: "0.2.0",
     date: "2026-10-31",
     en: `**Astrolabe 0.2.0: plan structure.**

@@ -13,7 +13,7 @@ Scale assumed: about 15 teams, 5 work streams, 20 programs, 100 projects, 1,000 
 
 ## Roadmap
 
-Each increment gets its own plan (architect) before implementation; only v0.1.0 was specified up front. **Current version: 0.2.0.**
+Each increment gets its own plan (architect) before implementation; only v0.1.0 was specified up front. **Current version: 0.3.0.**
 
 | Ver | Scope | User can test |
 |---|---|---|
@@ -52,6 +52,15 @@ Version numbers are not strictly roadmap milestones (`app-releases.md`): a user-
 ## Assumptions (not asked — change on request)
 
 Day-precision dates; Monday–Friday working days (public holidays arrive with v0.7); week / month / quarter zoom; EN and PL kept; the scale above.
+
+## v0.3.0 — what shipped
+
+Milestones (V14: one team, no owner, a NUMERIC(8,2) man-day estimate, inclusive nullable dates with at least one working day) under a project, scheduled only by the manager of the
+milestone's team or ADMIN through `PUT /milestones/{id}/schedule` with per-milestone optimistic concurrency (`schedule_revision`); a team change keeps the dates, a project delete cascades its
+milestones, a team still referenced answers 409. `GET /views/project/{id}` (the derived span, drift against the target window, per-milestone `can`); the first pure span kernel. The shared
+web `Timeline*` component (week/month/quarter, weekend hatching, today line, dnd-kit move/resize with a keyboard path, a role=grid with one roving stop, TanStack Virtual, the overlay and track
+slots for v0.4 arrows and v0.5 strips) and the `/projects/:id` page with the Unscheduled tray. Reparenting: `POST /projects/{id}/move` and `POST /programs/{id}/move` — the source side is
+ancestors only, the target side needs rights on the target chain — with "Move to…" on the Plan page. Measured: 1,000 milestone rows scroll at the 60 Hz cap (`timeline.md`).
 
 ## v0.2.0 — what shipped
 
