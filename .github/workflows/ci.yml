@@ -284,11 +284,11 @@ jobs:
         run: '"$RUNNER_TEMP/kubeconform" -strict -summary -kubernetes-version 1.33.0 -schema-location "$KUBECONFORM_SCHEMAS" k8s/*.yaml'
       # The app keeps the login lockout, MFA challenges and reset throttles in memory, per instance
       # (security.md): a second replica would split them and multiply every limit. Pin it to one replica,
-      # with no autoscaler, until that state moves to a shared store (checkup 2, 2D5). The worker may scale.
-      - name: Pin the web deployment to one replica (per-instance auth state)
+      # with no autoscaler, until that state moves to a shared store.
+      - name: Pin the app deployment to one replica (per-instance auth state)
         run: |
-          test "$(grep -cE '^  replicas: 1$' k8s/web-deployment.yaml)" -eq 1
-          if grep -l 'kind: HorizontalPodAutoscaler' k8s/*.yaml; then echo "an autoscaler would scale the web tier" >&2; exit 1; fi
+          test "$(grep -cE '^  replicas: 1$' k8s/app-deployment.yaml)" -eq 1
+          if grep -l 'kind: HorizontalPodAutoscaler' k8s/*.yaml; then echo "an autoscaler would scale the app" >&2; exit 1; fi
       - name: Validate what apply-local.sh renders
         run: |
           # A stand-in kubectl: the Secret "exists", and `apply -f <dir>` records the rendered directory.
