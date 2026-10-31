@@ -1,0 +1,39 @@
+package ch.nokillswit.authz
+
+class UnauthorizedException(message: String = "Authentication required") : RuntimeException(message)
+
+class ForbiddenException(message: String = "Forbidden") : RuntimeException(message)
+
+/**
+ * Addressed resource does not exist (or is soft-deleted / lives under a different parent path)
+ * → 404 with the given detail. Routes throw it from read preambles and zero-row mutation
+ * results instead of hand-rolling a respondProblem + return.
+ */
+class NotFoundException(message: String = "Resource not found") : RuntimeException(message)
+
+/** The route 404 convention as a helper: a null read → `"<resource> not found"`. */
+fun <T : Any> T?.orNotFound(resource: String): T = this ?: throw NotFoundException("$resource not found")
+
+/** The zero-row-mutation half of the same convention. */
+fun Int.orNotFound(resource: String): Int =
+    if (this == 0) throw NotFoundException("$resource not found") else this
+
+/**
+ * Requested action conflicts with the resource's current state (e.g. an invalid status
+ * transition, or the last-admin protections) → 409 with the given detail. A conflict a client
+ * must tell apart from the rest names its RFC 7807 [problemType] (a `urn:astrolabe:problem:…` URI) and,
+ * optionally, the [instance] it collides with; both default to the plain `about:blank` problem.
+ * Open so a feature can subclass it with its own typed payload (`ingest/DataSourceScope.kt`).
+ */
+open class ConflictException(
+    message: String = "Conflict",
+    val problemType: String = "about:blank",
+    val instance: String? = null,
+) : RuntimeException(message)
+
+/**
+ * Caller-specific throttling (e.g. the per-account login lockout) → 429 with the given detail.
+ * Distinct from the per-IP RateLimit plugin's bodiless 429, which the StatusPages
+ * `status(TooManyRequests)` handler completes with a generic problem body.
+ */
+class TooManyRequestsException(message: String = "Too many requests") : RuntimeException(message)

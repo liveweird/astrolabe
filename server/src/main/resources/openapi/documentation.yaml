@@ -1,0 +1,1340 @@
+openapi: 3.1.0
+info:
+  title: astrolabe-api
+  version: 0.1.0
+  description: |
+    JWT-authenticated REST API for Astrolabe — a planning and roadmapping tool. It serves the Astrolabe web app and is
+    versioned by its `/api/v1` path prefix. This foundation exposes the accounts, teams, feature-flag and operational
+    surface the planning features build on.
+
+    Authorization model: every user is implicitly a regular user; additional global roles (`ADMIN`) are carried as
+    the `roles` array and only ever ADD privileges on top of that baseline. Every operation requires a bearer
+    access token except the seven that declare `security: []` (`/login`, `/login/mfa`, `/refresh`, `/password-reset`,
+    `/password-reset/confirm` and the two probes). Beyond that each operation states its own rule: user management (`/users`, apart from
+    reading or changing one's own record where noted) and the writes on teams are `ADMIN` only; reading teams is open to
+    any authenticated user; telemetry is `ADMIN` only. A caller without the right gets a uniform `403`, whether or not the
+    addressed resource exists.
+
+    List operations page with `page` / `pageSize` / `sort` into an `{items, page, pageSize, total}` envelope.
+
+    All error responses use RFC 7807 `application/problem+json` (`ProblemDetail`). Any endpoint may additionally
+    return `500` (`InternalServerError`) on an unexpected server fault.
+servers:
+  - url: http://localhost:8086
+    description: Local dev
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: health
+    description: Public liveness and readiness probes; they disclose nothing but a status.
+  - name: auth
+    description: Login (with the optional email second factor), token refresh, logout and the self-service password reset.
+  - name: users
+    description: Astrolabe's own login accounts - ADMIN-managed CRUD, per-user feature flags, language and password change.
+  - name: teams
+    description: Flat teams, the ownership unit planning features scope to - readable by any authenticated user, written by ADMIN only.
+  - name: telemetry
+    description: Astrolabe's own vital signs (process memory, JVM, storage, request latency) and their 24h/7d/90d trends - ADMIN only.
+
+paths:
+  /api/v1/health:
+    get:
+      tags: [health]
+      operationId: health
+      summary: Liveness probe
+      description: |
+        Public and unauthenticated (the container HEALTHCHECK and the k8s liveness probe call it):
+        `200` proves the process answers requests. It touches nothing — use `/api/v1/ready` for the
+        database round trip.
+      security: []
+      responses:
+        '200':
+          description: The process is up
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HealthResponse' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/ready:
+    get:
+      tags: [health]
+      operationId: ready
+      summary: Readiness probe
+      description: |
+        Public and unauthenticated (the k8s readiness probe and the e2e global setup call it): `200`
+        once a database round trip succeeds within a short budget, `503` while it does not — the pod
+        leaves the Service until the database is back.
+        Rate-limited per client IP (default 60/min, `READY_RATE_LIMIT_PER_MINUTE`; the kubelet needs
+        12/min): over the bucket it answers `429`. `/api/v1/health` is not bucketed.
+      security: []
+      responses:
+        '200':
+          description: The app and its database answer
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HealthResponse' }
+        '503':
+          description: The database did not answer within the probe's budget
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetail' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/login:
+    post:
+      tags: [auth]
+      operationId: login
+      summary: Exchange credentials for a JWT
+      description: |
+        Rate-limited per client IP, and additionally throttled per account: after several
+        consecutive failures for one email (default 5, `LOGIN_LOCKOUT_THRESHOLD`), further
+        attempts for that account — even with the correct password — are rejected with `429`
+        for a lockout window (default 15 min, `LOGIN_LOCKOUT_DURATION_SECONDS`). A successful
+        login resets the counter. The in-memory lockout store admits at most
+        `LOGIN_LOCKOUT_MAX_TRACKED` identities (default 10,000). At capacity a new identity
+        receives `429` before password verification; existing tracked identities continue,
+        and expired state frees capacity. This applies equally to existing and unknown emails.
+
+        **Email MFA (opt-in via the `MFA` feature flag):** when the account has MFA enabled,
+        correct credentials answer `200` with an `MfaChallengeResponse` instead of tokens — a
+        6-digit code is emailed to the account, and the client exchanges it together with the
+        `challengeId` at `POST /api/v1/login/mfa` for the ordinary `LoginResponse`. On a
+        deployment without outbound email (`MAIL_TRANSPORT=disabled`) an MFA-enabled login
+        fails closed with `503`. The pending challenge store admits at most
+        `MFA_MAX_TRACKED` challenges (default 10,000); new issuance at capacity receives
+        `429` without sending a code, while existing challenges remain verifiable.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '200':
+          description: Token issued, or (MFA-enabled accounts) a second-factor challenge
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/LoginResponse'
+                  - $ref: '#/components/schemas/MfaChallengeResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503':
+          description: MFA is enabled for the account but this deployment cannot send email
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetail' }
+
+  /api/v1/login/mfa:
+    post:
+      tags: [auth]
+      operationId: verifyMfa
+      summary: Exchange an MFA challenge and emailed code for a JWT pair
+      description: |
+        Second login step for MFA-enabled accounts. The `challengeId` comes from the login
+        response, the 6-digit `code` from the email. Challenges are single-use, expire after
+        a short TTL (default 5 min, `MFA_CODE_TTL_SECONDS`), and allow a few attempts
+        (default 5, `MFA_MAX_ATTEMPTS`); every failure mode — unknown challenge, expired,
+        wrong code, attempts exhausted, user gone, password changed — answers the uniform `401`. Rate-limited
+        per client IP.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MfaVerifyRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '200':
+          description: Token issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/refresh:
+    post:
+      tags: [auth]
+      operationId: refresh
+      summary: Exchange a refresh token for a fresh access + refresh pair
+      description: |
+        Pure-sliding session renewal with refresh-token rotation. Accepts a valid, unexpired,
+        non-revoked refresh token and returns a brand-new access token and refresh token (each with
+        a full TTL). The presented refresh token is retired: it is blocklisted until its own expiry,
+        so it works once. A replay of an already-rotated token is `401`, except that a replay within
+        a short grace window after the rotation (60 seconds by default; it covers a response lost in
+        flight, at most twice per token, and not after a logout that reached the server) is answered with another fresh pair.
+        The superseded access token is not revoked and
+        lives until its own expiry. Requires no `Authorization` header (the access token may
+        already be expired). Returns `401` for a missing/invalid/expired/revoked/already-used
+        refresh token, if the user no longer exists, or if the token's credential revision no
+        longer matches the user's current credentials. Password changes invalidate earlier refresh
+        tokens even within the same clock second. Legacy tokens without a credential revision
+        require a fresh sign-in after upgrading to 0.14.1.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '200':
+          description: A fresh token pair
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/logout:
+    post:
+      tags: [auth]
+      operationId: logout
+      summary: Revoke the bearer token (server-side denylist)
+      description: |
+        Revokes the access token carried in the `Authorization` header. If a `refreshToken` is
+        supplied in the body, it is revoked too. The body is optional.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogoutRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '204':
+          description: Token revoked
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/password-reset:
+    post:
+      tags: [auth]
+      operationId: requestPasswordReset
+      summary: Request a self-service password reset
+      description: |
+        Normally answers `202` for a well-formed request, whether or not an account with that
+        email exists (no account enumeration; the actual work happens asynchronously). If the
+        account exists, a single-use reset link is emailed to its stored address. Requesting or
+        opening a link never changes the password or any session: nothing changes until the owner
+        confirms the link and chooses a new password (`POST /api/v1/password-reset/confirm`).
+        Links expire after 15 minutes by default (`PASSWORD_RESET_TOKEN_TTL_SECONDS`, 1 to 3600
+        seconds). Only a SHA-256 digest of the 256-bit random token is persisted, and the browser
+        receives the token in a URL fragment, never in a server-visible path or query string.
+        Throttled per submitted email — one request per interval
+        (default 60 s, `PASSWORD_RESET_MIN_INTERVAL_SECONDS`) — uniformly for existing and
+        unknown addresses, and rate-limited per client IP. The in-memory cooldown store admits
+        at most `PASSWORD_RESET_MAX_TRACKED` identities (default 10,000). At capacity a new
+        identity receives `429` and no reset email is scheduled; elapsed cooldowns free space.
+        A soft-deleted account is unknown here (no link is minted or emailed, and the response
+        follows the same acceptance and throttling rules). Answers `503` on deployments without
+        outbound email (`MAIL_TRANSPORT=disabled`) or without a configured `MAIL_APP_URL` (the
+        deployment's https origin, validated at startup, never derived from the `Host` header).
+        Several requested links may coexist; completing one invalidates all of them.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '202':
+          description: Accepted — if the account exists, an email is on its way
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503':
+          description: This deployment cannot send email, or has no `MAIL_APP_URL` (password reset unavailable)
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetail' }
+
+  /api/v1/password-reset/confirm:
+    post:
+      tags: [auth]
+      operationId: confirmPasswordReset
+      summary: Choose a new password using a single-use reset link
+      description: |
+        Public credential exchange: the reset token authorizes only this operation, never
+        bearer-authenticated API calls. Send it in the JSON body, not the URL. A valid token is
+        checked before the password is validated. Expired, used, malformed and unknown tokens,
+        deleted accounts, and tokens predating a password or email change all answer one uniform
+        `401`. Consumption of the token, the password replacement and the credential-generation
+        advance commit atomically; concurrent confirmations cannot both succeed, including with
+        different links for one account. A password the rules refuse (`400`) does not consume the
+        token. Success invalidates every access and refresh session of the account and any pending
+        MFA challenge. There is no automatic sign-in: sign in normally, with the MFA code if it is
+        enabled. A best-effort confirmation email contains neither password nor token; a delivery
+        failure does not undo the reset. Rate-limited to 10 requests per minute per client IP. A
+        lost success response can make a retry answer `401`: try signing in with the chosen
+        password, or request another link. A link issued earlier still works if outbound mail is
+        later disabled.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PasswordResetConfirmRequest' }
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '204':
+          description: Password replaced and existing sessions revoked; sign in again
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/users:
+    get:
+      tags: [users]
+      operationId: listUsers
+      summary: List users (management view)
+      description: |
+        ADMIN only — the whole management surface is admin-gated; regular users keep only
+        their self password change.
+
+        Supports offset pagination, sorting and filtering.
+
+        - Sortable fields: `id`, `name`, `email` (deliberately not `roles` — a set has no
+          order). Default sort is `id` ascending; `id` ascending is always appended as a
+          deterministic tiebreaker.
+        - Filters (optional, whitelisted):
+          - `name` / `email` — case- and accent-insensitive substring matches.
+          - `role` — `ADMIN` (holders of the additional role) or `USER` (plain users).
+          - `feature` + `featureEnabled` — feature-flag state (the pair must come
+            together, `400` otherwise; `featureEnabled` is a strict boolean).
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Sort'
+        - name: name
+          in: query
+          required: false
+          schema: { type: string }
+        - name: email
+          in: query
+          required: false
+          schema: { type: string }
+        - name: role
+          in: query
+          required: false
+          schema: { type: string, enum: [ADMIN, USER] }
+        - name: feature
+          in: query
+          required: false
+          schema: { $ref: '#/components/schemas/Feature' }
+          description: Feature-flag state filter — must be paired with `featureEnabled` (400 otherwise).
+        - name: featureEnabled
+          in: query
+          required: false
+          schema: { type: boolean }
+          description: Strict boolean — only users with `feature` enabled (true) or disabled (false).
+      responses:
+        '200':
+          description: A page of users
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPage'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    post:
+      tags: [users]
+      operationId: createUser
+      summary: Create a user
+      description: |
+        ADMIN only. The initial password is CLIENT-generated (the SPA's 96-bit generator) and
+        shown to the admin exactly once — the server stores only the bcrypt hash and no
+        response ever carries plaintext. The email is canonicalized (trimmed + lowercased);
+        a duplicate among active accounts is a `409` (a soft-deleted account frees its email).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreateRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '201':
+          description: Created
+          headers:
+            Location:
+              schema: { type: string }
+              description: URL of the new user resource
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '400':
+          description: Validation error (blank/too-long name or email, password rules)
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/users/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    get:
+      tags: [users]
+      operationId: getUser
+      summary: Fetch a user
+      description: Target user or ADMIN (guard-before-read — an unauthorized caller 403s uniformly).
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    put:
+      tags: [users]
+      operationId: updateUser
+      summary: Update a user's name, email, and roles
+      description: |
+        ADMIN only. The password is deliberately not writable here (it has its own endpoint).
+        Demoting the LAST active administrator is a `409` — the management surface must stay
+        reachable. An email already used by another active account is also a `409`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdateRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '204': { description: Updated }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    delete:
+      tags: [users]
+      operationId: deleteUser
+      summary: Delete a user
+      description: |
+        ADMIN only, soft delete: the account can no longer sign in, outstanding refresh
+        tokens die (`user_gone`), the email is freed for reuse, and the user's catalog files
+        stay with a deleted-creator marker. Deleting YOURSELF is a `403`; deleting the LAST
+        active administrator is a `409`.
+      responses:
+        '204': { description: Deleted }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: Caller is not ADMIN, or attempted to delete their own account
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetail' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/users/{id}/features:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    put:
+      tags: [users]
+      operationId: setUserDisabledFeatures
+      summary: Replace a user's disabled-feature set (ADMIN only)
+      description: |
+        Per-user feature flags: a **wholesale replace** of the target user's DISABLED set —
+        an empty array re-enables everything (idempotent, a same-set re-PUT is `204` again).
+        **ADMIN-only**; changing one's OWN flags is allowed (the users routes themselves are
+        never feature-gated, so an admin can always find their way back). `MFA` is the one
+        inverted-default flag: users start with it in the disabled set, and a set omitting it
+        — the empty "re-enable everything" array included — ENABLES the login second factor.
+        The set rides the JWT, so a change takes effect at the target's next token refresh
+        (≤15 min) or login. Audited as `user.features_changed` on an actual change.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserFeaturesUpdateRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '204': { description: Disabled-feature set replaced }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: Caller is not ADMIN
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetail' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/users/{id}/language:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    put:
+      tags: [users]
+      operationId: setUserLanguage
+      summary: Set a user's language (target user or ADMIN)
+      description: |
+        The ONE synced per-user language: it drives the UI at sign-in (rides `LoginResponse`,
+        applied by the SPA on login/MFA/refresh) and the language of every email sent to the
+        user (read fresh at send time, so a change takes effect immediately for emails; the
+        UI picks it up at the next sign-in or token refresh). **Target user or ADMIN** — the
+        header language switcher is the self-service writer (switching while signed in also
+        saves here); an admin may fix a mis-set language. Idempotent (a same-value re-PUT is
+        `204` again); an unsupported code is `400`. Audited as `user.language_changed` on an
+        actual change. Set initially at create (`UserCreateRequest.language`, default `en`);
+        the whole-user PUT deliberately never touches it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserLanguageUpdateRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '204': { description: Language set }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: Caller is not the target user and not ADMIN
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetail' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/users/{id}/password:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    put:
+      tags: [users]
+      operationId: changeUserPassword
+      summary: Change a user's password
+      description: |
+        Sets a new password for the user (minimum 10 characters). Only the password is
+        changed; no other fields are touched. Requires the caller to be the target user,
+        or to be ADMIN. When the caller changes their OWN password (even an admin),
+        `currentPassword` is required and must match; an admin resetting another user's
+        password omits it. A successful change invalidates all outstanding refresh tokens
+        and pending MFA challenges, including changes within the same clock second
+        (already-issued access tokens expire naturally within their TTL).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordUpdateRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '204': { description: Password updated }
+        '400':
+          description: New password shorter than 10 characters or longer than 71 UTF-8 bytes
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: Caller is not the target user and not ADMIN, or the required current password is missing/incorrect
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetail' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/teams:
+    get:
+      tags: [teams]
+      operationId: listTeams
+      summary: List teams
+      description: |
+        Any authenticated user — teams are the shared ownership unit planning features scope to;
+        every mutation is ADMIN only.
+
+        - Sortable fields: `id`, `name`, `createdAt`, `updatedAt`. Default `id` ascending.
+        - Filters: `name` (case- and accent-insensitive substring).
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Sort'
+        - name: name
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        '200':
+          description: A page of teams
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamPage'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    post:
+      tags: [teams]
+      operationId: createTeam
+      summary: Create a team
+      description: |
+        ADMIN only (guarded before the body decodes — a non-admin's malformed body is still
+        403). A case-insensitive name clash with an active team is `409`. An optional manager (a
+        user; being a manager grants no write rights on the team yet) must be an active
+        user (`400` otherwise).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TeamCreateRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '201':
+          description: Created; `Location` points at the new team
+          headers:
+            Location:
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/teams/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    get:
+      tags: [teams]
+      operationId: getTeam
+      summary: Get a team
+      description: Any authenticated user.
+      responses:
+        '200':
+          description: The team
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    put:
+      tags: [teams]
+      operationId: updateTeam
+      summary: Rename / re-describe a team, set its manager
+      description: "ADMIN only, guard before the id lookup (uniform 403). A full replace: an omitted `managerUserId` clears the manager; a set one must be an active user (`400` otherwise). A case-insensitive name clash with another active team is `409`."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TeamUpdateRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '204':
+          description: Updated
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    delete:
+      tags: [teams]
+      operationId: deleteTeam
+      summary: Delete a team (soft)
+      description: ADMIN only, guard before the id lookup. Soft delete — the name is freed for reuse.
+      responses:
+        '204':
+          description: Deleted
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/telemetry/current:
+    get:
+      tags: [telemetry]
+      operationId: getTelemetryCurrent
+      summary: Astrolabe's own vital signs - processes, storage, request latency
+      description: |
+        ADMIN only (operational data: process sizes, container limits, storage sizes), read-only, no audit event;
+        both telemetry reads share one per-user rate bucket (30/min, `429`). `.claude/docs/observability.md` "Telemetry".
+        `processes` lists each sampling process (role `app`) with its latest raw sample: every live process, and the
+        newest stale one when none is alive (a process that stopped stays visible for a day). `stale` = no sample for more than three
+        sample intervals. A figure the process could not measure is null (no container limit outside a cgroup, no `memory.peak` on an
+        old kernel) - never zero; `percentOfLimit` is the cgroup working set over the container limit, in percent. `storage` is the
+        newest database / per-schema size (null before the first measurement). `requests` is the latest sample interval of the live
+        processes: the `*` total and the 15 busiest routes.
+      responses:
+        '200':
+          description: The current figures
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TelemetryCurrent'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/telemetry/history:
+    get:
+      tags: [telemetry]
+      operationId: getTelemetryHistory
+      summary: The trend of one telemetry section over 24 hours, 7 days or 90 days
+      description: |
+        ADMIN only (guard before the query is read: `403` outranks `400`), read-only, no audit event.
+        `group` picks the section and `range` the span; both are required. Buckets: `24h` = the raw sample interval (widened to a whole
+        multiple of it when that would exceed 400 points), `7d` = one hour (the hourly rollups plus the raw rows of the hours not yet
+        rolled up), `90d` = six hours; `bucketSeconds` says which. At most 400 points per series and 40 series (`truncated` when more
+        matched); a series has points only for the buckets that hold data.
+        Per-process groups merge the processes of one `role` into one series, so a trend survives a restart (`memory`, `jvm`), or all
+        processes into one series per route (`requests`, `role` null); `storage` is cluster-wide (`role` null). `requests` keeps the `*`
+        total (count, p50, p95, 5xx, 429) and the ten busiest routes of the range (count, p50, p95). A DELTA series' `avg` is the
+        bucket's TOTAL and its `max` the largest single sample interval; a GAUGE or PERCENTILE series' `avg` is the n-weighted mean and
+        `max` the largest sample. `historyFrom` is the oldest instant the range can actually hold: the first sampler boot (a fresh
+        install, or retention shorter than the range).
+      parameters:
+        - name: group
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [memory, storage, requests, jvm]
+          description: The panel section.
+        - name: range
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [24h, 7d, 90d]
+          description: How far back the history reaches.
+      responses:
+        '200':
+          description: The series
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TelemetryHistory'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    ResourceId:
+      name: id
+      in: path
+      required: true
+      # int32: ids are 32-bit server-side; a non-numeric or out-of-range id is a 400. Ids are database sequences that
+      # start at 1, so 0 never addresses anything (it answers 404, like any unknown id).
+      schema: { type: integer, format: int32, minimum: 1 }
+    Page:
+      name: page
+      in: query
+      required: false
+      schema: { type: integer, minimum: 1, default: 1 }
+      description: 1-based page index. Defaults to 1.
+    PageSize:
+      name: pageSize
+      in: query
+      required: false
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      description: Rows per page. Defaults to 20, maximum 100.
+    Sort:
+      name: sort
+      in: query
+      required: false
+      schema: { type: string }
+      description: |
+        Sort spec. Format: `field` (ascending) or `-field` (descending). Multiple fields are
+        comma-separated, leftmost wins: `sort=-updatedAt,name`. The endpoint declares its
+        sortable-field whitelist; unknown fields are rejected with `400`. `id` ascending is
+        always appended as a deterministic tiebreaker.
+  responses:
+    UnsupportedMediaType:
+      description: Request body must use application/json. A missing body or Content-Type remains a 400.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetail' }
+    BadRequest:
+      description: Malformed request
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetail' }
+    Unauthorized:
+      description: Missing, invalid or no longer valid token (revoked, or the account was deleted, demoted or re-credentialed since it was issued)
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetail' }
+    Forbidden:
+      description: Caller is not permitted to perform this action
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetail' }
+    NotFound:
+      description: Resource not found
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetail' }
+    Conflict:
+      description: Conflict with an existing resource
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetail' }
+    TooManyRequests:
+      description: >-
+        Throttled — either the per-IP rate-limit bucket is exhausted (generic detail), on a telemetry read
+        (`/api/v1/telemetry/**`) the per-USER telemetry bucket is exhausted (30/min), or, on /login, the
+        per-account lockout is active (account-specific detail). All carry a ProblemDetail body.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetail' }
+    PayloadTooLarge:
+      description: >-
+        Request body exceeds the global 10 MiB ceiling — a memory-DoS backstop shared by
+        every endpoint, so declared on every operation that takes a body (field-level maxLength
+        rules reject oversized values far earlier on ordinary payloads). Cross-cutting for the
+        coverage gate: pinned once by `PayloadValidationTest`, never once per operation.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetail' }
+    InternalServerError:
+      description: >-
+        Unexpected server error.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetail' }
+
+  schemas:
+    HealthResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          description: Always `ok` on a 200 — a failed probe is a problem body, never a status word.
+          example: ok
+    PasswordResetConfirmRequest:
+      type: object
+      required: [token, password]
+      properties:
+        token:
+          type: string
+          minLength: 43
+          maxLength: 43
+          pattern: '^[A-Za-z0-9_-]{43}$'
+          description: Single-use 256-bit reset credential from the email; never logged or returned.
+        password:
+          type: string
+          format: password
+          minLength: 10
+          maxLength: 71
+          description: The new password; at most 71 UTF-8 bytes (bcrypt ceiling).
+
+    PasswordResetRequest:
+      type: object
+      required: [email]
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string }
+        password: { type: string }
+
+    LoginResponse:
+      type: object
+      required: [token, expiresAt, refreshToken, refreshExpiresAt, userId, roles, disabledFeatures, language]
+      properties:
+        token:
+          type: string
+          description: "Short-lived access token; send as the `Authorization: Bearer` value."
+        expiresAt:
+          type: integer
+          format: int64
+          description: Access-token expiry as Unix epoch milliseconds.
+        refreshToken:
+          type: string
+          description: Longer-lived token; POST to /api/v1/refresh to obtain a fresh pair.
+        refreshExpiresAt:
+          type: integer
+          format: int64
+          description: Refresh-token expiry as Unix epoch milliseconds.
+        userId: { type: integer, format: int32, minimum: 0 }
+        roles:
+          type: array
+          items: { $ref: '#/components/schemas/UserRole' }
+          description: Additional roles of the authenticated user — empty for a regular user.
+        disabledFeatures:
+          type: array
+          items: { $ref: '#/components/schemas/Feature' }
+          description: Per-user feature flags — the admin-disabled set; empty = full access.
+        language:
+          $ref: '#/components/schemas/Language'
+
+    UserRole:
+      type: string
+      enum: [ADMIN]
+      description: >-
+        An additional role. Every user is implicitly a regular user; the array only ever
+        carries privileges added on top of that baseline.
+
+    Feature:
+      type: string
+      enum: [MFA]
+      description: >-
+        A per-user gateable feature. Stored as the DISABLED set (no row = enabled).
+        MFA is the one inverted-default, login-scoped flag: users start with it disabled
+        (email MFA is opt-in), and it gates only the login flow.
+
+    Language:
+      type: string
+      enum: [en, pl]
+      description: >-
+        A supported UI/email language. The ONE synced per-user language (V1) — set at
+        create, changed only via PUT /users/{id}/language; drives the SPA at sign-in and
+        every email sent to the user.
+
+    UserLanguageUpdateRequest:
+      type: object
+      required: [language]
+      properties:
+        language:
+          $ref: '#/components/schemas/Language'
+
+    UserFeaturesUpdateRequest:
+      type: object
+      required: [disabledFeatures]
+      properties:
+        disabledFeatures:
+          type: array
+          items: { $ref: '#/components/schemas/Feature' }
+          description: The complete new DISABLED set — an empty array enables everything.
+
+    MfaChallengeResponse:
+      type: object
+      required: [mfaRequired, challengeId, expiresAt]
+      properties:
+        mfaRequired:
+          type: boolean
+          description: Always true — the discriminator against LoginResponse in the login 200.
+        challengeId:
+          type: string
+          description: Opaque single-use challenge id; send it back with the emailed code.
+        expiresAt:
+          type: integer
+          format: int64
+          description: Challenge (and code) expiry as Unix epoch milliseconds.
+
+    MfaVerifyRequest:
+      type: object
+      required: [challengeId, code]
+      properties:
+        challengeId: { type: string }
+        code:
+          type: string
+          description: The 6-digit code from the sign-in email.
+
+    RefreshRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken: { type: string }
+
+    LogoutRequest:
+      type: object
+      properties:
+        refreshToken:
+          type: string
+          description: Optional refresh token to revoke together with the access token.
+
+    UserCreateRequest:
+      type: object
+      required: [name, email, password]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 50 }
+        email: { type: string, maxLength: 254 }
+        password:
+          type: string
+          minLength: 10
+          maxLength: 71
+          description: >-
+            Client-generated; at most 71 UTF-8 bytes (the bcrypt ceiling). Stored only as a
+            hash and never returned.
+        roles:
+          type: array
+          items: { $ref: '#/components/schemas/UserRole' }
+          description: Additional roles; omitted/empty = a regular user.
+        language:
+          allOf: [{ $ref: '#/components/schemas/Language' }]
+          nullable: true
+          description: Create-only (the whole-user PUT never touches it); omitted = en.
+
+    UserUpdateRequest:
+      type: object
+      required: [name, email, roles]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 50 }
+        email: { type: string, maxLength: 254 }
+        roles:
+          type: array
+          items: { $ref: '#/components/schemas/UserRole' }
+
+    UserResponse:
+      type: object
+      required: [id, name, email, roles, disabledFeatures, language]
+      properties:
+        id: { type: integer, format: int32, minimum: 0 }
+        name: { type: string }
+        email: { type: string }
+        roles:
+          type: array
+          items: { $ref: '#/components/schemas/UserRole' }
+          description: Additional roles only — empty for a regular user.
+        disabledFeatures:
+          type: array
+          items: { $ref: '#/components/schemas/Feature' }
+          description: Per-user feature flags — the admin-disabled set; empty = full access.
+        language:
+          $ref: '#/components/schemas/Language'
+
+    UserPage:
+      type: object
+      required: [items, page, pageSize, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserResponse'
+        page: { type: integer, minimum: 1 }
+        pageSize: { type: integer, minimum: 1, maximum: 100 }
+        total:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Row count after filters, before pagination.
+
+    PasswordUpdateRequest:
+      type: object
+      required: [password]
+      properties:
+        password:
+          type: string
+          minLength: 10
+          maxLength: 71
+          description: The new password (at least 10 characters, at most 71 UTF-8 bytes).
+        currentPassword:
+          type: string
+          description: >-
+            Required when the caller changes their OWN password (even an admin); omitted
+            for an admin resetting somebody else's.
+
+    TeamCreateRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        description: { type: string, maxLength: 500, nullable: true }
+        managerUserId:
+          type: integer
+          format: int32
+          minimum: 0
+          nullable: true
+          description: >-
+            The team's manager, a user; must be active (`400` otherwise).
+    TeamUpdateRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        description: { type: string, maxLength: 500, nullable: true }
+        managerUserId:
+          type: integer
+          format: int32
+          minimum: 0
+          nullable: true
+          description: >-
+            The team's manager, a user; must be active (`400` otherwise). Omitted on PUT (a full replace) = no manager.
+    TeamResponse:
+      type: object
+      required: [id, name, managerUserId, managerName, createdAt, updatedAt]
+      properties:
+        id: { type: integer, format: int32, minimum: 0 }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        managerUserId:
+          type: integer
+          format: int32
+          minimum: 0
+          nullable: true
+          description: The team's manager; null when unset or when the assigned user was soft-deleted.
+        managerName: { type: string, nullable: true, description: The manager's display name; null with `managerUserId`. }
+        createdAt: { type: integer, format: int64, description: Epoch millis }
+        updatedAt: { type: integer, format: int64, description: Epoch millis }
+    TeamListItem:
+      type: object
+      required: [id, name, managerUserId, managerName, createdAt, updatedAt]
+      properties:
+        id: { type: integer, format: int32, minimum: 0 }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        managerUserId:
+          type: integer
+          format: int32
+          minimum: 0
+          nullable: true
+          description: The team's manager; null when unset or when the assigned user was soft-deleted.
+        managerName: { type: string, nullable: true, description: The manager's display name; null with `managerUserId`. }
+        createdAt: { type: integer, format: int64 }
+        updatedAt: { type: integer, format: int64 }
+    TeamPage:
+      type: object
+      required: [items, page, pageSize, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TeamListItem'
+        page: { type: integer, minimum: 1 }
+        pageSize: { type: integer, minimum: 1, maximum: 100 }
+        total:
+          type: integer
+          format: int64
+          minimum: 0
+
+    ProblemDetail:
+      type: object
+      description: RFC 7807 problem detail. Served as `application/problem+json`; instance is the request path without query parameters.
+      required: [type, title, status, detail, instance]
+      properties:
+        type:
+          type: string
+          default: about:blank
+          description: >-
+            A URI reference identifying the problem type; `about:blank` for every problem today.
+        title:
+          type: string
+          description: Short, human-readable summary of the problem type.
+        status:
+          type: integer
+          description: HTTP status code.
+        detail:
+          type: string
+          description: Human-readable explanation specific to this occurrence.
+        instance:
+          type: string
+          description: URI reference of the specific occurrence (the request path).
+
+    TelemetryCurrent:
+      type: object
+      required: [generatedAt, sampleIntervalSeconds, processes, storage, requests]
+      properties:
+        generatedAt: { type: integer, format: int64, description: Epoch millis }
+        sampleIntervalSeconds: { type: integer, format: int32, description: The cadence of the raw samples; also the `requests` window. }
+        processes:
+          type: array
+          items: { $ref: '#/components/schemas/TelemetryProcess' }
+        storage:
+          allOf: [{ $ref: '#/components/schemas/TelemetryStorage' }]
+          nullable: true
+          description: The newest storage measurement; null until the cluster section has taken one.
+        requests: { $ref: '#/components/schemas/TelemetryRequests' }
+    TelemetryProcess:
+      type: object
+      description: One sampling process (a JVM run) with its latest raw sample.
+      required: [id, role, instance, startedAt, lastSeenAt, sampledAt, stale, version, commit, memory, jvm]
+      properties:
+        id: { type: integer, format: int32 }
+        role: { type: string, description: 'The process role; `app`.' }
+        instance: { type: string, description: The pod or host name. }
+        startedAt: { type: integer, format: int64, description: Epoch millis of the JVM start }
+        lastSeenAt: { type: integer, format: int64, description: Epoch millis of the latest sample tick }
+        sampledAt: { type: integer, format: int64, nullable: true, description: The bucket of the sample the figures come from; null when none is retained. }
+        stale: { type: boolean, description: No sample for more than three sample intervals. }
+        version: { type: string, nullable: true, description: The image build version (null outside the image). }
+        commit: { type: string, nullable: true, description: The image build commit (null outside the image). }
+        memory: { $ref: '#/components/schemas/TelemetryMemory' }
+        jvm: { $ref: '#/components/schemas/TelemetryJvm' }
+    TelemetryMemory:
+      type: object
+      description: Bytes; a figure the process could not measure is null.
+      required:
+        - heapUsedBytes
+        - heapCommittedBytes
+        - heapMaxBytes
+        - oldGenPeakBytes
+        - nonHeapBytes
+        - directBytes
+        - rssBytes
+        - cgroupCurrentBytes
+        - cgroupAnonBytes
+        - workingSetBytes
+        - cgroupPeakBytes
+        - containerLimitBytes
+        - percentOfLimit
+      properties:
+        heapUsedBytes: { type: integer, format: int64, nullable: true }
+        heapCommittedBytes: { type: integer, format: int64, nullable: true }
+        heapMaxBytes: { type: integer, format: int64 }
+        oldGenPeakBytes: { type: integer, format: int64, nullable: true, description: The old generation's peak over the latest sample interval. }
+        nonHeapBytes: { type: integer, format: int64, nullable: true }
+        directBytes: { type: integer, format: int64, nullable: true }
+        rssBytes: { type: integer, format: int64, nullable: true }
+        cgroupCurrentBytes: { type: integer, format: int64, nullable: true }
+        cgroupAnonBytes: { type: integer, format: int64, nullable: true }
+        workingSetBytes: { type: integer, format: int64, nullable: true, description: '`memory.current - inactive_file`: what the kubelet evicts on.' }
+        cgroupPeakBytes: { type: integer, format: int64, nullable: true, description: The cgroup's LIFETIME peak. }
+        containerLimitBytes: { type: integer, format: int64, nullable: true }
+        percentOfLimit:
+          type: number
+          format: double
+          nullable: true
+          description: '`workingSetBytes` over `containerLimitBytes`, in percent (one decimal; may exceed 100); null without a limit or a working set.'
+    TelemetryJvm:
+      type: object
+      required: [cpuRatio, threads, gcCount, gcTimeMs, poolAcquired, poolIdle, poolPending, poolAllocated]
+      properties:
+        cpuRatio: { type: number, format: double, nullable: true, description: Process CPU time over wall time as a fraction of the available processors (0..1). }
+        threads: { type: integer, format: int32, nullable: true }
+        gcCount: { type: integer, format: int64, nullable: true, description: 'Collections over the latest sample interval, all collectors summed.' }
+        gcTimeMs: { type: integer, format: int64, nullable: true, description: 'Collection time over the latest sample interval, all collectors summed.' }
+        poolAcquired: { type: integer, format: int32, nullable: true }
+        poolIdle: { type: integer, format: int32, nullable: true }
+        poolPending: { type: integer, format: int32, nullable: true }
+        poolAllocated: { type: integer, format: int32, nullable: true }
+    TelemetryStorage:
+      type: object
+      required: [measuredAt, databaseBytes, schemas]
+      properties:
+        measuredAt: { type: integer, format: int64, description: Epoch millis of the measurement's bucket }
+        databaseBytes: { type: integer, format: int64, description: '`pg_database_size`.' }
+        schemas:
+          type: array
+          items: { $ref: '#/components/schemas/TelemetrySchemaSize' }
+    TelemetrySchemaSize:
+      type: object
+      required: [name, bytes]
+      properties:
+        name: { type: string, description: 'public or ops (telemetry''s own cost).' }
+        bytes: { type: integer, format: int64, description: "Heap, TOAST and indexes of the schema's tables." }
+    TelemetryRequests:
+      type: object
+      required: [windowSeconds, percentileWindowSeconds, measuredAt, total, routes]
+      properties:
+        windowSeconds: { type: integer, format: int32, description: The window of the counts - the latest sample interval. }
+        percentileWindowSeconds:
+          type: integer
+          format: int32
+          description: The window p50 and p95 cover - the sample interval capped at 300 s (the request timers' reservoir), so it can be shorter than `windowSeconds`.
+        measuredAt: { type: integer, format: int64, nullable: true, description: The sample bucket the figures describe; null when no live process has a sample. }
+        total: { $ref: '#/components/schemas/TelemetryRouteStats' }
+        routes:
+          type: array
+          maxItems: 15
+          items: { $ref: '#/components/schemas/TelemetryRouteStats' }
+    TelemetryRouteStats:
+      type: object
+      description: One route (or `*`, every `/api/` route except the telemetry's own and the probes) over the latest sample interval.
+      required: [route, count, p50Ms, p95Ms, serverErrors, rateLimited]
+      properties:
+        route: { type: string, description: 'The normalised route (`/api/v1/users/{id}`) or `*`.' }
+        count: { type: integer, format: int64, minimum: 0 }
+        p50Ms: { type: number, format: double, nullable: true, description: Null when nothing was served. }
+        p95Ms: { type: number, format: double, nullable: true, description: Null when nothing was served. }
+        serverErrors: { type: integer, format: int64, minimum: 0, description: 5xx responses. }
+        rateLimited: { type: integer, format: int64, minimum: 0, description: 429 responses. }
+    TelemetryHistory:
+      type: object
+      required: [group, range, bucketSeconds, from, to, historyFrom, truncated, series]
+      properties:
+        group: { type: string, enum: [memory, storage, requests, jvm] }
+        range: { type: string, enum: [24h, 7d, 90d] }
+        bucketSeconds: { type: integer, format: int32, description: The width of a point's bucket. }
+        from: { type: integer, format: int64, description: Epoch millis of the range start (the first bucket may begin up to one bucket earlier). }
+        to: { type: integer, format: int64, description: Epoch millis of the read }
+        historyFrom: { type: integer, format: int64, description: The oldest instant the range can actually hold data for. }
+        truncated: { type: boolean, description: 'More series matched than were returned (40).' }
+        series:
+          type: array
+          maxItems: 40
+          items: { $ref: '#/components/schemas/TelemetrySeries' }
+    TelemetrySeries:
+      type: object
+      description: One chart line; `points` are the buckets that hold data, ascending, at most 400.
+      required: [key, metric, label, role, unit, kind, points]
+      properties:
+        key: { type: string, description: 'Unique within the response (`<role>:<metric>:<label>`, empty parts left out).' }
+        metric: { type: string, description: 'The metric name (`mem.heap_used`, `http.p95`, ...).' }
+        label: { type: string, description: 'A route, a GC collector or a schema; empty when the metric has none.' }
+        role: { type: string, nullable: true, description: 'The process role a `memory` / `jvm` series merges (`app`); null for cluster-wide and `requests` series.' }
+        unit: { type: string, enum: [BYTES, MILLISECONDS, COUNT, RATIO] }
+        kind:
+          type: string
+          enum: [GAUGE, DELTA, PERCENTILE]
+          description: A DELTA point's `avg` is the bucket's total; for the others it is the n-weighted mean.
+        points:
+          type: array
+          maxItems: 400
+          items: { $ref: '#/components/schemas/TelemetryPoint' }
+    TelemetryPoint:
+      type: object
+      required: [t, avg, max]
+      properties:
+        t: { type: integer, format: int64, description: Epoch millis of the bucket start }
+        avg: { type: number, format: double }
+        max: { type: number, format: double }
+

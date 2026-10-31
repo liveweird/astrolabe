@@ -1,0 +1,252 @@
+ktor:
+  # Development default for :server:run and tests; the Docker image ships
+  # KTOR_DEVELOPMENT=false (production mode: JWT/seed fail-closed checks active,
+  # HSTS + HTTPS redirect on).
+  development: "$KTOR_DEVELOPMENT:true"
+  deployment:
+    port: 8086
+  application:
+    # Ktor cancels module loading after `startupTimeoutMillis` (default 10 s) — which cut the cold-start
+    # Flyway retry wait (up to ~103 s at the maximum 15 retries, infra/db/Flyway.kt) short and crashed the
+    # pod once on every fresh deploy (checkup 2, live k8s). 140 s outlasts that wait plus boot and stays
+    # inside the k8s startupProbe (~150 s); FlywayConnectRetriesTest pins both bounds.
+    startupTimeoutMillis: 140000
+    modules:
+      # — base plugins
+      - ch.nokillswit.plugins.HttpKt.configureHttp
+      - ch.nokillswit.plugins.SecurityHeadersKt.configureSecurityHeaders
+      - ch.nokillswit.plugins.MonitoringKt.configureMonitoring
+      - ch.nokillswit.plugins.SerializationKt.configureSerialization
+      - ch.nokillswit.plugins.SecurityKt.configureSecurity
+      # Every per-IP bucket (login, refresh, password reset, MFA) — before any route module.
+      - ch.nokillswit.plugins.RateLimitsKt.configureRateLimits
+      - ch.nokillswit.plugins.ErrorHandlingKt.configureErrorHandling
+      - ch.nokillswit.plugins.OpenTelemetryKt.configureOpenTelemetry
+      - ch.nokillswit.plugins.AutoHeadResponseKt.configureAutoHeadResponse
+      - ch.nokillswit.plugins.ResourcesKt.configureResources
+      # — infrastructure
+      - ch.nokillswit.infra.mail.MailKt.configureMail
+      # Crypto before Database: the composition root hands the FieldCipher to any service
+      # owning encrypted columns.
+      - ch.nokillswit.infra.crypto.CryptoKt.configureCrypto
+      - ch.nokillswit.infra.db.FlywayKt.configureFlyway
+      - ch.nokillswit.infra.db.DatabaseKt.configureDatabase
+      - ch.nokillswit.infra.db.BootstrapKt.configureBootstrap
+      # Public liveness/readiness probes (/api/v1/health, /api/v1/ready); after Database (the probe
+      # round-trips it).
+      - ch.nokillswit.plugins.HealthKt.configureHealth
+      # The per-process telemetry sampler (`.claude/docs/observability.md` "Telemetry"): the process samples its own JVM; after
+      # the database/monitoring seams it reads.
+      - ch.nokillswit.telemetry.TelemetryKt.configureTelemetry
+      # — features
+      - ch.nokillswit.users.UserRoutesKt.configureUserRoutes
+      - ch.nokillswit.teams.TeamRoutesKt.configureTeamRoutes
+      - ch.nokillswit.auth.AuthRoutesKt.configureAuthRoutes
+      - ch.nokillswit.auth.PasswordResetRoutesKt.configurePasswordResetRoutes
+      # The telemetry read API (ADMIN, `.claude/docs/observability.md` "Telemetry"): reads what the sampler wrote.
+      - ch.nokillswit.telemetry.TelemetryRoutesKt.configureTelemetryRoutes
+      # — catch-all router
+      - ch.nokillswit.plugins.RoutingKt.configureRouting
+
+security:
+  # Per-account login lockout (complements the per-IP rate limit): after `threshold`
+  # consecutive failures for one email, further attempts are 429 for `durationSeconds`.
+  # A successful login resets the counter. In-memory, per-instance.
+  lockout:
+    threshold: "$LOGIN_LOCKOUT_THRESHOLD:5"
+    durationSeconds: "$LOGIN_LOCKOUT_DURATION_SECONDS:900"
+    maxTracked: "$LOGIN_LOCKOUT_MAX_TRACKED:10000"
+  # Per-IP token bucket on POST /api/v1/login. The per-account lockout above is the
+  # actual brute-force defence and is unaffected by this. Blank FOLLOWS THE MODE:
+  # 10/min in production, 1000/min in development — the e2e suite drives many logins
+  # from a single host and would otherwise spend minutes sleeping out the bucket.
+  # Set a number to pin it in either mode.
+  rateLimit:
+    loginPerMinute: "$LOGIN_RATE_LIMIT_PER_MINUTE:"
+    # Blank keeps the default 30/min (both modes); a number pins it.
+    refreshPerMinute: "$REFRESH_RATE_LIMIT_PER_MINUTE:"
+    # Per-IP bucket on GET /api/v1/ready (the anonymous probe that takes a pooled DB connection per
+    # call). Blank keeps the default 60/min (both modes; the kubelet probes 12/min); a number pins it.
+    readyPerMinute: "$READY_RATE_LIMIT_PER_MINUTE:"
+    # Per-IP bucket on POST /api/v1/password-reset. Blank FOLLOWS THE MODE (5/min in
+    # production, 100/min in development — the loginPerMinute rationale); a number pins it.
+    # The per-EMAIL reset throttle below is the actual abuse defence in both modes. The confirm step
+    # (POST /api/v1/password-reset/confirm) rides its own `password-reset-confirm` bucket: 10/min per IP in
+    # every mode, NOT configurable (the MFA bucket idiom; plugins/RateLimits.kt).
+    passwordResetPerMinute: "$PASSWORD_RESET_RATE_LIMIT_PER_MINUTE:"
+  # Not configurable, stated for the operator: the per-request access-token check
+  # (auth/TokenBlocklistService.accessVerdict, plugins/Security.kt) is ONE uncached database
+  # statement (revocation, account liveness, credential revision, roles), so a logout, a delete,
+  # a demotion or a password change ends the token on its next request on ANY replica. The
+  # per-instance in-memory state is the lockout, the reset throttle, the MFA challenges and the
+  # refresh-rotation records: the deployment is single-replica (k8s/app-deployment.yaml), like
+  # those assume; scale out only after moving them to a shared store.
+  # Refresh-token rotation (auth/TokenBlocklistService.kt): every /refresh blocklists the presented
+  # token. A replay of a token this instance rotated less than `replayGraceSeconds` ago still gets a
+  # fresh pair (covers a /refresh response lost in flight; must exceed the SPA's 30 s request deadline);
+  # beyond it the replay is a 401 `replayed`. 0 = strict one-time use. In-memory, per-instance: a
+  # restart forgets the rotations (strict fallback).
+  refresh:
+    replayGraceSeconds: "$REFRESH_REPLAY_GRACE_SECONDS:60"
+  # Self-service password reset: at most one request per submitted email per interval,
+  # uniformly whether or not the account exists. In-memory, per-instance, like the lockout.
+  # The emailed link is a persisted single-use grant (V35, only its digest is stored) valid for
+  # tokenTtlSeconds (1..3600; default 15 minutes) - a request never changes a password, only
+  # the owner opening the link and choosing one does (auth/PasswordResetService.kt).
+  passwordReset:
+    minIntervalSeconds: "$PASSWORD_RESET_MIN_INTERVAL_SECONDS:60"
+    maxTracked: "$PASSWORD_RESET_MAX_TRACKED:10000"
+    tokenTtlSeconds: "$PASSWORD_RESET_TOKEN_TTL_SECONDS:900"
+  # Email MFA (opt-in per user via the MFA feature flag): a login with correct credentials
+  # mints a challenge and emails a 6-digit code; the code must come back to
+  # POST /api/v1/login/mfa within the TTL and attempt cap. Challenges are in-memory,
+  # per-instance, like the lockout above (a restart just means signing in again).
+  mfa:
+    codeTtlSeconds: "$MFA_CODE_TTL_SECONDS:300"
+    maxAttempts: "$MFA_MAX_ATTEMPTS:5"
+    maxTracked: "$MFA_MAX_TRACKED:10000"
+  # Application-level encryption at rest (infra/crypto/): an AES-256-GCM key (64 hex chars,
+  # `openssl rand -hex 32`) for stored credentials (none stored yet in v0.1.0). The
+  # default is a committed dev-only key (infra/crypto/Crypto.kt — it is on the burned list,
+  # so production startup refuses it).
+  # LOSING THIS KEY MEANS LOSING EVERY STORED ENCRYPTED VALUE — back it up apart from the DB.
+  encryption:
+    key: "$DATA_ENCRYPTION_KEY:ef9b766b3b3dc805220826e796b1b907d7b7fb55048940e1b730af61b7f17aa4"
+    # Decrypt-only fallback for key rotation: set the OLD key here and the new one above, boot
+    # once (a re-encrypt backfill, when a service stores encrypted columns, rewrites every row under the new key), then remove it.
+    previousKey: "$DATA_ENCRYPTION_KEY_PREVIOUS:"
+  csrf:
+    # TEMPLATE PLACEHOLDER — CSRF protection is off by default because this API
+    # authenticates via bearer JWT in the Authorization header, which browsers
+    # do not auto-attach to cross-origin requests. Enable only if you move to
+    # cookie-based session auth.
+    enabled: "$SECURITY_CSRF_ENABLED:false"
+
+jwt:
+  secret: "$JWT_SECRET:secret"
+  issuer: "$JWT_ISSUER:http://0.0.0.0:8086/"
+  audience: "$JWT_AUDIENCE:astrolabe-api"
+  realm: "$JWT_REALM:astrolabe-api"
+  # Short-lived access token used as the API bearer; the SPA silently refreshes it.
+  accessExpiresInSeconds: "$JWT_ACCESS_EXPIRES_IN_SECONDS:900"
+  # Longer-lived refresh token exchanged at POST /api/v1/refresh. Pure-sliding with rotation: each
+  # refresh mints a fresh pair and retires the presented refresh token (security.refresh below), so an
+  # idle session ends only after this window elapses.
+  refreshExpiresInSeconds: "$JWT_REFRESH_EXPIRES_IN_SECONDS:3600"
+
+bootstrap:
+  # When set and the V3 seed admin still has the well-known "changeme" password,
+  # it is rotated to this value at startup (idempotent — a later admin-chosen
+  # password is never overwritten). Outside development mode, startup FAILS if
+  # any account still carries the seed password.
+  adminInitialPassword: "$ADMIN_INITIAL_PASSWORD:"
+
+http:
+  # Set true when the app runs behind a reverse proxy / ingress that terminates TLS.
+  # Installs XForwardedHeaders so the client IP (rate limiting) and scheme (HTTPS
+  # redirect) come from X-Forwarded-* headers. The proxy MUST set X-Forwarded-For,
+  # X-Forwarded-Proto and X-Forwarded-Host and overwrite client-supplied values —
+  # k8s/app-deployment.yaml is the reference. X-Forwarded-Port is NOT read (cleared
+  # in plugins/Http.kt — nothing needs it, and a non-numeric client value used to
+  # throw a 500 out of CallSetup before any route ran).
+  behindProxy: "$HTTP_BEHIND_PROXY:false"
+  # Trusted proxies in front of the app when behindProxy is true (default 1 = the
+  # ingress alone). X-Forwarded-For is folded from every header LINE the request
+  # carries (plugins/Http.kt's resolveForwardedForOrigin, installed ahead of
+  # XForwardedHeaders — a proxy that APPENDS a fresh line instead of merging into an
+  # existing one, e.g. HAProxy's `option forwardedfor`, would otherwise leave a
+  # client-supplied first line as the trusted value; Ktor's own header reader only
+  # ever sees the first line) and then read from the END of the combined, comma-
+  # joined list: 1 trusts the value the last proxy wrote; N skips the N-1 addresses
+  # trusted proxies appended after the client's. Only count proxies that APPEND
+  # (nginx proxy_add_x_forwarded_for, ingress-nginx with compute-full-forwarded-for);
+  # ingress-nginx's default REPLACES the header, so 1 is right. Anything before the
+  # values your proxies wrote is client-supplied and spoofable — never the first value.
+  proxyHops: "$HTTP_PROXY_HOPS:1"
+  # Comma-separated cross-origin hosts allowed to call the API (e.g.
+  # "app.example.com,other.example.com:8443"). Empty (the default) = CORS is not
+  # installed at all: production is single-origin (Ktor serves the SPA) and local
+  # dev goes through the Vite proxy, so no cross-origin caller exists.
+  corsHosts: "$CORS_ALLOWED_HOSTS:"
+  # Swagger UI + the OpenAPI spec at /openapi. Blank (default) = follow the mode:
+  # served in development, hidden in production. Set "true" to expose them in a
+  # trusted production environment, "false" to hide them even in development.
+  exposeOpenApi: "$HTTP_EXPOSE_OPENAPI:"
+
+monitoring:
+  # How often the Dropwizard registry (Ktor's request/JVM meters) is dumped to the `metrics` logger (plugins/Monitoring.kt), whole
+  # seconds: 0 = off (the meters are still collected), otherwise 30..3600; anything else fails startup. 300 by default: every
+  # dump formats the whole registry into dozens of lines that the console log exporter then re-emits, and at the old 10 s that was
+  # a main source of idle allocation and log volume (memory deep dive, option K) for a snapshot nobody reads continuously - five
+  # minutes still leaves a trail to look back on when diagnosing. Nothing else consumes these lines.
+  reporterIntervalSeconds: "$METRICS_REPORT_INTERVAL_SECONDS:300"
+
+telemetry:
+  # The in-app telemetry sampler (telemetry/, `.claude/docs/observability.md` "Telemetry"): every process writes its own memory/JVM
+  # figures to the `ops` schema. All three intervals are whole seconds, validated on every boot (enabled or not).
+  enabled: "$TELEMETRY_ENABLED:true"
+  # How often a process samples itself (60..1800 and a divisor of 3600, so an hour's samples tile it); stored as the raw rows' `resolution`.
+  # Also the window of the request timers, capped at 300.
+  sampleIntervalSeconds: "$TELEMETRY_SAMPLE_INTERVAL_SECONDS:300"
+  # How often the storage collector measures the database's schema sizes (900..86400).
+  storageIntervalSeconds: "$TELEMETRY_STORAGE_INTERVAL_SECONDS:3600"
+
+web:
+  # When set, the server serves the built React SPA from this directory (static
+  # assets + SPA fallback to index.html). Empty in local dev, where Vite serves
+  # the SPA on its own port; set to /app/web inside the Docker image.
+  staticDir: "$WEB_STATIC_DIR:"
+
+mail:
+  # Outbound-email transport (infra/mail/Mail.kt): `log` (dev default — messages,
+  # including password-reset links and MFA codes, go to the ch.nokillswit.mail logger instead of
+  # being sent; production startup REFUSES it), `smtp` (real delivery; blank host
+  # refuses startup in any mode), or `disabled` (the Docker image default — email
+  # features answer 503).
+  transport: "$MAIL_TRANSPORT:log"
+  smtp:
+    host: "$SMTP_HOST:"
+    port: "$SMTP_PORT:587"
+    user: "$SMTP_USER:"
+    password: "$SMTP_PASSWORD:"
+    startTls: "$SMTP_STARTTLS:true"
+  from: "$MAIL_FROM:astrolabe@localhost"
+  # The deployment's public ORIGIN (e.g. https://astrolabe.example.com): the self-service password reset
+  # builds its emailed link from it - configured, never derived from the request Host header. A
+  # non-blank value must be an https origin (http only in development) without path, query, fragment
+  # or credentials, or startup is refused in any mode; blank leaves the reset answering 503.
+  appUrl: "$MAIL_APP_URL:"
+
+postgres:
+  # Local-dev defaults point at the docker-compose Postgres, which maps host port
+  # 5437 (not 5432..5436 — sibling apps may occupy those on the same machine).
+  jdbcUrl: "$POSTGRES_JDBC_URL:jdbc:postgresql://localhost:5437/astrolabe"
+  r2dbcUrl: "$POSTGRES_R2DBC_URL:r2dbc:postgresql://localhost:5437/astrolabe"
+  user: "$POSTGRES_USER:astrolabe"
+  password: "$POSTGRES_PASSWORD:astrolabe"
+  # How many times Flyway retries its connection at boot (doubling 1, 2, 4, 8, 8… s waits — 10 is
+  # ~63 s) before failing, so a cold start with Postgres not yet accepting connections waits instead
+  # of crash-looping (infra/db/Flyway.kt). 0 = fail fast.
+  connectRetries: "$POSTGRES_CONNECT_RETRIES:10"
+  # Bounded R2DBC connection pool (infra/db/Database.kt, `.claude/docs/persistence.md`
+  # "Connection pool") — a plain r2dbc:postgresql:// connect opens one PostgreSQL backend
+  # per suspendTransaction with nothing capping how many run at once. Sizing assumes a
+  # SINGLE replica: `maxSize × replicas` must stay well under PostgreSQL's default
+  # `max_connections = 100`, with room left for Flyway's one short-lived JDBC connection
+  # (infra/db/Flyway.kt) and any other client.
+  pool:
+    # The ceiling on concurrent pooled connections for this instance.
+    maxSize: "$POSTGRES_POOL_MAX_SIZE:20"
+    # The floor the pool fills up to on its FIRST acquire (r2dbc-pool warms up lazily — no
+    # explicit warmup() call): the first acquire (a probe, a request, or the seed-admin work of configureBootstrap)
+    # opens them.
+    initialSize: "$POSTGRES_POOL_INITIAL_SIZE:2"
+    # How long a caller waits for a free connection before failing (surfaces as a 500 —
+    # see "Connection pool" in persistence.md — rather than a new declared status).
+    maxAcquireTimeSeconds: "$POSTGRES_POOL_MAX_ACQUIRE_SECONDS:10"
+    # How long an idle pooled connection may sit before the pool recycles it.
+    maxIdleTimeSeconds: "$POSTGRES_POOL_MAX_IDLE_SECONDS:600"
+    # PostgreSQL's idle_in_transaction_session_timeout on every pooled connection (0 = off): the
+    # server ends a session left idle inside an open transaction, releasing its locks. 300 s is ~8x
+    # the longest legitimate gap — see "Connection pool" in persistence.md.
+    idleInTransactionTimeoutSeconds: "$POSTGRES_POOL_IDLE_IN_TRANSACTION_TIMEOUT_SECONDS:300"
