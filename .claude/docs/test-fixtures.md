@@ -179,8 +179,8 @@ above any legitimate statement (a lock wait behind another transaction) and belo
   verify (the timing equalizer, ~225 ms locally); a test that needs a dozen failures (rate limit,
   proxy trust) logs in as freshly seeded accounts (`TestUsers.seed`, cost 4) with a wrong password —
   the same 401 path at ~1 ms; soft-delete them afterwards.
-- `TestTeams.seed(name)` — a fresh team fixture; beside it, raw-row readers for what
-  the API hides (`TestTeams.rawRows`, `TestUsers.stampPasswordChangedAt`). Shared
+- `TestTeams.seed(name)` — a fresh team fixture; `TestPeople.seed(name, userId?, email?)` a person (optionally linked to a login; `softDelete`, `rawRows`); beside them, raw-row readers for what
+  the API hides (`TestTeams.rawRows`, `TestUsers.stampPasswordChangedAt`). `PersonMigrationTest` builds a scratch database, migrates it to V9, seeds data and applies V10 (the pattern for any data-rewriting migration; the shared container only migrates an empty database). Shared
   suite state (the seed admin) is never mutated destructively — tests mint UNIQUE rows and remove
   their own.
 - `TestSeedState.restoreSeedAccounts()` — bootstrap/production-mode tests rotate the seed admin's

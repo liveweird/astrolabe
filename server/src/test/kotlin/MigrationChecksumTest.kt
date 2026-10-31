@@ -29,6 +29,7 @@ class MigrationChecksumTest {
         "V7__user_credential_revision.sql" to 289120118,
         "V8__password_reset_tokens.sql" to 1662294880,
         "V9__create_ops_telemetry.sql" to -782122896,
+        "V10__people_and_team_manager_person.sql" to -438551672,
     )
 
     @Test

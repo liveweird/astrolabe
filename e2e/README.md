@@ -52,7 +52,7 @@ edited spec must satisfy:
 - Each spec's scenario file declares its **Owns** line (exclusive server-side state; "nothing —
   read-only" when applicable). Today: `auth`, `changelog` and `shell` (device-local
   localStorage only) are read-only; `accessibility` owns one API-seeded fixture team
-  (`e2e-axe-team-*`); `users` owns its throwaway accounts; `teams` owns its throwaway teams (unique `e2e-team-*` names) and users; `i18n` owns its throwaway user (and ONLY that user's
+  (`e2e-axe-team-*`); `users` owns its throwaway accounts; `teams` owns its throwaway teams (unique `e2e-team-*` names), person and user; `people` owns its throwaway people (unique `e2e-person-*` names) and users; `i18n` owns its throwaway user (and ONLY that user's
   language — **seeded accounts must stay English**: every login applies the stored language to
   that session's UI, so a Polish seed admin would flip parallel specs mid-run); `password-reset`
   owns its throwaway account (its reset requests use unique per-run emails against the
@@ -89,7 +89,7 @@ outcomes). **A new or behaviorally changed test lands with its scenario file and
 the same commit** — this list is the coverage map, the scenario file is the design.
 
 - [`accessibility.spec.ts`](scenarios/accessibility.md) — axe WCAG A/AA smoke: login + the
-  authenticated list/form pages (`/`, `/teams`, `/users`, `/users/new`, `/feature-flags`,
+  authenticated list/form pages (`/`, `/teams`, `/people`, `/users`, `/users/new`, `/feature-flags`,
   `/change-password`, `/changelog`), the detail pages of an API-seeded fixture team (its team page,
   the admin's own edit-user and user-features pages), `/reset-password` and its confirm page (the form state, from a well-formed link), the not-found page, and a
   registry editor modal scoped to its dialog; the app shell at a mobile width (390x844, the burger present), light and dark; the login screen and the list/form pages again in
@@ -117,12 +117,16 @@ the same commit** — this list is the coverage map, the scenario file is the de
   row switch and per-user editor round-trip a throwaway user's MFA flag; an MFA-enabled
   account signs in using the fully revealed generated password and the emailed 6-digit code
   via Mailpit (skips itself without it).
+- [`people.spec.ts`](scenarios/people.md) — the people directory: create through the modal (name,
+  email) → link a throwaway login from the Login picker and rename → the list shows the login's
+  email → delete from the row; a regular user's read-only list and person page (emails visible, no
+  New person, no row menu, no Edit button).
 - [`password-reset.spec.ts`](scenarios/password-reset.md) — the forgot-password flow:
   neutral confirmation + per-email throttle; the emailed single-use link opened through the
   compose stack's Mailpit keeps the old password until the new one is set, then ends the old
   session and works once (skips itself without Mailpit).
 - [`teams.spec.ts`](scenarios/teams.md) — the flat-teams registry: create through the modal →
-  rename → assign a throwaway user as the team's manager (the Manager picker; the
+  rename → assign an API-seeded person as the team's manager (the Manager picker; the
   details page reads "Manager: …") → delete from the list;
   a regular user's read-only list and team page (no New team, no row menu, no Edit button).
 - [`users.spec.ts`](scenarios/users.md) — the account lifecycle: create via the one-time

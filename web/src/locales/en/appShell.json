@@ -9,7 +9,8 @@
     "changePassword": "Change password",
     "featureFlags": "Feature flags",
     "changelog": "Changelog",
-    "teams": "Teams"
+    "teams": "Teams",
+    "people": "People"
   },
   "section": {
     "overview": "Overview",

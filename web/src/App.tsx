@@ -22,6 +22,8 @@ import classes from "./theme.module.css";
 const TelemetryPanel = lazy(() => import("./components/TelemetryPanel"));
 const Login = lazy(() => import("./pages/Login"));
 const Home = lazy(() => import("./pages/Home"));
+const People = lazy(() => import("./pages/People"));
+const PersonDetails = lazy(() => import("./pages/PersonDetails"));
 const Teams = lazy(() => import("./pages/Teams"));
 const TeamDetails = lazy(() => import("./pages/TeamDetails"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
@@ -226,6 +228,8 @@ export default function App() {
         <Route element={<RequireAuth />}>
           <Route element={<Shell />}>
             <Route index element={<Home />} />
+            <Route path="people" element={<People />} />
+            <Route path="people/:id" element={<PersonDetails />} />
             <Route path="teams" element={<Teams />} />
             <Route path="teams/:id" element={<TeamDetails />} />
             {/* The management surface — ADMIN only, guarded once here (the pages no longer redirect themselves). */}

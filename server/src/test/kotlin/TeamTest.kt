@@ -24,7 +24,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /**
- * The flat-teams surface (V6): CRUD, the manager (V23), the list filters, the authz split (any
+ * The flat-teams surface (V6): CRUD, the manager (a person since V10), the list filters, the authz split (any
  * authenticated reads, ADMIN writes with guard-before-read), and the soft-delete/partial-index
  * semantics. Teams are SHARED suite state — every test mints UNIQUE names.
  */
@@ -161,107 +161,131 @@ class TeamTest {
     fun `a manager round-trips on create, read and list and a PUT replaces or clears it`() = testApplication {
         usePostgresTestcontainer()
         val admin = seededClient("teammgr", UserRole.ADMIN)
-        val ann = TestUsers.seed(email = uniqueEmail("mgr-a"), password = "pw", role = UserRole.USER, name = "Ann Manager")
-        val bob = TestUsers.seed(email = uniqueEmail("mgr-b"), password = "pw", role = UserRole.USER, name = "Bob Manager")
+        val ann = TestPeople.seed("Ann Manager")
+        val bob = TestPeople.seed("Bob Manager")
         val teamName = name("managed")
 
-        val created = admin.postJson("/api/v1/teams", TeamCreateRequest(name = teamName, managerUserId = ann))
+        val created = admin.postJson("/api/v1/teams", TeamCreateRequest(name = teamName, managerPersonId = ann))
             .body<TeamResponse>()
-        assertEquals(ann, created.managerUserId)
+        assertEquals(ann, created.managerPersonId)
         assertEquals("Ann Manager", created.managerName)
         assertEquals(created, admin.get("/api/v1/teams/${created.id}").body<TeamResponse>())
         val listed = admin.get("/api/v1/teams?name=$teamName").body<TeamPageResponse>().items.single()
-        assertEquals(ann, listed.managerUserId)
+        assertEquals(ann, listed.managerPersonId)
         assertEquals("Ann Manager", listed.managerName)
 
-        // One user may manage several teams.
-        val second = admin.postJson("/api/v1/teams", TeamCreateRequest(name = name("managed2"), managerUserId = ann))
+        // One person may manage several teams.
+        val second = admin.postJson("/api/v1/teams", TeamCreateRequest(name = name("managed2"), managerPersonId = ann))
             .body<TeamResponse>()
-        assertEquals(ann, second.managerUserId)
+        assertEquals(ann, second.managerPersonId)
 
         assertEquals(
             HttpStatusCode.NoContent,
-            admin.putJson("/api/v1/teams/${created.id}", TeamUpdateRequest(name = teamName, managerUserId = bob)).status,
+            admin.putJson("/api/v1/teams/${created.id}", TeamUpdateRequest(name = teamName, managerPersonId = bob)).status,
         )
         val replaced = admin.get("/api/v1/teams/${created.id}").body<TeamResponse>()
-        assertEquals(bob, replaced.managerUserId)
+        assertEquals(bob, replaced.managerPersonId)
         assertEquals("Bob Manager", replaced.managerName)
 
-        // PUT is a full replace: an omitted managerUserId clears it.
+        // PUT is a full replace: an omitted managerPersonId clears it.
         assertEquals(HttpStatusCode.NoContent, admin.putJson("/api/v1/teams/${created.id}", TeamUpdateRequest(name = teamName)).status)
         val cleared = admin.get("/api/v1/teams/${created.id}").body<TeamResponse>()
-        assertEquals(null, cleared.managerUserId)
+        assertEquals(null, cleared.managerPersonId)
         assertEquals(null, cleared.managerName)
         val clearedListed = admin.get("/api/v1/teams?name=$teamName").body<TeamPageResponse>().items.single()
-        assertEquals(null, clearedListed.managerUserId)
+        assertEquals(null, clearedListed.managerPersonId)
     }
 
     @Test
     fun `an unknown or soft-deleted manager is 400 on create and on update and changes nothing`() = testApplication {
         usePostgresTestcontainer()
         val admin = seededClient("teammgrbad", UserRole.ADMIN)
-        val gone = TestUsers.seed(email = uniqueEmail("mgr-gone"), password = "pw", role = UserRole.USER)
-        TestUsers.softDelete(gone)
-        val good = TestUsers.seed(email = uniqueEmail("mgr-good"), password = "pw", role = UserRole.USER)
+        val gone = TestPeople.seed("Gone Manager")
+        TestPeople.softDelete(gone)
+        val good = TestPeople.seed("Good Manager")
         val teamName = name("mgrbad")
 
         for (bad in listOf(999999u, gone)) {
-            val create = admin.postJson("/api/v1/teams", TeamCreateRequest(name = teamName, managerUserId = bad))
+            val create = admin.postJson("/api/v1/teams", TeamCreateRequest(name = teamName, managerPersonId = bad))
             assertEquals(HttpStatusCode.BadRequest, create.status, "create with manager $bad")
             assertTrue(create.body<ProblemDetail>().detail!!.contains("manager"))
         }
         assertTrue(TestTeams.rawRows().none { it.name == teamName }, "a rejected create leaves no team behind")
 
-        val id = admin.postJson("/api/v1/teams", TeamCreateRequest(name = teamName, managerUserId = good)).body<TeamResponse>().id
+        val id = admin.postJson("/api/v1/teams", TeamCreateRequest(name = teamName, managerPersonId = good)).body<TeamResponse>().id
         for (bad in listOf(999999u, gone)) {
             assertEquals(
                 HttpStatusCode.BadRequest,
-                admin.putJson("/api/v1/teams/$id", TeamUpdateRequest(name = name("renamed"), managerUserId = bad)).status,
+                admin.putJson("/api/v1/teams/$id", TeamUpdateRequest(name = name("renamed"), managerPersonId = bad)).status,
                 "update with manager $bad",
             )
         }
         val after = admin.get("/api/v1/teams/$id").body<TeamResponse>()
-        assertEquals(good, after.managerUserId, "a rejected update changes nothing")
+        assertEquals(good, after.managerPersonId, "a rejected update changes nothing")
         assertEquals(teamName, after.name)
     }
 
     @Test
-    fun `a soft-deleted manager reads as no manager and stops being the active manager`() = testApplication {
+    fun `a soft-deleted manager person reads as no manager and stops being the active manager`() = testApplication {
         usePostgresTestcontainer()
         val admin = seededClient("teammgrdel", UserRole.ADMIN)
-        val manager = TestUsers.seed(email = uniqueEmail("mgr-del"), password = "pw", role = UserRole.USER, name = "Soon Gone")
+        val user = TestUsers.seed(email = uniqueEmail("mgr-del"), password = "pw", role = UserRole.USER)
+        val person = TestPeople.seed("Soon Gone", userId = user)
         val teamName = name("mgrdel")
-        val id = admin.postJson("/api/v1/teams", TeamCreateRequest(name = teamName, managerUserId = manager))
+        val id = admin.postJson("/api/v1/teams", TeamCreateRequest(name = teamName, managerPersonId = person))
             .body<TeamResponse>().id
-        assertTrue(TestTeams.service.isActiveManager(id, manager))
+        assertTrue(TestTeams.service.isActiveManager(id, user))
 
-        TestUsers.softDelete(manager)
+        TestPeople.softDelete(person)
 
         val read = admin.get("/api/v1/teams/$id").body<TeamResponse>()
-        assertEquals(null, read.managerUserId)
+        assertEquals(null, read.managerPersonId)
         assertEquals(null, read.managerName)
         val listed = admin.get("/api/v1/teams?name=$teamName").body<TeamPageResponse>().items.single()
-        assertEquals(null, listed.managerUserId)
+        assertEquals(null, listed.managerPersonId)
         assertEquals(null, listed.managerName)
-        assertFalse(TestTeams.service.isActiveManager(id, manager), "a deleted manager holds no rights")
+        assertFalse(TestTeams.service.isActiveManager(id, user), "a deleted manager person holds no rights")
     }
 
     @Test
-    fun `isActiveManager is true only for the active manager of an active team`() = testApplication {
+    fun `a soft-deleted login stops being the active manager while the person and the link stay`() = testApplication {
+        usePostgresTestcontainer()
+        val admin = seededClient("teammgrlogin", UserRole.ADMIN)
+        val user = TestUsers.seed(email = uniqueEmail("mgr-login"), password = "pw", role = UserRole.USER)
+        val person = TestPeople.seed("Login Gone Manager", userId = user)
+        val teamId = admin.postJson("/api/v1/teams", TeamCreateRequest(name = name("logindel"), managerPersonId = person))
+            .body<TeamResponse>().id
+        assertTrue(TestTeams.service.isActiveManager(teamId, user))
+
+        TestUsers.softDelete(user)
+
+        assertFalse(TestTeams.service.isActiveManager(teamId, user), "the user-active predicate is the second line behind the access check")
+        val read = admin.get("/api/v1/teams/$teamId").body<TeamResponse>()
+        assertEquals(person, read.managerPersonId, "the person stays the manager")
+        assertTrue(TestPeople.rawRows().single { it.id == person }.userId == user, "the inert link is kept")
+    }
+
+    @Test
+    fun `isActiveManager is true only for the login of the active manager person of an active team`() = testApplication {
         usePostgresTestcontainer()
         val admin = seededClient("teammgrchk", UserRole.ADMIN)
-        val manager = TestUsers.seed(email = uniqueEmail("mgr-chk"), password = "pw", role = UserRole.USER)
+        val user = TestUsers.seed(email = uniqueEmail("mgr-chk"), password = "pw", role = UserRole.USER)
         val other = TestUsers.seed(email = uniqueEmail("mgr-oth"), password = "pw", role = UserRole.USER)
-        val managed = admin.postJson("/api/v1/teams", TeamCreateRequest(name = name("chk"), managerUserId = manager))
+        val person = TestPeople.seed("Checked Manager", userId = user)
+        val loginless = TestPeople.seed("No Login Manager")
+        val managed = admin.postJson("/api/v1/teams", TeamCreateRequest(name = name("chk"), managerPersonId = person))
+            .body<TeamResponse>().id
+        val withoutLogin = admin.postJson("/api/v1/teams", TeamCreateRequest(name = name("chk-nl"), managerPersonId = loginless))
             .body<TeamResponse>().id
         val unmanaged = TestTeams.seed(name("chk-none"))
 
-        assertTrue(TestTeams.service.isActiveManager(managed, manager))
+        assertTrue(TestTeams.service.isActiveManager(managed, user))
         assertFalse(TestTeams.service.isActiveManager(managed, other), "somebody else")
-        assertFalse(TestTeams.service.isActiveManager(unmanaged, manager), "a team they do not manage")
-        assertFalse(TestTeams.service.isActiveManager(999999u, manager), "a missing team")
+        assertFalse(TestTeams.service.isActiveManager(withoutLogin, user), "a team managed by a person with no login")
+        assertFalse(TestTeams.service.isActiveManager(unmanaged, user), "a team they do not manage")
+        assertFalse(TestTeams.service.isActiveManager(999999u, user), "a missing team")
         assertEquals(HttpStatusCode.NoContent, admin.delete("/api/v1/teams/$managed").status)
-        assertFalse(TestTeams.service.isActiveManager(managed, manager), "a deleted team")
+        assertFalse(TestTeams.service.isActiveManager(managed, user), "a deleted team")
     }
 
     @Test
@@ -269,14 +293,15 @@ class TeamTest {
         usePostgresTestcontainer()
         val admin = seededClient("teammgrrw", UserRole.ADMIN)
         val email = uniqueEmail("mgr-rw")
-        val manager = TestUsers.seed(email = email, password = "pw", role = UserRole.USER)
-        val id = admin.postJson("/api/v1/teams", TeamCreateRequest(name = name("rw"), managerUserId = manager))
+        val user = TestUsers.seed(email = email, password = "pw", role = UserRole.USER)
+        val manager = TestPeople.seed("Write Manager", userId = user)
+        val id = admin.postJson("/api/v1/teams", TeamCreateRequest(name = name("rw"), managerPersonId = manager))
             .body<TeamResponse>().id
         val client = authedClient(email, "pw")
         assertEquals(HttpStatusCode.OK, client.get("/api/v1/teams/$id").status)
         assertEquals(
             HttpStatusCode.Forbidden,
-            client.putJson("/api/v1/teams/$id", TeamUpdateRequest(name = name("hijack"), managerUserId = manager)).status,
+            client.putJson("/api/v1/teams/$id", TeamUpdateRequest(name = name("hijack"), managerPersonId = manager)).status,
         )
         assertEquals(HttpStatusCode.Forbidden, client.delete("/api/v1/teams/$id").status)
     }
@@ -287,18 +312,18 @@ class TeamTest {
         val adminEmail = uniqueEmail("mgr-audit-admin")
         val adminId = TestUsers.seed(email = adminEmail, password = "pw", role = UserRole.ADMIN)
         val admin = authedClient(adminEmail, "pw")
-        val ann = TestUsers.seed(email = uniqueEmail("mgr-au"), password = "pw", role = UserRole.USER)
+        val ann = TestPeople.seed("Audited Manager")
         withAuditCapture { capture ->
             val teamName = name("mgraudit")
-            val created = admin.postJson("/api/v1/teams", TeamCreateRequest(name = teamName, managerUserId = ann))
+            val created = admin.postJson("/api/v1/teams", TeamCreateRequest(name = teamName, managerPersonId = ann))
                 .body<TeamResponse>()
             val teamId = created.id.toLong()
             val createdEvent = capture.awaitEvent { it.message == "team.created" && it.hasKeyValue("teamId", teamId) }
             assertNotNull(createdEvent)
-            assertTrue(createdEvent.hasKeyValue("managerUserId", ann.toLong()))
+            assertTrue(createdEvent.hasKeyValue("managerPersonId", ann.toLong()))
 
             // Same manager again: team.updated fires, team.manager_changed does not.
-            admin.putJson("/api/v1/teams/${created.id}", TeamUpdateRequest(name = teamName, managerUserId = ann))
+            admin.putJson("/api/v1/teams/${created.id}", TeamUpdateRequest(name = teamName, managerPersonId = ann))
             assertNotNull(capture.awaitEvent { it.message == "team.updated" && it.hasKeyValue("teamId", teamId) })
 
             // A real change (clear) — and only now does the trail carry a manager line.

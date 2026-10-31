@@ -5,13 +5,13 @@ info:
   description: |
     JWT-authenticated REST API for Astrolabe — a planning and roadmapping tool. It serves the Astrolabe web app and is
     versioned by its `/api/v1` path prefix. This foundation exposes the accounts, teams, feature-flag and operational
-    surface the planning features build on.
+    surface (people and teams included) the planning features build on.
 
     Authorization model: every user is implicitly a regular user; additional global roles (`ADMIN`) are carried as
     the `roles` array and only ever ADD privileges on top of that baseline. Every operation requires a bearer
     access token except the seven that declare `security: []` (`/login`, `/login/mfa`, `/refresh`, `/password-reset`,
     `/password-reset/confirm` and the two probes). Beyond that each operation states its own rule: user management (`/users`, apart from
-    reading or changing one's own record where noted) and the writes on teams are `ADMIN` only; reading teams is open to
+    reading or changing one's own record where noted) and the writes on people and teams are `ADMIN` only; reading people and teams is open to
     any authenticated user; telemetry is `ADMIN` only. A caller without the right gets a uniform `403`, whether or not the
     addressed resource exists.
 
@@ -33,8 +33,10 @@ tags:
     description: Login (with the optional email second factor), token refresh, logout and the self-service password reset.
   - name: users
     description: Astrolabe's own login accounts - ADMIN-managed CRUD, per-user feature flags, language and password change.
+  - name: people
+    description: The people directory - the people who own plan nodes and manage teams, optionally linked to a login. Readable by any authenticated user (emails included), written by ADMIN only.
   - name: teams
-    description: Flat teams, the ownership unit planning features scope to - readable by any authenticated user, written by ADMIN only.
+    description: Flat teams, the ownership unit planning features scope to - readable by any authenticated user, written by ADMIN only. A team's manager is a person of the people directory.
   - name: telemetry
     description: Astrolabe's own vital signs (process memory, JVM, storage, request latency) and their 24h/7d/90d trends - ADMIN only.
 
@@ -580,6 +582,130 @@ paths:
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
+  /api/v1/people:
+    get:
+      tags: [people]
+      operationId: listPeople
+      summary: List people
+      description: |
+        Any authenticated user - the owner and manager pickers and the People page read it (emails included);
+        every mutation is ADMIN only.
+
+        - Sortable fields: `id`, `name`, `email`, `createdAt`, `updatedAt`. Default `id` ascending.
+        - Filters: `name`, `email` (each a case- and accent-insensitive substring).
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Sort'
+        - name: name
+          in: query
+          required: false
+          schema: { type: string }
+        - name: email
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        '200':
+          description: A page of people
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PersonPage'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    post:
+      tags: [people]
+      operationId: createPerson
+      summary: Create a person
+      description: |
+        ADMIN only (guarded before the body decodes - a non-admin's malformed body is still 403). The optional
+        email must be unique among active people (case-insensitive, `409`). The optional `userId` links a login: it
+        must be an active user (`400` otherwise) not already linked to another active person (`409`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PersonCreateRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '201':
+          description: Created; `Location` points at the new person
+          headers:
+            Location:
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PersonResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/people/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    get:
+      tags: [people]
+      operationId: getPerson
+      summary: Get a person
+      description: Any authenticated user.
+      responses:
+        '200':
+          description: The person
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PersonResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    put:
+      tags: [people]
+      operationId: updatePerson
+      summary: Rename a person, set their email and login link
+      description: |
+        ADMIN only, guard before the id lookup (uniform 403). A full replace: an omitted `email` or `userId` clears it;
+        a set `userId` must be an active user (`400` otherwise). An email clash with another active person, or a login
+        already linked to another active person, is `409`. A change of the login link is audited on its own.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PersonUpdateRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '204':
+          description: Updated
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    delete:
+      tags: [people]
+      operationId: deletePerson
+      summary: Delete a person (soft)
+      description: |
+        ADMIN only, guard before the id lookup. Soft delete - the email and the login link are freed for reuse. `409`
+        while the person still manages an active team (or, once plan nodes exist, owns one): reassign first.
+      responses:
+        '204':
+          description: Deleted
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   /api/v1/teams:
     get:
       tags: [teams]
@@ -616,8 +742,8 @@ paths:
       description: |
         ADMIN only (guarded before the body decodes — a non-admin's malformed body is still
         403). A case-insensitive name clash with an active team is `409`. An optional manager (a
-        user; being a manager grants no write rights on the team yet) must be an active
-        user (`400` otherwise).
+        person of the people directory; being a manager grants no write rights on the team yet) must be an
+        active person (`400` otherwise).
       requestBody:
         required: true
         content:
@@ -664,7 +790,7 @@ paths:
       tags: [teams]
       operationId: updateTeam
       summary: Rename / re-describe a team, set its manager
-      description: "ADMIN only, guard before the id lookup (uniform 403). A full replace: an omitted `managerUserId` clears the manager; a set one must be an active user (`400` otherwise). A case-insensitive name clash with another active team is `409`."
+      description: "ADMIN only, guard before the id lookup (uniform 403). A full replace: an omitted `managerPersonId` clears the manager; a set one must be an active person (`400` otherwise). A case-insensitive name clash with another active team is `409`."
       requestBody:
         required: true
         content:
@@ -1083,62 +1209,141 @@ components:
             Required when the caller changes their OWN password (even an admin); omitted
             for an admin resetting somebody else's.
 
+    PersonCreateRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        email:
+          type: string
+          maxLength: 254
+          nullable: true
+          description: Optional mailbox; unique among active people when set (case-insensitive). Blank = none.
+        userId:
+          type: integer
+          format: int32
+          minimum: 0
+          nullable: true
+          description: The person's login, a user; must be active (`400` otherwise) and not linked to another active person (`409`).
+    PersonUpdateRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        email:
+          type: string
+          maxLength: 254
+          nullable: true
+          description: Optional mailbox; unique among active people when set (case-insensitive). Omitted on PUT (a full replace) = none.
+        userId:
+          type: integer
+          format: int32
+          minimum: 0
+          nullable: true
+          description: The person's login, a user; must be active (`400` otherwise) and not linked to another active person (`409`). Omitted on PUT (a full replace) = unlinked.
+    PersonResponse:
+      type: object
+      required: [id, name, email, userId, userEmail, createdAt, updatedAt]
+      properties:
+        id: { type: integer, format: int32, minimum: 0 }
+        name: { type: string }
+        email: { type: string, nullable: true }
+        userId:
+          type: integer
+          format: int32
+          minimum: 0
+          nullable: true
+          description: The person's login; null when unset or when the linked user was soft-deleted.
+        userEmail: { type: string, nullable: true, description: The login's email; null with `userId`. }
+        createdAt: { type: integer, format: int64, description: Epoch millis }
+        updatedAt: { type: integer, format: int64, description: Epoch millis }
+    PersonListItem:
+      type: object
+      required: [id, name, email, userId, userEmail, createdAt, updatedAt]
+      properties:
+        id: { type: integer, format: int32, minimum: 0 }
+        name: { type: string }
+        email: { type: string, nullable: true }
+        userId:
+          type: integer
+          format: int32
+          minimum: 0
+          nullable: true
+          description: The person's login; null when unset or when the linked user was soft-deleted.
+        userEmail: { type: string, nullable: true, description: The login's email; null with `userId`. }
+        createdAt: { type: integer, format: int64 }
+        updatedAt: { type: integer, format: int64 }
+    PersonPage:
+      type: object
+      required: [items, page, pageSize, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PersonListItem'
+        page: { type: integer, minimum: 1 }
+        pageSize: { type: integer, minimum: 1, maximum: 100 }
+        total:
+          type: integer
+          format: int64
+          minimum: 0
+
     TeamCreateRequest:
       type: object
       required: [name]
       properties:
         name: { type: string, minLength: 1, maxLength: 100 }
         description: { type: string, maxLength: 500, nullable: true }
-        managerUserId:
+        managerPersonId:
           type: integer
           format: int32
           minimum: 0
           nullable: true
           description: >-
-            The team's manager, a user; must be active (`400` otherwise).
+            The team's manager, a person of the people directory; must be active (`400` otherwise).
     TeamUpdateRequest:
       type: object
       required: [name]
       properties:
         name: { type: string, minLength: 1, maxLength: 100 }
         description: { type: string, maxLength: 500, nullable: true }
-        managerUserId:
+        managerPersonId:
           type: integer
           format: int32
           minimum: 0
           nullable: true
           description: >-
-            The team's manager, a user; must be active (`400` otherwise). Omitted on PUT (a full replace) = no manager.
+            The team's manager, a person of the people directory; must be active (`400` otherwise). Omitted on PUT (a full replace) = no manager.
     TeamResponse:
       type: object
-      required: [id, name, managerUserId, managerName, createdAt, updatedAt]
+      required: [id, name, managerPersonId, managerName, createdAt, updatedAt]
       properties:
         id: { type: integer, format: int32, minimum: 0 }
         name: { type: string }
         description: { type: string, nullable: true }
-        managerUserId:
+        managerPersonId:
           type: integer
           format: int32
           minimum: 0
           nullable: true
-          description: The team's manager; null when unset or when the assigned user was soft-deleted.
-        managerName: { type: string, nullable: true, description: The manager's display name; null with `managerUserId`. }
+          description: The team's manager (a person); null when unset or when the assigned person was soft-deleted.
+        managerName: { type: string, nullable: true, description: The manager's name; null with `managerPersonId`. }
         createdAt: { type: integer, format: int64, description: Epoch millis }
         updatedAt: { type: integer, format: int64, description: Epoch millis }
     TeamListItem:
       type: object
-      required: [id, name, managerUserId, managerName, createdAt, updatedAt]
+      required: [id, name, managerPersonId, managerName, createdAt, updatedAt]
       properties:
         id: { type: integer, format: int32, minimum: 0 }
         name: { type: string }
         description: { type: string, nullable: true }
-        managerUserId:
+        managerPersonId:
           type: integer
           format: int32
           minimum: 0
           nullable: true
-          description: The team's manager; null when unset or when the assigned user was soft-deleted.
-        managerName: { type: string, nullable: true, description: The manager's display name; null with `managerUserId`. }
+          description: The team's manager (a person); null when unset or when the assigned person was soft-deleted.
+        managerName: { type: string, nullable: true, description: The manager's name; null with `managerPersonId`. }
         createdAt: { type: integer, format: int64 }
         updatedAt: { type: integer, format: int64 }
     TeamPage:

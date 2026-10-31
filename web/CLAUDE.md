@@ -1,7 +1,7 @@
 # Frontend (`web/`)
 
 Vite + React 19 + TypeScript SPA: the shell + auth, user/feature management, MFA, password reset,
-the changelog, the flat-teams registry and the ADMIN telemetry panel — the v0.1.0 foundation, trimmed from Flow
+the changelog, the flat-teams registry, the people directory and the ADMIN telemetry panel — the v0.1.0 foundation, trimmed from Flow
 (`~/Sources/flow` @ e9c3b726, the donor: port building blocks from there, don't reinvent) — with a placeholder Home;
 the planning views (work streams → programs → projects → milestones, the timeline) arrive from 0.2. Routes are lazy.
 
@@ -62,7 +62,7 @@ the planning views (work streams → programs → projects → milestones, the t
 - Pages are **lazy** (`React.lazy` in `App.tsx`); new routes register above the `path="*"`
   NotFound catch-all (LAST child, never feature-gated). **The nav model lives in
   `utils/navigation.ts`**, shared by the sidebar and the command palette: `NAV_SECTIONS` —
-  labelled, always-open sections (currently Overview and Administration: Teams, Users, Feature flags) of `NavLeaf`s (the
+  labelled, always-open sections (currently Overview and Administration: Teams, People, Users, Feature flags) of `NavLeaf`s (the
   `label` is a typed i18n key; `adminOnly?` gates admin leaves, `keywords?` adds raw palette search terms for a renamed page's old name, and `visibleSections(isAdmin())`
   drops an emptied section) — plus `ACCOUNT_NAV` (Change password, Changelog), which the header
   `UserMenu` and the palette render and the sidebar never does. Sections are static captions
@@ -196,11 +196,11 @@ Every list page composes the same ported Lettuce blocks — copy `pages/Users.ts
 
 ## Registries (the Teams.tsx template)
 
-The small ADMIN-curated registries (Teams today; more arrive with the planning domain) compose
+The small ADMIN-curated registries (Teams and People today; more arrive with the planning domain) compose
 `useRegistryListControls` for their persisted name filter, debounce and paged sort, and
 `RegistryListTable` for the common load/error/empty/pagination states. Each page owns its query
 key and parameters, extra filters, columns, row actions and mutation refresh prefixes. Their
-editors (e.g. `components/TeamEditorModal.tsx`) share the `RegistryMetadataFields` (name +
+editors (e.g. `components/TeamEditorModal.tsx`; `PersonEditorModal.tsx` has no description, so it composes its own fields) share the `RegistryMetadataFields` (name +
 description, with `utils/charCount.tsx`'s "123 / 4000" counter) and `RegistryEditorActions`
 (save-error alert + cancel/submit footer) components; form rules
 (`utils/formRules.ts`'s shared `nameRule`/`descriptionRule`), submit/conflict handling and any

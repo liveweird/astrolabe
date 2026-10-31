@@ -1,0 +1,45 @@
+{
+  "title": "Osoby",
+  "intro": "Osoby z Twojej organizacji — właściciele/ki i kierownicy/czki w planie. Każdy widzi je razem z adresami e-mail; administratorzy/rki tworzą, edytują i usuwają osoby oraz powiązują je z loginami.",
+  "newPerson": "Nowa osoba",
+  "createTitle": "Nowa osoba",
+  "editTitle": "Edytuj osobę",
+  "empty": "Nie ma jeszcze osób",
+  "loadFailed": "Nie udało się wczytać osób",
+  "notFound": "Ta osoba nie istnieje (albo ktoś ją usunął).",
+  "backToPeople": "Wróć do osób",
+  "openAria": "Otwórz osobę {{name}}",
+  "column": {
+    "login": "Login"
+  },
+  "login": "Login",
+  "loginHint": "Konto, którym ta osoba się loguje. Opcjonalne — osoba spoza organizacji go nie ma.",
+  "pickLogin": "Szukaj użytkowników/czek po nazwie…",
+  "clearLogin": "Wyczyść login",
+  "noMatchingUsers": "Brak pasujących użytkowników/czek",
+  "noMatching": "Brak pasujących osób",
+  "emailHint": "Opcjonalny. Unikalny wśród osób.",
+  "emailLine": "E-mail: {{email}}",
+  "noEmail": "Brak adresu e-mail",
+  "loginLine": "Login: {{email}}",
+  "noLogin": "Brak loginu",
+  "deleteTitle": "Usunąć osobę?",
+  "deleteBody": "Usuniemy osobę „{{name}}”.",
+  "deleteFailed": "Nie udało się usunąć osoby",
+  "deleteConflict": "Ta osoba nadal jest właścicielem/ką albo kierownikiem/czką zespołu. Najpierw przypisz je/ją komuś innemu.",
+  "saveForbidden": "Tylko administratorzy/rki mogą edytować osoby",
+  "saveEmailConflict": "Osoba z tym adresem e-mail już istnieje",
+  "saveLoginConflict": "Inna osoba jest już powiązana z tym loginem",
+  "saveInvalid": "Jedno lub więcej pól jest nieprawidłowe",
+  "saveGone": "Ta osoba już nie istnieje — odśwież stronę",
+  "validation": {
+    "nameLength": "Nazwa musi mieć od 1 do 100 znaków",
+    "emailLength": "Adres e-mail może mieć najwyżej 254 znaki",
+    "emailShape": "Podaj prawidłowy adres e-mail"
+  },
+  "toast": {
+    "created": "Osoba utworzona",
+    "saved": "Osoba zapisana",
+    "deleted": "Osoba usunięta"
+  }
+}

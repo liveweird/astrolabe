@@ -6,6 +6,8 @@ import ch.nokillswit.auth.TokenBlocklistService
 import ch.nokillswit.auth.TokenBlocklistServiceKey
 import ch.nokillswit.infra.config.requireConfigInt
 import ch.nokillswit.infra.config.requireConfigLong
+import ch.nokillswit.people.PersonService
+import ch.nokillswit.people.PersonServiceKey
 import ch.nokillswit.teams.TeamService
 import ch.nokillswit.teams.TeamServiceKey
 import ch.nokillswit.users.UserService
@@ -235,6 +237,7 @@ suspend fun Application.configureDatabase() {
     val userService = UserService(database)
     attributes.put(R2dbcDatabaseKey, database)
     attributes.put(UserServiceKey, userService)
+    attributes.put(PersonServiceKey, PersonService(database))
     val teamService = TeamService(database)
     attributes.put(TeamServiceKey, teamService)
     attributes.put(

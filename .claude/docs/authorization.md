@@ -86,13 +86,23 @@ Layered RBAC. Implemented in the `server/src/main/kotlin/authz/` package.
     id lookup (guard-before-read: a non-admin probe gets a uniform 403 whether or not the id exists, and a
     non-admin's malformed body stays 403). A
     case-insensitive name clash with an active team `409` (the V6 partial index). The optional
-    `managerUserId` (create and the full-replace PUT — omitted = no manager) must be an ACTIVE user,
-    else `400` ("Unknown or deleted manager ids"); `TeamResponse`/`TeamListItem` carry `managerUserId` +
-    `managerName`, both null for a soft-deleted manager. Being a team's manager grants NO write on the team
+    `managerPersonId` (create and the full-replace PUT — omitted = no manager) must be an ACTIVE person of the people directory,
+    else `400` ("Unknown or deleted manager ids"); `TeamResponse`/`TeamListItem` carry `managerPersonId` +
+    `managerName`, both null for a soft-deleted manager person. Being a team's manager grants NO write on the team
     record itself (still ADMIN only) — the manager's rights are the team-scoped ones the planning increments add
-    (capacity, milestone scheduling, team order; `product.md`), via `requireTeamManagerOrAdmin`. From v0.2 the manager is a
-    person of the people directory (`teams.manager_person_id` replaces `manager_user_id`). Mutations audit `team.created/updated/deleted` and `team.manager_changed`
+    (capacity, milestone scheduling, team order; `product.md`), via `requireTeamManagerOrAdmin`. Since V10 the manager is a
+    person of the people directory (`teams.manager_person_id` replaced `manager_user_id`; the manager's login is `people.user_id`). Mutations audit `team.created/updated/deleted` and `team.manager_changed`
     (only on an actual change). Tests: `TeamTest`, `GuardsTest`.
+  - `/api/v1/people` (V10, the people directory) → `GET` list and `GET /{id}` **any authenticated user, emails included** (the owner and
+    manager pickers and the People page read it; the plan's owners are people, and non-admin stream/program owners pick owners for the
+    nodes they create); `POST` and `PUT`/`DELETE /{id}` **ADMIN only**, `requireAdmin` BEFORE the body decodes and the id lookup
+    (guard-before-read, the teams rule: a non-admin's probe and malformed body are a uniform 403). The email is optional and unique among
+    ACTIVE people (case-insensitive, `409`); names are not unique. The optional `userId` links a login — an ACTIVE user (`400` otherwise)
+    not linked to another active person (`409`); only an ADMIN sets it (a login link is a rights path: the person's owner rights ride it),
+    and a change of the link is audited on its own (`person.link_changed`). `PersonResponse` resolves `userId`/`userEmail` through ACTIVE
+    users (null for a soft-deleted login — the link stays inert, never an access grant: the caller's person is `people.user_id = caller AND
+    people.active()`, and a deleted login never passes the per-request access verdict). Delete is `409` while the person manages an ACTIVE
+    team ("Person is still an owner or a team manager"; the plan tables join the check in V12). Tests: `PersonTest`.
   - `PUT /api/v1/users/{id}/features` → ADMIN only; **self allowed** (an admin adjusting their own
     flags is a feature, and the users routes are never gated, so a fully self-disabled admin can
     always get back); unknown/soft-deleted target → 404; unknown feature name → 400 (enum
@@ -146,13 +156,13 @@ Layered RBAC. Implemented in the `server/src/main/kotlin/authz/` package.
     as a race (the caller deleted between the access check and the locked admin count; pinned with a lock-wait test in
     `UserRoutesTest`) - the self-delete `403` is the HTTP answer.
   - **The team-manager grant is checked in the database on every request too, by its own predicate.**
-    `requireTeamManagerOrAdmin` asks `TeamService.isActiveManager` (an ACTIVE team whose `manager_user_id` is the caller
-    AND an ACTIVE user) per request, so assigning or clearing a manager takes effect on the very next request (a
+    `requireTeamManagerOrAdmin` asks `TeamService.isActiveManager` (an ACTIVE team whose manager is an ACTIVE person with
+    `people.user_id` = the caller AND an ACTIVE user) per request, so assigning or clearing a manager takes effect on the very next request (a
     soft-deleted manager's token is already a `401` at the access check; the ACTIVE-user predicate stays as the second
     line); its ADMIN short-circuit rides the (verified) JWT roles. Never cache the verdict in a claim. A route that merely
     SHAPES its answer by the grant (e.g. whether a block of per-person figures is returned) asks `isActiveManager` the same way, after
     the ADMIN short-circuit; the `ETag` of such an answer carries the verdict ("Caching" in `security.md`). No route consumes the guard in v0.1.0; it is
-    the Flow-donated seam for the v0.5 capacity writes, and v0.2 re-points it at `manager_person_id` → `people.user_id`.
+    the Flow-donated seam for the v0.5 capacity writes, and V10 re-pointed it at `manager_person_id` → `people.user_id`.
   - **Planned (v0.2+), not yet built — the owner-scoped matrix** (`product.md` "Domain decisions"): ADMIN everything; ownership cascades down (work stream
     → program → project); a project owner edits the project and its milestones' plan fields but not their dates; milestone dates only by the team's manager or
     ADMIN; the global rank by ADMIN plus the per-user `ROADMAP_EDITOR` grant (a `user_permissions` row checked in the database per request, NOT a feature

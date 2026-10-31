@@ -429,6 +429,29 @@ object TestTeams {
     }
 }
 
+/** Direct people fixtures (V10) — quick seeding (optionally linked to a login) and raw reads past the routes. */
+object TestPeople {
+    val service: ch.nokillswit.people.PersonService by lazy { ch.nokillswit.people.PersonService(sharedTestDatabase) }
+
+    suspend fun seed(name: String, userId: UInt? = null, email: String? = null): UInt =
+        service.create(ch.nokillswit.people.PersonCreateRequest(name = name, email = email, userId = userId))
+
+    /** Direct soft-delete for fixtures needing to bypass the delete endpoint's guards. */
+    suspend fun softDelete(id: UInt) {
+        suspendTransaction(sharedTestDatabase) {
+            val p = ch.nokillswit.people.PersonService.People
+            p.update({ p.id eq id }) { it[p.markedAsDeleted] = true }
+        }
+    }
+
+    data class RawPerson(val id: UInt, val name: String, val email: String?, val userId: UInt?, val markedAsDeleted: Boolean)
+
+    suspend fun rawRows(): List<RawPerson> = suspendTransaction(sharedTestDatabase) {
+        val p = ch.nokillswit.people.PersonService.People
+        p.selectAll().map { RawPerson(it[p.id].value, it[p.name], it[p.email], it[p.userId]?.value, it[p.markedAsDeleted]) }.toList()
+    }
+}
+
 /**
  * Polls `pg_stat_activity` until some OTHER session is waiting on a lock inside a statement whose text contains [queryFragment]
  * (case-insensitive): the "the request under test reached its lock wait" barrier of a deterministic concurrency test. The test

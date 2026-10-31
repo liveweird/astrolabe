@@ -17,36 +17,36 @@ describe("teamForm", () => {
   });
 
   test("the body trims and sends a blank description as null; values round-trip from a response", () => {
-    const none = { managerUserId: null, managerLabel: null };
-    expect(toTeamBody({ name: "  Payments ", description: "   ", ...none })).toEqual({ name: "Payments", description: null, managerUserId: null });
-    expect(toTeamBody({ name: "A", description: " movers ", ...none })).toEqual({ name: "A", description: "movers", managerUserId: null });
-    expect(toTeamBody({ name: "A", description: "", managerUserId: "7", managerLabel: "Ann (a@x.io)" })).toEqual({
+    const none = { managerPersonId: null, managerLabel: null };
+    expect(toTeamBody({ name: "  Payments ", description: "   ", ...none })).toEqual({ name: "Payments", description: null, managerPersonId: null });
+    expect(toTeamBody({ name: "A", description: " movers ", ...none })).toEqual({ name: "A", description: "movers", managerPersonId: null });
+    expect(toTeamBody({ name: "A", description: "", managerPersonId: "7", managerLabel: "Ann (a@x.io)" })).toEqual({
       name: "A",
       description: null,
-      managerUserId: 7,
+      managerPersonId: 7,
     });
     expect(
       toTeamFormValues({
         id: 1,
         name: "A",
         description: null,
-        managerUserId: null,
+        managerPersonId: null,
         managerName: null,
         createdAt: 0,
         updatedAt: 0,
       }),
-    ).toEqual({ name: "A", description: "", managerUserId: null, managerLabel: null });
+    ).toEqual({ name: "A", description: "", managerPersonId: null, managerLabel: null });
     expect(
       toTeamFormValues({
         id: 1,
         name: "A",
         description: null,
-        managerUserId: 7,
+        managerPersonId: 7,
         managerName: "Ann Manager",
         createdAt: 0,
         updatedAt: 0,
       }),
-    ).toEqual({ name: "A", description: "", managerUserId: "7", managerLabel: "Ann Manager" });
+    ).toEqual({ name: "A", description: "", managerPersonId: "7", managerLabel: "Ann Manager" });
   });
 
   test("save errors map to the fixed vocabulary", () => {

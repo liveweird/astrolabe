@@ -1,0 +1,45 @@
+{
+  "title": "People",
+  "intro": "The people of your organization — the owners and managers in the plan. Everyone can see them, emails included; administrators create, edit and delete people and link them to logins.",
+  "newPerson": "New person",
+  "createTitle": "New person",
+  "editTitle": "Edit person",
+  "empty": "No people yet",
+  "loadFailed": "Could not load the people",
+  "notFound": "This person does not exist (or was deleted).",
+  "backToPeople": "Back to people",
+  "openAria": "Open person {{name}}",
+  "column": {
+    "login": "Login"
+  },
+  "login": "Login",
+  "loginHint": "The account this person signs in with. Optional — an external owner has none.",
+  "pickLogin": "Search users by name…",
+  "clearLogin": "Clear the login",
+  "noMatchingUsers": "No matching users",
+  "noMatching": "No matching people",
+  "emailHint": "Optional. Unique among people.",
+  "emailLine": "Email: {{email}}",
+  "noEmail": "No email",
+  "loginLine": "Login: {{email}}",
+  "noLogin": "No login",
+  "deleteTitle": "Delete person?",
+  "deleteBody": "\"{{name}}\" will be deleted.",
+  "deleteFailed": "Could not delete the person",
+  "deleteConflict": "This person still owns something or manages a team. Reassign it first.",
+  "saveForbidden": "Only administrators can edit people",
+  "saveEmailConflict": "A person with this email already exists",
+  "saveLoginConflict": "Another person is already linked to this login",
+  "saveInvalid": "One or more fields are invalid",
+  "saveGone": "This person no longer exists — reload the page",
+  "validation": {
+    "nameLength": "Name must be 1–100 characters",
+    "emailLength": "Email must be at most 254 characters",
+    "emailShape": "Enter a valid email address"
+  },
+  "toast": {
+    "created": "Person created",
+    "saved": "Person saved",
+    "deleted": "Person deleted"
+  }
+}

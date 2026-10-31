@@ -10,19 +10,19 @@ export const MAX_TEAM_DESCRIPTION_LENGTH = 500;
 export type TeamFormValues = {
   name: string;
   description: string;
-  /** The picked manager's user id (a string, the Select's value type); null = no manager. */
-  managerUserId: string | null;
+  /** The picked manager's person id (a string, the Select's value type); null = no manager. */
+  managerPersonId: string | null;
   /** The picked manager's display label, kept beside the id so it survives later searches. */
   managerLabel: string | null;
 };
 
-export const EMPTY_TEAM_FORM: TeamFormValues = { name: "", description: "", managerUserId: null, managerLabel: null };
+export const EMPTY_TEAM_FORM: TeamFormValues = { name: "", description: "", managerPersonId: null, managerLabel: null };
 
 export function toTeamFormValues(team: TeamResponse): TeamFormValues {
   return {
     name: team.name,
     description: team.description ?? "",
-    managerUserId: team.managerUserId === null ? null : String(team.managerUserId),
+    managerPersonId: team.managerPersonId === null ? null : String(team.managerPersonId),
     managerLabel: team.managerName,
   };
 }
@@ -44,7 +44,7 @@ export function toTeamBody(values: TeamFormValues): TeamCreateBody & TeamUpdateB
   return {
     name: values.name.trim(),
     description: description === "" ? null : description,
-    managerUserId: values.managerUserId === null ? null : Number(values.managerUserId),
+    managerPersonId: values.managerPersonId === null ? null : Number(values.managerPersonId),
   };
 }
 

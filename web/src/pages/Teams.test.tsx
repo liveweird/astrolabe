@@ -21,8 +21,8 @@ function deferred<T>() {
 
 const PAGE = {
   items: [
-    { id: 1, name: "Payments", description: "Money movers", managerUserId: 7, managerName: "Mia Manager", createdAt: 1, updatedAt: 2 },
-    { id: 2, name: "Identity", description: null, managerUserId: null, managerName: null, createdAt: 1, updatedAt: 2 },
+    { id: 1, name: "Payments", description: "Money movers", managerPersonId: 7, managerName: "Mia Manager", createdAt: 1, updatedAt: 2 },
+    { id: 2, name: "Identity", description: null, managerPersonId: null, managerName: null, createdAt: 1, updatedAt: 2 },
   ],
   page: 1,
   pageSize: 20,
@@ -32,15 +32,15 @@ const DETAIL = {
   id: 1,
   name: "Payments",
   description: "Money movers",
-  managerUserId: 7,
+  managerPersonId: 7,
   managerName: "Mia Manager",
   createdAt: 1,
   updatedAt: 2,
 };
-const USERS = {
+const PEOPLE = {
   items: [
-    { id: 7, name: "Mia Manager", email: "mia@example.com", roles: [], disabledFeatures: [], language: "en" },
-    { id: 12, name: "Cara New", email: "cara@example.com", roles: [], disabledFeatures: [], language: "en" },
+    { id: 7, name: "Mia Manager", email: "mia@example.com", userId: null, userEmail: null, createdAt: 1, updatedAt: 2 },
+    { id: 12, name: "Cara New", email: "cara@example.com", userId: null, userEmail: null, createdAt: 1, updatedAt: 2 },
   ],
   page: 1,
   pageSize: 50,
@@ -57,7 +57,7 @@ function serve(mockFetch: FetchMock, mutations: Record<string, { status: number;
     }
     if (method === "GET" && url.startsWith("/api/v1/teams?")) return Promise.resolve(jsonResponse(200, PAGE));
     if (method === "GET" && url === "/api/v1/teams/1") return Promise.resolve(jsonResponse(200, DETAIL));
-    if (method === "GET" && url.startsWith("/api/v1/users?")) return Promise.resolve(jsonResponse(200, USERS));
+    if (method === "GET" && url.startsWith("/api/v1/people?")) return Promise.resolve(jsonResponse(200, PEOPLE));
     return Promise.resolve(jsonResponse(404, { title: "x", status: 404 }));
   });
 }
@@ -106,8 +106,8 @@ describe("Teams page", () => {
     expect(screen.getByText("Mia Manager")).toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: "Members" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /new team/i })).not.toBeInTheDocument();
-    // The read-only list never offers the users search (GET /users is ADMIN-only).
-    expect(mockFetch.mock.calls.some(([url]) => typeof url === "string" && url.startsWith("/api/v1/users"))).toBe(false);
+    // The read-only list never opens the editor, so it never runs the people search either.
+    expect(mockFetch.mock.calls.some(([url]) => typeof url === "string" && url.startsWith("/api/v1/people"))).toBe(false);
     expect(screen.queryByRole("button", { name: /operations for/i })).not.toBeInTheDocument();
   });
 
@@ -130,7 +130,7 @@ describe("Teams page", () => {
     await user.click(within(modal).getByRole("button", { name: /^create$/i }));
     await waitFor(() => expect(findCall(mockFetch, "POST", "/api/v1/teams")).toBeDefined());
     const body = JSON.parse((findCall(mockFetch, "POST", "/api/v1/teams")![1] as RequestInit).body as string);
-    expect(body).toEqual({ name: "Ledger", description: "keeps the books", managerUserId: null });
+    expect(body).toEqual({ name: "Ledger", description: "keeps the books", managerPersonId: null });
     expect(await screen.findByText("at /teams/9")).toBeInTheDocument();
   });
 
@@ -157,10 +157,10 @@ describe("Teams page", () => {
     await waitFor(() => expect(findCall(mockFetch, "PUT", "/api/v1/teams/1")).toBeDefined());
     const body = JSON.parse((findCall(mockFetch, "PUT", "/api/v1/teams/1")![1] as RequestInit).body as string);
     // Edit keeps the stored manager (a PUT is a full replace).
-    expect(body).toEqual({ name: "Payments", description: null, managerUserId: 7 });
+    expect(body).toEqual({ name: "Payments", description: null, managerPersonId: 7 });
   });
 
-  test("the manager picker searches users, sends the picked id, and clearing sends null", async () => {
+  test("the manager picker searches people, sends the picked id, and clearing sends null", async () => {
     serve(mockFetch, { "PUT /api/v1/teams/1": { status: 204 } });
     const user = userEvent.setup();
     renderPage();
@@ -173,18 +173,18 @@ describe("Teams page", () => {
     await user.click(picker);
     await user.clear(picker);
     await user.type(picker, "cara");
-    await waitFor(() => expect(mockFetch.mock.calls.some(([u]) => typeof u === "string" && u.startsWith("/api/v1/users?") && u.includes("name=cara"))).toBe(true));
+    await waitFor(() => expect(mockFetch.mock.calls.some(([u]) => typeof u === "string" && u.startsWith("/api/v1/people?") && u.includes("name=cara"))).toBe(true));
     await user.click(await screen.findByRole("option", { name: "Cara New (cara@example.com)" }));
     await user.click(within(modal).getByRole("button", { name: /^save$/i }));
     await waitFor(() => expect(findCall(mockFetch, "PUT", "/api/v1/teams/1")).toBeDefined());
     expect(JSON.parse((findCall(mockFetch, "PUT", "/api/v1/teams/1")![1] as RequestInit).body as string)).toEqual({
       name: "Payments",
       description: "Money movers",
-      managerUserId: 12,
+      managerPersonId: 12,
     });
   });
 
-  test("clearing the manager sends managerUserId null", async () => {
+  test("clearing the manager sends managerPersonId null", async () => {
     serve(mockFetch, { "PUT /api/v1/teams/1": { status: 204 } });
     const user = userEvent.setup();
     renderPage();
@@ -195,7 +195,7 @@ describe("Teams page", () => {
     await user.click(within(modal).getByLabelText("Clear the manager"));
     await user.click(within(modal).getByRole("button", { name: /^save$/i }));
     await waitFor(() => expect(findCall(mockFetch, "PUT", "/api/v1/teams/1")).toBeDefined());
-    expect(JSON.parse((findCall(mockFetch, "PUT", "/api/v1/teams/1")![1] as RequestInit).body as string)).toMatchObject({ managerUserId: null });
+    expect(JSON.parse((findCall(mockFetch, "PUT", "/api/v1/teams/1")![1] as RequestInit).body as string)).toMatchObject({ managerPersonId: null });
   });
 
   test("a 409 on save marks the name field", async () => {

@@ -395,6 +395,69 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/people": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List people
+         * @description Any authenticated user - the owner and manager pickers and the People page read it (emails included);
+         *     every mutation is ADMIN only.
+         *
+         *     - Sortable fields: `id`, `name`, `email`, `createdAt`, `updatedAt`. Default `id` ascending.
+         *     - Filters: `name`, `email` (each a case- and accent-insensitive substring).
+         */
+        get: operations["listPeople"];
+        put?: never;
+        /**
+         * Create a person
+         * @description ADMIN only (guarded before the body decodes - a non-admin's malformed body is still 403). The optional
+         *     email must be unique among active people (case-insensitive, `409`). The optional `userId` links a login: it
+         *     must be an active user (`400` otherwise) not already linked to another active person (`409`).
+         */
+        post: operations["createPerson"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/people/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Get a person
+         * @description Any authenticated user.
+         */
+        get: operations["getPerson"];
+        /**
+         * Rename a person, set their email and login link
+         * @description ADMIN only, guard before the id lookup (uniform 403). A full replace: an omitted `email` or `userId` clears it;
+         *     a set `userId` must be an active user (`400` otherwise). An email clash with another active person, or a login
+         *     already linked to another active person, is `409`. A change of the login link is audited on its own.
+         */
+        put: operations["updatePerson"];
+        post?: never;
+        /**
+         * Delete a person (soft)
+         * @description ADMIN only, guard before the id lookup. Soft delete - the email and the login link are freed for reuse. `409`
+         *     while the person still manages an active team (or, once plan nodes exist, owns one): reassign first.
+         */
+        delete: operations["deletePerson"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/teams": {
         parameters: {
             query?: never;
@@ -416,8 +479,8 @@ export interface paths {
          * Create a team
          * @description ADMIN only (guarded before the body decodes — a non-admin's malformed body is still
          *     403). A case-insensitive name clash with an active team is `409`. An optional manager (a
-         *     user; being a manager grants no write rights on the team yet) must be an active
-         *     user (`400` otherwise).
+         *     person of the people directory; being a manager grants no write rights on the team yet) must be an
+         *     active person (`400` otherwise).
          */
         post: operations["createTeam"];
         delete?: never;
@@ -442,7 +505,7 @@ export interface paths {
         get: operations["getTeam"];
         /**
          * Rename / re-describe a team, set its manager
-         * @description ADMIN only, guard before the id lookup (uniform 403). A full replace: an omitted `managerUserId` clears the manager; a set one must be an active user (`400` otherwise). A case-insensitive name clash with another active team is `409`.
+         * @description ADMIN only, guard before the id lookup (uniform 403). A full replace: an omitted `managerPersonId` clears the manager; a set one must be an active person (`400` otherwise). A case-insensitive name clash with another active team is `409`.
          */
         put: operations["updateTeam"];
         post?: never;
@@ -651,23 +714,90 @@ export interface components {
             /** @description Required when the caller changes their OWN password (even an admin); omitted for an admin resetting somebody else's. */
             currentPassword?: string;
         };
+        PersonCreateRequest: {
+            name: string;
+            /** @description Optional mailbox; unique among active people when set (case-insensitive). Blank = none. */
+            email?: string | null;
+            /**
+             * Format: int32
+             * @description The person's login, a user; must be active (`400` otherwise) and not linked to another active person (`409`).
+             */
+            userId?: number | null;
+        };
+        PersonUpdateRequest: {
+            name: string;
+            /** @description Optional mailbox; unique among active people when set (case-insensitive). Omitted on PUT (a full replace) = none. */
+            email?: string | null;
+            /**
+             * Format: int32
+             * @description The person's login, a user; must be active (`400` otherwise) and not linked to another active person (`409`). Omitted on PUT (a full replace) = unlinked.
+             */
+            userId?: number | null;
+        };
+        PersonResponse: {
+            /** Format: int32 */
+            id: number;
+            name: string;
+            email: string | null;
+            /**
+             * Format: int32
+             * @description The person's login; null when unset or when the linked user was soft-deleted.
+             */
+            userId: number | null;
+            /** @description The login's email; null with `userId`. */
+            userEmail: string | null;
+            /**
+             * Format: int64
+             * @description Epoch millis
+             */
+            createdAt: number;
+            /**
+             * Format: int64
+             * @description Epoch millis
+             */
+            updatedAt: number;
+        };
+        PersonListItem: {
+            /** Format: int32 */
+            id: number;
+            name: string;
+            email: string | null;
+            /**
+             * Format: int32
+             * @description The person's login; null when unset or when the linked user was soft-deleted.
+             */
+            userId: number | null;
+            /** @description The login's email; null with `userId`. */
+            userEmail: string | null;
+            /** Format: int64 */
+            createdAt: number;
+            /** Format: int64 */
+            updatedAt: number;
+        };
+        PersonPage: {
+            items: components["schemas"]["PersonListItem"][];
+            page: number;
+            pageSize: number;
+            /** Format: int64 */
+            total: number;
+        };
         TeamCreateRequest: {
             name: string;
             description?: string | null;
             /**
              * Format: int32
-             * @description The team's manager, a user; must be active (`400` otherwise).
+             * @description The team's manager, a person of the people directory; must be active (`400` otherwise).
              */
-            managerUserId?: number | null;
+            managerPersonId?: number | null;
         };
         TeamUpdateRequest: {
             name: string;
             description?: string | null;
             /**
              * Format: int32
-             * @description The team's manager, a user; must be active (`400` otherwise). Omitted on PUT (a full replace) = no manager.
+             * @description The team's manager, a person of the people directory; must be active (`400` otherwise). Omitted on PUT (a full replace) = no manager.
              */
-            managerUserId?: number | null;
+            managerPersonId?: number | null;
         };
         TeamResponse: {
             /** Format: int32 */
@@ -676,10 +806,10 @@ export interface components {
             description?: string | null;
             /**
              * Format: int32
-             * @description The team's manager; null when unset or when the assigned user was soft-deleted.
+             * @description The team's manager (a person); null when unset or when the assigned person was soft-deleted.
              */
-            managerUserId: number | null;
-            /** @description The manager's display name; null with `managerUserId`. */
+            managerPersonId: number | null;
+            /** @description The manager's name; null with `managerPersonId`. */
             managerName: string | null;
             /**
              * Format: int64
@@ -699,10 +829,10 @@ export interface components {
             description?: string | null;
             /**
              * Format: int32
-             * @description The team's manager; null when unset or when the assigned user was soft-deleted.
+             * @description The team's manager (a person); null when unset or when the assigned person was soft-deleted.
              */
-            managerUserId: number | null;
-            /** @description The manager's display name; null with `managerUserId`. */
+            managerPersonId: number | null;
+            /** @description The manager's name; null with `managerPersonId`. */
             managerName: string | null;
             /** Format: int64 */
             createdAt: number;
@@ -1619,6 +1749,159 @@ export interface operations {
             404: components["responses"]["NotFound"];
             413: components["responses"]["PayloadTooLarge"];
             415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    listPeople: {
+        parameters: {
+            query?: {
+                /** @description 1-based page index. Defaults to 1. */
+                page?: components["parameters"]["Page"];
+                /** @description Rows per page. Defaults to 20, maximum 100. */
+                pageSize?: components["parameters"]["PageSize"];
+                /**
+                 * @description Sort spec. Format: `field` (ascending) or `-field` (descending). Multiple fields are
+                 *     comma-separated, leftmost wins: `sort=-updatedAt,name`. The endpoint declares its
+                 *     sortable-field whitelist; unknown fields are rejected with `400`. `id` ascending is
+                 *     always appended as a deterministic tiebreaker.
+                 */
+                sort?: components["parameters"]["Sort"];
+                name?: string;
+                email?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of people */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    createPerson: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PersonCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Created; `Location` points at the new person */
+            201: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    getPerson: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The person */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    updatePerson: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PersonUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    deletePerson: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
             500: components["responses"]["InternalServerError"];
         };
     };

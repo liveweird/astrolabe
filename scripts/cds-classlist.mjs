@@ -110,10 +110,12 @@ try {
   token = session.token;
   await fetch(`${base}/`); // the SPA catch-all
 
-  log("workload: user + team + feature flags + language");
+  log("workload: user + person + team + feature flags + language");
   const user = must(await call("POST", "/api/v1/users", { name: "CDS Training", email: "cds-training@astrolabe.local", password: "cds-training-pass-1" }), "creating the user").id;
-  const team = must(await call("POST", "/api/v1/teams", { name: "cds-training-team", description: "trained", managerUserId: user }), "creating the team").id;
-  must(await call("PUT", `/api/v1/teams/${team}`, { name: "cds-training-team", description: "renamed", managerUserId: user }), "updating the team");
+  const person = must(await call("POST", "/api/v1/people", { name: "CDS Training", email: "cds-training@astrolabe.local", userId: user }), "creating the person").id;
+  must(await call("PUT", `/api/v1/people/${person}`, { name: "CDS Training", email: "cds-training@astrolabe.local", userId: user }), "updating the person");
+  const team = must(await call("POST", "/api/v1/teams", { name: "cds-training-team", description: "trained", managerPersonId: person }), "creating the team").id;
+  must(await call("PUT", `/api/v1/teams/${team}`, { name: "cds-training-team", description: "renamed", managerPersonId: person }), "updating the team");
   must(await call("PUT", `/api/v1/users/${user}/features`, { disabledFeatures: ["MFA"] }), "setting the feature flags");
   must(await call("PUT", `/api/v1/users/${user}/language`, { language: "pl" }), "setting the language");
   must(await call("PUT", `/api/v1/users/${user}`, { name: "CDS Training 2", email: "cds-training@astrolabe.local", roles: ["USER"] }), "updating the user");
@@ -121,8 +123,8 @@ try {
 
   log("workload: reads");
   const paths = [
-    "/api/v1/users", "/api/v1/teams", "/api/v1/ready", `/api/v1/users/${user}`, `/api/v1/teams/${team}`,
-    "/api/v1/users?sort=-name&name=cds", "/api/v1/teams?name=cds",
+    "/api/v1/users", "/api/v1/teams", "/api/v1/people", "/api/v1/ready", `/api/v1/users/${user}`, `/api/v1/teams/${team}`, `/api/v1/people/${person}`,
+    "/api/v1/users?sort=-name&name=cds", "/api/v1/teams?name=cds", "/api/v1/people?name=cds",
     "/api/v1/telemetry/current", ...["memory", "jvm", "requests", "storage"].map((g) => `/api/v1/telemetry/history?group=${g}&range=24h`),
   ];
   const statuses = {};
@@ -137,6 +139,7 @@ try {
   const good = Object.entries(statuses).filter(([code]) => code.startsWith("2")).reduce((a, [, n]) => a + n, 0);
   if (good / answered < MIN_READ_SUCCESS) fail(`only ${good} of ${answered} reads answered 2xx (need ${MIN_READ_SUCCESS * 100} %): ${JSON.stringify(statuses)}`);
   await call("DELETE", `/api/v1/teams/${team}`);
+  await call("DELETE", `/api/v1/people/${person}`);
   await call("DELETE", `/api/v1/users/${user}`);
   must(await call("POST", "/api/v1/refresh", { refreshToken: session.refreshToken }), "refreshing the session");
   await call("POST", "/api/v1/logout", {});

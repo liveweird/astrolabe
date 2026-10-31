@@ -14,16 +14,16 @@ in-network consumers use `postgres:5432`). There is one persistence stack:
   makes every long-lived database refuse to boot (a failure no fresh-container CI run can see).
   `MigrationChecksumTest` pins every file's checksum; a new migration adds one manifest line, and
   a red pin means REVERT the edit (clarifications go into this doc), never update the pinned
-  value. The range today is **V1–V9**: V1 `users`, V2 `revoked_tokens`, V3 the seed admin, V4 the
+  value. The range today is **V1–V10**: V1 `users`, V2 `revoked_tokens`, V3 the seed admin, V4 the
   `unaccent` extension, V5 `user_disabled_features` (V1–V5 are Flow's), V6 `teams` (with the optional
   manager), V7 `users.credential_revision`, V8 `password_reset_tokens`, V9 the `ops` telemetry
-  schema. (Astrolabe renumbered Flow's history when it was bootstrapped; from V10 on, migrations are
+  schema, V10 `people` (the people directory) with `teams.manager_person_id` replacing `manager_user_id`. (Astrolabe renumbered Flow's history when it was bootstrapped; from V10 on, migrations are
   append-only like any other.)
 - **Exposed + R2DBC** (`infra/db/Database.kt` + the feature services) — runtime DB access.
   `Database.kt` connects the `R2dbcDatabase` and is the composition root: it constructs the
-  services and publishes them into `Application.attributes` (`UserServiceKey`, `TeamServiceKey`,
+  services and publishes them into `Application.attributes` (`UserServiceKey`, `PersonServiceKey`, `TeamServiceKey`,
   `TokenBlocklistServiceKey`, `PasswordResetServiceKey` today); each service itself lives next to the feature it serves
-  (`users/UserService.kt`, `teams/TeamService.kt`, `auth/TokenBlocklistService.kt`, `auth/PasswordResetService.kt`). The Exposed
+  (`users/UserService.kt`, `people/PersonService.kt`, `teams/TeamService.kt`, `auth/TokenBlocklistService.kt`, `auth/PasswordResetService.kt`). The Exposed
   table `object`s (e.g. `UserService.Users`, nested inside their service) are used for queries
   only, not DDL. Ids are `UIntIdTable` — unsigned end-to-end (the spec declares `minimum: 0`, and
   `ErrorHandling.kt` 400s negative path segments before kotlinx's `UInt` decoding can silently
@@ -148,12 +148,20 @@ service to preserve it. Exposed reuses an enclosing transaction for nested `susp
 calls on the same database. Route handlers never touch tables (services only). The reads/writes in
 place:
 
-- `TeamService` reads `UserService.Users` for the manager: the active manager's display name (one
-  batched lookup per page), the manager id check on create AND update, and `isActiveManager`'s `Teams` ⋈ `Users` join (the
-  team-manager guard). `teams.manager_user_id` has no `ON DELETE` rule: users are only ever soft-deleted;
-  a future hard purge of users must clear it first, and a future user RESTORE must clear or re-audit the
-  manager grants the user held (a soft-deleted manager's id stays in the column, inert only while the user
-  is deleted). The roadmap replaces this column with `manager_person_id` (`product.md`, `planning-model.md`).
+- `TeamService` reads `PersonService.People` for the manager (V10): the active manager's name (one batched lookup per page), the
+  manager id check on create AND update (it locks the person row `FOR SHARE`, which conflicts with `PersonService.delete`'s
+  `FOR NO KEY UPDATE`: a delete racing an assignment either commits first and the assignment is a 400, or waits and then sees the
+  team and answers 409), and `isActiveManager`'s `Teams` ⋈ `People` ⋈ `Users` join (the team-manager guard: an ACTIVE
+  team, an ACTIVE person whose `user_id` is the caller, and that user ACTIVE). `teams.manager_person_id`
+  has no `ON DELETE` rule: people are only ever soft-deleted, and `PersonService.delete` refuses (409) while an ACTIVE team names the
+  person.
+- `PersonService` reads `UserService.Users` (the linked login: the active-user check on create AND update, the login's email on read/list
+  through ACTIVE users) and `TeamService.Teams` (the delete 409 while the person manages an ACTIVE team; V12 extends it to the plan
+  tables). `people.user_id` has no `ON DELETE` rule: users are only ever soft-deleted and the link stays INERT while the user is deleted
+  (guards resolve the caller's person through `people.user_id = caller AND people.active()`, and a deleted login never passes the access
+  verdict); a future hard purge of users must clear it first, and a future user RESTORE must re-audit the link (the person may have been
+  re-linked to another login meanwhile — the partial unique index refuses a clash). A PUT from the SPA carries `userId: null` for an inert link (the
+  response reads it as unlinked), so a rename from the UI clears a link to a soft-deleted login.
 - `auth/TokenBlocklistService.accessVerdict` (the per-request access-token check, `plugins/Security.kt`) READS
   `users/UserService.Users` (`role`, `credential_revision`, `marked_as_deleted`, by primary key) and its own
   `revoked_tokens` (an `EXISTS` on the `jti`) in ONE uncached statement per authenticated request; it writes nothing.
@@ -174,7 +182,7 @@ List each new cross-feature read/write here as it lands — the list IS the perm
 
 Astrolabe's PostgreSQL database is split across schemas:
 
-- **`public`** — the foundation tables (`users`, `teams`, `revoked_tokens`, `user_disabled_features`, `password_reset_tokens`) and, later,
+- **`public`** — the foundation tables (`users`, `people`, `teams`, `revoked_tokens`, `user_disabled_features`, `password_reset_tokens`) and, later,
   the planning tables (`planning-model.md`). Flyway's own history table also stays here — `flyway.schemas` is left at its default.
 - **`ops`** — Astrolabe's own operational telemetry (V9, "Telemetry (V9)" below): the process registry and the metric samples each
   process writes about itself. Numbers and labels only, never project data.
@@ -222,7 +230,7 @@ transaction under `TELEMETRY_LOCK_KEY`, and a row exactly at its cutoff stays. T
 
 ### Soft delete (convention)
 
-`users` and `teams` are **soft-deleted** — rows are flagged, never physically removed; every
+`users`, `people` and `teams` are **soft-deleted** — rows are flagged, never physically removed; every
 business entity follows the same convention. Only join/token tables (today: `revoked_tokens`, a
 pure token registry, `password_reset_tokens` (V8, expiring single-use credentials, not history), `user_disabled_features`, a pure flag join
 whose PUT is a wholesale replace, and the `ops.telemetry_*` samples (the prune above)) hard-delete — a new
@@ -255,8 +263,9 @@ Exposed `.uniqueIndex()` on that column (Exposed defs are query-only — the DB 
 clash with an **active** row still raises `23505 → 409` (mapped centrally in
 `plugins/ErrorHandling.kt`, which names WHAT clashed per constraint — extend
 `UNIQUE_CONSTRAINT_DETAILS` when adding a partial unique index). In place today: `users.email`
-(`uq_users_email_active`, `V1`) and the team name (`uq_teams_name_active`, `V6` — an expression
-index over `LOWER(name)`).
+(`uq_users_email_active`, `V1`), the team name (`uq_teams_name_active`, `V6` — an expression
+index over `LOWER(name)`), and in V10 the person email (`uq_people_email_active`, over `LOWER(email)`, only when set) and the login link
+(`uq_people_user_id_active`, one active person per login); person names are deliberately NOT unique.
 
 **`infra/db/Sql.kt`** (ported from Lettuce with the first list endpoint): `containsNormalized` —
 the case- AND accent-insensitive substring filter over `public.unaccent` (V4); every per-column
@@ -273,10 +282,10 @@ with its long-running derive job against team rows; Astrolabe's planning writes,
 The rule: **lock a row `FOR NO KEY UPDATE` unless the write changes its key.** That mode conflicts with itself and with
 `UPDATE`/`DELETE` (writers of the row, e.g. a soft delete racing a child insert, still serialize) but
 NOT with `FOR KEY SHARE`, so FK locks never stall it. `lockActiveForWrite` (`infra/db/SoftDelete.kt`,
-`FOR NO KEY UPDATE`), `TeamService.update` and `PasswordResetService.lockUser` (the active `users` row) follow it; none of them touches
+`FOR NO KEY UPDATE`), `TeamService.update`, `PersonService.update`/`delete` and `PasswordResetService.lockUser` (the active `users` row) follow it; none of them touches
 `id`, and the unique indexes on these tables are partial or expression indexes (`uq_teams_name_active`, `uq_users_email_active`), which
 PostgreSQL does not count as key columns — a rename is still a non-key update. Plain `FOR UPDATE` is for a row nothing references from a
-long transaction (`users` is referenced only by columns no long transaction inserts — `updated_by_*`, `teams.manager_user_id`,
+long transaction (`users` is referenced only by columns no long transaction inserts — `updated_by_*`, `people.user_id`,
 `user_disabled_features.user_id`, `password_reset_tokens.user_id` (short inserts only): `UserService.lockedActiveAdminCount`), or for
 `SKIP LOCKED` claims. A new `FOR UPDATE` on an FK-referenced row needs that justification in a comment. Flow pinned both halves with `RowLockVersusDeriveTest` (a writer completes while another transaction holds `FOR KEY SHARE` on the row, and a second `FOR NO KEY UPDATE` writer still waits); Astrolabe re-adds that test with the first long planning transaction.
 

@@ -8,8 +8,8 @@ import kotlinx.serialization.Serializable
 
 /**
  * Flat teams (V6): a name and a description — the ownership unit future features scope to; there is no roster — and an
- * optional manager (V6): at most one user per team, assigned by an ADMIN; being a manager grants no
- * write rights on the team yet (the planned v0.5 capacity/scheduling writes are what it will gate). No chain:
+ * optional manager (V6, a person of the people directory since V10): at most one per team, assigned by an ADMIN;
+ * being a manager grants no write rights on the team yet (the planned v0.5 capacity/scheduling writes are what it will gate). No chain:
  * Lettuce's management-chain rule is deliberately NOT ported (see
  * `.claude/docs/authorization.md`). ADMIN curates teams and their manager; everyone reads them.
  */
@@ -20,16 +20,16 @@ const val MAX_TEAM_DESCRIPTION_LENGTH = 500
 data class TeamCreateRequest(
     val name: String,
     val description: String? = null,
-    /** Optional manager — an ACTIVE user (400 otherwise); omitted = no manager. */
-    val managerUserId: UInt? = null,
+    /** Optional manager — an ACTIVE person of the people directory (400 otherwise); omitted = no manager. */
+    val managerPersonId: UInt? = null,
 )
 
 @Serializable
 data class TeamUpdateRequest(
     val name: String,
     val description: String? = null,
-    /** PUT is a full replace: omitted = unset. An ACTIVE user (400 otherwise). */
-    val managerUserId: UInt? = null,
+    /** PUT is a full replace: omitted = unset. An ACTIVE person (400 otherwise). */
+    val managerPersonId: UInt? = null,
 )
 
 @Serializable
@@ -37,8 +37,8 @@ data class TeamResponse(
     val id: UInt,
     val name: String,
     val description: String?,
-    /** The manager as an ACTIVE user; null when unset OR when the assigned user was soft-deleted. */
-    val managerUserId: UInt?,
+    /** The manager as an ACTIVE person; null when unset OR when the assigned person was soft-deleted. */
+    val managerPersonId: UInt?,
     val managerName: String?,
     val createdAt: Long,
     val updatedAt: Long,
@@ -50,7 +50,7 @@ data class TeamListItem(
     val id: UInt,
     val name: String,
     val description: String?,
-    val managerUserId: UInt?,
+    val managerPersonId: UInt?,
     val managerName: String?,
     val createdAt: Long,
     val updatedAt: Long,
@@ -71,13 +71,13 @@ data class TeamListResult(val items: List<TeamListItem>, val total: Long)
 fun sanitizedTeamCreate(request: TeamCreateRequest): TeamCreateRequest = TeamCreateRequest(
     name = sanitizeSingleLine(request.name, "Name"),
     description = sanitizedDescription(request.description),
-    managerUserId = request.managerUserId,
+    managerPersonId = request.managerPersonId,
 )
 
 fun sanitizedTeamUpdate(request: TeamUpdateRequest): TeamUpdateRequest = TeamUpdateRequest(
     name = sanitizeSingleLine(request.name, "Name"),
     description = sanitizedDescription(request.description),
-    managerUserId = request.managerUserId,
+    managerPersonId = request.managerPersonId,
 )
 
 /** The team rules — enforced by the route AND re-checked by the service. */

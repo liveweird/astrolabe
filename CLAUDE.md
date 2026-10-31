@@ -72,7 +72,7 @@ namespace: `.claude/docs/ci.md` "Running the full stack".
 Astrolabe is Flow's generic foundation under a planning domain that is still to be built. The foundation: **JWT auth**
 with a sliding refresh pair and a server-side revocation blocklist, opt-in **email MFA**, self-service password reset,
 per-account lockout and per-IP rate limits, **ADMIN-managed users** (`/api/v1/users`, `UserRole`) with per-user **feature flags**
-and a synced UI/email **language** (EN/PL), flat **teams** (the ownership unit the planning domain will point at) with an optional manager, the ADMIN **telemetry** panel, and the React
+and a synced UI/email **language** (EN/PL), the **people** directory (the owners and managers of the plan, optionally linked to a login), flat **teams** (the ownership unit the planning domain will point at) with an optional manager (a person), the ADMIN **telemetry** panel, and the React
 shell (nav model, palette, theme, changelog). Every feature follows the feature template below.
 
 Multi-module Gradle build (Kotlin DSL) defined in `settings.gradle.kts` with two Kotlin modules
@@ -96,7 +96,7 @@ application is wired declaratively in `server/src/main/resources/application.yam
 `ktor.application.modules` — each entry is a fully-qualified extension function on `Application`
 (e.g. `ch.nokillswit.plugins.HttpKt.configureHttp`). **Module order is load-bearing**: base plugins
 (Http → SecurityHeaders → Monitoring → Serialization → Security → RateLimits → ErrorHandling → OpenTelemetry → AutoHeadResponse → Resources) →
-infra (Mail → Crypto → Flyway → Database → Bootstrap → Health) → Telemetry (the sampler) → feature route modules (users, teams, auth, password reset, telemetry reads) →
+infra (Mail → Crypto → Flyway → Database → Bootstrap → Health) → Telemetry (the sampler) → feature route modules (users, people, teams, auth, password reset, telemetry reads) →
 `RoutingKt.configureRouting` strictly last (the SPA catch-all). `configureDatabase` publishes the services into `Application.attributes` via `AttributeKey`s. To add a cross-cutting concern,
 create a `configureXxx()` extension under `plugins/` and register it in `application.yaml`; do not call it from `main.kt`. There is no DI framework — services travel via `attributes`.
 There is no role switch (Flow's `FLOW_ROLE` web/worker/all split is not ported; `.claude/docs/product.md` "Port later").
@@ -122,10 +122,11 @@ override). One line per package; `ls` gives the files. **Layering is one-way (`P
 - `authz/` — `CallerPrincipal`, the guards (`requireAdmin`, `requireSelfOrAdmin`, `requireTeamManagerOrAdmin`) and the typed HTTP exceptions (401/403/404/409/429).
 - `auth/` — login (+ the email-MFA second step), refresh, logout, self-service password reset, token minting, password hashing, the revoked-token blocklist; in-memory auth state is capacity-bounded with audited 429 saturation.
 - `users/` — the user domain (Astrolabe's own login accounts, REST `/api/v1/users`): ADMIN-only CRUD (self-delete 403, last-admin 409), per-user feature flags (`Feature` enum, the V5 disabled-set model; MFA is the inverted-default login-scoped flag), the ONE synced per-user UI+email language (`Languages.kt` is the `SUPPORTED_LANGUAGES` whitelist).
-- `teams/` — flat teams (V6) with an optional manager: GET any authenticated, POST/PUT/DELETE ADMIN only. **The feature template** (below). The manager becomes a person of the people directory in v0.2.
+- `people/` — the people directory (V10; REST `/api/v1/people`): GET any authenticated (emails included), POST/PUT/DELETE ADMIN only; an optional email and an optional login link (`people.user_id`), the owners and managers of the plan.
+- `teams/` — flat teams (V6) with an optional manager (a person since V10): GET any authenticated, POST/PUT/DELETE ADMIN only. **The feature template** (below).
 - `telemetry/` — per-process JVM/cgroup/request/storage samples in `ops.*` (V9), 90 days, hourly, ADMIN read API (`observability.md`).
 
-The planning domain (`planning/`, people, work streams … milestones) has no package yet: v0.2.0 adds the first (`planning-model.md`).
+The planning domain (`planning/`: work streams … milestones) has no package yet: v0.2.0 adds the first (`planning-model.md`).
 
 **Feature template — copy `teams/`** (a small ADMIN-curated registry; the only shape the foundation ships). Before adding a feature, route, service, migration or page, read `.claude/docs/conventions.md` in full.
 
@@ -152,7 +153,7 @@ disagree, the doc wins. The always-loaded set (this file plus the two imports) s
 | Doc | Read before you touch |
 |---|---|
 | `.claude/docs/conventions.md` | adding a feature, route, service, migration or page: the `teams/` feature template (DTO + validator, routes, service, migration + checksum pin, spec paths, `gen:api`, lazy page + nav entry, e2e spec + scenario) |
-| `.claude/docs/persistence.md` | any migration (`db/migration/V*.sql`, V1–V9 today — applied bytes are immutable, `MigrationChecksumTest`), an Exposed table/`*Service.kt`, soft delete, a cross-feature table read/write (the list there IS the permission), the connection pool, the `ops` schema |
+| `.claude/docs/persistence.md` | any migration (`db/migration/V*.sql`, V1–V10 today — applied bytes are immutable, `MigrationChecksumTest`), an Exposed table/`*Service.kt`, soft delete, a cross-feature table read/write (the list there IS the permission), the connection pool, the `ops` schema |
 | `.claude/docs/security.md` | auth/JWT/MFA/password reset, rate limits, headers/CSP, outbound HTTP (the SSRF guard), secrets/encryption at rest, production fail-closed startup checks, payload validation |
 | `.claude/docs/authorization.md` | any route: its guard (ADMIN vs any authenticated), 403-before-400/404 ordering, existence disclosure, the error/`ProblemDetail` mapping |
 | `.claude/docs/observability.md` | any mutation or denial path (it needs an `audit(...)` event, listed there), logging, OpenTelemetry, health probes, the telemetry panel's server side |

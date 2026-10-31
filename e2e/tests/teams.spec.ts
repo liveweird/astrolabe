@@ -1,11 +1,24 @@
-// The flat-teams registry: an admin creates a team, renames it, assigns its manager and deletes it;
-// a regular user sees the read-only list. Owns: its
-// throwaway team(s) and user (unique names, deleted by the end of the file).
-import { createUserViaUi, deleteUserRow, expect, login, openFilters, rowOperation, signOut, test, uniqueText } from "./helpers";
+// The flat-teams registry: an admin creates a team, renames it, assigns its manager (a person of the people directory) and
+// deletes it; a regular user sees the read-only list. Owns: its throwaway team(s), person and user (unique names, deleted by
+// the end of the test and, if a step fails first, by the afterEach below).
+import { apiAsAdmin, createUserViaUi, deleteUserRow, deleteViaApi, expect, login, openFilters, rowOperation, signOut, test, uniqueText } from "./helpers";
+
+// Rows the first test seeds through the API, deleted in reverse order (the team before the person who manages it).
+const teardown: string[] = [];
+test.afterEach(async () => {
+  await deleteViaApi(teardown.splice(0).reverse());
+});
 
 test("admin creates a team, renames it, assigns its manager, and deletes it", async ({ page }) => {
   await login(page);
-  const member = await createUserViaUi(page, "E2E Team Member");
+  // The manager is a PERSON of the directory, seeded through the API (the journey under test is the team's).
+  const { api } = await apiAsAdmin();
+  const personName = uniqueText("e2e-person");
+  const personEmail = `${personName}@example.com`;
+  const created = await api.post("/api/v1/people", { data: { name: personName, email: personEmail } });
+  expect(created.status(), await created.text()).toBe(201);
+  teardown.push(`/api/v1/people/${((await created.json()) as { id: number }).id}`);
+  await api.dispose();
   const teamName = uniqueText("e2e-team");
 
   // Create through the modal — a new team lands on its own page.
@@ -17,6 +30,7 @@ test("admin creates a team, renames it, assigns its manager, and deletes it", as
   await dialog.getByLabel("Description").fill("Playwright's own team");
   await dialog.getByRole("button", { name: "Create", exact: true }).click();
   await expect(page).toHaveURL(/\/teams\/\d+$/);
+  teardown.push(`/api/v1/teams/${/\/teams\/(\d+)$/.exec(page.url())![1]}`);
   await expect(page.getByRole("heading", { name: teamName })).toBeVisible();
   await expect(page.getByText("No manager")).toBeVisible();
 
@@ -28,18 +42,18 @@ test("admin creates a team, renames it, assigns its manager, and deletes it", as
   await expect(page.getByRole("heading", { name: renamed })).toBeVisible();
   await expect(page.getByRole("dialog")).toHaveCount(0);
 
-  // Assign the throwaway user as the team's manager from the editor's searchable picker.
+  // Assign the seeded person as the team's manager from the editor's searchable picker.
   await page.getByRole("button", { name: "Edit", exact: true }).click();
   const editor = page.getByRole("dialog");
   const managerPicker = editor.getByRole("combobox", { name: "Manager" });
   await managerPicker.click();
-  await managerPicker.fill(member.name);
-  await page.getByRole("option", { name: `${member.name} (${member.email})` }).click();
+  await managerPicker.fill(personName);
+  await page.getByRole("option", { name: `${personName} (${personEmail})` }).click();
   await Promise.all([
     page.waitForResponse((r) => r.request().method() === "PUT" && /\/api\/v1\/teams\/\d+$/.test(r.url()) && r.ok()),
     editor.getByRole("button", { name: "Save", exact: true }).click(),
   ]);
-  await expect(page.getByText(`Manager: ${member.name}`)).toBeVisible();
+  await expect(page.getByText(`Manager: ${personName}`)).toBeVisible();
 
   // The list shows it (filtered by name); delete from the row menu.
   await page.goto("/teams");
@@ -52,8 +66,6 @@ test("admin creates a team, renames it, assigns its manager, and deletes it", as
     page.getByRole("dialog").getByRole("button", { name: "Delete", exact: true }).click(),
   ]);
   await expect(page.getByRole("link", { name: `Open team ${renamed}` })).toHaveCount(0);
-
-  await deleteUserRow(page, member.name);
 });
 
 test("a regular user sees the read-only teams list", async ({ page }) => {

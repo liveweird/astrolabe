@@ -28,7 +28,7 @@ ran at all in this one. Class order is not a contract (with `-Pforks>=2` the cla
   plugin); `seededClient(prefix, role)` seeds a user and logs in.
 - Users and teams: `TestUsers.seed(...)` (bcrypt cost 4; ADMIN by default — pass `UserRole.USER` for a
   non-privileged caller), `TestUsers.softDelete(id)`, `TestUsers.withSoloAdmins(ids) { }` (the last-admin pin),
-  `TestTeams.seed(name)`. Shared suite state (the seed admin) is never mutated destructively — tests mint
+  `TestTeams.seed(name)`, `TestPeople.seed(name, userId?)`. Shared suite state (the seed admin) is never mutated destructively — tests mint
   UNIQUE rows and remove their own.
 - Audit and bootstrap: `LogCapture` + `hasKeyValue`/`awaitEvent`, `withAuditCapture { }` (detach in a finally),
   `postJson`/`putJson`, `HttpClient.login`, `withSeedRestored { }`, `assertStartupFails(part) { }` — use these instead

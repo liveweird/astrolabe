@@ -1,22 +1,22 @@
 # Teams (the flat-teams registry)
 
 - **Spec**: [tests/teams.spec.ts](../tests/teams.spec.ts)
-- **Actors**: the seed administrator (`admin@astrolabe.local`); one throwaway user per test created
-  through the Users page
+- **Actors**: the seed administrator (`admin@astrolabe.local`); one throwaway person (seeded through
+  the API) in the first test and one throwaway user in the second
 - **Owns** (exclusive server-side state): its throwaway teams (unique `e2e-team-*` /
-  `e2e-ro-team-*` names) and users — all deleted by the end of the file
+  `e2e-ro-team-*` names), person (`e2e-person-*`) and user — all deleted by the end of the file
 
 ## Scenario: admin creates a team, renames it, assigns its manager, and deletes it
 
-1. The admin signs in and creates a throwaway user through the Users page.
+1. The admin signs in and seeds a throwaway person (a name and an email) through the API.
 2. On the Teams page they click **New team**, fill a unique name and a description, and Create.
    - *Expected*: the app lands on the new team's page — its name as the heading, "No manager".
 3. They click **Edit**, change the name, and Save.
    - *Expected*: the heading shows the new name.
-4. They click **Edit** again, search the **Manager** picker for the throwaway user, pick them, and Save.
-   - *Expected*: the details page reads "Manager: <the user's name>".
+4. They click **Edit** again, search the **Manager** picker for the throwaway person, pick them (the option reads "name (email)"), and Save.
+   - *Expected*: the details page reads "Manager: <the person's name>".
 5. Back on the Teams list they filter by the new name and delete the team from its row menu.
-   - *Expected*: the row is gone; the throwaway user is deleted afterwards.
+   - *Expected*: the row is gone; the throwaway person is removed afterwards through the API.
 
 ## Scenario: a regular user sees the read-only teams list
 

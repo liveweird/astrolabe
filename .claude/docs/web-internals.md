@@ -91,6 +91,15 @@ restructuring: the feature `Select` already lists `FEATURES`. Both queries key u
 semantics: a PUT whose disabled set omits `MFA` ENABLES it. A bulk run with nothing to change is neither
 success nor failure: it shows the inline gray `role="note"` Alert (`users.featureFlags.bulkNoChange`), never a toast.
 
+## People (`pages/People.tsx`, `pages/PersonDetails.tsx`)
+
+The people directory (V10), a Teams clone under Administration after Teams, **visible to everyone** (reads are open, emails included): `useRegistryListControls` + `RegistryListTable`
+(Name link, Email, Login), ADMIN-only New/Edit/Delete through `components/PersonEditorModal.tsx` (name, optional email, optional Login — `components/UserSelect.tsx`, an ADMIN-only users
+search). A list row carries every field of the detail, so Edit takes the row as it stands (no detail fetch). `components/PersonSelect.tsx` is the owner/manager picker
+(`["people","picker",term]`, enabled for every session, options `name (email)` or `name`); it and `UserSelect` are thin wrappers over `components/SearchPicker.tsx` (debounced server-side
+search, the picked entry held by the caller). A 409 on save marks the email field, or the login field when the server's detail says the link is taken. The family is spelled out in
+`utils/peopleLinks.ts`; the team editor's manager is a person (`managerPersonId`).
+
 ### Heading outline guard
 
 `pages/headingOutline.test.tsx` renders every route read from `App.tsx` (via `?raw`, so a new route is covered

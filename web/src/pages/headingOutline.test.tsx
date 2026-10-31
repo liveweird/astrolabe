@@ -26,7 +26,7 @@ const SIGNED_OUT = new Set(["/login", "/reset-password", "/reset-password/confir
 function emptyApi() {
   return vi.fn((input: RequestInfo | URL) => {
     const url = String(input);
-    if (/\/api\/v1\/(users|teams)(\?|$)/.test(url)) {
+    if (/\/api\/v1\/(users|teams|people)(\?|$)/.test(url)) {
       return Promise.resolve(jsonResponse(200, { items: [], page: 1, pageSize: 20, total: 0 }));
     }
     return Promise.resolve(jsonResponse(404, { title: "Not found", status: 404 }));

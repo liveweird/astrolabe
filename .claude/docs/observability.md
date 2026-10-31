@@ -101,8 +101,12 @@ with `hasKeyValue` from `TestEnvironment.kt`). Emitted today:
   additional-roles set) / `user.updated` (name/email deltas, only when changed) /
   `user.roles_changed` (rolesFrom/rolesTo, both as stored) / `user.deleted`
   (byUserId/targetUserId) — the user events (`/api/v1/users`),
-- `team.created` (byUserId/teamId/name/managerUserId, nullable) / `team.updated`
-  (byUserId/teamId/name) / `team.manager_changed` (byUserId/teamId/managerFrom/managerTo, nullable ids as STORED —
+- `person.created` (byUserId/personId/name/userId, nullable) / `person.updated` (byUserId/personId/name) / `person.link_changed`
+  (byUserId/personId/userFrom/userTo, nullable user ids as STORED — only when a PUT actually changes the login link; a login link is a
+  rights path, so it is its own trail line, the `team.manager_changed` precedent; it also transfers every team-manager grant — and, from V12, the ownership — the person holds to the new login) / `person.deleted` (byUserId/personId) — every
+  person mutation; a rejected save emits nothing,
+- `team.created` (byUserId/teamId/name/managerPersonId, nullable) / `team.updated`
+  (byUserId/teamId/name) / `team.manager_changed` (byUserId/teamId/managerFrom/managerTo, nullable PERSON ids as STORED —
   only when a PUT actually changes the manager; a manager assignment grants the team-scoped planning rights, so it is its own
   trail line, the `user.roles_changed` precedent) / `team.deleted` (byUserId/teamId) — every team mutation; a rejected save
   emits nothing,

@@ -33,6 +33,7 @@ test("login screen has no WCAG A/AA violations", async ({ page }) => {
 const AUTHED_PAGES: { path: string; heading: string }[] = [
   { path: "/", heading: "Astrolabe" },
   { path: "/teams", heading: "Teams" },
+  { path: "/people", heading: "People" },
   { path: "/users", heading: "Users" },
   { path: "/users/new", heading: "New user" },
   { path: "/feature-flags", heading: "Feature flags" },

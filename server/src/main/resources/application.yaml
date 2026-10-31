@@ -40,6 +40,7 @@ ktor:
       - ch.nokillswit.telemetry.TelemetryKt.configureTelemetry
       # — features
       - ch.nokillswit.users.UserRoutesKt.configureUserRoutes
+      - ch.nokillswit.people.PersonRoutesKt.configurePersonRoutes
       - ch.nokillswit.teams.TeamRoutesKt.configureTeamRoutes
       - ch.nokillswit.auth.AuthRoutesKt.configureAuthRoutes
       - ch.nokillswit.auth.PasswordResetRoutesKt.configurePasswordResetRoutes
