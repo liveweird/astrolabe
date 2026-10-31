@@ -4,13 +4,19 @@ import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
+import io.ktor.server.netty.EngineMain
 import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.net.Socket
 import java.util.UUID
+import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
 
 /**
  * Production-mode proxy-header hardening (plugins/Http.kt), behind `http.behindProxy` (ported
@@ -104,4 +110,78 @@ class ProductionHttpTest {
             assertEquals(HttpStatusCode.OK, response.status)
         }
     }
+
+    // The HTTPS redirect (installed before configureSecurityHeaders) completes the call; the security-headers
+    // interceptor used to run on that committed response and throw UnsupportedOperationException ("Headers can no longer
+    // be set because response was already completed"), logged as "Unhandled exception while processing ..." on EVERY
+    // plain-HTTP request (load-balancer port-80 traffic). testApplication's engine does not enforce header commit, so this
+    // runs against the REAL Netty engine (like RawForwardedForLinesTest), over a raw socket.
+    @Test
+    fun `a plain-HTTP request is redirected to https without logging an unhandled exception`() {
+        val server = EngineMain.createServer(
+            arrayOf(
+                "-port=0",
+                "-P:ktor.development=false",
+                "-P:postgres.jdbcUrl=${PostgresTestSupport.jdbcUrl}",
+                "-P:postgres.r2dbcUrl=${PostgresTestSupport.r2dbcUrl}",
+                "-P:postgres.user=${PostgresTestSupport.user}",
+                "-P:postgres.password=${PostgresTestSupport.password}",
+                "-P:security.csrf.enabled=false",
+                "-P:telemetry.enabled=false",
+                "-P:bootstrap.adminInitialPassword=rotated-${UUID.randomUUID()}",
+                "-P:jwt.secret=${strongJwtSecret()}",
+                "-P:security.encryption.key=${strongEncryptionKey()}",
+                "-P:mail.transport=disabled",
+            ),
+        )
+        val log = LogCapture(org.slf4j.Logger.ROOT_LOGGER_NAME)
+        try {
+            server.start(wait = false)
+            val port = runBlocking { server.engine.resolvedConnectors().first().port }
+
+            val health = rawRequest(port, "GET", "/api/v1/health")
+            val login = rawRequest(port, "POST", "/api/v1/login", """{"email":"nobody@example.test","password":"x"}""")
+            for (response in listOf(health, login)) {
+                assertEquals(301, response.status)
+                assertTrue(response.location?.startsWith("https://") == true, "redirect must target https: ${response.location}")
+            }
+            // The failure surfaced AFTER the client already had its 301 (the pipeline continues past the response),
+            // so give a late log line a moment to land before asserting its absence.
+            Thread.sleep(500)
+            val offending = log.events.filter {
+                it.formattedMessage.contains("Unhandled exception") ||
+                    it.throwableProxy?.className == UnsupportedOperationException::class.java.name
+            }
+            assertTrue(offending.isEmpty(), "no unhandled exception may be logged: ${offending.map { it.formattedMessage }}")
+        } finally {
+            log.detach()
+            server.stop(gracePeriodMillis = 100, timeoutMillis = 1_000)
+            runBlocking { TestSeedState.restoreSeedAccounts() }
+        }
+    }
+
+    private class RawResponse(val status: Int, val location: String?)
+
+    /** One plain-HTTP/1.1 exchange over a raw socket: no X-Forwarded-Proto, so the request is as a port-80 hit. */
+    private fun rawRequest(port: Int, method: String, path: String, body: String? = null): RawResponse =
+        Socket("127.0.0.1", port).use { socket ->
+            val bytes = body?.toByteArray()
+            val request = buildString {
+                append("$method $path HTTP/1.1\r\n")
+                append("Host: 127.0.0.1:$port\r\n")
+                if (bytes != null) {
+                    append("Content-Type: application/json\r\n")
+                    append("Content-Length: ${bytes.size}\r\n")
+                }
+                append("Connection: close\r\n\r\n")
+                if (body != null) append(body)
+            }
+            socket.soTimeout = 10_000
+            socket.getOutputStream().write(request.toByteArray(Charsets.US_ASCII))
+            socket.getOutputStream().flush()
+            val reader = BufferedReader(InputStreamReader(socket.getInputStream()))
+            val status = (reader.readLine() ?: error("no response from the server")).split(" ")[1].toInt()
+            val headers = generateSequence { reader.readLine() }.takeWhile { it.isNotEmpty() }.toList()
+            RawResponse(status, headers.firstOrNull { it.startsWith("Location:", ignoreCase = true) }?.substringAfter(':')?.trim())
+        }
 }

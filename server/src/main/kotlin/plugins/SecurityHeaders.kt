@@ -33,7 +33,11 @@ fun Application.configureSecurityHeaders() {
     val swaggerMounted by lazy { exposesOpenApi() }
     intercept(ApplicationCallPipeline.Plugins) {
         val headers = call.response.headers
-        if (headers["X-Content-Type-Options"] == null) { // set once per call
+        // A call an earlier module already answered (HttpsRedirect's 301 in production, installed ahead of this module)
+        // has its headers committed: appending throws UnsupportedOperationException, which the telemetry/StatusPages
+        // layers logged as an ERROR on every plain-HTTP request. A redirect needs no hardening headers (browsers ignore
+        // HSTS and a CSP on it), so the answered call is simply skipped.
+        if (!call.response.isCommitted && headers["X-Content-Type-Options"] == null) { // set once per call
             headers.append("X-Content-Type-Options", "nosniff")
             headers.append("X-Frame-Options", "DENY")
             headers.append("Referrer-Policy", "no-referrer")
