@@ -45,7 +45,7 @@ theme-level `foldedOptionsFilter` (`web/src/utils/text.ts`).
 
 **View endpoints are the one shape-exception.** `GET /views/plan` and `GET /views/roadmap` (both built, v0.2.0) answer one purpose-built document each instead of the paged envelope: the plan view
 `{revision, can, workStreams[…programs[…projects[…]]]}` (every node with its own `can:{…}` flags), the roadmap view `{revision, can{editRank}, ranked[{position, project}], unranked[]}` (≈100 projects, no
-paging, `ranked` in position order); the timeline pages (`/views/project/{id}`, `/views/team/{id}`, `/views/programs`, `planning-model.md`) follow the same shape. Their sub-lists are
+paging, `ranked` in position order); `GET /views/project/{id}` (built, v0.3.0) answers `{revision, project{…, can}, span|null, drift|null, scheduled[], unscheduled[]}` (one project's milestones, ≈50, no paging; each milestone with its own `can`); the other timeline pages (`/views/team/{id}`, `/views/programs`, `planning-model.md`) follow the same shape. Their sub-lists are
 bounded by the plan's scale and the endpoint documents its cap (the plan view: ~5 work streams, ~20 programs, ~100 projects). Every ordinary resource list keeps the envelope; work streams, programs and projects have
 NO list endpoint in v0.2 (a list lands with its first consumer; milestones, v0.3, none either: the project view carries them). (Flow's report drill lists — `{meta, bar, items[<=500], total, truncated}` — were the precedent.)
 

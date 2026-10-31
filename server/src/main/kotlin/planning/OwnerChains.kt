@@ -50,19 +50,40 @@ internal suspend fun programChain(id: UInt): OwnerChain? {
 }
 
 /** The owners of a project's chain, work stream first and the project's own last, or null when it or any ancestor is gone. */
-internal suspend fun projectChain(id: UInt): OwnerChain? {
+internal suspend fun projectChain(id: UInt): OwnerChain? = projectChainRow(id)?.chain
+
+/**
+ * A project's chain row: the [chain] (work stream first, the project's own owner last), the project owner's display name
+ * ([ownerName], joined from `people` with no `active()` filter, the `ownerNames` reasoning) and the whole [row] for whatever extra
+ * columns the caller asked for.
+ */
+internal class ProjectChainRow(val row: ResultRow, val chain: OwnerChain, val ownerName: String)
+
+/**
+ * THE project-chain read: `projects ⋈ programs ⋈ work_streams ⋈ people(owner)`, the project and both ancestors ACTIVE, or null when
+ * any is gone. [projectChain] and the project view both go through it, so the join and the active predicate live in one place.
+ * [columns] are selected in addition to the chain's own.
+ */
+internal suspend fun projectChainRow(id: UInt, columns: List<Expression<*>> = emptyList()): ProjectChainRow? {
     val streams = WorkStreamService.WorkStreams
     val programs = ProgramService.Programs
     val projects = ProjectService.Projects
+    val people = PersonService.People
+    val chainColumns = listOf<Expression<*>>(streams.ownerPersonId, programs.ownerPersonId, projects.ownerPersonId, people.name)
     return projects.innerJoin(programs, { projects.programId }, { programs.id })
         .innerJoin(streams, { programs.workStreamId }, { streams.id })
-        .select(streams.ownerPersonId, programs.ownerPersonId, projects.ownerPersonId)
+        .innerJoin(people, { projects.ownerPersonId }, { people.id })
+        .select((chainColumns + columns).distinct())
         .where { (projects.id eq id) and projects.active() and programs.active() and streams.active() }
         .toList()
         .singleOrNull()
         ?.let {
-            OwnerChain(
-                listOf(it[streams.ownerPersonId].value, it[programs.ownerPersonId].value, it[projects.ownerPersonId].value),
+            ProjectChainRow(
+                row = it,
+                chain = OwnerChain(
+                    listOf(it[streams.ownerPersonId].value, it[programs.ownerPersonId].value, it[projects.ownerPersonId].value),
+                ),
+                ownerName = it[people.name],
             )
         }
 }

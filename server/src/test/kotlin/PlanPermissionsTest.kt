@@ -7,6 +7,7 @@ import ch.nokillswit.authz.requireAdmin
 import ch.nokillswit.authz.requireOwnerOrAdmin
 import ch.nokillswit.authz.requireRoadmapEditorOrAdmin
 import ch.nokillswit.authz.requireTargetWindowEditorOrAdmin
+import ch.nokillswit.authz.requireTeamManagerOrAdmin
 import ch.nokillswit.planning.PlanActor
 import ch.nokillswit.planning.PlanPermissions
 import ch.nokillswit.users.Permission
@@ -14,6 +15,7 @@ import ch.nokillswit.users.UserRole
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
@@ -27,7 +29,18 @@ class PlanPermissionsTest {
     private val project = 30u
     private val outsider = 99u
 
-    private data class Actor(val label: String, val caller: CallerPrincipal, val personId: UInt?, val granted: Boolean)
+    private val teamA = 100u
+    private val teamB = 101u
+    private val teamC = 102u
+
+    /** [managed] = the ACTIVE teams the actor manages (what `TeamService.activeManagedTeamIds` would answer for a non-admin). */
+    private data class Actor(
+        val label: String,
+        val caller: CallerPrincipal,
+        val personId: UInt?,
+        val granted: Boolean,
+        val managed: Set<UInt> = emptySet(),
+    )
 
     private fun user(id: UInt) = CallerPrincipal(userId = id, email = "u$id@test", roles = emptySet())
     private val adminCaller = CallerPrincipal(userId = 1u, email = "admin@test", roles = setOf(UserRole.ADMIN))
@@ -43,6 +56,10 @@ class PlanPermissionsTest {
         Actor("roadmap editor, no person", user(7u), null, true),
         Actor("roadmap editor, stranger person", user(8u), outsider, true),
         Actor("project owner who is also a roadmap editor", user(9u), project, true),
+        Actor("manager of team A, no person", user(10u), null, false, setOf(teamA)),
+        Actor("manager of teams A and B, stranger person", user(11u), outsider, false, setOf(teamA, teamB)),
+        Actor("project owner who also manages team A", user(12u), project, false, setOf(teamA)),
+        Actor("stream owner who also manages team B", user(13u), stream, false, setOf(teamB)),
     )
 
     private val chains = listOf(
@@ -64,6 +81,7 @@ class PlanPermissionsTest {
         isAdmin = caller.roles.isNotEmpty(),
         personId = personId,
         roadmapEditor = granted && caller.roles.isEmpty(), // the route reads the grant only for a non-admin
+        managedTeamIds = if (caller.roles.isEmpty()) managed else emptySet(), // nor are the managed teams looked up for an admin
     )
 
     @Test
@@ -111,5 +129,36 @@ class PlanPermissionsTest {
             assertEquals(guard, PlanPermissions.canEditRank(actor.asPlanActor()), actor.label)
         }
         assertEquals(false, PlanPermissions.canEditRank(Actor("project owner", user(4u), project, false).asPlanActor()))
+    }
+
+    @Test
+    fun `the create-milestone flag equals requireOwnerOrAdmin on the project's chain - it is the manage arithmetic`() {
+        for (actor in actors) for ((level, chain) in chains.filter { it.second.owners.size == 3 }) {
+            val guard = allowed { requireOwnerOrAdmin(actor.caller, actor.personId, chain) }
+            assertEquals(guard, PlanPermissions.canCreateMilestone(actor.asPlanActor(), chain), "${actor.label} at the $level")
+        }
+        val projectChain = chains.first { it.first == "project" }.second
+        // A team manager who owns nothing on the chain creates no milestone; the project's own owner does.
+        val manager = actors.first { it.label == "manager of team A, no person" }
+        assertFalse(PlanPermissions.canCreateMilestone(manager.asPlanActor(), projectChain))
+        assertTrue(PlanPermissions.canCreateMilestone(actors.first { it.label == "project owner" }.asPlanActor(), projectChain))
+    }
+
+    @Test
+    fun `the schedule flag equals requireTeamManagerOrAdmin for every actor and team - ownership never schedules`() {
+        var cells = 0
+        for (actor in actors) for (team in listOf(teamA, teamB, teamC)) {
+            val lookup: suspend (UInt, UInt) -> Boolean = { teamId, userId -> userId == actor.caller.userId && teamId in actor.managed }
+            val guard = allowed { runBlocking { requireTeamManagerOrAdmin(actor.caller, team, lookup) } }
+            assertEquals(guard, PlanPermissions.canSchedule(actor.asPlanActor(), team), "${actor.label} on team $team")
+            cells++
+        }
+        assertEquals(actors.size * 3, cells)
+        val projectOwner = actors.first { it.label == "project owner" }.asPlanActor()
+        assertFalse(PlanPermissions.canSchedule(projectOwner, teamA), "the project owner, as such, schedules nothing")
+        val ownerAndManager = actors.first { it.label == "project owner who also manages team A" }.asPlanActor()
+        assertTrue(PlanPermissions.canSchedule(ownerAndManager, teamA))
+        assertFalse(PlanPermissions.canSchedule(ownerAndManager, teamB), "only the managed team")
+        assertTrue(PlanPermissions.canSchedule(actors.first { it.label == "admin" }.asPlanActor(), teamC), "ADMIN schedules every team")
     }
 }

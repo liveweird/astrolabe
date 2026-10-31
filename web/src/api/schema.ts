@@ -862,6 +862,37 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/views/project/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * One project with its milestones, the derived span and its drift
+         * @description Any authenticated user; `404` when the project, its program or its work stream is deleted, for every caller. One document (a
+         *     deliberate exception to the paged envelope, bounded by ONE project's milestones, about 50). `revision` is the plan revision read
+         *     before the rows - send it back as a schedule write's `expectedRevision`. The milestones are split into `scheduled` (the timeline
+         *     rows, by start date, end date, name and id) and `unscheduled` (the tray, by name and id); names sort case-insensitively. `span`
+         *     is the earliest start to the latest end over the scheduled milestones (null when none is scheduled) and `drift` is that span
+         *     against the project's target window as signed calendar-day deltas (positive = later than the target; null unless both the span and
+         *     the window exist) - both are derived at request time and never stored. `project.can` and every milestone's `can` are the actions
+         *     THIS caller may take, computed with the same rules the writes enforce: `createMilestone`, `edit` and `delete` follow the project's
+         *     owner chain (the project's own owner included) or ADMIN; a milestone's `schedule` is true only for ADMIN or the active manager of
+         *     THAT milestone's team - never for the project's owner as such.
+         */
+        get: operations["getProjectView"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/views/roadmap": {
         parameters: {
             query?: never;
@@ -1598,6 +1629,119 @@ export interface components {
                 delete: boolean;
                 /** @description The caller may set the target window (ADMIN, an owner above the project, or a roadmap editor). */
                 editTargetWindow: boolean;
+            };
+        };
+        ProjectView: {
+            /**
+             * Format: int64
+             * @description The plan revision, read before the rows; send it back as `expectedRevision` of a schedule write.
+             */
+            revision: number;
+            project: components["schemas"]["ProjectViewProject"];
+            /** @description The earliest start to the latest end over the scheduled milestones; null when none is scheduled. */
+            span: components["schemas"]["DateSpan"] | null;
+            /** @description `span` against the project's target window; null unless both exist. */
+            drift: components["schemas"]["Drift"] | null;
+            /** @description The milestones with dates, by start date, end date, name (case-insensitive) and id. */
+            scheduled: components["schemas"]["ProjectMilestone"][];
+            /** @description The milestones without dates (the tray), by name (case-insensitive) and id. */
+            unscheduled: components["schemas"]["ProjectMilestone"][];
+        };
+        /** @description An inclusive span of calendar days. */
+        DateSpan: {
+            /** Format: date */
+            start: string;
+            /**
+             * Format: date
+             * @description Not before `start`.
+             */
+            end: string;
+        };
+        /** @description Calendar-day deltas of a derived span against a target window; positive = later than the target, negative = ahead, zero = on target. */
+        Drift: {
+            /**
+             * Format: int64
+             * @description `span.start` minus `target.start`.
+             */
+            startDays: number;
+            /**
+             * Format: int64
+             * @description `span.end` minus `target.end`.
+             */
+            endDays: number;
+        };
+        /** @description The `PlanProject` fields plus the names of the project's program and work stream. */
+        ProjectViewProject: {
+            /** Format: int32 */
+            id: number;
+            /** Format: int32 */
+            programId: number;
+            /** Format: int32 */
+            workStreamId: number;
+            programName: string;
+            workStreamName: string;
+            name: string;
+            description: string | null;
+            /** Format: int32 */
+            ownerPersonId: number;
+            ownerName: string;
+            /** Format: date */
+            targetStart: string | null;
+            /** Format: date */
+            targetEnd: string | null;
+            /** Format: int64 */
+            createdAt: number;
+            /** Format: int64 */
+            updatedAt: number;
+            can: {
+                edit: boolean;
+                /** @description A rights flag: the caller may delete the project (its milestones go with it). */
+                delete: boolean;
+                /** @description The caller may set the target window (ADMIN, an owner above the project, or a roadmap editor). */
+                editTargetWindow: boolean;
+                /** @description The caller may create a milestone under the project (an owner on its chain, or ADMIN). */
+                createMilestone: boolean;
+            };
+        };
+        /** @description A milestone as the project view shows it - the `MilestoneResponse` fields plus the caller's actions. Both dates are null in `unscheduled`, both set in `scheduled`. */
+        ProjectMilestone: {
+            /** Format: int32 */
+            id: number;
+            /** Format: int32 */
+            projectId: number;
+            name: string;
+            description: string | null;
+            /** Format: int32 */
+            teamId: number;
+            teamName: string;
+            /**
+             * Format: double
+             * @description Man-days with at most two decimals.
+             */
+            estimateMd: number;
+            /**
+             * Format: date
+             * @description Null = unscheduled (both dates are null together).
+             */
+            startDate: string | null;
+            /** Format: date */
+            endDate: string | null;
+            /**
+             * Format: int64
+             * @description Epoch millis
+             */
+            createdAt: number;
+            /**
+             * Format: int64
+             * @description Epoch millis
+             */
+            updatedAt: number;
+            can: {
+                /** @description The caller may change the plan fields (an owner on the project's chain, or ADMIN). */
+                edit: boolean;
+                delete: boolean;
+                /** @description The caller may set or clear the dates: ADMIN or the active manager of the milestone's team - never the project's owner as such. */
+                schedule: boolean;
             };
         };
         RoadmapView: {
@@ -3468,6 +3612,32 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    getProjectView: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The project view */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectView"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
             500: components["responses"]["InternalServerError"];
         };
     };

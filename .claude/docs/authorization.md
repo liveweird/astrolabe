@@ -220,11 +220,18 @@ Layered RBAC. Implemented in the `server/src/main/kotlin/authz/` package.
     | Route | Guard (in order) |
     |---|---|
     | `GET /milestones/{id}` | authenticated; 404 when the milestone or any ancestor is gone |
+    | `GET /views/project/{id}` | authenticated; 404 when the project or any ancestor is gone (for every caller); the caller's rights ride in the `can` flags (below) |
     | `POST /projects/{id}/milestones` | chain(project) ?: 404 → `requireOwnerOrAdmin` (the project's own owner included) → body 400 (inactive team, estimate, name), 409 name in project; 201 + `Location` |
     | `PUT`/`DELETE /milestones/{id}` | `milestoneChain` ?: 404 → `requireOwnerOrAdmin(chain.owners)` |
     | `PUT /milestones/{id}/schedule` | `milestoneChain` ?: 404 → `requireTeamManagerOrAdmin(caller, chain.teamId, teams::isActiveManager)` → body/validation 400 (a negative `expectedRevision` included) → (under the lock) chain re-read 404 → the guard again with `lockedIsActiveManager` 403 → 409 stale (below the milestone's own revision or above the plan's) |
     | `DELETE /projects/{id}` | unchanged guard; cascades the project's milestones |
     | `DELETE /teams/{id}` | `requireAdmin` (unchanged); 409 while an ACTIVE milestone names the team |
+
+    **The `can` arithmetic for milestones (the project view, `PlanPermissions`).** `project.can.createMilestone` = `canCreateMilestone` = `canManage(projectChain)` (`requireOwnerOrAdmin` on the project's chain, the project's own owner included); a milestone's
+    `can.edit`/`can.delete` = `canManage(projectChain)` (the milestone has no owner of its own); a milestone's **`can.schedule` = `canSchedule(actor, milestone.teamId)` = ADMIN, or the caller currently manages THAT milestone's team** (`requireTeamManagerOrAdmin` against the stored team) —
+    so a project owner sees `schedule: false` on every milestone unless they also manage its team, and a team manager sees `schedule: true` only on their own teams' milestones and `edit`/`delete: false` unless they also own something on the chain. The actor's `managedTeamIds`
+    is looked up once per request for a non-admin (`TeamService.activeManagedTeamIds`, an ACTIVE team whose manager is an ACTIVE person linked to this ACTIVE user — `isActiveManager`'s predicate without the team id; never a token claim) and is empty for an ADMIN, who needs no lookup.
+    `PlanPermissionsTest` pins `canCreateMilestone` and `canSchedule` against the guards table-driven (every actor × every team); `ProjectViewTest` checks every flag against the real write it mirrors.
 
     Tests: `MilestoneTest` (every plan-field route × ADMIN, the three owners, a stranger, a person-less login, a roadmap editor, a team manager), `MilestoneScheduleTest` (the manager, the other team's manager, ADMIN, the project
     owner — named — and the rest; the held-request re-guard cases).

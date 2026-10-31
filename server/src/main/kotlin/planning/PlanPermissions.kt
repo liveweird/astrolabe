@@ -5,15 +5,16 @@ import ch.nokillswit.authz.OwnerChain
 /**
  * Who the plan view is rendered for, resolved ONCE per request by the route: [isAdmin] from the verified roles, [personId] the
  * caller's ACTIVE person (null when none — and not looked up for an ADMIN, who needs no ownership), [roadmapEditor] whether a
- * NON-admin holds the `ROADMAP_EDITOR` grant (read from the database per request, never a token claim; not looked up for an ADMIN).
+ * NON-admin holds the `ROADMAP_EDITOR` grant (read from the database per request, never a token claim; not looked up for an ADMIN),
+ * [managedTeamIds] the ACTIVE teams the caller currently manages (`TeamService.activeManagedTeamIds`; empty for an ADMIN, who needs none).
  */
-data class PlanActor(val isAdmin: Boolean, val personId: UInt?, val roadmapEditor: Boolean)
+data class PlanActor(val isAdmin: Boolean, val personId: UInt?, val roadmapEditor: Boolean, val managedTeamIds: Set<UInt>)
 
 /**
  * The `can:{…}` flags of the plan view as a pure kernel (no I/O), computed from the SAME arithmetic as the route guards in
- * `authz/Guards.kt` — `requireAdmin`, `requireOwnerOrAdmin` and `requireTargetWindowEditorOrAdmin` — so the UI never offers what
- * the server refuses. `PlanPermissionsTest` pins the agreement table-driven against the guards themselves; change a guard and that
- * test turns red until this kernel follows.
+ * `authz/Guards.kt` — `requireAdmin`, `requireOwnerOrAdmin`, `requireTargetWindowEditorOrAdmin` and `requireTeamManagerOrAdmin` — so
+ * the UI never offers what the server refuses. `PlanPermissionsTest` pins the agreement table-driven against the guards themselves;
+ * change a guard and that test turns red until this kernel follows.
  */
 object PlanPermissions {
     /** `POST /work-streams`: ADMIN only (`requireAdmin`). */
@@ -35,4 +36,16 @@ object PlanPermissions {
 
     /** `PUT /roadmap/ranking`: ADMIN or the roadmap-editor grant (`requireRoadmapEditorOrAdmin`); ownership does not matter. */
     fun canEditRank(actor: PlanActor): Boolean = actor.isAdmin || actor.roadmapEditor
+
+    /**
+     * `POST /projects/{id}/milestones`: the owner chain of the project, the project's own owner included, or ADMIN
+     * (`requireOwnerOrAdmin`) — the same arithmetic as [canManage].
+     */
+    fun canCreateMilestone(actor: PlanActor, projectChain: OwnerChain): Boolean = canManage(actor, projectChain)
+
+    /**
+     * `PUT /milestones/{id}/schedule`: ADMIN or the ACTIVE manager of the milestone's [teamId] (`requireTeamManagerOrAdmin`) — never
+     * the project's owner as such.
+     */
+    fun canSchedule(actor: PlanActor, teamId: UInt): Boolean = actor.isAdmin || teamId in actor.managedTeamIds
 }

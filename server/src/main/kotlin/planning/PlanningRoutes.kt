@@ -19,9 +19,9 @@ import io.ktor.server.auth.authenticate
 import io.ktor.server.routing.routing
 
 /**
- * The planning REST surface (`/api/v1/work-streams`, `/programs`, `/projects`, `/milestones`, `/views/plan`, `/views/roadmap`,
- * `/roadmap/ranking`), registered by this ONE module function and split per entity (`WorkStreamRoutes.kt`, `ProgramRoutes.kt`,
- * `ProjectRoutes.kt`, `MilestoneRoutes.kt`, `PlanViewRoutes.kt`, `RoadmapRoutes.kt`) — the first
+ * The planning REST surface (`/api/v1/work-streams`, `/programs`, `/projects`, `/milestones`, `/views/plan`, `/views/project/{id}`,
+ * `/views/roadmap`, `/roadmap/ranking`), registered by this ONE module function and split per entity (`WorkStreamRoutes.kt`,
+ * `ProgramRoutes.kt`, `ProjectRoutes.kt`, `MilestoneRoutes.kt`, `PlanViewRoutes.kt`, `RoadmapRoutes.kt`) — the first
  * deliberate exception to the one-routes-file template (`conventions.md`): five resources with different guards would blow the
  * 400-line file cap. Every node route is READ-BEFORE-GUARD (chain -> 404, guard -> 403, body -> 400, validate -> 400, write;
  * `authorization.md`): plan ids are sequential and every signed-in user reads the whole plan anyway, so existence is no secret.
@@ -39,6 +39,7 @@ fun Application.configurePlanningRoutes() {
         milestones = attributes[MilestoneServiceKey],
         teams = attributes[TeamServiceKey],
         view = attributes[PlanViewServiceKey],
+        projectView = attributes[ProjectViewServiceKey],
         roadmap = attributes[RoadmapServiceKey],
     )
     routing {
@@ -63,6 +64,7 @@ internal class PlanRouteDeps(
     val milestones: MilestoneService,
     val teams: TeamService,
     val view: PlanViewService,
+    val projectView: ProjectViewService,
     val roadmap: RoadmapService,
 ) {
     /** `UserService.hasPermission` as the guards' injected lookup (a database read per request, never a token claim). */
@@ -117,13 +119,18 @@ internal class PlanRouteDeps(
     private suspend fun lockedCallerPersonId(caller: CallerPrincipal): UInt? =
         if (caller.isAdmin()) null else people.lockedActivePersonIdOf(caller.userId)
 
-    /** The plan view's actor: the ADMIN flag, the caller's person and (for a non-admin) the roadmap-editor grant. */
-    suspend fun actor(caller: CallerPrincipal): PlanActor {
+    /**
+     * The views' actor: the ADMIN flag, the caller's person and (for a non-admin) the roadmap-editor grant, each resolved once per
+     * request. The teams the caller manages are looked up only when [withManagedTeams] (the project view's `can.schedule` flags);
+     * the other views never read them, so they stay an empty set there.
+     */
+    suspend fun actor(caller: CallerPrincipal, withManagedTeams: Boolean = false): PlanActor {
         val admin = caller.isAdmin()
         return PlanActor(
             isAdmin = admin,
             personId = callerPersonId(caller),
             roadmapEditor = !admin && hasPermission(caller.userId, Permission.ROADMAP_EDITOR),
+            managedTeamIds = if (admin || !withManagedTeams) emptySet() else teams.activeManagedTeamIds(caller.userId),
         )
     }
 }

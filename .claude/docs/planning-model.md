@@ -51,7 +51,7 @@ immutable — a node is created under its parent and its update body carries no 
 | `projects` | `program_id → programs`, `name`, `description`, `owner_person_id → people`, `target_start`/`target_end DATE NULL` | `ck_projects_target_window` (both or neither), `ck_projects_target_order` (end ≥ start); `uq_projects_program_name_active ON (program_id, LOWER(name))` (per program: "Discovery"/"MVP"/"Rollout" recur) |
 
 All three uniqueness indexes are partial over ACTIVE rows, so a deleted or renamed node frees its name; the 409 wording is in `UNIQUE_CONSTRAINT_DETAILS` (`ErrorHandling.kt`). A program's span is
-derived from its projects and a project's real span from its milestones — nothing is stored for them (the derivation is the v0.3.0 project view's job). A closed work stream (end date set) still accepts new programs and projects in v0.2 (the
+derived from its projects and a project's real span from its milestones — nothing is stored for them (the project view derives the latter, "The project view" below; the program span is v0.6). A closed work stream (end date set) still accepts new programs and projects in v0.2 (the
 timeline will show it closed later). The owner is changed through the ordinary full-replace PUT.
 
 ### The `plan_state` lock protocol and the 409 contract (`planning/PlanState.kt`)
@@ -165,9 +165,20 @@ The fourth level, under a project: a **name**, an optional **description**, **ex
   manager inherits the bar and may move or unschedule it — nothing but the manager/ADMIN ever moves a bar. It is its own audit line (`milestone.team_changed`: it changes WHO may schedule — a rights path).
 - **Deletes.** A milestone delete is a soft delete under the plan lock (the name is freed). **A project delete cascades**: its ACTIVE milestones are soft-deleted in the same locked transaction (`project.deleted` carries
   `milestoneCount`), so a project with milestones deletes without a 409 (it has no children with their OWN owners). **A team delete is 409 "Team still has milestones"** while an ACTIVE milestone names it (counted under the team row lock).
-- **API** (tag `plan`): `POST /projects/{id}/milestones` → 201 + `Location`; `GET`/`PUT`/`DELETE /milestones/{id}`; `PUT /milestones/{id}/schedule` → `200 {revision}`. **No list endpoint** in v0.3: milestones are read through the
-  project view (v0.3.0 C2).
+- **API** (tag `plan`): `POST /projects/{id}/milestones` → 201 + `Location`; `GET`/`PUT`/`DELETE /milestones/{id}`; `PUT /milestones/{id}/schedule` → `200 {revision}`; `GET /views/project/{id}` (below). **No list endpoint** in v0.3:
+  milestones are read through the project view.
 - **Audit** (`observability.md`): `milestone.created`, `milestone.updated`, `milestone.team_changed` (only on a change), `milestone.scheduled` (stored before and after, only on an actual change), `milestone.deleted`.
+- **The project view** (`GET /views/project/{id}`, v0.3.0 C2; `ProjectView.kt`, `ProjectViewService.kt`, route in `PlanViewRoutes.kt`; any authenticated user; the view-endpoint shape exception of `list-endpoints.md`, bounded by ONE
+  project's milestones, about 50): `{revision, project{…PlanProject fields, programName, workStreamName, can{edit, delete, editTargetWindow, createMilestone}}, span{start, end}|null, drift{startDays, endDays}|null, scheduled[], unscheduled[]}`.
+  One read transaction, the **revision FIRST** and the rows after (the plan view's protocol; the client sends `revision` back as a schedule write's `expectedRevision`); the project, its program and its work stream must be active, else **404 for every
+  caller** (a deleted ancestor hides the project; a malformed id is 400). `scheduled` = the milestones with dates, ordered by (start, end, name case-insensitively, id) — the timeline rows; `unscheduled` = the rest, by (name case-insensitively, id) —
+  the tray. Each `ProjectMilestone` is the `MilestoneResponse` shape (`teamName` read from the milestone's team WITHOUT an `active()` filter: an active milestone's team is always active) plus `can{edit, delete, schedule}`.
+  **Flags** come from the pure `PlanPermissions` kernel with the guards' arithmetic (`PlanPermissionsTest` pins each against its guard): `project.can.edit/delete` = `canManage(projectChain)`, `createMilestone` = `canCreateMilestone` (the same arithmetic, the project's own
+  owner included), `editTargetWindow` as in the plan view; a milestone's `edit`/`delete` follow the project's chain, and **`schedule` = `canSchedule(actor, milestone.teamId)` = ADMIN or the caller manages THAT milestone's team** — never the project's owner as such.
+  The actor's `managedTeamIds` is resolved once per request for a non-admin (`TeamService.activeManagedTeamIds`: `isActiveManager`'s predicate without the team id; empty for an ADMIN).
+  **Derived, never stored** — computed in the first pure span kernel (`planning/SpanKernels.kt`, `SpanKernelsTest`; v0.6 reuses `derivedSpan` for programs and the roadmap): `span` = the earliest start to the latest end over the SCHEDULED milestones (null when none is
+  scheduled); `drift` = the signed calendar-day deltas `span.start − target.start` and `span.end − target.end` (**positive = later than the target**, zero on target, negative ahead), null unless BOTH the span and the project's target window exist.
+  `ProjectViewTest` (shape and ordering, the span/drift table, `can` per caller, every flag against the real write it mirrors, the 404 and 401 rules, a manager losing the team by reassignment, unset manager, unlinked login or deleted person, a team change moving the flag; project edit/delete/target-window and milestone edit/delete/schedule/create each checked against the real write).
 - **Tests**: `MilestoneTest` (the plan-field matrix, validation, the stored `::text`, names, the team change, the cascade, audit), `MilestoneScheduleTest` (the manager matrix with the named project-owner test, the 400s, stale 409,
   per-milestone semantics, the held-request re-guard cases, the lock wait), `DecimalColumnTest`, `TeamTest` (the team 409 and both lock races), `PlanStateTest` (a milestone write bumps by one), `MigrationChecksumTest`.
 
@@ -177,6 +188,6 @@ The fourth level, under a project: a **name**, an optional **description**, **ex
 - `dependencies`: nullable `pred_milestone_id|pred_project_id` and `succ_milestone_id|succ_project_id` with `num_nonnulls = 1` CHECKs, `type` FS/SS/FF/SF, `lag_days` (working days), `UNIQUE NULLS NOT DISTINCT`.
 - Cycle detection on a start/end time-point graph including containment edges (DFS under the plan lock; reused by the critical path and the scheduler).
 - `team_capacity_periods(team_id, effective_from, md_per_week)`.
-- Derived spans, drift and load are computed at request time in pure kernels (`planning/`, the `CapacityKernels.kt` idiom), with shared JSON test vectors for Kotlin and vitest (deferred to the first
+- Derived spans, drift (built for the project view, `SpanKernels.kt`) and load are computed at request time in pure kernels (`planning/`, the `CapacityKernels.kt` idiom), with shared JSON test vectors for Kotlin and vitest (deferred to the first
   kernel that needs them; `PlanPermissions` is the first pure kernel and is tested against the guards instead).
-- More view endpoints (`/views/project/{id}`, `/views/team/{id}`, `/views/programs`; `/views/plan` and `/views/roadmap` are built), each one document with `can:{…}` flags and a revision, like Flow's `/reports/home`.
+- More view endpoints (`/views/team/{id}`, `/views/programs`; `/views/plan`, `/views/roadmap` and `/views/project/{id}` are built), each one document with `can:{…}` flags and a revision, like Flow's `/reports/home`.

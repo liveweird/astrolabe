@@ -1339,6 +1339,35 @@ paths:
                 $ref: '#/components/schemas/PlanView'
         '401': { $ref: '#/components/responses/Unauthorized' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/views/project/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    get:
+      tags: [plan]
+      operationId: getProjectView
+      summary: One project with its milestones, the derived span and its drift
+      description: |
+        Any authenticated user; `404` when the project, its program or its work stream is deleted, for every caller. One document (a
+        deliberate exception to the paged envelope, bounded by ONE project's milestones, about 50). `revision` is the plan revision read
+        before the rows - send it back as a schedule write's `expectedRevision`. The milestones are split into `scheduled` (the timeline
+        rows, by start date, end date, name and id) and `unscheduled` (the tray, by name and id); names sort case-insensitively. `span`
+        is the earliest start to the latest end over the scheduled milestones (null when none is scheduled) and `drift` is that span
+        against the project's target window as signed calendar-day deltas (positive = later than the target; null unless both the span and
+        the window exist) - both are derived at request time and never stored. `project.can` and every milestone's `can` are the actions
+        THIS caller may take, computed with the same rules the writes enforce: `createMilestone`, `edit` and `delete` follow the project's
+        owner chain (the project's own owner included) or ADMIN; a milestone's `schedule` is true only for ADMIN or the active manager of
+        THAT milestone's team - never for the project's owner as such.
+      responses:
+        '200':
+          description: The project view
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectView'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   /api/v1/views/roadmap:
     get:
       tags: [roadmap]
@@ -2230,6 +2259,101 @@ components:
             edit: { type: boolean }
             delete: { type: boolean, description: 'A rights flag: the caller may delete the node. The server can still answer 409 while it has active children.' }
             editTargetWindow: { type: boolean, description: 'The caller may set the target window (ADMIN, an owner above the project, or a roadmap editor).' }
+
+    ProjectView:
+      type: object
+      required: [revision, project, span, drift, scheduled, unscheduled]
+      properties:
+        revision:
+          type: integer
+          format: int64
+          minimum: 0
+          description: The plan revision, read before the rows; send it back as `expectedRevision` of a schedule write.
+        project:
+          $ref: '#/components/schemas/ProjectViewProject'
+        span:
+          nullable: true
+          description: The earliest start to the latest end over the scheduled milestones; null when none is scheduled.
+          allOf:
+            - $ref: '#/components/schemas/DateSpan'
+        drift:
+          nullable: true
+          description: '`span` against the project''s target window; null unless both exist.'
+          allOf:
+            - $ref: '#/components/schemas/Drift'
+        scheduled:
+          type: array
+          description: The milestones with dates, by start date, end date, name (case-insensitive) and id.
+          items:
+            $ref: '#/components/schemas/ProjectMilestone'
+        unscheduled:
+          type: array
+          description: The milestones without dates (the tray), by name (case-insensitive) and id.
+          items:
+            $ref: '#/components/schemas/ProjectMilestone'
+    DateSpan:
+      type: object
+      required: [start, end]
+      description: An inclusive span of calendar days.
+      properties:
+        start: { type: string, format: date }
+        end: { type: string, format: date, description: Not before `start`. }
+    Drift:
+      type: object
+      required: [startDays, endDays]
+      description: Calendar-day deltas of a derived span against a target window; positive = later than the target, negative = ahead, zero = on target.
+      properties:
+        startDays: { type: integer, format: int64, description: '`span.start` minus `target.start`.' }
+        endDays: { type: integer, format: int64, description: '`span.end` minus `target.end`.' }
+    ProjectViewProject:
+      type: object
+      required: [id, programId, workStreamId, programName, workStreamName, name, description, ownerPersonId, ownerName, targetStart, targetEnd, createdAt, updatedAt, can]
+      description: The `PlanProject` fields plus the names of the project's program and work stream.
+      properties:
+        id: { type: integer, format: int32, minimum: 0 }
+        programId: { type: integer, format: int32, minimum: 0 }
+        workStreamId: { type: integer, format: int32, minimum: 0 }
+        programName: { type: string }
+        workStreamName: { type: string }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        ownerPersonId: { type: integer, format: int32, minimum: 0 }
+        ownerName: { type: string }
+        targetStart: { type: string, format: date, nullable: true }
+        targetEnd: { type: string, format: date, nullable: true }
+        createdAt: { type: integer, format: int64 }
+        updatedAt: { type: integer, format: int64 }
+        can:
+          type: object
+          required: [edit, delete, editTargetWindow, createMilestone]
+          properties:
+            edit: { type: boolean }
+            delete: { type: boolean, description: 'A rights flag: the caller may delete the project (its milestones go with it).' }
+            editTargetWindow: { type: boolean, description: 'The caller may set the target window (ADMIN, an owner above the project, or a roadmap editor).' }
+            createMilestone: { type: boolean, description: 'The caller may create a milestone under the project (an owner on its chain, or ADMIN).' }
+    ProjectMilestone:
+      type: object
+      required: [id, projectId, name, description, teamId, teamName, estimateMd, startDate, endDate, createdAt, updatedAt, can]
+      description: A milestone as the project view shows it - the `MilestoneResponse` fields plus the caller's actions. Both dates are null in `unscheduled`, both set in `scheduled`.
+      properties:
+        id: { type: integer, format: int32, minimum: 0 }
+        projectId: { type: integer, format: int32, minimum: 0 }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        teamId: { type: integer, format: int32, minimum: 0 }
+        teamName: { type: string }
+        estimateMd: { type: number, format: double, minimum: 0, description: Man-days with at most two decimals. }
+        startDate: { type: string, format: date, nullable: true, description: Null = unscheduled (both dates are null together). }
+        endDate: { type: string, format: date, nullable: true }
+        createdAt: { type: integer, format: int64, description: Epoch millis }
+        updatedAt: { type: integer, format: int64, description: Epoch millis }
+        can:
+          type: object
+          required: [edit, delete, schedule]
+          properties:
+            edit: { type: boolean, description: 'The caller may change the plan fields (an owner on the project''s chain, or ADMIN).' }
+            delete: { type: boolean }
+            schedule: { type: boolean, description: 'The caller may set or clear the dates: ADMIN or the active manager of the milestone''s team - never the project''s owner as such.' }
 
     RoadmapView:
       type: object

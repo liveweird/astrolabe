@@ -145,6 +145,21 @@ class TeamService(private val database: R2dbcDatabase) {
     }
 
     /**
+     * The ids of every ACTIVE team that [userId] currently manages — [isActiveManager]'s predicate without the team id, in one query
+     * (the project view's `can.schedule` flags, `PlanPermissions.canSchedule`). Empty for a caller who manages nothing.
+     */
+    suspend fun activeManagedTeamIds(userId: UInt): Set<UInt> = suspendTransaction(database) {
+        val people = PersonService.People
+        Teams.innerJoin(people, { managerPersonId }, { people.id })
+            .innerJoin(UserService.Users, { people.userId }, { UserService.Users.id })
+            .select(Teams.id)
+            .where { Teams.active() and people.active() and (people.userId eq userId) and UserService.Users.active() }
+            .map { it[Teams.id].value }
+            .toList()
+            .toSet()
+    }
+
+    /**
      * [isActiveManager] for a write that runs INSIDE a plan-locked transaction (the milestone schedule PUT): the same join, but the TEAM
      * row and the manager's PERSON row are locked `FOR SHARE` (`FOR SHARE OF teams, people`), so a manager change ([update], `FOR NO KEY
      * UPDATE` on the team), a re-link or delete of the manager's person (`PersonService.update`/`delete`, `FOR NO KEY UPDATE`) either
