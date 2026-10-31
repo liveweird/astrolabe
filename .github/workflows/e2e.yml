@@ -1,0 +1,131 @@
+name: e2e
+
+# Blackbox Playwright suite: brings the full stack up via docker compose and drives a real browser.
+on:
+  # Not on push/PR: the compose stack + Playwright on a runner takes ~10+ minutes — ci.yml
+  # (server/web/e2e-static gates) is the PR gate. The suite runs NIGHTLY against master so a
+  # UI regression is caught within a day, and on demand from the Actions tab → "e2e" → "Run workflow".
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+    inputs:
+      workers:
+        description: "Playwright workers (E2E_WORKERS); the nightly always uses 4 — set another value to A/B the worker count (build-times.md WHY 7)"
+        required: false
+        default: "4"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      # The image compose builds is `<project>-app`; pin the project so the build, `up` and every
+      # later `docker compose` call agree on it whatever the checkout directory is called.
+      COMPOSE_PROJECT_NAME: astrolabe
+      # `inputs` is empty on the nightly (schedule), so the fallback is the config's own default.
+      E2E_WORKERS: ${{ inputs.workers || '4' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The Docker build context includes .git: no checkout token may be stored in its config.
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          # .nvmrc mirrors mise.toml's node pin (and the Dockerfile's node tag); bump them together.
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: e2e/package-lock.json
+
+      - name: Install e2e deps
+        working-directory: e2e
+        run: npm ci
+
+      # The step split below exists so the nightly's time is attributable: `ci-times.mjs --workflows e2e
+      # --steps e2e` shows the image build, the stack start-up and the specs as separate rows, each with
+      # a budget in scripts/timings/budgets.json (`ci-steps`). Playwright's global setup reuses a stack
+      # that already answers /api/v1/ready, so it starts nothing itself here.
+      - name: Resolve the Playwright version
+        id: playwright
+        working-directory: e2e
+        run: echo "version=$(npx playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
+      # The browser download is what the cache skips; the OS libraries live outside the cache, so
+      # `install-deps` runs either way.
+      - name: Install Playwright browser
+        working-directory: e2e
+        env:
+          CACHE_HIT: ${{ steps.playwright-cache.outputs.cache-hit }}
+        run: |
+          if [ "$CACHE_HIT" = "true" ]; then
+            npx playwright install-deps chromium
+          else
+            npx playwright install --with-deps chromium
+          fi
+
+      # A plain build, the same as ci.yml's `images` job: the BuildKit layer cache this step used to restore cost more than
+      # it saved (build-times.md WHY 22 — every nightly since 10-06 rebuilt the Gradle installDist layer, where dependency
+      # download and compile share one layer, so a key hit saved ~20 s and the ~1 GB restore/export and the repo cache quota
+      # cost more; WHY 9 found the same for `images`).
+      - name: Build images
+        run: docker compose build
+
+      # Every service that defines a healthcheck must report healthy — postgres and app declare theirs in
+      # docker-compose.yaml, mailpit ships one in its image; `--wait` fails the step (with
+      # the failing service named) instead of leaving the wait to the first Playwright step.
+      - name: Start the stack
+        run: docker compose up -d --wait --wait-timeout 300
+
+      - name: Run E2E
+        working-directory: e2e
+        run: npx playwright test
+
+      # Container logs make a red nightly diagnosable without reproducing it.
+      - name: Stack logs
+        if: failure()
+        run: docker compose logs --no-color --tail 200
+
+      - name: Upload report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-report
+          path: e2e/playwright-report/
+          retention-days: 7
+
+      # The nightly CVE check (checkup 2, 2A5): ci.yml's `images` scan runs only on a master push, so an
+      # advisory published during a quiet week surfaces only with the next merge. Same scanner, flags and
+      # gate as `images` (keep the two in step); it scans the image this run already built, and runs after
+      # the suite so a red scan never hides a UI regression (or the other way round).
+      - name: Scan the app image for vulnerabilities (HIGH/CRITICAL, fixable)
+        if: ${{ !cancelled() }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/trivy-cache"
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$RUNNER_TEMP/trivy-cache:/cache" \
+            ghcr.io/aquasecurity/trivy:0.74.0@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969 \
+            image --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 \
+            --cache-dir /cache --no-progress astrolabe-app
+
+  # A red nightly opens (or comments on) the one "Nightly e2e is failing" issue; on demand runs (workflow_dispatch) stay quiet
+  # because their author is watching. `ci-alert.yml` holds the logic; closing the issue is manual (ci.md "Failure alerting").
+  alert:
+    needs: e2e
+    if: ${{ failure() && github.event_name == 'schedule' }}
+    permissions:
+      issues: write
+    uses: ./.github/workflows/ci-alert.yml
+    with:
+      title: Nightly e2e is failing

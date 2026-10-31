@@ -1,0 +1,363 @@
+name: ci
+
+# The push/PR gate — every local gate (CLAUDE.md "Commands") re-run on a clean runner:
+# server (detekt + Testcontainers tests + Kover + OpenAPI coverage + dependency alignment +
+# strict Gradle dependency verification), web
+# (the spec → schema.ts drift check, lint, knip, tests with coverage floors, build), and the
+# Docker-free e2e statics (lint, knip, typecheck, spec↔scenario parity), the Kubernetes manifest
+# validation (`k8s-static`), an `npm audit` of both npm workspaces, and an image build plus a Trivy
+# scan of it (`images`: master pushes and every pull request that changes more than Markdown). The blackbox Playwright suite runs nightly and on demand (e2e.yml).
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+# A newer push to a pull request supersedes its older run; a push to master never cancels
+# (every master commit, and so every release commit, is fully verified — see the `changes` job).
+# A master run gets a group of its own (the run id): within one shared group GitHub keeps a single
+# PENDING run and cancels the older pending one, so `cancel-in-progress: false` alone would still drop
+# queued master commits.
+concurrency:
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    # Decides whether the server and images jobs run. A pull request that changes only Markdown skips
+    # both (the Testcontainers suite and the image build have nothing to verify). Pushes to master always
+    # run both, so every master commit (and so every release commit) is fully verified. Plain git, no
+    # third-party action.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      server: ${{ steps.diff.outputs.server }}
+      images: ${{ steps.diff.outputs.images }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - id: diff
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          server=true
+          images=true
+          if [ "$EVENT" = "pull_request" ]; then
+            changed=$(git diff --name-only "$BASE...$HEAD")
+            if [ -n "$changed" ] && ! printf '%s\n' "$changed" | grep -qEv '\.md$'; then
+              images=false
+              server=false
+            fi
+          fi
+          echo "server=$server" >> "$GITHUB_OUTPUT"
+          echo "images=$images" >> "$GITHUB_OUTPUT"
+          echo "server job runs: $server; images job runs: $images"
+
+  server:
+    needs: changes
+    if: needs.changes.outputs.server == 'true'
+    # ubuntu-24.04 ships a Docker daemon — Testcontainers starts the pinned PostgreSQL 18 image on it.
+    runs-on: ubuntu-24.04
+    # The timeout is headroom for runner variance, not a target (`.claude/docs/build-times.md`); re-baseline
+    # once v0.1.0's job times are measured.
+    timeout-minutes: 25
+    env:
+      # One fork count for the build (-Pforks) and the test-time report below.
+      TEST_FORKS: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          # The exact patch of mise.toml's pin (and the Dockerfile's eclipse-temurin tag), so CI compiles
+          # and tests on the JDK the repo was verified on; bump the three together.
+          java-version: 21.0.12
+          cache: gradle
+      # The test Postgres image downloads while Gradle compiles instead of inside the first fork's container
+      # start (the `postgres` fixture cost was 12-15 s per fork on CI against ~4 s with a cached image, measured in Flow).
+      # Backgrounded on purpose: the runner reaps it at job end, and the Docker daemon joins Testcontainers'
+      # pull of the same image if the forks start first. The image is read from its one pin (`PostgresTestSupport.IMAGE`).
+      - name: Pre-pull the test Postgres image (background)
+        run: (docker pull --quiet "$(grep -o 'postgres:[^"]*' server/src/test/kotlin/PostgresTestSupport.kt)" >/dev/null 2>&1 &)
+      - name: Check lockfiles and verification metadata are present
+        run: |
+          for state in gradle/verification-metadata.xml gradle.lockfile settings-gradle.lockfile buildscript-gradle.lockfile core/gradle.lockfile core/buildscript-gradle.lockfile server/gradle.lockfile server/buildscript-gradle.lockfile; do
+            test -s "$state"
+          done
+      # `check` = compile + detekt + test + koverVerify + checkDependencyAlignment, plus `:server:installDist` (the packaging the
+      # image uses); not `build`, whose extra assemble outputs (zips/tars, the never-used fat JAR) cost ~15 s and verify nothing
+      # the image depends on (`.claude/docs/build-times.md` status check 2026-10-23).
+      # `--dependency-verification strict` is explicit here on top of the automatic enforcement
+      # gradle/verification-metadata.xml already triggers — see .claude/docs/dependency-reproducibility.md.
+      # `-Pforks=1`: one test JVM with its own Testcontainers Postgres (`.claude/docs/testing.md` "Parallel forks").
+      - run: ./gradlew --dependency-verification strict check :server:installDist --no-daemon --stacktrace -Pforks="$TEST_FORKS"
+      # Time visibility, never a gate: the slowest test classes/cases go to the job summary, and a
+      # ::warning:: annotation fires when the test time exceeds the `ci.server` alarm in
+      # scripts/timings/budgets.json. Uses the runner's preinstalled node (>= 20; the script needs 18+,
+      # built-ins only). `if: always()` so a failed or timed-out build still shows where the time went.
+      - name: Test time report (job summary)
+        if: always()
+        continue-on-error: true
+        run: node scripts/timings/local-times.mjs slow-tests server/build/test-results/test --top-classes 15 --top-tests 10 --budget ci.server-tests --summary-file "$GITHUB_STEP_SUMMARY" --allow-empty
+      - name: Confirm lockfiles and verification metadata match the committed graph
+        run: git diff --exit-code -- gradle/verification-metadata.xml gradle.lockfile settings-gradle.lockfile buildscript-gradle.lockfile core/gradle.lockfile core/buildscript-gradle.lockfile server/gradle.lockfile server/buildscript-gradle.lockfile
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() }}
+        with:
+          name: server-reports
+          path: server/build/reports/
+          retention-days: 7
+
+  gradle-vulnerability-scan:
+    # Scan resolved project and plugin classpaths, including build and test dependencies.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          # The exact patch of mise.toml's pin (and the Dockerfile's eclipse-temurin tag), so CI compiles
+          # and tests on the JDK the repo was verified on; bump the three together.
+          java-version: 21.0.12
+          cache: gradle
+      - run: ./gradlew :verifySettingsPluginAudit --no-daemon
+      - name: Scan Gradle lockfiles
+        run: |
+          mkdir -p "$RUNNER_TEMP/gradle-locks/core" "$RUNNER_TEMP/gradle-locks/server" "$RUNNER_TEMP/trivy-cache"
+          cp gradle.lockfile settings-gradle.lockfile buildscript-gradle.lockfile "$RUNNER_TEMP/gradle-locks/"
+          cp core/gradle.lockfile core/buildscript-gradle.lockfile "$RUNNER_TEMP/gradle-locks/core/"
+          cp server/gradle.lockfile server/buildscript-gradle.lockfile "$RUNNER_TEMP/gradle-locks/server/"
+          docker run --rm \
+            -v "$RUNNER_TEMP/gradle-locks:/scan:ro" \
+            -v "$RUNNER_TEMP/trivy-cache:/cache" \
+            -v "$RUNNER_TEMP:/out" \
+            ghcr.io/aquasecurity/trivy:0.74.0@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969 \
+            fs --scanners vuln --include-dev-deps --format json \
+            --output /out/gradle-vulnerabilities.json --cache-dir /cache --no-progress /scan
+          python3 - <<'PY'
+          import collections
+          import json
+          import os
+
+          with open(os.path.join(os.environ["RUNNER_TEMP"], "gradle-vulnerabilities.json")) as report:
+              results = json.load(report)["Results"]
+          counts = collections.Counter(
+              vulnerability["Severity"]
+              for result in results
+              for vulnerability in result.get("Vulnerabilities") or []
+          )
+          print("Gradle dependency advisories:", dict(counts))
+          if counts["CRITICAL"] or counts["HIGH"]:
+              raise SystemExit("HIGH or CRITICAL Gradle dependency advisory")
+          PY
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ always() }}
+        with:
+          name: gradle-vulnerabilities
+          path: ${{ runner.temp }}/gradle-vulnerabilities.json
+          retention-days: 7
+
+  web:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          # .nvmrc mirrors mise.toml's node pin (and the Dockerfile's node tag); bump them together.
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      # --legacy-peer-deps per web/README.md (openapi-typescript declares TS ^5, the repo uses TS 6).
+      - run: npm ci --legacy-peer-deps
+      # The same-commit rule made mechanical: a spec change must land with its regenerated
+      # src/api/schema.ts, or the SPA type-checks against a stale client surface. `lint:api`
+      # Spectral-lints the spec (and the conformant fixture) against api-guidelines/; `check:api`
+      # regenerates schema.ts in memory and diffs it against the committed file without ever
+      # overwriting it (see web/scripts/check-api.mjs) — one step, not a duplicate gen:api run.
+      - name: Check API contract and generated types
+        run: npm run lint:api && npm run check:api
+      # ESLint's per-file result cache (`npm run lint` passes --cache --cache-strategy content; `content`, not
+      # the default `metadata`, because a fresh checkout gives every file a new mtime). The config is not
+      # type-aware (no parserOptions.project), so a file's result depends only on its own bytes plus the
+      # config, which ESLint hashes into every entry together with its own and node's version; the key adds the
+      # lockfile and the config file, so a plugin/dependency bump starts cold. Keyed per commit with a prefix
+      # restore: a PR run restores the newest master cache (caches written on the default branch are readable
+      # from every PR), lints only the files it changed and saves its own. Measured in Flow:
+      # a fully warm lint 12.1 s -> 0.6 s locally; the CI job's lint was 22-36 s.
+      - name: Restore the ESLint cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: web/.eslintcache
+          key: eslint-web-${{ hashFiles('web/package-lock.json', 'web/eslint.config.js') }}-${{ github.sha }}
+          restore-keys: eslint-web-${{ hashFiles('web/package-lock.json', 'web/eslint.config.js') }}-
+      - run: npm run lint
+      - run: npm run knip
+      # The suite runs with isolate:false (web/vite.config.ts), so a test that only passes in file
+      # order is a latent bug; shuffling the order proves independence (.claude/docs/testing.md). One
+      # shuffled coverage run does both jobs: a second, plain run cost 30-58 s (measured in Flow).
+      # The seed is chosen here, not left to vitest, and printed to the job summary BEFORE the run (so it
+      # survives a failure): replay a shuffle-order failure with the command in the summary.
+      - name: Test with coverage (shuffled order)
+        run: |
+          seed=$RANDOM$RANDOM
+          {
+            echo "### Vitest shuffle seed: \`$seed\`"
+            echo "Replay: \`cd web && npm run test:coverage -- --sequence.shuffle --sequence.seed=$seed\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "vitest shuffle seed: $seed"
+          npm run test:coverage -- --sequence.shuffle --sequence.seed="$seed"
+      - run: npm run build
+        env:
+          # The runner's checkout is a detached HEAD; stamp the build from the event instead of
+          # the vite config's `git status` dirty check (see web/CLAUDE.md "Build version stamp").
+          GIT_SHA: ${{ github.sha }}
+      # Last on purpose: an advisory published overnight must not hide a PR's real gate results
+      # (lint, tests, build). Runtime dependencies only: a dev-tool advisory (eslint, vitest, ...) never
+      # ships in the bundle. `--audit-level=high` ignores low/moderate. A red step here is a real
+      # advisory in the shipped SPA — fix it or document a justified exception in
+      # .claude/docs/dependencies.md.
+      - name: Audit runtime dependencies (high+)
+        run: npm audit --omit=dev --audit-level=high
+
+  e2e-static:
+    # The Docker-free e2e gates: eslint+sonarjs and knip (the web sibling), typecheck
+    # (Playwright only TRANSPILES TS), and spec↔scenario parity — the same-commit rule made
+    # mechanical (e2e/README.md).
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: e2e
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          # .nvmrc mirrors mise.toml's node pin (and the Dockerfile's node tag); bump them together.
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: e2e/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run knip
+      - run: npm run typecheck
+      - run: npm run check:scenarios
+      - run: npm run test:setup
+      # Repo-level, not e2e-specific: it lives here because this is the cheapest job that already has the
+      # pinned node. Fails with one line per mismatch (.claude/docs/dependencies.md "CI toolchain pins").
+      - name: Toolchain pins agree (mise.toml, .nvmrc, ci.yml, Dockerfile)
+        working-directory: ${{ github.workspace }}
+        run: node scripts/check-toolchain-pins.mjs
+      # Last on purpose (see the web job): an overnight advisory must not hide the real gates. Everything
+      # in e2e/ is a dev tool (Playwright and its lint stack), so the full tree is audited.
+      - name: Audit dependencies (high+)
+        run: npm audit --audit-level=high
+
+  k8s-static:
+    # The Docker-free Kubernetes gate: the manifests must stay schema-valid (strict — an unknown or
+    # misspelled field, e.g. in a securityContext, fails) and so must what k8s/apply-local.sh renders.
+    # kubeconform, not `kubectl apply --dry-run=client`: even client-side dry-run needs a reachable API
+    # server for discovery, which a runner does not have. The binary is pinned by version and sha256.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      # The schema repo pinned to a commit, not `master` — a schema change upstream must not redden the job.
+      KUBECONFORM_SCHEMAS: 'https://raw.githubusercontent.com/yannh/kubernetes-json-schema/8df8a883b68a24a104b4a9e43c1288090ae60b3b/{{.NormalizedKubernetesVersion}}-standalone{{.StrictSuffix}}/{{.ResourceKind}}{{.KindSuffix}}.json'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install kubeconform v0.8.0 (checksum-verified)
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/kubeconform.tgz" \
+            https://github.com/yannh/kubeconform/releases/download/v0.8.0/kubeconform-linux-amd64.tar.gz
+          echo "9bc2bffbf71f261128533edaf912153948b7ff238f9a531ae6d34466ec287883  $RUNNER_TEMP/kubeconform.tgz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/kubeconform.tgz" -C "$RUNNER_TEMP" kubeconform
+      - name: Validate the manifests
+        run: '"$RUNNER_TEMP/kubeconform" -strict -summary -kubernetes-version 1.33.0 -schema-location "$KUBECONFORM_SCHEMAS" k8s/*.yaml'
+      # The app keeps the login lockout, MFA challenges and reset throttles in memory, per instance
+      # (security.md): a second replica would split them and multiply every limit. Pin it to one replica,
+      # with no autoscaler, until that state moves to a shared store (checkup 2, 2D5). The worker may scale.
+      - name: Pin the web deployment to one replica (per-instance auth state)
+        run: |
+          test "$(grep -cE '^  replicas: 1$' k8s/web-deployment.yaml)" -eq 1
+          if grep -l 'kind: HorizontalPodAutoscaler' k8s/*.yaml; then echo "an autoscaler would scale the web tier" >&2; exit 1; fi
+      - name: Validate what apply-local.sh renders
+        run: |
+          # A stand-in kubectl: the Secret "exists", and `apply -f <dir>` records the rendered directory.
+          mkdir -p "$RUNNER_TEMP/bin" "$RUNNER_TEMP/rendered"
+          printf '#!/bin/sh\n[ "$1" = apply ] && cp "$3"/*.yaml "$RENDER_OUT"/\nexit 0\n' > "$RUNNER_TEMP/bin/kubectl"
+          chmod +x "$RUNNER_TEMP/bin/kubectl"
+          PATH="$RUNNER_TEMP/bin:$PATH" RENDER_OUT="$RUNNER_TEMP/rendered" sh k8s/apply-local.sh ci-check
+          "$RUNNER_TEMP/kubeconform" -strict -summary -kubernetes-version 1.33.0 -schema-location "$KUBECONFORM_SCHEMAS" "$RUNNER_TEMP"/rendered/*.yaml
+          test "$(grep -h 'image: astrolabe-app:ci-check' "$RUNNER_TEMP"/rendered/*.yaml | wc -l)" -eq 1
+          if grep -q 'local-build' "$RUNNER_TEMP"/rendered/*.yaml; then echo "unrendered image placeholder" >&2; exit 1; fi
+
+  images:
+    # Dockerfile drift guard: the image must still build — and, built, must carry no fixable
+    # HIGH/CRITICAL vulnerability (the base-image digests are pinned, so this is where a stale digest
+    # or an unpatched OS package surfaces). On master pushes and on every pull request that changes
+    # more than Markdown (`changes`), so a dependency or base-image bump that brings a fixable
+    # HIGH/CRITICAL is caught before the merge, not by the master run after it. ~3 min of runner time
+    # per PR, in parallel with the longer `server` job, so it does not lengthen a PR's wall time.
+    #
+    # A plain `docker compose build` on the runner's own Docker, deliberately WITHOUT a BuildKit layer cache
+    # (measured in Flow, see `.claude/docs/build-times.md`): the one expensive layer is the Gradle `installDist` RUN
+    # (dependency resolution + Kotlin compile, ~113 s) and it depends on the sources, so it is rebuilt on
+    # every commit and no cache can hold it. The cache that was here (a `docker-container` builder plus an
+    # `actions/cache` directory, 2026-09-30) cost more than it saved: restore ~10 s, import ~19 s, export
+    # ~15 s thrown away on every hit, builder teardown ~10 s and an image tarball export/load ~8 s, against
+    # ~10 s of saved Gradle-distribution download (the npm layer runs parallel to the Gradle stage, off the
+    # critical path). Measured on master: 15 cache-less runs 105-142 s (median 133 s), 7 cached runs
+    # 151-179 s for the build step alone (median 170 s) + ~20 s of restore and teardown.
+    needs: changes
+    if: needs.changes.outputs.images == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      # The image compose builds is `<project>-app`; pin the project so the scan below can name it.
+      COMPOSE_PROJECT_NAME: astrolabe
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The SPA build stage reads the commit sha and time from .git.
+          fetch-depth: 0
+          # The Docker build context includes .git: no checkout token may be stored in its config.
+          persist-credentials: false
+      - name: Build images
+        run: docker compose build
+      # The AppCDS archive in the image (see `.claude/docs/ci.md` "AppCDS") is only ever validated at JVM start, and a mismatch (a changed
+      # jar, `-XX:-UseCompressedOops` added to the baked flags, another JDK) is silent: the app boots with no classes shared,
+      # SLOWER than without the archive. This runs the image's launcher with -XX:+PrintSharedArchiveAndExit, which exits non-zero
+      # on any mismatch without starting the app (no database, under a second).
+      - name: Check the AppCDS archive fits the runtime
+        run: sh scripts/check-cds-archive.sh astrolabe-app
+      # HIGH/CRITICAL with a published fix fail the job; unfixed ones are reported nowhere on purpose
+      # (nothing to act on). The digest-pinned scanner is the one the Gradle lockfile scan uses.
+      - name: Scan the app image for vulnerabilities (HIGH/CRITICAL, fixable)
+        run: |
+          mkdir -p "$RUNNER_TEMP/trivy-cache"
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$RUNNER_TEMP/trivy-cache:/cache" \
+            ghcr.io/aquasecurity/trivy:0.74.0@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969 \
+            image --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 \
+            --cache-dir /cache --no-progress astrolabe-app
+
+  # A red `images` job on a master push opens (or comments on) the one "master images job is failing" issue
+  # (`ci-alert.yml`; closing it is manual, `.claude/docs/ci.md` "Failure alerting"). Pull requests never reach it.
+  images-alert:
+    needs: images
+    if: ${{ failure() && github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+    permissions:
+      issues: write
+    uses: ./.github/workflows/ci-alert.yml
+    with:
+      title: master images job is failing
