@@ -1,9 +1,9 @@
 # Frontend (`web/`)
 
 Vite + React 19 + TypeScript SPA: the shell + auth, user/feature management, MFA, password reset,
-the changelog, the flat-teams registry, the people directory, the Plan page (work streams → programs → projects) and the ADMIN telemetry panel — the v0.1.0 foundation,
+the changelog, the flat-teams registry, the people directory, the Plan page (work streams → programs → projects), the Roadmap page (the global project ranking) and the ADMIN telemetry panel — the v0.1.0 foundation,
 trimmed from Flow (`~/Sources/flow` @ e9c3b726, the donor: port building blocks from there, don't reinvent) — with a placeholder Home;
-the roadmap, milestones and the timeline arrive after 0.2. Routes are lazy.
+milestones and the timeline arrive after 0.2. Routes are lazy.
 
 - Dev server: `cd web && npm run dev` (port **5178** — not Vite's 5173 default, so Astrolabe can run
   beside Flow's 5176 and the sibling stacks' 5173–5175). All backend routes live under the
@@ -61,7 +61,7 @@ the roadmap, milestones and the timeline arrive after 0.2. Routes are lazy.
 - Pages are **lazy** (`React.lazy` in `App.tsx`); new routes register above the `path="*"`
   NotFound catch-all (LAST child, never feature-gated). **The nav model lives in
   `utils/navigation.ts`**, shared by the sidebar and the command palette: `NAV_SECTIONS` —
-  labelled, always-open sections (currently Overview, Planning: Plan, and Administration: Teams, People, Users, Feature flags) of `NavLeaf`s (the
+  labelled, always-open sections (currently Overview, Planning: Plan and Roadmap, and Administration: Teams, People, Users, Feature flags) of `NavLeaf`s (the
   `label` is a typed i18n key; `adminOnly?` gates admin leaves, `keywords?` adds raw palette search terms for a renamed page's old name, and `visibleSections(isAdmin())`
   drops an emptied section) — plus `ACCOUNT_NAV` (Change password, Changelog), which the header
   `UserMenu` and the palette render and the sidebar never does. Sections are static captions
@@ -228,6 +228,16 @@ comes from the view's `can:{}` flags, never from the session's roles** — the s
 parts as two PUTs. **Dates** are `components/PlanDateInput.tsx` (`@mantine/dates` `DateInput` over `YYYY-MM-DD` strings, no `Date` objects; the language reaches the calendar through `components/AppDatesProvider.tsx` in `main.tsx`,
 which also owns the `dayjs/locale/<lang>` imports — a new shipped language needs its line there). Rules and wire mappers: `utils/planForm.ts`. Mechanics: `.claude/docs/web-internals.md`.
 
+## The Roadmap page (`pages/Roadmap.tsx`)
+
+`/roadmap` (nav section Planning after Plan, palette entry "Roadmap" / PL "Roadmapa") renders `GET /views/roadmap` under `["roadmap","view"]`: the ranked list (h3 "Ranked": rank, project, program, work stream, owner, target window) and an h3 "Unranked" group below it. **Whether
+the lists are editable is the view's `can.editRank`** (never the session's roles); without it both are plain read-only tables — no handles, no buttons. Editable, the ranked rows are dnd-kit sortable `<tr>`s (`components/RoadmapRankedTable.tsx` owns the `DndContext`,
+`RoadmapRow.tsx` the `useSortable` row) and every change is the **wholesale `PUT /roadmap/ranking`** with the view's `expectedRevision`, from the one write path `hooks/useRoadmapRanking.ts`: optimistic reorder of the cached view, the new revision stored on success,
+a rollback plus refetch on any failure, and on the stale-revision 409 (`isStaleRevision` in `api/roadmap.ts`) the "the roadmap changed in the meantime — the list was reloaded" alert. A change is ignored while a save is in flight. The pure order arithmetic is
+`utils/roadmapOrder.ts` (move, drop-over, append, remove, `applyRanking`). A project enters the ranking only through "Rank" (appended at the END), leaves it through "Unrank".
+**The rule: a dnd-kit list always ships explicit Move up / Move down buttons AND localized announcements** — the handle (a real button, `roadmap.dragHandleAria`) takes the `KeyboardSensor` (Space picks up, arrows move, Space drops) with `accessibility={{ announcements,
+screenReaderInstructions }}` built from `roadmap.dnd.*` (`utils/roadmapAnnouncements.ts`), and the Move buttons are the deterministic path tests and e2e drive; a button-driven change is announced in a polite live region (`roadmap.announce.*`), and a Move button keeps keyboard focus through its own move. Pointer drags are not unit-tested (happy-dom has no layout; `Roadmap.test.tsx` wraps `DndContext` to feed it a drop) — the e2e does them. The Plan page's mutations also refresh `["roadmap"]`. Mechanics: `.claude/docs/web-internals.md`.
+
 ## User management and feature flags
 
 Passwords are generated client-side and revealed exactly once (`components/OneTimePasswordModal.tsx` sets `closeOnClickOutside={false} closeOnEscape={false}`; closing drops the plaintext for good). The management routes sit under ONE `<Route element={<RequireAdmin />}>` in `App.tsx` — no page redirects itself, their queries stay `enabled: isAdmin()`; UX only, the server's `requireAdmin` is the rule. Users live under `/users` (list, `/new`, `/:id/edit`, `/:id/features`; `utils/userLinks.ts` spells the family out — never hand-assemble a URL); feature flags (`/users/:id/features`, ADMIN `/feature-flags`): mind the wholesale-replace semantics — a PUT whose disabled set omits `MFA` ENABLES it. Page narratives (`pages/Users|CreateUser|EditUser|ChangePassword|FeatureFlags|UserFeatures.tsx`): `.claude/docs/web-internals.md`.
@@ -247,7 +257,7 @@ are English (THE default and fallback everywhere) and Polish. All user-facing st
 `const { t } = useTranslation()` / `<Trans>` — **no hardcoded UI text**. Conventions:
 
 - **Resources** live in `src/locales/{en,pl}/<area>.json`, one file per area (`appShell`, `auth`,
-  `changelog`, `common`, `home`, `people`, `plan`, `teams`, `telemetry`, `users`); `i18n.ts` merges them into a single
+  `changelog`, `common`, `home`, `people`, `plan`, `roadmap`, `teams`, `telemetry`, `users`); `i18n.ts` merges them into a single
   `translation` namespace, so keys read `area.key` (e.g. `t("auth.signIn")`). Only EN is
   statically imported — its typed `en` tree is the key canon AND the runtime fallback; every other
   language is auto-discovered from `locales/<lang>/` via `import.meta.glob`. Bundles are eager on

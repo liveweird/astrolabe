@@ -67,7 +67,8 @@ export default function Plan() {
   const { data, isLoading, isError, error } = useQuery({ queryKey: ["plan", "view"], queryFn: getPlanView });
   const [editor, setEditor] = useState<EditorState | null>(null);
 
-  const refresh = () => refreshQueriesAfterMutation(queryClient, ["plan"]);
+  // A project created, renamed, re-owned, re-windowed or deleted changes the roadmap too.
+  const refresh = () => refreshQueriesAfterMutation(queryClient, ["plan"], ["roadmap"]);
 
   const remove = useDeleteConfirm<DeleteTarget>({
     mutationFn: deleteRequest,

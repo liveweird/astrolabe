@@ -1,0 +1,43 @@
+{
+  "title": "Roadmapa",
+  "intro": "Jeden ranking wszystkich projektów, od najważniejszego. Każdy go widzi; zmieniają go administratorzy/rki i edytorzy/ki roadmapy.",
+  "introEdit": "Jeden ranking wszystkich projektów, od najważniejszego. Przeciągnij wiersz za uchwyt albo użyj przycisków Przesuń w górę i Przesuń w dół; każda zmiana zapisuje się od razu. Przycisk Dodaj do rankingu dodaje projekt na koniec listy.",
+  "empty": "Brak projektów",
+  "emptyHint": "Projekty tworzysz na stronie Plan; pojawiają się tutaj, aby je uszeregować.",
+  "loadFailed": "Nie udało się wczytać roadmapy",
+  "rankedTitle": "W rankingu",
+  "unrankedTitle": "Bez rankingu",
+  "noRanked": "Żaden projekt nie jest jeszcze w rankingu.",
+  "noRankedEdit": "Żaden projekt nie jest jeszcze w rankingu. Użyj przycisku Dodaj do rankingu przy projekcie poniżej, aby zacząć listę.",
+  "noUnranked": "Każdy projekt jest w rankingu.",
+  "rankedTableAria": "Projekty w rankingu",
+  "unrankedTableAria": "Projekty bez rankingu",
+  "column": {
+    "rank": "#",
+    "project": "Projekt",
+    "program": "Program",
+    "workStream": "Strumień pracy"
+  },
+  "rank": "Dodaj do rankingu",
+  "rankAria": "Dodaj do rankingu: {{name}}",
+  "unrankAria": "Usuń z rankingu: {{name}}",
+  "moveUpAria": "Przesuń w górę: {{name}}",
+  "moveDownAria": "Przesuń w dół: {{name}}",
+  "dragHandleAria": "Przeciągnij: {{name}}",
+  "stale": "Roadmapa zmieniła się w międzyczasie — lista została wczytana ponownie. Twoja ostatnia zmiana nie została zapisana; wykonaj ją jeszcze raz, jeśli nadal jej chcesz.",
+  "saveForbidden": "Nie masz uprawnień do zmiany roadmapy",
+  "saveInvalid": "Projekt z listy już nie istnieje — lista została wczytana ponownie",
+  "announce": {
+    "moved": "{{name}} przesunięto na pozycję {{position}} z {{count}}",
+    "ranked": "{{name}} dodano do rankingu na pozycji {{position}} z {{count}}",
+    "unranked": "{{name}} usunięto z rankingu"
+  },
+  "dnd": {
+    "instructions": "Aby chwycić projekt, naciśnij spację lub Enter na jego uchwycie. Strzałkami przesuwasz go w górę lub w dół, spacją lub Enterem go upuszczasz, a Escape anuluje. Przyciski Przesuń w górę i Przesuń w dół robią to samo, krok po kroku.",
+    "start": "Chwycono projekt {{name}}, pozycja {{position}} z {{count}}.",
+    "over": "Projekt {{name}} jest nad pozycją {{target}} z {{count}}.",
+    "end": "Upuszczono projekt {{name}} na pozycji {{target}} z {{count}}.",
+    "endNoTarget": "Upuszczono projekt {{name}}; zostaje na pozycji {{position}} z {{count}}.",
+    "cancel": "Anulowano; projekt {{name}} zostaje na pozycji {{position}} z {{count}}."
+  }
+}

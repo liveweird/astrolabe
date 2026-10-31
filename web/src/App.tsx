@@ -25,6 +25,7 @@ const Home = lazy(() => import("./pages/Home"));
 const People = lazy(() => import("./pages/People"));
 const PersonDetails = lazy(() => import("./pages/PersonDetails"));
 const Plan = lazy(() => import("./pages/Plan"));
+const Roadmap = lazy(() => import("./pages/Roadmap"));
 const Teams = lazy(() => import("./pages/Teams"));
 const TeamDetails = lazy(() => import("./pages/TeamDetails"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
@@ -231,6 +232,7 @@ export default function App() {
           <Route element={<Shell />}>
             <Route index element={<Home />} />
             <Route path="plan" element={<Plan />} />
+            <Route path="roadmap" element={<Roadmap />} />
             <Route path="people" element={<People />} />
             <Route path="people/:id" element={<PersonDetails />} />
             <Route path="teams" element={<Teams />} />

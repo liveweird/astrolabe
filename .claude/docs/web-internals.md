@@ -127,6 +127,27 @@ the create body (the creator is always a window editor). The window is both date
 router) passes the UI language and `firstDayOfWeek: 1` to `DatesProvider`; dayjs only knows `en` until `dayjs/locale/<lang>` is imported (that file imports `pl`); `@mantine/dates/styles.layer.css` is imported in `main.tsx` next to the core
 layer. Tests need no provider (the default locale is English). Unit tests type the ISO text into the input; the calendar popup is covered by `AppDatesProvider.test.tsx` (month and weekday names per language).
 
+## Roadmap (`pages/Roadmap.tsx`)
+
+The global project ranking (V13 + `GET /views/roadmap`, `PUT /roadmap/ranking`), a read for everyone whose editing is gated by the view's `can.editRank`. Files: `api/roadmap.ts` (`getRoadmapView`, `putRanking`, `isStaleRevision` — a 409 whose problem `type` is
+`urn:astrolabe:problem:stale-revision`), `hooks/useRoadmapRanking.ts` (query + the one write path), `utils/roadmapOrder.ts` (pure: `moveBy`, `moveOver`, `appendId`, `removeId`, `applyRanking`), `utils/roadmapAnnouncements.ts`, and the components `RoadmapRankedTable`
+(the `DndContext`/`SortableContext`, or a plain table when read-only), `RoadmapRow` (the `useSortable` `<tr>`), `RoadmapUnrankedTable`, `RoadmapProjectCells` (the shared data cells).
+
+**The write path.** Every change — Move up/down, a drop, Rank (append), Unrank — becomes the complete new id list and is sent as the wholesale PUT with the `expectedRevision` of the view on screen. `commit` (a) cancels in-flight `["roadmap"]` fetches, (b) writes
+`applyRanking(view, ids)` into the cached view synchronously (the optimistic reorder; the row, the focus restore and the PUT all start from the same click), (c) `mutate`s with the pre-change view as the rollback. `onSuccess` stores the response's `revision` in the cached view
+and starts `refreshQueriesAfterMutation(["roadmap"])` WITHOUT awaiting it (the save is over once the PUT answers, so a held Enter on Move up is never swallowed; the next `commit` cancels that refetch before it writes its optimistic order, and the stored revision is what it sends);
+`onError` restores the pre-change view and AWAITS the refresh (the reload after a stale 409 must finish before another change builds on the list). A 409 stale-revision shows
+`roadmap.stale` (the problem type is what tells it from any other 409), 403/400/other failures map through `saveErrorMessage` into an inline alert — never a toast, and no success toast either (the optimistic reorder and the live region are the feedback). While a save is pending (the PUT, or the reload after a failed one)
+`commit` answers `false` and changes nothing: the buttons stay enabled (a disabled button cannot keep focus) and the table carries `aria-busy`. The stale 409 means **the change was NOT saved** — the alert says so.
+
+**Dragging.** `PointerSensor` (activation distance 5 px, so a click on the handle is not a drag) and `KeyboardSensor` with `sortableKeyboardCoordinates`; the activator is the row's handle button only (`setActivatorNodeRef`, `touch-action: none`), the row's x-translation is zeroed, the
+`DndContext` has a fixed `id` (stable `aria-describedby`). `onDragEnd` → `moveOver(ids, active, over)` → `commit`. dnd-kit announces drags itself (`roadmapAnnouncements`: picked up / over position N of M / dropped / cancelled, by project name and rank); button-driven changes
+are announced by the page's own polite live region, so a drag is never announced twice. **Focus:** a Move button remembers it was clicked and, in the effect after its row's index changed, focuses the same button again (or its twin when the row reached the end it was heading for and the
+button became disabled) — without it a reordered row loses keyboard focus after every press. The ranked `<tr>`s carry `aria-rowindex` (the header is row 1).
+
+**Tests.** `Roadmap.test.tsx` runs the whole flow against a small fetch-mock server (a PUT applies the order and bumps the revision); it wraps `DndContext` to hand the test the page's drop handler, since happy-dom has no layout for a real drag. `roadmapOrder.test.ts`,
+`roadmapAnnouncements.test.ts` (EN and PL) and `api/roadmap.test.ts` are pure. The real pointer drag, the dnd-kit keyboard sensor, focus retention and the stale notice are `e2e/tests/roadmap.spec.ts`.
+
 ### Heading outline guard
 
 `pages/headingOutline.test.tsx` renders every route read from `App.tsx` (via `?raw`, so a new route is covered

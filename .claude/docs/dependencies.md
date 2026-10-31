@@ -199,4 +199,8 @@ Installed with `npm install --legacy-peer-deps` (the existing web exception: rec
 - **`react-is` override** (`web/package.json` `"overrides": { "react-is": "^19" }`): under React 19 the tree otherwise keeps `react-is@17` (pulled by `@testing-library/dom`'s
   `pretty-format` and `prop-types`), and recharts imports `isFragment` from `react-is` — which must match React's major. `npm ls react-is` must show one version; keep the
   override matched to React's major when React moves.
-- Planned (v0.3): `@dnd-kit/*` and `@tanstack/react-virtual` for the shared `Timeline*` component (`timeline.md`); add them with the first commit that imports them (knip flags an orphan).
+- `@dnd-kit/core` 6.3.1, `@dnd-kit/sortable` 10.0.0, `@dnd-kit/utilities` 3.2.2 (**all exact**, `npm install --legacy-peer-deps --save-exact`) — the Roadmap's sortable ranked list (`pages/Roadmap.tsx`) and, later, the shared
+  `Timeline*` component (`timeline.md`). They are one release family like `@mantine/*`: `sortable` declares `@dnd-kit/core ^6.3.0` as a peer and `utilities` is shared by both, so **move the three
+  together and check the lockfile resolves one copy of each** (`npm ls @dnd-kit/core @dnd-kit/sortable @dnd-kit/utilities`). The 0.x `@dnd-kit/dom`/`@dnd-kit/react` rewrite is a different, incompatible
+  API and is NOT what these are — do not mix it in. They ride only the lazy Roadmap chunk (`npm run build` shows it as `Roadmap-*.js`; the main `index-*.js` stays free of them).
+- Planned (v0.3): `@tanstack/react-virtual` for the shared `Timeline*` component (`timeline.md`); add it with the first commit that imports it (knip flags an orphan).

@@ -1,0 +1,43 @@
+{
+  "title": "Roadmap",
+  "intro": "One ranking of every project, best first. Everyone can read it; administrators and roadmap editors change it.",
+  "introEdit": "One ranking of every project, best first. Drag a row by its handle, or use Move up and Move down; every change is saved at once. Rank adds an unranked project at the end of the list.",
+  "empty": "No projects yet",
+  "emptyHint": "Projects are created on the Plan page and appear here to be ranked.",
+  "loadFailed": "Could not load the roadmap",
+  "rankedTitle": "Ranked",
+  "unrankedTitle": "Unranked",
+  "noRanked": "No project is ranked yet.",
+  "noRankedEdit": "No project is ranked yet. Use Rank on a project below to start the list.",
+  "noUnranked": "Every project is ranked.",
+  "rankedTableAria": "Ranked projects",
+  "unrankedTableAria": "Unranked projects",
+  "column": {
+    "rank": "#",
+    "project": "Project",
+    "program": "Program",
+    "workStream": "Work stream"
+  },
+  "rank": "Rank",
+  "rankAria": "Rank {{name}}",
+  "unrankAria": "Unrank {{name}}",
+  "moveUpAria": "Move up {{name}}",
+  "moveDownAria": "Move down {{name}}",
+  "dragHandleAria": "Drag {{name}}",
+  "stale": "The roadmap changed in the meantime — the list was reloaded. Your last change was not saved; make it again if you still want it.",
+  "saveForbidden": "You are not allowed to change the roadmap",
+  "saveInvalid": "A project in the list no longer exists — the list was reloaded",
+  "announce": {
+    "moved": "{{name}} moved to position {{position}} of {{count}}",
+    "ranked": "{{name}} ranked at position {{position}} of {{count}}",
+    "unranked": "{{name}} removed from the ranking"
+  },
+  "dnd": {
+    "instructions": "To pick up a project, press Space or Enter on its drag handle. Use the arrow keys to move it up or down, Space or Enter to drop it, Escape to cancel. The Move up and Move down buttons do the same one step at a time.",
+    "start": "Picked up {{name}}, position {{position}} of {{count}}.",
+    "over": "{{name}} is over position {{target}} of {{count}}.",
+    "end": "Dropped {{name}} at position {{target}} of {{count}}.",
+    "endNoTarget": "Dropped {{name}}; it stays at position {{position}} of {{count}}.",
+    "cancel": "Cancelled; {{name}} stays at position {{position}} of {{count}}."
+  }
+}

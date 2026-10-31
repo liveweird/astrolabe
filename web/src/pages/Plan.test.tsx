@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { screen, waitFor, within } from "@testing-library/react";
 import Plan from "./Plan";
 import type { PlanProgram, PlanProject, PlanView, PlanWorkStream } from "../api/plan";
+import { QueryClient } from "@tanstack/react-query";
 import { headingOutline } from "../test/headings";
 import { jsonResponse } from "../test/http";
 import { renderWithProviders } from "../test/render";
@@ -495,5 +496,30 @@ describe("Plan page", () => {
     await openMenu(user, "Platform", "Delete Platform");
     await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: /^delete$/i }));
     expect(await screen.findByText("This work stream still has programs. Delete them first.")).toBeInTheDocument();
+  });
+});
+
+describe("Plan page and the roadmap", () => {
+  beforeEach(() => {
+    view = VIEW;
+    vi.stubGlobal("fetch", vi.fn());
+    localStorage.setItem("astrolabe.auth.token", "fake-token");
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    localStorage.clear();
+  });
+
+  test("a plan mutation also invalidates the cached roadmap (a deleted project leaves the ranking)", async () => {
+    const mockFetch = fetch as unknown as FetchMock;
+    serve(mockFetch, { "DELETE /api/v1/projects/100": { status: 204 } });
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    queryClient.setQueryData(["roadmap", "view"], { revision: 1, can: { editRank: false }, ranked: [], unranked: [] });
+    const user = userEvent.setup();
+    renderWithProviders(<Plan />, { queryClient });
+    await openMenu(user, "Invoices", "Delete Invoices");
+    await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: /^delete$/i }));
+    await waitFor(() => expect(queryClient.getQueryState(["roadmap", "view"])?.isInvalidated).toBe(true));
   });
 });

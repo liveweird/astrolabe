@@ -236,6 +236,25 @@ export async function deleteViaApi(paths: string[]): Promise<void> {
   expect(failures, `teardown DELETEs that answered neither 204 nor 404`).toEqual([]);
 }
 
+/**
+ * Change the global project ranking through the API (read-modify-write): `change` gets the ranked project ids as they are now and
+ * answers the complete new list. The ranking is shared state that parallel specs write too (any plan write moves the revision),
+ * so a stale-revision 409 re-reads and tries again; anything else fails.
+ */
+export async function updateRankingViaApi(api: APIRequestContext, change: (ranked: number[]) => number[]): Promise<void> {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const read = await api.get("/api/v1/views/roadmap");
+    expect(read.ok(), await read.text()).toBeTruthy();
+    const view = (await read.json()) as { revision: number; ranked: { project: { id: number } }[] };
+    const response = await api.put("/api/v1/roadmap/ranking", {
+      data: { expectedRevision: view.revision, projectIds: change(view.ranked.map((entry) => entry.project.id)) },
+    });
+    if (response.ok()) return;
+    expect(response.status(), await response.text()).toBe(409);
+  }
+  throw new Error("the ranking kept changing under updateRankingViaApi");
+}
+
 const AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"];
 
 /**

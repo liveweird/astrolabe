@@ -9,7 +9,7 @@ commit that adds the component.
 - **Rendering:** DOM rows, one per work item, with **SVG arrows** drawn over them for dependencies (v0.4). No canvas: DOM keeps focus order, accessibility and testing-library queries.
 - **Time axis:** day-precision dates; zoom levels **week / month / quarter**; non-working days (Saturday/Sunday; holidays from v0.7) hatched; a today line.
 - **Virtualisation:** **TanStack Virtual** for rows (1,000 milestones must not mean 1,000 mounted rows) and for the time axis when the span is wide.
-- **Interaction:** **dnd-kit** for drag and resize of bars (and sortable lists elsewhere), with a **keyboard path for every pointer gesture** (move/resize by day with arrow keys, row
+- **Interaction:** **dnd-kit** (`@dnd-kit/core`/`sortable`/`utilities` are already in the tree since the v0.2 Roadmap — its ranked list is the first consumer and the pattern: handle + Move buttons + localized announcements) for drag and resize of bars (and sortable lists elsewhere), with a **keyboard path for every pointer gesture** (move/resize by day with arrow keys, row
   navigation by roving focus — `hooks/useRovingGrid.ts` is already ported; the screen-reader announcements follow dnd-kit's accessibility layer, in EN and PL).
 - **Authority:** the component only proposes a change; the server decides (`PUT /milestones/{id}/schedule` is team-manager/ADMIN only, `product.md`). A page asks the view endpoint for `can:{…}` flags and
   renders read-only bars where the caller has no right.

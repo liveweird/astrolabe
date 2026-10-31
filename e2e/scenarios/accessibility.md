@@ -27,7 +27,8 @@ ADMIN feature-flags screen, Change password and the Changelog — see
 
 The detail-page block also scans `/plan` with the fixture plan rendered (a work stream, a program and a
 project row, light and dark) and the project editor modal (dates, the target-window fieldset and the owner
-picker) scoped to its dialog.
+picker) scoped to its dialog. It also scans `/roadmap` with the fixture project ranked (a drag handle, Move up/down and Unrank
+buttons in the ranked table, light and dark); the project is ranked through the API for the scan and unranked again afterwards.
 
 ## Scenario: `<path>` has no WCAG A/AA violations in the dark scheme
 

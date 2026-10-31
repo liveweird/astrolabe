@@ -14,6 +14,7 @@ import {
   type Scheme,
   test,
   uniqueText,
+  updateRankingViaApi,
 } from "./helpers";
 
 // No waivers: the theme's text/dimmed/ink tokens are AA-tested in web/src/theme.test.ts, so
@@ -100,6 +101,8 @@ test.describe("detail pages and overlays", () => {
   let streamName: string;
   // The fixture plan's delete paths, children first (a parent with active children answers 409).
   let planPaths: string[];
+  let projectId: number;
+  let projectName: string;
 
   async function create(path: string, data: object): Promise<number> {
     const created = await api.post(path, { data });
@@ -117,8 +120,9 @@ test.describe("detail pages and overlays", () => {
     const personId = await create("/api/v1/people", { name: uniqueText("e2e-axe-owner") });
     const streamId = await create("/api/v1/work-streams", { name: streamName, ownerPersonId: personId, startDate: "2026-01-05" });
     const programId = await create(`/api/v1/work-streams/${streamId}/programs`, { name: programName, ownerPersonId: personId });
-    const projectId = await create(`/api/v1/programs/${programId}/projects`, {
-      name: uniqueText("e2e-axe-project"),
+    projectName = uniqueText("e2e-axe-project");
+    projectId = await create(`/api/v1/programs/${programId}/projects`, {
+      name: projectName,
       ownerPersonId: personId,
       targetStart: "2026-02-02",
       targetEnd: "2026-03-31",
@@ -162,6 +166,29 @@ test.describe("detail pages and overlays", () => {
   test.describe("dark scheme", () => {
     test.use({ colorScheme: "dark" });
     registerPlanScan("dark");
+  });
+
+  // The Roadmap with the fixture project in the ranked list (handles, Move and Unrank buttons) and the rest in Unranked, light and dark.
+  // The project is ranked only for the scan and unranked again, so the shared ranking is as the other specs expect it.
+  function registerRoadmapScan(scheme: Scheme): void {
+    const suffix = scheme === "dark" ? " in the dark scheme" : "";
+    test(`/roadmap with a ranked project has no WCAG A/AA violations${suffix}`, async ({ page }) => {
+      await updateRankingViaApi(api, (ranked) => [...ranked, projectId]);
+      try {
+        await login(page);
+        await page.goto("/roadmap");
+        await expect(page.getByRole("button", { name: `Drag ${projectName}`, exact: true })).toBeVisible();
+        await expectScheme(page, scheme);
+        await scan(page);
+      } finally {
+        await updateRankingViaApi(api, (ranked) => ranked.filter((id) => id !== projectId));
+      }
+    });
+  }
+  registerRoadmapScan("light");
+  test.describe("dark scheme", () => {
+    test.use({ colorScheme: "dark" });
+    registerRoadmapScan("dark");
   });
 
   test("the reset-password page has no WCAG A/AA violations", async ({ page }) => {
