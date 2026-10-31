@@ -1,5 +1,5 @@
 import { Anchor, Box, Button, Group, Menu, Stack, Table, Text, Title } from "@mantine/core";
-import { IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconArrowsExchange, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink } from "react-router-dom";
 import type { PlanProgram, PlanWorkStream } from "../api/plan";
@@ -23,6 +23,7 @@ export default function PlanProgramBlock({
 }) {
   const { t } = useTranslation();
   const { can } = program;
+  const canMoveProgram = actions.canMoveProgram(program);
   const tableLabel = t("plan.projectsTableAria", { name: program.name });
   return (
     <Stack gap="xs">
@@ -48,7 +49,7 @@ export default function PlanProgramBlock({
               {t("plan.newProject")}
             </Button>
           )}
-          {(can.edit || can.delete) && (
+          {(can.edit || canMoveProgram || can.delete) && (
             <RowActionsMenu label={t("common.table.operationsAria", { name: program.name })}>
               {can.edit && (
                 <Menu.Item
@@ -59,7 +60,16 @@ export default function PlanProgramBlock({
                   {t("common.action.edit")}
                 </Menu.Item>
               )}
-              {can.edit && can.delete && <Menu.Divider />}
+              {canMoveProgram && (
+                <Menu.Item
+                  leftSection={<IconArrowsExchange size={14} />}
+                  onClick={() => actions.moveProgram(program)}
+                  aria-label={t("plan.move.programAria", { name: program.name })}
+                >
+                  {t("plan.move.action")}
+                </Menu.Item>
+              )}
+              {(can.edit || canMoveProgram) && can.delete && <Menu.Divider />}
               {can.delete && (
                 <Menu.Item
                   color="red"
@@ -115,7 +125,7 @@ export default function PlanProgramBlock({
                     )}
                   </Table.Td>
                   <Table.Td style={{ width: 1 }} ta="right">
-                    {(project.can.edit || project.can.editTargetWindow || project.can.delete) && (
+                    {(project.can.edit || project.can.editTargetWindow || actions.canMoveProject(project) || project.can.delete) && (
                       <RowActionsMenu label={t("common.table.operationsAria", { name: project.name })}>
                         {(project.can.edit || project.can.editTargetWindow) && (
                           <Menu.Item
@@ -126,7 +136,16 @@ export default function PlanProgramBlock({
                             {t("common.action.edit")}
                           </Menu.Item>
                         )}
-                        {(project.can.edit || project.can.editTargetWindow) && project.can.delete && <Menu.Divider />}
+                        {actions.canMoveProject(project) && (
+                          <Menu.Item
+                            leftSection={<IconArrowsExchange size={14} />}
+                            onClick={() => actions.moveProject(project)}
+                            aria-label={t("plan.move.projectAria", { name: project.name })}
+                          >
+                            {t("plan.move.action")}
+                          </Menu.Item>
+                        )}
+                        {(project.can.edit || project.can.editTargetWindow || actions.canMoveProject(project)) && project.can.delete && <Menu.Divider />}
                         {project.can.delete && (
                           <Menu.Item
                             color="red"

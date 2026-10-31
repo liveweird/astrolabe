@@ -42,7 +42,9 @@
     "windowBoth": "Set both target dates or neither"
   },
   "toast": {
-    "deleted": "Deleted from the plan"
+    "deleted": "Deleted from the plan",
+    "projectMoved": "Project moved",
+    "programMoved": "Program moved"
   },
   "workStream": {
     "createTitle": "New work stream",
@@ -91,5 +93,29 @@
       "created": "Project created",
       "saved": "Project saved"
     }
+  },
+  "move": {
+    "closedName": "{{name}} (closed)",
+    "action": "Move to…",
+    "projectAria": "Move {{name}} to another program",
+    "programAria": "Move {{name}} to another work stream",
+    "projectTitle": "Move project",
+    "programTitle": "Move program",
+    "projectLine": "Project {{name}} is currently in program {{parent}}.",
+    "programLine": "Program {{name}} is currently in work stream {{parent}}.",
+    "programLabel": "New program",
+    "streamLabel": "New work stream",
+    "pickProgram": "Search programs by name…",
+    "pickStream": "Search work streams by name…",
+    "nothingFound": "No matching target",
+    "noProgramTargets": "There is no other program to move this project to. You can move a project only into a program where you could create one.",
+    "noStreamTargets": "There is no other work stream to move this program to. You can move a program only into a work stream where you could create one.",
+    "targetRequired": "Pick where to move it",
+    "submit": "Move",
+    "projectConflict": "A project with this name already exists in that program — pick another program.",
+    "targetGone": "That target no longer exists. The plan was reloaded — pick another.",
+    "forbidden": "You are not allowed to move this there any more. The plan was reloaded.",
+    "failedStatus": "The move failed ({{status}})",
+    "failed": "The move failed. Check your connection and try again."
   }
 }

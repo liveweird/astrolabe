@@ -2,9 +2,10 @@
 // a project over), then deletes them bottom-up; a PROJECT owner edits their project but is offered no way to set its target
 // window and no actions on anything they do not own. Owns: its throwaway people, plan nodes (unique `e2e-plan-*` names) and user,
 // deleted by the end of each test and, if a step fails first, by the afterEach below (plan nodes and people only, children first;
-// the user is removed through the Users page).
+// the user is removed through the Users page). The move test also ranks two of its own projects (the global ranking is shared: it
+// asserts only their order relative to each other; deleting a project takes it out of the ranking).
 import type { APIRequestContext, Locator, Page } from "@playwright/test";
-import { apiAsAdmin, createUserViaUi, deleteUserRow, deleteViaApi, expect, login, rowOperation, signOut, test, uniqueText } from "./helpers";
+import { apiAsAdmin, createUserViaUi, deleteUserRow, deleteViaApi, expect, login, rowOperation, signOut, test, uniqueText, updateRankingViaApi } from "./helpers";
 
 // Registered in creation order; torn down in reverse (a project before its program before its stream before the people).
 const teardown: string[] = [];
@@ -177,6 +178,99 @@ test("a project owner edits their project but is offered no target window and no
   await signOut(page);
 
   // Cleanup as the admin (the plan nodes and people are removed by the afterEach).
+  await login(page);
+  await deleteUserRow(page, account.name);
+});
+
+/** The ranked project ids that are among `own`, in ranking order (the ranking is shared state: only relative order is asserted). */
+async function rankedAmong(api: APIRequestContext, own: number[]): Promise<number[]> {
+  const read = await api.get("/api/v1/views/roadmap");
+  expect(read.ok(), await read.text()).toBeTruthy();
+  const view = (await read.json()) as { ranked: { project: { id: number } }[] };
+  return view.ranked.map((entry) => entry.project.id).filter((id) => own.includes(id));
+}
+
+test("a work stream owner moves a project to another program and a program to another work stream; rank and milestones travel along", async ({ page }) => {
+  await login(page);
+  const account = await createUserViaUi(page, "E2E Plan Mover");
+  const { api } = await apiAsAdmin();
+  const lead = uniqueText("e2e-plan-lead");
+  const mine = uniqueText("e2e-plan-mine");
+  const leadId = await seed(api, "/api/v1/people", { name: lead }, "/api/v1/people");
+  const mineId = await seed(api, "/api/v1/people", { name: mine, userId: account.id }, "/api/v1/people");
+  const team = uniqueText("e2e-plan-team");
+  const teamId = await seed(api, "/api/v1/teams", { name: team }, "/api/v1/teams");
+  // Two work streams the user owns (so a program may move between them), a program each under the first, and two projects led by
+  // somebody else - the user reaches them only as the owner of the stream ABOVE.
+  const streamA = uniqueText("e2e-plan-stream-a");
+  const streamB = uniqueText("e2e-plan-stream-b");
+  const programOne = uniqueText("e2e-plan-program-one");
+  const programTwo = uniqueText("e2e-plan-program-two");
+  const project = uniqueText("e2e-plan-moving");
+  const sibling = uniqueText("e2e-plan-sibling");
+  const milestone = uniqueText("e2e-plan-milestone");
+  const streamAId = await seed(api, "/api/v1/work-streams", { name: streamA, ownerPersonId: mineId, startDate: "2026-01-05" }, "/api/v1/work-streams");
+  await seed(api, "/api/v1/work-streams", { name: streamB, ownerPersonId: mineId, startDate: "2026-01-05" }, "/api/v1/work-streams");
+  const programOneId = await seed(api, `/api/v1/work-streams/${streamAId}/programs`, { name: programOne, ownerPersonId: leadId }, "/api/v1/programs");
+  const programTwoId = await seed(api, `/api/v1/work-streams/${streamAId}/programs`, { name: programTwo, ownerPersonId: leadId }, "/api/v1/programs");
+  const projectId = await seed(api, `/api/v1/programs/${programOneId}/projects`, { name: project, ownerPersonId: leadId }, "/api/v1/projects");
+  const siblingId = await seed(api, `/api/v1/programs/${programOneId}/projects`, { name: sibling, ownerPersonId: leadId }, "/api/v1/projects");
+  const created = await api.post(`/api/v1/projects/${projectId}/milestones`, { data: { name: milestone, teamId, estimateMd: 2 } });
+  expect(created.status(), await created.text()).toBe(201);
+  await updateRankingViaApi(api, (ranked) => [...ranked, projectId, siblingId]);
+  const rankBefore = await rankedAmong(api, [projectId, siblingId]);
+  expect(rankBefore).toEqual([projectId, siblingId]);
+  await signOut(page);
+
+  await login(page, account.email, account.password);
+  await page.goto("/plan");
+  await expect(page.getByRole("heading", { level: 3, name: streamA })).toBeVisible();
+
+  // The project moves from program one to program two (same stream): the offered targets leave out its own program.
+  await rowOperation(page, project, `Move ${project} to another program`);
+  let dialog = page.getByRole("dialog", { name: "Move project" });
+  await expect(dialog).toContainText(`Project ${project} is currently in program ${programOne}.`);
+  const target = dialog.getByRole("combobox", { name: "New program" });
+  await target.click();
+  await expect(page.getByRole("option", { name: programOne })).toHaveCount(0);
+  await page.getByRole("option", { name: programTwo }).click();
+  await Promise.all([
+    page.waitForResponse((r) => r.request().method() === "POST" && r.url().endsWith(`/api/v1/projects/${projectId}/move`) && r.status() === 204),
+    dialog.getByRole("button", { name: "Move", exact: true }).click(),
+  ]);
+  await expect(page.getByText("Project moved")).toBeVisible();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByRole("table", { name: `Projects of ${programTwo}` }).getByRole("row", { name: new RegExp(project) })).toBeVisible();
+  await expect(page.getByRole("table", { name: `Projects of ${programOne}` }).getByRole("row", { name: new RegExp(project) })).toHaveCount(0);
+
+  // The project view shows the new program, and the milestone came along.
+  await page.getByRole("link", { name: `Open ${project}`, exact: true }).click();
+  await expect(page.getByRole("heading", { level: 2, name: project })).toBeVisible();
+  await expect(page.getByText(`${programTwo} · ${streamA} · Owner: ${lead}`)).toBeVisible();
+  await expect(page.getByRole("table", { name: "Unscheduled milestones" }).getByRole("row", { name: new RegExp(milestone) })).toBeVisible();
+
+  // The program (with the project under it) moves to the other work stream.
+  await page.goto("/plan");
+  await rowOperation(page, programTwo, `Move ${programTwo} to another work stream`);
+  dialog = page.getByRole("dialog", { name: "Move program" });
+  await dialog.getByRole("combobox", { name: "New work stream" }).click();
+  await expect(page.getByRole("option", { name: streamA })).toHaveCount(0);
+  await page.getByRole("option", { name: streamB }).click();
+  await Promise.all([
+    page.waitForResponse((r) => r.request().method() === "POST" && r.url().endsWith(`/api/v1/programs/${programTwoId}/move`) && r.status() === 204),
+    dialog.getByRole("button", { name: "Move", exact: true }).click(),
+  ]);
+  await expect(page.getByText("Program moved")).toBeVisible();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByRole("region", { name: streamB }).getByRole("heading", { level: 4, name: programTwo })).toBeVisible();
+  await expect(page.getByRole("region", { name: streamA }).getByRole("heading", { level: 4, name: programTwo })).toHaveCount(0);
+  await page.getByRole("link", { name: `Open ${project}`, exact: true }).click();
+  await expect(page.getByText(`${programTwo} · ${streamB} · Owner: ${lead}`)).toBeVisible();
+
+  // Neither move touched the global ranking.
+  expect(await rankedAmong(api, [projectId, siblingId])).toEqual(rankBefore);
+  await api.dispose();
+  await signOut(page);
   await login(page);
   await deleteUserRow(page, account.name);
 });

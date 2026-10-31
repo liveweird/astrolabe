@@ -32,6 +32,7 @@ picker) scoped to its dialog. It also scans `/roadmap` with the fixture project 
 buttons in the ranked table, light and dark); the project is ranked through the API for the scan and unranked again afterwards.
 It scans the project view `/projects/:id` with the fixture project rendered (the timeline grid with an editable bar, the target-window band,
 the orange drift badge and the Unscheduled tray, light and dark) and the milestone editor modal (team picker, estimate) scoped to its dialog.
+It also scans the Plan page's "Move to…" modal (the grouped program select) scoped to its dialog, and its open option list; the fixture plan has a second program so the select has a target.
 
 ## Scenario: `<path>` has no WCAG A/AA violations in the dark scheme
 

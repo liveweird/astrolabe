@@ -59,6 +59,18 @@ export async function setProjectTargetWindow(id: number, body: TargetWindowBody)
   await voidRequest(`/api/v1/projects/${id}/target-window`, { method: "PUT", body: JSON.stringify(body) });
 }
 
+/** Reparent a project under another program (`POST /projects/{id}/move`, 204); the milestones and the global rank travel with it. */
+export async function moveProject(id: number, programId: number): Promise<void> {
+  const body: Schemas["ProjectMoveRequest"] = { programId };
+  await voidRequest(`/api/v1/projects/${id}/move`, { method: "POST", body: JSON.stringify(body) });
+}
+
+/** Reparent a program under another work stream (`POST /programs/{id}/move`, 204); its projects travel with it. */
+export async function moveProgram(id: number, workStreamId: number): Promise<void> {
+  const body: Schemas["ProgramMoveRequest"] = { workStreamId };
+  await voidRequest(`/api/v1/programs/${id}/move`, { method: "POST", body: JSON.stringify(body) });
+}
+
 export async function deleteProject(id: number): Promise<void> {
   await voidRequest(`/api/v1/projects/${id}`, { method: "DELETE" });
 }

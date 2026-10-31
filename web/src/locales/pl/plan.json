@@ -42,7 +42,9 @@
     "windowBoth": "Ustaw obie daty docelowe albo żadnej"
   },
   "toast": {
-    "deleted": "Usunięto z planu"
+    "deleted": "Usunięto z planu",
+    "projectMoved": "Przeniesiono projekt",
+    "programMoved": "Przeniesiono program"
   },
   "workStream": {
     "createTitle": "Nowy strumień pracy",
@@ -91,5 +93,29 @@
       "created": "Utworzono projekt",
       "saved": "Zapisano projekt"
     }
+  },
+  "move": {
+    "closedName": "{{name}} (zamknięty)",
+    "action": "Przenieś do…",
+    "projectAria": "Przenieś {{name}} do innego programu",
+    "programAria": "Przenieś {{name}} do innego strumienia pracy",
+    "projectTitle": "Przenieś projekt",
+    "programTitle": "Przenieś program",
+    "projectLine": "Projekt {{name}} jest obecnie w programie: {{parent}}.",
+    "programLine": "Program {{name}} jest obecnie w strumieniu pracy: {{parent}}.",
+    "programLabel": "Nowy program",
+    "streamLabel": "Nowy strumień pracy",
+    "pickProgram": "Szukaj programów po nazwie…",
+    "pickStream": "Szukaj strumieni pracy po nazwie…",
+    "nothingFound": "Brak pasującego miejsca docelowego",
+    "noProgramTargets": "Nie ma innego programu, do którego możesz przenieść ten projekt. Projekt możesz przenieść tylko do programu, w którym mógłbyś/mogłabyś go utworzyć.",
+    "noStreamTargets": "Nie ma innego strumienia pracy, do którego możesz przenieść ten program. Program możesz przenieść tylko do strumienia pracy, w którym mógłbyś/mogłabyś go utworzyć.",
+    "targetRequired": "Wybierz, dokąd przenieść",
+    "submit": "Przenieś",
+    "projectConflict": "Projekt o tej nazwie już istnieje w tym programie — wybierz inny program.",
+    "targetGone": "To miejsce docelowe już nie istnieje. Wczytujemy plan ponownie — wybierz inne.",
+    "forbidden": "Nie masz już uprawnień, aby przenieść to tam. Wczytujemy plan ponownie.",
+    "failedStatus": "Nie udało się przenieść ({{status}})",
+    "failed": "Nie udało się przenieść. Sprawdź połączenie i spróbuj ponownie."
   }
 }

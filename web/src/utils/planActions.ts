@@ -12,4 +12,10 @@ export type PlanActions = {
   newProject: (program: PlanProgram) => void;
   editProject: (program: PlanProgram, project: PlanProject) => void;
   deleteProject: (project: PlanProject) => void;
+  /** Open the "Move to…" dialog: a project under another program, a program under another work stream. */
+  moveProject: (project: PlanProject) => void;
+  moveProgram: (program: PlanProgram) => void;
+  /** Whether the row offers "Move to…": its own `can.move` AND at least one eligible target (never an action the server would refuse). */
+  canMoveProject: (project: PlanProject) => boolean;
+  canMoveProgram: (program: PlanProgram) => boolean;
 };

@@ -54,7 +54,7 @@
   "driftBand_few": "{{count}} dni po docelowym końcu",
   "driftBand_many": "{{count}} dni po docelowym końcu",
   "driftBand_other": "{{count}} dnia po docelowym końcu",
-  "stale": "Ktoś inny przesunął ten kamień milowy w międzyczasie — przeładowaliśmy oś czasu. Wprowadź zmianę ponownie, jeśli nadal jej chcesz.",
+  "stale": "Ktoś inny przesunął ten kamień milowy w międzyczasie — przeładowujemy oś czasu. Wprowadź zmianę ponownie, jeśli nadal jej chcesz.",
   "saveForbidden": "Nie masz uprawnień do tej zmiany",
   "saveInvalid": "Co najmniej jedno pole jest nieprawidłowe — sprawdź zespół i szacunek",
   "saveGone": "To już nie istnieje — przeładuj stronę",

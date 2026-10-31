@@ -11,6 +11,7 @@ import {
   expect,
   expectScheme,
   login,
+  rowOperation,
   type Scheme,
   test,
   uniqueText,
@@ -98,6 +99,7 @@ test.describe("detail pages and overlays", () => {
   let teamId: number;
   let teamName: string;
   let programName: string;
+  let otherProgramName: string;
   let streamName: string;
   // The fixture plan's delete paths, children first (a parent with active children answers 409).
   let planPaths: string[];
@@ -120,6 +122,9 @@ test.describe("detail pages and overlays", () => {
     const personId = await create("/api/v1/people", { name: uniqueText("e2e-axe-owner") });
     const streamId = await create("/api/v1/work-streams", { name: streamName, ownerPersonId: personId, startDate: "2026-01-05" });
     const programId = await create(`/api/v1/work-streams/${streamId}/programs`, { name: programName, ownerPersonId: personId });
+    // A second program, so the "Move to…" dialog has a target to offer.
+    otherProgramName = uniqueText("e2e-axe-program-other");
+    const otherProgramId = await create(`/api/v1/work-streams/${streamId}/programs`, { name: otherProgramName, ownerPersonId: personId });
     projectName = uniqueText("e2e-axe-project");
     projectId = await create(`/api/v1/programs/${programId}/projects`, {
       name: projectName,
@@ -135,7 +140,7 @@ test.describe("detail pages and overlays", () => {
       data: { expectedRevision: view.revision, startDate: "2026-02-09", endDate: "2026-04-10" },
     });
     expect(scheduled.status(), await scheduled.text()).toBe(200);
-    planPaths = [`/api/v1/projects/${projectId}`, `/api/v1/programs/${programId}`, `/api/v1/work-streams/${streamId}`, `/api/v1/people/${personId}`];
+    planPaths = [`/api/v1/projects/${projectId}`, `/api/v1/programs/${programId}`, `/api/v1/programs/${otherProgramId}`, `/api/v1/work-streams/${streamId}`, `/api/v1/people/${personId}`];
   });
   test.afterAll(async () => {
     for (const path of [...planPaths, `/api/v1/teams/${teamId}`]) {
@@ -272,5 +277,17 @@ test.describe("detail pages and overlays", () => {
     const modal = await settledDialog(page);
     await expect(modal.getByRole("heading", { name: "New project" })).toBeVisible();
     await scan(page, '[role="dialog"]');
+  });
+
+  test("a plan move modal (grouped program select, open options) has no WCAG A/AA violations", async ({ page }) => {
+    await login(page);
+    await page.goto("/plan");
+    await rowOperation(page, projectName, `Move ${projectName} to another program`);
+    const modal = await settledDialog(page);
+    await expect(modal.getByRole("heading", { name: "Move project" })).toBeVisible();
+    await scan(page, '[role="dialog"]');
+    await modal.getByRole("combobox", { name: "New program" }).click();
+    await expect(page.getByRole("option", { name: otherProgramName })).toBeVisible();
+    await scan(page, '[role="listbox"]');
   });
 });

@@ -22,11 +22,13 @@ import LoadingBlock from "../components/LoadingBlock";
 import PageHeader from "../components/PageHeader";
 import PlanWorkStreamSection from "../components/PlanWorkStreamSection";
 import ProgramEditorModal from "../components/ProgramEditorModal";
+import PlanMoveModal from "../components/PlanMoveModal";
 import ProjectEditorModal from "../components/ProjectEditorModal";
 import WorkStreamEditorModal from "../components/WorkStreamEditorModal";
 import { useDeleteConfirm } from "../hooks/useDeleteConfirm";
 import { todayIsoDate } from "../utils/isoDate";
 import type { PlanActions } from "../utils/planActions";
+import { canMoveProgram, canMoveProject, findProgram, findProject, programMoveTargets, projectMoveTargets } from "../utils/planMove";
 import { planSaveErrorMessage } from "../utils/planForm";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { saveErrorMessage } from "../utils/saveError";
@@ -37,6 +39,12 @@ type EditorState =
   | { kind: "workStream"; target: PlanWorkStream | null }
   | { kind: "program"; workStream: PlanWorkStream; target: PlanProgram | null }
   | { kind: "project"; program: PlanProgram; target: PlanProject | null };
+
+/**
+ * Which "Move to…" dialog is open: only the node's kind and id. Everything the dialog shows (its name, its parent NOW, whether it may
+ * still be moved) is read from the current view on every render, so a reload under the open dialog never leaves it on a stale snapshot.
+ */
+type MoveState = { kind: "project" | "program"; id: number };
 
 type DeleteTarget = { level: "workStream" | "program" | "project"; id: number; name: string };
 
@@ -66,6 +74,7 @@ export default function Plan() {
   const queryClient = useQueryClient();
   const { data, isLoading, isError, error } = useQuery({ queryKey: ["plan", "view"], queryFn: getPlanView });
   const [editor, setEditor] = useState<EditorState | null>(null);
+  const [moving, setMoving] = useState<MoveState | null>(null);
 
   // A project created, renamed, re-owned, re-windowed or deleted changes the roadmap too.
   const refresh = () => refreshQueriesAfterMutation(queryClient, ["plan"], ["roadmap"]);
@@ -102,11 +111,26 @@ export default function Plan() {
     newProject: (program) => setEditor({ kind: "project", program, target: null }),
     editProject: (program, project) => setEditor({ kind: "project", program, target: project }),
     deleteProject: (project) => remove.requestDelete({ level: "project", id: project.id, name: project.name }),
+    moveProject: (project) => setMoving({ kind: "project", id: project.id }),
+    moveProgram: (program) => setMoving({ kind: "program", id: program.id }),
+    canMoveProject: (project) => data !== undefined && canMoveProject(data, project),
+    canMoveProgram: (program) => data !== undefined && canMoveProgram(data, program),
   };
+
+  // The open move dialog's node, read from the CURRENT view; when it is gone (deleted or reloaded away) the dialog closes, as on a 404.
+  const movingProject = data && moving?.kind === "project" ? findProject(data, moving.id) : null;
+  const movingProgram = data && moving?.kind === "program" ? findProgram(data, moving.id) : null;
+  if (data && moving && !movingProject && !movingProgram) setMoving(null);
 
   const closeEditor = () => setEditor(null);
   const saved = async () => {
     closeEditor();
+    await refresh();
+  };
+
+  // A move changes the roadmap's program / work stream columns too, and a mounted project view shows its program.
+  const moveDone = async () => {
+    setMoving(null);
     await refresh();
   };
 
@@ -142,6 +166,31 @@ export default function Plan() {
       )}
       {editor?.kind === "project" && (
         <ProjectEditorModal program={editor.program} target={editor.target} onClose={closeEditor} onSaved={saved} />
+      )}
+
+      {data && movingProject && (
+        <PlanMoveModal
+          kind="project"
+          node={movingProject.project}
+          parentName={movingProject.program.name}
+          data={projectMoveTargets(data, movingProject.project, t)}
+          forbidden={!movingProject.project.can.move}
+          onDone={moveDone}
+          onRefresh={refresh}
+          onClose={() => setMoving(null)}
+        />
+      )}
+      {data && movingProgram && (
+        <PlanMoveModal
+          kind="program"
+          node={movingProgram.program}
+          parentName={movingProgram.stream.name}
+          data={programMoveTargets(data, movingProgram.program, t)}
+          forbidden={!movingProgram.program.can.move}
+          onDone={moveDone}
+          onRefresh={refresh}
+          onClose={() => setMoving(null)}
+        />
       )}
 
       <ConfirmDeleteModal

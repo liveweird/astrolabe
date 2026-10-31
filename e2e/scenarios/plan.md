@@ -41,8 +41,28 @@
    - *Expected*: the row shows the new name and the unchanged target window "2026-02-02 – 2026-03-31".
 5. The admin signs back in and deletes the user (the plan nodes and people are removed through the API).
 
+## Scenario: a work stream owner moves a project to another program and a program to another work stream; rank and milestones travel along
+
+1. The admin creates a throwaway user through the Users page and seeds, through the API, a person linked to that user (the "owner"), a
+   second person (the "lead"), a team, two work streams A and B owned by the owner, two programs under A and two projects (one with a
+   milestone) under the first program, all led by the lead; the two projects are appended to the global ranking. The admin signs out.
+2. The owner signs in and opens the Plan page, opens the moving project's row menu and chooses **Move to…**.
+   - *Expected*: the dialog "Move project" says the project is currently in the first program; its **New program** options leave out that
+     program.
+3. They pick the second program and press **Move**.
+   - *Expected*: the toast "Project moved"; the dialog closes; the project's row is now in the second program's table and no longer in the first.
+4. They open the project through its name.
+   - *Expected*: the page header line names the second program, the work stream A and the lead, and the milestone is still in the Unscheduled tray.
+5. Back on the Plan page they open the second program's menu and choose **Move to…**, pick work stream B (work stream A is not offered) and press **Move**.
+   - *Expected*: the toast "Program moved"; the program's heading is now inside work stream B's section and no longer in A's; opening the project shows
+     the header line with B.
+6. *Expected*: through the API, the two ranked projects are still in the same relative order (a move leaves the global ranking alone).
+7. The admin signs back in and deletes the user (the plan nodes, the team and the people are removed through the API).
+
 ## Not covered here (and why)
 
+- **The move dialog's error branches (409/400/403/404), the no-target state and the keyboard path** — pinned by `PlanMove.test.tsx`; the journey drives
+  the two happy-path moves and the unchanged ranking.
 - **Validation, name clashes, the roadmap editor's window-only modal, the two-PUT save and the close/reopen actions** — pinned by
   `Plan.test.tsx`, `planForm.test.ts` and the server's `PlanStructureTest`; the journeys drive the happy paths and the
   role-dependent visibility only.
