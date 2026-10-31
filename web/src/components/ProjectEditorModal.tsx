@@ -3,7 +3,7 @@ import { Fieldset, Group, Modal, Stack, Text } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { useTranslation } from "react-i18next";
 import { ApiError } from "../api/http";
-import { createProject, setProjectTargetWindow, updateProject, type PlanProject } from "../api/plan";
+import { createProject, setProjectTargetWindow, updateProject } from "../api/plan";
 import PlanDateInput from "./PlanDateInput";
 import PlanNodeFields from "./PlanNodeFields";
 import RegistryEditorActions from "./RegistryEditorActions";
@@ -15,6 +15,7 @@ import {
   toProjectFormValues,
   toProjectUpdateBody,
   toTargetWindowBody,
+  type ProjectEditTarget,
   type ProjectFormValues,
 } from "../utils/planForm";
 import { showSuccessToast } from "../utils/toast";
@@ -33,7 +34,7 @@ export default function ProjectEditorModal({
   onSaved,
 }: {
   program: { id: number; name: string };
-  target: PlanProject | null;
+  target: ProjectEditTarget | null;
   onClose: () => void;
   onSaved: () => Promise<void>;
 }) {
@@ -53,7 +54,7 @@ export default function ProjectEditorModal({
     window: JSON.stringify(toTargetWindowBody(form.values)),
   }));
 
-  async function saveExisting(project: PlanProject, values: ProjectFormValues): Promise<boolean> {
+  async function saveExisting(project: ProjectEditTarget, values: ProjectFormValues): Promise<boolean> {
     let wrote = false;
     const fields = JSON.stringify(toProjectUpdateBody(values));
     if (canEditFields && fields !== accepted.fields) {

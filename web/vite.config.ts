@@ -70,6 +70,11 @@ export default defineConfig({
     // `--sequence.shuffle`. A new test that leaks state across files fails there — fix the leak
     // (reset it in `afterEach`), never flip this back.
     isolate: false,
+    // No on-disk module cache: vitest 5 caches each transformed module by its own content, but a module that uses
+    // `import.meta.glob` (locales/parity.test.ts, i18n.ts) has the glob expanded at transform time, and the cache is NOT
+    // invalidated when a file the glob matches is added. A stale entry kept the parity guard blind to a new locale area
+    // (locally `test:coverage` ran 690 tests, a plain run 692; a fresh CI checkout always saw 692). Costs ~1 s per run.
+    fsModuleCache: false,
     // Headroom over vitest's 5 s default for a contended run: setup.ts raises testing-library's async-util
     // timeout to 4 s (a cold lazy chunk), and a test awaits more than one of those.
     testTimeout: 10000,

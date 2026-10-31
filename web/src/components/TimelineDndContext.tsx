@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   DndContext,
   KeyboardSensor,
@@ -25,32 +25,50 @@ import type { BarId } from "../utils/timelineModel";
 import type { TimelineScale } from "../utils/timelineScale";
 
 /** Where the pointer was when the drag began: only a mouse/touch/pen activator has coordinates (a keyboard one does not). */
-function pointerStart(activatorEvent: Event | null): { x: number; y: number } | null {
+function pointerStart(activatorEvent: Event | null): Point | null {
   if (activatorEvent === null || !("clientX" in activatorEvent)) return null;
   const { clientX, clientY } = activatorEvent as MouseEvent;
   return { x: clientX, y: clientY ?? 0 };
 }
 
+interface Point {
+  x: number;
+  y: number;
+}
+
+/**
+ * dnd-kit's default autoscroll zone is 20 % of the scroller on BOTH axes, which a bar near the right edge of the grid sits inside: a one-day
+ * resize there scrolled the grid by days while the pointer moved 28 px (found by the e2e). The timeline only ever scrolls along time, and only
+ * when the held bar really reaches the edge: a narrow horizontal zone and a hairline vertical one (never zero: dnd-kit divides by the threshold).
+ */
+const BAR_AUTO_SCROLL = { threshold: { x: 0.05, y: 0.02 } };
+/**
+ * A tray item travels from the tray, which sits below the grid, up to it: the page (and a tall grid) may need to scroll vertically for the
+ * drop to be reachable, so a tray drag gets a real vertical zone (the context swaps configs at drag start; the zone is measured on the
+ * scrollers of what the item is over, so over the grid it also scrolls the grid's rows) and the same narrow horizontal one.
+ */
+const TRAY_AUTO_SCROLL = { threshold: { x: 0.05, y: 0.15 } };
+
 const spanOf = (drag: DragData): Span | null => (drag.start !== undefined && drag.end !== undefined ? { start: drag.start, end: drag.end } : null);
 
 /**
- * The dates a drag would produce right now. A bar gesture is its whole-day displacement; a tray item takes the day under the
- * pointer, but only while the pointer is over the track drop zone AND inside the part of it that is actually visible (the zone is
- * as tall and wide as every row; the drop must not count over the tray below, the footer or the sticky left columns). `over.rect`
- * and the scroll-adjusted `delta` are in the same frame, the one the drag started in, so the day is exact even after the grid
- * scrolled during the drag; the visible-bounds test uses that same pointer estimate (off by the scroll since the drag started —
- * only matters when the grid autoscrolls under a held tray item, and the server still decides).
+ * The dates a drag would produce right now. A bar gesture is its whole-day displacement. A tray item takes the day under the POINTER, but
+ * only while it is over the track drop zone AND inside the part of it that is actually visible (the zone is as tall and wide as every row;
+ * the drop must not count over the tray below, the footer or the sticky left columns). The pointer is the live one (tracked from the
+ * activator on), and the zone's left edge and visible bounds are read from the DOM at that same instant: dnd-kit's own `delta` is
+ * scroll-adjusted by the scroll offsets of the OVER node's scrollers once `over` is the zone, which adds the grid's whole `scrollLeft`
+ * to a tray item that never lived in it (a drop landed thousands of pixels away — found by the e2e), and `over.rect` is a snapshot from
+ * the drag's start that a scroll makes stale.
  */
-function outcomeOf(drag: DragData, event: Pick<DragMoveEvent, "delta" | "over" | "activatorEvent">, scale: TimelineScale): Span | null {
+function outcomeOf(drag: DragData, event: Pick<DragMoveEvent, "delta" | "over">, scale: TimelineScale, pointer: Point | null): Span | null {
   if (drag.kind === "tray") {
-    const start = pointerStart(event.activatorEvent);
-    if (event.over?.id !== TIMELINE_DROP_ID || start === null) return null;
-    const x = start.x + event.delta.x;
-    const y = start.y + event.delta.y;
-    const bounds = (event.over.data?.current as Partial<DropZoneData> | undefined)?.visibleBounds?.();
-    if (bounds === null) return null;
-    if (bounds !== undefined && (x < bounds.left || x >= bounds.right || y < bounds.top || y >= bounds.bottom)) return null;
-    return dropOutcome("tray", null, 0, scale.dayAt(x - event.over.rect.left));
+    const zone = event.over?.id === TIMELINE_DROP_ID ? (event.over.data?.current as Partial<DropZoneData> | undefined) : undefined;
+    const left = zone?.zoneLeft?.();
+    if (pointer === null || left === undefined || left === null) return null;
+    const bounds = zone?.visibleBounds?.();
+    if (bounds === null || bounds === undefined) return null;
+    if (pointer.x < bounds.left || pointer.x >= bounds.right || pointer.y < bounds.top || pointer.y >= bounds.bottom) return null;
+    return dropOutcome("tray", null, 0, scale.dayAt(pointer.x - left));
   }
   return dropOutcome(drag.kind, spanOf(drag), Math.round(event.delta.x / scale.dayWidth), null);
 }
@@ -68,15 +86,29 @@ export default function TimelineDndContext({
   children,
 }: {
   scale: TimelineScale;
-  onSchedule: (id: BarId, start: string, end: string) => void;
+  /** A PROPOSAL of new dates. Answers whether the page took it: `false` (a save is still running) is announced as "not changed", never as a drop. */
+  onSchedule: (id: BarId, start: string, end: string) => boolean;
   children: ReactNode;
 }) {
   const { t } = useTranslation();
   const { dayWidth } = scale;
   const [preview, setPreview] = useState<TimelinePreview | null>(null);
   // The latest outcome and the last one announced, read by the announcements (dnd-kit calls the props below BEFORE them).
-  const latest = useRef<{ drag: DragData; span: Span | null } | null>(null);
+  const latest = useRef<{ drag: DragData; span: Span | null; refused?: boolean } | null>(null);
   const announced = useRef<string | null>(null);
+  // The live pointer of a running TRAY drag (see `outcomeOf`): a tray item's day comes from where the pointer is, not from dnd-kit's delta.
+  const pointer = useRef<Point | null>(null);
+  const followPointer = useCallback((event: PointerEvent) => {
+    if (!event.isPrimary) return; // a second finger or pen never moves the held item
+    pointer.current = { x: event.clientX, y: event.clientY };
+  }, []);
+  const [autoScroll, setAutoScroll] = useState(BAR_AUTO_SCROLL);
+  const stopFollowingPointer = () => {
+    setAutoScroll(BAR_AUTO_SCROLL);
+    window.removeEventListener("pointermove", followPointer);
+    pointer.current = null;
+  };
+  useEffect(() => () => window.removeEventListener("pointermove", followPointer), [followPointer]);
 
   const keyboardOptions = useMemo(() => ({ coordinateGetter: keyboardCoordinates(dayWidth), scrollBehavior: "auto" as const }), [dayWidth]);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), useSensor(KeyboardSensor, keyboardOptions));
@@ -118,6 +150,7 @@ export default function TimelineDndContext({
       onDragEnd: () => {
         const current = take();
         if (current === null) return undefined;
+        if (current.refused) return t("timeline.announce.dropRefused", { name: current.drag.label });
         if (current.drag.kind === "tray") {
           return current.span === null
             ? t("timeline.announce.dropNone", { name: current.drag.label })
@@ -135,15 +168,20 @@ export default function TimelineDndContext({
     };
   }, [t]);
 
-  const track = (drag: DragData, event: Pick<DragMoveEvent, "delta" | "over" | "activatorEvent">) => {
-    const span = outcomeOf(drag, event, scale);
+  const track = (drag: DragData, event: Pick<DragMoveEvent, "delta" | "over">) => {
+    const span = outcomeOf(drag, event, scale, pointer.current);
     latest.current = { drag, span };
     return span;
   };
 
-  const onDragStart = ({ active }: { active: DragMoveEvent["active"] }) => {
+  const onDragStart = ({ active, activatorEvent }: Pick<DragMoveEvent, "active" | "activatorEvent">) => {
     const drag = dragDataOf(active);
     if (drag === null) return;
+    if (drag.kind === "tray") {
+      pointer.current = pointerStart(activatorEvent);
+      setAutoScroll(TRAY_AUTO_SCROLL);
+      window.addEventListener("pointermove", followPointer, { passive: true });
+    }
     const span = spanOf(drag);
     latest.current = { drag, span };
     announced.current = span === null ? null : `${span.start}/${span.end}`;
@@ -168,13 +206,18 @@ export default function TimelineDndContext({
     const drag = dragDataOf(event.active);
     if (drag === null) return;
     const span = track(drag, event);
+    stopFollowingPointer();
     if (span === null) return;
     const original = spanOf(drag);
     if (original !== null && sameSpan(span, original)) return;
-    onSchedule(drag.barId, span.start, span.end);
+    // dnd-kit announces the drop AFTER this handler: say "not changed" when the page refused the proposal.
+    if (!onSchedule(drag.barId, span.start, span.end)) latest.current = { drag, span, refused: true };
   };
 
-  const onDragCancel = () => setPreview(null);
+  const onDragCancel = () => {
+    stopFollowingPointer();
+    setPreview(null);
+  };
 
   return (
     <PreviewContext.Provider value={preview}>
@@ -182,6 +225,7 @@ export default function TimelineDndContext({
         id="timeline"
         sensors={sensors}
         collisionDetection={pointerWithin}
+        autoScroll={autoScroll}
         modifiers={modifiers}
         onDragStart={onDragStart}
         onDragMove={onDragMove}

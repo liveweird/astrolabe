@@ -52,7 +52,7 @@ edited spec must satisfy:
 - Each spec's scenario file declares its **Owns** line (exclusive server-side state; "nothing —
   read-only" when applicable). Today: `auth`, `changelog` and `shell` (device-local
   localStorage only) are read-only; `accessibility` owns one API-seeded fixture team
-  (`e2e-axe-team-*`) and one API-seeded fixture plan (`e2e-axe-*`); `users` owns its throwaway accounts; `teams` owns its throwaway teams (unique `e2e-team-*` names), person and user; `people` owns its throwaway people (unique `e2e-person-*` names) and users; `plan` owns its throwaway people, work streams, programs, projects (unique `e2e-plan-*` names) and user; `roadmap` owns its throwaway people, plan nodes (unique `e2e-rm-*` names) and users, and ranks only its own projects (the global ranking is shared, append-only state: assertions are about the relative order of its own rows, and a stale-revision refusal caused by another spec's plan write is retried); `i18n` owns its throwaway user (and ONLY that user's
+  (`e2e-axe-team-*`) and one API-seeded fixture plan (`e2e-axe-*`, with two milestones); `users` owns its throwaway accounts; `teams` owns its throwaway teams (unique `e2e-team-*` names), person and user; `people` owns its throwaway people (unique `e2e-person-*` names) and users; `plan` owns its throwaway people, work streams, programs, projects (unique `e2e-plan-*` names) and user; `project-view` owns its throwaway users, people, team, plan nodes and milestones (unique `e2e-pv-*` names), all seeded and removed through the API (the project first, its milestones go with it); `roadmap` owns its throwaway people, plan nodes (unique `e2e-rm-*` names) and users, and ranks only its own projects (the global ranking is shared, append-only state: assertions are about the relative order of its own rows, and a stale-revision refusal caused by another spec's plan write is retried); `i18n` owns its throwaway user (and ONLY that user's
   language — **seeded accounts must stay English**: every login applies the stored language to
   that session's UI, so a Polish seed admin would flip parallel specs mid-run); `password-reset`
   owns its throwaway account (its reset requests use unique per-run emails against the
@@ -91,7 +91,7 @@ the same commit** — this list is the coverage map, the scenario file is the de
 - [`accessibility.spec.ts`](scenarios/accessibility.md) — axe WCAG A/AA smoke: login + the
   authenticated list/form pages (`/`, `/teams`, `/people`, `/users`, `/users/new`, `/feature-flags`,
   `/change-password`, `/changelog`), the detail pages of an API-seeded fixture team (its team page,
-  the admin's own edit-user and user-features pages), the Plan page and the Roadmap (its fixture project ranked for the scan) with an API-seeded work stream, program and project (light and dark), `/reset-password` and its confirm page (the form state, from a well-formed link), the not-found page, and a
+  the admin's own edit-user and user-features pages), the Plan page, the Roadmap (its fixture project ranked for the scan) and the project view (the timeline, the drift badge and the tray) with an API-seeded work stream, program, project and two milestones (light and dark), `/reset-password` and its confirm page (the form state, from a well-formed link), the not-found page, and a
   registry editor modal and the Plan project editor modal scoped to their dialogs; the app shell at a mobile width (390x844, the burger present), light and dark; the login screen and the list/form pages again in
   the DARK scheme (`colorScheme: "dark"`, which the `auto` default follows); `color-contrast` included
   (the theme's tokens are AA-tested in `web/src/theme.test.ts`).
@@ -125,6 +125,11 @@ the same commit** — this list is the coverage map, the scenario file is the de
   through the modals (owners picked from the people directory, a target window), hands the project over,
   sees the delete refused while a parent has children, then deletes bottom-up; a project owner sees the
   whole plan but actions only on their own project, edits it, and finds the target window disabled.
+- [`project-view.spec.ts`](scenarios/project-view.md) — the project view and the shared Timeline in a real browser: a project owner opens the project from the
+  Plan page's name link, creates milestones (team picker, estimate) that wait in the Unscheduled tray and has no way to schedule them; the milestone's
+  team manager schedules by the tray's Schedule button, the Edit schedule dialog, dnd-kit's keyboard sensor, a pointer drag of the bar, a pointer drag of
+  the end handle and a pointer drop of a tray row onto the (scrolled) timeline, meets the stale-milestone notice when the admin API moved the bar, and
+  unschedules; the owner reads the derived span and the drift (orange, in words) with read-only bars and no handles.
 - [`roadmap.spec.ts`](scenarios/roadmap.md) — the Roadmap page: an admin grants ROADMAP_EDITOR on Users → Permissions; that
   editor ranks two API-seeded projects (Rank appends), reorders them with Move up from the keyboard (focus stays in the row),
   dnd-kit's keyboard sensor and a pointer drag, unranks one, and meets the "roadmap changed in the meantime" notice and reload when

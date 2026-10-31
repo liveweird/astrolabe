@@ -4,8 +4,9 @@
 - **Actors**: the seed administrator (`admin@astrolabe.local`) for the authenticated pages; an
   anonymous visitor for the login screen
 - **Owns** (exclusive server-side state): one fixture team and one fixture plan (a person, a work
-  stream, a program and a project; unique `e2e-axe-*` names), created through the API before the
-  detail-page block and deleted after it; the list/form pages and the login screen are read-only
+  stream, a program and a project with two milestones - one scheduled past the project's target end, one
+  left in the Unscheduled tray; unique `e2e-axe-*` names), created through the API before the
+  detail-page block and deleted after it (the project first: its milestones go with it); the list/form pages and the login screen are read-only
 
 This is the registered template-title exception (see README.md): one `test()` per page is
 generated from a list, so a single scenario section stands in for each list.
@@ -29,6 +30,8 @@ The detail-page block also scans `/plan` with the fixture plan rendered (a work 
 project row, light and dark) and the project editor modal (dates, the target-window fieldset and the owner
 picker) scoped to its dialog. It also scans `/roadmap` with the fixture project ranked (a drag handle, Move up/down and Unrank
 buttons in the ranked table, light and dark); the project is ranked through the API for the scan and unranked again afterwards.
+It scans the project view `/projects/:id` with the fixture project rendered (the timeline grid with an editable bar, the target-window band,
+the orange drift badge and the Unscheduled tray, light and dark) and the milestone editor modal (team picker, estimate) scoped to its dialog.
 
 ## Scenario: `<path>` has no WCAG A/AA violations in the dark scheme
 

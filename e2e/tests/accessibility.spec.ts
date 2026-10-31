@@ -2,8 +2,8 @@
 // and form pages, the detail pages of one API-seeded fixture team, and the overlays (a registry
 // editor modal) — where focus traps, aria-modal and labels actually live, and the app shell at a
 // phone width (the burger); the page sets run in the light scheme and again in the dark one.
-// Owns: the fixture team and the fixture plan (a person, work stream, program and project; unique `e2e-axe-*` names), created and
-// deleted via the API.
+// Owns: the fixture team and the fixture plan (a person, work stream, program and project with two milestones, one scheduled past the
+// project's target end and one in the Unscheduled tray; unique `e2e-axe-*` names), created and deleted via the API.
 import type { APIRequestContext, Locator, Page } from "@playwright/test";
 import {
   apiAsAdmin,
@@ -127,6 +127,14 @@ test.describe("detail pages and overlays", () => {
       targetStart: "2026-02-02",
       targetEnd: "2026-03-31",
     });
+    // The project view's richest state: a scheduled bar (editable for the admin) running past the target end (the orange drift) and a tray row.
+    const scheduledId = await create(`/api/v1/projects/${projectId}/milestones`, { name: uniqueText("e2e-axe-milestone"), teamId, estimateMd: 3 });
+    await create(`/api/v1/projects/${projectId}/milestones`, { name: uniqueText("e2e-axe-tray"), teamId, estimateMd: 0.5 });
+    const view = (await (await api.get(`/api/v1/views/project/${projectId}`)).json()) as { revision: number };
+    const scheduled = await api.put(`/api/v1/milestones/${scheduledId}/schedule`, {
+      data: { expectedRevision: view.revision, startDate: "2026-02-09", endDate: "2026-04-10" },
+    });
+    expect(scheduled.status(), await scheduled.text()).toBe(200);
     planPaths = [`/api/v1/projects/${projectId}`, `/api/v1/programs/${programId}`, `/api/v1/work-streams/${streamId}`, `/api/v1/people/${personId}`];
   });
   test.afterAll(async () => {
@@ -166,6 +174,26 @@ test.describe("detail pages and overlays", () => {
   test.describe("dark scheme", () => {
     test.use({ colorScheme: "dark" });
     registerPlanScan("dark");
+  });
+
+  // The project view: the shared timeline grid (bars with handles, the window band, the orange drift badge, the weekend hatch) and the
+  // Unscheduled tray, light and dark.
+  function registerProjectViewScan(scheme: Scheme): void {
+    const suffix = scheme === "dark" ? " in the dark scheme" : "";
+    test(`/projects/:id with a scheduled milestone, the drift and the tray has no WCAG A/AA violations${suffix}`, async ({ page }) => {
+      await login(page);
+      await page.goto(`/projects/${projectId}`);
+      await expect(page.getByRole("heading", { level: 2, name: projectName })).toBeVisible();
+      await expect(page.getByRole("grid", { name: "Milestone timeline" })).toBeVisible();
+      await expect(page.getByText("Ends 10 days after the target")).toBeVisible();
+      await expectScheme(page, scheme);
+      await scan(page);
+    });
+  }
+  registerProjectViewScan("light");
+  test.describe("dark scheme", () => {
+    test.use({ colorScheme: "dark" });
+    registerProjectViewScan("dark");
   });
 
   // The Roadmap with the fixture project in the ranked list (handles, Move and Unrank buttons) and the rest in Unranked, light and dark.
@@ -225,6 +253,15 @@ test.describe("detail pages and overlays", () => {
     await page.getByRole("button", { name: "New team" }).click();
     const modal = await settledDialog(page);
     await expect(modal.getByRole("heading", { name: "New team" })).toBeVisible();
+    await scan(page, '[role="dialog"]');
+  });
+
+  test("a milestone editor modal (team picker, estimate) has no WCAG A/AA violations", async ({ page }) => {
+    await login(page);
+    await page.goto(`/projects/${projectId}`);
+    await page.getByRole("button", { name: "New milestone" }).click();
+    const modal = await settledDialog(page);
+    await expect(modal.getByRole("heading", { name: "New milestone" })).toBeVisible();
     await scan(page, '[role="dialog"]');
   });
 

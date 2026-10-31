@@ -17,6 +17,8 @@ interface DropBounds {
 /** What the track drop zone puts in its droppable `data`: the zone itself is as tall as every row, so the live visible part is asked for. */
 export interface DropZoneData {
   visibleBounds: () => DropBounds | null;
+  /** The zone's left edge in client coordinates, read NOW (dnd-kit's `over.rect` is a snapshot of the drag's start, stale after a scroll). */
+  zoneLeft: () => number | null;
 }
 
 /** What every Timeline draggable carries in dnd-kit's `data`: which gesture it starts, on which bar, and that bar's dates now. */

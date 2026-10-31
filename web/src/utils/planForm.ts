@@ -46,7 +46,12 @@ export function toWorkStreamFormValues(stream: PlanWorkStream): WorkStreamFormVa
   return { ...toNodeFormValues(stream), startDate: stream.startDate, endDate: stream.endDate };
 }
 
-export function toProjectFormValues(project: PlanProject): ProjectFormValues {
+/** What the project editor needs of a project: the Plan page's `PlanProject` and the project view's own project both satisfy it. */
+export type ProjectEditTarget = Pick<PlanProject, "id" | "name" | "description" | "ownerPersonId" | "ownerName" | "targetStart" | "targetEnd"> & {
+  can: Pick<PlanProject["can"], "edit" | "editTargetWindow">;
+};
+
+export function toProjectFormValues(project: ProjectEditTarget): ProjectFormValues {
   return { ...toNodeFormValues(project), targetStart: project.targetStart, targetEnd: project.targetEnd };
 }
 

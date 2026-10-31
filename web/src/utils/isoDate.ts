@@ -2,8 +2,8 @@
  * `YYYY-MM-DD` ISO-date helpers shared by the metrics settings form (holidays), the reports (days
  * in the configured zone) and D1's dated Jira-user team membership (valid-from/valid-to, which are
  * calendar days in that same zone). The plain conversions are UTC; the `…InZone` ones take the
- * configured IANA zone. Neither reads the browser's local time zone, so results are the same in every
- * test/CI locale (the `utils/dataSourceState.ts` `formatEpochMillis` convention: never `toLocaleString()`).
+ * configured IANA zone. Neither reads the browser's local time zone (`localIsoDate` is the one deliberate exception: the UI's
+ * "today"), so results are the same in every test/CI locale (the `utils/dataSourceState.ts` `formatEpochMillis` convention: never `toLocaleString()`).
  */
 
 /** One fixed 24-hour day in millis — UTC calendar arithmetic only (zone days go through the `…InZone` helpers). */
@@ -28,6 +28,16 @@ export function isoDateToEpochMillis(value: string): number {
 /** Epoch millis to `YYYY-MM-DD`, sliced from the UTC ISO string. */
 export function epochMillisToIsoDate(epochMillis: number): string {
   return new Date(epochMillis).toISOString().slice(0, 10);
+}
+
+/**
+ * The `YYYY-MM-DD` calendar date on the VIEWER'S wall calendar (the browser's local time zone) — what "today" means in the UI (the
+ * timeline's today line, the Schedule button's start). Deliberately not UTC: a viewer east or west of Greenwich would otherwise see
+ * yesterday or tomorrow for part of their day. Server-side dates stay plain ISO dates with no zone.
+ */
+export function localIsoDate(now: Date = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
 
 /** The `YYYY-MM-DD` date `days` calendar days after `iso` (negative = before), UTC. Caller validates the shape first. */

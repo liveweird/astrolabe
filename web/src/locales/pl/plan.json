@@ -18,6 +18,7 @@
   "window": "{{start}} – {{end}}",
   "noWindow": "Nie ustawiono",
   "projectsTableAria": "Projekty programu {{name}}",
+  "openProjectAria": "Otwórz: {{name}}",
   "column": {
     "project": "Projekt"
   },

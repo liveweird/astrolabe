@@ -16,6 +16,8 @@ export const BAR_HEIGHT = ROW_HEIGHT - 2 * BAR_INSET;
 /** Rows above this count are virtualised (TanStack Virtual); at or below it every row is mounted. */
 export const DEFAULT_VIRTUALIZE_FROM = 80;
 export const OVERSCAN_ROWS = 8;
+/** The body is at least this many rows tall, so an empty (or nearly empty) timeline still has a visible area to drop an Unscheduled item on. */
+export const MIN_BODY_ROWS = 3;
 
 /** A bar owns up to three roving columns after the row's left cells: the bar, then (editable only) its start and end handles. */
 export const COLUMNS_PER_BAR = 3;

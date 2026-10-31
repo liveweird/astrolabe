@@ -10,11 +10,22 @@ import { IconDotsVertical } from "@tabler/icons-react";
  * `Menu.Divider`); this component owns only the trigger's shape, so every table's kebab is
  * the same control. The cell around it is `Table.Td style={{ width: 1 }} ta="right"`.
  */
-export default function RowActionsMenu({ label, loading, children }: { label: string; loading?: boolean; children: ReactNode }) {
+export default function RowActionsMenu({
+  label,
+  loading,
+  trigger,
+  children,
+}: {
+  label: string;
+  loading?: boolean;
+  /** Extra attributes for the trigger — a roving-grid cell (the Timeline's) makes the kebab its own tab stop with them. */
+  trigger?: { tabIndex: number } & Record<string, string | number>;
+  children: ReactNode;
+}) {
   return (
     <Menu>
       <Menu.Target>
-        <ActionIcon size="sm" aria-label={label} loading={loading}>
+        <ActionIcon size="sm" aria-label={label} loading={loading} {...trigger}>
           <IconDotsVertical size={16} />
         </ActionIcon>
       </Menu.Target>

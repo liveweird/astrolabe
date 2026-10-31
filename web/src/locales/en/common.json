@@ -21,6 +21,8 @@
     "owner": "Owner",
     "startDate": "Start date",
     "endDate": "End date",
+    "team": "Team",
+    "estimate": "Estimate",
     "targetWindow": "Target window"
   },
   "state": {

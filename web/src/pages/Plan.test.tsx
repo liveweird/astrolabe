@@ -523,3 +523,22 @@ describe("Plan page and the roadmap", () => {
     await waitFor(() => expect(queryClient.getQueryState(["roadmap", "view"])?.isInvalidated).toBe(true));
   });
 });
+
+describe("Plan page project links", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    localStorage.clear();
+  });
+
+  test("a project's name is a link to its page", async () => {
+    view = VIEW;
+    const mockFetch = vi.fn();
+    vi.stubGlobal("fetch", mockFetch);
+    localStorage.setItem("astrolabe.auth.token", "fake-token");
+    serve(mockFetch);
+    renderWithProviders(<Plan />);
+    const link = await screen.findByRole("link", { name: "Open Invoices" });
+    expect(link).toHaveAttribute("href", "/projects/100");
+    expect(link).toHaveTextContent("Invoices");
+  });
+});

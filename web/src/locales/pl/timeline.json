@@ -24,15 +24,16 @@
     "instructions": "Aby przesunąć pasek, ustaw na nim fokus i naciśnij Spację lub Enter, potem strzałkami w lewo i w prawo przesuwaj go o dzień (z Shift o tydzień), Spacją lub Enterem upuść go, Escape anuluje. Ustaw fokus na uchwycie początku lub końca paska, aby zmienić ten brzeg."
   },
   "announce": {
-    "startMove": "Podniesiono: {{name}}, od {{start}} do {{end}}. Strzałki w lewo i w prawo przesuwają o dzień, z Shift o tydzień; Spacja upuszcza, Escape anuluje.",
+    "startMove": "Trzymasz: {{name}}, od {{start}} do {{end}}. Strzałki w lewo i w prawo przesuwają o dzień, z Shift o tydzień; Spacja upuszcza, Escape anuluje.",
     "startResizeStart": "Zmieniasz początek: {{name}}, od {{start}} do {{end}}. Strzałki w lewo i w prawo zmieniają o dzień, z Shift o tydzień.",
     "startResizeEnd": "Zmieniasz koniec: {{name}}, od {{start}} do {{end}}. Strzałki w lewo i w prawo zmieniają o dzień, z Shift o tydzień.",
-    "startTray": "Podniesiono: {{name}} z listy niezaplanowanych.",
+    "startTray": "Trzymasz: {{name}} z listy niezaplanowanych.",
     "step": "{{name}}: od {{start}} do {{end}}",
-    "drop": "Upuszczono: {{name}}, od {{start}} do {{end}}.",
-    "dropTray": "Zaplanowano: {{name}}, od {{start}} do {{end}}.",
-    "dropNone": "Nie zaplanowano: {{name}}.",
-    "cancel": "Anulowano; {{name}} zostaje w terminie od {{start}} do {{end}}.",
-    "cancelTray": "Anulowano; nie zaplanowano: {{name}}."
+    "drop": "{{name}} ma termin od {{start}} do {{end}}.",
+    "dropTray": "{{name}} ma termin od {{start}} do {{end}}.",
+    "dropNone": "{{name}} nadal nie ma terminu.",
+    "cancel": "Przeciąganie anulowane; {{name}} zostaje w terminie od {{start}} do {{end}}.",
+    "cancelTray": "Przeciąganie anulowane; {{name}} nadal nie ma terminu.",
+    "dropRefused": "{{name}} bez zmian: zapis jeszcze trwa. Spróbuj za chwilę."
   }
 }

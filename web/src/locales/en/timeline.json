@@ -33,6 +33,7 @@
     "dropTray": "Scheduled {{name}}: {{start}} to {{end}}.",
     "dropNone": "{{name}} was not scheduled.",
     "cancel": "Cancelled; {{name}} stays at {{start}} to {{end}}.",
-    "cancelTray": "Cancelled; {{name}} was not scheduled."
+    "cancelTray": "Cancelled; {{name}} was not scheduled.",
+    "dropRefused": "{{name}} was not changed: a save is still running. Try again in a moment."
   }
 }

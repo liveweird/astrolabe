@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { addDays, DAY_MS, epochMillisToIsoDate, epochMillisToIsoDateInZone, isoDateToEpochMillis, isoDateToEpochMillisInZone, isValidIsoDate, startOfDayEpochMillisInZone, startOfTodayEpochMillis, todayIsoDate } from "./isoDate";
+import { addDays, DAY_MS, epochMillisToIsoDate, epochMillisToIsoDateInZone, isoDateToEpochMillis, isoDateToEpochMillisInZone, isValidIsoDate, startOfDayEpochMillisInZone, localIsoDate, startOfTodayEpochMillis, todayIsoDate } from "./isoDate";
 
 describe("isValidIsoDate", () => {
   test("rejects a malformed shape", () => {
@@ -150,5 +150,20 @@ describe("isoDateToEpochMillisInZone", () => {
         expect(epochMillisToIsoDateInZone(isoDateToEpochMillisInZone(date, zone), zone)).toBe(date);
       }
     }
+  });
+});
+
+describe("localIsoDate", () => {
+  test("is the calendar day on the viewer's own wall clock, zero-padded", () => {
+    expect(localIsoDate(new Date(2027, 0, 9, 23, 59))).toBe("2027-01-09");
+    expect(localIsoDate(new Date(2027, 11, 1, 0, 0))).toBe("2027-12-01");
+    expect(localIsoDate(new Date(2028, 1, 29, 12, 0))).toBe("2028-02-29");
+  });
+
+  test("defaults to now", () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2027, 5, 7, 8, 0));
+    expect(localIsoDate()).toBe("2027-06-07");
+    vi.useRealTimers();
   });
 });

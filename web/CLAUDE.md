@@ -1,9 +1,9 @@
 # Frontend (`web/`)
 
 Vite + React 19 + TypeScript SPA: the shell + auth, user/feature management, MFA, password reset,
-the changelog, the flat-teams registry, the people directory, the Plan page (work streams → programs → projects), the Roadmap page (the global project ranking) and the ADMIN telemetry panel — the v0.1.0 foundation,
+the changelog, the flat-teams registry, the people directory, the Plan page (work streams → programs → projects), the Roadmap page (the global project ranking), the project view (milestones on the shared timeline) and the ADMIN telemetry panel — the v0.1.0 foundation,
 trimmed from Flow (`~/Sources/flow` @ e9c3b726, the donor: port building blocks from there, don't reinvent) — with a placeholder Home;
-the shared Timeline component (v0.3.0; no page uses it yet) and milestones/the project view follow. Routes are lazy.
+the shared Timeline component and the project view (milestones on the timeline, v0.3.0). Routes are lazy.
 
 - Dev server: `cd web && npm run dev` (port **5178** — not Vite's 5173 default, so Astrolabe can run
   beside Flow's 5176 and the sibling stacks' 5173–5175). All backend routes live under the
@@ -246,6 +246,16 @@ The shared Gantt frame every timeline page uses (reference: `.claude/docs/timeli
 with TanStack Virtual only above `virtualizeFrom` (80). **Every pointer gesture has a keyboard path** (Space/Enter picks up a bar or edge handle, ←/→ a day, Shift a week, Space drops, Escape cancels) announced in the UI language (`timeline.announce.*`), and the page ships the explicit buttons
 (Edit schedule…, the tray's Schedule). Bars are neutral gray, drift is orange, the brand cyan is focus and the held bar only. Pointer drags are not unit-tested (happy-dom has no layout; `Timeline.test.tsx` feeds the wrapped `DndContext` its events) — the e2e does them.
 
+## The project view (`pages/ProjectView.tsx`)
+
+`/projects/:id` (a detail page, no nav leaf: the Plan page's project NAME is the link, `plan.openProjectAria`; `projectPath(id)` in `utils/planLinks.ts`) renders `GET /views/project/{id}` under `["plan","project",id]` — under the `["plan"]` prefix, so every Plan mutation also refreshes a mounted
+project view. Header facts: the target window, the derived span and the drift in words ("Ends 7 days after the target", one `Badge` per non-zero figure: ORANGE when the project runs later than its target, gray when ahead, nothing red). **Everything is gated by the view's `can:{…}` flags, never the session's roles:**
+the owner chain's `can.edit`/`can.delete`/`createMilestone` give the plan-field editors (`MilestoneEditorModal`: name, description, `TeamSelect`, an estimate `NumberInput` step 0.25, **no dates for anyone** — a new milestone is always unscheduled), and ONLY a milestone's `can.schedule` (its team's manager or an ADMIN)
+makes its bar editable, shows its Schedule button and drag handle and its schedule menu items — the project's own owner reads read-only bars (`role="img"`, no handles). **One write path for dates**, `hooks/useMilestoneSchedule.ts` (the `useRoadmapRanking` shape): a drag, a resize, the tray's Schedule, "Edit schedule…" (`MilestoneScheduleModal`)
+and Unschedule all `commit(id, start, end)` — optimistic (`utils/projectViewUpdate.ts` `applySchedule`), the PUT carries the view's `revision`, success adopts the revision the PUT answers, any failure rolls back and AWAITS the refetch; a stale-revision 409 (THIS milestone moved) shows `project.stale`, 403/400/other an inline alert, never a toast; a change is
+REFUSED out loud while a save is in flight (a visible and announced "try again" notice, a "Saving…" indicator and `aria-busy`; `onSchedule` returns whether the page took it) — never lost silently; a change aimed at a milestone that has left the view (deleted, refetched away) is refused the same way with `project.milestoneGone` and closes the schedule dialog. **The status region is the one announcer** of these notices: the page's visible notices are `role="note"` (an Alert's implicit `role="alert"` would read each twice), and the dialog's own refusal Alert stays a live alert (`ownRefusalAlert`) because a modal's content is all a screen reader reads; the schedule dialog saves with the revision of the view it was opened on. The tray's Schedule places the milestone for one calendar week from the later of today (the viewer's LOCAL calendar day, `localIsoDate`) and the project's target start (`dropOutcome("tray", …)`, the pointer drop's week). **The page owns the timeline range and only ever grows it** (the earliest/latest day seen, window and today included), so a drag never shifts bars; the zoom is
+`useStoredState("timeline.zoom")`, shared by every timeline page. Deleting the project states the milestone count (it cascades). Rules mirror the server in `utils/milestoneForm.ts` (the schedule dialog also pre-checks "at least one working day"); a 409 on save marks the name field. Mechanics: `.claude/docs/web-internals.md`.
+
 ## User management and feature flags
 
 Passwords are generated client-side and revealed exactly once (`components/OneTimePasswordModal.tsx` sets `closeOnClickOutside={false} closeOnEscape={false}`; closing drops the plaintext for good). The management routes sit under ONE `<Route element={<RequireAdmin />}>` in `App.tsx` — no page redirects itself, their queries stay `enabled: isAdmin()`; UX only, the server's `requireAdmin` is the rule. Users live under `/users` (list, `/new`, `/:id/edit`, `/:id/features`; `utils/userLinks.ts` spells the family out — never hand-assemble a URL); feature flags (`/users/:id/features`, ADMIN `/feature-flags`): mind the wholesale-replace semantics — a PUT whose disabled set omits `MFA` ENABLES it. Page narratives (`pages/Users|CreateUser|EditUser|ChangePassword|FeatureFlags|UserFeatures.tsx`): `.claude/docs/web-internals.md`.
@@ -265,7 +275,7 @@ are English (THE default and fallback everywhere) and Polish. All user-facing st
 `const { t } = useTranslation()` / `<Trans>` — **no hardcoded UI text**. Conventions:
 
 - **Resources** live in `src/locales/{en,pl}/<area>.json`, one file per area (`appShell`, `auth`,
-  `changelog`, `common`, `home`, `people`, `plan`, `roadmap`, `teams`, `telemetry`, `timeline`, `users`); `i18n.ts` merges them into a single
+  `changelog`, `common`, `home`, `people`, `plan`, `project`, `roadmap`, `teams`, `telemetry`, `timeline`, `users`); `i18n.ts` merges them into a single
   `translation` namespace, so keys read `area.key` (e.g. `t("auth.signIn")`). Only EN is
   statically imported — its typed `en` tree is the key canon AND the runtime fallback; every other
   language is auto-discovered from `locales/<lang>/` via `import.meta.glob`. Bundles are eager on

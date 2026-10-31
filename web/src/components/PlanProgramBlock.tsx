@@ -1,8 +1,10 @@
-import { Box, Button, Group, Menu, Stack, Table, Text, Title } from "@mantine/core";
+import { Anchor, Box, Button, Group, Menu, Stack, Table, Text, Title } from "@mantine/core";
 import { IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
+import { Link as RouterLink } from "react-router-dom";
 import type { PlanProgram, PlanWorkStream } from "../api/plan";
 import type { PlanActions } from "../utils/planActions";
+import { projectPath } from "../utils/planLinks";
 import RowActionsMenu from "./RowActionsMenu";
 import ScrollRegion from "./ScrollRegion";
 
@@ -91,9 +93,9 @@ export default function PlanProgramBlock({
               {program.projects.map((project) => (
                 <Table.Tr key={project.id}>
                   <Table.Td>
-                    <Text size="sm" fw={500}>
+                    <Anchor component={RouterLink} to={projectPath(project.id)} size="sm" fw={500} aria-label={t("plan.openProjectAria", { name: project.name })}>
                       {project.name}
-                    </Text>
+                    </Anchor>
                     {project.description && (
                       <Text size="xs" c="dimmed">
                         {project.description}

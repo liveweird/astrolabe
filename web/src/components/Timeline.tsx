@@ -11,6 +11,7 @@ import {
   HEADER_HEIGHT,
   hasColumn,
   lastColumn,
+  MIN_BODY_ROWS,
   OVERSCAN_ROWS,
   ROW_HEIGHT,
   type TimelineBandData,
@@ -80,11 +81,13 @@ export default function Timeline({
   const { active: dragging } = useDndContext();
   const leftWidth = columns.reduce((sum, column) => sum + column.width, 0);
   // The drop zone is as large as every row; a tray drop only counts inside what the scroller actually shows of it.
+  const zoneNode = useRef<HTMLDivElement | null>(null);
   const zoneData: DropZoneData = {
     visibleBounds: () => {
       const rect = scrollRef.current?.getBoundingClientRect();
       return rect === undefined ? null : { left: rect.left + leftWidth, right: rect.right, top: rect.top + HEADER_HEIGHT, bottom: rect.bottom };
     },
+    zoneLeft: () => zoneNode.current?.getBoundingClientRect().left ?? null,
   };
   const { setNodeRef: dropRef } = useDroppable({ id: TIMELINE_DROP_ID, data: zoneData });
   const virtual = rows.length > virtualizeFrom;
@@ -175,6 +178,33 @@ export default function Timeline({
     grid.onKeyDown(event);
   };
 
+  /**
+   * A focused cell, bar or handle must not sit UNDER the sticky parts. The browser scrolls a focused element only when it is not (partly)
+   * visible, and it does not know that the sticky columns and header cover part of the scroller (`scroll-margin` is only honoured when it
+   * decides to scroll at all): a bar half under the columns took focus with its ring hidden (found by the 1,000-row measurement). So the
+   * grid measures the focus target against the part of the scroller that is really shown (inside its border, so a classic scrollbar is
+   * not counted) and scrolls the difference — never further than the target's own start edge reaching the sticky parts, so a bar wider
+   * than the visible track shows its START (and a handle never bounces). Only keyboard-style focus (`:focus-visible`) reveals: a mouse
+   * press on a bar must not move the grid under the pointer. Left cells are sticky themselves and need no horizontal correction.
+   */
+  const revealFocused = (target: HTMLElement) => {
+    const scroller = scrollRef.current;
+    if (scroller === null || target.closest("[data-grid-pos]") === null || !target.matches(":focus-visible")) return;
+    const box = target.getBoundingClientRect();
+    const view = scroller.getBoundingClientRect();
+    const viewTop = view.top + scroller.clientTop;
+    const viewBottom = viewTop + scroller.clientHeight;
+    const clearTop = viewTop + HEADER_HEIGHT;
+    if (box.top < clearTop) scroller.scrollTop -= clearTop - box.top;
+    else if (box.bottom > viewBottom) scroller.scrollTop += Math.min(box.bottom - viewBottom, box.top - clearTop);
+    if (target.closest(`.${classes.timelineLeft}`) !== null) return;
+    const viewLeft = view.left + scroller.clientLeft;
+    const viewRight = viewLeft + scroller.clientWidth;
+    const clearLeft = viewLeft + leftWidth;
+    if (box.left < clearLeft) scroller.scrollLeft -= clearLeft - box.left;
+    else if (box.right > viewRight) scroller.scrollLeft += Math.min(box.right - viewRight, box.left - clearLeft);
+  };
+
   const todayDay = toEpochDay(today);
   const todayInRange = todayDay >= scale.from && todayDay <= scale.to;
   const scrollToToday = () => {
@@ -183,7 +213,7 @@ export default function Timeline({
   };
 
   const hatch = weekendBackground(scale);
-  const bodyHeight = rows.length * ROW_HEIGHT;
+  const bodyHeight = Math.max(rows.length, MIN_BODY_ROWS) * ROW_HEIGHT;
   const trackLeft = { left: leftWidth };
 
   const geometry: TimelineGeometry | null =
@@ -220,6 +250,7 @@ export default function Timeline({
           onKeyDown={onKeyDown}
           onFocus={(event) => {
             pendingFocus.current = null;
+            revealFocused(event.target as HTMLElement);
             grid.onFocus(event);
           }}
         >
@@ -231,7 +262,7 @@ export default function Timeline({
               </div>
             ))}
             {todayInRange && <div aria-hidden="true" className={classes.timelineToday} style={{ left: leftWidth + scale.xOf(todayDay) + scale.dayWidth / 2 }} />}
-            <div ref={dropRef} aria-hidden="true" style={{ position: "absolute", top: 0, height: bodyHeight, width: scale.totalWidth, pointerEvents: "none", ...trackLeft }} />
+            <div ref={(node) => { zoneNode.current = node; dropRef(node); }} aria-hidden="true" style={{ position: "absolute", top: 0, height: bodyHeight, width: scale.totalWidth, pointerEvents: "none", ...trackLeft }} />
             {mountedIndexes.map((index) => (
               <TimelineRow
                 key={rows[index].id}

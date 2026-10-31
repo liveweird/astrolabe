@@ -51,10 +51,10 @@ const scaleOf = (zoom: Zoom = "week", from = "2026-09-14", to = "2026-10-11") =>
 function Harness({
   rows = ROWS,
   zoom = "week",
-  onSchedule = vi.fn(),
+  onSchedule = vi.fn(() => true),
   onZoomChange = vi.fn(),
   ...rest
-}: Partial<Omit<ComponentProps<typeof Timeline>, "scale">> & { zoom?: Zoom; onSchedule?: (id: number | string, start: string, end: string) => void }) {
+}: Partial<Omit<ComponentProps<typeof Timeline>, "scale">> & { zoom?: Zoom; onSchedule?: (id: number | string, start: string, end: string) => boolean }) {
   const scale = scaleOf(zoom);
   return (
     <TimelineDndContext scale={scale} onSchedule={onSchedule}>
@@ -68,6 +68,11 @@ const active = (kind: string, bar: TimelineBarData = DISCOVERY) => ({
   data: { current: { kind, barId: bar.id, label: bar.label, start: bar.start, end: bar.end } },
 });
 const trayActive = { id: "tray:9", data: { current: { kind: "tray", barId: 9, label: "Rollout" } } };
+// The zone data the real droppable publishes: its left edge and the scroller's visible part, both read at the moment of the drop.
+const zone = (left: number, visibleBounds: () => unknown = () => null) => ({ id: TIMELINE_DROP_ID, data: { current: { zoneLeft: () => left, visibleBounds } } });
+const EVERYWHERE = () => ({ left: 0, right: 5000, top: 0, bottom: 5000 });
+const trayStart = (clientX: number, clientY = 0) => ({ active: trayActive, delta: { x: 0, y: 0 }, over: null, activatorEvent: { clientX, clientY } });
+
 
 type Handler = "onDragStart" | "onDragMove" | "onDragEnd" | "onDragCancel";
 const emit = (name: Handler, event: unknown) => act(() => (dndProps?.[name] as ((e: unknown) => void) | undefined)?.(event));
@@ -124,6 +129,15 @@ describe("Timeline frame", () => {
     expect(rows.map((r) => r.getAttribute("aria-rowindex"))).toEqual(["1", "2", "3", "4"]);
     expect(within(grid).getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Milestone", "Team"]);
     expect(within(grid).getByRole("rowheader", { name: "Discovery" })).toBeInTheDocument();
+  });
+
+  test("an empty or nearly empty timeline keeps a body tall enough to drop an Unscheduled item on", () => {
+    const { unmount } = renderWithProviders(<Harness rows={[]} />);
+    const bodyHeight = () => screen.getAllByRole("rowgroup").map((group) => group.style.height).find((height) => height !== "");
+    expect(bodyHeight()).toBe("108px");
+    unmount();
+    renderWithProviders(<Harness rows={[ROWS[0]]} />);
+    expect(bodyHeight()).toBe("108px");
   });
 
   test("the header shows ISO-week groups and day numbers at week zoom, months and weeks at month zoom", () => {
@@ -190,6 +204,126 @@ describe("Timeline frame", () => {
     expect(geometry.barRect(2, 1)).toBeNull();
     expect(geometry.barRect(9, 1)).toBeNull();
     expect(geometry.visibleRows).toEqual({ first: 0, last: 2 });
+  });
+});
+
+describe("a focused item is revealed clear of the sticky parts", () => {
+  // the scroller shows x 100..900, y 50..650; the sticky columns take 260 px (x < 360), the header 56 px (y < 106)
+  const rect = (left: number, top: number, width = 100, height = 24) => ({ left, top, right: left + width, bottom: top + height, width, height }) as DOMRect;
+  function setup(target: HTMLElement, box: DOMRect) {
+    const scroller = screen.getByRole("region", { name: "Project timeline" });
+    vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue(rect(100, 50, 800, 600));
+    // the inner (padding) box: what is left after the borders and a classic scrollbar (here a 15 px one on the right)
+    for (const [name, value] of [["clientLeft", 0], ["clientTop", 0], ["clientWidth", 785], ["clientHeight", 600]] as const) {
+      Object.defineProperty(scroller, name, { configurable: true, value });
+    }
+    vi.spyOn(target, "getBoundingClientRect").mockReturnValue(box);
+    scroller.scrollLeft = 1000;
+    scroller.scrollTop = 200;
+    return scroller;
+  }
+
+  test("a bar half under the sticky columns is scrolled right of them", () => {
+    renderWithProviders(<Harness />);
+    const body = barBody("Discovery, Team A, 2026-09-16 to 2026-09-18");
+    const scroller = setup(body, rect(300, 200));
+    act(() => body.focus());
+    expect(scroller.scrollLeft).toBe(1000 - 60);
+  });
+
+  test("a bar beyond the right edge is scrolled into view", () => {
+    renderWithProviders(<Harness />);
+    const body = barBody("Discovery, Team A, 2026-09-16 to 2026-09-18");
+    const scroller = setup(body, rect(850, 200));
+    act(() => body.focus());
+    // the visible track ends at 885 (the scrollbar is excluded), the bar at 950: 65 px, and its start (850) stays clear of the columns (360)
+    expect(scroller.scrollLeft).toBe(1000 + 65);
+  });
+
+  test("a bar wider than the visible track aligns its START, never pushing it under the columns", () => {
+    renderWithProviders(<Harness />);
+    const body = barBody("Discovery, Team A, 2026-09-16 to 2026-09-18");
+    // starts at 700 and is 900 wide: ending at 1600, far past the right edge; only 340 px may scroll before its start meets the columns
+    const scroller = setup(body, rect(700, 200, 900));
+    act(() => body.focus());
+    expect(scroller.scrollLeft).toBe(1000 + 340);
+  });
+
+  test("a mouse press focuses without moving the grid (only keyboard-style focus reveals)", () => {
+    renderWithProviders(<Harness />);
+    const body = barBody("Discovery, Team A, 2026-09-16 to 2026-09-18");
+    const scroller = setup(body, rect(300, 200));
+    const matches = vi.spyOn(body, "matches").mockImplementation((selector: string) => selector !== ":focus-visible");
+    act(() => body.focus());
+    expect([scroller.scrollLeft, scroller.scrollTop]).toEqual([1000, 200]);
+    matches.mockRestore();
+  });
+
+  test("a row under the sticky header is scrolled below it", () => {
+    renderWithProviders(<Harness />);
+    const cell = screen.getByRole("rowheader", { name: "Discovery" });
+    const scroller = setup(cell, rect(110, 90, 150));
+    act(() => cell.focus());
+    expect(scroller.scrollTop).toBe(200 - 16);
+    // a left cell is sticky itself: no horizontal correction
+    expect(scroller.scrollLeft).toBe(1000);
+  });
+
+  test("an item already clear of the sticky parts is left alone", () => {
+    renderWithProviders(<Harness />);
+    const body = barBody("Discovery, Team A, 2026-09-16 to 2026-09-18");
+    const scroller = setup(body, rect(500, 300));
+    act(() => body.focus());
+    expect([scroller.scrollLeft, scroller.scrollTop]).toEqual([1000, 200]);
+  });
+});
+
+describe("drag configuration", () => {
+  test("a bar gets a narrow horizontal autoscroll zone and a hairline vertical one; a tray drag a real vertical zone, only while it is held", () => {
+    renderWithProviders(<Harness />);
+    expect(dndProps?.autoScroll).toEqual({ threshold: { x: 0.05, y: 0.02 } });
+    emit("onDragStart", trayStart(400));
+    expect(dndProps?.autoScroll).toEqual({ threshold: { x: 0.05, y: 0.15 } });
+    emit("onDragCancel", {});
+    expect(dndProps?.autoScroll).toEqual({ threshold: { x: 0.05, y: 0.02 } });
+  });
+
+  describe("the window pointer listener of a tray drag", () => {
+    const moves = (spy: { mock: { calls: unknown[][] } }) => spy.mock.calls.filter(([type]) => type === "pointermove").length;
+
+    test("is added at the drag's start and removed on drop, on cancel and on unmount", () => {
+      const add = vi.spyOn(window, "addEventListener");
+      const remove = vi.spyOn(window, "removeEventListener");
+      try {
+        const { unmount } = renderWithProviders(<Harness />);
+        emit("onDragStart", trayStart(400));
+        expect(moves(add)).toBe(1);
+        emit("onDragEnd", { active: trayActive, delta: { x: 0, y: 0 }, over: null, activatorEvent: null });
+        expect(moves(remove)).toBe(1);
+        emit("onDragStart", trayStart(400));
+        emit("onDragCancel", {});
+        expect(moves(remove)).toBe(2);
+        emit("onDragStart", trayStart(400));
+        const before = moves(remove);
+        unmount();
+        expect(moves(remove)).toBeGreaterThan(before);
+      } finally {
+        add.mockRestore();
+        remove.mockRestore();
+      }
+    });
+
+    test("a pointer that is not the primary one never moves the held item", () => {
+      const onSchedule = vi.fn(() => true);
+      renderWithProviders(<Harness onSchedule={onSchedule} />);
+      emit("onDragStart", trayStart(400, 10));
+      act(() => {
+        window.dispatchEvent(new PointerEvent("pointermove", { clientX: 900, clientY: 10, isPrimary: false }));
+      });
+      emit("onDragEnd", { active: trayActive, delta: { x: 0, y: 0 }, over: zone(120, EVERYWHERE), activatorEvent: { clientX: 400 } });
+      // still the day under x = 400: (400 - 120) / 28 = day 10
+      expect(onSchedule).toHaveBeenCalledExactlyOnceWith(9, "2026-09-24", "2026-09-30");
+    });
   });
 });
 
@@ -288,7 +422,7 @@ describe("the roving grid", () => {
 
 describe("a drag proposes dates through onSchedule", () => {
   test("moving by two days moves both ends", () => {
-    const onSchedule = vi.fn();
+    const onSchedule = vi.fn(() => true);
     renderWithProviders(<Harness onSchedule={onSchedule} />);
     const move = active("move");
     emit("onDragStart", gesture(move, 0));
@@ -298,14 +432,14 @@ describe("a drag proposes dates through onSchedule", () => {
   });
 
   test("a pointer delta that is not a whole number of days rounds to the nearest day", () => {
-    const onSchedule = vi.fn();
+    const onSchedule = vi.fn(() => true);
     renderWithProviders(<Harness onSchedule={onSchedule} />);
     emit("onDragEnd", { ...gesture(active("move"), 0), delta: { x: DAY * 2 + 9, y: 3 } });
     expect(onSchedule).toHaveBeenCalledExactlyOnceWith(1, "2026-09-18", "2026-09-20");
   });
 
   test("the start handle changes only the start and cannot cross the end", () => {
-    const onSchedule = vi.fn();
+    const onSchedule = vi.fn(() => true);
     renderWithProviders(<Harness onSchedule={onSchedule} />);
     emit("onDragEnd", gesture(active("resize-start"), -2));
     expect(onSchedule).toHaveBeenLastCalledWith(1, "2026-09-14", "2026-09-18");
@@ -314,7 +448,7 @@ describe("a drag proposes dates through onSchedule", () => {
   });
 
   test("the end handle changes only the end and cannot cross the start", () => {
-    const onSchedule = vi.fn();
+    const onSchedule = vi.fn(() => true);
     renderWithProviders(<Harness onSchedule={onSchedule} />);
     emit("onDragEnd", gesture(active("resize-end"), 3));
     expect(onSchedule).toHaveBeenLastCalledWith(1, "2026-09-16", "2026-09-21");
@@ -323,14 +457,14 @@ describe("a drag proposes dates through onSchedule", () => {
   });
 
   test("a drop that changes nothing proposes nothing", () => {
-    const onSchedule = vi.fn();
+    const onSchedule = vi.fn(() => true);
     renderWithProviders(<Harness onSchedule={onSchedule} />);
     emit("onDragEnd", gesture(active("move"), 0));
     expect(onSchedule).not.toHaveBeenCalled();
   });
 
   test("a cancelled drag proposes nothing and the bar returns", () => {
-    const onSchedule = vi.fn();
+    const onSchedule = vi.fn(() => true);
     renderWithProviders(<Harness onSchedule={onSchedule} />);
     const end = active("resize-end");
     emit("onDragStart", gesture(end, 0));
@@ -364,31 +498,38 @@ describe("a drag proposes dates through onSchedule", () => {
   });
 
   test("a tray item dropped on the track is scheduled for a week from the day under the pointer", () => {
-    const onSchedule = vi.fn();
+    const onSchedule = vi.fn(() => true);
     renderWithProviders(<Harness onSchedule={onSchedule} />);
     // the pointer went down at x = 400 and moved 100 px right; the track starts at x = 120: 380 px in = day 13 of the range
-    const event = {
-      active: trayActive,
-      delta: { x: 100, y: 0 },
-      over: { id: TIMELINE_DROP_ID, rect: { left: 120 } },
-      activatorEvent: { clientX: 400 },
-    };
-    emit("onDragEnd", event);
+    emit("onDragStart", trayStart(400));
+    act(() => {
+      window.dispatchEvent(new PointerEvent("pointermove", { clientX: 500, clientY: 0, isPrimary: true }));
+    });
+    emit("onDragEnd", { active: trayActive, delta: { x: 100, y: 0 }, over: zone(120, EVERYWHERE), activatorEvent: { clientX: 400 } });
     expect(onSchedule).toHaveBeenCalledExactlyOnceWith(9, "2026-09-27", "2026-10-03");
+  });
+
+  test("the day comes from the pointer, not from dnd-kit's delta (which adds the over-scroller's scroll offset to a tray item)", () => {
+    const onSchedule = vi.fn(() => true);
+    renderWithProviders(<Harness onSchedule={onSchedule} />);
+    // the grid is scrolled 3357 px: its zone starts at x = -2575, the pointer is at 920, and dnd-kit's delta claims 3996 px of travel
+    emit("onDragStart", trayStart(281));
+    act(() => {
+      window.dispatchEvent(new PointerEvent("pointermove", { clientX: 920, clientY: 0, isPrimary: true }));
+    });
+    emit("onDragEnd", { active: trayActive, delta: { x: 3996, y: 0 }, over: zone(-2575, EVERYWHERE), activatorEvent: { clientX: 281 } });
+    // (920 + 2575) / 28 = day 124 of the range (which starts 2026-09-14)
+    expect(onSchedule).toHaveBeenCalledExactlyOnceWith(9, "2027-01-16", "2027-01-22");
   });
 
   describe("a tray drop counts only inside the visible track", () => {
     // the scroller shows x 100..900 and y 50..650 on screen; the sticky columns take the first 260 px and the header 56 px
     const bounds = { left: 360, right: 900, top: 106, bottom: 650 };
     const dropAt = (clientX: number, clientY: number, visibleBounds: () => unknown = () => bounds) => {
-      const onSchedule = vi.fn();
+      const onSchedule = vi.fn(() => true);
       renderWithProviders(<Harness onSchedule={onSchedule} />);
-      emit("onDragEnd", {
-        active: trayActive,
-        delta: { x: 0, y: 0 },
-        over: { id: TIMELINE_DROP_ID, rect: { left: 360 }, data: { current: { visibleBounds } } },
-        activatorEvent: { clientX, clientY },
-      });
+      emit("onDragStart", trayStart(clientX, clientY));
+      emit("onDragEnd", { active: trayActive, delta: { x: 0, y: 0 }, over: zone(360, visibleBounds), activatorEvent: { clientX, clientY } });
       return onSchedule;
     };
 
@@ -415,12 +556,14 @@ describe("a drag proposes dates through onSchedule", () => {
 
     test("the drop zone reports the scroller's live rectangle, right of the columns and below the header", () => {
       let visibleBounds: (() => unknown) | undefined;
+      let zoneLeft: (() => unknown) | undefined;
       function Probe() {
         const { droppableContainers } = useDndContext();
         useEffect(() => {
           // the droppable registers a render after mount; every later render finds it
-          const data = droppableContainers.get(TIMELINE_DROP_ID)?.data.current as { visibleBounds?: () => unknown } | undefined;
+          const data = droppableContainers.get(TIMELINE_DROP_ID)?.data.current as { visibleBounds?: () => unknown; zoneLeft?: () => unknown } | undefined;
           if (data?.visibleBounds) visibleBounds = data.visibleBounds;
+          if (data?.zoneLeft) zoneLeft = data.zoneLeft;
         });
         return null;
       }
@@ -435,20 +578,26 @@ describe("a drag proposes dates through onSchedule", () => {
       vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue({ left: 100, right: 900, top: 50, bottom: 650 } as DOMRect);
       // 260 px of sticky columns and a 56 px header
       expect(visibleBounds?.()).toEqual({ left: 360, right: 900, top: 106, bottom: 650 });
+      // the zone's left edge is read live from its element (here: happy-dom's empty rect)
+      expect(zoneLeft?.()).toBe(0);
     });
   });
 
   test("a tray item dropped elsewhere, or started from the keyboard, is not scheduled", () => {
-    const onSchedule = vi.fn();
+    const onSchedule = vi.fn(() => true);
     renderWithProviders(<Harness onSchedule={onSchedule} />);
+    emit("onDragStart", trayStart(400));
     emit("onDragEnd", { active: trayActive, delta: { x: 0, y: 0 }, over: null, activatorEvent: { clientX: 400 } });
-    emit("onDragEnd", { active: trayActive, delta: { x: 0, y: 0 }, over: { id: "other", rect: { left: 0 } }, activatorEvent: { clientX: 400 } });
-    emit("onDragEnd", { active: trayActive, delta: { x: 0, y: 0 }, over: { id: TIMELINE_DROP_ID, rect: { left: 0 } }, activatorEvent: new Event("keydown") });
+    emit("onDragStart", trayStart(400));
+    emit("onDragEnd", { active: trayActive, delta: { x: 0, y: 0 }, over: { id: "other", data: { current: {} } }, activatorEvent: { clientX: 400 } });
+    // a keyboard activator has no coordinates, so there is no pointer to read a day from
+    emit("onDragStart", { active: trayActive, delta: { x: 0, y: 0 }, over: null, activatorEvent: new Event("keydown") });
+    emit("onDragEnd", { active: trayActive, delta: { x: 0, y: 0 }, over: zone(0, EVERYWHERE), activatorEvent: new Event("keydown") });
     expect(onSchedule).not.toHaveBeenCalled();
   });
 
   test("a foreign draggable is ignored", () => {
-    const onSchedule = vi.fn();
+    const onSchedule = vi.fn(() => true);
     renderWithProviders(<Harness onSchedule={onSchedule} />);
     const foreign = { id: "x", data: { current: {} } };
     emit("onDragStart", gesture(foreign as never, 0));
@@ -506,6 +655,19 @@ describe("announcements (EN)", () => {
     expect(announcements().onDragCancel?.({ active: end } as never)).toBe("Cancelled; Discovery stays at 2026-09-16 to 2026-09-18.");
   });
 
+  test("a drop the page refuses is announced as not changed, never as a drop", () => {
+    renderWithProviders(<Harness onSchedule={vi.fn(() => false)} />);
+    const move = active("move");
+    emit("onDragStart", gesture(move, 0));
+    emit("onDragMove", gesture(move, 2));
+    emit("onDragEnd", gesture(move, 2));
+    expect(announcements().onDragEnd({ active: move } as never)).toBe("Discovery was not changed: a save is still running. Try again in a moment.");
+    // a refused tray drop too
+    emit("onDragStart", trayStart(2 * DAY));
+    emit("onDragEnd", { active: trayActive, delta: { x: 0, y: 0 }, over: zone(0, EVERYWHERE), activatorEvent: { clientX: 2 * DAY } });
+    expect(announcements().onDragEnd({ active: trayActive } as never)).toBe("Rollout was not changed: a save is still running. Try again in a moment.");
+  });
+
   test("a tray item: pick-up, scheduled, not scheduled, cancelled", () => {
     renderWithProviders(<Harness />);
     expect(announcements().onDragStart({ active: trayActive } as never)).toBe("Picked up Rollout from the unscheduled list.");
@@ -514,12 +676,8 @@ describe("announcements (EN)", () => {
     expect(announcements().onDragMove?.({ active: trayActive } as never)).toBeUndefined();
     emit("onDragEnd", { active: trayActive, delta: { x: 0, y: 0 }, over: null, activatorEvent: null });
     expect(announcements().onDragEnd({ active: trayActive } as never)).toBe("Rollout was not scheduled.");
-    emit("onDragEnd", {
-      active: trayActive,
-      delta: { x: 0, y: 0 },
-      over: { id: TIMELINE_DROP_ID, rect: { left: 0 } },
-      activatorEvent: { clientX: 2 * DAY },
-    });
+    emit("onDragStart", trayStart(2 * DAY));
+    emit("onDragEnd", { active: trayActive, delta: { x: 0, y: 0 }, over: zone(0, EVERYWHERE), activatorEvent: { clientX: 2 * DAY } });
     expect(announcements().onDragEnd({ active: trayActive } as never)).toBe("Scheduled Rollout: 2026-09-16 to 2026-09-22.");
     // a finished drag is announced once and forgotten
     expect(announcements().onDragEnd({ active: trayActive } as never)).toBeUndefined();
@@ -543,7 +701,7 @@ function move() {
 
 describe("the keyboard sensor, end to end", () => {
   test("Space, ArrowRight, Space moves a bar by one day", async () => {
-    const onSchedule = vi.fn();
+    const onSchedule = vi.fn(() => true);
     renderWithProviders(<Harness onSchedule={onSchedule} />);
     const body = barBody("Discovery, Team A, 2026-09-16 to 2026-09-18");
     act(() => body.focus());

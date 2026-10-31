@@ -21,6 +21,8 @@
     "owner": "Właściciel/ka",
     "startDate": "Data początku",
     "endDate": "Data końca",
+    "team": "Zespół",
+    "estimate": "Szacunek",
     "targetWindow": "Okno docelowe"
   },
   "state": {
