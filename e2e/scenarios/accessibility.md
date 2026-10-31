@@ -3,9 +3,9 @@
 - **Spec**: [tests/accessibility.spec.ts](../tests/accessibility.spec.ts)
 - **Actors**: the seed administrator (`admin@astrolabe.local`) for the authenticated pages; an
   anonymous visitor for the login screen
-- **Owns** (exclusive server-side state): one fixture team (unique `e2e-axe-*` name), created
-  through the API before the detail-page block and deleted after it; the list/form pages and
-  the login screen are read-only
+- **Owns** (exclusive server-side state): one fixture team and one fixture plan (a person, a work
+  stream, a program and a project; unique `e2e-axe-*` names), created through the API before the
+  detail-page block and deleted after it; the list/form pages and the login screen are read-only
 
 This is the registered template-title exception (see README.md): one `test()` per page is
 generated from a list, so a single scenario section stands in for each list.
@@ -24,6 +24,10 @@ generated from a list, so a single scenario section stands in for each list.
 The list covers the Home page, the Teams list, the People list, the Users list and its create form, the
 ADMIN feature-flags screen, Change password and the Changelog — see
 `tests/accessibility.spec.ts`'s `AUTHED_PAGES` list for the current set.
+
+The detail-page block also scans `/plan` with the fixture plan rendered (a work stream, a program and a
+project row, light and dark) and the project editor modal (dates, the target-window fieldset and the owner
+picker) scoped to its dialog.
 
 ## Scenario: `<path>` has no WCAG A/AA violations in the dark scheme
 
@@ -58,7 +62,7 @@ ADMIN feature-flags screen, Change password and the Changelog — see
   reachable through the ordinary flow.
 - **The opened mobile nav drawer** — only the closed shell (header + page) is scanned at the phone
   width; the drawer's slide-in transition makes contrast measurement racy.
-- **Modals and detail pages in the dark scheme** — the dark pass covers the page sets above, not the
-  overlay or the fixture team's detail pages.
+- **Modals and detail pages in the dark scheme** — the dark pass covers the page sets above and the
+  Plan page with rows, not the overlays or the fixture team's detail pages.
 - **Colour tokens themselves** — the ratios are pinned in `web/src/theme.test.ts`; axe here
   verifies the rendered pages honour them.

@@ -21,6 +21,7 @@ export default function SearchPicker({
   queryKey,
   search,
   enabled = true,
+  disabled,
   error,
   picked,
   onPick,
@@ -36,6 +37,8 @@ export default function SearchPicker({
   /** Runs the server-side search (page size and sort belong to the caller); `term` is "" for the unfiltered head. */
   search: (term: string) => Promise<PickedOption[]>;
   enabled?: boolean;
+  /** The control is read-only for this session (a plan editor the caller may only look at). */
+  disabled?: boolean;
   /** A field error (a server conflict the form maps onto this control). */
   error?: ReactNode;
   picked: PickedOption | null;
@@ -74,6 +77,7 @@ export default function SearchPicker({
         value={picked?.value ?? null}
         onChange={(value, option) => onPick(value !== null && option ? { value: option.value, label: option.label } : null)}
         nothingFoundMessage={loading || results.isError || settling ? undefined : noMatchLabel}
+        disabled={disabled}
         error={error}
         aria-busy={loading}
       />

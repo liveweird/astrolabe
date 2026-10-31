@@ -52,7 +52,7 @@ edited spec must satisfy:
 - Each spec's scenario file declares its **Owns** line (exclusive server-side state; "nothing —
   read-only" when applicable). Today: `auth`, `changelog` and `shell` (device-local
   localStorage only) are read-only; `accessibility` owns one API-seeded fixture team
-  (`e2e-axe-team-*`); `users` owns its throwaway accounts; `teams` owns its throwaway teams (unique `e2e-team-*` names), person and user; `people` owns its throwaway people (unique `e2e-person-*` names) and users; `i18n` owns its throwaway user (and ONLY that user's
+  (`e2e-axe-team-*`) and one API-seeded fixture plan (`e2e-axe-*`); `users` owns its throwaway accounts; `teams` owns its throwaway teams (unique `e2e-team-*` names), person and user; `people` owns its throwaway people (unique `e2e-person-*` names) and users; `plan` owns its throwaway people, work streams, programs, projects (unique `e2e-plan-*` names) and user; `i18n` owns its throwaway user (and ONLY that user's
   language — **seeded accounts must stay English**: every login applies the stored language to
   that session's UI, so a Polish seed admin would flip parallel specs mid-run); `password-reset`
   owns its throwaway account (its reset requests use unique per-run emails against the
@@ -91,8 +91,8 @@ the same commit** — this list is the coverage map, the scenario file is the de
 - [`accessibility.spec.ts`](scenarios/accessibility.md) — axe WCAG A/AA smoke: login + the
   authenticated list/form pages (`/`, `/teams`, `/people`, `/users`, `/users/new`, `/feature-flags`,
   `/change-password`, `/changelog`), the detail pages of an API-seeded fixture team (its team page,
-  the admin's own edit-user and user-features pages), `/reset-password` and its confirm page (the form state, from a well-formed link), the not-found page, and a
-  registry editor modal scoped to its dialog; the app shell at a mobile width (390x844, the burger present), light and dark; the login screen and the list/form pages again in
+  the admin's own edit-user and user-features pages), the Plan page with an API-seeded work stream, program and project (light and dark), `/reset-password` and its confirm page (the form state, from a well-formed link), the not-found page, and a
+  registry editor modal and the Plan project editor modal scoped to their dialogs; the app shell at a mobile width (390x844, the burger present), light and dark; the login screen and the list/form pages again in
   the DARK scheme (`colorScheme: "dark"`, which the `auto` default follows); `color-contrast` included
   (the theme's tokens are AA-tested in `web/src/theme.test.ts`).
 - [`auth.spec.ts`](scenarios/auth.md) — login / logout / invalid credentials / guarded deep link with query and hash;
@@ -121,6 +121,10 @@ the same commit** — this list is the coverage map, the scenario file is the de
   email) → link a throwaway login from the Login picker and rename → the list shows the login's
   email → delete from the row; a regular user's read-only list and person page (emails visible, no
   New person, no row menu, no Edit button).
+- [`plan.spec.ts`](scenarios/plan.md) — the Plan page: an admin builds work stream → program → project
+  through the modals (owners picked from the people directory, a target window), hands the project over,
+  sees the delete refused while a parent has children, then deletes bottom-up; a project owner sees the
+  whole plan but actions only on their own project, edits it, and finds the target window disabled.
 - [`password-reset.spec.ts`](scenarios/password-reset.md) — the forgot-password flow:
   neutral confirmation + per-email throttle; the emailed single-use link opened through the
   compose stack's Mailpit keeps the old password until the new one is set, then ends the old

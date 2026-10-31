@@ -9,12 +9,14 @@ import "@fontsource-variable/inter/index.css";
 // splits theme.module.css into a shared CSS chunk once lazy pages import it, and index.html
 // links that chunk BEFORE Mantine's own styles, where plain source order would lose.
 import "@mantine/core/styles.layer.css";
+import "@mantine/dates/styles.layer.css";
 import "@mantine/notifications/styles.layer.css";
 import "@mantine/spotlight/styles.layer.css";
 import "./index.css";
 import "./print.css";
 import "./i18n";
 import App from "./App.tsx";
+import AppDatesProvider from "./components/AppDatesProvider";
 import ErrorBoundary from "./components/ErrorBoundary";
 import PrintAwareMantineProvider from "./components/PrintAwareMantineProvider";
 import SessionBoundary from "./components/SessionBoundary";
@@ -56,11 +58,13 @@ createRoot(document.getElementById("root")!).render(
           the Shell (App.tsx), so this one only catches crashes of the shell itself. */}
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
-          <BrowserRouter>
-            <SessionBoundary>
-              <App />
-            </SessionBoundary>
-          </BrowserRouter>
+          <AppDatesProvider>
+            <BrowserRouter>
+              <SessionBoundary>
+                <App />
+              </SessionBoundary>
+            </BrowserRouter>
+          </AppDatesProvider>
         </QueryClientProvider>
       </ErrorBoundary>
     </PrintAwareMantineProvider>

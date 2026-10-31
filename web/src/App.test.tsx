@@ -60,6 +60,9 @@ describe("App shell", () => {
       // Sections are labelled groups, never toggles — every leaf is in the DOM immediately.
       const overview = await screen.findByRole("group", { name: "Overview" });
       expect(within(overview).getByRole("link", { name: "Home" })).toHaveAttribute("href", "/");
+      // Planning is everyone's: the Plan page is readable by every signed-in user.
+      const planning = screen.getByRole("group", { name: "Planning" });
+      expect(within(planning).getByRole("link", { name: "Plan" })).toHaveAttribute("href", "/plan");
       // A non-admin session still sees Administration — Teams and People are everyone's, only Users and
       // Feature flags are admin-only and drop out.
       const admin = screen.getByRole("group", { name: "Administration" });

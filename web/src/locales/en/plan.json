@@ -1,0 +1,94 @@
+{
+  "title": "Plan",
+  "intro": "Work streams, their programs and projects, each with an owner. Everyone can read the plan; owners edit what they own and everything below it, and administrators edit everything.",
+  "newWorkStream": "New work stream",
+  "newProgram": "New program",
+  "newProgramAria": "New program in {{name}}",
+  "newProject": "New project",
+  "newProjectAria": "New project in {{name}}",
+  "empty": "No work streams yet",
+  "emptyHint": "An administrator creates the first work stream.",
+  "emptyHintCreate": "Create the first work stream to start planning.",
+  "loadFailed": "Could not load the plan",
+  "noPrograms": "No programs yet",
+  "noProjects": "No projects yet",
+  "closed": "Closed",
+  "ownerLine": "Owner: {{name}}",
+  "datesOpen": "From {{start}}",
+  "window": "{{start}} – {{end}}",
+  "noWindow": "Not set",
+  "projectsTableAria": "Projects of {{name}}",
+  "column": {
+    "project": "Project"
+  },
+  "targetStart": "Target start",
+  "targetEnd": "Target end",
+  "clearDateAria": "Clear {{field}}",
+  "ownerHint": "Owners edit this and everything below it, and can hand it over to someone else.",
+  "pickOwner": "Search people by name…",
+  "clearOwner": "Clear the owner",
+  "deleteFailed": "Could not delete",
+  "saveForbidden": "You are not allowed to change this",
+  "saveInvalid": "One or more fields are invalid — check the owner and the dates",
+  "saveGone": "This no longer exists — reload the page",
+  "validation": {
+    "nameLength": "Name must be 1–100 characters",
+    "descriptionLength": "Description must be at most 500 characters",
+    "ownerRequired": "Pick an owner",
+    "startRequired": "Enter a start date",
+    "dateShape": "Enter a valid date (YYYY-MM-DD)",
+    "endBeforeStart": "The end must not be before the start",
+    "windowBoth": "Set both target dates or neither"
+  },
+  "toast": {
+    "deleted": "Deleted from the plan"
+  },
+  "workStream": {
+    "createTitle": "New work stream",
+    "editTitle": "Edit work stream",
+    "endDateHint": "Set only when the work stream is closed. Clear it to reopen.",
+    "close": "Close work stream",
+    "closeAria": "Close work stream {{name}}",
+    "reopen": "Reopen work stream",
+    "reopenAria": "Reopen work stream {{name}}",
+    "saveConflict": "A work stream with this name already exists",
+    "deleteTitle": "Delete work stream?",
+    "deleteBody": "Work stream \"{{name}}\" will be deleted.",
+    "deleteConflict": "This work stream still has programs. Delete them first.",
+    "toast": {
+      "created": "Work stream created",
+      "saved": "Work stream saved",
+      "closed": "Work stream closed",
+      "reopened": "Work stream reopened"
+    }
+  },
+  "program": {
+    "createTitle": "New program",
+    "editTitle": "Edit program",
+    "parentLine": "In work stream {{name}}",
+    "saveConflict": "A program with this name already exists",
+    "deleteTitle": "Delete program?",
+    "deleteBody": "Program \"{{name}}\" will be deleted.",
+    "deleteConflict": "This program still has projects. Delete them first.",
+    "toast": {
+      "created": "Program created",
+      "saved": "Program saved"
+    }
+  },
+  "project": {
+    "createTitle": "New project",
+    "editTitle": "Edit project",
+    "parentLine": "In program {{name}}",
+    "fieldsReadOnly": "Only the project's owner, an owner above it or an administrator can change these fields.",
+    "windowHint": "Both dates or neither.",
+    "windowReadOnly": "Only an administrator, an owner above the project or a roadmap editor can change the target window.",
+    "saveConflict": "A project with this name already exists in this program",
+    "deleteTitle": "Delete project?",
+    "deleteBody": "Project \"{{name}}\" will be deleted.",
+    "deleteConflict": "This project cannot be deleted right now.",
+    "toast": {
+      "created": "Project created",
+      "saved": "Project saved"
+    }
+  }
+}

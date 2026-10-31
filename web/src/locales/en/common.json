@@ -17,7 +17,11 @@
     "email": "Email",
     "name": "Name",
     "role": "Role",
-    "description": "Description"
+    "description": "Description",
+    "owner": "Owner",
+    "startDate": "Start date",
+    "endDate": "End date",
+    "targetWindow": "Target window"
   },
   "state": {
     "any": "Any"

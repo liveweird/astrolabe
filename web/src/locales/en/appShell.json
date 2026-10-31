@@ -10,10 +10,12 @@
     "featureFlags": "Feature flags",
     "changelog": "Changelog",
     "teams": "Teams",
-    "people": "People"
+    "people": "People",
+    "plan": "Plan"
   },
   "section": {
     "overview": "Overview",
+    "planning": "Planning",
     "administration": "Administration"
   },
   "userMenu": {

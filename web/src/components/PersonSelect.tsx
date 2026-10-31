@@ -1,10 +1,11 @@
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { listPeople } from "../api/people";
 import SearchPicker, { type PickedOption } from "./SearchPicker";
 
 /**
  * A searchable, clearable picker over the people directory (`GET /people` is open to every signed-in user, so — unlike the
- * ADMIN-only users search — the query runs for any session): the team editor's Manager and, later, the plan editors' Owner.
+ * ADMIN-only users search — the query runs for any session): the team editor's Manager and the plan editors' Owner.
  * Options read `name (email)` or just `name`; the caller holds the pick (its label survives later searches).
  */
 export default function PersonSelect({
@@ -14,6 +15,8 @@ export default function PersonSelect({
   clearLabel,
   picked,
   onPick,
+  disabled,
+  error,
 }: {
   label: string;
   description?: string;
@@ -21,6 +24,9 @@ export default function PersonSelect({
   clearLabel: string;
   picked: PickedOption | null;
   onPick: (picked: PickedOption | null) => void;
+  disabled?: boolean;
+  /** A field error (a validation or a server conflict the form maps onto this control). */
+  error?: ReactNode;
 }) {
   const { t } = useTranslation();
   return (
@@ -37,6 +43,8 @@ export default function PersonSelect({
       }}
       picked={picked}
       onPick={onPick}
+      disabled={disabled}
+      error={error}
     />
   );
 }

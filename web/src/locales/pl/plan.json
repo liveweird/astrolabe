@@ -1,0 +1,94 @@
+{
+  "title": "Plan",
+  "intro": "Strumienie pracy, ich programy i projekty, każde z właścicielem/ką. Każdy widzi plan; właściciele/ki edytują to, co posiadają, i wszystko poniżej, a administratorzy/rki edytują wszystko.",
+  "newWorkStream": "Nowy strumień pracy",
+  "newProgram": "Nowy program",
+  "newProgramAria": "Nowy program w: {{name}}",
+  "newProject": "Nowy projekt",
+  "newProjectAria": "Nowy projekt w: {{name}}",
+  "empty": "Nie ma jeszcze strumieni pracy",
+  "emptyHint": "Pierwszy strumień pracy tworzy administrator/ka.",
+  "emptyHintCreate": "Utwórz pierwszy strumień pracy, aby zacząć planować.",
+  "loadFailed": "Nie udało się wczytać planu",
+  "noPrograms": "Nie ma jeszcze programów",
+  "noProjects": "Nie ma jeszcze projektów",
+  "closed": "Zamknięty",
+  "ownerLine": "Właściciel/ka: {{name}}",
+  "datesOpen": "Od {{start}}",
+  "window": "{{start}} – {{end}}",
+  "noWindow": "Nie ustawiono",
+  "projectsTableAria": "Projekty programu {{name}}",
+  "column": {
+    "project": "Projekt"
+  },
+  "targetStart": "Początek docelowy",
+  "targetEnd": "Koniec docelowy",
+  "clearDateAria": "Wyczyść: {{field}}",
+  "ownerHint": "Właściciel/ka edytuje to i wszystko poniżej oraz może przekazać to komuś innemu.",
+  "pickOwner": "Szukaj osób po nazwie…",
+  "clearOwner": "Wyczyść właściciela/kę",
+  "deleteFailed": "Nie udało się usunąć",
+  "saveForbidden": "Nie masz uprawnień do zmiany tego",
+  "saveInvalid": "Jedno lub więcej pól jest nieprawidłowe — sprawdź właściciela/kę i daty",
+  "saveGone": "To już nie istnieje — odśwież stronę",
+  "validation": {
+    "nameLength": "Nazwa musi mieć od 1 do 100 znaków",
+    "descriptionLength": "Opis może mieć najwyżej 500 znaków",
+    "ownerRequired": "Wybierz właściciela/kę",
+    "startRequired": "Wpisz datę początku",
+    "dateShape": "Wpisz prawidłową datę (RRRR-MM-DD)",
+    "endBeforeStart": "Koniec nie może być przed początkiem",
+    "windowBoth": "Ustaw obie daty docelowe albo żadnej"
+  },
+  "toast": {
+    "deleted": "Usunięto z planu"
+  },
+  "workStream": {
+    "createTitle": "Nowy strumień pracy",
+    "editTitle": "Edytuj strumień pracy",
+    "endDateHint": "Ustawiana tylko, gdy strumień pracy jest zamknięty. Wyczyść ją, aby go otworzyć ponownie.",
+    "close": "Zamknij strumień pracy",
+    "closeAria": "Zamknij strumień pracy {{name}}",
+    "reopen": "Otwórz strumień pracy ponownie",
+    "reopenAria": "Otwórz ponownie strumień pracy {{name}}",
+    "saveConflict": "Strumień pracy o tej nazwie już istnieje",
+    "deleteTitle": "Usunąć strumień pracy?",
+    "deleteBody": "Usuniemy strumień pracy „{{name}}”.",
+    "deleteConflict": "Ten strumień pracy nadal ma programy. Najpierw je usuń.",
+    "toast": {
+      "created": "Utworzono strumień pracy",
+      "saved": "Zapisano strumień pracy",
+      "closed": "Zamknięto strumień pracy",
+      "reopened": "Otwarto strumień pracy ponownie"
+    }
+  },
+  "program": {
+    "createTitle": "Nowy program",
+    "editTitle": "Edytuj program",
+    "parentLine": "W strumieniu pracy: {{name}}",
+    "saveConflict": "Program o tej nazwie już istnieje",
+    "deleteTitle": "Usunąć program?",
+    "deleteBody": "Usuniemy program „{{name}}”.",
+    "deleteConflict": "Ten program nadal ma projekty. Najpierw je usuń.",
+    "toast": {
+      "created": "Utworzono program",
+      "saved": "Zapisano program"
+    }
+  },
+  "project": {
+    "createTitle": "Nowy projekt",
+    "editTitle": "Edytuj projekt",
+    "parentLine": "W programie: {{name}}",
+    "fieldsReadOnly": "Te pola może zmienić tylko właściciel/ka projektu, właściciel/ka wyżej w planie albo administrator/ka.",
+    "windowHint": "Obie daty albo żadnej.",
+    "windowReadOnly": "Okno docelowe może zmienić tylko administrator/ka, właściciel/ka wyżej w planie albo edytor/ka roadmapy.",
+    "saveConflict": "Projekt o tej nazwie już istnieje w tym programie",
+    "deleteTitle": "Usunąć projekt?",
+    "deleteBody": "Usuniemy projekt „{{name}}”.",
+    "deleteConflict": "Teraz nie można usunąć tego projektu.",
+    "toast": {
+      "created": "Utworzono projekt",
+      "saved": "Zapisano projekt"
+    }
+  }
+}

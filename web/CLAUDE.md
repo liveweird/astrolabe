@@ -1,9 +1,9 @@
 # Frontend (`web/`)
 
 Vite + React 19 + TypeScript SPA: the shell + auth, user/feature management, MFA, password reset,
-the changelog, the flat-teams registry, the people directory and the ADMIN telemetry panel — the v0.1.0 foundation, trimmed from Flow
-(`~/Sources/flow` @ e9c3b726, the donor: port building blocks from there, don't reinvent) — with a placeholder Home;
-the planning views (work streams → programs → projects → milestones, the timeline) arrive from 0.2. Routes are lazy.
+the changelog, the flat-teams registry, the people directory, the Plan page (work streams → programs → projects) and the ADMIN telemetry panel — the v0.1.0 foundation,
+trimmed from Flow (`~/Sources/flow` @ e9c3b726, the donor: port building blocks from there, don't reinvent) — with a placeholder Home;
+the roadmap, milestones and the timeline arrive after 0.2. Routes are lazy.
 
 - Dev server: `cd web && npm run dev` (port **5178** — not Vite's 5173 default, so Astrolabe can run
   beside Flow's 5176 and the sibling stacks' 5173–5175). All backend routes live under the
@@ -25,9 +25,8 @@ the planning views (work streams → programs → projects → milestones, the t
   (`web/.eslintcache`, gitignored; a warm run is ~0.6 s against ~12 s, CI restores the file between runs —
   `build-times.md` WHY 20); the config is not type-aware, so a per-file cache is sound, and a config change or an
   ESLint/node upgrade re-lints everything on its own. `npm run knip` is the dead-code gate
-  (unused files/exports/dependencies; `knip.json` ignores the generated `schema.ts`, the
-  `ajv` devDependency pinned only for `@stoplight/spectral-cli`'s resolution, and `@mantine/dates` + `dayjs`, kept installed
-  for the v0.2/v0.3 date inputs and timeline that have no consumer yet — drop the two ignores when the first one lands) — keep exports that
+  (unused files/exports/dependencies; `knip.json` ignores the generated `schema.ts` and the
+  `ajv` devDependency pinned only for `@stoplight/spectral-cli`'s resolution; `@mantine/dates` and `dayjs` have real consumers since the Plan page) — keep exports that
   only the declaring file uses un-exported, and delete what knip flags rather than ignoring it.
   **The API-contract gate**: `npm run lint:api` Spectral-lints the OpenAPI spec and
   `api-guidelines/examples/conformant.yaml` with `--fail-severity=warn`, through Astrolabe's local ruleset
@@ -62,7 +61,7 @@ the planning views (work streams → programs → projects → milestones, the t
 - Pages are **lazy** (`React.lazy` in `App.tsx`); new routes register above the `path="*"`
   NotFound catch-all (LAST child, never feature-gated). **The nav model lives in
   `utils/navigation.ts`**, shared by the sidebar and the command palette: `NAV_SECTIONS` —
-  labelled, always-open sections (currently Overview and Administration: Teams, People, Users, Feature flags) of `NavLeaf`s (the
+  labelled, always-open sections (currently Overview, Planning: Plan, and Administration: Teams, People, Users, Feature flags) of `NavLeaf`s (the
   `label` is a typed i18n key; `adminOnly?` gates admin leaves, `keywords?` adds raw palette search terms for a renamed page's old name, and `visibleSections(isAdmin())`
   drops an emptied section) — plus `ACCOUNT_NAV` (Change password, Changelog), which the header
   `UserMenu` and the palette render and the sidebar never does. Sections are static captions
@@ -220,6 +219,15 @@ server's own validation (`infra/validation/Text.kt`'s `requireNameAndDescription
 - **Widths**: `Paper withBorder p="xl" maw={FORM_MAX_WIDTH}` under a `PageHeader` (with `backTo`
   to the list) for simple field forms — left-aligned, never a centred `Container`.
 
+## The Plan page (`pages/Plan.tsx`)
+
+`/plan` (nav section Planning, everyone) renders `GET /views/plan` under `["plan", "view"]` as the tree work stream (h3, `PlanWorkStreamSection`) → program (h4, `PlanProgramBlock`) → projects table. **What a row offers
+comes from the view's `can:{}` flags, never from the session's roles** — the server computes them with the guards' own arithmetic; show only the allowed actions, and let the server's 403/409/400 reach the modals through
+`planSaveErrorMessage`/`saveErrorMessage` (a name clash marks the name field, everything else is an inline alert). The three editors (`WorkStreamEditorModal`, `ProgramEditorModal`, `ProjectEditorModal`) share
+`PlanNodeFields` (name, description, owner via `PersonSelect` — required on every node); the project editor enables its fields by `can.edit` and its target window by `can.editTargetWindow` and saves only the changed, enabled
+parts as two PUTs. **Dates** are `components/PlanDateInput.tsx` (`@mantine/dates` `DateInput` over `YYYY-MM-DD` strings, no `Date` objects; the language reaches the calendar through `components/AppDatesProvider.tsx` in `main.tsx`,
+which also owns the `dayjs/locale/<lang>` imports — a new shipped language needs its line there). Rules and wire mappers: `utils/planForm.ts`. Mechanics: `.claude/docs/web-internals.md`.
+
 ## User management and feature flags
 
 Passwords are generated client-side and revealed exactly once (`components/OneTimePasswordModal.tsx` sets `closeOnClickOutside={false} closeOnEscape={false}`; closing drops the plaintext for good). The management routes sit under ONE `<Route element={<RequireAdmin />}>` in `App.tsx` — no page redirects itself, their queries stay `enabled: isAdmin()`; UX only, the server's `requireAdmin` is the rule. Users live under `/users` (list, `/new`, `/:id/edit`, `/:id/features`; `utils/userLinks.ts` spells the family out — never hand-assemble a URL); feature flags (`/users/:id/features`, ADMIN `/feature-flags`): mind the wholesale-replace semantics — a PUT whose disabled set omits `MFA` ENABLES it. Page narratives (`pages/Users|CreateUser|EditUser|ChangePassword|FeatureFlags|UserFeatures.tsx`): `.claude/docs/web-internals.md`.
@@ -229,7 +237,7 @@ Passwords are generated client-side and revealed exactly once (`components/OneTi
 The ADMIN telemetry panel (`components/Telemetry*.tsx`, the shell's right-hand aside: memory, storage, requests, JVM) is the only chart surface in 0.1.0. Rules that apply to every page:
 
 - **Charts** (any page): charts live only in lazy chunks, each chart component imports `@mantine/charts/styles.css` itself, a legend for two or more series, one axis (never dual), every chart has its numbers in a table beside it, colour is never the only carrier of identity, and colours come from the existing vocabulary in `utils/chartColors.ts` (no new hue for meaningful series; series keyed by arbitrary names — statuses, columns, people — draw from its `CATEGORY_PALETTE`; every mark clears WCAG 1.4.11, ≥ 3:1). Tests mock `@mantine/charts`. 
-- **Dates** render deterministically (`YYYY-MM-DD` / `YYYY-MM-DD HH:mm` via `utils/formatDate.ts`), never `toLocaleString()`.
+- **Dates** render deterministically (`YYYY-MM-DD` / `YYYY-MM-DD HH:mm` via `utils/formatDate.ts`), never `toLocaleString()`; date inputs are `PlanDateInput` over ISO strings (see "The Plan page").
 - **Failures render inline, never as a toast** (see "Error handling"); success toasts use the fixed vocabulary only.
 
 ## Internationalization (i18n)
@@ -239,7 +247,7 @@ are English (THE default and fallback everywhere) and Polish. All user-facing st
 `const { t } = useTranslation()` / `<Trans>` — **no hardcoded UI text**. Conventions:
 
 - **Resources** live in `src/locales/{en,pl}/<area>.json`, one file per area (`appShell`, `auth`,
-  `changelog`, `common`, `home`, `teams`, `telemetry`, `users`); `i18n.ts` merges them into a single
+  `changelog`, `common`, `home`, `people`, `plan`, `teams`, `telemetry`, `users`); `i18n.ts` merges them into a single
   `translation` namespace, so keys read `area.key` (e.g. `t("auth.signIn")`). Only EN is
   statically imported — its typed `en` tree is the key canon AND the runtime fallback; every other
   language is auto-discovered from `locales/<lang>/` via `import.meta.glob`. Bundles are eager on

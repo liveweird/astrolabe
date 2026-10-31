@@ -2,7 +2,8 @@
 // and form pages, the detail pages of one API-seeded fixture team, and the overlays (a registry
 // editor modal) — where focus traps, aria-modal and labels actually live, and the app shell at a
 // phone width (the burger); the page sets run in the light scheme and again in the dark one.
-// Owns: the fixture team (unique `e2e-axe-*` name), created and deleted via the API.
+// Owns: the fixture team and the fixture plan (a person, work stream, program and project; unique `e2e-axe-*` names), created and
+// deleted via the API.
 import type { APIRequestContext, Locator, Page } from "@playwright/test";
 import {
   apiAsAdmin,
@@ -95,17 +96,40 @@ test.describe("detail pages and overlays", () => {
   let adminId: number;
   let teamId: number;
   let teamName: string;
+  let programName: string;
+  let streamName: string;
+  // The fixture plan's delete paths, children first (a parent with active children answers 409).
+  let planPaths: string[];
+
+  async function create(path: string, data: object): Promise<number> {
+    const created = await api.post(path, { data });
+    expect(created.status(), await created.text()).toBe(201);
+    return (await created.json() as { id: number }).id;
+  }
 
   test.beforeAll(async () => {
     ({ api, userId: adminId } = await apiAsAdmin());
     teamName = uniqueText("e2e-axe-team");
-    const created = await api.post("/api/v1/teams", { data: { name: teamName } });
-    expect(created.status(), await created.text()).toBe(201);
-    teamId = (await created.json() as { id: number }).id;
+    teamId = await create("/api/v1/teams", { name: teamName });
+    // One of each plan level so the Plan page renders a work stream, a program and a project row.
+    streamName = uniqueText("e2e-axe-stream");
+    programName = uniqueText("e2e-axe-program");
+    const personId = await create("/api/v1/people", { name: uniqueText("e2e-axe-owner") });
+    const streamId = await create("/api/v1/work-streams", { name: streamName, ownerPersonId: personId, startDate: "2026-01-05" });
+    const programId = await create(`/api/v1/work-streams/${streamId}/programs`, { name: programName, ownerPersonId: personId });
+    const projectId = await create(`/api/v1/programs/${programId}/projects`, {
+      name: uniqueText("e2e-axe-project"),
+      ownerPersonId: personId,
+      targetStart: "2026-02-02",
+      targetEnd: "2026-03-31",
+    });
+    planPaths = [`/api/v1/projects/${projectId}`, `/api/v1/programs/${programId}`, `/api/v1/work-streams/${streamId}`, `/api/v1/people/${personId}`];
   });
   test.afterAll(async () => {
-    const response = await api.delete(`/api/v1/teams/${teamId}`);
-    expect([204, 404], `/api/v1/teams/${teamId} -> ${response.status()}`).toContain(response.status());
+    for (const path of [...planPaths, `/api/v1/teams/${teamId}`]) {
+      const response = await api.delete(path);
+      expect([204, 404], `${path} -> ${response.status()}`).toContain(response.status());
+    }
     await api.dispose();
   });
 
@@ -122,6 +146,23 @@ test.describe("detail pages and overlays", () => {
       await scan(page);
     });
   }
+
+  // The Plan page with a work stream, a program and a project rendered (the empty page is a subset), light and dark.
+  function registerPlanScan(scheme: Scheme): void {
+    const suffix = scheme === "dark" ? " in the dark scheme" : "";
+    test(`/plan with a work stream, a program and a project has no WCAG A/AA violations${suffix}`, async ({ page }) => {
+      await login(page);
+      await page.goto("/plan");
+      await expect(page.getByRole("heading", { level: 4, name: programName })).toBeVisible();
+      await expectScheme(page, scheme);
+      await scan(page);
+    });
+  }
+  registerPlanScan("light");
+  test.describe("dark scheme", () => {
+    test.use({ colorScheme: "dark" });
+    registerPlanScan("dark");
+  });
 
   test("the reset-password page has no WCAG A/AA violations", async ({ page }) => {
     await page.goto("/reset-password");
@@ -157,6 +198,15 @@ test.describe("detail pages and overlays", () => {
     await page.getByRole("button", { name: "New team" }).click();
     const modal = await settledDialog(page);
     await expect(modal.getByRole("heading", { name: "New team" })).toBeVisible();
+    await scan(page, '[role="dialog"]');
+  });
+
+  test("a plan project editor modal (dates, fieldset, owner picker) has no WCAG A/AA violations", async ({ page }) => {
+    await login(page);
+    await page.goto("/plan");
+    await page.getByRole("button", { name: `New project in ${programName}` }).click();
+    const modal = await settledDialog(page);
+    await expect(modal.getByRole("heading", { name: "New project" })).toBeVisible();
     await scan(page, '[role="dialog"]');
   });
 });

@@ -26,6 +26,9 @@ const SIGNED_OUT = new Set(["/login", "/reset-password", "/reset-password/confir
 function emptyApi() {
   return vi.fn((input: RequestInfo | URL) => {
     const url = String(input);
+    if (url === "/api/v1/views/plan") {
+      return Promise.resolve(jsonResponse(200, { revision: 0, can: { createWorkStream: true }, workStreams: [] }));
+    }
     if (/\/api\/v1\/(users|teams|people)(\?|$)/.test(url)) {
       return Promise.resolve(jsonResponse(200, { items: [], page: 1, pageSize: 20, total: 0 }));
     }

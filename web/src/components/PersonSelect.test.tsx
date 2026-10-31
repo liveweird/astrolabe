@@ -80,4 +80,20 @@ describe("PersonSelect", () => {
     await user.click(screen.getByLabelText("Clear the owner"));
     expect(onChange).toHaveBeenLastCalledWith(null);
   });
+
+  test("a disabled picker is read-only, and a field error is shown on it", () => {
+    renderWithProviders(
+      <PersonSelect
+        label="Owner"
+        placeholder="Search people…"
+        clearLabel="Clear the owner"
+        picked={{ value: "3", label: "Anna Nowak" }}
+        onPick={() => {}}
+        disabled
+        error="Pick an owner"
+      />,
+    );
+    expect(screen.getByRole("combobox", { name: "Owner" })).toBeDisabled();
+    expect(screen.getByText("Pick an owner")).toBeInTheDocument();
+  });
 });

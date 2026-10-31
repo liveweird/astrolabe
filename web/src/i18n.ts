@@ -14,6 +14,7 @@ import enChangelog from "./locales/en/changelog.json";
 import enUsers from "./locales/en/users.json";
 import enHome from "./locales/en/home.json";
 import enPeople from "./locales/en/people.json";
+import enPlan from "./locales/en/plan.json";
 import enTeams from "./locales/en/teams.json";
 import enTelemetry from "./locales/en/telemetry.json";
 
@@ -59,6 +60,7 @@ export const en = {
   users: enUsers,
   home: enHome,
   people: enPeople,
+  plan: enPlan,
   teams: enTeams,
   telemetry: enTelemetry,
 };

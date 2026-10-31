@@ -10,10 +10,12 @@
     "featureFlags": "Flagi funkcji",
     "changelog": "Historia zmian",
     "teams": "Zespoły",
-    "people": "Osoby"
+    "people": "Osoby",
+    "plan": "Plan"
   },
   "section": {
     "overview": "Przegląd",
+    "planning": "Planowanie",
     "administration": "Administracja"
   },
   "userMenu": {

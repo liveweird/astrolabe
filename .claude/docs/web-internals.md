@@ -108,7 +108,24 @@ The people directory (V10), a Teams clone under Administration after Teams, **vi
 search). A list row carries every field of the detail, so Edit takes the row as it stands (no detail fetch). `components/PersonSelect.tsx` is the owner/manager picker
 (`["people","picker",term]`, enabled for every session, options `name (email)` or `name`); it and `UserSelect` are thin wrappers over `components/SearchPicker.tsx` (debounced server-side
 search, the picked entry held by the caller). A 409 on save marks the email field, or the login field when the server's detail says the link is taken. The family is spelled out in
-`utils/peopleLinks.ts`; the team editor's manager is a person (`managerPersonId`).
+`utils/peopleLinks.ts`; the team editor's manager is a person (`managerPersonId`). `PersonSelect` also takes `disabled` and `error` (the plan editors' Owner: read-only for a caller who may edit only another part of the modal, and the required-owner message).
+
+## Plan (`pages/Plan.tsx`)
+
+The plan tree (V12 + `GET /views/plan`), a read for everyone whose actions are gated by the view's `can` flags (`utils/planActions.ts` is the row-to-page callback contract). `Plan.tsx` owns the query (`["plan","view"]`),
+which editor is open (`EditorState`: work stream / program under its stream / project under its program), one `useDeleteConfirm` for all three delete levels (the confirm texts come from the `DELETE_TEXT` map,
+a 409 says "delete the children first") and the close/reopen mutation; every success refreshes `["plan"]` through `refreshQueriesAfterMutation`. **Close / reopen** is a one-step menu action on a stream:
+the full-replace `PUT /work-streams/{id}` of the row as it stands with only `endDate` changed (today, never before the start / `null`) — a closed stream (end date set) still shows "New program" and still takes children. The
+stream editor's End date field does the same with a typed date, and clearing it reopens.
+
+**The project editor has two independently permitted parts**, because the server guards them differently: the fields (`PUT /projects/{id}`, `can.edit`) and the target window (`PUT /projects/{id}/target-window`, `can.editTargetWindow` —
+a project's OWN owner is deliberately not enough; a roadmap editor has the window but not the fields). A disabled part still shows its current values with a note. Save sends only the parts that are enabled AND differ from what
+the server last accepted (held in state, updated after each successful PUT, so a retry after the second PUT failed never repeats the first); nothing changed closes the modal without a request. A NEW project carries its window in
+the create body (the creator is always a window editor). The window is both dates or neither (validated in `utils/planForm.ts`, the server's 400 is the backstop).
+
+**Dates**: `PlanDateInput` wraps Mantine's `DateInput` (string `value`/`onChange`, `valueFormat="YYYY-MM-DD"`, placeholder `common.dateFormatHint`, a clear button named "Clear {label}"). `AppDatesProvider` (mounted in `main.tsx` around the
+router) passes the UI language and `firstDayOfWeek: 1` to `DatesProvider`; dayjs only knows `en` until `dayjs/locale/<lang>` is imported (that file imports `pl`); `@mantine/dates/styles.layer.css` is imported in `main.tsx` next to the core
+layer. Tests need no provider (the default locale is English). Unit tests type the ISO text into the input; the calendar popup is covered by `AppDatesProvider.test.tsx` (month and weekday names per language).
 
 ### Heading outline guard
 

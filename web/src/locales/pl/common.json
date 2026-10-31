@@ -17,7 +17,11 @@
     "email": "E-mail",
     "name": "Nazwa",
     "role": "Rola",
-    "description": "Opis"
+    "description": "Opis",
+    "owner": "Właściciel/ka",
+    "startDate": "Data początku",
+    "endDate": "Data końca",
+    "targetWindow": "Okno docelowe"
   },
   "state": {
     "any": "Dowolna"
