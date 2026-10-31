@@ -1,12 +1,17 @@
 package ch.nokillswit
 
 import ch.nokillswit.authz.CallerPrincipal
+import ch.nokillswit.authz.OwnerChain
 import ch.nokillswit.authz.ForbiddenException
 import ch.nokillswit.authz.isAdmin
 import ch.nokillswit.authz.requireAdmin
 import ch.nokillswit.authz.requireFeatureEnabled
+import ch.nokillswit.authz.requireOwnerOrAdmin
+import ch.nokillswit.authz.requireRoadmapEditorOrAdmin
+import ch.nokillswit.authz.requireTargetWindowEditorOrAdmin
 import ch.nokillswit.authz.requireSelfOrAdmin
 import ch.nokillswit.authz.requireTeamManagerOrAdmin
+import ch.nokillswit.users.Permission
 import ch.nokillswit.users.UserRole
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
@@ -78,6 +83,88 @@ class GuardsTest {
             val broken: suspend (UInt, UInt) -> Boolean = { _, _ -> error("database unavailable") }
             requireTeamManagerOrAdmin(admin, teamId = 7u, isManager = broken)
             val failure = assertFailsWith<IllegalStateException> { requireTeamManagerOrAdmin(user, teamId = 7u, isManager = broken) }
+            assertEquals("database unavailable", failure.message)
+        }
+
+    @Test
+    fun `requireRoadmapEditorOrAdmin never consults the lookup for an admin, passes a grant holder and rejects everyone else`() =
+        runBlocking<Unit> {
+            val asked = mutableListOf<Pair<UInt, Permission>>()
+            val grantedToUser: suspend (UInt, Permission) -> Boolean = { who, permission ->
+                asked += who to permission
+                who == user.userId && permission == Permission.ROADMAP_EDITOR
+            }
+            requireRoadmapEditorOrAdmin(admin, grantedToUser)
+            assertEquals(emptyList(), asked, "an admin never reaches the lookup")
+
+            requireRoadmapEditorOrAdmin(user, grantedToUser)
+            assertEquals(listOf(user.userId to Permission.ROADMAP_EDITOR), asked)
+            val stranger = CallerPrincipal(userId = 9u, email = "stranger@test", roles = emptySet())
+            assertFailsWith<ForbiddenException> { requireRoadmapEditorOrAdmin(stranger, grantedToUser) }
+        }
+
+    @Test
+    fun `requireRoadmapEditorOrAdmin fails closed - a lookup failure propagates for a non-admin`() = runBlocking<Unit> {
+        val broken: suspend (UInt, Permission) -> Boolean = { _, _ -> error("database unavailable") }
+        requireRoadmapEditorOrAdmin(admin, broken)
+        val failure = assertFailsWith<IllegalStateException> { requireRoadmapEditorOrAdmin(user, broken) }
+        assertEquals("database unavailable", failure.message)
+    }
+
+    @Test
+    fun `OwnerChain ancestors drop the node's own owner`() {
+        assertEquals(listOf(10u, 20u), OwnerChain(listOf(10u, 20u, 30u)).ancestors.owners)
+        assertEquals(emptyList(), OwnerChain(listOf(10u)).ancestors.owners)
+        assertEquals(emptyList(), OwnerChain(emptyList()).ancestors.owners)
+    }
+
+    @Test
+    fun `requireOwnerOrAdmin - admin ignores the chain, an owner at or above passes, a person-less caller and a stranger do not`() {
+        val chain = OwnerChain(listOf(10u, 20u, 30u)) // work stream, program, project
+        requireOwnerOrAdmin(admin, callerPersonId = null, chain = chain)
+        requireOwnerOrAdmin(admin, callerPersonId = 999u, chain = OwnerChain(emptyList()))
+        requireOwnerOrAdmin(user, callerPersonId = 30u, chain = chain) // the node's own owner
+        requireOwnerOrAdmin(user, callerPersonId = 20u, chain = chain) // an owner above
+        requireOwnerOrAdmin(user, callerPersonId = 10u, chain = chain)
+        assertFailsWith<ForbiddenException> { requireOwnerOrAdmin(user, callerPersonId = null, chain = chain) }
+        assertFailsWith<ForbiddenException> { requireOwnerOrAdmin(user, callerPersonId = 99u, chain = chain) }
+        assertFailsWith<ForbiddenException> { requireOwnerOrAdmin(user, callerPersonId = 10u, chain = OwnerChain(emptyList())) }
+    }
+
+    @Test
+    fun `requireTargetWindowEditorOrAdmin - admin, an ancestor owner without the lookup, a grant, never the project's own owner alone`() =
+        runBlocking<Unit> {
+            val chain = OwnerChain(listOf(10u, 20u, 30u))
+            val asked = mutableListOf<UInt>()
+            val noGrant: suspend (UInt, Permission) -> Boolean = { who, _ -> asked += who; false }
+            requireTargetWindowEditorOrAdmin(admin, null, chain, noGrant)
+            requireTargetWindowEditorOrAdmin(user, 20u, chain, noGrant) // program owner
+            requireTargetWindowEditorOrAdmin(user, 10u, chain, noGrant) // work stream owner
+            assertEquals(emptyList(), asked, "admin and ancestor owners never reach the lookup")
+
+            // The project's own owner is deliberately not an ancestor: alone they are refused.
+            assertFailsWith<ForbiddenException> { requireTargetWindowEditorOrAdmin(user, 30u, chain, noGrant) }
+            assertFailsWith<ForbiddenException> { requireTargetWindowEditorOrAdmin(user, null, chain, noGrant) }
+            assertEquals(listOf(user.userId, user.userId), asked)
+
+            // ... unless they also hold the grant.
+            val granted: suspend (UInt, Permission) -> Boolean = { who, permission ->
+                who == user.userId && permission == Permission.ROADMAP_EDITOR
+            }
+            requireTargetWindowEditorOrAdmin(user, 30u, chain, granted)
+            requireTargetWindowEditorOrAdmin(user, null, chain, granted)
+        }
+
+    @Test
+    fun `requireTargetWindowEditorOrAdmin fails closed - a throwing lookup propagates for a caller who is no ancestor owner`() =
+        runBlocking<Unit> {
+            val chain = OwnerChain(listOf(10u, 20u, 30u))
+            val broken: suspend (UInt, Permission) -> Boolean = { _, _ -> error("database unavailable") }
+            requireTargetWindowEditorOrAdmin(admin, null, chain, broken)
+            requireTargetWindowEditorOrAdmin(user, 20u, chain, broken)
+            val failure = assertFailsWith<IllegalStateException> {
+                requireTargetWindowEditorOrAdmin(user, 30u, chain, broken)
+            }
             assertEquals("database unavailable", failure.message)
         }
 }

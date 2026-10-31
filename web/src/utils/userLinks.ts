@@ -3,4 +3,5 @@ export const usersPath = "/users";
 export const newUserPath = `${usersPath}/new`;
 export const editUserPath = (id: number) => `${usersPath}/${id}/edit`;
 export const userFeaturesPath = (id: number) => `${usersPath}/${id}/features`;
+export const userPermissionsPath = (id: number) => `${usersPath}/${id}/permissions`;
 

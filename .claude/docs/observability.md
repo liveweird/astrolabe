@@ -94,6 +94,9 @@ with `hasKeyValue` from `TestEnvironment.kt`). Emitted today:
   missing current password),
 - `user.features_changed` (byUserId/targetUserId/featuresFrom/featuresTo — only on an actual
   change),
+- `user.permissions_changed` (byUserId/targetUserId/permissionsFrom/permissionsTo — comma-joined sorted `Permission` names, "" = none; only on an
+  actual change, so an idempotent same-set re-PUT emits nothing; a permission is a rights path — `ROADMAP_EDITOR` ranks the projects and sets target
+  windows — so it is its own trail line, the `user.features_changed` precedent; `PUT /users/{id}/permissions`, `users/UserRoutes.kt`),
 - `user.language_changed` (the per-user language — byUserId/targetUserId + `from`/`to` codes;
   emitted only on an actual change; `user.created` additionally carries `language` when
   non-default),

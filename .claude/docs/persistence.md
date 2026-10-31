@@ -14,10 +14,10 @@ in-network consumers use `postgres:5432`). There is one persistence stack:
   makes every long-lived database refuse to boot (a failure no fresh-container CI run can see).
   `MigrationChecksumTest` pins every file's checksum; a new migration adds one manifest line, and
   a red pin means REVERT the edit (clarifications go into this doc), never update the pinned
-  value. The range today is **V1–V10**: V1 `users`, V2 `revoked_tokens`, V3 the seed admin, V4 the
+  value. The range today is **V1–V11**: V1 `users`, V2 `revoked_tokens`, V3 the seed admin, V4 the
   `unaccent` extension, V5 `user_disabled_features` (V1–V5 are Flow's), V6 `teams` (with the optional
   manager), V7 `users.credential_revision`, V8 `password_reset_tokens`, V9 the `ops` telemetry
-  schema, V10 `people` (the people directory) with `teams.manager_person_id` replacing `manager_user_id`. (Astrolabe renumbered Flow's history when it was bootstrapped; from V10 on, migrations are
+  schema, V10 `people` (the people directory) with `teams.manager_person_id` replacing `manager_user_id`, V11 `user_permissions` (the per-user permission grants). (Astrolabe renumbered Flow's history when it was bootstrapped; from V10 on, migrations are
   append-only like any other.)
 - **Exposed + R2DBC** (`infra/db/Database.kt` + the feature services) — runtime DB access.
   `Database.kt` connects the `R2dbcDatabase` and is the composition root: it constructs the
@@ -193,6 +193,16 @@ constructor — e.g. `object Samples : Table("ops.telemetry_samples")` — and E
 FK reference. `CREATE SCHEMA IF NOT EXISTS <schema>` runs in the first migration that needs the schema (V9 for `ops`) — never a
 standalone "create schemas" migration.
 
+### Per-user permissions (V11)
+
+`user_permissions (user_id BIGINT REFERENCES users ON DELETE CASCADE, permission VARCHAR(30), PRIMARY KEY (user_id, permission))` — the **grant** set
+(a row = held, no row = not held; the opposite polarity of V5's disabled set, so the empty table needs no backfill and nobody starts with a right). The
+Kotlin `Permission` enum (`users/User.kt`) is the whitelist (no CHECK, the V5 precedent); `UserService.UserPermissions` is the Exposed table, a
+hard-delete join table like `user_disabled_features` (see "Soft delete (convention)"): `PUT /users/{id}/permissions` replaces the set wholesale inside
+one transaction that first locks the user row `FOR NO KEY UPDATE` (`replacePermissions`: concurrent PUTs serialize instead of racing on the primary key, and
+the previous set it returns is exact for the audit event). `UserService.hasPermission` reads the table per call, never cached — see `authorization.md`
+"Roles vs permissions". `ON DELETE CASCADE` is inert today (users are only soft-deleted); a soft-deleted user's rows stay, unread.
+
 ### Credential revision (V7)
 
 `users.credential_revision` is an internal nonnegative BIGINT generation, initially zero. Every
@@ -233,7 +243,7 @@ transaction under `TELEMETRY_LOCK_KEY`, and a row exactly at its cutoff stays. T
 `users`, `people` and `teams` are **soft-deleted** — rows are flagged, never physically removed; every
 business entity follows the same convention. Only join/token tables (today: `revoked_tokens`, a
 pure token registry, `password_reset_tokens` (V8, expiring single-use credentials, not history), `user_disabled_features`, a pure flag join
-whose PUT is a wholesale replace, and the `ops.telemetry_*` samples (the prune above)) hard-delete — a new
+whose PUT is a wholesale replace, `user_permissions` (V11, the same shape: a pure grant join rewritten wholesale), and the `ops.telemetry_*` samples (the prune above)) hard-delete — a new
 hard-delete table needs a documented justification, exactly like Lettuce's exceptions list. Pure operational history with no reader once
 old (job queues, samples) may be pruned by a fixed documented retention window, the same shape as the JWT blocklist's opportunistic
 pruning of expired `revoked_tokens` rows. To add soft-delete to a new entity, follow the established pattern
@@ -289,6 +299,30 @@ long transaction (`users` is referenced only by columns no long transaction inse
 `user_disabled_features.user_id`, `password_reset_tokens.user_id` (short inserts only): `UserService.lockedActiveAdminCount`), or for
 `SKIP LOCKED` claims. A new `FOR UPDATE` on an FK-referenced row needs that justification in a comment. Flow pinned both halves with `RowLockVersusDeriveTest` (a writer completes while another transaction holds `FOR KEY SHARE` on the row, and a second `FOR NO KEY UPDATE` writer still waits); Astrolabe re-adds that test with the first long planning transaction.
 
+### The DATE column idiom (`infra/db/LocalDateColumn.kt`)
+
+Dates are Postgres `DATE` (day precision; the planning tables from V12), bound through a repo-local column type because `exposed-r2dbc` 1.6.0 ships no date
+module (no `exposed-java-time`, no `exposed-kotlin-datetime` — and none is added). `exposed-core` supplies the abstract
+`org.jetbrains.exposed.v1.core.datetime.LocalDateColumnType<T>` (an `IDateColumnType`) and `exposed-r2dbc`'s `DateTimeTypeMapper` recognises such a column.
+`JavaLocalDateColumnType` implements the two conversions (`kotlinx.datetime.LocalDate` ⇄ `java.time.LocalDate`) — **and overrides `notNullValueToDB` to
+return the `java.time.LocalDate` itself, which is load-bearing**: the 1.6.0 base class is NOT zone-free (it builds `java.sql.Date(atStartOfDayIn(TimeZone.currentSystemDefault()))`,
+and the mapper then calls `java.sql.Date.toLocalDate()` before binding), so every write and every WHERE parameter would pass through the JVM default zone and the
+Julian/Gregorian cutover (measured against the 1.6.0 bytecode: UTC stored `1500-01-01` as `1499-12-23`; Pacific/Kiritimati stored `1994-12-31` as `1995-01-01`;
+`0100-02-27` was a 500; Europe/Warsaw shifted dates up to 1900). The mapper only unwraps `java.sql.Date`/`Time`/`Timestamp`, so a `java.time.LocalDate` reaches
+`Statement.bind` unchanged and r2dbc-postgresql's native `LocalDateCodec` encodes the calendar date; `nonNullValueToString` (the literal rendering) is the ISO
+`'YYYY-MM-DD'` for the same reason. Reads were never affected. A table declares `val day = localDate("day")` (`Column<java.time.LocalDate>`, `.nullable()` as usual).
+The wire format is an ISO `YYYY-MM-DD` string (`type: string, format: date`; DTO fields are `String`) parsed by `infra/validation/Dates.kt`
+(`parseIsoDate(value, field)` → 400 "<field> must be a YYYY-MM-DD date" for a bad shape or a non-calendar day, and "<field> year must be between 1900 and 2999"
+outside that calendar — a belt on top of the zone-free column, far inside what every zone's historical rules handle; `requireDateOrder(start, end)` → 400 "End must not
+be before start", an end equal to the start being a one-day span); a `CHECK (end_date >= start_date)` in the migration is the backstop. `kotlinx-datetime-jvm` is only transitive: it
+resolves to 0.7.1 at compile time and 0.8.0 at runtime (a pre-existing skew, in `BACKLOG.md`); the column type touches only `toKotlinLocalDate` / `toJavaLocalDate`,
+which both versions carry. **`LocalDateColumnTest` is the proof** (scratch table by raw DDL): insert/select/update/null round-trip for the epoch, both DST-change days,
+`2099-12-31` and the historical traps (`1500-01-01`, `0100-02-27`, `1899-12-31`, Kiritimati's skipped `1994-12-31`, Apia's skipped `2011-12-30`); the STORED text
+(`::text`, read over raw JDBC) of an insert, an update and a WHERE parameter is the calendar date under EVERY swapped JVM default zone (UTC, Kiritimati, Apia, Pago_Pago,
+Warsaw, Sao_Paulo); `greaterEq`/`orderBy` follow date order; and a `CHECK (other >= day)` violation surfaces as SQLSTATE 23514. The first version of the column type
+(without the override) passed a narrower spike and was caught by review; had the override not been enough, the fallback was Flow's `VARCHAR(10)` ISO idiom
+(the same wire format and validator, `varchar(…, 10)` + a regex `CHECK`).
+
 ### `infra/db/Jsonb.kt` and canonical JSON
 
 `infra/db/Jsonb.kt` — a repo-local `jsonb` column type, because `exposed-r2dbc` 1.5.0 ships no
@@ -317,6 +351,6 @@ text and sha256 are compared against stored rows.
 ### Planned persistence (not yet built)
 
 The planning tables arrive with v0.2–v0.5; their sketch (SERIAL ids, epoch-millis timestamps, `SoftDeletable`, partial unique
-indexes, `DATE` columns through a repo-local `LocalDateColumn`, the `plan_state` revision lock) is in `planning-model.md`. Nothing
+indexes, `DATE` columns through the repo-local `LocalDateColumn` — built, above — and the `plan_state` revision lock) is in `planning-model.md`. Nothing
 in this document changes until a migration lands; then the schema list, the soft-delete list and the cross-feature list above grow
 in the same commit.

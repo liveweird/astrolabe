@@ -337,6 +337,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/users/{id}/permissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Replace a user's granted-permission set (ADMIN only)
+         * @description Per-user permissions: a **wholesale replace** of the target user's GRANTED set — an empty array revokes
+         *     everything (idempotent, a same-set re-PUT is `204` again and audits nothing). **ADMIN-only**; changing
+         *     one's OWN set is allowed (the features precedent). Unlike the feature flags (a disabled set riding the
+         *     JWT), permissions are rows read from the database on **every request**, so a grant or a revoke takes
+         *     effect on the target's very next request, never at the next token refresh. `ROADMAP_EDITOR` lets the user
+         *     rank the projects and set any project's target window. Audited as `user.permissions_changed` on an actual change.
+         */
+        put: operations["setUserPermissions"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/users/{id}/language": {
         parameters: {
             query?: never;
@@ -638,6 +665,11 @@ export interface components {
          */
         Feature: "MFA";
         /**
+         * @description A per-user permission, stored as the GRANTED set (a row = held) and read from the database on every request. ROADMAP_EDITOR may rank the projects and set any project's target window.
+         * @enum {string}
+         */
+        Permission: "ROADMAP_EDITOR";
+        /**
          * @description A supported UI/email language. The ONE synced per-user language (V1) — set at create, changed only via PUT /users/{id}/language; drives the SPA at sign-in and every email sent to the user.
          * @enum {string}
          */
@@ -648,6 +680,10 @@ export interface components {
         UserFeaturesUpdateRequest: {
             /** @description The complete new DISABLED set — an empty array enables everything. */
             disabledFeatures: components["schemas"]["Feature"][];
+        };
+        UserPermissionsUpdateRequest: {
+            /** @description The complete new GRANTED set - an empty array revokes everything. */
+            permissions: components["schemas"]["Permission"][];
         };
         MfaChallengeResponse: {
             /** @description Always true — the discriminator against LoginResponse in the login 200. */
@@ -697,6 +733,8 @@ export interface components {
             /** @description Per-user feature flags — the admin-disabled set; empty = full access. */
             disabledFeatures: components["schemas"]["Feature"][];
             language: components["schemas"]["Language"];
+            /** @description Per-user permissions - the GRANTED set (read from the database per request, not a token claim); empty = none. */
+            permissions: components["schemas"]["Permission"][];
         };
         UserPage: {
             items: components["schemas"]["UserResponse"][];
@@ -1643,6 +1681,45 @@ export interface operations {
         };
         responses: {
             /** @description Disabled-feature set replaced */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            /** @description Caller is not ADMIN */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    setUserPermissions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserPermissionsUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Granted-permission set replaced */
             204: {
                 headers: {
                     [name: string]: unknown;

@@ -3,7 +3,7 @@ import { Link as RouterLink } from "react-router-dom";
 import { Badge, Button, Group, Menu, Modal, Select, Stack, Table, Text } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
-import { IconKey, IconPencil, IconPlus, IconToggleLeft, IconTrash, IconUsers } from "@tabler/icons-react";
+import { IconKey, IconPencil, IconPlus, IconShieldCheck, IconToggleLeft, IconTrash, IconUsers } from "@tabler/icons-react";
 import { deleteUser, listUsers, type UserResponse } from "../api/users";
 import { getUserId } from "../api/session";
 import { useAdmin } from "../auth";
@@ -23,7 +23,7 @@ import { isString, useStoredState } from "../hooks/useStoredState";
 import { saveErrorMessage } from "../utils/saveError";
 import PageHeader from "../components/PageHeader";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
-import { editUserPath, newUserPath, userFeaturesPath } from "../utils/userLinks";
+import { editUserPath, newUserPath, userFeaturesPath, userPermissionsPath } from "../utils/userLinks";
 import ErrorAlert from "../components/ErrorAlert";
 import FormErrorAlert from "../components/FormErrorAlert";
 
@@ -194,6 +194,14 @@ export default function Users() {
                         aria-label={t("users.featuresAria", { name: user.name })}
                       >
                         {t("users.featuresAction")}
+                      </Menu.Item>
+                      <Menu.Item
+                        component={RouterLink}
+                        to={userPermissionsPath(user.id)}
+                        leftSection={<IconShieldCheck size={14} />}
+                        aria-label={t("users.permissionsAria", { name: user.name })}
+                      >
+                        {t("users.permissionsAction")}
                       </Menu.Item>
                       {/* Own row: no reset (self-change needs the current password — the
                           Change password page) and no delete (the server 403s it anyway). */}

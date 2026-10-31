@@ -74,5 +74,11 @@
   "featureHint": {
     "MFA": "A 6-digit code emailed at every sign-in (second factor)."
   },
+  "permission": {
+    "ROADMAP_EDITOR": "Roadmap editor"
+  },
+  "permissionHint": {
+    "ROADMAP_EDITOR": "May rank the projects on the roadmap and set the target window of any project."
+  },
   "loading": "Loading…"
 }

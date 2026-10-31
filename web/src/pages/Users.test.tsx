@@ -102,12 +102,16 @@ describe("Users page", () => {
       "/users/1/edit",
     );
     expect(screen.getByRole("menuitem", { name: "Feature flags for Alice Admin" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Permissions for Alice Admin" })).toHaveAttribute(
+      "href",
+      "/users/1/permissions",
+    );
     expect(screen.queryByRole("menuitem", { name: "Delete Alice Admin" })).not.toBeInTheDocument();
     expect(
       screen.queryByRole("menuitem", { name: "Reset password for Alice Admin" }),
     ).not.toBeInTheDocument();
     await user.keyboard("{Escape}");
-    // The other row has all four.
+    // The other row has all five.
     await user.click(screen.getByRole("button", { name: "Operations for Bob Basic" }));
     expect(await screen.findByRole("menuitem", { name: "Delete Bob Basic" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "Reset password for Bob Basic" })).toBeInTheDocument();

@@ -51,7 +51,7 @@ internal fun validatePassword(password: String) {
     }
 }
 
-/** Audit format for a roles/features set: comma-joined sorted names, "" = empty set. */
+/** Audit format for a roles/features/permissions set: comma-joined sorted names, "" = empty set. */
 private fun <T : Enum<T>> Set<T>.joinedNames(): String = map { it.name }.sorted().joinToString(",")
 
 /**
@@ -93,6 +93,10 @@ class Users {
         @Serializable
         @Resource("language")
         class Language(val parent: Id)
+
+        @Serializable
+        @Resource("permissions")
+        class Permissions(val parent: Id)
     }
 }
 
@@ -106,6 +110,7 @@ fun Application.configureUserRoutes() {
             userReadUpdateDelete(userService)
             userPassword(userService)
             userFeaturesAndLanguage(userService)
+            userPermissions(userService)
         }
     }
 }
@@ -327,6 +332,31 @@ private fun Route.userFeaturesAndLanguage(userService: UserService) {
                 "targetUserId" to route.parent.id.toLong(),
                 "from" to existing.language,
                 "to" to req.language,
+            )
+        }
+        call.respond(HttpStatusCode.NoContent)
+    }
+}
+
+private fun Route.userPermissions(userService: UserService) {
+    put<Users.Id.Permissions> { route ->
+        val caller = call.caller()
+        // Guard before receive: a non-admin's malformed body is 403, not 400. Self-change is allowed (the
+        // features precedent; an admin passes every permission check anyway). An unknown permission name fails
+        // enum decoding -> BadRequestException -> 400. A wholesale replace, idempotent: a same-set re-PUT is 204
+        // and audits nothing. The previous set comes back from the locked replace, so the event is exact.
+        requireAdmin(caller)
+        val req = call.receive<UserPermissionsUpdateRequest>()
+        val requested = req.permissions.toSet()
+        val previous = userService.replacePermissions(route.parent.id, requested)
+            ?: throw NotFoundException("User not found")
+        if (requested != previous) {
+            audit(
+                "user.permissions_changed",
+                "byUserId" to caller.userId.toLong(),
+                "targetUserId" to route.parent.id.toLong(),
+                "permissionsFrom" to previous.joinedNames(),
+                "permissionsTo" to requested.joinedNames(),
             )
         }
         call.respond(HttpStatusCode.NoContent)

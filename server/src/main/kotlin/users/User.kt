@@ -28,6 +28,17 @@ enum class UserRole { ADMIN, USER }
 @Serializable
 enum class Feature { MFA }
 
+/**
+ * Per-user permissions (V11) — a GRANT set (`user_permissions`, a row = held, no row = not held), the opposite
+ * polarity of [Feature]'s disabled set, replaced wholesale by `PUT /users/{id}/permissions` (ADMIN). They are
+ * read from the database on EVERY request (`UserService.hasPermission`) and never ride a JWT, so a grant or a
+ * revoke takes effect on the very next request (`authorization.md` "Roles vs permissions"). The Kotlin enum is
+ * the whitelist — a future permission is just a new value here (no migration).
+ * [ROADMAP_EDITOR] — may rank the projects (the global roadmap) and set any project's target window.
+ */
+@Serializable
+enum class Permission { ROADMAP_EDITOR }
+
 @Serializable
 data class User(
     val name: String,
@@ -48,12 +59,15 @@ data class User(
     // of every email sent to the user. Set at create; never client-settable via the
     // whole-user PUT — changed only by PUT /users/{id}/language (target user or ADMIN).
     val language: String = "en",
+    // Per-user permissions (V11) — the GRANT set, empty = none. Informational on the domain object (what the
+    // admin sees in UserResponse); a guard never reads it, it asks UserService.hasPermission in the database.
+    val permissions: Set<Permission> = emptySet(),
 ) {
     // The bcrypt hash is a credential in its own right (offline cracking), so it never renders.
     override fun toString(): String =
         "User(name=$name, email=$email, passwordHash=${maskedSecret(passwordHash)}, role=$role, " +
             "disabledFeatures=$disabledFeatures, passwordChangedAt=$passwordChangedAt, " +
-            "credentialRevision=$credentialRevision, language=$language)"
+            "credentialRevision=$credentialRevision, language=$language, permissions=$permissions)"
 
     /** The wire/claim shape: additional roles only — empty for a regular user. */
     val additionalRoles: Set<UserRole>
@@ -98,6 +112,8 @@ data class UserResponse(
     val disabledFeatures: List<Feature>,
     /** The stored per-user language (V1) — the ONE synced language (UI + emails). */
     val language: String,
+    /** Per-user permissions (V11) — the granted set; empty = none. */
+    val permissions: List<Permission>,
 )
 
 fun User.toResponse(id: UInt) = UserResponse(
@@ -107,6 +123,7 @@ fun User.toResponse(id: UInt) = UserResponse(
     roles = additionalRoles.sortedBy { it.name },
     disabledFeatures = disabledFeatures.sortedBy { it.name },
     language = language,
+    permissions = permissions.sortedBy { it.name },
 )
 
 /** Body of PUT /users/{id}/language (target user or ADMIN — the switcher's save). */
@@ -116,6 +133,10 @@ data class UserLanguageUpdateRequest(val language: String)
 /** Wholesale replacement of a user's disabled-feature set (PUT /users/{id}/features). */
 @Serializable
 data class UserFeaturesUpdateRequest(val disabledFeatures: List<Feature>)
+
+/** Wholesale replacement of a user's granted-permission set (PUT /users/{id}/permissions). */
+@Serializable
+data class UserPermissionsUpdateRequest(val permissions: List<Permission>)
 
 typealias UserPageResponse = ch.nokillswit.infra.paging.PageResponse<UserResponse>
 

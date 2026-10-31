@@ -17,6 +17,18 @@ type PasswordUpdateBody =
 type FeaturesUpdateBody =
   paths["/api/v1/users/{id}/features"]["put"]["requestBody"]["content"]["application/json"];
 export type Feature = FeaturesUpdateBody["disabledFeatures"][number];
+type PermissionsUpdateBody =
+  paths["/api/v1/users/{id}/permissions"]["put"]["requestBody"]["content"]["application/json"];
+export type Permission = PermissionsUpdateBody["permissions"][number];
+/**
+ * The i18n keys of every permission the server knows. `satisfies Record<Permission, …>` makes it exhaustive: a new
+ * spec `Permission` value is a compile error here until it has its label and hint.
+ */
+export const PERMISSION_TEXT = {
+  ROADMAP_EDITOR: { label: "common.permission.ROADMAP_EDITOR", hint: "common.permissionHint.ROADMAP_EDITOR" },
+} as const satisfies Record<Permission, { label: string; hint: string }>;
+/** The permissions the editor lists, in display order — derived from [PERMISSION_TEXT], so it cannot lag the spec. */
+export const PERMISSIONS = Object.keys(PERMISSION_TEXT) as Permission[];
 
 type UserListQuery = {
   page: number;
@@ -69,6 +81,12 @@ export async function deleteUser(id: number): Promise<void> {
 export async function updateUserFeatures(id: number, disabledFeatures: Feature[]): Promise<void> {
   const body: FeaturesUpdateBody = { disabledFeatures };
   return voidRequest(`/api/v1/users/${id}/features`, { method: "PUT", body: JSON.stringify(body) });
+}
+
+/** Wholesale-replace the user's granted-permission set (ADMIN only; read per request server-side, not a token claim). */
+export async function updateUserPermissions(id: number, permissions: Permission[]): Promise<void> {
+  const body: PermissionsUpdateBody = { permissions };
+  return voidRequest(`/api/v1/users/${id}/permissions`, { method: "PUT", body: JSON.stringify(body) });
 }
 
 /** The ONE synced per-user language — the header switcher's fire-and-forget save. */

@@ -30,6 +30,7 @@ const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const ConfirmPasswordReset = lazy(() => import("./pages/ConfirmPasswordReset"));
 const Users = lazy(() => import("./pages/Users"));
 const UserFeatures = lazy(() => import("./pages/UserFeatures"));
+const UserPermissions = lazy(() => import("./pages/UserPermissions"));
 const FeatureFlags = lazy(() => import("./pages/FeatureFlags"));
 const CreateUser = lazy(() => import("./pages/CreateUser"));
 const EditUser = lazy(() => import("./pages/EditUser"));
@@ -238,6 +239,7 @@ export default function App() {
               <Route path="users/new" element={<CreateUser />} />
               <Route path="users/:id/edit" element={<EditUser />} />
               <Route path="users/:id/features" element={<UserFeatures />} />
+              <Route path="users/:id/permissions" element={<UserPermissions />} />
               <Route path="feature-flags" element={<FeatureFlags />} />
             </Route>
             <Route path="change-password" element={<ChangePassword />} />

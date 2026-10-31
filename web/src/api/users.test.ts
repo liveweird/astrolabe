@@ -7,6 +7,7 @@ import {
   getUser,
   listUsers,
   updateUser,
+  updateUserPermissions,
 } from "./users";
 
 type FetchMock = ReturnType<typeof vi.fn>;
@@ -93,5 +94,14 @@ describe("users API wrappers", () => {
     expect(url).toBe("/api/v1/users/2/password");
     expect(init.method).toBe("PUT");
     expect(JSON.parse(init.body as string)).toEqual({ password: "new-password-123" });
+  });
+
+  test("updateUserPermissions PUTs the wholesale granted set to the nested path", async () => {
+    mockFetch.mockResolvedValue(new Response(null, { status: 204 }));
+    await updateUserPermissions(2, ["ROADMAP_EDITOR"]);
+    const [url, init] = lastCall();
+    expect(url).toBe("/api/v1/users/2/permissions");
+    expect(init.method).toBe("PUT");
+    expect(JSON.parse(init.body as string)).toEqual({ permissions: ["ROADMAP_EDITOR"] });
   });
 });

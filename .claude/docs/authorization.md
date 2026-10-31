@@ -12,6 +12,14 @@ Layered RBAC. Implemented in the `server/src/main/kotlin/authz/` package.
   clients. **ADMIN is the management role**: it owns the whole user-management surface (the
   `/users` CRUD below) and may reset any user's password (`requireSelfOrAdmin`'s admin branch);
   the management surfaces attach to it (users and, with flat teams, team CRUD and membership).
+- **Roles vs permissions (V11).** Two different mechanisms, deliberately: **roles** (`ADMIN`) ride the JWT (`roles` claim) and are verified against
+  `users.role` on every request by the access check, so a role change is a `401 roles_changed` on the very next request; **permissions** (`Permission`
+  in `users/User.kt`, today `ROADMAP_EDITOR`) are **rows of `user_permissions` read from the database per request** (`UserService.hasPermission`) and
+  are NEVER a token claim and never cached — so a grant or a revoke takes effect on the target's next request with no refresh, no re-login and no
+  `401`. They are also not the V5 feature flags (a DISABLED set, default-on, riding the token and lagging to the next refresh): a permission is an
+  additive GRANT, default-off. `CallerPrincipal` therefore carries no permissions; a guard that needs one takes the lookup as an injected
+  `suspend (userId, Permission) -> Boolean` (the `requireTeamManagerOrAdmin` shape), keeping `GuardsTest` pure. `UserResponse.permissions` is the
+  ADMIN-facing reading of the set, not an authorization input.
 - **Login** issues a **pair** of JWTs, both carrying `email`, `userId`, a `roles` array claim, a
   `credentialRevision` and a `typ` claim (`"access"` / `"refresh"`), minted by `auth/Tokens.kt`
   (`JwtConfig.issueAccessToken` / `issueRefreshToken`). The short-lived **access** token
@@ -68,8 +76,13 @@ Layered RBAC. Implemented in the `server/src/main/kotlin/authz/` package.
   `requireAdmin(caller)`, `requireSelfOrAdmin(caller, targetUserId)`, `requireTeamManagerOrAdmin(caller, teamId,
   isManager)` (ADMIN, or the team's ACTIVE manager via the injected `TeamService.isActiveManager` lookup, which
   answers false for a missing team so the 403 is uniform — awaiting its first consumer, the v0.5 capacity writes), plus
-  `requireFeatureEnabled` (awaiting its first area-gating consumer); new guards join this file so the whole policy stays
-  in one place.
+  `requireFeatureEnabled` (awaiting its first area-gating consumer), and the planning guards (V11, all **awaiting their consumer** — the plan routes and the
+  ranking land in the next increments, the `requireTeamManagerOrAdmin` precedent; each is pure-tested in `GuardsTest`):
+  `requireRoadmapEditorOrAdmin(caller, hasPermission)` (ADMIN short-circuits without the lookup; else the caller must hold `ROADMAP_EDITOR`; a throwing
+  lookup propagates — fails closed), `requireOwnerOrAdmin(caller, callerPersonId, chain)` (ADMIN, or the caller's person is on the node's `OwnerChain` —
+  work stream, program, project owners top-down; a caller with no active person owns nothing) and `requireTargetWindowEditorOrAdmin(caller,
+  callerPersonId, chain, hasPermission)` (given the node's FULL chain: ADMIN, an owner ABOVE the project, or the grant; the project's own owner alone is refused, and the person-id
+  check runs before the database lookup). New guards join this file so the whole policy stays in one place.
 - **Resource rules**:
   - `/api/v1/users` (list/create) and `PUT`/`DELETE /api/v1/users/{id}` → **ADMIN only** — the
     whole management surface is admin-gated (the list included; regular users keep only the self
@@ -125,6 +138,12 @@ Layered RBAC. Implemented in the `server/src/main/kotlin/authz/` package.
     screen `/feature-flags` (state filter + bulk enable/disable over every row matching the
     current filters, behind a count-stating confirm — a client-side loop of the same per-user
     wholesale PUTs). Tests: `FeatureFlagsTest` + the GuardsTest/AuditTest cases.
+  - `PUT /api/v1/users/{id}/permissions` (V11) → ADMIN only, `requireAdmin` BEFORE the body decodes (a non-admin's probe, unknown id and malformed body are a
+    uniform 403); **self allowed** (the features precedent); unknown/soft-deleted target → 404; unknown permission name → 400 (enum decode); wholesale
+    replace of the GRANTED set (idempotent — a same-set re-PUT is 204 and audits nothing; an empty array revokes everything); audited
+    `user.permissions_changed` (permissionsFrom/permissionsTo) only on an actual change. Takes effect on the target's next request ("Roles vs
+    permissions" above). `UserResponse.permissions` carries the set on `GET /users/{id}` and the list. SPA: `/users/:id/permissions` (the Users row menu's
+    Permissions item). Tests: `UserPermissionsTest`, `GuardsTest`.
   - `PUT /api/v1/users/{id}/language` → **target user or ADMIN** (`requireSelfOrAdmin`, the V1
     `language` column — Lettuce's model): the ONE synced per-user language, set at create
     (`UserCreateRequest.language`, default `"en"`), applied to the SPA at sign-in (rides
@@ -166,7 +185,7 @@ Layered RBAC. Implemented in the `server/src/main/kotlin/authz/` package.
   - **Planned (v0.2+), not yet built — the owner-scoped matrix** (`product.md` "Domain decisions"): ADMIN everything; ownership cascades down (work stream
     → program → project); a project owner edits the project and its milestones' plan fields but not their dates; milestone dates only by the team's manager or
     ADMIN; the global rank by ADMIN plus the per-user `ROADMAP_EDITOR` grant (a `user_permissions` row checked in the database per request, NOT a feature
-    flag); a team manager edits capacity and team order; reads open to every authenticated user. Each new rule lands here with its guard order
+    flag — the grant table, the PUT and the guards are built in V11, above; no plan route consumes them yet); a team manager edits capacity and team order; reads open to every authenticated user. Each new rule lands here with its guard order
     (403 before 400/404, guard-before-read where existence is sensitive) in the same commit as its route.
 - **Existence disclosure (403 vs 404) — deliberate policy (API-ERR-006)**: two sanctioned idioms,
   and every new resource picks one consciously rather than mixing them. **Guard-before-read**

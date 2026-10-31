@@ -1,6 +1,7 @@
 package ch.nokillswit.users
 
 import ch.nokillswit.infra.db.containsNormalized
+import ch.nokillswit.infra.db.lockActiveForWrite
 import ch.nokillswit.infra.paging.PageRequest
 import ch.nokillswit.infra.paging.applyPaging
 import io.ktor.util.AttributeKey
@@ -69,6 +70,13 @@ class UserService(private val database: R2dbcDatabase) {
         override val primaryKey = PrimaryKey(userId, feature)
     }
 
+    // Per-user permissions (V11) — the GRANT set; a row = held. Hard-deleted join table (a wholesale replace).
+    object UserPermissions : Table("user_permissions") {
+        val userId = reference("user_id", Users)
+        val permission = varchar("permission", length = 30)
+        override val primaryKey = PrimaryKey(userId, permission)
+    }
+
     suspend fun create(user: User): UInt = suspendTransaction(database) {
         // Re-checked service-side so direct callers stay guarded (the feature-template rule);
         // the plaintext-password rules can't apply here — only the bcrypt hash arrives.
@@ -97,7 +105,7 @@ class UserService(private val database: R2dbcDatabase) {
             .where { (Users.id eq id) and Users.active() }
             .toList()
             .singleOrNull()
-            ?.let { it.toUser(featuresOf(it[Users.id].value)) }
+            ?.let { it.toUser(featuresOf(it[Users.id].value), permissionsOf(it[Users.id].value)) }
     }
 
     suspend fun findWithIdByEmail(email: String): Pair<UInt, User>? = suspendTransaction(database) {
@@ -107,7 +115,7 @@ class UserService(private val database: R2dbcDatabase) {
             .where { (Users.email eq canonicalEmail(email)) and Users.active() }
             .toList()
             .singleOrNull()
-            ?.let { it[Users.id].value to it.toUser(featuresOf(it[Users.id].value)) }
+            ?.let { it[Users.id].value to it.toUser(featuresOf(it[Users.id].value), permissionsOf(it[Users.id].value)) }
     }
 
     // The plaintext rules (min length, bcrypt byte ceiling) are route-side by necessity:
@@ -136,10 +144,12 @@ class UserService(private val database: R2dbcDatabase) {
                 .applyPaging(paging, SORTABLE_COLUMNS)
                 .toList()
             // One batch query for the page's disabled sets — not a per-row lookup.
-            val featuresByUser = disabledFeaturesByUserIds(rows.map { it[Users.id].value })
+            val ids = rows.map { it[Users.id].value }
+            val featuresByUser = disabledFeaturesByUserIds(ids)
+            val permissionsByUser = permissionsByUserIds(ids)
             val items = rows.map { row ->
                 val id = row[Users.id].value
-                row.toUser(featuresByUser[id].orEmpty().toSet()).toResponse(id)
+                row.toUser(featuresByUser[id].orEmpty().toSet(), permissionsByUser[id].orEmpty().toSet()).toResponse(id)
             }
             UserListResult(items = items, total = total)
         }
@@ -164,6 +174,40 @@ class UserService(private val database: R2dbcDatabase) {
         }
         1
     }
+
+    /**
+     * Whether [userId] holds [permission] (V11), read from the database on every call — the per-request check
+     * behind `requireRoadmapEditorOrAdmin`; never cached and never a JWT claim, so a grant or revoke applies on
+     * the very next request. A soft-deleted user's login is already a 401 at the access check, and their rows
+     * stay inert, so no `active()` join is needed here.
+     */
+    suspend fun hasPermission(userId: UInt, permission: Permission): Boolean = suspendTransaction(database) {
+        UserPermissions.select(UserPermissions.userId)
+            .where { (UserPermissions.userId eq userId) and (UserPermissions.permission eq permission.name) }
+            .limit(1)
+            .toList()
+            .isNotEmpty()
+    }
+
+    /**
+     * Wholesale-replace the user's granted-permission set (V11) and return the set it replaced, or null when the id is
+     * unknown or soft-deleted (the route 404s). Idempotent — a same-set re-PUT rewrites the same rows. The user row is
+     * locked `FOR NO KEY UPDATE` for the replace so two concurrent PUTs serialize instead of racing on the primary key,
+     * and the returned previous set is exact for the audit event.
+     */
+    suspend fun replacePermissions(id: UInt, permissions: Set<Permission>): Set<Permission>? =
+        suspendTransaction(database) {
+            if (!Users.lockActiveForWrite(id)) return@suspendTransaction null
+            val previous = permissionsOf(id)
+            UserPermissions.deleteWhere { UserPermissions.userId eq id }
+            permissions.forEach { p ->
+                UserPermissions.insert {
+                    it[userId] = id
+                    it[permission] = p.name
+                }
+            }
+            previous
+        }
 
     /** Outcome of a last-admin-guarded mutation (see [updateGuarded]/[deleteGuarded]). */
     enum class GuardedMutation { DONE, NOT_FOUND, LAST_ADMIN }
@@ -277,7 +321,24 @@ class UserService(private val database: R2dbcDatabase) {
             .toList()
             .groupBy({ it[UserDisabledFeatures.userId].value }, { Feature.valueOf(it[UserDisabledFeatures.feature]) })
 
-    private fun ResultRow.toUser(disabledFeatures: Set<Feature> = emptySet()): User = User(
+    private suspend fun permissionsOf(id: UInt): Set<Permission> =
+        UserPermissions.selectAll()
+            .where { UserPermissions.userId eq id }
+            .map { Permission.valueOf(it[UserPermissions.permission]) }
+            .toList()
+            .toSet()
+
+    private suspend fun permissionsByUserIds(ids: List<UInt>): Map<UInt, List<Permission>> =
+        if (ids.isEmpty()) emptyMap()
+        else UserPermissions.selectAll()
+            .where { UserPermissions.userId inList ids }
+            .toList()
+            .groupBy({ it[UserPermissions.userId].value }, { Permission.valueOf(it[UserPermissions.permission]) })
+
+    private fun ResultRow.toUser(
+        disabledFeatures: Set<Feature> = emptySet(),
+        permissions: Set<Permission> = emptySet(),
+    ): User = User(
         name = this[Users.name],
         email = this[Users.email],
         passwordHash = this[Users.passwordHash],
@@ -286,6 +347,7 @@ class UserService(private val database: R2dbcDatabase) {
         passwordChangedAt = this[Users.passwordChangedAt],
         credentialRevision = this[Users.credentialRevision],
         language = this[Users.language],
+        permissions = permissions,
     )
 }
 

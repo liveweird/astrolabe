@@ -56,7 +56,8 @@
     "updated": "Zaktualizowano konto",
     "deleted": "Usunięto konto",
     "passwordChanged": "Zmieniono hasło",
-    "featuresSaved": "Zapisano flagi funkcji"
+    "featuresSaved": "Zapisano flagi funkcji",
+    "permissionsSaved": "Zapisano uprawnienia"
   },
   "featuresAction": "Funkcje",
   "featuresAria": "Flagi funkcji dla {{name}}",
@@ -64,6 +65,12 @@
   "featuresHint": "Flagi dla {{name}} ({{email}}). Zmiany zaczną obowiązywać przy następnym logowaniu lub odświeżeniu tokenu (do 15 minut).",
   "featuresFailedStatus": "Zapis flag nie powiódł się ({{status}})",
   "featuresFailedNetwork": "Zapis flag nie powiódł się. Sprawdź połączenie i spróbuj ponownie.",
+  "permissionsAction": "Uprawnienia",
+  "permissionsAria": "Uprawnienia dla {{name}}",
+  "permissionsTitle": "Uprawnienia",
+  "permissionsHint": "Uprawnienia dla {{name}} ({{email}}). Nadanie lub odebranie działa od najbliższego żądania użytkownika/czki.",
+  "permissionsFailedStatus": "Zapis uprawnień nie powiódł się ({{status}})",
+  "permissionsFailedNetwork": "Zapis uprawnień nie powiódł się. Sprawdź połączenie i spróbuj ponownie.",
   "featureFlags": {
     "title": "Flagi funkcji",
     "featureLabel": "Funkcja",

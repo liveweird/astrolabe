@@ -1,6 +1,7 @@
 package ch.nokillswit.authz
 
 import ch.nokillswit.users.Feature
+import ch.nokillswit.users.Permission
 import ch.nokillswit.users.UserRole
 
 fun CallerPrincipal.isAdmin(): Boolean = UserRole.ADMIN in roles
@@ -42,4 +43,61 @@ suspend fun requireTeamManagerOrAdmin(
 ) {
     if (caller.isAdmin()) return
     if (!isManager(teamId, caller.userId)) throw ForbiddenException("Team manager or admin role required")
+}
+
+/**
+ * ADMIN, or a user holding the [Permission.ROADMAP_EDITOR] grant (V11): the global project rank. [hasPermission] is
+ * the injected `UserService.hasPermission` lookup (a database read per request, never a JWT claim), so the guard stays
+ * DB-free and `GuardsTest` pure. ADMIN short-circuits before the lookup; a lookup failure propagates (fails closed:
+ * the catch-all's 500, never a pass). No route consumes it until the roadmap ranking lands (the
+ * [requireTeamManagerOrAdmin] precedent: the guard is written and tested ahead of its first consumer). Run it as the
+ * FIRST guard — it needs nothing from the path or the body.
+ */
+suspend fun requireRoadmapEditorOrAdmin(
+    caller: CallerPrincipal,
+    hasPermission: suspend (userId: UInt, permission: Permission) -> Boolean,
+) {
+    if (caller.isAdmin()) return
+    if (!hasPermission(caller.userId, Permission.ROADMAP_EDITOR)) {
+        throw ForbiddenException("Roadmap editor or admin role required")
+    }
+}
+
+/**
+ * The person-id owners of a plan node's chain, top-down (work stream, program, project); resolved fresh per request by
+ * the route and never cached. Ownership is person-id arithmetic: the caller's person is `people.user_id = caller AND
+ * people.active()` (`PersonService.activePersonIdOf`). [ancestors] drops the node's own owner.
+ */
+data class OwnerChain(val owners: List<UInt>) {
+    val ancestors: OwnerChain get() = OwnerChain(owners.dropLast(1))
+}
+
+/**
+ * ADMIN, or the caller's person owns the node or anything above it ([chain]; ownership cascades down). A caller with
+ * no active person ([callerPersonId] null) owns nothing. DB-free: the route resolves the chain and the person first
+ * (read-before-guard: a missing node is a 404 before this runs; `authorization.md`). No route consumes it until the
+ * plan nodes land.
+ */
+fun requireOwnerOrAdmin(caller: CallerPrincipal, callerPersonId: UInt?, chain: OwnerChain) {
+    if (caller.isAdmin()) return
+    if (callerPersonId == null || callerPersonId !in chain.owners) throw ForbiddenException("Owner or admin role required")
+}
+
+/**
+ * Who may set a project's target window: ADMIN, an owner ABOVE the project, or a holder of the [Permission.ROADMAP_EDITOR]
+ * grant. It takes the node's FULL [chain] (project owner last) and uses [OwnerChain.ancestors] itself, so a caller can
+ * never pass the wrong slice: the project's OWN owner is deliberately not enough alone. The cheap person-id check runs
+ * before the database lookup; a lookup failure propagates (fails closed). No route consumes it until the plan nodes land.
+ */
+suspend fun requireTargetWindowEditorOrAdmin(
+    caller: CallerPrincipal,
+    callerPersonId: UInt?,
+    chain: OwnerChain,
+    hasPermission: suspend (userId: UInt, permission: Permission) -> Boolean,
+) {
+    if (caller.isAdmin()) return
+    if (callerPersonId != null && callerPersonId in chain.ancestors.owners) return
+    if (!hasPermission(caller.userId, Permission.ROADMAP_EDITOR)) {
+        throw ForbiddenException("Target window editor or admin role required")
+    }
 }

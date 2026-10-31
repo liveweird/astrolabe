@@ -91,6 +91,16 @@ restructuring: the feature `Select` already lists `FEATURES`. Both queries key u
 semantics: a PUT whose disabled set omits `MFA` ENABLES it. A bulk run with nothing to change is neither
 success nor failure: it shows the inline gray `role="note"` Alert (`users.featureFlags.bulkNoChange`), never a toast.
 
+## Permissions (`pages/UserPermissions.tsx`)
+
+The ADMIN per-user permission editor at `/users/:id/permissions` (under the one `RequireAdmin` route; the Users row menu's Permissions item, `userPermissionsPath`
+in `utils/userLinks.ts`) — a `UserFeatures.tsx` clone with the opposite polarity: one `Switch` per `PERMISSIONS` entry (`api/users.ts`, derived from `PERMISSION_TEXT`, which `satisfies Record<Permission, …>` against the spec's
+`Permission` enum; checked = GRANTED, seeded from `UserResponse.permissions`), saved as the wholesale `PUT /users/{id}/permissions` (`updateUserPermissions`), then
+`["users"]` and `["user", id]` are invalidated and the page returns to `/users` with the `users.toast.permissionsSaved` toast. Labels and hints are
+`common.permission.*` / `common.permissionHint.*` (EN/PL). A permission is NOT in the session (`api/session.ts` stores roles and disabled features only): it is read
+server-side per request, so a change needs no re-login and the SPA never gates on it — a UI that needs "can this caller rank" reads the server's `can` flags
+(the planning views). A new spec `Permission` value is a compile error in `PERMISSION_TEXT` until it has its label/hint keys (then its two `common` entries). The wholesale PUT carries over any granted value the page has no switch for (a newer server), so a save can never silently revoke it.
+
 ## People (`pages/People.tsx`, `pages/PersonDetails.tsx`)
 
 The people directory (V10), a Teams clone under Administration after Teams, **visible to everyone** (reads are open, emails included): `useRegistryListControls` + `RegistryListTable`

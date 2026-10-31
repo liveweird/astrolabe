@@ -56,7 +56,8 @@
     "updated": "User updated",
     "deleted": "User deleted",
     "passwordChanged": "Password changed",
-    "featuresSaved": "Feature flags saved"
+    "featuresSaved": "Feature flags saved",
+    "permissionsSaved": "Permissions saved"
   },
   "featuresAction": "Features",
   "featuresAria": "Feature flags for {{name}}",
@@ -64,6 +65,12 @@
   "featuresHint": "Flags for {{name}} ({{email}}). Changes take effect at the user's next sign-in or token refresh (up to 15 minutes).",
   "featuresFailedStatus": "Saving the flags failed ({{status}})",
   "featuresFailedNetwork": "Saving the flags failed. Check your connection and try again.",
+  "permissionsAction": "Permissions",
+  "permissionsAria": "Permissions for {{name}}",
+  "permissionsTitle": "Permissions",
+  "permissionsHint": "Permissions for {{name}} ({{email}}). A grant or a revoke applies from the user's very next request.",
+  "permissionsFailedStatus": "Saving the permissions failed ({{status}})",
+  "permissionsFailedNetwork": "Saving the permissions failed. Check your connection and try again.",
   "featureFlags": {
     "title": "Feature flags",
     "featureLabel": "Feature",

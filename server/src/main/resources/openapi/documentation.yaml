@@ -32,7 +32,7 @@ tags:
   - name: auth
     description: Login (with the optional email second factor), token refresh, logout and the self-service password reset.
   - name: users
-    description: Astrolabe's own login accounts - ADMIN-managed CRUD, per-user feature flags, language and password change.
+    description: Astrolabe's own login accounts - ADMIN-managed CRUD, per-user feature flags and permissions, language and password change.
   - name: people
     description: The people directory - the people who own plan nodes and manage teams, optionally linked to a login. Readable by any authenticated user (emails included), written by ADMIN only.
   - name: teams
@@ -495,6 +495,40 @@ paths:
       responses:
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '204': { description: Disabled-feature set replaced }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: Caller is not ADMIN
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetail' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/users/{id}/permissions:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    put:
+      tags: [users]
+      operationId: setUserPermissions
+      summary: Replace a user's granted-permission set (ADMIN only)
+      description: |
+        Per-user permissions: a **wholesale replace** of the target user's GRANTED set — an empty array revokes
+        everything (idempotent, a same-set re-PUT is `204` again and audits nothing). **ADMIN-only**; changing
+        one's OWN set is allowed (the features precedent). Unlike the feature flags (a disabled set riding the
+        JWT), permissions are rows read from the database on **every request**, so a grant or a revoke takes
+        effect on the target's very next request, never at the next token refresh. `ROADMAP_EDITOR` lets the user
+        rank the projects and set any project's target window. Audited as `user.permissions_changed` on an actual change.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserPermissionsUpdateRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '204': { description: Granted-permission set replaced }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403':
@@ -1067,6 +1101,13 @@ components:
         MFA is the one inverted-default, login-scoped flag: users start with it disabled
         (email MFA is opt-in), and it gates only the login flow.
 
+    Permission:
+      type: string
+      enum: [ROADMAP_EDITOR]
+      description: >-
+        A per-user permission, stored as the GRANTED set (a row = held) and read from the database on every
+        request. ROADMAP_EDITOR may rank the projects and set any project's target window.
+
     Language:
       type: string
       enum: [en, pl]
@@ -1090,6 +1131,15 @@ components:
           type: array
           items: { $ref: '#/components/schemas/Feature' }
           description: The complete new DISABLED set — an empty array enables everything.
+
+    UserPermissionsUpdateRequest:
+      type: object
+      required: [permissions]
+      properties:
+        permissions:
+          type: array
+          items: { $ref: '#/components/schemas/Permission' }
+          description: The complete new GRANTED set - an empty array revokes everything.
 
     MfaChallengeResponse:
       type: object
@@ -1162,7 +1212,7 @@ components:
 
     UserResponse:
       type: object
-      required: [id, name, email, roles, disabledFeatures, language]
+      required: [id, name, email, roles, disabledFeatures, language, permissions]
       properties:
         id: { type: integer, format: int32, minimum: 0 }
         name: { type: string }
@@ -1177,6 +1227,10 @@ components:
           description: Per-user feature flags — the admin-disabled set; empty = full access.
         language:
           $ref: '#/components/schemas/Language'
+        permissions:
+          type: array
+          items: { $ref: '#/components/schemas/Permission' }
+          description: Per-user permissions - the GRANTED set (read from the database per request, not a token claim); empty = none.
 
     UserPage:
       type: object
