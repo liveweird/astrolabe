@@ -37,9 +37,8 @@ a 400), 1-100 characters; descriptions optional, at most 500.
 
 ## The plan structure (built — V12, v0.2.0; `planning/`)
 
-Hierarchy **work stream → program → project**; every node has an OWNER, a person of the people directory, REQUIRED (`owner_person_id NOT NULL`: ownership-scoped rights need an owner). Parents are
-immutable — a node is created under its parent and its update body carries no parent (a reparent endpoint is planned for v0.3.0's last feature commit; adding
-`POST /projects/{id}/move` is purely additive). Milestones hang under a project since V14 (below).
+Hierarchy **work stream → program → project**; every node has an OWNER, a person of the people directory, REQUIRED (`owner_person_id NOT NULL`: ownership-scoped rights need an owner). A node's parent
+is set at create and its update body carries none; it changes only through the two **move** endpoints (v0.3.0, below). Milestones hang under a project since V14 (below).
 
 ### Entities (V12)
 
@@ -80,13 +79,23 @@ later state orders against them. v0.2 offers no ETag.
 ### API (all under `/api/v1`, `openapi/documentation.yaml`, tag `plan`)
 
 `POST /work-streams`; `GET/PUT/DELETE /work-streams/{id}`; `POST /work-streams/{id}/programs`; `GET/PUT/DELETE /programs/{id}`; `POST /programs/{id}/projects`; `GET/PUT/DELETE /projects/{id}`;
-`PUT /projects/{id}/target-window`; `GET /views/plan`; and the ranking (below): `GET /views/roadmap`, `PUT /roadmap/ranking`. PUTs are full replaces (omitted optional = unset; `204`); creates answer `201` + `Location` + the record. **No paged lists** for
+`PUT /projects/{id}/target-window`; `POST /projects/{id}/move`; `POST /programs/{id}/move`; `GET /views/plan`; and the ranking (below): `GET /views/roadmap`, `PUT /roadmap/ranking`. PUTs are full replaces (omitted optional = unset; `204`); creates answer `201` + `Location` + the record. **No paged lists** for
 streams/programs/projects in v0.2 — a list lands with its first consumer (the v0.4 dependency pickers); the plan view is the read surface. `WorkStreamResponse` etc. carry `ownerPersonId` +
 `ownerName`; a project also carries `workStreamId`.
 
 **The plan view** (`GET /views/plan`, any authenticated user; the documented view-endpoint shape exception of `list-endpoints.md`, bounded by the scale ≈5 streams / 20 programs / 100 projects):
-`{revision, can{createWorkStream}, workStreams[]{…, can{edit, delete, createProgram}, programs[]{…, can{edit, delete, createProject}, projects[]{…, can{edit, delete, editTargetWindow}}}}}`, open work streams
+`{revision, can{createWorkStream}, workStreams[]{…, can{edit, delete, createProgram}, programs[]{…, can{edit, delete, createProject, move}, projects[]{…, can{edit, delete, editTargetWindow, move}}}}}`, open work streams
 first then closed ones, each level by name (case-insensitive, then id).
+
+**Moves** (v0.3.0; `ProjectService.move`, `ProgramService.move`, bodies `{programId}` / `{workStreamId}`, `204`): a node changes parent only here. The caller must be ADMIN or own something ABOVE the node (its program's / stream's
+owner — the node's own owner alone may not take it out of where it is) AND own something on the TARGET chain (the right to create a child there); both guards re-run under the plan lock against chains re-read there. A missing or
+deleted target is a `400` on the body field, never a `404`. The write is one `UPDATE … SET program_id / work_stream_id` plus `updated_at` in a `withPlanWrite` (revision +1): a project's name must be free in the target program (the
+partial index's `409`, "A project with this name already exists in this program"); program names are global, so a program move cannot clash. Milestones ride along (their FK is the project), the global ranking is untouched (it is by
+project, not by place), and the program span / project view / roadmap are derived by joins, so every chain-derived read (`projectChainRow`, the guards, `GET /views/project/{id}`, the plan view) follows at once. A move to the current
+parent is a no-op `204` for a caller who passes both guards: no `UPDATE`, no audit (the plan revision still bumps — the conservative rule). No `expectedRevision`: it sets a parent, it does not merge a client's view, and the guards
+re-check the target anyway. The plan view carries `can.move` on every program and project (`PlanPermissions.canMove` = the source guard) and the SPA pairs it with the candidate's `can.createProject` / `can.createProgram`. A closed
+work stream still takes children, so it is a valid target (`PlanMoveTest`).
+A closed work stream still takes children, so it is a valid target.
 
 ### Authorization (the matrix in `authorization.md`)
 
@@ -98,11 +107,11 @@ Any owner on the chain, the node's own included, may reassign the node's owner (
 ### Audit events (`observability.md`)
 
 `work_stream.created/updated/deleted`, `work_stream.owner_changed`, `work_stream.closed` / `work_stream.reopened` (end-date transitions), `program.created/updated/owner_changed/deleted`,
-`project.created/updated/owner_changed/deleted`, `project.target_window_changed` (start/end from/to). Owner changes and window changes are their own trail lines (rights paths). The ranking adds `roadmap.ranked` (below).
+`project.created/updated/owner_changed/deleted`, `project.target_window_changed` (start/end from/to), `project.moved` / `program.moved` (from/to parent; a no-op move emits nothing). Owner changes and window changes are their own trail lines (rights paths). The ranking adds `roadmap.ranked` (below).
 
 ### Tests
 
-`PlanStructureTest` (the HTTP matrix: every route × every kind of caller, 404-before-403, 403-before-body, owner hand-over, name uniqueness per scope, delete 409s, audit), `PlanViewTest` (ordering, the
+`PlanMoveTest` (both moves: the above-the-node + target matrix, the own-owner refusal, a closed stream as a target, 404 → 403 → body → target 400, the 409 clash, the no-op, what rides along, the flags vs. the real move, audits, the re-guard under a held lock), `PlanStructureTest` (the HTTP matrix: every route × every kind of caller, 404-before-403, 403-before-body, owner hand-over, name uniqueness per scope, delete 409s, audit), `PlanViewTest` (ordering, the
 `can` table, flags vs. what the server really allows), `PlanPermissionsTest` (kernel vs. guards, pure), `PlanStateTest` (revision +1 per write, the lock barrier, the count-under-lock and owner races),
 fixtures in `PlanFixtures.kt` (`planWorld`, `TestPlan`). The 401 sweep and OpenAPI conformance are automatic via the spec.
 

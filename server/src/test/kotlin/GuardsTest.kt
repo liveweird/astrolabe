@@ -6,6 +6,7 @@ import ch.nokillswit.authz.ForbiddenException
 import ch.nokillswit.authz.isAdmin
 import ch.nokillswit.authz.requireAdmin
 import ch.nokillswit.authz.requireFeatureEnabled
+import ch.nokillswit.authz.requireAncestorOwnerOrAdmin
 import ch.nokillswit.authz.requireOwnerOrAdmin
 import ch.nokillswit.authz.requireRoadmapEditorOrAdmin
 import ch.nokillswit.authz.requireTargetWindowEditorOrAdmin
@@ -129,6 +130,18 @@ class GuardsTest {
         assertFailsWith<ForbiddenException> { requireOwnerOrAdmin(user, callerPersonId = null, chain = chain) }
         assertFailsWith<ForbiddenException> { requireOwnerOrAdmin(user, callerPersonId = 99u, chain = chain) }
         assertFailsWith<ForbiddenException> { requireOwnerOrAdmin(user, callerPersonId = 10u, chain = OwnerChain(emptyList())) }
+    }
+
+    @Test
+    fun `requireAncestorOwnerOrAdmin - only an owner ABOVE the node passes, the node's own owner and a stranger do not`() {
+        val chain = OwnerChain(listOf(10u, 20u, 30u))
+        requireAncestorOwnerOrAdmin(admin, callerPersonId = null, chain = chain)
+        requireAncestorOwnerOrAdmin(user, callerPersonId = 20u, chain = chain)
+        requireAncestorOwnerOrAdmin(user, callerPersonId = 10u, chain = chain)
+        assertFailsWith<ForbiddenException> { requireAncestorOwnerOrAdmin(user, callerPersonId = 30u, chain = chain) }
+        assertFailsWith<ForbiddenException> { requireAncestorOwnerOrAdmin(user, callerPersonId = null, chain = chain) }
+        assertFailsWith<ForbiddenException> { requireAncestorOwnerOrAdmin(user, callerPersonId = 99u, chain = chain) }
+        assertFailsWith<ForbiddenException> { requireAncestorOwnerOrAdmin(user, callerPersonId = 10u, chain = OwnerChain(listOf(10u))) }
     }
 
     @Test

@@ -34,6 +34,14 @@ object PlanPermissions {
     fun canEditTargetWindow(actor: PlanActor, projectChain: OwnerChain): Boolean =
         actor.isAdmin || (actor.personId != null && actor.personId in projectChain.ancestors.owners) || actor.roadmapEditor
 
+    /**
+     * `POST /projects/{id}/move` and `POST /programs/{id}/move`, the SOURCE side: ADMIN, or the caller's person owns something ABOVE the
+     * node (`requireAncestorOwnerOrAdmin`) — the node's own owner alone may not move it. The target side is [canManage] on the
+     * candidate parent's chain (the `createProgram` / `createProject` flags).
+     */
+    fun canMove(actor: PlanActor, nodeChain: OwnerChain): Boolean =
+        actor.isAdmin || (actor.personId != null && actor.personId in nodeChain.ancestors.owners)
+
     /** `PUT /roadmap/ranking`: ADMIN or the roadmap-editor grant (`requireRoadmapEditorOrAdmin`); ownership does not matter. */
     fun canEditRank(actor: PlanActor): Boolean = actor.isAdmin || actor.roadmapEditor
 

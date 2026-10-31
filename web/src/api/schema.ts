@@ -646,8 +646,8 @@ export interface paths {
         /**
          * Replace a program's fields and owner
          * @description An owner of the program or of its work stream, or ADMIN. Read-before-guard (404, then 403, then the body). A full replace; the
-         *     parent work stream never changes. The owner may be reassigned to another active person (`400` otherwise) by any caller who may
-         *     edit. A name clash with another active program is `409`. Audited as `program.updated` and `program.owner_changed`.
+         *     parent work stream never changes here (see `POST /programs/{id}/move`). The owner may be reassigned to another active person
+         *     (`400` otherwise) by any caller who may edit. A name clash with another active program is `409`. Audited as `program.updated` and `program.owner_changed`.
          */
         put: operations["updateProgram"];
         post?: never;
@@ -657,6 +657,36 @@ export interface paths {
          *     `409` while the program still has active projects (counted under the plan lock).
          */
         delete: operations["deleteProgram"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/programs/{id}/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Move a program under another work stream
+         * @description ADMIN, or the owner of the program's CURRENT work stream (the program's own owner alone may not take it out of where it is) who
+         *     ALSO owns the TARGET work stream. The plan view's `can.move` is the source half and the target's `can.createProgram` the other.
+         *     Read-before-guard: the program is resolved first (`404`), the source guard (`403`) runs before the body, then the body (`400`
+         *     for a malformed one), then the target: a work stream that does not exist or is deleted is `400` "Unknown or deleted work stream
+         *     ids: N" (a body field, never `404`), and a caller who does not own the target work stream gets `403`. Both guards re-run
+         *     under the plan lock against the chains re-read there. A closed work stream is a valid target. Program names are globally
+         *     unique, so a move cannot clash (hence no `409`). The program's projects and their milestones move with it and the global
+         *     ranking is untouched. A move to the program's current work stream is a no-op `204` with no audit for a caller who passes both
+         *     guards. There is no `expectedRevision`. Audited as `program.moved`.
+         */
+        post: operations["moveProgram"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -704,8 +734,8 @@ export interface paths {
         /**
          * Replace a project's fields and owner
          * @description An owner on the project's chain - the project's own owner included - or ADMIN. Read-before-guard (404, then 403, then the
-         *     body). A full replace of name, description and owner; the parent program and the target window never change here (the window
-         *     has its own operation). The owner may be reassigned to another active person (`400` otherwise) by any caller who may edit. A
+         *     body). A full replace of name, description and owner; the parent program (`POST /projects/{id}/move`) and the target window
+         *     never change here (the window has its own operation). The owner may be reassigned to another active person (`400` otherwise) by any caller who may edit. A
          *     name clash within the program is `409`. Audited as `project.updated` and `project.owner_changed`.
          */
         put: operations["updateProject"];
@@ -741,6 +771,38 @@ export interface paths {
          */
         put: operations["setProjectTargetWindow"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{id}/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Move a project under another program
+         * @description ADMIN, or an owner ABOVE the project on its CURRENT chain (its program's or work stream's owner - the project's own owner alone
+         *     may not take it out of where it is) who ALSO owns something on the TARGET program's chain (its work stream or the program
+         *     itself): the right to move it out and the right to create one there. The plan view's `can.move` is the source half and the
+         *     target's `can.createProject` the other. Read-before-guard: the project is resolved first (`404`), the source guard (`403`) runs
+         *     before the body, then the body (`400` for a malformed one), then the target: a program that does not exist or is deleted (or
+         *     whose work stream is) is `400` "Unknown or deleted program ids: N" (a body field, never `404`), and a caller who owns nothing
+         *     on the target chain gets `403`. Both guards re-run under the plan lock against the chains re-read there. A project whose name
+         *     already exists among the active projects of the target program (case-insensitive) is `409`. The project's milestones move with
+         *     it and the global ranking is untouched. A move to the project's current program is a no-op `204` with no audit for a caller who
+         *     passes both guards. There is no `expectedRevision`: the move is a set of the parent, and a stale view only offers a target that
+         *     the guards re-check. Audited as `project.moved`.
+         */
+        post: operations["moveProject"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1414,6 +1476,20 @@ export interface components {
              */
             ownerPersonId: number;
         };
+        ProgramMoveRequest: {
+            /**
+             * Format: int32
+             * @description The work stream to move the program under (`400` when it is unknown or deleted).
+             */
+            workStreamId: number;
+        };
+        ProjectMoveRequest: {
+            /**
+             * Format: int32
+             * @description The program to move the project under (`400` when it is unknown or deleted).
+             */
+            programId: number;
+        };
         TargetWindowRequest: {
             /**
              * Format: date
@@ -1600,6 +1676,8 @@ export interface components {
                 /** @description A rights flag: the caller may delete the node. The server can still answer 409 while it has active children. */
                 delete: boolean;
                 createProject: boolean;
+                /** @description The caller may move this program to another work stream (ADMIN, or the owner of its work stream); offer the work streams whose `createProgram` is set. */
+                move: boolean;
             };
             projects: components["schemas"]["PlanProject"][];
         };
@@ -1629,6 +1707,8 @@ export interface components {
                 delete: boolean;
                 /** @description The caller may set the target window (ADMIN, an owner above the project, or a roadmap editor). */
                 editTargetWindow: boolean;
+                /** @description The caller may move this project to another program (ADMIN, or an owner of its program or work stream - the project's own owner alone may not); offer the programs whose `createProject` is set. */
+                move: boolean;
             };
         };
         ProjectView: {
@@ -3284,6 +3364,37 @@ export interface operations {
             500: components["responses"]["InternalServerError"];
         };
     };
+    moveProgram: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProgramMoveRequest"];
+            };
+        };
+        responses: {
+            /** @description Moved (or already there) */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
     createProject: {
         parameters: {
             query?: never;
@@ -3428,6 +3539,38 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    moveProject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectMoveRequest"];
+            };
+        };
+        responses: {
+            /** @description Moved (or already there) */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
             413: components["responses"]["PayloadTooLarge"];
             415: components["responses"]["UnsupportedMediaType"];
             500: components["responses"]["InternalServerError"];

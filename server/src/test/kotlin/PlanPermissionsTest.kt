@@ -4,6 +4,7 @@ import ch.nokillswit.authz.CallerPrincipal
 import ch.nokillswit.authz.ForbiddenException
 import ch.nokillswit.authz.OwnerChain
 import ch.nokillswit.authz.requireAdmin
+import ch.nokillswit.authz.requireAncestorOwnerOrAdmin
 import ch.nokillswit.authz.requireOwnerOrAdmin
 import ch.nokillswit.authz.requireRoadmapEditorOrAdmin
 import ch.nokillswit.authz.requireTargetWindowEditorOrAdmin
@@ -118,6 +119,20 @@ class PlanPermissionsTest {
         assertEquals(false, PlanPermissions.canEditTargetWindow(ownerOnly.asPlanActor(), projectChain))
         val programOwner = Actor("program owner", user(3u), program, false)
         assertTrue(PlanPermissions.canEditTargetWindow(programOwner.asPlanActor(), projectChain))
+    }
+
+    @Test
+    fun `the move flag equals requireAncestorOwnerOrAdmin - the node's own owner alone is refused`() {
+        for (actor in actors) for ((level, chain) in chains) {
+            val guard = allowed { requireAncestorOwnerOrAdmin(actor.caller, actor.personId, chain) }
+            assertEquals(guard, PlanPermissions.canMove(actor.asPlanActor(), chain), "${actor.label} at the $level")
+        }
+        val projectChain = chains.first { it.first == "project" }.second
+        val ownerOnly = Actor("project owner", user(4u), project, false)
+        assertFalse(PlanPermissions.canMove(ownerOnly.asPlanActor(), projectChain))
+        assertTrue(PlanPermissions.canMove(Actor("program owner", user(3u), program, false).asPlanActor(), projectChain))
+        val streamChain = chains.first { it.first == "work stream" }.second
+        assertFalse(PlanPermissions.canMove(Actor("stream owner", user(2u), stream, false).asPlanActor(), streamChain))
     }
 
     @Test

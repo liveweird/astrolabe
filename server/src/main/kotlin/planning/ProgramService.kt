@@ -96,6 +96,26 @@ class ProgramService(private val database: R2dbcDatabase) {
         }.value
     }
 
+    /**
+     * Moves the program under [workStreamId] under the plan lock. The SOURCE chain is re-read (missing = 404) and the source guard
+     * re-run on it (the work stream's owner), then the TARGET work stream's chain (missing = 400, a body field) and the target guard
+     * on that too: both must pass. Program names are globally unique, so a move cannot clash; its projects (and their milestones) ride
+     * along, the ranking is untouched, and a move to the current work stream writes nothing (the outcome says so).
+     */
+    suspend fun move(id: UInt, workStreamId: UInt, guards: MoveGuards): MoveOutcome = database.withPlanWrite {
+        guards.source(programChain(id) ?: throw NotFoundException("Program not found"))
+        guards.target(workStreamChain(workStreamId) ?: unknownMoveTarget("work stream", workStreamId))
+        val from = Programs.select(Programs.workStreamId).where { (Programs.id eq id) and Programs.active() }
+            .toList().singleOrNull()?.get(Programs.workStreamId)?.value ?: throw NotFoundException("Program not found")
+        if (from != workStreamId) {
+            Programs.update({ (Programs.id eq id) and Programs.active() }) {
+                it[this.workStreamId] = workStreamId
+                it[updatedAt] = nowMillis()
+            }
+        }
+        MoveOutcome(from, workStreamId)
+    }.value
+
     /** Soft delete under the plan lock: 409 while the program has ACTIVE projects (counted under the lock, like the work stream). */
     suspend fun delete(id: UInt, guard: PlanGuard) {
         database.withPlanWrite {

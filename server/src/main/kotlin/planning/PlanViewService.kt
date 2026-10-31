@@ -65,6 +65,7 @@ class PlanViewService(private val database: R2dbcDatabase) {
                                         edit = PlanPermissions.canManage(actor, projectChain),
                                         delete = PlanPermissions.canManage(actor, projectChain),
                                         editTargetWindow = PlanPermissions.canEditTargetWindow(actor, projectChain),
+                                        move = PlanPermissions.canMove(actor, projectChain),
                                     ),
                                 )
                             }
@@ -81,6 +82,7 @@ class PlanViewService(private val database: R2dbcDatabase) {
                                 edit = PlanPermissions.canManage(actor, programChain),
                                 delete = PlanPermissions.canManage(actor, programChain),
                                 createProject = PlanPermissions.canManage(actor, programChain),
+                                move = PlanPermissions.canMove(actor, programChain),
                             ),
                             projects = projectNodes,
                         )

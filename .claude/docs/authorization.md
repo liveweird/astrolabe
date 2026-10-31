@@ -198,10 +198,18 @@ Layered RBAC. Implemented in the `server/src/main/kotlin/authz/` package.
     | `PUT`/`DELETE /work-streams/{id}`, `POST /work-streams/{id}/programs` | chain(stream) ?: 404 → `requireOwnerOrAdmin` (the stream's owner) |
     | `PUT`/`DELETE /programs/{id}`, `POST /programs/{id}/projects` | chain(program) ?: 404 → `requireOwnerOrAdmin` (the stream's or the program's owner) |
     | `PUT`/`DELETE /projects/{id}` | chain(project) ?: 404 → `requireOwnerOrAdmin` (any of the three, the project's own owner included) |
+    | `POST /programs/{id}/move` | chain(program) ?: 404 → `requireAncestorOwnerOrAdmin` (the stream's owner; NOT the program's own owner) → body 400 → target work stream chain ?: **400** "Unknown or deleted work stream ids: N" (a body field, never a 404) → `requireOwnerOrAdmin` on the TARGET chain: BOTH, or ADMIN |
+    | `POST /projects/{id}/move` | chain(project) ?: 404 → `requireAncestorOwnerOrAdmin` (the program's or stream's owner; NOT the project's own owner) → body 400 → target program chain ?: **400** "Unknown or deleted program ids: N" → `requireOwnerOrAdmin` on the TARGET chain (both, or ADMIN); 409 name clash in the target program |
     | `PUT /projects/{id}/target-window` | chain(project) ?: 404 → `requireTargetWindowEditorOrAdmin` (ADMIN, the stream's or program's owner, or `ROADMAP_EDITOR`; NOT the project's own owner alone) |
     | `GET /views/roadmap` | authenticated (`can.editRank` shows the caller's right) |
     | `PUT /roadmap/ranking` | `requireRoadmapEditorOrAdmin` FIRST — **guard-before-read**: the route addresses no node, so there is no 404 to order against; ADMIN or `ROADMAP_EDITOR`, nobody else (an owner of any node included) |
 
+    **A move needs both sides** — the right to take the node out of where it is AND the right to create one where it goes. The source side is `requireAncestorOwnerOrAdmin` on the node's chain: ADMIN or an owner ABOVE the node
+    (`chain.ancestors`, the `requireTargetWindowEditorOrAdmin` slicing) — the node's own owner alone may NOT move it, so "the ancestors can always take it back" holds and a hand-over cannot dodge the parent's say. The target side is
+    `requireOwnerOrAdmin` on the candidate parent's chain (what creating a child there needs). Both guards run outside for the ordering (source before the body, target after it) and again INSIDE `withPlanWrite`, each against its
+    chain re-read there (`MoveGuards`, one `FOR SHARE` lookup of the caller's person shared by both; the source missing = 404, the target missing = 400, nothing written). The plan view carries the source half as `can.move` on every
+    program and project (`PlanPermissions.canMove`, pinned against the guard by `PlanPermissionsTest`) and the target half is the candidate's existing `can.createProject` / `can.createProgram`: the SPA offers "Move to…" when `can.move` is
+    set, with the candidates whose create flag is set, and `PlanMoveTest` pins that conjunction against the real moves. The ownership arithmetic afterwards reads the NEW chain (a guard or a flag never remembers the old parent).
     The owner of a node is a field of its full-replace PUT, so **any caller who may edit a node may reassign its owner** (including the node's own owner — a hand-over;
     the ancestors can always take it back); the new owner must be an ACTIVE person (`400` "Unknown or deleted owner ids"). Creating a project may carry the target window
     (creators are always window editors). A closed work stream (end date) does not block new children. The `can:{}` flags of the plan view come from the pure kernel

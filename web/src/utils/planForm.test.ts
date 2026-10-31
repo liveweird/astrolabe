@@ -97,7 +97,7 @@ describe("planForm wire bodies", () => {
     const project = {
       id: 2, programId: 1, workStreamId: 1, name: "P", description: null, ownerPersonId: 5, ownerName: "Piotr",
       targetStart: "2026-02-01", targetEnd: "2026-03-01", createdAt: 0, updatedAt: 0,
-      can: { edit: true, delete: true, editTargetWindow: false },
+      can: { edit: true, delete: true, editTargetWindow: false, move: true },
     } satisfies PlanProject;
     expect(toProjectFormValues(project)).toEqual({
       name: "P", description: "", ownerPersonId: "5", ownerLabel: "Piotr", targetStart: "2026-02-01", targetEnd: "2026-03-01",

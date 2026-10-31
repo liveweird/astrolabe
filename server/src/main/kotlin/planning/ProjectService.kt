@@ -129,6 +129,27 @@ class ProjectService(private val database: R2dbcDatabase) {
     }
 
     /**
+     * Moves the project under [programId] under the plan lock. The SOURCE chain is re-read (missing = 404) and the source guard
+     * re-run on it (an owner ABOVE the project), then the TARGET program's chain (missing = 400, a body field) and the target guard
+     * on that too: both must pass. A name clash in the target program is the partial index's 409 (`uq_projects_program_name_active`);
+     * the milestones ride along (their FK is the project), the global ranking is untouched, and a move to the current parent writes
+     * nothing (the outcome says so).
+     */
+    suspend fun move(id: UInt, programId: UInt, guards: MoveGuards): MoveOutcome = database.withPlanWrite {
+        val source = projectChainRow(id, listOf(Projects.programId)) ?: throw NotFoundException("Project not found")
+        guards.source(source.chain)
+        guards.target(programChain(programId) ?: unknownMoveTarget("program", programId))
+        val from = source.row[Projects.programId].value
+        if (from != programId) {
+            Projects.update({ (Projects.id eq id) and Projects.active() }) {
+                it[this.programId] = programId
+                it[updatedAt] = nowMillis()
+            }
+        }
+        MoveOutcome(from, programId)
+    }.value
+
+    /**
      * Soft delete under the plan lock. A project's ACTIVE milestones are soft-deleted in the same locked transaction
      * ([deleteMilestonesOf]: the project's own work breakdown, no owner of their own — the returned count is the audit's
      * `milestoneCount`), so there is no 409. The same transaction takes the project out of the ranking ([removeFromRanking]: its

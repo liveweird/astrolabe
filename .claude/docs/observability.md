@@ -117,9 +117,10 @@ with `hasKeyValue` from `TestEnvironment.kt`). Emitted today:
   (byUserId/workStreamId/ownerFrom/ownerTo — person ids as STORED, only when a PUT actually changes the owner: the new owner gains the whole subtree, so it is its own trail line) /
   `work_stream.closed` (…/endDate) / `work_stream.reopened` (…/endFrom) (an end date appearing / disappearing on a PUT) / `work_stream.deleted` (byUserId/workStreamId),
 - `program.created` (byUserId/programId/workStreamId/name/ownerPersonId) / `program.updated` (byUserId/programId/name) / `program.owner_changed` (byUserId/programId/ownerFrom/ownerTo) /
-  `program.deleted` (byUserId/programId),
+  `program.moved` (byUserId/programId/workStreamFrom/workStreamTo — the work stream ids as STORED under the plan lock; `POST /programs/{id}/move`; a move to the current work stream emits nothing) / `program.deleted` (byUserId/programId),
 - `project.created` (byUserId/projectId/programId/name/ownerPersonId) / `project.updated` (byUserId/projectId/name) / `project.owner_changed` (byUserId/projectId/ownerFrom/ownerTo) /
   `project.target_window_changed` (byUserId/projectId/startFrom/endFrom/startTo/endTo — ISO dates as STORED, null = no window; only when the window actually changes; `PUT /projects/{id}/target-window`) /
+  `project.moved` (byUserId/projectId/programFrom/programTo — the program ids as STORED under the plan lock; `POST /projects/{id}/move`; a move to the current program is a no-op and emits nothing) /
   `project.deleted` (byUserId/projectId/milestoneCount — the number of ACTIVE milestones the delete cascaded, 0 for none) — every plan-node mutation (`planning/*Routes.kt`); a rejected save (403/404/409/400) emits nothing of its own (a 403 is the central `authz.denied`),
 - `milestone.created` (byUserId/milestoneId/projectId/name/teamId/estimateMd — the estimate as the Double the client sent) / `milestone.updated` (byUserId/milestoneId/name/estimateMd) / `milestone.team_changed` (byUserId/milestoneId/teamFrom/teamTo — team ids as
   STORED, only when a PUT actually changes the team: it changes WHO may schedule the milestone and where the bar sits in the team view, so it is its own trail line, the `team.manager_changed` precedent; the dates stay) /

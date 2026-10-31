@@ -4,6 +4,7 @@ import ch.nokillswit.authz.CallerPrincipal
 import ch.nokillswit.authz.OwnerChain
 import ch.nokillswit.authz.isAdmin
 import ch.nokillswit.authz.orNotFound
+import ch.nokillswit.authz.requireAncestorOwnerOrAdmin
 import ch.nokillswit.authz.requireOwnerOrAdmin
 import ch.nokillswit.authz.requireTargetWindowEditorOrAdmin
 import ch.nokillswit.authz.requireTeamManagerOrAdmin
@@ -81,6 +82,44 @@ internal class PlanRouteDeps(
     suspend fun requireOwner(caller: CallerPrincipal, chain: OwnerChain?, resource: String) {
         val resolved = chain.orNotFound(resource)
         requireOwnerOrAdmin(caller, callerPersonId(caller), resolved)
+    }
+
+    /**
+     * The SOURCE half of a move, read-before-guard: a missing [chain] is the 404 for [resource], then the caller must be ADMIN or own
+     * something ABOVE the node ([requireAncestorOwnerOrAdmin]) — the node's own owner is not enough. Returns the caller's person (null
+     * for an ADMIN or a person-less login) for [requireMoveTarget], so it is resolved once.
+     */
+    suspend fun requireMoveSource(caller: CallerPrincipal, chain: OwnerChain?, resource: String): UInt? {
+        val resolved = chain.orNotFound(resource)
+        val person = callerPersonId(caller)
+        requireAncestorOwnerOrAdmin(caller, person, resolved)
+        return person
+    }
+
+    /**
+     * The TARGET half of a move, after [requireMoveSource] and the body: a missing [chain] is a 400 on the body field
+     * ("Unknown or deleted [kind] ids: [id]"), then the caller ([person], as [requireMoveSource] resolved it) must own the target chain
+     * too (or be ADMIN) — the same rule as creating a child there.
+     */
+    fun requireMoveTarget(caller: CallerPrincipal, person: UInt?, chain: OwnerChain?, kind: String, id: UInt) {
+        requireOwnerOrAdmin(caller, person, chain ?: unknownMoveTarget(kind, id))
+    }
+
+    /** The two guards a move re-runs inside the plan lock ([MoveGuards]), sharing one `FOR SHARE` lookup of the caller's person. */
+    fun moveGuards(caller: CallerPrincipal): MoveGuards {
+        var resolved = false
+        var person: UInt? = null
+        val lockedPerson: suspend () -> UInt? = {
+            if (!resolved) {
+                person = lockedCallerPersonId(caller)
+                resolved = true
+            }
+            person
+        }
+        return MoveGuards(
+            source = { chain -> requireAncestorOwnerOrAdmin(caller, lockedPerson(), chain) },
+            target = { chain -> requireOwnerOrAdmin(caller, lockedPerson(), chain) },
+        )
     }
 
     /**

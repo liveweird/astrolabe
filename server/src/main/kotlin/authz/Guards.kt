@@ -88,6 +88,19 @@ fun requireOwnerOrAdmin(caller: CallerPrincipal, callerPersonId: UInt?, chain: O
 }
 
 /**
+ * ADMIN, or the caller's person owns something ABOVE the node ([OwnerChain.ancestors] of [chain], the node's own owner dropped): the
+ * SOURCE side of a move — only a parent's owner may take a node out of where it is (the node's own owner alone may not; the ancestors
+ * can always take a node back). It takes the node's FULL [chain] and slices it itself, like [requireTargetWindowEditorOrAdmin], so a
+ * caller can never pass the wrong slice. Run twice by the move routes (outside for ordering, inside the plan lock).
+ */
+fun requireAncestorOwnerOrAdmin(caller: CallerPrincipal, callerPersonId: UInt?, chain: OwnerChain) {
+    if (caller.isAdmin()) return
+    if (callerPersonId == null || callerPersonId !in chain.ancestors.owners) {
+        throw ForbiddenException("Owner of a parent or admin role required")
+    }
+}
+
+/**
  * Who may set a project's target window: ADMIN, an owner ABOVE the project, or a holder of the [Permission.ROADMAP_EDITOR]
  * grant. It takes the node's FULL [chain] (project owner last) and uses [OwnerChain.ancestors] itself, so a caller can
  * never pass the wrong slice: the project's OWN owner is deliberately not enough alone. The cheap person-id check runs

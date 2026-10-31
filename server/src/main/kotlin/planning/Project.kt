@@ -11,10 +11,10 @@ import java.time.LocalDate
 
 /**
  * Projects (V12), the third level: a name (unique among active projects of the SAME program), an optional description, a REQUIRED
- * owner and an optional target window (both dates or neither, end not before start). The parent program is fixed at create
- * (`POST /programs/{id}/projects`). The window is NOT part of the field update: it has its own wider-audience endpoint
- * (`PUT /projects/{id}/target-window` — the owners above the project and the roadmap editors, `authorization.md`); creators are
- * always window editors, so the create body may carry it.
+ * owner and an optional target window (both dates or neither, end not before start). The parent program is set at create
+ * (`POST /programs/{id}/projects`) and changes only through `POST /projects/{id}/move` ([ProjectMoveRequest]). The window is NOT part
+ * of the field update: it has its own wider-audience endpoint (`PUT /projects/{id}/target-window` — the owners above the project and
+ * the roadmap editors, `authorization.md`); creators are always window editors, so the create body may carry it.
  */
 @Serializable
 data class ProjectCreateRequest(

@@ -28,6 +28,10 @@ class ProgramsRoute {
         @Serializable
         @Resource("projects")
         class Projects(val parent: Id)
+
+        @Serializable
+        @Resource("move")
+        class Move(val parent: Id)
     }
 }
 
@@ -36,7 +40,8 @@ private const val PROGRAM = "Program"
 /**
  * Programs: created under a work stream (`POST /work-streams/{id}/programs`, in `WorkStreamRoutes.kt` — the parent id in the path is
  * what the guard needs). Read is any authenticated user; update, delete and "create a project under it" need an owner on the program's
- * chain (work stream or program) or ADMIN, after the 404 (read-before-guard).
+ * chain (work stream or program) or ADMIN, after the 404 (read-before-guard). `POST /programs/{id}/move` reparents under another work
+ * stream: the caller must own the program's work stream (its own owner alone may not) AND the target work stream (or be ADMIN).
  */
 internal fun Route.programRoutes(d: PlanRouteDeps) {
     get<ProgramsRoute.Id> { route ->
@@ -64,6 +69,24 @@ internal fun Route.programRoutes(d: PlanRouteDeps) {
         d.requireOwner(caller, d.programs.chain(route.id), PROGRAM)
         d.programs.delete(route.id, d.ownerGuard(caller))
         audit("program.deleted", "byUserId" to caller.userId.toLong(), "programId" to route.id.toLong())
+        call.respond(HttpStatusCode.NoContent)
+    }
+    post<ProgramsRoute.Id.Move> { route ->
+        val caller = call.caller()
+        val programId = route.parent.id
+        val person = d.requireMoveSource(caller, d.programs.chain(programId), PROGRAM)
+        val request = call.receive<ProgramMoveRequest>()
+        d.requireMoveTarget(caller, person, d.workStreams.chain(request.workStreamId), "work stream", request.workStreamId)
+        val outcome = d.programs.move(programId, request.workStreamId, d.moveGuards(caller))
+        if (outcome.changed) {
+            audit(
+                "program.moved",
+                "byUserId" to caller.userId.toLong(),
+                "programId" to programId.toLong(),
+                "workStreamFrom" to outcome.from.toLong(),
+                "workStreamTo" to outcome.to.toLong(),
+            )
+        }
         call.respond(HttpStatusCode.NoContent)
     }
     post<ProgramsRoute.Id.Projects> { route ->

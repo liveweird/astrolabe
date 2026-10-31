@@ -51,7 +51,7 @@ data class PlanProgram(
 )
 
 @Serializable
-data class PlanProgramCan(val edit: Boolean, val delete: Boolean, val createProject: Boolean)
+data class PlanProgramCan(val edit: Boolean, val delete: Boolean, val createProject: Boolean, val move: Boolean)
 
 @Serializable
 data class PlanProject(
@@ -70,4 +70,4 @@ data class PlanProject(
 )
 
 @Serializable
-data class PlanProjectCan(val edit: Boolean, val delete: Boolean, val editTargetWindow: Boolean)
+data class PlanProjectCan(val edit: Boolean, val delete: Boolean, val editTargetWindow: Boolean, val move: Boolean)

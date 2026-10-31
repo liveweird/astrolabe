@@ -1019,8 +1019,8 @@ paths:
       summary: Replace a program's fields and owner
       description: |
         An owner of the program or of its work stream, or ADMIN. Read-before-guard (404, then 403, then the body). A full replace; the
-        parent work stream never changes. The owner may be reassigned to another active person (`400` otherwise) by any caller who may
-        edit. A name clash with another active program is `409`. Audited as `program.updated` and `program.owner_changed`.
+        parent work stream never changes here (see `POST /programs/{id}/move`). The owner may be reassigned to another active person
+        (`400` otherwise) by any caller who may edit. A name clash with another active program is `409`. Audited as `program.updated` and `program.owner_changed`.
       requestBody:
         required: true
         content:
@@ -1053,6 +1053,39 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/programs/{id}/move:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    post:
+      tags: [plan]
+      operationId: moveProgram
+      summary: Move a program under another work stream
+      description: |
+        ADMIN, or the owner of the program's CURRENT work stream (the program's own owner alone may not take it out of where it is) who
+        ALSO owns the TARGET work stream. The plan view's `can.move` is the source half and the target's `can.createProgram` the other.
+        Read-before-guard: the program is resolved first (`404`), the source guard (`403`) runs before the body, then the body (`400`
+        for a malformed one), then the target: a work stream that does not exist or is deleted is `400` "Unknown or deleted work stream
+        ids: N" (a body field, never `404`), and a caller who does not own the target work stream gets `403`. Both guards re-run
+        under the plan lock against the chains re-read there. A closed work stream is a valid target. Program names are globally
+        unique, so a move cannot clash (hence no `409`). The program's projects and their milestones move with it and the global
+        ranking is untouched. A move to the program's current work stream is a no-op `204` with no audit for a caller who passes both
+        guards. There is no `expectedRevision`. Audited as `program.moved`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProgramMoveRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '204':
+          description: Moved (or already there)
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
         '500': { $ref: '#/components/responses/InternalServerError' }
   /api/v1/programs/{id}/projects:
     parameters:
@@ -1115,8 +1148,8 @@ paths:
       summary: Replace a project's fields and owner
       description: |
         An owner on the project's chain - the project's own owner included - or ADMIN. Read-before-guard (404, then 403, then the
-        body). A full replace of name, description and owner; the parent program and the target window never change here (the window
-        has its own operation). The owner may be reassigned to another active person (`400` otherwise) by any caller who may edit. A
+        body). A full replace of name, description and owner; the parent program (`POST /projects/{id}/move`) and the target window
+        never change here (the window has its own operation). The owner may be reassigned to another active person (`400` otherwise) by any caller who may edit. A
         name clash within the program is `409`. Audited as `project.updated` and `project.owner_changed`.
       requestBody:
         required: true
@@ -1177,6 +1210,42 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/projects/{id}/move:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    post:
+      tags: [plan]
+      operationId: moveProject
+      summary: Move a project under another program
+      description: |
+        ADMIN, or an owner ABOVE the project on its CURRENT chain (its program's or work stream's owner - the project's own owner alone
+        may not take it out of where it is) who ALSO owns something on the TARGET program's chain (its work stream or the program
+        itself): the right to move it out and the right to create one there. The plan view's `can.move` is the source half and the
+        target's `can.createProject` the other. Read-before-guard: the project is resolved first (`404`), the source guard (`403`) runs
+        before the body, then the body (`400` for a malformed one), then the target: a program that does not exist or is deleted (or
+        whose work stream is) is `400` "Unknown or deleted program ids: N" (a body field, never `404`), and a caller who owns nothing
+        on the target chain gets `403`. Both guards re-run under the plan lock against the chains re-read there. A project whose name
+        already exists among the active projects of the target program (case-insensitive) is `409`. The project's milestones move with
+        it and the global ranking is untouched. A move to the project's current program is a no-op `204` with no audit for a caller who
+        passes both guards. There is no `expectedRevision`: the move is a set of the parent, and a stale view only offers a target that
+        the guards re-check. Audited as `project.moved`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectMoveRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '204':
+          description: Moved (or already there)
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
         '500': { $ref: '#/components/responses/InternalServerError' }
   /api/v1/projects/{id}/milestones:
@@ -2089,6 +2158,24 @@ components:
           format: int32
           minimum: 0
           description: The owner, an active person of the people directory (`400` otherwise).
+    ProgramMoveRequest:
+      type: object
+      required: [workStreamId]
+      properties:
+        workStreamId:
+          type: integer
+          format: int32
+          minimum: 0
+          description: The work stream to move the program under (`400` when it is unknown or deleted).
+    ProjectMoveRequest:
+      type: object
+      required: [programId]
+      properties:
+        programId:
+          type: integer
+          format: int32
+          minimum: 0
+          description: The program to move the project under (`400` when it is unknown or deleted).
     TargetWindowRequest:
       type: object
       properties:
@@ -2228,11 +2315,12 @@ components:
         updatedAt: { type: integer, format: int64 }
         can:
           type: object
-          required: [edit, delete, createProject]
+          required: [edit, delete, createProject, move]
           properties:
             edit: { type: boolean }
             delete: { type: boolean, description: 'A rights flag: the caller may delete the node. The server can still answer 409 while it has active children.' }
             createProject: { type: boolean }
+            move: { type: boolean, description: 'The caller may move this program to another work stream (ADMIN, or the owner of its work stream); offer the work streams whose `createProgram` is set.' }
         projects:
           type: array
           items:
@@ -2254,11 +2342,12 @@ components:
         updatedAt: { type: integer, format: int64 }
         can:
           type: object
-          required: [edit, delete, editTargetWindow]
+          required: [edit, delete, editTargetWindow, move]
           properties:
             edit: { type: boolean }
             delete: { type: boolean, description: 'A rights flag: the caller may delete the node. The server can still answer 409 while it has active children.' }
             editTargetWindow: { type: boolean, description: 'The caller may set the target window (ADMIN, an owner above the project, or a roadmap editor).' }
+            move: { type: boolean, description: 'The caller may move this project to another program (ADMIN, or an owner of its program or work stream - the project''s own owner alone may not); offer the programs whose `createProject` is set.' }
 
     ProjectView:
       type: object

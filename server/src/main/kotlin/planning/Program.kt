@@ -7,8 +7,8 @@ import kotlinx.serialization.Serializable
 
 /**
  * Programs (V12), the middle level: a name (unique among active programs, globally), an optional description and a REQUIRED owner,
- * under one work stream. The parent is fixed at create (`POST /work-streams/{id}/programs`) and never part of an update body — a
- * reparent endpoint is a v0.3 addition (`planning-model.md`).
+ * under one work stream. The parent is set at create (`POST /work-streams/{id}/programs`) and never part of an update body; it
+ * changes only through `POST /programs/{id}/move` ([ProgramMoveRequest], `planning-model.md`).
  */
 @Serializable
 data class ProgramCreateRequest(

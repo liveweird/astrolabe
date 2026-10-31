@@ -33,6 +33,10 @@ class ProjectsRoute {
         @Serializable
         @Resource("milestones")
         class Milestones(val parent: Id)
+
+        @Serializable
+        @Resource("move")
+        class Move(val parent: Id)
     }
 }
 
@@ -43,7 +47,8 @@ private const val PROJECT = "Project"
  * delete and "create a milestone under it" (`POST /projects/{id}/milestones`, here — the parent id in the path is what the guard needs)
  * need an owner on the project's chain INCLUDING the project's own owner, or ADMIN. A delete cascades the project's milestones.
  * The target window is a separate PUT with a different audience: ADMIN, an owner ABOVE the project, or a `ROADMAP_EDITOR` — the
- * project's own owner alone gets a 403. All read-before-guard.
+ * project's own owner alone gets a 403. All read-before-guard. `POST /projects/{id}/move` reparents under another program: the caller must
+ * own something ABOVE the project (its own owner alone may not) AND something on the target program's chain (or be ADMIN).
  */
 internal fun Route.projectRoutes(d: PlanRouteDeps) {
     get<ProjectsRoute.Id> { route ->
@@ -97,6 +102,24 @@ internal fun Route.projectRoutes(d: PlanRouteDeps) {
             "projectId" to route.id.toLong(),
             "milestoneCount" to milestoneCount,
         )
+        call.respond(HttpStatusCode.NoContent)
+    }
+    post<ProjectsRoute.Id.Move> { route ->
+        val caller = call.caller()
+        val projectId = route.parent.id
+        val person = d.requireMoveSource(caller, d.projects.chain(projectId), PROJECT)
+        val request = call.receive<ProjectMoveRequest>()
+        d.requireMoveTarget(caller, person, d.programs.chain(request.programId), "program", request.programId)
+        val outcome = d.projects.move(projectId, request.programId, d.moveGuards(caller))
+        if (outcome.changed) {
+            audit(
+                "project.moved",
+                "byUserId" to caller.userId.toLong(),
+                "projectId" to projectId.toLong(),
+                "programFrom" to outcome.from.toLong(),
+                "programTo" to outcome.to.toLong(),
+            )
+        }
         call.respond(HttpStatusCode.NoContent)
     }
     post<ProjectsRoute.Id.Milestones> { route ->
