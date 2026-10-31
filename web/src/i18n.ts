@@ -18,6 +18,7 @@ import enPlan from "./locales/en/plan.json";
 import enRoadmap from "./locales/en/roadmap.json";
 import enTeams from "./locales/en/teams.json";
 import enTelemetry from "./locales/en/telemetry.json";
+import enTimeline from "./locales/en/timeline.json";
 
 /**
  * The build-time supported-language set. Adding a language: a complete `locales/<lang>/`
@@ -65,6 +66,7 @@ export const en = {
   roadmap: enRoadmap,
   teams: enTeams,
   telemetry: enTelemetry,
+  timeline: enTimeline,
 };
 
 // Every non-EN bundle is assembled from its locales/<lang>/ folder — adding a language never

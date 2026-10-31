@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactNode, Ref } from "react";
 import { Table } from "@mantine/core";
 import classes from "../theme.module.css";
 
@@ -12,15 +12,19 @@ export default function ScrollRegion({
   label,
   minWidth,
   maxHeight,
+  scrollRef,
   children,
 }: {
   label: string;
   minWidth: number;
   maxHeight?: number | string;
+  /** The scroller element itself, for a caller that drives scrolling (the Timeline's virtualiser and its Today button). */
+  scrollRef?: Ref<HTMLDivElement>;
   children: ReactNode;
 }) {
   return (
     <Table.ScrollContainer
+      ref={scrollRef}
       type="native"
       minWidth={minWidth}
       maxHeight={maxHeight}

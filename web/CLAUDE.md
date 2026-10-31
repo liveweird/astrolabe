@@ -3,7 +3,7 @@
 Vite + React 19 + TypeScript SPA: the shell + auth, user/feature management, MFA, password reset,
 the changelog, the flat-teams registry, the people directory, the Plan page (work streams → programs → projects), the Roadmap page (the global project ranking) and the ADMIN telemetry panel — the v0.1.0 foundation,
 trimmed from Flow (`~/Sources/flow` @ e9c3b726, the donor: port building blocks from there, don't reinvent) — with a placeholder Home;
-milestones and the timeline arrive after 0.2. Routes are lazy.
+the shared Timeline component (v0.3.0; no page uses it yet) and milestones/the project view follow. Routes are lazy.
 
 - Dev server: `cd web && npm run dev` (port **5178** — not Vite's 5173 default, so Astrolabe can run
   beside Flow's 5176 and the sibling stacks' 5173–5175). All backend routes live under the
@@ -238,6 +238,14 @@ a rollback plus refetch on any failure, and on the stale-revision 409 (`isStaleR
 **The rule: a dnd-kit list always ships explicit Move up / Move down buttons AND localized announcements** — the handle (a real button, `roadmap.dragHandleAria`) takes the `KeyboardSensor` (Space picks up, arrows move, Space drops) with `accessibility={{ announcements,
 screenReaderInstructions }}` built from `roadmap.dnd.*` (`utils/roadmapAnnouncements.ts`), and the Move buttons are the deterministic path tests and e2e drive; a button-driven change is announced in a polite live region (`roadmap.announce.*`), and a Move button keeps keyboard focus through its own move. Pointer drags are not unit-tested (happy-dom has no layout; `Roadmap.test.tsx` wraps `DndContext` to feed it a drop) — the e2e does them. The Plan page's mutations also refresh `["roadmap"]`. Mechanics: `.claude/docs/web-internals.md`.
 
+## The Timeline component (`components/Timeline*.tsx`)
+
+The shared Gantt frame every timeline page uses (reference: `.claude/docs/timeline.md`). **It draws and proposes; the page decides**: rows/bars/bands arrive as `TimelineRowData[]` (`utils/timelineModel.ts`), `editable` comes from the view's `can` flags (never the session's roles), and a drop is only
+`onSchedule(id, start, end)` on the page's `TimelineDndContext` — the page's write path owns the optimistic update, the revision and the rollback. The page builds the `scale` (`makeScale(zoom, range)`, `defaultRange`) and keeps the range stable across edits. Dates are ISO strings at the boundary; layout is `utils/timelineScale.ts`
+(28/8/3 px per day at week/month/quarter), drag arithmetic is `utils/timelineDrag.ts` — both pure and unit-tested. It is a `role="grid"` with ONE roving tab stop (`useRovingGrid`; a left cell that holds its own focusable is a function cell that spreads the stop on it), rows virtualised
+with TanStack Virtual only above `virtualizeFrom` (80). **Every pointer gesture has a keyboard path** (Space/Enter picks up a bar or edge handle, ←/→ a day, Shift a week, Space drops, Escape cancels) announced in the UI language (`timeline.announce.*`), and the page ships the explicit buttons
+(Edit schedule…, the tray's Schedule). Bars are neutral gray, drift is orange, the brand cyan is focus and the held bar only. Pointer drags are not unit-tested (happy-dom has no layout; `Timeline.test.tsx` feeds the wrapped `DndContext` its events) — the e2e does them.
+
 ## User management and feature flags
 
 Passwords are generated client-side and revealed exactly once (`components/OneTimePasswordModal.tsx` sets `closeOnClickOutside={false} closeOnEscape={false}`; closing drops the plaintext for good). The management routes sit under ONE `<Route element={<RequireAdmin />}>` in `App.tsx` — no page redirects itself, their queries stay `enabled: isAdmin()`; UX only, the server's `requireAdmin` is the rule. Users live under `/users` (list, `/new`, `/:id/edit`, `/:id/features`; `utils/userLinks.ts` spells the family out — never hand-assemble a URL); feature flags (`/users/:id/features`, ADMIN `/feature-flags`): mind the wholesale-replace semantics — a PUT whose disabled set omits `MFA` ENABLES it. Page narratives (`pages/Users|CreateUser|EditUser|ChangePassword|FeatureFlags|UserFeatures.tsx`): `.claude/docs/web-internals.md`.
@@ -257,7 +265,7 @@ are English (THE default and fallback everywhere) and Polish. All user-facing st
 `const { t } = useTranslation()` / `<Trans>` — **no hardcoded UI text**. Conventions:
 
 - **Resources** live in `src/locales/{en,pl}/<area>.json`, one file per area (`appShell`, `auth`,
-  `changelog`, `common`, `home`, `people`, `plan`, `roadmap`, `teams`, `telemetry`, `users`); `i18n.ts` merges them into a single
+  `changelog`, `common`, `home`, `people`, `plan`, `roadmap`, `teams`, `telemetry`, `timeline`, `users`); `i18n.ts` merges them into a single
   `translation` namespace, so keys read `area.key` (e.g. `t("auth.signIn")`). Only EN is
   statically imported — its typed `en` tree is the key canon AND the runtime fallback; every other
   language is auto-discovered from `locales/<lang>/` via `import.meta.glob`. Bundles are eager on
@@ -349,4 +357,4 @@ Rendering & UI wiring (details: `.claude/docs/web-internals.md`): `pages/Changel
 
 ## Not yet ported from Toadie / Lettuce (port, don't reinvent)
 
-When a feature needs a Lettuce or Covenant `web/` building block (`safeBackParam`, `StatusPill`/`MetaStrip`/`FormFooter`/`ListToolbar`, `useDiscardGuard` / the `beforeunload` guard (Flow's `hooks/useBeforeUnloadGuard.ts`, dropped with the Capacity page), the catalog filter-set/facets, the CodeMirror editor), port the sibling's `web/` implementation and its `web/CLAUDE.md` section wholesale — the list is in `.claude/docs/web-internals.md`. `hooks/useRovingGrid.ts` is kept as prior art for the v0.3 timeline's keyboard navigation (no consumer yet; its test keeps it live for knip).
+When a feature needs a Lettuce or Covenant `web/` building block (`safeBackParam`, `StatusPill`/`MetaStrip`/`FormFooter`/`ListToolbar`, `useDiscardGuard` / the `beforeunload` guard (Flow's `hooks/useBeforeUnloadGuard.ts`, dropped with the Capacity page), the catalog filter-set/facets, the CodeMirror editor), port the sibling's `web/` implementation and its `web/CLAUDE.md` section wholesale — the list is in `.claude/docs/web-internals.md`.

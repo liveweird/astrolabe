@@ -1,0 +1,38 @@
+{
+  "toolbarAria": "Timeline controls",
+  "zoomAria": "Zoom",
+  "zoom": {
+    "week": "Week",
+    "month": "Month",
+    "quarter": "Quarter"
+  },
+  "today": "Today",
+  "todayTag": "Today",
+  "bar": {
+    "roleDescription": "movable bar",
+    "handleRoleDescription": "resize handle",
+    "readOnly": "{{label}}, read-only",
+    "startHandleAria": "Resize start of {{name}}",
+    "endHandleAria": "Resize end of {{name}}"
+  },
+  "tray": {
+    "dragColumn": "Drag",
+    "schedule": "Schedule",
+    "scheduleAria": "Schedule {{name}}"
+  },
+  "dnd": {
+    "instructions": "To move a bar, focus it and press Space or Enter, then use the left and right arrow keys to move it by a day (Shift: a week), Space or Enter to drop it, Escape to cancel. Focus a bar's start or end handle to change that edge instead."
+  },
+  "announce": {
+    "startMove": "Picked up {{name}}, {{start}} to {{end}}. Left and right arrows move it by a day, with Shift by a week; Space drops it, Escape cancels.",
+    "startResizeStart": "Resizing the start of {{name}}, {{start}} to {{end}}. Left and right arrows change it by a day, with Shift by a week.",
+    "startResizeEnd": "Resizing the end of {{name}}, {{start}} to {{end}}. Left and right arrows change it by a day, with Shift by a week.",
+    "startTray": "Picked up {{name}} from the unscheduled list.",
+    "step": "{{name}}: {{start}} to {{end}}",
+    "drop": "Dropped {{name}}: {{start}} to {{end}}.",
+    "dropTray": "Scheduled {{name}}: {{start}} to {{end}}.",
+    "dropNone": "{{name}} was not scheduled.",
+    "cancel": "Cancelled; {{name}} stays at {{start}} to {{end}}.",
+    "cancelTray": "Cancelled; {{name}} was not scheduled."
+  }
+}

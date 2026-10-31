@@ -25,7 +25,7 @@ Brand: deep cyan (the `astrolabe` colour tuple in `web/src/theme.ts`, `primarySh
 **Flow is the primary donor**: this repository started as an exact copy of Flow (`~/Sources/flow` @ `e9c3b726`, Flow 1.35.0), trimmed; Covenant, Lettuce and Toadie came in indirectly through it.
 **Port, don't reinvent**: when Astrolabe needs a capability a sibling already has, port its implementation. What each donated: `.claude/docs/product.md` "Donors". **Port later** (still in Flow):
 `ingest/`, `fetch/`, `jira/`, `plugins/Role.kt`, `EncryptedAtRest`/`Reencrypt` — for the Jira/Flow deviation sync; `metrics/PublicHoliday*`, `WorkingCalendar.kt`, `WorkingDayIndex.kt` — for v0.7;
-`DeepDiveMatrix.tsx`, `utils/deepDiveCalendar.ts`, `hooks/useRovingGrid.ts` — timeline prior art; `CapacityKernels.kt` — the pure-kernel idiom; Lettuce's WireMock stub pattern (stub port 8096); Flow's fork
+`CapacityKernels.kt` — the pure-kernel idiom; Lettuce's WireMock stub pattern (stub port 8096); Flow's fork
 balancing — when `server-tests` outgrows its budget.
 
 ## Commands

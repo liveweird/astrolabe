@@ -233,13 +233,16 @@ When a feature needs one of these, port the sibling's `web/` implementation and 
   `StatusPill`/`MetaStrip`/`FormFooter`/`ListToolbar` (`lettuce/web/src/components/`), and
   `useDiscardGuard` + `DiscardGuard` for dirty-form navigation (its in-app half is the data router's `useBlocker`, which
   the plain `BrowserRouter` does not have; only the `beforeunload` half, `hooks/useBeforeUnloadGuard.ts`, was ported in Flow — port it again with the first dirty-form page, e.g. the capacity editor).
-- **Flow's timeline prior art** (`~/Sources/flow`): `DeepDiveMatrix.tsx`, `utils/deepDiveCalendar.ts` and `hooks/useRovingGrid.ts` (the last is already here) — a virtualised, keyboard-navigable
-  day-grid; the starting point for the shared `Timeline*` component (`timeline.md`).
 - **Covenant's catalog surface** (`covenant/web/src/`) — the filter-set/facets pattern
   (`hooks/useContractFilterState.ts` + `components/ContractFilterControls.tsx`), the CodeMirror
   document editor, Save-anyway, and the reader/render-model views — port these only once the planning
   model needs a document- or finding-shaped list; today's Teams/Users lists are the
   `useRegistryListControls`/`Users.tsx` templates above, which is as far as the foundation goes.
+
+## Timeline mechanics (`components/Timeline*.tsx`)
+
+The binding reference is `timeline.md`; the non-obvious wiring: (1) `Timeline` reads `useDndContext().active` to suspend its own arrow handling while a bar is held (dnd-kit's keyboard sensor listens on the document, AFTER React's handlers) and registers the track drop zone with `useDroppable` — both work
+without a `DndContext` (read-only timelines need none). (2) `TimelineDndContext` passes its handlers as `DndContext` props; dnd-kit calls those BEFORE the monitor that feeds `accessibility.announcements`, so the handlers stash the latest outcome in refs and the announcements only read them. (3) A resize redraws from the context's preview (`PreviewContext`); a move is a CSS translate of the bar wrapper from `useDraggable` (the context's modifiers hold it to its row and snap it to days). The edge handles sit outside the bar with a constant width per zoom so a resize never re-measures the dragged node. (4) `useDraggable` results are destructured in `TimelineBar` because the React-compiler lint (`react-hooks/refs`) flags field reads off an object that carries a ref. (5) The virtualiser's `useVirtualizer` carries the one justified `react-hooks/incompatible-library` disable. (6) The track drop zone's droppable `data` carries `visibleBounds()` (the scroller's live rectangle minus the sticky columns and header) — `outcomeOf` uses it so a tray item released over the tray below or the left columns is not scheduled. (7) A pending "focus the row once it mounts" wish is cleared by another key, a focus elsewhere or a manual scroll. (8) Tests stub the scroller size with `HTMLElement.prototype.clientWidth/clientHeight` (happy-dom lays nothing out; the virtualiser reads them), restore the original descriptors in a file-level `afterEach` and wait with `waitFor`, never a real sleep (the suite is `isolate: false`); the keyboard-sensor test fakes only `setTimeout` for dnd-kit's zero-delay listener attach.
 
 ## Storage keys, Web Locks and telemetry (reference)
 

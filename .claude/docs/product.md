@@ -85,7 +85,7 @@ indirectly through it. **Port, don't reinvent**: when Astrolabe needs a capabili
 |---|---|---|
 | Ingestion, transport, Jira connector, role switch, encrypted-at-rest registry | `ingest/`, `fetch/`, `jira/`, `plugins/Role.kt`, `EncryptedAtRest`/`Reencrypt` | the Jira/Flow deviation sync (1.x) |
 | Public holidays and the working calendar | `metrics/PublicHoliday*`, `WorkingCalendar.kt`, `WorkingDayIndex.kt` | v0.7 |
-| Timeline prior art | `DeepDiveMatrix.tsx`, `utils/deepDiveCalendar.ts`, `hooks/useRovingGrid.ts` (the last is already ported) | the `Timeline*` component (v0.3) |
+| ~~Timeline prior art~~ (ported, v0.3) | `DeepDiveMatrix.tsx`, `utils/deepDiveCalendar.ts`, `hooks/useRovingGrid.ts` | ported into the `Timeline*` components, `utils/timelineScale.ts` and `useRovingGrid` (`timeline.md`) |
 | Pure-kernel idiom | `CapacityKernels.kt` | capacity and load kernels (v0.5) |
 | WireMock stub pattern | Lettuce's stub, stub port 8096 | the sync's integration tests |
 | Fork balancing | `balancedCandidateOrder`, `server/test-weights.tsv` | when `server-tests` outgrows its budget |

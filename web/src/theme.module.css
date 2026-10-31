@@ -161,3 +161,215 @@
   color: var(--mantine-color-dimmed);
   border-bottom: 1px solid light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-4));
 }
+
+/* ---- The Timeline (components/Timeline*.tsx; .claude/docs/timeline.md) ----------------------------------------------------
+   A div grid: a sticky header (two rows) over rows of [sticky left cells | a track as wide as the date range]. Bars are data, so
+   they are NEUTRAL gray (the cyan brand marks only focus and the bar being dragged); the weekend hatch is ONE periodic gradient
+   per row track (inline `background-image` from timelineScale.ts); the window band is a quiet dashed-edged tint, drift is orange.
+   Stacking: bands and the today line < row tracks < the overlay (v0.4 arrows) < the sticky left cells < the sticky header. */
+.timelineGrid {
+  --timeline-hatch: light-dark(rgba(33, 37, 41, 0.07), rgba(255, 255, 255, 0.09));
+  --timeline-line: light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
+  --timeline-bar: light-dark(var(--mantine-color-gray-6), var(--mantine-color-dark-2));
+  --timeline-window-edge: light-dark(var(--mantine-color-gray-6), var(--mantine-color-dark-2));
+  --timeline-drift-edge: light-dark(var(--mantine-color-orange-8), var(--mantine-color-orange-5));
+  position: relative;
+  font-size: var(--mantine-font-size-sm);
+  background: var(--mantine-color-body);
+}
+
+.timelineHead {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  background: var(--mantine-color-body);
+}
+
+.timelineHeadRow,
+.timelineRow {
+  display: flex;
+  border-bottom: 1px solid var(--timeline-line);
+}
+
+.timelineHeadRow {
+  height: 28px;
+}
+
+.timelineRow {
+  height: 36px;
+  box-sizing: border-box;
+}
+
+.timelineRowVirtual {
+  position: absolute;
+  left: 0;
+}
+
+.timelineLeft {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  display: flex;
+  flex: none;
+  background: var(--mantine-color-body);
+  border-right: 1px solid var(--timeline-line);
+}
+
+.timelineRow:hover .timelineLeft {
+  background: light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-6));
+}
+
+.timelineCell {
+  display: flex;
+  flex: none;
+  align-items: center;
+  box-sizing: border-box;
+  padding: 0 var(--mantine-spacing-xs);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  scroll-margin-top: 56px;
+}
+
+.timelineCell:focus-visible,
+.timelineBarBody:focus-visible,
+.timelineHandle:focus-visible {
+  outline: 2px solid var(--astrolabe-accent-ink);
+  outline-offset: -2px;
+}
+
+.timelineHeadCaption {
+  font-size: var(--mantine-font-size-xs);
+  font-weight: 600;
+  color: var(--mantine-color-dimmed);
+}
+
+.timelineTrack {
+  position: relative;
+  flex: none;
+  overflow: hidden;
+}
+
+.timelineHeadCell {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  box-sizing: border-box;
+  padding: 0 4px;
+  overflow: hidden;
+  font-size: var(--mantine-font-size-xs);
+  line-height: 28px;
+  white-space: nowrap;
+  color: var(--mantine-color-dimmed);
+  border-left: 1px solid var(--timeline-line);
+}
+
+.timelineHeadWeekend {
+  background: var(--timeline-hatch);
+}
+
+.timelineTodayTag {
+  position: absolute;
+  top: 6px;
+  z-index: 1;
+  padding: 0 4px;
+  font-size: var(--mantine-font-size-xs);
+  line-height: 16px;
+  color: var(--mantine-color-body);
+  background: var(--mantine-color-text);
+  border-radius: 2px;
+  transform: translateX(-50%);
+}
+
+.timelineBand {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  box-sizing: border-box;
+  pointer-events: none;
+  border-inline: 2px dashed var(--timeline-window-edge);
+  background: light-dark(rgba(134, 142, 150, 0.1), rgba(130, 130, 130, 0.14));
+}
+
+.timelineBandDrift {
+  border-inline-color: var(--timeline-drift-edge);
+  background: light-dark(rgba(232, 89, 12, 0.08), rgba(255, 146, 43, 0.12));
+}
+
+.timelineToday {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  pointer-events: none;
+  background: var(--mantine-color-text);
+  opacity: 0.55;
+}
+
+.timelineOverlay {
+  position: absolute;
+  top: 0;
+  z-index: 2;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.timelineBar {
+  position: absolute;
+  top: 6px;
+  height: 24px;
+}
+
+.timelineBarBody {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  background: var(--timeline-bar);
+  border-radius: 4px;
+  scroll-margin-top: 56px;
+  /* --timeline-left (the sticky columns' width) is set on the grid, so a focused bar scrolls clear of them. */
+  scroll-margin-left: var(--timeline-left);
+}
+
+/* Only an editable bar is a touch drag target; a read-only one must still let the page scroll. */
+.timelineBarEditable {
+  cursor: grab;
+  touch-action: none;
+}
+
+.timelineBarDragging {
+  cursor: grabbing;
+  background: var(--astrolabe-accent-ink);
+}
+
+.timelineHandle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  cursor: ew-resize;
+  touch-action: none;
+  border-radius: 2px;
+  /* The edge handles sit OUTSIDE the bar (a constant width, so a resize never re-measures the dragged node and a 1-day bar's
+     body stays grabbable), faintly visible so they can be found. */
+  background: light-dark(rgba(0, 0, 0, 0.1), rgba(255, 255, 255, 0.16));
+}
+
+.timelineHandle:hover {
+  background: light-dark(rgba(0, 0, 0, 0.28), rgba(255, 255, 255, 0.34));
+}
+
+.timelineTrayHandle {
+  display: inline-flex;
+  cursor: grab;
+  touch-action: none;
+  color: var(--mantine-color-dimmed);
+}
+
+.timelineTrayRowDragging {
+  position: relative;
+  z-index: 10;
+  background: var(--mantine-color-body);
+  box-shadow: var(--mantine-shadow-md);
+  opacity: 0.95;
+}

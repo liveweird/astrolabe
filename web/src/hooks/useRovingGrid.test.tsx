@@ -182,3 +182,94 @@ describe("useRovingGrid", () => {
     expect(cell("r1c0")).toHaveAttribute("tabindex", "0");
   });
 });
+
+/** Rows of different widths: the last column of row 1 is 3, of row 2 only 1 (a read-only row), of row 3 it is 2. */
+const RAGGED = [3, 1, 2];
+
+function RaggedGrid() {
+  const { ref, active, onKeyDown, onFocus } = useRovingGrid<HTMLDivElement>({
+    bounds: { rMin: 1, rMax: RAGGED.length, cMax: 3 },
+    isValid: (pos: GridPos) => pos.r >= 1 && pos.r <= RAGGED.length && pos.c <= RAGGED[pos.r - 1],
+    fallback: { r: 1, c: 0 },
+  });
+  return (
+    <div ref={ref} role="grid" aria-label="ragged" onKeyDown={onKeyDown} onFocus={onFocus}>
+      {RAGGED.map((last, i) => (
+        <div role="row" key={i}>
+          {Array.from({ length: last + 1 }, (_, c) => (
+            <span role="gridcell" key={c} {...rovingProps(i + 1, c, active.r === i + 1 && active.c === c)}>
+              {`x${i + 1}y${c}`}
+            </span>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Header row -1 has cells in cols 0-2; header row 0 only in cols 0-1 (a hole at col 2 under a spanning cell); one body row. */
+function HoleGrid() {
+  const { ref, active, onKeyDown, onFocus } = useRovingGrid({
+    bounds: { rMin: -1, rMax: 1, cMax: 2 },
+    isValid: () => true,
+    fallback: { r: 1, c: 0 },
+  });
+  const at = (r: number, c: number) => active.r === r && active.c === c;
+  return (
+    <table ref={ref} role="grid" aria-label="holes" onKeyDown={onKeyDown} onFocus={onFocus}>
+      <thead>
+        <tr>
+          {[0, 1, 2].map((c) => (
+            <th key={c} {...rovingProps(-1, c, at(-1, c))}>{`h-1c${c}`}</th>
+          ))}
+        </tr>
+        <tr>
+          {[0, 1].map((c) => (
+            <th key={c} {...rovingProps(0, c, at(0, c))}>{`h0c${c}`}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          {[0, 1, 2].map((c) => (
+            <td key={c} {...rovingProps(1, c, at(1, c))}>{`b1c${c}`}</td>
+          ))}
+        </tr>
+      </tbody>
+    </table>
+  );
+}
+
+describe("useRovingGrid header holes", () => {
+  test("a vertical step across a header hole skips the row; it does not fall back to a lower column", () => {
+    render(<HoleGrid />);
+    focus("b1c2");
+    press("b1c2", "ArrowUp");
+    expect(cell("h-1c2")).toHaveFocus();
+    press("h-1c2", "ArrowDown");
+    expect(cell("b1c2")).toHaveFocus();
+  });
+});
+
+describe("useRovingGrid on rows of different widths", () => {
+  test("a vertical move lands on the nearest lower column when the exact one is absent", () => {
+    render(<RaggedGrid />);
+    focus("x1y3");
+    press("x1y3", "ArrowDown");
+    expect(cell("x2y1")).toHaveFocus();
+    press("x2y1", "ArrowDown");
+    expect(cell("x3y1")).toHaveFocus();
+    focus("x3y2");
+    press("x3y2", "ArrowUp");
+    expect(cell("x2y1")).toHaveFocus();
+    press("x2y1", "ArrowUp");
+    expect(cell("x1y1")).toHaveFocus();
+  });
+
+  test("Ctrl+End goes to the last cell that exists on the last row", () => {
+    render(<RaggedGrid />);
+    focus("x1y0");
+    press("x1y0", "End", { ctrlKey: true });
+    expect(cell("x3y2")).toHaveFocus();
+  });
+});

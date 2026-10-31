@@ -2,7 +2,7 @@ import { useCallback, useRef, useState } from "react";
 import type { FocusEvent, KeyboardEvent } from "react";
 
 /**
- * A roving-tab-stop grid for a `<table role="grid">`: one Tab stop for the whole grid, arrow keys (and Home/End, Ctrl for the
+ * A roving-tab-stop grid for a `<table role="grid">` (or a `div` grid): one Tab stop for the whole grid, arrow keys (and Home/End, Ctrl for the
  * first/last row or column) between its cells. It knows nothing about what the cells show — only positions.
  *
  * Positions are `{ r, c }`. Body rows are 1…n; the header rows above are 0, -1, -2 … from the bottom up (so a header row
@@ -52,12 +52,25 @@ function cellAt(table: HTMLElement, r: number, c: number): HTMLElement | null {
   return null;
 }
 
-/** Steps from a position until something is there (header rows have holes where a cell spans down) or the grid ends. */
+/** The cell at `col`, or on a row that lacks it (a read-only row has no handle cells) the nearest cell to its left. */
+function nearestLower(table: HTMLElement, row: number, col: number): HTMLElement | null {
+  for (let c = col; c >= 0; c -= 1) {
+    const found = cellAt(table, row, c);
+    if (found !== null) return found;
+  }
+  return null;
+}
+
+/**
+ * Steps from a position until something is there (header rows have holes where a cell spans down) or the grid ends. A VERTICAL
+ * step into a BODY row lands on that row's nearest lower column when the exact column is absent there, instead of skipping the
+ * row; header rows keep the skip (a hole there is a spanning cell's, not a missing cell).
+ */
 function scan(table: HTMLElement, r: number, c: number, dr: number, dc: number, b: GridBounds): HTMLElement | null {
   let row = r;
   let col = c;
   while (row >= b.rMin && row <= b.rMax && col >= 0 && col <= b.cMax) {
-    const found = cellAt(table, row, col);
+    const found = dr === 0 || row < 1 ? cellAt(table, row, col) : nearestLower(table, row, col);
     if (found !== null) return found;
     row += dr;
     col += dc;
@@ -82,7 +95,7 @@ function navigate(table: HTMLElement, from: HTMLElement, key: string, ctrl: bool
     case "Home":
       return ctrl ? cellAt(table, b.rMin, 0) : scan(table, pos.r, 0, 0, 1, b);
     case "End":
-      return ctrl ? cellAt(table, b.rMax, b.cMax) : scan(table, pos.r, b.cMax, 0, -1, b);
+      return ctrl ? scan(table, b.rMax, b.cMax, 0, -1, b) : scan(table, pos.r, b.cMax, 0, -1, b);
     default:
       return null;
   }
@@ -93,7 +106,7 @@ function navigate(table: HTMLElement, from: HTMLElement, key: string, ctrl: bool
  * the header cell the tab stop sat on) and `fallback` is where the tab stop goes when it does not. Attach `ref`, `onKeyDown`
  * and `onFocus` to the table and mark every navigable element with `rovingProps(r, c, active)` against `active`.
  */
-export function useRovingGrid({
+export function useRovingGrid<E extends HTMLElement = HTMLTableElement>({
   bounds,
   isValid,
   fallback,
@@ -102,7 +115,7 @@ export function useRovingGrid({
   isValid: (pos: GridPos) => boolean;
   fallback: GridPos;
 }) {
-  const ref = useRef<HTMLTableElement>(null);
+  const ref = useRef<E>(null);
   const [last, setLast] = useState<GridPos>({ r: 1, c: 0 });
   const active: GridPos = isValid(last) ? last : fallback;
 

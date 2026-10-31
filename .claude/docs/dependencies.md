@@ -203,4 +203,6 @@ Installed with `npm install --legacy-peer-deps` (the existing web exception: rec
   `Timeline*` component (`timeline.md`). They are one release family like `@mantine/*`: `sortable` declares `@dnd-kit/core ^6.3.0` as a peer and `utilities` is shared by both, so **move the three
   together and check the lockfile resolves one copy of each** (`npm ls @dnd-kit/core @dnd-kit/sortable @dnd-kit/utilities`). The 0.x `@dnd-kit/dom`/`@dnd-kit/react` rewrite is a different, incompatible
   API and is NOT what these are — do not mix it in. They ride only the lazy Roadmap chunk (`npm run build` shows it as `Roadmap-*.js`; the main `index-*.js` stays free of them).
-- Planned (v0.3): `@tanstack/react-virtual` for the shared `Timeline*` component (`timeline.md`); add it with the first commit that imports it (knip flags an orphan).
+- `@tanstack/react-virtual` 3.14.24 (**exact**, `npm install --legacy-peer-deps --save-exact`) — row virtualisation of the shared `Timeline*` component (`components/Timeline.tsx`, `timeline.md`), active only above `virtualizeFrom` rows (default 80).
+  It brings `@tanstack/virtual-core` (resolved by its own pin in the lockfile). It rides only the chunk of the page that imports `Timeline` (lazy, like every page): `npm run build` must show no `react-virtual` code in
+  `index-*.js`. Its `useVirtualizer` is flagged by `react-hooks/incompatible-library`; the one disable in `Timeline.tsx` carries the reason.
