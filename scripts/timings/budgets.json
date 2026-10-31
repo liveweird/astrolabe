@@ -1,0 +1,114 @@
+{
+  "_readme": "The ONE place for time budgets (seconds). target = what it SHOULD take; alarm = hard ceiling. ALL targets are PROVISIONAL until measured at v0.1.0 (carried over from the donor project, not re-measured here). A breach or a rising trend is an investigation entry in .claude/docs/build-times.md, never a reason to raise a number here silently.",
+  "trend": {
+    "window": 5,
+    "ratio": 1.25,
+    "minDeltaSeconds": 10,
+    "minDeltaFromSeconds": 60
+  },
+  "historicTimeoutMinutes": [],
+  "budgets": {
+    "ci": {
+      "changes": {
+        "target": 15,
+        "alarm": 30,
+        "why": "PROVISIONAL until measured at v0.1.0: one checkout + one git diff"
+      },
+      "server-tests": {
+        "target": 180,
+        "alarm": 480,
+        "why": "PROVISIONAL until measured at v0.1.0: the test task alone, single fork on 4 vCPU; leaves headroom of the server job for setup, compile, detekt and Kover"
+      },
+      "server": {
+        "target": 300,
+        "alarm": 600,
+        "why": "PROVISIONAL until measured at v0.1.0: compile + detekt + tests + Kover on 4 vCPU; a small foundation suite with a tiny DB should not need more"
+      },
+      "gradle-vulnerability-scan": {
+        "target": 60,
+        "alarm": 120,
+        "why": "PROVISIONAL until measured at v0.1.0: resolve lockfiles + one trivy run on a few thousand lines of lockfile"
+      },
+      "web": {
+        "target": 90,
+        "alarm": 180,
+        "why": "PROVISIONAL until measured at v0.1.0: npm ci (cached) + lint + knip + vitest + vite build of a small SPA"
+      },
+      "e2e-static": {
+        "target": 30,
+        "alarm": 60,
+        "why": "PROVISIONAL until measured at v0.1.0: npm ci (cached) + eslint + knip + tsc over a handful of specs"
+      },
+      "images": {
+        "target": 150,
+        "alarm": 240,
+        "why": "PROVISIONAL until measured at v0.1.0: multi-stage docker build (gradle installDist + vite build) as a plain compose build, plus the Trivy image scan; the floor is Gradle in Docker plus the Trivy databases"
+      },
+      "k8s-static": {
+        "target": 20,
+        "alarm": 45,
+        "why": "PROVISIONAL until measured at v0.1.0: one checkout + a kubeconform download + validation of the small manifest set, twice (raw and rendered)"
+      },
+      "e2e": {
+        "target": 420,
+        "alarm": 900,
+        "why": "PROVISIONAL until measured at v0.1.0: nightly: images build + compose up + Playwright over a tiny stack"
+      }
+    },
+    "ci-steps": {
+      "_readme": "Per-step budgets, keyed '<job>/<step name>' exactly as the workflow names the step; ci-times.mjs --steps <job> shows them beside each step's time. Same rules as above: a breach is a WHY entry, never a silent raise.",
+      "e2e/Install e2e deps": {
+        "target": 15,
+        "alarm": 45,
+        "why": "PROVISIONAL until measured at v0.1.0: npm ci of the e2e workspace with the npm cache"
+      },
+      "e2e/Install Playwright browser": {
+        "target": 30,
+        "alarm": 90,
+        "why": "PROVISIONAL until measured at v0.1.0: install-deps (apt) with the browser cached; slower on a cold cache when chromium is downloaded"
+      },
+      "e2e/Build images": {
+        "target": 150,
+        "alarm": 240,
+        "why": "PROVISIONAL until measured at v0.1.0: a plain docker compose build of the app image, no layer cache: the same build as the ci.yml images job"
+      },
+      "e2e/Start the stack": {
+        "target": 45,
+        "alarm": 120,
+        "why": "PROVISIONAL until measured at v0.1.0: postgres + app (JVM boot + Flyway) healthy under `up --wait`; the app's healthcheck start_period is 30 s"
+      },
+      "e2e/Run E2E": {
+        "target": 240,
+        "alarm": 540,
+        "why": "PROVISIONAL until measured at v0.1.0: the Playwright specs alone against a running stack"
+      }
+    },
+    "local": {
+      "server-build": {
+        "target": 180,
+        "alarm": 360,
+        "why": "PROVISIONAL until measured at v0.1.0: ./gradlew cleanTest check :server:installDist -Pforks=1 (scripts/gates.sh default): compile, detekt, all tests, Kover, alignment"
+      },
+      "server-test": {
+        "target": 120,
+        "alarm": 300,
+        "why": "PROVISIONAL until measured at v0.1.0: ./gradlew :server:test against one shared Postgres container"
+      },
+      "web-gates": {
+        "target": 90,
+        "alarm": 180,
+        "why": "PROVISIONAL until measured at v0.1.0: lint:api + check:api + lint + knip + test:coverage + build"
+      },
+      "e2e-static": {
+        "target": 30,
+        "alarm": 60,
+        "why": "PROVISIONAL until measured at v0.1.0: lint + knip + typecheck + check:scenarios"
+      },
+      "e2e-playwright": {
+        "target": 300,
+        "alarm": 600,
+        "why": "PROVISIONAL until measured at v0.1.0: blackbox suite against a running compose stack"
+      }
+    }
+  }
+}
