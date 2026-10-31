@@ -456,8 +456,9 @@ object TestPeople {
  * Polls `pg_stat_activity` until some OTHER session is waiting on a lock inside a statement whose text contains [queryFragment]
  * (case-insensitive): the "the request under test reached its lock wait" barrier of a deterministic concurrency test. The test
  * holds the conflicting lock on a raw JDBC connection, starts the request asynchronously, calls this, then releases the lock.
+ * [waiters] is how many sessions must be waiting at once (a test that races two requests for one lock waits for both).
  */
-suspend fun awaitLockWait(queryFragment: String) = withTimeout(30_000) {
+suspend fun awaitLockWait(queryFragment: String, waiters: Int = 1) = withTimeout(30_000) {
     PostgresTestSupport.connect().use { probe ->
         while (true) {
             val waiting = probe.prepareStatement(
@@ -469,7 +470,7 @@ suspend fun awaitLockWait(queryFragment: String) = withTimeout(30_000) {
                     rs.getInt(1)
                 }
             }
-            if (waiting > 0) break
+            if (waiting >= waiters) break
             delay(50)
         }
     }

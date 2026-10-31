@@ -16,13 +16,15 @@ import io.ktor.server.auth.authenticate
 import io.ktor.server.routing.routing
 
 /**
- * The planning REST surface (`/api/v1/work-streams`, `/programs`, `/projects`, `/views/plan`), registered by this ONE module
- * function and split per entity (`WorkStreamRoutes.kt`, `ProgramRoutes.kt`, `ProjectRoutes.kt`, `PlanViewRoutes.kt`) — the first
- * deliberate exception to the one-routes-file template (`conventions.md`): four resources with different guards would blow the
+ * The planning REST surface (`/api/v1/work-streams`, `/programs`, `/projects`, `/views/plan`, `/views/roadmap`, `/roadmap/ranking`),
+ * registered by this ONE module function and split per entity (`WorkStreamRoutes.kt`, `ProgramRoutes.kt`, `ProjectRoutes.kt`,
+ * `PlanViewRoutes.kt`, `RoadmapRoutes.kt`) — the first
+ * deliberate exception to the one-routes-file template (`conventions.md`): five resources with different guards would blow the
  * 400-line file cap. Every node route is READ-BEFORE-GUARD (chain -> 404, guard -> 403, body -> 400, validate -> 400, write;
  * `authorization.md`): plan ids are sequential and every signed-in user reads the whole plan anyway, so existence is no secret.
  * The guard before the body is for ORDERING only: a request can be held open after it (a slow body), so the write RE-GUARDS under
- * the plan lock ([PlanRouteDeps.ownerGuard]/[PlanRouteDeps.windowGuard]) against a re-read chain, person link and grant.
+ * the plan lock ([PlanRouteDeps.ownerGuard]/[PlanRouteDeps.windowGuard]) against a re-read chain, person link and grant. The ranking
+ * PUT is the exception to read-before-guard: it addresses no node, so it is guard-before-read (`RoadmapRoutes.kt`).
  */
 fun Application.configurePlanningRoutes() {
     val deps = PlanRouteDeps(
@@ -32,6 +34,7 @@ fun Application.configurePlanningRoutes() {
         programs = attributes[ProgramServiceKey],
         projects = attributes[ProjectServiceKey],
         view = attributes[PlanViewServiceKey],
+        roadmap = attributes[RoadmapServiceKey],
     )
     routing {
         authenticate {
@@ -39,6 +42,7 @@ fun Application.configurePlanningRoutes() {
             programRoutes(deps)
             projectRoutes(deps)
             planViewRoutes(deps)
+            roadmapRoutes(deps)
         }
     }
 }
@@ -51,6 +55,7 @@ internal class PlanRouteDeps(
     val programs: ProgramService,
     val projects: ProjectService,
     val view: PlanViewService,
+    val roadmap: RoadmapService,
 ) {
     /** `UserService.hasPermission` as the guards' injected lookup (a database read per request, never a token claim). */
     val hasPermission: suspend (userId: UInt, permission: Permission) -> Boolean = users::hasPermission

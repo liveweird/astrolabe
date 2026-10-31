@@ -115,13 +115,13 @@ kover {
         }
         verify {
             rule {
-                // Line-coverage floor (actual 94.95% on 2026-10-31; measured with the @Serializable exclusion above).
-                // 2026-10-31: measured after trimming Flow to Astrolabe's foundation. Re-measure with `:server:koverXmlReport`
-                // and RAISE, never lower.
-                minBound(94)
-                // Branch-coverage floor (actual 81.06% on 2026-10-31). NOTE: `check` runs only koverVerify - run
-                // `:server:koverXmlReport` for fresh actuals.
-                minBound(81, coverageUnits = kotlinx.kover.gradle.plugin.dsl.CoverageUnit.BRANCH)
+                // Line-coverage floor (actual 95.96% on 2026-10-31; measured with the @Serializable exclusion above).
+                // 2026-10-31: raised 94 -> 95 after the roadmap ranking (v0.2.0 C5); earlier the same day it was measured after
+                // trimming Flow to Astrolabe's foundation. Re-measure with `:server:koverXmlReport` and RAISE, never lower.
+                minBound(95)
+                // Branch-coverage floor (actual 82.21% on 2026-10-31; raised 81 -> 82 with the line floor). NOTE: `check` runs only
+                // koverVerify - run `:server:koverXmlReport` for fresh actuals.
+                minBound(82, coverageUnits = kotlinx.kover.gradle.plugin.dsl.CoverageUnit.BRANCH)
             }
         }
     }

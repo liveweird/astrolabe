@@ -186,8 +186,9 @@ above any legitimate statement (a lock wait behind another transaction) and belo
 - **Plan fixtures** (`PlanFixtures.kt`, v0.2.0): `planName(prefix)` (work stream and program names are GLOBALLY unique among active rows, and the plan tables are shared suite state — always a unique name),
   `planCaller(prefix, role, withPerson)` (a seeded user, optionally with a linked ACTIVE person, and its logged-in client), `planWorld(prefix)` (one stream → program → project chain, each owned by its own
   person, plus the callers ADMIN / the three owners / a stranger / a person-less login / a `ROADMAP_EDITOR`: the authorization matrix's cast) and `TestPlan` (`workStream`/`program`/`project` seeding through the
-  services, so the plan lock and revision bump apply; `revision()` and `scalar(sql)` over raw JDBC). The plan-lock barrier tests (`PlanStateTest`) hold `plan_state FOR UPDATE` on a raw session and use
-  `awaitLockWait("plan_state")`.
+  services, so the plan lock and revision bump apply; `revision()` and `scalar(sql)` over raw JDBC). The plan-lock barrier tests (`PlanStateTest`, `RoadmapRankingTest`) hold `plan_state FOR UPDATE` on a raw session and use
+  `awaitLockWait("plan_state")` (`waiters = 2` when two requests race for the lock); `requestHeldAtPlanLock(request) { raw -> … }` + `Connection.exec` are the "change something while the request waits at the lock" scaffold
+  of the re-guard tests. The ranking is shared state too: `RoadmapRankingTest` starts every test with a wholesale PUT of its own list, so its raw-table assertions are exact.
 - `TestSeedState.restoreSeedAccounts()` — bootstrap/production-mode tests rotate the seed admin's
   password in the SHARED container; call this afterwards so later tests (and re-runs) see the
   pristine V3 state. Production-mode boots must also override `"mail.transport" to "disabled"` —

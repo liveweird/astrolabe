@@ -121,6 +121,9 @@ with `hasKeyValue` from `TestEnvironment.kt`). Emitted today:
 - `project.created` (byUserId/projectId/programId/name/ownerPersonId) / `project.updated` (byUserId/projectId/name) / `project.owner_changed` (byUserId/projectId/ownerFrom/ownerTo) /
   `project.target_window_changed` (byUserId/projectId/startFrom/endFrom/startTo/endTo — ISO dates as STORED, null = no window; only when the window actually changes; `PUT /projects/{id}/target-window`) /
   `project.deleted` (byUserId/projectId) — every plan-node mutation (`planning/*Routes.kt`); a rejected save (403/404/409/400) emits nothing of its own (a 403 is the central `authz.denied`),
+- `roadmap.ranked` (byUserId/revisionFrom/revisionTo/orderFrom/orderTo — the ranked project ids before and after as comma-joined text, "" = empty; on EVERY accepted `PUT /roadmap/ranking`, even one that keeps the
+  order, since it bumps the plan revision, and the revision pair ties the line to the plan history; a stale 409 or a 400 emits nothing, a 403 is the central `authz.denied`; `planning/RoadmapRoutes.kt`). A project
+  delete that compacts the rank is audited as `project.deleted` only,
 - `bootstrap.admin_password_rotated` (userId/email — the fixed seed-admin email, never the password or
   its hash; `infra/db/Bootstrap.kt`, only when `ADMIN_INITIAL_PASSWORD` actually replaced the seed
   hash, so an idempotent re-boot emits nothing) — the boot-time credential event, so an admin-password reset leaves a trail beyond a log line

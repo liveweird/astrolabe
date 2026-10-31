@@ -32,4 +32,7 @@ object PlanPermissions {
      */
     fun canEditTargetWindow(actor: PlanActor, projectChain: OwnerChain): Boolean =
         actor.isAdmin || (actor.personId != null && actor.personId in projectChain.ancestors.owners) || actor.roadmapEditor
+
+    /** `PUT /roadmap/ranking`: ADMIN or the roadmap-editor grant (`requireRoadmapEditorOrAdmin`); ownership does not matter. */
+    fun canEditRank(actor: PlanActor): Boolean = actor.isAdmin || actor.roadmapEditor
 }

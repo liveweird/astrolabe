@@ -9,7 +9,11 @@ import ch.nokillswit.planning.WorkStreamService
 import ch.nokillswit.users.Permission
 import ch.nokillswit.users.UserRole
 import io.ktor.client.HttpClient
+import io.ktor.client.statement.HttpResponse
 import io.ktor.server.testing.ApplicationTestBuilder
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import java.sql.Connection
 import java.util.UUID
 
 /** A name unique across the suite: stream and program names are GLOBALLY unique among active rows and the plan tables are shared state. */
@@ -111,5 +115,35 @@ object TestPlan {
                 read(rs)
             }
         }
+    }
+}
+
+/**
+ * Holds `plan_state FOR UPDATE` on a raw session, starts [request] (it passes the route's outer guard, then waits at the lock),
+ * runs [mutate] on the raw session and commits — the committed change is what the request's re-guard under the lock must see.
+ */
+suspend fun requestHeldAtPlanLock(request: suspend () -> HttpResponse, mutate: (Connection) -> Unit): HttpResponse {
+    PostgresTestSupport.connect().use { raw ->
+        raw.autoCommit = false
+        raw.createStatement().use { it.executeQuery("SELECT revision FROM plan_state WHERE id = 1 FOR UPDATE").close() }
+        try {
+            return coroutineScope {
+                val pending = async { request() }
+                awaitLockWait("plan_state")
+                mutate(raw)
+                raw.commit()
+                pending.await()
+            }
+        } finally {
+            raw.rollback()
+        }
+    }
+}
+
+/** One raw prepared statement with int parameters (the mid-request mutations of [requestHeldAtPlanLock]). */
+fun Connection.exec(sql: String, vararg ints: Int) {
+    prepareStatement(sql).use { st ->
+        ints.forEachIndexed { index, value -> st.setInt(index + 1, value) }
+        st.executeUpdate()
     }
 }

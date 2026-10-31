@@ -14,10 +14,10 @@ in-network consumers use `postgres:5432`). There is one persistence stack:
   makes every long-lived database refuse to boot (a failure no fresh-container CI run can see).
   `MigrationChecksumTest` pins every file's checksum; a new migration adds one manifest line, and
   a red pin means REVERT the edit (clarifications go into this doc), never update the pinned
-  value. The range today is **V1–V12**: V1 `users`, V2 `revoked_tokens`, V3 the seed admin, V4 the
+  value. The range today is **V1–V13**: V1 `users`, V2 `revoked_tokens`, V3 the seed admin, V4 the
   `unaccent` extension, V5 `user_disabled_features` (V1–V5 are Flow's), V6 `teams` (with the optional
   manager), V7 `users.credential_revision`, V8 `password_reset_tokens`, V9 the `ops` telemetry
-  schema, V10 `people` (the people directory) with `teams.manager_person_id` replacing `manager_user_id`, V11 `user_permissions` (the per-user permission grants), V12 `plan_state` + `work_streams`/`programs`/`projects` (the plan structure). (Astrolabe renumbered Flow's history when it was bootstrapped; from V10 on, migrations are
+  schema, V10 `people` (the people directory) with `teams.manager_person_id` replacing `manager_user_id`, V11 `user_permissions` (the per-user permission grants), V12 `plan_state` + `work_streams`/`programs`/`projects` (the plan structure), V13 `roadmap_entries` (the global project rank). (Astrolabe renumbered Flow's history when it was bootstrapped; from V10 on, migrations are
   append-only like any other.)
 - **Exposed + R2DBC** (`infra/db/Database.kt` + the feature services) — runtime DB access.
   `Database.kt` connects the `R2dbcDatabase` and is the composition root: it constructs the
@@ -161,6 +161,8 @@ place:
   `PlanStateTest` pins both halves). The services also read each other's tables inside one feature: a delete counts the ACTIVE children (`Programs` from the work stream delete, `Projects` from the program
   delete) and the chain lookups join all three. `work_streams`/`programs`/`projects` hold `owner_person_id → people(id)` with no `ON DELETE` rule: people are only ever soft-deleted and `PersonService.delete`
   refuses (409) while an ACTIVE node names the person. `PlanViewService` reads the three tables (and `people` names) in ONE transaction, the revision first.
+- `planning/` (V13): `RoadmapService` reads `ProjectService.Projects`, `ProgramService.Programs`, `WorkStreamService.WorkStreams` (the view's names, the active-id check of a ranking write) and `PersonService.People`
+  (owner names, via `OwnerChains.kt`); it owns `roadmap_entries`, and `ProjectService.delete` WRITES it through `removeFromRanking` (same package, same locked transaction — no other feature touches the table).
 - `PersonService` reads `UserService.Users` (the linked login: the active-user check on create AND update, the login's email on read/list
   through ACTIVE users) and `TeamService.Teams` (the delete 409 while the person manages an ACTIVE team; since V12 `planning/OwnerChains.kt`'s `ownsActivePlanNode` extends it to an ACTIVE work stream, program or project the person owns). `people.user_id` has no `ON DELETE` rule: users are only ever soft-deleted and the link stays INERT while the user is deleted
   (guards resolve the caller's person through `people.user_id = caller AND people.active()`, and a deleted login never passes the access
@@ -188,7 +190,7 @@ List each new cross-feature read/write here as it lands — the list IS the perm
 Astrolabe's PostgreSQL database is split across schemas:
 
 - **`public`** — the foundation tables (`users`, `people`, `teams`, `revoked_tokens`, `user_disabled_features`, `password_reset_tokens`) and the planning tables
-  (`plan_state`, `work_streams`, `programs`, `projects` since V12; `planning-model.md`). Flyway's own history table also stays here — `flyway.schemas` is left at its default.
+  (`plan_state`, `work_streams`, `programs`, `projects` since V12, `roadmap_entries` since V13; `planning-model.md`). Flyway's own history table also stays here — `flyway.schemas` is left at its default.
 - **`ops`** — Astrolabe's own operational telemetry (V9, "Telemetry (V9)" below): the process registry and the metric samples each
   process writes about itself. Numbers and labels only, never project data.
 
@@ -248,7 +250,7 @@ transaction under `TELEMETRY_LOCK_KEY`, and a row exactly at its cutoff stays. T
 `users`, `people`, `teams`, `work_streams`, `programs` and `projects` are **soft-deleted** — rows are flagged, never physically removed; every
 business entity follows the same convention. Only join/token tables (today: `revoked_tokens`, a
 pure token registry, `password_reset_tokens` (V8, expiring single-use credentials, not history), `user_disabled_features`, a pure flag join
-whose PUT is a wholesale replace, `user_permissions` (V11, the same shape: a pure grant join rewritten wholesale), and the `ops.telemetry_*` samples (the prune above)) hard-delete — a new
+whose PUT is a wholesale replace, `user_permissions` (V11, the same shape: a pure grant join rewritten wholesale), `roadmap_entries` (V13, a pure position join: the global rank is rewritten wholesale by `PUT /roadmap/ranking` and compacted when a project is deleted, so a project that leaves the rank has no history worth keeping — the soft-deleted project row stays), and the `ops.telemetry_*` samples (the prune above)) hard-delete — a new
 hard-delete table needs a documented justification, exactly like Lettuce's exceptions list. Pure operational history with no reader once
 old (job queues, samples) may be pruned by a fixed documented retention window, the same shape as the JWT blocklist's opportunistic
 pruning of expired `revoked_tokens` rows. To add soft-delete to a new entity, follow the established pattern
@@ -312,8 +314,18 @@ Dates are `DATE` through `LocalDateColumn.kt` (`start_date`/`end_date`, `target_
 **Every write of these tables runs in `withPlanWrite`** (`planning/PlanState.kt`): `SELECT revision FROM plan_state WHERE id = 1 FOR UPDATE`, the block, `UPDATE … revision = revision + 1`. **This is the one deliberate PLAIN
 `FOR UPDATE` on a table the code treats as a lock row** — justified by the rule above: nothing references `plan_state` by a foreign key (no FK check can queue behind or in front of it) and its key never changes, so the
 `FOR NO KEY UPDATE` refinement buys nothing. Because all plan writers serialize there, the node services take no per-row locks; the plan lock is held across the whole block, which makes the delete's child count race-free
-and lets V13's ranking compare `expectedRevision` atomically. A block that throws rolls the bump back. Reads (`PlanViewService`) read the revision first without the lock. The `ProjectService.delete` method carries the hook for V13:
-the project's `roadmap_entries` row is hard-deleted (and the positions above renumbered) in the same locked transaction.
+and lets the ranking (V13) compare `expectedRevision` atomically. A block that throws rolls the bump back. Reads (`PlanViewService`, `RoadmapService.view`) read the revision first without the lock. `ProjectService.delete` calls
+`removeFromRanking`: the project's `roadmap_entries` row is hard-deleted and the positions above renumbered in the same locked transaction.
+
+### The roadmap rank (V13)
+
+`roadmap_entries (project_id INTEGER PRIMARY KEY REFERENCES projects(id), position INTEGER NOT NULL CHECK (position >= 1), CONSTRAINT uq_roadmap_entries_position UNIQUE (position) DEFERRABLE INITIALLY DEFERRED)`
+(`planning/RoadmapService.kt`; semantics in `planning-model.md` "The global project rank"). One row per RANKED project; no row = unranked. **Positions are dense 1..n**, kept so by the two writers, both inside
+`withPlanWrite`: `replaceRanking` (`DELETE` all, then one `insertRows` with positions 1..n in the given order) and `removeFromRanking` (delete the row, then ONE `UPDATE … SET position = position - 1 WHERE position > ?`).
+**`DEFERRABLE INITIALLY DEFERRED` is load-bearing**: an immediate unique constraint is checked row by row, so the sweep (and any reorder that swaps two positions in one statement) can collide with a
+not-yet-updated neighbour depending on physical row order; deferred, the check runs once at commit, when the table is dense again. The cost is that a genuine duplicate surfaces at COMMIT, not at the statement
+(only a bug can produce one: every writer holds the plan lock). `project_id` has no `ON DELETE` rule: projects are only soft-deleted, and the delete hook removes the entry in the same transaction. A hard-delete
+table, justified in "Soft delete (convention)".
 
 ### The DATE column idiom (`infra/db/LocalDateColumn.kt`)
 
@@ -366,5 +378,4 @@ text and sha256 are compared against stored rows.
 
 ### Planned persistence (not yet built)
 
-The rest of the planning tables (`roadmap_entries` in V13 — a hard-delete position join, to be added to the soft-delete exception list with its justification when it lands —, then milestones, dependencies, capacity
-periods) arrive with v0.2–v0.5; their sketch is in `planning-model.md`. The schema list, the soft-delete list and the cross-feature list above grow in the same commit as each migration.
+The rest of the planning tables (milestones, dependencies, capacity periods, the team milestone order) arrive with v0.3–v0.5; their sketch is in `planning-model.md`. The schema list, the soft-delete list and the cross-feature list above grow in the same commit as each migration.

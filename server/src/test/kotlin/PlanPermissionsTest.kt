@@ -5,6 +5,7 @@ import ch.nokillswit.authz.ForbiddenException
 import ch.nokillswit.authz.OwnerChain
 import ch.nokillswit.authz.requireAdmin
 import ch.nokillswit.authz.requireOwnerOrAdmin
+import ch.nokillswit.authz.requireRoadmapEditorOrAdmin
 import ch.nokillswit.authz.requireTargetWindowEditorOrAdmin
 import ch.nokillswit.planning.PlanActor
 import ch.nokillswit.planning.PlanPermissions
@@ -99,5 +100,16 @@ class PlanPermissionsTest {
         assertEquals(false, PlanPermissions.canEditTargetWindow(ownerOnly.asPlanActor(), projectChain))
         val programOwner = Actor("program owner", user(3u), program, false)
         assertTrue(PlanPermissions.canEditTargetWindow(programOwner.asPlanActor(), projectChain))
+    }
+
+    @Test
+    fun `the edit-rank flag equals requireRoadmapEditorOrAdmin - ownership alone never ranks`() {
+        for (actor in actors) {
+            val lookup: suspend (UInt, Permission) -> Boolean =
+                { _, permission -> actor.granted && permission == Permission.ROADMAP_EDITOR }
+            val guard = allowed { runBlocking { requireRoadmapEditorOrAdmin(actor.caller, lookup) } }
+            assertEquals(guard, PlanPermissions.canEditRank(actor.asPlanActor()), actor.label)
+        }
+        assertEquals(false, PlanPermissions.canEditRank(Actor("project owner", user(4u), project, false).asPlanActor()))
     }
 }

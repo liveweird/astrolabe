@@ -1,6 +1,6 @@
 ### Planning model
 
-The binding reference for the planning domain as it is built (v0.2.0: people, permissions and dates, the plan structure; the roadmap ranking joins in V13). The product intent and the user's domain
+The binding reference for the planning domain as it is built (v0.2.0: people, permissions and dates, the plan structure, the roadmap ranking). The product intent and the user's domain
 decisions are in `product.md`; the parts not built yet stay a **sketch** at the end (milestones, dependencies, capacity — the v0.3+ increments confirm or amend each line and rewrite it here when
 their migration lands).
 
@@ -57,7 +57,7 @@ timeline will show it closed later). The owner is changed through the ordinary f
 ### The `plan_state` lock protocol and the 409 contract (`planning/PlanState.kt`)
 
 `R2dbcDatabase.withPlanWrite { revision -> … }` = one transaction: `SELECT revision FROM plan_state WHERE id = 1 FOR UPDATE`, run the block, `UPDATE plan_state SET revision = revision + 1`. **Every
-mutation of `work_streams`, `programs`, `projects` (and from V13 `roadmap_entries`) runs inside it** — people and teams are not plan state. A block that throws (404/409/400 found after the lock) rolls
+mutation of `work_streams`, `programs`, `projects` and `roadmap_entries` (V13) runs inside it** — people and teams are not plan state. A block that throws (404/409/400 found after the lock) rolls
 back the bump with everything else, so a rejected write never moves the revision; a no-op PUT still bumps (conservative). Consequences the code relies on:
 
 - **"Count the children, then delete" is race-free**: the delete counts ACTIVE children under the plan lock, so a concurrent child create (which holds the same lock) either commits first and the
@@ -71,7 +71,7 @@ back the bump with everything else, so a rejected write never moves the revision
   `requireTargetWindowEditorOrAdmin` (re-reading the `ROADMAP_EDITOR` grant in the same transaction); ADMIN short-circuits. A `ForbiddenException` there rolls back with no revision bump and is audited
   centrally as `authz.denied`. No lock cycle: person and team writers never take `plan_state`. `PlanStateTest` pins owner change, person re-link and grant revocation mid-request.
 - **Views read the revision FIRST, then the rows, in one transaction** (no `REPEATABLE READ`): a row newer than the revision only makes a client PUT carrying that revision answer a conservative 409.
-- The wholesale ranking PUT (V13) compares `expectedRevision` under the lock and answers `409` with `type = urn:astrolabe:problem:stale-revision`.
+- The wholesale ranking PUT (V13) compares `expectedRevision` under the lock and answers `409` with `type = urn:astrolabe:problem:stale-revision` (below, "The global project rank").
 
 **Designed, not built (v0.3 view ETags and v0.9 baselines).** A view's validator must cover everything in its body, so it is `W/"p<plan revision>-n<max(people.updated_at, teams.updated_at)>-c<hash of the
 caller's can-flags>"` (people/team renames change owner names without a plan revision; the flags make the validator per-caller). Baselines record the `revision` they were taken at — monotonic, so any
@@ -80,7 +80,7 @@ later state orders against them. v0.2 offers no ETag.
 ### API (all under `/api/v1`, `openapi/documentation.yaml`, tag `plan`)
 
 `POST /work-streams`; `GET/PUT/DELETE /work-streams/{id}`; `POST /work-streams/{id}/programs`; `GET/PUT/DELETE /programs/{id}`; `POST /programs/{id}/projects`; `GET/PUT/DELETE /projects/{id}`;
-`PUT /projects/{id}/target-window`; `GET /views/plan`. PUTs are full replaces (omitted optional = unset; `204`); creates answer `201` + `Location` + the record. **No paged lists** for
+`PUT /projects/{id}/target-window`; `GET /views/plan`; and the ranking (below): `GET /views/roadmap`, `PUT /roadmap/ranking`. PUTs are full replaces (omitted optional = unset; `204`); creates answer `201` + `Location` + the record. **No paged lists** for
 streams/programs/projects in v0.2 — a list lands with its first consumer (the v0.4 dependency pickers); the plan view is the read surface. `WorkStreamResponse` etc. carry `ownerPersonId` +
 `ownerName`; a project also carries `workStreamId`.
 
@@ -98,7 +98,7 @@ Any owner on the chain, the node's own included, may reassign the node's owner (
 ### Audit events (`observability.md`)
 
 `work_stream.created/updated/deleted`, `work_stream.owner_changed`, `work_stream.closed` / `work_stream.reopened` (end-date transitions), `program.created/updated/owner_changed/deleted`,
-`project.created/updated/owner_changed/deleted`, `project.target_window_changed` (start/end from/to). Owner changes and window changes are their own trail lines (rights paths).
+`project.created/updated/owner_changed/deleted`, `project.target_window_changed` (start/end from/to). Owner changes and window changes are their own trail lines (rights paths). The ranking adds `roadmap.ranked` (below).
 
 ### Tests
 
@@ -106,14 +106,43 @@ Any owner on the chain, the node's own included, may reassign the node's owner (
 `can` table, flags vs. what the server really allows), `PlanPermissionsTest` (kernel vs. guards, pure), `PlanStateTest` (revision +1 per write, the lock barrier, the count-under-lock and owner races),
 fixtures in `PlanFixtures.kt` (`planWorld`, `TestPlan`). The 401 sweep and OpenAPI conformance are automatic via the spec.
 
+## The global project rank (built — V13, v0.2.0; `planning/RoadmapService.kt`, `RoadmapRoutes.kt`)
+
+One rank over ALL projects, not per program or work stream. **Table `roadmap_entries`** (`project_id INTEGER PRIMARY KEY REFERENCES projects(id)`, `position INTEGER NOT NULL CHECK (position >= 1)`,
+`CONSTRAINT uq_roadmap_entries_position UNIQUE (position) DEFERRABLE INITIALLY DEFERRED`): one row per RANKED project, positions **dense 1..n**; a project with no row is **unranked**. It is a
+**hard-delete table** (a pure position join rewritten wholesale — `persistence.md` "Soft delete"), so a project that leaves the rank leaves no row behind. `DEFERRABLE` is load-bearing: a swap of two
+positions, and the renumber sweep below, are single statements an immediate unique check can reject mid-statement depending on physical row order; deferred, uniqueness is checked once at commit
+(`RoadmapRankingTest` pins the swap, the sweep, the commit-time duplicate and the `CHECK`).
+
+- **Ranking** (`PUT /roadmap/ranking`, body `{expectedRevision, projectIds[]}`; `200 {revision}`): **wholesale** — the listed projects get positions 1..n in the given order, every other project becomes
+  unranked (omit one to unrank it). The SPA's "Rank" appends an unranked project at the END of the list (the user's choice; it is then moved like any other row) — to the server that is just a list one longer.
+  Inside `withPlanWrite`, in this order: the grant re-check (`requireRoadmapEditorOrAdmin` again, the same TOCTOU rule as the owner guards: a revocation that landed while the request waited at the lock is a
+  `403` with no bump) -> `expectedRevision` must equal the revision read under the lock (**`409`**, `type = urn:astrolabe:problem:stale-revision`, nothing written; checked BEFORE the ids so a stale list
+  that names a since-deleted project is the reload signal, not a `400`) -> every id must name an ACTIVE project (`400` "Unknown or deleted project ids: …") -> `DELETE FROM roadmap_entries` + one
+  `insertRows`. Before the lock: `400` for a duplicated id ("projectIds must be distinct") or more than 1000 ids. **Every accepted PUT bumps the revision, even one that keeps the order** (a no-op PUT is
+  still a plan write, the conservative rule of the lock protocol). Concurrent PUTs carrying the same `expectedRevision`: the lock serializes them, the first wins and the second sees the bumped revision —
+  exactly one `200`, one `409` (`RoadmapRankingTest`, deterministic with the lock barrier).
+- **Project delete keeps the rank dense**: `ProjectService.delete` calls `removeFromRanking(id)` in the SAME locked transaction as the soft delete — the project's entry is hard-deleted and
+  `UPDATE roadmap_entries SET position = position - 1 WHERE position > ?` closes the gap (one statement, which is why the constraint is deferred). An unranked project is a no-op. Work stream and
+  program deletes need no hook: they are refused (`409`) while an ACTIVE project exists.
+- **The view** (`GET /views/roadmap`, any authenticated user; the view-endpoint shape exception, bounded by ~100 projects): `{revision, can{editRank}, ranked[]{position, project}, unranked[]}` with
+  `project = {id, name, programId, programName, workStreamId, workStreamName, ownerName, targetStart, targetEnd}`; `ranked` by position, `unranked` by name (case-insensitive, then id). The revision is read
+  FIRST, then the rows, in one transaction (the plan view's protocol). `can.editRank` comes from `PlanPermissions.canEditRank` (ADMIN or a `ROADMAP_EDITOR` holder, the same arithmetic as the guard;
+  `PlanPermissionsTest` pins it, `RoadmapRankingTest` checks it against the real PUT).
+- **Authorization**: guard-before-read (the route addresses no node) — `requireRoadmapEditorOrAdmin` runs FIRST, before the body, so every other caller (an owner without the grant included) gets a uniform
+  `403` even for a malformed body; `authorization.md`.
+- **Audit**: `roadmap.ranked` (byUserId/revisionFrom/revisionTo/orderFrom/orderTo — the ranked project ids as comma-joined text, before and after) on every accepted PUT; a rejected PUT (`409`, `400`) emits nothing,
+  a `403` is the central `authz.denied`.
+- **Tests**: `RoadmapRankingTest` (guard matrix, revocation under the lock, stale `409`, the `400`s, permutations -> dense rows, delete first/middle/last, the deferrable constraint, the same-revision race, the
+  view, `can.editRank` vs. the guard, audit).
+
 ## Not built yet — the sketch (v0.3–v0.5, confirmed by each increment)
 
-- `roadmap_entries(project_id, position)` (V13, v0.2.0) and `team_milestone_orders(team_id, milestone_id, position)` — dense integers, `UNIQUE … DEFERRABLE`, wholesale PUT with `expectedRevision`
-  (409 on stale) under the `plan_state` lock; a project delete removes its roadmap entry and renumbers in the same locked transaction (the hook in `ProjectService.delete`).
+- `team_milestone_orders(team_id, milestone_id, position)` — the roadmap's sibling (above): dense integers, `UNIQUE … DEFERRABLE`, wholesale PUT with `expectedRevision` (409 on stale) under the `plan_state` lock.
 - `milestones` (null dates = unscheduled, `estimate_md NUMERIC(8,2)`, exactly one team, no owner).
 - `dependencies`: nullable `pred_milestone_id|pred_project_id` and `succ_milestone_id|succ_project_id` with `num_nonnulls = 1` CHECKs, `type` FS/SS/FF/SF, `lag_days` (working days), `UNIQUE NULLS NOT DISTINCT`.
 - Cycle detection on a start/end time-point graph including containment edges (DFS under the plan lock; reused by the critical path and the scheduler).
 - `team_capacity_periods(team_id, effective_from, md_per_week)`.
 - Derived spans, drift and load are computed at request time in pure kernels (`planning/`, the `CapacityKernels.kt` idiom), with shared JSON test vectors for Kotlin and vitest (deferred to the first
   kernel that needs them; `PlanPermissions` is the first pure kernel and is tested against the guards instead).
-- More view endpoints (`/views/project/{id}`, `/views/team/{id}`, `/views/roadmap`, `/views/programs`), each one document with `can:{…}` flags and a revision, like Flow's `/reports/home`.
+- More view endpoints (`/views/project/{id}`, `/views/team/{id}`, `/views/programs`; `/views/plan` and `/views/roadmap` are built), each one document with `can:{…}` flags and a revision, like Flow's `/reports/home`.

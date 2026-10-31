@@ -32,6 +32,7 @@ class MigrationChecksumTest {
         "V10__people_and_team_manager_person.sql" to -438551672,
         "V11__user_permissions.sql" to 1624709150,
         "V12__plan_structure.sql" to -2119029713,
+        "V13__roadmap_entries.sql" to 356464108,
     )
 
     @Test

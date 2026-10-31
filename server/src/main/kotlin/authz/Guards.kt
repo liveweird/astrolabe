@@ -49,9 +49,9 @@ suspend fun requireTeamManagerOrAdmin(
  * ADMIN, or a user holding the [Permission.ROADMAP_EDITOR] grant (V11): the global project rank. [hasPermission] is
  * the injected `UserService.hasPermission` lookup (a database read per request, never a JWT claim), so the guard stays
  * DB-free and `GuardsTest` pure. ADMIN short-circuits before the lookup; a lookup failure propagates (fails closed:
- * the catch-all's 500, never a pass). No route consumes it until the roadmap ranking lands (the
- * [requireTeamManagerOrAdmin] precedent: the guard is written and tested ahead of its first consumer). Run it as the
- * FIRST guard — it needs nothing from the path or the body.
+ * the catch-all's 500, never a pass). Consumed by `PUT /roadmap/ranking`, which runs it as the FIRST guard — it needs nothing
+ * from the path or the body — and AGAIN inside the `plan_state` lock (a request can be held open after the outer guard, so a grant
+ * revoked meanwhile must refuse the write; `authorization.md`).
  */
 suspend fun requireRoadmapEditorOrAdmin(
     caller: CallerPrincipal,

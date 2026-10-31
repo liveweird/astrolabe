@@ -129,9 +129,9 @@ class ProjectService(private val database: R2dbcDatabase) {
     }
 
     /**
-     * Soft delete under the plan lock. A project has no children in v0.2, so there is no 409. The roadmap hook (V13, the ranking
-     * commit): this same locked transaction will also hard-delete the project's `roadmap_entries` row and renumber the positions
-     * above it, so the dense 1..n ranking never holds a deleted project — add that call right after the update below.
+     * Soft delete under the plan lock. A project has no children in v0.2, so there is no 409. The same locked transaction takes the
+     * project out of the ranking ([removeFromRanking]: its `roadmap_entries` row is hard-deleted and the positions above it shift
+     * down), so the dense 1..n ranking never holds a deleted project.
      */
     suspend fun delete(id: UInt, guard: PlanGuard) {
         database.withPlanWrite {
@@ -141,6 +141,7 @@ class ProjectService(private val database: R2dbcDatabase) {
                 it[updatedAt] = nowMillis()
             }
             if (affected == 0) throw NotFoundException("Project not found")
+            removeFromRanking(id)
         }
     }
 }

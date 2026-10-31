@@ -14,6 +14,8 @@ import ch.nokillswit.planning.ProgramService
 import ch.nokillswit.planning.ProgramServiceKey
 import ch.nokillswit.planning.ProjectService
 import ch.nokillswit.planning.ProjectServiceKey
+import ch.nokillswit.planning.RoadmapService
+import ch.nokillswit.planning.RoadmapServiceKey
 import ch.nokillswit.planning.WorkStreamService
 import ch.nokillswit.planning.WorkStreamServiceKey
 import ch.nokillswit.teams.TeamService
@@ -252,6 +254,7 @@ suspend fun Application.configureDatabase() {
     attributes.put(ProgramServiceKey, ProgramService(database))
     attributes.put(ProjectServiceKey, ProjectService(database))
     attributes.put(PlanViewServiceKey, PlanViewService(database))
+    attributes.put(RoadmapServiceKey, RoadmapService(database))
     attributes.put(
         TokenBlocklistServiceKey,
         TokenBlocklistService(

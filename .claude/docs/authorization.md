@@ -81,7 +81,7 @@ Layered RBAC. Implemented in the `server/src/main/kotlin/authz/` package.
   top-down; a caller with no active person owns nothing) and `requireTargetWindowEditorOrAdmin(caller, callerPersonId, chain, hasPermission)` (given the node's
   FULL chain: ADMIN, an owner ABOVE the project, or the grant; the project's own owner alone is refused, and the person-id check runs before the database
   lookup) are consumed by the plan routes (V12, below); `requireRoadmapEditorOrAdmin(caller, hasPermission)` (ADMIN short-circuits without the lookup; else the
-  caller must hold `ROADMAP_EDITOR`; a throwing lookup propagates — fails closed) awaits the ranking PUT (V13). New guards join this file so the whole policy stays in one place.
+  caller must hold `ROADMAP_EDITOR`; a throwing lookup propagates — fails closed) is consumed by `PUT /roadmap/ranking` (V13, below). New guards join this file so the whole policy stays in one place.
 - **Resource rules**:
   - `/api/v1/users` (list/create) and `PUT`/`DELETE /api/v1/users/{id}` → **ADMIN only** — the
     whole management surface is admin-gated (the list included; regular users keep only the self
@@ -198,14 +198,20 @@ Layered RBAC. Implemented in the `server/src/main/kotlin/authz/` package.
     | `PUT`/`DELETE /programs/{id}`, `POST /programs/{id}/projects` | chain(program) ?: 404 → `requireOwnerOrAdmin` (the stream's or the program's owner) |
     | `PUT`/`DELETE /projects/{id}` | chain(project) ?: 404 → `requireOwnerOrAdmin` (any of the three, the project's own owner included) |
     | `PUT /projects/{id}/target-window` | chain(project) ?: 404 → `requireTargetWindowEditorOrAdmin` (ADMIN, the stream's or program's owner, or `ROADMAP_EDITOR`; NOT the project's own owner alone) |
+    | `GET /views/roadmap` | authenticated (`can.editRank` shows the caller's right) |
+    | `PUT /roadmap/ranking` | `requireRoadmapEditorOrAdmin` FIRST — **guard-before-read**: the route addresses no node, so there is no 404 to order against; ADMIN or `ROADMAP_EDITOR`, nobody else (an owner of any node included) |
 
     The owner of a node is a field of its full-replace PUT, so **any caller who may edit a node may reassign its owner** (including the node's own owner — a hand-over;
     the ancestors can always take it back); the new owner must be an ACTIVE person (`400` "Unknown or deleted owner ids"). Creating a project may carry the target window
     (creators are always window editors). A closed work stream (end date) does not block new children. The `can:{}` flags of the plan view come from the pure kernel
     `planning/PlanPermissions.kt` with the SAME arithmetic as these guards (`PlanPermissionsTest` pins the agreement; `PlanViewTest` checks the flags against real writes).
-    Tests: `PlanStructureTest` (every route × ADMIN, the three owners, a stranger, a person-less login, a roadmap editor; 404 vs 403 ordering), `PlanViewTest`, `PlanPermissionsTest`.
+    **The ranking PUT (V13)** runs `requireRoadmapEditorOrAdmin` before `call.receive` (a forbidden caller's malformed body stays 403, and the grant lookup is a database read per request, never a token claim) and
+    AGAIN inside `withPlanWrite` after the lock is taken: a request can be held open after the outer guard (a slow body, or waiting behind another plan writer), and a grant revoked in between must refuse the write —
+    the same TOCTOU rule as the owner guards (a failure there is a 403, no revision bump, the central `authz.denied`). The `409` stale-revision and the `400` id errors come after the guard. `can.editRank` is
+    `PlanPermissions.canEditRank` (ADMIN or the grant), pinned against the guard by `PlanPermissionsTest` and against the real PUT by `RoadmapRankingTest`.
+    Tests: `PlanStructureTest` (every route × ADMIN, the three owners, a stranger, a person-less login, a roadmap editor; 404 vs 403 ordering), `PlanViewTest`, `PlanPermissionsTest`, `RoadmapRankingTest` (ADMIN, a roadmap editor, an owner without the grant, a stranger, a person-less login; the revocation under a held lock).
   - **Still planned (v0.3+):** a project owner edits the project and its milestones' plan fields but not their dates; milestone dates only by the team's manager or ADMIN; the global
-    rank by ADMIN plus the `ROADMAP_EDITOR` grant (the guard and the grant are built, the ranking route is V13); a team manager edits capacity and team order. Each new rule lands here with its
+    rank by ADMIN plus the `ROADMAP_EDITOR` grant (built, V13); a team manager edits capacity and team order. Each new rule lands here with its
     guard order (403 before 400/404, guard-before-read where existence is sensitive) in the same commit as its route.
 - **Existence disclosure (403 vs 404) — deliberate policy (API-ERR-006)**: two sanctioned idioms,
   and every new resource picks one consciously rather than mixing them. **Guard-before-read**

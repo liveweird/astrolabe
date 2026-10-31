@@ -768,6 +768,55 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/views/roadmap": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The global project ranking with the caller's right to change it
+         * @description Any authenticated user. One document (a deliberate exception to the paged envelope, bounded by the plan's scale of about 100
+         *     projects): `ranked` in position order (dense 1..n) and `unranked`, the active projects without a position, by name. Each project
+         *     carries its program, work stream and owner names. `can.editRank` is whether THIS caller may `PUT /roadmap/ranking` (ADMIN or a
+         *     ROADMAP_EDITOR holder). `revision` is the plan revision read before the rows - send it back as `expectedRevision`.
+         */
+        get: operations["getRoadmapView"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/roadmap/ranking": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Replace the global project ranking
+         * @description ADMIN or a holder of the `ROADMAP_EDITOR` permission; every other caller gets `403` BEFORE the body is read (the route addresses
+         *     no node). The permission is re-checked under the plan lock, so a grant revoked while the request was in flight refuses the write.
+         *     Wholesale: the listed projects get positions 1..n in the given order and every other project becomes unranked (omit a project to
+         *     unrank it; append an unranked one to rank it at the end). `expectedRevision` must equal the current plan revision, else `409` with
+         *     `type` `urn:astrolabe:problem:stale-revision` and nothing is written - reload the view and retry. `400` when an id is listed
+         *     twice, is unknown or belongs to a deleted project, or more than 1000 ids are sent. Every accepted PUT, even one that keeps the
+         *     order, bumps the plan revision by one and is audited as `roadmap.ranked`.
+         */
+        put: operations["replaceRoadmapRanking"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/telemetry/current": {
         parameters: {
             query?: never;
@@ -1371,10 +1420,65 @@ export interface components {
                 editTargetWindow: boolean;
             };
         };
+        RoadmapView: {
+            /**
+             * Format: int64
+             * @description The plan revision, read before the rows; send it back as `expectedRevision`.
+             */
+            revision: number;
+            can: {
+                /** @description The caller may replace the ranking (ADMIN or a roadmap editor). */
+                editRank: boolean;
+            };
+            /** @description The ranked projects in position order. */
+            ranked: components["schemas"]["RoadmapRankedProject"][];
+            /** @description The active projects without a position, by name. */
+            unranked: components["schemas"]["RoadmapProject"][];
+        };
+        RoadmapRankedProject: {
+            /**
+             * Format: int32
+             * @description Dense: the ranked projects hold 1..n.
+             */
+            position: number;
+            project: components["schemas"]["RoadmapProject"];
+        };
+        RoadmapProject: {
+            /** Format: int32 */
+            id: number;
+            name: string;
+            /** Format: int32 */
+            programId: number;
+            programName: string;
+            /** Format: int32 */
+            workStreamId: number;
+            workStreamName: string;
+            ownerName: string;
+            /** Format: date */
+            targetStart: string | null;
+            /** Format: date */
+            targetEnd: string | null;
+        };
+        RankingUpdateRequest: {
+            /**
+             * Format: int64
+             * @description The plan revision the client's list was read at (`RoadmapView.revision`); a different current revision is a `409`.
+             */
+            expectedRevision: number;
+            /** @description The COMPLETE ranking in order, best first. Projects not listed become unranked. */
+            projectIds: number[];
+        };
+        RankingResponse: {
+            /**
+             * Format: int64
+             * @description The plan revision after this write.
+             */
+            revision: number;
+        };
         /** @description RFC 7807 problem detail. Served as `application/problem+json`; instance is the request path without query parameters. */
         ProblemDetail: {
             /**
-             * @description A URI reference identifying the problem type; `about:blank` for every problem today.
+             * @description A URI reference identifying the problem type; `about:blank` unless a problem names its own (`urn:astrolabe:problem:stale-revision` on a stale ranking PUT).
              * @default about:blank
              */
             type: string;
@@ -3023,6 +3127,67 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    getRoadmapView: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The ranking */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoadmapView"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    replaceRoadmapRanking: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RankingUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description The ranking was replaced; the body carries the new plan revision */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RankingResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            /** @description `expectedRevision` is stale (`type` is `urn:astrolabe:problem:stale-revision`) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
             500: components["responses"]["InternalServerError"];
         };
     };

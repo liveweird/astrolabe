@@ -14,7 +14,6 @@ import ch.nokillswit.planning.WorkStreamUpdateRequest
 import io.ktor.client.call.body
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
-import io.ktor.client.statement.HttpResponse
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.testing.testApplication
 import kotlinx.coroutines.async
@@ -237,35 +236,6 @@ class PlanStateTest {
         assertEquals(HttpStatusCode.OK, w.admin.client.get("/api/v1/people/$person").status)
     }
 
-    /**
-     * Holds `plan_state FOR UPDATE` on a raw session, starts [request] (it passes the route's outer guard, then waits at the lock),
-     * runs [mutate] on the raw session and commits — the committed change is what the request's re-guard under the lock must see.
-     */
-    private suspend fun requestHeldAtTheLock(request: suspend () -> HttpResponse, mutate: (Connection) -> Unit): HttpResponse {
-        PostgresTestSupport.connect().use { raw ->
-            raw.autoCommit = false
-            raw.createStatement().use { it.executeQuery("SELECT revision FROM plan_state WHERE id = 1 FOR UPDATE").close() }
-            try {
-                return coroutineScope {
-                    val pending = async { request() }
-                    awaitLockWait("plan_state")
-                    mutate(raw)
-                    raw.commit()
-                    pending.await()
-                }
-            } finally {
-                raw.rollback()
-            }
-        }
-    }
-
-    private fun Connection.exec(sql: String, vararg ints: Int) {
-        prepareStatement(sql).use { st ->
-            ints.forEachIndexed { index, value -> st.setInt(index + 1, value) }
-            st.executeUpdate()
-        }
-    }
-
     @Test
     fun `a demoted owner cannot finish a request that passed the outer guard - the chain is re-read under the lock`() = testApplication {
         usePostgresTestcontainer()
@@ -273,7 +243,7 @@ class PlanStateTest {
         val self = w.projectOwner.personId!!
         val revision = TestPlan.revision()
         // ADMIN reassigns the project to the stranger while the owner's request is held open; the owner tries to take it back.
-        val response = requestHeldAtTheLock(
+        val response = requestHeldAtPlanLock(
             { w.projectOwner.client.putJson("/api/v1/projects/${w.projectId}", ProjectUpdateRequest(planName("regrant"), null, self)) },
             { it.exec("UPDATE projects SET owner_person_id = ? WHERE id = ?", w.stranger.personId!!.toInt(), w.projectId.toInt()) },
         )
@@ -292,7 +262,7 @@ class PlanStateTest {
             c.exec("UPDATE programs SET owner_person_id = ? WHERE id = ?", w.stranger.personId!!.toInt(), w.programId.toInt())
         }
         // The program owner is demoted while a create-a-project (self-owned) request is held open.
-        val created = requestHeldAtTheLock(
+        val created = requestHeldAtPlanLock(
             {
                 w.programOwner.client.postJson(
                     "/api/v1/programs/${w.programId}/projects",
@@ -311,7 +281,7 @@ class PlanStateTest {
         val w = planWorld("relink")
         val replacement = TestUsers.seed(email = uniqueEmail("relink-new"), password = "pw", role = ch.nokillswit.users.UserRole.USER)
         val revision = TestPlan.revision()
-        val response = requestHeldAtTheLock(
+        val response = requestHeldAtPlanLock(
             {
                 w.streamOwner.client.putJson(
                     "/api/v1/work-streams/${w.streamId}",
@@ -329,7 +299,7 @@ class PlanStateTest {
         usePostgresTestcontainer()
         val w = planWorld("revoke")
         val revision = TestPlan.revision()
-        val response = requestHeldAtTheLock(
+        val response = requestHeldAtPlanLock(
             { w.editor.client.putJson("/api/v1/projects/${w.projectId}/target-window", TargetWindowRequest("2026-03-01", "2026-03-31")) },
             { it.exec("DELETE FROM user_permissions WHERE user_id = ?", w.editor.userId.toInt()) },
         )

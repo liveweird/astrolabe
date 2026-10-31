@@ -124,7 +124,7 @@ override). One line per package; `ls` gives the files. **Layering is one-way (`P
 - `users/` — the user domain (Astrolabe's own login accounts, REST `/api/v1/users`): ADMIN-only CRUD (self-delete 403, last-admin 409), per-user feature flags (`Feature` enum, the V5 disabled-set model; MFA is the inverted-default login-scoped flag), per-user permissions (`Permission`, the V11 grant set read per request, never a token claim), the ONE synced per-user UI+email language (`Languages.kt` is the `SUPPORTED_LANGUAGES` whitelist).
 - `people/` — the people directory (V10; REST `/api/v1/people`): GET any authenticated (emails included), POST/PUT/DELETE ADMIN only; an optional email and an optional login link (`people.user_id`), the owners and managers of the plan.
 - `teams/` — flat teams (V6) with an optional manager (a person since V10): GET any authenticated, POST/PUT/DELETE ADMIN only. **The feature template** (below).
-- `planning/` — work streams, programs, projects (V12), `GET /views/plan`: owner-scoped writes under the `plan_state` lock; pure `PlanPermissions` kernel.
+- `planning/` — work streams, programs, projects (V12), `GET /views/plan`, the global project rank (V13, `/roadmap/ranking`): owner-scoped writes under the `plan_state` lock; pure `PlanPermissions` kernel.
 - `telemetry/` — per-process JVM/cgroup/request/storage samples in `ops.*` (V9), 90 days, hourly, ADMIN read API (`observability.md`).
 
 **Feature template — copy `teams/`** (a small ADMIN-curated registry; the only shape the foundation ships). Before adding a feature, route, service, migration or page, read `.claude/docs/conventions.md` in full.
@@ -152,7 +152,7 @@ disagree, the doc wins. The always-loaded set (this file plus the two imports) s
 | Doc | Read before you touch |
 |---|---|
 | `.claude/docs/conventions.md` | adding a feature, route, service, migration or page: the `teams/` feature template (DTO + validator, routes, service, migration + checksum pin, spec paths, `gen:api`, lazy page + nav entry, e2e spec + scenario) |
-| `.claude/docs/persistence.md` | any migration (`db/migration/V*.sql`, V1–V12 today — applied bytes are immutable, `MigrationChecksumTest`), an Exposed table/`*Service.kt`, soft delete, a cross-feature table read/write (the list there IS the permission), the connection pool, the `ops` schema |
+| `.claude/docs/persistence.md` | any migration (`db/migration/V*.sql`, V1–V13 today — applied bytes are immutable, `MigrationChecksumTest`), an Exposed table/`*Service.kt`, soft delete, a cross-feature table read/write (the list there IS the permission), the connection pool, the `ops` schema |
 | `.claude/docs/security.md` | auth/JWT/MFA/password reset, rate limits, headers/CSP, outbound HTTP (the SSRF guard), secrets/encryption at rest, production fail-closed startup checks, payload validation |
 | `.claude/docs/authorization.md` | any route: its guard (ADMIN vs any authenticated), 403-before-400/404 ordering, existence disclosure, the error/`ProblemDetail` mapping |
 | `.claude/docs/observability.md` | any mutation or denial path (it needs an `audit(...)` event, listed there), logging, OpenTelemetry, health probes, the telemetry panel's server side |

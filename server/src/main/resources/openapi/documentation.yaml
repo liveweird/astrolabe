@@ -41,6 +41,8 @@ tags:
     description: Flat teams, the ownership unit planning features scope to - readable by any authenticated user, written by ADMIN only. A team's manager is a person of the people directory.
   - name: plan
     description: The plan structure - work streams, programs and projects with their owners (people), and the whole-tree plan view. Readable by any authenticated user; writes are scoped to the owners on a node's chain (and ADMIN).
+  - name: roadmap
+    description: The global project ranking - one dense rank over the projects, rewritten wholesale under the plan revision. Readable by any authenticated user; written by ADMIN and ROADMAP_EDITOR holders.
   - name: telemetry
     description: Astrolabe's own vital signs (process memory, JVM, storage, request latency) and their 24h/7d/90d trends - ADMIN only.
 
@@ -1192,6 +1194,62 @@ paths:
                 $ref: '#/components/schemas/PlanView'
         '401': { $ref: '#/components/responses/Unauthorized' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/views/roadmap:
+    get:
+      tags: [roadmap]
+      operationId: getRoadmapView
+      summary: The global project ranking with the caller's right to change it
+      description: |
+        Any authenticated user. One document (a deliberate exception to the paged envelope, bounded by the plan's scale of about 100
+        projects): `ranked` in position order (dense 1..n) and `unranked`, the active projects without a position, by name. Each project
+        carries its program, work stream and owner names. `can.editRank` is whether THIS caller may `PUT /roadmap/ranking` (ADMIN or a
+        ROADMAP_EDITOR holder). `revision` is the plan revision read before the rows - send it back as `expectedRevision`.
+      responses:
+        '200':
+          description: The ranking
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoadmapView'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/roadmap/ranking:
+    put:
+      tags: [roadmap]
+      operationId: replaceRoadmapRanking
+      summary: Replace the global project ranking
+      description: |
+        ADMIN or a holder of the `ROADMAP_EDITOR` permission; every other caller gets `403` BEFORE the body is read (the route addresses
+        no node). The permission is re-checked under the plan lock, so a grant revoked while the request was in flight refuses the write.
+        Wholesale: the listed projects get positions 1..n in the given order and every other project becomes unranked (omit a project to
+        unrank it; append an unranked one to rank it at the end). `expectedRevision` must equal the current plan revision, else `409` with
+        `type` `urn:astrolabe:problem:stale-revision` and nothing is written - reload the view and retry. `400` when an id is listed
+        twice, is unknown or belongs to a deleted project, or more than 1000 ids are sent. Every accepted PUT, even one that keeps the
+        order, bumps the plan revision by one and is audited as `roadmap.ranked`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RankingUpdateRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '200':
+          description: The ranking was replaced; the body carries the new plan revision
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RankingResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: '`expectedRevision` is stale (`type` is `urn:astrolabe:problem:stale-revision`)'
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetail' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   /api/v1/telemetry/current:
     get:
       tags: [telemetry]
@@ -1965,6 +2023,70 @@ components:
             delete: { type: boolean, description: 'A rights flag: the caller may delete the node. The server can still answer 409 while it has active children.' }
             editTargetWindow: { type: boolean, description: 'The caller may set the target window (ADMIN, an owner above the project, or a roadmap editor).' }
 
+    RoadmapView:
+      type: object
+      required: [revision, can, ranked, unranked]
+      properties:
+        revision:
+          type: integer
+          format: int64
+          minimum: 0
+          description: The plan revision, read before the rows; send it back as `expectedRevision`.
+        can:
+          type: object
+          required: [editRank]
+          properties:
+            editRank: { type: boolean, description: The caller may replace the ranking (ADMIN or a roadmap editor). }
+        ranked:
+          type: array
+          description: The ranked projects in position order.
+          items:
+            $ref: '#/components/schemas/RoadmapRankedProject'
+        unranked:
+          type: array
+          description: The active projects without a position, by name.
+          items:
+            $ref: '#/components/schemas/RoadmapProject'
+    RoadmapRankedProject:
+      type: object
+      required: [position, project]
+      properties:
+        position: { type: integer, format: int32, minimum: 1, description: 'Dense: the ranked projects hold 1..n.' }
+        project:
+          $ref: '#/components/schemas/RoadmapProject'
+    RoadmapProject:
+      type: object
+      required: [id, name, programId, programName, workStreamId, workStreamName, ownerName, targetStart, targetEnd]
+      properties:
+        id: { type: integer, format: int32, minimum: 0 }
+        name: { type: string }
+        programId: { type: integer, format: int32, minimum: 0 }
+        programName: { type: string }
+        workStreamId: { type: integer, format: int32, minimum: 0 }
+        workStreamName: { type: string }
+        ownerName: { type: string }
+        targetStart: { type: string, format: date, nullable: true }
+        targetEnd: { type: string, format: date, nullable: true }
+    RankingUpdateRequest:
+      type: object
+      required: [expectedRevision, projectIds]
+      properties:
+        expectedRevision:
+          type: integer
+          format: int64
+          description: The plan revision the client's list was read at (`RoadmapView.revision`); a different current revision is a `409`.
+        projectIds:
+          type: array
+          maxItems: 1000
+          uniqueItems: true
+          items: { type: integer, format: int32, minimum: 0 }
+          description: The COMPLETE ranking in order, best first. Projects not listed become unranked.
+    RankingResponse:
+      type: object
+      required: [revision]
+      properties:
+        revision: { type: integer, format: int64, minimum: 0, description: The plan revision after this write. }
+
     ProblemDetail:
       type: object
       description: RFC 7807 problem detail. Served as `application/problem+json`; instance is the request path without query parameters.
@@ -1974,7 +2096,7 @@ components:
           type: string
           default: about:blank
           description: >-
-            A URI reference identifying the problem type; `about:blank` for every problem today.
+            A URI reference identifying the problem type; `about:blank` unless a problem names its own (`urn:astrolabe:problem:stale-revision` on a stale ranking PUT).
         title:
           type: string
           description: Short, human-readable summary of the problem type.
