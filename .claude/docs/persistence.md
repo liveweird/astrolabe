@@ -14,16 +14,16 @@ in-network consumers use `postgres:5432`). There is one persistence stack:
   makes every long-lived database refuse to boot (a failure no fresh-container CI run can see).
   `MigrationChecksumTest` pins every file's checksum; a new migration adds one manifest line, and
   a red pin means REVERT the edit (clarifications go into this doc), never update the pinned
-  value. The range today is **V1–V11**: V1 `users`, V2 `revoked_tokens`, V3 the seed admin, V4 the
+  value. The range today is **V1–V12**: V1 `users`, V2 `revoked_tokens`, V3 the seed admin, V4 the
   `unaccent` extension, V5 `user_disabled_features` (V1–V5 are Flow's), V6 `teams` (with the optional
   manager), V7 `users.credential_revision`, V8 `password_reset_tokens`, V9 the `ops` telemetry
-  schema, V10 `people` (the people directory) with `teams.manager_person_id` replacing `manager_user_id`, V11 `user_permissions` (the per-user permission grants). (Astrolabe renumbered Flow's history when it was bootstrapped; from V10 on, migrations are
+  schema, V10 `people` (the people directory) with `teams.manager_person_id` replacing `manager_user_id`, V11 `user_permissions` (the per-user permission grants), V12 `plan_state` + `work_streams`/`programs`/`projects` (the plan structure). (Astrolabe renumbered Flow's history when it was bootstrapped; from V10 on, migrations are
   append-only like any other.)
 - **Exposed + R2DBC** (`infra/db/Database.kt` + the feature services) — runtime DB access.
   `Database.kt` connects the `R2dbcDatabase` and is the composition root: it constructs the
-  services and publishes them into `Application.attributes` (`UserServiceKey`, `PersonServiceKey`, `TeamServiceKey`,
+  services and publishes them into `Application.attributes` (`UserServiceKey`, `PersonServiceKey`, `TeamServiceKey`, the four planning keys,
   `TokenBlocklistServiceKey`, `PasswordResetServiceKey` today); each service itself lives next to the feature it serves
-  (`users/UserService.kt`, `people/PersonService.kt`, `teams/TeamService.kt`, `auth/TokenBlocklistService.kt`, `auth/PasswordResetService.kt`). The Exposed
+  (`users/UserService.kt`, `people/PersonService.kt`, `teams/TeamService.kt`, `planning/{WorkStream,Program,Project,PlanView}Service.kt`, `auth/TokenBlocklistService.kt`, `auth/PasswordResetService.kt`). The Exposed
   table `object`s (e.g. `UserService.Users`, nested inside their service) are used for queries
   only, not DDL. Ids are `UIntIdTable` — unsigned end-to-end (the spec declares `minimum: 0`, and
   `ErrorHandling.kt` 400s negative path segments before kotlinx's `UInt` decoding can silently
@@ -155,9 +155,14 @@ place:
   team, an ACTIVE person whose `user_id` is the caller, and that user ACTIVE). `teams.manager_person_id`
   has no `ON DELETE` rule: people are only ever soft-deleted, and `PersonService.delete` refuses (409) while an ACTIVE team names the
   person.
+- `planning/` (V12): the node services read `PersonService.People` — `OwnerChains.kt`'s `ownerNames` (the owners' display names, one batched lookup per read, no `active()` filter: an active node's owner is always
+  an active person) and `requireActiveOwner` (the owner of a node being written must be ACTIVE, else 400; it locks the person row `FOR SHARE`, which conflicts with `PersonService.delete`'s
+  `FOR NO KEY UPDATE`: a delete racing a node write either commits first and the write is a 400, or waits and then sees the node and answers 409 — never an active node owned by a deleted person;
+  `PlanStateTest` pins both halves). The services also read each other's tables inside one feature: a delete counts the ACTIVE children (`Programs` from the work stream delete, `Projects` from the program
+  delete) and the chain lookups join all three. `work_streams`/`programs`/`projects` hold `owner_person_id → people(id)` with no `ON DELETE` rule: people are only ever soft-deleted and `PersonService.delete`
+  refuses (409) while an ACTIVE node names the person. `PlanViewService` reads the three tables (and `people` names) in ONE transaction, the revision first.
 - `PersonService` reads `UserService.Users` (the linked login: the active-user check on create AND update, the login's email on read/list
-  through ACTIVE users) and `TeamService.Teams` (the delete 409 while the person manages an ACTIVE team; V12 extends it to the plan
-  tables). `people.user_id` has no `ON DELETE` rule: users are only ever soft-deleted and the link stays INERT while the user is deleted
+  through ACTIVE users) and `TeamService.Teams` (the delete 409 while the person manages an ACTIVE team; since V12 `planning/OwnerChains.kt`'s `ownsActivePlanNode` extends it to an ACTIVE work stream, program or project the person owns). `people.user_id` has no `ON DELETE` rule: users are only ever soft-deleted and the link stays INERT while the user is deleted
   (guards resolve the caller's person through `people.user_id = caller AND people.active()`, and a deleted login never passes the access
   verdict); a future hard purge of users must clear it first, and a future user RESTORE must re-audit the link (the person may have been
   re-linked to another login meanwhile — the partial unique index refuses a clash). A PUT from the SPA carries `userId: null` for an inert link (the
@@ -182,8 +187,8 @@ List each new cross-feature read/write here as it lands — the list IS the perm
 
 Astrolabe's PostgreSQL database is split across schemas:
 
-- **`public`** — the foundation tables (`users`, `people`, `teams`, `revoked_tokens`, `user_disabled_features`, `password_reset_tokens`) and, later,
-  the planning tables (`planning-model.md`). Flyway's own history table also stays here — `flyway.schemas` is left at its default.
+- **`public`** — the foundation tables (`users`, `people`, `teams`, `revoked_tokens`, `user_disabled_features`, `password_reset_tokens`) and the planning tables
+  (`plan_state`, `work_streams`, `programs`, `projects` since V12; `planning-model.md`). Flyway's own history table also stays here — `flyway.schemas` is left at its default.
 - **`ops`** — Astrolabe's own operational telemetry (V9, "Telemetry (V9)" below): the process registry and the metric samples each
   process writes about itself. Numbers and labels only, never project data.
 
@@ -240,7 +245,7 @@ transaction under `TELEMETRY_LOCK_KEY`, and a row exactly at its cutoff stays. T
 
 ### Soft delete (convention)
 
-`users`, `people` and `teams` are **soft-deleted** — rows are flagged, never physically removed; every
+`users`, `people`, `teams`, `work_streams`, `programs` and `projects` are **soft-deleted** — rows are flagged, never physically removed; every
 business entity follows the same convention. Only join/token tables (today: `revoked_tokens`, a
 pure token registry, `password_reset_tokens` (V8, expiring single-use credentials, not history), `user_disabled_features`, a pure flag join
 whose PUT is a wholesale replace, `user_permissions` (V11, the same shape: a pure grant join rewritten wholesale), and the `ops.telemetry_*` samples (the prune above)) hard-delete — a new
@@ -275,7 +280,8 @@ clash with an **active** row still raises `23505 → 409` (mapped centrally in
 `UNIQUE_CONSTRAINT_DETAILS` when adding a partial unique index). In place today: `users.email`
 (`uq_users_email_active`, `V1`), the team name (`uq_teams_name_active`, `V6` — an expression
 index over `LOWER(name)`), and in V10 the person email (`uq_people_email_active`, over `LOWER(email)`, only when set) and the login link
-(`uq_people_user_id_active`, one active person per login); person names are deliberately NOT unique.
+(`uq_people_user_id_active`, one active person per login); person names are deliberately NOT unique. V12 adds `uq_work_streams_name_active` and `uq_programs_name_active` (global,
+over `LOWER("name")`) and `uq_projects_program_name_active` (per program, over `(program_id, LOWER("name"))`) — the 409 wording for all three is in `UNIQUE_CONSTRAINT_DETAILS`.
 
 **`infra/db/Sql.kt`** (ported from Lettuce with the first list endpoint): `containsNormalized` —
 the case- AND accent-insensitive substring filter over `public.unaccent` (V4); every per-column
@@ -297,7 +303,17 @@ NOT with `FOR KEY SHARE`, so FK locks never stall it. `lockActiveForWrite` (`inf
 PostgreSQL does not count as key columns — a rename is still a non-key update. Plain `FOR UPDATE` is for a row nothing references from a
 long transaction (`users` is referenced only by columns no long transaction inserts — `updated_by_*`, `people.user_id`,
 `user_disabled_features.user_id`, `password_reset_tokens.user_id` (short inserts only): `UserService.lockedActiveAdminCount`), or for
-`SKIP LOCKED` claims. A new `FOR UPDATE` on an FK-referenced row needs that justification in a comment. Flow pinned both halves with `RowLockVersusDeriveTest` (a writer completes while another transaction holds `FOR KEY SHARE` on the row, and a second `FOR NO KEY UPDATE` writer still waits); Astrolabe re-adds that test with the first long planning transaction.
+`SKIP LOCKED` claims. A new `FOR UPDATE` on an FK-referenced row needs that justification in a comment. Flow pinned both halves with `RowLockVersusDeriveTest` (a writer completes while another transaction holds `FOR KEY SHARE` on the row, and a second `FOR NO KEY UPDATE` writer still waits); Astrolabe's planning writes take ONE lock instead, on `plan_state` (below), so the lock-wait barrier tests of `PlanStateTest` (a raw JDBC session holds the lock, the request waits, the release lets it complete) are the descendant of that test. The plan's **count-the-children-then-delete** needs more than a parent-row lock: a child INSERT's FK check takes only `FOR KEY SHARE`, which `lockActiveForWrite`'s `FOR NO KEY UPDATE` does not block, so the count runs under the `plan_state` lock that every child create also holds.
+
+### The plan (V12)
+
+`plan_state` (one row, `CHECK id = 1`: the plan's monotonic `revision` and the lock row), `work_streams`, `programs`, `projects` (`planning/*Service.kt`; DDL, constraints and uniqueness scopes in `planning-model.md`).
+Dates are `DATE` through `LocalDateColumn.kt` (`start_date`/`end_date`, `target_start`/`target_end`, each with a `CHECK` backstop); ids are `SERIAL`; every node has `owner_person_id INTEGER NOT NULL REFERENCES people(id)`.
+**Every write of these tables runs in `withPlanWrite`** (`planning/PlanState.kt`): `SELECT revision FROM plan_state WHERE id = 1 FOR UPDATE`, the block, `UPDATE … revision = revision + 1`. **This is the one deliberate PLAIN
+`FOR UPDATE` on a table the code treats as a lock row** — justified by the rule above: nothing references `plan_state` by a foreign key (no FK check can queue behind or in front of it) and its key never changes, so the
+`FOR NO KEY UPDATE` refinement buys nothing. Because all plan writers serialize there, the node services take no per-row locks; the plan lock is held across the whole block, which makes the delete's child count race-free
+and lets V13's ranking compare `expectedRevision` atomically. A block that throws rolls the bump back. Reads (`PlanViewService`) read the revision first without the lock. The `ProjectService.delete` method carries the hook for V13:
+the project's `roadmap_entries` row is hard-deleted (and the positions above renumbered) in the same locked transaction.
 
 ### The DATE column idiom (`infra/db/LocalDateColumn.kt`)
 
@@ -350,7 +366,5 @@ text and sha256 are compared against stored rows.
 
 ### Planned persistence (not yet built)
 
-The planning tables arrive with v0.2–v0.5; their sketch (SERIAL ids, epoch-millis timestamps, `SoftDeletable`, partial unique
-indexes, `DATE` columns through the repo-local `LocalDateColumn` — built, above — and the `plan_state` revision lock) is in `planning-model.md`. Nothing
-in this document changes until a migration lands; then the schema list, the soft-delete list and the cross-feature list above grow
-in the same commit.
+The rest of the planning tables (`roadmap_entries` in V13 — a hard-delete position join, to be added to the soft-delete exception list with its justification when it lands —, then milestones, dependencies, capacity
+periods) arrive with v0.2–v0.5; their sketch is in `planning-model.md`. The schema list, the soft-delete list and the cross-feature list above grow in the same commit as each migration.

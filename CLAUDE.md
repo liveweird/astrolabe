@@ -96,7 +96,7 @@ application is wired declaratively in `server/src/main/resources/application.yam
 `ktor.application.modules` — each entry is a fully-qualified extension function on `Application`
 (e.g. `ch.nokillswit.plugins.HttpKt.configureHttp`). **Module order is load-bearing**: base plugins
 (Http → SecurityHeaders → Monitoring → Serialization → Security → RateLimits → ErrorHandling → OpenTelemetry → AutoHeadResponse → Resources) →
-infra (Mail → Crypto → Flyway → Database → Bootstrap → Health) → Telemetry (the sampler) → feature route modules (users, people, teams, auth, password reset, telemetry reads) →
+infra (Mail → Crypto → Flyway → Database → Bootstrap → Health) → Telemetry (the sampler) → feature route modules (users, people, teams, planning, auth, password reset, telemetry reads) →
 `RoutingKt.configureRouting` strictly last (the SPA catch-all). `configureDatabase` publishes the services into `Application.attributes` via `AttributeKey`s. To add a cross-cutting concern,
 create a `configureXxx()` extension under `plugins/` and register it in `application.yaml`; do not call it from `main.kt`. There is no DI framework — services travel via `attributes`.
 There is no role switch (Flow's `FLOW_ROLE` web/worker/all split is not ported; `.claude/docs/product.md` "Port later").
@@ -104,7 +104,7 @@ There is no role switch (Flow's `FLOW_ROLE` web/worker/all split is not ported; 
 ### Package layout
 
 Source files sit flat under `server/src/main/kotlin/<area>/` but declare `package ch.nokillswit.<area>`
-(no `ch/nokillswit` directory nesting — a deliberate idiom, the `InvalidPackageDeclaration` detekt
+(no `ch/nokillswit` directory nesting — deliberate, the `InvalidPackageDeclaration` detekt
 override). One line per package; `ls` gives the files. **Layering is one-way (`PackageBoundaryTest`):** `infra/` imports no feature package except the composition root (`infra/db/Database.kt`, `Bootstrap.kt`); `telemetry/` is imported by nothing.
 
 - `plugins/` — cross-cutting Ktor wiring (`configureXxx` that only `install` plugins; Security = JWT, ErrorHandling = RFC 7807). `Routing` (the SPA catch-all) is registered strictly last; `Health` (`/api/v1/health`, `/api/v1/ready`) is registered after Database; `RateLimits` holds every per-IP bucket (and the per-user `telemetry` one); `ResponseValidators` is the `ETag` seam for future view GETs.
@@ -124,9 +124,8 @@ override). One line per package; `ls` gives the files. **Layering is one-way (`P
 - `users/` — the user domain (Astrolabe's own login accounts, REST `/api/v1/users`): ADMIN-only CRUD (self-delete 403, last-admin 409), per-user feature flags (`Feature` enum, the V5 disabled-set model; MFA is the inverted-default login-scoped flag), per-user permissions (`Permission`, the V11 grant set read per request, never a token claim), the ONE synced per-user UI+email language (`Languages.kt` is the `SUPPORTED_LANGUAGES` whitelist).
 - `people/` — the people directory (V10; REST `/api/v1/people`): GET any authenticated (emails included), POST/PUT/DELETE ADMIN only; an optional email and an optional login link (`people.user_id`), the owners and managers of the plan.
 - `teams/` — flat teams (V6) with an optional manager (a person since V10): GET any authenticated, POST/PUT/DELETE ADMIN only. **The feature template** (below).
+- `planning/` — work streams, programs, projects (V12), `GET /views/plan`: owner-scoped writes under the `plan_state` lock; pure `PlanPermissions` kernel.
 - `telemetry/` — per-process JVM/cgroup/request/storage samples in `ops.*` (V9), 90 days, hourly, ADMIN read API (`observability.md`).
-
-The planning domain (`planning/`: work streams … milestones) has no package yet: v0.2.0 adds the first (`planning-model.md`).
 
 **Feature template — copy `teams/`** (a small ADMIN-curated registry; the only shape the foundation ships). Before adding a feature, route, service, migration or page, read `.claude/docs/conventions.md` in full.
 
@@ -153,13 +152,13 @@ disagree, the doc wins. The always-loaded set (this file plus the two imports) s
 | Doc | Read before you touch |
 |---|---|
 | `.claude/docs/conventions.md` | adding a feature, route, service, migration or page: the `teams/` feature template (DTO + validator, routes, service, migration + checksum pin, spec paths, `gen:api`, lazy page + nav entry, e2e spec + scenario) |
-| `.claude/docs/persistence.md` | any migration (`db/migration/V*.sql`, V1–V11 today — applied bytes are immutable, `MigrationChecksumTest`), an Exposed table/`*Service.kt`, soft delete, a cross-feature table read/write (the list there IS the permission), the connection pool, the `ops` schema |
+| `.claude/docs/persistence.md` | any migration (`db/migration/V*.sql`, V1–V12 today — applied bytes are immutable, `MigrationChecksumTest`), an Exposed table/`*Service.kt`, soft delete, a cross-feature table read/write (the list there IS the permission), the connection pool, the `ops` schema |
 | `.claude/docs/security.md` | auth/JWT/MFA/password reset, rate limits, headers/CSP, outbound HTTP (the SSRF guard), secrets/encryption at rest, production fail-closed startup checks, payload validation |
 | `.claude/docs/authorization.md` | any route: its guard (ADMIN vs any authenticated), 403-before-400/404 ordering, existence disclosure, the error/`ProblemDetail` mapping |
 | `.claude/docs/observability.md` | any mutation or denial path (it needs an `audit(...)` event, listed there), logging, OpenTelemetry, health probes, the telemetry panel's server side |
 | `.claude/docs/ci.md` | a CI job (ids and list), Dependabot rule or static-analysis config; the full-stack/Kubernetes notes and the sibling port table |
 | `.claude/docs/product.md` | the per-version roadmap, the user's domain decisions, assumptions; what each donor repo contributed and what to port later |
-| `.claude/docs/planning-model.md` | the planning domain (work streams … milestones, dependencies, capacity, ranking): the sketch, to be written in v0.2 |
+| `.claude/docs/planning-model.md` | the planning domain: plan structure, lock, guards; milestones … capacity (sketch) |
 | `.claude/docs/timeline.md` | the shared `Timeline*` component and the Gantt-like pages: the approach, to be written in v0.3 |
 | `.claude/docs/test-fixtures.md` | any server test fixture, the harness, fork warm-up, OpenAPI conformance internals, e2e scenario files, Schemathesis |
 | `.claude/docs/web-internals.md` | the `web/` transport/session layer, user/feature-flag pages, language switcher, colour tokens/logo, changelog wiring |

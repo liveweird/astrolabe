@@ -113,6 +113,14 @@ with `hasKeyValue` from `TestEnvironment.kt`). Emitted today:
   only when a PUT actually changes the manager; a manager assignment grants the team-scoped planning rights, so it is its own
   trail line, the `user.roles_changed` precedent) / `team.deleted` (byUserId/teamId) — every team mutation; a rejected save
   emits nothing,
+- `work_stream.created` (byUserId/workStreamId/name/ownerPersonId) / `work_stream.updated` (byUserId/workStreamId/name) / `work_stream.owner_changed`
+  (byUserId/workStreamId/ownerFrom/ownerTo — person ids as STORED, only when a PUT actually changes the owner: the new owner gains the whole subtree, so it is its own trail line) /
+  `work_stream.closed` (…/endDate) / `work_stream.reopened` (…/endFrom) (an end date appearing / disappearing on a PUT) / `work_stream.deleted` (byUserId/workStreamId),
+- `program.created` (byUserId/programId/workStreamId/name/ownerPersonId) / `program.updated` (byUserId/programId/name) / `program.owner_changed` (byUserId/programId/ownerFrom/ownerTo) /
+  `program.deleted` (byUserId/programId),
+- `project.created` (byUserId/projectId/programId/name/ownerPersonId) / `project.updated` (byUserId/projectId/name) / `project.owner_changed` (byUserId/projectId/ownerFrom/ownerTo) /
+  `project.target_window_changed` (byUserId/projectId/startFrom/endFrom/startTo/endTo — ISO dates as STORED, null = no window; only when the window actually changes; `PUT /projects/{id}/target-window`) /
+  `project.deleted` (byUserId/projectId) — every plan-node mutation (`planning/*Routes.kt`); a rejected save (403/404/409/400) emits nothing of its own (a 403 is the central `authz.denied`),
 - `bootstrap.admin_password_rotated` (userId/email — the fixed seed-admin email, never the password or
   its hash; `infra/db/Bootstrap.kt`, only when `ADMIN_INITIAL_PASSWORD` actually replaced the seed
   hash, so an idempotent re-boot emits nothing) — the boot-time credential event, so an admin-password reset leaves a trail beyond a log line

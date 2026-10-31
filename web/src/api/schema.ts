@@ -546,6 +546,228 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/work-streams": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create a work stream (ADMIN only)
+         * @description ADMIN only (guarded before the body decodes - a non-admin's malformed body is still 403). The `ownerPersonId` is required
+         *     and must be an active person (`400` otherwise); `startDate` is required, `endDate` (set only when the stream is closed)
+         *     must not precede it (`400`). The name must be unique among active work streams, case-insensitively (`409`). Every plan
+         *     write runs under the plan lock and bumps the plan revision.
+         */
+        post: operations["createWorkStream"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/work-streams/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Get a work stream
+         * @description Any authenticated user.
+         */
+        get: operations["getWorkStream"];
+        /**
+         * Replace a work stream's fields, owner and dates
+         * @description The stream's owner or ADMIN. Read-before-guard: a missing stream is `404` for every caller, then a caller who is neither
+         *     gets `403` (before the body is decoded). A full replace: an omitted `description` or `endDate` is unset (an unset `endDate`
+         *     reopens a closed stream; a set one closes it). The owner may be reassigned to another active person (`400` otherwise) by any
+         *     caller who may edit. A name clash with another active work stream is `409`. Audited as `work_stream.updated`,
+         *     `work_stream.owner_changed`, `work_stream.closed` / `work_stream.reopened`.
+         */
+        put: operations["updateWorkStream"];
+        post?: never;
+        /**
+         * Delete a work stream (soft)
+         * @description The stream's owner or ADMIN, read-before-guard (404, then 403). Soft delete - the name is freed. `409` while the stream still
+         *     has active programs (counted under the plan lock): delete or empty it first.
+         */
+        delete: operations["deleteWorkStream"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/work-streams/{id}/programs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create a program under a work stream
+         * @description The work stream's owner or ADMIN, read-before-guard (404, then 403, then the body). The `ownerPersonId` is required and must
+         *     be an active person (`400` otherwise). The name must be unique among active programs, case-insensitively and across work
+         *     streams (`409`). A closed work stream still accepts new programs.
+         */
+        post: operations["createProgram"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/programs/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Get a program
+         * @description Any authenticated user.
+         */
+        get: operations["getProgram"];
+        /**
+         * Replace a program's fields and owner
+         * @description An owner of the program or of its work stream, or ADMIN. Read-before-guard (404, then 403, then the body). A full replace; the
+         *     parent work stream never changes. The owner may be reassigned to another active person (`400` otherwise) by any caller who may
+         *     edit. A name clash with another active program is `409`. Audited as `program.updated` and `program.owner_changed`.
+         */
+        put: operations["updateProgram"];
+        post?: never;
+        /**
+         * Delete a program (soft)
+         * @description An owner of the program or of its work stream, or ADMIN, read-before-guard (404, then 403). Soft delete - the name is freed.
+         *     `409` while the program still has active projects (counted under the plan lock).
+         */
+        delete: operations["deleteProgram"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/programs/{id}/projects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create a project under a program
+         * @description An owner of the program or of its work stream, or ADMIN, read-before-guard (404, then 403, then the body). The `ownerPersonId`
+         *     is required and must be an active person (`400` otherwise). The optional target window is both dates or neither, the end not
+         *     before the start (`400`) - whoever may create a project may also set its window. The name must be unique among the active
+         *     projects of THIS program, case-insensitively (`409`).
+         */
+        post: operations["createProject"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Get a project
+         * @description Any authenticated user.
+         */
+        get: operations["getProject"];
+        /**
+         * Replace a project's fields and owner
+         * @description An owner on the project's chain - the project's own owner included - or ADMIN. Read-before-guard (404, then 403, then the
+         *     body). A full replace of name, description and owner; the parent program and the target window never change here (the window
+         *     has its own operation). The owner may be reassigned to another active person (`400` otherwise) by any caller who may edit. A
+         *     name clash within the program is `409`. Audited as `project.updated` and `project.owner_changed`.
+         */
+        put: operations["updateProject"];
+        post?: never;
+        /**
+         * Delete a project (soft)
+         * @description An owner on the project's chain - the project's own owner included - or ADMIN, read-before-guard (404, then 403). Soft
+         *     delete - the name is freed. A project has no children yet, so there is no `409`.
+         */
+        delete: operations["deleteProject"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{id}/target-window": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Replace a project's target window
+         * @description ADMIN, an owner ABOVE the project (its program's or work stream's owner), or a holder of the `ROADMAP_EDITOR` permission -
+         *     the project's OWN owner alone gets `403`. Read-before-guard (404, then 403, then the body). A full replace: both dates or
+         *     neither (omitting both clears the window), the end not before the start (`400` otherwise). Audited as
+         *     `project.target_window_changed` on a change.
+         */
+        put: operations["setProjectTargetWindow"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/views/plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The whole plan tree with the caller's actions
+         * @description Any authenticated user. One document with every active work stream, its programs and their projects (a deliberate exception
+         *     to the paged envelope, bounded by the plan's scale of about 5 streams, 20 programs and 100 projects), open work streams first
+         *     and then closed ones, each level by name. Every node carries `can`, the actions THIS caller may take, computed with the same
+         *     rules the writes enforce. `revision` is the plan revision read before the rows.
+         */
+        get: operations["getPlanView"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/telemetry/current": {
         parameters: {
             query?: never;
@@ -883,6 +1105,271 @@ export interface components {
             pageSize: number;
             /** Format: int64 */
             total: number;
+        };
+        WorkStreamCreateRequest: {
+            name: string;
+            description?: string | null;
+            /**
+             * Format: int32
+             * @description The owner, an active person of the people directory (`400` otherwise).
+             */
+            ownerPersonId: number;
+            /**
+             * Format: date
+             * @description YYYY-MM-DD, years 1900-2999.
+             */
+            startDate: string;
+            /**
+             * Format: date
+             * @description Set only when the work stream is closed; not before `startDate`.
+             */
+            endDate?: string | null;
+        };
+        WorkStreamUpdateRequest: {
+            name: string;
+            /** @description Omitted on PUT (a full replace) = none. */
+            description?: string | null;
+            /**
+             * Format: int32
+             * @description The owner, an active person of the people directory (`400` otherwise).
+             */
+            ownerPersonId: number;
+            /**
+             * Format: date
+             * @description YYYY-MM-DD, years 1900-2999.
+             */
+            startDate: string;
+            /**
+             * Format: date
+             * @description Omitted on PUT (a full replace) = open (reopens a closed stream); set = closed. Not before `startDate`.
+             */
+            endDate?: string | null;
+        };
+        WorkStreamResponse: {
+            /** Format: int32 */
+            id: number;
+            name: string;
+            description: string | null;
+            /** Format: int32 */
+            ownerPersonId: number;
+            ownerName: string;
+            /** Format: date */
+            startDate: string;
+            /**
+             * Format: date
+             * @description Set only when the work stream is closed.
+             */
+            endDate: string | null;
+            /**
+             * Format: int64
+             * @description Epoch millis
+             */
+            createdAt: number;
+            /**
+             * Format: int64
+             * @description Epoch millis
+             */
+            updatedAt: number;
+        };
+        ProgramCreateRequest: {
+            name: string;
+            description?: string | null;
+            /**
+             * Format: int32
+             * @description The owner, an active person of the people directory (`400` otherwise).
+             */
+            ownerPersonId: number;
+        };
+        ProgramUpdateRequest: {
+            name: string;
+            /** @description Omitted on PUT (a full replace) = none. */
+            description?: string | null;
+            /**
+             * Format: int32
+             * @description The owner, an active person of the people directory (`400` otherwise).
+             */
+            ownerPersonId: number;
+        };
+        ProgramResponse: {
+            /** Format: int32 */
+            id: number;
+            /** Format: int32 */
+            workStreamId: number;
+            name: string;
+            description: string | null;
+            /** Format: int32 */
+            ownerPersonId: number;
+            ownerName: string;
+            /**
+             * Format: int64
+             * @description Epoch millis
+             */
+            createdAt: number;
+            /**
+             * Format: int64
+             * @description Epoch millis
+             */
+            updatedAt: number;
+        };
+        ProjectCreateRequest: {
+            name: string;
+            description?: string | null;
+            /**
+             * Format: int32
+             * @description The owner, an active person of the people directory (`400` otherwise).
+             */
+            ownerPersonId: number;
+            /**
+             * Format: date
+             * @description Both target dates or neither.
+             */
+            targetStart?: string | null;
+            /**
+             * Format: date
+             * @description Both target dates or neither; not before `targetStart`.
+             */
+            targetEnd?: string | null;
+        };
+        ProjectUpdateRequest: {
+            name: string;
+            /** @description Omitted on PUT (a full replace) = none. */
+            description?: string | null;
+            /**
+             * Format: int32
+             * @description The owner, an active person of the people directory (`400` otherwise).
+             */
+            ownerPersonId: number;
+        };
+        TargetWindowRequest: {
+            /**
+             * Format: date
+             * @description Both dates or neither; omitted = none.
+             */
+            targetStart?: string | null;
+            /**
+             * Format: date
+             * @description Both dates or neither; not before `targetStart`.
+             */
+            targetEnd?: string | null;
+        };
+        ProjectResponse: {
+            /** Format: int32 */
+            id: number;
+            /** Format: int32 */
+            programId: number;
+            /**
+             * Format: int32
+             * @description The work stream of the project's program.
+             */
+            workStreamId: number;
+            name: string;
+            description: string | null;
+            /** Format: int32 */
+            ownerPersonId: number;
+            ownerName: string;
+            /** Format: date */
+            targetStart: string | null;
+            /** Format: date */
+            targetEnd: string | null;
+            /**
+             * Format: int64
+             * @description Epoch millis
+             */
+            createdAt: number;
+            /**
+             * Format: int64
+             * @description Epoch millis
+             */
+            updatedAt: number;
+        };
+        PlanView: {
+            /**
+             * Format: int64
+             * @description The plan revision, read before the rows; bumped by every plan write.
+             */
+            revision: number;
+            can: {
+                /** @description The caller may create a work stream (ADMIN). */
+                createWorkStream: boolean;
+            };
+            workStreams: components["schemas"]["PlanWorkStream"][];
+        };
+        PlanWorkStream: {
+            /** Format: int32 */
+            id: number;
+            name: string;
+            description: string | null;
+            /** Format: int32 */
+            ownerPersonId: number;
+            ownerName: string;
+            /** Format: date */
+            startDate: string;
+            /**
+             * Format: date
+             * @description Set only when the work stream is closed.
+             */
+            endDate: string | null;
+            /** Format: int64 */
+            createdAt: number;
+            /** Format: int64 */
+            updatedAt: number;
+            can: {
+                edit: boolean;
+                /** @description A rights flag: the caller may delete the node. The server can still answer 409 while it has active children. */
+                delete: boolean;
+                createProgram: boolean;
+            };
+            programs: components["schemas"]["PlanProgram"][];
+        };
+        PlanProgram: {
+            /** Format: int32 */
+            id: number;
+            /** Format: int32 */
+            workStreamId: number;
+            name: string;
+            description: string | null;
+            /** Format: int32 */
+            ownerPersonId: number;
+            ownerName: string;
+            /** Format: int64 */
+            createdAt: number;
+            /** Format: int64 */
+            updatedAt: number;
+            can: {
+                edit: boolean;
+                /** @description A rights flag: the caller may delete the node. The server can still answer 409 while it has active children. */
+                delete: boolean;
+                createProject: boolean;
+            };
+            projects: components["schemas"]["PlanProject"][];
+        };
+        PlanProject: {
+            /** Format: int32 */
+            id: number;
+            /** Format: int32 */
+            programId: number;
+            /** Format: int32 */
+            workStreamId: number;
+            name: string;
+            description: string | null;
+            /** Format: int32 */
+            ownerPersonId: number;
+            ownerName: string;
+            /** Format: date */
+            targetStart: string | null;
+            /** Format: date */
+            targetEnd: string | null;
+            /** Format: int64 */
+            createdAt: number;
+            /** Format: int64 */
+            updatedAt: number;
+            can: {
+                edit: boolean;
+                /** @description A rights flag: the caller may delete the node. The server can still answer 409 while it has active children. */
+                delete: boolean;
+                /** @description The caller may set the target window (ADMIN, an owner above the project, or a roadmap editor). */
+                editTargetWindow: boolean;
+            };
         };
         /** @description RFC 7807 problem detail. Served as `application/problem+json`; instance is the request path without query parameters. */
         ProblemDetail: {
@@ -2130,6 +2617,412 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    createWorkStream: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkStreamCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Created; `Location` points at the new work stream */
+            201: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkStreamResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    getWorkStream: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The work stream */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkStreamResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    updateWorkStream: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkStreamUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    deleteWorkStream: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    createProgram: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProgramCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Created; `Location` points at the new program (`/api/v1/programs/{id}`) */
+            201: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgramResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    getProgram: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The program */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgramResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    updateProgram: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProgramUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    deleteProgram: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    createProject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Created; `Location` points at the new project (`/api/v1/projects/{id}`) */
+            201: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    getProject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The project */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    updateProject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    deleteProject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    setProjectTargetWindow: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TargetWindowRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    getPlanView: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The plan tree */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanView"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
             500: components["responses"]["InternalServerError"];
         };
     };

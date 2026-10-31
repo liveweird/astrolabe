@@ -76,13 +76,12 @@ Layered RBAC. Implemented in the `server/src/main/kotlin/authz/` package.
   `requireAdmin(caller)`, `requireSelfOrAdmin(caller, targetUserId)`, `requireTeamManagerOrAdmin(caller, teamId,
   isManager)` (ADMIN, or the team's ACTIVE manager via the injected `TeamService.isActiveManager` lookup, which
   answers false for a missing team so the 403 is uniform — awaiting its first consumer, the v0.5 capacity writes), plus
-  `requireFeatureEnabled` (awaiting its first area-gating consumer), and the planning guards (V11, all **awaiting their consumer** — the plan routes and the
-  ranking land in the next increments, the `requireTeamManagerOrAdmin` precedent; each is pure-tested in `GuardsTest`):
-  `requireRoadmapEditorOrAdmin(caller, hasPermission)` (ADMIN short-circuits without the lookup; else the caller must hold `ROADMAP_EDITOR`; a throwing
-  lookup propagates — fails closed), `requireOwnerOrAdmin(caller, callerPersonId, chain)` (ADMIN, or the caller's person is on the node's `OwnerChain` —
-  work stream, program, project owners top-down; a caller with no active person owns nothing) and `requireTargetWindowEditorOrAdmin(caller,
-  callerPersonId, chain, hasPermission)` (given the node's FULL chain: ADMIN, an owner ABOVE the project, or the grant; the project's own owner alone is refused, and the person-id
-  check runs before the database lookup). New guards join this file so the whole policy stays in one place.
+  `requireFeatureEnabled` (awaiting its first area-gating consumer), and the planning guards (V11; each pure-tested in `GuardsTest`):
+  `requireOwnerOrAdmin(caller, callerPersonId, chain)` (ADMIN, or the caller's person is on the node's `OwnerChain` — work stream, program, project owners
+  top-down; a caller with no active person owns nothing) and `requireTargetWindowEditorOrAdmin(caller, callerPersonId, chain, hasPermission)` (given the node's
+  FULL chain: ADMIN, an owner ABOVE the project, or the grant; the project's own owner alone is refused, and the person-id check runs before the database
+  lookup) are consumed by the plan routes (V12, below); `requireRoadmapEditorOrAdmin(caller, hasPermission)` (ADMIN short-circuits without the lookup; else the
+  caller must hold `ROADMAP_EDITOR`; a throwing lookup propagates — fails closed) awaits the ranking PUT (V13). New guards join this file so the whole policy stays in one place.
 - **Resource rules**:
   - `/api/v1/users` (list/create) and `PUT`/`DELETE /api/v1/users/{id}` → **ADMIN only** — the
     whole management surface is admin-gated (the list included; regular users keep only the self
@@ -115,7 +114,7 @@ Layered RBAC. Implemented in the `server/src/main/kotlin/authz/` package.
     and a change of the link is audited on its own (`person.link_changed`). `PersonResponse` resolves `userId`/`userEmail` through ACTIVE
     users (null for a soft-deleted login — the link stays inert, never an access grant: the caller's person is `people.user_id = caller AND
     people.active()`, and a deleted login never passes the per-request access verdict). Delete is `409` while the person manages an ACTIVE
-    team ("Person is still an owner or a team manager"; the plan tables join the check in V12). Tests: `PersonTest`.
+    team or owns an ACTIVE work stream, program or project ("Person is still an owner or a team manager"). Tests: `PersonTest`.
   - `PUT /api/v1/users/{id}/features` → ADMIN only; **self allowed** (an admin adjusting their own
     flags is a feature, and the users routes are never gated, so a fully self-disabled admin can
     always get back); unknown/soft-deleted target → 404; unknown feature name → 400 (enum
@@ -182,11 +181,32 @@ Layered RBAC. Implemented in the `server/src/main/kotlin/authz/` package.
     SHAPES its answer by the grant (e.g. whether a block of per-person figures is returned) asks `isActiveManager` the same way, after
     the ADMIN short-circuit; the `ETag` of such an answer carries the verdict ("Caching" in `security.md`). No route consumes the guard in v0.1.0; it is
     the Flow-donated seam for the v0.5 capacity writes, and V10 re-pointed it at `manager_person_id` → `people.user_id`.
-  - **Planned (v0.2+), not yet built — the owner-scoped matrix** (`product.md` "Domain decisions"): ADMIN everything; ownership cascades down (work stream
-    → program → project); a project owner edits the project and its milestones' plan fields but not their dates; milestone dates only by the team's manager or
-    ADMIN; the global rank by ADMIN plus the per-user `ROADMAP_EDITOR` grant (a `user_permissions` row checked in the database per request, NOT a feature
-    flag — the grant table, the PUT and the guards are built in V11, above; no plan route consumes them yet); a team manager edits capacity and team order; reads open to every authenticated user. Each new rule lands here with its guard order
-    (403 before 400/404, guard-before-read where existence is sensitive) in the same commit as its route.
+  - **The plan nodes (V12, built) — the owner-scoped matrix** (`product.md` "Domain decisions"; `planning/*Routes.kt`): ADMIN everything; ownership cascades down (work
+    stream → program → project: an owner at ANY level of a node's chain acts on the node); reads open to every authenticated user. **Read-before-guard**, the sanctioned
+    idiom (ids are sequential and every signed-in user reads the whole plan anyway, so existence is no secret): resolve the node's owner chain (`WorkStreamService.chain`
+    …) → missing = `404` for EVERY caller → the guard `403` → `call.receive` (a forbidden caller's malformed body stays 403) → validate `400` → write under the plan lock
+    (`409` name clash or active children). The caller's person is resolved once per request (`PersonService.activePersonIdOf`, not looked up for an ADMIN); the grant is read
+    per request, never from the token. **The guard runs twice**: outside, before `call.receive`, for the 404 → 403 → 400 ordering; and again INSIDE `withPlanWrite` against a chain re-read under the plan
+    lock, the caller's person re-resolved `FOR SHARE` and (target window) the grant re-read in the same transaction — a request can be held open after the outer guard (a slow body; no body-read
+    timeout, `BACKLOG.md`), so only the inner verdict authorizes the write (a failure there is a 403 with no revision bump and the central `authz.denied`). Rule per route:
+
+    | Route | Guard (in order) |
+    |---|---|
+    | `GET` any node, `GET /views/plan` | authenticated |
+    | `POST /work-streams` | `requireAdmin` first (it addresses no node: guard-before-read) |
+    | `PUT`/`DELETE /work-streams/{id}`, `POST /work-streams/{id}/programs` | chain(stream) ?: 404 → `requireOwnerOrAdmin` (the stream's owner) |
+    | `PUT`/`DELETE /programs/{id}`, `POST /programs/{id}/projects` | chain(program) ?: 404 → `requireOwnerOrAdmin` (the stream's or the program's owner) |
+    | `PUT`/`DELETE /projects/{id}` | chain(project) ?: 404 → `requireOwnerOrAdmin` (any of the three, the project's own owner included) |
+    | `PUT /projects/{id}/target-window` | chain(project) ?: 404 → `requireTargetWindowEditorOrAdmin` (ADMIN, the stream's or program's owner, or `ROADMAP_EDITOR`; NOT the project's own owner alone) |
+
+    The owner of a node is a field of its full-replace PUT, so **any caller who may edit a node may reassign its owner** (including the node's own owner — a hand-over;
+    the ancestors can always take it back); the new owner must be an ACTIVE person (`400` "Unknown or deleted owner ids"). Creating a project may carry the target window
+    (creators are always window editors). A closed work stream (end date) does not block new children. The `can:{}` flags of the plan view come from the pure kernel
+    `planning/PlanPermissions.kt` with the SAME arithmetic as these guards (`PlanPermissionsTest` pins the agreement; `PlanViewTest` checks the flags against real writes).
+    Tests: `PlanStructureTest` (every route × ADMIN, the three owners, a stranger, a person-less login, a roadmap editor; 404 vs 403 ordering), `PlanViewTest`, `PlanPermissionsTest`.
+  - **Still planned (v0.3+):** a project owner edits the project and its milestones' plan fields but not their dates; milestone dates only by the team's manager or ADMIN; the global
+    rank by ADMIN plus the `ROADMAP_EDITOR` grant (the guard and the grant are built, the ranking route is V13); a team manager edits capacity and team order. Each new rule lands here with its
+    guard order (403 before 400/404, guard-before-read where existence is sensitive) in the same commit as its route.
 - **Existence disclosure (403 vs 404) — deliberate policy (API-ERR-006)**: two sanctioned idioms,
   and every new resource picks one consciously rather than mixing them. **Guard-before-read**
   (`GET /users/{id}`): a forbidden caller gets a uniform 403 whether or not the id exists — use it

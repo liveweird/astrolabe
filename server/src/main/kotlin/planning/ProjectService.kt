@@ -1,0 +1,146 @@
+package ch.nokillswit.planning
+
+import ch.nokillswit.authz.NotFoundException
+import ch.nokillswit.authz.OwnerChain
+import ch.nokillswit.infra.db.SoftDeletable
+import ch.nokillswit.infra.db.active
+import ch.nokillswit.infra.db.localDate
+import ch.nokillswit.infra.db.nowMillis
+import ch.nokillswit.people.PersonService
+import io.ktor.util.AttributeKey
+import kotlinx.coroutines.flow.toList
+import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.dao.id.UIntIdTable
+import org.jetbrains.exposed.v1.r2dbc.*
+import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
+
+val ProjectServiceKey = AttributeKey<ProjectService>("ProjectService")
+
+/**
+ * Projects (V12), under one program. Same protocol as [ProgramService]; a project name is unique among the ACTIVE projects of its
+ * program (`uq_projects_program_name_active`, 409). The target window is its own write ([setTargetWindow]) because its audience
+ * differs from the field edit's (`authorization.md`).
+ */
+class ProjectService(private val database: R2dbcDatabase) {
+    object Projects : UIntIdTable("projects"), SoftDeletable {
+        val programId = reference("program_id", ProgramService.Programs)
+        val name = varchar("name", length = MAX_PLAN_NAME_LENGTH)
+        val description = varchar("description", length = MAX_PLAN_DESCRIPTION_LENGTH).nullable()
+
+        /** Required; always an ACTIVE person while the project is active. */
+        val ownerPersonId = reference("owner_person_id", PersonService.People)
+
+        /** Both set or both null (`ck_projects_target_window`), end not before start (`ck_projects_target_order`). */
+        val targetStart = localDate("target_start").nullable()
+        val targetEnd = localDate("target_end").nullable()
+        val createdAt = long("created_at")
+        val updatedAt = long("updated_at")
+        override val markedAsDeleted = bool("marked_as_deleted").default(false)
+    }
+
+    /** The project's owner chain (work stream first, the project's own owner last), or null when it or an ancestor is gone. */
+    suspend fun chain(id: UInt): OwnerChain? = suspendTransaction(database) { projectChain(id) }
+
+    /** The project, or null when missing/deleted. */
+    suspend fun read(id: UInt): ProjectResponse? = suspendTransaction(database) {
+        val programs = ProgramService.Programs
+        val row = Projects.innerJoin(programs, { Projects.programId }, { programs.id })
+            .select(Projects.columns + programs.workStreamId)
+            .where { (Projects.id eq id) and Projects.active() }
+            .toList().singleOrNull()
+            ?: return@suspendTransaction null
+        val ownerId = row[Projects.ownerPersonId].value
+        ProjectResponse(
+            id = id,
+            programId = row[Projects.programId].value,
+            workStreamId = row[programs.workStreamId].value,
+            name = row[Projects.name],
+            description = row[Projects.description],
+            ownerPersonId = ownerId,
+            ownerName = ownerNames(listOf(ownerId)).getValue(ownerId),
+            targetStart = row[Projects.targetStart]?.toString(),
+            targetEnd = row[Projects.targetEnd]?.toString(),
+            createdAt = row[Projects.createdAt],
+            updatedAt = row[Projects.updatedAt],
+        )
+    }
+
+    /**
+     * Creates a project under [programId]; under the lock the program's chain is re-read (missing = 404) and [guard] re-run,
+     * then an inactive owner is a 400 and a name clash in the program a 409.
+     */
+    suspend fun create(programId: UInt, request: ProjectCreateRequest, guard: PlanGuard): UInt {
+        val window = validateProjectCreate(request)
+        return database.withPlanWrite {
+            guard(programChain(programId) ?: throw NotFoundException("Program not found"))
+            requireActiveOwner(request.ownerPersonId)
+            val stamp = nowMillis()
+            Projects.insert {
+                it[this.programId] = programId
+                it[name] = request.name
+                it[description] = request.description
+                it[ownerPersonId] = request.ownerPersonId
+                it[targetStart] = window?.start
+                it[targetEnd] = window?.end
+                it[createdAt] = stamp
+                it[updatedAt] = stamp
+            }[Projects.id].value
+        }.value
+    }
+
+    /**
+     * Field replace under the plan lock (name, description, owner — never the parent or the window); the chain is re-read and
+     * [guard] re-run first (missing = 404).
+     */
+    suspend fun update(id: UInt, request: ProjectUpdateRequest, guard: PlanGuard): ProjectUpdateOutcome {
+        validateProjectFields(request.name, request.description)
+        return database.withPlanWrite {
+            guard(projectChain(id) ?: throw NotFoundException("Project not found"))
+            val before = Projects.select(Projects.ownerPersonId).where { (Projects.id eq id) and Projects.active() }
+                .toList().singleOrNull() ?: throw NotFoundException("Project not found")
+            requireActiveOwner(request.ownerPersonId)
+            Projects.update({ (Projects.id eq id) and Projects.active() }) {
+                it[name] = request.name
+                it[description] = request.description
+                it[ownerPersonId] = request.ownerPersonId
+                it[updatedAt] = nowMillis()
+            }
+            ProjectUpdateOutcome(before[Projects.ownerPersonId].value)
+        }.value
+    }
+
+    /** Replaces the target window (both dates or neither) under the plan lock; the outcome carries the STORED window for the audit. */
+    suspend fun setTargetWindow(id: UInt, request: TargetWindowRequest, guard: PlanGuard): TargetWindowOutcome {
+        val window = validateTargetWindow(request.targetStart, request.targetEnd)
+        return database.withPlanWrite {
+            guard(projectChain(id) ?: throw NotFoundException("Project not found"))
+            val before = Projects.select(Projects.targetStart, Projects.targetEnd)
+                .where { (Projects.id eq id) and Projects.active() }
+                .toList().singleOrNull() ?: throw NotFoundException("Project not found")
+            Projects.update({ (Projects.id eq id) and Projects.active() }) {
+                it[targetStart] = window?.start
+                it[targetEnd] = window?.end
+                it[updatedAt] = nowMillis()
+            }
+            val start = before[Projects.targetStart]
+            val end = before[Projects.targetEnd]
+            TargetWindowOutcome(if (start != null && end != null) TargetWindow(start, end) else null)
+        }.value
+    }
+
+    /**
+     * Soft delete under the plan lock. A project has no children in v0.2, so there is no 409. The roadmap hook (V13, the ranking
+     * commit): this same locked transaction will also hard-delete the project's `roadmap_entries` row and renumber the positions
+     * above it, so the dense 1..n ranking never holds a deleted project — add that call right after the update below.
+     */
+    suspend fun delete(id: UInt, guard: PlanGuard) {
+        database.withPlanWrite {
+            guard(projectChain(id) ?: throw NotFoundException("Project not found"))
+            val affected = Projects.update({ (Projects.id eq id) and Projects.active() }) {
+                it[markedAsDeleted] = true
+                it[updatedAt] = nowMillis()
+            }
+            if (affected == 0) throw NotFoundException("Project not found")
+        }
+    }
+}

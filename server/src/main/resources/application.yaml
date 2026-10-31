@@ -42,6 +42,8 @@ ktor:
       - ch.nokillswit.users.UserRoutesKt.configureUserRoutes
       - ch.nokillswit.people.PersonRoutesKt.configurePersonRoutes
       - ch.nokillswit.teams.TeamRoutesKt.configureTeamRoutes
+      # Work streams, programs, projects and the plan view (V12): after people and teams (the owners are people).
+      - ch.nokillswit.planning.PlanningRoutesKt.configurePlanningRoutes
       - ch.nokillswit.auth.AuthRoutesKt.configureAuthRoutes
       - ch.nokillswit.auth.PasswordResetRoutesKt.configurePasswordResetRoutes
       # The telemetry read API (ADMIN, `.claude/docs/observability.md` "Telemetry"): reads what the sampler wrote.

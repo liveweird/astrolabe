@@ -183,6 +183,11 @@ above any legitimate statement (a lock wait behind another transaction) and belo
   the API hides (`TestTeams.rawRows`, `TestUsers.stampPasswordChangedAt`). `PersonMigrationTest` builds a scratch database, migrates it to V9, seeds data and applies V10 (the pattern for any data-rewriting migration; the shared container only migrates an empty database). Shared
   suite state (the seed admin) is never mutated destructively — tests mint UNIQUE rows and remove
   their own.
+- **Plan fixtures** (`PlanFixtures.kt`, v0.2.0): `planName(prefix)` (work stream and program names are GLOBALLY unique among active rows, and the plan tables are shared suite state — always a unique name),
+  `planCaller(prefix, role, withPerson)` (a seeded user, optionally with a linked ACTIVE person, and its logged-in client), `planWorld(prefix)` (one stream → program → project chain, each owned by its own
+  person, plus the callers ADMIN / the three owners / a stranger / a person-less login / a `ROADMAP_EDITOR`: the authorization matrix's cast) and `TestPlan` (`workStream`/`program`/`project` seeding through the
+  services, so the plan lock and revision bump apply; `revision()` and `scalar(sql)` over raw JDBC). The plan-lock barrier tests (`PlanStateTest`) hold `plan_state FOR UPDATE` on a raw session and use
+  `awaitLockWait("plan_state")`.
 - `TestSeedState.restoreSeedAccounts()` — bootstrap/production-mode tests rotate the seed admin's
   password in the SHARED container; call this afterwards so later tests (and re-runs) see the
   pristine V3 state. Production-mode boots must also override `"mail.transport" to "disabled"` —

@@ -43,9 +43,10 @@ theme-level `foldedOptionsFilter` (`web/src/utils/text.ts`).
 
 **Repeated keys (`IN`).** A scalar key repeated is a `400` (`singleValue`); a parameter documents `IN` semantics through the `repeatedValues` family (`repeatedLongs`/`repeatedStrings` in `infra/paging/QueryParams.kt`), declared in the spec as `type: array` with `style: form`, `explode: true` and `minItems`/`maxItems`, with duplicates collapsed (`distinct()`) before the bound applies. No endpoint uses `IN` semantics in v0.1.0; the first consumer adds a per-endpoint ledger line here (Flow kept the ledger in its reports doc).
 
-**View endpoints are the one shape-exception (planned).** The timeline pages (`/views/project/{id}`, `/views/team/{id}`, `/views/roadmap`, `/views/programs`,
-`planning-model.md`) answer one purpose-built document (rows, dependencies, `can:{…}` flags, a revision) instead of the paged envelope; their sub-lists are bounded by
-the plan's scale and the endpoint documents its cap. Every ordinary resource list keeps the envelope. (Flow's report drill lists — `{meta, bar, items[<=500], total, truncated}` — were the precedent.)
+**View endpoints are the one shape-exception.** `GET /views/plan` (built, v0.2.0) answers one purpose-built document (`{revision, can, workStreams[…programs[…projects[…]]]}`, every node with its
+own `can:{…}` flags) instead of the paged envelope; the timeline pages (`/views/project/{id}`, `/views/team/{id}`, `/views/roadmap`, `/views/programs`, `planning-model.md`) follow the same shape. Their sub-lists are
+bounded by the plan's scale and the endpoint documents its cap (the plan view: ~5 work streams, ~20 programs, ~100 projects). Every ordinary resource list keeps the envelope; work streams, programs and projects have
+NO list endpoint in v0.2 (a list lands with its first consumer). (Flow's report drill lists — `{meta, bar, items[<=500], total, truncated}` — were the precedent.)
 
 **Sub-collections and facets:** a record's own unbounded sub-collection is paged like any other list; the plain `{items}`
 wrapper is reserved for genuinely bounded, admin-curated sets. Facet counts (`GET .../facets`) are not implemented — port Covenant's

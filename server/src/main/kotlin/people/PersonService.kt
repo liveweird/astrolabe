@@ -8,6 +8,7 @@ import ch.nokillswit.infra.db.lockActiveForWrite
 import ch.nokillswit.infra.db.nowMillis
 import ch.nokillswit.infra.paging.PageRequest
 import ch.nokillswit.infra.paging.applyPaging
+import ch.nokillswit.planning.ownsActivePlanNode
 import ch.nokillswit.teams.TeamService
 import ch.nokillswit.users.UserService
 import io.ktor.server.plugins.BadRequestException
@@ -139,17 +140,32 @@ class PersonService(private val database: R2dbcDatabase) {
     }
 
     /**
+     * [activePersonIdOf] for a guard re-run INSIDE the plan lock: the person row is locked `FOR SHARE`, which conflicts with
+     * `PersonService.update`/`delete` (`FOR NO KEY UPDATE`), so a re-link or delete of the caller's person waits for the plan
+     * write (person writers never take `plan_state`, so there is no lock cycle). Nests into the caller's transaction.
+     */
+    suspend fun lockedActivePersonIdOf(userId: UInt): UInt? = suspendTransaction(database) {
+        People.select(People.id)
+            .where { (People.userId eq userId) and People.active() }
+            .forUpdate(ForUpdateOption.PostgreSQL.ForShare)
+            .toList()
+            .singleOrNull()
+            ?.get(People.id)?.value
+    }
+
+    /**
      * Soft delete: the person stops reading as active and frees its email and login link. `0` = missing or already
      * deleted (404). A person who still manages an ACTIVE team is a 409 (reassign first); the check runs under the
      * person-row lock, and a concurrent team save locks the person row `FOR SHARE` ([TeamService]), so "count, then delete"
-     * cannot interleave with an assignment. C3 extends the check to the plan tables.
+     * cannot interleave with an assignment. The same 409 covers an ACTIVE work stream, program or project the person owns (V12): a
+     * node write locks the owner's person row `FOR SHARE` (`planning/OwnerChains.kt` `requireActiveOwner`), the same pairing.
      */
     suspend fun delete(id: UInt): Int = suspendTransaction(database) {
         if (!People.lockActiveForWrite(id)) return@suspendTransaction 0
         val managesTeam = TeamService.Teams.select(TeamService.Teams.id)
             .where { (TeamService.Teams.managerPersonId eq id) and TeamService.Teams.active() }
             .count() > 0
-        if (managesTeam) throw ConflictException("Person is still an owner or a team manager")
+        if (managesTeam || ownsActivePlanNode(id)) throw ConflictException("Person is still an owner or a team manager")
         People.update({ (People.id eq id) and People.active() }) {
             it[markedAsDeleted] = true
             it[updatedAt] = nowMillis()

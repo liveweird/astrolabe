@@ -7,7 +7,7 @@ import kotlin.test.assertTrue
 
 /**
  * The one-way package layering (CLAUDE.md "Package layout", checkup D5): everything under `infra/` is the foundation every feature
- * builds on, so it never references a feature package (`teams`, `people`, `users`, `auth`, `authz`, `telemetry`). `audit` (the
+ * builds on, so it never references a feature package (`teams`, `people`, `planning`, `users`, `auth`, `authz`, `telemetry`). `audit` (the
  * cross-cutting audit trail) and `plugins` (Ktor wiring: `respondProblem`) are not features and stay open to `infra`.
  * The composition root is the one documented exception ([infraCompositionRoot]): the DB/bootstrap wiring MUST construct the
  * feature services it publishes on
@@ -33,12 +33,12 @@ class PackageBoundaryTest {
      * a listed package the file no longer uses fails the test (a stale exception is dead permission).
      */
     private val infraCompositionRoot: Map<String, Set<String>> = mapOf(
-        "Database.kt" to setOf("auth", "people", "teams", "users"),
+        "Database.kt" to setOf("auth", "people", "planning", "teams", "users"),
         "Bootstrap.kt" to setOf("auth", "users"),
     )
 
     private val featurePackages = listOf(
-        "teams", "people", "users", "auth", "authz", "telemetry",
+        "teams", "people", "planning", "users", "auth", "authz", "telemetry",
     )
 
     private fun packageOf(text: String): String? =

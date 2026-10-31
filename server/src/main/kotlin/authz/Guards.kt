@@ -75,8 +75,9 @@ data class OwnerChain(val owners: List<UInt>) {
 /**
  * ADMIN, or the caller's person owns the node or anything above it ([chain]; ownership cascades down). A caller with
  * no active person ([callerPersonId] null) owns nothing. DB-free: the route resolves the chain and the person first
- * (read-before-guard: a missing node is a 404 before this runs; `authorization.md`). No route consumes it until the
- * plan nodes land.
+ * (read-before-guard: a missing node is a 404 before this runs; `authorization.md`). The plan routes run it TWICE: once outside
+ * for the 404 -> 403 -> body ordering, and again inside the `plan_state` lock against a re-read chain and a re-resolved person
+ * (a request can be held open between the two, so only the second verdict authorizes the write).
  */
 fun requireOwnerOrAdmin(caller: CallerPrincipal, callerPersonId: UInt?, chain: OwnerChain) {
     if (caller.isAdmin()) return
@@ -87,7 +88,8 @@ fun requireOwnerOrAdmin(caller: CallerPrincipal, callerPersonId: UInt?, chain: O
  * Who may set a project's target window: ADMIN, an owner ABOVE the project, or a holder of the [Permission.ROADMAP_EDITOR]
  * grant. It takes the node's FULL [chain] (project owner last) and uses [OwnerChain.ancestors] itself, so a caller can
  * never pass the wrong slice: the project's OWN owner is deliberately not enough alone. The cheap person-id check runs
- * before the database lookup; a lookup failure propagates (fails closed). No route consumes it until the plan nodes land.
+ * before the database lookup; a lookup failure propagates (fails closed). Run twice by the target-window route, like
+ * [requireOwnerOrAdmin]: outside for ordering, inside the plan lock (grant re-read) for the write.
  */
 suspend fun requireTargetWindowEditorOrAdmin(
     caller: CallerPrincipal,

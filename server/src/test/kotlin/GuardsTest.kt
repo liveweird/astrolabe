@@ -132,6 +132,18 @@ class GuardsTest {
     }
 
     @Test
+    fun `an owner who repeats on the chain counts as an owner above the project`() = runBlocking<Unit> {
+        val noGrant: suspend (UInt, Permission) -> Boolean = { _, _ -> false }
+        // The program owner also owns the project: [stream, program, program].
+        requireTargetWindowEditorOrAdmin(user, 20u, OwnerChain(listOf(10u, 20u, 20u)), noGrant)
+        requireOwnerOrAdmin(user, callerPersonId = 20u, chain = OwnerChain(listOf(10u, 20u, 20u)))
+        // The stream owner also owns the project: [stream, program, stream].
+        requireTargetWindowEditorOrAdmin(user, 10u, OwnerChain(listOf(10u, 20u, 10u)), noGrant)
+        // Owning ONLY the project (a distinct last owner) is still refused.
+        assertFailsWith<ForbiddenException> { requireTargetWindowEditorOrAdmin(user, 30u, OwnerChain(listOf(10u, 20u, 30u)), noGrant) }
+    }
+
+    @Test
     fun `requireTargetWindowEditorOrAdmin - admin, an ancestor owner without the lookup, a grant, never the project's own owner alone`() =
         runBlocking<Unit> {
             val chain = OwnerChain(listOf(10u, 20u, 30u))

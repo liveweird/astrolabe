@@ -115,6 +115,9 @@ private val UNIQUE_CONSTRAINT_DETAILS = mapOf(
     "uq_teams_name_active" to "A team with this name already exists",
     "uq_people_email_active" to "A person with this email already exists",
     "uq_people_user_id_active" to "Another person is already linked to this user",
+    "uq_work_streams_name_active" to "A work stream with this name already exists",
+    "uq_programs_name_active" to "A program with this name already exists",
+    "uq_projects_program_name_active" to "A project with this name already exists in this program",
 )
 
 private fun Throwable.uniqueViolationDetail(): String {

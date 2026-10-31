@@ -4,6 +4,7 @@ import ch.nokillswit.people.PersonCreateRequest
 import ch.nokillswit.people.PersonPageResponse
 import ch.nokillswit.people.PersonResponse
 import ch.nokillswit.people.PersonUpdateRequest
+import ch.nokillswit.planning.ProjectUpdateRequest
 import ch.nokillswit.plugins.ProblemDetail
 import ch.nokillswit.teams.TeamCreateRequest
 import ch.nokillswit.teams.TeamResponse
@@ -259,6 +260,38 @@ class PersonTest {
         assertEquals(HttpStatusCode.NoContent, admin.delete("/api/v1/teams/${gone.id}").status)
         assertEquals(HttpStatusCode.NoContent, admin.delete("/api/v1/people/$second").status)
     }
+
+    @Test
+    fun `deleting a person who owns an active work stream, program or project is 409 until the node is reassigned or deleted`() =
+        testApplication {
+            usePostgresTestcontainer()
+            val admin = seededClient("persondelowner", UserRole.ADMIN)
+            val streamOwner = TestPeople.seed(name("Stream Owner"))
+            val programOwner = TestPeople.seed(name("Program Owner"))
+            val projectOwner = TestPeople.seed(name("Project Owner"))
+            val other = TestPeople.seed(name("Successor"))
+            val stream = TestPlan.workStream(streamOwner)
+            val program = TestPlan.program(stream, programOwner)
+            val project = TestPlan.project(program, projectOwner)
+
+            for ((label, person) in listOf("work stream" to streamOwner, "program" to programOwner, "project" to projectOwner)) {
+                val blocked = admin.delete("/api/v1/people/$person")
+                assertEquals(HttpStatusCode.Conflict, blocked.status, "the $label owner")
+                assertTrue(blocked.body<ProblemDetail>().detail!!.contains("owner or a team manager"))
+                assertEquals(HttpStatusCode.OK, admin.get("/api/v1/people/$person").status, "a refused delete changes nothing")
+            }
+            // Reassigned: the project owner is free; deleting the project frees the next, and so on up the chain.
+            assertEquals(
+                HttpStatusCode.NoContent,
+                admin.putJson("/api/v1/projects/$project", ProjectUpdateRequest(name("renamed"), null, other)).status,
+            )
+            assertEquals(HttpStatusCode.NoContent, admin.delete("/api/v1/people/$projectOwner").status)
+            assertEquals(HttpStatusCode.NoContent, admin.delete("/api/v1/projects/$project").status)
+            assertEquals(HttpStatusCode.NoContent, admin.delete("/api/v1/programs/$program").status)
+            assertEquals(HttpStatusCode.NoContent, admin.delete("/api/v1/people/$programOwner").status, "a DELETED program does not block")
+            assertEquals(HttpStatusCode.NoContent, admin.delete("/api/v1/work-streams/$stream").status)
+            assertEquals(HttpStatusCode.NoContent, admin.delete("/api/v1/people/$streamOwner").status)
+        }
 
     @Test
     fun `assigning a manager waits for a concurrent person write and then sees the committed state`() = testApplication {

@@ -5,15 +5,17 @@ info:
   description: |
     JWT-authenticated REST API for Astrolabe — a planning and roadmapping tool. It serves the Astrolabe web app and is
     versioned by its `/api/v1` path prefix. This foundation exposes the accounts, teams, feature-flag and operational
-    surface (people and teams included) the planning features build on.
+    surface (people and teams included) and the first planning feature: the plan structure (work streams, programs, projects).
 
     Authorization model: every user is implicitly a regular user; additional global roles (`ADMIN`) are carried as
     the `roles` array and only ever ADD privileges on top of that baseline. Every operation requires a bearer
     access token except the seven that declare `security: []` (`/login`, `/login/mfa`, `/refresh`, `/password-reset`,
     `/password-reset/confirm` and the two probes). Beyond that each operation states its own rule: user management (`/users`, apart from
     reading or changing one's own record where noted) and the writes on people and teams are `ADMIN` only; reading people and teams is open to
-    any authenticated user; telemetry is `ADMIN` only. A caller without the right gets a uniform `403`, whether or not the
-    addressed resource exists.
+    any authenticated user; telemetry is `ADMIN` only. A caller without the right gets a `403`. On the plan nodes (`/work-streams`, `/programs`, `/projects`) any
+    authenticated user reads, creating a work stream is `ADMIN` only, and every other write needs the owner of the node or of anything above it
+    (or `ADMIN`) - checked after the node is found, so a missing node is a `404` for every caller; elsewhere the `403` is uniform whether or
+    not the addressed resource exists.
 
     List operations page with `page` / `pageSize` / `sort` into an `{items, page, pageSize, total}` envelope.
 
@@ -37,6 +39,8 @@ tags:
     description: The people directory - the people who own plan nodes and manage teams, optionally linked to a login. Readable by any authenticated user (emails included), written by ADMIN only.
   - name: teams
     description: Flat teams, the ownership unit planning features scope to - readable by any authenticated user, written by ADMIN only. A team's manager is a person of the people directory.
+  - name: plan
+    description: The plan structure - work streams, programs and projects with their owners (people), and the whole-tree plan view. Readable by any authenticated user; writes are scoped to the owners on a node's chain (and ADMIN).
   - name: telemetry
     description: Astrolabe's own vital signs (process memory, JVM, storage, request latency) and their 24h/7d/90d trends - ADMIN only.
 
@@ -855,6 +859,339 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/work-streams:
+    post:
+      tags: [plan]
+      operationId: createWorkStream
+      summary: Create a work stream (ADMIN only)
+      description: |
+        ADMIN only (guarded before the body decodes - a non-admin's malformed body is still 403). The `ownerPersonId` is required
+        and must be an active person (`400` otherwise); `startDate` is required, `endDate` (set only when the stream is closed)
+        must not precede it (`400`). The name must be unique among active work streams, case-insensitively (`409`). Every plan
+        write runs under the plan lock and bumps the plan revision.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkStreamCreateRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '201':
+          description: Created; `Location` points at the new work stream
+          headers:
+            Location:
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkStreamResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/work-streams/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    get:
+      tags: [plan]
+      operationId: getWorkStream
+      summary: Get a work stream
+      description: Any authenticated user.
+      responses:
+        '200':
+          description: The work stream
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkStreamResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    put:
+      tags: [plan]
+      operationId: updateWorkStream
+      summary: Replace a work stream's fields, owner and dates
+      description: |
+        The stream's owner or ADMIN. Read-before-guard: a missing stream is `404` for every caller, then a caller who is neither
+        gets `403` (before the body is decoded). A full replace: an omitted `description` or `endDate` is unset (an unset `endDate`
+        reopens a closed stream; a set one closes it). The owner may be reassigned to another active person (`400` otherwise) by any
+        caller who may edit. A name clash with another active work stream is `409`. Audited as `work_stream.updated`,
+        `work_stream.owner_changed`, `work_stream.closed` / `work_stream.reopened`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkStreamUpdateRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '204':
+          description: Updated
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    delete:
+      tags: [plan]
+      operationId: deleteWorkStream
+      summary: Delete a work stream (soft)
+      description: |
+        The stream's owner or ADMIN, read-before-guard (404, then 403). Soft delete - the name is freed. `409` while the stream still
+        has active programs (counted under the plan lock): delete or empty it first.
+      responses:
+        '204':
+          description: Deleted
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/work-streams/{id}/programs:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    post:
+      tags: [plan]
+      operationId: createProgram
+      summary: Create a program under a work stream
+      description: |
+        The work stream's owner or ADMIN, read-before-guard (404, then 403, then the body). The `ownerPersonId` is required and must
+        be an active person (`400` otherwise). The name must be unique among active programs, case-insensitively and across work
+        streams (`409`). A closed work stream still accepts new programs.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProgramCreateRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '201':
+          description: Created; `Location` points at the new program (`/api/v1/programs/{id}`)
+          headers:
+            Location:
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProgramResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/programs/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    get:
+      tags: [plan]
+      operationId: getProgram
+      summary: Get a program
+      description: Any authenticated user.
+      responses:
+        '200':
+          description: The program
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProgramResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    put:
+      tags: [plan]
+      operationId: updateProgram
+      summary: Replace a program's fields and owner
+      description: |
+        An owner of the program or of its work stream, or ADMIN. Read-before-guard (404, then 403, then the body). A full replace; the
+        parent work stream never changes. The owner may be reassigned to another active person (`400` otherwise) by any caller who may
+        edit. A name clash with another active program is `409`. Audited as `program.updated` and `program.owner_changed`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProgramUpdateRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '204':
+          description: Updated
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    delete:
+      tags: [plan]
+      operationId: deleteProgram
+      summary: Delete a program (soft)
+      description: |
+        An owner of the program or of its work stream, or ADMIN, read-before-guard (404, then 403). Soft delete - the name is freed.
+        `409` while the program still has active projects (counted under the plan lock).
+      responses:
+        '204':
+          description: Deleted
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/programs/{id}/projects:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    post:
+      tags: [plan]
+      operationId: createProject
+      summary: Create a project under a program
+      description: |
+        An owner of the program or of its work stream, or ADMIN, read-before-guard (404, then 403, then the body). The `ownerPersonId`
+        is required and must be an active person (`400` otherwise). The optional target window is both dates or neither, the end not
+        before the start (`400`) - whoever may create a project may also set its window. The name must be unique among the active
+        projects of THIS program, case-insensitively (`409`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectCreateRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '201':
+          description: Created; `Location` points at the new project (`/api/v1/projects/{id}`)
+          headers:
+            Location:
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/projects/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    get:
+      tags: [plan]
+      operationId: getProject
+      summary: Get a project
+      description: Any authenticated user.
+      responses:
+        '200':
+          description: The project
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    put:
+      tags: [plan]
+      operationId: updateProject
+      summary: Replace a project's fields and owner
+      description: |
+        An owner on the project's chain - the project's own owner included - or ADMIN. Read-before-guard (404, then 403, then the
+        body). A full replace of name, description and owner; the parent program and the target window never change here (the window
+        has its own operation). The owner may be reassigned to another active person (`400` otherwise) by any caller who may edit. A
+        name clash within the program is `409`. Audited as `project.updated` and `project.owner_changed`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectUpdateRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '204':
+          description: Updated
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    delete:
+      tags: [plan]
+      operationId: deleteProject
+      summary: Delete a project (soft)
+      description: |
+        An owner on the project's chain - the project's own owner included - or ADMIN, read-before-guard (404, then 403). Soft
+        delete - the name is freed. A project has no children yet, so there is no `409`.
+      responses:
+        '204':
+          description: Deleted
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/projects/{id}/target-window:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    put:
+      tags: [plan]
+      operationId: setProjectTargetWindow
+      summary: Replace a project's target window
+      description: |
+        ADMIN, an owner ABOVE the project (its program's or work stream's owner), or a holder of the `ROADMAP_EDITOR` permission -
+        the project's OWN owner alone gets `403`. Read-before-guard (404, then 403, then the body). A full replace: both dates or
+        neither (omitting both clears the window), the end not before the start (`400` otherwise). Audited as
+        `project.target_window_changed` on a change.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TargetWindowRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '204':
+          description: Updated
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/views/plan:
+    get:
+      tags: [plan]
+      operationId: getPlanView
+      summary: The whole plan tree with the caller's actions
+      description: |
+        Any authenticated user. One document with every active work stream, its programs and their projects (a deliberate exception
+        to the paged envelope, bounded by the plan's scale of about 5 streams, 20 programs and 100 projects), open work streams first
+        and then closed ones, each level by name. Every node carries `can`, the actions THIS caller may take, computed with the same
+        rules the writes enforce. `revision` is the plan revision read before the rows.
+      responses:
+        '200':
+          description: The plan tree
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanView'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   /api/v1/telemetry/current:
     get:
       tags: [telemetry]
@@ -1414,6 +1751,219 @@ components:
           type: integer
           format: int64
           minimum: 0
+
+    WorkStreamCreateRequest:
+      type: object
+      required: [name, ownerPersonId, startDate]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        description: { type: string, maxLength: 500, nullable: true }
+        ownerPersonId:
+          type: integer
+          format: int32
+          minimum: 0
+          description: The owner, an active person of the people directory (`400` otherwise).
+        startDate: { type: string, format: date, description: 'YYYY-MM-DD, years 1900-2999.' }
+        endDate:
+          type: string
+          format: date
+          nullable: true
+          description: Set only when the work stream is closed; not before `startDate`.
+    WorkStreamUpdateRequest:
+      type: object
+      required: [name, ownerPersonId, startDate]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        description: { type: string, maxLength: 500, nullable: true, description: Omitted on PUT (a full replace) = none. }
+        ownerPersonId:
+          type: integer
+          format: int32
+          minimum: 0
+          description: The owner, an active person of the people directory (`400` otherwise).
+        startDate: { type: string, format: date, description: 'YYYY-MM-DD, years 1900-2999.' }
+        endDate:
+          type: string
+          format: date
+          nullable: true
+          description: Omitted on PUT (a full replace) = open (reopens a closed stream); set = closed. Not before `startDate`.
+    WorkStreamResponse:
+      type: object
+      required: [id, name, description, ownerPersonId, ownerName, startDate, endDate, createdAt, updatedAt]
+      properties:
+        id: { type: integer, format: int32, minimum: 0 }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        ownerPersonId: { type: integer, format: int32, minimum: 0 }
+        ownerName: { type: string }
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date, nullable: true, description: Set only when the work stream is closed. }
+        createdAt: { type: integer, format: int64, description: Epoch millis }
+        updatedAt: { type: integer, format: int64, description: Epoch millis }
+    ProgramCreateRequest:
+      type: object
+      required: [name, ownerPersonId]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        description: { type: string, maxLength: 500, nullable: true }
+        ownerPersonId:
+          type: integer
+          format: int32
+          minimum: 0
+          description: The owner, an active person of the people directory (`400` otherwise).
+    ProgramUpdateRequest:
+      type: object
+      required: [name, ownerPersonId]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        description: { type: string, maxLength: 500, nullable: true, description: Omitted on PUT (a full replace) = none. }
+        ownerPersonId:
+          type: integer
+          format: int32
+          minimum: 0
+          description: The owner, an active person of the people directory (`400` otherwise).
+    ProgramResponse:
+      type: object
+      required: [id, workStreamId, name, description, ownerPersonId, ownerName, createdAt, updatedAt]
+      properties:
+        id: { type: integer, format: int32, minimum: 0 }
+        workStreamId: { type: integer, format: int32, minimum: 0 }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        ownerPersonId: { type: integer, format: int32, minimum: 0 }
+        ownerName: { type: string }
+        createdAt: { type: integer, format: int64, description: Epoch millis }
+        updatedAt: { type: integer, format: int64, description: Epoch millis }
+    ProjectCreateRequest:
+      type: object
+      required: [name, ownerPersonId]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        description: { type: string, maxLength: 500, nullable: true }
+        ownerPersonId:
+          type: integer
+          format: int32
+          minimum: 0
+          description: The owner, an active person of the people directory (`400` otherwise).
+        targetStart: { type: string, format: date, nullable: true, description: Both target dates or neither. }
+        targetEnd: { type: string, format: date, nullable: true, description: Both target dates or neither; not before `targetStart`. }
+    ProjectUpdateRequest:
+      type: object
+      required: [name, ownerPersonId]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        description: { type: string, maxLength: 500, nullable: true, description: Omitted on PUT (a full replace) = none. }
+        ownerPersonId:
+          type: integer
+          format: int32
+          minimum: 0
+          description: The owner, an active person of the people directory (`400` otherwise).
+    TargetWindowRequest:
+      type: object
+      properties:
+        targetStart: { type: string, format: date, nullable: true, description: Both dates or neither; omitted = none. }
+        targetEnd: { type: string, format: date, nullable: true, description: Both dates or neither; not before `targetStart`. }
+    ProjectResponse:
+      type: object
+      required: [id, programId, workStreamId, name, description, ownerPersonId, ownerName, targetStart, targetEnd, createdAt, updatedAt]
+      properties:
+        id: { type: integer, format: int32, minimum: 0 }
+        programId: { type: integer, format: int32, minimum: 0 }
+        workStreamId: { type: integer, format: int32, minimum: 0, description: The work stream of the project's program. }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        ownerPersonId: { type: integer, format: int32, minimum: 0 }
+        ownerName: { type: string }
+        targetStart: { type: string, format: date, nullable: true }
+        targetEnd: { type: string, format: date, nullable: true }
+        createdAt: { type: integer, format: int64, description: Epoch millis }
+        updatedAt: { type: integer, format: int64, description: Epoch millis }
+    PlanView:
+      type: object
+      required: [revision, can, workStreams]
+      properties:
+        revision:
+          type: integer
+          format: int64
+          minimum: 0
+          description: The plan revision, read before the rows; bumped by every plan write.
+        can:
+          type: object
+          required: [createWorkStream]
+          properties:
+            createWorkStream: { type: boolean, description: The caller may create a work stream (ADMIN). }
+        workStreams:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlanWorkStream'
+    PlanWorkStream:
+      type: object
+      required: [id, name, description, ownerPersonId, ownerName, startDate, endDate, createdAt, updatedAt, can, programs]
+      properties:
+        id: { type: integer, format: int32, minimum: 0 }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        ownerPersonId: { type: integer, format: int32, minimum: 0 }
+        ownerName: { type: string }
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date, nullable: true, description: Set only when the work stream is closed. }
+        createdAt: { type: integer, format: int64 }
+        updatedAt: { type: integer, format: int64 }
+        can:
+          type: object
+          required: [edit, delete, createProgram]
+          properties:
+            edit: { type: boolean }
+            delete: { type: boolean, description: 'A rights flag: the caller may delete the node. The server can still answer 409 while it has active children.' }
+            createProgram: { type: boolean }
+        programs:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlanProgram'
+    PlanProgram:
+      type: object
+      required: [id, workStreamId, name, description, ownerPersonId, ownerName, createdAt, updatedAt, can, projects]
+      properties:
+        id: { type: integer, format: int32, minimum: 0 }
+        workStreamId: { type: integer, format: int32, minimum: 0 }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        ownerPersonId: { type: integer, format: int32, minimum: 0 }
+        ownerName: { type: string }
+        createdAt: { type: integer, format: int64 }
+        updatedAt: { type: integer, format: int64 }
+        can:
+          type: object
+          required: [edit, delete, createProject]
+          properties:
+            edit: { type: boolean }
+            delete: { type: boolean, description: 'A rights flag: the caller may delete the node. The server can still answer 409 while it has active children.' }
+            createProject: { type: boolean }
+        projects:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlanProject'
+    PlanProject:
+      type: object
+      required: [id, programId, workStreamId, name, description, ownerPersonId, ownerName, targetStart, targetEnd, createdAt, updatedAt, can]
+      properties:
+        id: { type: integer, format: int32, minimum: 0 }
+        programId: { type: integer, format: int32, minimum: 0 }
+        workStreamId: { type: integer, format: int32, minimum: 0 }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        ownerPersonId: { type: integer, format: int32, minimum: 0 }
+        ownerName: { type: string }
+        targetStart: { type: string, format: date, nullable: true }
+        targetEnd: { type: string, format: date, nullable: true }
+        createdAt: { type: integer, format: int64 }
+        updatedAt: { type: integer, format: int64 }
+        can:
+          type: object
+          required: [edit, delete, editTargetWindow]
+          properties:
+            edit: { type: boolean }
+            delete: { type: boolean, description: 'A rights flag: the caller may delete the node. The server can still answer 409 while it has active children.' }
+            editTargetWindow: { type: boolean, description: 'The caller may set the target window (ADMIN, an owner above the project, or a roadmap editor).' }
 
     ProblemDetail:
       type: object
