@@ -1,0 +1,49 @@
+# Application releases and tags
+
+Astrolabe starts at **0.1.0** (the Foundation increment; `APP_VERSION` in `web/src/changelog/version.ts` and `info.version` in `documentation.yaml`). The Gradle `1.0.0-SNAPSHOT` group/version stays (inherited from the donor scaffold; renaming is out of scope).
+
+## Bump the version in every user-visible PR
+
+Every PR that changes what a user sees or gets (a feature, a fix, a changed figure, a UI change) bumps
+`APP_VERSION` and adds its own English and Polish entry at the top of `web/src/changelog/entries.ts`, in that PR:
+a **minor** bump for a feature, a **patch** bump for a fix. Documentation-, test-, CI- and dependency-only PRs keep
+the version. An entry is never reopened to fold in a later change: once a version is on `master`, the next change
+gets the next version, so the displayed `v<APP_VERSION>` tells builds apart, not only the commit SHA. Versions are
+not roadmap milestones (the increment roadmap in `product.md` names the versions it intends, but a patch release in between is normal).
+
+**A bump edits three places in the same commit:** the `APP_VERSION` literal (`web/src/changelog/version.ts`), the new
+entry at the top of `web/src/changelog/entries.ts`, and `info.version` in
+`server/src/main/resources/openapi/documentation.yaml` (the OpenAPI document describes the build that serves it).
+`OpenApiSpecTest` ("spec info version equals the app version") fails when `info.version` and `APP_VERSION` differ.
+Regenerating `web/src/api/schema.ts` is not needed for a version-only change.
+
+Bumping is not releasing: a bump never creates a tag or a GitHub release. Tagging and publishing (below) happen only
+when the user asks for them.
+
+
+`web/src/changelog/version.ts` is the source of the application version. A release changes
+`APP_VERSION` and adds the matching English and Polish entry to `web/src/changelog/entries.ts` in
+the same commit. Gradle and npm package versions are separate.
+
+## Publishing a new version
+
+1. Merge the reviewed version/changelog change into `master` after its required checks pass.
+   Record the full release commit SHA and verify that commit's `APP_VERSION` and newest
+   changelog entry match the intended version. Wait for CI on that exact master commit.
+2. Create an annotated `v<APP_VERSION>` tag at that explicit SHA, then push that tag only.
+   Never let a moving branch name choose the release commit. Existing published tags are
+   immutable by convention: do not move, replace or force-push them.
+3. Create the GitHub release using `gh release create` with `--verify-tag`. Supply a reviewed
+   notes file containing that version's English body, a separator, and its Polish body from
+   the tagged changelog. Do not generate product notes from commit messages. Mark only the
+   highest stable version as Latest; use `--latest=false` for older releases.
+4. Read back the remote tag's peeled commit, release body, draft/prerelease status and Latest
+   selection. A local tag or a draft release alone does not complete publication.
+5. When deployment is in scope, build from the recorded commit using the
+   [run-stack playbook](../skills/run-stack/SKILL.md), verify the displayed version and SHA,
+   and preserve existing data. Publishing a GitHub release does not itself deploy containers.
+
+Documentation and test-only changes may retain the app version. They do not create another
+release with the same version or move its tag; the displayed commit identifies the newer build.
+The existing CI workflows check source/build behavior but do not publish GitHub releases.
+Release/tag verification is part of the publishing agent's completion checklist.

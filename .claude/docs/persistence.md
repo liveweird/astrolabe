@@ -1,0 +1,313 @@
+### Persistence
+
+PostgreSQL is the only database. Connection settings come from the `postgres:` block in
+`application.yaml` (env-overridable via `POSTGRES_JDBC_URL`, `POSTGRES_R2DBC_URL`,
+`POSTGRES_USER`, `POSTGRES_PASSWORD`); defaults match the `docker compose up postgres` service
+(host port **5437** — the sibling repos occupy 5432–5436 on the same machine, table in `ci.md`;
+in-network consumers use `postgres:5432`). There is one persistence stack:
+
+- **Flyway** (`infra/db/Flyway.kt`) — runs schema migrations from
+  `server/src/main/resources/db/migration/` at startup via the Java API, opening a short-lived
+  JDBC connection. Migrations are the single source of truth for schema; do not call
+  `SchemaUtils.create` anywhere. **An applied migration's bytes are immutable — comments
+  included**: Flyway validates stored checksums at startup, so any edit to an existing `V*.sql`
+  makes every long-lived database refuse to boot (a failure no fresh-container CI run can see).
+  `MigrationChecksumTest` pins every file's checksum; a new migration adds one manifest line, and
+  a red pin means REVERT the edit (clarifications go into this doc), never update the pinned
+  value. The range today is **V1–V9**: V1 `users`, V2 `revoked_tokens`, V3 the seed admin, V4 the
+  `unaccent` extension, V5 `user_disabled_features` (V1–V5 are Flow's), V6 `teams` (with the optional
+  manager), V7 `users.credential_revision`, V8 `password_reset_tokens`, V9 the `ops` telemetry
+  schema. (Astrolabe renumbered Flow's history when it was bootstrapped; from V10 on, migrations are
+  append-only like any other.)
+- **Exposed + R2DBC** (`infra/db/Database.kt` + the feature services) — runtime DB access.
+  `Database.kt` connects the `R2dbcDatabase` and is the composition root: it constructs the
+  services and publishes them into `Application.attributes` (`UserServiceKey`, `TeamServiceKey`,
+  `TokenBlocklistServiceKey`, `PasswordResetServiceKey` today); each service itself lives next to the feature it serves
+  (`users/UserService.kt`, `teams/TeamService.kt`, `auth/TokenBlocklistService.kt`, `auth/PasswordResetService.kt`). The Exposed
+  table `object`s (e.g. `UserService.Users`, nested inside their service) are used for queries
+  only, not DDL. Ids are `UIntIdTable` — unsigned end-to-end (the spec declares `minimum: 0`, and
+  `ErrorHandling.kt` 400s negative path segments before kotlinx's `UInt` decoding can silently
+  wrap them); one wrinkle inherited from Toadie: V1 creates `users.id` as `BIGSERIAL` (64-bit in
+  SQL, 32-bit everywhere above it) while `teams` uses `SERIAL`/`INTEGER` — harmless at this scale,
+  documented so nobody "fixes" one to match the other without a migration (an `INTEGER` FK column
+  may reference the `BIGINT` id; Postgres compares them fine).
+
+The `org.postgresql:postgresql` JDBC driver is on the classpath solely for Flyway; runtime queries
+go through R2DBC.
+
+### Connection pool
+
+- **Applies when:** touching `infra/db/Database.kt`'s connect call, the `postgres.pool.*`
+  configuration, or reasoning about how many PostgreSQL backends one Astrolabe instance can hold.
+- **Requirement:** Exposed connects through ONE bounded `io.r2dbc:r2dbc-pool` `ConnectionPool`
+  (ported from Lettuce via Flow) wrapping the plain PostgreSQL R2DBC factory, built by the one shared
+  `connectPooledDatabase` (the test harness's direct `sharedDatabaseForTests()` uses it too, with a
+  small pool of its own) — never a raw `r2dbc:postgresql://` connect, which opens one backend per `suspendTransaction` with nothing
+  capping concurrency (measured in Lettuce: 120 parallel requests took ALL 100 backends of PostgreSQL's default `max_connections`;
+  the JWT validation's blocklist read failed and surfaced as an invalid token — so a throwing blocklist lookup answers the
+  catch-all's 500, never 401, see "JWT model" in `.claude/docs/security.md`).
+  Bounds come from `application.yaml`'s `postgres.pool` block, each boot-validated (startup fails
+  outside the range, via the shared `infra/config/` `requireConfigInt`/`requireConfigLong` helpers): `maxSize`
+  (`POSTGRES_POOL_MAX_SIZE`, default 20, 1..1000), `initialSize` (`POSTGRES_POOL_INITIAL_SIZE`,
+  default 2, 0..maxSize — the floor the pool fills up to on its FIRST acquire, not at
+  construction: r2dbc-pool warms up lazily and `warmup()` is deliberately not called),
+  `maxAcquireTimeSeconds` (`POSTGRES_POOL_MAX_ACQUIRE_SECONDS`, default 10,
+  1..600) and `maxIdleTimeSeconds` (`POSTGRES_POOL_MAX_IDLE_SECONDS`, default 600, 1..86400). Every
+  pooled connection carries `application_name = astrolabe` (`postgres.pool.applicationName`, test-only
+  override), so operators count this instance's backends with
+  `SELECT count(*) FROM pg_stat_activity WHERE application_name = 'astrolabe'`. The driver's per-connection
+  prepared-statement cache is bounded (`PREPARED_STATEMENT_CACHE_QUERIES` = 256 in `Database.kt`, applied in
+  `connectPooledDatabase`, so the test pool has it too; r2dbc-postgresql's default is unbounded and every cached text stays a
+  named server-side statement for the connection's life) — it matters because `MultiRowInsert.kt`'s SQL text varies with the row count
+  (quantized to a handful of sizes per table). **A multi-row statement is bounded in payload as well as in bind parameters**:
+  `MultiRowInsert.kt` also splits a batch so one statement binds at most `MAX_PAYLOAD_CHARS` (1 MiB) of `String` values (a lone
+  heavier row goes alone, never refused there). `insertRows` / `insertRowsIgnoringConflicts` build each row (run the caller's body)
+  lazily, only while the statement that carries it is assembled, so the rows in flight are one statement's cap, not the call's, and
+  each body runs exactly once (`upsertRows` builds them all first: its collapse of repeated keys needs every key). Exposed lists every
+  statement a transaction ran until it ends (parsed SQL and encoded parameters included): `insertRows` clears the list after each statement.
+- **Statement timeouts: use the transaction's `queryTimeout`, nothing else.** Exposed's R2DBC executor *requests* the
+  transaction's `queryTimeout` (whole seconds, default 0, never null) from the driver before EVERY statement. The telemetry reads
+  use it (`queryTimeout` 5 s, "Telemetry (V9)"). **The per-connection cache (`infra/db/StatementTimeoutCache.kt`).**
+  r2dbc-postgresql answers each request with its own `SET STATEMENT_TIMEOUT` simple query that Exposed awaits — a large share of all
+  round trips. `connectPooledDatabase` therefore wraps the RAW connection factory (below the pool) in
+  `StatementTimeoutCachingConnectionFactory`: each physical connection remembers the value the server last confirmed, and the
+  driver call is *sent* only when the requested value differs from it. No reset on release is needed — Exposed requests its
+  value before every statement, so the borrower after a 30 s budget sees `0 != 30` and sends it, which is also why a budget
+  never leaks to the next borrower. **The hazard it handles:** PostgreSQL reverts a session-level
+  `SET` issued inside a transaction when that transaction rolls back, and a statement cancelled by the timeout aborts its
+  transaction — a naive cache would then believe the budget is still set and run the next query unbudgeted. The remembered value
+  is therefore forgotten on every rollback (also to a savepoint), on a failed commit and on `setAutoCommit(true)`, forgotten
+  before a SET is sent and remembered only once it completed under an unchanged generation, and kept across a successful commit.
+  **Rule: ONLY the transaction's `queryTimeout` may set the statement timeout.** A `SET LOCAL statement_timeout` may stay in
+  force for the rest of its transaction (the cache no longer sends a request that matches its remembered value, so nothing
+  overwrites it), and a session-level `SET`, `set_config(…, false)`, `RESET` or `DISCARD` on a pooled connection desyncs the cache
+  from the backend. Deployment assumption: one client connection is one server session — a transaction-mode PgBouncer in front of
+  Postgres would break the cache (none today). `StatementTimeoutCacheTest` (own one-connection pool) pins convergence, the
+  rolled-back SET, the aborted-transaction canary, a budget enforced again after a cancelled statement, and the skip with its limit.
+- **Sizing.** Size it as `maxSize × replicas + 1` (Flyway's short-lived JDBC connection, `infra/db/Flyway.kt`) well under
+  the server's `max_connections`. `maxAcquireTimeSeconds` is a per-attempt deadline, and the effective
+  bound is about 2× the setting. r2dbc-pool 1.0.2's `ConnectionPool` builds `create()` as
+  `Mono.defer { acquire.flatMap(…).timeout(maxAcquireTime) }.retry(acquireRetry)` and the builder default is
+  `acquireRetry = 1`: the timeout is an ordinary error to `retry`, so a timed-out waiter is
+  re-queued at the BACK of the acquire queue for a second full deadline before the failure surfaces. Astrolabe keeps the
+  default on purpose: the same retry is what transparently replaces a connection that fails `LOCAL` validation
+  (`prepareConnection` invalidates it and the outer retry acquires another), so a connection closed from the driver
+  side — a Postgres or pod restart, a FIN/RST on an idle socket — costs no request, whereas with
+  `acquireRetry(0)` each such stale connection would fail one. After a Postgres restart the pool therefore heals itself as long as
+  at most one stale connection is handed out per acquire; size `maxAcquireTimeSeconds` knowing a saturated pool fails after twice it
+  (`ConnectionPoolTest` pins the ~2×). A caller that waits past the acquire deadline fails with the pool's timeout
+  exception, which `plugins/ErrorHandling.kt`'s catch-all renders as a logged `500` — deliberately NOT a new declared status, since the
+  OpenAPI conformance gate would need it on every operation. The pool is disposed on `ApplicationStopped`, so every `testApplication` the
+  suite boots releases its connections. Exposed's `R2dbcDatabase.connect(connectionFactory, databaseConfig)` derives the dialect from
+  `databaseConfig.connectionFactoryOptions` alone, so the parsed options (still `driver=postgresql`) are threaded into the config
+  unchanged while traffic goes through the pool. The same config pins `defaultMaxAttempts = 1`: Exposed would otherwise retry ANY
+  `R2dbcException` three times, and the pool's acquire timeout is one — a saturated pool would cost 3 × the acquire budget per request.
+  **Dependency alignment:** r2dbc-pool declares an older reactor-pool than the reactor-core Astrolabe resolves, so
+  `server/build.gradle.kts` imports the Reactor BOM (`reactor-bom` in `gradle/libs.versions.toml`) as a platform — it pins
+  reactor-core, reactor-pool and reactor-netty as one release train, and `:server:checkDependencyAlignment` fails when any
+  reactor module resolves to a version other than the BOM's. Move the `reactor-bom` catalog line together with the `netty` pin.
+  Covered by `ConnectionPoolTest` (bounded concurrency, a saturated pool's acquire timeout, its ~2× deadline, disposal on
+  `ApplicationStopped` and on a later module's failed startup, and the config range-check cases) and `checkDependencyAlignment`'s own Reactor guard.
+- **A backend left holding its transaction.** Two defences, both on every pooled connection
+  (built in `connectPooledDatabase`, so the test pool has them too). (1) `infra/db/LeakedSocketGuard.kt`: r2dbc-postgresql 1.1.3
+  never closes the socket after a protocol-level connection error ("Response queue is full"). The backend then keeps its transaction
+  and locks for the life of the process — `idle in transaction`, or `active` in `ClientWrite`, which no server timeout ends. A decorator
+  on the RAW factory (below the pool, beside the statement-timeout cache) disposes the netty channel after the driver's close when the
+  client is closed but the channel is open; the pool's release validation (`LOCAL`) fails such a connection at once and destroys it. It
+  reads two private driver fields by reflection; `LeakedSocketGuardTest` pins them AND the driver bug on an unguarded connection (red
+  after an upgrade = the upstream fix landed, delete the guard). (2) `idle_in_transaction_session_timeout`, sent as a startup parameter
+  (`postgres.pool.idleInTransactionTimeoutSeconds`, `POSTGRES_POOL_IDLE_IN_TRANSACTION_TIMEOUT_SECONDS`, default 300, 0..86400, 0 = off;
+  an operator's own `options=` key in the URL wins): the server ends any pooled session idle inside a transaction for longer — the
+  backstop for a client that stopped talking with a transaction open (a coroutine stuck mid-transaction). No transaction may span an
+  outbound call or a mail send. It is a different setting from the statement timeout, so the "only `queryTimeout`" rule is untouched.
+  `LeakedSocketGuardTest` pins both.
+- **A pooled connection must not pin the frame that created it.** reactor-netty keeps the subscriber
+  chain of the `create()` that opened a channel on the channel (`ChannelOperations.listener`) for the channel's whole life
+  (`maxIdleTimeSeconds` of idleness, never while the connection is reused). Through r2dbc-pool's allocator, the pool's borrower and
+  Exposed's `awaitOne` that chain reached the continuation of the coroutine that happened to trigger the creation, so a finished
+  request's frame stayed reachable from the netty selector for minutes. `infra/db/DetachingConnectionFactory.kt` ends the chain at a
+  bridge: it subscribes to the real `create()` with a `DetachingBridge`, which forwards the one connection / error / completion to the
+  pool and then DROPS the pool's subscriber. It offers the driver an EMPTY Reactor context (reactor-netty copies the subscriber context
+  into the observer at connect time and keeps the copy for the channel's life). It is the OUTERMOST decorator of the raw factory in
+  `connectPooledDatabase` so that a connection it closes is the decorated one (the close reaches the socket guard). It honours demand,
+  delivers exactly once and CLOSES a connection nobody owns (it arrived after a cancel): never a leaked socket.
+  `PooledConnectionPinTest` proves it with weak references on a fresh pool (a 16 MiB array held across the query, the function returned,
+  the connection idle, `System.gc()` must clear it); its callers run on `Dispatchers.IO` (a test that runs the query directly on the
+  `runBlocking` thread keeps a stale reference on that thread's own stack and is red either way). `DetachingConnectionFactoryTest`
+  pins the contract without a database.
+- **Exception:** the pool runs r2dbc-pool's defaults for liveness (`ValidationDepth.LOCAL`, no
+  `maxLifeTime`): a connection killed server-side between uses is handed out once and fails that
+  request with a 500 — accepted until a deployment introduces an idle killer or proxy.
+
+### Cross-feature table reads AND writes (the service-layer rule, inherited from Lettuce)
+
+A feature service MAY query — or WRITE — another feature's Exposed table objects directly when the
+operation must run **inside its own transaction** (SQL joins, atomic snapshots, a single soft-delete that must also close a
+dependent row elsewhere) — the transaction boundary must be explicit rather than relying on an unrelated
+service to preserve it. Exposed reuses an enclosing transaction for nested `suspendTransaction`
+calls on the same database. Route handlers never touch tables (services only). The reads/writes in
+place:
+
+- `TeamService` reads `UserService.Users` for the manager: the active manager's display name (one
+  batched lookup per page), the manager id check on create AND update, and `isActiveManager`'s `Teams` ⋈ `Users` join (the
+  team-manager guard). `teams.manager_user_id` has no `ON DELETE` rule: users are only ever soft-deleted;
+  a future hard purge of users must clear it first, and a future user RESTORE must clear or re-audit the
+  manager grants the user held (a soft-deleted manager's id stays in the column, inert only while the user
+  is deleted). The roadmap replaces this column with `manager_person_id` (`product.md`, `planning-model.md`).
+- `auth/TokenBlocklistService.accessVerdict` (the per-request access-token check, `plugins/Security.kt`) READS
+  `users/UserService.Users` (`role`, `credential_revision`, `marked_as_deleted`, by primary key) and its own
+  `revoked_tokens` (an `EXISTS` on the `jti`) in ONE uncached statement per authenticated request; it writes nothing.
+- `auth/PasswordResetService` (V8) READS `users/UserService.Users` (the `active()` / `credential_revision` / `email` predicate
+  of a grant's liveness, and `FOR UPDATE` on the user row) and WRITES `users.password_hash` / `password_changed_at` / `credential_revision`
+  through `users`' `updatePasswordInTransaction` inside its own transaction (the grant is consumed in the same transaction).
+- `plugins/Health.kt` (`GET /api/v1/ready`, the readiness probe) READS `users/UserService.Users` (`id`, `LIMIT 1`), a bounded round trip
+  that proves the database answers; it writes nothing and returns no row.
+- `telemetry/StorageCollectors.kt` (the storage panel) reads, OUTSIDE the telemetry cluster transaction (the heavy phase: each statement is a short
+  transaction of its own, `HeavyCollectors.kt`): the catalogs (`pg_class`, `pg_namespace`, `pg_attribute`, `pg_database_size`, `pg_total_relation_size`) for
+  sizes — row COUNTS and sizes only, never a payload; it writes nothing outside `ops`.
+- `telemetry/TelemetryRoutes.kt` (the ADMIN read API: `TelemetryReads.kt`, `TelemetryCurrent.kt`, `TelemetryHistory.kt`) READS `ops.telemetry_processes` /
+  `ops.telemetry_samples` (its own schema; one SELECT per transaction under `queryTimeout` 5 s, the history grouped per role/metric/label/bucket in SQL).
+
+List each new cross-feature read/write here as it lands — the list IS the permission.
+
+### Schemas
+
+Astrolabe's PostgreSQL database is split across schemas:
+
+- **`public`** — the foundation tables (`users`, `teams`, `revoked_tokens`, `user_disabled_features`, `password_reset_tokens`) and, later,
+  the planning tables (`planning-model.md`). Flyway's own history table also stays here — `flyway.schemas` is left at its default.
+- **`ops`** — Astrolabe's own operational telemetry (V9, "Telemetry (V9)" below): the process registry and the metric samples each
+  process writes about itself. Numbers and labels only, never project data.
+
+**How Exposed addresses a schema-qualified table.** No Exposed `Schema` object and no
+`search_path` override are involved: a table object simply passes the dotted, schema-qualified name straight to the `Table(...)`
+constructor — e.g. `object Samples : Table("ops.telemetry_samples")` — and Exposed/R2DBC resolve it as-is, including a cross-schema
+FK reference. `CREATE SCHEMA IF NOT EXISTS <schema>` runs in the first migration that needs the schema (V9 for `ops`) — never a
+standalone "create schemas" migration.
+
+### Credential revision (V7)
+
+`users.credential_revision` is an internal nonnegative BIGINT generation, initially zero. Every
+password update/reset and conditional bootstrap rotation increments it atomically in SQL with the
+hash update. It is carried in signed access and refresh tokens and pending MFA challenges; the per-request access
+check (`TokenBlocklistService.accessVerdict`), refresh and MFA acceptance compare it with the current user row.
+Soft delete and role changes do NOT bump it (the access check compares the stored role separately; a delete
+is `user_gone`). It is not exposed in user DTOs. A password-reset grant (V8) captures it and goes stale when it moves.
+`password_changed_at` remains a timestamp, not an authorization boundary.
+
+### Password reset tokens (V8)
+
+`password_reset_tokens`: single-use grants, only the SHA-256 digest of the emailed token is stored (`token_hash` PK), with the
+account snapshot (`email`, `credential_revision`) the link was issued against and `expires_at`; `user_id` references `users` with
+`ON DELETE CASCADE`. A hard-delete table (expiring credentials, not history — see "Soft delete (convention)"); expired rows are
+pruned opportunistically.
+
+### Telemetry (V9)
+
+`ops.telemetry_processes` and `ops.telemetry_samples` (V9; `telemetry/TelemetryStore.kt`, `.claude/docs/observability.md` "Telemetry")
+are the tables of the `ops` schema (created by this migration, the "no standalone create-schemas migration" rule). A process row is one
+JVM run (`role`, `instance`, `started_at`, `last_seen`, `build_version`/`build_commit`, `processors`, `heap_max_bytes`, nullable
+`container_limit_bytes`; unique on `(role, instance, started_at)`; `role` is the constant `"app"` — Astrolabe is one process, no worker);
+`telemetry_samples` is ONE narrow table for every metric —
+`(resolution, metric, ts, process_id, label)` is the primary key (`resolution` = the sample width in seconds: a raw row stores the sampler's real interval, 60..1800 and a divisor of 3600, an hourly rollup 3600 - the tier is `resolution < 3600`; the CHECK enforces it), `n`/`avg`/`max` the figures, so a metric is added in
+`TelemetryMetrics.kt` with no migration. Epoch-millis `BIGINT` timestamps, `SERIAL` ids, the cluster section's rows (its marker today) attributed to
+the process that took the lock. Writes go through `infra/db/MultiRowInsert.kt`'s `insertRowsIgnoringConflicts`; every statement runs under
+the transaction's `queryTimeout`.
+
+**The telemetry prune is a hard-delete exception**: samples are regenerated, high-volume observations with no reader once old, so they
+are deleted, not soft-deleted — raw rows older than 7 days, hourly rows older than 90, processes unseen for 90 days (their samples
+cascade, `ON DELETE CASCADE`; an index on `process_id` keeps that cascade off a table scan). The prune runs inside the telemetry cluster
+transaction under `TELEMETRY_LOCK_KEY`, and a row exactly at its cutoff stays. The tests own the schema:
+`TelemetryStoreTest`/`TelemetrySamplerTest` empty `ops` before each test (the suite starts no sampler).
+
+### Soft delete (convention)
+
+`users` and `teams` are **soft-deleted** — rows are flagged, never physically removed; every
+business entity follows the same convention. Only join/token tables (today: `revoked_tokens`, a
+pure token registry, `password_reset_tokens` (V8, expiring single-use credentials, not history), `user_disabled_features`, a pure flag join
+whose PUT is a wholesale replace, and the `ops.telemetry_*` samples (the prune above)) hard-delete — a new
+hard-delete table needs a documented justification, exactly like Lettuce's exceptions list. Pure operational history with no reader once
+old (job queues, samples) may be pruned by a fixed documented retention window, the same shape as the JWT blocklist's opportunistic
+pruning of expired `revoked_tokens` rows. To add soft-delete to a new entity, follow the established pattern
+(reference implementation: `users/UserService.kt`):
+
+1. **Migration** — `marked_as_deleted BOOLEAN NOT NULL DEFAULT FALSE` in the CREATE (a retrofit
+   adds the column plus `CREATE INDEX idx_<t>_marked_as_deleted ON <t>(marked_as_deleted);`).
+2. **Exposed table** — declare the table `: UIntIdTable("…"), SoftDeletable` with
+   `override val markedAsDeleted = bool("marked_as_deleted").default(false)`; the ONE `active()`
+   predicate, `nowMillis()` and `lockActiveForWrite` come from `infra/db/SoftDelete.kt` (no
+   private copies).
+3. **Filter every read** — `read`, `list`, `count`, and any lookup (e.g. `findWithIdByEmail`) get
+   `… and active()`. Apply it in the shared list predicate so the `count()` (total) and the row
+   select stay consistent.
+4. **`delete` flips the flag** — `update({ (id eq id) and (markedAsDeleted eq false) }) { it[markedAsDeleted] = true }`,
+   returning the affected-row `Int`; guard `update` mutations the same way. The route maps
+   `0 → 404` (the `orNotFound` helper), so a missing-or-already-deleted row is `404` (not `204`)
+   and delete stays idempotent in effect — `UserService.deleteGuarded` shows the shape, adding the
+   last-admin check inside the same transaction.
+5. **Routes need no special-casing** — they key `404`/`204`/`NoContent` off the row-count and the
+   `active()`-filtered `read`.
+
+**Freeing a unique business field on delete.** To let a value be reused once its holder is
+soft-deleted, use a **partial unique index** over active rows instead of a global `UNIQUE`:
+`CREATE UNIQUE INDEX uq_<t>_<col>_active ON <t>(<col>) WHERE NOT marked_as_deleted;`. Skip the
+Exposed `.uniqueIndex()` on that column (Exposed defs are query-only — the DB enforces it). A
+clash with an **active** row still raises `23505 → 409` (mapped centrally in
+`plugins/ErrorHandling.kt`, which names WHAT clashed per constraint — extend
+`UNIQUE_CONSTRAINT_DETAILS` when adding a partial unique index). In place today: `users.email`
+(`uq_users_email_active`, `V1`) and the team name (`uq_teams_name_active`, `V6` — an expression
+index over `LOWER(name)`).
+
+**`infra/db/Sql.kt`** (ported from Lettuce with the first list endpoint): `containsNormalized` —
+the case- AND accent-insensitive substring filter over `public.unaccent` (V4); every per-column
+substring filter MUST use it. Also `orVanished` (post-commit read-back guard → 500, for every
+create that reads its row back).
+
+### Row locks vs. FK locks
+
+PostgreSQL's foreign-key check takes `FOR KEY SHARE` on the REFERENCED row for every child insert and keeps it until the
+inserting transaction ends. A long transaction whose inserts reference a parent row therefore holds key-share locks on every parent it
+touched for its whole run; `SELECT … FOR UPDATE` on that parent conflicts with `FOR KEY SHARE` and would wait behind it (Flow hit this
+with its long-running derive job against team rows; Astrolabe's planning writes, which reference teams and projects, are the same shape).
+
+The rule: **lock a row `FOR NO KEY UPDATE` unless the write changes its key.** That mode conflicts with itself and with
+`UPDATE`/`DELETE` (writers of the row, e.g. a soft delete racing a child insert, still serialize) but
+NOT with `FOR KEY SHARE`, so FK locks never stall it. `lockActiveForWrite` (`infra/db/SoftDelete.kt`,
+`FOR NO KEY UPDATE`), `TeamService.update` and `PasswordResetService.lockUser` (the active `users` row) follow it; none of them touches
+`id`, and the unique indexes on these tables are partial or expression indexes (`uq_teams_name_active`, `uq_users_email_active`), which
+PostgreSQL does not count as key columns — a rename is still a non-key update. Plain `FOR UPDATE` is for a row nothing references from a
+long transaction (`users` is referenced only by columns no long transaction inserts — `updated_by_*`, `teams.manager_user_id`,
+`user_disabled_features.user_id`, `password_reset_tokens.user_id` (short inserts only): `UserService.lockedActiveAdminCount`), or for
+`SKIP LOCKED` claims. A new `FOR UPDATE` on an FK-referenced row needs that justification in a comment. Flow pinned both halves with `RowLockVersusDeriveTest` (a writer completes while another transaction holds `FOR KEY SHARE` on the row, and a second `FOR NO KEY UPDATE` writer still waits); Astrolabe re-adds that test with the first long planning transaction.
+
+### `infra/db/Jsonb.kt` and canonical JSON
+
+`infra/db/Jsonb.kt` — a repo-local `jsonb` column type, because `exposed-r2dbc` 1.5.0 ships no
+JSON column type of its own. It needs no reflection into the raw `io.r2dbc.spi.Statement`: Exposed
+already ships a `JsonColumnMarker` interface plus a `PostgresSpecificTypeMapper` that specifically
+recognizes any `IColumnType` implementing it (binding a null via `Statement.bindNull(index,
+Json::class)`, a `String` via `Statement.bind(index, Json.of(value))` —
+`io.r2dbc.postgresql.codec.Json`) — implementing the marker IS the whole binding. Values are the
+caller's JSON text verbatim; PostgreSQL's own `jsonb` storage reformats regardless (whitespace, key
+order), so "round-trips" means the same VALUES survive, not the same bytes. **The one exception to "same values" is U+0000**:
+PostgreSQL `jsonb` and `text` cannot store a NUL (`unsupported Unicode escape sequence`, SQLSTATE 22P05 for jsonb; `22021` for
+text). Every payload that goes through `canonicalJson` (`infra/json/CanonicalJson.kt`) therefore has each U+0000 in a string value AND
+in an object key replaced with U+FFFD, before the text is hashed, so the stored text and its sha256 agree (U+FFFD marks that something
+was there and cannot merge the tokens around it, which dropping the character would). The helper `String.replaceNul()` (same file)
+applies the same rule to free text bound for a `text` column that is not a canonical JSON payload (a database exception's message can
+quote the offending value). Covered by `JsonbColumnTest` (insert/select/update, null, nested objects/arrays) and `CanonicalJsonTest`.
+
+`infra/json/CanonicalJson.kt` — canonical JSON for anything stored through `Jsonb.kt`: object
+keys sorted RECURSIVELY (arrays keep their own order — position is meaning), rendered via
+kotlinx.serialization's compact `JsonElement.toString()`, plus a `sha256Hex` digest of the result.
+Two payloads that differ ONLY in object key order canonicalize to byte-identical text, so their
+digests agree — this is key-order independence, not general structural equality: canonicalization
+does not normalize number spelling (`1`, `1.0` and `1e0` stay distinct token text). The output must stay byte-stable, since stored
+text and sha256 are compared against stored rows.
+
+### Planned persistence (not yet built)
+
+The planning tables arrive with v0.2–v0.5; their sketch (SERIAL ids, epoch-millis timestamps, `SoftDeletable`, partial unique
+indexes, `DATE` columns through a repo-local `LocalDateColumn`, the `plan_state` revision lock) is in `planning-model.md`. Nothing
+in this document changes until a migration lands; then the schema list, the soft-delete list and the cross-feature list above grow
+in the same commit.
