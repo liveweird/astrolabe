@@ -1,0 +1,105 @@
+import "@testing-library/jest-dom/vitest";
+import { afterEach, vi } from "vitest";
+import { cleanup, configure } from "@testing-library/react";
+import { DEFAULT_THEME } from "@mantine/core";
+
+// The suite runs with `isolate: false` (one module registry shared by every file a worker runs).
+// `vi.mock` only affects modules imported AFTER it, so a source module a previous file left in the
+// registry would keep that file's mocked (or real) dependencies — clear the registry before each
+// file so its own mocks apply. Third-party packages are externalised (Node's own cache, not
+// touched), so the reset costs a re-transform of `src/`, not a re-import of Mantine.
+vi.resetModules();
+const { default: i18n } = await import("../i18n");
+
+// With the module registry cleared per file, whichever test of a (shuffled) file touches a lazy chunk first
+// pays the cold transform + import of it — over a second when CPU is contended (a parallel run, CI), which is
+// longer than testing-library's 1000 ms `findBy`/`waitFor` default. 4 s keeps a real failure fast enough
+// and stays under the 10 s `testTimeout` (vite.config.ts).
+configure({ asyncUtilTimeout: 4000 });
+
+// Deterministic English in tests (the global i18n instance is shared by every test, including the
+// many that render with their own inline providers — no per-test I18nextProvider needed).
+void i18n.changeLanguage("en");
+
+if (typeof globalThis.localStorage === "undefined") {
+  const store = new Map<string, string>();
+  const localStorageMock: Storage = {
+    get length() {
+      return store.size;
+    },
+    key: (index: number) => Array.from(store.keys())[index] ?? null,
+    getItem: (key: string) => (store.has(key) ? store.get(key)! : null),
+    setItem: (key: string, value: string) => {
+      store.set(key, String(value));
+    },
+    removeItem: (key: string) => {
+      store.delete(key);
+    },
+    clear: () => {
+      store.clear();
+    },
+  };
+  Object.defineProperty(globalThis, "localStorage", {
+    value: localStorageMock,
+    configurable: true,
+  });
+  if (typeof window !== "undefined") {
+    Object.defineProperty(window, "localStorage", {
+      value: localStorageMock,
+      configurable: true,
+    });
+  }
+}
+
+// Mantine's Transition calls useTransition before its env="test" render shortcut. Force the
+// reduced-motion path so the hook completes synchronously instead of leaving an rAF -> rAF ->
+// setTimeout chain that can race happy-dom teardown. Other media queries keep their normal
+// happy-dom behavior.
+const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
+if (typeof window !== "undefined") {
+  const originalMatchMedia = window.matchMedia?.bind(window);
+  const mediaQueryList = (query: string, matches: boolean): MediaQueryList =>
+    ({
+      matches,
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    }) as MediaQueryList;
+  window.matchMedia = (query: string) =>
+    query === REDUCED_MOTION_QUERY
+      ? mediaQueryList(query, true)
+      : originalMatchMedia
+        ? originalMatchMedia(query)
+        : mediaQueryList(query, false);
+}
+
+// Tests use both the shared themed provider (whose app theme already sets the flag) and a bare
+// provider on Mantine's DEFAULT_THEME — this keeps the bare one honoring the preference too.
+DEFAULT_THEME.respectReducedMotion = true;
+
+// happy-dom does not implement the FontFaceSet API. Mantine's autosize Textarea
+// subscribes to `document.fonts` "loadingdone" events on mount; without this shim
+// it throws "Cannot read properties of undefined (reading 'addEventListener')".
+if (typeof document !== "undefined" && !document.fonts) {
+  Object.defineProperty(document, "fonts", {
+    value: {
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      ready: Promise.resolve(),
+    },
+    configurable: true,
+  });
+}
+
+afterEach(() => {
+  cleanup();
+  localStorage.clear();
+});
+
+// happy-dom ships an IntersectionObserver that never reports anything (no layout), which would leave `NearViewport` charts
+// unmounted forever. Without one the component mounts its children at once; a test that wants to drive it stubs its own.
+Object.defineProperty(globalThis, "IntersectionObserver", { value: undefined, configurable: true, writable: true });

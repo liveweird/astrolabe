@@ -1,0 +1,163 @@
+/* Theme-wide classNames, wired via the component extensions in theme.ts (the
+   "clean enterprise SaaS" pass). Everything here is scheme-aware via light-dark(). */
+
+/* Every data table becomes a quiet card on the tinted canvas: own surface, hairline frame,
+   rounded corners. border-collapse must be separate for the radius to clip; the frame then
+   owns the outer edge, so the last row drops its own border. */
+.table {
+  background-color: var(--mantine-color-body);
+  border: 1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
+  border-radius: var(--mantine-radius-md);
+  border-collapse: separate;
+  border-spacing: 0;
+  overflow: hidden;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Neutral, compact table headers: dimmed 600-weight labels on a faint surface tint, with a
+   crisper rule under the header row (no brand wash). */
+.tableHead {
+  background-color: light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-6));
+}
+
+.tableHead th {
+  font-size: var(--mantine-font-size-xs);
+  font-weight: 600;
+  color: var(--mantine-color-dimmed);
+  white-space: nowrap;
+  border-bottom: 1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
+}
+
+/* The shell: white (dark: dark-7) header + navbar surfaces over a faintly tinted main canvas,
+   separated by hairlines — surfaces (Papers, tables) lift off the canvas instead of blending. */
+.appMain {
+  background-color: var(--astrolabe-canvas);
+}
+
+.appHeader {
+  background-color: light-dark(var(--mantine-color-white), var(--mantine-color-dark-7));
+  border-bottom: 1px solid light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-4));
+}
+
+.brandText {
+  letter-spacing: -0.01em;
+}
+
+.appNavbar {
+  background-color: light-dark(var(--mantine-color-white), var(--mantine-color-dark-7));
+  border-right: 1px solid light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-4));
+}
+
+/* Navbar items: compact, rounded, with the icon following the text colour. The active
+   state is the sidebar's ONLY cyan — a light tint plus a 3px accent bar on the left edge,
+   the "you are here" marker — so the brand reads as a precise pointer, not a wash. */
+.navLink {
+  border-radius: var(--mantine-radius-sm);
+  margin-bottom: 1px;
+  padding-block: 6px;
+  font-size: var(--mantine-font-size-sm);
+}
+
+.navLinkSection {
+  color: inherit;
+}
+
+.navLink[data-active] {
+  font-weight: 600;
+  background-color: var(--mantine-color-astrolabe-light);
+  color: var(--mantine-color-astrolabe-light-color);
+  box-shadow: inset 3px 0 0 var(--astrolabe-accent-ink);
+}
+
+/* The sidebar's section labels (Overview / Administration): a static caption,
+   never a toggle — every leaf stays in the DOM. */
+.navSectionLabel {
+  padding: 14px 12px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mantine-color-dimmed);
+}
+
+/* The collapsed sidebar's icon rail (.navLink above still applies via the NavLink.extend
+   classNames, so the active accent bar carries over): icon-only, label hidden. */
+.railLink {
+  justify-content: center;
+  padding: 8px;
+}
+
+.railLink :global(.mantine-NavLink-section) {
+  margin: 0;
+}
+
+.railLink :global(.mantine-NavLink-body) {
+  display: none;
+}
+
+/* Links are text, not accent: dark by default, the brand colour only as the hover
+   underline. Every Anchor in the app inherits this through the theme. */
+.anchor {
+  color: var(--mantine-color-text);
+}
+
+.anchor:hover {
+  text-decoration-color: var(--astrolabe-accent-ink);
+}
+
+/* The header's command-palette trigger: reads as a search field (hairline, hover-tinted,
+   dimmed placeholder text, the shortcut as a Kbd on the right) but is a button. */
+.paletteTrigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mantine-spacing-xs);
+  height: 32px;
+  min-width: 260px;
+  padding: 0 var(--mantine-spacing-sm);
+  border: 1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
+  border-radius: var(--mantine-radius-md);
+  background-color: light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-6));
+  color: var(--mantine-color-dimmed);
+  font-size: var(--mantine-font-size-sm);
+}
+
+.paletteTrigger:hover {
+  border-color: light-dark(var(--mantine-color-gray-4), var(--mantine-color-dark-3));
+}
+
+.paletteTrigger > span:first-of-type {
+  flex: 1;
+  text-align: start;
+}
+
+/* The scroller is a keyboard stop (it scrolls a table wider or taller than the screen): a visible focus ring. */
+.tableScroll:focus-visible {
+  outline: 2px solid var(--astrolabe-accent-ink);
+  outline-offset: 2px;
+}
+
+/* Form sections: a flat block under a small-caps legend on a hairline (v1.20.0) —
+   `Fieldset variant="unstyled"` keeps the fieldset/legend semantics without the frame. */
+.formSection {
+  padding: 0;
+  scroll-margin-top: 80px;
+}
+
+.formSection + .formSection {
+  margin-top: var(--mantine-spacing-lg);
+}
+
+.formSectionLegend {
+  width: 100%;
+  padding: 0 0 6px;
+  margin-bottom: var(--mantine-spacing-sm);
+  font-size: var(--mantine-font-size-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mantine-color-dimmed);
+  border-bottom: 1px solid light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-4));
+}

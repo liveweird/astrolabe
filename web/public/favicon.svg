@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-labelledby="t d">
+  <title id="t">Astrolabe</title>
+  <desc id="d">A stylised astrolabe: a ring and a pivoted sighting rule.</desc>
+  <circle cx="24" cy="24" r="22" fill="#0b7285"/>
+  <circle cx="24" cy="24" r="15.5" fill="none" stroke="#ffffff" stroke-width="3.5"/>
+  <g transform="rotate(-32 24 24)">
+    <rect x="5.5" y="20.25" width="37" height="7.5" rx="3.75" fill="#0b7285"/>
+    <rect x="7" y="21.75" width="34" height="4.5" rx="2.25" fill="#ffffff"/>
+  </g>
+  <circle cx="24" cy="24" r="3" fill="#0b7285" stroke="#ffffff" stroke-width="1.6"/>
+</svg>

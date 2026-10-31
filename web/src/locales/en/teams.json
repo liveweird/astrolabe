@@ -1,0 +1,39 @@
+{
+  "title": "Teams",
+  "intro": "The teams of your organization. Everyone can see them and who manages each; administrators create, edit and delete teams.",
+  "newTeam": "New team",
+  "createTitle": "New team",
+  "editTitle": "Edit team",
+  "empty": "No teams yet",
+  "loadFailed": "Could not load the teams",
+  "notFound": "This team does not exist (or was deleted).",
+  "backToTeams": "Back to teams",
+  "openAria": "Open team {{name}}",
+  "column": {
+    "manager": "Manager"
+  },
+  "manager": "Manager",
+  "managerLine": "Manager: {{name}}",
+  "noManager": "No manager",
+  "clearManager": "Clear the manager",
+  "pickManager": "Search users by name…",
+  "managerHint": "The person who manages the team.",
+  "noMatchingUsers": "No matching users",
+  "deleteTitle": "Delete team?",
+  "deleteBody": "\"{{name}}\" will be deleted.",
+  "deleteFailed": "Could not delete the team",
+  "deleteConflict": "This team is still referenced elsewhere and cannot be deleted yet.",
+  "saveForbidden": "Only administrators can edit teams",
+  "saveConflict": "A team with this name already exists",
+  "saveInvalid": "One or more fields are invalid",
+  "saveGone": "This team no longer exists — reload the page",
+  "validation": {
+    "nameLength": "Name must be 1–100 characters",
+    "descriptionLength": "Description must be at most 500 characters"
+  },
+  "toast": {
+    "created": "Team created",
+    "saved": "Team saved",
+    "deleted": "Team deleted"
+  }
+}
