@@ -17,6 +17,24 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "0.2.0",
+    date: "2026-10-31",
+    en: `**Astrolabe 0.2.0: plan structure.**
+
+- A people directory: the owners and managers of the plan are people, optionally linked to a login. A team's manager is now a person.
+- Work streams, programs and projects, each with an owner. Owners edit what they own and everything below it; administrators edit everything. A project can carry a target window, and a work stream is closed by setting its end date.
+- The Plan page: the whole hierarchy on one page, with the actions you are allowed to take.
+- The Roadmap page: one global ranking of the projects. Drag a project to reorder it, or move it with the keyboard; unranked projects wait in their own group. A concurrent change is detected and the list reloaded.
+- Administrators grant the "roadmap editor" permission, which allows ranking projects and setting their target windows.`,
+    pl: `**Astrolabe 0.2.0: struktura planu.**
+
+- Katalog osób: właściciele/ki i kierownicy/czki w planie to osoby, opcjonalnie powiązane z loginem. Kierownik/czka zespołu jest teraz osobą.
+- Strumienie pracy, programy i projekty, każdy z właścicielem/ką. Właściciele/ki edytują to, co posiadają, i wszystko poniżej; administratorzy/rki edytują wszystko. Projekt może mieć okno docelowe, a strumień pracy zamykasz, ustawiając jego datę końcową.
+- Strona Plan: cała hierarchia na jednej stronie, z działaniami, do których masz prawo.
+- Strona Roadmapa: jeden globalny ranking projektów. Przeciągnij projekt, aby zmienić kolejność, albo przesuń go klawiaturą; projekty spoza rankingu czekają w osobnej grupie. Równoczesną zmianę wykrywamy i przeładowujemy listę.
+- Administratorzy/rki nadają uprawnienie „edytor/ka roadmapy”, które pozwala ustalać ranking projektów i ich okna docelowe.`,
+  },
+  {
     version: "0.1.0",
     date: "2026-10-31",
     en: `**Astrolabe 0.1.0: the foundation.**

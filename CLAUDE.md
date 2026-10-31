@@ -13,8 +13,8 @@ milestones) → milestone (start/end, man-day estimate, exactly one team, no own
 (its milestones against capacity), the **roadmap** (projects by one global rank, and in time) and the **programs** view. **Planning flow:** build the hierarchy and rank the projects; the
 team manager schedules milestones (manual drag/resize first, auto-proposal later); dependencies (FS/SS/FF/SF + lag) and capacity overload only ever **warn**, never move anything.
 
-**Roadmap:** **0.1.0 (current) = the foundation**, Flow trimmed to its generic core: auth + email MFA, password reset, users, feature flags, teams with a manager, EN/PL, light/dark, changelog,
-the ADMIN telemetry panel, the cyan brand. Next: 0.2.0 plan structure, 0.3.0 timeline + project view, 0.4.0 dependencies, 0.5.0 team view + capacity, 0.6.0 roadmap + programs, 0.7.0 calendar +
+**Roadmap:** 0.1.0 = the foundation, Flow trimmed to its generic core: auth + email MFA, password reset, users, feature flags, teams with a manager, EN/PL, light/dark, changelog,
+the ADMIN telemetry panel, the cyan brand. **0.2.0 (current) = plan structure**: people, the `ROADMAP_EDITOR` grant, work streams/programs/projects with owner-scoped rights, the Plan page, the ranked Roadmap. Next: 0.3.0 timeline + project view, 0.4.0 dependencies, 0.5.0 team view + capacity, 0.6.0 roadmap + programs, 0.7.0 calendar +
 critical path, 0.8.0 auto-proposal, 0.9.0 baselines, 1.0.0 checkup. Per-version scope, the user's domain decisions and the assumptions: `.claude/docs/product.md`; the domain sketch:
 `.claude/docs/planning-model.md`; the timeline: `.claude/docs/timeline.md`. Open items: `BACKLOG.md`.
 

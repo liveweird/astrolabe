@@ -13,7 +13,7 @@ Scale assumed: about 15 teams, 5 work streams, 20 programs, 100 projects, 1,000 
 
 ## Roadmap
 
-Each increment gets its own plan (architect) before implementation; only v0.1.0 was specified up front. **Current version: 0.1.0.**
+Each increment gets its own plan (architect) before implementation; only v0.1.0 was specified up front. **Current version: 0.2.0.**
 
 | Ver | Scope | User can test |
 |---|---|---|
@@ -52,6 +52,15 @@ Version numbers are not strictly roadmap milestones (`app-releases.md`): a user-
 ## Assumptions (not asked — change on request)
 
 Day-precision dates; Monday–Friday working days (public holidays arrive with v0.7); week / month / quarter zoom; EN and PL kept; the scale above.
+
+## v0.2.0 — what shipped
+
+The plan structure (V10–V13): the people directory (owners and managers are people, optionally linked to a login; `teams.manager_person_id` replaced the user link), the per-user
+`ROADMAP_EDITOR` grant (`user_permissions`, read per request, never a token claim), work streams / programs / projects with owners and owner-scoped guards under the `plan_state` lock and
+revision, a project's optional target window, closing a work stream by its end date, `GET /views/plan` and `GET /views/roadmap` with per-node `can:{…}` flags, and the one global project rank
+(`PUT /roadmap/ranking`, wholesale with `expectedRevision`, a stale write answers 409). The web gained the People, Plan and Roadmap pages (dnd-kit sortable, a keyboard path with localized
+announcements, Move up/down, Rank/Unrank) and the Users → Permissions page. Not built (deliberately): reparenting a program or project (delete and recreate until milestones exist, v0.3) and
+paged lists for the plan nodes (they land with their first consumer, the v0.4 pickers).
 
 ## v0.1.0 — what shipped
 
