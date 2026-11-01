@@ -182,17 +182,19 @@ What the measurement found and fixed: a bar half under the sticky columns took f
 
 #### Measured figures on the team page at scale (v0.5, sample plan)
 
-*To be measured after C5 (the team page) lands, with the sample plan loaded (`sample-data/plan/`, loader: `README.md` "Try it at scale"); one-off, NON-BINDING, this machine only, not yet recorded.* Pages: the largest team ("Platform", 301 milestones, 268 scheduled rows, the virtual path) and a ~65-row team ("Web Frontend", 67 scheduled rows, the plain path). To record, per page: page ready, rows mounted, `[data-arrow]` count, strip cells, scroll frame p50/p95, a Move to bottom's PUT round trip, a row drag from the first row to the last slot through autoscroll (the PUT body ends with its id; the row is last after the refetch), the view's server time from the access log.
+One-off, NON-BINDING, this machine only (an Apple-silicon laptop; re-measure rather than quote), with the sample plan loaded (`sample-data/plan/`, loader: `README.md` "Try it at scale"; 2,458 requests, 12.2 s). Signed in as the team's MANAGER login (the handle and the row menu are there), headless Chromium 1440 x 900, week zoom, the compose stack's production bundle, a throwaway Playwright script (not committed), three fresh page loads per page (a row drag and a Move to bottom each three times too). Pages: the largest team ("Platform", 301 milestones, 268 scheduled rows, the virtual path, a custom order on 12 of them) and a ~65-row team ("Web Frontend", 67 scheduled rows, the plain path).
 
 | What | Platform (virtual path) | Web Frontend (plain path) |
 |---|---|---|
-| Page ready | _tbd_ | _tbd_ |
-| Rows mounted | _tbd_ | _tbd_ |
-| `[data-arrow]` count / strip cells | _tbd_ | _tbd_ |
-| Scroll frame interval p50 / p95 | _tbd_ | _tbd_ |
-| Move to bottom, PUT round trip | _tbd_ | _tbd_ |
-| Row drag first row to last slot through autoscroll | _tbd_ | _tbd_ |
-| `GET /views/team/{id}` server time | _tbd_ | _tbd_ |
+| Page ready (navigation start until the first bar is in the DOM) | 323-339 ms (the view's response 24-31 ms, 193,791 B) | 324-336 ms (the view's response 13-15 ms, 61,255 B) |
+| Rows mounted (top / during a scroll / at the last row) | 24 of 268 / 24-35 / 26; 2,807 DOM nodes at the top, 2,865 at the bottom | 67 of 67 (every row, constant); 3,246 DOM nodes |
+| `[data-arrow]` count / strip cells | 1 at the top, 0-7 per window over a vertical sweep (148 links in the view, most end outside the team's rows) / 69 cells (2026-08-17 to 2027-12-06; the track is 14,308 px wide, 511 days) | 1, constant (49 links) / 58 cells (2026-09-21 to 2027-10-25; 12,152 px) |
+| Scroll frame interval p50 / p95 (600 frames of 108 px, bouncing between the ends: 9,100 / 1,864 px of travel) | 16.6-16.7 ms / 18.1-18.5 ms (max 21.2-23.9); scripting 5.5-6.0 ms, whole tasks 7.3-8.1 ms, layout 0.2 ms per frame | 16.7 ms / 18.2-18.5 ms (max 18.7); scripting 0.02 ms, whole tasks 0.3 ms, layout 0 per frame |
+| Move to bottom, PUT round trip | 18 / 22 / 22 ms (268 ids; 91-98 ms from the menu item's click to the response) | 18 / 19 / 24 ms (67 ids; 75-78 ms from the click) |
+| Row drag first row to last slot through autoscroll | 7.6-8.5 s of held autoscroll to slot 268 of 268; PUT 200 33-40 ms after release; the body's `milestoneIds` ends with the dragged id and the row is last after the refetch (3 of 3; `aria-rowindex` 269 of 269) | 1.7-1.8 s to slot 67 of 67; PUT 200 39-40 ms after release; the same (3 of 3; `aria-rowindex` 68 of 68) |
+| `GET /views/team/{id}` server time | ~18-20 ms warm (28 ms the first call), by curl over loopback, `time_starttransfer` ~ `time_total` for 193,791 B; Chromium sees 24-31 ms | ~7-9 ms warm, by curl; Chromium sees 13-15 ms |
+
+The app's log carries no per-request timing (only the AUDIT events), so the server time is a client-side figure over loopback, transfer included. The row drag ran at roughly 1,200 px/s of autoscroll (the scroller's bottom 15 %, the pointer 12 px above its edge). Manual pass: the drag card follows the pointer (its box is vertically centred on the pointer and spans it horizontally, near the held row and at 3,078 px of scroll); with the pointer over the sticky header during a held row drag the grid autoscrolls UP and the insertion line stays at the first visible slot (slot 67 at `scrollTop` 2,403 down to slot 0 at 0, within one slot of `ceil(scrollTop / 36)` between samples); Escape ends it with no line and no card left; a bar move with the pointer at the right edge autoscrolls horizontally (400 px per 250 ms), the bar stays within about one day (26-34 px) of the pointer's grab point and no `timelineRowGhost` card mounts for a bar. No defect found.
 
 #### Deliberate departures from the bootstrap sketch
 
