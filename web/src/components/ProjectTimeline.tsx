@@ -1,16 +1,17 @@
-import { Anchor, Menu, Text } from "@mantine/core";
+import type { ReactNode } from "react";
+import { Anchor, Menu, Text, VisuallyHidden } from "@mantine/core";
 import { IconCalendarEvent, IconCalendarOff, IconLink, IconPencil, IconTrash } from "@tabler/icons-react";
 import { Link as RouterLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import type { DependencyEndpoint } from "../api/dependencies";
-import type { ProjectMilestone, ProjectView } from "../api/milestones";
+import type { ProjectMilestone, ProjectView, UpstreamEntity } from "../api/milestones";
 import { useHolidays } from "../hooks/useHolidays";
 import { idleBands } from "../utils/idleGaps";
 import { addDays } from "../utils/isoDate";
 import { projectPath } from "../utils/planLinks";
-import { arrowSpecs, conflictsByBar, ghostEndpoints, ghostRowId, projectRowId, summaryRowNeeded } from "../utils/projectDependencies";
-import type { BarId, RovingTarget, TimelineBandData, TimelineColumn, TimelineRowData } from "../utils/timelineModel";
+import { arrowSpecs, conflictsByBar, ghostEndpoints, ghostRowId, projectRowId, summaryCritical, summaryRowNeeded, upstreamIndex, upstreamOf } from "../utils/projectDependencies";
+import type { BarId, RovingTarget, TimelineBandData, TimelineBarData, TimelineColumn, TimelineRowData } from "../utils/timelineModel";
 import type { TimelineScale, Zoom } from "../utils/timelineScale";
 import RowActionsMenu from "./RowActionsMenu";
 import Timeline from "./Timeline";
@@ -29,7 +30,7 @@ export type MilestoneActions = {
   addDependency: (milestone: ProjectMilestone) => void;
 };
 
-const COLUMN_WIDTHS = { name: 220, team: 130, estimate: 120, actions: 56 } as const;
+const COLUMN_WIDTHS = { name: 220, team: 130, estimate: 120, slack: 130, actions: 56 } as const;
 
 /** The estimate with its unit ("12.25 man-days"). */
 const estimateText = (t: TFunction, milestone: ProjectMilestone) => t("project.estimateUnit", { count: milestone.estimateMd });
@@ -138,6 +139,42 @@ function bandsOf(view: ProjectView, t: TFunction): TimelineBandData[] {
   return [...bands, ...idleBands(view.idleGaps, t)];
 }
 
+/**
+ * The critical-path emphasis of one bar (v0.7), applied only while the page's toggle is on AND the entity is critical: the bar's `emphasis`
+ * and the ", on the critical path" suffix of its accessible name. Anything else keeps its name and carries no `emphasis` at all.
+ */
+const emphasized = (t: TFunction, critical: boolean, describe: string): Pick<TimelineBarData, "describe" | "emphasis"> =>
+  critical ? { describe: `${describe}, ${t("timeline.bar.critical")}`, emphasis: "critical" } : { describe };
+
+/**
+ * The Slack column's cell (v0.7, present only while the toggle is on): "0" plus a visually hidden "critical path" for a zero-slack entity,
+ * else its working days; "" when an own milestone has no slack (unscheduled rows never get here), "—" for a ghost row the server's
+ * upstream list does not name (downstream-only or unconnected).
+ */
+function SlackCell({ slackDays, critical, absent }: { slackDays: number | null; critical: boolean; absent?: boolean }) {
+  const { t } = useTranslation();
+  if (absent === true) {
+    return (
+      <span>
+        <span aria-hidden="true">{t("project.critical.slackNone")}</span>
+        <VisuallyHidden component="span">{t("project.critical.notUpstream")}</VisuallyHidden>
+      </span>
+    );
+  }
+  if (slackDays === null) return null;
+  if (!critical) return <span>{t("project.critical.slackDays", { count: slackDays })}</span>;
+  return (
+    <span>
+      {slackDays}
+      <VisuallyHidden component="span"> {t("project.critical.slackCritical")}</VisuallyHidden>
+    </span>
+  );
+}
+
+/** The cells of a row with the Slack cell before the actions cell (the last one) while the column is shown. */
+const withSlack = (cells: TimelineRowData["cells"], slack: ReactNode | null): TimelineRowData["cells"] =>
+  slack === null ? cells : [...cells.slice(0, -1), slack, ...cells.slice(-1)];
+
 /** The accessible name of an own bar, with the ", N conflicts" suffix when violated links end on it (so a screen-reader user on the bar hears it). */
 const withConflicts = (t: TFunction, describe: string, count: number) => (count > 0 ? `${describe}, ${t("project.barConflicts", { count })}` : describe);
 
@@ -145,25 +182,28 @@ const withConflicts = (t: TFunction, describe: string, count: number) => (count 
  * The summary row: the project itself as a dependency endpoint (its name, its derived span as a hollow bar; no bar while nothing is
  * scheduled). Present only while some link ends on the whole project.
  */
-function summaryRow(view: ProjectView, t: TFunction, conflicts: ReadonlyMap<BarId, number>): TimelineRowData {
+function summaryRow(view: ProjectView, t: TFunction, conflicts: ReadonlyMap<BarId, number>, criticalPath: boolean): TimelineRowData {
   const id = projectRowId(view.project.id);
   const { name } = view.project;
   return {
     id,
-    cells: [
-      <Text key="name" component="span" size="sm" truncate>
-        <Text span fw={500}>
-          {name}
-        </Text>
-        <Text span c="dimmed">
-          {" "}
-          {t("project.summaryTag")}
-        </Text>
-      </Text>,
-      "",
-      "",
-      null,
-    ],
+    cells: withSlack(
+      [
+        <Text key="name" component="span" size="sm" truncate>
+          <Text span fw={500}>
+            {name}
+          </Text>
+          <Text span c="dimmed">
+            {" "}
+            {t("project.summaryTag")}
+          </Text>
+        </Text>,
+        "",
+        "",
+        null,
+      ],
+      criticalPath ? "" : null,
+    ),
     bars:
       view.span === null
         ? []
@@ -173,7 +213,7 @@ function summaryRow(view: ProjectView, t: TFunction, conflicts: ReadonlyMap<BarI
               start: view.span.start,
               end: view.span.end,
               label: name,
-              describe: withConflicts(t, t("timeline.bar.summary", { name, start: view.span.start, end: view.span.end }), conflicts.get(id) ?? 0),
+              ...emphasized(t, criticalPath && summaryCritical(view), withConflicts(t, t("timeline.bar.summary", { name, start: view.span.start, end: view.span.end }), conflicts.get(id) ?? 0)),
               editable: false,
               tone: "summary",
             },
@@ -183,33 +223,42 @@ function summaryRow(view: ProjectView, t: TFunction, conflicts: ReadonlyMap<BarI
 
 /**
  * A ghost row: another project's milestone (or another project's span) that a link of this project ends on. Read-only and dimmed;
- * its name is the way to that project's page (a function cell, so the link is the row's one stop).
+ * its name is the way to that project's page (a function cell, so the link is the row's one stop). With the critical-path toggle on
+ * (`upstream` is then the server's lookup by kind + id) it shows the neighbour's slack and is emphasised when that entity is critical.
  */
-function ghostRow(endpoint: DependencyEndpoint, t: TFunction): TimelineRowData {
+function ghostRow(endpoint: DependencyEndpoint, t: TFunction, upstream: ReadonlyMap<string, UpstreamEntity> | null): TimelineRowData {
   const id = ghostRowId(endpoint);
   const start = endpoint.startDate ?? "";
   const end = endpoint.endDate ?? "";
   const text = endpoint.kind === "MILESTONE" ? t("project.ghostName", { project: endpoint.projectName, name: endpoint.name }) : endpoint.name;
+  const entry = upstream === null ? undefined : upstreamOf(upstream, endpoint);
   return {
     id,
-    cells: [
-      (stop: RovingTarget) => (
-        <Anchor component={RouterLink} to={projectPath(endpoint.projectId)} size="sm" c="dimmed" truncate aria-label={t("project.ghostLinkAria", { text, project: endpoint.projectName })} {...stop}>
-          {text}
-        </Anchor>
-      ),
-      // dimmed like the name: a ghost row is another project's, read-only
-      endpoint.teamName === null ? "" : <Text key="team" component="span" size="sm" c="dimmed">{endpoint.teamName}</Text>,
-      "",
-      null,
-    ],
+    cells: withSlack(
+      [
+        (stop: RovingTarget) => (
+          <Anchor component={RouterLink} to={projectPath(endpoint.projectId)} size="sm" c="dimmed" truncate aria-label={t("project.ghostLinkAria", { text, project: endpoint.projectName })} {...stop}>
+            {text}
+          </Anchor>
+        ),
+        // dimmed like the name: a ghost row is another project's, read-only
+        endpoint.teamName === null ? "" : <Text key="team" component="span" size="sm" c="dimmed">{endpoint.teamName}</Text>,
+        "",
+        null,
+      ],
+      upstream === null ? null : <SlackCell key="slack" slackDays={entry?.slackDays ?? null} critical={entry?.critical === true} absent={entry === undefined} />,
+    ),
     bars: [
       {
         id,
         start,
         end,
         label: endpoint.name,
-        describe: t("timeline.bar.ghost", { label: t("project.ghostSpan", { name: endpoint.name, start, end }), project: endpoint.projectName }),
+        ...emphasized(
+          t,
+          entry?.critical === true,
+          t("timeline.bar.ghost", { label: t("project.ghostSpan", { name: endpoint.name, start, end }), project: endpoint.projectName }),
+        ),
         editable: false,
         tone: "ghost",
       },
@@ -231,6 +280,8 @@ export default function ProjectTimeline({
   busy,
   actions,
   label,
+  criticalPath,
+  toolbar,
 }: {
   view: ProjectView;
   scale: TimelineScale;
@@ -239,6 +290,10 @@ export default function ProjectTimeline({
   busy: boolean;
   actions: MilestoneActions;
   label: string;
+  /** The critical-path toggle is on (v0.7): the Slack column, the bar and arrow emphasis and the ghost rows' slack. */
+  criticalPath: boolean;
+  /** The Timeline's `toolbar` slot: the page's toggle button. */
+  toolbar: ReactNode;
 }) {
   const { t } = useTranslation();
   const { holidays, failed: holidaysFailed } = useHolidays();
@@ -248,17 +303,21 @@ export default function ProjectTimeline({
     { id: "name", header: t("project.column.milestone"), width: COLUMN_WIDTHS.name },
     { id: "team", header: t("project.column.team"), width: COLUMN_WIDTHS.team },
     { id: "estimate", header: t("project.column.estimate"), width: COLUMN_WIDTHS.estimate },
+    ...(criticalPath ? [{ id: "slack", header: t("project.column.slack"), width: COLUMN_WIDTHS.slack }] : []),
     { id: "actions", header: t("common.table.operations"), width: COLUMN_WIDTHS.actions },
   ];
   const milestoneRows: TimelineRowData[] = view.scheduled.map((milestone) => ({
     id: milestone.id,
-    cells: [
-      <NameCell key="name" milestone={milestone} />,
-      milestone.teamName,
-      estimateText(t, milestone),
-      // A function cell holds its own focusable; with no menu the cell stays a static stop, so the tab stop never lands on a missing element.
-      hasMenu(milestone, canLink) ? (stop: RovingTarget) => <MilestoneMenu milestone={milestone} actions={actions} canLink={canLink} trigger={stop} /> : null,
-    ],
+    cells: withSlack(
+      [
+        <NameCell key="name" milestone={milestone} />,
+        milestone.teamName,
+        estimateText(t, milestone),
+        // A function cell holds its own focusable; with no menu the cell stays a static stop, so the tab stop never lands on a missing element.
+        hasMenu(milestone, canLink) ? (stop: RovingTarget) => <MilestoneMenu milestone={milestone} actions={actions} canLink={canLink} trigger={stop} /> : null,
+      ],
+      criticalPath ? <SlackCell key="slack" slackDays={milestone.slackDays} critical={milestone.critical} /> : null,
+    ),
     bars:
       milestone.startDate !== null && milestone.endDate !== null
         ? [
@@ -267,24 +326,33 @@ export default function ProjectTimeline({
               start: milestone.startDate,
               end: milestone.endDate,
               label: milestone.name,
-              describe: withConflicts(
+              ...emphasized(
                 t,
-                t("project.barAria", {
-                  name: milestone.name,
-                  team: milestone.teamName,
-                  start: milestone.startDate,
-                  end: milestone.endDate,
-                  estimate: estimateText(t, milestone),
-                }),
-                conflicts.get(milestone.id) ?? 0,
+                criticalPath && milestone.critical,
+                withConflicts(
+                  t,
+                  t("project.barAria", {
+                    name: milestone.name,
+                    team: milestone.teamName,
+                    start: milestone.startDate,
+                    end: milestone.endDate,
+                    estimate: estimateText(t, milestone),
+                  }),
+                  conflicts.get(milestone.id) ?? 0,
+                ),
               ),
               editable: milestone.can.schedule,
             },
           ]
         : [],
   }));
-  const rows = [...(summaryRowNeeded(view) ? [summaryRow(view, t, conflicts)] : []), ...milestoneRows, ...ghostEndpoints(view).map((endpoint) => ghostRow(endpoint, t))];
-  const arrows = arrowSpecs(view);
+  const upstream = criticalPath ? upstreamIndex(view) : null;
+  const rows = [
+    ...(summaryRowNeeded(view) ? [summaryRow(view, t, conflicts, criticalPath)] : []),
+    ...milestoneRows,
+    ...ghostEndpoints(view).map((endpoint) => ghostRow(endpoint, t, upstream)),
+  ];
+  const arrows = arrowSpecs(view, criticalPath);
   return (
     <Timeline
       label={label}
@@ -297,6 +365,7 @@ export default function ProjectTimeline({
       holidays={holidays}
       holidaysFailed={holidaysFailed}
       busy={busy}
+      toolbar={toolbar}
       overlay={arrows.length === 0 ? undefined : (geometry) => <TimelineArrows arrows={arrows} geometry={geometry} />}
     />
   );

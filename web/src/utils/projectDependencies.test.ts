@@ -1,7 +1,20 @@
 import { describe, expect, test } from "vitest";
 import type { DependencyEndpoint, ProjectDependency } from "../api/dependencies";
-import type { ProjectView } from "../api/milestones";
-import { arrowSpecs, conflictCount, conflictsByBar, ghostEndpoints, ghostRowId, linksOfMilestone, projectRowId, summaryRowNeeded } from "./projectDependencies";
+import type { ProjectView, UpstreamEntity } from "../api/milestones";
+import {
+  arrowSpecs,
+  chainEntries,
+  conflictCount,
+  conflictsByBar,
+  ghostEndpoints,
+  ghostRowId,
+  linksOfMilestone,
+  projectRowId,
+  summaryCritical,
+  summaryRowNeeded,
+  upstreamIndex,
+  upstreamOf,
+} from "./projectDependencies";
 
 const PROJECT_ID = 7;
 
@@ -35,7 +48,22 @@ const link = (id: number, predecessor: DependencyEndpoint, successor: Dependency
 
 const violated = { status: "VIOLATED", shortfallDays: 3, requiredDate: "2027-02-08", actualDate: "2027-02-03" } as const;
 
-const viewWith = (dependencies: ProjectDependency[]) => ({ project: { id: PROJECT_ID }, dependencies }) as ProjectView;
+const viewWith = (dependencies: ProjectDependency[], upstream: UpstreamEntity[] = []) =>
+  ({ project: { id: PROJECT_ID }, dependencies, criticalPath: { upstream, upstreamTruncated: false } }) as ProjectView;
+
+const entry = (kind: UpstreamEntity["kind"], id: number, over: Partial<UpstreamEntity> = {}): UpstreamEntity => ({
+  kind,
+  id,
+  name: `Entity ${id}`,
+  projectId: 99,
+  projectName: "Elsewhere",
+  startDate: "2027-01-04",
+  endDate: "2027-01-08",
+  slackDays: 0,
+  critical: true,
+  hops: 1,
+  ...over,
+});
 
 describe("ghostEndpoints", () => {
   test("keeps the distinct external ends that have dates, sorted by start, end, name", () => {
@@ -133,5 +161,49 @@ describe("arrowSpecs", () => {
   test("an UNSCHEDULED link has no arrow", () => {
     const view = viewWith([link(1, foreign(2), endpoint({ id: 1 }), { check: { status: "UNSCHEDULED", shortfallDays: null, requiredDate: null, actualDate: null } })]);
     expect(arrowSpecs(view)).toEqual([]);
+  });
+});
+
+describe("the critical path", () => {
+  test("arrowSpecs flags the critical links only when asked; a link the server did not mark is never flagged", () => {
+    const view = viewWith([link(1, foreign(2), endpoint({ id: 1 }), { critical: true }), link(2, endpoint({ id: 1 }), endpoint({ id: 4 }))]);
+    expect(arrowSpecs(view).map((spec) => spec.critical)).toEqual([undefined, undefined]);
+    expect(arrowSpecs(view, true).map((spec) => spec.critical)).toEqual([true, undefined]);
+  });
+
+  test("upstreamOf finds an entity by kind AND id (a milestone and a project may share an id) and answers undefined for the unconnected", () => {
+    const index = upstreamIndex(viewWith([], [entry("MILESTONE", 5, { slackDays: 3, critical: false }), entry("PROJECT", 5)]));
+    expect(upstreamOf(index, foreign(5))?.slackDays).toBe(3);
+    expect(upstreamOf(index, endpoint({ kind: "PROJECT", id: 5, projectId: 5 }))?.critical).toBe(true);
+    expect(upstreamOf(index, foreign(6))).toBeUndefined();
+  });
+
+  test("summaryCritical: a critical link ending on the project itself, and nothing else", () => {
+    expect(summaryCritical(viewWith([link(1, foreign(2), ownProject, { critical: true })]))).toBe(true);
+    expect(summaryCritical(viewWith([link(1, foreign(2), ownProject)]))).toBe(false);
+    expect(summaryCritical(viewWith([link(1, foreign(2), endpoint({ id: 1 }), { critical: true })]))).toBe(false);
+  });
+
+  test("chainEntries drops the ghost-row ends by kind + id, never by hops, and keeps the server's order in two groups", () => {
+    // Foreign milestone 2 is a ghost row; its project's other milestone (hops 1 as well: containment is free) is NOT a ghost row and stays listed.
+    const view = viewWith(
+      [link(1, foreign(2), endpoint({ id: 1 }), { critical: true })],
+      [
+        entry("MILESTONE", 2),
+        entry("MILESTONE", 3, { hops: 1 }),
+        entry("MILESTONE", 8, { hops: 2 }),
+        entry("MILESTONE", 9, { slackDays: 2, critical: false }),
+        entry("MILESTONE", 10, { slackDays: 5, critical: false, hops: 1 }),
+      ],
+    );
+    const { onChain, withSlack } = chainEntries(view);
+    expect(onChain.map((e) => e.id)).toEqual([3, 8]);
+    expect(withSlack.map((e) => e.id)).toEqual([9, 10]);
+  });
+
+  test("a ghost PROJECT end hides the project entry only, not a milestone with the same id", () => {
+    const otherProject = endpoint({ kind: "PROJECT", id: 55, name: "P55", projectId: 55, projectName: "P55", teamId: null, teamName: null });
+    const view = viewWith([link(1, otherProject, endpoint({ id: 1 }))], [entry("PROJECT", 55), entry("MILESTONE", 55)]);
+    expect(chainEntries(view).onChain.map((e) => e.kind)).toEqual(["MILESTONE"]);
   });
 });

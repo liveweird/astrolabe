@@ -34,7 +34,8 @@
   "column": {
     "milestone": "Milestone",
     "team": "Team",
-    "estimate": "Estimate"
+    "estimate": "Estimate",
+    "slack": "Slack"
   },
   "estimateUnit_one": "{{count}} man-day",
   "estimateUnit_other": "{{count}} man-days",
@@ -110,6 +111,37 @@
   "conflicts_other": "{{count}} conflicts",
   "barConflicts_one": "{{count}} conflict",
   "barConflicts_other": "{{count}} conflicts",
+  "critical": {
+    "title": "Critical chain",
+    "intro": "The work in other projects whose slip would move this project's end. Its direct neighbours are the ghost rows on the timeline; the farther members are listed here, from the start of the chain.",
+    "slackDays_one": "{{count}} working day",
+    "slackDays_other": "{{count}} working days",
+    "slackCritical": "critical path",
+    "slackNone": "—",
+    "linkBadge": "Critical path",
+    "onChain": "On the chain",
+    "onChainAria": "Critical chain members in other projects",
+    "empty": "None: the chain lies inside this project.",
+    "emptyNeighbours": "No further members beyond the neighbours shown on the timeline.",
+    "notUpstream": "not upstream of this project's end",
+    "withSlack": "Upstream with slack",
+    "withSlackAria": "Upstream entries with slack",
+    "emptySlack": "None.",
+    "show": "Show the upstream entries with slack",
+    "hide": "Hide the upstream entries with slack",
+    "span": "{{start}} – {{end}}",
+    "truncatedNone": "More upstream entries with slack are not shown.",
+    "truncated_one": "Showing the {{count}} entry with the least slack; more are not shown.",
+    "truncated_other": "Showing the {{count}} entries with the least slack; more are not shown.",
+    "column": {
+      "hops": "Hops",
+      "name": "Name",
+      "kind": "Kind",
+      "project": "Project",
+      "dates": "Dates",
+      "slack": "Slack"
+    }
+  },
   "summaryTag": "(whole project)",
   "ghostName": "{{project}} › {{name}}",
   "ghostSpan": "{{name}}, {{start}} to {{end}}",

@@ -7,7 +7,7 @@ import { DndContext } from "@dnd-kit/core";
 import { Route, Routes } from "react-router-dom";
 import ProjectView from "./ProjectView";
 import type { DependencyEndpoint, ProjectDependency } from "../api/dependencies";
-import type { ProjectMilestone, ProjectView as ProjectViewDocument } from "../api/milestones";
+import type { ProjectMilestone, ProjectView as ProjectViewDocument, UpstreamEntity } from "../api/milestones";
 import { applySchedule } from "../utils/projectViewUpdate";
 import { headingOutline } from "../test/headings";
 import { jsonResponse } from "../test/http";
@@ -1125,5 +1125,205 @@ describe("Project view page: dependencies", () => {
     expect(await screen.findByRole("dialog", { name: "Delete project?" })).toHaveTextContent(
       'Project "Invoices" and its 4 milestones will be deleted. Its 2 dependencies will be deleted too.',
     );
+  });
+});
+
+// ---- the critical path (v0.7) --------------------------------------------------------------------------------------------
+
+const upstreamEntry = (kind: UpstreamEntity["kind"], id: number, name: string, over: Partial<UpstreamEntity> = {}): UpstreamEntity => ({
+  kind,
+  id,
+  name,
+  projectId: 99,
+  projectName: "Alpha",
+  startDate: "2027-01-04",
+  endDate: "2027-01-08",
+  slackDays: 0,
+  critical: true,
+  hops: 1,
+  ...over,
+});
+
+/** Discovery drives the end (slack 0), Build has 3 days; a1 (Alpha, a ghost row) → Discovery is the critical link, Discovery → Build is not. */
+const CRITICAL_LINK = dependencyOf(31, GHOST, endpointOf(DISCOVERY), { critical: true });
+const critically = (): ProjectViewDocument =>
+  viewOf({
+    scheduled: [{ ...DISCOVERY, slackDays: 0, critical: true }, { ...BUILD, slackDays: 3, critical: false }],
+    dependencies: [CRITICAL_LINK, OK_LINK],
+    criticalPath: {
+      upstream: [
+        upstreamEntry("MILESTONE", 21, "a1"),
+        // another milestone of Alpha: 1 hop too (containment is free) but NOT a ghost row
+        upstreamEntry("MILESTONE", 22, "a0", { startDate: "2026-12-14", endDate: "2026-12-18" }),
+        upstreamEntry("PROJECT", 98, "Gamma", { projectId: 98, projectName: "Gamma", hops: 2, startDate: "2026-11-02", endDate: "2026-12-11" }),
+        upstreamEntry("MILESTONE", 30, "b1", { projectId: 98, projectName: "Gamma", hops: 2, slackDays: 4, critical: false }),
+      ],
+      upstreamTruncated: false,
+    },
+  });
+
+const slackToggle = () => screen.getByRole("button", { name: "Critical path" });
+const rowOfName = (name: RegExp) => screen.getByRole("rowheader", { name }).closest<HTMLElement>('[role="row"]') as HTMLElement;
+/** The Slack cell of a row: the third gridcell after the name (team, estimate, slack). */
+const slackCell = (name: RegExp) => within(rowOfName(name)).getAllByRole("gridcell")[2].textContent;
+
+describe("Project view page: the critical path", () => {
+  test("off by default: the toggle is not pressed and nothing is critical - no column, no attribute, no badge, no section", async () => {
+    view = critically();
+    renderPage();
+    const grid = await screen.findByRole("grid", { name: "Milestone timeline" });
+    expect(slackToggle()).toHaveAttribute("aria-pressed", "false");
+    expect(within(grid).queryByRole("columnheader", { name: "Slack" })).toBeNull();
+    expect(document.querySelector("[data-critical]")).toBeNull();
+    expect(within(screen.getByRole("table", { name: "Dependencies of the project" })).queryByText("Critical path")).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Critical chain" })).toBeNull();
+    expect(barOf("Discovery")).toHaveAccessibleName("Discovery, Backend, 2027-01-11 to 2027-01-15, 12.25 man-days");
+  });
+
+  test("off, the page's DOM is the one it had before: critical data in the view changes nothing", async () => {
+    const strip = (v: ProjectViewDocument): ProjectViewDocument => ({
+      ...v,
+      scheduled: v.scheduled.map((m) => ({ ...m, slackDays: null, critical: false })),
+      dependencies: v.dependencies.map((d) => ({ ...d, critical: false })),
+      criticalPath: { upstream: [], upstreamTruncated: false },
+    });
+    // Generated ids differ between two mounts (React's, Mantine's, dnd-kit's) and so does the theme provider's <style>; everything else must be identical.
+    const dom = (container: HTMLElement) => container.innerHTML.replace(/<style[\s\S]*?<\/style>/g, "").replace(/mantine-[a-z0-9]{9}(?![a-z0-9])|DndDescribedBy-\d+|DndLiveRegion-\d+|:r[0-9a-z]+:/g, "ID");
+    view = strip(critically());
+    const first = renderPage();
+    await screen.findByRole("grid", { name: "Milestone timeline" });
+    const plain = dom(first.container);
+    first.unmount();
+    view = critically();
+    const second = renderPage();
+    await screen.findByRole("grid", { name: "Milestone timeline" });
+    expect(dom(second.container)).toBe(plain);
+  });
+
+  test("on: the toggle is pressed and remembered, the Slack column shows own and ghost rows, and critical bars and arrows are marked", async () => {
+    const user = userEvent.setup();
+    view = critically();
+    const first = renderPage();
+    const grid = await screen.findByRole("grid", { name: "Milestone timeline" });
+    await user.click(slackToggle());
+    expect(slackToggle()).toHaveAttribute("aria-pressed", "true");
+    expect(within(grid).getByRole("columnheader", { name: "Slack" })).toBeInTheDocument();
+    // own rows: "0" + the hidden words for the critical one, working days for the other; the ghost row shows the neighbour's slack by kind + id
+    expect(slackCell(/^Discovery/)).toBe("0 critical path");
+    expect(slackCell(/^Build/)).toBe("3 working days");
+    expect(slackCell(/Alpha › a1/)).toBe("0 critical path");
+    // bars: the critical milestone and the critical ghost, never the other; the accessible name says so
+    expect(barOf("Discovery")).toHaveAttribute("data-critical", "true");
+    expect(barOf("Discovery")).toHaveAccessibleName("Discovery, Backend, 2027-01-11 to 2027-01-15, 12.25 man-days, on the critical path");
+    expect(barOf("Build")).not.toHaveAttribute("data-critical");
+    expect(within(grid).getByRole("img", { name: /^a1, .*from project Alpha, on the critical path, read-only$/ })).toHaveAttribute("data-critical", "true");
+    // arrows: the critical link only
+    expect(arrows().map((a) => [a.getAttribute("data-arrow"), a.getAttribute("data-critical")])).toEqual([
+      ["31", "true"],
+      ["32", null],
+    ]);
+    expect(document.querySelector("marker#timeline-arrowhead-critical")).not.toBeNull();
+    // the Dependencies table: a gray badge on the critical link's row only
+    const [critical, plain] = tableRows();
+    expect(within(critical).getByText("Critical path")).toBeInTheDocument();
+    expect(within(plain).queryByText("Critical path")).toBeNull();
+    expect(localStorage.getItem("astrolabe.viewSettings.timeline.criticalPath")).toBe("true");
+
+    // remembered across visits
+    first.unmount();
+    renderPage();
+    await screen.findByRole("grid", { name: "Milestone timeline" });
+    expect(slackToggle()).toHaveAttribute("aria-pressed", "true");
+    // and off again takes everything away
+    await user.click(slackToggle());
+    expect(slackToggle()).toHaveAttribute("aria-pressed", "false");
+    expect(document.querySelector("[data-critical]")).toBeNull();
+    expect(screen.queryByRole("columnheader", { name: "Slack" })).toBeNull();
+  });
+
+  test("the heading outline gains Critical chain between Dependencies and Idle gaps", async () => {
+    const user = userEvent.setup();
+    view = critically();
+    renderPage();
+    await screen.findByRole("grid", { name: "Milestone timeline" });
+    await user.click(slackToggle());
+    expect(headingOutline()).toEqual([
+      [2, "Invoices"],
+      [3, "Timeline"],
+      [3, "Unscheduled"],
+      [3, "Dependencies"],
+      [3, "Critical chain"],
+      [3, "Idle gaps"],
+    ]);
+  });
+
+  test("the Critical chain lists the members beyond the ghost rows - not the ghost's own entry - and keeps the others behind a disclosure", async () => {
+    const user = userEvent.setup();
+    view = critically();
+    renderPage();
+    await screen.findByRole("grid", { name: "Milestone timeline" });
+    await user.click(slackToggle());
+    const chain = within(await screen.findByRole("table", { name: "Critical chain members in other projects" }));
+    const rows = chain.getAllByRole("row").slice(1).map((row) => within(row).getAllByRole("cell").map((cell) => cell.textContent));
+    // the server's order; a1 is a ghost row, a0 has 1 hop too and stays (hops are no filter)
+    expect(rows).toEqual([
+      ["1", "a0", "Milestone", "Alpha", "2026-12-14 – 2026-12-18", "0 working days"],
+      ["2", "Gamma", "Project", "Gamma", "2026-11-02 – 2026-12-11", "0 working days"],
+    ]);
+    expect(chain.getByRole("link", { name: "a0 - open project Alpha" })).toHaveAttribute("href", "/projects/99");
+    expect(chain.getByRole("link", { name: "Gamma - open project Gamma" })).toHaveAttribute("href", "/projects/98");
+    expect(screen.queryByRole("table", { name: "Upstream entries with slack" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Show the upstream entries with slack" }));
+    const slack = within(await screen.findByRole("table", { name: "Upstream entries with slack" }));
+    expect(slack.getAllByRole("row").slice(1).map((row) => within(row).getAllByRole("cell").map((cell) => cell.textContent))).toEqual([
+      ["2", "b1", "Milestone", "Gamma", "2027-01-04 – 2027-01-08", "4 working days"],
+    ]);
+    expect(screen.queryByText(/not shown/)).toBeNull();
+  });
+
+  test("a ghost the server does not list upstream shows a dash for its slack and is not emphasised; a chain inside the project says so", async () => {
+    const user = userEvent.setup();
+    view = viewOf({
+      scheduled: [{ ...DISCOVERY, slackDays: 0, critical: true }, BUILD],
+      // the ghost is a SUCCESSOR's end (downstream-only): it is a ghost row but not upstream
+      dependencies: [dependencyOf(31, endpointOf(DISCOVERY), GHOST)],
+    });
+    renderPage();
+    const grid = await screen.findByRole("grid", { name: "Milestone timeline" });
+    await user.click(slackToggle());
+    expect(slackCell(/Alpha › a1/)).toBe("—not upstream of this project's end");
+    expect(within(grid).getByRole("img", { name: /^a1, / })).not.toHaveAttribute("data-critical");
+    expect(screen.getByText("None: the chain lies inside this project.")).toBeInTheDocument();
+    expect(screen.queryByRole("table", { name: "Critical chain members in other projects" })).toBeNull();
+  });
+
+  test("the summary bar is emphasised when a critical link ends on the project, and its slack cell stays empty", async () => {
+    const user = userEvent.setup();
+    view = viewOf({ dependencies: [dependencyOf(34, GHOST, WHOLE_PROJECT, { critical: true })], criticalPath: { upstream: [upstreamEntry("MILESTONE", 21, "a1")], upstreamTruncated: false } });
+    renderPage();
+    const grid = await screen.findByRole("grid", { name: "Milestone timeline" });
+    await user.click(slackToggle());
+    const summary = within(grid).getByRole("img", { name: "Invoices, the project's span 2027-01-11 to 2027-01-29, on the critical path, read-only" });
+    expect(summary).toHaveAttribute("data-critical", "true");
+    expect(summary).toHaveAttribute("data-tone", "summary");
+    expect(slackCell(/\(whole project\)/)).toBe("");
+  });
+
+  test("a truncated upstream list says the rest is not shown", async () => {
+    const user = userEvent.setup();
+    view = critically();
+    view = { ...view, criticalPath: { ...view.criticalPath, upstreamTruncated: true } };
+    renderPage();
+    await screen.findByRole("grid", { name: "Milestone timeline" });
+    await user.click(slackToggle());
+    expect(screen.getByText("Showing the 1 entry with the least slack; more are not shown.")).toBeInTheDocument();
+  });
+
+  test("a project with no milestones has no timeline, no toggle and no Critical chain section", async () => {
+    localStorage.setItem("astrolabe.viewSettings.timeline.criticalPath", "true");
+    view = viewOf({ scheduled: [], unscheduled: [] });
+    renderPage();
+    await screen.findByText("No milestones yet");
+    expect(screen.queryByRole("heading", { name: "Critical chain" })).toBeNull();
   });
 });

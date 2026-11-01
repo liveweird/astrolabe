@@ -79,6 +79,8 @@ export interface TimelineProps {
   holidays?: readonly TimelineHoliday[];
   /** The dictionary could not be loaded, so `holidays` is empty for want of it: a small muted note says the days off are not marked. */
   holidaysFailed?: boolean;
+  /** The page's own toolbar controls (v0.7: the project page's critical-path toggle), rendered after Today inside the toolbar group. */
+  toolbar?: ReactNode;
   /** More rows than this are virtualised; fewer or equal are all mounted. */
   virtualizeFrom?: number;
   maxHeight?: number | string;
@@ -117,6 +119,7 @@ export default function Timeline({
   strip,
   holidays,
   holidaysFailed = false,
+  toolbar,
   virtualizeFrom = DEFAULT_VIRTUALIZE_FROM,
   maxHeight = 640,
   busy = false,
@@ -328,7 +331,9 @@ export default function Timeline({
 
   return (
     <Stack gap="xs">
-      <TimelineToolbar zoom={scale.zoom} zooms={zooms} onZoomChange={onZoomChange} onToday={scrollToToday} todayDisabled={!todayInRange} />
+      <TimelineToolbar zoom={scale.zoom} zooms={zooms} onZoomChange={onZoomChange} onToday={scrollToToday} todayDisabled={!todayInRange}>
+        {toolbar}
+      </TimelineToolbar>
       {holidaysFailed && (
         <Text size="xs" c="dimmed">
           {t("timeline.holidaysUnavailable")}

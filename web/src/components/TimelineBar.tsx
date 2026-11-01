@@ -68,6 +68,10 @@ const toneClass = (bar: TimelineBarData) => {
   return tone === undefined ? "" : TONE_CLASS[tone];
 };
 
+/** The critical-path emphasis (v0.7): a leading-space class so a bar without it keeps its exact class string. */
+const emphasisClass = (bar: TimelineBarData) => (bar.emphasis === "critical" ? ` ${classes.timelineBarCritical}` : "");
+const emphasisAttr = (bar: TimelineBarData) => (bar.emphasis === "critical" ? "true" : undefined);
+
 function ReadOnlyBar({ bar, geometry, roving }: BarProps) {
   const { t } = useTranslation();
   const tone = toneClass(bar);
@@ -76,8 +80,9 @@ function ReadOnlyBar({ bar, geometry, roving }: BarProps) {
       <div
         role="img"
         aria-label={t("timeline.bar.readOnly", { label: bar.describe })}
-        className={`${classes.timelineBarBody} ${tone}`}
+        className={`${classes.timelineBarBody} ${tone}${emphasisClass(bar)}`}
         data-tone={bar.tone}
+        data-critical={emphasisAttr(bar)}
         {...roving(0)}
       />
     </div>
@@ -113,7 +118,8 @@ function EditableBar({ bar, geometry, handleWidth, roving }: BarProps & { handle
         ref={bodyRef}
         aria-label={bar.describe}
         data-tone={toneOf(bar)}
-        className={`${classes.timelineBarBody} ${toneClass(bar)} ${classes.timelineBarEditable} ${dragging ? classes.timelineBarDragging : ""}`}
+        data-critical={emphasisAttr(bar)}
+        className={`${classes.timelineBarBody} ${toneClass(bar)} ${classes.timelineBarEditable} ${dragging ? classes.timelineBarDragging : ""}${emphasisClass(bar)}`}
         {...bodyAttrs}
         {...bodyListeners}
         {...roving(0)}

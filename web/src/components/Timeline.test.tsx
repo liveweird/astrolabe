@@ -1971,3 +1971,62 @@ describe("public holidays", () => {
     expect(gradientCount(trackOf()?.style.backgroundImage)).toBe(1);
   });
 });
+
+describe("the critical-path highlight (v0.7)", () => {
+  const critical = (b: TimelineBarData, over: Partial<TimelineBarData> = {}): TimelineBarData => ({ ...b, emphasis: "critical", ...over });
+  const arrow = (id: string, critical?: boolean, violated = false): TimelineArrowData => ({
+    id,
+    from: { row: 1, bar: 1, kind: "END" },
+    to: { row: 2, bar: 2, kind: "START" },
+    violated,
+    critical,
+    label: `${id} label`,
+  });
+
+  test("the toolbar slot renders the page's controls after Today, inside the toolbar group", () => {
+    renderWithProviders(<Harness toolbar={<button type="button">Page control</button>} />);
+    const group = screen.getByRole("group", { name: "Timeline controls" });
+    const labels = within(group).getAllByRole("button").map((b) => b.textContent);
+    expect(labels).toEqual(expect.arrayContaining(["Today", "Page control"]));
+    expect(labels.indexOf("Page control")).toBeGreaterThan(labels.indexOf("Today"));
+  });
+
+  test("an emphasised bar carries data-critical on the editable and the read-only bar, whatever its tone; the others carry nothing", () => {
+    const rows = [
+      row(1, "Discovery", [critical(DISCOVERY)]),
+      row(2, "Build", [critical(BUILD, { tone: "ghost" })]),
+      row(3, "Launch", [bar(3, "Launch", "2026-09-28", "2026-09-30", false)]),
+    ];
+    renderWithProviders(<Harness rows={rows} />);
+    expect(screen.getByRole("button", { name: /^Discovery, Team A/ })).toHaveAttribute("data-critical", "true");
+    expect(screen.getByRole("img", { name: /^Build, Team A/ })).toHaveAttribute("data-critical", "true");
+    expect(screen.getByRole("img", { name: /^Launch, Team A/ })).not.toHaveAttribute("data-critical");
+  });
+
+  test("a bar without emphasis renders exactly as before (no critical attribute, no critical class)", () => {
+    const { container } = renderWithProviders(<Harness />);
+    expect(container.querySelector("[data-critical]")).toBeNull();
+    expect(container.innerHTML).not.toMatch(/timelineBarCritical/);
+  });
+
+  test("a critical arrow has data-critical and its own arrowhead; the plain and the violated ones (red, even if flagged) do not", () => {
+    const arrows = [arrow("plain"), arrow("crit", true), arrow("late", true, true)];
+    const { container } = renderWithProviders(<Harness overlay={(geometry) => <TimelineArrows arrows={arrows} geometry={geometry} />} />);
+    const paths = Array.from(container.querySelectorAll<SVGPathElement>("path[data-arrow]"));
+    expect(paths.map((p) => [p.dataset.arrow, p.dataset.critical])).toEqual([
+      ["plain", undefined],
+      ["crit", "true"],
+      ["late", undefined],
+    ]);
+    expect(paths[0].getAttribute("marker-end")).toBe("url(#timeline-arrowhead)");
+    expect(paths[1].getAttribute("marker-end")).toBe("url(#timeline-arrowhead-critical)");
+    // a violated arrow stays red, flagged or not
+    expect(paths[2].getAttribute("marker-end")).toBe("url(#timeline-arrowhead-violated)");
+    expect(container.querySelector("marker#timeline-arrowhead-critical")).not.toBeNull();
+  });
+
+  test("with no critical arrow there is no third marker", () => {
+    const { container } = renderWithProviders(<Harness overlay={(geometry) => <TimelineArrows arrows={[arrow("plain")]} geometry={geometry} />} />);
+    expect(container.querySelector("marker#timeline-arrowhead-critical")).toBeNull();
+  });
+});

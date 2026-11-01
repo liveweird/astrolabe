@@ -52,6 +52,11 @@ export interface TimelineBarData {
    * ordinary neutral bar.
    */
   tone?: "ghost" | "summary" | "window";
+  /**
+   * v0.7 critical-path emphasis, independent of `tone` and honoured on an editable AND a read-only bar: `critical` = a text-colour outline
+   * and `data-critical="true"` (monochrome, no new hue). Absent = nothing is drawn or rendered extra.
+   */
+  emphasis?: "critical";
 }
 
 export interface TimelineBandData {
@@ -87,6 +92,8 @@ export interface TimelineArrowData {
   to: TimelineArrowEnd;
   /** The constraint does not hold: drawn red (and `data-violated="true"`). */
   violated: boolean;
+  /** v0.7: a zero-slack link on the critical chain: a heavier text-colour stroke with its own arrowhead and `data-critical="true"`. A violated arrow stays red. */
+  critical?: boolean;
   /** A short human description ("A → B, FS"); the path's `<title>` (not an accessible name: the svg is `aria-hidden`). */
   label: string;
 }

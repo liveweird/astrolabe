@@ -181,6 +181,8 @@
   --timeline-overload: light-dark(var(--mantine-color-orange-8), var(--mantine-color-orange-5));
   --timeline-arrow: var(--mantine-color-dimmed);
   --timeline-violation: light-dark(var(--mantine-color-red-8), var(--mantine-color-red-5));
+  /* The critical-path highlight (v0.7, D7): monochrome - the text colour, no new hue. An outline on a bar, a heavier stroke on an arrow. */
+  --timeline-critical: var(--mantine-color-text);
   position: relative;
   font-size: var(--mantine-font-size-sm);
   background: var(--mantine-color-body);
@@ -502,9 +504,16 @@
   border: 2px solid var(--timeline-bar);
 }
 
+/* The critical-path emphasis (TimelineBarData.emphasis, v0.7): a text-colour outline around the bar, whatever its tone. The focus ring (two classes) still wins. */
+.timelineBarCritical {
+  outline: 2px solid var(--timeline-critical);
+  outline-offset: 1px;
+}
+
 /* Dependency arrows (TimelineArrows): gray; a violated constraint is red (web/CLAUDE.md colour vocabulary). */
 .timelineArrow,
-.timelineArrowViolated {
+.timelineArrowViolated,
+.timelineArrowCritical {
   fill: none;
   stroke-width: 1.5;
   stroke-linejoin: round;
@@ -521,8 +530,18 @@
   stroke: var(--timeline-violation);
 }
 
+/* A critical link (v0.7): 2.5 px in the text colour at full opacity, with its own arrowhead. Declared after the shared rule so its width wins. */
+.timelineArrowCritical {
+  stroke: var(--timeline-critical);
+  stroke-width: 2.5;
+}
+
 .timelineArrowHead {
   fill: var(--timeline-arrow);
+}
+
+.timelineArrowHeadCritical {
+  fill: var(--timeline-critical);
 }
 
 .timelineArrowHeadViolated {

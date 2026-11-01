@@ -18,6 +18,7 @@ import FormErrorAlert from "../components/FormErrorAlert";
 import MilestoneEditorModal from "../components/MilestoneEditorModal";
 import MilestoneScheduleModal from "../components/MilestoneScheduleModal";
 import PageHeader from "../components/PageHeader";
+import CriticalChain from "../components/CriticalChain";
 import IdleGaps from "../components/IdleGaps";
 import ProjectDependencies from "../components/ProjectDependencies";
 import ProjectEditorModal from "../components/ProjectEditorModal";
@@ -25,7 +26,7 @@ import ProjectTimeline, { ProjectTray, type MilestoneActions } from "../componen
 import TimelineDndContext from "../components/TimelineDndContext";
 import { useDeleteConfirm } from "../hooks/useDeleteConfirm";
 import { useMilestoneSchedule } from "../hooks/useMilestoneSchedule";
-import { isOneOf, useStoredState } from "../hooks/useStoredState";
+import { isBoolean, isOneOf, useStoredState } from "../hooks/useStoredState";
 import { localIsoDate } from "../utils/isoDate";
 import { planPath } from "../utils/planLinks";
 import { conflictCount, linksOfMilestone } from "../utils/projectDependencies";
@@ -104,6 +105,8 @@ function ProjectPage({ id }: { id: number }) {
   const schedule = useMilestoneSchedule(id);
   const { view, query } = schedule;
   const [zoom, setZoom] = useStoredState<Zoom>("timeline.zoom", "week", isOneOf(MILESTONE_ZOOMS));
+  // The critical-path highlight (v0.7), remembered like the zoom: the Slack column, the bar and arrow emphasis, the badges and the Critical chain section.
+  const [criticalPath, setCriticalPath] = useStoredState("timeline.criticalPath", false, isBoolean);
   const [editor, setEditor] = useState<Editor | null>(null);
   const [scheduling, setScheduling] = useState<Scheduling | null>(null);
   // The earliest and latest day this page has shown: the range only ever grows, so a drag never shifts the bars under the pointer.
@@ -177,7 +180,12 @@ function ProjectPage({ id }: { id: number }) {
   const milestoneCount = view.scheduled.length + view.unscheduled.length;
   const canTrayEdit = view.unscheduled.some((m) => m.can.schedule);
   const closeEditor = () => setEditor(null);
-  const dependencies = <ProjectDependencies view={view} onAdd={() => setEditor({ kind: "dependency", successor: null })} />;
+  const dependencies = <ProjectDependencies view={view} onAdd={() => setEditor({ kind: "dependency", successor: null })} showCritical={criticalPath} />;
+  const criticalToggle = (
+    <Button size="compact-sm" variant={criticalPath ? "filled" : "default"} aria-pressed={criticalPath} onClick={() => setCriticalPath(!criticalPath)}>
+      {t("timeline.criticalToggle")}
+    </Button>
+  );
   const saved = async () => {
     closeEditor();
     await refreshQueriesAfterMutation(queryClient, ["plan"], ["roadmap"]);
@@ -274,6 +282,8 @@ function ProjectPage({ id }: { id: number }) {
               busy={schedule.pending}
               actions={actions}
               label={t("project.timelineAria")}
+              criticalPath={criticalPath}
+              toolbar={criticalToggle}
             />
           </Stack>
           <Stack gap="xs">
@@ -291,6 +301,8 @@ function ProjectPage({ id }: { id: number }) {
       )}
       {/* After the tray, not between: the tray's pointer drop needs it close to the timeline (and in view with it). */}
       {dependencies}
+      {/* Between the links and the idle gaps; only with the timeline (its toggle is the way out of it). */}
+      {criticalPath && milestoneCount > 0 && <CriticalChain view={view} />}
       {/* Only with something scheduled: an empty or all-tray project has no span to be idle in. */}
       {view.scheduled.length > 0 && <IdleGaps gaps={view.idleGaps} scope="project" />}
 

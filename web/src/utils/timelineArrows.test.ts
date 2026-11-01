@@ -149,9 +149,9 @@ describe("arrowsToDraw", () => {
   test("resolves ids to rows and bars; flag and label travel with the path", () => {
     const drawn = arrowsToDraw([arrow("ab", ["a", 1], ["b", 2]), arrow("bc", ["b", 2], ["c", 3], true)], geometryOf(rows, everything));
     expect(drawn).toEqual([
-      { id: "ab", d: "M150 18 L158 18 L158 54 L200 54", violated: false, label: "ab label" },
+      { id: "ab", d: "M150 18 L158 18 L158 54 L200 54", violated: false, critical: false, label: "ab label" },
       // b ends at 250 and c starts at 120: backward, and c's row (2) is below b's, so the backtrack runs along the top of row 2 (y 72)
-      { id: "bc", d: "M250 54 L258 54 L258 72 L112 72 L112 90 L120 90", violated: true, label: "bc label" },
+      { id: "bc", d: "M250 54 L258 54 L258 72 L112 72 L112 90 L120 90", violated: true, critical: false, label: "bc label" },
     ]);
   });
 

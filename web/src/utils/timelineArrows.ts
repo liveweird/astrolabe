@@ -75,6 +75,7 @@ export interface DrawnArrow {
   id: string | number;
   d: string;
   violated: boolean;
+  critical: boolean;
   label: string;
 }
 
@@ -97,7 +98,7 @@ export function arrowsToDraw(arrows: readonly TimelineArrowData[], geometry: Tim
     // Backtracking runs along the boundary on the predecessor's side of the successor's row.
     const detourY = fromRow < toRow ? geometry.rowTop(toRow) : geometry.rowTop(toRow) + geometry.rowHeight;
     const route = arrowRoute(anchorOf(fromRect, arrow.from.kind), anchorOf(toRect, arrow.to.kind), detourY);
-    drawn.push({ id: arrow.id, d: arrowPath(route), violated: arrow.violated, label: arrow.label });
+    drawn.push({ id: arrow.id, d: arrowPath(route), violated: arrow.violated, critical: arrow.critical === true, label: arrow.label });
   }
   return drawn;
 }

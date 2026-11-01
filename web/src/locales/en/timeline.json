@@ -13,6 +13,7 @@
   "holidaysInView": "Public holidays shown: {{list}}",
   "holidaysInViewMany": "{{count}} public holidays shown; the next ones: {{list}}",
   "holidaysUnavailable": "Public holidays could not be loaded; days off are not marked.",
+  "criticalToggle": "Critical path",
   "idle": {
     "title": "Idle gaps",
     "introProject": "Runs of three or more working days inside the project's schedule when none of its milestones is in progress. Weekends and public holidays do not count. Information only — nothing moves.",
@@ -34,6 +35,7 @@
     "handleRoleDescription": "resize handle",
     "readOnly": "{{label}}, read-only",
     "ghost": "{{label}}, from project {{project}}",
+    "critical": "on the critical path",
     "summary": "{{name}}, the project's span {{start}} to {{end}}",
     "window": "{{name}}, target window {{start}} to {{end}}",
     "startHandleAria": "Resize start of {{name}}",

@@ -11,6 +11,7 @@ type Schemas = components["schemas"];
 export type ProjectView = Schemas["ProjectView"];
 export type ProjectMilestone = Schemas["ProjectMilestone"];
 export type IdleGap = Schemas["IdleGap"];
+export type UpstreamEntity = Schemas["UpstreamEntity"];
 export type MilestoneBody = Schemas["MilestoneCreateRequest"] & Schemas["MilestoneUpdateRequest"];
 export type ScheduleBody = Schemas["MilestoneScheduleRequest"];
 type MilestonePage = Schemas["MilestonePage"];

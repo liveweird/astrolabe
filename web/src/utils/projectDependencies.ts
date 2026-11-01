@@ -1,5 +1,5 @@
-import type { DependencyEndpoint, ProjectDependency } from "../api/dependencies";
-import type { ProjectView } from "../api/milestones";
+import type { DependencyEndpoint, EndpointKind, ProjectDependency } from "../api/dependencies";
+import type { ProjectView, UpstreamEntity } from "../api/milestones";
 import { arrowSpecsFor, conflictCountOf, conflictsByBarFor } from "./dependencyArrows";
 import type { BarId, TimelineArrowData } from "./timelineModel";
 
@@ -64,6 +64,37 @@ function barOf(endpoint: DependencyEndpoint, view: ProjectView): BarId {
 
 /**
  * One arrow per link that has dates on both ends (an UNSCHEDULED link has no bar to point at). The Timeline skips an arrow whose row
- * or bar it does not have (a tray milestone's, a project with no span), so a link to one is simply not drawn.
+ * or bar it does not have (a tray milestone's, a project with no span), so a link to one is simply not drawn. `critical` (the page's
+ * critical-path toggle) flags the arrows of the links the server marked `critical`; off, no arrow carries the flag.
  */
-export const arrowSpecs = (view: ProjectView): TimelineArrowData[] => arrowSpecsFor(view.dependencies, (endpoint) => barOf(endpoint, view));
+export function arrowSpecs(view: ProjectView, critical = false): TimelineArrowData[] {
+  const specs = arrowSpecsFor(view.dependencies, (endpoint) => barOf(endpoint, view));
+  if (!critical) return specs;
+  const criticalIds = new Set(view.dependencies.filter((dependency) => dependency.critical).map((dependency) => dependency.id));
+  return specs.map((spec) => (criticalIds.has(spec.id as number) ? { ...spec, critical: true } : spec));
+}
+
+// ---- the critical path (v0.7): what `view.criticalPath.upstream` means for the rows and the Critical chain list ----
+
+/** An entity's identity across the view's lists (a link end, an upstream entry): its kind and id. */
+const entityKey = (entity: { kind: EndpointKind; id: number }) => `${entity.kind}:${entity.id}`;
+
+/** The server's upstream entries by kind + id: the lookup behind a ghost row's slack and emphasis (never by `hops`: a milestone of a project a link names is 1 hop, but only the project is a ghost row). */
+export const upstreamIndex = (view: ProjectView): ReadonlyMap<string, UpstreamEntity> => new Map(view.criticalPath.upstream.map((entry) => [entityKey(entry), entry]));
+
+/** The upstream entry of a ghost endpoint, or undefined when it is downstream-only or unconnected to this project's end. */
+export const upstreamOf = (index: ReadonlyMap<string, UpstreamEntity>, endpoint: DependencyEndpoint): UpstreamEntity | undefined => index.get(entityKey(endpoint));
+
+/** Does a critical link end on the project ITSELF? The summary bar is then on the critical path. */
+export const summaryCritical = (view: ProjectView): boolean =>
+  view.dependencies.some((dependency) => dependency.critical && ends(dependency).some((endpoint) => isOwnProject(endpoint, view)));
+
+/**
+ * The Critical chain list: the server's `upstream` minus the entities already drawn as ghost rows (matched by kind + id, the slack shows
+ * in the row), in the server's order, split into the chain (`critical`) and the entries that have slack.
+ */
+export function chainEntries(view: ProjectView): { onChain: UpstreamEntity[]; withSlack: UpstreamEntity[] } {
+  const ghosts = new Set(ghostEndpoints(view).map(entityKey));
+  const listed = view.criticalPath.upstream.filter((entry) => !ghosts.has(entityKey(entry)));
+  return { onChain: listed.filter((entry) => entry.critical), withSlack: listed.filter((entry) => !entry.critical) };
+}

@@ -44,7 +44,18 @@ function StatusBadge({ dependency }: { dependency: ProjectDependency }) {
 const lagText = (lagDays: number, t: TFunction) =>
   lagDays < 0 ? `${t("project.dependency.lag", { count: lagDays })} ${t("project.dependency.lead")}` : t("project.dependency.lag", { count: lagDays });
 
-function DependencyRow({ dependency, ownProjectId, onDelete }: { dependency: ProjectDependency; ownProjectId: number; onDelete: (dependency: ProjectDependency) => void }) {
+function DependencyRow({
+  dependency,
+  ownProjectId,
+  showCritical,
+  onDelete,
+}: {
+  dependency: ProjectDependency;
+  ownProjectId: number;
+  /** The critical-path toggle is on (v0.7): a critical link carries a gray "Critical path" badge. */
+  showCritical: boolean;
+  onDelete: (dependency: ProjectDependency) => void;
+}) {
   const { t } = useTranslation();
   const { predecessor, successor, check } = dependency;
   const name = `${endpointText(predecessor, ownProjectId, t)} → ${endpointText(successor, ownProjectId, t)}`;
@@ -53,6 +64,11 @@ function DependencyRow({ dependency, ownProjectId, onDelete }: { dependency: Pro
       {/* Status, type and dates stay on one line (a badge clips its sentence, a date must not break at its hyphens); the ends wrap. */}
       <Table.Td style={NO_WRAP}>
         <StatusBadge dependency={dependency} />
+        {showCritical && dependency.critical && (
+          <Badge color="gray" variant="light" tt="none" miw="max-content" ml="xs">
+            {t("project.critical.linkBadge")}
+          </Badge>
+        )}
       </Table.Td>
       <Table.Td>{endpointText(predecessor, ownProjectId, t)}</Table.Td>
       <Table.Td>{t(`project.dependency.type.${dependency.type}`)}</Table.Td>
@@ -78,9 +94,10 @@ function DependencyRow({ dependency, ownProjectId, onDelete }: { dependency: Pro
  * The project's Dependencies section: the ACCESSIBLE surface of the links (the timeline's arrows are decoration). One row per link in
  * the server's order - violated first, largest shortfall first, so the top of the table is the conflict list - with what each
  * needs and what it has. Delete (the successor's chain, `can.delete`) confirms through `useDeleteConfirm`; "Add dependency" asks the
- * page to open the editor (`onAdd`), which also serves the milestone row menu's shortcut.
+ * page to open the editor (`onAdd`), which also serves the milestone row menu's shortcut. `showCritical` (the page's critical-path toggle,
+ * v0.7) adds a gray "Critical path" badge to the links the server marked `critical`.
  */
-export default function ProjectDependencies({ view, onAdd }: { view: ProjectView; onAdd: () => void }) {
+export default function ProjectDependencies({ view, onAdd, showCritical = false }: { view: ProjectView; onAdd: () => void; showCritical?: boolean }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const removal = useDeleteConfirm<ProjectDependency>({
@@ -123,7 +140,7 @@ export default function ProjectDependencies({ view, onAdd }: { view: ProjectView
               </Table.Thead>
               <Table.Tbody>
                 {dependencies.map((dependency) => (
-                  <DependencyRow key={dependency.id} dependency={dependency} ownProjectId={project.id} onDelete={removal.requestDelete} />
+                  <DependencyRow key={dependency.id} dependency={dependency} ownProjectId={project.id} showCritical={showCritical} onDelete={removal.requestDelete} />
                 ))}
               </Table.Tbody>
             </Table>

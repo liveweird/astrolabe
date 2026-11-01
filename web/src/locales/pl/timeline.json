@@ -13,6 +13,7 @@
   "holidaysInView": "Widoczne święta państwowe: {{list}}",
   "holidaysInViewMany": "Widoczne święta państwowe: {{count}}; najbliższe: {{list}}",
   "holidaysUnavailable": "Nie udało się wczytać świąt państwowych; dni wolne nie są zaznaczone.",
+  "criticalToggle": "Ścieżka krytyczna",
   "idle": {
     "title": "Przestoje",
     "introProject": "Ciągi co najmniej trzech dni roboczych w harmonogramie projektu, w których żaden jego kamień milowy nie jest w toku. Weekendy i święta państwowe nie liczą się. Tylko informacja – nic się nie przesuwa.",
@@ -38,6 +39,7 @@
     "handleRoleDescription": "uchwyt zmiany długości",
     "readOnly": "{{label}}, tylko do odczytu",
     "ghost": "{{label}}, z projektu {{project}}",
+    "critical": "na ścieżce krytycznej",
     "summary": "{{name}}, zakres projektu od {{start}} do {{end}}",
     "window": "{{name}}, okno docelowe od {{start}} do {{end}}",
     "startHandleAria": "Zmień początek: {{name}}",
