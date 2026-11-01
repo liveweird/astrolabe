@@ -25,8 +25,11 @@ internal class RoadmapSnapshot(
 /** A project row with the owner chain `can.editTargetWindow` needs; [loadRoadmapSnapshot] completes it into a [RoadmapProject]. */
 private class ProjectRow(val project: RoadmapProject, val chain: OwnerChain, val target: DaySpan?)
 
-/** An ACTIVE milestone with its team's name, read for the facts, the team filter and the project's `teamIds`. */
-private class MilestoneRow(val fact: PlanMilestoneFact, val teamName: String)
+/**
+ * An ACTIVE milestone with its team's name and its own [name], read for the facts, the team filter and the project's `teamIds`
+ * (the roadmap) and for the critical path's upstream entries (the project view).
+ */
+internal class MilestoneFactRow(val fact: PlanMilestoneFact, val teamName: String, val name: String)
 
 /**
  * Loads the four row sets (projects with their rank and owner chains, milestones, links) and runs [RoadmapKernels] ONCE: the derived
@@ -39,7 +42,7 @@ internal suspend fun loadRoadmapSnapshot(actor: PlanActor): RoadmapSnapshot {
     val calendar = loadWorkingCalendar()
     val rows = projectRows()
     val ranks = rankPositions()
-    val milestones = milestoneRows()
+    val milestones = milestoneFacts()
     val known = rows.keys
     val facts = milestones.map { it.fact }.filter { it.projectId in known }
     val projectFacts = rows.values.map { row ->
@@ -123,18 +126,21 @@ private suspend fun rankPositions(): Map<UInt, Int> {
 /**
  * Every ACTIVE milestone with its team's name, read WITHOUT an `active()` filter on the team or the project: an active milestone's
  * team is always active (`TeamService.delete`'s 409) and its project too (the project delete cascades), the `ownerNames` reasoning.
+ * Shared by the roadmap and programs views and the project view's critical path (one statement shape, one snapshot each).
  */
-private suspend fun milestoneRows(): List<MilestoneRow> {
+internal suspend fun milestoneFacts(): List<MilestoneFactRow> {
     val milestones = MilestoneService.Milestones
     val teams = TeamService.Teams
     return milestones.innerJoin(teams, { milestones.teamId }, { teams.id })
-        .select(milestones.id, milestones.projectId, milestones.teamId, milestones.startDate, milestones.endDate, teams.name)
+        .select(
+            milestones.id, milestones.projectId, milestones.teamId, milestones.startDate, milestones.endDate, milestones.name, teams.name,
+        )
         .where { milestones.active() }
         .toList()
         .map { row ->
             val start = row[milestones.startDate]
             val end = row[milestones.endDate]
-            MilestoneRow(
+            MilestoneFactRow(
                 fact = PlanMilestoneFact(
                     id = row[milestones.id].value,
                     projectId = row[milestones.projectId].value,
@@ -142,12 +148,13 @@ private suspend fun milestoneRows(): List<MilestoneRow> {
                     span = if (start != null && end != null) DaySpan(start, end) else null,
                 ),
                 teamName = row[teams.name],
+                name = row[milestones.name],
             )
         }
 }
 
 /** Every ACTIVE link as the kernels' input. */
-private suspend fun linkFacts(): List<PlanLinkFact> {
+internal suspend fun linkFacts(): List<PlanLinkFact> {
     val links = DependencyService.Dependencies
     return links.selectAll().where { links.active() }.orderBy(links.id).toList().map { row ->
         PlanLinkFact(
@@ -158,4 +165,11 @@ private suspend fun linkFacts(): List<PlanLinkFact> {
             lagDays = row[links.lagDays],
         )
     }
+}
+
+/** Every ACTIVE project's name by id (about 100 rows): the critical path's upstream entries name their project. */
+internal suspend fun activeProjectNames(): Map<UInt, String> {
+    val projects = ProjectService.Projects
+    val rows = projects.select(projects.id, projects.name).where { projects.active() }.toList()
+    return rows.associate { it[projects.id].value to it[projects.name] }
 }

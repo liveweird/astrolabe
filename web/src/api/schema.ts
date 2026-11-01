@@ -1007,8 +1007,9 @@ export interface paths {
          * @description ADMIN or the ACTIVE manager of the milestone's team - the project's owner is NOT enough (`403`). Read-before-guard (404, then 403,
          *     then the body); the guard is re-run under the plan lock against the milestone's stored team, so a manager revoked meanwhile is a
          *     `403`, not a `409`. `startDate` and `endDate` are both set or both null (`400` otherwise); both null unschedules (back to the
-         *     tray). Dates are inclusive, the end not before the start, and the span must contain a Monday-Friday day (`400` "A milestone
-         *     must cover at least one working day"). Concurrency is PER MILESTONE: `expectedRevision` is the plan revision of the client's view
+         *     tray). Dates are inclusive, the end not before the start, and the span must contain at least one WORKING day - a Monday-Friday
+         *     that is not a public holiday of the ADMIN-curated dictionary (`400` "A milestone must cover at least one working day" for a span of
+         *     only weekend days and holidays; a milestone that LATER loses its last working day to a new holiday keeps its dates). Concurrency is PER MILESTONE: `expectedRevision` is the plan revision of the client's view
          *     (the `revision` of a plan view document, or of its previous schedule answer); the write is `409` with `type`
          *     `urn:astrolabe:problem:stale-revision` only when THIS milestone's schedule was written at a later revision (or the value is
          *     above the current plan revision) - unrelated plan writes never stale it. A negative value is `400`. The answer carries the new plan revision. Every accepted PUT bumps the plan revision; it is audited as
@@ -1041,7 +1042,7 @@ export interface paths {
          *     manager as such has no say (a dependency never moves a date). The predecessor is any active milestone or project, in this
          *     project or another (`400` "Unknown or deleted milestone ids: N" / "... project ids: N"). `type` is FS (the successor starts
          *     after the predecessor finishes), SS (starts after it starts), FF (finishes after it finishes) or SF (finishes after it
-         *     starts); `lagDays` are WORKING days (Monday-Friday), negative = a lead, -365..365 (`400` outside; default 0). Linking an
+         *     starts); `lagDays` are WORKING days (Monday-Friday without the public holidays), negative = a lead, -365..365 (`400` outside; default 0). Linking an
          *     endpoint to itself is `400`. A violated link is only a warning in the project view and never moves anything.
          *     `409` in two cases, both with nothing written and no revision bump: the two endpoints are already linked (at most one
          *     active link per unordered pair, any type and either direction; change the type by deleting the link and adding another),
@@ -1139,6 +1140,15 @@ export interface paths {
          *     ever moved. `project.can.createDependency` is `createMilestone`'s arithmetic (an owner on the project's chain, or ADMIN); a link's
          *     `can.delete` is the same arithmetic on the SUCCESSOR's project chain (so the owner of the predecessor's project alone cannot
          *     delete it). `idleGaps` lists the runs of 3 or more working days with none of the project's milestones in progress.
+         *
+         *     The critical path is derived from the PLANNED dates over the whole active plan graph (every milestone and link, read in the same
+         *     snapshot; nothing moves). A milestone's `slackDays` is how many working days it could slip, with everything downstream of it
+         *     allowed to slip too, before THIS project's end moves (null while unscheduled); `critical` is zero slack. A link's `critical`
+         *     means it is a zero-slack link on the chain; a VIOLATED link is never critical and ends the chain at the violation.
+         *     `criticalPath.upstream` lists the milestones and projects of OTHER projects whose slip would eventually move this project's end
+         *     - the critical ones first (the chain, from its origin by start date, end date, name and id), then the rest by slack; a project
+         *     is listed only when an included link (not violated, both ends scheduled) names it. The chain is never cut; the others are capped at 100 (`upstreamTruncated`). Entities that
+         *     only lie downstream of this project, or are unconnected to its end, are absent.
          */
         get: operations["getProjectView"];
         put?: never;
@@ -1173,7 +1183,8 @@ export interface paths {
          *
          *     `weeks` has one row per ISO week from the Monday of the earliest scheduled start to the Sunday of the latest scheduled end
          *     (empty while nothing is scheduled; at most 520 weeks from the start, then `weeksTruncated`). A milestone's estimate is spread
-         *     evenly over its working days (Monday-Friday minus the public holidays), so a week's `load` is the sum of the shares of the working days inside it.
+         *     evenly over its working days (Monday-Friday without the public holidays), so a week's `load` is the sum of the shares of the working
+         *     days inside it; a holiday is uncovered and the divisor below stays 5.
          *     `capacity` is the sum over the week's working days of the man-days per week in force THAT day, divided by 5 - so the week a
          *     capacity period starts in is prorated by working days - and null ("no capacity", never zero, never flagged) when no period is
          *     in force on any working day of the week. `load` and `capacity` are rounded half-up to two decimals and `overloaded` compares the
@@ -2206,7 +2217,7 @@ export interface components {
             type: components["schemas"]["DependencyType"];
             /**
              * Format: int32
-             * @description WORKING days (Monday-Friday) the successor waits after the predecessor's anchor; negative = a lead.
+             * @description WORKING days (Monday-Friday without the public holidays) the successor waits after the predecessor's anchor; negative = a lead.
              * @default 0
              */
             lagDays: number;
@@ -2368,6 +2379,46 @@ export interface components {
             dependencies: components["schemas"]["ProjectDependency"][];
             /** @description The idle gaps inside the span of the milestones that hold a working day: the maximal runs of 3 or more working days on which none of the project's milestones is in progress (weekends and public holidays neither count nor break a run), by start date; empty when there are none. */
             idleGaps: components["schemas"]["IdleGap"][];
+            criticalPath: components["schemas"]["CriticalPath"];
+        };
+        /** @description The milestones and projects of OTHER projects that lie upstream of this project's end (their slip would eventually move it), the critical ones first, then the rest by slack. */
+        CriticalPath: {
+            /** @description The critical entries in full (the chain from its origin: start date, end date, name case-insensitive, kind, id), then at most 100 others by slack ascending (then like the chain). */
+            upstream: components["schemas"]["UpstreamEntity"][];
+            /** @description True when more than 100 non-critical entries existed (the critical ones are never cut). */
+            upstreamTruncated: boolean;
+        };
+        /** @description A milestone or project of another project upstream of the viewed project's end. */
+        UpstreamEntity: {
+            kind: components["schemas"]["EndpointKind"];
+            /** Format: int32 */
+            id: number;
+            name: string;
+            /**
+             * Format: int32
+             * @description The entity's own project (for a project, its own id).
+             */
+            projectId: number;
+            projectName: string;
+            /**
+             * Format: date
+             * @description The stored start (a project's derived span start).
+             */
+            startDate: string;
+            /** Format: date */
+            endDate: string;
+            /**
+             * Format: int32
+             * @description Working days it could slip before the viewed project's end moves.
+             */
+            slackDays: number;
+            /** @description Zero slack - it drives the viewed project's end. */
+            critical: boolean;
+            /**
+             * Format: int32
+             * @description The fewest links between it and the viewed project (containment is free, so every milestone of a project a link names is 1); not a filter for the ends already in `dependencies`.
+             */
+            hops: number;
         };
         /** @description A link of the project view (and of the team view) - both ends resolved, the check of the pure kernel and the caller's action. */
         ProjectDependency: {
@@ -2382,6 +2433,8 @@ export interface components {
              */
             lagDays: number;
             check: components["schemas"]["DependencyCheck"];
+            /** @description On the project view: a zero-slack link on the viewed project's critical chain. On the team view always false - no per-project path is computed there. */
+            critical: boolean;
             can: {
                 /** @description The caller may delete the link: an owner on the SUCCESSOR's project chain, or ADMIN. */
                 delete: boolean;
@@ -2392,7 +2445,7 @@ export interface components {
          * @enum {string}
          */
         DependencyStatus: "OK" | "VIOLATED" | "UNSCHEDULED";
-        /** @description The check of one link on the Monday-Friday working-day index, with the effective start (the first working day on or after `start`) and end (the last working day on or before `end`) of each end. FS requires the successor's start on the working day after the predecessor's end; SS its start on the predecessor's start; FF its end on the predecessor's end; SF its end on the working day before the predecessor's start - each shifted by `lagDays` working days. */
+        /** @description The check of one link on the working-day index (Monday-Friday without the public holidays), with the effective start (the first working day on or after `start`) and end (the last working day on or before `end`) of each end. FS requires the successor's start on the working day after the predecessor's end; SS its start on the predecessor's start; FF its end on the predecessor's end; SF its end on the working day before the predecessor's start - each shifted by `lagDays` working days. */
         DependencyCheck: {
             status: components["schemas"]["DependencyStatus"];
             /**
@@ -2502,6 +2555,13 @@ export interface components {
              * @description Epoch millis
              */
             updatedAt: number;
+            /**
+             * Format: int32
+             * @description Working days this milestone could slip before THIS project's end moves; null = unscheduled.
+             */
+            slackDays: number | null;
+            /** @description Zero slack: on the critical path of this project. */
+            critical: boolean;
             can: {
                 /** @description The caller may change the plan fields (an owner on the project's chain, or ADMIN). */
                 edit: boolean;

@@ -458,6 +458,7 @@ class TeamViewTest {
         assertEquals(second.projectId, link.predecessor.projectId)
         assertTrue(link.predecessor.projectName.isNotBlank())
         assertEquals(DependencyStatus.OK, view.dependencies.last().check.status)
+        assertTrue(view.dependencies.none { it.critical }, "no per-project path is computed on the team view")
         // can.delete follows the SUCCESSOR's project chain: the world's project owner owns both successors' project.
         assertTrue(w.projectOwner.view(t.teamId).dependencies.all { it.can.delete })
         assertFalse(w.stranger.view(t.teamId).dependencies.any { it.can.delete })

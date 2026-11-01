@@ -29,6 +29,8 @@ data class ProjectView(
     val dependencies: List<ProjectDependency>,
     /** The runs of 3 or more working days inside [span] on which none of the project's milestones is in progress, by start. */
     val idleGaps: List<IdleGapView>,
+    /** The entities of OTHER projects upstream of this project's end ([CriticalPath], `CriticalPathView.kt`). */
+    val criticalPath: CriticalPath,
 )
 
 /** [DaySpan] on the wire: ISO `YYYY-MM-DD` strings, inclusive. */
@@ -77,6 +79,10 @@ data class ProjectMilestone(
     val endDate: String?,
     val createdAt: Long,
     val updatedAt: Long,
+    /** Working days this milestone could slip before THIS project's end moves ([CriticalPathKernels]); null = unscheduled. */
+    val slackDays: Int?,
+    /** On the critical path: zero [slackDays] (every milestone ending on the project's end, and any driving chain into it). */
+    val critical: Boolean,
     val can: ProjectMilestoneCan,
 )
 
@@ -95,6 +101,8 @@ data class ProjectDependency(
     val type: DependencyType,
     val lagDays: Int,
     val check: DependencyCheck,
+    /** A zero-slack link on the viewed project's critical chain; always false on the team view (no per-project path is computed there). */
+    val critical: Boolean,
     val can: ProjectDependencyCan,
 )
 

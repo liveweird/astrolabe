@@ -1,6 +1,7 @@
 package ch.nokillswit
 
 import ch.nokillswit.planning.IdleGapView
+import ch.nokillswit.planning.EndpointKind
 import ch.nokillswit.planning.MilestoneCreateRequest
 import ch.nokillswit.planning.MilestoneScheduleRequest
 import ch.nokillswit.planning.MilestoneUpdateRequest
@@ -418,5 +419,70 @@ class ProjectViewTest {
             assertEquals("2027-02-03", held.span?.start)
             assertEquals(emptyList(), held.idleGaps)
         }
+    }
+
+    // --- the critical path (v0.7.0): the WHOLE active graph is read, so every assertion is scoped to this test's own ids ---------
+
+    @Test
+    fun `the critical path follows the driving chain through three projects, with slack toward this project's end`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("pvc", teams = true)
+        val t = w.requireTeams()
+        val y = secondProject(w, "pvc-y")
+        val x = secondProject(w, "pvc-x")
+        val z = secondProject(w, "pvc-z")
+        // 2027-02-01 is a Monday. x1 -> y1 -> p1 drive P's end (Feb 19); p2 is a short parallel milestone; z1 is only downstream.
+        val x1 = TestPlan.milestone(x.projectId, t.teamId, "x1")
+        val y1 = TestPlan.milestone(y.projectId, t.teamId, "y1")
+        val p1 = TestPlan.milestone(w.projectId, t.teamId, "p1")
+        val p2 = TestPlan.milestone(w.projectId, t.teamId, "p2")
+        val tray = TestPlan.milestone(w.projectId, t.teamId, "tray")
+        val z1 = TestPlan.milestone(z.projectId, t.teamId, "z1")
+        TestPlan.schedule(x1, "2027-02-01", "2027-02-05")
+        TestPlan.schedule(y1, "2027-02-08", "2027-02-12")
+        TestPlan.schedule(p1, "2027-02-15", "2027-02-19")
+        TestPlan.schedule(p2, "2027-02-15", "2027-02-17")
+        TestPlan.schedule(z1, "2027-02-22", "2027-02-26")
+        val xy = TestPlan.dependency(milestoneRef(x1), milestoneRef(y1))
+        val yp = TestPlan.dependency(milestoneRef(y1), milestoneRef(p1))
+        val pz = TestPlan.dependency(milestoneRef(p1), milestoneRef(z1))
+
+        val view = w.stranger.view(w.projectId)
+        assertEquals(0, view.milestone(p1).slackDays)
+        assertTrue(view.milestone(p1).critical)
+        assertEquals(2, view.milestone(p2).slackDays, "p2 ends Wednesday, the project's end is Friday")
+        assertFalse(view.milestone(p2).critical)
+        assertNull(view.milestone(tray).slackDays)
+        assertFalse(view.milestone(tray).critical)
+
+        assertTrue(view.dependencies.single { it.id == yp }.critical, "the driving link into this project")
+        assertFalse(view.dependencies.single { it.id == pz }.critical, "z1 lies downstream: the link caps nothing")
+        assertTrue(view.dependencies.none { it.id == xy }, "x1 -> y1 touches neither end in this project")
+
+        // Nothing else is connected to this project's end, so the whole list is exactly the chain, from its origin.
+        val chain = view.criticalPath.upstream
+        assertEquals(listOf(x1, y1), chain.map { it.id })
+        assertFalse(view.criticalPath.upstreamTruncated)
+        val far = chain.first()
+        assertEquals(EndpointKind.MILESTONE, far.kind)
+        assertEquals("x1", far.name)
+        assertEquals(x.projectId, far.projectId)
+        assertEquals(w.stranger.view(x.projectId).project.name, far.projectName)
+        assertEquals("2027-02-01" to "2027-02-05", far.startDate to far.endDate)
+        assertEquals(Triple(0, true, 2), Triple(far.slackDays, far.critical, far.hops))
+        val near = chain.last()
+        assertEquals(Triple(0, true, 1), Triple(near.slackDays, near.critical, near.hops))
+        assertEquals(y.projectId, near.projectId)
+
+        // Seen from Z (downstream of P) the chain continues through P: p1 is one link away, x1 three.
+        val fromZ = w.stranger.view(z.projectId).criticalPath.upstream.associateBy { it.id }
+        assertEquals(1, fromZ.getValue(p1).hops)
+        assertEquals(3, fromZ.getValue(x1).hops)
+
+        // A violated link ends the chain: x1 dragged onto y1's week is short, and drops out of the upstream list.
+        TestPlan.schedule(x1, "2027-02-08", "2027-02-12")
+        val violated = w.stranger.view(w.projectId)
+        assertEquals(listOf(y1), violated.criticalPath.upstream.map { it.id })
+        assertEquals(0, violated.milestone(p1).slackDays)
     }
 }

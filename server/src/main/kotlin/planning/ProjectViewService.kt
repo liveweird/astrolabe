@@ -17,7 +17,8 @@ internal val SNAPSHOT = IsolationLevel.REPEATABLE_READ
 /**
  * One project, its milestones and its dependencies (`GET /views/project/{id}`): ONE read transaction that takes the revision FIRST and
  * the rows after (the plan view's protocol — a row newer than the revision only makes a later schedule PUT carrying it answer a
- * conservative 409), then the working calendar ([loadWorkingCalendar], the holiday dictionary, same snapshot), then derives the span
+ * conservative 409), then the working calendar ([loadWorkingCalendar], the holiday dictionary, same snapshot), then the critical path
+ * over the WHOLE active plan graph ([loadCriticalPath], `CriticalPathKernels`), then derives the span
  * and the drift with [SpanKernels], checks the links ([projectDependencies], the pure [DependencyKernels]) and computes the caller's
  * `can` flags with [PlanPermissions]. The project, its program and its work stream must all be active (null = the route's 404).
  * Milestones are split into the scheduled (by start, end, name, id) and the unscheduled (by name, id);
@@ -41,8 +42,10 @@ class ProjectViewService(private val database: R2dbcDatabase) {
         val targetStart = row[projects.targetStart]
         val targetEnd = row[projects.targetEnd]
 
-        val milestones = milestoneRows(projectId, actor, manage)
+        val critical = loadCriticalPath(projectId, calendar)
+        val milestones = milestoneRows(projectId, actor, manage, critical.result)
         val dependencies = projectDependencies(projectId, milestones.map { it.view.id }, chain, actor, calendar)
+            .map { it.copy(critical = it.id in critical.result.criticalDependencies) }
         val (scheduled, unscheduled) = milestones.partition { it.span != null }
         val span = SpanKernels.derivedSpan(scheduled.mapNotNull { it.span })
         val target = if (targetStart != null && targetEnd != null) DaySpan(targetStart, targetEnd) else null
@@ -79,14 +82,21 @@ class ProjectViewService(private val database: R2dbcDatabase) {
             unscheduled = unscheduled.sortedWith(compareBy<MilestoneRow>({ it.view.name.lowercase() }, { it.view.id })).map { it.view },
             dependencies = dependencies,
             idleGaps = idleGapViewsOf(scheduled.mapNotNull { it.span }, calendar),
+            criticalPath = critical.view,
         )
     }
 
     /**
      * Every ACTIVE milestone of [projectId] with its team name, read WITHOUT an `active()` filter on the team: an active milestone's
-     * team is always active (`TeamService.delete`'s 409), the `ownerNames` reasoning. [manage] is the project-level edit/delete verdict.
+     * team is always active (`TeamService.delete`'s 409), the `ownerNames` reasoning. [manage] is the project-level edit/delete verdict;
+     * [critical] fills each scheduled milestone's slack and critical flag.
      */
-    private suspend fun milestoneRows(projectId: UInt, actor: PlanActor, manage: Boolean): List<MilestoneRow> {
+    private suspend fun milestoneRows(
+        projectId: UInt,
+        actor: PlanActor,
+        manage: Boolean,
+        critical: CriticalPathResult,
+    ): List<MilestoneRow> {
         val milestones = MilestoneService.Milestones
         val teams = TeamService.Teams
         return milestones.innerJoin(teams, { milestones.teamId }, { teams.id })
@@ -94,13 +104,14 @@ class ProjectViewService(private val database: R2dbcDatabase) {
             .where { (milestones.projectId eq projectId) and milestones.active() }
             .toList()
             .map { row ->
+                val id = row[milestones.id].value
                 val teamId = row[milestones.teamId].value
                 val start = row[milestones.startDate]
                 val end = row[milestones.endDate]
                 MilestoneRow(
                     span = if (start != null && end != null) DaySpan(start, end) else null,
                     view = ProjectMilestone(
-                        id = row[milestones.id].value,
+                        id = id,
                         projectId = projectId,
                         name = row[milestones.name],
                         description = row[milestones.description],
@@ -111,6 +122,8 @@ class ProjectViewService(private val database: R2dbcDatabase) {
                         endDate = end?.toString(),
                         createdAt = row[milestones.createdAt],
                         updatedAt = row[milestones.updatedAt],
+                        slackDays = critical.slackByMilestone[id]?.let { Math.toIntExact(it) },
+                        critical = id in critical.criticalMilestones,
                         can = ProjectMilestoneCan(edit = manage, delete = manage, schedule = PlanPermissions.canSchedule(actor, teamId)),
                     ),
                 )

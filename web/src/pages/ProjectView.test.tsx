@@ -50,6 +50,8 @@ const milestone = (id: number, name: string, over: Partial<ProjectMilestone> = {
   endDate: null,
   createdAt: 1,
   updatedAt: 2,
+  slackDays: null,
+  critical: false,
   can: { edit: true, delete: true, schedule: true },
   ...over,
 });
@@ -85,6 +87,7 @@ const viewOf = (over: Partial<ProjectViewDocument> = {}): ProjectViewDocument =>
   unscheduled: [AUDIT, ROLLOUT],
   dependencies: [],
   idleGaps: [],
+  criticalPath: { upstream: [], upstreamTruncated: false },
   ...over,
 });
 
@@ -847,6 +850,7 @@ const dependencyOf = (id: number, predecessor: DependencyEndpoint, successor: De
   type: "FS",
   lagDays: 0,
   check: OK_CHECK,
+  critical: false,
   can: { delete: true },
   ...over,
 });

@@ -32,8 +32,9 @@ val DependencyEdge.to: TimePoint get() = TimePoint(successor, type.successorSide
  * containment `START(project) -> START(milestone)` and `END(milestone) -> END(project)`, and one edge per dependency
  * ([DependencyEdge.from] -> [DependencyEdge.to]). Without dependency edges the graph is a DAG, so a NEW edge `u -> v` closes a cycle
  * exactly when `v` already reaches `u` ([cycleClosedBy]). Lags are ignored on purpose: ANY directed cycle is refused (a zero-lag
- * SS/SS pair included), the invariant the critical path (v0.7) and the scheduler (v0.8) rely on — every active row set is acyclic, so
- * their longest-path passes terminate. They add edge weights to this same builder.
+ * SS/SS pair included), the invariant the critical path (v0.7, `CriticalPathKernels`: it reuses this vocabulary and adds the planned
+ * values and the edge offsets) and the scheduler (v0.8) rely on — every active row set is acyclic, so their longest-path passes
+ * terminate.
  */
 class TimePointGraph private constructor(private val next: Map<TimePoint, List<TimePoint>>) {
     /**

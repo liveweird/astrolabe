@@ -12,6 +12,7 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.server.testing.testApplication
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -76,6 +77,41 @@ class ProjectViewDependenciesTest {
                 assertEquals("2027-02-08" to "2027-01-25", check.requiredDate to check.actualDate)
             }
         }
+
+    @Test
+    fun `a link is critical only toward the end of the project it drives, and slack or a violation is not`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("pvdc", teams = true)
+        val t = w.requireTeams()
+        val b = secondProject(w, "pvdc")
+        val a1 = TestPlan.milestone(w.projectId, t.teamId, "a1")
+        val b1 = TestPlan.milestone(b.projectId, t.teamId, "b1")
+        val b2 = TestPlan.milestone(b.projectId, t.teamId, "b2")
+        TestPlan.schedule(a1, "2027-02-01", "2027-02-05")
+        TestPlan.schedule(b1, "2027-02-08", "2027-02-12")
+        TestPlan.schedule(b2, "2027-02-17", "2027-02-19")
+        val driving = TestPlan.dependency(milestoneRef(a1), milestoneRef(b1))
+        val loose = TestPlan.dependency(milestoneRef(a1), milestoneRef(b2))
+
+        // B ends with b2 (Feb 19): b1 has 5 days of slack, so a1 -> b1 does not drive B's end; a1 -> b2 has 7 days of slack.
+        val seenFromB = w.stranger.view(b.projectId)
+        assertFalse(seenFromB.link(driving).critical)
+        assertFalse(seenFromB.link(loose).critical)
+
+        // Put b1 at the end of B: the link into it now drives it. From A's side it is downstream, so never critical there.
+        TestPlan.schedule(b2, "2027-02-08", "2027-02-10")
+        TestPlan.schedule(b1, "2027-02-08", "2027-02-26")
+        val driven = w.stranger.view(b.projectId)
+        assertTrue(driven.link(driving).critical)
+        assertFalse(driven.link(loose).critical, "zero slack, but b2 has 12 days of slack toward B's end")
+        assertFalse(w.stranger.view(w.projectId).link(driving).critical)
+
+        // Pull b1 in front of a1: violated, so not driving.
+        TestPlan.schedule(b1, "2027-02-01", "2027-02-26")
+        val violated = w.stranger.view(b.projectId).link(driving)
+        assertEquals(DependencyStatus.VIOLATED, violated.check.status)
+        assertFalse(violated.critical)
+    }
 
     @Test
     fun `the first vector per type over HTTP - one working day short`() = testApplication {
@@ -188,9 +224,8 @@ class ProjectViewDependenciesTest {
             TestPlan.schedule(a1, "2027-02-22", "2027-02-26")
             // A project with a target window far from its real span, and one with nothing scheduled at all.
             val windowed = TestPlan.project(w.programId, w.projectOwner.personId!!, targetStart = "2027-06-01", targetEnd = "2027-06-30")
-            for ((name, dates) in listOf("w1" to ("2027-02-08" to "2027-02-10"), "w2" to ("2027-02-15" to "2027-02-19"))) {
-                val id = TestPlan.milestone(windowed, t.teamId, name)
-                TestPlan.schedule(id, dates.first, dates.second)
+            val windowedIds = listOf("w1" to ("2027-02-08" to "2027-02-10"), "w2" to ("2027-02-15" to "2027-02-19")).map { (name, dates) ->
+                TestPlan.milestone(windowed, t.teamId, name).also { TestPlan.schedule(it, dates.first, dates.second) }
             }
             val empty = TestPlan.project(w.programId, w.projectOwner.personId)
             TestPlan.milestone(empty, t.teamId, "only-tray")
@@ -209,6 +244,20 @@ class ProjectViewDependenciesTest {
             // FS: the working day after the derived span's Friday end, 2027-02-22, is where a1 starts.
             assertEquals(DependencyStatus.OK, project.check.status)
             assertEquals("2027-02-22", project.check.requiredDate)
+
+            // The critical path names the PROJECT end too (its derived span, never the window): it drives a1, critical at one link.
+            // Its milestones are at one link as well (containment costs no hops): w2 ends the project (critical), w1 ends 7 working days
+            // (Feb 11..19) before it.
+            val upstream = view.criticalPath.upstream.associateBy { it.kind to it.id }
+            val entity = upstream.getValue(EndpointKind.PROJECT to windowed)
+            assertEquals(windowed, entity.projectId)
+            assertEquals("2027-02-08" to "2027-02-19", entity.startDate to entity.endDate)
+            assertEquals(Triple(0, true, 1), Triple(entity.slackDays, entity.critical, entity.hops))
+            val (w1, w2) = windowedIds
+            fun figures(id: UInt) = upstream.getValue(EndpointKind.MILESTONE to id).let { Triple(it.slackDays, it.critical, it.hops) }
+            assertEquals(Triple(0, true, 1), figures(w2))
+            assertEquals(Triple(7, false, 1), figures(w1))
+            assertTrue(project.critical)
 
             for (id in listOf(fromEmptyProject, intoTray)) {
                 val check = view.link(id).check

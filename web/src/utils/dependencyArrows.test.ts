@@ -22,6 +22,7 @@ const link = (id: number, predecessor: DependencyEndpoint, successor: Dependency
   type: "FS",
   lagDays: 0,
   check: { status: "OK", shortfallDays: null, requiredDate: "2027-02-08", actualDate: "2027-02-08" },
+  critical: false,
   can: { delete: true },
   ...over,
 });
