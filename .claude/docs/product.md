@@ -13,7 +13,7 @@ Scale assumed: about 15 teams, 5 work streams, 20 programs, 100 projects, 1,000 
 
 ## Roadmap
 
-Each increment gets its own plan (architect) before implementation; only v0.1.0 was specified up front. **Current version: 0.4.0.**
+Each increment gets its own plan (architect) before implementation; only v0.1.0 was specified up front. **Current version: 0.5.0.**
 
 | Ver | Scope | User can test |
 |---|---|---|
@@ -63,6 +63,10 @@ Version numbers are not strictly roadmap milestones (`app-releases.md`): a user-
 ## Assumptions (not asked — change on request)
 
 Day-precision dates; Monday–Friday working days (public holidays arrive with v0.7); week / month / quarter zoom; EN and PL kept; the scale above.
+
+## v0.5.0 — what shipped
+
+Team view and capacity (V16–V18), on the user's answers of 2026-11-01 (the plan `astrolabe-v0.5.0-team-capacity.md` §2). Capacity periods are team data written by the team's manager or ADMIN outside the plan lock: man-days per week (0 ≤ x < 1,000,000) from ANY date, the boundary week prorated by working days, with an optional WIP limit (1..99). `GET /views/team/{id}` answers the team's milestones across projects, the weekly load (each estimate spread evenly over its working days, rounded HALF_UP once per week) against the prorated capacity, the per-day WIP peak, the overload and WIP warnings (≤ 520 weeks from the earliest scheduled start), and the links between the team's own milestones. The per-team milestone order (V17, `PUT /teams/{id}/milestone-order` against the team's own order revision): the project rank is only its default; a manager's order is never reshuffled — only unlisted newcomers slot in at the bottom by rank, and an unscheduled listed milestone keeps its index; Reset restores the rank. The ranking has its own revision (V18), so unrelated plan writes no longer stale it. The `/teams/:id` page: the timeline with the sticky load strip, scheduling by drag/keyboard/dialog, the capacity table and editor, the weekly table, the order by row menu and by a pointer row-drag handle. A deterministic scale dataset (`sample-data/plan/`, 1,000 milestones) and its API loader; measured at scale in `timeline.md`.
 
 ## v0.4.0 — what shipped
 

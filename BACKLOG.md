@@ -22,7 +22,6 @@ The `backlog` mod (`liveweird/claude-mods`) summarises the tags on the status li
 Each increment gets its own plan (architect) before implementation. The domain sketch is `.claude/docs/planning-model.md`; the timeline approach is `.claude/docs/timeline.md`.
 
 - [new] **Paged lists for work streams and programs.** Projects and milestones have them since v0.4 (the dependency pickers); the plan view is still the only read surface of work streams and programs. Add theirs per `list-endpoints.md` with their first consumer.
-- [new] **v0.5.0 Team view + capacity.** Capacity periods; the weekly load strip and overload warning; team order override/reset; scheduling from the team view; a deterministic scale dataset `sample-data/plan/` (≈15 teams, 5 streams, 20 programs, 100 projects, 1,000 milestones).
 - [new] **v0.6.0 Roadmap + programs timelines.** Spans derived upward; the target window by drag; drift flags; rank-vs-time flags (an inversion between projects sharing a team is a warning, otherwise info); the program pick.
 - [new] **v0.7.0 Calendar + critical path.** Port Flow's `PublicHoliday*`/`WorkingCalendar`/`WorkingDayIndex` (replaces `infra/time/WorkingDays.kt`, the Mon–Fri placeholder, and its closed-form working-day index that the v0.4 dependency checks use, with holidays); the critical path; idle gaps per project and team.
 - [new] **v0.8.0 Auto-proposal.** A server scheduler (rank + dependencies + capacity) → a diff preview → accept all or some through the batch schedule endpoint, under the same guards.
