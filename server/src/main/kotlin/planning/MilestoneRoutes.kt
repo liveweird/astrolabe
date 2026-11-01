@@ -81,12 +81,13 @@ internal fun Route.milestoneRoutes(d: PlanRouteDeps) {
         val caller = call.caller()
         val chain = d.milestones.chain(route.id).orNotFound(MILESTONE)
         d.requireOwner(caller, chain.owners, MILESTONE)
-        d.milestones.delete(route.id, d.ownerGuard(caller))
+        val cascade = d.milestones.delete(route.id, d.ownerGuard(caller))
         audit(
             "milestone.deleted",
             "byUserId" to caller.userId.toLong(),
             "milestoneId" to route.id.toLong(),
             "projectId" to chain.projectId.toLong(),
+            *cascade.auditFields(),
         )
         call.respond(HttpStatusCode.NoContent)
     }

@@ -1,5 +1,10 @@
 package ch.nokillswit
 
+import ch.nokillswit.planning.DependencyCreateRequest
+import ch.nokillswit.planning.DependencyService
+import ch.nokillswit.planning.DependencyType
+import ch.nokillswit.planning.EndpointKind
+import ch.nokillswit.planning.EndpointRef
 import ch.nokillswit.planning.MilestoneCreateRequest
 import ch.nokillswit.planning.MilestoneScheduleRequest
 import ch.nokillswit.planning.MilestoneService
@@ -97,12 +102,35 @@ suspend fun ApplicationTestBuilder.planWorld(prefix: String, teams: Boolean = fa
     )
 }
 
+fun milestoneRef(id: UInt) = EndpointRef(EndpointKind.MILESTONE, id)
+
+fun projectRef(id: UInt) = EndpointRef(EndpointKind.PROJECT, id)
+
+/** `POST /projects/{projectId}/dependencies` with a typed body — the link's SUCCESSOR must be that project or one of its milestones. */
+suspend fun HttpClient.postDependency(
+    projectId: UInt,
+    predecessor: EndpointRef,
+    successor: EndpointRef,
+    type: DependencyType = DependencyType.FS,
+    lagDays: Int = 0,
+): HttpResponse = postJson("/api/v1/projects/$projectId/dependencies", DependencyCreateRequest(predecessor, successor, type, lagDays))
+
+/** A second project under the world's program, owned by a NEW caller (a person-linked login) who owns nothing else: cross-owner cases. */
+class SecondProject(val projectId: UInt, val owner: PlanCaller)
+
+/** Seeds [SecondProject] under [w]'s program: its owner is a fresh stranger to the world's own project and the cast above it. */
+suspend fun ApplicationTestBuilder.secondProject(w: PlanWorld, prefix: String = "sp"): SecondProject {
+    val owner = planCaller("$prefix-jo2")
+    return SecondProject(TestPlan.project(w.programId, owner.personId!!), owner)
+}
+
 /** Direct plan fixtures: quick seeding past the routes (the services, so the plan lock and the revision bump still apply) and raw reads. */
 object TestPlan {
     private val streams by lazy { WorkStreamService(sharedDatabaseForTests()) }
     private val programs by lazy { ProgramService(sharedDatabaseForTests()) }
     private val projects by lazy { ProjectService(sharedDatabaseForTests()) }
     private val milestones by lazy { MilestoneService(sharedDatabaseForTests()) }
+    private val dependencies by lazy { DependencyService(sharedDatabaseForTests()) }
 
     suspend fun workStream(owner: UInt, name: String = planName("ws"), startDate: String = "2026-01-01", endDate: String? = null): UInt =
         streams.create(WorkStreamCreateRequest(name = name, ownerPersonId = owner, startDate = startDate, endDate = endDate))
@@ -128,6 +156,23 @@ object TestPlan {
     /** Schedules (or, with null dates, unschedules) a milestone past the guard; the answer is the plan revision it left behind. */
     suspend fun schedule(milestoneId: UInt, start: String?, end: String?): Long =
         milestones.schedule(milestoneId, MilestoneScheduleRequest(revision(), start, end)) { }.revision
+
+    /**
+     * A dependency [predecessor] -> [successor] past the guard (the service: the plan lock, the cycle check and the revision bump apply).
+     * The path project is derived from the successor, as the route's authorization does.
+     */
+    suspend fun dependency(
+        predecessor: EndpointRef,
+        successor: EndpointRef,
+        type: DependencyType = DependencyType.FS,
+        lag: Int = 0,
+    ): UInt {
+        val projectId = when (successor.kind) {
+            EndpointKind.PROJECT -> successor.id
+            EndpointKind.MILESTONE -> scalar("SELECT project_id FROM milestones WHERE id = ${successor.id}") { it.getInt(1) }.toUInt()
+        }
+        return dependencies.create(projectId, DependencyCreateRequest(predecessor, successor, type, lag)) { } // past the guard
+    }
 
     /** The current `plan_state.revision`, read over raw JDBC. */
     fun revision(): Long = PostgresTestSupport.connect().use { c ->

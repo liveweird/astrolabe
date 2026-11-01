@@ -34,6 +34,7 @@ class MigrationChecksumTest {
         "V12__plan_structure.sql" to -2119029713,
         "V13__roadmap_entries.sql" to 356464108,
         "V14__milestones.sql" to -1637747327,
+        "V15__dependencies.sql" to 1553016569,
     )
 
     @Test

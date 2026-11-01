@@ -37,6 +37,10 @@ class ProjectsRoute {
         @Serializable
         @Resource("move")
         class Move(val parent: Id)
+
+        @Serializable
+        @Resource("dependencies")
+        class Dependencies(val parent: Id)
     }
 }
 
@@ -49,6 +53,8 @@ private const val PROJECT = "Project"
  * The target window is a separate PUT with a different audience: ADMIN, an owner ABOVE the project, or a `ROADMAP_EDITOR` — the
  * project's own owner alone gets a 403. All read-before-guard. `POST /projects/{id}/move` reparents under another program: the caller must
  * own something ABOVE the project (its own owner alone may not) AND something on the target program's chain (or be ADMIN).
+ * `POST /projects/{id}/dependencies` creates a link whose SUCCESSOR is this project or one of its milestones: the owner chain of
+ * THIS project (its own owner included) or ADMIN — the predecessor's owner is asked nothing (`DependencyRoutes.kt`).
  */
 internal fun Route.projectRoutes(d: PlanRouteDeps) {
     get<ProjectsRoute.Id> { route ->
@@ -95,12 +101,13 @@ internal fun Route.projectRoutes(d: PlanRouteDeps) {
     delete<ProjectsRoute.Id> { route ->
         val caller = call.caller()
         d.requireOwner(caller, d.projects.chain(route.id), PROJECT)
-        val milestoneCount = d.projects.delete(route.id, d.ownerGuard(caller))
+        val cascade = d.projects.delete(route.id, d.ownerGuard(caller))
         audit(
             "project.deleted",
             "byUserId" to caller.userId.toLong(),
             "projectId" to route.id.toLong(),
-            "milestoneCount" to milestoneCount,
+            "milestoneCount" to cascade.milestoneCount,
+            *cascade.dependencies.auditFields(),
         )
         call.respond(HttpStatusCode.NoContent)
     }
@@ -140,5 +147,32 @@ internal fun Route.projectRoutes(d: PlanRouteDeps) {
         )
         call.response.header(HttpHeaders.Location, call.application.href(MilestonesRoute.Id(id = id)))
         call.respond(HttpStatusCode.Created, d.milestones.read(id).orVanished("Milestone", id))
+    }
+    createDependencyRoute(d)
+}
+
+/** `POST /projects/{id}/dependencies`: the SUCCESSOR's project is the path project, so its chain is the guard. */
+private fun Route.createDependencyRoute(d: PlanRouteDeps) {
+    post<ProjectsRoute.Id.Dependencies> { route ->
+        val caller = call.caller()
+        val projectId = route.parent.id
+        d.requireOwner(caller, d.projects.chain(projectId), PROJECT)
+        val request = call.receive<DependencyCreateRequest>()
+        validateDependencyCreate(request)
+        val id = d.dependencies.create(projectId, request, d.ownerGuard(caller))
+        audit(
+            "dependency.created",
+            "byUserId" to caller.userId.toLong(),
+            "dependencyId" to id.toLong(),
+            "projectId" to projectId.toLong(),
+            "predKind" to request.predecessor.kind.name,
+            "predId" to request.predecessor.id.toLong(),
+            "succKind" to request.successor.kind.name,
+            "succId" to request.successor.id.toLong(),
+            "type" to request.type.name,
+            "lagDays" to request.lagDays,
+        )
+        call.response.header(HttpHeaders.Location, call.application.href(DependenciesRoute.Id(id = id)))
+        call.respond(HttpStatusCode.Created, d.dependencies.read(id).orVanished("Dependency", id))
     }
 }

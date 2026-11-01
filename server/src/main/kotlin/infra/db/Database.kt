@@ -8,6 +8,8 @@ import ch.nokillswit.infra.config.requireConfigInt
 import ch.nokillswit.infra.config.requireConfigLong
 import ch.nokillswit.people.PersonService
 import ch.nokillswit.people.PersonServiceKey
+import ch.nokillswit.planning.DependencyService
+import ch.nokillswit.planning.DependencyServiceKey
 import ch.nokillswit.planning.MilestoneService
 import ch.nokillswit.planning.MilestoneServiceKey
 import ch.nokillswit.planning.PlanViewService
@@ -258,6 +260,7 @@ suspend fun Application.configureDatabase() {
     attributes.put(ProgramServiceKey, ProgramService(database))
     attributes.put(ProjectServiceKey, ProjectService(database))
     attributes.put(MilestoneServiceKey, MilestoneService(database))
+    attributes.put(DependencyServiceKey, DependencyService(database))
     attributes.put(PlanViewServiceKey, PlanViewService(database))
     attributes.put(ProjectViewServiceKey, ProjectViewService(database))
     attributes.put(RoadmapServiceKey, RoadmapService(database))

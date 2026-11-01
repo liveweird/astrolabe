@@ -163,17 +163,21 @@ class MilestoneService(private val database: R2dbcDatabase) {
         return write.value.copy(revision = write.revision)
     }
 
-    /** Soft delete under the plan lock; the chain is re-read and [guard] re-run first (missing = 404). The name is freed. */
-    suspend fun delete(id: UInt, guard: PlanGuard) {
-        database.withPlanWrite {
-            guard((milestoneChain(id) ?: throw NotFoundException(MILESTONE_NOT_FOUND)).owners)
-            val affected = Milestones.update({ (Milestones.id eq id) and Milestones.active() }) {
-                it[markedAsDeleted] = true
-                it[updatedAt] = nowMillis()
-            }
-            if (affected == 0) throw NotFoundException(MILESTONE_NOT_FOUND)
+    /**
+     * Soft delete under the plan lock; the chain is re-read and [guard] re-run first (missing = 404). The name is freed. Every ACTIVE
+     * dependency with this milestone at either end is soft-deleted in the same locked transaction ([deleteDependenciesOf]: a link
+     * cannot outlive an end); the returned [DeletedDependencies] feed the audit (`dependencyCount`, `dependencyIds`,
+     * `successorProjectIds`).
+     */
+    suspend fun delete(id: UInt, guard: PlanGuard): DeletedDependencies = database.withPlanWrite {
+        guard((milestoneChain(id) ?: throw NotFoundException(MILESTONE_NOT_FOUND)).owners)
+        val affected = Milestones.update({ (Milestones.id eq id) and Milestones.active() }) {
+            it[markedAsDeleted] = true
+            it[updatedAt] = nowMillis()
         }
-    }
+        if (affected == 0) throw NotFoundException(MILESTONE_NOT_FOUND)
+        deleteDependenciesOf(milestoneIds = listOf(id), projectIds = emptyList())
+    }.value
 
     /**
      * The team of a new or changed milestone must be ACTIVE — a client-supplied FK is a 400, never a 500 from the constraint. The check
@@ -208,6 +212,13 @@ internal suspend fun deleteMilestonesOf(projectId: UInt): Int {
         it[markedAsDeleted] = true
         it[updatedAt] = nowMillis()
     }
+}
+
+/** The ids of [projectId]'s ACTIVE milestones — what a project delete's dependency cascade must reach before the milestones go. */
+internal suspend fun activeMilestoneIdsOf(projectId: UInt): List<UInt> {
+    val milestones = MilestoneService.Milestones
+    return milestones.select(milestones.id).where { (milestones.projectId eq projectId) and milestones.active() }
+        .toList().map { it[milestones.id].value }
 }
 
 /** Whether an ACTIVE milestone names [teamId] — the team-delete 409 (`TeamService.delete`, under the team row lock). */

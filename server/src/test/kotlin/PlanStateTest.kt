@@ -1,5 +1,6 @@
 package ch.nokillswit
 
+import ch.nokillswit.planning.DependencyResponse
 import ch.nokillswit.planning.MilestoneCreateRequest
 import ch.nokillswit.planning.MilestoneResponse
 import ch.nokillswit.planning.MilestoneScheduleRequest
@@ -158,6 +159,51 @@ class PlanStateTest {
             admin.delete("/api/v1/projects/${w.projectId}").status
         }, HttpStatusCode.NoContent)
         assertEquals(HttpStatusCode.NotFound, admin.get("/api/v1/milestones/$other").status)
+    }
+
+    @Test
+    fun `a dependency write bumps the revision by one, a refused cycle or duplicate or forbidden write does not`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("deprev", teams = true)
+        val t = w.requireTeams()
+        val b = secondProject(w, "deprev")
+        val admin = w.admin.client
+        val a1 = milestoneRef(TestPlan.milestone(w.projectId, t.teamId))
+        val b1 = milestoneRef(TestPlan.milestone(b.projectId, t.teamId))
+
+        suspend fun bumps(expected: Long, label: String, call: suspend () -> HttpStatusCode, status: HttpStatusCode) {
+            val before = TestPlan.revision()
+            assertEquals(status, call(), label)
+            assertEquals(before + expected, TestPlan.revision(), label)
+        }
+
+        var id = 0u
+        bumps(1, "create dependency", {
+            val response = admin.postDependency(b.projectId, a1, b1)
+            if (response.status == HttpStatusCode.Created) id = response.body<DependencyResponse>().id
+            response.status
+        }, HttpStatusCode.Created)
+        bumps(0, "409 on the same ordered pair", { admin.postDependency(b.projectId, a1, b1).status }, HttpStatusCode.Conflict)
+        bumps(0, "409 on a cycle", { admin.postDependency(w.projectId, b1, a1).status }, HttpStatusCode.Conflict)
+        bumps(0, "403 for the predecessor's owner", {
+            w.projectOwner.client.postDependency(b.projectId, a1, projectRef(b.projectId)).status
+        }, HttpStatusCode.Forbidden)
+        bumps(0, "400 on an unknown predecessor", { admin.postDependency(b.projectId, milestoneRef(999999u), b1).status },
+            HttpStatusCode.BadRequest)
+        bumps(0, "a dependency read", { admin.get("/api/v1/dependencies/$id").status }, HttpStatusCode.OK)
+        bumps(0, "403 deleting as the predecessor's owner", { w.projectOwner.client.delete("/api/v1/dependencies/$id").status },
+            HttpStatusCode.Forbidden)
+        bumps(1, "delete dependency", { b.owner.client.delete("/api/v1/dependencies/$id").status }, HttpStatusCode.NoContent)
+        bumps(0, "404 deleting it twice", { admin.delete("/api/v1/dependencies/$id").status }, HttpStatusCode.NotFound)
+
+        TestPlan.dependency(a1, b1)
+        bumps(1, "delete a milestone with links (one bump for the cascade)", {
+            admin.delete("/api/v1/milestones/${a1.id}").status
+        }, HttpStatusCode.NoContent)
+        TestPlan.dependency(projectRef(w.projectId), b1)
+        bumps(1, "delete a project with links (one bump for the cascade)", {
+            admin.delete("/api/v1/projects/${w.projectId}").status
+        }, HttpStatusCode.NoContent)
     }
 
     @Test

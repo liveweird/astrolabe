@@ -243,7 +243,20 @@ Layered RBAC. Implemented in the `server/src/main/kotlin/authz/` package.
 
     Tests: `MilestoneTest` (every plan-field route × ADMIN, the three owners, a stranger, a person-less login, a roadmap editor, a team manager), `MilestoneScheduleTest` (the manager, the other team's manager, ADMIN, the project
     owner — named — and the rest; the held-request re-guard cases).
-  - **Still planned (v0.4+):** a team manager edits capacity and team order. Each new rule lands here with its
+  - **Dependencies (V15, built) — the SUCCESSOR's project chain is the guard.** A link is a plan field of its successor (the constrained side: "it waits for the predecessor"), so it is written by an owner on the SUCCESSOR's project chain — the project's own owner included —
+    or ADMIN; the PREDECESSOR's owner is asked nothing (a link never moves a date) and may neither create nor delete a link another project depends on; a team manager as such has no say. **The one exception, the cascade:** deleting an endpoint (a milestone, or a project with its milestones) soft-deletes every link at it, whichever side owns them — the endpoint's own guard authorizes that, a link cannot outlive an end, and the successor's owner is not asked (audited as the delete's `dependencyIds`, `observability.md`). Reads are open to every authenticated user. Read-before-guard throughout; the guard
+    runs twice (outside, then inside `withPlanWrite` against the chain re-read there with the caller's person `FOR SHARE`). A forbidden caller's malformed body stays 403.
+
+    | Route | Guard (in order) |
+    |---|---|
+    | `POST /projects/{id}/dependencies` | chain(project) ?: 404 → `requireOwnerOrAdmin` (the project's own owner included) → body 400 (type/kind decode, lag range, self-link) → (under the lock) chain re-read 404 → the guard again 403 → successor must be the project or one of its active milestones 400 → predecessor active 400 → **409 cycle** (`urn:astrolabe:problem:dependency-cycle`, `cycle` as data) → insert (**409** duplicate ordered pair); 201 + `Location` |
+    | `GET /dependencies/{id}` | authenticated; 404 when the link or either end's chain is gone |
+    | `DELETE /dependencies/{id}` | `dependencyChain` (the successor's project chain) ?: 404 → `requireOwnerOrAdmin` on it → (under the lock) chain re-read 404 → the guard again 403 → 204 |
+    | `DELETE /milestones/{id}`, `DELETE /projects/{id}` | unchanged guards; cascade the links at either end |
+
+    The named product-rule tests (`DependencyTest`): "the predecessor's project owner alone cannot create the link" and "… cannot delete it", "a team manager who owns nothing on the chain cannot link", "a forbidden caller's malformed body stays 403". Every 403 is the central
+    `authz.denied`. The `can` flags for links (`project.can.createDependency`, each link's `can.delete` = `canManage` on the successor's project chain) arrive with the project view's dependencies in a later increment of v0.4.
+  - **Still planned (v0.5+):** a team manager edits capacity and team order. Each new rule lands here with its
     guard order (403 before 400/404, guard-before-read where existence is sensitive) in the same commit as its route.
 - **Existence disclosure (403 vs 404) — deliberate policy (API-ERR-006)**: two sanctioned idioms,
   and every new resource picks one consciously rather than mixing them. **Guard-before-read**
@@ -263,7 +276,7 @@ Layered RBAC. Implemented in the `server/src/main/kotlin/authz/` package.
     generic `authz.denied`); both ride the per-user `telemetry` rate bucket (30/min, mounted inside `authenticate`; `security.md` "Telemetry").
     See `.claude/docs/observability.md` "Telemetry" for the shapes. Tests: `TelemetryRoutesTest`.
 - **Exceptions**: `UnauthorizedException` (→ 401), `ForbiddenException` (→ 403),
-  `NotFoundException` (→ 404), `ConflictException` (→ 409), and `TooManyRequestsException` (→ 429) live
+  `NotFoundException` (→ 404), `ConflictException` (→ 409; it may carry an RFC 7807 extension member as data — `cycle`, the `ProblemCycleNode` list of the dependency-cycle problem, serialized as `ProblemDetail.cycle` and omitted otherwise), and `TooManyRequestsException` (→ 429) live
   in `authz/Exceptions.kt` and are mapped in `plugins/ErrorHandling.kt`. **All error bodies are
   RFC 7807 `application/problem+json` (API-ERR-001/002)**
   (`ProblemDetail{type,title,status,detail,instance}`; `instance` defaults to the request path

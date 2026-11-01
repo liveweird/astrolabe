@@ -124,6 +124,23 @@ internal suspend fun milestoneChain(id: UInt): MilestoneChain? {
 }
 
 /**
+ * The SUCCESSOR-side chain of a dependency (V15): the link must be ACTIVE and the project chain of its successor (the project itself, or
+ * the project of the successor milestone) active, else null — the route's 404. The guard of `DELETE /dependencies/{id}` and its
+ * under-the-lock re-read; the predecessor's owner is asked nothing, and a gone predecessor has already taken the link with it (the
+ * delete cascades).
+ */
+internal suspend fun dependencyChain(id: UInt): DependencyChain? {
+    val links = DependencyService.Dependencies
+    val row = links.selectAll().where { (links.id eq id) and links.active() }.toList().singleOrNull() ?: return null
+    val successor = row.successorRef()
+    val owners = when (successor.kind) {
+        EndpointKind.PROJECT -> projectChain(successor.id)
+        EndpointKind.MILESTONE -> milestoneChain(successor.id)?.owners
+    } ?: return null
+    return DependencyChain(owners, row.predecessorRef(), successor)
+}
+
+/**
  * One batched lookup of the display names of the owners [ids]. The name is read WITHOUT an `active()` filter on purpose: an
  * ACTIVE node's owner is always an active person (the owner check below on every write, and `PersonService.delete`'s 409 while a
  * person still owns a node), so the foreign key guarantees the row and a missing name would be a broken invariant, not a state.

@@ -27,8 +27,8 @@ data class PlanWrite<T>(val value: T, val revision: Long)
 
 /**
  * Runs [block] as ONE plan write: a transaction that first takes `plan_state` `FOR UPDATE` (every writer of the work streams,
- * programs, projects, milestones (V14) and — from V13 — the ranking serializes here, so a read-then-write inside [block], such
- * as "count the active children, then delete", cannot interleave with another plan writer), hands [block] the revision it
+ * programs, projects, milestones (V14), dependencies (V15) and — from V13 — the ranking serializes here, so a read-then-write inside
+ * [block], such as "count the active children, then delete", cannot interleave with another plan writer), hands [block] the revision it
  * started from, and bumps the revision by one when it returns. A [block] that throws (a 404, 409 or 400 found after the lock)
  * rolls the whole transaction back, so a rejected write never moves the revision.
  *

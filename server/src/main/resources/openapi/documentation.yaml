@@ -1175,7 +1175,8 @@ paths:
       description: |
         An owner on the project's chain - the project's own owner included - or ADMIN, read-before-guard (404, then 403). Soft
         delete - the name is freed. The project's ACTIVE milestones are soft-deleted with it, in the same locked transaction (there is
-        no `409`; the audit event `project.deleted` carries their `milestoneCount`), and the project leaves the roadmap ranking.
+        no `409`; the audit event `project.deleted` carries their `milestoneCount`), and so are the ACTIVE dependencies with an end at
+        the project or at one of its milestones (`dependencyCount`). The project leaves the roadmap ranking.
       responses:
         '204':
           description: Deleted
@@ -1338,7 +1339,9 @@ paths:
       summary: Delete a milestone (soft)
       description: |
         An owner on the milestone's project chain - the project's own owner included - or ADMIN, read-before-guard (404, then 403). Soft
-        delete - the name is freed in its project and the milestone leaves its team's timeline. Audited as `milestone.deleted`.
+        delete - the name is freed in its project and the milestone leaves its team's timeline. Every ACTIVE dependency with this
+        milestone at either end is soft-deleted with it, in the same locked transaction. Audited as `milestone.deleted` (with
+        `dependencyCount`).
       responses:
         '204':
           description: Deleted
@@ -1388,6 +1391,94 @@ paths:
             application/problem+json:
               schema: { $ref: '#/components/schemas/ProblemDetail' }
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/projects/{id}/dependencies:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    post:
+      tags: [plan]
+      operationId: createDependency
+      summary: Link a milestone or project to this project or one of its milestones
+      description: |
+        Creates a dependency whose SUCCESSOR (the constrained side: "it waits for the predecessor") is project `{id}` itself or one of
+        its ACTIVE milestones (`400` otherwise). The caller must own something on THIS project's chain - the project's own owner
+        included - or be ADMIN, read-before-guard (404, then 403, then the body); the PREDECESSOR's owner is asked nothing, and a team
+        manager as such has no say (a dependency never moves a date). The predecessor is any active milestone or project, in this
+        project or another (`400` "Unknown or deleted milestone ids: N" / "... project ids: N"). `type` is FS (the successor starts
+        after the predecessor finishes), SS (starts after it starts), FF (finishes after it finishes) or SF (finishes after it
+        starts); `lagDays` are WORKING days (Monday-Friday), negative = a lead, -365..365 (`400` outside; default 0). Linking an
+        endpoint to itself is `400`. A violated link is only a warning in the project view and never moves anything.
+        `409` in two cases, both with nothing written and no revision bump: the two endpoints are already linked (at most one
+        active link per unordered pair, any type and either direction; change the type by deleting the link and adding another),
+        or the link would close a directed cycle on the start/end
+        time-point graph (a project contains its milestones) - then `type` is `urn:astrolabe:problem:dependency-cycle` and `cycle`
+        names the entities, the first repeated last. Audited as `dependency.created`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DependencyCreateRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '201':
+          description: Created; `Location` points at the new dependency (`/api/v1/dependencies/{id}`)
+          headers:
+            Location:
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DependencyResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: >-
+            The two endpoints are already linked (either direction), or the link would close a cycle (`type` is
+            `urn:astrolabe:problem:dependency-cycle` and `cycle` lists the entities)
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetail' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/dependencies/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    get:
+      tags: [plan]
+      operationId: getDependency
+      summary: Get a dependency
+      description: |
+        Any authenticated user. Both ends are resolved (a project's dates are its DERIVED span, null while nothing in it is
+        scheduled). `404` when the dependency, or either end's project, program or work stream, is deleted.
+      responses:
+        '200':
+          description: The dependency
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DependencyResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    delete:
+      tags: [plan]
+      operationId: deleteDependency
+      summary: Delete a dependency (soft)
+      description: |
+        An owner on the SUCCESSOR's project chain - that project's own owner included - or ADMIN, read-before-guard (404, then 403); the
+        predecessor's owner may not delete a link another project depends on. Re-checked under the plan lock. Soft delete - the
+        ordered pair is free to link again. Audited as `dependency.deleted`.
+      responses:
+        '204':
+          description: Deleted
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalServerError' }
   /api/v1/views/plan:
     get:
@@ -2259,6 +2350,67 @@ components:
         endDate: { type: string, format: date, nullable: true }
         createdAt: { type: integer, format: int64, description: Epoch millis }
         updatedAt: { type: integer, format: int64, description: Epoch millis }
+    DependencyType:
+      type: string
+      enum: [FS, SS, FF, SF]
+      description: >-
+        Finish-to-start (the successor starts after the predecessor finishes), start-to-start, finish-to-finish or
+        start-to-finish. The SUCCESSOR is always the constrained side.
+    EndpointKind:
+      type: string
+      enum: [MILESTONE, PROJECT]
+    EndpointRef:
+      type: object
+      required: [kind, id]
+      properties:
+        kind: { $ref: '#/components/schemas/EndpointKind' }
+        id: { type: integer, format: int32, minimum: 1 }
+    DependencyCreateRequest:
+      type: object
+      required: [predecessor, successor, type]
+      properties:
+        predecessor:
+          allOf: [{ $ref: '#/components/schemas/EndpointRef' }]
+          description: >-
+            Any active milestone or project (`400` "Unknown or deleted milestone ids: N" / "... project ids: N").
+        successor:
+          allOf: [{ $ref: '#/components/schemas/EndpointRef' }]
+          description: The path project itself or one of its active milestones (`400` otherwise); never equal to the predecessor (`400`).
+        type: { $ref: '#/components/schemas/DependencyType' }
+        lagDays:
+          type: integer
+          format: int32
+          minimum: -365
+          maximum: 365
+          default: 0
+          description: WORKING days (Monday-Friday) the successor waits after the predecessor's anchor; negative = a lead.
+    DependencyEndpoint:
+      type: object
+      description: >-
+        One resolved end of a dependency. A project's dates are its DERIVED span (earliest start to latest end over its scheduled
+        milestones), never its target window; they are null while nothing in it is scheduled.
+      required: [kind, id, name, projectId, projectName, teamId, teamName, startDate, endDate]
+      properties:
+        kind: { $ref: '#/components/schemas/EndpointKind' }
+        id: { type: integer, format: int32, minimum: 0 }
+        name: { type: string }
+        projectId: { type: integer, format: int32, minimum: 0, description: The milestone's project; the project's own id for a project. }
+        projectName: { type: string }
+        teamId: { type: integer, format: int32, minimum: 0, nullable: true, description: A milestone's team; null for a project. }
+        teamName: { type: string, nullable: true }
+        startDate: { type: string, format: date, nullable: true }
+        endDate: { type: string, format: date, nullable: true }
+    DependencyResponse:
+      type: object
+      required: [id, predecessor, successor, type, lagDays, createdAt, updatedAt]
+      properties:
+        id: { type: integer, format: int32, minimum: 0 }
+        predecessor: { $ref: '#/components/schemas/DependencyEndpoint' }
+        successor: { $ref: '#/components/schemas/DependencyEndpoint' }
+        type: { $ref: '#/components/schemas/DependencyType' }
+        lagDays: { type: integer, format: int32, minimum: -365, maximum: 365, description: Working days; negative = a lead. }
+        createdAt: { type: integer, format: int64, description: Epoch millis }
+        updatedAt: { type: integer, format: int64, description: Epoch millis }
     PlanView:
       type: object
       required: [revision, can, workStreams]
@@ -2517,7 +2669,7 @@ components:
           type: string
           default: about:blank
           description: >-
-            A URI reference identifying the problem type; `about:blank` unless a problem names its own (`urn:astrolabe:problem:stale-revision` on a stale ranking or milestone-schedule PUT).
+            A URI reference identifying the problem type; `about:blank` unless a problem names its own (`urn:astrolabe:problem:stale-revision` on a stale ranking or milestone-schedule PUT, `urn:astrolabe:problem:dependency-cycle` on a dependency that would close a cycle).
         title:
           type: string
           description: Short, human-readable summary of the problem type.
@@ -2530,6 +2682,19 @@ components:
         instance:
           type: string
           description: URI reference of the specific occurrence (the request path).
+        cycle:
+          type: array
+          items: { $ref: '#/components/schemas/ProblemCycleNode' }
+          description: >-
+            RFC 7807 extension member, present only on `urn:astrolabe:problem:dependency-cycle`: the cycle the refused link would
+            close, as entities in order with the first node repeated last. Every other problem omits it.
+    ProblemCycleNode:
+      type: object
+      required: [kind, id, name]
+      properties:
+        kind: { $ref: '#/components/schemas/EndpointKind' }
+        id: { type: integer, format: int32, minimum: 0 }
+        name: { type: string }
 
     TelemetryCurrent:
       type: object

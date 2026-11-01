@@ -4,6 +4,7 @@ import ch.nokillswit.audit.audit
 import ch.nokillswit.authz.ConflictException
 import ch.nokillswit.authz.ForbiddenException
 import ch.nokillswit.authz.NotFoundException
+import ch.nokillswit.authz.ProblemCycleNode
 import ch.nokillswit.authz.TooManyRequestsException
 import ch.nokillswit.authz.UnauthorizedException
 import io.ktor.server.auth.jwt.JWTPrincipal
@@ -31,7 +32,8 @@ import org.jetbrains.exposed.v1.exceptions.ExposedSQLException
  * RFC 7807 problem detail. Serialized as `application/problem+json`.
  *
  * `type` defaults to `about:blank`, in which case `title` is the standard reason phrase for
- * `status` (per the RFC). `detail` is the occurrence-specific message.
+ * `status` (per the RFC). `detail` is the occurrence-specific message. [cycle] is an RFC 7807 extension member, present only on
+ * `urn:astrolabe:problem:dependency-cycle` (omitted otherwise, `explicitNulls = false`): the entities the refused link would close.
  */
 @Serializable
 data class ProblemDetail(
@@ -40,6 +42,7 @@ data class ProblemDetail(
     val status: Int,
     val detail: String? = null,
     val instance: String? = null,
+    val cycle: List<ProblemCycleNode>? = null,
 )
 
 /** RFC 7807 media type for error bodies. */
@@ -58,6 +61,7 @@ suspend fun ApplicationCall.respondProblem(
     title: String = status.description,
     instance: String? = null,
     type: String = "about:blank",
+    cycle: List<ProblemCycleNode>? = null,
 ) {
     // The occurrence path is useful without reflecting query parameters that may contain secrets.
     val problem = ProblemDetail(
@@ -66,6 +70,7 @@ suspend fun ApplicationCall.respondProblem(
         status = status.value,
         detail = detail ?: status.description,
         instance = instance ?: request.path(),
+        cycle = cycle,
     )
     respond(
         TextContent(
@@ -119,6 +124,7 @@ private val UNIQUE_CONSTRAINT_DETAILS = mapOf(
     "uq_programs_name_active" to "A program with this name already exists",
     "uq_projects_program_name_active" to "A project with this name already exists in this program",
     "uq_milestones_project_name_active" to "A milestone with this name already exists in this project",
+    "uq_dependencies_pair_active" to "These two endpoints are already linked",
 )
 
 private fun Throwable.uniqueViolationDetail(): String {
@@ -259,7 +265,10 @@ fun Application.configureErrorHandling() {
             call.respondProblem(HttpStatusCode.NotFound, cause.message ?: "Resource not found")
         }
         exception<ConflictException> { call, cause ->
-            call.respondProblem(HttpStatusCode.Conflict, cause.message ?: "Conflict", instance = cause.instance, type = cause.problemType)
+            call.respondProblem(
+                HttpStatusCode.Conflict, cause.message ?: "Conflict",
+                instance = cause.instance, type = cause.problemType, cycle = cause.cycle,
+            )
         }
         // Non-unique DB failures fall through to a 500 problem (logged) instead of rethrowing,
         // which would escape StatusPages and yield a bodiless default 500.

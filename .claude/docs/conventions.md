@@ -17,10 +17,10 @@ predicate), a `V<n>__description.sql` migration (+ its checksum pin in `Migratio
 spec paths in `openapi/documentation.yaml`, `cd web && npm run gen:api` (same commit), lazy pages +
 `NAV_SECTIONS` entries (`web/src/utils/navigation.ts`), and an e2e spec + scenario doc +
 coverage-map line. 
-**Deliberate exceptions to the template.** One in v0.2.0: **`planning/` has one routes file per entity** (`WorkStreamRoutes.kt`, `ProgramRoutes.kt`, `ProjectRoutes.kt`, `MilestoneRoutes.kt`, `PlanViewRoutes.kt`, `RoadmapRoutes.kt`),
+**Deliberate exceptions to the template.** One in v0.2.0: **`planning/` has one routes file per entity** (`WorkStreamRoutes.kt`, `ProgramRoutes.kt`, `ProjectRoutes.kt`, `MilestoneRoutes.kt`, `DependencyRoutes.kt`, `PlanViewRoutes.kt`, `RoadmapRoutes.kt`),
 all registered by ONE module function (`configurePlanningRoutes()` in `PlanningRoutes.kt`, which also holds the shared per-request caller resolution) — six resources with different guards (read-before-guard
 owner-scoped writes, not the registry's ADMIN-only `requireAdmin`) would blow the 400-line file cap and the "past ~100 lines delegate to `Route.xxx(deps)` functions" rule is applied per entity instead; services
-(`WorkStreamService`, `ProgramService`, `ProjectService`, `MilestoneService`, `PlanViewService`, `ProjectViewService`, `RoadmapService`) and DTO files are per entity too. Flow's three (a config PUT validated in the service because it needs reference data; one route file per sub-resource when a registry,
+(`WorkStreamService`, `ProgramService`, `ProjectService`, `MilestoneService`, `DependencyService`, `PlanViewService`, `ProjectViewService`, `RoadmapService`) and DTO files are per entity too. Flow's three (a config PUT validated in the service because it needs reference data; one route file per sub-resource when a registry,
 a queue and read-only views differ in guard; a service-side floor that reads another feature's setting) are recorded here only as precedent: a new exception is added to this list with its reason in
 the commit that introduces it. Fuller shapes arrive with the planning increments (`planning-model.md`): a **view endpoint** is now real (`GET /views/plan`: one read transaction, the plan revision first, the whole tree with the caller's
 `can:{…}` flags from a pure kernel, no paged envelope — `list-endpoints.md`); a **sub-collection create** names the parent in the path (`POST /work-streams/{id}/programs`) so the guard sees the chain; a **read-before-guard**

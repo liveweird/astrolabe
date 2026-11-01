@@ -62,6 +62,9 @@ data class TargetWindow(val start: LocalDate, val end: LocalDate)
 /** What a field update replaced, for the audit delta: the STORED owner before the write. */
 data class ProjectUpdateOutcome(val ownerFrom: UInt)
 
+/** What a project delete cascaded, for the audit: the ACTIVE milestones' count and the ACTIVE dependencies (either end, with ids). */
+data class ProjectDeleteOutcome(val milestoneCount: Int, val dependencies: DeletedDependencies)
+
 /** The stored window before a target-window write (both null = none), for the audit delta. */
 data class TargetWindowOutcome(val from: TargetWindow?)
 

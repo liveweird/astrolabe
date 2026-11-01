@@ -744,7 +744,8 @@ export interface paths {
          * Delete a project (soft)
          * @description An owner on the project's chain - the project's own owner included - or ADMIN, read-before-guard (404, then 403). Soft
          *     delete - the name is freed. The project's ACTIVE milestones are soft-deleted with it, in the same locked transaction (there is
-         *     no `409`; the audit event `project.deleted` carries their `milestoneCount`), and the project leaves the roadmap ranking.
+         *     no `409`; the audit event `project.deleted` carries their `milestoneCount`), and so are the ACTIVE dependencies with an end at
+         *     the project or at one of its milestones (`dependencyCount`). The project leaves the roadmap ranking.
          */
         delete: operations["deleteProject"];
         options?: never;
@@ -863,7 +864,9 @@ export interface paths {
         /**
          * Delete a milestone (soft)
          * @description An owner on the milestone's project chain - the project's own owner included - or ADMIN, read-before-guard (404, then 403). Soft
-         *     delete - the name is freed in its project and the milestone leaves its team's timeline. Audited as `milestone.deleted`.
+         *     delete - the name is freed in its project and the milestone leaves its team's timeline. Every ACTIVE dependency with this
+         *     milestone at either end is soft-deleted with it, in the same locked transaction. Audited as `milestone.deleted` (with
+         *     `dependencyCount`).
          */
         delete: operations["deleteMilestone"];
         options?: never;
@@ -896,6 +899,69 @@ export interface paths {
         put: operations["scheduleMilestone"];
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{id}/dependencies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Link a milestone or project to this project or one of its milestones
+         * @description Creates a dependency whose SUCCESSOR (the constrained side: "it waits for the predecessor") is project `{id}` itself or one of
+         *     its ACTIVE milestones (`400` otherwise). The caller must own something on THIS project's chain - the project's own owner
+         *     included - or be ADMIN, read-before-guard (404, then 403, then the body); the PREDECESSOR's owner is asked nothing, and a team
+         *     manager as such has no say (a dependency never moves a date). The predecessor is any active milestone or project, in this
+         *     project or another (`400` "Unknown or deleted milestone ids: N" / "... project ids: N"). `type` is FS (the successor starts
+         *     after the predecessor finishes), SS (starts after it starts), FF (finishes after it finishes) or SF (finishes after it
+         *     starts); `lagDays` are WORKING days (Monday-Friday), negative = a lead, -365..365 (`400` outside; default 0). Linking an
+         *     endpoint to itself is `400`. A violated link is only a warning in the project view and never moves anything.
+         *     `409` in two cases, both with nothing written and no revision bump: the two endpoints are already linked (at most one
+         *     active link per unordered pair, any type and either direction; change the type by deleting the link and adding another),
+         *     or the link would close a directed cycle on the start/end
+         *     time-point graph (a project contains its milestones) - then `type` is `urn:astrolabe:problem:dependency-cycle` and `cycle`
+         *     names the entities, the first repeated last. Audited as `dependency.created`.
+         */
+        post: operations["createDependency"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/dependencies/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Get a dependency
+         * @description Any authenticated user. Both ends are resolved (a project's dates are its DERIVED span, null while nothing in it is
+         *     scheduled). `404` when the dependency, or either end's project, program or work stream, is deleted.
+         */
+        get: operations["getDependency"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete a dependency (soft)
+         * @description An owner on the SUCCESSOR's project chain - that project's own owner included - or ADMIN, read-before-guard (404, then 403); the
+         *     predecessor's owner may not delete a link another project depends on. Re-checked under the plan lock. Soft delete - the
+         *     ordered pair is free to link again. Audited as `dependency.deleted`.
+         */
+        delete: operations["deleteDependency"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1618,6 +1684,76 @@ export interface components {
              */
             updatedAt: number;
         };
+        /**
+         * @description Finish-to-start (the successor starts after the predecessor finishes), start-to-start, finish-to-finish or start-to-finish. The SUCCESSOR is always the constrained side.
+         * @enum {string}
+         */
+        DependencyType: "FS" | "SS" | "FF" | "SF";
+        /** @enum {string} */
+        EndpointKind: "MILESTONE" | "PROJECT";
+        EndpointRef: {
+            kind: components["schemas"]["EndpointKind"];
+            /** Format: int32 */
+            id: number;
+        };
+        DependencyCreateRequest: {
+            /** @description Any active milestone or project (`400` "Unknown or deleted milestone ids: N" / "... project ids: N"). */
+            predecessor: components["schemas"]["EndpointRef"];
+            /** @description The path project itself or one of its active milestones (`400` otherwise); never equal to the predecessor (`400`). */
+            successor: components["schemas"]["EndpointRef"];
+            type: components["schemas"]["DependencyType"];
+            /**
+             * Format: int32
+             * @description WORKING days (Monday-Friday) the successor waits after the predecessor's anchor; negative = a lead.
+             * @default 0
+             */
+            lagDays: number;
+        };
+        /** @description One resolved end of a dependency. A project's dates are its DERIVED span (earliest start to latest end over its scheduled milestones), never its target window; they are null while nothing in it is scheduled. */
+        DependencyEndpoint: {
+            kind: components["schemas"]["EndpointKind"];
+            /** Format: int32 */
+            id: number;
+            name: string;
+            /**
+             * Format: int32
+             * @description The milestone's project; the project's own id for a project.
+             */
+            projectId: number;
+            projectName: string;
+            /**
+             * Format: int32
+             * @description A milestone's team; null for a project.
+             */
+            teamId: number | null;
+            teamName: string | null;
+            /** Format: date */
+            startDate: string | null;
+            /** Format: date */
+            endDate: string | null;
+        };
+        DependencyResponse: {
+            /** Format: int32 */
+            id: number;
+            predecessor: components["schemas"]["DependencyEndpoint"];
+            successor: components["schemas"]["DependencyEndpoint"];
+            type: components["schemas"]["DependencyType"];
+            /**
+             * Format: int32
+             * @description Working days; negative = a lead.
+             */
+            lagDays: number;
+            /**
+             * Format: int64
+             * @description Epoch millis
+             */
+            createdAt: number;
+            /**
+             * Format: int64
+             * @description Epoch millis
+             */
+            updatedAt: number;
+        };
         PlanView: {
             /**
              * Format: int64
@@ -1882,7 +2018,7 @@ export interface components {
         /** @description RFC 7807 problem detail. Served as `application/problem+json`; instance is the request path without query parameters. */
         ProblemDetail: {
             /**
-             * @description A URI reference identifying the problem type; `about:blank` unless a problem names its own (`urn:astrolabe:problem:stale-revision` on a stale ranking or milestone-schedule PUT).
+             * @description A URI reference identifying the problem type; `about:blank` unless a problem names its own (`urn:astrolabe:problem:stale-revision` on a stale ranking or milestone-schedule PUT, `urn:astrolabe:problem:dependency-cycle` on a dependency that would close a cycle).
              * @default about:blank
              */
             type: string;
@@ -1894,6 +2030,14 @@ export interface components {
             detail: string;
             /** @description URI reference of the specific occurrence (the request path). */
             instance: string;
+            /** @description RFC 7807 extension member, present only on `urn:astrolabe:problem:dependency-cycle`: the cycle the refused link would close, as entities in order with the first node repeated last. Every other problem omits it. */
+            cycle?: components["schemas"]["ProblemCycleNode"][];
+        };
+        ProblemCycleNode: {
+            kind: components["schemas"]["EndpointKind"];
+            /** Format: int32 */
+            id: number;
+            name: string;
         };
         TelemetryCurrent: {
             /**
@@ -3733,6 +3877,100 @@ export interface operations {
             };
             413: components["responses"]["PayloadTooLarge"];
             415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    createDependency: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DependencyCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Created; `Location` points at the new dependency (`/api/v1/dependencies/{id}`) */
+            201: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DependencyResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description The two endpoints are already linked (either direction), or the link would close a cycle (`type` is `urn:astrolabe:problem:dependency-cycle` and `cycle` lists the entities) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    getDependency: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The dependency */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DependencyResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    deleteDependency: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
             500: components["responses"]["InternalServerError"];
         };
     };

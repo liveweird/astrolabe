@@ -1,7 +1,7 @@
 ### Planning model
 
-The binding reference for the planning domain as it is built (v0.2.0: people, permissions and dates, the plan structure, the roadmap ranking; v0.3.0: milestones). The product intent and the user's domain
-decisions are in `product.md`; the parts not built yet stay a **sketch** at the end (dependencies, capacity — the v0.4+ increments confirm or amend each line and rewrite it here when
+The binding reference for the planning domain as it is built (v0.2.0: people, permissions and dates, the plan structure, the roadmap ranking; v0.3.0: milestones; v0.4.0: dependencies). The product intent and the user's domain
+decisions are in `product.md`; the parts not built yet stay a **sketch** at the end (capacity, the team order — the v0.5+ increments confirm or amend each line and rewrite it here when
 their migration lands).
 
 ## Conventions every planning table follows
@@ -191,11 +191,44 @@ The fourth level, under a project: a **name**, an optional **description**, **ex
 - **Tests**: `MilestoneTest` (the plan-field matrix, validation, the stored `::text`, names, the team change, the cascade, audit), `MilestoneScheduleTest` (the manager matrix with the named project-owner test, the 400s, stale 409,
   per-milestone semantics, the held-request re-guard cases, the lock wait), `DecimalColumnTest`, `TeamTest` (the team 409 and both lock races), `PlanStateTest` (a milestone write bumps by one), `MigrationChecksumTest`.
 
-## Not built yet — the sketch (v0.4–v0.5, confirmed by each increment)
+## Dependencies (built — V15, v0.4.0; `planning/Dependency*.kt`, `Problems.kt`)
+
+A link between two time points of the plan, each end a **milestone or a project**, within or across projects. Built on the recommended defaults of the v0.4 plan's open questions (the user reviews them; `product.md`).
+
+- **Table `dependencies`** (`DependencyService.Dependencies`, `SoftDeletable`): `pred_milestone_id | pred_project_id` and `succ_milestone_id | succ_project_id` — real nullable FKs, `num_nonnulls = 1` per side (`ck_dependencies_pred/succ`) —
+  `type VARCHAR(2)` (`ck_dependencies_type`: FS/SS/FF/SF), `lag_days INTEGER` (`ck_dependencies_lag`: -365..365 **working days**, negative = a lead), epoch-millis `created_at`/`updated_at`, `marked_as_deleted`. `ck_dependencies_not_self` forbids the same id on
+  both sides (a NULL comparison passes a CHECK, so the mixed milestone-to-project cases pass). **`uq_dependencies_pair_active`**: one ACTIVE link per ORDERED pair of endpoints, whatever its type (`NULLS NOT DISTINCT` — the unused id column of each side is NULL
+  and must still collide — and partial over ACTIVE rows, so a deleted link frees the pair); the 409 wording "These two endpoints are already linked" is in `UNIQUE_CONSTRAINT_DETAILS`. The service widens it to **at most one ACTIVE link per UNORDERED pair** (an index cannot: it is over the ordered columns): under the plan lock, before the insert, an active link on (successor, predecessor) answers the same 409 (see the cycle rule). Changing a link's type or lag is delete + add (no PUT in v0.4).
+  No `ON DELETE` rules: milestones and projects are soft-deleted only and their deletes cascade here in the same transaction.
+- **The successor is the constrained party.** In all four types the SUCCESSOR is the side the constraint binds (FS: it starts after the predecessor ends; SS: starts after it starts; FF: ends after it ends; SF: ends after it starts), so the link is a plan field of
+  the successor and **the SUCCESSOR's project chain authorizes it** (`authorization.md`): `POST /projects/{id}/dependencies` (the successor must be project `{id}` itself or one of its ACTIVE milestones, else 400) and `DELETE /dependencies/{id}`. The predecessor must
+  merely be an ACTIVE milestone or project (400 "Unknown or deleted milestone ids: N" / "… project ids: N" on the body); its owner is asked nothing — a link never moves a date. A team manager as such has no say. Reads are open to every authenticated user.
+- **Cycle rule (`DependencyGraph.kt`, pure).** The graph's nodes are `START(x)` and `END(x)` of every milestone and project; edges are `START(x) → END(x)`, containment `START(project) → START(milestone)` and `END(milestone) → END(project)`, and one edge per
+  dependency (`X(pred) → Y(succ)`: FS `END→START`, SS `START→START`, FF `END→END`, SF `START→END`). Without dependency edges it is a DAG, so a new edge `u → v` closes a cycle **iff `v` already reaches `u`**: the create loads every active milestone's containment
+  and every active dependency (two statements, bounded by the plan's scale) and runs one iterative DFS with parent links, **under the plan lock** (two racing inserts cannot both pass). **ANY** directed cycle is refused, lags ignored: the reverse of an existing
+  pair whenever the two links close a loop (FS/FS, SS/SS, ...), a zero-lag SS/SS pair, `m FS p` and `p FS m` for `m` inside `p`, a three-entity loop across projects (a link between two PROJECTS also forbids any milestone-level link the other way across them). `p SS m` / `m FF p` inside one project are redundant with containment and
+  allowed (and some redundant containment links, `p SS m` with a positive lag when `m` is `p`'s earliest milestone, `m FF p` likewise for its latest, are accepted but can never be satisfied: the check will always show them violated). A reverse pair that closes NO
+  loop (`a SS b` + `b FF a`, `a SF b` + `b SF a`) is not a cycle, but the one-link-per-unordered-pair rule refuses it with the plain "already linked" 409. A self-link is a 400, not a cycle. The invariant "every active row set is acyclic" is what the v0.7 critical path and the v0.8 scheduler rely on; they add edge weights to the same `TimePointGraph.build`.
+- **The 409 names the cycle as data.** `type = urn:astrolabe:problem:dependency-cycle` (`DEPENDENCY_CYCLE_PROBLEM`, beside `STALE_REVISION_PROBLEM` in `Problems.kt`), `detail` "Adding this dependency would close a cycle: A → B → A", and an RFC 7807 extension member
+  **`cycle`**: `[{kind: MILESTONE|PROJECT, id, name}, …]` — consecutive time points of one entity collapsed, the NEW link's predecessor first and repeated last. `ConflictException.cycle` carries it, `ProblemDetail.cycle` serializes it (omitted when null, so every other
+  problem is unchanged). The SPA renders the path in the UI language instead of sniffing text. A duplicate ordered pair is the plain index 409. A refused write leaves no row and no revision bump.
+- **Endpoints on the wire** (`DependencyResponse`, `resolveEndpoints` in `DependencyEndpoints.kt`): both ends resolved to `{kind, id, name, projectId, projectName, teamId?, teamName?, startDate?, endDate?}`; a milestone carries its own project and team, a project
+  (`projectId` = its own id, no team) carries its **derived span** — `SpanKernels.derivedSpan` over its scheduled ACTIVE milestones, null while none is scheduled — never its target window.
+- **Working days.** `infra/time/WorkingDays.kt` holds the closed-form Monday–Friday index (`workingDayIndex`, `workingDayOfIndex`, `nextWorkingDayOnOrAfter`, `previousWorkingDayOnOrBefore`, `plusWorkingDays`): monotone, flat over a weekend, Friday→Monday = +1. The
+  violation check of a link (a later increment) is built on it; v0.7 swaps the body for the ported holiday-aware `WorkingDayIndex` and keeps the signatures. `WorkingDaysTest` pins the identities.
+- **Deletes.** A milestone delete soft-deletes every ACTIVE link with either end at it (`deleteDependenciesOf`, same locked transaction; `milestone.deleted` carries `dependencyCount`). A project delete soft-deletes the links at the project AND at its milestones, both ends,
+  before the milestones (`project.deleted` carries `dependencyCount` beside `milestoneCount`). Both audits list the cascaded link ids (`dependencyIds`), a project delete also the successor project ids of those links (`successorProjectIds`). A project move changes no id, so links survive; a team change and an unschedule keep them too (an unscheduled end simply has no dates). Dependency writes bump the plan revision
+  and never a milestone's `schedule_revision` — a drag is never staled by someone adding a link.
+- **Write order** (`DependencyService.create`, in `withPlanWrite`): project chain re-read (404) → `ownerGuard` re-run with the caller's person `FOR SHARE` (403) → successor in the project (400) → predecessor active (400) → cycle (409) → insert (pair 409). The route's outer order is
+  chain → 404 → `requireOwnerOrAdmin` 403 → body → pure validation 400 (lag range, self-link) → the above. `DELETE`: `dependencyChain` (the successor's project chain, 404) → 403 → under the lock the chain re-read (404) and the guard again.
+- **API** (tag `plan`): `POST /projects/{id}/dependencies` → 201 + `Location` + `DependencyResponse`; `GET /dependencies/{id}`; `DELETE /dependencies/{id}` → 204. No PUT and no list yet (the project view carries a project's links — a later increment).
+- **Audit** (`observability.md`): `dependency.created` (byUserId/dependencyId/projectId/predKind/predId/succKind/succId/type/lagDays), `dependency.deleted` (byUserId/dependencyId/predKind/predId/succKind/succId).
+- **Tests**: `DependencyTest` (the matrix incl. the named product-rule cases, the 400s, every endpoint kind read back resolved, the 409 pair and cycle shapes, delete), `DependencyLifecycleTest` (cascades, move/team/unschedule survival, the held-request re-guard, audits, the V15
+  constraints incl. `NULLS NOT DISTINCT`), `DependencyGraphTest` (pure), `WorkingDaysTest` (pure), `PlanStateTest` (a dependency write bumps by one, a refused cycle does not), `TestPlan.dependency` / `secondProject` (the fixtures).
+
+## Not built yet — the sketch (v0.5+, confirmed by each increment)
 
 - `team_milestone_orders(team_id, milestone_id, position)` — the roadmap's sibling (above): dense integers, `UNIQUE … DEFERRABLE`, wholesale PUT with `expectedRevision` (409 on stale) under the `plan_state` lock.
-- `dependencies`: nullable `pred_milestone_id|pred_project_id` and `succ_milestone_id|succ_project_id` with `num_nonnulls = 1` CHECKs, `type` FS/SS/FF/SF, `lag_days` (working days), `UNIQUE NULLS NOT DISTINCT`.
-- Cycle detection on a start/end time-point graph including containment edges (DFS under the plan lock; reused by the critical path and the scheduler).
 - `team_capacity_periods(team_id, effective_from, md_per_week)`.
 - Derived spans, drift (built for the project view, `SpanKernels.kt`) and load are computed at request time in pure kernels (`planning/`, the `CapacityKernels.kt` idiom), with shared JSON test vectors for Kotlin and vitest (deferred to the first
   kernel that needs them; `PlanPermissions` is the first pure kernel and is tested against the guards instead).

@@ -3,9 +3,6 @@ package ch.nokillswit.planning
 import io.ktor.server.plugins.BadRequestException
 import kotlinx.serialization.Serializable
 
-/** The `type` of the 409 a stale `expectedRevision` answers (RFC 7807): the SPA tells it apart from a plain conflict and reloads. */
-const val STALE_REVISION_PROBLEM = "urn:astrolabe:problem:stale-revision"
-
 /** The most projects one ranking PUT may list (the plan's scale is about 100 projects). */
 const val MAX_RANKED_PROJECTS = 1000
 
