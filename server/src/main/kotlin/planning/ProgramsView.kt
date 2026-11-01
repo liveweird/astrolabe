@@ -11,7 +11,10 @@ import kotlinx.serialization.Serializable
  */
 @Serializable
 data class ProgramsView(
-    /** The PLAN revision read FIRST (informational: no flow on the programs page sends it back; the ranking's revision lives on the roadmap view). */
+    /**
+     * The PLAN revision read FIRST (informational: no flow on the programs page sends it back;
+     * the ranking's revision lives on the roadmap view).
+     */
     val revision: Long,
     val teams: List<RoadmapTeam>,
     val links: List<RoadmapLink>,

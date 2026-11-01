@@ -50,7 +50,7 @@ is set at create and its update body carries none; it changes only through the t
 | `projects` | `program_id → programs`, `name`, `description`, `owner_person_id → people`, `target_start`/`target_end DATE NULL` | `ck_projects_target_window` (both or neither), `ck_projects_target_order` (end ≥ start); `uq_projects_program_name_active ON (program_id, LOWER(name))` (per program: "Discovery"/"MVP"/"Rollout" recur) |
 
 All three uniqueness indexes are partial over ACTIVE rows, so a deleted or renamed node frees its name; the 409 wording is in `UNIQUE_CONSTRAINT_DETAILS` (`ErrorHandling.kt`). A program's span is
-derived from its projects and a project's real span from its milestones — nothing is stored for them (the project view derives the latter, "The project view" below; the program span is v0.6). A closed work stream (end date set) still accepts new programs and projects in v0.2 (the
+derived from its projects and a project's real span from its milestones — nothing is stored for them (the project view derives the latter, "The project view" below; the program and work stream spans are derived by the programs view, built in v0.6). A closed work stream (end date set) still accepts new programs and projects in v0.2 (the
 timeline will show it closed later). The owner is changed through the ordinary full-replace PUT.
 
 ### The `plan_state` lock protocol and the 409 contract (`planning/PlanState.kt`)
