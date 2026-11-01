@@ -1,6 +1,6 @@
 # Product backlog
 
-Updated 2026-11-01. This file tracks **outstanding work only**. Implemented behaviour and release history belong elsewhere:
+Updated 2026-11-02. This file tracks **outstanding work only**. Implemented behaviour and release history belong elsewhere:
 - [README.md](README.md);
 - the [application changelog](web/src/changelog/entries.ts);
 - the topic guides under `.claude/docs/`.
@@ -22,7 +22,10 @@ The `backlog` mod (`liveweird/claude-mods`) summarises the tags on the status li
 Each increment gets its own plan (architect) before implementation. The domain sketch is `.claude/docs/planning-model.md`; the timeline approach is `.claude/docs/timeline.md`.
 
 - [new] **Paged lists for work streams and programs.** Projects and milestones have them since v0.4 (the dependency pickers); the plan view is still the only read surface of work streams and programs. Add theirs per `list-endpoints.md` with their first consumer.
-- [new] **v0.7.0 Calendar + critical path.** Port Flow's `PublicHoliday*`/`WorkingCalendar`/`WorkingDayIndex` (replaces `infra/time/WorkingDays.kt`, the Mon–Fri placeholder, and its closed-form working-day index that the v0.4 dependency checks use, with holidays); the critical path; idle gaps per project and team.
+- [new] **Flag a milestone that lost its last working day to a holiday (D2).** The schedule PUT refuses a span with no working day, but a holiday added later leaves such a milestone with its dates (it loads nothing and splits no idle gap); mark it on the project and team pages.
+- [new] **A per-link slack figure in the Dependencies table.** The Slack column is per milestone; a link's own slack (`actual - required`) is already computed server-side for the critical path.
+- [new] **The critical path on the team page / the roadmap.** It rides the project view only; the team view answers `critical: false` on its links and the roadmap has no path.
+- [new] **Ghost rows for chain members beyond the direct neighbours, if the Critical chain list proves insufficient.** Farther chain members are a list (names, dates, hops, slack), not timeline rows.
 - [new] **v0.8.0 Auto-proposal.** A server scheduler (rank + dependencies + capacity) → a diff preview → accept all or some through the batch schedule endpoint, under the same guards.
 - [new] **v0.9.0 Baselines.** Named snapshots at a plan revision; an overlay and a comparison view.
 
@@ -33,6 +36,8 @@ Each increment gets its own plan (architect) before implementation. The domain s
 
 ## Engineering follow-ups
 
+- [new] **Measure the project view on a synthetic long critical chain.** The sample plan has none (51 upstream rows over all 100 project views, the deepest at 2 hops, none critical), so the C10 budget gate (p50 <= 30 ms, p95 <= 45 ms, <= 120 KB) is unproven for a full 100-row `upstream` plus a long chain.
+- [new] **An apply-only mode for `--polish-holidays` on an already-loaded stack.** The loader applies the preset only as the last step of a full load; an existing sample plan cannot get the holidays without re-running it.
 - [new] **Edit a dependency in place.** `PUT /dependencies/{id}` for the type or lag; the cycle check re-runs without the edited edge (today: delete + add).
 - [new] **Arrows follow a drag preview.** Today they redraw at drop.
 - [new] **Index arrow specs by row** for the virtual pages (the team page up to ~270 rows, the roadmap ~100 and the expanded programs tree ~125) if the per-frame filter shows in the profile; at those sizes the scroll holds the 60 Hz cap with the arrows on (v0.6 measurement, `timeline.md`).

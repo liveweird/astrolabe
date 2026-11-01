@@ -8,7 +8,7 @@ Astrolabe. The name is the instrument: a tool for reading where everything stand
 ## What's here today (0.6.0 — the roadmap and programs timelines)
 
 Astrolabe's repository started as an exact copy of [Flow](https://github.com/liveweird/flow) (1.35.0, `e9c3b726`), trimmed to its generic foundation. 0.2.0 added the plan's structure, 0.3.0 the first timeline view, 0.4.0 the dependencies, 0.5.0 the team view with capacity
-and 0.6.0 the roadmap and programs timelines:
+and 0.6.0 the roadmap and programs timelines; the calendar and the critical path (0.7.0) are built but not yet released:
 
 - **People** — the directory of the plan's owners and managers, each optionally linked to a login; a team's manager is a person.
 - **Work streams, programs and projects**, each with an owner; owners edit what they own and everything below it, ADMIN everything. A project carries an optional target window; a work
@@ -20,6 +20,7 @@ and 0.6.0 the roadmap and programs timelines:
 - The **team view** (`/teams/:id`) — the team's milestones across projects on the shared timeline, scheduled by the team's manager; **capacity periods** (man-days per week from any date, an optional WIP limit) and a sticky weekly **load strip** that warns in orange about overloaded weeks and weeks over the WIP limit; the team's own **order of work** (row menu or a row drag handle; the project ranking is only its default, and Reset restores it). A deterministic 1,000-milestone sample plan can be loaded through the API ("Try it at scale" below).
 - The **Roadmap** (`/roadmap`) — one global project ranking on the shared timeline: a row per project in rank order (the span its milestones cover over the target window's band, flags as row icons with a collapsible flag panel, rolled-up dependency arrows, Month/Quarter/Year zoom), an "Unranked" divider and the unranked projects below it, filters (work stream, team, owner, flagged only) and a program pick remembered in the browser. An ADMIN or a holder of the per-user `ROADMAP_EDITOR` permission re-ranks by dragging a row by its handle (below the divider = unrank) or from the row menu (Move up/down/top/bottom, Rank, Unrank); a concurrent edit is detected and reloaded.
 - The **Programs** page (`/programs`) — the plan as a collapsible tree on the same timeline: work stream → program → project. A work stream's or program's bar is the span its projects cover and the counts beside it roll up the flags raised on those projects; opening a program shows its projects as the Roadmap draws them (target window, span, drift band, flag icons) with the rolled-up arrows between the rows shown. Expand/collapse is a button with `aria-expanded` (keyboard-operable and announced), Expand all / Collapse all, Month/Quarter/Year zoom and the same program pick as the Roadmap. Everyone reads it.
+- The **calendar and the critical path** (0.7.0; built, not yet released) — an ADMIN-curated list of **public holidays** (`/public-holidays`, add by hand or apply the Polish preset for a year); every working-day figure (dependency checks and lags, weekly load, capacity, WIP, the roadmap's links) skips them, and the timelines hatch them. The project page has a **Critical path** toggle (off by default, remembered in the browser): it outlines the chain of milestones and links, across projects, that determines the project's end, adds a **Slack** column (the working days a milestone could slip before that end moves) and lists the farther chain members under "Critical chain". The project and team pages mark **idle gaps** (3 or more working days with nothing in progress) as hatched bands and list them in an "Idle gaps" table. Nothing moves by itself.
 - **Sign-in** with a JWT access/refresh pair, a server-side revocation blocklist, per-account lockout and per-IP rate limits; opt-in **email MFA**; **self-service password reset** by an
   emailed single-use link.
 - **Users** (ADMIN-managed, `/api/v1/users`) with per-user **feature flags**, **permissions** and a synced UI/email **language** (English and Polish).
@@ -31,7 +32,7 @@ and 0.6.0 the roadmap and programs timelines:
 ## Roadmap
 
 0.1.0 the foundation · 0.2.0 plan structure · 0.3.0 the timeline and the project view · 0.4.0 dependencies · 0.5.0 the team view
-and capacity (shipped) · 0.6.0 roadmap and programs timelines (shipped) · 0.7.0 calendar and critical path · 0.8.0 auto-proposal · 0.9.0 baselines · 1.0.0 checkup. The scope of each version and the decisions
+and capacity (shipped) · 0.6.0 roadmap and programs timelines (shipped) · 0.7.0 calendar and critical path (built, not yet released) · 0.8.0 auto-proposal · 0.9.0 baselines · 1.0.0 checkup. The scope of each version and the decisions
 behind it: `.claude/docs/product.md`; open items: `BACKLOG.md`. `CLAUDE.md`'s "Product" and "Donors" sections say which sibling project each capability ports from.
 
 ## The stack

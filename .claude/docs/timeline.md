@@ -12,7 +12,7 @@ types and layout constants, `headerHeight()`), `hooks/useTimelinePreview.ts` (dr
 
 Dates cross the component boundary as ISO `YYYY-MM-DD` strings; inside they are **epoch days** (whole days since 1970-01-01, UTC; `toEpochDay`/`toIsoDate`). A range is `[from, to]` inclusive. A day is `dayWidth` pixels; a bar spans from the LEFT edge
 of its first day to the RIGHT edge of its last: `left = xOf(start)`, `width = (end − start + 1) × dayWidth`. A scale is made by `makeScale(zoom, range)` and carries `xOf(day)`, `widthOf(start, end)`, `dayAt(x)` (floor) and `totalWidth`. Monday = 0 is
-`(epochDay + 3) % 7` (`weekdayOf`); the weekend is Saturday–Sunday (`isWeekend`). Public holidays (v0.7) do NOT join that predicate: they come from the dictionary, are a separate hatch layer and a header name (see "Public holidays (v0.7)"), and `isWeekend` stays the pure Monday-start arithmetic.
+`(epochDay + 3) % 7` (`weekdayOf`); the weekend is Saturday–Sunday (`isWeekend`). Public holidays (v0.7) do NOT join that predicate: they come from the dictionary, are a separate hatch layer and a header name (see "Public holidays (built, v0.7.0)"), and `isWeekend` stays the pure Monday-start arithmetic.
 
 | Zoom | px / day | Header groups | Header cells | Weekend hatch | Default range padding (snapped outward) | Empty default |
 |---|---|---|---|---|---|---|
@@ -36,7 +36,7 @@ a range recomputed from every drag would shift every bar under the pointer. `scr
   `editable` is false. `label` is the short name used by the handles and announcements. Bar ids are unique across the timeline. `tone?: "ghost" | "summary" | "window"`: `ghost`/`summary` (v0.4) style a READ-ONLY bar (an editable bar ignores them; see "Arrows"), `window` (v0.6) is honoured on a read-only AND on an editable bar (see "Bar tones").
 - `TimelineRowData.draw?: {barId, label}` (v0.6) opts a row in to the draw gesture (see "The draw gesture").
 - `TimelineBandData{id, start, end, label, tone: "window" | "drift" | "idle"}` — decorative (`aria-hidden`, `title` = label, `data-band-tone` = the tone); the facts live in the page's text. Passed as the `bands` prop it spans every row (the project's target window, the idle gaps); in a row it spans that row.
-  `window` is a quiet gray tint with dashed edges, `drift` is orange (red is never used: nothing blocks in v0.3), `idle` (v0.7) is a diagonal gray hatch with no edges (see "Idle bands (v0.7)").
+  `window` is a quiet gray tint with dashed edges, `drift` is orange (red is never used: nothing blocks in v0.3), `idle` (v0.7) is a diagonal gray hatch with no edges (see "Idle bands (built, v0.7.0)").
 - `Timeline` props: `label`, `scale`, `onZoomChange`, `today` (ISO, injected), `columns`, `rows`, `bands?`, `overlay?`, `strip?` (v0.5), `holidays?` (v0.7, "Public holidays"), `toolbar?` (v0.7, the page's own controls after Today), `virtualizeFrom?` (80), `maxHeight?` (640), `busy?` (`aria-busy` on the grid while a save is in flight), `zooms?` (v0.6, default `MILESTONE_ZOOMS`), `ref?: Ref<TimelineHandle>` (v0.6, `focusRow`; a plain prop in React 19, no `forwardRef`).
 
 #### Overlay geometry
@@ -182,7 +182,7 @@ is NOT built: a range is bounded by the project's span plus padding, the hatch i
 #### Hatching and styling
 
 The weekend hatch is ONE `repeating-linear-gradient(90deg, …)` per row track (`weekendBackground(scale)`): period `7 × dayWidth`, transparent Monday–Friday, the `--timeline-hatch` ink on Saturday–Sunday, phased to the Monday on or before the range start (a repeating gradient repeats both ways, so the phase may be
-negative). Drawn at week and month zoom, not at quarter. Since v0.7 a second layer rides on it for public holidays ("Public holidays (v0.7)" below). Bars are data, so they are neutral gray (`--timeline-bar`); the brand cyan appears only on the focus ring and on the bar being dragged. The today line is the text colour (2 px, 55 % opacity) with a "Today" tag in the header. All styling
+negative). Drawn at week and month zoom, not at quarter. Since v0.7 a second layer rides on it for public holidays ("Public holidays (built, v0.7.0)" below). Bars are data, so they are neutral gray (`--timeline-bar`); the brand cyan appears only on the focus ring and on the bar being dragged. The today line is the text colour (2 px, 55 % opacity) with a "Today" tag in the header. All styling
 is `light-dark()` in `theme.module.css` (`timelineGrid` defines the tokens). Stacking, bottom to top: bands and today line (no z-index; painted first) < row tracks and bars (the line shows through the tracks' transparent parts and passes UNDER the bars) < the overlay (z 2) < the sticky left cells (z 3) < the sticky header (z 4).
 
 #### Public holidays (built, v0.7.0)
