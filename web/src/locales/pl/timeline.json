@@ -9,6 +9,10 @@
   },
   "today": "Dziś",
   "todayTag": "Dziś",
+  "holidayTitle": "Święto państwowe: {{name}}",
+  "holidaysInView": "Widoczne święta państwowe: {{list}}",
+  "holidaysInViewMany": "Widoczne święta państwowe: {{count}}; najbliższe: {{list}}",
+  "holidaysUnavailable": "Nie udało się wczytać świąt państwowych; dni wolne nie są zaznaczone.",
   "bar": {
     "roleDescription": "przesuwalny pasek",
     "handleRoleDescription": "uchwyt zmiany długości",

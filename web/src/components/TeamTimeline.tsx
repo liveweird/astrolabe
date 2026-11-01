@@ -4,6 +4,7 @@ import { Link as RouterLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import type { TeamMilestone, TeamView } from "../api/teams";
+import { useHolidays } from "../hooks/useHolidays";
 import { arrowSpecsFor, conflictsByBarFor } from "../utils/dependencyArrows";
 import { projectPath } from "../utils/planLinks";
 import type { BarId, RovingTarget, TimelineColumn, TimelineRowData } from "../utils/timelineModel";
@@ -153,6 +154,7 @@ export default function TeamTimeline({
   label: string;
 }) {
   const { t } = useTranslation();
+  const { holidays, failed: holidaysFailed } = useHolidays();
   const columns: TimelineColumn[] = [
     { id: "name", header: t("project.column.milestone"), width: COLUMN_WIDTHS.name },
     { id: "project", header: t("teams.view.column.project"), width: COLUMN_WIDTHS.project },
@@ -208,6 +210,8 @@ export default function TeamTimeline({
       today={today}
       columns={columns}
       rows={rows}
+      holidays={holidays}
+      holidaysFailed={holidaysFailed}
       busy={busy}
       strip={{ label: t("teams.view.stripLabel"), render: (stripScale) => <TimelineLoadStrip weeks={view.weeks} scale={stripScale} /> }}
       overlay={arrows.length === 0 ? undefined : (geometry) => <TimelineArrows arrows={arrows} geometry={geometry} />}

@@ -23,6 +23,7 @@ const TelemetryPanel = lazy(() => import("./components/TelemetryPanel"));
 const Login = lazy(() => import("./pages/Login"));
 const Home = lazy(() => import("./pages/Home"));
 const People = lazy(() => import("./pages/People"));
+const PublicHolidays = lazy(() => import("./pages/PublicHolidays"));
 const PersonDetails = lazy(() => import("./pages/PersonDetails"));
 const Plan = lazy(() => import("./pages/Plan"));
 const ProjectView = lazy(() => import("./pages/ProjectView"));
@@ -239,6 +240,7 @@ export default function App() {
             <Route path="programs" element={<Programs />} />
             <Route path="people" element={<People />} />
             <Route path="people/:id" element={<PersonDetails />} />
+            <Route path="public-holidays" element={<PublicHolidays />} />
             <Route path="teams" element={<Teams />} />
             <Route path="teams/:id" element={<TeamDetails />} />
             {/* The management surface — ADMIN only, guarded once here (the pages no longer redirect themselves). */}

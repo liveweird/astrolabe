@@ -4,10 +4,13 @@ import { headerRows, toEpochDay, type HeaderCell, type TimelineScale } from "../
 import classes from "../theme.module.css";
 
 function HeaderCells({ cells, scale }: { cells: readonly HeaderCell[]; scale: TimelineScale }) {
+  const { t } = useTranslation();
   return cells.map((cell) => (
     <div
       key={cell.key}
-      className={`${classes.timelineHeadCell} ${cell.weekend ? classes.timelineHeadWeekend : ""}`}
+      className={`${classes.timelineHeadCell} ${cell.weekend || cell.holiday !== undefined ? classes.timelineHeadWeekend : ""}`}
+      title={cell.holiday === undefined ? undefined : t("timeline.holidayTitle", { name: cell.holiday })}
+      data-holiday={cell.holiday === undefined ? undefined : "true"}
       style={{ left: scale.xOf(cell.from), width: scale.widthOf(cell.from, cell.to) }}
     >
       {cell.label}
@@ -27,15 +30,18 @@ export default function TimelineHeader({
   leftWidth,
   today,
   strip,
+  holidays,
 }: {
   scale: TimelineScale;
   columns: readonly TimelineColumn[];
   leftWidth: number;
   today: string;
   strip?: TimelineStripData;
+  /** Public holidays by epoch day: a day cell on one is tinted like a weekend and carries the holiday's name as its `title`. */
+  holidays?: ReadonlyMap<number, string>;
 }) {
   const { t } = useTranslation();
-  const { groups, cells } = headerRows(scale);
+  const { groups, cells } = headerRows(scale, holidays);
   const todayDay = toEpochDay(today);
   const todayVisible = todayDay >= scale.from && todayDay <= scale.to;
   const trackStyle = { width: scale.totalWidth, height: HEADER_ROW_HEIGHT };

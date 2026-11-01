@@ -73,7 +73,10 @@ let view: ProgramsView;
 
 beforeEach(() => {
   view = viewOf();
-  mockFetch = vi.fn((url: string) => Promise.resolve(url === "/api/v1/views/programs" ? jsonResponse(200, view) : jsonResponse(404, { title: "x", status: 404 })));
+  mockFetch = vi.fn((url: string) => {
+    if (url === "/api/v1/public-holidays") return Promise.resolve(jsonResponse(200, { items: [{ id: 1, date: "2026-03-18", name: "Founders' Day" }] }));
+    return Promise.resolve(url === "/api/v1/views/programs" ? jsonResponse(200, view) : jsonResponse(404, { title: "x", status: 404 }));
+  });
   vi.stubGlobal("fetch", mockFetch);
   localStorage.setItem("astrolabe.auth.token", "fake-token");
 });
@@ -98,6 +101,13 @@ const LEGACY_ROW = "Legacy Leo Legacy";
 const liveText = () => screen.getAllByRole("status").map((region) => region.textContent).join(" | ");
 
 describe("Programs page", () => {
+  test("at Month zoom the dictionary's holidays are listed for assistive technology", async () => {
+    localStorage.setItem(ZOOM_KEY, JSON.stringify("month"));
+    renderWithProviders(<Programs />);
+    await waitForGrid();
+    expect(await screen.findByText(/Public holidays shown: 2026-03-18 Founders' Day/)).toBeInTheDocument();
+  });
+
   test("renders the work streams open and the programs folded, with the facts, the roll-up counts and the summary bars; the heading outline is pinned", async () => {
     renderWithProviders(<Programs />);
     await waitForGrid();

@@ -93,6 +93,8 @@ const withoutLinking = () => ({ ...viewOf().project, can: { ...viewOf().project.
 const STALE = { type: "urn:astrolabe:problem:stale-revision", title: "Conflict", status: 409, detail: "stale" };
 
 let view: ProjectViewDocument;
+/** The public-holiday dictionary the stand-in server answers (empty unless a test adds a row). */
+let holidays: { id: number; date: string; name: string }[];
 let putStatus: { status: number; body?: unknown };
 let dependencyPost: { status: number; body?: unknown };
 /** Runs when a dependency POST is accepted: the test's stand-in for the server adding the link to the view. */
@@ -103,6 +105,7 @@ function serve(mockFetch: FetchMock) {
   mockFetch.mockImplementation((url: string, init?: RequestInit) => {
     const method = init?.method ?? "GET";
     if (method === "GET" && url === "/api/v1/views/project/7") return Promise.resolve(jsonResponse(200, view));
+    if (method === "GET" && url === "/api/v1/public-holidays") return Promise.resolve(jsonResponse(200, { items: holidays }));
     const schedule = /^\/api\/v1\/milestones\/(\d+)\/schedule$/.exec(url);
     if (method === "PUT" && schedule) {
       if (putStatus.status !== 200) return Promise.resolve(jsonResponse(putStatus.status, putStatus.body ?? { title: "x", status: putStatus.status }));
@@ -153,6 +156,7 @@ let mockFetch: FetchMock;
 
 beforeEach(() => {
   view = viewOf();
+  holidays = [];
   putStatus = { status: 200 };
   dependencyPost = { status: 201 };
   onDependencyCreated = null;
@@ -328,8 +332,46 @@ describe("Project view page: schedule writes", () => {
     await user.clear(end);
     await user.type(end, "2027-01-10");
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
-    expect(await within(dialog).findByText("A milestone must cover at least one working day (Monday to Friday)")).toBeInTheDocument();
+    expect(await within(dialog).findByText("A milestone must cover at least one working day (Monday to Friday, not a public holiday)")).toBeInTheDocument();
     expect(schedulePuts(mockFetch)).toHaveLength(0);
+  });
+
+  test("the schedule dialog counts the cached public holidays: a holiday-only span is refused before asking the server, one more weekday is saved", async () => {
+    holidays = [{ id: 1, date: "2027-01-06", name: "Epiphany" }];
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByRole("grid", { name: "Milestone timeline" });
+    await user.click(screen.getByRole("button", { name: "Operations for Discovery" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Edit schedule of Discovery" }));
+    const dialog = await screen.findByRole("dialog", { name: "Schedule of Discovery" });
+    await waitFor(() => expect(mockFetch.mock.calls.some(([url]) => url === "/api/v1/public-holidays")).toBe(true));
+    // Let the dictionary land before pressing Save (the page's own query resolves on the same tick as the dialog's).
+    await screen.findByText(/Public holidays shown: 2027-01-06 Epiphany/);
+    const start = within(dialog).getByRole("textbox", { name: "Start date" });
+    await user.clear(start);
+    await user.type(start, "2027-01-06");
+    const end = within(dialog).getByRole("textbox", { name: "End date" });
+    await user.clear(end);
+    await user.type(end, "2027-01-06");
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    expect(await within(dialog).findByText("A milestone must cover at least one working day (Monday to Friday, not a public holiday)")).toBeInTheDocument();
+    expect(schedulePuts(mockFetch)).toHaveLength(0);
+
+    await user.clear(end);
+    await user.type(end, "2027-01-07");
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(schedulePuts(mockFetch)).toHaveLength(1));
+    expect(schedulePuts(mockFetch)[0]).toEqual({ expectedRevision: 10, startDate: "2027-01-06", endDate: "2027-01-07" });
+  });
+
+  test("the timeline names the holiday on its header day cell and lists it for assistive technology", async () => {
+    holidays = [{ id: 1, date: "2027-01-12", name: "Founders' Day" }];
+    renderPage();
+    await screen.findByRole("grid", { name: "Milestone timeline" });
+    expect(await screen.findByText("Public holidays shown: 2027-01-12 Founders' Day")).toBeInTheDocument();
+    const named = document.querySelectorAll<HTMLElement>("[data-holiday]");
+    expect(named).toHaveLength(1);
+    expect(named[0]).toHaveAttribute("title", "Public holiday: Founders' Day");
   });
 
   test("the tray's Schedule places the milestone for one calendar week from the later of today and the target start", async () => {

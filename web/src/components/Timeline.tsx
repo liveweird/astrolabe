@@ -1,5 +1,6 @@
 import { useEffect, useImperativeHandle, useLayoutEffect, useRef, type CSSProperties, type KeyboardEvent, type ReactNode, type Ref } from "react";
-import { Stack } from "@mantine/core";
+import { Stack, Text, VisuallyHidden } from "@mantine/core";
+import { useTranslation } from "react-i18next";
 import { useDndContext, useDroppable } from "@dnd-kit/core";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { TIMELINE_DROP_ID, TIMELINE_ROW_DROP_ID, type DropZoneData, type RowDropZoneData } from "../hooks/useTimelinePreview";
@@ -20,7 +21,18 @@ import {
   type TimelineRowData,
   type TimelineStripData,
 } from "../utils/timelineModel";
-import { MILESTONE_ZOOMS, scrollLeftToCenter, toEpochDay, weekendBackground, type TimelineScale, type Zoom } from "../utils/timelineScale";
+import {
+  holidayDayMap,
+  holidayListing,
+  holidaysShown,
+  MILESTONE_ZOOMS,
+  scrollLeftToCenter,
+  toEpochDay,
+  trackBackground,
+  type TimelineHoliday,
+  type TimelineScale,
+  type Zoom,
+} from "../utils/timelineScale";
 import ScrollRegion from "./ScrollRegion";
 import TimelineHeader from "./TimelineHeader";
 import TimelineRowDropIndicator from "./TimelineRowDropIndicator";
@@ -59,6 +71,14 @@ export interface TimelineProps {
    * surface. It makes the header taller, which every sticky-header consumer follows (`headerHeight`, `--timeline-head`).
    */
   strip?: TimelineStripData;
+  /**
+   * The public holidays (v0.7; the dictionary's `{date, name}` rows, any range): at week and month zoom a holiday working day is hatched
+   * like a weekend (a second gradient layer on the row), at week zoom its header day cell is tinted and named in its `title`, and a visually
+   * hidden paragraph lists the ones in view (the header and the tracks are `aria-hidden`).
+   */
+  holidays?: readonly TimelineHoliday[];
+  /** The dictionary could not be loaded, so `holidays` is empty for want of it: a small muted note says the days off are not marked. */
+  holidaysFailed?: boolean;
   /** More rows than this are virtualised; fewer or equal are all mounted. */
   virtualizeFrom?: number;
   maxHeight?: number | string;
@@ -95,11 +115,14 @@ export default function Timeline({
   bands = [],
   overlay,
   strip,
+  holidays,
+  holidaysFailed = false,
   virtualizeFrom = DEFAULT_VIRTUALIZE_FROM,
   maxHeight = 640,
   busy = false,
   ref,
 }: TimelineProps) {
+  const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
   const pendingFocus = useRef<{ r: number; c: number } | null>(null);
   const { active: dragging } = useDndContext();
@@ -271,7 +294,10 @@ export default function Timeline({
     if (scroller !== null) scroller.scrollLeft = scrollLeftToCenter(scale, todayDay, scroller.clientWidth, leftWidth);
   };
 
-  const hatch = weekendBackground(scale);
+  const holidayByDay = holidayDayMap(holidays ?? []);
+  const hatch = trackBackground(scale, holidayByDay);
+  const listing = holidayListing(holidaysShown(scale, holidayByDay), today);
+  const listed = listing.listed.map((holiday) => `${holiday.date} ${holiday.name}`).join(", ");
   const bodyHeight = Math.max(rows.length, MIN_BODY_ROWS) * ROW_HEIGHT;
   const trackLeft = { left: leftWidth };
 
@@ -303,6 +329,18 @@ export default function Timeline({
   return (
     <Stack gap="xs">
       <TimelineToolbar zoom={scale.zoom} zooms={zooms} onZoomChange={onZoomChange} onToday={scrollToToday} todayDisabled={!todayInRange} />
+      {holidaysFailed && (
+        <Text size="xs" c="dimmed">
+          {t("timeline.holidaysUnavailable")}
+        </Text>
+      )}
+      {listing.count > 0 && (
+        <VisuallyHidden component="p">
+          {listing.truncated
+            ? t("timeline.holidaysInViewMany", { count: listing.count, list: listed })
+            : t("timeline.holidaysInView", { list: listed })}
+        </VisuallyHidden>
+      )}
       <ScrollRegion label={label} minWidth={leftWidth + scale.totalWidth} maxHeight={maxHeight} scrollRef={scrollRef}>
         <div
           ref={grid.ref}
@@ -319,7 +357,7 @@ export default function Timeline({
             grid.onFocus(event);
           }}
         >
-          <TimelineHeader scale={scale} columns={columns} leftWidth={leftWidth} today={today} strip={strip} />
+          <TimelineHeader scale={scale} columns={columns} leftWidth={leftWidth} today={today} strip={strip} holidays={holidayByDay} />
           <div role="rowgroup" style={{ position: "relative", height: bodyHeight }}>
             {bands.map((band) => (
               <div key={band.id} style={{ position: "absolute", top: 0, bottom: 0, ...trackLeft }}>

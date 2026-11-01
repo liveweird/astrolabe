@@ -1,5 +1,6 @@
 import type { ParseKeys } from "i18next";
-import { IconAddressBook, IconHistory, IconHome2, IconKey, IconListNumbers, IconListTree, IconSitemap, IconToggleLeft, IconUsers, IconUsersGroup, type Icon } from "@tabler/icons-react";
+import { IconAddressBook, IconCalendarOff, IconHistory, IconHome2, IconKey, IconListNumbers, IconListTree, IconSitemap, IconToggleLeft, IconUsers, IconUsersGroup, type Icon } from "@tabler/icons-react";
+import { publicHolidaysPath } from "./calendarLinks";
 import { peoplePath } from "./peopleLinks";
 import { planPath, programsPath, roadmapPath } from "./planLinks";
 import { teamsPath } from "./teamLinks";
@@ -34,9 +35,9 @@ export const homePath = "/";
  * The navigation model, shared by the sidebar and the command palette. Sections are labelled,
  * always-open blocks (never collapsible groups): every leaf is always in the DOM, so tests and
  * deep links address the links directly, and a static label costs less vertical space than a
- * toggle. Home, Plan, Roadmap and Programs (the Planning section, readable by everyone) are visible to everyone; the Administration section holds Teams and People (everyone reads
- * the flat teams list and the people directory; only their create/edit/delete are ADMIN) alongside the ADMIN-only Users and
- * Feature flags leaves — a non-admin session sees just Teams and People there.
+ * toggle. Home, Plan, Roadmap and Programs (the Planning section, readable by everyone) are visible to everyone; the Administration section holds Teams, People and Public holidays (everyone reads
+ * the flat teams list, the people directory and the holiday dictionary; only their create/edit/delete are ADMIN) alongside the ADMIN-only Users and
+ * Feature flags leaves — a non-admin session sees just Teams, People and Public holidays there.
  */
 const NAV_SECTIONS: ReadonlyArray<NavSection> = [
   {
@@ -56,6 +57,7 @@ const NAV_SECTIONS: ReadonlyArray<NavSection> = [
     items: [
       { to: teamsPath, label: "appShell.nav.teams", icon: IconUsersGroup },
       { to: peoplePath, label: "appShell.nav.people", icon: IconAddressBook },
+      { to: publicHolidaysPath, label: "appShell.nav.publicHolidays", icon: IconCalendarOff },
       { to: usersPath, label: "appShell.nav.users", icon: IconUsers, adminOnly: true },
       { to: "/feature-flags", label: "appShell.nav.featureFlags", icon: IconToggleLeft, adminOnly: true },
     ],

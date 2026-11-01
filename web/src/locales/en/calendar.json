@@ -1,0 +1,43 @@
+{
+  "title": "Public holidays",
+  "hint": "A public holiday is a day nobody works: it is shaded on the timelines and left out of every working-day figure (dependency checks, weekly load, capacity). Everyone can read the list; only administrators change it.",
+  "hintReadOnly": "A public holiday is a day nobody works: it is shaded on the timelines and left out of every working-day figure (dependency checks, weekly load, capacity). The list is maintained by administrators.",
+  "year": "Year",
+  "date": "Date",
+  "weekday": "Weekday",
+  "name": "Name",
+  "tableAria": "Public holidays of {{year}}",
+  "addHoliday": "Add holiday",
+  "empty": "There are no public holidays in {{year}}. Add the first one above, or add the Polish set.",
+  "emptyReadOnly": "There are no public holidays in {{year}}.",
+  "duplicateDate": "A holiday already exists on this date.",
+  "invalid": "The holiday is invalid — check the date and the name.",
+  "dateInvalid": "Enter a real date as YYYY-MM-DD.",
+  "deleteAria": "Delete the holiday {{name}}",
+  "deleteTitle": "Delete this holiday?",
+  "deleteBody": "{{date}} · {{name}}. The date becomes a regular day again; the plan's working-day figures follow.",
+  "deleteFailed": "Deleting the holiday failed",
+  "preset": {
+    "button": "Add Polish public holidays for {{year}}",
+    "title": "Add the Polish public holidays?",
+    "body": "Adds the fixed and the Easter-based Polish public holidays of {{year}}. A date that already has a holiday is left as it is. The plan's working-day figures follow.",
+    "confirm": "Add holidays",
+    "result": "Polish holidays of {{year}}: {{added}} added, {{skipped}} already present."
+  },
+  "toast": {
+    "added": "Public holiday added",
+    "deleted": "Public holiday deleted",
+    "presetAdded": "Polish public holidays added"
+  },
+  "error": {
+    "forbidden": "Only administrators can change the public holidays.",
+    "gone": "This holiday no longer exists.",
+    "failedStatus": "Save failed ({{status}})",
+    "failed": "Could not save the holiday. Check your connection and try again.",
+    "deleteFailedStatus": "Delete failed ({{status}})",
+    "deleteFailed": "Could not delete the holiday. Check your connection and try again.",
+    "presetInvalid": "That year cannot be added (1900–2999 only).",
+    "presetFailedStatus": "Adding the holidays failed ({{status}})",
+    "presetFailed": "Could not add the holidays. Check your connection and try again."
+  }
+}

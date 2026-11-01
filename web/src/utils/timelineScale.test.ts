@@ -3,6 +3,10 @@ import {
   DAY_WIDTH,
   defaultRange,
   headerRows,
+  holidayBackground,
+  holidayDayMap,
+  holidayListing,
+  holidaysShown,
   isoWeekOf,
   isWeekend,
   makeScale,
@@ -11,6 +15,7 @@ import {
   scrollLeftToCenter,
   toEpochDay,
   toIsoDate,
+  trackBackground,
   weekdayOf,
   weekendBackground,
   ZOOMS,
@@ -167,6 +172,103 @@ describe("weekendBackground", () => {
     // Wednesday: its Monday is 2 days (56 px) to the left of x = 0, so Saturday starts 3 days (84 px) in
     const css = weekendBackground(makeScale("week", rangeOf("2026-09-16", "2026-09-27")), "INK");
     expect(css).toBe("repeating-linear-gradient(90deg, transparent -56px 84px, INK 84px 140px)");
+  });
+});
+
+// 2027-01-04 is a Monday; the week-zoom scale is 28 px per day, so the Wednesday starts at x = 56.
+const HOLIDAY_RANGE = rangeOf("2027-01-04", "2027-01-17");
+const holidays = (...rows: [string, string][]) => holidayDayMap(rows.map(([date, name]) => ({ date, name })));
+
+describe("holidayBackground", () => {
+  test("is drawn at week and month zoom, not at quarter or year zoom, and not when no holiday is in range", () => {
+    const epiphany = holidays(["2027-01-06", "Epiphany"]);
+    expect(holidayBackground(makeScale("week", HOLIDAY_RANGE), epiphany)).not.toBeNull();
+    expect(holidayBackground(makeScale("month", HOLIDAY_RANGE), epiphany)).not.toBeNull();
+    expect(holidayBackground(makeScale("quarter", HOLIDAY_RANGE), epiphany)).toBeNull();
+    expect(holidayBackground(makeScale("year", HOLIDAY_RANGE), epiphany)).toBeNull();
+    expect(holidayBackground(makeScale("week", HOLIDAY_RANGE), holidays(["2027-02-01", "Elsewhere"]))).toBeNull();
+    expect(holidayBackground(makeScale("week", HOLIDAY_RANGE), holidays())).toBeNull();
+  });
+
+  test("one transparent/ink stop pair per holiday, at the day's left and right edge", () => {
+    const css = holidayBackground(makeScale("week", HOLIDAY_RANGE), holidays(["2027-01-06", "Epiphany"]), "INK");
+    expect(css).toBe("linear-gradient(90deg, transparent 0px 56px, INK 56px 84px, transparent 84px)");
+  });
+
+  test("consecutive holiday workdays merge into one run, separate ones keep their own pair, in date order whatever the input order", () => {
+    const css = holidayBackground(
+      makeScale("week", HOLIDAY_RANGE),
+      holidays(["2027-01-11", "Later"], ["2027-01-07", "Second"], ["2027-01-06", "First"]),
+      "INK",
+    );
+    // Wed+Thu 56..112, Mon of week two (7 days = 196 px in) 196..224
+    expect(css).toBe("linear-gradient(90deg, transparent 0px 56px, INK 56px 112px, transparent 112px 196px, INK 196px 224px, transparent 224px)");
+  });
+
+  test("a holiday on a weekend adds nothing (the weekend stripe is already the ink), and a holiday outside the range is ignored", () => {
+    expect(holidayBackground(makeScale("week", HOLIDAY_RANGE), holidays(["2027-01-09", "Saturday"], ["2026-12-25", "Before"]))).toBeNull();
+  });
+
+  test("the month zoom uses its own day width", () => {
+    const css = holidayBackground(makeScale("month", HOLIDAY_RANGE), holidays(["2027-01-06", "Epiphany"]), "INK");
+    expect(css).toBe("linear-gradient(90deg, transparent 0px 16px, INK 16px 24px, transparent 24px)");
+  });
+});
+
+describe("trackBackground", () => {
+  test("is the holiday layer over the weekend layer, joined into one backgroundImage", () => {
+    const scale = makeScale("week", HOLIDAY_RANGE);
+    const css = trackBackground(scale, holidays(["2027-01-06", "Epiphany"]));
+    expect(css).toBe(`${holidayBackground(scale, holidays(["2027-01-06", "Epiphany"]))}, ${weekendBackground(scale)}`);
+  });
+
+  test("is the weekend layer alone without a holiday in range, and nothing where neither is drawn", () => {
+    const week = makeScale("week", HOLIDAY_RANGE);
+    expect(trackBackground(week, holidays())).toBe(weekendBackground(week));
+    expect(trackBackground(makeScale("quarter", HOLIDAY_RANGE), holidays(["2027-01-06", "Epiphany"]))).toBeNull();
+  });
+});
+
+describe("holidays in the header and the accessible list", () => {
+  test("a week-zoom day cell on a holiday carries its name; no other cell or grain does", () => {
+    const names = holidays(["2027-01-06", "Epiphany"]);
+    const { cells, groups } = headerRows(makeScale("week", HOLIDAY_RANGE), names);
+    expect(cells.filter((cell) => cell.holiday !== undefined).map((cell) => [cell.label, cell.holiday])).toEqual([["6", "Epiphany"]]);
+    expect(cells.every((cell) => cell.weekend === (weekdayOf(cell.from) >= 5))).toBe(true);
+    expect(groups.every((group) => group.holiday === undefined)).toBe(true);
+    expect(headerRows(makeScale("month", HOLIDAY_RANGE), names).cells.every((cell) => cell.holiday === undefined)).toBe(true);
+    expect(headerRows(makeScale("week", HOLIDAY_RANGE)).cells.every((cell) => cell.holiday === undefined)).toBe(true);
+  });
+
+  test("holidaysShown lists the holidays in range in date order (a weekend one too), only at the zooms that draw them", () => {
+    const names = holidays(["2027-01-11", "Later"], ["2027-01-09", "Saturday"], ["2027-01-06", "First"], ["2026-12-25", "Before"]);
+    expect(holidaysShown(makeScale("week", HOLIDAY_RANGE), names)).toEqual([
+      { date: "2027-01-06", name: "First" },
+      { date: "2027-01-09", name: "Saturday" },
+      { date: "2027-01-11", name: "Later" },
+    ]);
+    expect(holidaysShown(makeScale("month", HOLIDAY_RANGE), names)).toHaveLength(3);
+    expect(holidaysShown(makeScale("quarter", HOLIDAY_RANGE), names)).toEqual([]);
+    expect(holidaysShown(makeScale("year", HOLIDAY_RANGE), names)).toEqual([]);
+  });
+});
+
+describe("holidayListing", () => {
+  const rows = (n: number) => Array.from({ length: n }, (_, i) => ({ date: toIsoDate(day("2027-01-01") + i), name: `H${i}` }));
+
+  test("up to ten holidays are all listed", () => {
+    expect(holidayListing(rows(10), "2027-01-05")).toEqual({ count: 10, listed: rows(10), truncated: false });
+  });
+
+  test("above ten it keeps the count and the first ten on or after today", () => {
+    const listing = holidayListing(rows(15), "2027-01-04");
+    expect(listing).toMatchObject({ count: 15, truncated: true });
+    expect(listing.listed.map((h) => h.name)).toEqual(rows(15).slice(3, 13).map((h) => h.name));
+  });
+
+  test("with fewer than ten left it lists those; with none left it lists the last ten", () => {
+    expect(holidayListing(rows(15), "2027-01-12").listed).toHaveLength(4);
+    expect(holidayListing(rows(15), "2028-01-01").listed.map((h) => h.name)).toEqual(rows(15).slice(5).map((h) => h.name));
   });
 });
 

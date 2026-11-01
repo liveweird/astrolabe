@@ -15,6 +15,7 @@ import {
 const t = i18n.t.bind(i18n);
 const rules = milestoneFormValidation(t);
 const schedule = scheduleFormValidation(t);
+const NO_WORKING_DAY = "A milestone must cover at least one working day (Monday to Friday, not a public holiday)";
 
 const MILESTONE = {
   id: 5,
@@ -82,8 +83,34 @@ describe("milestoneForm", () => {
     expect(schedule.startDate("2027-02-30")).toBe("Enter a valid date (YYYY-MM-DD)");
     expect(schedule.endDate(null, { startDate: "2027-01-04", endDate: null })).toBe("Enter an end date");
     expect(schedule.endDate("2027-01-03", { startDate: "2027-01-04", endDate: "2027-01-03" })).toBe("The end must not be before the start");
-    expect(schedule.endDate("2027-01-10", { startDate: "2027-01-09", endDate: "2027-01-10" })).toBe("A milestone must cover at least one working day (Monday to Friday)");
+    expect(schedule.endDate("2027-01-10", { startDate: "2027-01-09", endDate: "2027-01-10" })).toBe(NO_WORKING_DAY);
     expect(schedule.endDate("2027-01-10", { startDate: "2027-01-04", endDate: "2027-01-10" })).toBeNull();
+  });
+
+  test("a public holiday is no working day: a span of holidays and weekends alone is refused, one more weekday is enough", () => {
+    const epiphany = new Set(["2027-01-06"]);
+    expect(hasWorkingDay("2027-01-06", "2027-01-06")).toBe(true); // the dictionary not loaded (or empty): Mon-Fri only
+    expect(hasWorkingDay("2027-01-06", "2027-01-06", epiphany)).toBe(false);
+    expect(hasWorkingDay("2027-01-06", "2027-01-07", epiphany)).toBe(true);
+    expect(hasWorkingDay("2027-01-05", "2027-01-06", epiphany)).toBe(true);
+    // Christmas 2027: Friday the 24th (Eve) with the weekend after it — nothing to work on until Monday the 27th.
+    const christmas = new Set(["2027-12-24", "2027-12-25", "2027-12-26"]);
+    expect(hasWorkingDay("2027-12-24", "2027-12-26", christmas)).toBe(false);
+    expect(hasWorkingDay("2027-12-24", "2027-12-27", christmas)).toBe(true);
+  });
+
+  test("a whole working week of holidays is still found past: the scan reaches the next weekday however many holidays there are", () => {
+    const week = new Set(["2027-01-04", "2027-01-05", "2027-01-06", "2027-01-07", "2027-01-08"]);
+    expect(hasWorkingDay("2027-01-04", "2027-01-10", week)).toBe(false);
+    expect(hasWorkingDay("2027-01-04", "2027-01-11", week)).toBe(true);
+    expect(hasWorkingDay("2027-01-04", "2027-03-01", week)).toBe(true);
+  });
+
+  test("the schedule rule refuses a holiday-only span with the working-day message once the dictionary is known", () => {
+    const withHoliday = scheduleFormValidation(t, new Set(["2027-01-06"]));
+    const values = { startDate: "2027-01-06", endDate: "2027-01-06" };
+    expect(withHoliday.endDate("2027-01-06", values)).toBe(NO_WORKING_DAY);
+    expect(schedule.endDate("2027-01-06", values)).toBeNull();
   });
 
   test("save errors map to the project vocabulary, never to the raw message", () => {

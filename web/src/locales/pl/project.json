@@ -59,7 +59,7 @@
   "saveInvalid": "Co najmniej jedno pole jest nieprawidłowe — sprawdź zespół i szacunek",
   "saveGone": "To już nie istnieje — przeładuj stronę",
   "scheduleForbidden": "Ten kamień milowy może zaplanować tylko kierownik/czka zespołu albo administrator/ka",
-  "scheduleInvalid": "Serwer odrzucił te terminy: koniec nie może być przed początkiem, a kamień milowy musi obejmować co najmniej jeden dzień roboczy (od poniedziałku do piątku).",
+  "scheduleInvalid": "Serwer odrzucił te terminy: koniec nie może być przed początkiem, a kamień milowy musi obejmować co najmniej jeden dzień roboczy (od poniedziałku do piątku, poza świętami państwowymi).",
   "saving": "Zapisujemy…",
   "busy": "Poprzedni zapis jeszcze trwa — spróbuj ponownie za chwilę.",
   "milestoneGone": "Ten kamień milowy już nie istnieje — został w międzyczasie usunięty.",
@@ -85,7 +85,7 @@
     "endRequired": "Podaj datę końca",
     "dateShape": "Podaj prawidłową datę (RRRR-MM-DD)",
     "endBeforeStart": "Koniec nie może być przed początkiem",
-    "noWorkingDay": "Kamień milowy musi obejmować co najmniej jeden dzień roboczy (od poniedziałku do piątku)"
+    "noWorkingDay": "Kamień milowy musi obejmować co najmniej jeden dzień roboczy (od poniedziałku do piątku, poza świętami państwowymi)"
   },
   "milestone": {
     "createTitle": "Nowy kamień milowy",

@@ -2,16 +2,16 @@ import { describe, expect, test } from "vitest";
 import { ACCOUNT_NAV, activeNavPath, homePath, visibleSections } from "./navigation";
 
 describe("visibleSections", () => {
-  test("a regular session sees Overview, Planning and Administration — Plan, Roadmap, Programs, Teams and People stay, the admin-only leaves drop", () => {
+  test("a regular session sees Overview, Planning and Administration — Plan, Roadmap, Programs, Teams, People and Public holidays stay, the admin-only leaves drop", () => {
     const sections = visibleSections(false);
     expect(sections.map((s) => s.label)).toEqual(["appShell.section.overview", "appShell.section.planning", "appShell.section.administration"]);
     const paths = sections.flatMap((s) => s.items.map((l) => l.to));
-    expect(paths).toEqual(["/", "/plan", "/roadmap", "/programs", "/teams", "/people"]);
+    expect(paths).toEqual(["/", "/plan", "/roadmap", "/programs", "/teams", "/people", "/public-holidays"]);
   });
 
-  test("an admin session gets Teams, People, Users and Feature flags in the Administration section", () => {
+  test("an admin session gets Teams, People, Public holidays, Users and Feature flags in the Administration section", () => {
     const admin = visibleSections(true).find((s) => s.label === "appShell.section.administration");
-    expect(admin?.items.map((l) => l.to)).toEqual(["/teams", "/people", "/users", "/feature-flags"]);
+    expect(admin?.items.map((l) => l.to)).toEqual(["/teams", "/people", "/public-holidays", "/users", "/feature-flags"]);
   });
 
   test("Planning sits above Administration and holds the Plan, Roadmap and Programs leaves for everyone", () => {
@@ -39,6 +39,7 @@ describe("activeNavPath", () => {
     expect(activeNavPath("/feature-flags", leaves)).toBe("/feature-flags");
     expect(activeNavPath("/teams/3", leaves)).toBe("/teams");
     expect(activeNavPath("/people/3", leaves)).toBe("/people");
+    expect(activeNavPath("/public-holidays", leaves)).toBe("/public-holidays");
     expect(activeNavPath("/plan", leaves)).toBe("/plan");
     expect(activeNavPath("/roadmap", leaves)).toBe("/roadmap");
     expect(activeNavPath("/programs", leaves)).toBe("/programs");

@@ -1863,3 +1863,89 @@ describe("focusRow", () => {
     expect(screen.getByRole("rowheader", { name: "Item 40" })).not.toHaveFocus();
   });
 });
+
+describe("public holidays", () => {
+  // The range starts on Monday 2026-09-14 (28 px a day at week zoom): Wednesday the 16th starts at x = 56.
+  const HOLIDAYS = [{ date: "2026-09-16", name: "Founders' Day" }];
+  // The first body row's track: the LAST gridcell of the row (its left cells come first).
+  const trackOf = () => Array.from(document.querySelectorAll<HTMLElement>('[aria-rowindex="2"] [role="gridcell"]')).at(-1);
+  const gradientCount = (css: string | undefined) => (css?.match(/gradient\(/g) ?? []).length;
+
+  test("a holiday adds a second gradient layer to the row hatch, on top of the weekend one", () => {
+    renderWithProviders(<Harness holidays={HOLIDAYS} />);
+    const css = trackOf()?.style.backgroundImage;
+    expect(gradientCount(css)).toBe(2);
+    expect(css).toMatch(/^linear-gradient/);
+    expect(css).toContain("repeating-linear-gradient");
+    expect(css).toContain("56px");
+    expect(css).toContain("84px");
+  });
+
+  test("without a holiday in range the hatch is the weekend layer alone", () => {
+    renderWithProviders(<Harness holidays={[{ date: "2027-03-01", name: "Elsewhere" }]} />);
+    expect(gradientCount(trackOf()?.style.backgroundImage)).toBe(1);
+  });
+
+  test("the holiday's header day cell is tinted and named in its title; the other day cells are not", () => {
+    renderWithProviders(<Harness holidays={HOLIDAYS} />);
+    const cells = document.querySelectorAll<HTMLElement>("[data-holiday]");
+    expect(cells).toHaveLength(1);
+    expect(cells[0]).toHaveAttribute("title", "Public holiday: Founders' Day");
+    expect(cells[0]).toHaveTextContent("16");
+    expect(document.querySelectorAll("[title^='Public holiday']")).toHaveLength(1);
+  });
+
+  test("a visually hidden paragraph lists the holidays in view with their dates, since the header and tracks are aria-hidden", () => {
+    renderWithProviders(
+      <Harness
+        holidays={[
+          { date: "2026-10-05", name: "Second" },
+          { date: "2026-09-16", name: "Founders' Day" },
+          { date: "2027-03-01", name: "Out of view" },
+        ]}
+      />,
+    );
+    expect(screen.getByText("Public holidays shown: 2026-09-16 Founders' Day, 2026-10-05 Second")).toBeInTheDocument();
+  });
+
+  test("at quarter zoom nothing is drawn or listed (3 px a day is noise, like the weekend hatch)", () => {
+    renderWithProviders(<Harness holidays={HOLIDAYS} zoom="quarter" />);
+    expect(screen.queryByText(/Public holidays shown/)).not.toBeInTheDocument();
+    expect(gradientCount(trackOf()?.style.backgroundImage)).toBe(0);
+    expect(document.querySelectorAll("[data-holiday]")).toHaveLength(0);
+  });
+
+  test("at month zoom the row is hatched and the paragraph lists, but the week cells carry no title", () => {
+    renderWithProviders(<Harness holidays={HOLIDAYS} zoom="month" />);
+    expect(gradientCount(trackOf()?.style.backgroundImage)).toBe(2);
+    expect(screen.getByText(/Public holidays shown: 2026-09-16 Founders' Day/)).toBeInTheDocument();
+    expect(document.querySelectorAll("[data-holiday]")).toHaveLength(0);
+  });
+
+  test("above ten holidays in view the paragraph counts them and names only the ones from today (2026-09-23) on, at most ten", () => {
+    const many = ["2026-09-14", "2026-09-15", "2026-09-21", "2026-09-22", "2026-09-28", "2026-09-29", "2026-10-05", "2026-10-06", "2026-10-07", "2026-10-08", "2026-10-09", "2026-09-30"].map(
+      (date) => ({ date, name: `H${date.slice(5)}` }),
+    );
+    renderWithProviders(<Harness holidays={many} />);
+    const text = screen.getByText(/12 public holidays shown; the next ones:/).textContent ?? "";
+    expect(text).toContain("2026-09-28 H09-28");
+    expect(text).toContain("2026-10-09 H10-09");
+    expect(text).not.toContain("2026-09-14");
+    expect(text).not.toContain("2026-09-22");
+    expect(text.split(", ")).toHaveLength(8);
+  });
+
+  test("a failed dictionary load shows a small muted note, and none otherwise", () => {
+    const { unmount } = renderWithProviders(<Harness holidaysFailed />);
+    expect(screen.getByText("Public holidays could not be loaded; days off are not marked.")).toBeInTheDocument();
+    unmount();
+    renderWithProviders(<Harness />);
+    expect(screen.queryByText(/could not be loaded/)).not.toBeInTheDocument();
+  });
+
+  test("no holidays prop: nothing changes (no paragraph, one gradient layer)", () => {
+    renderWithProviders(<Harness />);
+    expect(screen.queryByText(/Public holidays shown/)).not.toBeInTheDocument();
+    expect(gradientCount(trackOf()?.style.backgroundImage)).toBe(1);
+  });
+});

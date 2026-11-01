@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import type { DependencyEndpoint } from "../api/dependencies";
 import type { ProjectMilestone, ProjectView } from "../api/milestones";
+import { useHolidays } from "../hooks/useHolidays";
 import { addDays } from "../utils/isoDate";
 import { projectPath } from "../utils/planLinks";
 import { arrowSpecs, conflictsByBar, ghostEndpoints, ghostRowId, projectRowId, summaryRowNeeded } from "../utils/projectDependencies";
@@ -234,6 +235,7 @@ export default function ProjectTimeline({
   label: string;
 }) {
   const { t } = useTranslation();
+  const { holidays, failed: holidaysFailed } = useHolidays();
   const canLink = view.project.can.createDependency;
   const conflicts = conflictsByBar(view);
   const columns: TimelineColumn[] = [
@@ -286,6 +288,8 @@ export default function ProjectTimeline({
       columns={columns}
       rows={rows}
       bands={bandsOf(view, t)}
+      holidays={holidays}
+      holidaysFailed={holidaysFailed}
       busy={busy}
       overlay={arrows.length === 0 ? undefined : (geometry) => <TimelineArrows arrows={arrows} geometry={geometry} />}
     />

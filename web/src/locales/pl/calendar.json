@@ -1,0 +1,43 @@
+{
+  "title": "Święta państwowe",
+  "hint": "Święto państwowe to dzień wolny od pracy: jest zacieniony na osiach czasu i pomijany we wszystkich liczbach opartych na dniach roboczych (kontrole zależności, tygodniowe obciążenie, pojemność). Listę widzi każda osoba, zmieniają ją tylko administratorzy/rki.",
+  "hintReadOnly": "Święto państwowe to dzień wolny od pracy: jest zacieniony na osiach czasu i pomijany we wszystkich liczbach opartych na dniach roboczych (kontrole zależności, tygodniowe obciążenie, pojemność). Listę prowadzą administratorzy/rki.",
+  "year": "Rok",
+  "date": "Data",
+  "weekday": "Dzień tygodnia",
+  "name": "Nazwa",
+  "tableAria": "Święta państwowe w roku {{year}}",
+  "addHoliday": "Dodaj święto",
+  "empty": "W roku {{year}} nie ma świąt. Dodaj pierwsze święto powyżej albo dodaj polskie święta.",
+  "emptyReadOnly": "W roku {{year}} nie ma świąt.",
+  "duplicateDate": "W tym dniu już istnieje święto.",
+  "invalid": "Święto jest nieprawidłowe — sprawdź datę i nazwę.",
+  "dateInvalid": "Podaj prawdziwą datę w formacie RRRR-MM-DD.",
+  "deleteAria": "Usuń święto {{name}}",
+  "deleteTitle": "Usunąć to święto?",
+  "deleteBody": "{{date}} · {{name}}. Ta data znów stanie się zwykłym dniem; liczby oparte na dniach roboczych zostaną przeliczone.",
+  "deleteFailed": "Usunięcie święta nie powiodło się",
+  "preset": {
+    "button": "Dodaj polskie święta państwowe na rok {{year}}",
+    "title": "Dodać polskie święta państwowe?",
+    "body": "Dodaje stałe i zależne od Wielkanocy polskie święta państwowe roku {{year}}. Data, w której święto już istnieje, pozostaje bez zmian. Liczby oparte na dniach roboczych zostaną przeliczone.",
+    "confirm": "Dodaj święta",
+    "result": "Polskie święta roku {{year}}: dodano {{added}}, już było {{skipped}}."
+  },
+  "toast": {
+    "added": "Dodano święto",
+    "deleted": "Usunięto święto",
+    "presetAdded": "Dodano polskie święta państwowe"
+  },
+  "error": {
+    "forbidden": "Święta mogą zmieniać tylko administratorzy/rki.",
+    "gone": "To święto już nie istnieje.",
+    "failedStatus": "Zapis nie powiódł się ({{status}})",
+    "failed": "Nie udało się zapisać święta. Sprawdź połączenie i spróbuj ponownie.",
+    "deleteFailedStatus": "Usunięcie nie powiodło się ({{status}})",
+    "deleteFailed": "Nie udało się usunąć święta. Sprawdź połączenie i spróbuj ponownie.",
+    "presetInvalid": "Nie można dodać tego roku (tylko 1900–2999).",
+    "presetFailedStatus": "Dodanie świąt nie powiodło się ({{status}})",
+    "presetFailed": "Nie udało się dodać świąt. Sprawdź połączenie i spróbuj ponownie."
+  }
+}

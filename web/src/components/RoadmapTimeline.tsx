@@ -3,6 +3,7 @@ import { Group, Menu, Text } from "@mantine/core";
 import { IconArrowBarDown, IconArrowBarUp, IconArrowDown, IconArrowUp, IconListNumbers, IconX } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import type { RoadmapProject, RoadmapView } from "../api/roadmap";
+import { useHolidays } from "../hooks/useHolidays";
 import { projectTrack, planArrows } from "../utils/planTrack";
 import { conflictsByProject, countFlags, displayRows, DIVIDER_ID, type DisplayRow, type VisibleProjects } from "../utils/roadmapRows";
 import type { RovingTarget, TimelineColumn, TimelineRowData } from "../utils/timelineModel";
@@ -135,6 +136,7 @@ export default function RoadmapTimeline({
   timelineRef: Ref<TimelineHandle>;
 }) {
   const { t } = useTranslation();
+  const { holidays, failed: holidaysFailed } = useHolidays();
   const canRank = view.can.editRank;
   const columns: TimelineColumn[] = [
     { id: "rank", header: t("roadmap.column.rank"), width: COLUMN_WIDTHS.rank },
@@ -191,6 +193,8 @@ export default function RoadmapTimeline({
       today={today}
       columns={columns}
       rows={rows}
+      holidays={holidays}
+      holidaysFailed={holidaysFailed}
       busy={busy}
       overlay={arrows.length === 0 ? undefined : (geometry) => <TimelineArrows arrows={arrows} geometry={geometry} />}
     />

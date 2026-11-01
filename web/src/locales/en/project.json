@@ -47,7 +47,7 @@
   "saveInvalid": "One or more fields are invalid — check the team and the estimate",
   "saveGone": "This no longer exists — reload the page",
   "scheduleForbidden": "Only the team's manager or an administrator can schedule this milestone",
-  "scheduleInvalid": "These dates cannot be saved: the end must not be before the start, and a milestone must cover at least one working day (Monday to Friday).",
+  "scheduleInvalid": "These dates cannot be saved: the end must not be before the start, and a milestone must cover at least one working day (Monday to Friday, not a public holiday).",
   "saving": "Saving…",
   "busy": "A save is still running — try your change again in a moment.",
   "milestoneGone": "This milestone no longer exists — it was removed in the meantime.",
@@ -73,7 +73,7 @@
     "endRequired": "Enter an end date",
     "dateShape": "Enter a valid date (YYYY-MM-DD)",
     "endBeforeStart": "The end must not be before the start",
-    "noWorkingDay": "A milestone must cover at least one working day (Monday to Friday)"
+    "noWorkingDay": "A milestone must cover at least one working day (Monday to Friday, not a public holiday)"
   },
   "milestone": {
     "createTitle": "New milestone",

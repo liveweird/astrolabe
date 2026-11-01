@@ -9,6 +9,10 @@
   },
   "today": "Today",
   "todayTag": "Today",
+  "holidayTitle": "Public holiday: {{name}}",
+  "holidaysInView": "Public holidays shown: {{list}}",
+  "holidaysInViewMany": "{{count}} public holidays shown; the next ones: {{list}}",
+  "holidaysUnavailable": "Public holidays could not be loaded; days off are not marked.",
   "bar": {
     "roleDescription": "movable bar",
     "handleRoleDescription": "resize handle",

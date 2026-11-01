@@ -10,6 +10,7 @@ import LanguageDetector from "i18next-browser-languagedetector";
 import enCommon from "./locales/en/common.json";
 import enAppShell from "./locales/en/appShell.json";
 import enAuth from "./locales/en/auth.json";
+import enCalendar from "./locales/en/calendar.json";
 import enChangelog from "./locales/en/changelog.json";
 import enUsers from "./locales/en/users.json";
 import enHome from "./locales/en/home.json";
@@ -60,6 +61,7 @@ export const en = {
   common: enCommon,
   appShell: enAppShell,
   auth: enAuth,
+  calendar: enCalendar,
   changelog: enChangelog,
   users: enUsers,
   home: enHome,

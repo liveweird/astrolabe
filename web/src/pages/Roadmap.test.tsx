@@ -1,6 +1,7 @@
 import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
+import { QueryClient } from "@tanstack/react-query";
 import { act, screen, waitFor, within } from "@testing-library/react";
 import { DndContext } from "@dnd-kit/core";
 import Roadmap from "./Roadmap";
@@ -130,6 +131,7 @@ function serve(mockFetch: FetchMock) {
   mockFetch.mockImplementation((url: string, init?: RequestInit) => {
     const method = init?.method ?? "GET";
     if (method === "GET" && url === "/api/v1/views/roadmap") return Promise.resolve(jsonResponse(200, view));
+    if (method === "GET" && url === "/api/v1/public-holidays") return Promise.resolve(jsonResponse(200, { items: [{ id: 1, date: "2026-03-18", name: "Founders' Day" }] }));
     if (method === "PUT" && url === "/api/v1/roadmap/ranking") {
       if (putStatus.status !== 200) return Promise.resolve(jsonResponse(putStatus.status, putStatus.body ?? { title: "x", status: putStatus.status }));
       const body = JSON.parse(init?.body as string) as { projectIds: number[] };
@@ -176,6 +178,21 @@ afterEach(() => {
 });
 
 describe("Roadmap page", () => {
+  test("the page reads the public-holiday dictionary, and at the default Quarter zoom (3 px a day) draws and lists nothing", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    renderWithProviders(<Roadmap />, { queryClient });
+    await screen.findByRole("grid", { name: "Roadmap timeline" });
+    // Wait for the dictionary to LAND in the cache, so the negative assertion below is not just "not yet".
+    await waitFor(() => expect(queryClient.getQueryData(["calendar", "holidays"])).toHaveLength(1));
+    expect(screen.queryByText(/Public holidays shown/)).not.toBeInTheDocument();
+  });
+
+  test("at Month zoom the dictionary's holidays are listed for assistive technology", async () => {
+    localStorage.setItem(ZOOM_KEY, JSON.stringify("month"));
+    renderWithProviders(<Roadmap />);
+    expect(await screen.findByText(/Public holidays shown: 2026-03-18 Founders' Day/)).toBeInTheDocument();
+  });
+
   test("renders the rows in rank order, the divider, the facts, the flag icons and the bars; the heading outline is pinned", async () => {
     renderWithProviders(<Roadmap />);
     await screen.findByRole("grid", { name: "Roadmap timeline" });

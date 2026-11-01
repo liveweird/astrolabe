@@ -2,6 +2,7 @@ import { Alert, Button, Group, Modal, Stack, Text } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { useTranslation } from "react-i18next";
 import type { ProjectMilestone } from "../api/milestones";
+import { useHolidays } from "../hooks/useHolidays";
 import { scheduleFormValidation, type ScheduleFormValues } from "../utils/milestoneForm";
 import PlanDateInput from "./PlanDateInput";
 
@@ -26,9 +27,11 @@ export default function MilestoneScheduleModal({
   onClose: () => void;
 }) {
   const { t } = useTranslation();
+  // The pre-check counts the cached dictionary's holidays (the server's check on the PUT is the rule; a dictionary still loading checks Mon-Fri only).
+  const holidayDays = new Set(useHolidays().holidays.map((holiday) => holiday.date));
   const form = useForm<ScheduleFormValues>({
     initialValues: { startDate: milestone.startDate, endDate: milestone.endDate },
-    validate: scheduleFormValidation(t),
+    validate: scheduleFormValidation(t, holidayDays),
   });
   const scheduled = milestone.startDate !== null;
 

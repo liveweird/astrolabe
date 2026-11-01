@@ -4,6 +4,7 @@ import { IconChevronDown, IconChevronRight } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import type { RoadmapLink, RoadmapProject } from "../api/roadmap";
+import { useHolidays } from "../hooks/useHolidays";
 import { planArrows, projectTrack } from "../utils/planTrack";
 import type { NodeRow, ProjectTreeRow, TreeRow } from "../utils/programsTree";
 import { conflictsByProject, countFlags } from "../utils/roadmapRows";
@@ -126,6 +127,7 @@ export default function ProgramsTimeline({
   timelineRef: Ref<TimelineHandle>;
 }) {
   const { t } = useTranslation();
+  const { holidays, failed: holidaysFailed } = useHolidays();
   const columns: TimelineColumn[] = [
     { id: "name", header: t("programs.column.name"), width: COLUMN_WIDTHS.name },
     { id: "flags", header: t("roadmap.column.flags"), width: COLUMN_WIDTHS.flags },
@@ -177,6 +179,8 @@ export default function ProgramsTimeline({
       today={today}
       columns={columns}
       rows={treeRows.map(rowOf)}
+      holidays={holidays}
+      holidaysFailed={holidaysFailed}
       busy={busy}
       overlay={arrows.length === 0 ? undefined : (geometry) => <TimelineArrows arrows={arrows} geometry={geometry} />}
     />

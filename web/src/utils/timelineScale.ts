@@ -131,6 +131,8 @@ export interface HeaderCell {
   to: number;
   /** A day cell that is a Saturday or Sunday (the other grains are never "weekend"). */
   weekend: boolean;
+  /** The public holiday's name on a DAY cell (v0.7; the other grains never carry one). Absent on every other cell. */
+  holiday?: string;
 }
 
 export interface TimelineHeaderRows {
@@ -174,15 +176,16 @@ const SPEC: Record<Grain, GrainSpec> = {
   },
 };
 
-/** The cells of one grain partitioning the range, each clipped to it. */
-function partition(range: DayRange, grain: Grain, groupLabels = false): HeaderCell[] {
+/** The cells of one grain partitioning the range, each clipped to it; a day cell on a holiday carries its name. */
+function partition(range: DayRange, grain: Grain, groupLabels = false, holidays?: ReadonlyMap<number, string>): HeaderCell[] {
   const spec = SPEC[grain];
   const out: HeaderCell[] = [];
   for (let start = range.from; start <= range.to; ) {
     const to = Math.min(range.to, spec.end(start));
     const label =
       groupLabels && grain === "week" ? `W${pad2(isoWeekOf(start).week)} ${isoWeekOf(start).year}` : spec.label(start);
-    out.push({ key: spec.key(start), label, from: start, to, weekend: grain === "day" && isWeekend(start) });
+    const holiday = grain === "day" ? holidays?.get(start) : undefined;
+    out.push({ key: spec.key(start), label, from: start, to, weekend: grain === "day" && isWeekend(start), ...(holiday === undefined ? {} : { holiday }) });
     start = to + 1;
   }
   return out;
@@ -198,11 +201,12 @@ const HEADER_GRAINS: Record<Zoom, { group: Grain; cell: Grain }> = {
 /**
  * The two header rows: the group row (weeks / months / quarters) over the cell row (days / weeks / months) at week / month /
  * quarter zoom, and the year row over the quarter row at year zoom. Both PARTITION the range, so a group or cell crossing the range edge is clipped, never dropped.
+ * `holidays` (epoch day to name, {@link holidayDayMap}) names the day cells (week zoom) that fall on a public holiday.
  */
-export function headerRows(scale: TimelineScale): TimelineHeaderRows {
+export function headerRows(scale: TimelineScale, holidays?: ReadonlyMap<number, string>): TimelineHeaderRows {
   const range = { from: scale.from, to: scale.to };
   const grains = HEADER_GRAINS[scale.zoom];
-  return { groups: partition(range, grains.group, true), cells: partition(range, grains.cell) };
+  return { groups: partition(range, grains.group, true), cells: partition(range, grains.cell, false, holidays) };
 }
 
 // ---- the weekend hatch -----------------------------------------------------------------------------------------------
@@ -223,6 +227,77 @@ export function weekendBackground(scale: TimelineScale, ink = "var(--timeline-ha
   const phase = (((scale.xOf(weekStart(scale.from)) % period) + period) % period) - period;
   const workEnd = phase + WORKING_DAYS_PER_WEEK * dayWidth;
   return `repeating-linear-gradient(90deg, transparent ${phase}px ${workEnd}px, ${ink} ${workEnd}px ${phase + period}px)`;
+}
+
+// ---- the public holidays ---------------------------------------------------------------------------------------------
+
+/** A public holiday as the Timeline takes it: the dictionary row without its id. */
+export interface TimelineHoliday {
+  /** `YYYY-MM-DD`. */
+  date: string;
+  name: string;
+}
+
+/** The holidays by epoch day (the header's lookup). A later row for the same date wins; the server allows one per date. */
+export function holidayDayMap(holidays: ReadonlyArray<TimelineHoliday>): Map<number, string> {
+  return new Map(holidays.map((holiday) => [toEpochDay(holiday.date), holiday.name]));
+}
+
+/**
+ * The holidays a viewer is told about (the visually hidden "Public holidays shown" paragraph): those inside the range, and only at the
+ * zooms that draw them. A holiday on a weekend is listed too: the weekend stripe hides it, but it is still news.
+ */
+export function holidaysShown(scale: TimelineScale, holidays: ReadonlyMap<number, string>): TimelineHoliday[] {
+  if (!HATCHED_ZOOMS.includes(scale.zoom)) return [];
+  return [...holidays.entries()]
+    .filter(([day]) => day >= scale.from && day <= scale.to)
+    .sort(([a], [b]) => a - b)
+    .map(([day, name]) => ({ date: toIsoDate(day), name }));
+}
+
+/** The most holidays the hidden paragraph names; above it, it counts them and names the next ones. */
+const MAX_LISTED_HOLIDAYS = 10;
+
+/**
+ * What the visually hidden paragraph says: every holiday in view when there are at most {@link MAX_LISTED_HOLIDAYS}; otherwise the count
+ * and the next ones (the first ten on or after `today`, or the last ten when the whole view lies in the past).
+ */
+export function holidayListing(shown: readonly TimelineHoliday[], today: string): { count: number; listed: TimelineHoliday[]; truncated: boolean } {
+  if (shown.length <= MAX_LISTED_HOLIDAYS) return { count: shown.length, listed: [...shown], truncated: false };
+  const upcoming = shown.filter((holiday) => holiday.date >= today);
+  const listed = upcoming.length > 0 ? upcoming.slice(0, MAX_LISTED_HOLIDAYS) : shown.slice(-MAX_LISTED_HOLIDAYS);
+  return { count: shown.length, listed, truncated: true };
+}
+
+/**
+ * The public holidays as ONE `linear-gradient(90deg, …)` over the whole track (the track is `totalWidth` wide, so the stops are plain x
+ * offsets): transparent except `ink` over each run of consecutive holiday WORKING days (a holiday on a weekend is already striped by
+ * {@link weekendBackground}, and the translucent ink would compound). The same ink and zooms as the weekend hatch: week and month.
+ * `null` where nothing is drawn.
+ */
+export function holidayBackground(scale: TimelineScale, holidays: ReadonlyMap<number, string>, ink = "var(--timeline-hatch)"): string | null {
+  if (!HATCHED_ZOOMS.includes(scale.zoom)) return null;
+  const days = [...holidays.keys()].filter((day) => day >= scale.from && day <= scale.to && !isWeekend(day)).sort((a, b) => a - b);
+  if (days.length === 0) return null;
+  const stops: string[] = [];
+  let cursor = 0;
+  for (let i = 0; i < days.length; ) {
+    let last = i;
+    while (last + 1 < days.length && days[last + 1] === days[last] + 1) last += 1;
+    const x0 = scale.xOf(days[i]);
+    const x1 = scale.xOf(days[last]) + scale.dayWidth;
+    stops.push(`transparent ${cursor}px ${x0}px`, `${ink} ${x0}px ${x1}px`);
+    cursor = x1;
+    i = last + 1;
+  }
+  stops.push(`transparent ${cursor}px`);
+  return `linear-gradient(90deg, ${stops.join(", ")})`;
+}
+
+/** The row hatch: the holiday layer over the weekend layer (the same ink; the two never overlap), or `null` where neither is drawn. */
+export function trackBackground(scale: TimelineScale, holidays: ReadonlyMap<number, string>): string | null {
+  const layers = [holidayBackground(scale, holidays), weekendBackground(scale)].filter((layer) => layer !== null);
+  return layers.length === 0 ? null : layers.join(", ");
 }
 
 // ---- the default range -----------------------------------------------------------------------------------------------

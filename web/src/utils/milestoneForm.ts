@@ -3,7 +3,7 @@ import type { MilestoneBody, ProjectMilestone } from "../api/milestones";
 import { descriptionRule, nameRule } from "./formRules";
 import { isValidIsoDate } from "./isoDate";
 import { saveErrorMessage } from "./saveError";
-import { isWeekend, toEpochDay } from "./timelineScale";
+import { isWeekend, toEpochDay, toIsoDate } from "./timelineScale";
 
 // Server limits (planning/Milestone.kt — requireNameAndDescription, the estimate rule) mirrored client-side.
 export const MAX_MILESTONE_NAME_LENGTH = 100;
@@ -83,16 +83,25 @@ export type ScheduleFormValues = { startDate: string | null; endDate: string | n
 
 const present = (value: string | null): value is string => value !== null && value !== "";
 
-/** Does `[start, end]` (valid ISO dates, end not before start) contain a Monday–Friday? Any span of seven days does. */
-export function hasWorkingDay(start: string, end: string): boolean {
+const NO_HOLIDAYS: ReadonlySet<string> = new Set();
+
+/**
+ * Does `[start, end]` (valid ISO dates, end not before start) contain a working day: a Monday–Friday that is not a public holiday
+ * (`holidayDays`, the ISO dates of the cached dictionary; the server's check on the schedule PUT is the rule)? Any seven days hold five
+ * weekdays, so with `h` holidays in all, `7 × (h + 1)` days always hold one and the scan stops there.
+ */
+export function hasWorkingDay(start: string, end: string, holidayDays: ReadonlySet<string> = NO_HOLIDAYS): boolean {
   const first = toEpochDay(start);
-  const last = Math.min(toEpochDay(end), first + 6);
-  for (let day = first; day <= last; day += 1) if (!isWeekend(day)) return true;
+  const last = Math.min(toEpochDay(end), first + 7 * (holidayDays.size + 1) - 1);
+  for (let day = first; day <= last; day += 1) if (!isWeekend(day) && !holidayDays.has(toIsoDate(day))) return true;
   return false;
 }
 
-/** Both dates, real calendar days, the end not before the start, at least one working day — what the server enforces on the schedule PUT. */
-export function scheduleFormValidation(t: TFunction) {
+/**
+ * Both dates, real calendar days, the end not before the start, at least one working day (a public holiday is none) — what the server
+ * enforces on the schedule PUT. `holidayDays` is the cached dictionary's ISO dates.
+ */
+export function scheduleFormValidation(t: TFunction, holidayDays: ReadonlySet<string> = NO_HOLIDAYS) {
   return {
     startDate: (value: string | null) => {
       if (!present(value)) return t("project.validation.startRequired");
@@ -103,7 +112,7 @@ export function scheduleFormValidation(t: TFunction) {
       if (!isValidIsoDate(value)) return t("project.validation.dateShape");
       if (!present(values.startDate) || !isValidIsoDate(values.startDate)) return null;
       if (value < values.startDate) return t("project.validation.endBeforeStart");
-      return hasWorkingDay(values.startDate, value) ? null : t("project.validation.noWorkingDay");
+      return hasWorkingDay(values.startDate, value, holidayDays) ? null : t("project.validation.noWorkingDay");
     },
   };
 }

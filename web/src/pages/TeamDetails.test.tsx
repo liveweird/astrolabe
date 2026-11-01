@@ -138,6 +138,7 @@ function serve(mockFetch: FetchMock) {
   mockFetch.mockImplementation((url: string, init?: RequestInit) => {
     const method = init?.method ?? "GET";
     if (method === "GET" && url === "/api/v1/views/team/1") return Promise.resolve(jsonResponse(200, view));
+    if (method === "GET" && url === "/api/v1/public-holidays") return Promise.resolve(jsonResponse(200, { items: [{ id: 1, date: "2027-02-03", name: "Founders' Day" }] }));
     if (method === "PUT" && url === "/api/v1/teams/1/milestone-order") {
       if (orderPut.status !== 200) return Promise.resolve(jsonResponse(orderPut.status, orderPut.body ?? { title: "x", status: orderPut.status }));
       const body = JSON.parse(init?.body as string) as { milestoneIds: number[] };
@@ -213,6 +214,13 @@ afterEach(() => {
 });
 
 describe("Team view page", () => {
+  test("the timeline gets the public-holiday dictionary: the header day cell is named and the list is there for assistive technology", async () => {
+    renderPage();
+    await screen.findByRole("grid", { name: "Team milestone timeline" });
+    expect(await screen.findByText(/Public holidays shown: 2027-02-03 Founders' Day/)).toBeInTheDocument();
+    expect(document.querySelector("[data-holiday]")).toHaveAttribute("title", "Public holiday: Founders' Day");
+  });
+
   test("renders the facts, the timeline with the strip, the tray, the capacity and the weekly load; the heading outline is pinned", async () => {
     renderPage();
     await screen.findByRole("grid", { name: "Team milestone timeline" });
