@@ -23,7 +23,11 @@ import io.ktor.server.plugins.PayloadTooLargeException
 import io.ktor.server.plugins.statuspages.StatusPages
 import io.ktor.server.request.path
 import io.ktor.server.response.respond
+import io.netty.handler.timeout.ReadTimeoutException
 import io.r2dbc.spi.R2dbcException
+import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.isActive
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.v1.exceptions.ExposedSQLException
@@ -281,6 +285,20 @@ fun Application.configureErrorHandling() {
             call.respondDbFailure(cause)
         }
         exception<Throwable> { call, cause ->
+            // A cancelled call is not a server fault and has no one left to answer: Netty's read timeout already wrote the 408
+            // and cancelled the call with a CancellationException caused by ReadTimeoutException (`security.md` "Slow requests"),
+            // and a client that hung up cancels it the same way. One INFO line for the timeout, DEBUG for the rest; no 500.
+            // Only when the CALL itself is cancelled: a CancellationException thrown inside a live call (a timeout in a handler)
+            // still answers the 500 below.
+            if (cause is CancellationException && !currentCoroutineContext().isActive) {
+                val request = "${call.request.local.method.value} ${call.request.path()}"
+                if (cause.anyInChain { it is ReadTimeoutException }) {
+                    call.application.log.info("Request timed out waiting for bytes (408): $request")
+                } else {
+                    call.application.log.debug("Call cancelled: $request")
+                }
+                return@exception
+            }
             call.respondInternalError(cause)
         }
     }

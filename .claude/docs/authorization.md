@@ -188,8 +188,8 @@ Layered RBAC. Implemented in the `server/src/main/kotlin/authz/` package.
     …) → missing = `404` for EVERY caller → the guard `403` → `call.receive` (a forbidden caller's malformed body stays 403) → validate `400` → write under the plan lock
     (`409` name clash or active children). The caller's person is resolved once per request (`PersonService.activePersonIdOf`, not looked up for an ADMIN); the grant is read
     per request, never from the token. **The guard runs twice**: outside, before `call.receive`, for the 404 → 403 → 400 ordering; and again INSIDE `withPlanWrite` against a chain re-read under the plan
-    lock, the caller's person re-resolved `FOR SHARE` and (target window) the grant re-read in the same transaction — a request can be held open after the outer guard (a slow body; no body-read
-    timeout, `BACKLOG.md`), so only the inner verdict authorizes the write (a failure there is a 403 with no revision bump and the central `authz.denied`). Rule per route:
+    lock, the caller's person re-resolved `FOR SHARE` and (target window) the grant re-read in the same transaction — a request can be held open after the outer guard (a slow body; Netty's idle-read
+    timeout is only a gap bound, `security.md` "Slow requests"), so only the inner verdict authorizes the write (a failure there is a 403 with no revision bump and the central `authz.denied`). Rule per route:
 
     | Route | Guard (in order) |
     |---|---|

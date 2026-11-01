@@ -65,7 +65,7 @@ back the bump with everything else, so a rejected write never moves the revision
 - **Owner validity is not covered by the plan lock** (people are not plan state): `requireActiveOwner` locks the owner's person row `FOR SHARE`, which conflicts with `PersonService.delete`'s `FOR NO KEY UPDATE`
   — a delete racing a node write either commits first (the write is a 400) or waits and then sees the node (409). Both halves are pinned in `PlanStateTest`.
 - **Guard outside for ordering, re-guarded under the lock.** Read-before-guard resolves the chain and guards BEFORE `call.receive` (the 404 → 403 → 400 ordering), but a request can be held open after
-  that (Netty has no body-read timeout), so the verdict is not trusted: inside `withPlanWrite` every node write re-reads the chain (`workStreamChain`/`programChain`/`projectChain`; missing = 404, nothing written),
+  that (Netty's read timeout is only an idle-gap bound, `security.md` "Slow requests"), so the verdict is not trusted: inside `withPlanWrite` every node write re-reads the chain (`workStreamChain`/`programChain`/`projectChain`; missing = 404, nothing written),
   re-resolves the caller's person (`PersonService.lockedActivePersonIdOf`, `FOR SHARE` — a re-link or delete of that person waits) and re-runs `requireOwnerOrAdmin` /
   `requireTargetWindowEditorOrAdmin` (re-reading the `ROADMAP_EDITOR` grant in the same transaction); ADMIN short-circuits. A `ForbiddenException` there rolls back with no revision bump and is audited
   centrally as `authz.denied`. No lock cycle: person and team writers never take `plan_state`. `PlanStateTest` pins owner change, person re-link and grant revocation mid-request.

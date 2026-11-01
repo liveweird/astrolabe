@@ -35,7 +35,14 @@ internal fun Application.exposesOpenApi(): Boolean =
         ?.takeIf { it.isNotBlank() }?.toBoolean()
         ?: developmentMode
 
+/**
+ * Bounds of `ktor.deployment.requestReadTimeoutSeconds` (`$REQUEST_READ_TIMEOUT_SECONDS`): 0 turns Netty's read timeout off,
+ * an hour is the ceiling. EngineMain applies the value to the engine; this only refuses a nonsensical one at boot, naming the key.
+ */
+internal const val MAX_REQUEST_READ_TIMEOUT_SECONDS: Int = 3600
+
 fun Application.configureHttp() {
+    requireConfigInt(environment.config, "ktor.deployment.requestReadTimeoutSeconds", 0, MAX_REQUEST_READ_TIMEOUT_SECONDS)
     install(RequestBodyLimit) {
         bodyLimit { MAX_REQUEST_BODY_BYTES }
     }

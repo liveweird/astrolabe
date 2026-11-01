@@ -5,6 +5,16 @@ ktor:
   development: "$KTOR_DEVELOPMENT:true"
   deployment:
     port: 8086
+    # Netty's idle-read timeout (whole seconds, 0 = off, 1..3600; plugins/Http.kt validates it; `.claude/docs/security.md`
+    # "Slow requests"). Read by EngineMain, so it exists only for the real engine. The connection is
+    # failed when NO bytes arrive for this long while a request is open: answered 408 and the call cancelled. It
+    # is a GAP bound, not a total deadline (a client trickling a byte per gap keeps it open), it fires only ONCE per
+    # connection (Ktor's handler), and it also counts handler time after the request is read, so it must outlast the
+    # slowest legitimate call (a writer queued behind the plan_state lock included). 60 s =
+    # twice the SPA's 30 s request deadline (web/src/api/http.ts), the nginx `client_body_timeout` default, and
+    # far above the pool-acquire wait (10 s), with no handler expected to come near it; bodies are small JSON (10 MiB hard cap, plugins/Http.kt).
+    # The response side stays at Ktor's own `responseWriteTimeoutSeconds` default (10 s per stalled write).
+    requestReadTimeoutSeconds: "$REQUEST_READ_TIMEOUT_SECONDS:60"
   application:
     # Ktor cancels module loading after `startupTimeoutMillis` (default 10 s) — which cut the cold-start
     # Flyway retry wait (up to ~103 s at the maximum 15 retries, infra/db/Flyway.kt) short and crashed the
