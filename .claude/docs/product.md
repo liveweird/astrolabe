@@ -13,7 +13,7 @@ Scale assumed: about 15 teams, 5 work streams, 20 programs, 100 projects, 1,000 
 
 ## Roadmap
 
-Each increment gets its own plan (architect) before implementation; only v0.1.0 was specified up front. **Current version: 0.6.0.**
+Each increment gets its own plan (architect) before implementation; only v0.1.0 was specified up front. **Current version: 0.7.0.**
 
 | Ver | Scope | User can test |
 |---|---|---|
@@ -23,7 +23,7 @@ Each increment gets its own plan (architect) before implementation; only v0.1.0 
 | **0.4.0 Dependencies** | 4 types + lag, all 3 endpoint kinds; SVG arrows; cycles → 409; red violations + conflict list; ghost rows for external endpoints | link across teams/projects, see warnings |
 | **0.5.0 Team view + capacity** | capacity periods; weekly load strip + overload; team order override/reset; schedule from team view; deterministic scale dataset `sample-data/plan/` | plan a team against capacity |
 | **0.6.0 Roadmap + programs timelines** | the Roadmap becomes a timeline (row drag and menu to rank) and a Programs tree page; derived spans upward; target window by drag, draw and dialog; drift flags; rank-vs-time flags (inversion between projects sharing a team = warning, else info); filters + program pick; Year zoom | review plan vs priority |
-| **0.7.0 Calendar + critical path** (built, not yet released) | the ADMIN public-holiday dictionary (V19, manual + a Polish preset) feeding every working-day figure; the per-project critical path over the whole chain with per-milestone slack and a toolbar toggle; idle gaps (3+ working days) per project and team | find the driving chain and idle time |
+| **0.7.0 Calendar + critical path** | the ADMIN public-holiday dictionary (V19, manual + a Polish preset) feeding every working-day figure; the per-project critical path over the whole chain with per-milestone slack and a toolbar toggle; idle gaps (3+ working days) per project and team | find the driving chain and idle time |
 | **0.8.0 Auto-proposal** | server scheduler → diff preview → accept all/some via batch schedule (same guards) | generate + accept a proposal |
 | **0.9.0 Baselines** | named snapshots at a plan revision; overlay + compare | see movement vs baseline |
 | **1.0.0** | checkup, perf at scale, a11y sweep | — |
@@ -65,7 +65,7 @@ Version numbers are not strictly roadmap milestones (`app-releases.md`): a user-
 
 Day-precision dates; Monday–Friday working days, fixed, minus the public-holiday dictionary (built in 0.7.0); week / month / quarter zoom (month / quarter / year on the roadmap and programs pages); EN and PL kept; the scale above.
 
-## v0.7.0 — built, not yet released
+## v0.7.0 — what shipped
 
 Calendar + critical path (one migration, V19), on the user's answers of 2026-11-01 (the plan `astrolabe-v0.7.0-calendar-critical-path.md` §1.2, §2); the release commit renames this section "what shipped". (1) **One global holiday list**, curated by ADMIN, applying to every team; entered by hand plus an "Add Polish public holidays for <year>" preset (idempotent; no seed migration, the table starts empty). (2) **Monday–Friday, fixed**; a holiday inside a milestone never moves its dates: its estimate spreads over the remaining working days, and the weekly load, capacity proration, WIP and the dependency checks and lags all count the calendar's working days. (3) **The critical path is per project, on the planned dates, over the WHOLE chain** (D5, the user overturned the one-hop recommendation): the chain of zero-slack milestones and links through every project it passes; nothing moves. (4) **Slack per milestone**: the working days it could slip before this project's end moves. (5) **A toolbar toggle**, off by default, remembered in the browser; highlight is **monochrome emphasis** (D7), no new hue. (6) **Idle gaps**: 3 or more working days with nothing in progress, as hatched bands plus an "Idle gaps" table, on the project and team pages. Decisions D1-D7: **D1** a holiday write bumps the plan revision (a plan write; no client write is staled by it); **D2** the schedule PUT's "at least one working day" counts holidays, but a milestone that later loses its last working day to a new holiday keeps its dates; **D3** a holiday week's capacity divisor stays **5** (2027-01-04: a 10 MD/week team has 8.00, a 10 MD milestone there is +2.00 over); **D4** violated links are excluded from driving and slack (a violated link ends the chain upstream); **D5** the whole chain, the page shows direct neighbours as ghost rows and farther members in a "Critical chain" list; **D6** `POST /public-holidays/apply-preset {preset: POLISH, year}`; **D7** monochrome emphasis. Measured on the sample plan (`timeline.md` "Measured figures (v0.7)"): the project view p50 16-23 ms, the page ready in ~300 ms; the worst case (a long critical chain) is unmeasured (`BACKLOG.md`). Details: `planning-model.md` "The calendar", "Idle gaps", "The critical path".
 

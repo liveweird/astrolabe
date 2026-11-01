@@ -17,6 +17,28 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "0.7.0",
+    date: "2026-11-02",
+    en: `**Astrolabe 0.7.0: the calendar and the critical path.**
+
+- Public holidays: the new Public holidays page (Administration) lists the days off for a year. An administrator adds or removes a day by hand, or adds all Polish public holidays of a year with one button. Every working-day figure now skips them: dependency checks and lags, the spread of an estimate over a milestone's days, capacity and the WIP limit, the critical path and idle gaps. The timelines hatch a holiday like a weekend, and the day's header names it.
+- A milestone must still cover at least one working day: a span made only of weekends or holidays is refused.
+- The critical path: turn on "Critical path" in a project's timeline toolbar to see what drives the project's end. Critical milestones and links are outlined, a Slack column shows how many working days each milestone could slip before the project's end moves, and the "Critical chain" section lists the milestones and projects of other projects upstream — the whole chain, not only the direct neighbours. It is computed from the planned dates; nothing is moved.
+- Idle gaps: a project or team page marks every run of 3 or more working days on which none of its milestones is in progress, as a hatched band, a badge and an "Idle gaps" table.
+- A dependency's type and lag can now be edited in place ("Edit…" in the Dependencies table) instead of deleting and re-adding it.
+- Accessibility: long option lists scroll by keyboard and pass the accessibility checks, and the close button of a notification is named.
+- A slow request that stops sending data is cut off after 60 seconds (configurable).`,
+    pl: `**Astrolabe 0.7.0: kalendarz i ścieżka krytyczna.**
+
+- Święta państwowe: nowa strona Święta państwowe (Administracja) pokazuje dni wolne w danym roku. Administrator/ka dodaje lub usuwa dzień ręcznie albo jednym przyciskiem dodaje wszystkie polskie święta danego roku. Wszystkie wartości liczone w dniach roboczych je pomijają: sprawdzanie zależności i opóźnień, rozkład szacunku na dni kamienia milowego, pojemność i limit WIP, ścieżka krytyczna i przestoje. Osie czasu kreskują święto jak weekend, a nagłówek dnia podaje jego nazwę.
+- Kamień milowy nadal musi obejmować co najmniej jeden dzień roboczy: okres złożony tylko z weekendów lub świąt jest odrzucany.
+- Ścieżka krytyczna: włącz „Ścieżka krytyczna” na pasku osi czasu projektu, aby zobaczyć, co wyznacza jego koniec. Krytyczne kamienie milowe i powiązania są obrysowane, kolumna Luz pokazuje, o ile dni roboczych każdy kamień milowy może się przesunąć, zanim przesunie się koniec projektu, a sekcja „Łańcuch krytyczny” wymienia kamienie milowe i projekty innych projektów leżące przed nim — cały łańcuch, nie tylko bezpośrednich sąsiadów. Liczy się z planowanych dat; nic nie przesuwa się samo.
+- Przestoje: strona projektu lub zespołu zaznacza każdy ciąg co najmniej 3 dni roboczych, w których nie trwa żaden z jego kamieni milowych — jako zakreskowany pasek, plakietkę i tabelę „Przestoje”.
+- Typ i opóźnienie zależności można teraz edytować w miejscu („Edytuj…” w tabeli Zależności) zamiast usuwać ją i dodawać od nowa.
+- Dostępność: długie listy opcji przewijają się z klawiatury i przechodzą testy dostępności, a przycisk zamknięcia powiadomienia ma nazwę.
+- Wolne żądanie, które przestało przesyłać dane, jest przerywane po 60 sekundach (do skonfigurowania).`,
+  },
+  {
     version: "0.6.0",
     date: "2026-11-01",
     en: `**Astrolabe 0.6.0: the roadmap and programs timelines.**
