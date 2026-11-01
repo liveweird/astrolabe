@@ -14,16 +14,23 @@ export default function RowActionsMenu({
   label,
   loading,
   trigger,
+  onClosed,
   children,
 }: {
   label: string;
   loading?: boolean;
   /** Extra attributes for the trigger — a roving-grid cell (the Timeline's) makes the kebab its own tab stop with them. */
   trigger?: { tabIndex: number } & Record<string, string | number>;
+  /**
+   * Called when the dropdown has FINISHED leaving (its exit transition is over). Mantine keeps the dropdown, and its focus trap, mounted through
+   * the transition, so a caller that wants to put the focus somewhere itself (the roadmap's menu button after a move) must do it here: a focus
+   * moved earlier is pulled back into the dropdown's sentinel and lands on `body` when the dropdown unmounts. Opt-in; no other caller sets it.
+   */
+  onClosed?: () => void;
   children: ReactNode;
 }) {
   return (
-    <Menu>
+    <Menu onExitTransitionEnd={onClosed}>
       <Menu.Target>
         <ActionIcon size="sm" aria-label={label} loading={loading} {...trigger}>
           <IconDotsVertical size={16} />

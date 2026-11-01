@@ -1,23 +1,13 @@
 import type { Ref } from "react";
-import { Anchor, Badge, Group, Menu, Text, VisuallyHidden } from "@mantine/core";
-import { IconAlertTriangle, IconArrowBarDown, IconArrowBarUp, IconArrowDown, IconArrowUp, IconExternalLink, IconInfoCircle, IconListNumbers, IconX } from "@tabler/icons-react";
-import { Link as RouterLink } from "react-router-dom";
+import { Group, Menu, Text } from "@mantine/core";
+import { IconArrowBarDown, IconArrowBarUp, IconArrowDown, IconArrowUp, IconListNumbers, IconX } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
-import type { TFunction } from "i18next";
-import type { RoadmapLink, RoadmapProject, RoadmapView } from "../api/roadmap";
-import { projectPath } from "../utils/planLinks";
-import {
-  arrowSpecsForLinks,
-  conflictsByProject,
-  countFlags,
-  displayRows,
-  DIVIDER_ID,
-  driftBandOf,
-  type DisplayRow,
-  type VisibleProjects,
-} from "../utils/roadmapRows";
-import type { RovingTarget, TimelineBandData, TimelineBarData, TimelineColumn, TimelineRowData } from "../utils/timelineModel";
+import type { RoadmapProject, RoadmapView } from "../api/roadmap";
+import { projectTrack, planArrows } from "../utils/planTrack";
+import { conflictsByProject, countFlags, displayRows, DIVIDER_ID, type DisplayRow, type VisibleProjects } from "../utils/roadmapRows";
+import type { RovingTarget, TimelineColumn, TimelineRowData } from "../utils/timelineModel";
 import { PLAN_ZOOMS, type TimelineScale, type Zoom } from "../utils/timelineScale";
+import { FlagCountsCell, OpenProjectItem, ProjectLink } from "./PlanProjectCells";
 import RowActionsMenu from "./RowActionsMenu";
 import Timeline, { type TimelineHandle } from "./Timeline";
 import TimelineArrows from "./TimelineArrows";
@@ -30,33 +20,12 @@ export type RoadmapActions = {
   moveTo: (project: RoadmapProject, edge: "top" | "bottom") => void;
   rank: (project: RoadmapProject) => void;
   unrank: (project: RoadmapProject) => void;
+  /** The row's menu has finished closing (its exit transition is over): the page puts the focus back here if a change just moved the row. */
+  menuClosed: (project: RoadmapProject) => void;
 };
 
 /** The sticky left columns: 404 px in all, so the track keeps the width on a laptop (work stream and owner are filters, not columns). */
 const COLUMN_WIDTHS = { rank: 44, project: 240, flags: 64, actions: 56 } as const;
-
-/** The flags of a row as icons with counts: an orange warning triangle and/or a gray info circle; the words are for assistive technology. */
-function FlagsCell({ project }: { project: RoadmapProject }) {
-  const { t } = useTranslation();
-  const { warnings, infos } = countFlags(project.flags);
-  if (warnings + infos === 0) return null;
-  const sentence = [warnings > 0 ? t("roadmap.facts.warnings", { count: warnings }) : null, infos > 0 ? t("roadmap.facts.infos", { count: infos }) : null].filter(Boolean).join(", ");
-  return (
-    <Group gap={4} wrap="nowrap" title={sentence} data-flags={`${warnings},${infos}`}>
-      {warnings > 0 && (
-        <Badge aria-hidden="true" color="orange" variant="light" size="sm" px={4} leftSection={<IconAlertTriangle size={12} />}>
-          {warnings}
-        </Badge>
-      )}
-      {infos > 0 && (
-        <Badge aria-hidden="true" color="gray" variant="light" size="sm" px={4} leftSection={<IconInfoCircle size={12} />}>
-          {infos}
-        </Badge>
-      )}
-      <VisuallyHidden>{sentence}</VisuallyHidden>
-    </Group>
-  );
-}
 
 /**
  * The row menu of one project: the ranking moves by the view's `can.editRank` (a ranked row: Move up / down / to top / to bottom, disabled at the
@@ -84,7 +53,7 @@ function ProjectMenu({
   const first = rankedIndex === 0;
   const last = rankedIndex === rankedCount - 1;
   return (
-    <RowActionsMenu label={t("common.table.operationsAria", { name })} trigger={{ ...trigger, "data-operations-for": project.id }}>
+    <RowActionsMenu label={t("common.table.operationsAria", { name })} trigger={{ ...trigger, "data-operations-for": project.id }} onClosed={() => actions.menuClosed(project)}>
       {canRank && rankedIndex !== null && (
         <>
           <Menu.Item leftSection={<IconArrowUp size={14} />} disabled={first} onClick={() => actions.move(project, -1)} aria-label={t("roadmap.action.moveUpAria", { name })}>
@@ -113,23 +82,18 @@ function ProjectMenu({
           <Menu.Divider />
         </>
       )}
-      <Menu.Item component={RouterLink} to={projectPath(project.id)} leftSection={<IconExternalLink size={14} />} aria-label={t("roadmap.action.openProjectAria", { name })}>
-        {t("roadmap.action.openProject")}
-      </Menu.Item>
+      <OpenProjectItem project={project} />
     </RowActionsMenu>
   );
 }
 
 /** The project cell: the pointer-only drag handle (only when the viewer may rank), the name as the link into the project, the program dimmed after it. */
 function ProjectCell({ project, placement, stop }: { project: RoadmapProject; placement: { index: number; count: number } | null; stop: RovingTarget }) {
-  const { t } = useTranslation();
   return (
     <Group gap={4} wrap="nowrap" style={{ minWidth: 0 }}>
       {placement !== null && <TimelineRowHandle id={project.id} label={project.name} position={placement.index + 1} count={placement.count} />}
       <Text component="span" size="sm" truncate style={{ minWidth: 0 }}>
-        <Anchor component={RouterLink} to={projectPath(project.id)} inherit fw={500} aria-label={t("roadmap.openProjectAria", { name: project.name })} {...stop}>
-          {project.name}
-        </Anchor>
+        <ProjectLink project={project} stop={stop} />
         <Text span c="dimmed">
           {" "}
           {project.programName}
@@ -137,28 +101,6 @@ function ProjectCell({ project, placement, stop }: { project: RoadmapProject; pl
       </Text>
     </Group>
   );
-}
-
-/** The accessible name of a span bar, with the ", N conflicts" suffix when violated links end on its project. */
-const withConflicts = (t: TFunction, describe: string, count: number) => (count > 0 ? `${describe}, ${t("project.barConflicts", { count })}` : describe);
-
-/** The bars of a project row: its target window (a read-only band-look bar behind) and the span its milestones cover (hollow, on top). */
-function barsOf(project: RoadmapProject, t: TFunction, conflicts: number): TimelineBarData[] {
-  const { id, name, targetStart, targetEnd, span } = project;
-  const bars: TimelineBarData[] = [];
-  if (targetStart !== null && targetEnd !== null) {
-    bars.push({ id: `window:${id}`, start: targetStart, end: targetEnd, label: name, describe: t("timeline.bar.window", { name, start: targetStart, end: targetEnd }), editable: false, tone: "window" });
-  }
-  if (span !== null) {
-    bars.push({ id, start: span.start, end: span.end, label: name, describe: withConflicts(t, t("roadmap.barAria", { name, start: span.start, end: span.end }), conflicts), editable: false, tone: "summary" });
-  }
-  return bars;
-}
-
-/** The overrun band behind a late project: from the day after its target window to the end of its span. */
-function bandsOf(project: RoadmapProject, t: TFunction): TimelineBandData[] {
-  const band = driftBandOf(project);
-  return band === null || project.drift === null ? [] : [{ id: `drift:${project.id}`, ...band, label: t("project.driftBand", { count: project.drift.endDays }), tone: "drift" }];
 }
 
 /**
@@ -222,11 +164,10 @@ export default function RoadmapTimeline({
       cells: [
         position === null ? "—" : position,
         (stop: RovingTarget) => <ProjectCell project={project} placement={canRank ? { index, count: display.length } : null} stop={stop} />,
-        <FlagsCell key="flags" project={project} />,
+        <FlagCountsCell key="flags" counts={countFlags(project.flags)} />,
         (stop: RovingTarget) => <ProjectMenu project={project} rankedIndex={rankedIndex} rankedCount={rankedCount} canRank={canRank} actions={actions} trigger={stop} />,
       ],
-      bars: barsOf(project, t, conflicts.get(project.id) ?? 0),
-      bands: bandsOf(project, t),
+      ...projectTrack(project, t, conflicts),
     };
   }
 
@@ -234,12 +175,7 @@ export default function RoadmapTimeline({
 
   const withSpan = new Set(display.flatMap((entry) => (entry.kind === "project" && entry.project.span !== null ? [entry.project.id] : [])));
   const names = new Map(display.flatMap((entry) => (entry.kind === "project" ? [[entry.project.id, entry.project.name] as const] : [])));
-  const nameOf = (id: number) => names.get(id) ?? "";
-  const arrows = arrowSpecsForLinks(view.links, (projectId) => (withSpan.has(projectId) ? projectId : null), {
-    direct: (link: RoadmapLink) => `${nameOf(link.predecessorProjectId)} → ${nameOf(link.successorProjectId)}, ${link.direct?.type ?? ""}`,
-    bundle: (link: RoadmapLink) =>
-      t("roadmap.bundleLabel", { from: nameOf(link.predecessorProjectId), to: nameOf(link.successorProjectId), count: link.milestoneLinks.count, violated: link.milestoneLinks.violated }),
-  });
+  const arrows = planArrows(t, view.links, names, withSpan);
 
   return (
     <Timeline

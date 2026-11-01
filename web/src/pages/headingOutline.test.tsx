@@ -32,6 +32,9 @@ function emptyApi() {
     if (url === "/api/v1/views/roadmap") {
       return Promise.resolve(jsonResponse(200, { revision: 0, can: { editRank: true }, ranked: [], unranked: [] }));
     }
+    if (url === "/api/v1/views/programs") {
+      return Promise.resolve(jsonResponse(200, { revision: 0, teams: [], links: [], workStreams: [] }));
+    }
     if (/\/api\/v1\/(users|teams|people)(\?|$)/.test(url)) {
       return Promise.resolve(jsonResponse(200, { items: [], page: 1, pageSize: 20, total: 0 }));
     }

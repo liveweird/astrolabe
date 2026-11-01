@@ -151,7 +151,12 @@ test("an admin grants the roadmap editor right; the editor ranks two projects fr
     await page.keyboard.press("Enter");
     await expect(operations(page, second)).toHaveAttribute("aria-expanded", "true");
     const item = page.getByRole("menuitem", { name: `Move up ${second}`, exact: true });
-    await item.focus();
+    // As a keyboard user: opened with Enter the menu's focus trap takes the focus into the dropdown (its sentinel), ArrowDown reaches the first item,
+    // Enter takes it. Each step waits for the one before (a programmatic `focus()` straight away races the trap, which can pull the focus back into
+    // the dropdown and swallow the Enter).
+    await expect(page.locator("[data-autofocus]")).toBeFocused();
+    await page.keyboard.press("ArrowDown");
+    await expect(item).toBeFocused();
     await page.keyboard.press("Enter");
   });
   await expect.poll(() => layout(page, mine)).toEqual([second, first]);

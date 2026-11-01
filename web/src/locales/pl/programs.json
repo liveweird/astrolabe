@@ -1,0 +1,47 @@
+{
+  "title": "Programy",
+  "intro": "Plan jako drzewo na osi czasu: strumienie pracy, ich programy i projekty każdego programu. Pasek strumienia pracy lub programu to okres objęty jego projektami, a liczby obok sumują flagi wystawione na tych projektach. Otwórz program, aby zobaczyć jego projekty. Każdy może to czytać.",
+  "empty": "Brak strumieni pracy",
+  "emptyHint": "Strumienie pracy, programy i projekty tworzysz na stronie Plan; pojawiają się tutaj.",
+  "loadFailed": "Nie udało się wczytać programów",
+  "timelineTitle": "Oś czasu",
+  "timelineAria": "Oś czasu programów",
+  "column": {
+    "name": "Strumień pracy, program, projekt"
+  },
+  "closed": "zamknięty",
+  "streamAria": "Strumień pracy {{name}}",
+  "programAria": "Program {{name}}",
+  "streamBarAria": "{{name}}, okres strumienia pracy od {{start}} do {{end}}",
+  "programBarAria": "{{name}}, okres programu od {{start}} do {{end}}",
+  "expandAll": "Rozwiń wszystko",
+  "collapseAll": "Zwiń wszystko",
+  "facts": {
+    "aria": "Fakty o programach",
+    "workStreams_one": "{{count}} strumień pracy",
+    "workStreams_few": "{{count}} strumienie pracy",
+    "workStreams_many": "{{count}} strumieni pracy",
+    "workStreams_other": "{{count}} strumienia pracy",
+    "programs_one": "{{count}} program",
+    "programs_few": "{{count}} programy",
+    "programs_many": "{{count}} programów",
+    "programs_other": "{{count}} programu",
+    "projects_one": "{{count}} projekt",
+    "projects_few": "{{count}} projekty",
+    "projects_many": "{{count}} projektów",
+    "projects_other": "{{count}} projektu"
+  },
+  "announce": {
+    "expandedStream_one": "Rozwinięto: {{name}}, {{count}} program",
+    "expandedStream_few": "Rozwinięto: {{name}}, {{count}} programy",
+    "expandedStream_many": "Rozwinięto: {{name}}, {{count}} programów",
+    "expandedStream_other": "Rozwinięto: {{name}}, {{count}} programu",
+    "expandedProgram_one": "Rozwinięto: {{name}}, {{count}} projekt",
+    "expandedProgram_few": "Rozwinięto: {{name}}, {{count}} projekty",
+    "expandedProgram_many": "Rozwinięto: {{name}}, {{count}} projektów",
+    "expandedProgram_other": "Rozwinięto: {{name}}, {{count}} projektu",
+    "collapsed": "Zwinięto: {{name}}",
+    "expandedAll": "Rozwinięto wszystkie strumienie pracy i programy",
+    "collapsedAll": "Zwinięto wszystkie strumienie pracy i programy"
+  }
+}

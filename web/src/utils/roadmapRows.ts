@@ -62,12 +62,18 @@ export function knownFilters(view: RoadmapView, filters: RoadmapFilters): Roadma
   };
 }
 
-/** The picked programs the view still knows; `null` = no pick in force (every program shows). Stored ids of programs that are gone are ignored. */
-export function knownPick(view: RoadmapView, pick: readonly number[]): Set<number> | null {
-  const known = new Set(programOptions(view).map((program) => program.id));
-  const picked = new Set(pick.filter((id) => known.has(id)));
+/**
+ * The picked programs among the ones a page knows; `null` = no pick in force (every program shows). Stored ids of programs that are gone are
+ * ignored. The roadmap page and the programs page each pass the programs THEIR view holds (the one stored pick is shared).
+ */
+export function pickAmong(known: readonly { id: number }[], pick: readonly number[]): Set<number> | null {
+  const ids = new Set(known.map((program) => program.id));
+  const picked = new Set(pick.filter((id) => ids.has(id)));
   return picked.size === 0 ? null : picked;
 }
+
+/** The picked programs the roadmap view still knows (see `pickAmong`). */
+export const knownPick = (view: RoadmapView, pick: readonly number[]): Set<number> | null => pickAmong(programOptions(view), pick);
 
 /** The projects the filters (all of them must hold) and the program pick (`null` = all programs) leave visible. */
 export function visibleProjects(view: RoadmapView, filters: RoadmapFilters, pick: ReadonlySet<number> | null): VisibleProjects {

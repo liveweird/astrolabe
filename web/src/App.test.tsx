@@ -64,6 +64,7 @@ describe("App shell", () => {
       const planning = screen.getByRole("group", { name: "Planning" });
       expect(within(planning).getByRole("link", { name: "Plan" })).toHaveAttribute("href", "/plan");
       expect(within(planning).getByRole("link", { name: "Roadmap" })).toHaveAttribute("href", "/roadmap");
+      expect(within(planning).getByRole("link", { name: "Programs" })).toHaveAttribute("href", "/programs");
       // A non-admin session still sees Administration — Teams and People are everyone's, only Users and
       // Feature flags are admin-only and drop out.
       const admin = screen.getByRole("group", { name: "Administration" });

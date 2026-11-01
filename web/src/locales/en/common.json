@@ -30,6 +30,9 @@
   },
   "filter": {
     "title": "Filters",
+    "programs": "Programs",
+    "allPrograms": "All programs",
+    "clearPrograms": "Clear the program pick",
     "contains": "Contains…",
     "clearName": "Clear name filter"
   },

@@ -38,4 +38,13 @@ export default defineConfig([
       'max-params': ['error', 6],
     },
   },
+  {
+    // accessibility.spec.ts keeps ONE `describe` for the API-seeded fixture (team + plan) and every page scan that reads it, because
+    // they all share the beforeAll/afterAll seed; each new plan page adds one registered scan to that closure (the Programs tree made
+    // it 262 lines). A backstop above today's size, not a licence to grow: split the fixture out when a page needs its own.
+    files: ['tests/accessibility.spec.ts'],
+    rules: {
+      'max-lines-per-function': ['error', { max: 300, skipBlankLines: true, skipComments: true }],
+    },
+  },
 ])

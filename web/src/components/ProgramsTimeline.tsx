@@ -1,0 +1,171 @@
+import type { Ref } from "react";
+import { ActionIcon, Group, Text } from "@mantine/core";
+import { IconChevronDown, IconChevronRight } from "@tabler/icons-react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
+import type { RoadmapLink, RoadmapProject } from "../api/roadmap";
+import { planArrows, projectTrack } from "../utils/planTrack";
+import type { NodeRow, ProjectTreeRow, TreeRow } from "../utils/programsTree";
+import { conflictsByProject, countFlags } from "../utils/roadmapRows";
+import type { RovingTarget, TimelineBarData, TimelineColumn, TimelineRowData } from "../utils/timelineModel";
+import { PLAN_ZOOMS, type TimelineScale, type Zoom } from "../utils/timelineScale";
+import { FlagCountsCell, OpenProjectItem, ProjectLink } from "./PlanProjectCells";
+import RowActionsMenu from "./RowActionsMenu";
+import Timeline, { type TimelineHandle } from "./Timeline";
+import TimelineArrows from "./TimelineArrows";
+
+/** The sticky left columns: 448 px in all (the roll-up counts of a work stream run to three digits - found on the sample plan - hence the much wider Flags column than the roadmap's 64 px). */
+const COLUMN_WIDTHS = { name: 272, flags: 120, actions: 56 } as const;
+
+/** The indent per tree level, and the width of the chevron's slot (a row with nothing to expand keeps the slot, so the names line up). */
+const INDENT = 16;
+const CHEVRON_SLOT = 22;
+
+/**
+ * The name of a tree row: the chevron button of an expandable node (`aria-expanded`; its name tells the level - "Work stream X" / "Program Y" -
+ * and it is the ONE roving stop of the cell), then the name with the owner dimmed after it. A node with no children shows an empty slot and its
+ * cell is the stop itself (`stop` is then absent).
+ */
+function NodeLabel({ row, onToggle, stop }: { row: NodeRow; onToggle: (key: string) => void; stop?: RovingTarget }) {
+  const { t } = useTranslation();
+  const stream = row.kind === "workStream";
+  return (
+    <Group gap={4} wrap="nowrap" style={{ minWidth: 0, paddingLeft: stream ? 0 : INDENT }}>
+      {row.childCount > 0 ? (
+        <ActionIcon
+          size="sm"
+          data-node-key={row.key}
+          aria-expanded={row.expanded}
+          aria-label={t(stream ? "programs.streamAria" : "programs.programAria", { name: row.name })}
+          onClick={() => onToggle(row.key)}
+          {...stop}
+        >
+          {row.expanded ? <IconChevronDown size={16} /> : <IconChevronRight size={16} />}
+        </ActionIcon>
+      ) : (
+        <span aria-hidden="true" style={{ width: CHEVRON_SLOT, flex: "none" }} />
+      )}
+      <Text component="span" size="sm" truncate style={{ minWidth: 0 }}>
+        <Text span fw={stream ? 700 : 600}>
+          {row.name}
+        </Text>
+        {row.kind === "workStream" && row.closed && (
+          <Text span c="dimmed">
+            {" "}
+            ({t("programs.closed")})
+          </Text>
+        )}
+        <Text span c="dimmed">
+          {" "}
+          {row.ownerName}
+        </Text>
+      </Text>
+    </Group>
+  );
+}
+
+/** The name cell of a project row: indented under its program, the name as the link into the project (the roving stop), the owner dimmed. */
+function ProjectLabel({ project, stop }: { project: RoadmapProject; stop: RovingTarget }) {
+  return (
+    <Group gap={4} wrap="nowrap" style={{ minWidth: 0, paddingLeft: 2 * INDENT }}>
+      <span aria-hidden="true" style={{ width: CHEVRON_SLOT, flex: "none" }} />
+      <Text component="span" size="sm" truncate style={{ minWidth: 0 }}>
+        <ProjectLink project={project} stop={stop} />
+        <Text span c="dimmed">
+          {" "}
+          {project.ownerName}
+        </Text>
+      </Text>
+    </Group>
+  );
+}
+
+/** A work stream's or program's summary bar: the span its projects cover, read-only. */
+function summaryBars(row: NodeRow, t: TFunction): TimelineBarData[] {
+  if (row.span === null) return [];
+  const { start, end } = row.span;
+  const key = row.kind === "workStream" ? "programs.streamBarAria" : "programs.programBarAria";
+  return [{ id: row.key, start, end, label: row.name, describe: t(key, { name: row.name, start, end }), editable: false, tone: "summary" }];
+}
+
+/**
+ * The programs page's timeline: the plan as a tree on the shared Timeline - a row per work stream, under an expanded one its programs, under an
+ * expanded program its projects. A stream or program row shows its derived span as a summary bar and the roll-up of its projects' flags; a project
+ * row is the roadmap's (`projectTrack`: the window and span bars, the drift band; the flag icons; a menu with the link into the project). The
+ * arrows are the rolled-up links between the projects whose rows are shown. Read-only: nothing here writes or decides rights.
+ */
+export default function ProgramsTimeline({
+  links,
+  rows: treeRows,
+  onToggle,
+  scale,
+  onZoomChange,
+  today,
+  label,
+  timelineRef,
+}: {
+  links: readonly RoadmapLink[];
+  rows: readonly TreeRow[];
+  /** Flip a work stream or program (the page owns the expanded set and says what happened). */
+  onToggle: (key: string) => void;
+  scale: TimelineScale;
+  onZoomChange: (zoom: Zoom) => void;
+  today: string;
+  label: string;
+  timelineRef: Ref<TimelineHandle>;
+}) {
+  const { t } = useTranslation();
+  const columns: TimelineColumn[] = [
+    { id: "name", header: t("programs.column.name"), width: COLUMN_WIDTHS.name },
+    { id: "flags", header: t("roadmap.column.flags"), width: COLUMN_WIDTHS.flags },
+    { id: "actions", header: t("common.table.operations"), width: COLUMN_WIDTHS.actions },
+  ];
+  const projects = treeRows.filter((row): row is ProjectTreeRow => row.kind === "project").map((row) => row.project);
+  const conflicts = conflictsByProject(links);
+
+  function rowOf(row: TreeRow): TimelineRowData {
+    if (row.kind !== "project") {
+      return {
+        id: row.key,
+        // A node with something to expand puts its chevron button on the roving stop; a leaf node is a static cell (the cell is the stop).
+        cells: [row.childCount > 0 ? (stop: RovingTarget) => <NodeLabel row={row} onToggle={onToggle} stop={stop} /> : <NodeLabel key="name" row={row} onToggle={onToggle} />, <FlagCountsCell key="flags" counts={row.flags} />, ""],
+        bars: summaryBars(row, t),
+      };
+    }
+    const { project } = row;
+    return {
+      id: project.id,
+      cells: [
+        (stop: RovingTarget) => <ProjectLabel project={project} stop={stop} />,
+        <FlagCountsCell key="flags" counts={countFlags(project.flags)} />,
+        (stop: RovingTarget) => (
+          <RowActionsMenu label={t("common.table.operationsAria", { name: project.name })} trigger={{ ...stop, "data-operations-for": project.id }}>
+            <OpenProjectItem project={project} />
+          </RowActionsMenu>
+        ),
+      ],
+      ...projectTrack(project, t, conflicts),
+    };
+  }
+
+  const arrows = planArrows(
+    t,
+    links,
+    new Map(projects.map((project) => [project.id, project.name])),
+    new Set(projects.filter((project) => project.span !== null).map((project) => project.id)),
+  );
+
+  return (
+    <Timeline
+      ref={timelineRef}
+      label={label}
+      scale={scale}
+      zooms={PLAN_ZOOMS}
+      onZoomChange={onZoomChange}
+      today={today}
+      columns={columns}
+      rows={treeRows.map(rowOf)}
+      overlay={arrows.length === 0 ? undefined : (geometry) => <TimelineArrows arrows={arrows} geometry={geometry} />}
+    />
+  );
+}

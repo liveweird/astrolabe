@@ -1,0 +1,57 @@
+import { Anchor, Badge, Group, Menu, VisuallyHidden } from "@mantine/core";
+import { IconAlertTriangle, IconExternalLink, IconInfoCircle } from "@tabler/icons-react";
+import { Link as RouterLink } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import type { RoadmapProject } from "../api/roadmap";
+import { projectPath } from "../utils/planLinks";
+import type { FlagCounts } from "../utils/roadmapRows";
+import type { RovingTarget } from "../utils/timelineModel";
+
+// The cells a PROJECT row shares across the two plan pages (the roadmap and the programs tree), with the roll-up cell of a stream / program row:
+// the flag icons, the name as the link into the project and the menu's "Open project" item.
+
+/**
+ * Flags as icons with counts: an orange warning triangle and/or a gray info circle (the words are for assistive technology; colour is never the
+ * only carrier). A project row passes its own flags' counts, a work stream / program row the roll-up of its projects'. Nothing when there are none.
+ */
+export function FlagCountsCell({ counts }: { counts: FlagCounts }) {
+  const { t } = useTranslation();
+  const { warnings, infos } = counts;
+  if (warnings + infos === 0) return null;
+  const sentence = [warnings > 0 ? t("roadmap.facts.warnings", { count: warnings }) : null, infos > 0 ? t("roadmap.facts.infos", { count: infos }) : null].filter(Boolean).join(", ");
+  return (
+    <Group gap={4} wrap="nowrap" title={sentence} data-flags={`${warnings},${infos}`}>
+      {warnings > 0 && (
+        <Badge aria-hidden="true" color="orange" variant="light" size="sm" px={4} leftSection={<IconAlertTriangle size={12} />}>
+          {warnings}
+        </Badge>
+      )}
+      {infos > 0 && (
+        <Badge aria-hidden="true" color="gray" variant="light" size="sm" px={4} leftSection={<IconInfoCircle size={12} />}>
+          {infos}
+        </Badge>
+      )}
+      <VisuallyHidden>{sentence}</VisuallyHidden>
+    </Group>
+  );
+}
+
+/** A project's name as the link into its page ("Open {{name}}" is what tests and e2e locate); `stop` makes the link the row's roving tab stop. */
+export function ProjectLink({ project, stop }: { project: Pick<RoadmapProject, "id" | "name">; stop: RovingTarget }) {
+  const { t } = useTranslation();
+  return (
+    <Anchor component={RouterLink} to={projectPath(project.id)} inherit fw={500} aria-label={t("roadmap.openProjectAria", { name: project.name })} {...stop}>
+      {project.name}
+    </Anchor>
+  );
+}
+
+/** The menu item that opens the project's page - the one item every viewer has. */
+export function OpenProjectItem({ project }: { project: Pick<RoadmapProject, "id" | "name"> }) {
+  const { t } = useTranslation();
+  return (
+    <Menu.Item component={RouterLink} to={projectPath(project.id)} leftSection={<IconExternalLink size={14} />} aria-label={t("roadmap.action.openProjectAria", { name: project.name })}>
+      {t("roadmap.action.openProject")}
+    </Menu.Item>
+  );
+}

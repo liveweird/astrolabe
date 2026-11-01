@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { Alert, Badge, Group, Loader, Stack, Text, Title, VisuallyHidden } from "@mantine/core";
 import { IconFilterOff, IconListNumbers } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
@@ -14,11 +14,10 @@ import RoadmapFlagPanel from "../components/RoadmapFlagPanel";
 import RoadmapTimeline, { type RoadmapActions } from "../components/RoadmapTimeline";
 import type { TimelineHandle } from "../components/Timeline";
 import TimelineDndContext from "../components/TimelineDndContext";
+import { usePlanScale } from "../hooks/usePlanScale";
 import { useProgramPick } from "../hooks/useProgramPick";
 import { useRoadmapFilters } from "../hooks/useRoadmapFilters";
 import { useRoadmapRanking } from "../hooks/useRoadmapRanking";
-import { isOneOf, useStoredState } from "../hooks/useStoredState";
-import { localIsoDate } from "../utils/isoDate";
 import {
   activeFilterCount,
   allProjects,
@@ -30,7 +29,6 @@ import {
   visibleProjects,
   type FlagCounts,
 } from "../utils/roadmapRows";
-import { defaultRange, makeScale, PLAN_ZOOMS, type Zoom } from "../utils/timelineScale";
 
 /** The facts line under the title: how many visible projects are ranked and unranked, then the flag totals — ORANGE warnings, gray infos (nothing moves). */
 function RoadmapFacts({ ranked, unranked, flags }: { ranked: number; unranked: number; flags: FlagCounts }) {
@@ -98,12 +96,9 @@ function RoadmapBody({ view, ranking }: { view: RoadmapView; ranking: ReturnType
   const { t } = useTranslation();
   const { filters: storedFilters, set: setFilters } = useRoadmapFilters();
   const [storedPick, setPick] = useProgramPick();
-  const [zoom, setZoom] = useStoredState<Zoom>("timeline.planZoom", "quarter", isOneOf(PLAN_ZOOMS));
   const timelineRef = useRef<TimelineHandle>(null);
-  // The earliest and latest day this page has shown: the range only ever grows, so a drag never shifts the bars under the pointer.
-  const [seen, setSeen] = useState<{ min: string; max: string } | null>(null);
-  // "Today" is the viewer's own calendar day (their local date), not UTC.
-  const today = localIsoDate();
+  // Every date of the whole plan, not only of the visible rows: a filter never changes the range under the user.
+  const { scale, setZoom, today } = usePlanScale(datesOf(view));
 
   // Stored values may name things that are gone; the filters and the pick are read through what the view still has.
   const filters = knownFilters(view, storedFilters);
@@ -112,32 +107,38 @@ function RoadmapBody({ view, ranking }: { view: RoadmapView; ranking: ReturnType
   const rowCount = visible.ranked.length + visible.unranked.length;
   const visibleRankedIds = visible.ranked.map((entry) => entry.project.id);
 
-  // Every date of the whole plan, not only of the visible rows: a filter never changes the range under the user.
-  const dates = datesOf(view);
-  if (dates.length > 0) {
-    const min = dates.reduce((a, b) => (b < a ? b : a));
-    const max = dates.reduce((a, b) => (b > a ? b : a));
-    if (seen === null || min < seen.min || max > seen.max) setSeen({ min: seen !== null && seen.min < min ? seen.min : min, max: seen !== null && seen.max > max ? seen.max : max });
-  }
-  const scale = makeScale(zoom, defaultRange(seen === null ? [] : [seen.min, seen.max], today, zoom));
-
   // The menu's moves are relative to the rows the user sees; the page binds the visible ranked ids.
   // A taken menu change reorders the rows, and a browser blurs a focused element whose row is moved in the DOM: the row's menu button takes the
   // focus back after the render that moved it. On the virtual path the row may have left the mounted window (Move to bottom, Rank): its button is
   // gone, so the timeline scrolls to the row and focuses its header instead - the keyboard user stays on the row they were working on.
+  // The menu that was used keeps its dropdown - and its focus trap - mounted through its exit transition (~150 ms), and the trap pulls a focus moved
+  // meanwhile into its sentinel, which lands on `body` when the dropdown unmounts: a keyboard user ended on the page body. So the render-time focus
+  // above is repeated once the menu has FINISHED closing (`menuClosed`, from the row menu's `onExitTransitionEnd`); the first covers the rows whose
+  // menu is gone with the row (the virtual path), the second the ones that stay.
   const refocus = useRef<number | null>(null);
+  const afterExit = useRef<number | null>(null);
+  const putFocusOn = (id: number) => {
+    const button = document.querySelector<HTMLElement>(`[data-operations-for="${id}"]`);
+    if (button === null) timelineRef.current?.focusRow(id);
+    else button.focus();
+  };
   useEffect(() => {
     if (refocus.current === null) return;
     const id = refocus.current;
     refocus.current = null;
-    const button = document.querySelector<HTMLElement>(`[data-operations-for="${id}"]`);
-    if (button === null) timelineRef.current?.focusRow(id);
-    else button.focus();
+    putFocusOn(id);
   });
   const keepFocus = (project: { id: number }, taken: boolean) => {
-    if (taken) refocus.current = project.id;
+    if (!taken) return;
+    refocus.current = project.id;
+    afterExit.current = project.id;
   };
   const actions: RoadmapActions = {
+    menuClosed: (project) => {
+      if (afterExit.current !== project.id) return;
+      afterExit.current = null;
+      putFocusOn(project.id);
+    },
     move: (project, delta) => keepFocus(project, ranking.move(project.id, delta, visibleRankedIds)),
     moveTo: (project, edge) => keepFocus(project, ranking.moveTo(project.id, edge, visibleRankedIds)),
     rank: (project) => keepFocus(project, ranking.rank(project.id)),

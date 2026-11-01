@@ -31,6 +31,7 @@ The detail-page block also scans `/plan` with the fixture plan rendered (a work 
 project row, light and dark) and the project editor modal (dates, the target-window fieldset and the owner
 picker) scoped to its dialog. It also scans `/roadmap` with the fixture project and the linked project ranked (the timeline grid with its row handles and menus, the drift flag icon, the bundle arrow of the violated milestone link) and the flag
 panel open (its table of severities, project links and "Show in timeline" buttons), light and dark; the projects are ranked through the API for the scan and unranked again afterwards.
+It scans `/programs` with the fixture program opened (the chevron buttons with `aria-expanded`, the summary bars and roll-up counts, the project rows with their bars, the drift flag icon and row menus, the bundle arrow of the violated milestone link), light and dark; the program pick narrows the page to the fixture program (the stack may hold the sample plan).
 It scans the project view `/projects/:id` with the fixture project rendered (the timeline grid with an editable bar, the target-window band,
 the orange drift badge, a violated dependency - the red arrow, the ghost row, the red "1 conflict" badge and the Dependencies table - and the Unscheduled tray, light and dark),
 the milestone editor modal (team picker, estimate) and the dependency editor modal (successor, kind toggle, predecessor picker, type, lag; plus the picker's open option list) scoped to their dialogs.

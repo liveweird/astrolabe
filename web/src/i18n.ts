@@ -15,6 +15,7 @@ import enUsers from "./locales/en/users.json";
 import enHome from "./locales/en/home.json";
 import enPeople from "./locales/en/people.json";
 import enPlan from "./locales/en/plan.json";
+import enPrograms from "./locales/en/programs.json";
 import enProject from "./locales/en/project.json";
 import enRoadmap from "./locales/en/roadmap.json";
 import enTeams from "./locales/en/teams.json";
@@ -64,6 +65,7 @@ export const en = {
   home: enHome,
   people: enPeople,
   plan: enPlan,
+  programs: enPrograms,
   project: enProject,
   roadmap: enRoadmap,
   teams: enTeams,

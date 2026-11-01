@@ -30,6 +30,9 @@
   },
   "filter": {
     "title": "Filtry",
+    "programs": "Programy",
+    "allPrograms": "Wszystkie programy",
+    "clearPrograms": "Wyczyść wybór programów",
     "contains": "Zawiera…",
     "clearName": "Wyczyść filtr nazwy"
   },

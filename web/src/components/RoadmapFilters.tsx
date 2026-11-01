@@ -1,7 +1,8 @@
-import { MultiSelect, Select, Switch } from "@mantine/core";
+import { Select, Switch } from "@mantine/core";
 import { useTranslation } from "react-i18next";
 import type { RoadmapView } from "../api/roadmap";
 import { ownerOptions, programOptions, workStreamOptions, type NamedId, type RoadmapFilters } from "../utils/roadmapRows";
+import ProgramPickField from "./ProgramPickField";
 
 const toOptions = (options: readonly NamedId[]) => options.map((option) => ({ value: String(option.id), label: option.name }));
 
@@ -25,22 +26,10 @@ export default function RoadmapFilterFields({
   onPick: (ids: number[]) => void;
 }) {
   const { t } = useTranslation();
-  const programs = programOptions(view);
-  const sameName = (name: string) => programs.filter((program) => program.name === name).length > 1;
   const idOf = (value: string | null) => (value === null ? null : Number(value));
   return (
     <>
-      <MultiSelect
-        label={t("roadmap.filter.programs")}
-        placeholder={pick.length === 0 ? t("roadmap.filter.allPrograms") : undefined}
-        data={programs.map((program) => ({ value: String(program.id), label: sameName(program.name) ? `${program.name} (${program.workStreamName})` : program.name }))}
-        value={pick.map(String)}
-        onChange={(values) => onPick(values.map(Number))}
-        searchable
-        clearable
-        clearButtonProps={{ "aria-label": t("roadmap.filter.clearPrograms") }}
-        miw={220}
-      />
+      <ProgramPickField programs={programOptions(view)} pick={pick} onPick={onPick} />
       <Select
         label={t("roadmap.filter.workStream")}
         placeholder={t("common.state.any")}

@@ -90,9 +90,6 @@
     "showAria": "Pokaż na osi czasu: {{name}}"
   },
   "filter": {
-    "programs": "Programy",
-    "allPrograms": "Wszystkie programy",
-    "clearPrograms": "Wyczyść wybór programów",
     "workStream": "Strumień pracy",
     "clearWorkStream": "Wyczyść filtr strumienia pracy",
     "team": "Zespół",

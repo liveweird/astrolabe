@@ -14,6 +14,7 @@ import {
   knownFilters,
   knownPick,
   ownerOptions,
+  pickAmong,
   programOptions,
   visibleProjects,
   workStreamOptions,
@@ -107,6 +108,12 @@ describe("options and stored values", () => {
     expect([...(knownPick(view(), [11, 99]) ?? [])]).toEqual([11]);
     expect(knownPick(view(), [99])).toBeNull();
     expect(knownPick(view(), [])).toBeNull();
+  });
+
+  test("pickAmong is the same rule over any list of programs - the programs page passes the ones ITS view holds, empty programs included", () => {
+    const programs = [{ id: 10 }, { id: 12 }];
+    expect([...(pickAmong(programs, [12, 11]) ?? [])]).toEqual([12]);
+    expect(pickAmong(programs, [11])).toBeNull();
   });
 
   test("the filter badge counts each field in force plus the pick", () => {

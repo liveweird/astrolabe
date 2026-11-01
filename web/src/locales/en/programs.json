@@ -1,0 +1,37 @@
+{
+  "title": "Programs",
+  "intro": "The plan as a tree on a timeline: work streams, their programs and the projects in each program. A work stream's or program's bar is the span its projects cover, and the counts beside it add up the flags raised on those projects. Open a program to see its projects. Everyone can read it.",
+  "empty": "No work streams yet",
+  "emptyHint": "Work streams, programs and projects are created on the Plan page and appear here.",
+  "loadFailed": "Could not load the programs",
+  "timelineTitle": "Timeline",
+  "timelineAria": "Programs timeline",
+  "column": {
+    "name": "Work stream, program, project"
+  },
+  "closed": "closed",
+  "streamAria": "Work stream {{name}}",
+  "programAria": "Program {{name}}",
+  "streamBarAria": "{{name}}, work stream span {{start}} to {{end}}",
+  "programBarAria": "{{name}}, program span {{start}} to {{end}}",
+  "expandAll": "Expand all",
+  "collapseAll": "Collapse all",
+  "facts": {
+    "aria": "Programs facts",
+    "workStreams_one": "{{count}} work stream",
+    "workStreams_other": "{{count}} work streams",
+    "programs_one": "{{count}} program",
+    "programs_other": "{{count}} programs",
+    "projects_one": "{{count}} project",
+    "projects_other": "{{count}} projects"
+  },
+  "announce": {
+    "expandedStream_one": "{{name}} expanded, {{count}} program",
+    "expandedStream_other": "{{name}} expanded, {{count}} programs",
+    "expandedProgram_one": "{{name}} expanded, {{count}} project",
+    "expandedProgram_other": "{{name}} expanded, {{count}} projects",
+    "collapsed": "{{name}} collapsed",
+    "expandedAll": "Every work stream and program expanded",
+    "collapsedAll": "Every work stream and program collapsed"
+  }
+}

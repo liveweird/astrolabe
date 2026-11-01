@@ -72,9 +72,6 @@
     "showAria": "Show in timeline: {{name}}"
   },
   "filter": {
-    "programs": "Programs",
-    "allPrograms": "All programs",
-    "clearPrograms": "Clear the program pick",
     "workStream": "Work stream",
     "clearWorkStream": "Clear work stream filter",
     "team": "Team",
