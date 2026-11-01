@@ -211,7 +211,7 @@ class ProjectService(private val database: R2dbcDatabase) {
      * down), so the dense 1..n ranking never holds a deleted project, and its milestones out of their teams' orders
      * ([removeFromTeamOrders]: the same compaction per team).
      */
-    suspend fun delete(id: UInt, guard: PlanGuard): ProjectDeleteOutcome = database.withPlanWrite {
+    suspend fun delete(id: UInt, guard: PlanGuard): ProjectDeleteOutcome = database.withPlanWrite { revision ->
         guard(projectChain(id) ?: throw NotFoundException("Project not found"))
         val affected = Projects.update({ (Projects.id eq id) and Projects.active() }) {
             it[markedAsDeleted] = true
@@ -222,7 +222,7 @@ class ProjectService(private val database: R2dbcDatabase) {
         val dependencies = deleteDependenciesOf(milestoneIds, listOf(id))
         removeFromTeamOrders(milestoneIds)
         val milestoneCount = deleteMilestonesOf(id)
-        removeFromRanking(id)
+        removeFromRanking(id, revision + 1)
         ProjectDeleteOutcome(milestoneCount, dependencies)
     }.value
 }

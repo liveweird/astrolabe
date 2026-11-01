@@ -7,7 +7,7 @@
   and users, all deleted by the end of the file (the plan nodes and people also by the afterEach, through the API, children first,
   when a step fails first; deleting a project also removes it from the ranking). The ranking itself is ONE global list shared with
   every other spec's plan writes: this file ranks only its own projects, asserts only the relative order of its own rows, and
-  retries a ranking change that the server refuses as stale (another spec wrote the plan meanwhile).
+  retries a ranking change that the server refuses as stale (another spec wrote the ranking meanwhile; plan writes elsewhere no longer stale it).
 
 ## Scenario: an admin grants the roadmap editor right; the editor ranks two projects, reorders them by keyboard and by drag, and unranks one
 
@@ -28,7 +28,7 @@
    - *Expected*: the order is second, first.
 7. They press **Unrank <second>**.
    - *Expected*: the ranked list holds first; second is back in the Unranked table.
-8. The plan changes under the open page: the admin's API rewrites the ranking (same list, so the plan revision moves). The user presses
+8. The ranking changes under the open page: the admin's API rewrites the ranking (same list, so the ranking's revision moves). The user presses
    **Rank <second>**.
    - *Expected*: the server answers 409; the page says "The roadmap changed in the meantime", reloads, and second is still unranked.
 9. They press **Rank <second>** again.

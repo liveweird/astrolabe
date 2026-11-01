@@ -1210,7 +1210,7 @@ export interface paths {
          * @description Any authenticated user. One document (a deliberate exception to the paged envelope, bounded by the plan's scale of about 100
          *     projects): `ranked` in position order (dense 1..n) and `unranked`, the active projects without a position, by name. Each project
          *     carries its program, work stream and owner names. `can.editRank` is whether THIS caller may `PUT /roadmap/ranking` (ADMIN or a
-         *     ROADMAP_EDITOR holder). `revision` is the plan revision read before the rows - send it back as `expectedRevision`.
+         *     ROADMAP_EDITOR holder). `revision` is the RANKING's revision (the plan revision at which the rank was last written), read before the rows - send it back as `expectedRevision`. Plan writes elsewhere do not move it.
          */
         get: operations["getRoadmapView"];
         put?: never;
@@ -1234,8 +1234,9 @@ export interface paths {
          * @description ADMIN or a holder of the `ROADMAP_EDITOR` permission; every other caller gets `403` BEFORE the body is read (the route addresses
          *     no node). The permission is re-checked under the plan lock, so a grant revoked while the request was in flight refuses the write.
          *     Wholesale: the listed projects get positions 1..n in the given order and every other project becomes unranked (omit a project to
-         *     unrank it; append an unranked one to rank it at the end). `expectedRevision` must equal the current plan revision, else `409` with
-         *     `type` `urn:astrolabe:problem:stale-revision` and nothing is written - reload the view and retry. `400` when an id is listed
+         *     unrank it; append an unranked one to rank it at the end). `expectedRevision` is the ranking's revision (`RoadmapView.revision`, or the previous answer): the PUT is `409` with
+         *     `type` `urn:astrolabe:problem:stale-revision` and nothing is written only when the ranking was written at a later revision (another ranking PUT, or the delete of a
+         *     ranked project) or the value is above the current plan revision - a plan write elsewhere never stales it. Reload the view and retry. `400` when an id is listed
          *     twice, is unknown or belongs to a deleted project, or more than 1000 ids are sent. Every accepted PUT, even one that keeps the
          *     order, bumps the plan revision by one and is audited as `roadmap.ranked`.
          */
@@ -2493,7 +2494,7 @@ export interface components {
         RoadmapView: {
             /**
              * Format: int64
-             * @description The plan revision, read before the rows; send it back as `expectedRevision`.
+             * @description The ranking's revision (the plan revision at which the rank was last written), read before the rows; send it back as `expectedRevision`.
              */
             revision: number;
             can: {
@@ -2532,7 +2533,7 @@ export interface components {
         RankingUpdateRequest: {
             /**
              * Format: int64
-             * @description The plan revision the client's list was read at (`RoadmapView.revision`); a different current revision is a `409`.
+             * @description The ranking's revision the client's list was read at (`RoadmapView.revision`); a `409` when the ranking was written at a later revision, or the value is above the current plan revision.
              */
             expectedRevision: number;
             /** @description The COMPLETE ranking in order, best first. Projects not listed become unranked. */
@@ -2541,7 +2542,7 @@ export interface components {
         RankingResponse: {
             /**
              * Format: int64
-             * @description The plan revision after this write.
+             * @description The plan revision after this write, which is also the ranking's new revision (the next `expectedRevision`).
              */
             revision: number;
         };

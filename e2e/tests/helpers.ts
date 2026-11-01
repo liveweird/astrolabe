@@ -238,8 +238,8 @@ export async function deleteViaApi(paths: string[]): Promise<void> {
 
 /**
  * Change the global project ranking through the API (read-modify-write): `change` gets the ranked project ids as they are now and
- * answers the complete new list. The ranking is shared state that parallel specs write too (any plan write moves the revision),
- * so a stale-revision 409 re-reads and tries again; anything else fails.
+ * answers the complete new list. The ranking is shared state that parallel specs write too (a ranking write, or the delete of a ranked
+ * project, moves the ranking's revision; other plan writes do not), so a stale-revision 409 re-reads and tries again; anything else fails.
  */
 export async function updateRankingViaApi(api: APIRequestContext, change: (ranked: number[]) => number[]): Promise<void> {
   for (let attempt = 0; attempt < 5; attempt++) {

@@ -14,10 +14,10 @@ in-network consumers use `postgres:5432`). There is one persistence stack:
   makes every long-lived database refuse to boot (a failure no fresh-container CI run can see).
   `MigrationChecksumTest` pins every file's checksum; a new migration adds one manifest line, and
   a red pin means REVERT the edit (clarifications go into this doc), never update the pinned
-  value. The range today is **V1–V17**: V1 `users`, V2 `revoked_tokens`, V3 the seed admin, V4 the
+  value. The range today is **V1–V18**: V1 `users`, V2 `revoked_tokens`, V3 the seed admin, V4 the
   `unaccent` extension, V5 `user_disabled_features` (V1–V5 are Flow's), V6 `teams` (with the optional
   manager), V7 `users.credential_revision`, V8 `password_reset_tokens`, V9 the `ops` telemetry
-  schema, V10 `people` (the people directory) with `teams.manager_person_id` replacing `manager_user_id`, V11 `user_permissions` (the per-user permission grants), V12 `plan_state` + `work_streams`/`programs`/`projects` (the plan structure), V13 `roadmap_entries` (the global project rank), V14 `milestones` (the fourth plan level), V15 `dependencies` (links between milestones and projects), V16 `team_capacity_periods` (a team's man-days per week and optional WIP limit from an effective-from date), V17 `team_milestone_orders` + `team_order_state` (a team's own milestone order and its revision). (Astrolabe renumbered Flow's history when it was bootstrapped; from V10 on, migrations are
+  schema, V10 `people` (the people directory) with `teams.manager_person_id` replacing `manager_user_id`, V11 `user_permissions` (the per-user permission grants), V12 `plan_state` + `work_streams`/`programs`/`projects` (the plan structure), V13 `roadmap_entries` (the global project rank), V14 `milestones` (the fourth plan level), V15 `dependencies` (links between milestones and projects), V16 `team_capacity_periods` (a team's man-days per week and optional WIP limit from an effective-from date), V17 `team_milestone_orders` + `team_order_state` (a team's own milestone order and its revision), V18 `plan_state.ranking_revision` (the ranking's own revision: the plan revision at which `roadmap_entries` was last written; the ranking PUT compares against it, `planning-model.md` "The global project rank"). (Astrolabe renumbered Flow's history when it was bootstrapped; from V10 on, migrations are
   append-only like any other.)
 - **Exposed + R2DBC** (`infra/db/Database.kt` + the feature services) — runtime DB access.
   `Database.kt` connects the `R2dbcDatabase` and is the composition root: it constructs the
@@ -342,14 +342,14 @@ Dates are `DATE` through `LocalDateColumn.kt` (`start_date`/`end_date`, `target_
 **Every write of these tables (and of `milestones`, V14, `dependencies`, V15, and `team_milestone_orders`/`team_order_state`, V17) runs in `withPlanWrite`** (`planning/PlanState.kt`): `SELECT revision FROM plan_state WHERE id = 1 FOR UPDATE`, the block, `UPDATE … revision = revision + 1`. **This is the one deliberate PLAIN
 `FOR UPDATE` on a table the code treats as a lock row** — justified by the rule above: nothing references `plan_state` by a foreign key (no FK check can queue behind or in front of it) and its key never changes, so the
 `FOR NO KEY UPDATE` refinement buys nothing. Because all plan writers serialize there, the node services take no per-row locks; the plan lock is held across the whole block, which makes the delete's child count race-free
-and lets the ranking (V13) compare `expectedRevision` atomically. A block that throws rolls the bump back. Reads (`PlanViewService`, `RoadmapService.view`) read the revision first without the lock. `ProjectService.delete` calls
+and lets the ranking (V13) compare `expectedRevision` atomically — against `plan_state.ranking_revision` (V18), which `replaceRanking` and `removeFromRanking` stamp with the new plan revision (`revision + 1`). A block that throws rolls the bump back. Reads (`PlanViewService`, `RoadmapService.view`) read the revision first without the lock. `ProjectService.delete` calls
 `removeFromRanking`: the project's `roadmap_entries` row is hard-deleted and the positions above renumbered in the same locked transaction.
 
 ### The roadmap rank (V13)
 
 `roadmap_entries (project_id INTEGER PRIMARY KEY REFERENCES projects(id), position INTEGER NOT NULL CHECK (position >= 1), CONSTRAINT uq_roadmap_entries_position UNIQUE (position) DEFERRABLE INITIALLY DEFERRED)`
 (`planning/RoadmapService.kt`; semantics in `planning-model.md` "The global project rank"). One row per RANKED project; no row = unranked. **Positions are dense 1..n**, kept so by the two writers, both inside
-`withPlanWrite`: `replaceRanking` (`DELETE` all, then one `insertRows` with positions 1..n in the given order) and `removeFromRanking` (delete the row, then ONE `UPDATE … SET position = position - 1 WHERE position > ?`).
+`withPlanWrite`: `replaceRanking` (`DELETE` all, then one `insertRows` with positions 1..n in the given order) and `removeFromRanking` (delete the row, then ONE `UPDATE … SET position = position - 1 WHERE position > ?`); both then stamp `plan_state.ranking_revision` (V18).
 **`DEFERRABLE INITIALLY DEFERRED` is load-bearing**: an immediate unique constraint is checked row by row, so the sweep (and any reorder that swaps two positions in one statement) can collide with a
 not-yet-updated neighbour depending on physical row order; deferred, the check runs once at commit, when the table is dense again. The cost is that a genuine duplicate surfaces at COMMIT, not at the statement
 (only a bug can produce one: every writer holds the plan lock). `project_id` has no `ON DELETE` rule: projects are only soft-deleted, and the delete hook removes the entry in the same transaction. A hard-delete

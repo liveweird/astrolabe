@@ -1,7 +1,7 @@
 // The Roadmap page: an admin grants the ROADMAP_EDITOR right on Users -> Permissions; that editor ranks two projects, reorders them
 // with the Move up button, the dnd-kit keyboard sensor and a pointer drag, unranks one, and meets the stale-roadmap notice when the
 // plan changed under their page; a user without the right sees the same list read-only. The ranking is ONE global, shared list
-// that other specs' plan writes also touch, so every assertion is about the relative order of this spec's OWN projects, and
+// that other specs' ranking writes (and deletes of ranked projects) also touch, so every assertion is about the relative order of this spec's OWN projects, and
 // every ranking write is retried on a stale-revision answer. Owns: its throwaway people, plan nodes (unique `e2e-rm-*` names)
 // and users, deleted by the end of each test and, if a step fails first, by the afterEach below (the plan nodes and people, children
 // first - deleting a project also removes it from the ranking; the users through the Users page).
@@ -66,7 +66,7 @@ async function ownOrder(page: Page, mine: string[]): Promise<string[]> {
 }
 
 /**
- * Do one change and wait for its PUT. Another spec's plan write can move the revision under this page, which the page answers with
+ * Do one change and wait for its PUT. Another spec's ranking write can move the ranking's revision under this page, which the page answers with
  * the stale notice and a reload (the PUT is a 409): wait the reload out and do the change again, from the list the server really has.
  */
 async function change(page: Page, act: () => Promise<void>): Promise<void> {
@@ -154,7 +154,7 @@ test("an admin grants the roadmap editor right; the editor ranks two projects, r
   await expect.poll(() => ownOrder(page, mine)).toEqual([first]);
   await expect(unranked.getByRole("row", { name: new RegExp(second) })).toBeVisible();
 
-  // The plan changes under the open page (the same list, a new revision): the next change is refused, said in words, and the list reloads.
+  // The ranking changes under the open page (the same list, a new revision): the next change is refused, said in words, and the list reloads.
   const { api } = await apiAsAdmin();
   try {
     await updateRankingViaApi(api, (ranked) => ranked);

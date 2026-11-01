@@ -10,13 +10,17 @@ import org.jetbrains.exposed.v1.r2dbc.update
 
 /**
  * The one-row revision lock of the live plan (V12 `plan_state`, `planning-model.md` "The lock protocol"). Its `revision` is
- * monotonic and bumped by every plan mutation; it is the `expectedRevision` of the wholesale ranking PUT (V13), the bound of the
- * team-order PUT's (V17: that PUT compares against its own team's `team_order_state.revision`, and only refuses a value above this
- * one), the seed of the future view ETags and the anchor baselines record.
+ * monotonic and bumped by every plan mutation; it is the upper BOUND of both wholesale PUTs' `expectedRevision` (a value above it is
+ * stale) and the expectation of neither: the ranking PUT (V13) compares against [rankingRevision] (V18, the plan revision at which
+ * `roadmap_entries` was last written) and the team-order PUT (V17) against its own team's `team_order_state.revision`, so a plan
+ * write elsewhere never stales either. It is also the seed of the future view ETags and the anchor baselines record.
  */
 object PlanState : Table("plan_state") {
     val id = short("id")
     val revision = long("revision")
+
+    /** The plan revision at which the ranking was last written (V18); never above [revision]. */
+    val rankingRevision = long("ranking_revision")
     val updatedAt = long("updated_at")
     override val primaryKey = PrimaryKey(id)
 }
@@ -57,3 +61,15 @@ suspend fun <T> R2dbcDatabase.withPlanWrite(block: suspend (revision: Long) -> T
  */
 suspend fun readPlanRevision(): Long =
     PlanState.select(PlanState.revision).where { PlanState.id eq PLAN_STATE_ID }.toList().single()[PlanState.revision]
+
+/**
+ * The ranking's revision (V18), read WITHOUT the lock inside the caller's transaction: a view reads it FIRST like [readPlanRevision];
+ * inside [withPlanWrite]'s block the same read is exact, because every ranking writer holds the lock.
+ */
+suspend fun readRankingRevision(): Long =
+    PlanState.select(PlanState.rankingRevision).where { PlanState.id eq PLAN_STATE_ID }.toList().single()[PlanState.rankingRevision]
+
+/** Stamps the ranking as written at [revision], the plan revision the enclosing [withPlanWrite] leaves behind (`revision + 1`). */
+internal suspend fun stampRankingRevision(revision: Long) {
+    PlanState.update({ PlanState.id eq PLAN_STATE_ID }) { it[rankingRevision] = revision }
+}

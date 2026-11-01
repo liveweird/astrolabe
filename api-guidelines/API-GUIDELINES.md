@@ -695,7 +695,7 @@ v0.1.0 foundation — extend this list as domain features land):
   atomically increments `users.credential_revision`; refresh and MFA acceptance compare it
   against the current row and reject a stale credential rather than silently accepting it. See
   `.claude/docs/persistence.md` "Credential revision".
-- **Revision-checked wholesale writes (v0.5.0)** — a team's milestone order (`PUT /teams/{id}/milestone-order`) compares `expectedRevision` against the TEAM's own order revision and answers `409` `stale-revision`; the schedule PUT does the same against its own stamp (`planning-model.md`). **Accepted last-write-wins** — a team's capacity periods (`PUT`/`DELETE /capacity-periods/{id}`): team data written by one manager or ADMIN under the team row lock, no revision.
+- **Revision-checked wholesale writes (v0.5.0)** — a team's milestone order (`PUT /teams/{id}/milestone-order`) compares `expectedRevision` against the TEAM's own order revision and answers `409` `stale-revision`; the schedule and ranking PUTs do the same against their own stamps (`planning-model.md`). **Accepted last-write-wins** — a team's capacity periods (`PUT`/`DELETE /capacity-periods/{id}`): team data written by one manager or ADMIN under the team row lock, no revision.
 - **Parent-existence guards** — a mutation under a parent row re-checks the parent is still active inside its own transaction (`lockActiveForWrite`); a
   concurrently soft-deleted parent is a `404`, not a silent no-op. The first consumers arrive with the planning increments (a milestone under a project).
 

@@ -44,7 +44,7 @@ is set at create and its update body carries none; it changes only through the t
 
 | Table | Columns beyond `id`, `created_at`, `updated_at`, `marked_as_deleted` | Constraints |
 |---|---|---|
-| `plan_state` | `id SMALLINT` (the single row, `CHECK id = 1`), `revision BIGINT`, `updated_at` | the revision lock, below |
+| `plan_state` | `id SMALLINT` (the single row, `CHECK id = 1`), `revision BIGINT`, `ranking_revision BIGINT NOT NULL DEFAULT 0` (V18), `updated_at` | the revision lock, below; `ranking_revision` = the plan revision at which `roadmap_entries` was last written |
 | `work_streams` | `name`, `description`, `owner_person_id → people`, `start_date DATE NOT NULL`, `end_date DATE NULL` (set only when the stream is CLOSED) | `ck_work_streams_end_after_start` (end ≥ start); `uq_work_streams_name_active ON LOWER(name)` (global) |
 | `programs` | `work_stream_id → work_streams`, `name`, `description`, `owner_person_id → people` | `uq_programs_name_active ON LOWER(name)` (global, ≈20 programs each named once) |
 | `projects` | `program_id → programs`, `name`, `description`, `owner_person_id → people`, `target_start`/`target_end DATE NULL` | `ck_projects_target_window` (both or neither), `ck_projects_target_order` (end ≥ start); `uq_projects_program_name_active ON (program_id, LOWER(name))` (per program: "Discovery"/"MVP"/"Rollout" recur) |
@@ -70,7 +70,7 @@ back the bump with everything else, so a rejected write never moves the revision
   `requireTargetWindowEditorOrAdmin` (re-reading the `ROADMAP_EDITOR` grant in the same transaction); ADMIN short-circuits. A `ForbiddenException` there rolls back with no revision bump and is audited
   centrally as `authz.denied`. No lock cycle: person and team writers never take `plan_state`. `PlanStateTest` pins owner change, person re-link and grant revocation mid-request.
 - **Views read the revision FIRST, then the rows, in one transaction** (no `REPEATABLE READ`): a row newer than the revision only makes a client PUT carrying that revision answer a conservative 409.
-- The wholesale ranking PUT (V13) compares `expectedRevision` under the lock and answers `409` with `type = urn:astrolabe:problem:stale-revision` (below, "The global project rank").
+- The wholesale ranking PUT (V13) compares `expectedRevision` under the lock against the RANKING's own revision (`plan_state.ranking_revision`, V18 — not the plan revision) and answers `409` with `type = urn:astrolabe:problem:stale-revision` (below, "The global project rank"). Like a milestone's `schedule_revision` and a team's `team_order_state.revision` (V17), it is stamped with the new plan revision by the writes that change the thing it guards, so a plan write elsewhere never stales it; the plan revision stays the upper bound of each (a value above it is a view from the future).
 
 **Designed, not built (v0.3 view ETags and v0.9 baselines).** A view's validator must cover everything in its body, so it is `W/"p<plan revision>-n<max(people.updated_at, teams.updated_at)>-c<hash of the
 caller's can-flags>"` (people/team renames change owner names without a plan revision; the flags make the validator per-caller). Baselines record the `revision` they were taken at — monotonic, so any
@@ -126,24 +126,24 @@ positions, and the renumber sweep below, are single statements an immediate uniq
 - **Ranking** (`PUT /roadmap/ranking`, body `{expectedRevision, projectIds[]}`; `200 {revision}`): **wholesale** — the listed projects get positions 1..n in the given order, every other project becomes
   unranked (omit one to unrank it). The SPA's "Rank" appends an unranked project at the END of the list (the user's choice; it is then moved like any other row) — to the server that is just a list one longer.
   Inside `withPlanWrite`, in this order: the grant re-check (`requireRoadmapEditorOrAdmin` again, the same TOCTOU rule as the owner guards: a revocation that landed while the request waited at the lock is a
-  `403` with no bump) -> `expectedRevision` must equal the revision read under the lock (**`409`**, `type = urn:astrolabe:problem:stale-revision`, nothing written; checked BEFORE the ids so a stale list
-  that names a since-deleted project is the reload signal, not a `400`) -> every id must name an ACTIVE project (`400` "Unknown or deleted project ids: …") -> `DELETE FROM roadmap_entries` + one
-  `insertRows`. Before the lock: `400` for a duplicated id ("projectIds must be distinct") or more than 1000 ids. **Every accepted PUT bumps the revision, even one that keeps the order** (a no-op PUT is
-  still a plan write, the conservative rule of the lock protocol). Concurrent PUTs carrying the same `expectedRevision`: the lock serializes them, the first wins and the second sees the bumped revision —
-  exactly one `200`, one `409` (`RoadmapRankingTest`, deterministic with the lock barrier).
-- **Project delete keeps the rank dense**: `ProjectService.delete` calls `removeFromRanking(id)` in the SAME locked transaction as the soft delete — the project's entry is hard-deleted and
-  `UPDATE roadmap_entries SET position = position - 1 WHERE position > ?` closes the gap (one statement, which is why the constraint is deferred). An unranked project is a no-op. Work stream and
+  `403` with no bump) -> `expectedRevision` must not be below the RANKING's revision read under the lock (`plan_state.ranking_revision`, V18) nor above the current plan revision (**`409`**, `type = urn:astrolabe:problem:stale-revision`, nothing written; checked BEFORE the ids so a stale list
+  that names a since-deleted RANKED project is the reload signal, not a `400` — an unranked project deleted under a held view moves no revision, so ranking it later is a `400`, which the web maps to a reload) -> every id must name an ACTIVE project (`400` "Unknown or deleted project ids: …") -> `DELETE FROM roadmap_entries` + one
+  `insertRows`. Before the lock: `400` for a duplicated id ("projectIds must be distinct") or more than 1000 ids. **Every accepted PUT bumps the plan revision, even one that keeps the order** (a no-op PUT is
+  still a plan write, the conservative rule of the lock protocol) **and stamps `ranking_revision` with the new plan revision** — which is also the `revision` the PUT answers. Concurrent PUTs carrying the same `expectedRevision`: the lock serializes them, the first wins and the second sees the stamped ranking revision —
+  exactly one `200`, one `409` (`RoadmapRankingTest`, deterministic with the lock barrier). A plan write that does not touch `roadmap_entries` (a milestone, a dependency, a rename, a new project) moves only the plan revision: a held roadmap view stays current for the PUT.
+- **Project delete keeps the rank dense**: `ProjectService.delete` calls `removeFromRanking(id, revision + 1)` in the SAME locked transaction as the soft delete — the project's entry is hard-deleted and
+  `UPDATE roadmap_entries SET position = position - 1 WHERE position > ?` closes the gap (one statement, which is why the constraint is deferred) and stamps `ranking_revision` with the delete's plan revision (positions moved: a roadmap view held across the delete is stale). An unranked project is a no-op, no stamp. Work stream and
   program deletes need no hook: they are refused (`409`) while an ACTIVE project exists.
 - **The view** (`GET /views/roadmap`, any authenticated user; the view-endpoint shape exception, bounded by ~100 projects): `{revision, can{editRank}, ranked[]{position, project}, unranked[]}` with
-  `project = {id, name, programId, programName, workStreamId, workStreamName, ownerName, targetStart, targetEnd}`; `ranked` by position, `unranked` by name (case-insensitive, then id). The revision is read
-  FIRST, then the rows, in one transaction (the plan view's protocol). `can.editRank` comes from `PlanPermissions.canEditRank` (ADMIN or a `ROADMAP_EDITOR` holder, the same arithmetic as the guard;
+  `project = {id, name, programId, programName, workStreamId, workStreamName, ownerName, targetStart, targetEnd}`; `ranked` by position, `unranked` by name (case-insensitive, then id). `revision` is the RANKING's revision (V18), read
+  FIRST, then the rows, in one transaction (the plan view's protocol); a plan write elsewhere does not move it. `can.editRank` comes from `PlanPermissions.canEditRank` (ADMIN or a `ROADMAP_EDITOR` holder, the same arithmetic as the guard;
   `PlanPermissionsTest` pins it, `RoadmapRankingTest` checks it against the real PUT).
 - **Authorization**: guard-before-read (the route addresses no node) — `requireRoadmapEditorOrAdmin` runs FIRST, before the body, so every other caller (an owner without the grant included) gets a uniform
   `403` even for a malformed body; `authorization.md`.
 - **Audit**: `roadmap.ranked` (byUserId/revisionFrom/revisionTo/orderFrom/orderTo — the ranked project ids as comma-joined text, before and after) on every accepted PUT; a rejected PUT (`409`, `400`) emits nothing,
   a `403` is the central `authz.denied`.
 - **Tests**: `RoadmapRankingTest` (guard matrix, revocation under the lock, stale `409`, the `400`s, permutations -> dense rows, delete first/middle/last, the deferrable constraint, the same-revision race, the
-  view, `can.editRank` vs. the guard, audit).
+  view, `can.editRank` vs. the guard, audit; since V18: a plan write elsewhere — rename, create, schedule, dependency — does not stale a ranking PUT, a ranking write or a ranked project's delete does, an unranked delete does not, a revision above the plan's is stale, and a PUT queued behind a plan write at the lock still passes).
 
 ## Milestones (built — V14, v0.3.0; `planning/Milestone*.kt`)
 

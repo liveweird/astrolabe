@@ -42,7 +42,7 @@ tags:
   - name: plan
     description: The plan structure - work streams, programs and projects with their owners (people), and the whole-tree plan view. Readable by any authenticated user; writes are scoped to the owners on a node's chain (and ADMIN).
   - name: roadmap
-    description: The global project ranking - one dense rank over the projects, rewritten wholesale under the plan revision. Readable by any authenticated user; written by ADMIN and ROADMAP_EDITOR holders.
+    description: The global project ranking - one dense rank over the projects, rewritten wholesale under the plan lock, with a revision of its own. Readable by any authenticated user; written by ADMIN and ROADMAP_EDITOR holders.
   - name: telemetry
     description: Astrolabe's own vital signs (process memory, JVM, storage, request latency) and their 24h/7d/90d trends - ADMIN only.
 
@@ -1772,7 +1772,7 @@ paths:
         Any authenticated user. One document (a deliberate exception to the paged envelope, bounded by the plan's scale of about 100
         projects): `ranked` in position order (dense 1..n) and `unranked`, the active projects without a position, by name. Each project
         carries its program, work stream and owner names. `can.editRank` is whether THIS caller may `PUT /roadmap/ranking` (ADMIN or a
-        ROADMAP_EDITOR holder). `revision` is the plan revision read before the rows - send it back as `expectedRevision`.
+        ROADMAP_EDITOR holder). `revision` is the RANKING's revision (the plan revision at which the rank was last written), read before the rows - send it back as `expectedRevision`. Plan writes elsewhere do not move it.
       responses:
         '200':
           description: The ranking
@@ -1791,8 +1791,9 @@ paths:
         ADMIN or a holder of the `ROADMAP_EDITOR` permission; every other caller gets `403` BEFORE the body is read (the route addresses
         no node). The permission is re-checked under the plan lock, so a grant revoked while the request was in flight refuses the write.
         Wholesale: the listed projects get positions 1..n in the given order and every other project becomes unranked (omit a project to
-        unrank it; append an unranked one to rank it at the end). `expectedRevision` must equal the current plan revision, else `409` with
-        `type` `urn:astrolabe:problem:stale-revision` and nothing is written - reload the view and retry. `400` when an id is listed
+        unrank it; append an unranked one to rank it at the end). `expectedRevision` is the ranking's revision (`RoadmapView.revision`, or the previous answer): the PUT is `409` with
+        `type` `urn:astrolabe:problem:stale-revision` and nothing is written only when the ranking was written at a later revision (another ranking PUT, or the delete of a
+        ranked project) or the value is above the current plan revision - a plan write elsewhere never stales it. Reload the view and retry. `400` when an id is listed
         twice, is unknown or belongs to a deleted project, or more than 1000 ids are sent. Every accepted PUT, even one that keeps the
         order, bumps the plan revision by one and is audited as `roadmap.ranked`.
       requestBody:
@@ -3181,7 +3182,7 @@ components:
           type: integer
           format: int64
           minimum: 0
-          description: The plan revision, read before the rows; send it back as `expectedRevision`.
+          description: The ranking's revision (the plan revision at which the rank was last written), read before the rows; send it back as `expectedRevision`.
         can:
           type: object
           required: [editRank]
@@ -3224,7 +3225,7 @@ components:
         expectedRevision:
           type: integer
           format: int64
-          description: The plan revision the client's list was read at (`RoadmapView.revision`); a different current revision is a `409`.
+          description: The ranking's revision the client's list was read at (`RoadmapView.revision`); a `409` when the ranking was written at a later revision, or the value is above the current plan revision.
         projectIds:
           type: array
           maxItems: 1000
@@ -3235,7 +3236,11 @@ components:
       type: object
       required: [revision]
       properties:
-        revision: { type: integer, format: int64, minimum: 0, description: The plan revision after this write. }
+        revision:
+          type: integer
+          format: int64
+          minimum: 0
+          description: The plan revision after this write, which is also the ranking's new revision (the next `expectedRevision`).
 
     TeamOrderUpdateRequest:
       type: object

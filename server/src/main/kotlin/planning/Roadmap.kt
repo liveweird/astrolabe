@@ -9,8 +9,8 @@ const val MAX_RANKED_PROJECTS = 1000
 /**
  * `GET /api/v1/views/roadmap` — the global project rank in one document (the documented view-endpoint shape exception,
  * `list-endpoints.md`; bounded by the plan's scale of about 100 projects). [ranked] is the dense position order; [unranked] are the
- * active projects without a position, by name. [revision] is the plan revision read BEFORE the rows — the `expectedRevision` of the
- * ranking PUT.
+ * active projects without a position, by name. [revision] is the RANKING's revision (V18: the plan revision at which the rank was last
+ * written) read BEFORE the rows — the `expectedRevision` of the ranking PUT.
  */
 @Serializable
 data class RoadmapView(
@@ -42,7 +42,7 @@ data class RoadmapProject(
 
 /**
  * The wholesale ranking: [projectIds] in rank order become positions 1..n and every other project becomes unranked; [expectedRevision]
- * is the plan revision the client's list was read at (a different current revision is a 409).
+ * is the ranking revision the client's list was read at (a 409 when the ranking was written later, or the value exceeds the plan's).
  */
 @Serializable
 data class RankingUpdateRequest(

@@ -219,6 +219,22 @@ class TeamOrderTest {
     }
 
     @Test
+    fun `a ranking PUT does not stale a team-order PUT - the order compares its own team's revision`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("toR", teams = true)
+        val t = w.requireTeams()
+        val (a, b) = w.milestones(t.teamId, 2)
+        assertEquals(ok, t.manager.client.putTeamOrder(t.teamId, TestPlan.revision(), listOf(a, b)).status)
+        val held = requireNotNull(TestPlan.teamOrderRevision(t.teamId))
+
+        val ranking = RankingUpdateRequest(TestPlan.revision(), listOf(w.projectId))
+        assertEquals(ok, w.admin.client.putJson("/api/v1/roadmap/ranking", ranking).status)
+        assertEquals(held, TestPlan.teamOrderRevision(t.teamId), "the rank write did not stamp the team's order")
+        assertEquals(ok, t.manager.client.putTeamOrder(t.teamId, held, listOf(b, a)).status, "the held order view is still current")
+        assertEquals(listOf(b, a), TestPlan.teamOrderIds(t.teamId))
+    }
+
+    @Test
     fun `team_milestone_order_changed is audited on every accepted PUT, a no-op and a reset included - and on nothing else`() =
         testApplication {
             usePostgresTestcontainer()

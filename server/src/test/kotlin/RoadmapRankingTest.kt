@@ -141,15 +141,132 @@ class RoadmapRankingTest {
         assertEquals(second, TestPlan.revision(), "a rejected PUT does not bump")
         assertEquals(dense(listOf(b, a)), entries())
 
-        // ANY plan write makes the client's list stale: an unrelated project rename moves the revision.
-        val seen = admin.view().revision
+        // Stale is checked before the ids, so a stale list naming an id that is gone is the reload signal, not a 400 (only a RANKED
+        // project's delete stales a held view; an unranked one's moves no revision, so ranking it afterwards is a 400).
+        assertEquals(HttpStatusCode.Conflict, admin.rank(listOf(999_999u), first).status)
+        assertEquals(dense(listOf(b, a)), entries())
+        // Stale in both directions: a revision from the future (above the plan's) is refused too, never a slip-past.
+        assertEquals(HttpStatusCode.Conflict, admin.rank(listOf(a, b, c), TestPlan.revision() + 1).status)
+        assertEquals(HttpStatusCode.Conflict, admin.rank(listOf(a, b, c), Long.MAX_VALUE).status)
+        assertEquals(dense(listOf(b, a)), entries())
+    }
+
+    private fun rankingRevision(): Long = TestPlan.scalar("SELECT ranking_revision FROM plan_state WHERE id = 1") { it.getLong(1) }
+
+    @Test
+    fun `a plan write elsewhere - rename, create, schedule, dependency - does not stale a ranking PUT`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("rk-elsewhere", teams = true)
+        val admin = w.admin.client
+        val (a, b) = w.projects(2)
+        assertEquals(ok, admin.rank(listOf(a, b)).status)
+        val held = admin.view().revision
+        assertEquals(rankingRevision(), held, "the view answers the ranking's revision")
+
+        val teamId = w.requireTeams().teamId
+        val source = TestPlan.milestone(a, teamId)
+        val target = TestPlan.milestone(b, teamId)
+        TestPlan.schedule(source, "2027-03-01", "2027-03-05")
+        TestPlan.dependency(milestoneRef(source), milestoneRef(target))
+        w.projects(1)
         assertEquals(
             HttpStatusCode.NoContent,
-            admin.putJson("/api/v1/projects/$c", ProjectUpdateRequest(planName("renamed"), null, w.projectOwner.personId!!)).status,
+            admin.putJson("/api/v1/projects/$b", ProjectUpdateRequest(planName("renamed"), null, w.projectOwner.personId!!)).status,
         )
-        assertEquals(HttpStatusCode.Conflict, admin.rank(listOf(a, b), seen).status)
-        // Stale is checked before the ids, so a stale list naming a deleted project is the reload signal, not a 400.
-        assertEquals(HttpStatusCode.Conflict, admin.rank(listOf(999_999u), seen).status)
+        assertTrue(TestPlan.revision() >= held + 6, "six plan writes moved the plan revision")
+        assertEquals(held, rankingRevision(), "none of them touched the ranking's")
+        assertEquals(held, admin.view().revision)
+
+        val response = admin.rank(listOf(b, a), held)
+        assertEquals(ok, response.status, "the held view is still current for the ranking")
+        assertEquals(TestPlan.revision(), response.body<RankingResponse>().revision)
+        assertEquals(TestPlan.revision(), rankingRevision(), "stamped with the plan revision the PUT left behind")
+        assertEquals(TestPlan.revision(), admin.view().revision)
+        assertEquals(dense(listOf(b, a)), entries())
+    }
+
+    @Test
+    fun `a team-order write does not stale a ranking PUT`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("rk-teamorder", teams = true)
+        val t = w.requireTeams()
+        val (a, b) = w.projects(2)
+        assertEquals(ok, w.admin.client.rank(listOf(a, b)).status)
+        val held = w.admin.client.view().revision
+        val first = TestPlan.milestone(a, t.teamId)
+        val second = TestPlan.milestone(a, t.teamId)
+        val before = TestPlan.revision()
+
+        assertEquals(ok, t.manager.client.putTeamOrder(t.teamId, TestPlan.revision(), listOf(second, first)).status)
+        assertEquals(before + 1, TestPlan.revision(), "the order write is a plan write")
+        assertEquals(held, rankingRevision(), "but it does not touch the ranking's revision")
+        assertEquals(held, w.admin.client.view().revision)
+
+        assertEquals(ok, w.admin.client.rank(listOf(b, a), held).status, "the held view is still current for the ranking")
+        assertEquals(dense(listOf(b, a)), entries())
+    }
+
+    @Test
+    fun `a ranking write and the delete of a ranked project stale a held view - an unranked delete does not`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("rk-stales")
+        val admin = w.admin.client
+        val (a, b, c) = w.projects(3)
+        val loose = w.projects(1).single()
+        assertEquals(ok, admin.rank(listOf(a, b, c)).status)
+
+        // Another ranking write (even one that keeps the order) moves the ranking's revision.
+        var held = admin.view().revision
+        assertEquals(ok, w.editor.client.rank(listOf(a, b, c), held).status)
+        assertEquals(HttpStatusCode.Conflict, admin.rank(listOf(c, b, a), held).status)
+        assertEquals(dense(listOf(a, b, c)), entries())
+
+        // A delete that compacts the rank stamps it with the revision the delete left behind; the unranked delete leaves it alone.
+        held = admin.view().revision
+        assertEquals(HttpStatusCode.NoContent, w.projectOwner.client.delete("/api/v1/projects/$loose").status)
+        assertEquals(held, rankingRevision(), "an unranked project's delete does not change the ranking")
+        assertEquals(HttpStatusCode.NoContent, w.projectOwner.client.delete("/api/v1/projects/$b").status)
+        assertEquals(TestPlan.revision(), rankingRevision(), "the compaction is stamped with the delete's plan revision")
+        assertEquals(HttpStatusCode.Conflict, admin.rank(listOf(c, a), held).status, "a view held across the compaction is stale")
+        assertEquals(dense(listOf(a, c)), entries())
+
+        // The reloaded view is current again.
+        val fresh = admin.view()
+        assertEquals(dense(listOf(a, c)), fresh.ranked.map { it.position to it.project.id })
+        assertEquals(ok, admin.rank(listOf(c, a), fresh.revision).status)
+        assertEquals(dense(listOf(c, a)), entries())
+    }
+
+    @Test
+    fun `a ranking PUT held at the plan lock beside a plan write still passes - the other writer does not stale it`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("rk-lockmix", teams = true)
+        val (a, b) = w.projects(2)
+        assertEquals(ok, w.admin.client.rank(listOf(a, b)).status)
+        val held = w.admin.client.view().revision
+        val teamId = w.requireTeams().teamId
+        val status = PostgresTestSupport.connect().use { raw ->
+            raw.autoCommit = false
+            raw.createStatement().use { it.executeQuery("SELECT revision FROM plan_state WHERE id = 1 FOR UPDATE").close() }
+            try {
+                coroutineScope {
+                    // The milestone write queues first, the PUT second (tuple-lock waiters are served in queue order), so the
+                    // plan write provably commits - and bumps the plan revision - BEFORE the PUT compares.
+                    val write = async { TestPlan.milestone(a, teamId) }
+                    awaitLockWait("plan_state", waiters = 1)
+                    val rank = async { w.admin.client.rank(listOf(b, a), held) }
+                    awaitLockWait("plan_state", waiters = 2)
+                    raw.rollback()
+                    write.await()
+                    rank.await().status
+                }
+            } finally {
+                raw.rollback()
+            }
+        }
+        assertEquals(ok, status, "the plan write committed first and the PUT still passed")
+        assertTrue(TestPlan.revision() >= held + 2, "the milestone write bumped, then the PUT")
+        assertEquals(TestPlan.revision(), rankingRevision())
         assertEquals(dense(listOf(b, a)), entries())
     }
 
