@@ -199,6 +199,9 @@ answers the revision it left behind), and `TestTeams.seed(name, managerPersonId?
   `DependencyLifecycleTest` soft-deletes its raw constraint-test rows so no stray active link reaches the cycle check of another test.
   **Capacity fixtures** (V16, `PlanFixtures.kt`): `TestPlan.capacityPeriod(teamId, effectiveFrom, mdPerWeek, wipLimit = null)` (an ISO date, ANY weekday; through `TeamCapacityService.create` past the guard — the team row lock and the partial index apply, the plan revision does not move, capacity being team data). The
   held-request cases hold the TEAM row `FOR NO KEY UPDATE` on a raw session (`TeamCapacityLifecycleTest.requestHeldAtTeamLock`, `awaitLockWait("FOR NO KEY UPDATE")`) — the capacity twin of `requestHeldAtPlanLock`.
+  **Team-order fixtures** (V17, `PlanFixtures.kt`): `TestPlan.teamOrder(teamId, ids)` (through `TeamOrderService.replaceOrder` past the guard — the plan lock and bump apply; the current plan revision is always a valid `expectedRevision`; answers the revision it left), `HttpClient.putTeamOrder(teamId, expectedRevision, ids)` (the typed `PUT /teams/{id}/milestone-order`),
+  and raw reads: `TestPlan.teamOrderRows(teamId)` (position, milestone id), `teamOrderIds(teamId)` and `teamOrderRevision(teamId)` (null = never written). The held-request case uses `requestHeldAtPlanLock` with `UPDATE teams SET manager_person_id = NULL`. Orders are per team and tests mint unique teams (`planWorld(prefix, teams = true)`), so assertions on the raw rows are exact
+  without touching shared state — except the ranking, which a test that rewrites it (the "ranking PUT leaves the override" case) replaces wholesale, as `RoadmapRankingTest` does.
 - `TestSeedState.restoreSeedAccounts()` — bootstrap/production-mode tests rotate the seed admin's
   password in the SHARED container; call this afterwards so later tests (and re-runs) see the
   pristine V3 state. Production-mode boots must also override `"mail.transport" to "disabled"` —

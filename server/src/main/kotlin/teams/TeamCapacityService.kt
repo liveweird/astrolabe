@@ -56,9 +56,6 @@ class TeamCapacityService(private val database: R2dbcDatabase) {
         override val markedAsDeleted = bool("marked_as_deleted").default(false)
     }
 
-    /** Whether an ACTIVE team [teamId] exists — the routes' read-before-guard 404. */
-    suspend fun teamExists(teamId: UInt): Boolean = suspendTransaction(database) { TeamService.Teams.existsActive(teamId) }
-
     /** The periods of an ACTIVE team in `effectiveFrom` order, or null when the team is missing or deleted. */
     suspend fun list(teamId: UInt): CapacityPeriodList? = suspendTransaction(database) {
         if (!TeamService.Teams.existsActive(teamId)) return@suspendTransaction null

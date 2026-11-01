@@ -60,7 +60,7 @@ internal fun Route.teamCapacityRoutes(teams: TeamService, capacity: TeamCapacity
     post<TeamCapacityRoute> { route ->
         val caller = call.caller()
         val teamId = route.parent.id
-        if (!capacity.teamExists(teamId)) throw NotFoundException("$TEAM not found")
+        if (!teams.exists(teamId)) throw NotFoundException("$TEAM not found")
         requireTeamManagerOrAdmin(caller, teamId, teams::isActiveManager)
         val values = validateCapacityPeriod(call.receive<CapacityPeriodRequest>())
         val id = capacity.create(teamId, values, guard(caller))

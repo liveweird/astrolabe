@@ -1493,7 +1493,7 @@ paths:
         chain gets `403` (a manager schedules, never edits plan fields). Read-before-guard (404, then 403, then the body). A full replace
         of name, description, team and estimate; the dates never change here (`PUT .../schedule`). A change of team keeps the dates: the
         new team's manager inherits the bar and may move or unschedule it (audited as `milestone.team_changed`, besides
-        `milestone.updated`). The team must be active and the estimate valid (`400`); a name clash within the project is `409`.
+        `milestone.updated`); the milestone leaves the old team's milestone order (`PUT /teams/{id}/milestone-order`) in the same write. The team must be active and the estimate valid (`400`); a name clash within the project is `409`.
       requestBody:
         required: true
         content:
@@ -1517,7 +1517,7 @@ paths:
       summary: Delete a milestone (soft)
       description: |
         An owner on the milestone's project chain - the project's own owner included - or ADMIN, read-before-guard (404, then 403). Soft
-        delete - the name is freed in its project and the milestone leaves its team's timeline. Every ACTIVE dependency with this
+        delete - the name is freed in its project and the milestone leaves its team's timeline and milestone order. Every ACTIVE dependency with this
         milestone at either end is soft-deleted with it, in the same locked transaction. Audited as `milestone.deleted` (with
         `dependencyCount`).
       responses:
@@ -1767,6 +1767,53 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '409':
           description: '`expectedRevision` is stale (`type` is `urn:astrolabe:problem:stale-revision`)'
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetail' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/teams/{id}/milestone-order:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    put:
+      tags: [plan]
+      operationId: replaceTeamMilestoneOrder
+      summary: Replace a team's milestone order
+      description: |
+        ADMIN or the team's ACTIVE manager, read-before-guard (`404` for an unknown or deleted team, then `403`, then the body: a forbidden
+        caller's malformed body is still `403`). The project owner, the other teams' managers and every other caller get `403`. The
+        guard is re-run under the plan lock, so a manager cleared while the request was in flight refuses the write.
+        The team's milestone order is the order of ACTUAL EXECUTION and belongs to the team: the global project rank (`/roadmap/ranking`)
+        is only the top-down suggestion and the DEFAULT of this order. Wholesale: the listed milestones get positions 1..n in the given
+        order; the team's other milestones are unlisted and follow the listed ones in the default order (the project rank). An empty
+        list resets the team to the default order. The positions are the team's own and absolute: a later project-rank change never
+        reorders them. `expectedRevision` is this TEAM's order revision (`order.revision` of the team view), so another team's reorder or
+        any other plan write elsewhere never makes it stale; a team whose order was never written accepts any `expectedRevision` up to
+        the current plan revision. A smaller revision than the stored one, or one above the current plan revision, is `409` with `type`
+        `urn:astrolabe:problem:stale-revision` and nothing is written - reload the team view and retry. `400` when an id is listed twice,
+        names no milestone, a deleted milestone or a milestone of another team, more than 1000 ids are sent, or `expectedRevision` is
+        negative. Every accepted PUT, even one that keeps the order, bumps the plan revision by one and is audited as
+        `team.milestone_order_changed`; the answer carries that revision, which is now the team's order revision.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TeamOrderUpdateRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '200':
+          description: The order was replaced; the body carries the new plan revision
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamOrderResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: '`expectedRevision` is stale for THIS team''s order (`type` is `urn:astrolabe:problem:stale-revision`)'
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/ProblemDetail' }
@@ -3009,6 +3056,29 @@ components:
       properties:
         revision: { type: integer, format: int64, minimum: 0, description: The plan revision after this write. }
 
+    TeamOrderUpdateRequest:
+      type: object
+      required: [expectedRevision, milestoneIds]
+      properties:
+        expectedRevision:
+          type: integer
+          format: int64
+          minimum: 0
+          description: The team's order revision the client's list was read at (`order.revision` of the team view); a stale one is a `409`.
+        milestoneIds:
+          type: array
+          maxItems: 1000
+          uniqueItems: true
+          items: { type: integer, format: int32, minimum: 0 }
+          description: >-
+            The listed milestones of the team in execution order, first first - every one an ACTIVE milestone of THIS team. The team's
+            milestones not listed follow them in the default order (the project rank). An empty list resets the order to the project rank.
+    TeamOrderResponse:
+      type: object
+      required: [revision]
+      properties:
+        revision: { type: integer, format: int64, minimum: 0, description: The plan revision after this write - the team's order revision from now on. }
+
     ProblemDetail:
       type: object
       description: RFC 7807 problem detail. Served as `application/problem+json`; instance is the request path without query parameters.
@@ -3018,7 +3088,7 @@ components:
           type: string
           default: about:blank
           description: >-
-            A URI reference identifying the problem type; `about:blank` unless a problem names its own (`urn:astrolabe:problem:stale-revision` on a stale ranking or milestone-schedule PUT, `urn:astrolabe:problem:dependency-cycle` on a dependency that would close a cycle).
+            A URI reference identifying the problem type; `about:blank` unless a problem names its own (`urn:astrolabe:problem:stale-revision` on a stale ranking, milestone-schedule or team-order PUT, `urn:astrolabe:problem:dependency-cycle` on a dependency that would close a cycle).
         title:
           type: string
           description: Short, human-readable summary of the problem type.

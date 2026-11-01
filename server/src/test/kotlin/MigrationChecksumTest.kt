@@ -36,6 +36,7 @@ class MigrationChecksumTest {
         "V14__milestones.sql" to -1637747327,
         "V15__dependencies.sql" to 1553016569,
         "V16__team_capacity_periods.sql" to 1065717060,
+        "V17__team_milestone_orders.sql" to 1891634852,
     )
 
     @Test

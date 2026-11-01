@@ -229,6 +229,24 @@ class PlanStateTest {
         }
 
     @Test
+    fun `a team order write bumps the revision by one, a stale, forbidden or invalid one does not`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("orev", teams = true)
+        val t = w.requireTeams()
+        val a = TestPlan.milestone(w.projectId, t.teamId)
+        val before = TestPlan.revision()
+        assertEquals(HttpStatusCode.OK, t.manager.client.putTeamOrder(t.teamId, before, listOf(a)).status)
+        assertEquals(before + 1, TestPlan.revision(), "an accepted order PUT is ONE plan write")
+        assertEquals(HttpStatusCode.OK, t.manager.client.putTeamOrder(t.teamId, before + 1, emptyList()).status)
+        assertEquals(before + 2, TestPlan.revision(), "the reset too")
+        assertEquals(HttpStatusCode.Conflict, t.manager.client.putTeamOrder(t.teamId, before, listOf(a)).status)
+        assertEquals(HttpStatusCode.Forbidden, t.otherManager.client.putTeamOrder(t.teamId, before + 2, listOf(a)).status)
+        assertEquals(HttpStatusCode.BadRequest, t.manager.client.putTeamOrder(t.teamId, before + 2, listOf(a, a)).status)
+        assertEquals(HttpStatusCode.NotFound, t.manager.client.putTeamOrder(999999u, before + 2, listOf(a)).status)
+        assertEquals(before + 2, TestPlan.revision(), "no rejected request moved it")
+    }
+
+    @Test
     fun `a plan write waits for the plan_state lock, then completes and bumps the revision once`() = testApplication {
         usePostgresTestcontainer()
         val w = planWorld("lock")

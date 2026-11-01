@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import ch.nokillswit.infra.db.SoftDeletable
 import ch.nokillswit.infra.db.active
+import ch.nokillswit.infra.db.existsActive
 import ch.nokillswit.infra.db.nowMillis
 import ch.nokillswit.infra.db.lockActiveForWrite
 import org.jetbrains.exposed.v1.core.*
@@ -70,6 +71,9 @@ class TeamService(private val database: R2dbcDatabase) {
             total = total,
         )
     }
+
+    /** Whether an ACTIVE team [id] exists — the read-before-guard 404 of a team-scoped write. */
+    suspend fun exists(id: UInt): Boolean = suspendTransaction(database) { Teams.existsActive(id) }
 
     /** The team, or null when missing/deleted. */
     suspend fun read(id: UInt): TeamResponse? = suspendTransaction(database) {

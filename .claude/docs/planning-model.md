@@ -1,7 +1,7 @@
 ### Planning model
 
-The binding reference for the planning domain as it is built (v0.2.0: people, permissions and dates, the plan structure, the roadmap ranking; v0.3.0: milestones; v0.4.0: dependencies; v0.5.0: team capacity periods). The product intent and the user's domain
-decisions are in `product.md`; the parts not built yet stay a **sketch** at the end (the team order — the v0.5+ increments confirm or amend each line and rewrite it here when
+The binding reference for the planning domain as it is built (v0.2.0: people, permissions and dates, the plan structure, the roadmap ranking; v0.3.0: milestones; v0.4.0: dependencies; v0.5.0: team capacity periods, the team milestone order). The product intent and the user's domain
+decisions are in `product.md`; the parts not built yet stay a **sketch** at the end (the v0.5+ increments confirm or amend each line and rewrite it here when
 their migration lands).
 
 ## Conventions every planning table follows
@@ -56,7 +56,7 @@ timeline will show it closed later). The owner is changed through the ordinary f
 ### The `plan_state` lock protocol and the 409 contract (`planning/PlanState.kt`)
 
 `R2dbcDatabase.withPlanWrite { revision -> … }` = one transaction: `SELECT revision FROM plan_state WHERE id = 1 FOR UPDATE`, run the block, `UPDATE plan_state SET revision = revision + 1`. **Every
-mutation of `work_streams`, `programs`, `projects`, `roadmap_entries` (V13) and `milestones` (V14) runs inside it** — people and teams are not plan state. A block that throws (404/409/400 found after the lock) rolls
+mutation of `work_streams`, `programs`, `projects`, `roadmap_entries` (V13), `milestones` (V14) and `team_milestone_orders` / `team_order_state` (V17) runs inside it** — people and teams are not plan state. A block that throws (404/409/400 found after the lock) rolls
 back the bump with everything else, so a rejected write never moves the revision; a no-op PUT still bumps (conservative). Consequences the code relies on:
 
 - **"Count the children, then delete" is race-free**: the delete counts ACTIVE children under the plan lock, so a concurrent child create (which holds the same lock) either commits first and the
@@ -282,9 +282,33 @@ revision** (`PlanStateTest` "a capacity write is team data"). The weekly load, o
 - **Tests**: `TeamCapacityTest` (the caller matrix incl. the project owner and the other team's manager, read-before-guard, any date, the 400s, the optional limit, the stored `::text`, the 409s, the audit), `TeamCapacityLifecycleTest` (the guard re-run under the team row lock — a manager cleared or the team deleted while the
   request was held —, the team-delete cascade, the CHECK and index backstops), `PlanStateTest` (no plan-revision bump), `MigrationChecksumTest`.
 
+## The team milestone order (built — V17, v0.5.0; `planning/TeamOrder*.kt`)
+
+**Two ranks, two meanings (the user's decision "A").** The PROJECT rank (`/roadmap/ranking`, one global list) is the top-down SUGGESTION of the order in which projects should be delivered. The MILESTONE order is the order of ACTUAL EXECUTION and belongs to the
+TEAM: each team's manager orders their own team's milestones, and a lower-ranked project's milestone may come before a higher-ranked project's. The project rank is only the DEFAULT of a team's order — used until the team overrides it, and again after a Reset.
+**A manager's override is never reshuffled by a later project-rank change**: the stored positions are the team's own and absolute (`replaceRanking` touches `roadmap_entries` only); only milestones the team did not list (newly created, or moved onto the team) slot in after the
+listed ones, in project-rank order. The v0.6 "rank-vs-time inversion between projects sharing a team" stays a WARNING (`BACKLOG.md`), never a reorder.
+
+- **Tables** (`TeamOrderService.TeamMilestoneOrders`, `TeamOrderState`): `team_milestone_orders (milestone_id INTEGER PRIMARY KEY → milestones, team_id → teams, position INTEGER NOT NULL CHECK (position >= 1), UNIQUE (team_id, position) DEFERRABLE INITIALLY DEFERRED)` — one row per LISTED
+  milestone, positions dense 1..n per team; a **hard-delete position join** like `roadmap_entries` (`persistence.md` "Soft delete"); and `team_order_state (team_id PRIMARY KEY → teams, revision BIGINT, updated_at)` — per team, the plan revision at which its order was last written (created
+  by the first write, never removed, inert for a deleted team). No `ON DELETE` rules: milestones and teams are only soft-deleted, so the writers remove rows themselves.
+- **Write** (`PUT /teams/{id}/milestone-order`, body `{expectedRevision, milestoneIds[]}`, `200 {revision}`): **wholesale** — the listed milestones get positions 1..n, every other milestone of the team is unlisted; **`[]` is the reset** (every row removed, the state revision still
+  bumped, so a stale list cannot undo it; there is no `DELETE`). Route order is read-before-guard: team active ?: 404 -> `requireTeamManagerOrAdmin` (the team's ACTIVE manager or ADMIN; the project's owner and every other caller are 403) -> body (a forbidden caller's malformed body stays 403) ->
+  pure validation 400 (`expectedRevision` negative, more than 1000 ids, an id twice). Inside `withPlanWrite`, in this order: the team re-read (404; its row locked `FOR SHARE` for EVERY caller, ADMIN included, so a team delete cannot slip in before the state row is stamped) -> the guard again (`lockedIsActiveManager`, 403, no bump) -> **the stale check** (409 `urn:astrolabe:problem:stale-revision`) -> every id an
+  ACTIVE milestone OF THIS TEAM (400 "Unknown, deleted or other-team milestone ids: …") -> `DELETE … WHERE team_id = ?` + one `insertRows` -> the state row set to the plan revision the write leaves behind. Every accepted PUT bumps the plan revision, a no-op one included. Positions cover any milestone of the team, scheduled or not.
+- **The revision is the team's own.** The stale check is `stored order revision > expectedRevision` or `expectedRevision >` the plan revision under the lock (a view from the future); a team never written has no stored revision, so its first write passes with any valid `expectedRevision`. So only THIS team's order write
+  (or its reset) stales a reorder — another team's reorder, a schedule drag, a rename or any other plan write does not, and the order write does not stale a schedule PUT (that one compares the milestone's own `schedule_revision`). The answer `{revision}` is the new order revision.
+- **Hooks keep the positions dense**, each in the same plan-locked transaction (`removeFromTeamOrder`, `removeFromTeamOrders`; `persistence.md`): a milestone's team change (`MilestoneService.update`, `teamFrom != teamTo`), its delete, and its project's delete (all the project's milestones, one compaction per touched team) delete the row and close the gap with
+  `UPDATE … SET position = position - 1 WHERE team_id = ? AND position > ?` (the single statements the deferred constraint exists for). A removal never bumps the team's order revision: the manager's list is still the manager's list. A milestone that LEAVES a team is unlisted in the new one.
+- **The effective order** (`TeamOrderKernels.kt`, pure; `TeamOrderKernelsTest`): the stored custom position first (an unlisted milestone after every listed one), then the project's global rank (unranked projects after ranked ones), then project name (case-insensitive), project id, then the project view's tuple (start, end, name
+  case-insensitive, id; a milestone WITHOUT dates sorts after the dated work of its project — undated work follows dated work in an execution order, so the tray's milestones sit last within their project). With no override a team sees its work in the roadmap's order, project by project; with one, the listed rows come first exactly as listed and only the unlisted tail follows the rank. The team view (v0.5.0 C3) is the first reader of it; the stored positions are read through `positionsOf(teamId)`.
+- **Audit** (`observability.md`): `team.milestone_order_changed` (byUserId/teamId/revisionFrom/revisionTo/orderFrom/orderTo — the plan revisions around the write and the listed ids before and after as comma-joined text, "" = the default order) on EVERY accepted PUT; a 409/400 emits nothing, a 403 is the central `authz.denied`.
+  The server does not know whether a list came from a menu or a drag: both are the same PUT.
+- **Tests**: `TeamOrderTest` (the caller matrix incl. "the project owner cannot reorder the team", read-before-guard, "a milestone of another team in the list is 400 after the guard", both stale directions, the per-team revision, partial list and reset, "a ranking PUT after an override leaves the override as it is", the audit),
+  `TeamOrderLifecycleTest` (dense positions after a team change / delete / project delete, the deferrable constraint, the same-revision race, "a manager cleared while the PUT waits at the plan lock is refused"), `TeamOrderKernelsTest` (pure, incl. "a rank change reorders only the unlisted tail"), `PlanStateTest` (an order PUT bumps by one), `MilestoneTest` (a team change leaves the old order).
+
 ## Not built yet — the sketch (v0.5+, confirmed by each increment)
 
-- `team_milestone_orders(team_id, milestone_id, position)` — the roadmap's sibling (above): dense integers, `UNIQUE … DEFERRABLE`, wholesale PUT with `expectedRevision` (409 on stale) under the `plan_state` lock.
 - Derived spans, drift (built for the project view, `SpanKernels.kt`) and load are computed at request time in pure kernels (`planning/`, the `CapacityKernels.kt` idiom), with shared JSON test vectors for Kotlin and vitest (deferred to the first
   kernel that needs them; `PlanPermissions` is the first pure kernel and is tested against the guards instead).
 - More view endpoints (`/views/team/{id}`, `/views/programs`; `/views/plan`, `/views/roadmap` and `/views/project/{id}` are built), each one document with `can:{…}` flags and a revision, like Flow's `/reports/home`.

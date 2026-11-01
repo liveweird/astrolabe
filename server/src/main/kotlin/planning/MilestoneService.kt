@@ -157,7 +157,8 @@ class MilestoneService(private val database: R2dbcDatabase) {
 
     /**
      * Plan-field replace under the plan lock (name, description, team, estimate — NEVER the dates or `schedule_revision`: a team change
-     * keeps the bar for the new team's manager to move or unschedule). The chain is re-read and [guard] re-run first (missing = 404).
+     * keeps the bar for the new team's manager to move or unschedule, and takes the milestone out of the old team's order). The chain is
+     * re-read and [guard] re-run first (missing = 404).
      */
     suspend fun update(id: UInt, request: MilestoneUpdateRequest, guard: PlanGuard): MilestoneUpdateOutcome {
         val estimate = validateMilestoneFields(request.name, request.description, request.estimateMd)
@@ -173,7 +174,10 @@ class MilestoneService(private val database: R2dbcDatabase) {
                 it[estimateMd] = estimate
                 it[updatedAt] = nowMillis()
             }
-            MilestoneUpdateOutcome(before[Milestones.teamId].value)
+            val teamFrom = before[Milestones.teamId].value
+            // The milestone leaves the old team's order (its positions close up); the new team lists it only when its manager does.
+            if (teamFrom != request.teamId) removeFromTeamOrder(id)
+            MilestoneUpdateOutcome(teamFrom)
         }.value
     }
 
@@ -221,8 +225,8 @@ class MilestoneService(private val database: R2dbcDatabase) {
     /**
      * Soft delete under the plan lock; the chain is re-read and [guard] re-run first (missing = 404). The name is freed. Every ACTIVE
      * dependency with this milestone at either end is soft-deleted in the same locked transaction ([deleteDependenciesOf]: a link
-     * cannot outlive an end); the returned [DeletedDependencies] feed the audit (`dependencyCount`, `dependencyIds`,
-     * `successorProjectIds`).
+     * cannot outlive an end); the milestone also leaves its team's order ([removeFromTeamOrder]). The returned [DeletedDependencies]
+     * feed the audit (`dependencyCount`, `dependencyIds`, `successorProjectIds`).
      */
     suspend fun delete(id: UInt, guard: PlanGuard): DeletedDependencies = database.withPlanWrite {
         guard((milestoneChain(id) ?: throw NotFoundException(MILESTONE_NOT_FOUND)).owners)
@@ -231,6 +235,7 @@ class MilestoneService(private val database: R2dbcDatabase) {
             it[updatedAt] = nowMillis()
         }
         if (affected == 0) throw NotFoundException(MILESTONE_NOT_FOUND)
+        removeFromTeamOrder(id)
         deleteDependenciesOf(milestoneIds = listOf(id), projectIds = emptyList())
     }.value
 

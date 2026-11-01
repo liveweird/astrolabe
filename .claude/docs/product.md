@@ -47,6 +47,9 @@ Version numbers are not strictly roadmap milestones (`app-releases.md`): a user-
   linked"; changing the type or lag = delete + add — no PUT yet). The UI shows these as: the Dependencies table (violated first = the conflict list), the red "N conflicts" badge, the dialog's
   successor-first form, the cycle notice with its path. The start-to-finish rule is `W(A.effStart) − 1 + lag`.
 - **Ranking.** **One global project rank**. A team's milestone order follows it by default; the team may override locally (and reset).
+  **Built (0.5.0, V17), on the user's confirmed reading "A" (2026-11-01)** — two ranks with two meanings: the PROJECT rank is the top-down SUGGESTION of the order in which projects should be delivered; the MILESTONE order is the order of ACTUAL EXECUTION and is per TEAM (each team's manager orders their own team's milestones, and a lower-ranked
+  project's milestone may come before a higher-ranked project's). The project rank is only the DEFAULT of a team's order, used until the team overrides it and again after a Reset. **A manager's override is never reshuffled by a later project-rank change**: the stored positions are the team's own, and only milestones the team did not list (new, or moved onto the team) slot in after the listed ones, in project-rank order.
+  The v0.6 "rank-vs-time inversion between projects sharing a team" stays a WARNING. The order is written wholesale (`PUT /teams/{id}/milestone-order`, `[]` = reset) against the team's OWN order revision, so only that team's order write stales a reorder.
 - **Owners.** A **people directory** (name, email, optional link to a login) — owners are people, not necessarily users.
 - **Plans.** One live plan; baselines later (v0.9); no scenarios.
 - **Permissions (owner-scoped).** ADMIN may do everything. Ownership cascades down (work stream → program → project). A project owner edits the project and its milestones' plan fields

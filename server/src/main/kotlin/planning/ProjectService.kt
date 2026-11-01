@@ -207,9 +207,9 @@ class ProjectService(private val database: R2dbcDatabase) {
      * ([deleteMilestonesOf]: the project's own work breakdown, no owner of their own — the returned count is the audit's
      * `milestoneCount`), so there is no 409; first the ACTIVE dependencies with an end at the project OR at one of its milestones
      * ([deleteDependenciesOf], the audit's `dependencyCount`, `dependencyIds` and `successorProjectIds`). The same transaction takes
-     * the project out of the ranking
-     * ([removeFromRanking]: its `roadmap_entries` row is hard-deleted and the positions above it shift down), so the dense 1..n
-     * ranking never holds a deleted project.
+     * the project out of the ranking ([removeFromRanking]: its `roadmap_entries` row is hard-deleted and the positions above it shift
+     * down), so the dense 1..n ranking never holds a deleted project, and its milestones out of their teams' orders
+     * ([removeFromTeamOrders]: the same compaction per team).
      */
     suspend fun delete(id: UInt, guard: PlanGuard): ProjectDeleteOutcome = database.withPlanWrite {
         guard(projectChain(id) ?: throw NotFoundException("Project not found"))
@@ -218,7 +218,9 @@ class ProjectService(private val database: R2dbcDatabase) {
             it[updatedAt] = nowMillis()
         }
         if (affected == 0) throw NotFoundException("Project not found")
-        val dependencies = deleteDependenciesOf(activeMilestoneIdsOf(id), listOf(id))
+        val milestoneIds = activeMilestoneIdsOf(id)
+        val dependencies = deleteDependenciesOf(milestoneIds, listOf(id))
+        removeFromTeamOrders(milestoneIds)
         val milestoneCount = deleteMilestonesOf(id)
         removeFromRanking(id)
         ProjectDeleteOutcome(milestoneCount, dependencies)

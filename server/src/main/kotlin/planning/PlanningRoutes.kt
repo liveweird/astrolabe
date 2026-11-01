@@ -1,6 +1,7 @@
 package ch.nokillswit.planning
 
 import ch.nokillswit.authz.CallerPrincipal
+import ch.nokillswit.authz.NotFoundException
 import ch.nokillswit.authz.OwnerChain
 import ch.nokillswit.authz.isAdmin
 import ch.nokillswit.authz.orNotFound
@@ -10,6 +11,7 @@ import ch.nokillswit.authz.requireTargetWindowEditorOrAdmin
 import ch.nokillswit.authz.requireTeamManagerOrAdmin
 import ch.nokillswit.people.PersonService
 import ch.nokillswit.people.PersonServiceKey
+import ch.nokillswit.teams.TeamGuard
 import ch.nokillswit.teams.TeamService
 import ch.nokillswit.teams.TeamServiceKey
 import ch.nokillswit.users.Permission
@@ -21,10 +23,11 @@ import io.ktor.server.routing.routing
 
 /**
  * The planning REST surface (`/api/v1/work-streams`, `/programs`, `/projects`, `/milestones`, `/views/plan`, `/views/project/{id}`,
- * `/views/roadmap`, `/roadmap/ranking`, and since V15 `/dependencies` with `POST /projects/{id}/dependencies`), registered by this ONE
+ * `/views/roadmap`, `/roadmap/ranking`, since V15 `/dependencies` with `POST /projects/{id}/dependencies`, and since V17
+ * `PUT /teams/{id}/milestone-order`), registered by this ONE
  * module function and split per entity (`WorkStreamRoutes.kt`, `ProgramRoutes.kt`, `ProjectRoutes.kt`, `MilestoneRoutes.kt`,
- * `DependencyRoutes.kt`, `PlanViewRoutes.kt`, `RoadmapRoutes.kt`) — the first deliberate exception to the one-routes-file template
- * (`conventions.md`): five resources with different guards would blow the
+ * `DependencyRoutes.kt`, `PlanViewRoutes.kt`, `RoadmapRoutes.kt`, `TeamOrderRoutes.kt`) — the first deliberate exception to the
+ * one-routes-file template (`conventions.md`): five resources with different guards would blow the
  * 400-line file cap. Every node route is READ-BEFORE-GUARD (chain -> 404, guard -> 403, body -> 400, validate -> 400, write;
  * `authorization.md`): plan ids are sequential and every signed-in user reads the whole plan anyway, so existence is no secret.
  * The guard before the body is for ORDERING only: a request can be held open after it (a slow body), so the write RE-GUARDS under
@@ -45,6 +48,8 @@ fun Application.configurePlanningRoutes() {
         projectView = attributes[ProjectViewServiceKey],
         roadmap = attributes[RoadmapServiceKey],
     )
+    // Not in PlanRouteDeps: its constructor is at detekt's 12-parameter ceiling, and only this one route file reads the order service.
+    val teamOrder = attributes[TeamOrderServiceKey]
     routing {
         authenticate {
             workStreamRoutes(deps)
@@ -54,6 +59,7 @@ fun Application.configurePlanningRoutes() {
             dependencyRoutes(deps)
             planViewRoutes(deps)
             roadmapRoutes(deps)
+            teamOrderRoutes(deps, teamOrder)
         }
     }
 }
@@ -157,6 +163,23 @@ internal class PlanRouteDeps(
      */
     fun managerGuard(caller: CallerPrincipal): ScheduleGuard = { chain ->
         requireTeamManagerOrAdmin(caller, chain.teamId, teams::lockedIsActiveManager)
+    }
+
+    /**
+     * The read-before-guard preamble of a team-scoped write (the team order): a missing or deleted team is the 404, then the caller must
+     * be ADMIN or the ACTIVE manager of THAT team (`requireTeamManagerOrAdmin`, asked of the database per request).
+     */
+    suspend fun requireTeamManager(caller: CallerPrincipal, teamId: UInt) {
+        if (!teams.exists(teamId)) throw NotFoundException("Team not found")
+        requireTeamManagerOrAdmin(caller, teamId, teams::isActiveManager)
+    }
+
+    /**
+     * The guard the team-order write re-runs INSIDE the plan lock (see [TeamGuard]): the same `requireTeamManagerOrAdmin` against the
+     * team, with the manager lookup locking the team and the manager's person `FOR SHARE` ([TeamService.lockedIsActiveManager]).
+     */
+    fun teamManagerGuard(caller: CallerPrincipal): TeamGuard = { teamId ->
+        requireTeamManagerOrAdmin(caller, teamId, teams::lockedIsActiveManager)
     }
 
     private suspend fun lockedCallerPersonId(caller: CallerPrincipal): UInt? =

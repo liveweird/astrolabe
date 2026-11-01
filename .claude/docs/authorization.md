@@ -102,7 +102,7 @@ Layered RBAC. Implemented in the `server/src/main/kotlin/authz/` package.
     else `400` ("Unknown or deleted manager ids"); `TeamResponse`/`TeamListItem` carry `managerPersonId` +
     `managerName`, both null for a soft-deleted manager person. Being a team's manager grants NO write on the team
     record itself (still ADMIN only) — the manager's rights are the team-scoped ones the planning increments add
-    (milestone scheduling since V14, the team's capacity periods since V16, the team order later; `product.md`), via `requireTeamManagerOrAdmin`. A team delete is `409` ("Team still has milestones") while an ACTIVE milestone names the team. Since V10 the manager is a
+    (milestone scheduling since V14, the team's capacity periods since V16, the team milestone order since V17; `product.md`), via `requireTeamManagerOrAdmin`. A team delete is `409` ("Team still has milestones") while an ACTIVE milestone names the team. Since V10 the manager is a
     person of the people directory (`teams.manager_person_id` replaced `manager_user_id`; the manager's login is `people.user_id`). Mutations audit `team.created/updated/deleted` and `team.manager_changed`
     (only on an actual change). Tests: `TeamTest`, `GuardsTest`.
   - `/api/v1/people` (V10, the people directory) → `GET` list and `GET /{id}` **any authenticated user, emails included** (the owner and
@@ -271,7 +271,17 @@ Layered RBAC. Implemented in the `server/src/main/kotlin/authz/` package.
 
     The named product-rule tests (`TeamCapacityTest`, `TeamCapacityLifecycleTest`): "the team's manager and ADMIN add a period - the project owner and every other caller get 403, whatever they own", "a forbidden caller's malformed body stays 403", "a manager cleared from the team while a write was held
     is refused". Every 403 is the central `authz.denied`.
-  - **Still planned (v0.5+):** a team manager edits the team order. Each new rule lands here with its
+  - **The team milestone order (V17, built) — written by the team's manager or ADMIN** (`planning/TeamOrderRoutes.kt`; the project's owner and every other caller get 403). **Read-before-guard** like the schedule PUT (team ids are sequential and every signed-in user reads the plan): the team resolved first
+    (`PlanRouteDeps.requireTeamManager`: missing or deleted = `404` for EVERY caller), then `requireTeamManagerOrAdmin` (403), then `call.receive` (a forbidden caller's malformed body stays 403), then validation (400). **The guard runs twice**: outside with `TeamService.isActiveManager`, and again INSIDE the plan-locked write with
+    `TeamService.lockedIsActiveManager` (`FOR SHARE OF teams, people`; `PlanRouteDeps.teamManagerGuard`), so only the inner verdict authorizes the write — a manager cleared while the request waited at the lock is a 403, no bump.
+
+    | Route | Guard (in order) |
+    |---|---|
+    | `PUT /teams/{id}/milestone-order` | team active ?: 404 → `requireTeamManagerOrAdmin` → body 400 (negative `expectedRevision`, more than 1000 ids, an id twice) → (under the plan lock) team re-read 404 → the guard again 403 → **409 stale** (`stale-revision`, against the TEAM's own order revision) → ids active and of this team 400 → rewrite → 200 `{revision}` |
+
+    The named product-rule tests (`TeamOrderTest`, `TeamOrderLifecycleTest`): "the team's manager and ADMIN reorder - the project owner and every other caller get 403, whatever they own", "an unknown or deleted team is 404 for every caller, and a forbidden caller's malformed body stays 403", "the 400s come after the guard" (a milestone of another team
+    in the list is 400 only for a caller who passed the guard), "a manager cleared while the PUT waits at the plan lock is refused". Every 403 is the central `authz.denied`. The `can.editOrder` flag of the team view (v0.5.0 C3) will use the schedule arithmetic (`canSchedule`).
+  - **Still planned (v0.5+):** the team view's `can` flags. Each new rule lands here with its
     guard order (403 before 400/404, guard-before-read where existence is sensitive) in the same commit as its route.
 - **Existence disclosure (403 vs 404) — deliberate policy (API-ERR-006)**: two sanctioned idioms,
   and every new resource picks one consciously rather than mixing them. **Guard-before-read**

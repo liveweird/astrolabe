@@ -10,8 +10,9 @@ import org.jetbrains.exposed.v1.r2dbc.update
 
 /**
  * The one-row revision lock of the live plan (V12 `plan_state`, `planning-model.md` "The lock protocol"). Its `revision` is
- * monotonic and bumped by every plan mutation; it is the `expectedRevision` of the wholesale ranking PUT (V13), the seed of the
- * future view ETags and the anchor baselines record.
+ * monotonic and bumped by every plan mutation; it is the `expectedRevision` of the wholesale ranking PUT (V13), the bound of the
+ * team-order PUT's (V17: that PUT compares against its own team's `team_order_state.revision`, and only refuses a value above this
+ * one), the seed of the future view ETags and the anchor baselines record.
  */
 object PlanState : Table("plan_state") {
     val id = short("id")
@@ -27,10 +28,10 @@ data class PlanWrite<T>(val value: T, val revision: Long)
 
 /**
  * Runs [block] as ONE plan write: a transaction that first takes `plan_state` `FOR UPDATE` (every writer of the work streams,
- * programs, projects, milestones (V14), dependencies (V15) and — from V13 — the ranking serializes here, so a read-then-write inside
- * [block], such as "count the active children, then delete", cannot interleave with another plan writer), hands [block] the revision it
- * started from, and bumps the revision by one when it returns. A [block] that throws (a 404, 409 or 400 found after the lock)
- * rolls the whole transaction back, so a rejected write never moves the revision.
+ * programs, projects, milestones (V14), dependencies (V15), the team milestone orders (V17) and — from V13 — the ranking serializes
+ * here, so a read-then-write inside [block], such as "count the active children, then delete", cannot interleave with another plan
+ * writer), hands [block] the revision it started from, and bumps the revision by one when it returns. A [block] that throws (a 404,
+ * 409 or 400 found after the lock) rolls the whole transaction back, so a rejected write never moves the revision.
  *
  * Plain `FOR UPDATE`, not `FOR NO KEY UPDATE` (persistence.md "Row locks vs. FK locks"): nothing references `plan_state` by a
  * foreign key, so no FK check's `FOR KEY SHARE` can queue behind (or in front of) the lock, and the row's key is never changed.

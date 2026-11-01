@@ -12,6 +12,8 @@ import ch.nokillswit.planning.ProgramCreateRequest
 import ch.nokillswit.planning.ProgramService
 import ch.nokillswit.planning.ProjectCreateRequest
 import ch.nokillswit.planning.ProjectService
+import ch.nokillswit.planning.TeamOrderService
+import ch.nokillswit.planning.TeamOrderUpdateRequest
 import ch.nokillswit.planning.WorkStreamCreateRequest
 import ch.nokillswit.planning.WorkStreamService
 import ch.nokillswit.teams.CapacityPeriodValues
@@ -117,6 +119,10 @@ suspend fun HttpClient.postDependency(
     lagDays: Int = 0,
 ): HttpResponse = postJson("/api/v1/projects/$projectId/dependencies", DependencyCreateRequest(predecessor, successor, type, lagDays))
 
+/** `PUT /teams/{teamId}/milestone-order` with a typed body. */
+suspend fun HttpClient.putTeamOrder(teamId: UInt, expectedRevision: Long, ids: List<UInt>): HttpResponse =
+    putJson("/api/v1/teams/$teamId/milestone-order", TeamOrderUpdateRequest(expectedRevision, ids))
+
 /** A second project under the world's program, owned by a NEW caller (a person-linked login) who owns nothing else: cross-owner cases. */
 class SecondProject(val projectId: UInt, val owner: PlanCaller)
 
@@ -134,6 +140,7 @@ object TestPlan {
     private val milestones by lazy { MilestoneService(sharedDatabaseForTests()) }
     private val dependencies by lazy { DependencyService(sharedDatabaseForTests()) }
     private val capacity by lazy { TeamCapacityService(sharedDatabaseForTests()) }
+    private val teamOrders by lazy { TeamOrderService(sharedDatabaseForTests()) }
 
     suspend fun workStream(owner: UInt, name: String = planName("ws"), startDate: String = "2026-01-01", endDate: String? = null): UInt =
         streams.create(WorkStreamCreateRequest(name = name, ownerPersonId = owner, startDate = startDate, endDate = endDate))
@@ -186,6 +193,35 @@ object TestPlan {
             teamId,
             CapacityPeriodValues(java.time.LocalDate.parse(effectiveFrom), java.math.BigDecimal.valueOf(mdPerWeek).setScale(2), wipLimit),
         ) { } // fixtures seed past the guard
+
+    /**
+     * Replaces [teamId]'s milestone order with [ids] past the guard — through the service, so the plan lock, the per-team revision check
+     * (the current plan revision is always a valid `expectedRevision`) and the bump apply. The answer is the plan revision it left behind.
+     */
+    suspend fun teamOrder(teamId: UInt, ids: List<UInt>): Long =
+        teamOrders.replaceOrder(teamId, TeamOrderUpdateRequest(revision(), ids)) { }.revisionTo // fixtures seed past the guard
+
+    /** The raw `team_milestone_orders` rows of [teamId] as (position, milestone id), by position. */
+    fun teamOrderRows(teamId: UInt): List<Pair<Int, UInt>> = PostgresTestSupport.connect().use { c ->
+        c.createStatement().use { st ->
+            val sql = "SELECT position, milestone_id FROM team_milestone_orders WHERE team_id = $teamId ORDER BY position"
+            st.executeQuery(sql).use { rs ->
+                buildList { while (rs.next()) add(rs.getInt(1) to rs.getInt(2).toUInt()) }
+            }
+        }
+    }
+
+    /** [teamOrderRows] for the ids alone, in position order. */
+    fun teamOrderIds(teamId: UInt): List<UInt> = teamOrderRows(teamId).map { it.second }
+
+    /** The raw `team_order_state.revision` of [teamId], or null when its order was never written. */
+    fun teamOrderRevision(teamId: UInt): Long? = PostgresTestSupport.connect().use { c ->
+        c.createStatement().use { st ->
+            st.executeQuery("SELECT revision FROM team_order_state WHERE team_id = $teamId").use { rs ->
+                if (rs.next()) rs.getLong(1) else null
+            }
+        }
+    }
 
     /** The current `plan_state.revision`, read over raw JDBC. */
     fun revision(): Long = PostgresTestSupport.connect().use { c ->

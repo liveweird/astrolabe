@@ -975,14 +975,14 @@ export interface paths {
          *     chain gets `403` (a manager schedules, never edits plan fields). Read-before-guard (404, then 403, then the body). A full replace
          *     of name, description, team and estimate; the dates never change here (`PUT .../schedule`). A change of team keeps the dates: the
          *     new team's manager inherits the bar and may move or unschedule it (audited as `milestone.team_changed`, besides
-         *     `milestone.updated`). The team must be active and the estimate valid (`400`); a name clash within the project is `409`.
+         *     `milestone.updated`); the milestone leaves the old team's milestone order (`PUT /teams/{id}/milestone-order`) in the same write. The team must be active and the estimate valid (`400`); a name clash within the project is `409`.
          */
         put: operations["updateMilestone"];
         post?: never;
         /**
          * Delete a milestone (soft)
          * @description An owner on the milestone's project chain - the project's own owner included - or ADMIN, read-before-guard (404, then 403). Soft
-         *     delete - the name is freed in its project and the milestone leaves its team's timeline. Every ACTIVE dependency with this
+         *     delete - the name is freed in its project and the milestone leaves its team's timeline and milestone order. Every ACTIVE dependency with this
          *     milestone at either end is soft-deleted with it, in the same locked transaction. Audited as `milestone.deleted` (with
          *     `dependencyCount`).
          */
@@ -1191,6 +1191,41 @@ export interface paths {
          *     order, bumps the plan revision by one and is audited as `roadmap.ranked`.
          */
         put: operations["replaceRoadmapRanking"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/teams/{id}/milestone-order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Replace a team's milestone order
+         * @description ADMIN or the team's ACTIVE manager, read-before-guard (`404` for an unknown or deleted team, then `403`, then the body: a forbidden
+         *     caller's malformed body is still `403`). The project owner, the other teams' managers and every other caller get `403`. The
+         *     guard is re-run under the plan lock, so a manager cleared while the request was in flight refuses the write.
+         *     The team's milestone order is the order of ACTUAL EXECUTION and belongs to the team: the global project rank (`/roadmap/ranking`)
+         *     is only the top-down suggestion and the DEFAULT of this order. Wholesale: the listed milestones get positions 1..n in the given
+         *     order; the team's other milestones are unlisted and follow the listed ones in the default order (the project rank). An empty
+         *     list resets the team to the default order. The positions are the team's own and absolute: a later project-rank change never
+         *     reorders them. `expectedRevision` is this TEAM's order revision (`order.revision` of the team view), so another team's reorder or
+         *     any other plan write elsewhere never makes it stale; a team whose order was never written accepts any `expectedRevision` up to
+         *     the current plan revision. A smaller revision than the stored one, or one above the current plan revision, is `409` with `type`
+         *     `urn:astrolabe:problem:stale-revision` and nothing is written - reload the team view and retry. `400` when an id is listed twice,
+         *     names no milestone, a deleted milestone or a milestone of another team, more than 1000 ids are sent, or `expectedRevision` is
+         *     negative. Every accepted PUT, even one that keeps the order, bumps the plan revision by one and is audited as
+         *     `team.milestone_order_changed`; the answer carries that revision, which is now the team's order revision.
+         */
+        put: operations["replaceTeamMilestoneOrder"];
         post?: never;
         delete?: never;
         options?: never;
@@ -2321,10 +2356,26 @@ export interface components {
              */
             revision: number;
         };
+        TeamOrderUpdateRequest: {
+            /**
+             * Format: int64
+             * @description The team's order revision the client's list was read at (`order.revision` of the team view); a stale one is a `409`.
+             */
+            expectedRevision: number;
+            /** @description The listed milestones of the team in execution order, first first - every one an ACTIVE milestone of THIS team. The team's milestones not listed follow them in the default order (the project rank). An empty list resets the order to the project rank. */
+            milestoneIds: number[];
+        };
+        TeamOrderResponse: {
+            /**
+             * Format: int64
+             * @description The plan revision after this write - the team's order revision from now on.
+             */
+            revision: number;
+        };
         /** @description RFC 7807 problem detail. Served as `application/problem+json`; instance is the request path without query parameters. */
         ProblemDetail: {
             /**
-             * @description A URI reference identifying the problem type; `about:blank` unless a problem names its own (`urn:astrolabe:problem:stale-revision` on a stale ranking or milestone-schedule PUT, `urn:astrolabe:problem:dependency-cycle` on a dependency that would close a cycle).
+             * @description A URI reference identifying the problem type; `about:blank` unless a problem names its own (`urn:astrolabe:problem:stale-revision` on a stale ranking, milestone-schedule or team-order PUT, `urn:astrolabe:problem:dependency-cycle` on a dependency that would close a cycle).
              * @default about:blank
              */
             type: string;
@@ -4592,6 +4643,48 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             /** @description `expectedRevision` is stale (`type` is `urn:astrolabe:problem:stale-revision`) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    replaceTeamMilestoneOrder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TeamOrderUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description The order was replaced; the body carries the new plan revision */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeamOrderResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description `expectedRevision` is stale for THIS team's order (`type` is `urn:astrolabe:problem:stale-revision`) */
             409: {
                 headers: {
                     [name: string]: unknown;

@@ -294,12 +294,14 @@ class MilestoneTest {
             val t = w.requireTeams()
             val id = TestPlan.milestone(w.projectId, t.teamId, estimate = 2.0)
             TestPlan.schedule(id, "2026-11-02", "2026-11-13")
+            TestPlan.teamOrder(t.teamId, listOf(id))
             val path = "/api/v1/milestones/$id"
             val name = w.admin.client.get(path).body<MilestoneResponse>().name
             withAuditCapture { capture ->
                 assertEquals(HttpStatusCode.NoContent, w.projectOwner.client.putJson(path, update(t.otherTeamId, name, 4.0)).status)
                 val moved = w.admin.client.get(path).body<MilestoneResponse>()
                 assertEquals(t.otherTeamId, moved.teamId)
+                assertEquals(emptyList(), TestPlan.teamOrderRows(t.teamId), "the milestone left the old team's order")
                 assertEquals("2026-11-02", moved.startDate, "a team change leaves the bar where it was")
                 assertEquals("2026-11-13", moved.endDate)
                 val event = capture.awaitEvent { it.message == "milestone.team_changed" && it.hasKeyValue("milestoneId", id.toLong()) }
