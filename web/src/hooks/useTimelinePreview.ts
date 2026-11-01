@@ -44,12 +44,25 @@ export interface DragData {
   /** A row handle's row: its 1-based place in the order and the row count (the announcements say them). */
   position?: number;
   count?: number;
+  /**
+   * A draw surface's live left edge in client coordinates (the track's left, read NOW). A drag has no `over` when it starts, and the anchor
+   * day is the day under the pointer-down, so the context needs a reader of its own for that one conversion.
+   */
+  trackLeft?: () => number | null;
 }
 
 /** The dates a held bar or edge would take if dropped now (while a drag is running), so the bar can draw them. */
 interface BarPreview {
   barId: BarId;
-  kind: Exclude<DragKind, "row">;
+  kind: Exclude<DragKind, "row" | "draw">;
+  start: string;
+  end: string;
+}
+
+/** The span a draw gesture has dragged out so far, for the row's draw surface to paint (`barId` is the bar the row would get). */
+interface DrawPreview {
+  barId: BarId;
+  kind: "draw";
   start: string;
   end: string;
 }
@@ -62,7 +75,7 @@ interface RowPreview {
   slot: number | null;
 }
 
-export type TimelinePreview = BarPreview | RowPreview;
+export type TimelinePreview = BarPreview | RowPreview | DrawPreview;
 
 export const PreviewContext = createContext<TimelinePreview | null>(null);
 

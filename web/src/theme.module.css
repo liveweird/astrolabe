@@ -173,6 +173,8 @@
   --timeline-line: light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
   --timeline-bar: light-dark(var(--mantine-color-gray-6), var(--mantine-color-dark-2));
   --timeline-window-edge: light-dark(var(--mantine-color-gray-6), var(--mantine-color-dark-2));
+  /* The target window's tint: the range-wide band (.timelineBand), a window-toned bar (.timelineBarWindow) and the draw ghost share it. */
+  --timeline-band: light-dark(rgba(134, 142, 150, 0.1), rgba(130, 130, 130, 0.14));
   --timeline-drift-edge: light-dark(var(--mantine-color-orange-8), var(--mantine-color-orange-5));
   /* The overload and the WIP warning (v0.5 load strip): orange = warning, the drift token's pair. */
   --timeline-overload: light-dark(var(--mantine-color-orange-8), var(--mantine-color-orange-5));
@@ -375,7 +377,7 @@
   box-sizing: border-box;
   pointer-events: none;
   border-inline: 2px dashed var(--timeline-window-edge);
-  background: light-dark(rgba(134, 142, 150, 0.1), rgba(130, 130, 130, 0.14));
+  background: var(--timeline-band);
 }
 
 .timelineBandDrift {
@@ -421,6 +423,39 @@
   scroll-margin-left: var(--timeline-left);
 }
 
+/* The window tone (TimelineBarData.tone "window", v0.6): a target window drawn as a BAR so it can be moved and resized like one. The band look
+   (the tint, dashed edges, square corners) over the whole row height (the frame below); an editable window bar keeps its handles and its
+   keyboard path. Declared after .timelineBarBody and before .timelineBarDragging, and the held state is a translucent accent instead of the
+   solid fill so the span bar behind it stays readable. */
+.timelineBarFrameWindow {
+  top: 0;
+  height: auto;
+  bottom: 0;
+}
+
+.timelineBarWindow,
+.timelineDrawGhost {
+  box-sizing: border-box;
+  background: var(--timeline-band);
+  border-inline: 2px dashed var(--timeline-window-edge);
+  border-radius: 0;
+}
+
+/* The draw gesture's layer (TimelineDrawSurface): behind the row's bands and bars, pointer-only. A finger scrolls the grid instead of drawing. */
+.timelineDrawSurface {
+  position: absolute;
+  inset: 0;
+  cursor: crosshair;
+  touch-action: pan-x pan-y pinch-zoom;
+}
+
+.timelineDrawGhost {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
 /* Only an editable bar is a touch drag target; a read-only one must still let the page scroll. */
 .timelineBarEditable {
   cursor: grab;
@@ -430,6 +465,11 @@
 .timelineBarDragging {
   cursor: grabbing;
   background: var(--astrolabe-accent-ink);
+}
+
+.timelineBarWindow.timelineBarDragging {
+  background: color-mix(in srgb, var(--astrolabe-accent-ink) 25%, transparent);
+  border-inline-color: var(--astrolabe-accent-ink);
 }
 
 /* Read-only tones (TimelineBarData.tone). A ghost is another project's endpoint: the bar colour at 35 % with a dashed outline.

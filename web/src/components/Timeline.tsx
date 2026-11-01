@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useImperativeHandle, useLayoutEffect, useRef, type CSSProperties, type KeyboardEvent, type ReactNode, type Ref } from "react";
 import { Stack } from "@mantine/core";
 import { useDndContext, useDroppable } from "@dnd-kit/core";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -20,7 +20,7 @@ import {
   type TimelineRowData,
   type TimelineStripData,
 } from "../utils/timelineModel";
-import { scrollLeftToCenter, toEpochDay, weekendBackground, type TimelineScale, type Zoom } from "../utils/timelineScale";
+import { MILESTONE_ZOOMS, scrollLeftToCenter, toEpochDay, weekendBackground, type TimelineScale, type Zoom } from "../utils/timelineScale";
 import ScrollRegion from "./ScrollRegion";
 import TimelineHeader from "./TimelineHeader";
 import TimelineRowDropIndicator from "./TimelineRowDropIndicator";
@@ -28,11 +28,23 @@ import TimelineRow, { TimelineBand } from "./TimelineRow";
 import TimelineToolbar from "./TimelineToolbar";
 import classes from "../theme.module.css";
 
+/** What a page can ask of a mounted Timeline (`ref`): move the keyboard focus to a row, whether or not the virtual path has mounted it. */
+export interface TimelineHandle {
+  /**
+   * Focus the row-header cell of the row with this `TimelineRowData.id` and reveal it clear of the sticky parts (a programmatic focus after a
+   * click is not `:focus-visible`, so the grid's own reveal would skip it). A row the virtual path has not mounted is scrolled to and focused
+   * once it mounts. An unknown id does nothing.
+   */
+  focusRow: (rowId: number | string) => void;
+}
+
 export interface TimelineProps {
   /** The grid's accessible name (the heading above it). */
   label: string;
   /** The page-built scale (zoom and range). The page keeps the range stable across edits. */
   scale: TimelineScale;
+  /** The zooms the toolbar offers (default `MILESTONE_ZOOMS`: week / month / quarter; the plan pages pass `PLAN_ZOOMS`). */
+  zooms?: readonly Zoom[];
   onZoomChange: (zoom: Zoom) => void;
   /** Today as `YYYY-MM-DD` (injected so tests and the zone choice stay the page's). */
   today: string;
@@ -52,6 +64,8 @@ export interface TimelineProps {
   maxHeight?: number | string;
   /** A save is in flight (the page ignores further changes until it answers). */
   busy?: boolean;
+  /** The imperative handle ({@link TimelineHandle}); a plain prop in React 19. */
+  ref?: Ref<TimelineHandle>;
 }
 
 /** `r,c` of the roving element holding the event target. */
@@ -73,6 +87,7 @@ function gridPosOf(event: KeyboardEvent<HTMLElement>): { r: number; c: number } 
 export default function Timeline({
   label,
   scale,
+  zooms = MILESTONE_ZOOMS,
   onZoomChange,
   today,
   columns,
@@ -83,6 +98,7 @@ export default function Timeline({
   virtualizeFrom = DEFAULT_VIRTUALIZE_FROM,
   maxHeight = 640,
   busy = false,
+  ref,
 }: TimelineProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const pendingFocus = useRef<{ r: number; c: number } | null>(null);
@@ -207,11 +223,12 @@ export default function Timeline({
    * grid measures the focus target against the part of the scroller that is really shown (inside its border, so a classic scrollbar is
    * not counted) and scrolls the difference — never further than the target's own start edge reaching the sticky parts, so a bar wider
    * than the visible track shows its START (and a handle never bounces). Only keyboard-style focus (`:focus-visible`) reveals: a mouse
-   * press on a bar must not move the grid under the pointer. Left cells are sticky themselves and need no horizontal correction.
+   * press on a bar must not move the grid under the pointer — unless the page forced it (`focusRow`: a focus it moved itself after a click).
+   * Left cells are sticky themselves and need no horizontal correction.
    */
-  const revealFocused = (target: HTMLElement) => {
+  const revealFocused = (target: HTMLElement, force = false) => {
     const scroller = scrollRef.current;
-    if (scroller === null || target.closest("[data-grid-pos]") === null || !target.matches(":focus-visible")) return;
+    if (scroller === null || target.closest("[data-grid-pos]") === null || !(force || target.matches(":focus-visible"))) return;
     const box = target.getBoundingClientRect();
     const view = scroller.getBoundingClientRect();
     const viewTop = view.top + scroller.clientTop;
@@ -226,6 +243,26 @@ export default function Timeline({
     if (box.left < clearLeft) scroller.scrollLeft -= clearLeft - box.left;
     else if (box.right > viewRight) scroller.scrollLeft += Math.min(box.right - viewRight, box.left - clearLeft);
   };
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      focusRow: (rowId) => {
+        const index = rows.findIndex((candidate) => candidate.id === rowId);
+        if (index < 0) return;
+        if (index >= first && index <= last) {
+          const cell = grid.ref.current?.querySelector<HTMLElement>(`[data-grid-pos="${index + 1},0"]`);
+          if (cell === null || cell === undefined) return;
+          cell.focus();
+          revealFocused(cell, true);
+          return;
+        }
+        // Not mounted (the virtual path): scroll to it and let the layout effect above focus it as soon as it exists.
+        pendingFocus.current = { r: index + 1, c: 0 };
+        virtualizer.scrollToIndex(index);
+      },
+    }),
+  );
 
   const todayDay = toEpochDay(today);
   const todayInRange = todayDay >= scale.from && todayDay <= scale.to;
@@ -265,7 +302,7 @@ export default function Timeline({
 
   return (
     <Stack gap="xs">
-      <TimelineToolbar zoom={scale.zoom} onZoomChange={onZoomChange} onToday={scrollToToday} todayDisabled={!todayInRange} />
+      <TimelineToolbar zoom={scale.zoom} zooms={zooms} onZoomChange={onZoomChange} onToday={scrollToToday} todayDisabled={!todayInRange} />
       <ScrollRegion label={label} minWidth={leftWidth + scale.totalWidth} maxHeight={maxHeight} scrollRef={scrollRef}>
         <div
           ref={grid.ref}

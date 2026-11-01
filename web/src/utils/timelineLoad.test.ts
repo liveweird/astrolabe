@@ -113,6 +113,8 @@ describe("the figure per zoom", () => {
     expect(only(week(), "week").text).toBe("8.5 / 14");
     expect(only(week(), "month").text).toBe("8.5");
     expect(only(week(), "quarter").text).toBe("");
+    // year zoom is type-complete here (the strip is never shown there): it reads like quarter
+    expect(only(week(), "year").text).toBe("");
   });
 
   test("a prorated, fractional capacity keeps its two decimals", () => {
@@ -134,6 +136,7 @@ describe("the WIP mark", () => {
     expect(only(flagged, "week")).toMatchObject({ maxWip: 3, wipExceeded: true, wipText: "3" });
     expect(only(flagged, "month")).toMatchObject({ wipExceeded: true, wipText: "3" });
     expect(only(flagged, "quarter")).toMatchObject({ wipExceeded: true, wipText: "" });
+    expect(only(flagged, "year")).toMatchObject({ wipExceeded: true, wipText: "" });
   });
 
   test("is independent of the overload", () => {

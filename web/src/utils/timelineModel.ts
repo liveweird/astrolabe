@@ -46,10 +46,12 @@ export interface TimelineBarData {
   /** May the caller propose new dates? (The page's `can` flag; the server still decides.) */
   editable: boolean;
   /**
-   * How a READ-ONLY bar is drawn (ignored on an editable one): `ghost` = an endpoint that lives on another project (a faint
-   * dashed bar), `summary` = the project's own derived span (a hollow outline). Absent = the ordinary neutral bar.
+   * How the bar is drawn, read-only or editable: `ghost` = an endpoint that lives on another project (a faint dashed bar),
+   * `summary` = the project's own derived span (a hollow outline), `window` (v0.6) = a target window (the band look: the full row
+   * height, the band tint, dashed edges; an EDITABLE window bar keeps its move and resize handles and its keyboard path). Absent = the
+   * ordinary neutral bar.
    */
-  tone?: "ghost" | "summary";
+  tone?: "ghost" | "summary" | "window";
 }
 
 export interface TimelineBandData {
@@ -99,6 +101,17 @@ export interface TimelineColumn {
   width: number;
 }
 
+/**
+ * Opts a row in to the DRAW gesture (v0.6): a pointer drag across the row's empty stretch proposes a span through the page's
+ * `onSchedule(barId, start, end)` (the same seam as a bar move), `barId` being the id of the bar the row would have once drawn.
+ * Pointer-only: the page's dialog is the keyboard and touch path.
+ */
+export interface TimelineDrawData {
+  barId: BarId;
+  /** The drawn thing's short name (the announcements). */
+  label: string;
+}
+
 export interface TimelineRowData {
   id: number | string;
   /** One entry per column, in order; the first is the row header (the name). */
@@ -106,6 +119,8 @@ export interface TimelineRowData {
   bars: readonly TimelineBarData[];
   /** Bands confined to this row's track. */
   bands?: readonly TimelineBandData[];
+  /** Draw a new span across this row's empty stretch (a row without its target window). Absent = no draw surface. */
+  draw?: TimelineDrawData;
   /** Replaces the bar rendering of this row's track, positioned with the exported scale. No page uses it: the v0.5 load strip is a header band (`TimelineStripData`). */
   track?: ReactNode;
 }

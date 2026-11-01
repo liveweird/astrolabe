@@ -4,7 +4,8 @@
   "zoom": {
     "week": "Tydzień",
     "month": "Miesiąc",
-    "quarter": "Kwartał"
+    "quarter": "Kwartał",
+    "year": "Rok"
   },
   "today": "Dziś",
   "todayTag": "Dziś",
@@ -14,6 +15,7 @@
     "readOnly": "{{label}}, tylko do odczytu",
     "ghost": "{{label}}, z projektu {{project}}",
     "summary": "{{name}}, zakres projektu od {{start}} do {{end}}",
+    "window": "{{name}}, okno docelowe od {{start}} do {{end}}",
     "startHandleAria": "Zmień początek: {{name}}",
     "endHandleAria": "Zmień koniec: {{name}}"
   },
@@ -50,6 +52,9 @@
     "stepRow": "{{name}}: pozycja {{position}} z {{count}}",
     "dropRow": "{{name}} ma teraz pozycję {{position}} z {{count}}.",
     "dropRowNone": "{{name}} zostaje na pozycji {{position}} z {{count}}.",
-    "cancelRow": "Przeciąganie anulowane; {{name}} zostaje na pozycji {{position}} z {{count}}."
+    "cancelRow": "Przeciąganie anulowane; {{name}} zostaje na pozycji {{position}} z {{count}}.",
+    "startDraw": "Rysujesz: {{name}}. Przesuń wskaźnik po dniach i puść; Escape anuluje.",
+    "dropDraw": "Narysowano: {{name}}, od {{start}} do {{end}}.",
+    "cancelDraw": "Rysowanie anulowane; {{name}} nie zostało narysowane."
   }
 }

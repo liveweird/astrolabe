@@ -8,12 +8,19 @@ import { DAY_MS, epochMillisToIsoDate, isoDateToEpochMillis } from "./isoDate";
  * (`weekdayOf`, `isoWeekLabel`, the month partition clipped to the range).
  */
 
-export type Zoom = "week" | "month" | "quarter";
+export type Zoom = "week" | "month" | "quarter" | "year";
 
-export const ZOOMS: readonly Zoom[] = ["week", "month", "quarter"];
+/** Every zoom the scale knows. A page offers a subset of it: the two lists below. */
+export const ZOOMS: readonly Zoom[] = ["week", "month", "quarter", "year"];
+
+/** The zooms of the milestone pages (the project and the team view): week / month / quarter, exactly as before the Year zoom existed. */
+export const MILESTONE_ZOOMS: readonly Zoom[] = ["week", "month", "quarter"];
+
+/** The zooms of the plan pages (the roadmap and the programs view, v0.6): month / quarter / year — a week is noise over a multi-year plan. */
+export const PLAN_ZOOMS: readonly Zoom[] = ["month", "quarter", "year"];
 
 /** Pixels per day at each zoom. */
-export const DAY_WIDTH: Record<Zoom, number> = { week: 28, month: 8, quarter: 3 };
+export const DAY_WIDTH: Record<Zoom, number> = { week: 28, month: 8, quarter: 3, year: 1 };
 
 const DAYS_PER_WEEK = 7;
 /** Saturday and Sunday are the 6th and 7th day of a Monday-start week. */
@@ -97,6 +104,9 @@ const quarterOffset = (day: number) => ymd(day)[1] % 3;
 const quarterStart = (day: number) => monthStartShifted(day, -quarterOffset(day));
 const quarterEnd = (day: number) => monthStartShifted(day, 3 - quarterOffset(day)) - 1;
 
+const yearStart = (day: number) => Date.UTC(ymd(day)[0], 0, 1) / DAY_MS;
+const yearEnd = (day: number) => Date.UTC(ymd(day)[0] + 1, 0, 1) / DAY_MS - 1;
+
 const weekStart = (day: number) => day - weekdayOf(day);
 const weekEnd = (day: number) => weekStart(day) + DAYS_PER_WEEK - 1;
 
@@ -128,7 +138,7 @@ export interface TimelineHeaderRows {
   cells: HeaderCell[];
 }
 
-type Grain = "day" | "week" | "month" | "quarter";
+type Grain = "day" | "week" | "month" | "quarter" | "year";
 
 interface GrainSpec {
   end: (day: number) => number;
@@ -157,6 +167,11 @@ const SPEC: Record<Grain, GrainSpec> = {
     key: (day) => `q${quarterStart(day)}`,
     label: (day) => `${ymd(day)[0]}-Q${Math.floor(ymd(day)[1] / 3) + 1}`,
   },
+  year: {
+    end: yearEnd,
+    key: (day) => `y${yearStart(day)}`,
+    label: (day) => String(ymd(day)[0]),
+  },
 };
 
 /** The cells of one grain partitioning the range, each clipped to it. */
@@ -177,11 +192,12 @@ const HEADER_GRAINS: Record<Zoom, { group: Grain; cell: Grain }> = {
   week: { group: "week", cell: "day" },
   month: { group: "month", cell: "week" },
   quarter: { group: "quarter", cell: "month" },
+  year: { group: "year", cell: "quarter" },
 };
 
 /**
  * The two header rows: the group row (weeks / months / quarters) over the cell row (days / weeks / months) at week / month /
- * quarter zoom. Both PARTITION the range, so a group or cell crossing the range edge is clipped, never dropped.
+ * quarter zoom, and the year row over the quarter row at year zoom. Both PARTITION the range, so a group or cell crossing the range edge is clipped, never dropped.
  */
 export function headerRows(scale: TimelineScale): TimelineHeaderRows {
   const range = { from: scale.from, to: scale.to };
@@ -191,7 +207,7 @@ export function headerRows(scale: TimelineScale): TimelineHeaderRows {
 
 // ---- the weekend hatch -----------------------------------------------------------------------------------------------
 
-/** The zooms at which weekends are drawn: at 3 px per day the pattern is noise. */
+/** The zooms at which weekends are drawn: at 3 px per day (and at the year's 1) the pattern is noise. */
 const HATCHED_ZOOMS: readonly Zoom[] = ["week", "month"];
 
 /**
@@ -225,11 +241,12 @@ const RANGE_RULES: Record<Zoom, RangeRule> = {
   week: { start: weekStart, end: weekEnd, shift: (day, n) => day + n * DAYS_PER_WEEK, pad: 2, emptyPad: 6 },
   month: { start: monthStart, end: monthEnd, shift: monthStartShifted, pad: 1, emptyPad: 3 },
   quarter: { start: quarterStart, end: quarterEnd, shift: (day, n) => monthStartShifted(day, 3 * n), pad: 1, emptyPad: 2 },
+  year: { start: yearStart, end: yearEnd, shift: (day, n) => monthStartShifted(day, 12 * n), pad: 1, emptyPad: 1 },
 };
 
 /**
- * The range a page opens with: the min and max of `dates` (ISO) together with `today`, padded ±2 weeks / ±1 month / ±1 quarter
- * and snapped outward to whole Monday–Sunday weeks / months / quarters; with no dates, today ±6 weeks / ±3 months / ±2 quarters.
+ * The range a page opens with: the min and max of `dates` (ISO) together with `today`, padded ±2 weeks / ±1 month / ±1 quarter / ±1 year
+ * and snapped outward to whole Monday–Sunday weeks / months / quarters / years; with no dates, today ±6 weeks / ±3 months / ±2 quarters / ±1 year.
  */
 export function defaultRange(dates: readonly string[], today: string, zoom: Zoom): DayRange {
   const rule = RANGE_RULES[zoom];

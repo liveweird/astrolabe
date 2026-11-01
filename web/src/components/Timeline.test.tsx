@@ -1,9 +1,9 @@
-import { useEffect, type ComponentProps, type ReactNode } from "react";
+import { createRef, useEffect, type ComponentProps, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { DndContext, useDndContext } from "@dnd-kit/core";
-import Timeline from "./Timeline";
+import Timeline, { type TimelineHandle } from "./Timeline";
 import TimelineArrows from "./TimelineArrows";
 import TimelineDndContext from "./TimelineDndContext";
 import TimelineLoadStrip from "./TimelineLoadStrip";
@@ -19,7 +19,7 @@ import {
   type TimelineRowData,
   type TimelineStripData,
 } from "../utils/timelineModel";
-import { makeScale, toEpochDay, type Zoom } from "../utils/timelineScale";
+import { makeScale, PLAN_ZOOMS, toEpochDay, type Zoom } from "../utils/timelineScale";
 import { renderWithProviders } from "../test/render";
 
 // happy-dom has no layout, so a pointer drag cannot run here (e2e drives the real one). The context is wrapped to hand the test
@@ -1465,5 +1465,391 @@ describe("the load strip", () => {
     };
     // a 36 px taller header shifts the first visible row up by one
     expect(firstMounted(STRIP) - firstMounted()).toBe(-1);
+  });
+});
+
+describe("the zooms prop", () => {
+  const radios = () => screen.getAllByRole("radio").map((radio) => (radio as HTMLInputElement).value);
+
+  test("the toolbar offers week / month / quarter by default, as before the Year zoom existed", () => {
+    renderWithProviders(<Harness />);
+    expect(radios()).toEqual(["week", "month", "quarter"]);
+    expect(screen.queryByRole("radio", { name: "Year" })).not.toBeInTheDocument();
+  });
+
+  test("a plan page passes PLAN_ZOOMS: month / quarter / year, no Week", async () => {
+    const user = userEvent.setup();
+    const onZoomChange = vi.fn();
+    renderWithProviders(<Harness zoom="year" zooms={PLAN_ZOOMS} onZoomChange={onZoomChange} />);
+    expect(radios()).toEqual(["month", "quarter", "year"]);
+    expect(screen.getByRole("radio", { name: "Year" })).toBeChecked();
+    expect(screen.queryByRole("radio", { name: "Week" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("radio", { name: "Quarter" }));
+    expect(onZoomChange).toHaveBeenCalledWith("quarter");
+  });
+
+  test("year zoom draws a year group over quarter cells, one pixel per day, and no weekend hatch", () => {
+    renderWithProviders(<Harness zoom="year" zooms={PLAN_ZOOMS} />);
+    expect(screen.getByText("2026")).toBeInTheDocument();
+    expect(screen.getByText("2026-Q3")).toBeInTheDocument();
+    expect(screen.getByText("2026-Q4")).toBeInTheDocument();
+    // 2026-09-16 is two days after the range start; Wed-Fri is three days
+    expect(geometryOf(barBody("Discovery, Team A, 2026-09-16 to 2026-09-18"))).toEqual({ left: "2px", width: "3px" });
+    expect(document.querySelector<HTMLElement>('[role="row"] [role="gridcell"]')?.style.backgroundImage).toBe("");
+  });
+});
+
+describe("the window tone", () => {
+  const WINDOW: TimelineBarData = {
+    id: "window:4",
+    start: "2026-09-16",
+    end: "2026-09-25",
+    label: "Orbit window",
+    describe: "Orbit, target window 2026-09-16 to 2026-09-25",
+    editable: true,
+    tone: "window",
+  };
+  const NAME = WINDOW.describe;
+
+  test("an editable window bar keeps its name, its handles and its keyboard path, and exposes the tone", () => {
+    renderWithProviders(<Harness rows={[row(4, "Orbit", [WINDOW]), ROWS[0]]} />);
+    const body = barBody(NAME);
+    expect(body).toHaveAttribute("data-tone", "window");
+    expect(body).toHaveAttribute("tabindex");
+    expect(screen.getByRole("button", { name: "Resize start of Orbit window" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Resize end of Orbit window" })).toBeInTheDocument();
+    // the window fills the row (its own frame class), an ordinary bar sits inset
+    expect(body.parentElement?.className).not.toBe(barBody("Discovery, Team A, 2026-09-16 to 2026-09-18").parentElement?.className);
+    expect(barBody("Discovery, Team A, 2026-09-16 to 2026-09-18")).not.toHaveAttribute("data-tone");
+  });
+
+  test("a read-only window bar is a labelled image that says so", () => {
+    renderWithProviders(<Harness rows={[row(4, "Orbit", [{ ...WINDOW, editable: false }])]} />);
+    expect(screen.getByRole("img", { name: `${NAME}, read-only` })).toHaveAttribute("data-tone", "window");
+    expect(screen.queryByRole("button", { name: /Resize/ })).not.toBeInTheDocument();
+  });
+
+  test("a window bar and the span bar of its row are two bars; the window is mounted first, so the span paints over it", () => {
+    const span: TimelineBarData = { ...bar(9, "Orbit span", "2026-09-17", "2026-09-30", false), tone: "summary" };
+    renderWithProviders(<Harness rows={[row(4, "Orbit", [WINDOW, span])]} />);
+    const tones = Array.from(screen.getAllByRole("row")[1].querySelectorAll("[data-tone]"), (el) => el.getAttribute("data-tone"));
+    expect(tones).toEqual(["window", "summary"]);
+  });
+
+  test("a move and each resize propose through onSchedule with the window's own id", () => {
+    const onSchedule = vi.fn(() => true);
+    renderWithProviders(<Harness rows={[row(4, "Orbit", [WINDOW])]} onSchedule={onSchedule} />);
+    const dragged = (kind: string, days: number) => {
+      const a = active(kind, WINDOW as TimelineBarData);
+      emit("onDragStart", gesture(a, 0));
+      emit("onDragEnd", gesture(a, days));
+    };
+    dragged("move", 7);
+    dragged("resize-start", -2);
+    dragged("resize-end", 3);
+    expect(onSchedule.mock.calls).toEqual([
+      ["window:4", "2026-09-23", "2026-10-02"],
+      ["window:4", "2026-09-14", "2026-09-25"],
+      ["window:4", "2026-09-16", "2026-09-28"],
+    ]);
+  });
+
+  test("the window bar's keyboard path is the bar's: Space, ArrowRight, Space moves it by a day", async () => {
+    const user = userEvent.setup();
+    vi.useFakeTimers({ toFake: ["setTimeout"], shouldAdvanceTime: true });
+    const onSchedule = vi.fn(() => true);
+    renderWithProviders(<Harness rows={[row(4, "Orbit", [WINDOW])]} onSchedule={onSchedule} />);
+    act(() => barBody(NAME).focus());
+    await user.keyboard(" ");
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5);
+    });
+    await user.keyboard("{ArrowRight}");
+    await user.keyboard(" ");
+    await waitFor(() => expect(onSchedule).toHaveBeenCalledExactlyOnceWith("window:4", "2026-09-17", "2026-09-26"));
+  });
+});
+
+describe("the draw gesture", () => {
+  const LABEL = "Orbit target window";
+  const DRAW_ROW: TimelineRowData = { ...row(4, "Orbit", []), draw: { barId: "window:4", label: LABEL } };
+  // The surface's live left edge is 120 px; the range starts 2026-09-14 and a day is 28 px, so x = 120 + 28 n is the left edge of day n.
+  const drawActive = { id: "draw:window:4", data: { current: { kind: "draw", barId: "window:4", label: LABEL, trackLeft: () => 120 } } };
+  const drawEvent = (over: unknown = null, activatorX: number | null = 120 + 2 * DAY) => ({
+    active: drawActive,
+    delta: { x: 0, y: 0 },
+    over,
+    activatorEvent: activatorX === null ? null : { clientX: activatorX, clientY: 0 },
+  });
+  const pointerAt = (clientX: number) =>
+    act(() => {
+      window.dispatchEvent(new PointerEvent("pointermove", { clientX, clientY: 0, isPrimary: true }));
+    });
+  const ghost = () => document.querySelector<HTMLElement>("[data-draw-preview]");
+  const say = () => dndProps!.accessibility!.announcements!;
+  const drawRows = [...ROWS, DRAW_ROW];
+
+  test("the surface mounts only in a row that opts in, hidden from assistive technology and out of the tab order", () => {
+    renderWithProviders(<Harness rows={drawRows} />);
+    const surfaces = document.querySelectorAll<HTMLElement>("[data-draw-surface]");
+    expect(surfaces).toHaveLength(1);
+    expect(surfaces[0]).toHaveAttribute("aria-hidden", "true");
+    for (const attribute of ["tabindex", "role", "aria-describedby", "aria-roledescription"]) expect(surfaces[0]).not.toHaveAttribute(attribute);
+    expect(surfaces[0].closest('[role="row"]')).toHaveTextContent("Orbit");
+    // no roving stop of its own: the row keeps its single header cell
+    expect(document.querySelectorAll('[data-grid-pos][tabindex="0"]')).toHaveLength(1);
+  });
+
+  test("without draw there is no surface", () => {
+    renderWithProviders(<Harness />);
+    expect(document.querySelector("[data-draw-surface]")).toBeNull();
+  });
+
+  test("drawing rightwards proposes the span through onSchedule with the bar id the row would get", () => {
+    const onSchedule = vi.fn(() => true);
+    renderWithProviders(<Harness rows={drawRows} onSchedule={onSchedule} />);
+    emit("onDragStart", drawEvent());
+    // the pointer went down on day 2 (2026-09-16): a one-day ghost at once
+    expect(ghost()).toHaveStyle({ left: "56px", width: "28px" });
+    pointerAt(120 + 5 * DAY + 3);
+    emit("onDragMove", drawEvent(zone(120)));
+    expect(ghost()).toHaveStyle({ left: "56px", width: "112px" });
+    pointerAt(120 + 5 * DAY + 3);
+    emit("onDragEnd", drawEvent(zone(120)));
+    expect(onSchedule).toHaveBeenCalledExactlyOnceWith("window:4", "2026-09-16", "2026-09-19");
+    expect(ghost()).toBeNull();
+  });
+
+  test("drawing leftwards: the day under the pointer is the start", () => {
+    const onSchedule = vi.fn(() => true);
+    renderWithProviders(<Harness rows={drawRows} onSchedule={onSchedule} />);
+    emit("onDragStart", drawEvent());
+    pointerAt(120 + 5);
+    emit("onDragMove", drawEvent(zone(120)));
+    expect(ghost()).toHaveStyle({ left: "0px", width: "84px" });
+    emit("onDragEnd", drawEvent(zone(120)));
+    expect(onSchedule).toHaveBeenCalledExactlyOnceWith("window:4", "2026-09-14", "2026-09-16");
+  });
+
+  test("the day is read against the zone's LIVE left edge (a scrolled grid: negative) while the anchor keeps the day it began on", () => {
+    const onSchedule = vi.fn(() => true);
+    renderWithProviders(<Harness rows={drawRows} onSchedule={onSchedule} />);
+    emit("onDragStart", drawEvent());
+    // the grid autoscrolled 280 px left under the held pointer: the zone now starts at x = -160, the pointer sits at 120 + 5 * 28
+    pointerAt(120 + 5 * DAY);
+    emit("onDragEnd", drawEvent(zone(-160)));
+    // (260 + 160) / 28 = day 15 of the range; the anchor is still day 2
+    expect(onSchedule).toHaveBeenCalledExactlyOnceWith("window:4", "2026-09-16", "2026-09-29");
+  });
+
+  test("the pointer's day is clamped to the range: a stale zone rect after an autoscroll can put it over the sticky columns, or past the end", () => {
+    const onSchedule = vi.fn(() => true);
+    renderWithProviders(<Harness rows={drawRows} onSchedule={onSchedule} />);
+    emit("onDragStart", drawEvent());
+    // a zone left of 400 with the pointer at 120 is -280 px in: 10 days before the range start, which must read as the first day
+    pointerAt(120);
+    emit("onDragMove", drawEvent(zone(400)));
+    expect(ghost()).toHaveStyle({ left: "0px", width: "84px" });
+    emit("onDragEnd", drawEvent(zone(400)));
+    expect(onSchedule).toHaveBeenLastCalledWith("window:4", "2026-09-14", "2026-09-16");
+    // far beyond the last day (2026-10-11): the last day of the range
+    emit("onDragStart", drawEvent());
+    pointerAt(120 + 500 * DAY);
+    emit("onDragEnd", drawEvent(zone(120)));
+    expect(onSchedule).toHaveBeenLastCalledWith("window:4", "2026-09-16", "2026-10-11");
+  });
+
+  test("the drop still knows the draw when dnd-kit has lost the surface's data (its virtualised row left the window mid-drag)", () => {
+    const onSchedule = vi.fn(() => true);
+    renderWithProviders(<Harness rows={drawRows} onSchedule={onSchedule} />);
+    emit("onDragStart", drawEvent());
+    pointerAt(120 + 5 * DAY);
+    const orphan = { id: "draw:window:4", data: { current: {} } };
+    emit("onDragMove", { ...drawEvent(zone(120)), active: orphan });
+    expect(ghost()).toHaveStyle({ left: "56px", width: "112px" });
+    emit("onDragEnd", { ...drawEvent(zone(120)), active: orphan });
+    expect(onSchedule).toHaveBeenCalledExactlyOnceWith("window:4", "2026-09-16", "2026-09-19");
+  });
+
+  test("a click that never leaves its day is a one-day window", () => {
+    const onSchedule = vi.fn(() => true);
+    renderWithProviders(<Harness rows={drawRows} onSchedule={onSchedule} />);
+    emit("onDragStart", drawEvent());
+    emit("onDragEnd", drawEvent(zone(120)));
+    expect(onSchedule).toHaveBeenCalledExactlyOnceWith("window:4", "2026-09-16", "2026-09-16");
+  });
+
+  test("while the pointer is not over the track zone the last span is kept, and a drop there still proposes it", () => {
+    const onSchedule = vi.fn(() => true);
+    renderWithProviders(<Harness rows={drawRows} onSchedule={onSchedule} />);
+    emit("onDragStart", drawEvent());
+    pointerAt(120 + 5 * DAY);
+    emit("onDragMove", drawEvent(zone(120)));
+    pointerAt(2000);
+    emit("onDragMove", drawEvent({ id: "somewhere-else", data: { current: {} } }));
+    expect(ghost()).toHaveStyle({ left: "56px", width: "112px" });
+    emit("onDragEnd", drawEvent(null));
+    expect(onSchedule).toHaveBeenCalledExactlyOnceWith("window:4", "2026-09-16", "2026-09-19");
+  });
+
+  test("a draw with no pointer-down position (not a pointer activator) has no anchor and proposes nothing", () => {
+    const onSchedule = vi.fn(() => true);
+    renderWithProviders(<Harness rows={drawRows} onSchedule={onSchedule} />);
+    emit("onDragStart", drawEvent(null, null));
+    expect(ghost()).toBeNull();
+    emit("onDragEnd", drawEvent(zone(120)));
+    expect(onSchedule).not.toHaveBeenCalled();
+  });
+
+  test("cancelling proposes nothing and takes the ghost away", () => {
+    const onSchedule = vi.fn(() => true);
+    renderWithProviders(<Harness rows={drawRows} onSchedule={onSchedule} />);
+    emit("onDragStart", drawEvent());
+    pointerAt(120 + 5 * DAY);
+    emit("onDragMove", drawEvent(zone(120)));
+    expect(ghost()).not.toBeNull();
+    emit("onDragCancel", {});
+    expect(ghost()).toBeNull();
+    expect(onSchedule).not.toHaveBeenCalled();
+  });
+
+  test("the same seam as a bar move: a page that refuses the proposal gets the 'not changed' announcement, never a drop", () => {
+    renderWithProviders(<Harness rows={drawRows} onSchedule={vi.fn(() => false)} />);
+    emit("onDragStart", drawEvent());
+    pointerAt(120 + 5 * DAY);
+    emit("onDragMove", drawEvent(zone(120)));
+    emit("onDragEnd", drawEvent(zone(120)));
+    expect(say().onDragEnd({ active: drawActive } as never)).toBe(`${LABEL} was not changed: a save is still running. Try again in a moment.`);
+  });
+
+  test("announcements: pick-up, each distinct span once, the drop, the cancel", () => {
+    renderWithProviders(<Harness rows={drawRows} />);
+    expect(say().onDragStart({ active: drawActive } as never)).toBe("Drawing Orbit target window. Move the pointer across the days and release; Escape cancels.");
+    emit("onDragStart", drawEvent());
+    pointerAt(120 + 5 * DAY);
+    emit("onDragMove", drawEvent(zone(120)));
+    expect(say().onDragMove?.({ active: drawActive } as never)).toBe("Orbit target window: 2026-09-16 to 2026-09-19");
+    emit("onDragMove", drawEvent(zone(120)));
+    expect(say().onDragMove?.({ active: drawActive } as never)).toBeUndefined();
+    emit("onDragEnd", drawEvent(zone(120)));
+    expect(say().onDragEnd({ active: drawActive } as never)).toBe("Drew Orbit target window: 2026-09-16 to 2026-09-19.");
+    expect(say().onDragEnd({ active: drawActive } as never)).toBeUndefined();
+    emit("onDragStart", drawEvent());
+    emit("onDragCancel", {});
+    expect(say().onDragCancel?.({ active: drawActive } as never)).toBe("Cancelled; nothing was drawn for Orbit target window.");
+  });
+
+  test("it keeps the bars' autoscroll (along time only) and leaves the surface untransformed", () => {
+    renderWithProviders(<Harness rows={drawRows} />);
+    emit("onDragStart", drawEvent());
+    expect(dndProps?.autoScroll).toEqual({ threshold: { x: 0.05, y: 0.02 } });
+    expect(dndProps?.modifiers?.[0]({ active: drawActive, transform: { x: 40, y: 17, scaleX: 1, scaleY: 1 } } as never)).toMatchObject({ x: 40, y: 17 });
+    emit("onDragCancel", {});
+  });
+
+  test("the window pointer listener is added at the start and removed on drop and on cancel", () => {
+    const add = vi.spyOn(window, "addEventListener");
+    const remove = vi.spyOn(window, "removeEventListener");
+    const moves = (spy: { mock: { calls: unknown[][] } }) => spy.mock.calls.filter(([type]) => type === "pointermove").length;
+    try {
+      renderWithProviders(<Harness rows={drawRows} />);
+      emit("onDragStart", drawEvent());
+      expect(moves(add)).toBe(1);
+      emit("onDragEnd", drawEvent(zone(120)));
+      expect(moves(remove)).toBe(1);
+      emit("onDragStart", drawEvent());
+      emit("onDragCancel", {});
+      expect(moves(remove)).toBe(2);
+    } finally {
+      add.mockRestore();
+      remove.mockRestore();
+    }
+  });
+
+  test("it collides like a bar does: with the track zone and never with the row zone", () => {
+    renderWithProviders(<Harness rows={drawRows} />);
+    emit("onDragStart", drawEvent());
+    const container = (id: string) => ({ id, rect: { current: { left: 0, top: 0, right: 100, bottom: 100, width: 100, height: 100 } }, data: { current: {} } });
+    const found = dndProps?.collisionDetection?.({
+      active: drawActive,
+      collisionRect: { left: 0, top: 0, right: 10, bottom: 10, width: 10, height: 10 },
+      droppableRects: new Map([
+        [TIMELINE_DROP_ID, container(TIMELINE_DROP_ID).rect.current],
+        [TIMELINE_ROW_DROP_ID, container(TIMELINE_ROW_DROP_ID).rect.current],
+      ]),
+      droppableContainers: [container(TIMELINE_DROP_ID), container(TIMELINE_ROW_DROP_ID)],
+      pointerCoordinates: { x: 50, y: 50 },
+    } as never);
+    expect(found?.map((collision) => collision.id)).toEqual([TIMELINE_DROP_ID]);
+    emit("onDragCancel", {});
+  });
+});
+
+describe("focusRow", () => {
+  const MANY: TimelineRowData[] = Array.from({ length: 40 }, (_, i) => row(i + 1, `Item ${i + 1}`, [bar(i + 1, `Item ${i + 1}`, "2026-09-16", "2026-09-18")]));
+  const handleRef = () => createRef<TimelineHandle>();
+  const call = (ref: { current: TimelineHandle | null }, rowId: number | string) => act(() => ref.current?.focusRow(rowId));
+  const rect = (left: number, top: number, width = 100, height = 24) => ({ left, top, right: left + width, bottom: top + height, width, height }) as DOMRect;
+
+  test("a mounted row: its header cell takes the focus and becomes the tab stop", () => {
+    const ref = handleRef();
+    renderWithProviders(<Harness ref={ref} />);
+    call(ref, 2);
+    expect(screen.getByRole("rowheader", { name: "Build" })).toHaveFocus();
+    expect(screen.getByRole("rowheader", { name: "Build" })).toHaveAttribute("tabindex", "0");
+    expect(screen.getByRole("rowheader", { name: "Discovery" })).toHaveAttribute("tabindex", "-1");
+  });
+
+  test("it reveals the row clear of the sticky header even though a programmatic focus is not :focus-visible", () => {
+    const ref = handleRef();
+    renderWithProviders(<Harness ref={ref} />);
+    const cell = screen.getByRole("rowheader", { name: "Build" });
+    const scroller = screen.getByRole("region", { name: "Project timeline" });
+    // the scroller shows y 50..650 and its sticky header takes 56 px (y < 106); the row sits under the header
+    vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue(rect(100, 50, 800, 600));
+    for (const [name, value] of [["clientLeft", 0], ["clientTop", 0], ["clientWidth", 785], ["clientHeight", 600]] as const) {
+      Object.defineProperty(scroller, name, { configurable: true, value });
+    }
+    vi.spyOn(cell, "getBoundingClientRect").mockReturnValue(rect(110, 90, 150));
+    scroller.scrollTop = 200;
+    const matches = vi.spyOn(cell, "matches").mockImplementation((selector: string) => selector !== ":focus-visible");
+    call(ref, 2);
+    expect(scroller.scrollTop).toBe(200 - 16);
+    matches.mockRestore();
+  });
+
+  test("an unknown row id does nothing", () => {
+    const ref = handleRef();
+    renderWithProviders(<Harness ref={ref} />);
+    expect(() => call(ref, 99)).not.toThrow();
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  test("a row the virtual path has not mounted is scrolled to and focused once it mounts; a mounted one at once", async () => {
+    stubViewport(900, 180);
+    const ref = handleRef();
+    renderWithProviders(<Harness ref={ref} rows={MANY} virtualizeFrom={5} />);
+    call(ref, 2);
+    expect(screen.getByRole("rowheader", { name: "Item 2" })).toHaveFocus();
+    expect(screen.queryByRole("rowheader", { name: "Item 40" })).not.toBeInTheDocument();
+    call(ref, 40);
+    const scroller = screen.getByRole("region", { name: "Project timeline" });
+    scroller.scrollTop = 35 * 36;
+    fireEvent.scroll(scroller);
+    await waitFor(() => expect(screen.getByRole("rowheader", { name: "Item 40" })).toHaveFocus());
+  });
+
+  test("the wish to focus an unmounted row is dropped by a keypress, like the arrow keys' (it cannot steal focus later)", async () => {
+    stubViewport(900, 180);
+    const ref = handleRef();
+    renderWithProviders(<Harness ref={ref} rows={MANY} virtualizeFrom={5} />);
+    call(ref, 40);
+    const grid = screen.getByRole("grid");
+    fireEvent.keyDown(grid.querySelector('[data-grid-pos="1,0"]') as HTMLElement, { key: "Shift" });
+    const scroller = screen.getByRole("region", { name: "Project timeline" });
+    scroller.scrollTop = 35 * 36;
+    fireEvent.scroll(scroller);
+    await screen.findByRole("rowheader", { name: "Item 40" });
+    expect(screen.getByRole("rowheader", { name: "Item 40" })).not.toHaveFocus();
   });
 });

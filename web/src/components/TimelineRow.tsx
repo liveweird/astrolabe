@@ -2,6 +2,7 @@ import { rovingProps, type GridPos } from "../hooks/useRovingGrid";
 import { COLUMNS_PER_BAR, type TimelineBandData, type TimelineColumn, type TimelineRowData } from "../utils/timelineModel";
 import { toEpochDay, type TimelineScale } from "../utils/timelineScale";
 import TimelineBar from "./TimelineBar";
+import TimelineDrawSurface from "./TimelineDrawSurface";
 import classes from "../theme.module.css";
 
 /** A decorative band over a day span (the plan window, a drift): its facts live in the page's text, so it is `aria-hidden`. */
@@ -64,6 +65,7 @@ export default function TimelineRow({ row, index, scale, columns, leftWidth, act
         })}
       </div>
       <div role="gridcell" className={classes.timelineTrack} style={{ width: scale.totalWidth, backgroundImage: hatch ?? undefined }}>
+        {row.draw !== undefined && <TimelineDrawSurface draw={row.draw} scale={scale} />}
         {row.bands?.map((band) => <TimelineBand key={band.id} band={band} scale={scale} />)}
         {row.track ??
           row.bars.map((bar, b) => (

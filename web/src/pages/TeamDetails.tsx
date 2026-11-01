@@ -28,7 +28,7 @@ import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { loadErrorMessage } from "../utils/saveError";
 import { teamsPath } from "../utils/teamLinks";
 import { dropOutcome } from "../utils/timelineDrag";
-import { defaultRange, makeScale, toEpochDay, ZOOMS, type Zoom } from "../utils/timelineScale";
+import { defaultRange, makeScale, MILESTONE_ZOOMS, toEpochDay, type Zoom } from "../utils/timelineScale";
 
 /** The schedule dialog remembers the plan revision of the view it was opened on: its save must stale-409 if THIS milestone moved since. */
 type Scheduling = { milestone: TeamMilestone; revision: number };
@@ -91,7 +91,7 @@ function TeamPage({ id }: { id: number }) {
   const schedule = useTeamSchedule(id);
   const { view, query } = schedule;
   const order = useTeamOrder(id, view, schedule.announce);
-  const [zoom, setZoom] = useStoredState<Zoom>("timeline.zoom", "week", isOneOf(ZOOMS));
+  const [zoom, setZoom] = useStoredState<Zoom>("timeline.zoom", "week", isOneOf(MILESTONE_ZOOMS));
   const [editing, setEditing] = useState(false);
   const [scheduling, setScheduling] = useState<Scheduling | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);

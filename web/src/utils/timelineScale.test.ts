@@ -6,11 +6,14 @@ import {
   isoWeekOf,
   isWeekend,
   makeScale,
+  MILESTONE_ZOOMS,
+  PLAN_ZOOMS,
   scrollLeftToCenter,
   toEpochDay,
   toIsoDate,
   weekdayOf,
   weekendBackground,
+  ZOOMS,
   type Zoom,
 } from "./timelineScale";
 
@@ -39,6 +42,19 @@ describe("epoch days and weekdays", () => {
   });
 });
 
+describe("the zoom lists", () => {
+  test("the milestone pages keep week / month / quarter, the plan pages get month / quarter / year, ZOOMS holds all four", () => {
+    expect(MILESTONE_ZOOMS).toEqual(["week", "month", "quarter"]);
+    expect(PLAN_ZOOMS).toEqual(["month", "quarter", "year"]);
+    expect(ZOOMS).toEqual(["week", "month", "quarter", "year"]);
+    expect(new Set([...MILESTONE_ZOOMS, ...PLAN_ZOOMS])).toEqual(new Set(ZOOMS));
+  });
+
+  test("a day is 28 / 8 / 3 / 1 px", () => {
+    expect(ZOOMS.map((zoom) => DAY_WIDTH[zoom])).toEqual([28, 8, 3, 1]);
+  });
+});
+
 describe("makeScale", () => {
   const scale = makeScale("week", rangeOf("2026-09-14", "2026-09-27"));
 
@@ -57,6 +73,16 @@ describe("makeScale", () => {
       expect(scale.dayAt(scale.xOf(d))).toBe(d);
       expect(scale.dayAt(scale.xOf(d) + 27)).toBe(d);
     }
+  });
+
+  test("year zoom is one pixel per day: xOf, widthOf and dayAt are the day count", () => {
+    const year = makeScale("year", rangeOf("2026-01-01", "2027-12-31"));
+    expect(year.dayWidth).toBe(1);
+    expect(year.totalWidth).toBe(365 + 365);
+    expect(year.xOf(day("2026-03-01"))).toBe(59);
+    expect(year.widthOf(day("2026-03-01"), day("2026-03-31"))).toBe(31);
+    expect(year.dayAt(59)).toBe(day("2026-03-01"));
+    expect(year.dayAt(365)).toBe(day("2027-01-01"));
   });
 
   test("a reversed range collapses to one day", () => {
@@ -96,8 +122,22 @@ describe("headerRows", () => {
     expect(cells[5].to).toBe(day("2027-01-10"));
   });
 
+  test("year zoom: year groups over quarter cells (a leap year is 366 days), clipped to the range", () => {
+    const { groups, cells } = headerRows(makeScale("year", rangeOf("2027-08-15", "2029-02-10")));
+    expect(groups.map((g) => [g.label, g.to - g.from + 1])).toEqual([
+      ["2027", 139],
+      ["2028", 366],
+      ["2029", 41],
+    ]);
+    expect(cells.map((c) => c.label)).toEqual(["2027-Q3", "2027-Q4", "2028-Q1", "2028-Q2", "2028-Q3", "2028-Q4", "2029-Q1"]);
+    expect(cells[0].from).toBe(day("2027-08-15"));
+    expect(cells[6].to).toBe(day("2029-02-10"));
+    expect(new Set(groups.map((g) => g.key)).size).toBe(groups.length);
+    expect(groups.every((g) => !g.weekend) && cells.every((c) => !c.weekend)).toBe(true);
+  });
+
   test("the cells of every zoom partition the range exactly", () => {
-    for (const zoom of ["week", "month", "quarter"] as Zoom[]) {
+    for (const zoom of ZOOMS as Zoom[]) {
       const scale = makeScale(zoom, rangeOf("2026-02-17", "2026-12-03"));
       const { groups, cells } = headerRows(scale);
       for (const row of [groups, cells]) {
@@ -110,7 +150,8 @@ describe("headerRows", () => {
 });
 
 describe("weekendBackground", () => {
-  test("is drawn at week and month zoom, not at quarter zoom", () => {
+  test("is drawn at week and month zoom, not at quarter or year zoom", () => {
+    expect(weekendBackground(makeScale("year", rangeOf("2026-09-14", "2027-09-27")))).toBeNull();
     expect(weekendBackground(makeScale("week", rangeOf("2026-09-14", "2026-09-27")))).not.toBeNull();
     expect(weekendBackground(makeScale("month", rangeOf("2026-09-14", "2026-09-27")))).not.toBeNull();
     expect(weekendBackground(makeScale("quarter", rangeOf("2026-09-14", "2026-09-27")))).toBeNull();
@@ -153,13 +194,22 @@ describe("defaultRange", () => {
     expect([toIsoDate(range.from), toIsoDate(range.to)]).toEqual(["2026-04-01", "2027-03-31"]);
   });
 
-  test("nothing scheduled: today +/- 6 weeks, 3 months, 2 quarters", () => {
+  test("year zoom: one year either side, whole years", () => {
+    const range = defaultRange(["2026-09-16", "2026-10-02"], "2026-09-20", "year");
+    expect([toIsoDate(range.from), toIsoDate(range.to)]).toEqual(["2025-01-01", "2027-12-31"]);
+    const wide = defaultRange(["2026-12-31", "2028-01-01"], "2027-06-01", "year");
+    expect([toIsoDate(wide.from), toIsoDate(wide.to)]).toEqual(["2025-01-01", "2029-12-31"]);
+  });
+
+  test("nothing scheduled: today +/- 6 weeks, 3 months, 2 quarters, 1 year", () => {
     const week = defaultRange([], "2026-09-16", "week");
     expect([toIsoDate(week.from), toIsoDate(week.to)]).toEqual(["2026-08-03", "2026-11-01"]);
     const month = defaultRange([], "2026-09-16", "month");
     expect([toIsoDate(month.from), toIsoDate(month.to)]).toEqual(["2026-06-01", "2026-12-31"]);
     const quarter = defaultRange([], "2026-09-16", "quarter");
     expect([toIsoDate(quarter.from), toIsoDate(quarter.to)]).toEqual(["2026-01-01", "2027-03-31"]);
+    const year = defaultRange([], "2026-09-16", "year");
+    expect([toIsoDate(year.from), toIsoDate(year.to)]).toEqual(["2025-01-01", "2027-12-31"]);
   });
 
   test("a year boundary does not break the month arithmetic", () => {

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { Modifier } from "@dnd-kit/core";
 import {
+  drawOutcome,
   dropOutcome,
   horizontalOnly,
   isRowNoop,
@@ -51,9 +52,33 @@ describe("dropOutcome", () => {
     expect(dropOutcome("row", bar, 3, toEpochDay("2026-09-21"))).toBeNull();
   });
 
+  test("a draw proposes no dates through dropOutcome either: its span is drawOutcome's", () => {
+    expect(dropOutcome("draw", bar, 3, toEpochDay("2026-09-21"))).toBeNull();
+  });
+
   test("sameSpan compares both ends", () => {
     expect(sameSpan(bar, { ...bar })).toBe(true);
     expect(sameSpan(bar, { ...bar, end: "2026-09-19" })).toBe(false);
+  });
+});
+
+describe("drawOutcome", () => {
+  const anchor = toEpochDay("2026-09-16");
+
+  test("drawing rightwards: the anchor day starts the span, the pointer's day ends it", () => {
+    expect(drawOutcome(anchor, toEpochDay("2026-09-21"))).toEqual({ start: "2026-09-16", end: "2026-09-21" });
+  });
+
+  test("drawing leftwards: the earlier day is the start, whichever way the pointer went", () => {
+    expect(drawOutcome(anchor, toEpochDay("2026-09-11"))).toEqual({ start: "2026-09-11", end: "2026-09-16" });
+  });
+
+  test("the same day is a one-day span, the minimum", () => {
+    expect(drawOutcome(anchor, anchor)).toEqual({ start: "2026-09-16", end: "2026-09-16" });
+  });
+
+  test("month and year boundaries are calendar arithmetic", () => {
+    expect(drawOutcome(toEpochDay("2027-01-02"), toEpochDay("2026-12-30"))).toEqual({ start: "2026-12-30", end: "2027-01-02" });
   });
 });
 

@@ -4,7 +4,8 @@
   "zoom": {
     "week": "Week",
     "month": "Month",
-    "quarter": "Quarter"
+    "quarter": "Quarter",
+    "year": "Year"
   },
   "today": "Today",
   "todayTag": "Today",
@@ -14,6 +15,7 @@
     "readOnly": "{{label}}, read-only",
     "ghost": "{{label}}, from project {{project}}",
     "summary": "{{name}}, the project's span {{start}} to {{end}}",
+    "window": "{{name}}, target window {{start}} to {{end}}",
     "startHandleAria": "Resize start of {{name}}",
     "endHandleAria": "Resize end of {{name}}"
   },
@@ -48,6 +50,9 @@
     "stepRow": "{{name}}: position {{position}} of {{count}}",
     "dropRow": "Dropped {{name}} at position {{position}} of {{count}}.",
     "dropRowNone": "{{name}} stays at position {{position}} of {{count}}.",
-    "cancelRow": "Cancelled; {{name}} stays at position {{position}} of {{count}}."
+    "cancelRow": "Cancelled; {{name}} stays at position {{position}} of {{count}}.",
+    "startDraw": "Drawing {{name}}. Move the pointer across the days and release; Escape cancels.",
+    "dropDraw": "Drew {{name}}: {{start}} to {{end}}.",
+    "cancelDraw": "Cancelled; nothing was drawn for {{name}}."
   }
 }

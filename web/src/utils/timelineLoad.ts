@@ -44,11 +44,11 @@ export interface StripCell {
   load: number;
   capacity: number | null;
   overloaded: boolean;
-  /** The figure printed in the cell: "8.5 / 14" at week zoom, "8.5" at month zoom, "" at quarter zoom, in a cell under 40 px or when nothing is loaded. */
+  /** The figure printed in the cell: "8.5 / 14" at week zoom, "8.5" at month zoom, "" at quarter and year zoom (the strip is never shown at year zoom), in a cell under 40 px or when nothing is loaded. */
   text: string;
   maxWip: number;
   wipExceeded: boolean;
-  /** The WIP chip's text (the peak) at week and month zoom; "" at quarter zoom, where the chip is a dot. */
+  /** The WIP chip's text (the peak) at week and month zoom; "" at quarter and year zoom, where the chip is a dot. */
   wipText: string;
 }
 
@@ -66,7 +66,7 @@ function fillHeightOf(load: number, capacity: number | null): number {
 }
 
 function textOf(week: LoadWeek, zoom: TimelineScale["zoom"]): string {
-  if (zoom === "quarter" || (week.load <= 0 && week.capacity === null)) return "";
+  if (zoom === "quarter" || zoom === "year" || (week.load <= 0 && week.capacity === null)) return "";
   if (zoom === "month" || week.capacity === null) return formatMd(week.load);
   return `${formatMd(week.load)} / ${formatMd(week.capacity)}`;
 }
@@ -95,7 +95,7 @@ export function stripCells(weeks: readonly LoadWeek[], scale: TimelineScale): St
       text: width < MIN_TEXT_WIDTH ? "" : textOf(week, scale.zoom),
       maxWip: week.maxWip,
       wipExceeded: week.wipExceeded,
-      wipText: scale.zoom === "quarter" ? "" : String(week.maxWip),
+      wipText: scale.zoom === "quarter" || scale.zoom === "year" ? "" : String(week.maxWip),
     });
   }
   return cells;

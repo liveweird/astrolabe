@@ -31,7 +31,7 @@ import { conflictCount, linksOfMilestone } from "../utils/projectDependencies";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { loadErrorMessage, saveErrorMessage } from "../utils/saveError";
 import { dropOutcome } from "../utils/timelineDrag";
-import { defaultRange, makeScale, toEpochDay, ZOOMS, type Zoom } from "../utils/timelineScale";
+import { defaultRange, makeScale, MILESTONE_ZOOMS, toEpochDay, type Zoom } from "../utils/timelineScale";
 
 /** The schedule dialog remembers the plan revision of the view it was opened on: its save must stale-409 if THIS milestone moved since. */
 type Scheduling = { milestone: ProjectMilestone; revision: number };
@@ -97,7 +97,7 @@ function ProjectPage({ id }: { id: number }) {
   const queryClient = useQueryClient();
   const schedule = useMilestoneSchedule(id);
   const { view, query } = schedule;
-  const [zoom, setZoom] = useStoredState<Zoom>("timeline.zoom", "week", isOneOf(ZOOMS));
+  const [zoom, setZoom] = useStoredState<Zoom>("timeline.zoom", "week", isOneOf(MILESTONE_ZOOMS));
   const [editor, setEditor] = useState<Editor | null>(null);
   const [scheduling, setScheduling] = useState<Scheduling | null>(null);
   // The earliest and latest day this page has shown: the range only ever grows, so a drag never shifts the bars under the pointer.

@@ -25,8 +25,9 @@ type BarRoving = (offset: 0 | 1 | 2) => RovingTarget;
 export default function TimelineBar({ bar, scale, roving }: { bar: TimelineBarData; scale: TimelineScale; roving: BarRoving }) {
   const preview = useTimelinePreview();
   // A resize redraws the bar from the preview; a move keeps its geometry and is translated (see EditableBar).
-  // (a held ROW has a preview too — its slot — which no bar draws)
-  const shown = preview !== null && preview.kind !== "row" && preview.barId === bar.id && preview.kind !== "move" ? preview : bar;
+  // (a held ROW and a DRAW have previews too — a slot, a span for the row's draw surface — which no bar draws)
+  const resizing = preview !== null && (preview.kind === "resize-start" || preview.kind === "resize-end") && preview.barId === bar.id;
+  const shown = resizing ? preview : bar;
   const start = toEpochDay(shown.start);
   const geometry = { left: scale.xOf(start), width: scale.widthOf(start, toEpochDay(shown.end)) };
   return bar.editable ? (
@@ -42,14 +43,28 @@ interface BarProps {
   roving: BarRoving;
 }
 
-/** A read-only bar's tone: a ghost (another project's endpoint) is faint and dashed, a summary (the project's span) hollow. */
-const TONE_CLASS = { ghost: classes.timelineBarGhost, summary: classes.timelineBarSummary } as const;
+/**
+ * A bar's tone: a ghost (another project's endpoint) is faint and dashed, a summary (the project's span) hollow — both READ-ONLY tones, ignored on
+ * an editable bar — and a window (a target window) the band look, honoured on a read-only AND on an editable bar (`toneOf`).
+ */
+const TONE_CLASS = { ghost: classes.timelineBarGhost, summary: classes.timelineBarSummary, window: classes.timelineBarWindow } as const;
+
+/** The bar's wrapper class: a window bar fills the whole row height, any other bar sits inset in it. */
+const frameClass = (bar: TimelineBarData) => (bar.tone === "window" ? `${classes.timelineBar} ${classes.timelineBarFrameWindow}` : classes.timelineBar);
+
+/** The tone a bar is drawn with: any on a read-only bar, only `window` on an editable one. */
+const toneOf = (bar: TimelineBarData) => (bar.editable && bar.tone !== "window" ? undefined : bar.tone);
+
+const toneClass = (bar: TimelineBarData) => {
+  const tone = toneOf(bar);
+  return tone === undefined ? "" : TONE_CLASS[tone];
+};
 
 function ReadOnlyBar({ bar, geometry, roving }: BarProps) {
   const { t } = useTranslation();
-  const tone = bar.tone === undefined ? "" : TONE_CLASS[bar.tone];
+  const tone = toneClass(bar);
   return (
-    <div className={classes.timelineBar} style={geometry}>
+    <div className={frameClass(bar)} style={geometry}>
       <div
         role="img"
         aria-label={t("timeline.bar.readOnly", { label: bar.describe })}
@@ -85,11 +100,12 @@ function EditableBar({ bar, geometry, handleWidth, roving }: BarProps & { handle
   const dragging = bodyDragging || startDragging || endDragging;
 
   return (
-    <div className={classes.timelineBar} style={{ ...geometry, transform: CSS.Translate.toString(transform) }}>
+    <div className={frameClass(bar)} style={{ ...geometry, transform: CSS.Translate.toString(transform) }}>
       <div
         ref={bodyRef}
         aria-label={bar.describe}
-        className={`${classes.timelineBarBody} ${classes.timelineBarEditable} ${dragging ? classes.timelineBarDragging : ""}`}
+        data-tone={toneOf(bar)}
+        className={`${classes.timelineBarBody} ${toneClass(bar)} ${classes.timelineBarEditable} ${dragging ? classes.timelineBarDragging : ""}`}
         {...bodyAttrs}
         {...bodyListeners}
         {...roving(0)}

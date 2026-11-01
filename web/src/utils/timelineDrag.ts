@@ -5,11 +5,11 @@ import { toEpochDay, toIsoDate } from "./timelineScale";
 /**
  * The Timeline's drag arithmetic, pure: what a drop MEANS in dates (`dropOutcome`), the dnd-kit keyboard coordinate getter
  * (one day per arrow, a week with Shift), the two modifiers that keep a bar on its row and on whole days, and the row drag's slot arithmetic
- * (`rowSlotAt`, `rowPositionAfter`; a row drag proposes no dates). Dates are ISO
+ * (`rowSlotAt`, `rowPositionAfter`; a row drag proposes no dates), and the draw gesture's span (`drawOutcome`). Dates are ISO
  * `YYYY-MM-DD` strings; no `@dnd-kit/modifiers` dependency (three lines each).
  */
 
-export type DragKind = "move" | "resize-start" | "resize-end" | "tray" | "row";
+export type DragKind = "move" | "resize-start" | "resize-end" | "tray" | "row" | "draw";
 
 export interface Span {
   start: string;
@@ -25,10 +25,11 @@ const KEYBOARD_WEEK_DAYS = 7;
 /**
  * The dates a drop produces. `deltaDays` is the whole-day displacement of the dragged bar (or edge); `dayAtPointer` is the
  * epoch day under the pointer, used only by the tray kind (a tray item has no dates of its own). A resize never crosses the
- * opposite edge (a one-day bar is the minimum); a tray drop without a day answers `null`, and so does a row drag (it proposes a slot, not dates).
+ * opposite edge (a one-day bar is the minimum); a tray drop without a day answers `null`, and so does a row drag (it proposes a slot, not dates)
+ * and a draw (its span is {@link drawOutcome}: two days, no bar).
  */
 export function dropOutcome(kind: DragKind, bar: Span | null, deltaDays: number, dayAtPointer: number | null): Span | null {
-  if (kind === "row") return null;
+  if (kind === "row" || kind === "draw") return null;
   if (kind === "tray") {
     if (dayAtPointer === null) return null;
     return { start: toIsoDate(dayAtPointer), end: toIsoDate(dayAtPointer + TRAY_SPAN_DAYS) };
@@ -44,6 +45,14 @@ export function dropOutcome(kind: DragKind, bar: Span | null, deltaDays: number,
     case "resize-end":
       return { start: bar.start, end: toIsoDate(Math.max(end + deltaDays, start)) };
   }
+}
+
+/**
+ * The span a DRAW gesture drags out: from the day the pointer went down on (`anchorDay`) to the day it is over now (`pointerDay`), both epoch
+ * days, in either direction. The earlier is the start, the later the end (one day when they are equal, the minimum).
+ */
+export function drawOutcome(anchorDay: number, pointerDay: number): Span {
+  return { start: toIsoDate(Math.min(anchorDay, pointerDay)), end: toIsoDate(Math.max(anchorDay, pointerDay)) };
 }
 
 /** The whole-day displacement a gesture may reach: a resize never crosses the opposite edge (a one-day bar is the minimum). */
