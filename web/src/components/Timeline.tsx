@@ -216,11 +216,17 @@ export default function Timeline({
   const bodyHeight = Math.max(rows.length, MIN_BODY_ROWS) * ROW_HEIGHT;
   const trackLeft = { left: leftWidth };
 
+  // Built on first use (an arrow resolves its rows by id), so a timeline without arrows never pays for it.
+  let rowIndexById: Map<number | string, number> | null = null;
   const geometry: TimelineGeometry | null =
     overlay === undefined
       ? null
       : {
           scale,
+          rowIndexOf: (rowId) => {
+            rowIndexById ??= new Map(rows.map((candidate, index) => [candidate.id, index]));
+            return rowIndexById.get(rowId) ?? null;
+          },
           xOf: (iso) => scale.xOf(toEpochDay(iso)),
           rowTop: (index) => index * ROW_HEIGHT,
           rowHeight: ROW_HEIGHT,

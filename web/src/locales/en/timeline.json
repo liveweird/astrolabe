@@ -12,6 +12,8 @@
     "roleDescription": "movable bar",
     "handleRoleDescription": "resize handle",
     "readOnly": "{{label}}, read-only",
+    "ghost": "{{label}}, from project {{project}}",
+    "summary": "{{name}}, the project's span {{start}} to {{end}}",
     "startHandleAria": "Resize start of {{name}}",
     "endHandleAria": "Resize end of {{name}}"
   },

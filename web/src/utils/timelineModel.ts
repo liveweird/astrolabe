@@ -34,6 +34,11 @@ export interface TimelineBarData {
   describe: string;
   /** May the caller propose new dates? (The page's `can` flag; the server still decides.) */
   editable: boolean;
+  /**
+   * How a READ-ONLY bar is drawn (ignored on an editable one): `ghost` = an endpoint that lives on another project (a faint
+   * dashed bar), `summary` = the project's own derived span (a hollow outline). Absent = the ordinary neutral bar.
+   */
+  tone?: "ghost" | "summary";
 }
 
 export interface TimelineBandData {
@@ -43,6 +48,31 @@ export interface TimelineBandData {
   label: string;
   /** `window` = a plan window (quiet gray, dashed edges); `drift` = a deviation from it (orange). */
   tone: "window" | "drift";
+}
+
+/**
+ * One end of a dependency arrow: a bar of a row, and which edge of it the arrow touches. `START` = the bar's left edge,
+ * `END` = its right edge. `row` is the row's `TimelineRowData.id`, `bar` the bar's `TimelineBarData.id` in that row.
+ */
+interface TimelineArrowEnd {
+  row: number | string;
+  bar: BarId;
+  kind: "START" | "END";
+}
+
+/**
+ * A dependency arrow, predecessor to successor, for the Timeline's `overlay` (`TimelineArrows`). Decorative: the facts live in the
+ * page's table. Dependency type FS = `from.kind END` to `to.kind START`, SS = START to START, FF = END to END, SF = START to END.
+ */
+export interface TimelineArrowData {
+  /** Unique among the timeline's arrows; becomes the path's `data-arrow`. */
+  id: string | number;
+  from: TimelineArrowEnd;
+  to: TimelineArrowEnd;
+  /** The constraint does not hold: drawn red (and `data-violated="true"`). */
+  violated: boolean;
+  /** A short human description ("A → B, FS"); the path's `<title>` (not an accessible name: the svg is `aria-hidden`). */
+  label: string;
 }
 
 /** The attributes that make an element a stop of the roving grid; a cell function spreads them on its focus target. */
@@ -76,6 +106,8 @@ export interface TimelineGeometry {
   xOf: (iso: string) => number;
   rowTop: (rowIndex: number) => number;
   rowHeight: number;
+  /** The index of the row with this `TimelineRowData.id`, or `null` when there is none. */
+  rowIndexOf: (rowId: number | string) => number | null;
   /** The rectangle of a bar (committed dates, not a drag preview), or `null` when the row or the bar does not exist. */
   barRect: (rowIndex: number, barId: BarId) => { x: number; y: number; width: number; height: number } | null;
   /** The first and last MOUNTED row indices (the whole list when not virtualised): draw arrows only for these. */

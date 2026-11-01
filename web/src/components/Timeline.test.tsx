@@ -4,10 +4,11 @@ import userEvent from "@testing-library/user-event";
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { DndContext, useDndContext } from "@dnd-kit/core";
 import Timeline from "./Timeline";
+import TimelineArrows from "./TimelineArrows";
 import TimelineDndContext from "./TimelineDndContext";
 import TimelineUnscheduledTray, { type TrayItem } from "./TimelineUnscheduledTray";
 import { TIMELINE_DROP_ID } from "../hooks/useTimelinePreview";
-import type { TimelineBarData, TimelineColumn, TimelineGeometry, TimelineRowData } from "../utils/timelineModel";
+import type { TimelineArrowData, TimelineBarData, TimelineColumn, TimelineGeometry, TimelineRowData } from "../utils/timelineModel";
 import { makeScale, toEpochDay, type Zoom } from "../utils/timelineScale";
 import { renderWithProviders } from "../test/render";
 
@@ -198,6 +199,8 @@ describe("Timeline frame", () => {
     const geometry = overlay.mock.calls[0][0];
     expect(geometry.rowTop(2)).toBe(72);
     expect(geometry.rowHeight).toBe(36);
+    expect(geometry.rowIndexOf(2)).toBe(1);
+    expect(geometry.rowIndexOf(99)).toBeNull();
     expect(geometry.xOf("2026-09-16")).toBe(56);
     expect(geometry.barRect(0, 1)).toEqual({ x: 56, y: 6, width: 84, height: 24 });
     expect(geometry.barRect(1, 2)).toEqual({ x: 7 * DAY, y: 42, width: 5 * DAY, height: 24 });
@@ -877,5 +880,77 @@ describe("the Unscheduled tray", () => {
     renderTray([]);
     expect(screen.getByText("Nothing waits")).toBeInTheDocument();
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  });
+});
+
+describe("bar tones", () => {
+  const ghost = { ...bar(5, "Their milestone", "2026-09-22", "2026-09-24", false), tone: "ghost" as const };
+  const summary = { ...bar(6, "Project", "2026-09-16", "2026-09-25", false), tone: "summary" as const };
+
+  test("a read-only ghost and summary bar keep their accessible name and expose the tone as an attribute", () => {
+    renderWithProviders(<Harness rows={[row(1, "Own", [summary]), row(2, "Other › Theirs", [ghost])]} />);
+    const ghostBody = screen.getByRole("img", { name: "Their milestone, Team A, 2026-09-22 to 2026-09-24, read-only" });
+    const summaryBody = screen.getByRole("img", { name: /^Project, Team A/ });
+    expect(ghostBody).toHaveAttribute("data-tone", "ghost");
+    expect(summaryBody).toHaveAttribute("data-tone", "summary");
+    expect(ghostBody.className).not.toBe(summaryBody.className);
+  });
+
+  test("an ordinary read-only bar has no tone, and an editable bar ignores one", () => {
+    renderWithProviders(<Harness rows={[row(1, "Build", [BUILD]), row(2, "Editable", [{ ...bar(7, "Edit", "2026-09-16", "2026-09-18"), tone: "ghost" }])]} />);
+    expect(screen.getByRole("img", { name: /^Build,/ })).not.toHaveAttribute("data-tone");
+    expect(barBody("Edit, Team A, 2026-09-16 to 2026-09-18")).not.toHaveAttribute("data-tone");
+  });
+});
+
+describe("dependency arrows in the overlay", () => {
+  const arrow = (id: string, fromRow: number, fromBar: number, toRow: number, toBar: number, violated = false): TimelineArrowData => ({
+    id,
+    from: { row: fromRow, bar: fromBar, kind: "END" },
+    to: { row: toRow, bar: toBar, kind: "START" },
+    violated,
+    label: `${id} label`,
+  });
+  const drawn = (container: HTMLElement) => Array.from(container.querySelectorAll<SVGPathElement>("path[data-arrow]"));
+
+  test("one decorative path per arrow, with data-arrow and data-violated, inside the Timeline's one svg", () => {
+    const arrows = [arrow("ok", 1, 1, 2, 2), arrow("late", 2, 2, 1, 1, true)];
+    const { container } = renderWithProviders(<Harness overlay={(geometry) => <TimelineArrows arrows={arrows} geometry={geometry} />} />);
+    const paths = drawn(container);
+    expect(paths.map((p) => [p.dataset.arrow, p.dataset.violated])).toEqual([["ok", "false"], ["late", "true"]]);
+    expect(container.querySelectorAll("svg[aria-hidden='true']")).toHaveLength(1);
+    expect(container.querySelector("svg[aria-hidden='true']")).toContainElement(paths[0]);
+    // Discovery (row 1) ends 09-18 → x 140; Build (row 2) starts 09-21 → x 196: stub, down, straight in
+    expect(paths[0].getAttribute("d")).toBe("M140 18 L148 18 L148 54 L196 54");
+    expect(paths[0].querySelector("title")).toHaveTextContent("ok label");
+    expect(paths[0].getAttribute("marker-end")).toBe("url(#timeline-arrowhead)");
+    expect(paths[1].getAttribute("marker-end")).toBe("url(#timeline-arrowhead-violated)");
+    expect(container.querySelector("marker#timeline-arrowhead")).not.toBeNull();
+    expect(container.querySelector("marker#timeline-arrowhead-violated")).not.toBeNull();
+  });
+
+  test("an arrow to a row or bar that is not there draws nothing", () => {
+    const { container } = renderWithProviders(
+      <Harness overlay={(geometry) => <TimelineArrows arrows={[arrow("gone", 1, 1, 99, 2), arrow("nobar", 1, 1, 2, 77)]} geometry={geometry} />} />,
+    );
+    expect(drawn(container)).toHaveLength(0);
+  });
+
+  test("only the mounted window draws on the virtual path, from the same data-derived geometry", () => {
+    stubViewport(900, 180);
+    const many: TimelineRowData[] = Array.from({ length: 40 }, (_, i) => row(i + 1, `Item ${i + 1}`, [bar(i + 1, `Item ${i + 1}`, "2026-09-16", "2026-09-18")]));
+    const arrows = [arrow("top", 1, 1, 2, 2), arrow("across", 2, 2, 40, 40), arrow("far", 30, 30, 31, 31)];
+    const { container } = renderWithProviders(<Harness rows={many} virtualizeFrom={5} overlay={(geometry) => <TimelineArrows arrows={arrows} geometry={geometry} />} />);
+    expect(drawn(container).map((p) => p.dataset.arrow)).toEqual(["top", "across"]);
+    // the unmounted end (row 40, index 39) is positioned from data: y = 39 * 36 + 18
+    expect(drawn(container)[1].getAttribute("d")).toMatch(/ 1422 /);
+  });
+
+  test("arrows follow committed dates: a pending resize preview does not move them", () => {
+    const { container } = renderWithProviders(<Harness overlay={(geometry) => <TimelineArrows arrows={[arrow("ok", 1, 1, 2, 2)]} geometry={geometry} />} />);
+    const before = drawn(container)[0].getAttribute("d");
+    emit("onDragStart", { active: active("resize-end"), activatorEvent: null });
+    emit("onDragMove", gesture(active("resize-end"), 3));
+    expect(drawn(container)[0].getAttribute("d")).toBe(before);
   });
 });

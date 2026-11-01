@@ -6,7 +6,7 @@ not in the mechanics. **The component draws and proposes; it never writes and ne
 
 Files (all flat under `web/src/`): `utils/timelineScale.ts` (pure coordinate model, header, hatch, default range), `utils/timelineDrag.ts` (pure drag arithmetic, dnd-kit keyboard getter and modifiers), `utils/timelineModel.ts` (the data contract
 types and layout constants), `hooks/useTimelinePreview.ts` (drag data + preview context), `components/Timeline.tsx` (the frame), `TimelineHeader.tsx`, `TimelineRow.tsx` (+ `TimelineBand`), `TimelineBar.tsx`, `TimelineDndContext.tsx`,
-`TimelineToolbar.tsx`, `TimelineUnscheduledTray.tsx`; `theme.module.css` holds the `timeline*` classes; strings in `locales/{en,pl}/timeline.json`.
+`TimelineToolbar.tsx`, `TimelineUnscheduledTray.tsx`; v0.4 adds `utils/timelineArrows.ts` and `components/TimelineArrows.tsx` (see "Arrows"); `theme.module.css` holds the `timeline*` classes; strings in `locales/{en,pl}/timeline.json`.
 
 #### Coordinate model
 
@@ -30,17 +30,44 @@ a range recomputed from every drag would shift every bar under the pointer. `scr
 - `TimelineRowData{id, cells, bars, bands?, track?}` — `cells[i]` belongs to `columns[i]`: static content (the cell itself is the roving stop) or a **function `(stop) => node`** that spreads `stop` (`data-grid-pos`, `tabIndex`) on its own focusable (a link, the row
   menu button) so one cell never holds two tab stops. `bars` are the row's bars (usually one). `bands` are confined to this row's track. `track` REPLACES the bar rendering of the row's track (the v0.5 load strip positions its own cells with the exported
   scale); the row's hatch and bands still draw. A track-only row (no `bars`) exposes no roving columns beyond its left cells, so focusable content inside a `track` (the v0.5 strip) brings its own focus handling.
-- `TimelineBarData{id, start, end, label, describe, editable}` — `describe` is the bar's accessible name (the page builds it: "{name}, {team}, {start} to {end}, {estimate} man-days"); the component appends ", read-only" (`timeline.bar.readOnly`) when
-  `editable` is false. `label` is the short name used by the handles and announcements. Bar ids are unique across the timeline.
+- `TimelineBarData{id, start, end, label, describe, editable, tone?}` — `describe` is the bar's accessible name (the page builds it: "{name}, {team}, {start} to {end}, {estimate} man-days"); the component appends ", read-only" (`timeline.bar.readOnly`) when
+  `editable` is false. `label` is the short name used by the handles and announcements. Bar ids are unique across the timeline. `tone?: "ghost" | "summary"` (v0.4) styles a READ-ONLY bar (an editable bar ignores it; see "Arrows").
 - `TimelineBandData{id, start, end, label, tone: "window" | "drift"}` — decorative (`aria-hidden`, `title` = label); the facts live in the page's text. Passed as the `bands` prop it spans every row (the project's target window); in a row it spans that row.
   `window` is a quiet gray tint with dashed edges, `drift` is orange (red is never used: nothing blocks in v0.3).
 - `Timeline` props: `label`, `scale`, `onZoomChange`, `today` (ISO, injected), `columns`, `rows`, `bands?`, `overlay?`, `virtualizeFrom?` (80), `maxHeight?` (640), `busy?` (`aria-busy` on the grid while a save is in flight).
 
-#### Overlay geometry (v0.4 dependency arrows)
+#### Overlay geometry
 
 `overlay?: (g: TimelineGeometry) => ReactNode` renders its result inside ONE absolutely positioned `<svg aria-hidden>` over the body (`pointer-events: none`, origin = left of the range / top of the first row). `TimelineGeometry` is computed from DATA, never measured:
-`scale`, `xOf(iso)`, `rowTop(i) = i × 36`, `rowHeight = 36`, `barRect(rowIndex, barId) → {x, y, width, height} | null` (`y = rowTop + 6`, `height = 24`; the committed dates, not a drag preview) and `visibleRows{first, last}` (the mounted
+`scale`, `xOf(iso)`, `rowTop(i) = i × 36`, `rowHeight = 36`, `rowIndexOf(rowId) → index | null` (the row with that `TimelineRowData.id`; the id map is built on first call), `barRect(rowIndex, barId) → {x, y, width, height} | null` (`y = rowTop + 6`, `height = 24`; the committed dates, not a drag preview) and `visibleRows{first, last}` (the mounted
 window; draw arrows only for these). Arrows therefore work identically on the plain and the virtual path.
+
+#### Arrows (built, v0.4 — the component level; the project view wires them in the same release)
+
+Files: `utils/timelineArrows.ts` (pure routing + resolution), `components/TimelineArrows.tsx` (the renderer), `TimelineArrowData` in `utils/timelineModel.ts` (the input). A page passes `overlay={(g) => <TimelineArrows arrows={specs} geometry={g} />}`; the component draws, it decides nothing.
+
+**The input contract** — `TimelineArrowData{id, from, to, violated, label}`, `from` the predecessor and `to` the successor, each end `{row, bar, kind}`: `row` = the `TimelineRowData.id` of the row, `bar` = the `TimelineBarData.id` inside it, `kind` = `START` (the bar's left edge) or `END` (its right edge).
+Dependency types map as FS = END→START, SS = START→START, FF = END→END, SF = START→END. `violated` draws the arrow red; `label` ("A → B, FS") is the path's `<title>` only. `id` is unique among the arrows. A page maps its view onto this; the component never learns what a dependency is.
+
+**The route** (`arrowRoute`, all legs horizontal or vertical): the arrow leaves its anchor (the middle of the bar's edge) outward, runs vertically to the successor's row and enters the successor's anchor moving INTO the bar. Stubs are 8 px.
+- Edges facing the same way (SS, FF) on different rows: one vertical leg just outside the further of the two 8 px stubs; never a backtrack.
+- Opposite ways (FS, SF) and the successor's anchor is AHEAD of the predecessor's in the leaving direction (FS: `to.x >= from.x`; SF: `to.x <= from.x`): one vertical leg at `min(8 px, gap / 2)` from the predecessor's edge, then straight in. A narrow gap shrinks the stub instead of reading as a backtrack: back-to-back bars (gap 0) run straight down the shared edge,
+  Friday to Monday at quarter zoom (9 px) turns at 4.5 px.
+- The BACKTRACK is used only when the successor's anchor is BEHIND the predecessor's in the leaving direction (FS with the successor starting before the predecessor ends — a violation or a lead; SF whenever the successor ends right of the predecessor's start, its usual case) and for SS/FF on the SAME row (their straight leg would run through the bars' centre line;
+  not a planned shape, but guarded): the vertical leg runs along the ROW BOUNDARY next to the successor's row (`rowTop(toRow)` when the predecessor's row is above, `rowTop(toRow) + rowHeight` when it is below or the same), a second horizontal leg goes to the approach point (anchor ± 8 px) and a short vertical leg drops onto the row — so the arrow never crosses a bar it connects.
+- The overlay svg spans exactly the track, so a stub left of the range start (x < 0) is clipped. That strip is the sticky left columns' (opaque, z-index 3 over the overlay's 2), which would cover it anyway; the page's range is padded outward from its data, so a bar does not touch the range ends in practice.
+
+**Which arrows are drawn** (`arrowsToDraw`): an arrow whose row or bar is unknown to the geometry is skipped; so is an arrow with NEITHER end in `visibleRows` (the mounted window — on the plain path every row, on the virtual path the window with its overscan). An arrow with one mounted end is drawn whole: the other end is positioned from data. An arrow whose both ends lie outside the window but whose
+line would cross it is NOT drawn (accepted: the project view never virtualises). **Committed dates only**: the geometry is built from `rows`, so a drag or resize preview does not drag an arrow; the optimistic update moves it at the drop.
+
+**Output** — one `<path data-arrow={id} data-violated={true|false}>` per arrow with a `<title>` and a `marker-end` arrowhead; two `<marker>`s with the FIXED ids `timeline-arrowhead` / `timeline-arrowhead-violated` (one timeline per page). Tests and e2e count `data-arrow` and read `data-violated`; colour is never asserted. **Decorative**: the svg is `aria-hidden`, the accessible surface is the page's dependency table.
+Colour: tokens on `timelineGrid` — `--timeline-arrow` (the SOLID dimmed text colour, gray; the path carries `opacity: 0.7` so its line and arrowhead fade as one group instead of compounding an alpha colour where they meet; the head's tip sits on the anchor, `refX = 10`) and `--timeline-violation` (`light-dark(red-8, red-5)`: red = a violated constraint), 1.5 px strokes.
+
+**Bar tones** (`TimelineBarData.tone`, read-only bars only; rendered as a class and a `data-tone` attribute): `ghost` = an endpoint that lives on another project — the bar colour at 35 % with a dashed outline; `summary` = the project's own derived span — hollow, a 2 px outline. A tone changes no accessible name: the page's `describe` carries the words
+(`timeline.bar.ghost` "{label}, from project {project}" and `timeline.bar.summary` "{name}, the project's span {start} to {end}" are the strings it uses; they exist from C4 on but are consumed from C5, when the project view builds the ghost and summary rows).
+
+**Cost.** Resolving the arrows is O(arrows) per render. One-off, NON-BINDING measurement (not a budget; re-measure rather than quote it) with the C4 component, 50 rows and 200 arrows (all drawn), one run on an Apple-silicon laptop (arm64, Node 26, vitest + happy-dom): `arrowsToDraw` median 0.24 ms (p95 0.33 ms) over 200 repetitions; mounting the whole Timeline in happy-dom (DOM construction only: NO layout, NO paint)
+15.8 ms median without arrows, 21.3 ms with the 200 arrows (+5 ms; three runs: 20.8–21.3). That is not a browser figure; the real-browser render/paint figure needs the project view and is measured with C5. The 1,000-row v0.5/v0.6 pages re-run the filter on every scroll frame (a few thousand comparisons); a per-row index is the remedy when that is not enough.
 
 #### Drag, resize and keyboard contract
 
@@ -88,7 +115,7 @@ Deferred: nothing timeline-specific; `hooks/usePrintLifecycle.ts` and `print.css
 
 #### Tests
 
-`utils/timelineScale.test.ts`, `utils/timelineDrag.test.ts` (pure, table-driven); `hooks/useRovingGrid.test.tsx` (vertical fallback, ragged rows); `components/Timeline.test.tsx` (bars at their computed `left`/`width`, read-only rows, bands, the overlay geometry, the `track` slot, roving navigation,
+`utils/timelineScale.test.ts`, `utils/timelineDrag.test.ts`, `utils/timelineArrows.test.ts` (pure, table-driven: every route shape per type, the backtrack above and below, the mounted-rows filter, missing rows/bars; the Timeline suite adds the tones and the arrows through the overlay, plain and virtual, and the committed-dates rule); `hooks/useRovingGrid.test.tsx` (vertical fallback, ragged rows); `components/Timeline.test.tsx` (bars at their computed `left`/`width`, read-only rows, bands, the overlay geometry, the `track` slot, roving navigation,
 every drop outcome through the wrapped `DndContext` — happy-dom has no layout, so the handlers are fed events —, the announcements, the keyboard sensor end to end, the virtual window with `virtualizeFrom = 5` and a stubbed viewport (`clientHeight`), scroll-then-focus, the tray). The real pointer drag, the resize handles, the tray
 drop under a scrolled grid and the keyboard sensor under a real layout are `e2e/tests/project-view.spec.ts` — those scenarios own them (and they found the autoscroll zone above).
 

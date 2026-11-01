@@ -41,11 +41,21 @@ interface BarProps {
   roving: BarRoving;
 }
 
+/** A read-only bar's tone: a ghost (another project's endpoint) is faint and dashed, a summary (the project's span) hollow. */
+const TONE_CLASS = { ghost: classes.timelineBarGhost, summary: classes.timelineBarSummary } as const;
+
 function ReadOnlyBar({ bar, geometry, roving }: BarProps) {
   const { t } = useTranslation();
+  const tone = bar.tone === undefined ? "" : TONE_CLASS[bar.tone];
   return (
     <div className={classes.timelineBar} style={geometry}>
-      <div role="img" aria-label={t("timeline.bar.readOnly", { label: bar.describe })} className={classes.timelineBarBody} {...roving(0)} />
+      <div
+        role="img"
+        aria-label={t("timeline.bar.readOnly", { label: bar.describe })}
+        className={`${classes.timelineBarBody} ${tone}`}
+        data-tone={bar.tone}
+        {...roving(0)}
+      />
     </div>
   );
 }

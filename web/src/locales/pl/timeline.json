@@ -12,6 +12,8 @@
     "roleDescription": "przesuwalny pasek",
     "handleRoleDescription": "uchwyt zmiany długości",
     "readOnly": "{{label}}, tylko do odczytu",
+    "ghost": "{{label}}, z projektu {{project}}",
+    "summary": "{{name}}, zakres projektu od {{start}} do {{end}}",
     "startHandleAria": "Zmień początek: {{name}}",
     "endHandleAria": "Zmień koniec: {{name}}"
   },

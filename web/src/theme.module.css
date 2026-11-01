@@ -173,6 +173,8 @@
   --timeline-bar: light-dark(var(--mantine-color-gray-6), var(--mantine-color-dark-2));
   --timeline-window-edge: light-dark(var(--mantine-color-gray-6), var(--mantine-color-dark-2));
   --timeline-drift-edge: light-dark(var(--mantine-color-orange-8), var(--mantine-color-orange-5));
+  --timeline-arrow: var(--mantine-color-dimmed);
+  --timeline-violation: light-dark(var(--mantine-color-red-8), var(--mantine-color-red-5));
   position: relative;
   font-size: var(--mantine-font-size-sm);
   background: var(--mantine-color-body);
@@ -307,6 +309,8 @@
   opacity: 0.55;
 }
 
+/* The svg spans exactly the track (x = 0 is the range start). It clips at x < 0, which is harmless: that strip is the sticky left
+   columns' (z-index 3, opaque), which paint over the overlay anyway; the page's range is padded outward from its data. */
 .timelineOverlay {
   position: absolute;
   top: 0;
@@ -341,6 +345,45 @@
 .timelineBarDragging {
   cursor: grabbing;
   background: var(--astrolabe-accent-ink);
+}
+
+/* Read-only tones (TimelineBarData.tone). A ghost is another project's endpoint: the bar colour at 35 % with a dashed outline.
+   A summary is the project's own derived span: hollow, an outline only. */
+.timelineBarGhost {
+  background: color-mix(in srgb, var(--timeline-bar) 35%, transparent);
+  border: 1px dashed var(--timeline-bar);
+}
+
+.timelineBarSummary {
+  background: transparent;
+  border: 2px solid var(--timeline-bar);
+}
+
+/* Dependency arrows (TimelineArrows): gray; a violated constraint is red (web/CLAUDE.md colour vocabulary). */
+.timelineArrow,
+.timelineArrowViolated {
+  fill: none;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+/* The 70 % is the path's OPACITY (a group: its line and its arrowhead as one), over SOLID stroke and marker colours — an alpha colour on
+   both would darken where the line meets the head. */
+.timelineArrow {
+  stroke: var(--timeline-arrow);
+  opacity: 0.7;
+}
+
+.timelineArrowViolated {
+  stroke: var(--timeline-violation);
+}
+
+.timelineArrowHead {
+  fill: var(--timeline-arrow);
+}
+
+.timelineArrowHeadViolated {
+  fill: var(--timeline-violation);
 }
 
 .timelineHandle {
