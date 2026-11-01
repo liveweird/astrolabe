@@ -160,6 +160,32 @@ class PlanPermissionsTest {
     }
 
     @Test
+    fun `the create-dependency flag equals requireOwnerOrAdmin on the successor's chain - the predecessor's owner is refused`() {
+        for (actor in actors) for ((level, chain) in chains.filter { it.second.owners.size == 3 }) {
+            val guard = allowed { requireOwnerOrAdmin(actor.caller, actor.personId, chain) }
+            assertEquals(guard, PlanPermissions.canCreateDependency(actor.asPlanActor(), chain), "${actor.label} at the $level")
+        }
+        // The link's predecessor lives in ANOTHER project: its owner appears on no part of the successor's chain, so the flag is off.
+        val successorChain = OwnerChain(listOf(stream, program, project))
+        val predecessorOwner = Actor("owner of the predecessor's project", user(14u), outsider, false)
+        assertFalse(PlanPermissions.canCreateDependency(predecessorOwner.asPlanActor(), successorChain))
+        val manager = actors.first { it.label == "manager of team A, no person" }
+        assertFalse(PlanPermissions.canCreateDependency(manager.asPlanActor(), successorChain), "a team manager as such has no say")
+    }
+
+    @Test
+    fun `the delete-dependency flag equals requireOwnerOrAdmin on the successor's project chain`() {
+        for (actor in actors) for ((level, chain) in chains.filter { it.second.owners.size == 3 }) {
+            val guard = allowed { requireOwnerOrAdmin(actor.caller, actor.personId, chain) }
+            assertEquals(guard, PlanPermissions.canDeleteDependency(actor.asPlanActor(), chain), "${actor.label} at the $level")
+        }
+        val successorChain = OwnerChain(listOf(stream, program, project))
+        val ownerOfSuccessor = actors.first { it.label == "project owner" }
+        assertTrue(PlanPermissions.canDeleteDependency(ownerOfSuccessor.asPlanActor(), successorChain))
+        assertFalse(PlanPermissions.canDeleteDependency(ownerOfSuccessor.asPlanActor(), OwnerChain(listOf(stream, program, outsider))))
+    }
+
+    @Test
     fun `the schedule flag equals requireTeamManagerOrAdmin for every actor and team - ownership never schedules`() {
         var cells = 0
         for (actor in actors) for (team in listOf(teamA, teamB, teamC)) {

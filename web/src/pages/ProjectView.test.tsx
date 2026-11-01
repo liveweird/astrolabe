@@ -74,12 +74,13 @@ const viewOf = (over: Partial<ProjectViewDocument> = {}): ProjectViewDocument =>
     targetEnd: "2027-01-22",
     createdAt: 1,
     updatedAt: 2,
-    can: { edit: true, delete: true, editTargetWindow: true, createMilestone: true },
+    can: { edit: true, delete: true, editTargetWindow: true, createMilestone: true, createDependency: true },
   },
   span: { start: "2027-01-11", end: "2027-01-29" },
   drift: { startDays: 7, endDays: 7 },
   scheduled: [DISCOVERY, BUILD],
   unscheduled: [AUDIT, ROLLOUT],
+  dependencies: [],
   ...over,
 });
 
@@ -205,7 +206,7 @@ describe("Project view page", () => {
   test("a stranger sees the page without any action", async () => {
     const none = { edit: false, delete: false, schedule: false };
     view = viewOf({
-      project: { ...viewOf().project, can: { edit: false, delete: false, editTargetWindow: false, createMilestone: false } },
+      project: { ...viewOf().project, can: { edit: false, delete: false, editTargetWindow: false, createMilestone: false, createDependency: false } },
       scheduled: [{ ...DISCOVERY, can: none }],
       unscheduled: [{ ...ROLLOUT, can: none }],
     });

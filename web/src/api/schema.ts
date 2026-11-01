@@ -1062,6 +1062,16 @@ export interface paths {
          *     THIS caller may take, computed with the same rules the writes enforce: `createMilestone`, `edit` and `delete` follow the project's
          *     owner chain (the project's own owner included) or ADMIN; a milestone's `schedule` is true only for ADMIN or the active manager of
          *     THAT milestone's team - never for the project's owner as such.
+         *
+         *     `dependencies` are the project's links: every active link with an end in this project (the project itself or one of its
+         *     milestones), both ends resolved (an end in another project carries that project's name, so the page can draw a ghost row; a
+         *     project end carries its DERIVED span, never its target window) and checked on the Monday-Friday working-day index. Bounded
+         *     by one project's links and the external projects they touch. Ordered so that the top IS the conflict list: `VIOLATED` first
+         *     (the largest `shortfallDays` first), then `OK`, then `UNSCHEDULED` (an end without dates: not evaluated, no warning); within a
+         *     group by the successor's name, the predecessor's name (case-insensitive) and the id. A violated link only warns - nothing is
+         *     ever moved. `project.can.createDependency` is `createMilestone`'s arithmetic (an owner on the project's chain, or ADMIN); a link's
+         *     `can.delete` is the same arithmetic on the SUCCESSOR's project chain (so the owner of the predecessor's project alone cannot
+         *     delete it).
          */
         get: operations["getProjectView"];
         put?: never;
@@ -1996,6 +2006,50 @@ export interface components {
             scheduled: components["schemas"]["ProjectMilestone"][];
             /** @description The milestones without dates (the tray), by name (case-insensitive) and id. */
             unscheduled: components["schemas"]["ProjectMilestone"][];
+            /** @description The active links with an end in this project, violated first (the largest shortfall first), then OK, then unscheduled; within a group by successor name, predecessor name and id. */
+            dependencies: components["schemas"]["ProjectDependency"][];
+        };
+        /** @description A link of the project view - both ends resolved, the check of the pure kernel and the caller's action. */
+        ProjectDependency: {
+            /** Format: int32 */
+            id: number;
+            predecessor: components["schemas"]["DependencyEndpoint"];
+            successor: components["schemas"]["DependencyEndpoint"];
+            type: components["schemas"]["DependencyType"];
+            /**
+             * Format: int32
+             * @description Working days; negative = a lead.
+             */
+            lagDays: number;
+            check: components["schemas"]["DependencyCheck"];
+            can: {
+                /** @description The caller may delete the link: an owner on the SUCCESSOR's project chain, or ADMIN. */
+                delete: boolean;
+            };
+        };
+        /**
+         * @description VIOLATED = the successor is short of what the type requires (a warning only); UNSCHEDULED = an end has no dates (a milestone without dates, a project with no scheduled milestone): not evaluated.
+         * @enum {string}
+         */
+        DependencyStatus: "OK" | "VIOLATED" | "UNSCHEDULED";
+        /** @description The check of one link on the Monday-Friday working-day index, with the effective start (the first working day on or after `start`) and end (the last working day on or before `end`) of each end. FS requires the successor's start on the working day after the predecessor's end; SS its start on the predecessor's start; FF its end on the predecessor's end; SF its end on the working day before the predecessor's start - each shifted by `lagDays` working days. */
+        DependencyCheck: {
+            status: components["schemas"]["DependencyStatus"];
+            /**
+             * Format: int32
+             * @description How many working days short the successor is; present (at least 1) only when `status` is `VIOLATED`.
+             */
+            shortfallDays: number | null;
+            /**
+             * Format: date
+             * @description The working day the type requires for the successor's start or end; null when `UNSCHEDULED`.
+             */
+            requiredDate: string | null;
+            /**
+             * Format: date
+             * @description The successor's effective start (FS, SS) or end (FF, SF); null when `UNSCHEDULED`.
+             */
+            actualDate: string | null;
         };
         /** @description An inclusive span of calendar days. */
         DateSpan: {
@@ -2051,6 +2105,8 @@ export interface components {
                 editTargetWindow: boolean;
                 /** @description The caller may create a milestone under the project (an owner on its chain, or ADMIN). */
                 createMilestone: boolean;
+                /** @description The caller may create a dependency whose successor is the project or one of its milestones (an owner on its chain, or ADMIN). */
+                createDependency: boolean;
             };
         };
         /** @description A milestone as the project view shows it - the `MilestoneResponse` fields plus the caller's actions. Both dates are null in `unscheduled`, both set in `scheduled`. */

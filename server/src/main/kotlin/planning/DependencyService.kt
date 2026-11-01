@@ -208,13 +208,12 @@ data class DeletedDependencies(val ids: List<UInt>, val successorProjectIds: Lis
 }
 
 /**
- * Soft-deletes every ACTIVE link that has an end among [milestoneIds] or [projectIds] and returns which — the cascade of a
- * milestone delete and of a project delete (`MilestoneService.delete`, `ProjectService.delete`, same plan-locked transaction): a link
- * cannot outlive an end, whichever side's owner wrote it. Both lists empty is a no-op.
+ * The predicate "this link has an end among [milestoneIds] or [projectIds]" (either side), or null when both are empty. The cascade of a
+ * milestone or project delete and the project view's link read share it; the caller adds the `active()` predicate.
  */
-internal suspend fun deleteDependenciesOf(milestoneIds: Collection<UInt>, projectIds: Collection<UInt>): DeletedDependencies {
+internal fun linksTouching(milestoneIds: Collection<UInt>, projectIds: Collection<UInt>): Op<Boolean>? {
     val links = DependencyService.Dependencies
-    val touching = listOfNotNull(
+    return listOfNotNull(
         milestoneIds.takeIf { it.isNotEmpty() }?.let { ids ->
             (links.predMilestoneId inList ids.map { EntityID(it, MilestoneService.Milestones) }) or
                 (links.succMilestoneId inList ids.map { EntityID(it, MilestoneService.Milestones) })
@@ -223,7 +222,17 @@ internal suspend fun deleteDependenciesOf(milestoneIds: Collection<UInt>, projec
             (links.predProjectId inList ids.map { EntityID(it, ProjectService.Projects) }) or
                 (links.succProjectId inList ids.map { EntityID(it, ProjectService.Projects) })
         },
-    ).reduceOrNull { left, right -> left or right } ?: return DeletedDependencies(emptyList(), emptyList())
+    ).reduceOrNull { left, right -> left or right }
+}
+
+/**
+ * Soft-deletes every ACTIVE link that has an end among [milestoneIds] or [projectIds] and returns which — the cascade of a
+ * milestone delete and of a project delete (`MilestoneService.delete`, `ProjectService.delete`, same plan-locked transaction): a link
+ * cannot outlive an end, whichever side's owner wrote it. Both lists empty is a no-op.
+ */
+internal suspend fun deleteDependenciesOf(milestoneIds: Collection<UInt>, projectIds: Collection<UInt>): DeletedDependencies {
+    val links = DependencyService.Dependencies
+    val touching = linksTouching(milestoneIds, projectIds) ?: return DeletedDependencies(emptyList(), emptyList())
     val rows = links.selectAll().where { links.active() and touching }.orderBy(links.id).toList()
     if (rows.isEmpty()) return DeletedDependencies(emptyList(), emptyList())
     val ids = rows.map { it[links.id].value }

@@ -52,6 +52,18 @@ object PlanPermissions {
     fun canCreateMilestone(actor: PlanActor, projectChain: OwnerChain): Boolean = canManage(actor, projectChain)
 
     /**
+     * `POST /projects/{id}/dependencies`: the owner chain of the project the successor lives in, the project's own owner included, or ADMIN
+     * (`requireOwnerOrAdmin`) — the same arithmetic as [canManage]. The predecessor's owner is asked nothing.
+     */
+    fun canCreateDependency(actor: PlanActor, projectChain: OwnerChain): Boolean = canManage(actor, projectChain)
+
+    /**
+     * `DELETE /dependencies/{id}`: the owner chain of the SUCCESSOR's project, or ADMIN (`requireOwnerOrAdmin` on `dependencyChain`) —
+     * [successorProjectChain] is the chain of the project holding the successor, never the predecessor's.
+     */
+    fun canDeleteDependency(actor: PlanActor, successorProjectChain: OwnerChain): Boolean = canManage(actor, successorProjectChain)
+
+    /**
      * `PUT /milestones/{id}/schedule`: ADMIN or the ACTIVE manager of the milestone's [teamId] (`requireTeamManagerOrAdmin`) — never
      * the project's owner as such.
      */

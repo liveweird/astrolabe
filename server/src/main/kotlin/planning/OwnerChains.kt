@@ -89,6 +89,27 @@ internal suspend fun projectChainRow(id: UInt, columns: List<Expression<*>> = em
 }
 
 /**
+ * The owner chains of the projects [ids] in ONE statement (the `projectChainRow` join without the owner's display name and with the same
+ * active predicate): a project whose program or work stream is gone is simply absent from the map. The project view resolves the
+ * successors' chains of its external links with it (`can.delete`).
+ */
+internal suspend fun projectChains(ids: Collection<UInt>): Map<UInt, OwnerChain> {
+    if (ids.isEmpty()) return emptyMap()
+    val streams = WorkStreamService.WorkStreams
+    val programs = ProgramService.Programs
+    val projects = ProjectService.Projects
+    return projects.innerJoin(programs, { projects.programId }, { programs.id })
+        .innerJoin(streams, { programs.workStreamId }, { streams.id })
+        .select(projects.id, streams.ownerPersonId, programs.ownerPersonId, projects.ownerPersonId)
+        .where { (projects.id inList ids.distinct()) and projects.active() and programs.active() and streams.active() }
+        .toList()
+        .associate {
+            it[projects.id].value to
+                OwnerChain(listOf(it[streams.ownerPersonId].value, it[programs.ownerPersonId].value, it[projects.ownerPersonId].value))
+        }
+}
+
+/**
  * A milestone's chain: the [owners] of its project's chain (work stream first, the project's own last — a milestone has no owner of
  * its own), the milestone's [teamId] (who may schedule it) and its [projectId].
  */

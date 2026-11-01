@@ -178,7 +178,7 @@ The fourth level, under a project: a **name**, an optional **description**, **ex
   read through the project view.
 - **Audit** (`observability.md`): `milestone.created`, `milestone.updated`, `milestone.team_changed` (only on a change), `milestone.scheduled` (stored before and after, only on an actual change), `milestone.deleted`.
 - **The project view** (`GET /views/project/{id}`, v0.3.0 C2; `ProjectView.kt`, `ProjectViewService.kt`, route in `PlanViewRoutes.kt`; any authenticated user; the view-endpoint shape exception of `list-endpoints.md`, bounded by ONE
-  project's milestones, about 50): `{revision, project{…PlanProject fields, programName, workStreamName, can{edit, delete, editTargetWindow, createMilestone}}, span{start, end}|null, drift{startDays, endDays}|null, scheduled[], unscheduled[]}`.
+  project's milestones, about 50): `{revision, project{…PlanProject fields, programName, workStreamName, can{edit, delete, editTargetWindow, createMilestone, createDependency}}, span{start, end}|null, drift{startDays, endDays}|null, scheduled[], unscheduled[], dependencies[]}` (the dependencies: "The project view's dependencies" below).
   One read transaction, the **revision FIRST** and the rows after (the plan view's protocol; the client sends `revision` back as a schedule write's `expectedRevision`); the project, its program and its work stream must be active, else **404 for every
   caller** (a deleted ancestor hides the project; a malformed id is 400). `scheduled` = the milestones with dates, ordered by (start, end, name case-insensitively, id) — the timeline rows; `unscheduled` = the rest, by (name case-insensitively, id) —
   the tray. Each `ProjectMilestone` is the `MilestoneResponse` shape (`teamName` read from the milestone's team WITHOUT an `active()` filter: an active milestone's team is always active) plus `can{edit, delete, schedule}`.
@@ -215,16 +215,39 @@ A link between two time points of the plan, each end a **milestone or a project*
 - **Endpoints on the wire** (`DependencyResponse`, `resolveEndpoints` in `DependencyEndpoints.kt`): both ends resolved to `{kind, id, name, projectId, projectName, teamId?, teamName?, startDate?, endDate?}`; a milestone carries its own project and team, a project
   (`projectId` = its own id, no team) carries its **derived span** — `SpanKernels.derivedSpan` over its scheduled ACTIVE milestones, null while none is scheduled — never its target window.
 - **Working days.** `infra/time/WorkingDays.kt` holds the closed-form Monday–Friday index (`workingDayIndex`, `workingDayOfIndex`, `nextWorkingDayOnOrAfter`, `previousWorkingDayOnOrBefore`, `plusWorkingDays`): monotone, flat over a weekend, Friday→Monday = +1. The
-  violation check of a link (a later increment) is built on it; v0.7 swaps the body for the ported holiday-aware `WorkingDayIndex` and keeps the signatures. `WorkingDaysTest` pins the identities.
+  violation check of a link (`DependencyKernels`, below) is built on it; v0.7 swaps the body for the ported holiday-aware `WorkingDayIndex` and keeps the signatures. `WorkingDaysTest` pins the identities.
 - **Deletes.** A milestone delete soft-deletes every ACTIVE link with either end at it (`deleteDependenciesOf`, same locked transaction; `milestone.deleted` carries `dependencyCount`). A project delete soft-deletes the links at the project AND at its milestones, both ends,
   before the milestones (`project.deleted` carries `dependencyCount` beside `milestoneCount`). Both audits list the cascaded link ids (`dependencyIds`), a project delete also the successor project ids of those links (`successorProjectIds`). A project move changes no id, so links survive; a team change and an unschedule keep them too (an unscheduled end simply has no dates). Dependency writes bump the plan revision
   and never a milestone's `schedule_revision` — a drag is never staled by someone adding a link.
 - **Write order** (`DependencyService.create`, in `withPlanWrite`): project chain re-read (404) → `ownerGuard` re-run with the caller's person `FOR SHARE` (403) → successor in the project (400) → predecessor active (400) → cycle (409) → insert (pair 409). The route's outer order is
   chain → 404 → `requireOwnerOrAdmin` 403 → body → pure validation 400 (lag range, self-link) → the above. `DELETE`: `dependencyChain` (the successor's project chain, 404) → 403 → under the lock the chain re-read (404) and the guard again.
-- **API** (tag `plan`): `POST /projects/{id}/dependencies` → 201 + `Location` + `DependencyResponse`; `GET /dependencies/{id}`; `DELETE /dependencies/{id}` → 204. No PUT and no list yet (the project view carries a project's links — a later increment).
+- **API** (tag `plan`): `POST /projects/{id}/dependencies` → 201 + `Location` + `DependencyResponse`; `GET /dependencies/{id}`; `DELETE /dependencies/{id}` → 204. No PUT and no list: a project's links are read through the project view (below).
 - **Audit** (`observability.md`): `dependency.created` (byUserId/dependencyId/projectId/predKind/predId/succKind/succId/type/lagDays), `dependency.deleted` (byUserId/dependencyId/predKind/predId/succKind/succId).
 - **Tests**: `DependencyTest` (the matrix incl. the named product-rule cases, the 400s, every endpoint kind read back resolved, the 409 pair and cycle shapes, delete), `DependencyLifecycleTest` (cascades, move/team/unschedule survival, the held-request re-guard, audits, the V15
   constraints incl. `NULLS NOT DISTINCT`), `DependencyGraphTest` (pure), `WorkingDaysTest` (pure), `PlanStateTest` (a dependency write bumps by one, a refused cycle does not), `TestPlan.dependency` / `secondProject` (the fixtures).
+
+### The project view's dependencies (built, v0.4.0 C3; `DependencyKernels.kt`, `ProjectViewDependencies.kt`)
+
+`GET /views/project/{id}` carries `dependencies[]`: every ACTIVE link with an end in the project (the project itself or one of its active milestones) — including a link whose OTHER end is in another project, which is how the page draws its ghost rows. One read in the view's transaction, no
+lock. Each item is `{id, predecessor, successor, type, lagDays, check, can{delete}}`:
+
+- **Ends** are the `DependencyEndpoint` of `resolveEndpoints` (batched; a milestone: its own `projectId`/`projectName`, `teamId`/`teamName`, dates; a project: `projectId` = its own id, no team, its DERIVED span — never its target window — null while nothing in it is scheduled). The SPA derives the ghost rows from the ends whose `projectId` is not the viewed project; there is no separate `external[]`.
+- **`check`** (`DependencyCheck{status, shortfallDays, requiredDate, actualDate}`) comes from the pure kernel `DependencyKernels.check(type, lagDays, predecessorSpan, successorSpan)` (no I/O; `DependencyKernelsTest` is table-driven, every figure counted by hand on the 2027 calendar, 2027-02-01 a Monday). With `W` the Monday–Friday working-day index (`infra/time/WorkingDays.kt`, flat over a weekend), a span's EFFECTIVE start the first working day on or after
+  `start`, its EFFECTIVE end the last working day on or before `end`, `A` the predecessor, `B` the successor and `lag` in working days (negative = a lead):
+
+  | Type | required | actual |
+  |---|---|---|
+  | FS | `W(A.effEnd) + 1 + lag` | `W(B.effStart)` |
+  | SS | `W(A.effStart) + lag` | `W(B.effStart)` |
+  | FF | `W(A.effEnd) + lag` | `W(B.effEnd)` |
+  | SF | `W(A.effStart) − 1 + lag` | `W(B.effEnd)` |
+
+  Spans are half-open working intervals `[W(effStart), W(effEnd)+1)`, so SF mirrors FS: a successor ending the working day BEFORE the predecessor starts is `OK` at lag 0 (A = 2027-02-01..05, B = 2027-01-25..29, SF → `OK`).
+
+  `shortfallDays = required − actual`; `VIOLATED` when positive (then `shortfallDays` ≥ 1, else null), `OK` otherwise; `requiredDate` = the working day with index `required`, `actualDate` = B's effective start/end, both answered for OK and VIOLATED. An end without dates (a tray milestone, a project with nothing scheduled) makes the link `UNSCHEDULED` (question 3a of the v0.4 plan): no dates, no shortfall, no warning, no arrow. Example: A = 2027-02-01..05, B moved to 2027-01-25..29, FS lag 0 → `VIOLATED`, 10 working days short, "needs 2027-02-08 · is 2027-01-25". A violation changes nothing but the view: no write, no 409, no audit.
+- **Order**: `VIOLATED` first (the largest shortfall first), then `OK`, then `UNSCHEDULED`; within a group by the successor's name, the predecessor's name (case-insensitive) and the id — the top of the list IS the conflict list.
+- **Flags**: `project.can.createDependency` = `canCreateDependency(projectChain)`; a link's `can.delete` = `canDeleteDependency` on the chain of the project that holds its SUCCESSOR (`authorization.md`). Both equal the arithmetic of the real `POST`/`DELETE`.
+- **Tests**: `DependencyKernelsTest` (pure), `ProjectViewDependenciesTest` (the first vector per type over HTTP, both projects of a cross-project link, the order, derived-span and unscheduled ends, deleted and unrelated links absent, both flags against the real writes for ten kinds of caller), `PlanPermissionsTest` (the two flags against the guards).
 
 ## The picker lists (built, v0.4.0 C2; `ProjectService.list`, `MilestoneService.list`)
 

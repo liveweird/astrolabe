@@ -21,6 +21,12 @@ data class ProjectView(
     val scheduled: List<ProjectMilestone>,
     /** By name (case-insensitive), id. */
     val unscheduled: List<ProjectMilestone>,
+    /**
+     * Every ACTIVE link with an end in this project (the project itself or one of its milestones), both ends resolved and checked,
+     * VIOLATED first ([ProjectDependency], `ProjectViewDependencies.kt`). Bounded by one project's links and the external projects
+     * they touch.
+     */
+    val dependencies: List<ProjectDependency>,
 )
 
 /** [DaySpan] on the wire: ISO `YYYY-MM-DD` strings, inclusive. */
@@ -47,7 +53,13 @@ data class ProjectViewProject(
 )
 
 @Serializable
-data class ProjectViewCan(val edit: Boolean, val delete: Boolean, val editTargetWindow: Boolean, val createMilestone: Boolean)
+data class ProjectViewCan(
+    val edit: Boolean,
+    val delete: Boolean,
+    val editTargetWindow: Boolean,
+    val createMilestone: Boolean,
+    val createDependency: Boolean,
+)
 
 /** A milestone as the project view shows it: the [MilestoneResponse] fields (dates null = unscheduled) plus the caller's `can`. */
 @Serializable
@@ -68,3 +80,22 @@ data class ProjectMilestone(
 
 @Serializable
 data class ProjectMilestoneCan(val edit: Boolean, val delete: Boolean, val schedule: Boolean)
+
+/**
+ * A link of the project view: both [predecessor] and [successor] resolved ([DependencyEndpoint]; a project end carries its DERIVED
+ * span, an end in another project its own project's name), the stored [type] and [lagDays], its [check] and the caller's `can`.
+ */
+@Serializable
+data class ProjectDependency(
+    val id: UInt,
+    val predecessor: DependencyEndpoint,
+    val successor: DependencyEndpoint,
+    val type: DependencyType,
+    val lagDays: Int,
+    val check: DependencyCheck,
+    val can: ProjectDependencyCan,
+)
+
+/** [delete]: the caller may delete the link (`canManage` on the SUCCESSOR's project chain, `PlanPermissions.canDeleteDependency`). */
+@Serializable
+data class ProjectDependencyCan(val delete: Boolean)

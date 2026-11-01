@@ -3,6 +3,7 @@ package ch.nokillswit.planning
 import ch.nokillswit.infra.db.active
 import ch.nokillswit.teams.TeamService
 import io.ktor.util.AttributeKey
+import io.r2dbc.spi.IsolationLevel
 import kotlinx.coroutines.flow.toList
 import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.r2dbc.*
@@ -10,15 +11,21 @@ import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
 
 val ProjectViewServiceKey = AttributeKey<ProjectViewService>("ProjectViewService")
 
+/** The view's isolation: one snapshot for every statement of the read (see [ProjectViewService]). */
+private val SNAPSHOT = IsolationLevel.REPEATABLE_READ
+
 /**
- * One project and its milestones (`GET /views/project/{id}`): ONE read transaction that takes the revision FIRST and the rows after
- * (the plan view's protocol — a row newer than the revision only makes a later schedule PUT carrying it answer a conservative 409),
- * then derives the span and the drift with [SpanKernels] and the caller's `can` flags with [PlanPermissions]. The project, its program
+ * One project, its milestones and its dependencies (`GET /views/project/{id}`): ONE read transaction that takes the revision FIRST and
+ * the rows after (the plan view's protocol — a row newer than the revision only makes a later schedule PUT carrying it answer a
+ * conservative 409), then derives the span and the drift with [SpanKernels], checks the links ([projectDependencies], the pure
+ * [DependencyKernels]) and computes the caller's `can` flags with [PlanPermissions]. The project, its program
  * and its work stream must all be active (null = the route's 404). Milestones are split into the scheduled (by start, end, name, id)
- * and the unscheduled (by name, id); names sort case-insensitively.
+ * and the unscheduled (by name, id); names sort case-insensitively. The transaction is READ ONLY at REPEATABLE READ so that the revision,
+ * the project's milestones, the links, the external ends and the chains are ONE snapshot (the default READ COMMITTED would let each
+ * statement see a different committed plan, e.g. a link whose end the milestone read predates).
  */
 class ProjectViewService(private val database: R2dbcDatabase) {
-    suspend fun view(projectId: UInt, actor: PlanActor): ProjectView? = suspendTransaction(database) {
+    suspend fun view(projectId: UInt, actor: PlanActor): ProjectView? = suspendTransaction(database, SNAPSHOT, readOnly = true) {
         val revision = readPlanRevision()
         val projects = ProjectService.Projects
         val programs = ProgramService.Programs
@@ -33,6 +40,7 @@ class ProjectViewService(private val database: R2dbcDatabase) {
         val targetEnd = row[projects.targetEnd]
 
         val milestones = milestoneRows(projectId, actor, manage)
+        val dependencies = projectDependencies(projectId, milestones.map { it.view.id }, chain, actor)
         val (scheduled, unscheduled) = milestones.partition { it.span != null }
         val span = SpanKernels.derivedSpan(scheduled.mapNotNull { it.span })
         val target = if (targetStart != null && targetEnd != null) DaySpan(targetStart, targetEnd) else null
@@ -58,6 +66,7 @@ class ProjectViewService(private val database: R2dbcDatabase) {
                     delete = manage,
                     editTargetWindow = PlanPermissions.canEditTargetWindow(actor, chain),
                     createMilestone = PlanPermissions.canCreateMilestone(actor, chain),
+                    createDependency = PlanPermissions.canCreateDependency(actor, chain),
                 ),
             ),
             span = span?.let { DateSpan(it.start.toString(), it.end.toString()) },
@@ -66,6 +75,7 @@ class ProjectViewService(private val database: R2dbcDatabase) {
                 compareBy<MilestoneRow>({ it.span?.start }, { it.span?.end }, { it.view.name.lowercase() }, { it.view.id }),
             ).map { it.view },
             unscheduled = unscheduled.sortedWith(compareBy<MilestoneRow>({ it.view.name.lowercase() }, { it.view.id })).map { it.view },
+            dependencies = dependencies,
         )
     }
 
