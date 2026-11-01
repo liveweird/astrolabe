@@ -85,11 +85,6 @@ class TeamOrderService(private val database: R2dbcDatabase) {
         if (!found) throw NotFoundException("Team not found")
     }
 
-    /** The team's stored order revision, or 0 when its order was never written. Runs inside the caller's transaction. */
-    private suspend fun orderRevisionOf(teamId: UInt): Long =
-        TeamOrderState.select(TeamOrderState.revision).where { TeamOrderState.teamId eq teamId }.toList()
-            .singleOrNull()?.get(TeamOrderState.revision) ?: 0L
-
     private suspend fun stampOrderRevision(teamId: UInt, revision: Long) {
         val stamp = nowMillis()
         val updated = TeamOrderState.update({ TeamOrderState.teamId eq teamId }) {
@@ -127,6 +122,12 @@ private suspend fun requireMilestonesOfTeam(teamId: UInt, ids: List<UInt>) {
 }
 
 private const val MAX_LISTED_MISSING = 20
+
+/** The team's stored order revision, or 0 when its order was never written. Runs inside the caller's transaction. */
+internal suspend fun orderRevisionOf(teamId: UInt): Long =
+    TeamOrderService.TeamOrderState.select(TeamOrderService.TeamOrderState.revision)
+        .where { TeamOrderService.TeamOrderState.teamId eq teamId }.toList()
+        .singleOrNull()?.get(TeamOrderService.TeamOrderState.revision) ?: 0L
 
 /**
  * The team's listed milestones with their positions, in position order (the map keeps it). Runs inside the caller's transaction; the

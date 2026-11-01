@@ -202,4 +202,20 @@ class PlanPermissionsTest {
         assertFalse(PlanPermissions.canSchedule(ownerAndManager, teamB), "only the managed team")
         assertTrue(PlanPermissions.canSchedule(actors.first { it.label == "admin" }.asPlanActor(), teamC), "ADMIN schedules every team")
     }
+
+    @Test
+    fun `the capacity and order flags equal requireTeamManagerOrAdmin - they are the schedule arithmetic under their own names`() {
+        for (actor in actors) for (team in listOf(teamA, teamB, teamC)) {
+            val lookup: suspend (UInt, UInt) -> Boolean = { teamId, userId -> userId == actor.caller.userId && teamId in actor.managed }
+            val guard = allowed { runBlocking { requireTeamManagerOrAdmin(actor.caller, team, lookup) } }
+            assertEquals(guard, PlanPermissions.canEditCapacity(actor.asPlanActor(), team), "${actor.label} edits capacity of team $team")
+            assertEquals(guard, PlanPermissions.canEditTeamOrder(actor.asPlanActor(), team), "${actor.label} edits the order of team $team")
+        }
+        val projectOwner = actors.first { it.label == "project owner" }.asPlanActor()
+        assertFalse(PlanPermissions.canEditCapacity(projectOwner, teamA), "the project owner, as such, sets no capacity")
+        assertFalse(PlanPermissions.canEditTeamOrder(projectOwner, teamA), "nor orders the team")
+        val manager = actors.first { it.label == "project owner who also manages team A" }.asPlanActor()
+        assertTrue(PlanPermissions.canEditCapacity(manager, teamA))
+        assertFalse(PlanPermissions.canEditTeamOrder(manager, teamB), "only the managed team")
+    }
 }

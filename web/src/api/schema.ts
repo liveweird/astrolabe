@@ -1149,6 +1149,55 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/views/team/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * One team's milestones, weekly load against capacity, and WIP
+         * @description Any authenticated user; `404` when the team is deleted, for every caller. One document (a deliberate exception to the paged
+         *     envelope, bounded by ONE team's milestones - about 100 at the assumed scale -, their links and at most 520 weeks). `revision` is
+         *     the plan revision read before the rows - send it back as a schedule write's `expectedRevision`; the team's order revision
+         *     travels separately as `order.revision` (the `expectedRevision` of `PUT /teams/{id}/milestone-order`).
+         *
+         *     The team's milestones are split into `scheduled` (the timeline rows) and `unscheduled` (the tray), both in the team's
+         *     EFFECTIVE order. That order is the team's own where the manager set one (`order.custom`): the listed milestones first, exactly as
+         *     listed, then the rest by the global PROJECT RANK (ranked projects before unranked ones, then project name and id), then a
+         *     milestone's start date, end date, name and id with undated work last. The project rank is only the top-down suggestion and the
+         *     default; a manager's override is never reshuffled by a later rank change, only unlisted milestones follow the rank.
+         *
+         *     `weeks` has one row per ISO week from the Monday of the earliest scheduled start to the Sunday of the latest scheduled end
+         *     (empty while nothing is scheduled; at most 520 weeks from the start, then `weeksTruncated`). A milestone's estimate is spread
+         *     evenly over its Monday-Friday working days, so a week's `load` is the sum of the shares of the working days inside it.
+         *     `capacity` is the sum over the week's working days of the man-days per week in force THAT day, divided by 5 - so the week a
+         *     capacity period starts in is prorated by working days - and null ("no capacity", never zero, never flagged) when no period is
+         *     in force on any working day of the week. `load` and `capacity` are rounded half-up to two decimals and `overloaded` compares the
+         *     two rounded figures (`overloadMd` is their difference, only when overloaded). `maxWip` is the most scheduled milestones in
+         *     progress on one working day of the week (a milestone is in progress on the working days of its effective span, the first
+         *     working day on or after its start to the last on or before its end) and `wipExceeded` is true when some working day's count
+         *     exceeds the WIP limit in force that day; a day without a limit never flags. An overloaded week and a week over the WIP limit
+         *     are warnings only - nothing is ever moved.
+         *
+         *     `team.can` carries the actions THIS caller may take, all with one arithmetic: ADMIN or the team's ACTIVE manager (`schedule` is
+         *     `PUT /milestones/{id}/schedule` for this team's milestones, `editCapacity` the capacity period writes, `editOrder` the order
+         *     PUT). `dependencies` are the project view's links for the links with an end among the team's milestones, both ends resolved
+         *     and checked on the working-day index, violated first; a link's other end may lie in another team or project and is not listed
+         *     as a row of its own.
+         */
+        get: operations["getTeamView"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/views/roadmap": {
         parameters: {
             query?: never;
@@ -2160,7 +2209,7 @@ export interface components {
             /** @description The active links with an end in this project, violated first (the largest shortfall first), then OK, then unscheduled; within a group by successor name, predecessor name and id. */
             dependencies: components["schemas"]["ProjectDependency"][];
         };
-        /** @description A link of the project view - both ends resolved, the check of the pure kernel and the caller's action. */
+        /** @description A link of the project view (and of the team view) - both ends resolved, the check of the pure kernel and the caller's action. */
         ProjectDependency: {
             /** Format: int32 */
             id: number;
@@ -2300,6 +2349,146 @@ export interface components {
                 /** @description The caller may set or clear the dates: ADMIN or the active manager of the milestone's team - never the project's owner as such. */
                 schedule: boolean;
             };
+        };
+        TeamView: {
+            /**
+             * Format: int64
+             * @description The plan revision, read before the rows; send it back as `expectedRevision` of a schedule write.
+             */
+            revision: number;
+            team: components["schemas"]["TeamViewTeam"];
+            order: components["schemas"]["TeamViewOrder"];
+            capacity: components["schemas"]["TeamViewCapacity"];
+            /** @description One row per ISO week, Monday-keyed, from the earliest scheduled start's Monday to the latest scheduled end's Sunday (at most 520); empty while nothing is scheduled. */
+            weeks: components["schemas"]["WeekLoad"][];
+            /** @description True when the range of scheduled milestones is longer than 520 weeks and `weeks` stops there. */
+            weeksTruncated: boolean;
+            /** @description The milestones with dates (the timeline rows) in the team's effective order. */
+            scheduled: components["schemas"]["TeamMilestone"][];
+            /** @description The milestones without dates (the tray) in the team's effective order (the dates are null, so name and id decide within a project). */
+            unscheduled: components["schemas"]["TeamMilestone"][];
+            /** @description The active links with an end among the team's milestones, violated first (the largest shortfall first), then OK, then unscheduled; within a group by successor name, predecessor name and id. Ends are resolved, not listed: there are no ghost rows. */
+            dependencies: components["schemas"]["ProjectDependency"][];
+        };
+        /** @description The `TeamResponse` fields plus what the caller may do with the team's plan. */
+        TeamViewTeam: {
+            /** Format: int32 */
+            id: number;
+            name: string;
+            description?: string | null;
+            /**
+             * Format: int32
+             * @description The team's manager (a person); null when unset or when the assigned person was soft-deleted.
+             */
+            managerPersonId: number | null;
+            /** @description The manager's name; null with `managerPersonId`. */
+            managerName: string | null;
+            /**
+             * Format: int64
+             * @description Epoch millis
+             */
+            createdAt: number;
+            /**
+             * Format: int64
+             * @description Epoch millis
+             */
+            updatedAt: number;
+            /** @description Three names with one arithmetic - ADMIN, or the caller is the active manager of THIS team. */
+            can: {
+                /** @description The caller may set or clear the dates of this team's milestones (`PUT /milestones/{id}/schedule`). */
+                schedule: boolean;
+                /** @description The caller may add, change and delete this team's capacity periods. */
+                editCapacity: boolean;
+                /** @description The caller may replace this team's milestone order (`PUT /teams/{id}/milestone-order`). */
+                editOrder: boolean;
+            };
+        };
+        TeamViewOrder: {
+            /** @description True when the team's manager has set an order (the project rank is then only the default for the unlisted tail). */
+            custom: boolean;
+            /**
+             * Format: int64
+             * @description The team's order revision (0 when never written); send it back as `expectedRevision` of the order PUT.
+             */
+            revision: number;
+        };
+        TeamViewCapacity: {
+            /** @description The team's active capacity periods in `effectiveFrom` order, with their WIP limits. */
+            periods: components["schemas"]["CapacityPeriodResponse"][];
+        };
+        /** @description One ISO week of the team's load against its capacity and WIP limit. Warnings only. */
+        WeekLoad: {
+            /**
+             * Format: date
+             * @description The week's Monday.
+             */
+            weekStart: string;
+            /**
+             * Format: double
+             * @description The man-days of the scheduled milestones falling in the week (each estimate spread evenly over its working days), two decimals.
+             */
+            load: number;
+            /**
+             * Format: double
+             * @description The sum over the week's working days of the capacity in force that day, over 5 (two decimals); null when no capacity period is in force on any working day of the week.
+             */
+            capacity: number | null;
+            /** @description True when `capacity` is set and `load` exceeds it (compared as rounded). */
+            overloaded: boolean;
+            /**
+             * Format: double
+             * @description `load` minus `capacity`; only when `overloaded`.
+             */
+            overloadMd: number | null;
+            /**
+             * Format: int32
+             * @description The most scheduled milestones in progress on one working day of the week.
+             */
+            maxWip: number;
+            /** @description Some working day's in-progress count exceeds the WIP limit in force that day. */
+            wipExceeded: boolean;
+        };
+        /** @description A milestone as the team view shows it - the `MilestoneResponse` fields plus the names of its project chain and its project's rank. Both dates are null in `unscheduled`. */
+        TeamMilestone: {
+            /** Format: int32 */
+            id: number;
+            /** Format: int32 */
+            projectId: number;
+            name: string;
+            description: string | null;
+            /** Format: int32 */
+            teamId: number;
+            teamName: string;
+            /**
+             * Format: double
+             * @description Man-days with at most two decimals.
+             */
+            estimateMd: number;
+            /**
+             * Format: date
+             * @description Null = unscheduled (both dates are null together).
+             */
+            startDate: string | null;
+            /** Format: date */
+            endDate: string | null;
+            /**
+             * Format: int64
+             * @description Epoch millis
+             */
+            createdAt: number;
+            /**
+             * Format: int64
+             * @description Epoch millis
+             */
+            updatedAt: number;
+            projectName: string;
+            programName: string;
+            workStreamName: string;
+            /**
+             * Format: int32
+             * @description The project's position in the global project rank; null = unranked.
+             */
+            rankPosition: number | null;
         };
         RoadmapView: {
             /**
@@ -4587,6 +4776,32 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProjectView"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    getTeamView: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The team view */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeamView"];
                 };
             };
             400: components["responses"]["BadRequest"];

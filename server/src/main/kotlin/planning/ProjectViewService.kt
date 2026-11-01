@@ -12,7 +12,7 @@ import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
 val ProjectViewServiceKey = AttributeKey<ProjectViewService>("ProjectViewService")
 
 /** The view's isolation: one snapshot for every statement of the read (see [ProjectViewService]). */
-private val SNAPSHOT = IsolationLevel.REPEATABLE_READ
+internal val SNAPSHOT = IsolationLevel.REPEATABLE_READ
 
 /**
  * One project, its milestones and its dependencies (`GET /views/project/{id}`): ONE read transaction that takes the revision FIRST and

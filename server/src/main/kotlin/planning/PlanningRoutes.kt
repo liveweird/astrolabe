@@ -23,8 +23,8 @@ import io.ktor.server.routing.routing
 
 /**
  * The planning REST surface (`/api/v1/work-streams`, `/programs`, `/projects`, `/milestones`, `/views/plan`, `/views/project/{id}`,
- * `/views/roadmap`, `/roadmap/ranking`, since V15 `/dependencies` with `POST /projects/{id}/dependencies`, and since V17
- * `PUT /teams/{id}/milestone-order`), registered by this ONE
+ * `/views/roadmap`, `/views/team/{id}`, `/roadmap/ranking`, since V15 `/dependencies` with
+ * `POST /projects/{id}/dependencies`, and since V17 `PUT /teams/{id}/milestone-order`), registered by this ONE
  * module function and split per entity (`WorkStreamRoutes.kt`, `ProgramRoutes.kt`, `ProjectRoutes.kt`, `MilestoneRoutes.kt`,
  * `DependencyRoutes.kt`, `PlanViewRoutes.kt`, `RoadmapRoutes.kt`, `TeamOrderRoutes.kt`) — the first deliberate exception to the
  * one-routes-file template (`conventions.md`): five resources with different guards would blow the
@@ -48,8 +48,9 @@ fun Application.configurePlanningRoutes() {
         projectView = attributes[ProjectViewServiceKey],
         roadmap = attributes[RoadmapServiceKey],
     )
-    // Not in PlanRouteDeps: its constructor is at detekt's 12-parameter ceiling, and only this one route file reads the order service.
+    // Not in PlanRouteDeps: its constructor is at detekt's 12-parameter ceiling, and only one route file reads each of these.
     val teamOrder = attributes[TeamOrderServiceKey]
+    val teamView = attributes[TeamViewServiceKey]
     routing {
         authenticate {
             workStreamRoutes(deps)
@@ -57,7 +58,7 @@ fun Application.configurePlanningRoutes() {
             projectRoutes(deps)
             milestoneRoutes(deps)
             dependencyRoutes(deps)
-            planViewRoutes(deps)
+            planViewRoutes(deps, teamView)
             roadmapRoutes(deps)
             teamOrderRoutes(deps, teamOrder)
         }

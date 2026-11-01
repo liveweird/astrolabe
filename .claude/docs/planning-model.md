@@ -307,8 +307,56 @@ listed ones, in project-rank order. The v0.6 "rank-vs-time inversion between pro
 - **Tests**: `TeamOrderTest` (the caller matrix incl. "the project owner cannot reorder the team", read-before-guard, "a milestone of another team in the list is 400 after the guard", both stale directions, the per-team revision, partial list and reset, "a ranking PUT after an override leaves the override as it is", the audit),
   `TeamOrderLifecycleTest` (dense positions after a team change / delete / project delete, the deferrable constraint, the same-revision race, "a manager cleared while the PUT waits at the plan lock is refused"), `TeamOrderKernelsTest` (pure, incl. "a rank change reorders only the unlisted tail"), `PlanStateTest` (an order PUT bumps by one), `MilestoneTest` (a team change leaves the old order).
 
-## Not built yet — the sketch (v0.5+, confirmed by each increment)
+## The team view (built, v0.5.0 C3; `planning/LoadKernels.kt`, `TeamView*.kt`)
 
-- Derived spans, drift (built for the project view, `SpanKernels.kt`) and load are computed at request time in pure kernels (`planning/`, the `CapacityKernels.kt` idiom), with shared JSON test vectors for Kotlin and vitest (deferred to the first
+`GET /api/v1/views/team/{id}` (tag `plan`; any authenticated user; 404 when the team is deleted, for every caller; **no audit** — a read) answers ONE document, the view-endpoint shape exception of `list-endpoints.md`:
+`{revision, team{…TeamResponse fields, can{schedule, editCapacity, editOrder}}, order{custom, revision}, capacity{periods[]}, weeks[], weeksTruncated, scheduled[], unscheduled[], dependencies[]}`. `TeamViewService` runs ONE READ ONLY REPEATABLE READ transaction (`ProjectViewService`'s snapshot):
+the plan revision FIRST, then the team ⋈ its manager's name, the team's ACTIVE milestones ⋈ project ⋈ program ⋈ work stream ⋈ `roadmap_entries` (left: `rankPosition`; `TeamViewRows.kt`), the order positions (`positionsOf`, looked up FROM the active milestones — never by iterating the order table) and the order revision, the capacity periods and the links;
+then the pure kernels. `order.revision` is the TEAM's order revision (0 when never written; the `expectedRevision` of `PUT /teams/{id}/milestone-order`), `revision` the PLAN revision (the schedule PUT's). A `TeamMilestone` is `MilestoneResponse` + `projectName`, `programName`, `workStreamName`, `rankPosition` (null = unranked); no per-milestone `can` —
+the three team-level flags apply to every bar. Bound: one team's milestones (about 100), their links and at most 520 weeks.
+
+- **The `can` flags: three names, one arithmetic.** `canSchedule`, `canEditCapacity` and `canEditTeamOrder` (`PlanPermissions`) are all "ADMIN, or the caller is the ACTIVE manager of THIS team" (`requireTeamManagerOrAdmin`; the actor's managed teams resolved once, `withManagedTeams = true`). Three flags so a later version may split the rights without a wire change. `PlanPermissionsTest` pins each against the guard;
+  `TeamViewTest` checks each against the real write (the schedule PUT, the capacity POST, the order PUT) for every kind of caller.
+- **Order** (`effectiveOrder`, see "The team milestone order"): `scheduled[]` and `unscheduled[]` are the team's milestones in the effective order — the team's own override first, the global project rank as the default of the unlisted tail. Positions come from the team's ACTIVE milestones.
+- **Weeks and working days.** A week is an ISO week keyed by its Monday (`weekStart`); its working days are its Monday–Friday (`isWorkingDay`; v0.7's calendar subtracts holidays inside the same predicate — a holiday week then has fewer covered days AND a smaller divisor; recorded in the kernel's KDoc, not built). `weeks[]` runs from the Monday of the earliest scheduled start to the Sunday of
+  the latest scheduled end (`loadWindow`; empty while nothing is scheduled), capped at **520 weeks** counted from the start (`MAX_LOAD_WEEKS`; `weeksTruncated` then true). A week row is `{weekStart, load, capacity|null, overloaded, overloadMd|null, maxWip, wipExceeded}`.
+- **The spread (load).** A scheduled milestone's estimate `E` is spread evenly over its `n = workingDaysBetween(start, end)` working days (`W(prevWorkingDayOnOrBefore(end)) − W(nextWorkingDayOnOrAfter(start)) + 1`, `W` the closed-form index of `WorkingDays.kt`): a milestone's share of a week is the EXACT fraction `E × (its working days inside the week) / n` (never divided first — no digit is lost); a week's `load` = the shares of
+  every milestone summed exactly (as a fraction over a common denominator) and rounded ONCE to two decimals `HALF_UP` (7.25 MD over six working days loads 3.63 into each of two weeks, 3 days apiece; two 0.01 MD milestones Friday → Monday load 0.01 into the first week, not 0.02). A weekend inside a span costs nothing. 10 MD Wednesday → next Tuesday (5 working days) loads 6.00 into the first week and 4.00 into the second; 10 MD over Friday + Monday + Tuesday loads 3.33 and 6.67.
+- **Prorated capacity (Q1c).** `capacityOn(day)` = the `mdPerWeek` of the ACTIVE period with the greatest `effectiveFrom ≤ day` (null before the first). `weekCapacity(monday)` = null when no period is in force on ANY working day of the week ("no capacity", never zero, never flagged); otherwise the sum over Monday–Friday of `(capacityOn(day) ?: 0) / 5` (each share at scale 6, exact for a two-decimal figure), rounded to two decimals `HALF_UP`.
+  A weekend `effectiveFrom` needs no special case (only Monday–Friday are summed). Hand-counted (2027-02-01 is a Monday; `LoadKernelsTest` has all eight):
+
+  | Periods (`effectiveFrom` → `mdPerWeek`) | Week of 2027-02-01 | Week of 2027-02-08 |
+  |---|---|---|
+  | 02-01 → 10, Thu 02-04 → 20 (mid-week boundary) | 3×2 + 2×4 = **14.00** | 20.00 |
+  | 02-01 → 10, Mon 02-08 → 20 (a Monday boundary) | 10.00 | 20.00 |
+  | 02-01 → 10, Sat 02-06 → 20 (a weekend boundary) | 10.00 | 20.00 |
+  | 02-01 → 10, Tue 02-02 → 20, Thu 02-04 → 5 | 2 + 4 + 4 + 1 + 1 = **12.00** | 5.00 |
+  | Wed 02-03 → 10 (the first period mid-week) | 0 + 0 + 2 + 2 + 2 = **6.00** (the week of 01-25: null) | 10.00 |
+  | Sat 02-06 → 20 (the first period on a weekend) | **null** | 20.00 |
+  | 02-01 → 1.33, Thu 02-04 → 0 (rounding) | 3 × 0.266 = 0.798 → **0.80** | 0.00 |
+  | 2020-01-06 → 10 (a period in the past) | 10.00 | 10.00 |
+- **Overload.** `overloaded = capacity != null && load > capacity` on the ROUNDED figures (what is shown is what is flagged); `overloadMd = load − capacity`, only when overloaded. 0.80 against 0.80 is not overloaded, 0.81 is, by 0.01; a capacity of 0.00 (on hold) flags every loaded week; a null capacity never flags.
+- **WIP (B).** A scheduled milestone is IN PROGRESS on the working days of its EFFECTIVE span `[nextWorkingDayOnOrAfter(start), previousWorkingDayOnOrBefore(end)]` (the v0.4 dependency check's rule: a weekend-only edge counts nothing). `wipOn(day)` = the number of scheduled milestones in progress that day; `wipLimitOn(day)` = the WIP limit of the period in force THAT day (null = no limit: before the first period, or a period without one).
+  Per week `maxWip` = the peak over Monday–Friday (0 when nothing runs) and `wipExceeded` = some working day has a limit and exceeds it — **evaluated per day**, so a limit that changes mid-week judges each day by its own limit. There is no per-week limit on the wire (it may change mid-week); the periods table is where limits are read. Worked rows, milestones A 02-01..02-05, B 02-03..02-10, C 02-04..02-04
+  (daily WIP, week of 02-01: 1 1 2 3 2; week of 02-08: 1 1 1 0 0):
+
+  | Limits | Week of 02-01 | Week of 02-08 |
+  |---|---|---|
+  | limit 2 from 02-01 | maxWip 3, **exceeded** (Thu 3 > 2) | 1, not |
+  | limit 2 from 02-01, limit 3 from Thu 02-04 | maxWip 3, **not exceeded** (Wed 2 ≤ 2, Thu 3 ≤ 3) | 1, not |
+  | limit 3 from 02-01, limit 2 from Thu 02-04 | **exceeded** (Thu 3 > 2) | not |
+  | limit 1 from Sat 02-06 as the FIRST period | no limit on any day → not exceeded, maxWip 3 | Mon 1 ≤ 1 → not; with D 02-08..02-09: Mon 2 > 1 → **exceeded** |
+  | `wipLimit` null | maxWip 3, not exceeded | 1, not |
+  | + E dated Sat 02-06 → Sun 02-14 (effective Mon 02-08 → Fri 02-12), limit 1 | unchanged — E counts on no day of this week | Mon 2 (B, E) > 1 → **exceeded** |
+  | + F dated Fri 02-05 → Sat 02-06 (effective Fri only), limit 2 | Fri 3 (A, B, F) > 2 → exceeded | unchanged |
+  | nothing scheduled | maxWip 0, not exceeded | 0, not |
+- **`dependencies[]`** takes the project view's `ProjectDependency` shape for every ACTIVE link with a MILESTONE end among the team's milestones (`viewDependencies`, generalised from the project view's `projectDependencies`, which keeps a thin call): both ends resolved, `DependencyKernels.check`, violated first, `can.delete` on the SUCCESSOR's project chain.
+  The far end of a link may lie in another team or project; it is resolved (name, project, team, dates), not listed as a row — **no ghost rows**.
+- **Kernels** (`LoadKernels.kt`, pure — the `CapacityKernels.kt` idiom): `LoadItem`, `CapacityPeriod`, `WeekLoad`, `workingDaysBetween`, `periodOn`/`capacityOn`/`weekCapacity`/`wipLimitOn`/`wipOn`, `loadWindow`, `weeklyLoad`; the wire form is `WeekLoadView`. Cost ≤ 520 weeks × 5 days × (≤ 100 milestones + a handful of periods) — milliseconds.
+- **Tests**: `LoadKernelsTest` (pure; the tables above verbatim, the spread, the window and the cap), `TeamViewTest` (401, 404/400, the shape, the order with and without an override and a rank change leaving it, the weeks through the wire, the links, the three flags against the real writes), `PlanPermissionsTest`.
+
+## Not built yet — the sketch (v0.6+, confirmed by each increment)
+
+- Derived spans, drift (built for the project view, `SpanKernels.kt`) and load (built, `LoadKernels.kt`) are computed at request time in pure kernels (`planning/`, the `CapacityKernels.kt` idiom), with shared JSON test vectors for Kotlin and vitest (deferred to the first
   kernel that needs them; `PlanPermissions` is the first pure kernel and is tested against the guards instead).
-- More view endpoints (`/views/team/{id}`, `/views/programs`; `/views/plan`, `/views/roadmap` and `/views/project/{id}` are built), each one document with `can:{…}` flags and a revision, like Flow's `/reports/home`.
+- More view endpoints (`/views/programs`; `/views/plan`, `/views/roadmap`, `/views/project/{id}` and `/views/team/{id}` are built), each one document with `can:{…}` flags and a revision, like Flow's `/reports/home`.

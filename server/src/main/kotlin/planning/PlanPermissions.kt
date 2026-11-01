@@ -68,4 +68,14 @@ object PlanPermissions {
      * the project's owner as such.
      */
     fun canSchedule(actor: PlanActor, teamId: UInt): Boolean = actor.isAdmin || teamId in actor.managedTeamIds
+
+    /**
+     * `POST /teams/{id}/capacity`, `PUT`/`DELETE /capacity-periods/{id}`: ADMIN or the ACTIVE manager of THAT team
+     * (`requireTeamManagerOrAdmin`) - [canSchedule]'s arithmetic under its own name, so a later version may split the rights without a
+     * wire change.
+     */
+    fun canEditCapacity(actor: PlanActor, teamId: UInt): Boolean = canSchedule(actor, teamId)
+
+    /** `PUT /teams/{id}/milestone-order`: ADMIN or the ACTIVE manager of THAT team (`requireTeamManagerOrAdmin`), as [canSchedule]. */
+    fun canEditTeamOrder(actor: PlanActor, teamId: UInt): Boolean = canSchedule(actor, teamId)
 }

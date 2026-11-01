@@ -24,6 +24,8 @@ import ch.nokillswit.planning.RoadmapService
 import ch.nokillswit.planning.RoadmapServiceKey
 import ch.nokillswit.planning.TeamOrderService
 import ch.nokillswit.planning.TeamOrderServiceKey
+import ch.nokillswit.planning.TeamViewService
+import ch.nokillswit.planning.TeamViewServiceKey
 import ch.nokillswit.planning.WorkStreamService
 import ch.nokillswit.planning.WorkStreamServiceKey
 import ch.nokillswit.teams.TeamCapacityService
@@ -270,6 +272,7 @@ suspend fun Application.configureDatabase() {
     attributes.put(ProjectViewServiceKey, ProjectViewService(database))
     attributes.put(RoadmapServiceKey, RoadmapService(database))
     attributes.put(TeamOrderServiceKey, TeamOrderService(database))
+    attributes.put(TeamViewServiceKey, TeamViewService(database))
     attributes.put(
         TokenBlocklistServiceKey,
         TokenBlocklistService(
