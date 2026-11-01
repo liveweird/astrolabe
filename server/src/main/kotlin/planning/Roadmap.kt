@@ -10,23 +10,35 @@ const val MAX_RANKED_PROJECTS = 1000
  * `GET /api/v1/views/roadmap` — the global project rank in one document (the documented view-endpoint shape exception,
  * `list-endpoints.md`; bounded by the plan's scale of about 100 projects). [ranked] is the dense position order; [unranked] are the
  * active projects without a position, by name. [revision] is the RANKING's revision (V18: the plan revision at which the rank was last
- * written) read BEFORE the rows — the `expectedRevision` of the ranking PUT.
+ * written) read BEFORE the rows — the `expectedRevision` of the ranking PUT. Since v0.6: every project carries its derived span, drift
+ * and flags, [teams] are the filter's options and [links] the project pairs' rolled-up dependencies (`RoadmapKernels.kt`).
  */
 @Serializable
 data class RoadmapView(
     val revision: Long,
     val can: RoadmapViewCan,
+    val teams: List<RoadmapTeam>,
     val ranked: List<RoadmapRankedProject>,
     val unranked: List<RoadmapProject>,
+    val links: List<RoadmapLink>,
 )
 
 /** [editRank]: the caller may `PUT /roadmap/ranking` (ADMIN or a `ROADMAP_EDITOR`, as `requireRoadmapEditorOrAdmin`). */
 @Serializable
 data class RoadmapViewCan(val editRank: Boolean)
 
+/** An ACTIVE team with at least one active milestone in the plan: an option of the roadmap's team filter. */
+@Serializable
+data class RoadmapTeam(val id: UInt, val name: String)
+
 @Serializable
 data class RoadmapRankedProject(val position: Int, val project: RoadmapProject)
 
+/**
+ * One project row of the roadmap (and, since v0.6, of the programs view: ONE schema). [span] is DERIVED from its scheduled milestones
+ * and [drift] is that span against the target window; [flags] are the drift and rank-inversion flags raised ON this project, WARNING
+ * first ([FLAG_ORDER]); [teamIds] are the teams of ALL its active milestones, ascending; [rankPosition] is null while unranked.
+ */
 @Serializable
 data class RoadmapProject(
     val id: UInt,
@@ -35,10 +47,67 @@ data class RoadmapProject(
     val programName: String,
     val workStreamId: UInt,
     val workStreamName: String,
+    val ownerPersonId: UInt,
     val ownerName: String,
     val targetStart: String?,
     val targetEnd: String?,
+    val rankPosition: Int?,
+    val teamIds: List<UInt>,
+    val span: DateSpan?,
+    val drift: Drift?,
+    val flags: List<PlanFlag>,
+    val can: RoadmapProjectCan,
 )
+
+/** [editTargetWindow]: the caller may `PUT /projects/{id}/target-window` ([PlanPermissions.canEditTargetWindow]). */
+@Serializable
+data class RoadmapProjectCan(val editTargetWindow: Boolean)
+
+/** What a flag is about; the declaration order is the flags' order within a severity. */
+@Serializable
+enum class FlagKind { DRIFT_END_LATE, DRIFT_START_LATE, DRIFT_END_EARLY, RANK_INVERSION }
+
+/** WARNING sorts before INFO. */
+@Serializable
+enum class FlagSeverity { WARNING, INFO }
+
+/**
+ * One flag raised on a project. [days] is the drift in calendar days (always positive) or, for an inversion, how many calendar days
+ * earlier this project starts than [otherProjectId]; [teamId] is the shared team of a per-team inversion (null for the no-shared-team
+ * INFO and for drift); [otherProjectId] is the higher-ranked project of an inversion.
+ */
+@Serializable
+data class PlanFlag(
+    val kind: FlagKind,
+    val severity: FlagSeverity,
+    val days: Int?,
+    val teamId: UInt?,
+    val otherProjectId: UInt?,
+)
+
+/** The number of WARNING and INFO flags over a set of projects (a program's or work stream's roll-up). */
+@Serializable
+data class FlagCounts(val warnings: Int, val infos: Int)
+
+/**
+ * The dependencies between two projects, rolled up: ONE entry per ORDERED pair (predecessor project, successor project). [direct] is
+ * the project-to-project link (at most one per ordered pair: the partial unique index), [milestoneLinks] counts every link between the
+ * pair that has a milestone on either end. Links inside one project are not on the roadmap.
+ */
+@Serializable
+data class RoadmapLink(
+    val predecessorProjectId: UInt,
+    val successorProjectId: UInt,
+    val direct: RoadmapDirectLink?,
+    val milestoneLinks: RoadmapLinkBundle,
+)
+
+@Serializable
+data class RoadmapDirectLink(val id: UInt, val type: DependencyType, val lagDays: Int, val check: DependencyCheck)
+
+/** [count] links with a milestone end, of which [violated] are violated and [unscheduled] could not be evaluated. */
+@Serializable
+data class RoadmapLinkBundle(val count: Int, val violated: Int, val unscheduled: Int)
 
 /**
  * The wholesale ranking: [projectIds] in rank order become positions 1..n and every other project becomes unranked; [expectedRevision]

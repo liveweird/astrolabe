@@ -35,9 +35,16 @@ const project = (id: number, name: string, over: Partial<RoadmapProject> = {}): 
   programName: "Billing",
   workStreamId: 1,
   workStreamName: "Platform",
+  ownerPersonId: 5,
   ownerName: "Ola Owner",
   targetStart: null,
   targetEnd: null,
+  rankPosition: null,
+  teamIds: [],
+  span: null,
+  drift: null,
+  flags: [],
+  can: { editTargetWindow: false },
   ...over,
 });
 
@@ -49,6 +56,8 @@ const LEDGER = project(4, "Ledger");
 const viewOf = (over: Partial<RoadmapView> = {}): RoadmapView => ({
   revision: 7,
   can: { editRank: true },
+  teams: [],
+  links: [],
   ranked: [
     { position: 1, project: INVOICES },
     { position: 2, project: TAXES },

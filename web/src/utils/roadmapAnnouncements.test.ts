@@ -5,7 +5,24 @@ import { roadmapAnnouncements } from "./roadmapAnnouncements";
 
 const row = (position: number, id: number, name: string): RoadmapRankedProject => ({
   position,
-  project: { id, name, programId: 1, programName: "P", workStreamId: 1, workStreamName: "W", ownerName: "O", targetStart: null, targetEnd: null },
+  project: {
+    id,
+    name,
+    programId: 1,
+    programName: "P",
+    workStreamId: 1,
+    workStreamName: "W",
+    ownerPersonId: 5,
+    ownerName: "O",
+    targetStart: null,
+    targetEnd: null,
+    rankPosition: position,
+    teamIds: [],
+    span: null,
+    drift: null,
+    flags: [],
+    can: { editTargetWindow: false },
+  },
 });
 const ROWS = [row(1, 11, "Alpha"), row(2, 12, "Beta"), row(3, 13, "Gamma")];
 const item = (id: number) => ({ id, data: { current: undefined }, rect: { current: { initial: null, translated: null } } }) as never;

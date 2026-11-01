@@ -93,15 +93,24 @@ const project = (id: number, name: string): RoadmapProject => ({
   programName: "Billing",
   workStreamId: 1,
   workStreamName: "Platform",
+  ownerPersonId: 5,
   ownerName: "Ola",
   targetStart: null,
   targetEnd: null,
+  rankPosition: null,
+  teamIds: [],
+  span: null,
+  drift: null,
+  flags: [],
+  can: { editTargetWindow: false },
 });
 
 describe("applyRanking", () => {
   const view: RoadmapView = {
     revision: 3,
     can: { editRank: true },
+    teams: [],
+    links: [],
     ranked: [
       { position: 1, project: project(1, "Alpha") },
       { position: 2, project: project(2, "beta") },

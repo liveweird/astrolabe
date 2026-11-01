@@ -1206,10 +1206,24 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * The global project ranking with the caller's right to change it
+         * The global project ranking with spans, flags and rolled-up links
          * @description Any authenticated user. One document (a deliberate exception to the paged envelope, bounded by the plan's scale of about 100
-         *     projects): `ranked` in position order (dense 1..n) and `unranked`, the active projects without a position, by name. Each project
-         *     carries its program, work stream and owner names. `can.editRank` is whether THIS caller may `PUT /roadmap/ranking` (ADMIN or a
+         *     projects, 1,000 milestones and 300 project pairs): `ranked` in position order (dense 1..n) and `unranked`, the active projects
+         *     without a position, by name. Each project carries its program, work stream and owner, its `teamIds` (the teams of all its
+         *     active milestones), its DERIVED `span` (earliest start to latest end over its scheduled milestones; null while none is
+         *     scheduled), the `drift` of that span against the target window (null unless both exist) and its `flags`.
+         *     Flags are WARNING first, then by kind, team and other project. Drift: an end later than the target end is a `DRIFT_END_LATE`
+         *     WARNING; a start later than the target start (`DRIFT_START_LATE`) and an end ahead of the target (`DRIFT_END_EARLY`) are INFO;
+         *     an early start raises nothing. Rank inversion (`RANK_INVERSION`, only for ranked projects, raised on the LOWER-ranked project
+         *     B with `otherProjectId` = the higher-ranked A): per team, the ranked projects with scheduled work on that team in rank order,
+         *     and every ADJACENT pair where B's earliest start on the team is strictly before A's is a WARNING with that `teamId` (`days` =
+         *     how much earlier); adjacent ranked projects with a span that share no team with scheduled work and whose B span starts
+         *     strictly before A's are an INFO with a null `teamId`. A tie is no inversion. `teams` are the active teams with milestones in
+         *     the plan (the team filter's options), by name. `links` roll the dependencies up per ORDERED pair of projects, ordered by
+         *     (predecessor, successor) project id: `direct` is the project-to-project link (checked on working days), `milestoneLinks` counts
+         *     the links with a milestone end between the pair (violated, unscheduled); links inside one project are not listed.
+         *     `can.editRank` is whether THIS caller may `PUT /roadmap/ranking` (ADMIN or a ROADMAP_EDITOR holder) and each project's
+         *     `can.editTargetWindow` whether they may `PUT /projects/{id}/target-window` (ADMIN, an owner above the project, or a
          *     ROADMAP_EDITOR holder). `revision` is the RANKING's revision (the plan revision at which the rank was last written), read before the rows - send it back as `expectedRevision`. Plan writes elsewhere do not move it.
          */
         get: operations["getRoadmapView"];
@@ -2503,10 +2517,19 @@ export interface components {
                 /** @description The caller may replace the ranking (ADMIN or a roadmap editor). */
                 editRank: boolean;
             };
+            /** @description The active teams with at least one active milestone in the plan, by name (case-insensitive) and id. */
+            teams: components["schemas"]["RoadmapTeam"][];
             /** @description The ranked projects in position order. */
             ranked: components["schemas"]["RoadmapRankedProject"][];
             /** @description The active projects without a position, by name. */
             unranked: components["schemas"]["RoadmapProject"][];
+            /** @description The dependencies between projects, rolled up per ordered pair (predecessor, successor project id). */
+            links: components["schemas"]["RoadmapLink"][];
+        };
+        RoadmapTeam: {
+            /** Format: int32 */
+            id: number;
+            name: string;
         };
         RoadmapRankedProject: {
             /**
@@ -2526,11 +2549,88 @@ export interface components {
             /** Format: int32 */
             workStreamId: number;
             workStreamName: string;
+            /** Format: int32 */
+            ownerPersonId: number;
             ownerName: string;
             /** Format: date */
             targetStart: string | null;
             /** Format: date */
             targetEnd: string | null;
+            /**
+             * Format: int32
+             * @description The project's position in the global rank; null = unranked.
+             */
+            rankPosition: number | null;
+            /** @description The distinct teams of the project's active milestones (scheduled or not), ascending. */
+            teamIds: number[];
+            /** @description The earliest start to the latest end over the project's scheduled milestones; null when none is scheduled. */
+            span: components["schemas"]["DateSpan"] | null;
+            /** @description `span` against the target window; null unless both exist. */
+            drift: components["schemas"]["Drift"] | null;
+            /** @description The drift and rank-inversion flags raised on this project; WARNING first, then by kind, team and other project. */
+            flags: components["schemas"]["PlanFlag"][];
+            can: {
+                /** @description The caller may `PUT /projects/{id}/target-window`: ADMIN, an owner above the project, or a ROADMAP_EDITOR holder. */
+                editTargetWindow: boolean;
+            };
+        };
+        /** @description One flag raised on a project. Warnings only - nothing is ever moved. */
+        PlanFlag: {
+            /** @enum {string} */
+            kind: "DRIFT_END_LATE" | "DRIFT_START_LATE" | "DRIFT_END_EARLY" | "RANK_INVERSION";
+            /** @enum {string} */
+            severity: "WARNING" | "INFO";
+            /**
+             * Format: int32
+             * @description Calendar days: the drift, or for a rank inversion how much earlier this project starts than `otherProjectId`.
+             */
+            days: number | null;
+            /**
+             * Format: int32
+             * @description The shared team of a per-team rank inversion; null for drift and for the no-shared-team INFO.
+             */
+            teamId: number | null;
+            /**
+             * Format: int32
+             * @description The higher-ranked project of a rank inversion; null for drift.
+             */
+            otherProjectId: number | null;
+        };
+        /** @description The dependencies between two projects, rolled up for one ORDERED pair. Links inside one project are not listed. */
+        RoadmapLink: {
+            /** Format: int32 */
+            predecessorProjectId: number;
+            /** Format: int32 */
+            successorProjectId: number;
+            /** @description The project-to-project link of the pair (at most one per ordered pair); null when there is none. */
+            direct: components["schemas"]["RoadmapDirectLink"] | null;
+            milestoneLinks: components["schemas"]["RoadmapLinkBundle"];
+        };
+        RoadmapDirectLink: {
+            /** Format: int32 */
+            id: number;
+            type: components["schemas"]["DependencyType"];
+            /**
+             * Format: int32
+             * @description Working days; negative = a lead.
+             */
+            lagDays: number;
+            check: components["schemas"]["DependencyCheck"];
+        };
+        /** @description The links between the pair that have a milestone on either end (a milestone-to-project link counts here). */
+        RoadmapLinkBundle: {
+            /** Format: int32 */
+            count: number;
+            /**
+             * Format: int32
+             * @description How many of them are violated.
+             */
+            violated: number;
+            /**
+             * Format: int32
+             * @description How many could not be evaluated (an end has no dates).
+             */
+            unscheduled: number;
         };
         RankingUpdateRequest: {
             /**

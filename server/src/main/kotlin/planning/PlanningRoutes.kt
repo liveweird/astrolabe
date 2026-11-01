@@ -50,7 +50,7 @@ fun Application.configurePlanningRoutes() {
     )
     // Not in PlanRouteDeps: its constructor is at detekt's 12-parameter ceiling, and only one route file reads each of these.
     val teamOrder = attributes[TeamOrderServiceKey]
-    val teamView = attributes[TeamViewServiceKey]
+    val views = PlanViewServices(team = attributes[TeamViewServiceKey], roadmap = attributes[RoadmapViewServiceKey])
     routing {
         authenticate {
             workStreamRoutes(deps)
@@ -58,12 +58,15 @@ fun Application.configurePlanningRoutes() {
             projectRoutes(deps)
             milestoneRoutes(deps)
             dependencyRoutes(deps)
-            planViewRoutes(deps, teamView)
-            roadmapRoutes(deps)
+            planViewRoutes(deps, views)
+            roadmapRoutes(deps, views)
             teamOrderRoutes(deps, teamOrder)
         }
     }
 }
+
+/** The read-only view services passed BESIDE [PlanRouteDeps] (its constructor is at detekt's 12-parameter ceiling). */
+internal class PlanViewServices(val team: TeamViewService, val roadmap: RoadmapViewService)
 
 /** The services the planning routes share, plus the per-request caller resolution the guards and the `can` flags need. */
 internal class PlanRouteDeps(
