@@ -4,12 +4,14 @@
 // phone width (the burger); the page sets run in the light scheme and again in the dark one.
 // Owns: the fixture team and the fixture plan (a person, work stream, program and project with two milestones, one scheduled past the
 // project's target end and one in the Unscheduled tray, plus a second project with one milestone linked as the fixture milestone's
-// violated predecessor; unique `e2e-axe-*` names), created and deleted via the API. The fixture team carries one capacity period with a
+// violated predecessor, plus a chain project of two back-to-back milestones whose second one drives the fixture milestone (the zero-slack
+// links of the critical path); unique `e2e-axe-*` names), created and deleted via the API. The fixture team carries one capacity period with a
 // WIP limit of 1 (deleted with the team), so its page shows the strip's overload and WIP marks.
 import type { APIRequestContext, Locator, Page } from "@playwright/test";
 import {
   apiAsAdmin,
   axeViolations,
+  deleteViaApi,
   expect,
   expectScheme,
   login,
@@ -28,6 +30,37 @@ async function scan(page: Page, include?: string): Promise<void> {
   expect(await axeViolations(page, include)).toEqual([]);
 }
 
+/**
+ * A chain project of two milestones back to back (c0 2026-01-26..30, c1 2026-02-02..06) and finish-to-start links c0 -> c1 -> the fixture
+ * milestone (which starts the next Monday): every link holds with no spare day, so the fixture project's critical path has a driving
+ * neighbour (c1, a ghost row) and a member beyond it (c0, the Critical chain list) - the violated link of the fixture stays off the path.
+ * Answers the chain project's id; `track` is told the project's delete path the moment it exists (its milestones and links go with it), so a
+ * failure further down still leaves the caller something to clean up.
+ */
+async function seedChain(
+  api: APIRequestContext,
+  fixture: { programId: number; personId: number; teamId: number; projectId: number; scheduledId: number },
+  track: (deletePath: string) => void,
+): Promise<number> {
+  async function create(path: string, data: object): Promise<number> {
+    const created = await api.post(path, { data });
+    expect(created.status(), await created.text()).toBe(201);
+    return ((await created.json()) as { id: number }).id;
+  }
+  const chainProjectId = await create(`/api/v1/programs/${fixture.programId}/projects`, { name: uniqueText("e2e-axe-chain"), ownerPersonId: fixture.personId });
+  track(`/api/v1/projects/${chainProjectId}`);
+  const chainStart = await create(`/api/v1/projects/${chainProjectId}/milestones`, { name: uniqueText("e2e-axe-chain-a"), teamId: fixture.teamId, estimateMd: 1 });
+  const chainEnd = await create(`/api/v1/projects/${chainProjectId}/milestones`, { name: uniqueText("e2e-axe-chain-b"), teamId: fixture.teamId, estimateMd: 1 });
+  for (const [id, startDate, endDate] of [[chainStart, "2026-01-26", "2026-01-30"], [chainEnd, "2026-02-02", "2026-02-06"]] as const) {
+    const view = (await (await api.get(`/api/v1/views/project/${chainProjectId}`)).json()) as { revision: number };
+    const placed = await api.put(`/api/v1/milestones/${id}/schedule`, { data: { expectedRevision: view.revision, startDate, endDate } });
+    expect(placed.status(), await placed.text()).toBe(200);
+  }
+  await create(`/api/v1/projects/${chainProjectId}/dependencies`, { predecessor: { kind: "MILESTONE", id: chainStart }, successor: { kind: "MILESTONE", id: chainEnd }, type: "FS", lagDays: 0 });
+  await create(`/api/v1/projects/${fixture.projectId}/dependencies`, { predecessor: { kind: "MILESTONE", id: chainEnd }, successor: { kind: "MILESTONE", id: fixture.scheduledId }, type: "FS", lagDays: 0 });
+  return chainProjectId;
+}
+
 test("login screen has no WCAG A/AA violations", async ({ page }) => {
   await page.goto("/login");
   await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible();
@@ -39,6 +72,7 @@ const AUTHED_PAGES: { path: string; heading: string }[] = [
   { path: "/", heading: "Astrolabe" },
   { path: "/teams", heading: "Teams" },
   { path: "/people", heading: "People" },
+  { path: "/public-holidays", heading: "Public holidays" },
   { path: "/users", heading: "Users" },
   { path: "/users/new", heading: "New user" },
   { path: "/feature-flags", heading: "Feature flags" },
@@ -103,24 +137,28 @@ test.describe("detail pages and overlays", () => {
   let programName: string;
   let otherProgramName: string;
   let streamName: string;
-  // The fixture plan's delete paths, children first (a parent with active children answers 409).
-  let planPaths: string[];
+  // The fixture's delete paths in CREATION order, each registered the moment its row exists (a failing beforeAll still cleans up what it made);
+  // the afterAll deletes them in reverse, children first (a parent with active children answers 409).
+  const fixturePaths: string[] = [];
   let projectId: number;
   let projectName: string;
   let linkedProjectId: number;
   let linkedProjectName: string;
   let fixtureProgramId: number;
 
-  async function create(path: string, data: object): Promise<number> {
+  /** POST a row; `tear` is its collection path when the row needs its own delete (a milestone, capacity period or link goes with its parent). */
+  async function create(path: string, data: object, tear?: string): Promise<number> {
     const created = await api.post(path, { data });
     expect(created.status(), await created.text()).toBe(201);
-    return (await created.json() as { id: number }).id;
+    const id = (await created.json() as { id: number }).id;
+    if (tear !== undefined) fixturePaths.push(`${tear}/${id}`);
+    return id;
   }
 
   test.beforeAll(async () => {
     ({ api, userId: adminId } = await apiAsAdmin());
     teamName = uniqueText("e2e-axe-team");
-    teamId = await create("/api/v1/teams", { name: teamName });
+    teamId = await create("/api/v1/teams", { name: teamName }, "/api/v1/teams");
     // A capacity period with a WIP limit of 1 (and a capacity far below the load): the team page's strip then carries both warnings
     // wherever the fixture milestones overlap (the team's two milestones below sit on the same days in March), and the team's
     // delete takes the period with it.
@@ -128,20 +166,20 @@ test.describe("detail pages and overlays", () => {
     // One of each plan level so the Plan page renders a work stream, a program and a project row.
     streamName = uniqueText("e2e-axe-stream");
     programName = uniqueText("e2e-axe-program");
-    const personId = await create("/api/v1/people", { name: uniqueText("e2e-axe-owner") });
-    const streamId = await create("/api/v1/work-streams", { name: streamName, ownerPersonId: personId, startDate: "2026-01-05" });
-    const programId = await create(`/api/v1/work-streams/${streamId}/programs`, { name: programName, ownerPersonId: personId });
+    const personId = await create("/api/v1/people", { name: uniqueText("e2e-axe-owner") }, "/api/v1/people");
+    const streamId = await create("/api/v1/work-streams", { name: streamName, ownerPersonId: personId, startDate: "2026-01-05" }, "/api/v1/work-streams");
+    const programId = await create(`/api/v1/work-streams/${streamId}/programs`, { name: programName, ownerPersonId: personId }, "/api/v1/programs");
     fixtureProgramId = programId;
     // A second program, so the "Move to…" dialog has a target to offer.
     otherProgramName = uniqueText("e2e-axe-program-other");
-    const otherProgramId = await create(`/api/v1/work-streams/${streamId}/programs`, { name: otherProgramName, ownerPersonId: personId });
+    await create(`/api/v1/work-streams/${streamId}/programs`, { name: otherProgramName, ownerPersonId: personId }, "/api/v1/programs");
     projectName = uniqueText("e2e-axe-project");
     projectId = await create(`/api/v1/programs/${programId}/projects`, {
       name: projectName,
       ownerPersonId: personId,
       targetStart: "2026-02-02",
       targetEnd: "2026-03-31",
-    });
+    }, "/api/v1/projects");
     // The project view's richest state: a scheduled bar (editable for the admin) running past the target end (the orange drift) and a tray row.
     const scheduledId = await create(`/api/v1/projects/${projectId}/milestones`, { name: uniqueText("e2e-axe-milestone"), teamId, estimateMd: 3 });
     await create(`/api/v1/projects/${projectId}/milestones`, { name: uniqueText("e2e-axe-tray"), teamId, estimateMd: 0.5 });
@@ -153,7 +191,7 @@ test.describe("detail pages and overlays", () => {
     // A second project whose milestone ends AFTER the fixture milestone starts, and a finish-to-start link from it: the fixture project
     // then shows the dependencies in their richest state (a violated row, the red conflicts badge, a ghost row and a red arrow).
     linkedProjectName = uniqueText("e2e-axe-linked");
-    linkedProjectId = await create(`/api/v1/programs/${programId}/projects`, { name: linkedProjectName, ownerPersonId: personId });
+    linkedProjectId = await create(`/api/v1/programs/${programId}/projects`, { name: linkedProjectName, ownerPersonId: personId }, "/api/v1/projects");
     const linkedId = await create(`/api/v1/projects/${linkedProjectId}/milestones`, { name: uniqueText("e2e-axe-predecessor"), teamId, estimateMd: 1 });
     const linkedView = (await (await api.get(`/api/v1/views/project/${linkedProjectId}`)).json()) as { revision: number };
     const linkedScheduled = await api.put(`/api/v1/milestones/${linkedId}/schedule`, {
@@ -166,14 +204,14 @@ test.describe("detail pages and overlays", () => {
       type: "FS",
       lagDays: 0,
     });
-    planPaths = [`/api/v1/projects/${projectId}`, `/api/v1/projects/${linkedProjectId}`, `/api/v1/programs/${programId}`, `/api/v1/programs/${otherProgramId}`, `/api/v1/work-streams/${streamId}`, `/api/v1/people/${personId}`];
+    await seedChain(api, { programId, personId, teamId, projectId, scheduledId }, (path) => fixturePaths.push(path));
   });
   test.afterAll(async () => {
-    for (const path of [...planPaths, `/api/v1/teams/${teamId}`]) {
-      const response = await api.delete(path);
-      expect([204, 404], `${path} -> ${response.status()}`).toContain(response.status());
+    try {
+      await deleteViaApi(fixturePaths.splice(0).reverse());
+    } finally {
+      await api?.dispose();
     }
-    await api.dispose();
   });
 
   const DETAIL_PAGES: { name: string; path: () => string; settled: (page: Page) => Locator }[] = [
@@ -218,7 +256,7 @@ test.describe("detail pages and overlays", () => {
       await expect(page.getByRole("grid", { name: "Milestone timeline" })).toBeVisible();
       await expect(page.getByText("Ends 10 days after the target")).toBeVisible();
       await expect(page.getByText("1 conflict", { exact: true })).toBeVisible();
-      await expect(page.getByRole("table", { name: "Dependencies of the project" }).getByRole("row")).toHaveCount(2);
+      await expect(page.getByRole("table", { name: "Dependencies of the project" }).getByRole("row")).toHaveCount(3); // the header, the violated link and the chain link
       await expect(page.locator('[data-arrow][data-violated="true"]')).toHaveCount(1);
       await expect(page.getByRole("link", { name: new RegExp(`open project ${linkedProjectName}$`) })).toBeVisible();
       await expectScheme(page, scheme);
@@ -229,6 +267,31 @@ test.describe("detail pages and overlays", () => {
   test.describe("dark scheme", () => {
     test.use({ colorScheme: "dark" });
     registerProjectViewScan("dark");
+  });
+
+  // The project view with the critical-path toggle ON: the pressed toggle, the Slack column (a critical row, a ghost row's "—"), the emphasised
+  // bars and the heavier arrow, the gray "Critical path" badge, the Critical chain table (the chain member beyond the neighbour) and the
+  // Idle gaps section's closed disclosure, light and dark. The toggle is a browser setting, so the stored flag is set before the page loads.
+  function registerCriticalPathScan(scheme: Scheme): void {
+    const suffix = scheme === "dark" ? " in the dark scheme" : "";
+    test(`/projects/:id with the critical path on has no WCAG A/AA violations${suffix}`, async ({ page }) => {
+      await login(page);
+      await page.evaluate(([key, value]) => localStorage.setItem(key, value), ["astrolabe.viewSettings.timeline.criticalPath", "true"]);
+      await page.goto(`/projects/${projectId}`);
+      await expect(page.getByRole("heading", { level: 2, name: projectName })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Critical path", exact: true })).toHaveAttribute("aria-pressed", "true");
+      await expect(page.getByRole("grid", { name: "Milestone timeline" }).getByRole("columnheader", { name: "Slack" })).toBeVisible();
+      await expect(page.locator('[data-arrow][data-critical="true"]')).toHaveCount(1);
+      await expect(page.getByRole("heading", { level: 3, name: "Critical chain" })).toBeVisible();
+      await expect(page.getByRole("table", { name: "Critical chain members in other projects" })).toBeVisible();
+      await expectScheme(page, scheme);
+      await scan(page);
+    });
+  }
+  registerCriticalPathScan("light");
+  test.describe("dark scheme", () => {
+    test.use({ colorScheme: "dark" });
+    registerCriticalPathScan("dark");
   });
 
   // The team view: the sticky load strip with both marks (the overloaded column, the dashed WIP chip), the orange and red badges on the facts

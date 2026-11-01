@@ -6,7 +6,8 @@
 - **Owns** (exclusive server-side state): one fixture team (with one capacity period, a WIP limit of 1, deleted with the team) and one fixture plan (a person, a work
   stream, a program and a project with two milestones - one scheduled past the project's target end, one
   left in the Unscheduled tray - plus a second project with one scheduled milestone that is linked as the fixture milestone's
-  violated predecessor; unique `e2e-axe-*` names), created through the API before the
+  violated predecessor, plus a chain project of two back-to-back milestones (2026-01-26..30 and 2026-02-02..06) linked c0 -> c1 -> the
+  fixture milestone with no spare day, so the fixture project has zero-slack links; unique `e2e-axe-*` names), created through the API before the
   detail-page block and deleted after it (the projects first: their milestones and links go with them); the list/form pages and the login screen are read-only
 
 This is the registered template-title exception (see README.md): one `test()` per page is
@@ -24,7 +25,8 @@ generated from a list, so a single scenario section stands in for each list.
    - *Expected*: an axe scan (same tags) reports zero violations.
 
 The list covers the Home page, the Teams list, the People list, the Users list and its create form, the
-ADMIN feature-flags screen, Change password and the Changelog — see
+ADMIN feature-flags screen, Change password, the Changelog and the Public holidays page (the current year's table or its empty state;
+the page with a full table is scanned by `public-holidays.spec.ts`) — see
 `tests/accessibility.spec.ts`'s `AUTHED_PAGES` list for the current set.
 
 The detail-page block also scans `/plan` with the fixture plan rendered (a work stream, a program and a
@@ -34,6 +36,7 @@ panel open (its table of severities, project links and "Show in timeline" button
 It scans `/programs` with the fixture program opened (the chevron buttons with `aria-expanded`, the summary bars and roll-up counts, the project rows with their bars, the drift flag icon and row menus, the bundle arrow of the violated milestone link), light and dark; the program pick narrows the page to the fixture program (the stack may hold the sample plan).
 It scans the project view `/projects/:id` with the fixture project rendered (the timeline grid with an editable bar, the target-window band,
 the orange drift badge, a violated dependency - the red arrow, the ghost row, the red "1 conflict" badge and the Dependencies table - and the Unscheduled tray, light and dark),
+the same page again with the **Critical path toggle on** (the flag is stored in the browser before the page loads; the pressed toggle, the Slack column with a critical row and a ghost row's dash, the emphasised bars and the heavier arrow, the gray "Critical path" badge and the Critical chain table naming the chain member beyond the neighbour; light and dark; the fixture's chain project makes the links zero-slack, so the Dependencies table has three rows there),
 the milestone editor modal (team picker, estimate) and the dependency editor modal (successor, kind toggle, predecessor picker, type, lag; plus the picker's open option list) scoped to their dialogs.
 It scans the team view `/teams/:id` of the fixture team (the sticky weekly load strip with an overloaded column and the dashed WIP chip, the orange "weeks overloaded" and "weeks over WIP limit" badges and the red conflict badge on the facts line, the Capacity table with its limit, the expanded Weekly load table with its status badges, the arrows; light and dark) and the capacity period modal (date, man-days, WIP limit) scoped to its dialog.
 It also scans the Plan page's "Move to…" modal (the grouped program select) scoped to its dialog, and its open option list; the fixture plan has a second program so the select has a target.
