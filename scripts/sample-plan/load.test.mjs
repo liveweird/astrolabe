@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { Refusal, assertDevelopmentStack, createClient, findExistingLoad, loadDataset, main, parseArgs, resetLoad } from "./load.mjs";
+import { Refusal, applyPolishHolidays, assertDevelopmentStack, createClient, findExistingLoad, loadDataset, main, parseArgs, resetLoad, spannedYears } from "./load.mjs";
 
 const DATA_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "sample-data", "plan");
 const data = loadDataset(DATA_DIR);
@@ -311,6 +311,120 @@ test("a network error keeps its context and a 409 on a create suggests --reset",
     await client.login("a@b.c", "x");
     await assert.rejects(client.must("POST", "/api/v1/teams", {}, "creating team 1", " (retry with --reset)"), /creating team 1 answered 409 \(Conflict: name taken\) \(retry with --reset\)/);
     await assert.rejects(client.must("GET", "/api/v1/teams", undefined, "listing teams", " (retry with --reset)"), /answered 409 \(Conflict: name taken\) \(retry with --reset\)/);
+  } finally {
+    await s.close();
+  }
+});
+
+// ---------------------------------------------------------------------------------------------------------------------------------
+// --polish-holidays: the preset for every spanned year, after the load, idempotent, never removed by --reset
+// ---------------------------------------------------------------------------------------------------------------------------------
+const PRESET = "POST /api/v1/public-holidays/apply-preset";
+
+/** A stack that accepts the whole load (every create answers an id, every PUT a revision); `holidayStatus` is the preset's answer, `state` an earlier load for `fakeApi`'s reads. */
+async function loadApi({ holidayStatus = 200, state = {} } = {}) {
+  let nextId = 1000;
+  const held = new Set();
+  return stub((req, res, body) => {
+    const url = new URL(req.url, "http://x");
+    const page = (items) => json(res, 200, { items, page: 1, pageSize: 100, total: items.length });
+    if (url.pathname === "/openapi/documentation.yaml") { res.writeHead(200, { "content-type": "application/yaml" }); res.end(OPENAPI); }
+    else if (url.pathname === "/api/v1/login") json(res, 200, { token: "t", refreshToken: "r" });
+    else if (url.pathname === "/api/v1/logout") json(res, 204);
+    else if (url.pathname === "/api/v1/public-holidays/apply-preset") {
+      if (holidayStatus !== 200) return json(res, holidayStatus, { title: "Forbidden" });
+      const { preset, year } = JSON.parse(body);
+      assert.equal(preset, "POLISH");
+      const dates = [`${year}-01-01`, `${year}-05-03`];
+      const added = dates.filter((d) => !held.has(d));
+      for (const d of added) held.add(d);
+      json(res, 200, { added: added.map((date) => ({ date })), skipped: dates.filter((d) => !added.includes(d)) });
+    }
+    else if (req.method === "GET" && url.pathname === "/api/v1/people") page(state.people ?? []);
+    else if (req.method === "GET" && url.pathname === "/api/v1/teams") page(state.teams ?? []);
+    else if (req.method === "GET" && url.pathname === "/api/v1/users") page(state.users ?? []);
+    else if (url.pathname === "/api/v1/views/plan") json(res, 200, { revision: 1, workStreams: state.streams ?? [] });
+    else if (url.pathname === "/api/v1/views/roadmap") json(res, 200, { revision: 1, ranked: [] });
+    else if (url.pathname.startsWith("/api/v1/views/team/")) json(res, 200, { order: { revision: 1 } });
+    else if (req.method === "DELETE") json(res, 204);
+    else if (req.method === "PUT") json(res, 200, { revision: 2 });
+    else json(res, 201, { id: ++nextId });
+  });
+}
+
+test("--polish-holidays: parsing, and the spanned years follow the anchor", () => {
+  assert.equal(parseArgs([]).polishHolidays, false);
+  assert.equal(parseArgs(["--polish-holidays"]).polishHolidays, true);
+  assert.deepEqual(spannedYears(data, "2026-10-26"), [2026, 2027, 2028]);
+  assert.deepEqual(spannedYears(data, "2027-06-07"), [2027, 2028], "the anchor moves the span; a work stream's start does not widen it");
+});
+
+test("--polish-holidays: main applies the preset once per spanned year, after the last load request and before logout", async () => {
+  const anchor = "2027-06-07";
+  const s = await loadApi();
+  try {
+    await quiet(() => main(["--base-url", s.origin, "--anchor", anchor, "--polish-holidays"], ENV));
+    const lines = s.lines();
+    const presets = s.log.filter((l) => l.line === PRESET);
+    assert.deepEqual(presets.map((l) => JSON.parse(l.body)), spannedYears(data, anchor).map((year) => ({ preset: "POLISH", year })));
+    const first = lines.indexOf(PRESET);
+    const lastLoad = lines.findLastIndex((l) => l !== PRESET && l !== "POST /api/v1/logout");
+    assert.ok(lastLoad < first, "every load request precedes the first preset call");
+    assert.equal(lines.at(-1), "POST /api/v1/logout");
+    assert.equal(lines.lastIndexOf(PRESET), lines.length - 2, "the preset calls are the last requests before logout");
+    assert.ok(lines.includes("POST /api/v1/people") && lines.includes("PUT /api/v1/roadmap/ranking"), "the load really ran");
+  } finally {
+    await s.close();
+  }
+
+  const without = await loadApi();
+  try {
+    await quiet(() => main(["--base-url", without.origin, "--anchor", anchor], ENV));
+    assert.ok(!without.lines().includes(PRESET), "no flag, no holidays");
+  } finally {
+    await without.close();
+  }
+});
+
+test("--polish-holidays: applyPolishHolidays is idempotent (a re-run adds nothing)", async () => {
+  const s = await loadApi();
+  try {
+    const client = createClient(s.origin);
+    await client.login("a@b.c", "x");
+    assert.deepEqual(await quiet(() => applyPolishHolidays(client, [2027, 2028])), { added: 4, skipped: 0 });
+    assert.deepEqual(await quiet(() => applyPolishHolidays(client, [2027, 2028])), { added: 0, skipped: 4 });
+  } finally {
+    await s.close();
+  }
+});
+
+test("--polish-holidays: a failing preset call is rejected naming the year and says the plan is loaded (re-run with --reset)", async () => {
+  for (const status of [403, 500]) {
+    const s = await loadApi({ holidayStatus: status });
+    try {
+      await assert.rejects(
+        quiet(() => main(["--base-url", s.origin, "--anchor", "2027-06-07", "--polish-holidays"], ENV)),
+        (e) => new RegExp(`applying the Polish holidays of 2027 answered ${status}`).test(e.message) && /sample plan itself is loaded/.test(e.message) && /--reset --polish-holidays/.test(e.message),
+        String(status),
+      );
+      assert.equal(s.lines().filter((l) => l === PRESET).length, 1, "stops at the first failing year");
+      assert.equal(s.lines().at(-1), "POST /api/v1/logout", "the session is still revoked");
+    } finally {
+      await s.close();
+    }
+  }
+});
+
+test("--polish-holidays with --reset: the earlier sample data is deleted, no holiday is ever deleted, the preset follows the load", async () => {
+  const state = { people: emailsOf(), streams: [stream(2, SAMPLE_PERSON, data.workStreams[1].name)], teams: [{ id: 7, name: data.teams[0].name, managerPersonId: SAMPLE_PERSON }] };
+  const s = await loadApi({ state });
+  try {
+    await quiet(() => main(["--base-url", s.origin, "--anchor", "2027-06-07", "--reset", "--polish-holidays"], ENV));
+    const lines = s.lines();
+    assert.ok(lines.includes("DELETE /api/v1/work-streams/2") && lines.includes("DELETE /api/v1/teams/7"), "the earlier load was reset");
+    assert.ok(!lines.some((l) => l.includes("public-holidays") && l !== PRESET), "nothing but the preset touches the dictionary");
+    assert.ok(lines.findLastIndex((l) => l.startsWith("DELETE ")) < lines.indexOf(PRESET), "the preset follows the reset and the load");
+    assert.equal(lines.filter((l) => l === PRESET).length, spannedYears(data, "2027-06-07").length);
   } finally {
     await s.close();
   }

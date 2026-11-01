@@ -44,7 +44,7 @@ refusals, the reset matching, the collision preflight and the token refresh.
 
 ```bash
 read -rs ASTROLABE_ADMIN_PASSWORD && export ASTROLABE_ADMIN_PASSWORD
-node scripts/sample-plan/load.mjs --base-url http://localhost:8086 [--anchor 2027-01-04] [--logins] [--reset] [--concurrency 6] [--insecure-http]
+node scripts/sample-plan/load.mjs --base-url http://localhost:8086 [--anchor 2027-01-04] [--logins] [--reset] [--polish-holidays] [--concurrency 6] [--insecure-http]
 ```
 
 - **Refuses a stack that is not a development stack**, before it reads or sends the password: `GET /openapi/documentation.yaml` must answer 200 with a real `openapi: 3` document
@@ -54,9 +54,15 @@ node scripts/sample-plan/load.mjs --base-url http://localhost:8086 [--anchor 202
 - The admin password is read from `ASTROLABE_ADMIN_PASSWORD` only (`ASTROLABE_ADMIN_EMAIL` defaults to `admin@astrolabe.local`); an account with email MFA is refused. The session is
   revoked (`/logout`) at the end.
 - Order: people (+ logins with `--logins`) -> teams -> work streams -> programs -> projects (with their target windows) -> milestones -> schedule PUTs -> dependencies -> capacity
-  periods -> the project ranking -> the team orders. Bounded concurrency (`--concurrency`, default 6; the server serialises plan writes on its plan lock anyway).
+  periods -> the project ranking -> the team orders -> (with `--polish-holidays`) the public holidays. Bounded concurrency (`--concurrency`, default 6; the server serialises plan writes on its plan lock anyway).
 - **The ranking is added to, not replaced.** `PUT /roadmap/ranking` replaces the whole global rank, so the loader sends the stack's existing ranked projects first (in their order, minus any
   sample project) and the 80 sample projects after them; it fails before the PUT if that would pass the 1,000-project cap.
+- **`--polish-holidays`** (v0.7) applies the Polish preset (`POST /public-holidays/apply-preset`) for every calendar year the dataset's planning dates span (target windows, milestone spans,
+  capacity starts; it depends on `--anchor`, and a work stream's start date does not count: no calendar rule reads it). It only ever **adds**: it is idempotent (a date that already holds a
+  holiday is skipped, so a second run adds nothing), it runs after the load, so it needs a load in the same run (a stack that already holds the sample plan stops, as always, unless `--reset`),
+  and `--reset` never removes holidays. The holiday dictionary is **global, not sample-owned**: other writers may hold rows in it, and the flag neither claims nor cleans them.
+  The generator's `summary.json` statistics (loaded weeks, overloaded weeks, violated links) are **holiday-free by construction**; with the preset loaded the server's own figures differ
+  slightly (`timeline.md` "Measured figures (v0.7)").
 - `--logins` needs `ASTROLABE_SAMPLE_LOGIN_PASSWORD` (10 to 71 bytes) and creates one login per person, linked to it.
 - **Collisions stop the load.** Names of teams, programs and work streams are unique across the whole plan: when a real (non-sample) one already uses a name of the dataset the loader
   lists it and writes nothing.

@@ -6,7 +6,7 @@
 //
 // Usage:
 //   ASTROLABE_ADMIN_PASSWORD=... node scripts/sample-plan/load.mjs [--base-url http://localhost:8086] [--anchor 2027-01-04]
-//        [--logins] [--reset] [--concurrency 6] [--data sample-data/plan] [--insecure-http]
+//        [--logins] [--reset] [--polish-holidays] [--concurrency 6] [--data sample-data/plan] [--insecure-http]
 //
 //   --base-url       the stack's origin (default http://localhost:8086); plain http only for localhost, loopback and *.local hosts
 //   --insecure-http  allow plain http to any other host (the admin password then crosses the network in clear text)
@@ -18,6 +18,9 @@
 //                    under it that sample people own, the sample teams (name AND a sample manager), the sample people and their logins.
 //                    Anything else under a sample work stream is never deleted: the loader refuses and lists it. Without --reset an existing
 //                    load makes the loader stop before writing anything
+//   --polish-holidays  after the load, apply the Polish public-holiday preset (POST /public-holidays/apply-preset) for every calendar year the
+//                    dataset's dates span (anchor-relative: 2026-2028 for an anchor in late 2026). Idempotent (a date that already holds a
+//                    holiday is skipped, so a re-run adds nothing). The holiday dictionary is GLOBAL, not sample-owned: --reset NEVER removes holidays
 //   --concurrency    requests in flight at once, 1..16 (default 6); plan writes serialise on the server's plan lock anyway
 //
 // Before any write the loader also refuses when a REAL (non-sample) team, program or work stream already uses a name of the dataset (those
@@ -40,20 +43,21 @@ const RESET_HINT = " (a name or email already in use? if an earlier sample load 
 export class Refusal extends Error {}
 
 const VALUE_FLAGS = new Set(["--base-url", "--anchor", "--concurrency", "--data"]);
-const BOOLEAN_FLAGS = new Set(["--logins", "--reset", "--insecure-http"]);
+const BOOLEAN_FLAGS = new Set(["--logins", "--reset", "--insecure-http", "--polish-holidays"]);
+const BOOLEAN_KEYS = { "--logins": "logins", "--reset": "reset", "--insecure-http": "insecureHttp", "--polish-holidays": "polishHolidays" };
 
 /** Plain http is for the machine itself or a local development name; anything else needs https (or --insecure-http). */
 const isLocalHost = (host) => host === "localhost" || host === "[::1]" || /^127(\.\d{1,3}){3}$/.test(host) || host.endsWith(".local") || host.endsWith(".localhost");
 
 export function parseArgs(argv) {
-  const args = { baseUrl: "http://localhost:8086", anchor: mondayOfWeek(), logins: false, reset: false, insecureHttp: false, concurrency: 6, data: path.join(ROOT, "sample-data", "plan") };
+  const args = { baseUrl: "http://localhost:8086", anchor: mondayOfWeek(), logins: false, reset: false, insecureHttp: false, polishHolidays: false, concurrency: 6, data: path.join(ROOT, "sample-data", "plan") };
   for (let i = 0; i < argv.length; i++) {
     // A value is never echoed back (it may be a URL with credentials): errors name the flag or the position only.
     const eq = argv[i].indexOf("=");
     const flag = eq < 0 ? argv[i] : argv[i].slice(0, eq);
     const inline = eq < 0 ? undefined : argv[i].slice(eq + 1);
     if (BOOLEAN_FLAGS.has(flag) && inline === undefined) {
-      args[flag === "--logins" ? "logins" : flag === "--reset" ? "reset" : "insecureHttp"] = true;
+      args[BOOLEAN_KEYS[flag]] = true;
     } else if (VALUE_FLAGS.has(flag)) {
       const value = inline ?? argv[++i];
       if (value === undefined || value === "" || value.startsWith("--")) throw new Refusal(`${flag} needs a value`);
@@ -417,6 +421,38 @@ async function loadPlan(client, data, args, loginPassword) {
   });
   return ids;
 }
+// ---------------------------------------------------------------------------------------------------------------------------------
+// The Polish public holidays (--polish-holidays). The dictionary is global and not sample-owned: the loader only ever ADDS to it (the preset
+// is idempotent) and --reset never deletes a holiday.
+// ---------------------------------------------------------------------------------------------------------------------------------
+/**
+ * Every calendar year the dataset's PLANNING dates span once offset 0 is `anchor`: the projects' target windows, the milestones' spans and the
+ * capacity periods' starts. A work stream's start is a label, not a planning date (no calendar rule reads it), so it does not widen the span.
+ */
+export function spannedYears(data, anchor) {
+  const offsets = [
+    ...data.workStreams.flatMap((w) => w.programs.flatMap((p) => p.projects.flatMap((pr) => [pr.targetStartOffset, pr.targetEndOffset]))),
+    ...data.milestones.flatMap((m) => [m.startOffset, m.endOffset]),
+    ...data.capacity.map((c) => c.effectiveFromOffset),
+  ].filter((o) => typeof o === "number");
+  if (offsets.length === 0) return [];
+  const first = Number(isoDateAt(anchor, Math.min(...offsets)).slice(0, 4));
+  const last = Number(isoDateAt(anchor, Math.max(...offsets)).slice(0, 4));
+  return Array.from({ length: last - first + 1 }, (_, i) => first + i);
+}
+
+/** Applies the POLISH preset for each year, one call at a time (each is a plan write). Returns the numbers of holidays added and skipped. */
+export async function applyPolishHolidays(client, years) {
+  let added = 0;
+  let skipped = 0;
+  await phase("polish holidays", years, 1, async (year) => {
+    const answer = await client.must("POST", "/api/v1/public-holidays/apply-preset", { preset: "POLISH", year }, `applying the Polish holidays of ${year}`);
+    added += answer.added.length;
+    skipped += answer.skipped.length;
+  });
+  return { added, skipped };
+}
+
 export async function main(argv, env = process.env) {
   resetProgress();
   const args = parseArgs(argv);
@@ -447,10 +483,19 @@ export async function main(argv, env = process.env) {
     if (found > 0) await resetLoad(client, existing, args.concurrency);
     else if (args.reset) console.log("--reset: no earlier sample load found");
     const ids = await loadPlan(client, data, args, loginPassword);
+    let holidays = null;
+    if (args.polishHolidays) {
+      try {
+        holidays = await applyPolishHolidays(client, spannedYears(data, args.anchor));
+      } catch (e) {
+        throw new Error(`${e?.message ?? e}; the sample plan itself is loaded, only the holidays are missing: re-run with --reset --polish-holidays`, { cause: e });
+      }
+    }
 
     const seconds = ((Date.now() - started) / 1000).toFixed(1);
     console.log(`\nloaded in ${seconds}s with ${client.requests} requests:`);
     for (const [label, ms] of phaseTimes) console.log(`  ${label.padEnd(22)} ${String(counts[label]).padStart(5)}  ${(ms / 1000).toFixed(1)}s`);
+    if (holidays) console.log(`Polish holidays: ${holidays.added} added, ${holidays.skipped} already present (the dictionary is global; --reset never removes holidays)`);
     const biggest = [...data.milestones.reduce((m, x) => m.set(x.teamRef, (m.get(x.teamRef) ?? 0) + 1), new Map())].sort((a, b) => b[1] - a[1])[0];
     console.log(`largest team: "${data.teams.find((t) => t.ref === biggest[0]).name}" (${biggest[1]} milestones) at /teams/${ids.team.get(biggest[0])}`);
     if (args.logins) console.log(`logins: <first>.<last>${SAMPLE_DOMAIN}, e.g. ${data.people[0].email} (manager of "${data.teams[0].name}")`);

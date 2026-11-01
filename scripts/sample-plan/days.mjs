@@ -2,7 +2,10 @@
 //
 // The dataset stores every date as an integer DAY OFFSET from an anchor Monday. Offset 0 is the anchor, so the weekday of an offset is
 // `((d % 7) + 7) % 7` (0 = Monday ... 6 = Sunday) and the arithmetic needs no calendar. The working-day rule is the server's
-// (`infra/time/WorkingDays.kt`): Monday to Friday, no holidays, `workIndex` flat over a weekend and consecutive Friday -> Monday.
+// (`infra/time/WorkingCalendar.kt`, `WorkingCalendar.MON_FRI`) with an EMPTY holiday table: Monday to Friday, `workIndex` flat over a weekend and consecutive Friday -> Monday.
+// The generator, its statistics (`summary.json`) and the self-test are holiday-free BY CONSTRUCTION and stay so whatever the stack's holiday
+// dictionary holds: the loader's `--polish-holidays` (v0.7) only fills the server's dictionary, after which the server's own load/overload/
+// dependency figures differ from `summary.json` (the measured shift: `timeline.md` "Measured figures (v0.7)"), never these helpers.
 
 export const weekday = (d) => ((d % 7) + 7) % 7;
 export const isWorking = (d) => weekday(d) < 5;
