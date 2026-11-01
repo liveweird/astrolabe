@@ -17,7 +17,8 @@ export default function MilestoneScheduleModal({
   onUnschedule,
   onClose,
 }: {
-  milestone: ProjectMilestone;
+  /** Any page's milestone (the project view's and the team view's): only its name and dates matter here. */
+  milestone: Pick<ProjectMilestone, "name" | "startDate" | "endDate">;
   /** The last Save/Unschedule was refused because another save is still running (the dialog stays open, and says so here). */
   refused: boolean;
   onSchedule: (start: string, end: string) => void;

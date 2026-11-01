@@ -97,6 +97,8 @@ Any future sticky header part adds to `headerHeight()`; a literal is a bug.
 - **The WIP mark** (distinct from the overload by SHAPE, the same warning hue): while `wipExceeded`, a small chip with a DASHED orange outline in the cell's top-right corner carrying the peak `maxWip` (week and month zoom), a 6 px dot at quarter zoom. The chip's ink is the text colour (orange text on white is under 4.5:1).
 - Tests read the data attributes and the `data-part` of each mark (`capacity-line`, `fill`, `figure`, `wip`), never colour. Pure geometry: `utils/timelineLoad.test.ts`.
 
+**Its first consumer (the team page, `components/TeamTimeline.tsx`):** the page passes `strip={{label, render: (scale) => <TimelineLoadStrip weeks={view.weeks} scale={scale} />}}` with the server's week rows as they are (the API's `WeekLoad` is structurally `LoadWeek`). The weekly table (`TeamWeeklyLoad`) is the accessible surface; its legend is the strip's. Real-browser figures for the team page at scale are recorded here once the sample dataset exists (C6).
+
 #### Drag, resize and keyboard contract
 
 ONE `TimelineDndContext` per page wraps the `Timeline` and the `TimelineUnscheduledTray` (`scale`, `onSchedule(barId, start, end) → boolean`). Sensors: `PointerSensor` (activation distance 5 px) and `KeyboardSensor` with `keyboardCoordinates(dayWidth)` (`scrollBehavior: "auto"`).

@@ -10,6 +10,12 @@ export function moveBy(ids: readonly number[], id: number, delta: number): numbe
   return placeAt(ids, from, Math.min(Math.max(from + delta, 0), ids.length - 1));
 }
 
+/** Move `id` to the very top or the very bottom of the list (the team order's "Move to top" / "Move to bottom"). */
+export function moveToEdge(ids: readonly number[], id: number, edge: "top" | "bottom"): number[] {
+  const from = ids.indexOf(id);
+  return from < 0 ? [...ids] : placeAt(ids, from, edge === "top" ? 0 : ids.length - 1);
+}
+
 /** Put `id` where `overId` is now (what dragging a row over another does: the rows in between shift by one). */
 export function moveOver(ids: readonly number[], id: number, overId: number): number[] {
   const from = ids.indexOf(id);

@@ -3,7 +3,7 @@
 // Thin endpoint wrappers: transport (authedFetch/ApiError) in ./http, types from ./schema.
 
 import { buildQuery, jsonRequest, voidRequest } from "./http";
-import type { paths } from "./schema";
+import type { components, paths } from "./schema";
 
 export type TeamPage = paths["/api/v1/teams"]["get"]["responses"]["200"]["content"]["application/json"];
 export type TeamListItem = TeamPage["items"][number];
@@ -37,4 +37,41 @@ export async function updateTeam(id: number, body: TeamUpdateBody): Promise<void
 
 export async function deleteTeam(id: number): Promise<void> {
   await voidRequest(`/api/v1/teams/${id}`, { method: "DELETE" });
+}
+
+// ---- the team view (V16 capacity periods, V17 team order, GET /views/team/{id}) ------------------------------------------------
+// Everyone signed in reads the view; its `can` flags say what the caller may do (the team's manager or an ADMIN schedules, edits the
+// capacity and the order), and the server's guards are the rule.
+
+type Schemas = components["schemas"];
+
+export type TeamView = Schemas["TeamView"];
+export type TeamMilestone = Schemas["TeamMilestone"];
+export type WeekLoad = Schemas["WeekLoad"];
+export type CapacityPeriod = Schemas["CapacityPeriodResponse"];
+export type CapacityPeriodBody = Schemas["CapacityPeriodRequest"];
+
+export async function getTeamView(id: number): Promise<TeamView> {
+  return jsonRequest<TeamView>(`/api/v1/views/team/${id}`);
+}
+
+export async function createCapacityPeriod(teamId: number, body: CapacityPeriodBody): Promise<CapacityPeriod> {
+  return jsonRequest<CapacityPeriod>(`/api/v1/teams/${teamId}/capacity`, { method: "POST", body: JSON.stringify(body) });
+}
+
+/** A full replace; an absent or null `wipLimit` clears the limit. */
+export async function updateCapacityPeriod(id: number, body: CapacityPeriodBody): Promise<void> {
+  await voidRequest(`/api/v1/capacity-periods/${id}`, { method: "PUT", body: JSON.stringify(body) });
+}
+
+export async function deleteCapacityPeriod(id: number): Promise<void> {
+  await voidRequest(`/api/v1/capacity-periods/${id}`, { method: "DELETE" });
+}
+
+/**
+ * Wholesale: the listed milestones are the team's execution order, first first; the unlisted follow in the project rank's order; an
+ * empty list resets to the rank. Answers the revision after the write (the team's order revision from now on).
+ */
+export async function putTeamOrder(teamId: number, body: Schemas["TeamOrderUpdateRequest"]): Promise<Schemas["TeamOrderResponse"]> {
+  return jsonRequest<Schemas["TeamOrderResponse"]>(`/api/v1/teams/${teamId}/milestone-order`, { method: "PUT", body: JSON.stringify(body) });
 }

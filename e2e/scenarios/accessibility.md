@@ -3,7 +3,7 @@
 - **Spec**: [tests/accessibility.spec.ts](../tests/accessibility.spec.ts)
 - **Actors**: the seed administrator (`admin@astrolabe.local`) for the authenticated pages; an
   anonymous visitor for the login screen
-- **Owns** (exclusive server-side state): one fixture team and one fixture plan (a person, a work
+- **Owns** (exclusive server-side state): one fixture team (with one capacity period, a WIP limit of 1, deleted with the team) and one fixture plan (a person, a work
   stream, a program and a project with two milestones - one scheduled past the project's target end, one
   left in the Unscheduled tray - plus a second project with one scheduled milestone that is linked as the fixture milestone's
   violated predecessor; unique `e2e-axe-*` names), created through the API before the
@@ -34,6 +34,7 @@ buttons in the ranked table, light and dark); the project is ranked through the 
 It scans the project view `/projects/:id` with the fixture project rendered (the timeline grid with an editable bar, the target-window band,
 the orange drift badge, a violated dependency - the red arrow, the ghost row, the red "1 conflict" badge and the Dependencies table - and the Unscheduled tray, light and dark),
 the milestone editor modal (team picker, estimate) and the dependency editor modal (successor, kind toggle, predecessor picker, type, lag; plus the picker's open option list) scoped to their dialogs.
+It scans the team view `/teams/:id` of the fixture team (the sticky weekly load strip with an overloaded column and the dashed WIP chip, the orange "weeks overloaded" and "weeks over WIP limit" badges and the red conflict badge on the facts line, the Capacity table with its limit, the expanded Weekly load table with its status badges, the arrows; light and dark) and the capacity period modal (date, man-days, WIP limit) scoped to its dialog.
 It also scans the Plan page's "Move to…" modal (the grouped program select) scoped to its dialog, and its open option list; the fixture plan has a second program so the select has a target.
 
 ## Scenario: `<path>` has no WCAG A/AA violations in the dark scheme

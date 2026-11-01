@@ -4,7 +4,8 @@
 // phone width (the burger); the page sets run in the light scheme and again in the dark one.
 // Owns: the fixture team and the fixture plan (a person, work stream, program and project with two milestones, one scheduled past the
 // project's target end and one in the Unscheduled tray, plus a second project with one milestone linked as the fixture milestone's
-// violated predecessor; unique `e2e-axe-*` names), created and deleted via the API.
+// violated predecessor; unique `e2e-axe-*` names), created and deleted via the API. The fixture team carries one capacity period with a
+// WIP limit of 1 (deleted with the team), so its page shows the strip's overload and WIP marks.
 import type { APIRequestContext, Locator, Page } from "@playwright/test";
 import {
   apiAsAdmin,
@@ -119,6 +120,10 @@ test.describe("detail pages and overlays", () => {
     ({ api, userId: adminId } = await apiAsAdmin());
     teamName = uniqueText("e2e-axe-team");
     teamId = await create("/api/v1/teams", { name: teamName });
+    // A capacity period with a WIP limit of 1 (and a capacity far below the load): the team page's strip then carries both warnings
+    // wherever the fixture milestones overlap (the team's two milestones below sit on the same days in March), and the team's
+    // delete takes the period with it.
+    await create(`/api/v1/teams/${teamId}/capacity`, { effectiveFrom: "2026-02-02", mdPerWeek: 0.5, wipLimit: 1 });
     // One of each plan level so the Plan page renders a work stream, a program and a project row.
     streamName = uniqueText("e2e-axe-stream");
     programName = uniqueText("e2e-axe-program");
@@ -224,6 +229,34 @@ test.describe("detail pages and overlays", () => {
     registerProjectViewScan("dark");
   });
 
+  // The team view: the sticky load strip with both marks (the overloaded column, the dashed WIP chip), the orange and red badges on the facts
+  // line, the Capacity table (with its WIP limit), the EXPANDED weekly table with its status badges, the arrows, light and dark.
+  function registerTeamViewScan(scheme: Scheme): void {
+    const suffix = scheme === "dark" ? " in the dark scheme" : "";
+    test(`/teams/:id with the weekly load strip, both warnings and the weekly table has no WCAG A/AA violations${suffix}`, async ({ page }) => {
+      await login(page);
+      await page.goto(`/teams/${teamId}`);
+      await expect(page.getByRole("heading", { level: 2, name: teamName })).toBeVisible();
+      await expect(page.getByRole("grid", { name: "Team milestone timeline" })).toBeVisible();
+      const facts = page.getByRole("group", { name: "Team facts" });
+      await expect(facts).toContainText(/weeks? overloaded/);
+      await expect(facts).toContainText(/weeks? over WIP limit/);
+      await expect(facts).toContainText("1 conflict");
+      await expect(page.locator('[data-week][data-overloaded="true"]').first()).toBeAttached();
+      await expect(page.locator('[data-week][data-wip-exceeded="true"]').first()).toBeAttached();
+      await expect(page.getByRole("table", { name: "Capacity periods of the team" }).getByRole("row")).toHaveCount(2);
+      await page.getByRole("button", { name: "Show the weekly figures" }).click();
+      await expect(page.getByRole("table", { name: "Weekly load of the team" })).toBeVisible();
+      await expectScheme(page, scheme);
+      await scan(page);
+    });
+  }
+  registerTeamViewScan("light");
+  test.describe("dark scheme", () => {
+    test.use({ colorScheme: "dark" });
+    registerTeamViewScan("dark");
+  });
+
   // The Roadmap with the fixture project in the ranked list (handles, Move and Unrank buttons) and the rest in Unranked, light and dark.
   // The project is ranked only for the scan and unranked again, so the shared ranking is as the other specs expect it.
   function registerRoadmapScan(scheme: Scheme): void {
@@ -304,6 +337,15 @@ test.describe("detail pages and overlays", () => {
     await modal.getByRole("combobox", { name: "Predecessor" }).click();
     await expect(page.getByRole("option").first()).toBeVisible();
     await scan(page, '[role="listbox"]');
+  });
+
+  test("a capacity period modal (date, man-days, WIP limit) has no WCAG A/AA violations", async ({ page }) => {
+    await login(page);
+    await page.goto(`/teams/${teamId}`);
+    await page.getByRole("button", { name: "Add period" }).click();
+    const modal = await settledDialog(page);
+    await expect(modal.getByRole("heading", { name: "Add a capacity period" })).toBeVisible();
+    await scan(page, '[role="dialog"]');
   });
 
   test("a plan project editor modal (dates, fieldset, owner picker) has no WCAG A/AA violations", async ({ page }) => {

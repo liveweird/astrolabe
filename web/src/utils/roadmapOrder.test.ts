@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { RoadmapProject, RoadmapView } from "../api/roadmap";
-import { appendId, applyRanking, moveBy, moveOver, removeId } from "./roadmapOrder";
+import { appendId, applyRanking, moveBy, moveOver, moveToEdge, removeId } from "./roadmapOrder";
 
 describe("moveBy", () => {
   test("moves one place up or down and leaves the input alone", () => {
@@ -15,6 +15,21 @@ describe("moveBy", () => {
     expect(moveBy([1, 2, 3], 3, 1)).toEqual([1, 2, 3]);
     expect(moveBy([1, 2, 3], 1, 5)).toEqual([2, 3, 1]);
     expect(moveBy([1, 2, 3], 9, -1)).toEqual([1, 2, 3]);
+  });
+});
+
+describe("moveToEdge", () => {
+  test("sends the id to the top or the bottom and leaves the input alone", () => {
+    const ids = [1, 2, 3, 4];
+    expect(moveToEdge(ids, 3, "top")).toEqual([3, 1, 2, 4]);
+    expect(moveToEdge(ids, 2, "bottom")).toEqual([1, 3, 4, 2]);
+    expect(ids).toEqual([1, 2, 3, 4]);
+  });
+
+  test("is the identity at the edge itself and for an unknown id", () => {
+    expect(moveToEdge([1, 2, 3], 1, "top")).toEqual([1, 2, 3]);
+    expect(moveToEdge([1, 2, 3], 3, "bottom")).toEqual([1, 2, 3]);
+    expect(moveToEdge([1, 2, 3], 9, "top")).toEqual([1, 2, 3]);
   });
 });
 

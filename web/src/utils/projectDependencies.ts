@@ -1,5 +1,6 @@
-import type { DependencyEndpoint, DependencyType, ProjectDependency } from "../api/dependencies";
+import type { DependencyEndpoint, ProjectDependency } from "../api/dependencies";
 import type { ProjectView } from "../api/milestones";
+import { arrowSpecsFor, conflictCountOf, conflictsByBarFor } from "./dependencyArrows";
 import type { BarId, TimelineArrowData } from "./timelineModel";
 
 /**
@@ -44,22 +45,11 @@ export function summaryRowNeeded(view: ProjectView): boolean {
 }
 
 /** How many links are violated: the "N conflicts" badge. */
-export function conflictCount(view: ProjectView): number {
-  return view.dependencies.filter((dependency) => dependency.check.status === "VIOLATED").length;
-}
+export const conflictCount = (view: ProjectView): number => conflictCountOf(view.dependencies);
 
 /** Violated links per own bar (an own milestone's id, or the summary row's id), counting a link on both of its own ends — the bar's accessible name says so. */
-export function conflictsByBar(view: ProjectView): Map<BarId, number> {
-  const counts = new Map<BarId, number>();
-  for (const dependency of view.dependencies) {
-    if (dependency.check.status !== "VIOLATED") continue;
-    for (const endpoint of ends(dependency)) {
-      const bar = isOwnProject(endpoint, view) ? projectRowId(view.project.id) : isOwnMilestone(endpoint, view) ? endpoint.id : null;
-      if (bar !== null) counts.set(bar, (counts.get(bar) ?? 0) + 1);
-    }
-  }
-  return counts;
-}
+export const conflictsByBar = (view: ProjectView): Map<BarId, number> =>
+  conflictsByBarFor(view.dependencies, (endpoint) => (isOwnProject(endpoint, view) ? projectRowId(view.project.id) : isOwnMilestone(endpoint, view) ? endpoint.id : null));
 
 /** How many active links end on a milestone of this project (either end): what its delete takes with it. */
 export function linksOfMilestone(view: ProjectView, milestoneId: number): number {
@@ -72,31 +62,8 @@ function barOf(endpoint: DependencyEndpoint, view: ProjectView): BarId {
   return isOwnMilestone(endpoint, view) ? endpoint.id : ghostRowId(endpoint);
 }
 
-/** Dependency type to the bar edges its arrow joins: the predecessor's, then the successor's. */
-const EDGES: Record<DependencyType, readonly ["START" | "END", "START" | "END"]> = {
-  FS: ["END", "START"],
-  SS: ["START", "START"],
-  FF: ["END", "END"],
-  SF: ["START", "END"],
-};
-
 /**
  * One arrow per link that has dates on both ends (an UNSCHEDULED link has no bar to point at). The Timeline skips an arrow whose row
  * or bar it does not have (a tray milestone's, a project with no span), so a link to one is simply not drawn.
  */
-export function arrowSpecs(view: ProjectView): TimelineArrowData[] {
-  return view.dependencies
-    .filter((dependency) => dependency.check.status !== "UNSCHEDULED")
-    .map((dependency) => {
-      const [fromKind, toKind] = EDGES[dependency.type];
-      const from = barOf(dependency.predecessor, view);
-      const to = barOf(dependency.successor, view);
-      return {
-        id: dependency.id,
-        from: { row: from, bar: from, kind: fromKind },
-        to: { row: to, bar: to, kind: toKind },
-        violated: dependency.check.status === "VIOLATED",
-        label: `${dependency.predecessor.name} → ${dependency.successor.name}, ${dependency.type}`,
-      };
-    });
-}
+export const arrowSpecs = (view: ProjectView): TimelineArrowData[] => arrowSpecsFor(view.dependencies, (endpoint) => barOf(endpoint, view));
