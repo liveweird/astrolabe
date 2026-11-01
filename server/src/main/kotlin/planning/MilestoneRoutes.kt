@@ -3,6 +3,9 @@ package ch.nokillswit.planning
 import ch.nokillswit.audit.audit
 import ch.nokillswit.authz.caller
 import ch.nokillswit.authz.orNotFound
+import ch.nokillswit.infra.paging.optionalString
+import ch.nokillswit.infra.paging.parsePaging
+import ch.nokillswit.infra.paging.toPage
 import io.ktor.http.HttpStatusCode
 import io.ktor.resources.Resource
 import io.ktor.server.application.*
@@ -29,7 +32,8 @@ class MilestonesRoute {
 private const val MILESTONE = "Milestone"
 
 /**
- * Milestones: created under a project (`POST /projects/{id}/milestones`, in `ProjectRoutes.kt` — the parent id in the path is what the
+ * Milestones: `GET /milestones` is the paged picker list (any authenticated user; a name filter; each row carries its project's name).
+ * Created under a project (`POST /projects/{id}/milestones`, in `ProjectRoutes.kt` — the parent id in the path is what the
  * guard needs). Read is any authenticated user. The PLAN FIELDS (update, delete) need an owner on the milestone's project chain — the
  * project's own owner included — or ADMIN; the DATES (`PUT .../schedule`) need the milestone's TEAM manager or ADMIN, and a project owner
  * who is not that manager gets a 403 (the product rule of v0.3.0). All read-before-guard (404, 403, then the body); the write re-runs the
@@ -37,6 +41,13 @@ private const val MILESTONE = "Milestone"
  * locked `FOR SHARE`), so only the inner verdict authorizes it.
  */
 internal fun Route.milestoneRoutes(d: PlanRouteDeps) {
+    get<MilestonesRoute> {
+        call.caller()
+        val paging = call.parsePaging(sortable = MILESTONE_SORT_FIELDS)
+        val filter = MilestoneListFilter(name = call.request.queryParameters.optionalString("name"))
+        val result = d.milestones.list(filter, paging)
+        call.respond(HttpStatusCode.OK, paging.toPage(result.items, result.total))
+    }
     get<MilestonesRoute.Id> { route ->
         call.caller()
         call.respond(HttpStatusCode.OK, d.milestones.read(route.id).orNotFound(MILESTONE))

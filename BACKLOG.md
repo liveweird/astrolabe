@@ -21,7 +21,7 @@ The `backlog` mod (`liveweird/claude-mods`) summarises the tags on the status li
 
 Each increment gets its own plan (architect) before implementation. The domain sketch is `.claude/docs/planning-model.md`; the timeline approach is `.claude/docs/timeline.md`.
 
-- [new] **Paged lists for work streams, programs and projects.** v0.2 has no list endpoints for the plan nodes (the plan and roadmap views are the read surface); add them per `list-endpoints.md` with their first consumer, the v0.4 dependency pickers.
+- [new] **Paged lists for work streams and programs.** Projects and milestones have them since v0.4 (the dependency pickers); the plan view is still the only read surface of work streams and programs. Add theirs per `list-endpoints.md` with their first consumer.
 - [new] **v0.4.0 Dependencies.** Four types (FS/SS/FF/SF) plus lag across all three endpoint kinds; SVG arrows; cycles answer 409; red violations and a conflict list (warn only); ghost rows for external endpoints.
 - [new] **v0.5.0 Team view + capacity.** Capacity periods; the weekly load strip and overload warning; team order override/reset; scheduling from the team view; a deterministic scale dataset `sample-data/plan/` (≈15 teams, 5 streams, 20 programs, 100 projects, 1,000 milestones).
 - [new] **v0.6.0 Roadmap + programs timelines.** Spans derived upward; the target window by drag; drift flags; rank-vs-time flags (an inversion between projects sharing a team is a warning, otherwise info); the program pick.

@@ -1,5 +1,6 @@
 package ch.nokillswit.planning
 
+import ch.nokillswit.infra.paging.PageResponse
 import ch.nokillswit.infra.validation.parseIsoDate
 import ch.nokillswit.infra.validation.requireDateOrder
 import ch.nokillswit.infra.validation.requireNameAndDescription
@@ -55,6 +56,34 @@ data class ProjectResponse(
     val createdAt: Long,
     val updatedAt: Long,
 )
+
+/**
+ * A list row of `GET /api/v1/projects` (the picker list): the [ProjectResponse] fields plus the names the picker shows ("Project Alpha ·
+ * Program · Work stream"), resolved from the ACTIVE ancestors, so they are never stale or empty.
+ */
+@Serializable
+data class ProjectListItem(
+    val id: UInt,
+    val programId: UInt,
+    val workStreamId: UInt,
+    val name: String,
+    val description: String?,
+    val ownerPersonId: UInt,
+    val ownerName: String,
+    val targetStart: String?,
+    val targetEnd: String?,
+    val programName: String,
+    val workStreamName: String,
+    val createdAt: Long,
+    val updatedAt: Long,
+)
+
+typealias ProjectPageResponse = PageResponse<ProjectListItem>
+
+/** The one list filter: a case- and accent-insensitive substring of the project name. */
+data class ProjectListFilter(val name: String? = null)
+
+data class ProjectListResult(val items: List<ProjectListItem>, val total: Long)
 
 /** A validated target window. */
 data class TargetWindow(val start: LocalDate, val end: LocalDate)

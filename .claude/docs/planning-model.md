@@ -80,7 +80,7 @@ later state orders against them. v0.2 offers no ETag.
 
 `POST /work-streams`; `GET/PUT/DELETE /work-streams/{id}`; `POST /work-streams/{id}/programs`; `GET/PUT/DELETE /programs/{id}`; `POST /programs/{id}/projects`; `GET/PUT/DELETE /projects/{id}`;
 `PUT /projects/{id}/target-window`; `POST /projects/{id}/move`; `POST /programs/{id}/move`; `GET /views/plan`; and the ranking (below): `GET /views/roadmap`, `PUT /roadmap/ranking`. PUTs are full replaces (omitted optional = unset; `204`); creates answer `201` + `Location` + the record. **No paged lists** for
-streams/programs/projects in v0.2 — a list lands with its first consumer (the v0.4 dependency pickers); the plan view is the read surface. `WorkStreamResponse` etc. carry `ownerPersonId` +
+work streams/programs (the plan view is the read surface); `GET /projects` is the paged picker list since v0.4 (see "The picker lists" below). `WorkStreamResponse` etc. carry `ownerPersonId` +
 `ownerName`; a project also carries `workStreamId`.
 
 **The plan view** (`GET /views/plan`, any authenticated user; the documented view-endpoint shape exception of `list-endpoints.md`, bounded by the scale ≈5 streams / 20 programs / 100 projects):
@@ -174,8 +174,8 @@ The fourth level, under a project: a **name**, an optional **description**, **ex
   manager inherits the bar and may move or unschedule it — nothing but the manager/ADMIN ever moves a bar. It is its own audit line (`milestone.team_changed`: it changes WHO may schedule — a rights path).
 - **Deletes.** A milestone delete is a soft delete under the plan lock (the name is freed). **A project delete cascades**: its ACTIVE milestones are soft-deleted in the same locked transaction (`project.deleted` carries
   `milestoneCount`), so a project with milestones deletes without a 409 (it has no children with their OWN owners). **A team delete is 409 "Team still has milestones"** while an ACTIVE milestone names it (counted under the team row lock).
-- **API** (tag `plan`): `POST /projects/{id}/milestones` → 201 + `Location`; `GET`/`PUT`/`DELETE /milestones/{id}`; `PUT /milestones/{id}/schedule` → `200 {revision}`; `GET /views/project/{id}` (below). **No list endpoint** in v0.3:
-  milestones are read through the project view.
+- **API** (tag `plan`): `POST /projects/{id}/milestones` → 201 + `Location`; `GET`/`PUT`/`DELETE /milestones/{id}`; `PUT /milestones/{id}/schedule` → `200 {revision}`; `GET /views/project/{id}` (below); `GET /milestones` is the paged picker list since v0.4 ("The picker lists" below). A project's own milestones are
+  read through the project view.
 - **Audit** (`observability.md`): `milestone.created`, `milestone.updated`, `milestone.team_changed` (only on a change), `milestone.scheduled` (stored before and after, only on an actual change), `milestone.deleted`.
 - **The project view** (`GET /views/project/{id}`, v0.3.0 C2; `ProjectView.kt`, `ProjectViewService.kt`, route in `PlanViewRoutes.kt`; any authenticated user; the view-endpoint shape exception of `list-endpoints.md`, bounded by ONE
   project's milestones, about 50): `{revision, project{…PlanProject fields, programName, workStreamName, can{edit, delete, editTargetWindow, createMilestone}}, span{start, end}|null, drift{startDays, endDays}|null, scheduled[], unscheduled[]}`.
@@ -225,6 +225,13 @@ A link between two time points of the plan, each end a **milestone or a project*
 - **Audit** (`observability.md`): `dependency.created` (byUserId/dependencyId/projectId/predKind/predId/succKind/succId/type/lagDays), `dependency.deleted` (byUserId/dependencyId/predKind/predId/succKind/succId).
 - **Tests**: `DependencyTest` (the matrix incl. the named product-rule cases, the 400s, every endpoint kind read back resolved, the 409 pair and cycle shapes, delete), `DependencyLifecycleTest` (cascades, move/team/unschedule survival, the held-request re-guard, audits, the V15
   constraints incl. `NULLS NOT DISTINCT`), `DependencyGraphTest` (pure), `WorkingDaysTest` (pure), `PlanStateTest` (a dependency write bumps by one, a refused cycle does not), `TestPlan.dependency` / `secondProject` (the fixtures).
+
+## The picker lists (built, v0.4.0 C2; `ProjectService.list`, `MilestoneService.list`)
+
+`GET /api/v1/projects` and `GET /api/v1/milestones` are the paged lists (`list-endpoints.md`; copied from `GET /teams`) the dependency dialogs search with. Any authenticated user (`authorization.md`); no audit event (a read). `ProjectListItem` = `ProjectResponse` + `programName`,
+`workStreamName`; `MilestoneListItem` = `MilestoneResponse` + `projectName` (the option reads "Design · Project Alpha" — "Discovery" recurs across projects). Sortable `id, name, createdAt, updatedAt` (default `id` ascending, `id` appended as the tiebreaker), the ONE filter `name`
+(`containsNormalized`). ACTIVE rows only, joined to ACTIVE ancestors (a project under its active program and work stream; a milestone under its active project chain), count + rows on one predicate in one read transaction. No `projectId`/`teamId` filter (the dialogs search by name;
+a `projectId` filter lands with the first picker that needs it). Work streams and programs have no list. Tests: `ProjectListTest`, `MilestoneListTest`.
 
 ## Not built yet — the sketch (v0.5+, confirmed by each increment)
 

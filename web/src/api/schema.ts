@@ -717,6 +717,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List projects (the picker list)
+         * @description Any authenticated user. ACTIVE projects only, and only those whose program and work stream are active. Each row is the project
+         *     plus the names of its program and work stream (`programName`, `workStreamName`), so a picker can show where a project sits. This
+         *     is a search list for pickers (the dependency dialogs); the plan view is the read surface of the whole tree. Work streams and
+         *     programs have no list.
+         *
+         *     - Sortable fields: `id`, `name`, `createdAt`, `updatedAt`. Default `id` ascending.
+         *     - Filters: `name` (case- and accent-insensitive substring).
+         */
+        get: operations["listProjects"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{id}": {
         parameters: {
             query?: never;
@@ -831,6 +857,31 @@ export interface paths {
          *     case-insensitively (`409`). Audited as `milestone.created`.
          */
         post: operations["createMilestone"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/milestones": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List milestones (the picker list)
+         * @description Any authenticated user. ACTIVE milestones only, and only those whose project, program and work stream are active. Each row
+         *     is the milestone plus the name of its project (`projectName`), so a picker can tell the many milestones called "Design" apart.
+         *     This is a search list for pickers (the dependency dialogs); a project's own milestones are read through the project view.
+         *
+         *     - Sortable fields: `id`, `name`, `createdAt`, `updatedAt`. Default `id` ascending.
+         *     - Filters: `name` (case- and accent-insensitive substring).
+         */
+        get: operations["listMilestones"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1597,6 +1648,89 @@ export interface components {
              * @description Epoch millis
              */
             updatedAt: number;
+        };
+        ProjectListItem: {
+            /** Format: int32 */
+            id: number;
+            /** Format: int32 */
+            programId: number;
+            /**
+             * Format: int32
+             * @description The work stream of the project's program.
+             */
+            workStreamId: number;
+            name: string;
+            description: string | null;
+            /** Format: int32 */
+            ownerPersonId: number;
+            ownerName: string;
+            /** Format: date */
+            targetStart: string | null;
+            /** Format: date */
+            targetEnd: string | null;
+            /** @description The name of the project's program. */
+            programName: string;
+            /** @description The name of the project's work stream. */
+            workStreamName: string;
+            /**
+             * Format: int64
+             * @description Epoch millis
+             */
+            createdAt: number;
+            /**
+             * Format: int64
+             * @description Epoch millis
+             */
+            updatedAt: number;
+        };
+        ProjectPage: {
+            items: components["schemas"]["ProjectListItem"][];
+            page: number;
+            pageSize: number;
+            /** Format: int64 */
+            total: number;
+        };
+        MilestoneListItem: {
+            /** Format: int32 */
+            id: number;
+            /** Format: int32 */
+            projectId: number;
+            /** @description The name of the milestone's project. */
+            projectName: string;
+            name: string;
+            description: string | null;
+            /** Format: int32 */
+            teamId: number;
+            teamName: string;
+            /**
+             * Format: double
+             * @description Man-days with at most two decimals.
+             */
+            estimateMd: number;
+            /**
+             * Format: date
+             * @description Null = unscheduled (both dates are null together).
+             */
+            startDate: string | null;
+            /** Format: date */
+            endDate: string | null;
+            /**
+             * Format: int64
+             * @description Epoch millis
+             */
+            createdAt: number;
+            /**
+             * Format: int64
+             * @description Epoch millis
+             */
+            updatedAt: number;
+        };
+        MilestonePage: {
+            items: components["schemas"]["MilestoneListItem"][];
+            page: number;
+            pageSize: number;
+            /** Format: int64 */
+            total: number;
         };
         MilestoneCreateRequest: {
             name: string;
@@ -3574,6 +3708,42 @@ export interface operations {
             500: components["responses"]["InternalServerError"];
         };
     };
+    listProjects: {
+        parameters: {
+            query?: {
+                /** @description 1-based page index. Defaults to 1. */
+                page?: components["parameters"]["Page"];
+                /** @description Rows per page. Defaults to 20, maximum 100. */
+                pageSize?: components["parameters"]["PageSize"];
+                /**
+                 * @description Sort spec. Format: `field` (ascending) or `-field` (descending). Multiple fields are
+                 *     comma-separated, leftmost wins: `sort=-updatedAt,name`. The endpoint declares its
+                 *     sortable-field whitelist; unknown fields are rejected with `400`. `id` ascending is
+                 *     always appended as a deterministic tiebreaker.
+                 */
+                sort?: components["parameters"]["Sort"];
+                name?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of projects */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
     getProject: {
         parameters: {
             query?: never;
@@ -3752,6 +3922,42 @@ export interface operations {
             409: components["responses"]["Conflict"];
             413: components["responses"]["PayloadTooLarge"];
             415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    listMilestones: {
+        parameters: {
+            query?: {
+                /** @description 1-based page index. Defaults to 1. */
+                page?: components["parameters"]["Page"];
+                /** @description Rows per page. Defaults to 20, maximum 100. */
+                pageSize?: components["parameters"]["PageSize"];
+                /**
+                 * @description Sort spec. Format: `field` (ascending) or `-field` (descending). Multiple fields are
+                 *     comma-separated, leftmost wins: `sort=-updatedAt,name`. The endpoint declares its
+                 *     sortable-field whitelist; unknown fields are rejected with `400`. `id` ascending is
+                 *     always appended as a deterministic tiebreaker.
+                 */
+                sort?: components["parameters"]["Sort"];
+                name?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of milestones */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MilestonePage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
             500: components["responses"]["InternalServerError"];
         };
     };

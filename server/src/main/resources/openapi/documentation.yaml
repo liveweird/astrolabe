@@ -1123,6 +1123,37 @@ paths:
         '409': { $ref: '#/components/responses/Conflict' }
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/projects:
+    get:
+      tags: [plan]
+      operationId: listProjects
+      summary: List projects (the picker list)
+      description: |
+        Any authenticated user. ACTIVE projects only, and only those whose program and work stream are active. Each row is the project
+        plus the names of its program and work stream (`programName`, `workStreamName`), so a picker can show where a project sits. This
+        is a search list for pickers (the dependency dialogs); the plan view is the read surface of the whole tree. Work streams and
+        programs have no list.
+
+        - Sortable fields: `id`, `name`, `createdAt`, `updatedAt`. Default `id` ascending.
+        - Filters: `name` (case- and accent-insensitive substring).
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Sort'
+        - name: name
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        '200':
+          description: A page of projects
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectPage'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   /api/v1/projects/{id}:
     parameters:
       - $ref: '#/components/parameters/ResourceId'
@@ -1286,6 +1317,36 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/milestones:
+    get:
+      tags: [plan]
+      operationId: listMilestones
+      summary: List milestones (the picker list)
+      description: |
+        Any authenticated user. ACTIVE milestones only, and only those whose project, program and work stream are active. Each row
+        is the milestone plus the name of its project (`projectName`), so a picker can tell the many milestones called "Design" apart.
+        This is a search list for pickers (the dependency dialogs); a project's own milestones are read through the project view.
+
+        - Sortable fields: `id`, `name`, `createdAt`, `updatedAt`. Default `id` ascending.
+        - Filters: `name` (case- and accent-insensitive substring).
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Sort'
+        - name: name
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        '200':
+          description: A page of milestones
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MilestonePage'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
         '500': { $ref: '#/components/responses/InternalServerError' }
   /api/v1/milestones/{id}:
     parameters:
@@ -2287,6 +2348,67 @@ components:
         targetEnd: { type: string, format: date, nullable: true }
         createdAt: { type: integer, format: int64, description: Epoch millis }
         updatedAt: { type: integer, format: int64, description: Epoch millis }
+    ProjectListItem:
+      type: object
+      required: [id, programId, workStreamId, name, description, ownerPersonId, ownerName, targetStart, targetEnd, programName, workStreamName, createdAt, updatedAt]
+      properties:
+        id: { type: integer, format: int32, minimum: 0 }
+        programId: { type: integer, format: int32, minimum: 0 }
+        workStreamId: { type: integer, format: int32, minimum: 0, description: The work stream of the project's program. }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        ownerPersonId: { type: integer, format: int32, minimum: 0 }
+        ownerName: { type: string }
+        targetStart: { type: string, format: date, nullable: true }
+        targetEnd: { type: string, format: date, nullable: true }
+        programName: { type: string, description: The name of the project's program. }
+        workStreamName: { type: string, description: The name of the project's work stream. }
+        createdAt: { type: integer, format: int64, description: Epoch millis }
+        updatedAt: { type: integer, format: int64, description: Epoch millis }
+    ProjectPage:
+      type: object
+      required: [items, page, pageSize, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectListItem'
+        page: { type: integer, minimum: 1 }
+        pageSize: { type: integer, minimum: 1, maximum: 100 }
+        total:
+          type: integer
+          format: int64
+          minimum: 0
+    MilestoneListItem:
+      type: object
+      required: [id, projectId, projectName, name, description, teamId, teamName, estimateMd, startDate, endDate, createdAt, updatedAt]
+      properties:
+        id: { type: integer, format: int32, minimum: 0 }
+        projectId: { type: integer, format: int32, minimum: 0 }
+        projectName: { type: string, description: The name of the milestone's project. }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        teamId: { type: integer, format: int32, minimum: 0 }
+        teamName: { type: string }
+        estimateMd: { type: number, format: double, minimum: 0, description: Man-days with at most two decimals. }
+        startDate: { type: string, format: date, nullable: true, description: Null = unscheduled (both dates are null together). }
+        endDate: { type: string, format: date, nullable: true }
+        createdAt: { type: integer, format: int64, description: Epoch millis }
+        updatedAt: { type: integer, format: int64, description: Epoch millis }
+    MilestonePage:
+      type: object
+      required: [items, page, pageSize, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/MilestoneListItem'
+        page: { type: integer, minimum: 1 }
+        pageSize: { type: integer, minimum: 1, maximum: 100 }
+        total:
+          type: integer
+          format: int64
+          minimum: 0
     MilestoneCreateRequest:
       type: object
       required: [name, teamId, estimateMd]

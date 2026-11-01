@@ -68,7 +68,7 @@ The plan structure (V10–V13): the people directory (owners and managers are pe
 `ROADMAP_EDITOR` grant (`user_permissions`, read per request, never a token claim), work streams / programs / projects with owners and owner-scoped guards under the `plan_state` lock and
 revision, a project's optional target window, closing a work stream by its end date, `GET /views/plan` and `GET /views/roadmap` with per-node `can:{…}` flags, and the one global project rank
 (`PUT /roadmap/ranking`, wholesale with `expectedRevision`, a stale write answers 409). The web gained the People, Plan and Roadmap pages (dnd-kit sortable, a keyboard path with localized
-announcements, Move up/down, Rank/Unrank) and the Users → Permissions page. Not built (deliberately; reparenting came in v0.3.0): paged lists for the plan nodes (they land with their first consumer, the v0.4 pickers).
+announcements, Move up/down, Rank/Unrank) and the Users → Permissions page. Not built (deliberately; reparenting came in v0.3.0): paged lists for the plan nodes (projects and milestones got theirs with the v0.4 pickers; work streams and programs still have none).
 
 ## v0.1.0 — what shipped
 

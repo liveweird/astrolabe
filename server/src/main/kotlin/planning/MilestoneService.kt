@@ -3,9 +3,12 @@ package ch.nokillswit.planning
 import ch.nokillswit.authz.ConflictException
 import ch.nokillswit.authz.NotFoundException
 import ch.nokillswit.infra.db.SoftDeletable
+import ch.nokillswit.infra.db.containsNormalized
 import ch.nokillswit.infra.db.active
 import ch.nokillswit.infra.db.localDate
 import ch.nokillswit.infra.db.nowMillis
+import ch.nokillswit.infra.paging.PageRequest
+import ch.nokillswit.infra.paging.applyPaging
 import ch.nokillswit.teams.TeamService
 import io.ktor.server.plugins.BadRequestException
 import io.ktor.util.AttributeKey
@@ -22,6 +25,16 @@ private const val MILESTONE_NOT_FOUND = "Milestone not found"
 
 /** The schedule guard the service re-runs INSIDE the plan lock, against the milestone's chain (and STORED team) re-read there. */
 typealias ScheduleGuard = suspend (MilestoneChain) -> Unit
+
+private val SORTABLE_COLUMNS: Map<String, Column<*>> = mapOf(
+    "id" to MilestoneService.Milestones.id,
+    "name" to MilestoneService.Milestones.name,
+    "createdAt" to MilestoneService.Milestones.createdAt,
+    "updatedAt" to MilestoneService.Milestones.updatedAt,
+)
+
+/** The ONE sortable whitelist of `GET /milestones`, derived from the column map so the two can never drift. */
+val MILESTONE_SORT_FIELDS: Set<String> = SORTABLE_COLUMNS.keys
 
 /**
  * Milestones (V14), under one project. Every write runs in [withPlanWrite] (a milestone IS plan state; teams and people are not) and
@@ -51,6 +64,48 @@ class MilestoneService(private val database: R2dbcDatabase) {
         val createdAt = long("created_at")
         val updatedAt = long("updated_at")
         override val markedAsDeleted = bool("marked_as_deleted").default(false)
+    }
+
+    /**
+     * The paged milestone list (the dependency pickers): ACTIVE milestones of an ACTIVE project, program and work stream, one predicate
+     * for the count and the rows in ONE read transaction (no lock, no revision). The project's and the team's names ride the joins.
+     */
+    suspend fun list(filter: MilestoneListFilter, paging: PageRequest): MilestoneListResult = suspendTransaction(database) {
+        val projects = ProjectService.Projects
+        val programs = ProgramService.Programs
+        val streams = WorkStreamService.WorkStreams
+        val teams = TeamService.Teams
+        var predicate: Op<Boolean> = Milestones.active() and projects.active() and programs.active() and streams.active()
+        filter.name?.takeIf { it.isNotBlank() }?.let { predicate = predicate and Milestones.name.containsNormalized(it) }
+        // The team joins without an `active()` filter: an active milestone's team is always active (`TeamService.delete`'s 409).
+        val joined = Milestones.innerJoin(projects, { Milestones.projectId }, { projects.id })
+            .innerJoin(programs, { projects.programId }, { programs.id })
+            .innerJoin(streams, { programs.workStreamId }, { streams.id })
+            .innerJoin(teams, { Milestones.teamId }, { teams.id })
+        val total = joined.selectAll().where { predicate }.count()
+        val rows = joined.select(Milestones.columns + projects.name + teams.name)
+            .where { predicate }
+            .applyPaging(paging, SORTABLE_COLUMNS)
+            .toList()
+        MilestoneListResult(
+            items = rows.map { row ->
+                MilestoneListItem(
+                    id = row[Milestones.id].value,
+                    projectId = row[Milestones.projectId].value,
+                    projectName = row[projects.name],
+                    name = row[Milestones.name],
+                    description = row[Milestones.description],
+                    teamId = row[Milestones.teamId].value,
+                    teamName = row[teams.name],
+                    estimateMd = row[Milestones.estimateMd].toDouble(),
+                    startDate = row[Milestones.startDate]?.toString(),
+                    endDate = row[Milestones.endDate]?.toString(),
+                    createdAt = row[Milestones.createdAt],
+                    updatedAt = row[Milestones.updatedAt],
+                )
+            },
+            total = total,
+        )
     }
 
     /** The milestone's chain (its project's owners, the stored team, the project), or null when it or an ancestor is gone. */

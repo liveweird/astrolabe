@@ -1,5 +1,6 @@
 package ch.nokillswit.planning
 
+import ch.nokillswit.infra.paging.PageResponse
 import ch.nokillswit.infra.time.containsWorkingDay
 import ch.nokillswit.infra.validation.parseIsoDate
 import ch.nokillswit.infra.validation.requireDateOrder
@@ -67,6 +68,33 @@ data class MilestoneResponse(
     val createdAt: Long,
     val updatedAt: Long,
 )
+
+/**
+ * A list row of `GET /api/v1/milestones` (the picker list): the [MilestoneResponse] fields plus the name of the (ACTIVE) project, so the
+ * picker can tell the many milestones called "Design" apart ("Design · Project Alpha").
+ */
+@Serializable
+data class MilestoneListItem(
+    val id: UInt,
+    val projectId: UInt,
+    val projectName: String,
+    val name: String,
+    val description: String?,
+    val teamId: UInt,
+    val teamName: String,
+    val estimateMd: Double,
+    val startDate: String?,
+    val endDate: String?,
+    val createdAt: Long,
+    val updatedAt: Long,
+)
+
+typealias MilestonePageResponse = PageResponse<MilestoneListItem>
+
+/** The one list filter: a case- and accent-insensitive substring of the milestone name. */
+data class MilestoneListFilter(val name: String? = null)
+
+data class MilestoneListResult(val items: List<MilestoneListItem>, val total: Long)
 
 /** A validated milestone schedule: an inclusive span of days. */
 data class MilestoneSpan(val start: LocalDate, val end: LocalDate)

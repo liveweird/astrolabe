@@ -3,9 +3,12 @@ package ch.nokillswit.planning
 import ch.nokillswit.authz.NotFoundException
 import ch.nokillswit.authz.OwnerChain
 import ch.nokillswit.infra.db.SoftDeletable
+import ch.nokillswit.infra.db.containsNormalized
 import ch.nokillswit.infra.db.active
 import ch.nokillswit.infra.db.localDate
 import ch.nokillswit.infra.db.nowMillis
+import ch.nokillswit.infra.paging.PageRequest
+import ch.nokillswit.infra.paging.applyPaging
 import ch.nokillswit.people.PersonService
 import io.ktor.util.AttributeKey
 import kotlinx.coroutines.flow.toList
@@ -15,6 +18,16 @@ import org.jetbrains.exposed.v1.r2dbc.*
 import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
 
 val ProjectServiceKey = AttributeKey<ProjectService>("ProjectService")
+
+private val SORTABLE_COLUMNS: Map<String, Column<*>> = mapOf(
+    "id" to ProjectService.Projects.id,
+    "name" to ProjectService.Projects.name,
+    "createdAt" to ProjectService.Projects.createdAt,
+    "updatedAt" to ProjectService.Projects.updatedAt,
+)
+
+/** The ONE sortable whitelist of `GET /projects`, derived from the column map so the two can never drift. */
+val PROJECT_SORT_FIELDS: Set<String> = SORTABLE_COLUMNS.keys
 
 /**
  * Projects (V12), under one program. Same protocol as [ProgramService]; a project name is unique among the ACTIVE projects of its
@@ -36,6 +49,46 @@ class ProjectService(private val database: R2dbcDatabase) {
         val createdAt = long("created_at")
         val updatedAt = long("updated_at")
         override val markedAsDeleted = bool("marked_as_deleted").default(false)
+    }
+
+    /**
+     * The paged project list (the dependency pickers): ACTIVE projects under an ACTIVE program and work stream, one predicate for the
+     * count and the rows in ONE read transaction (no lock, no revision: a picker is not a plan view). The ancestors' names ride the join.
+     */
+    suspend fun list(filter: ProjectListFilter, paging: PageRequest): ProjectListResult = suspendTransaction(database) {
+        val programs = ProgramService.Programs
+        val streams = WorkStreamService.WorkStreams
+        var predicate: Op<Boolean> = Projects.active() and programs.active() and streams.active()
+        filter.name?.takeIf { it.isNotBlank() }?.let { predicate = predicate and Projects.name.containsNormalized(it) }
+        val joined = Projects.innerJoin(programs, { Projects.programId }, { programs.id })
+            .innerJoin(streams, { programs.workStreamId }, { streams.id })
+        val total = joined.selectAll().where { predicate }.count()
+        val rows = joined.select(Projects.columns + programs.name + programs.workStreamId + streams.name)
+            .where { predicate }
+            .applyPaging(paging, SORTABLE_COLUMNS)
+            .toList()
+        val owners = ownerNames(rows.map { it[Projects.ownerPersonId].value })
+        ProjectListResult(
+            items = rows.map { row ->
+                val ownerId = row[Projects.ownerPersonId].value
+                ProjectListItem(
+                    id = row[Projects.id].value,
+                    programId = row[Projects.programId].value,
+                    workStreamId = row[programs.workStreamId].value,
+                    name = row[Projects.name],
+                    description = row[Projects.description],
+                    ownerPersonId = ownerId,
+                    ownerName = owners.getValue(ownerId),
+                    targetStart = row[Projects.targetStart]?.toString(),
+                    targetEnd = row[Projects.targetEnd]?.toString(),
+                    programName = row[programs.name],
+                    workStreamName = row[streams.name],
+                    createdAt = row[Projects.createdAt],
+                    updatedAt = row[Projects.updatedAt],
+                )
+            },
+            total = total,
+        )
     }
 
     /** The project's owner chain (work stream first, the project's own owner last), or null when it or an ancestor is gone. */

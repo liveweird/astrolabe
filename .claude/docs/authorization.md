@@ -193,7 +193,7 @@ Layered RBAC. Implemented in the `server/src/main/kotlin/authz/` package.
 
     | Route | Guard (in order) |
     |---|---|
-    | `GET` any node, `GET /views/plan` | authenticated |
+    | `GET` any node, `GET /views/plan`, `GET /projects`, `GET /milestones` (v0.4 paged picker lists) | authenticated; 400 paging/sort/repeated `name` |
     | `POST /work-streams` | `requireAdmin` first (it addresses no node: guard-before-read) |
     | `PUT`/`DELETE /work-streams/{id}`, `POST /work-streams/{id}/programs` | chain(stream) ?: 404 → `requireOwnerOrAdmin` (the stream's owner) |
     | `PUT`/`DELETE /programs/{id}`, `POST /programs/{id}/projects` | chain(program) ?: 404 → `requireOwnerOrAdmin` (the stream's or the program's owner) |

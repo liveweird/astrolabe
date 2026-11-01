@@ -5,6 +5,9 @@ import ch.nokillswit.authz.caller
 import ch.nokillswit.authz.orNotFound
 import ch.nokillswit.authz.requireTargetWindowEditorOrAdmin
 import ch.nokillswit.infra.db.orVanished
+import ch.nokillswit.infra.paging.optionalString
+import ch.nokillswit.infra.paging.parsePaging
+import ch.nokillswit.infra.paging.toPage
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.resources.Resource
@@ -47,7 +50,8 @@ class ProjectsRoute {
 private const val PROJECT = "Project"
 
 /**
- * Projects: created under a program (`POST /programs/{id}/projects`, in `ProgramRoutes.kt`). Read is any authenticated user; update,
+ * Projects: `GET /projects` is the paged picker list (any authenticated user; a name filter; each row carries its program's and work
+ * stream's names). Created under a program (`POST /programs/{id}/projects`, in `ProgramRoutes.kt`). Read is any authenticated user; update,
  * delete and "create a milestone under it" (`POST /projects/{id}/milestones`, here — the parent id in the path is what the guard needs)
  * need an owner on the project's chain INCLUDING the project's own owner, or ADMIN. A delete cascades the project's milestones.
  * The target window is a separate PUT with a different audience: ADMIN, an owner ABOVE the project, or a `ROADMAP_EDITOR` — the
@@ -57,6 +61,7 @@ private const val PROJECT = "Project"
  * THIS project (its own owner included) or ADMIN — the predecessor's owner is asked nothing (`DependencyRoutes.kt`).
  */
 internal fun Route.projectRoutes(d: PlanRouteDeps) {
+    listProjectsRoute(d)
     get<ProjectsRoute.Id> { route ->
         call.caller()
         call.respond(HttpStatusCode.OK, d.projects.read(route.id).orNotFound(PROJECT))
@@ -149,6 +154,17 @@ internal fun Route.projectRoutes(d: PlanRouteDeps) {
         call.respond(HttpStatusCode.Created, d.milestones.read(id).orVanished("Milestone", id))
     }
     createDependencyRoute(d)
+}
+
+/** `GET /projects`: the paged picker list, any authenticated user (`list-endpoints.md`). */
+private fun Route.listProjectsRoute(d: PlanRouteDeps) {
+    get<ProjectsRoute> {
+        call.caller()
+        val paging = call.parsePaging(sortable = PROJECT_SORT_FIELDS)
+        val filter = ProjectListFilter(name = call.request.queryParameters.optionalString("name"))
+        val result = d.projects.list(filter, paging)
+        call.respond(HttpStatusCode.OK, paging.toPage(result.items, result.total))
+    }
 }
 
 /** `POST /projects/{id}/dependencies`: the SUCCESSOR's project is the path project, so its chain is the guard. */
