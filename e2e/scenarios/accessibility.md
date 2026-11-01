@@ -5,8 +5,9 @@
   anonymous visitor for the login screen
 - **Owns** (exclusive server-side state): one fixture team and one fixture plan (a person, a work
   stream, a program and a project with two milestones - one scheduled past the project's target end, one
-  left in the Unscheduled tray; unique `e2e-axe-*` names), created through the API before the
-  detail-page block and deleted after it (the project first: its milestones go with it); the list/form pages and the login screen are read-only
+  left in the Unscheduled tray - plus a second project with one scheduled milestone that is linked as the fixture milestone's
+  violated predecessor; unique `e2e-axe-*` names), created through the API before the
+  detail-page block and deleted after it (the projects first: their milestones and links go with them); the list/form pages and the login screen are read-only
 
 This is the registered template-title exception (see README.md): one `test()` per page is
 generated from a list, so a single scenario section stands in for each list.
@@ -31,7 +32,8 @@ project row, light and dark) and the project editor modal (dates, the target-win
 picker) scoped to its dialog. It also scans `/roadmap` with the fixture project ranked (a drag handle, Move up/down and Unrank
 buttons in the ranked table, light and dark); the project is ranked through the API for the scan and unranked again afterwards.
 It scans the project view `/projects/:id` with the fixture project rendered (the timeline grid with an editable bar, the target-window band,
-the orange drift badge and the Unscheduled tray, light and dark) and the milestone editor modal (team picker, estimate) scoped to its dialog.
+the orange drift badge, a violated dependency - the red arrow, the ghost row, the red "1 conflict" badge and the Dependencies table - and the Unscheduled tray, light and dark),
+the milestone editor modal (team picker, estimate) and the dependency editor modal (successor, kind toggle, predecessor picker, type, lag; plus the picker's open option list) scoped to their dialogs.
 It also scans the Plan page's "Move to…" modal (the grouped program select) scoped to its dialog, and its open option list; the fixture plan has a second program so the select has a target.
 
 ## Scenario: `<path>` has no WCAG A/AA violations in the dark scheme

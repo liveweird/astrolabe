@@ -59,7 +59,9 @@
     "editSchedule": "Edit schedule…",
     "editScheduleAria": "Edit schedule of {{name}}",
     "unschedule": "Unschedule",
-    "unscheduleAria": "Unschedule {{name}}"
+    "unscheduleAria": "Unschedule {{name}}",
+    "addDependency": "Add dependency…",
+    "addDependencyAria": "Add a dependency to {{name}}"
   },
   "validation": {
     "nameLength": "Name must be 1–100 characters",
@@ -100,6 +102,85 @@
     "milestoneCreated": "Milestone created",
     "milestoneSaved": "Milestone saved",
     "milestoneDeleted": "Milestone deleted",
-    "projectDeleted": "Project deleted"
+    "projectDeleted": "Project deleted",
+    "dependencyAdded": "Dependency added",
+    "dependencyDeleted": "Dependency deleted"
+  },
+  "conflicts_one": "{{count}} conflict",
+  "conflicts_other": "{{count}} conflicts",
+  "barConflicts_one": "{{count}} conflict",
+  "barConflicts_other": "{{count}} conflicts",
+  "summaryTag": "(whole project)",
+  "ghostName": "{{project}} › {{name}}",
+  "ghostSpan": "{{name}}, {{start}} to {{end}}",
+  "ghostLinkAria": "{{text}} - open project {{project}}",
+  "dependenciesTitle": "Dependencies",
+  "dependenciesAria": "Dependencies of the project",
+  "dependenciesIntro": "A dependency makes one end wait for another: the successor waits for the predecessor. Links that do not hold are listed first and only warn — nothing is moved automatically.",
+  "noDependencies": "No dependencies yet",
+  "noDependenciesHint": "Link a milestone, or the whole project, to the work it waits for.",
+  "noDependenciesHintReadOnly": "The project's owner adds dependencies.",
+  "dependency": {
+    "add": "Add dependency",
+    "createTitle": "Add dependency",
+    "intro": "The successor waits for the predecessor. The project's owner or an administrator adds and removes the project's links; the predecessor's owner is not asked. A link that does not hold only warns - nothing is moved.",
+    "successor": "Successor",
+    "successorHint": "This project or one of its milestones - the side that waits.",
+    "thisProject": "This project ({{name}})",
+    "predecessorKind": "Predecessor is a",
+    "kind": {
+      "MILESTONE": "Milestone",
+      "PROJECT": "Project"
+    },
+    "predecessor": "Predecessor",
+    "predecessorHint": "The side that is waited for.",
+    "pickMilestone": "Search milestones by name…",
+    "pickProject": "Search projects by name…",
+    "clearMilestone": "Clear the predecessor milestone",
+    "clearProject": "Clear the predecessor project",
+    "noMatchingMilestones": "No matching milestones",
+    "noMatchingProjects": "No matching projects",
+    "type": {
+      "label": "Type",
+      "FS": "Finish → Start (FS)",
+      "SS": "Start → Start (SS)",
+      "FF": "Finish → Finish (FF)",
+      "SF": "Start → Finish (SF)"
+    },
+    "lagLabel": "Lag",
+    "lagHint": "In working days (Monday to Friday); negative = a lead.",
+    "lag_one": "{{count}} working day",
+    "lag_other": "{{count}} working days",
+    "lead": "(lead)",
+    "wholeProject": "Project {{name}}",
+    "status": {
+      "ok": "OK",
+      "violated_one": "Violated · {{count}} working day short",
+      "violated_other": "Violated · {{count}} working days short",
+      "unscheduled": "Not scheduled yet"
+    },
+    "dates": "needs {{required}} · is {{actual}}",
+    "column": {
+      "status": "Status",
+      "predecessor": "Predecessor",
+      "type": "Type",
+      "lag": "Lag",
+      "successor": "Successor",
+      "dates": "Dates"
+    },
+    "cycle": "This link would close a cycle through:",
+    "duplicate": "These two ends are already linked.",
+    "saveForbidden": "Only the owners of the successor's project, or an administrator, can change its dependencies",
+    "saveInvalid": "Check the successor and the predecessor — either may have been deleted meanwhile.",
+    "validation": {
+      "predecessorRequired": "Pick the predecessor",
+      "selfLink": "An end cannot depend on itself",
+      "lagInvalid": "Enter a whole number of working days from -365 to 365"
+    },
+    "deleteTitle": "Delete dependency?",
+    "deleteBody": "The dependency {{predecessor}} → {{successor}} ({{type}}) will be deleted. Nothing moves.",
+    "deleteFailed": "Could not delete",
+    "deleteWith_one": "Its {{count}} dependency will be deleted too.",
+    "deleteWith_other": "Its {{count}} dependencies will be deleted too."
   }
 }

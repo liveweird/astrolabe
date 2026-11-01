@@ -8,6 +8,7 @@ import {
   deleteProject,
   deleteWorkStream,
   getPlanView,
+  listProjects,
   setProjectTargetWindow,
   updateProgram,
   updateProject,
@@ -32,6 +33,14 @@ describe("plan API wrappers", () => {
 
   const lastCall = () => mockFetch.mock.calls.at(-1) as [string, RequestInit];
   const lastBody = () => JSON.parse(lastCall()[1].body as string);
+
+  test("listProjects GETs one page with the sort and the name filter, skipping an absent filter", async () => {
+    mockFetch.mockImplementation(() => Promise.resolve(jsonResponse(200, { items: [], page: 1, pageSize: 50, total: 0 })));
+    await listProjects({ page: 1, pageSize: 50, sort: "name", name: "Alp" });
+    expect(lastCall()[0]).toBe("/api/v1/projects?page=1&pageSize=50&sort=name&name=Alp");
+    await listProjects({ page: 3, pageSize: 10 });
+    expect(lastCall()[0]).toBe("/api/v1/projects?page=3&pageSize=10");
+  });
 
   test("getPlanView GETs the view", async () => {
     mockFetch.mockResolvedValue(jsonResponse(200, { revision: 3, can: { createWorkStream: false }, workStreams: [] }));

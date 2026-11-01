@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { jsonResponse } from "../test/http";
-import { createMilestone, deleteMilestone, getProjectView, scheduleMilestone, updateMilestone } from "./milestones";
+import { createMilestone, deleteMilestone, getProjectView, listMilestones, scheduleMilestone, updateMilestone } from "./milestones";
 
 type FetchMock = ReturnType<typeof vi.fn>;
 
@@ -25,6 +25,14 @@ describe("milestones API wrappers", () => {
     mockFetch.mockResolvedValue(jsonResponse(200, { revision: 4, scheduled: [], unscheduled: [] }));
     expect((await getProjectView(9)).revision).toBe(4);
     expect(lastCall()[0]).toBe("/api/v1/views/project/9");
+  });
+
+  test("listMilestones GETs one page with the sort and the name filter, skipping an absent filter", async () => {
+    mockFetch.mockImplementation(() => Promise.resolve(jsonResponse(200, { items: [], page: 1, pageSize: 50, total: 0 })));
+    await listMilestones({ page: 1, pageSize: 50, sort: "name", name: "Disc" });
+    expect(lastCall()[0]).toBe("/api/v1/milestones?page=1&pageSize=50&sort=name&name=Disc");
+    await listMilestones({ page: 2, pageSize: 20 });
+    expect(lastCall()[0]).toBe("/api/v1/milestones?page=2&pageSize=20");
   });
 
   test("createMilestone POSTs the plan fields under the project", async () => {

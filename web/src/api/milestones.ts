@@ -3,7 +3,7 @@
 // (the owner chain edits a milestone's plan fields, ONLY its team's manager or an ADMIN sets its dates), and the server's guards
 // are the rule. Thin endpoint wrappers: transport (authedFetch/ApiError) in ./http, types from ./schema.
 
-import { jsonRequest, voidRequest } from "./http";
+import { buildQuery, jsonRequest, voidRequest } from "./http";
 import type { components } from "./schema";
 
 type Schemas = components["schemas"];
@@ -12,6 +12,15 @@ export type ProjectView = Schemas["ProjectView"];
 export type ProjectMilestone = Schemas["ProjectMilestone"];
 export type MilestoneBody = Schemas["MilestoneCreateRequest"] & Schemas["MilestoneUpdateRequest"];
 export type ScheduleBody = Schemas["MilestoneScheduleRequest"];
+type MilestonePage = Schemas["MilestonePage"];
+
+type MilestoneListQuery = { page: number; pageSize: number; sort?: string; name?: string };
+
+/** The paged milestone list across every project (each row carries `projectName`) - the dependency pickers' search; `name` is a case- and accent-insensitive substring. */
+export async function listMilestones(q: MilestoneListQuery): Promise<MilestonePage> {
+  const params = buildQuery({ page: q.page, pageSize: q.pageSize, sort: q.sort, name: q.name });
+  return jsonRequest<MilestonePage>(`/api/v1/milestones?${params}`);
+}
 
 export async function getProjectView(projectId: number): Promise<ProjectView> {
   return jsonRequest<ProjectView>(`/api/v1/views/project/${projectId}`);

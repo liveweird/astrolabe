@@ -5,17 +5,20 @@ import { IconCalendarStats, IconPencil, IconPlus, IconTrash } from "@tabler/icon
 import { useQueryClient } from "@tanstack/react-query";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
+import type { EndpointRef } from "../api/dependencies";
 import { ApiError } from "../api/http";
 import { deleteMilestone, type ProjectMilestone, type ProjectView as ProjectViewDocument } from "../api/milestones";
 import { deleteProject } from "../api/plan";
 import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
 import EditPageLoadState from "../components/EditPageLoadState";
 import EmptyState from "../components/EmptyState";
+import DependencyEditorModal from "../components/DependencyEditorModal";
 import ErrorAlert from "../components/ErrorAlert";
 import FormErrorAlert from "../components/FormErrorAlert";
 import MilestoneEditorModal from "../components/MilestoneEditorModal";
 import MilestoneScheduleModal from "../components/MilestoneScheduleModal";
 import PageHeader from "../components/PageHeader";
+import ProjectDependencies from "../components/ProjectDependencies";
 import ProjectEditorModal from "../components/ProjectEditorModal";
 import ProjectTimeline, { ProjectTray, type MilestoneActions } from "../components/ProjectTimeline";
 import TimelineDndContext from "../components/TimelineDndContext";
@@ -24,6 +27,7 @@ import { useMilestoneSchedule } from "../hooks/useMilestoneSchedule";
 import { isOneOf, useStoredState } from "../hooks/useStoredState";
 import { localIsoDate } from "../utils/isoDate";
 import { planPath } from "../utils/planLinks";
+import { conflictCount, linksOfMilestone } from "../utils/projectDependencies";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { loadErrorMessage, saveErrorMessage } from "../utils/saveError";
 import { dropOutcome } from "../utils/timelineDrag";
@@ -32,7 +36,8 @@ import { defaultRange, makeScale, toEpochDay, ZOOMS, type Zoom } from "../utils/
 /** The schedule dialog remembers the plan revision of the view it was opened on: its save must stale-409 if THIS milestone moved since. */
 type Scheduling = { milestone: ProjectMilestone; revision: number };
 
-type Editor = { kind: "create" } | { kind: "edit"; milestone: ProjectMilestone } | { kind: "project" };
+/** `dependency` is the Add dependency dialog; `successor` prefills it (the row menu's shortcut), null = the project itself. */
+type Editor = { kind: "create" } | { kind: "edit"; milestone: ProjectMilestone } | { kind: "project" } | { kind: "dependency"; successor: EndpointRef | null };
 
 /** One badge per non-zero drift figure: orange when the project runs LATER than its target (a warning), gray when it is ahead. */
 function driftBadges(drift: NonNullable<ProjectViewDocument["drift"]>, t: TFunction): { key: string; label: string; late: boolean }[] {
@@ -50,6 +55,7 @@ function ProjectFacts({ view }: { view: ProjectViewDocument }) {
   const { t } = useTranslation();
   const { targetStart, targetEnd } = view.project;
   const badges = view.drift === null ? [] : driftBadges(view.drift, t);
+  const conflicts = conflictCount(view);
   return (
     <Group gap="md" role="group" aria-label={t("project.factsAria")}>
       <Text size="sm">{targetStart !== null && targetEnd !== null ? t("project.windowLine", { start: targetStart, end: targetEnd }) : t("project.noWindow")}</Text>
@@ -64,6 +70,11 @@ function ProjectFacts({ view }: { view: ProjectViewDocument }) {
           {badge.label}
         </Badge>
       ))}
+      {conflicts > 0 && (
+        <Badge color="red" variant="light">
+          {t("project.conflicts", { count: conflicts })}
+        </Badge>
+      )}
     </Group>
   );
 }
@@ -95,12 +106,12 @@ function ProjectPage({ id }: { id: number }) {
   const today = localIsoDate();
 
   const refreshPlan = () => refreshQueriesAfterMutation(queryClient, ["plan"]);
-  const removeMilestone = useDeleteConfirm<ProjectMilestone>({
-    mutationFn: (milestone) => deleteMilestone(milestone.id),
+  const removeMilestone = useDeleteConfirm<{ milestone: ProjectMilestone; links: number }>({
+    mutationFn: ({ milestone }) => deleteMilestone(milestone.id),
     onSuccess: refreshPlan,
     successMessage: t("project.toast.milestoneDeleted"),
   });
-  const removeProject = useDeleteConfirm<{ id: number; name: string; milestones: number }>({
+  const removeProject = useDeleteConfirm<{ id: number; name: string; milestones: number; links: number }>({
     mutationFn: (project) => deleteProject(project.id),
     // Leave first: the unmounted page's query is then only invalidated, never refetched for a project that is gone.
     onSuccess: async () => {
@@ -124,7 +135,11 @@ function ProjectPage({ id }: { id: number }) {
   }
 
   const { project } = view;
-  const dates = [...view.scheduled.flatMap((m) => [m.startDate, m.endDate]), project.targetStart, project.targetEnd].filter((d): d is string => d !== null);
+  // Every day the page shows: the milestones, the window and every link end (a ghost row's, so an arrow to a far-away one is in range).
+  const linkEnds = view.dependencies.flatMap((d) => [d.predecessor, d.successor]);
+  const dates = [...view.scheduled.flatMap((m) => [m.startDate, m.endDate]), ...linkEnds.flatMap((e) => [e.startDate, e.endDate]), project.targetStart, project.targetEnd].filter(
+    (d): d is string => d !== null,
+  );
   if (dates.length > 0) {
     const min = dates.reduce((a, b) => (b < a ? b : a));
     const max = dates.reduce((a, b) => (b > a ? b : a));
@@ -149,12 +164,14 @@ function ProjectPage({ id }: { id: number }) {
     edit: (milestone) => setEditor({ kind: "edit", milestone }),
     editSchedule: (milestone) => setScheduling({ milestone, revision: view.revision }),
     unschedule: (milestone) => schedule.commit(milestone.id, null, null, { announce: true }),
-    remove: removeMilestone.requestDelete,
+    remove: (milestone) => removeMilestone.requestDelete({ milestone, links: linksOfMilestone(view, milestone.id) }),
     schedule: scheduleByButton,
+    addDependency: (milestone) => setEditor({ kind: "dependency", successor: { kind: "MILESTONE", id: milestone.id } }),
   };
   const milestoneCount = view.scheduled.length + view.unscheduled.length;
   const canTrayEdit = view.unscheduled.some((m) => m.can.schedule);
   const closeEditor = () => setEditor(null);
+  const dependencies = <ProjectDependencies view={view} onAdd={() => setEditor({ kind: "dependency", successor: null })} />;
   const saved = async () => {
     closeEditor();
     await refreshQueriesAfterMutation(queryClient, ["plan"], ["roadmap"]);
@@ -197,7 +214,7 @@ function ProjectPage({ id }: { id: number }) {
               </Button>
             )}
             {project.can.delete && (
-              <Button color="red" variant="light" leftSection={<IconTrash size={16} />} onClick={() => removeProject.requestDelete({ id: project.id, name: project.name, milestones: milestoneCount })}>
+              <Button color="red" variant="light" leftSection={<IconTrash size={16} />} onClick={() => removeProject.requestDelete({ id: project.id, name: project.name, milestones: milestoneCount, links: view.dependencies.length })}>
                 {t("common.action.delete")}
               </Button>
             )}
@@ -266,11 +283,22 @@ function ProjectPage({ id }: { id: number }) {
           </Stack>
         </TimelineDndContext>
       )}
+      {/* After the tray, not between: the tray's pointer drop needs it close to the timeline (and in view with it). */}
+      {dependencies}
 
       {editor?.kind === "create" && <MilestoneEditorModal project={project} target={null} onClose={closeEditor} onSaved={saved} />}
       {editor?.kind === "edit" && <MilestoneEditorModal project={project} target={editor.milestone} onClose={closeEditor} onSaved={saved} />}
       {editor?.kind === "project" && (
         <ProjectEditorModal program={{ id: project.programId, name: project.programName }} target={project} onClose={closeEditor} onSaved={saved} />
+      )}
+      {editor?.kind === "dependency" && (
+        <DependencyEditorModal
+          project={project}
+          milestones={[...view.scheduled, ...view.unscheduled]}
+          successor={editor.successor}
+          onClose={closeEditor}
+          onSaved={saved}
+        />
       )}
       {scheduling !== null && (
         <MilestoneScheduleModal
@@ -287,18 +315,26 @@ function ProjectPage({ id }: { id: number }) {
         title={t("project.milestone.deleteTitle")}
         errorTitle={t("project.milestone.deleteFailed")}
         errorMessage={deleteErrors}
-        body={(milestone) => t("project.milestone.deleteBody", { name: milestone.name })}
+        body={({ milestone, links }) => (
+          <>
+            {t("project.milestone.deleteBody", { name: milestone.name })}
+            {links > 0 && ` ${t("project.dependency.deleteWith", { count: links })}`}
+          </>
+        )}
       />
       <ConfirmDeleteModal
         confirm={removeProject}
         title={t("project.deleteProject.title")}
         errorTitle={t("project.deleteProject.failed")}
         errorMessage={deleteErrors}
-        body={(target) =>
-          target.milestones === 0
-            ? t("project.deleteProject.bodyEmpty", { name: target.name })
-            : t("project.deleteProject.body", { name: target.name, count: target.milestones })
-        }
+        body={(target) => (
+          <>
+            {target.milestones === 0
+              ? t("project.deleteProject.bodyEmpty", { name: target.name })
+              : t("project.deleteProject.body", { name: target.name, count: target.milestones })}
+            {target.links > 0 && ` ${t("project.dependency.deleteWith", { count: target.links })}`}
+          </>
+        )}
       />
     </Stack>
   );

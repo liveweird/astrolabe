@@ -3,7 +3,8 @@
 // editor modal) — where focus traps, aria-modal and labels actually live, and the app shell at a
 // phone width (the burger); the page sets run in the light scheme and again in the dark one.
 // Owns: the fixture team and the fixture plan (a person, work stream, program and project with two milestones, one scheduled past the
-// project's target end and one in the Unscheduled tray; unique `e2e-axe-*` names), created and deleted via the API.
+// project's target end and one in the Unscheduled tray, plus a second project with one milestone linked as the fixture milestone's
+// violated predecessor; unique `e2e-axe-*` names), created and deleted via the API.
 import type { APIRequestContext, Locator, Page } from "@playwright/test";
 import {
   apiAsAdmin,
@@ -105,6 +106,8 @@ test.describe("detail pages and overlays", () => {
   let planPaths: string[];
   let projectId: number;
   let projectName: string;
+  let linkedProjectId: number;
+  let linkedProjectName: string;
 
   async function create(path: string, data: object): Promise<number> {
     const created = await api.post(path, { data });
@@ -140,7 +143,23 @@ test.describe("detail pages and overlays", () => {
       data: { expectedRevision: view.revision, startDate: "2026-02-09", endDate: "2026-04-10" },
     });
     expect(scheduled.status(), await scheduled.text()).toBe(200);
-    planPaths = [`/api/v1/projects/${projectId}`, `/api/v1/programs/${programId}`, `/api/v1/programs/${otherProgramId}`, `/api/v1/work-streams/${streamId}`, `/api/v1/people/${personId}`];
+    // A second project whose milestone ends AFTER the fixture milestone starts, and a finish-to-start link from it: the fixture project
+    // then shows the dependencies in their richest state (a violated row, the red conflicts badge, a ghost row and a red arrow).
+    linkedProjectName = uniqueText("e2e-axe-linked");
+    linkedProjectId = await create(`/api/v1/programs/${programId}/projects`, { name: linkedProjectName, ownerPersonId: personId });
+    const linkedId = await create(`/api/v1/projects/${linkedProjectId}/milestones`, { name: uniqueText("e2e-axe-predecessor"), teamId, estimateMd: 1 });
+    const linkedView = (await (await api.get(`/api/v1/views/project/${linkedProjectId}`)).json()) as { revision: number };
+    const linkedScheduled = await api.put(`/api/v1/milestones/${linkedId}/schedule`, {
+      data: { expectedRevision: linkedView.revision, startDate: "2026-03-02", endDate: "2026-03-06" },
+    });
+    expect(linkedScheduled.status(), await linkedScheduled.text()).toBe(200);
+    await create(`/api/v1/projects/${projectId}/dependencies`, {
+      predecessor: { kind: "MILESTONE", id: linkedId },
+      successor: { kind: "MILESTONE", id: scheduledId },
+      type: "FS",
+      lagDays: 0,
+    });
+    planPaths = [`/api/v1/projects/${projectId}`, `/api/v1/projects/${linkedProjectId}`, `/api/v1/programs/${programId}`, `/api/v1/programs/${otherProgramId}`, `/api/v1/work-streams/${streamId}`, `/api/v1/people/${personId}`];
   });
   test.afterAll(async () => {
     for (const path of [...planPaths, `/api/v1/teams/${teamId}`]) {
@@ -181,8 +200,8 @@ test.describe("detail pages and overlays", () => {
     registerPlanScan("dark");
   });
 
-  // The project view: the shared timeline grid (bars with handles, the window band, the orange drift badge, the weekend hatch) and the
-  // Unscheduled tray, light and dark.
+  // The project view: the shared timeline grid (bars with handles, the window band, the orange drift badge, the weekend hatch), the
+  // dependencies (a red arrow, a ghost row, the red conflicts badge, the Dependencies table with a violated row) and the Unscheduled tray, light and dark.
   function registerProjectViewScan(scheme: Scheme): void {
     const suffix = scheme === "dark" ? " in the dark scheme" : "";
     test(`/projects/:id with a scheduled milestone, the drift and the tray has no WCAG A/AA violations${suffix}`, async ({ page }) => {
@@ -191,6 +210,10 @@ test.describe("detail pages and overlays", () => {
       await expect(page.getByRole("heading", { level: 2, name: projectName })).toBeVisible();
       await expect(page.getByRole("grid", { name: "Milestone timeline" })).toBeVisible();
       await expect(page.getByText("Ends 10 days after the target")).toBeVisible();
+      await expect(page.getByText("1 conflict", { exact: true })).toBeVisible();
+      await expect(page.getByRole("table", { name: "Dependencies of the project" }).getByRole("row")).toHaveCount(2);
+      await expect(page.locator('[data-arrow][data-violated="true"]')).toHaveCount(1);
+      await expect(page.getByRole("link", { name: new RegExp(`open project ${linkedProjectName}$`) })).toBeVisible();
       await expectScheme(page, scheme);
       await scan(page);
     });
@@ -268,6 +291,19 @@ test.describe("detail pages and overlays", () => {
     const modal = await settledDialog(page);
     await expect(modal.getByRole("heading", { name: "New milestone" })).toBeVisible();
     await scan(page, '[role="dialog"]');
+  });
+
+  test("a dependency editor modal (successor, kind toggle, predecessor picker, type, lag) has no WCAG A/AA violations", async ({ page }) => {
+    await login(page);
+    await page.goto(`/projects/${projectId}`);
+    await page.getByRole("button", { name: "Add dependency", exact: true }).click();
+    const modal = await settledDialog(page);
+    await expect(modal.getByRole("heading", { name: "Add dependency" })).toBeVisible();
+    await scan(page, '[role="dialog"]');
+    // The predecessor picker's open option list (the milestones of every project).
+    await modal.getByRole("combobox", { name: "Predecessor" }).click();
+    await expect(page.getByRole("option").first()).toBeVisible();
+    await scan(page, '[role="listbox"]');
   });
 
   test("a plan project editor modal (dates, fieldset, owner picker) has no WCAG A/AA violations", async ({ page }) => {

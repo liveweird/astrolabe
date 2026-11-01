@@ -6,6 +6,7 @@ import { QueryClient } from "@tanstack/react-query";
 import { DndContext } from "@dnd-kit/core";
 import { Route, Routes } from "react-router-dom";
 import ProjectView from "./ProjectView";
+import type { DependencyEndpoint, ProjectDependency } from "../api/dependencies";
 import type { ProjectMilestone, ProjectView as ProjectViewDocument } from "../api/milestones";
 import { applySchedule } from "../utils/projectViewUpdate";
 import { headingOutline } from "../test/headings";
@@ -57,6 +58,8 @@ const DISCOVERY = milestone(1, "Discovery", { description: "Interviews", estimat
 const BUILD = milestone(2, "Build", { startDate: "2027-01-18", endDate: "2027-01-29" });
 const ROLLOUT = milestone(3, "Rollout");
 const AUDIT = milestone(4, "Audit", { teamId: 4, teamName: "Design" });
+/** A milestone of ANOTHER project (the dependency pickers' search result, and the ghost row's end). */
+const ALPHA_MILESTONE = { ...milestone(21, "a1", { startDate: "2027-01-04", endDate: "2027-01-08", teamName: "Design" }), projectId: 99 };
 
 const viewOf = (over: Partial<ProjectViewDocument> = {}): ProjectViewDocument => ({
   revision: 10,
@@ -84,10 +87,16 @@ const viewOf = (over: Partial<ProjectViewDocument> = {}): ProjectViewDocument =>
   ...over,
 });
 
+/** The project's own `can` without the right to link: a milestone row with no flags of its own then has no menu at all. */
+const withoutLinking = () => ({ ...viewOf().project, can: { ...viewOf().project.can, createDependency: false } });
+
 const STALE = { type: "urn:astrolabe:problem:stale-revision", title: "Conflict", status: 409, detail: "stale" };
 
 let view: ProjectViewDocument;
 let putStatus: { status: number; body?: unknown };
+let dependencyPost: { status: number; body?: unknown };
+/** Runs when a dependency POST is accepted: the test's stand-in for the server adding the link to the view. */
+let onDependencyCreated: (() => void) | null;
 
 /** A tiny server: GET answers the current view; an accepted schedule PUT applies the dates and bumps the revision. */
 function serve(mockFetch: FetchMock) {
@@ -102,6 +111,14 @@ function serve(mockFetch: FetchMock) {
       return Promise.resolve(jsonResponse(200, { revision: view.revision }));
     }
     if (method === "POST" && url === "/api/v1/projects/7/milestones") return Promise.resolve(jsonResponse(201, { id: 9 }));
+    if (method === "POST" && url === "/api/v1/projects/7/dependencies") {
+      if (dependencyPost.status === 201) onDependencyCreated?.();
+      return Promise.resolve(jsonResponse(dependencyPost.status, dependencyPost.body ?? { id: 50 }));
+    }
+    if (method === "GET" && url.startsWith("/api/v1/milestones?")) {
+      const item = { ...ALPHA_MILESTONE, projectName: "Alpha", projectId: 99 };
+      return Promise.resolve(jsonResponse(200, { items: [item], page: 1, pageSize: 50, total: 1 }));
+    }
     if (method === "DELETE") return Promise.resolve(new Response(null, { status: 204 }));
     if (url.startsWith("/api/v1/teams?")) {
       return Promise.resolve(jsonResponse(200, { items: [{ id: 3, name: "Backend" }, { id: 4, name: "Design" }], page: 1, pageSize: 50, total: 2 }));
@@ -137,6 +154,8 @@ let mockFetch: FetchMock;
 beforeEach(() => {
   view = viewOf();
   putStatus = { status: 200 };
+  dependencyPost = { status: 201 };
+  onDependencyCreated = null;
   dndProps = null;
   mockFetch = vi.fn();
   vi.stubGlobal("fetch", mockFetch);
@@ -158,6 +177,7 @@ describe("Project view page", () => {
       [2, "Invoices"],
       [3, "Timeline"],
       [3, "Unscheduled"],
+      [3, "Dependencies"],
     ]);
     expect(screen.getByText("Monthly invoicing")).toBeInTheDocument();
     expect(screen.getByText("Billing · Platform · Owner: Ola Owner")).toBeInTheDocument();
@@ -630,7 +650,7 @@ describe("Project view page: schedule writes", () => {
 describe("Project view page: rows, rights and edge cases", () => {
   test("a row without any action has no menu, and the grid still walks and keeps exactly one tab stop", async () => {
     const none = { edit: false, delete: false, schedule: false };
-    view = viewOf({ scheduled: [{ ...DISCOVERY, can: none }, { ...BUILD, can: none }], unscheduled: [] });
+    view = viewOf({ scheduled: [{ ...DISCOVERY, can: none }, { ...BUILD, can: none }], unscheduled: [], project: withoutLinking() });
     const user = userEvent.setup();
     renderPage();
     const grid = await screen.findByRole("grid", { name: "Milestone timeline" });
@@ -654,7 +674,7 @@ describe("Project view page: rows, rights and edge cases", () => {
     act(() => menu.focus());
     expect(menu).toHaveAttribute("tabindex", "0");
     // the rights are revoked: the next view has no actions on that row (a drop triggers the refetch)
-    view = viewOf({ scheduled: [{ ...DISCOVERY, can: none }, BUILD] });
+    view = viewOf({ scheduled: [{ ...DISCOVERY, can: none }, BUILD], project: withoutLinking() });
     dropMove(BUILD, 1);
     await waitFor(() => expect(screen.queryByRole("button", { name: "Operations for Discovery" })).toBeNull());
     const stops = grid.querySelectorAll<HTMLElement>('[data-grid-pos][tabindex="0"]');
@@ -686,5 +706,322 @@ describe("Project view page: rows, rights and edge cases", () => {
     expect(await screen.findByText("This project no longer exists.")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: "Project" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Back to the plan" })).toHaveAttribute("href", "/plan");
+  });
+});
+
+// ---- dependencies (v0.4) -----------------------------------------------------------------------------------------------
+
+const endpointOf = (m: ProjectMilestone, over: Partial<DependencyEndpoint> = {}): DependencyEndpoint => ({
+  kind: "MILESTONE",
+  id: m.id,
+  name: m.name,
+  projectId: m.projectId,
+  projectName: "Invoices",
+  teamId: m.teamId,
+  teamName: m.teamName,
+  startDate: m.startDate,
+  endDate: m.endDate,
+  ...over,
+});
+/** The ghost end: milestone a1 of project Alpha (99). */
+const GHOST = endpointOf(ALPHA_MILESTONE, { projectName: "Alpha" });
+/** This project as a whole (the summary row's end): its derived span. */
+const WHOLE_PROJECT: DependencyEndpoint = {
+  kind: "PROJECT",
+  id: 7,
+  name: "Invoices",
+  projectId: 7,
+  projectName: "Invoices",
+  teamId: null,
+  teamName: null,
+  startDate: "2027-01-11",
+  endDate: "2027-01-29",
+};
+
+const OK_CHECK = { status: "OK", shortfallDays: null, requiredDate: "2027-01-11", actualDate: "2027-01-11" } as const;
+const VIOLATED_CHECK = { status: "VIOLATED", shortfallDays: 2, requiredDate: "2027-01-11", actualDate: "2027-01-07" } as const;
+const NOT_YET_CHECK = { status: "UNSCHEDULED", shortfallDays: null, requiredDate: null, actualDate: null } as const;
+
+const dependencyOf = (id: number, predecessor: DependencyEndpoint, successor: DependencyEndpoint, over: Partial<ProjectDependency> = {}): ProjectDependency => ({
+  id,
+  predecessor,
+  successor,
+  type: "FS",
+  lagDays: 0,
+  check: OK_CHECK,
+  can: { delete: true },
+  ...over,
+});
+
+/** a1 (Alpha, a ghost) → Discovery violated; Discovery → Build OK; Rollout (the tray) → Build not scheduled yet - the server's order. */
+const VIOLATED_LINK = dependencyOf(31, GHOST, endpointOf(DISCOVERY), { check: VIOLATED_CHECK });
+const OK_LINK = dependencyOf(32, endpointOf(DISCOVERY), endpointOf(BUILD), { lagDays: 1, check: { ...OK_CHECK, requiredDate: "2027-01-19", actualDate: "2027-01-19" } });
+const NOT_YET_LINK = dependencyOf(33, endpointOf(ROLLOUT), endpointOf(BUILD), { type: "SS", lagDays: -2, check: NOT_YET_CHECK });
+
+const arrows = () => Array.from(document.querySelectorAll<SVGPathElement>("[data-arrow]"));
+const tableRows = () => within(screen.getByRole("table", { name: "Dependencies of the project" })).getAllByRole("row").slice(1);
+
+describe("Project view page: dependencies", () => {
+  test("the Dependencies table is the conflict list - violated first, with what each needs - and the facts say how many conflicts", async () => {
+    view = viewOf({ dependencies: [VIOLATED_LINK, OK_LINK, NOT_YET_LINK] });
+    renderPage();
+    await screen.findByRole("grid", { name: "Milestone timeline" });
+    const rows = tableRows();
+    expect(rows).toHaveLength(3);
+    // violated: red badge naming the shortfall, the ghost end with its project, the type, the lag, what it needs and what it has
+    expect(rows[0]).toHaveTextContent("Violated · 2 working days short");
+    expect(within(rows[0]).getAllByRole("cell").map((cell) => cell.textContent)).toEqual([
+      "Violated · 2 working days short",
+      "a1 · Alpha",
+      "Finish → Start (FS)",
+      "0 working days",
+      "Discovery",
+      "needs 2027-01-11 · is 2027-01-07",
+      "",
+    ]);
+    expect(rows[1]).toHaveTextContent("OK");
+    expect(rows[1]).toHaveTextContent("1 working day");
+    expect(rows[2]).toHaveTextContent("Not scheduled yet");
+    expect(rows[2]).toHaveTextContent("-2 working days (lead)");
+    const facts = screen.getByRole("group", { name: "Project facts" });
+    expect(within(facts).getByText("1 conflict")).toBeInTheDocument();
+    // the violated bar says so in its name; an unaffected one does not
+    expect(barOf("Discovery")).toHaveAccessibleName("Discovery, Backend, 2027-01-11 to 2027-01-15, 12.25 man-days, 1 conflict");
+    expect(barOf("Build")).toHaveAccessibleName("Build, Backend, 2027-01-18 to 2027-01-29, 5 man-days");
+  });
+
+  test("a project without links shows the empty state, with the hint the caller's rights allow, and no facts badge", async () => {
+    renderPage();
+    await screen.findByRole("grid", { name: "Milestone timeline" });
+    expect(screen.getByRole("heading", { level: 3, name: "Dependencies" })).toBeInTheDocument();
+    expect(screen.getByText("No dependencies yet")).toBeInTheDocument();
+    expect(screen.getByText("Link a milestone, or the whole project, to the work it waits for.")).toBeInTheDocument();
+    expect(screen.queryByRole("table", { name: "Dependencies of the project" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Add dependency" })).toBeInTheDocument();
+    expect(screen.queryByText(/conflict/)).toBeNull();
+    expect(arrows()).toHaveLength(0);
+  });
+
+  test("a read-only caller sees the links and the conflicts but gets no Add dependency, no menu item and no Delete", async () => {
+    view = viewOf({
+      dependencies: [{ ...VIOLATED_LINK, can: { delete: false } }],
+      project: withoutLinking(),
+      scheduled: [{ ...DISCOVERY, can: { edit: false, delete: false, schedule: false } }, BUILD],
+    });
+    renderPage();
+    await screen.findByRole("grid", { name: "Milestone timeline" });
+    expect(screen.queryByRole("button", { name: "Add dependency" })).toBeNull();
+    expect(tableRows()).toHaveLength(1);
+    expect(within(tableRows()[0]).queryByRole("button")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Operations for Discovery" })).toBeNull();
+    expect(screen.getByText("1 conflict")).toBeInTheDocument();
+  });
+
+  test("the empty state of a read-only caller points at the project's owner", async () => {
+    view = viewOf({ project: withoutLinking() });
+    renderPage();
+    await screen.findByRole("grid", { name: "Milestone timeline" });
+    expect(screen.getByText("The project's owner adds dependencies.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add dependency" })).toBeNull();
+  });
+
+  test("a link to another project's milestone draws a ghost row with a link to that project, and one arrow per drawable link, red when violated", async () => {
+    view = viewOf({ dependencies: [VIOLATED_LINK, OK_LINK, NOT_YET_LINK] });
+    renderPage();
+    const grid = await screen.findByRole("grid", { name: "Milestone timeline" });
+    // own rows first, then the ghost: "Alpha › a1" with the link (its accessible name keeps the visible text and says where it goes)
+    const link = within(grid).getByRole("link", { name: "Alpha › a1 - open project Alpha" });
+    expect(link).toHaveAttribute("href", "/projects/99");
+    expect(link).toHaveTextContent("Alpha › a1");
+    const ghostBar = within(grid).getByRole("img", { name: /^a1, 2027-01-04 to 2027-01-08, from project Alpha, read-only$/ });
+    expect(ghostBar).toHaveAttribute("data-tone", "ghost");
+    // the not-scheduled link has no arrow (Rollout is in the tray); the other two do
+    expect(arrows().map((arrow) => [arrow.getAttribute("data-arrow"), arrow.getAttribute("data-violated")])).toEqual([
+      ["31", "true"],
+      ["32", "false"],
+    ]);
+  });
+
+  test("the summary row appears only while the project itself is an end, with its span as a hollow bar", async () => {
+    view = viewOf({ dependencies: [OK_LINK] });
+    const { unmount } = renderPage();
+    const grid = await screen.findByRole("grid", { name: "Milestone timeline" });
+    expect(within(grid).queryByText("(whole project)")).toBeNull();
+    unmount();
+
+    view = viewOf({ dependencies: [dependencyOf(34, GHOST, WHOLE_PROJECT, { check: OK_CHECK })] });
+    renderPage();
+    const withSummary = await screen.findByRole("grid", { name: "Milestone timeline" });
+    expect(within(withSummary).getByText("(whole project)")).toBeInTheDocument();
+    expect(within(withSummary).getByRole("img", { name: "Invoices, the project's span 2027-01-11 to 2027-01-29, read-only" })).toHaveAttribute("data-tone", "summary");
+    expect(arrows()).toHaveLength(1);
+  });
+
+  test("an own end that has no row (not in the view's lists) is skipped: no arrow, no crash", async () => {
+    const lost = { ...endpointOf(BUILD), id: 999, name: "Lost" };
+    view = viewOf({ dependencies: [dependencyOf(35, GHOST, lost), OK_LINK] });
+    renderPage();
+    await screen.findByRole("grid", { name: "Milestone timeline" });
+    expect(arrows().map((arrow) => arrow.getAttribute("data-arrow"))).toEqual(["32"]);
+    expect(tableRows()).toHaveLength(2);
+  });
+
+  test("Add dependency POSTs the picked link under the project, closes the dialog and refreshes the view", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByRole("grid", { name: "Milestone timeline" });
+    onDependencyCreated = () => {
+      view = { ...viewOf({ dependencies: [VIOLATED_LINK] }), revision: view.revision + 1 };
+    };
+    await user.click(screen.getByRole("button", { name: "Add dependency" }));
+    const dialog = await screen.findByRole("dialog", { name: "Add dependency" });
+    await user.click(within(dialog).getByRole("combobox", { name: "Predecessor" }));
+    await user.click(await screen.findByRole("option", { name: "a1 · Alpha" }));
+    const before = viewGets(mockFetch);
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(calls(mockFetch, "POST", /\/projects\/7\/dependencies$/).map((c) => c.body)).toEqual([
+      { predecessor: { kind: "MILESTONE", id: 21 }, successor: { kind: "PROJECT", id: 7 }, type: "FS", lagDays: 0 },
+    ]);
+    // the refreshed view carries the new link: the table row, the badge and the arrow
+    await waitFor(() => expect(tableRows()).toHaveLength(1));
+    expect(viewGets(mockFetch)).toBeGreaterThan(before);
+    expect(screen.getByText("1 conflict")).toBeInTheDocument();
+    expect(arrows()).toHaveLength(1);
+  });
+
+  test("the milestone row menu's Add dependency… opens the dialog with that milestone as the successor", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByRole("grid", { name: "Milestone timeline" });
+    await user.click(screen.getByRole("button", { name: "Operations for Build" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Add a dependency to Build" }));
+    const dialog = await screen.findByRole("dialog", { name: "Add dependency" });
+    expect(within(dialog).getByRole("combobox", { name: "Successor" })).toHaveValue("Build");
+  });
+
+  test("a tray milestone can be a successor too", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByRole("grid", { name: "Milestone timeline" });
+    await user.click(screen.getByRole("button", { name: "Operations for Rollout" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Add a dependency to Rollout" }));
+    expect(within(await screen.findByRole("dialog")).getByRole("combobox", { name: "Successor" })).toHaveValue("Rollout");
+  });
+
+  test("a cycle 409 shows the notice with the path in the dialog and adds nothing; the duplicate pair says so", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByRole("grid", { name: "Milestone timeline" });
+    await user.click(screen.getByRole("button", { name: "Add dependency" }));
+    const dialog = await screen.findByRole("dialog", { name: "Add dependency" });
+    await user.click(within(dialog).getByRole("combobox", { name: "Predecessor" }));
+    await user.click(await screen.findByRole("option", { name: "a1 · Alpha" }));
+    dependencyPost = {
+      status: 409,
+      body: {
+        type: "urn:astrolabe:problem:dependency-cycle",
+        title: "Conflict",
+        status: 409,
+        detail: "x",
+        cycle: [
+          { kind: "PROJECT", id: 7, name: "Invoices" },
+          { kind: "MILESTONE", id: 21, name: "a1" },
+          { kind: "PROJECT", id: 7, name: "Invoices" },
+        ],
+      },
+    };
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    const alert = await within(dialog).findByRole("alert");
+    expect(alert).toHaveTextContent("This link would close a cycle through:");
+    expect(alert).toHaveTextContent("Invoices → a1 → Invoices");
+    expect(screen.queryByRole("table", { name: "Dependencies of the project" })).toBeNull();
+    dependencyPost = { status: 409, body: { title: "Conflict", status: 409, detail: "These two endpoints are already linked" } };
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(within(dialog).getByRole("alert")).toHaveTextContent("These two ends are already linked."));
+    expect(screen.getByRole("dialog", { name: "Add dependency" })).toBeInTheDocument();
+  });
+
+  test("Delete confirms through the shared dialog, DELETEs the link and refreshes the view", async () => {
+    const user = userEvent.setup();
+    view = viewOf({ dependencies: [VIOLATED_LINK, OK_LINK] });
+    renderPage();
+    await screen.findByRole("grid", { name: "Milestone timeline" });
+    await user.click(screen.getByRole("button", { name: "Operations for a1 · Alpha → Discovery" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Delete a1 · Alpha → Discovery" }));
+    const dialog = await screen.findByRole("dialog", { name: "Delete dependency?" });
+    expect(dialog).toHaveTextContent("The dependency a1 · Alpha → Discovery (FS) will be deleted. Nothing moves.");
+    view = { ...viewOf({ dependencies: [OK_LINK] }), revision: 11 };
+    const before = viewGets(mockFetch);
+    await user.click(within(dialog).getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(tableRows()).toHaveLength(1));
+    expect(calls(mockFetch, "DELETE", /\/dependencies\/31$/)).toHaveLength(1);
+    expect(viewGets(mockFetch)).toBeGreaterThan(before);
+    expect(screen.queryByText(/conflict/)).toBeNull();
+    // no ghost row any more: the link to a1 is gone
+    expect(screen.queryByRole("link", { name: /open project Alpha$/ })).toBeNull();
+  });
+
+  test("two links with the same bare names from different projects have distinct menu and confirm names", async () => {
+    const user = userEvent.setup();
+    const otherGhost = { ...GHOST, id: 22, projectId: 98, projectName: "Gamma" };
+    view = viewOf({ dependencies: [VIOLATED_LINK, dependencyOf(36, otherGhost, endpointOf(DISCOVERY), { check: VIOLATED_CHECK })] });
+    renderPage();
+    await screen.findByRole("grid", { name: "Milestone timeline" });
+    expect(screen.getByRole("button", { name: "Operations for a1 · Alpha → Discovery" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Operations for a1 · Gamma → Discovery" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Delete a1 · Gamma → Discovery" }));
+    expect(await screen.findByRole("dialog", { name: "Delete dependency?" })).toHaveTextContent("The dependency a1 · Gamma → Discovery (FS)");
+  });
+
+  test("a failed Delete says so inside the dialog", async () => {
+    const user = userEvent.setup();
+    view = viewOf({ dependencies: [VIOLATED_LINK] });
+    renderPage();
+    await screen.findByRole("grid", { name: "Milestone timeline" });
+    mockFetch.mockImplementation((_url: string, init?: RequestInit) =>
+      Promise.resolve(init?.method === "DELETE" ? jsonResponse(403, { title: "Forbidden", status: 403 }) : jsonResponse(200, view)),
+    );
+    await user.click(screen.getByRole("button", { name: "Operations for a1 · Alpha → Discovery" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Delete a1 · Alpha → Discovery" }));
+    await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Delete" }));
+    expect(await screen.findByText(/Only the owners of the successor's project/)).toBeInTheDocument();
+  });
+
+  test("a schedule write refetches the view, so the table, the conflicts badge and the arrow follow the server's new check", async () => {
+    view = viewOf({ dependencies: [{ ...VIOLATED_LINK, check: OK_CHECK }] });
+    renderPage();
+    await screen.findByRole("grid", { name: "Milestone timeline" });
+    expect(screen.queryByText(/conflict/)).toBeNull();
+    expect(arrows()[0]).toHaveAttribute("data-violated", "false");
+    const before = viewGets(mockFetch);
+    // The server recomputes the check against the new dates, which the optimistic update cannot do.
+    mockFetch.mockImplementation(((impl) => (url: string, init?: RequestInit) => {
+      if (init?.method === "PUT" && /\/schedule$/.test(url)) view = { ...view, dependencies: [VIOLATED_LINK] };
+      return impl(url, init);
+    })(mockFetch.getMockImplementation() as (url: string, init?: RequestInit) => Promise<Response>));
+    dropMove(DISCOVERY, -4);
+    await waitFor(() => expect(schedulePuts(mockFetch)).toHaveLength(1));
+    await waitFor(() => expect(viewGets(mockFetch)).toBeGreaterThan(before));
+    expect(await screen.findByText("1 conflict")).toBeInTheDocument();
+    expect(tableRows()[0]).toHaveTextContent("Violated · 2 working days short");
+    expect(arrows()[0]).toHaveAttribute("data-violated", "true");
+  });
+
+  test("deleting a milestone or the project names the links that go with it", async () => {
+    const user = userEvent.setup();
+    view = viewOf({ dependencies: [VIOLATED_LINK, OK_LINK] });
+    renderPage();
+    await screen.findByRole("grid", { name: "Milestone timeline" });
+    // Discovery is on both links, Build on one
+    await user.click(screen.getByRole("button", { name: "Operations for Discovery" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Delete Discovery" }));
+    expect(await screen.findByRole("dialog", { name: "Delete milestone?" })).toHaveTextContent('Milestone "Discovery" will be deleted. Its 2 dependencies will be deleted too.');
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    expect(await screen.findByRole("dialog", { name: "Delete project?" })).toHaveTextContent(
+      'Project "Invoices" and its 4 milestones will be deleted. Its 2 dependencies will be deleted too.',
+    );
   });
 });

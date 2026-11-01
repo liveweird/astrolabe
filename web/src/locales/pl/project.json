@@ -71,7 +71,9 @@
     "editSchedule": "Edytuj termin…",
     "editScheduleAria": "Edytuj termin: {{name}}",
     "unschedule": "Usuń z harmonogramu",
-    "unscheduleAria": "Usuń z harmonogramu: {{name}}"
+    "unscheduleAria": "Usuń z harmonogramu: {{name}}",
+    "addDependency": "Dodaj zależność…",
+    "addDependencyAria": "Dodaj zależność do: {{name}}"
   },
   "validation": {
     "nameLength": "Nazwa musi mieć od 1 do 100 znaków",
@@ -114,6 +116,95 @@
     "milestoneCreated": "Utworzono kamień milowy",
     "milestoneSaved": "Zapisano kamień milowy",
     "milestoneDeleted": "Usunięto kamień milowy",
-    "projectDeleted": "Usunięto projekt"
+    "projectDeleted": "Usunięto projekt",
+    "dependencyAdded": "Dodano zależność",
+    "dependencyDeleted": "Usunięto zależność"
+  },
+  "conflicts_one": "{{count}} konflikt",
+  "conflicts_few": "{{count}} konflikty",
+  "conflicts_many": "{{count}} konfliktów",
+  "conflicts_other": "{{count}} konfliktu",
+  "barConflicts_one": "{{count}} konflikt",
+  "barConflicts_few": "{{count}} konflikty",
+  "barConflicts_many": "{{count}} konfliktów",
+  "barConflicts_other": "{{count}} konfliktu",
+  "summaryTag": "(cały projekt)",
+  "ghostName": "{{project}} › {{name}}",
+  "ghostSpan": "{{name}}, od {{start}} do {{end}}",
+  "ghostLinkAria": "{{text}} – otwórz projekt {{project}}",
+  "dependenciesTitle": "Zależności",
+  "dependenciesAria": "Zależności projektu",
+  "dependenciesIntro": "Zależność sprawia, że jeden koniec czeka na drugi: następnik czeka na poprzednik. Zależności, które nie są dotrzymane, są wymienione na początku i tylko ostrzegają — nic nie przesuwa się samo.",
+  "noDependencies": "Nie ma jeszcze zależności",
+  "noDependenciesHint": "Dodaj zależność kamienia milowego albo całego projektu od pracy, na którą czeka.",
+  "noDependenciesHintReadOnly": "Zależności dodaje właściciel/ka projektu.",
+  "dependency": {
+    "add": "Dodaj zależność",
+    "createTitle": "Dodaj zależność",
+    "intro": "Następnik czeka na poprzednik. Zależności projektu dodaje i usuwa jego właściciel/ka albo administrator/ka; właściciel/ka poprzednika nie jest o nic pytany/a. Zależność, która nie jest dotrzymana, tylko ostrzega - nic się nie przesuwa.",
+    "successor": "Następnik",
+    "successorHint": "Ten projekt albo jeden z jego kamieni milowych - strona, która czeka.",
+    "thisProject": "Ten projekt ({{name}})",
+    "predecessorKind": "Poprzednik to",
+    "kind": {
+      "MILESTONE": "Kamień milowy",
+      "PROJECT": "Projekt"
+    },
+    "predecessor": "Poprzednik",
+    "predecessorHint": "Strona, na którą się czeka.",
+    "pickMilestone": "Szukaj kamieni milowych po nazwie…",
+    "pickProject": "Szukaj projektów po nazwie…",
+    "clearMilestone": "Wyczyść kamień milowy poprzednika",
+    "clearProject": "Wyczyść projekt poprzednika",
+    "noMatchingMilestones": "Brak pasujących kamieni milowych",
+    "noMatchingProjects": "Brak pasujących projektów",
+    "type": {
+      "label": "Typ",
+      "FS": "Koniec → początek (FS)",
+      "SS": "Początek → początek (SS)",
+      "FF": "Koniec → koniec (FF)",
+      "SF": "Początek → koniec (SF)"
+    },
+    "lagLabel": "Opóźnienie",
+    "lagHint": "W dniach roboczych (od poniedziałku do piątku); wartość ujemna = wyprzedzenie.",
+    "lag_one": "{{count}} dzień roboczy",
+    "lag_few": "{{count}} dni robocze",
+    "lag_many": "{{count}} dni roboczych",
+    "lag_other": "{{count}} dnia roboczego",
+    "lead": "(wyprzedzenie)",
+    "wholeProject": "Projekt {{name}}",
+    "status": {
+      "ok": "OK",
+      "violated_one": "Niedotrzymane · brakuje {{count}} dnia roboczego",
+      "violated_few": "Niedotrzymane · brakuje {{count}} dni roboczych",
+      "violated_many": "Niedotrzymane · brakuje {{count}} dni roboczych",
+      "violated_other": "Niedotrzymane · brakuje {{count}} dnia roboczego",
+      "unscheduled": "Jeszcze niezaplanowane"
+    },
+    "dates": "wymaga {{required}} · jest {{actual}}",
+    "column": {
+      "status": "Stan",
+      "predecessor": "Poprzednik",
+      "type": "Typ",
+      "lag": "Opóźnienie",
+      "successor": "Następnik",
+      "dates": "Terminy"
+    },
+    "cycle": "Ta zależność zamknęłaby cykl przez:",
+    "duplicate": "Te dwa końce są już połączone zależnością.",
+    "saveForbidden": "Zależności projektu zmieniają tylko właściciele/ki projektu następnika albo administrator/ka",
+    "saveInvalid": "Sprawdź następnik i poprzednik — każdy z nich mógł w międzyczasie zostać usunięty.",
+    "validation": {
+      "predecessorRequired": "Wybierz poprzednik",
+      "selfLink": "Koniec nie może zależeć od samego siebie",
+      "lagInvalid": "Podaj liczbę całkowitą dni roboczych od -365 do 365"
+    },
+    "deleteTitle": "Usunąć zależność?",
+    "deleteBody": "Usuniemy zależność {{predecessor}} → {{successor}} ({{type}}). Nic się nie przesuwa.",
+    "deleteFailed": "Nie udało się usunąć",
+    "deleteWith_one": "Usuniemy też {{count}} zależność.",
+    "deleteWith_few": "Usuniemy też {{count}} zależności.",
+    "deleteWith_many": "Usuniemy też {{count}} zależności.",
+    "deleteWith_other": "Usuniemy też {{count}} zależności."
   }
 }

@@ -3,7 +3,7 @@
 // caller may do, and the server's guards are the rule. Thin endpoint wrappers: transport (authedFetch/ApiError) in ./http,
 // types from ./schema.
 
-import { jsonRequest, voidRequest } from "./http";
+import { buildQuery, jsonRequest, voidRequest } from "./http";
 import type { components } from "./schema";
 
 type Schemas = components["schemas"];
@@ -17,6 +17,15 @@ export type ProgramBody = Schemas["ProgramCreateRequest"] & Schemas["ProgramUpda
 export type ProjectCreateBody = Schemas["ProjectCreateRequest"];
 export type ProjectUpdateBody = Schemas["ProjectUpdateRequest"];
 export type TargetWindowBody = Schemas["TargetWindowRequest"];
+type ProjectPage = Schemas["ProjectPage"];
+
+type ProjectListQuery = { page: number; pageSize: number; sort?: string; name?: string };
+
+/** The paged project list (each row carries `programName` and `workStreamName`) - the dependency pickers' search; `name` is a case- and accent-insensitive substring. */
+export async function listProjects(q: ProjectListQuery): Promise<ProjectPage> {
+  const params = buildQuery({ page: q.page, pageSize: q.pageSize, sort: q.sort, name: q.name });
+  return jsonRequest<ProjectPage>(`/api/v1/projects?${params}`);
+}
 
 export async function getPlanView(): Promise<PlanView> {
   return jsonRequest<PlanView>("/api/v1/views/plan");

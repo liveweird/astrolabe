@@ -42,7 +42,7 @@ a range recomputed from every drag would shift every bar under the pointer. `scr
 `scale`, `xOf(iso)`, `rowTop(i) = i × 36`, `rowHeight = 36`, `rowIndexOf(rowId) → index | null` (the row with that `TimelineRowData.id`; the id map is built on first call), `barRect(rowIndex, barId) → {x, y, width, height} | null` (`y = rowTop + 6`, `height = 24`; the committed dates, not a drag preview) and `visibleRows{first, last}` (the mounted
 window; draw arrows only for these). Arrows therefore work identically on the plain and the virtual path.
 
-#### Arrows (built, v0.4 — the component level; the project view wires them in the same release)
+#### Arrows (built, v0.4.0 — the component, wired by the project view)
 
 Files: `utils/timelineArrows.ts` (pure routing + resolution), `components/TimelineArrows.tsx` (the renderer), `TimelineArrowData` in `utils/timelineModel.ts` (the input). A page passes `overlay={(g) => <TimelineArrows arrows={specs} geometry={g} />}`; the component draws, it decides nothing.
 
@@ -64,10 +64,23 @@ line would cross it is NOT drawn (accepted: the project view never virtualises).
 Colour: tokens on `timelineGrid` — `--timeline-arrow` (the SOLID dimmed text colour, gray; the path carries `opacity: 0.7` so its line and arrowhead fade as one group instead of compounding an alpha colour where they meet; the head's tip sits on the anchor, `refX = 10`) and `--timeline-violation` (`light-dark(red-8, red-5)`: red = a violated constraint), 1.5 px strokes.
 
 **Bar tones** (`TimelineBarData.tone`, read-only bars only; rendered as a class and a `data-tone` attribute): `ghost` = an endpoint that lives on another project — the bar colour at 35 % with a dashed outline; `summary` = the project's own derived span — hollow, a 2 px outline. A tone changes no accessible name: the page's `describe` carries the words
-(`timeline.bar.ghost` "{label}, from project {project}" and `timeline.bar.summary` "{name}, the project's span {start} to {end}" are the strings it uses; they exist from C4 on but are consumed from C5, when the project view builds the ghost and summary rows).
+(`timeline.bar.ghost` "{label}, from project {project}" and `timeline.bar.summary` "{name}, the project's span {start} to {end}" are the strings the project view's ghost and summary rows use; its bar names for a link's own ends gain ", N conflicts" while violated links end on them).
+
+**The project view's use** (`components/ProjectTimeline.tsx`, `utils/projectDependencies.ts`): rows are the summary row (`project:<id>`, only while the project itself is a link end), the scheduled milestones, then one ghost row per distinct external end with dates (`ghost:m:<id>` / `ghost:p:<id>`, sorted by start, end, name; its name a link to that project). An arrow per link whose status is not UNSCHEDULED, `violated` from the SERVER's check; an end with no row (a tray milestone, a project with no span) is skipped by `arrowsToDraw`. The page's range includes every end's dates.
 
 **Cost.** Resolving the arrows is O(arrows) per render. One-off, NON-BINDING measurement (not a budget; re-measure rather than quote it) with the C4 component, 50 rows and 200 arrows (all drawn), one run on an Apple-silicon laptop (arm64, Node 26, vitest + happy-dom): `arrowsToDraw` median 0.24 ms (p95 0.33 ms) over 200 repetitions; mounting the whole Timeline in happy-dom (DOM construction only: NO layout, NO paint)
-15.8 ms median without arrows, 21.3 ms with the 200 arrows (+5 ms; three runs: 20.8–21.3). That is not a browser figure; the real-browser render/paint figure needs the project view and is measured with C5. The 1,000-row v0.5/v0.6 pages re-run the filter on every scroll frame (a few thousand comparisons); a per-row index is the remedy when that is not enough.
+15.8 ms median without arrows, 21.3 ms with the 200 arrows (+5 ms; three runs: 20.8–21.3). That is not a browser figure; the real-browser one is the next paragraph. The 1,000-row v0.5/v0.6 pages re-run the filter on every scroll frame (a few thousand comparisons); a per-row index is the remedy when that is not enough.
+
+**Measured in the project view (C5; one-off, NON-BINDING, this machine only — re-measure rather than quote).** ONE project with 50 scheduled milestones (weekly, 5 days) and 200 links from 20 milestones of a second project (the ghost endpoints; FS/SS/FF/SF in turn, lag 0; 77 of them violated), a throwaway API script, opened as the seed administrator in headless Chromium (1440 x 900, week zoom, the compose stack's production bundle, an Apple-silicon laptop), three fresh page loads:
+
+| What | Figure |
+|---|---|
+| Rows mounted / `[data-arrow]` paths in the DOM | 70 (50 own + 20 ghost; the page never virtualises) / 200 — every arrow, because every row is mounted (the mounted-rows filter keeps all) |
+| DOM nodes in the document | 5,577 (the grid's per-day header cells, 70 rows, the table, the 200 paths and their titles) |
+| First overlay paint | the arrows are in the DOM 360–378 ms after navigation start, 95–110 ms after the view's response ended (265–271 ms); two animation frames later (painted) 368–386 ms, i.e. ~8 ms after they exist |
+| Scroll, 600 frames of 108 px, vertical (1,936 px of travel) and horizontal (11,902 px), with the overlay and with its svg `display: none` | frame interval p50 16.7 ms, p95 16.7–16.8 ms, max 16.8 ms (the 60 Hz cap) in every run, with and without arrows; scripting 0.03–0.06 ms and whole tasks 0.15–0.49 ms per frame, layout and style recalculation 0 — the overlay adds no React work on scroll (the Timeline does not re-render) and its paint cost is not measurable against the cap |
+
+So the O(arrows) resolution lives only in the render (a view change, a zoom), never in a scroll frame, on a project-view-sized page. At 4x zoom the `opacity: 0.7` on a gray path dims its line and its arrowhead as ONE group: head and line read as the same tone (verified in a crop); where two arrows end on the same anchor (an SS and an FS into one bar's start) their heads overlap and read darker, which is the only visible compounding.
 
 #### Drag, resize and keyboard contract
 

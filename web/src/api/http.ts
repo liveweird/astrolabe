@@ -201,6 +201,8 @@ function sendWithToken(path: string, init: RequestInit, token: string | null): P
   return fetch(`${API_BASE}${path}`, { signal: timeoutSignal(), ...init, headers });
 }
 
+type CycleNode = components["schemas"]["ProblemCycleNode"];
+
 export class ApiError extends Error {
   status: number;
   body: unknown;
@@ -223,6 +225,19 @@ export class ApiError extends Error {
   /** The RFC 7807 `type` URI, when the problem body carried one (`about:blank` is the unspecialised default). */
   get type(): string | undefined {
     return this.problemField("type");
+  }
+
+  /**
+   * The RFC 7807 `cycle` extension member (`urn:astrolabe:problem:dependency-cycle` only): the entities the refused link would
+   * close a loop through, in order, the first repeated last. Malformed entries are dropped; absent = `undefined`.
+   */
+  get cycle(): CycleNode[] | undefined {
+    const value = (this.body as Record<string, unknown> | null)?.cycle;
+    if (!Array.isArray(value)) return undefined;
+    return value.filter(
+      (node): node is CycleNode =>
+        typeof node === "object" && node !== null && typeof (node as CycleNode).name === "string" && typeof (node as CycleNode).id === "number",
+    );
   }
 
   private problemField(field: "detail" | "instance" | "type"): string | undefined {

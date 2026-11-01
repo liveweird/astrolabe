@@ -39,6 +39,13 @@ Version numbers are not strictly roadmap milestones (`app-releases.md`): a user-
 - **Scheduling.** Manual drag/resize first. **Auto-proposal** (rank + dependencies + capacity → the user accepts or adjusts) comes later (v0.8).
 - **Dependencies.** milestone↔milestone (cross-project), milestone↔project, project↔project. Types FS/SS/FF/SF plus a lag. Violations **warn only** (a red link and a conflict list),
   never cascade-move anything.
+  **Built (0.4.0), on the unconfirmed defaults the user reviews** (recorded here so overturning one is a known change): (1) who may link — the **successor's** project chain or ADMIN
+  (the predecessor's owner sees the arrow and its warning but cannot remove it; overturned = C1 guard/matrix/tests, C3 `can.delete`, the dialog intro); (2) the lag is an integer of
+  **working days, negative allowed (a lead), |lag| ≤ 365** (V15's CHECK is immutable); (3) an **unscheduled end is not evaluated** — status UNSCHEDULED, no warning, no arrow, "Not scheduled yet" in
+  the table; (4) a link is created **on the successor's project page** (`POST /projects/{id}/dependencies`, the successor fixed to that project or one of its milestones; the predecessor is a free
+  search); (5) the project's **summary row** shows only while the project itself is an endpoint; (6) **at most one active link per unordered pair** of ends (a reverse pair answers the same 409 "already
+  linked"; changing the type or lag = delete + add — no PUT yet). The UI shows these as: the Dependencies table (violated first = the conflict list), the red "N conflicts" badge, the dialog's
+  successor-first form, the cycle notice with its path.
 - **Ranking.** **One global project rank**. A team's milestone order follows it by default; the team may override locally (and reset).
 - **Owners.** A **people directory** (name, email, optional link to a login) — owners are people, not necessarily users.
 - **Plans.** One live plan; baselines later (v0.9); no scenarios.
