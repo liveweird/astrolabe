@@ -506,7 +506,8 @@ export interface paths {
          * Create a team
          * @description ADMIN only (guarded before the body decodes — a non-admin's malformed body is still
          *     403). A case-insensitive name clash with an active team is `409`. An optional manager (a
-         *     person of the people directory; being a manager grants no write rights on the team yet) must be an
+         *     person of the people directory; being a manager grants no write on the team record itself - the manager schedules the team's
+         *     milestones and edits its capacity periods) must be an
          *     active person (`400` otherwise).
          */
         post: operations["createTeam"];
@@ -540,8 +541,74 @@ export interface paths {
          * Delete a team (soft)
          * @description ADMIN only, guard before the id lookup. Soft delete — the name is freed for reuse. `409` ("Team still has milestones") while an
          *     ACTIVE milestone names the team: move those milestones to another team or delete them first (a deleted milestone no longer counts).
+         *     The team's ACTIVE capacity periods are soft-deleted with it, in the same transaction.
          */
         delete: operations["deleteTeam"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/teams/{id}/capacity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * List a team's capacity periods
+         * @description Any authenticated user. The team's ACTIVE capacity periods in `effectiveFrom` order (a bounded `{items}` list: a handful per team
+         *     per year, not paged). `404` when the team is missing or deleted.
+         */
+        get: operations["listCapacityPeriods"];
+        put?: never;
+        /**
+         * Add a capacity period to a team
+         * @description ADMIN or the team's ACTIVE manager, read-before-guard (`404` for an unknown or deleted team, then `403`, then the body: a forbidden
+         *     caller's malformed body is still `403`). The project owner, the other teams' managers and every other caller get `403`. The
+         *     period is in force from `effectiveFrom` (ANY calendar day, past or future) until the team's next ACTIVE period; the start date
+         *     must be unique among the team's ACTIVE periods (`409` "A capacity period already starts on this date for this team"; a deleted
+         *     period frees its date). Capacity is TEAM data: the write runs in its own transaction under the team row lock, with the manager
+         *     re-checked there, takes no plan lock and does not bump the plan revision.
+         */
+        post: operations["createCapacityPeriod"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/capacity-periods/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Get a capacity period
+         * @description Any authenticated user. `404` when the period, or its team, is deleted.
+         */
+        get: operations["getCapacityPeriod"];
+        /**
+         * Replace a capacity period
+         * @description ADMIN or the period's team's ACTIVE manager, read-before-guard (`404`, then `403`, then the body). A full replace: an absent or null
+         *     `wipLimit` CLEARS the limit. A start date another ACTIVE period of the team already holds is `409`. A PUT that changes nothing is
+         *     `204` and writes (and audits) nothing. Own transaction under the team row lock, the manager re-checked there; no plan revision bump.
+         */
+        put: operations["updateCapacityPeriod"];
+        post?: never;
+        /**
+         * Delete a capacity period (soft)
+         * @description ADMIN or the period's team's ACTIVE manager, read-before-guard (`404`, then `403`). Soft delete: the start date is free for a new
+         *     period; the weeks it covered fall back to the previous period (or to "no capacity" before the team's first one).
+         */
+        delete: operations["deleteCapacityPeriod"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1468,6 +1535,55 @@ export interface components {
             pageSize: number;
             /** Format: int64 */
             total: number;
+        };
+        CapacityPeriodRequest: {
+            /**
+             * Format: date
+             * @description The first day the capacity applies - any calendar day (years 1900-2999, past or future); a weekend date applies from the next working day. The week a period starts in counts each working day at the capacity in force that day.
+             */
+            effectiveFrom: string;
+            /**
+             * Format: double
+             * @description Man-days per week, `0 <= x < 1000000` with at most two decimals, else `400`; zero = the team is on hold.
+             */
+            mdPerWeek: number;
+            /**
+             * Format: int32
+             * @description The most milestones in progress on one working day while this period is in force, `1..99` (`400` otherwise); absent or null = no limit. On PUT (a full replace) absent = the limit is cleared.
+             */
+            wipLimit?: number | null;
+        };
+        CapacityPeriodResponse: {
+            /** Format: int32 */
+            id: number;
+            /** Format: int32 */
+            teamId: number;
+            /** Format: date */
+            effectiveFrom: string;
+            /**
+             * Format: double
+             * @description Man-days per week with at most two decimals.
+             */
+            mdPerWeek: number;
+            /**
+             * Format: int32
+             * @description Null = no WIP limit.
+             */
+            wipLimit: number | null;
+            /**
+             * Format: int64
+             * @description Epoch millis
+             */
+            createdAt: number;
+            /**
+             * Format: int64
+             * @description Epoch millis
+             */
+            updatedAt: number;
+        };
+        /** @description A team's ACTIVE capacity periods in `effectiveFrom` order - a bounded list (a handful per team per year), not paged. */
+        CapacityPeriodList: {
+            items: components["schemas"]["CapacityPeriodResponse"][];
         };
         WorkStreamCreateRequest: {
             name: string;
@@ -3460,6 +3576,150 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    listCapacityPeriods: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The team's capacity periods */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CapacityPeriodList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    createCapacityPeriod: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CapacityPeriodRequest"];
+            };
+        };
+        responses: {
+            /** @description Created; `Location` points at the new period */
+            201: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CapacityPeriodResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    getCapacityPeriod: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The capacity period */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CapacityPeriodResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    updateCapacityPeriod: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CapacityPeriodRequest"];
+            };
+        };
+        responses: {
+            /** @description Replaced */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    deleteCapacityPeriod: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
             500: components["responses"]["InternalServerError"];
         };
     };

@@ -152,7 +152,9 @@ class TeamTest {
             admin.putJson("/api/v1/teams/${created.id}", TeamUpdateRequest(name("renamed")))
             assertNotNull(capture.awaitEvent { it.message == "team.updated" && it.hasKeyValue("teamId", created.id.toLong()) })
             admin.delete("/api/v1/teams/${created.id}")
-            assertNotNull(capture.awaitEvent { it.message == "team.deleted" && it.hasKeyValue("teamId", created.id.toLong()) })
+            val deleted = capture.awaitEvent { it.message == "team.deleted" && it.hasKeyValue("teamId", created.id.toLong()) }
+            assertNotNull(deleted)
+            assertTrue(deleted.hasKeyValue("capacityPeriodCount", 0), "no periods cascaded")
 
             val before = capture.events.count { it.message == "team.created" }
             assertEquals(HttpStatusCode.BadRequest, admin.postJson("/api/v1/teams", TeamCreateRequest("")).status)

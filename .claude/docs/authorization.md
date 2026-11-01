@@ -102,7 +102,7 @@ Layered RBAC. Implemented in the `server/src/main/kotlin/authz/` package.
     else `400` ("Unknown or deleted manager ids"); `TeamResponse`/`TeamListItem` carry `managerPersonId` +
     `managerName`, both null for a soft-deleted manager person. Being a team's manager grants NO write on the team
     record itself (still ADMIN only) — the manager's rights are the team-scoped ones the planning increments add
-    (milestone scheduling since V14, capacity and team order later; `product.md`), via `requireTeamManagerOrAdmin`. A team delete is `409` ("Team still has milestones") while an ACTIVE milestone names the team. Since V10 the manager is a
+    (milestone scheduling since V14, the team's capacity periods since V16, the team order later; `product.md`), via `requireTeamManagerOrAdmin`. A team delete is `409` ("Team still has milestones") while an ACTIVE milestone names the team. Since V10 the manager is a
     person of the people directory (`teams.manager_person_id` replaced `manager_user_id`; the manager's login is `people.user_id`). Mutations audit `team.created/updated/deleted` and `team.manager_changed`
     (only on an actual change). Tests: `TeamTest`, `GuardsTest`.
   - `/api/v1/people` (V10, the people directory) → `GET` list and `GET /{id}` **any authenticated user, emails included** (the owner and
@@ -181,7 +181,7 @@ Layered RBAC. Implemented in the `server/src/main/kotlin/authz/` package.
     SHAPES its answer by the grant (e.g. whether a block of per-person figures is returned) asks `isActiveManager` the same way, after
     the ADMIN short-circuit; the `ETag` of such an answer carries the verdict ("Caching" in `security.md`). It is
     the Flow-donated seam; V10 re-pointed it at `manager_person_id` → `people.user_id`. Its first consumer is `PUT /milestones/{id}/schedule` (V14, below), which re-runs it inside the plan lock through
-    `TeamService.lockedIsActiveManager` (`FOR SHARE OF teams, people`), so a manager change commits first (403) or waits; the v0.5 capacity writes are the next.
+    `TeamService.lockedIsActiveManager` (`FOR SHARE OF teams, people`), so a manager change commits first (403) or waits; the capacity writes (V16, below) are the second consumer, re-running it under the TEAM row lock instead.
   - **The plan nodes (V12, built) — the owner-scoped matrix** (`product.md` "Domain decisions"; `planning/*Routes.kt`): ADMIN everything; ownership cascades down (work
     stream → program → project: an owner at ANY level of a node's chain acts on the node); reads open to every authenticated user. **Read-before-guard**, the sanctioned
     idiom (ids are sequential and every signed-in user reads the whole plan anyway, so existence is no secret): resolve the node's owner chain (`WorkStreamService.chain`
@@ -256,7 +256,22 @@ Layered RBAC. Implemented in the `server/src/main/kotlin/authz/` package.
 
     The named product-rule tests (`DependencyTest`): "the predecessor's project owner alone cannot create the link" and "… cannot delete it", "a team manager who owns nothing on the chain cannot link", "a forbidden caller's malformed body stays 403". Every 403 is the central
     `authz.denied`. **The `can` arithmetic for links (the project view, `PlanPermissions`):** `project.can.createDependency` = `canCreateDependency(projectChain)` = `canManage` (the same arithmetic as `createMilestone`); each link's `can.delete` = `canDeleteDependency(successor's project chain)` = `canManage` on the chain of the project that holds the link's SUCCESSOR — the viewed project's own chain, or, for a link whose successor lives in another project, that project's chain from one batched `projectChains(ids)` read (a chain that is gone = `false`). So the owner of the predecessor's project sees `delete: false` on the link into someone else's project, and `createDependency: false` on a project they do not own. `PlanPermissionsTest` pins both against `requireOwnerOrAdmin` table-driven; `ProjectViewDependenciesTest` checks both flags for every kind of caller against the real `POST` and `DELETE`.
-  - **Still planned (v0.5+):** a team manager edits capacity and team order. Each new rule lands here with its
+  - **Team capacity periods (V16, built) — team data, written by the team's manager or ADMIN** (`teams/TeamCapacityRoutes.kt`; the project's owner and every other caller get 403). **Read-before-guard** (team ids are sequential and every signed-in user reads the plan):
+    the team (or the period's team) is resolved first — missing or deleted = `404` for EVERY caller — then `requireTeamManagerOrAdmin` (403), then `call.receive` (a forbidden caller's malformed body stays 403), then validation (400), then the write. **The guard runs twice**: outside, with
+    `TeamService.isActiveManager`, for the 404 → 403 → 400 ordering; and again INSIDE the write's own transaction with `TeamService.lockedIsActiveManager` AFTER the team row is locked `FOR NO KEY UPDATE` (a team delete racing it either commits first — 404 — or waits), so only the inner verdict
+    authorizes the write; capacity takes NO plan lock (it is not plan state).
+
+    | Route | Guard (in order) |
+    |---|---|
+    | `GET /teams/{id}/capacity`, `GET /capacity-periods/{id}` | authenticated; 404 when the team / the period (or its team) is deleted |
+    | `POST /teams/{id}/capacity` | team active ?: 404 → `requireTeamManagerOrAdmin` → body 400 (date shape or year, `mdPerWeek` range/decimals, `wipLimit` outside 1..99) → (in the transaction) team locked, gone = 404 → the guard again 403 → insert (**409** the partial index); 201 + `Location` |
+    | `PUT /capacity-periods/{id}` | the period's team ?: 404 → the guard on THAT team → body 400 → (locked) re-read 404 → the guard again 403 → replace (**409** on a date clash) → 204 |
+    | `DELETE /capacity-periods/{id}` | the same → 204 |
+    | `DELETE /teams/{id}` | unchanged (`requireAdmin`); cascades the team's ACTIVE periods after the milestone 409 |
+
+    The named product-rule tests (`TeamCapacityTest`, `TeamCapacityLifecycleTest`): "the team's manager and ADMIN add a period - the project owner and every other caller get 403, whatever they own", "a forbidden caller's malformed body stays 403", "a manager cleared from the team while a write was held
+    is refused". Every 403 is the central `authz.denied`.
+  - **Still planned (v0.5+):** a team manager edits the team order. Each new rule lands here with its
     guard order (403 before 400/404, guard-before-read where existence is sensitive) in the same commit as its route.
 - **Existence disclosure (403 vs 404) — deliberate policy (API-ERR-006)**: two sanctioned idioms,
   and every new resource picks one consciously rather than mixing them. **Guard-before-read**

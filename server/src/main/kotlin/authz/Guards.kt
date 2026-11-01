@@ -32,10 +32,11 @@ fun requireSelfOrAdmin(caller: CallerPrincipal, targetUserId: UInt) {
  * ADMIN, or the team's current ACTIVE manager (V6). [isManager] answers false for a missing or deleted team too, so the 403 is
  * uniform. The lookup is injected so the guard stays DB-free (`GuardsTest` is pure).
  *
- * Consumed by `PUT /milestones/{id}/schedule` (V14), which is READ-BEFORE-GUARD: the milestone's chain is resolved first (a missing
- * milestone is a 404 for every caller; plan ids are sequential and every signed-in user reads the plan anyway), the guard asks about
- * the milestone's STORED team, and it is re-run under the plan lock through `TeamService.lockedIsActiveManager` (team and manager's
- * person rows locked `FOR SHARE`), so only the inner verdict authorizes the write. For a team-scoped route where existence is
+ * Consumed by `PUT /milestones/{id}/schedule` (V14) and the team capacity routes (`teams/TeamCapacityRoutes.kt`, V16), which are
+ * READ-BEFORE-GUARD: the milestone's chain (or the capacity period's team) is resolved first (a missing one is a 404 for every
+ * caller; plan ids are sequential and every signed-in user reads the plan anyway), the guard asks about the milestone's STORED team,
+ * and it is re-run under the plan lock (capacity: under the team row lock) through `TeamService.lockedIsActiveManager` (team and
+ * manager's person rows locked `FOR SHARE`), so only the inner verdict authorizes the write. For a team-scoped route where existence is
  * secret, the rule stays GUARD-BEFORE-READ: run this as the FIRST guard, before any read, so every other caller gets a uniform 403
  * whether or not the id exists.
  */

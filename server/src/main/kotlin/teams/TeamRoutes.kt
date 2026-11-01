@@ -34,6 +34,7 @@ class TeamsRoute {
 
 fun Application.configureTeamRoutes() {
     val teamService = attributes[TeamServiceKey]
+    val capacityService = attributes[TeamCapacityServiceKey]
 
     routing {
         authenticate {
@@ -98,10 +99,18 @@ fun Application.configureTeamRoutes() {
             delete<TeamsRoute.Id> { route ->
                 val caller = call.caller()
                 requireAdmin(caller)
-                teamService.delete(route.id).orNotFound("Team")
-                audit("team.deleted", "byUserId" to caller.userId.toLong(), "teamId" to route.id.toLong())
+                val outcome = teamService.delete(route.id)
+                outcome.affected.orNotFound("Team")
+                audit(
+                    "team.deleted",
+                    "byUserId" to caller.userId.toLong(),
+                    "teamId" to route.id.toLong(),
+                    "capacityPeriodCount" to outcome.capacityPeriodCount,
+                )
                 call.respond(HttpStatusCode.NoContent)
             }
+            // The team's capacity periods: the second routes file of `teams/` (the manager guard differs from the ADMIN-only registry).
+            teamCapacityRoutes(teamService, capacityService)
         }
     }
 }

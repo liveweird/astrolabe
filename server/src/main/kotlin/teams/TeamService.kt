@@ -160,7 +160,8 @@ class TeamService(private val database: R2dbcDatabase) {
     }
 
     /**
-     * [isActiveManager] for a write that runs INSIDE a plan-locked transaction (the milestone schedule PUT): the same join, but the TEAM
+     * [isActiveManager] for a write that runs INSIDE a locked transaction (the milestone schedule PUT under the plan lock, the capacity
+     * period writes under the team row lock): the same join, but the TEAM
      * row and the manager's PERSON row are locked `FOR SHARE` (`FOR SHARE OF teams, people`), so a manager change ([update], `FOR NO KEY
      * UPDATE` on the team), a re-link or delete of the manager's person (`PersonService.update`/`delete`, `FOR NO KEY UPDATE`) either
      * commits first (this answers false) or waits for the write. The USER row is deliberately not locked: `PasswordResetService.lockUser`
@@ -185,14 +186,18 @@ class TeamService(private val database: R2dbcDatabase) {
      * Soft delete: the team stops reading as active and frees its name. `0` = missing or already deleted (404). A team that an ACTIVE
      * milestone names is a 409 (move or delete the milestones first): the count runs under the team row lock, and a milestone write locks
      * the team row `FOR SHARE` (`MilestoneService.requireActiveTeam`), so "count, then delete" cannot interleave with an assignment.
+     * The team's ACTIVE capacity periods (V16) are soft-deleted in the same transaction, after the 409 (a refused delete changes
+     * nothing); a period write locks the team row too, so none can slip in between.
      */
-    suspend fun delete(id: UInt): Int = suspendTransaction(database) {
-        if (!Teams.lockActiveForWrite(id)) return@suspendTransaction 0
+    suspend fun delete(id: UInt): TeamDeleteOutcome = suspendTransaction(database) {
+        if (!Teams.lockActiveForWrite(id)) return@suspendTransaction TeamDeleteOutcome(0, 0)
         if (hasActiveMilestones(id)) throw ConflictException("Team still has milestones")
-        Teams.update({ (Teams.id eq id) and Teams.active() }) {
+        val periods = deleteCapacityPeriodsOf(id)
+        val affected = Teams.update({ (Teams.id eq id) and Teams.active() }) {
             it[markedAsDeleted] = true
             it[updatedAt] = nowMillis()
         }
+        TeamDeleteOutcome(affected, periods)
     }
 
     /** One batched lookup: the display names of the ACTIVE people among [ids] (a soft-deleted person is absent). */

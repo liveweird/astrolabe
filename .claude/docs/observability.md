@@ -111,8 +111,12 @@ with `hasKeyValue` from `TestEnvironment.kt`). Emitted today:
 - `team.created` (byUserId/teamId/name/managerPersonId, nullable) / `team.updated`
   (byUserId/teamId/name) / `team.manager_changed` (byUserId/teamId/managerFrom/managerTo, nullable PERSON ids as STORED —
   only when a PUT actually changes the manager; a manager assignment grants the team-scoped planning rights, so it is its own
-  trail line, the `user.roles_changed` precedent) / `team.deleted` (byUserId/teamId) — every team mutation; a rejected save
+  trail line, the `user.roles_changed` precedent) / `team.deleted` (byUserId/teamId/capacityPeriodCount — the ACTIVE capacity periods the delete cascaded, 0 for none) — every team mutation; a rejected save
   emits nothing,
+- `team.capacity_period_created` (byUserId/teamId/periodId/effectiveFrom — ISO date/mdPerWeek — the Double as validated/wipLimit — the integer, `none` when the period has no limit; `POST /teams/{id}/capacity`) /
+  `team.capacity_period_updated` (byUserId/teamId/periodId/effectiveFromFrom/effectiveFromTo/mdPerWeekFrom/mdPerWeekTo/wipLimitFrom/wipLimitTo — the values as STORED before and as written, `none` = no limit; only on an actual change: a same-values PUT is a 204 and emits nothing, and a PUT without
+  `wipLimit` that clears one audits `wipLimitTo=none`; `PUT /capacity-periods/{id}`) / `team.capacity_period_deleted` (byUserId/teamId/periodId; `DELETE /capacity-periods/{id}`) — every capacity mutation (`teams/TeamCapacityRoutes.kt`, the team manager's or ADMIN's write); a rejected one
+  (403/404/409/400) emits nothing of its own (a 403 is the central `authz.denied`),
 - `work_stream.created` (byUserId/workStreamId/name/ownerPersonId) / `work_stream.updated` (byUserId/workStreamId/name) / `work_stream.owner_changed`
   (byUserId/workStreamId/ownerFrom/ownerTo — person ids as STORED, only when a PUT actually changes the owner: the new owner gains the whole subtree, so it is its own trail line) /
   `work_stream.closed` (…/endDate) / `work_stream.reopened` (…/endFrom) (an end date appearing / disappearing on a PUT) / `work_stream.deleted` (byUserId/workStreamId),

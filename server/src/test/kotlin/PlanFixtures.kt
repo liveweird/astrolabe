@@ -14,6 +14,8 @@ import ch.nokillswit.planning.ProjectCreateRequest
 import ch.nokillswit.planning.ProjectService
 import ch.nokillswit.planning.WorkStreamCreateRequest
 import ch.nokillswit.planning.WorkStreamService
+import ch.nokillswit.teams.CapacityPeriodValues
+import ch.nokillswit.teams.TeamCapacityService
 import ch.nokillswit.users.Permission
 import ch.nokillswit.users.UserRole
 import io.ktor.client.HttpClient
@@ -131,6 +133,7 @@ object TestPlan {
     private val projects by lazy { ProjectService(sharedDatabaseForTests()) }
     private val milestones by lazy { MilestoneService(sharedDatabaseForTests()) }
     private val dependencies by lazy { DependencyService(sharedDatabaseForTests()) }
+    private val capacity by lazy { TeamCapacityService(sharedDatabaseForTests()) }
 
     suspend fun workStream(owner: UInt, name: String = planName("ws"), startDate: String = "2026-01-01", endDate: String? = null): UInt =
         streams.create(WorkStreamCreateRequest(name = name, ownerPersonId = owner, startDate = startDate, endDate = endDate))
@@ -173,6 +176,16 @@ object TestPlan {
         }
         return dependencies.create(projectId, DependencyCreateRequest(predecessor, successor, type, lag)) { } // past the guard
     }
+
+    /**
+     * A capacity period of [teamId] from [effectiveFrom] (ISO, any date) past the guard — through the service, so the team row lock and the
+     * partial index apply. Capacity is team data: no plan revision moves.
+     */
+    suspend fun capacityPeriod(teamId: UInt, effectiveFrom: String, mdPerWeek: Double, wipLimit: Int? = null): UInt =
+        capacity.create(
+            teamId,
+            CapacityPeriodValues(java.time.LocalDate.parse(effectiveFrom), java.math.BigDecimal.valueOf(mdPerWeek).setScale(2), wipLimit),
+        ) { } // fixtures seed past the guard
 
     /** The current `plan_state.revision`, read over raw JDBC. */
     fun revision(): Long = PostgresTestSupport.connect().use { c ->

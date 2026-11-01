@@ -1,7 +1,7 @@
 ### Planning model
 
-The binding reference for the planning domain as it is built (v0.2.0: people, permissions and dates, the plan structure, the roadmap ranking; v0.3.0: milestones; v0.4.0: dependencies). The product intent and the user's domain
-decisions are in `product.md`; the parts not built yet stay a **sketch** at the end (capacity, the team order — the v0.5+ increments confirm or amend each line and rewrite it here when
+The binding reference for the planning domain as it is built (v0.2.0: people, permissions and dates, the plan structure, the roadmap ranking; v0.3.0: milestones; v0.4.0: dependencies; v0.5.0: team capacity periods). The product intent and the user's domain
+decisions are in `product.md`; the parts not built yet stay a **sketch** at the end (the team order — the v0.5+ increments confirm or amend each line and rewrite it here when
 their migration lands).
 
 ## Conventions every planning table follows
@@ -256,10 +256,35 @@ lock. Each item is `{id, predecessor, successor, type, lagDays, check, can{delet
 (`containsNormalized`). ACTIVE rows only, joined to ACTIVE ancestors (a project under its active program and work stream; a milestone under its active project chain), count + rows on one predicate in one read transaction. No `projectId`/`teamId` filter (the dialogs search by name;
 a `projectId` filter lands with the first picker that needs it). Work streams and programs have no list. Tests: `ProjectListTest`, `MilestoneListTest`.
 
+## Team capacity periods (built — V16, v0.5.0; `teams/TeamCapacity*.kt`)
+
+A team's **man-days per week** and an optional **work-in-progress (WIP) limit**, in effective-from periods. **Team data, not plan state**: written by the team's manager or ADMIN in a transaction of its own, so a capacity write takes **no plan lock and never bumps the plan
+revision** (`PlanStateTest` "a capacity write is team data"). The weekly load, overload and WIP verdicts that read these periods arrive with the team view (C3 of v0.5.0); this section is the stored model and its rules.
+
+- **Table `team_capacity_periods`** (`TeamCapacityService.CapacityPeriods`, `SoftDeletable`; the service lives in `teams/`, beside the team it belongs to): `id SERIAL`, `team_id → teams` (no `ON DELETE` rule: teams are only soft-deleted), `effective_from DATE`
+  (through `LocalDateColumn.kt`), `md_per_week NUMERIC(8,2) NOT NULL` (`ck_team_capacity_periods_md`: `>= 0`; zero = on hold), `wip_limit INTEGER NULL` (`ck_team_capacity_periods_wip`: NULL or `BETWEEN 1 AND 99`), epoch-millis
+  `created_at`/`updated_at`, `marked_as_deleted`. **`uq_team_capacity_periods_team_from_active`**: one ACTIVE period per team and start date (409 "A capacity period already starts on this date for this team"; a deleted period frees its date) — the partial index also serves every per-team read of active rows, so there is no separate `team_id` index.
+- **The rules below are the kernel's, not the schema's** (V16's comments carry schema facts only, and point here): the proration and the WIP count read the working-day predicate (`infra/time/WorkingDays.kt`), so v0.7's holiday calendar changes both the covered days and the divisor of the proration without a migration.
+- **A period starts on ANY date** (the user's decision, Q1c): there is no weekday CHECK and no weekday rule anywhere; the date is `parseIsoDate`'s alone (`YYYY-MM-DD`, years 1900-2999, `Dates.kt`). A period is in force from `effective_from` until the next ACTIVE period of
+  the same team; a weekend date is in force from that date, which simply counts from the next working day. Periods in the past are allowed (history). The weeks before a team's first period have **no capacity and no limit** — "no capacity", never zero, never flagged.
+- **The week a period starts in is prorated by working days** (applied by the team view's kernel): a week's capacity is the sum over its working days (today Monday–Friday) of the capacity in force THAT day, divided by the number of working days in the week (today 5) (10 MD/week through Wednesday and 20 from Thursday = 3/5 x 10 + 2/5 x 20 = 14);
+  `md_per_week` is validated to two decimals so the stored value is exactly the sent one. A period that is the team's first and starts mid-week covers only the days from its start (the uncovered working days contribute 0; a week with no covered day has no capacity).
+- **The WIP limit** is per period and optional (`wipLimit` null or 1..99 on the wire, 400 "wipLimit must be between 1 and 99"; the CHECK is the backstop). It is checked **per working day** against the team's scheduled milestones whose effective span covers that day, and a limit that changes
+  mid-week applies to each day's own count; a period with a capacity and no limit simply never warns. Both overload and too much WIP only ever **warn** (orange); nothing moves.
+- **Writes** (`TeamCapacityService`): ONE transaction that first locks the team row (`Teams.lockActiveForWrite`, `FOR NO KEY UPDATE` — a team delete racing it either commits first and the write is a 404, or waits and then cascades the new period too), then re-runs the manager guard
+  with `TeamService.lockedIsActiveManager` (`FOR SHARE OF teams, people`; the guard runs twice, `authorization.md`), then writes. `PUT /capacity-periods/{id}` is a full replace (an absent or null `wipLimit` CLEARS the limit); a PUT that changes nothing is 204 and writes nothing.
+  The man-day figure uses `validateManDays(value, field)` (`planning/Milestone.kt`, the milestone estimate's rule with the field named: finite, `0 <= x < 1_000_000`, at most two decimals). **A team delete soft-deletes the team's ACTIVE periods** in its own locked transaction (`deleteCapacityPeriodsOf`, after the
+  "Team still has milestones" 409, so a refused delete changes nothing); `team.deleted` carries `capacityPeriodCount`.
+- **API** (tag `teams`; `documentation.yaml`): `GET /teams/{id}/capacity` → `200 {items: CapacityPeriodResponse[]}` in `effectiveFrom` order (the bounded `{items}` wrapper of `list-endpoints.md` — a handful of periods per team per year, not paged); `POST /teams/{id}/capacity` → 201 + `Location`;
+  `GET`/`PUT`/`DELETE /capacity-periods/{id}` (200 / 204 / 204). Reads: any authenticated user; 404 when the team (or the period, or the period's team) is deleted. Writes: **read-before-guard** (the team or the period's team resolved first — 404 for every caller — then `requireTeamManagerOrAdmin`
+  403, then the body, a forbidden caller's malformed body staying 403, then validation 400), the guard again under the lock. The project's owner, the other teams' managers and every other caller are 403.
+- **Audit** (`observability.md`): `team.capacity_period_created`, `team.capacity_period_updated` (from/to values, only on an actual change), `team.capacity_period_deleted`; `team.deleted` += `capacityPeriodCount`.
+- **Tests**: `TeamCapacityTest` (the caller matrix incl. the project owner and the other team's manager, read-before-guard, any date, the 400s, the optional limit, the stored `::text`, the 409s, the audit), `TeamCapacityLifecycleTest` (the guard re-run under the team row lock — a manager cleared or the team deleted while the
+  request was held —, the team-delete cascade, the CHECK and index backstops), `PlanStateTest` (no plan-revision bump), `MigrationChecksumTest`.
+
 ## Not built yet — the sketch (v0.5+, confirmed by each increment)
 
 - `team_milestone_orders(team_id, milestone_id, position)` — the roadmap's sibling (above): dense integers, `UNIQUE … DEFERRABLE`, wholesale PUT with `expectedRevision` (409 on stale) under the `plan_state` lock.
-- `team_capacity_periods(team_id, effective_from, md_per_week)`.
 - Derived spans, drift (built for the project view, `SpanKernels.kt`) and load are computed at request time in pure kernels (`planning/`, the `CapacityKernels.kt` idiom), with shared JSON test vectors for Kotlin and vitest (deferred to the first
   kernel that needs them; `PlanPermissions` is the first pure kernel and is tested against the guards instead).
 - More view endpoints (`/views/team/{id}`, `/views/programs`; `/views/plan`, `/views/roadmap` and `/views/project/{id}` are built), each one document with `can:{…}` flags and a revision, like Flow's `/reports/home`.

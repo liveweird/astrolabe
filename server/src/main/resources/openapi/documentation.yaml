@@ -782,7 +782,8 @@ paths:
       description: |
         ADMIN only (guarded before the body decodes — a non-admin's malformed body is still
         403). A case-insensitive name clash with an active team is `409`. An optional manager (a
-        person of the people directory; being a manager grants no write rights on the team yet) must be an
+        person of the people directory; being a manager grants no write on the team record itself - the manager schedules the team's
+        milestones and edits its capacity periods) must be an
         active person (`400` otherwise).
       requestBody:
         required: true
@@ -855,6 +856,7 @@ paths:
       description: |
         ADMIN only, guard before the id lookup. Soft delete — the name is freed for reuse. `409` ("Team still has milestones") while an
         ACTIVE milestone names the team: move those milestones to another team or delete them first (a deleted milestone no longer counts).
+        The team's ACTIVE capacity periods are soft-deleted with it, in the same transaction.
       responses:
         '204':
           description: Deleted
@@ -863,6 +865,121 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/teams/{id}/capacity:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    get:
+      tags: [teams]
+      operationId: listCapacityPeriods
+      summary: List a team's capacity periods
+      description: |
+        Any authenticated user. The team's ACTIVE capacity periods in `effectiveFrom` order (a bounded `{items}` list: a handful per team
+        per year, not paged). `404` when the team is missing or deleted.
+      responses:
+        '200':
+          description: The team's capacity periods
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CapacityPeriodList'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    post:
+      tags: [teams]
+      operationId: createCapacityPeriod
+      summary: Add a capacity period to a team
+      description: |
+        ADMIN or the team's ACTIVE manager, read-before-guard (`404` for an unknown or deleted team, then `403`, then the body: a forbidden
+        caller's malformed body is still `403`). The project owner, the other teams' managers and every other caller get `403`. The
+        period is in force from `effectiveFrom` (ANY calendar day, past or future) until the team's next ACTIVE period; the start date
+        must be unique among the team's ACTIVE periods (`409` "A capacity period already starts on this date for this team"; a deleted
+        period frees its date). Capacity is TEAM data: the write runs in its own transaction under the team row lock, with the manager
+        re-checked there, takes no plan lock and does not bump the plan revision.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CapacityPeriodRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '201':
+          description: Created; `Location` points at the new period
+          headers:
+            Location:
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CapacityPeriodResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/capacity-periods/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    get:
+      tags: [teams]
+      operationId: getCapacityPeriod
+      summary: Get a capacity period
+      description: Any authenticated user. `404` when the period, or its team, is deleted.
+      responses:
+        '200':
+          description: The capacity period
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CapacityPeriodResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    put:
+      tags: [teams]
+      operationId: updateCapacityPeriod
+      summary: Replace a capacity period
+      description: |
+        ADMIN or the period's team's ACTIVE manager, read-before-guard (`404`, then `403`, then the body). A full replace: an absent or null
+        `wipLimit` CLEARS the limit. A start date another ACTIVE period of the team already holds is `409`. A PUT that changes nothing is
+        `204` and writes (and audits) nothing. Own transaction under the team row lock, the manager re-checked there; no plan revision bump.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CapacityPeriodRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '204':
+          description: Replaced
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    delete:
+      tags: [teams]
+      operationId: deleteCapacityPeriod
+      summary: Delete a capacity period (soft)
+      description: |
+        ADMIN or the period's team's ACTIVE manager, read-before-guard (`404`, then `403`). Soft delete: the start date is free for a new
+        period; the weeks it covered fall back to the previous period (or to "no capacity" before the team's first one).
+      responses:
+        '204':
+          description: Deleted
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalServerError' }
   /api/v1/work-streams:
     post:
@@ -2215,6 +2332,50 @@ components:
           format: int64
           minimum: 0
 
+    CapacityPeriodRequest:
+      type: object
+      required: [effectiveFrom, mdPerWeek]
+      properties:
+        effectiveFrom:
+          type: string
+          format: date
+          description: >-
+            The first day the capacity applies - any calendar day (years 1900-2999, past or future); a weekend date applies from the next
+            working day. The week a period starts in counts each working day at the capacity in force that day.
+        mdPerWeek:
+          type: number
+          format: double
+          minimum: 0
+          description: Man-days per week, `0 <= x < 1000000` with at most two decimals, else `400`; zero = the team is on hold.
+        wipLimit:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 99
+          nullable: true
+          description: >-
+            The most milestones in progress on one working day while this period is in force, `1..99` (`400` otherwise); absent or null =
+            no limit. On PUT (a full replace) absent = the limit is cleared.
+    CapacityPeriodResponse:
+      type: object
+      required: [id, teamId, effectiveFrom, mdPerWeek, wipLimit, createdAt, updatedAt]
+      properties:
+        id: { type: integer, format: int32, minimum: 0 }
+        teamId: { type: integer, format: int32, minimum: 0 }
+        effectiveFrom: { type: string, format: date }
+        mdPerWeek: { type: number, format: double, minimum: 0, description: Man-days per week with at most two decimals. }
+        wipLimit: { type: integer, format: int32, minimum: 1, maximum: 99, nullable: true, description: Null = no WIP limit. }
+        createdAt: { type: integer, format: int64, description: Epoch millis }
+        updatedAt: { type: integer, format: int64, description: Epoch millis }
+    CapacityPeriodList:
+      type: object
+      required: [items]
+      description: A team's ACTIVE capacity periods in `effectiveFrom` order - a bounded list (a handful per team per year), not paged.
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CapacityPeriodResponse'
     WorkStreamCreateRequest:
       type: object
       required: [name, ownerPersonId, startDate]

@@ -9,7 +9,8 @@ import kotlinx.serialization.Serializable
 /**
  * Flat teams (V6): a name and a description — the ownership unit future features scope to; there is no roster — and an
  * optional manager (V6, a person of the people directory since V10): at most one per team, assigned by an ADMIN;
- * being a manager grants no write rights on the team yet (the planned v0.5 capacity/scheduling writes are what it will gate). No chain:
+ * being a manager grants no write on the team record itself — it gates the team-scoped planning writes (milestone dates, V14; the
+ * team's capacity periods, V16, `TeamCapacity.kt`). No chain:
  * Lettuce's management-chain rule is deliberately NOT ported (see
  * `.claude/docs/authorization.md`). ADMIN curates teams and their manager; everyone reads them.
  */
@@ -64,6 +65,9 @@ data class TeamListFilter(
 
 /** `affected` is the updated-row count (0 → 404); `managerFrom` the STORED manager before the write (the audit delta). */
 data class TeamUpdateOutcome(val affected: Int, val managerFrom: UInt?)
+
+/** `affected` is the soft-deleted team count (0 → 404); `capacityPeriodCount` the ACTIVE capacity periods the delete cascaded (V16). */
+data class TeamDeleteOutcome(val affected: Int, val capacityPeriodCount: Int)
 
 data class TeamListResult(val items: List<TeamListItem>, val total: Long)
 

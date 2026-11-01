@@ -25,7 +25,7 @@ data class MilestoneCreateRequest(
     val description: String? = null,
     /** The milestone's team — an ACTIVE team (400 otherwise). */
     val teamId: UInt,
-    /** Man-days: finite, `0 <= x < 1_000_000`, at most two decimals ([validateEstimate]). */
+    /** Man-days: finite, `0 <= x < 1_000_000`, at most two decimals ([validateManDays]). */
     val estimateMd: Double,
 )
 
@@ -115,23 +115,24 @@ fun MilestoneUpdateRequest.sanitized(): MilestoneUpdateRequest =
 /** The milestone field rules — enforced by the route AND re-checked by the service; returns the estimate as the exact stored decimal. */
 fun validateMilestoneFields(name: String, description: String?, estimateMd: Double): BigDecimal {
     requireNameAndDescription(name, description, MAX_PLAN_NAME_LENGTH, MAX_PLAN_DESCRIPTION_LENGTH)
-    return validateEstimate(estimateMd)
+    return validateManDays(estimateMd, "Estimate")
 }
 
-private const val MAX_ESTIMATE_MD = 1_000_000.0
-private const val ESTIMATE_SCALE = 2
+private const val MAX_MAN_DAYS = 1_000_000.0
+private const val MAN_DAYS_SCALE = 2
 
 /**
- * A man-day estimate: finite, non-negative, below one million and with at most two decimals, so the stored `NUMERIC(8,2)` is exactly the
- * sent value (never a silent rounding). The decimals are read off the double's shortest decimal text (`12.25`, `0.1`), the form the JSON
- * parser produced it from; zero is allowed (a zero-effort checkpoint).
+ * A man-day figure (a milestone's estimate, a team's capacity per week): finite, non-negative, below one million and with at most two
+ * decimals, so the stored `NUMERIC(8,2)` is exactly the sent value (never a silent rounding). The decimals are read off the double's
+ * shortest decimal text (`12.25`, `0.1`), the form the JSON parser produced it from; zero is allowed (a zero-effort checkpoint, a team
+ * on hold). A 400 names [field].
  */
-fun validateEstimate(estimateMd: Double): BigDecimal {
-    val message = "Estimate must be a non-negative man-day figure with at most two decimals"
-    if (!estimateMd.isFinite() || estimateMd < 0.0 || estimateMd >= MAX_ESTIMATE_MD) throw BadRequestException(message)
-    val exact = BigDecimal(estimateMd.toString()).stripTrailingZeros()
-    if (exact.scale() > ESTIMATE_SCALE) throw BadRequestException(message)
-    return exact.setScale(ESTIMATE_SCALE)
+fun validateManDays(value: Double, field: String): BigDecimal {
+    val message = "$field must be a non-negative man-day figure with at most two decimals"
+    if (!value.isFinite() || value < 0.0 || value >= MAX_MAN_DAYS) throw BadRequestException(message)
+    val exact = BigDecimal(value.toString()).stripTrailingZeros()
+    if (exact.scale() > MAN_DAYS_SCALE) throw BadRequestException(message)
+    return exact.setScale(MAN_DAYS_SCALE)
 }
 
 /** The schedule request rules: a non-negative `expectedRevision` (400, as the spec's `minimum: 0` promises), then [validateSchedule]. */

@@ -197,6 +197,8 @@ answers the revision it left behind), and `TestTeams.seed(name, managerPersonId?
   `secondProject(w)` (a project under the world's program owned by a NEW person-linked caller, `SecondProject.owner`: the cross-owner cases — the predecessor's owner is `w.projectOwner`, the successor's `second.owner`) and `TestPlan.dependency(predecessor, successor, type, lag)`
   (through `DependencyService.create` past the guard, the plan lock, cycle check and bump applying; the path project is derived from the successor). The graph is shared state: a test that creates a link soft-deletes or abandons it with its own throwaway world, and
   `DependencyLifecycleTest` soft-deletes its raw constraint-test rows so no stray active link reaches the cycle check of another test.
+  **Capacity fixtures** (V16, `PlanFixtures.kt`): `TestPlan.capacityPeriod(teamId, effectiveFrom, mdPerWeek, wipLimit = null)` (an ISO date, ANY weekday; through `TeamCapacityService.create` past the guard — the team row lock and the partial index apply, the plan revision does not move, capacity being team data). The
+  held-request cases hold the TEAM row `FOR NO KEY UPDATE` on a raw session (`TeamCapacityLifecycleTest.requestHeldAtTeamLock`, `awaitLockWait("FOR NO KEY UPDATE")`) — the capacity twin of `requestHeldAtPlanLock`.
 - `TestSeedState.restoreSeedAccounts()` — bootstrap/production-mode tests rotate the seed admin's
   password in the SHARED container; call this afterwards so later tests (and re-runs) see the
   pristine V3 state. Production-mode boots must also override `"mail.transport" to "disabled"` —

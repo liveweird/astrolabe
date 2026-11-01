@@ -14,10 +14,10 @@ in-network consumers use `postgres:5432`). There is one persistence stack:
   makes every long-lived database refuse to boot (a failure no fresh-container CI run can see).
   `MigrationChecksumTest` pins every file's checksum; a new migration adds one manifest line, and
   a red pin means REVERT the edit (clarifications go into this doc), never update the pinned
-  value. The range today is **V1–V15**: V1 `users`, V2 `revoked_tokens`, V3 the seed admin, V4 the
+  value. The range today is **V1–V16**: V1 `users`, V2 `revoked_tokens`, V3 the seed admin, V4 the
   `unaccent` extension, V5 `user_disabled_features` (V1–V5 are Flow's), V6 `teams` (with the optional
   manager), V7 `users.credential_revision`, V8 `password_reset_tokens`, V9 the `ops` telemetry
-  schema, V10 `people` (the people directory) with `teams.manager_person_id` replacing `manager_user_id`, V11 `user_permissions` (the per-user permission grants), V12 `plan_state` + `work_streams`/`programs`/`projects` (the plan structure), V13 `roadmap_entries` (the global project rank), V14 `milestones` (the fourth plan level), V15 `dependencies` (links between milestones and projects). (Astrolabe renumbered Flow's history when it was bootstrapped; from V10 on, migrations are
+  schema, V10 `people` (the people directory) with `teams.manager_person_id` replacing `manager_user_id`, V11 `user_permissions` (the per-user permission grants), V12 `plan_state` + `work_streams`/`programs`/`projects` (the plan structure), V13 `roadmap_entries` (the global project rank), V14 `milestones` (the fourth plan level), V15 `dependencies` (links between milestones and projects), V16 `team_capacity_periods` (a team's man-days per week and optional WIP limit from an effective-from date). (Astrolabe renumbered Flow's history when it was bootstrapped; from V10 on, migrations are
   append-only like any other.)
 - **Exposed + R2DBC** (`infra/db/Database.kt` + the feature services) — runtime DB access.
   `Database.kt` connects the `R2dbcDatabase` and is the composition root: it constructs the
@@ -177,6 +177,9 @@ place:
   and `loadTimePointGraph` (every active milestone's `(id, project_id)` and every active dependency, the cycle check's input) — all under the plan lock on a write. `MilestoneService.delete` and `ProjectService.delete` WRITE `Dependencies` through `deleteDependenciesOf`
   (the cascade: the ACTIVE links with either end at the milestone, or at the project and its milestones, are soft-deleted in the same plan-locked transaction; the counts go to the `milestone.deleted` / `project.deleted` audits; `activeMilestoneIdsOf` supplies the
   project's milestone ids before they are deleted). `dependencies` holds four nullable FKs to `milestones(id)` / `projects(id)` with no `ON DELETE` rule: both are only soft-deleted.
+- `teams/` (V16): `TeamCapacityService` owns `team_capacity_periods` and reads/locks `TeamService.Teams`: every write takes `Teams.lockActiveForWrite(teamId)` (`FOR NO KEY UPDATE`) FIRST, then `TeamService.lockedIsActiveManager` (`FOR SHARE OF teams, people`, the guard's second run), then writes — no plan lock; the reads join
+  `Teams` for the `active()` predicate. `TeamService.delete` WRITES `team_capacity_periods` through `deleteCapacityPeriodsOf` (same package, listed anyway: the team's ACTIVE periods are soft-deleted inside its locked transaction, after the milestone 409; the count goes to `team.deleted`).
+  `team_capacity_periods.team_id → teams(id)` has no `ON DELETE` rule: teams are only soft-deleted. `ck_team_capacity_periods_wip` (`wip_limit` NULL or 1..99) and `ck_team_capacity_periods_md` (`>= 0`) back the validator up (the V16 index also serves the per-team reads, so no separate `team_id` index); `TeamCapacityLifecycleTest` pins both and the partial index at the database.
 - `planning/` (v0.4.0 C2, no migration): the picker lists. `ProjectService.list` reads `ProjectService.Projects` ⋈ `ProgramService.Programs` ⋈ `WorkStreamService.WorkStreams` (their `name`s for `programName`/`workStreamName`, all three `active()`) and
   `PersonService.People` via `ownerNames`; `MilestoneService.list` reads `MilestoneService.Milestones` ⋈ `Projects` ⋈ `Programs` ⋈ `WorkStreams` (all four `active()`; the project's `name`) and `TeamService.Teams` (`teamName`, no `active()` filter: an active milestone's team is always active). One read transaction per list, count + rows on one predicate, no lock, no revision.
 - `planning/` (v0.4.0 C3, no migration): `ProjectViewService` also READS `DependencyService.Dependencies` (the project's links, via `linksTouching`, shared with the delete cascade) and, through `resolveEndpoints`, OTHER projects' `MilestoneService.Milestones`, `ProjectService.Projects` and `TeamService.Teams` (names, teams and dates of the external ends, no `active()` filter: an active link's ends are active) plus, through `projectChains(ids)` (`OwnerChains.kt`, one batched join, the `projectChainRow` predicates without the owner name), the chains of the projects holding the successors of its external links (`can.delete`). Same read transaction, the revision first, no locks; that transaction is READ ONLY at REPEATABLE READ (`suspendTransaction(database, IsolationLevel.REPEATABLE_READ, readOnly = true)`, `io.r2dbc.spi.IsolationLevel`) so the revision, the milestones, the links, the external ends and the chains are one snapshot — every other read in this layer stays at the default READ COMMITTED.
@@ -210,7 +213,7 @@ List each new cross-feature read/write here as it lands — the list IS the perm
 Astrolabe's PostgreSQL database is split across schemas:
 
 - **`public`** — the foundation tables (`users`, `people`, `teams`, `revoked_tokens`, `user_disabled_features`, `password_reset_tokens`) and the planning tables
-  (`plan_state`, `work_streams`, `programs`, `projects` since V12, `roadmap_entries` since V13, `milestones` since V14, `dependencies` since V15; `planning-model.md`). Flyway's own history table also stays here — `flyway.schemas` is left at its default.
+  (`plan_state`, `work_streams`, `programs`, `projects` since V12, `roadmap_entries` since V13, `milestones` since V14, `dependencies` since V15; `planning-model.md`), the team data (`team_capacity_periods` since V16). Flyway's own history table also stays here — `flyway.schemas` is left at its default.
 - **`ops`** — Astrolabe's own operational telemetry (V9, "Telemetry (V9)" below): the process registry and the metric samples each
   process writes about itself. Numbers and labels only, never project data.
 
@@ -267,7 +270,7 @@ transaction under `TELEMETRY_LOCK_KEY`, and a row exactly at its cutoff stays. T
 
 ### Soft delete (convention)
 
-`users`, `people`, `teams`, `work_streams`, `programs`, `projects`, `milestones` and `dependencies` are **soft-deleted** — rows are flagged, never physically removed; every
+`users`, `people`, `teams`, `work_streams`, `programs`, `projects`, `milestones`, `dependencies` and `team_capacity_periods` are **soft-deleted** — rows are flagged, never physically removed; every
 business entity follows the same convention. Only join/token tables (today: `revoked_tokens`, a
 pure token registry, `password_reset_tokens` (V8, expiring single-use credentials, not history), `user_disabled_features`, a pure flag join
 whose PUT is a wholesale replace, `user_permissions` (V11, the same shape: a pure grant join rewritten wholesale), `roadmap_entries` (V13, a pure position join: the global rank is rewritten wholesale by `PUT /roadmap/ranking` and compacted when a project is deleted, so a project that leaves the rank has no history worth keeping — the soft-deleted project row stays), and the `ops.telemetry_*` samples (the prune above)) hard-delete — a new
@@ -303,7 +306,7 @@ clash with an **active** row still raises `23505 → 409` (mapped centrally in
 (`uq_users_email_active`, `V1`), the team name (`uq_teams_name_active`, `V6` — an expression
 index over `LOWER(name)`), and in V10 the person email (`uq_people_email_active`, over `LOWER(email)`, only when set) and the login link
 (`uq_people_user_id_active`, one active person per login); person names are deliberately NOT unique. V12 adds `uq_work_streams_name_active` and `uq_programs_name_active` (global,
-over `LOWER("name")`) and `uq_projects_program_name_active` (per program, over `(program_id, LOWER("name"))`) — the 409 wording for all three is in `UNIQUE_CONSTRAINT_DETAILS`. V14 adds `uq_milestones_project_name_active` (per project, over `(project_id, LOWER("name"))`). V15 adds `uq_dependencies_pair_active` over the four endpoint columns with **`NULLS NOT DISTINCT`** (Postgres 15+; the pinned image is 18): each side leaves one of its two id columns NULL, and a default unique index treats NULLs as distinct, so without it two links on the same pair would never collide.
+over `LOWER("name")`) and `uq_projects_program_name_active` (per program, over `(program_id, LOWER("name"))`) — the 409 wording for all three is in `UNIQUE_CONSTRAINT_DETAILS`. V14 adds `uq_milestones_project_name_active` (per project, over `(project_id, LOWER("name"))`). V15 adds `uq_dependencies_pair_active` over the four endpoint columns with **`NULLS NOT DISTINCT`** (Postgres 15+; the pinned image is 18): each side leaves one of its two id columns NULL, and a default unique index treats NULLs as distinct, so without it two links on the same pair would never collide. V16 adds `uq_team_capacity_periods_team_from_active` (per team, over `(team_id, effective_from)`, so a team's period start dates are unique among ACTIVE periods).
 
 **`infra/db/Sql.kt`** (ported from Lettuce with the first list endpoint): `containsNormalized` —
 the case- AND accent-insensitive substring filter over `public.unaccent` (V4); every per-column
@@ -406,4 +409,4 @@ text and sha256 are compared against stored rows.
 
 ### Planned persistence (not yet built)
 
-The rest of the planning tables (capacity periods, the team milestone order) arrive with v0.5; their sketch is in `planning-model.md`. The schema list, the soft-delete list and the cross-feature list above grow in the same commit as each migration.
+The rest of the planning tables (the team milestone order) arrive with v0.5; their sketch is in `planning-model.md`. The schema list, the soft-delete list and the cross-feature list above grow in the same commit as each migration.

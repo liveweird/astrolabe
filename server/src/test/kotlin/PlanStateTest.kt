@@ -16,6 +16,8 @@ import ch.nokillswit.planning.TargetWindowRequest
 import ch.nokillswit.planning.WorkStreamCreateRequest
 import ch.nokillswit.planning.WorkStreamResponse
 import ch.nokillswit.planning.WorkStreamUpdateRequest
+import ch.nokillswit.teams.CapacityPeriodRequest
+import ch.nokillswit.teams.CapacityPeriodResponse
 import io.ktor.client.call.body
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
@@ -205,6 +207,26 @@ class PlanStateTest {
             admin.delete("/api/v1/projects/${w.projectId}").status
         }, HttpStatusCode.NoContent)
     }
+
+    @Test
+    fun `a capacity write is team data - none of its writes, nor the team delete cascade, bumps the plan revision`() =
+        testApplication {
+            usePostgresTestcontainer()
+            val w = planWorld("caprev", teams = true)
+            val t = w.requireTeams()
+            val before = TestPlan.revision()
+            val collection = "/api/v1/teams/${t.teamId}/capacity"
+            val created = t.manager.client.postJson(collection, CapacityPeriodRequest("2027-02-01", 10.0, 2))
+            assertEquals(HttpStatusCode.Created, created.status)
+            val id = created.body<CapacityPeriodResponse>().id
+            val period = "/api/v1/capacity-periods/$id"
+            assertEquals(HttpStatusCode.NoContent, t.manager.client.putJson(period, CapacityPeriodRequest("2027-02-02", 11.0)).status)
+            assertEquals(HttpStatusCode.Forbidden, t.otherManager.client.putJson(period, CapacityPeriodRequest("2027-02-03", 1.0)).status)
+            assertEquals(HttpStatusCode.NoContent, w.admin.client.delete("/api/v1/capacity-periods/$id").status)
+            TestPlan.capacityPeriod(t.teamId, "2027-03-01", 5.0)
+            assertEquals(HttpStatusCode.NoContent, w.admin.client.delete("/api/v1/teams/${t.teamId}").status)
+            assertEquals(before, TestPlan.revision(), "no capacity write bumped the plan revision")
+        }
 
     @Test
     fun `a plan write waits for the plan_state lock, then completes and bumps the revision once`() = testApplication {

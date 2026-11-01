@@ -24,6 +24,8 @@ import ch.nokillswit.planning.RoadmapService
 import ch.nokillswit.planning.RoadmapServiceKey
 import ch.nokillswit.planning.WorkStreamService
 import ch.nokillswit.planning.WorkStreamServiceKey
+import ch.nokillswit.teams.TeamCapacityService
+import ch.nokillswit.teams.TeamCapacityServiceKey
 import ch.nokillswit.teams.TeamService
 import ch.nokillswit.teams.TeamServiceKey
 import ch.nokillswit.users.UserService
@@ -256,6 +258,7 @@ suspend fun Application.configureDatabase() {
     attributes.put(PersonServiceKey, PersonService(database))
     val teamService = TeamService(database)
     attributes.put(TeamServiceKey, teamService)
+    attributes.put(TeamCapacityServiceKey, TeamCapacityService(database))
     attributes.put(WorkStreamServiceKey, WorkStreamService(database))
     attributes.put(ProgramServiceKey, ProgramService(database))
     attributes.put(ProjectServiceKey, ProjectService(database))

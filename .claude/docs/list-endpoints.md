@@ -49,5 +49,5 @@ paging, `ranked` in position order); `GET /views/project/{id}` (built, v0.3.0) a
 bounded by the plan's scale and the endpoint documents its cap (the plan view: ~5 work streams, ~20 programs, ~100 projects). Every ordinary resource list keeps the envelope; **projects and milestones have a paged list since v0.4** (`GET /projects` rows add `programName`/`workStreamName`, `GET /milestones` rows add `projectName`; sortable `id, name, createdAt, updatedAt`, one `name` filter; the dependency pickers' searches), work streams and programs still NONE (the plan view is their read surface). (Flow's report drill lists — `{meta, bar, items[<=500], total, truncated}` — were the precedent.)
 
 **Sub-collections and facets:** a record's own unbounded sub-collection is paged like any other list; the plain `{items}`
-wrapper is reserved for genuinely bounded, admin-curated sets. Facet counts (`GET .../facets`) are not implemented — port Covenant's
+wrapper is reserved for genuinely bounded, curated sets — the first planning consumer is a team's capacity periods (`GET /teams/{id}/capacity` → `{items}` in `effectiveFrom` order: a handful per team per year, written by the team's manager). Facet counts (`GET .../facets`) are not implemented — port Covenant's
 pattern with the first filterable list that needs them.
