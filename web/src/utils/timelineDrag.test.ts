@@ -1,6 +1,17 @@
 import { describe, expect, test } from "vitest";
 import type { Modifier } from "@dnd-kit/core";
-import { dropOutcome, horizontalOnly, keyboardCoordinates, sameSpan, snapToDays } from "./timelineDrag";
+import {
+  dropOutcome,
+  horizontalOnly,
+  isRowNoop,
+  keyboardCoordinates,
+  rowPositionAfter,
+  rowSlotAt,
+  rowSlotWithin,
+  sameSpan,
+  snapToDays,
+  verticalOnly,
+} from "./timelineDrag";
 import { toEpochDay } from "./timelineScale";
 
 const bar = { start: "2026-09-16", end: "2026-09-18" };
@@ -34,6 +45,10 @@ describe("dropOutcome", () => {
 
   test("a bar kind without a bar answers nothing", () => {
     expect(dropOutcome("move", null, 1, null)).toBeNull();
+  });
+
+  test("a row drag proposes no dates, whatever it is given", () => {
+    expect(dropOutcome("row", bar, 3, toEpochDay("2026-09-21"))).toBeNull();
   });
 
   test("sameSpan compares both ends", () => {
@@ -102,10 +117,88 @@ describe("modifiers", () => {
     expect(run(horizontalOnly, 9, 30)).toMatchObject({ x: 9, y: 0 });
   });
 
+  test("verticalOnly zeroes x (the row card only goes up and down)", () => {
+    expect(run(verticalOnly, 9, 30)).toMatchObject({ x: 0, y: 30 });
+  });
+
   test("snapToDays rounds x to whole days", () => {
     const snap = snapToDays(28);
     expect(run(snap, 13, 5)).toMatchObject({ x: 0, y: 5 });
     expect(run(snap, 15, 5)).toMatchObject({ x: 28 });
     expect(run(snap, -43, 0)).toMatchObject({ x: -56 });
+  });
+});
+
+describe("rowSlotAt", () => {
+  // the body's top at client y = 200, rows 36 px tall, 5 rows: slot n is the line at 200 + 36 n
+  test("the upper half of a row is the slot before it, the lower half the slot after it", () => {
+    expect(rowSlotAt(200, 200, 5)).toBe(0);
+    expect(rowSlotAt(200 + 17, 200, 5)).toBe(0); // upper half of row 0
+    expect(rowSlotAt(200 + 18, 200, 5)).toBe(1); // lower half of row 0 = the slot after it
+    expect(rowSlotAt(200 + 36 + 17, 200, 5)).toBe(1);
+    expect(rowSlotAt(200 + 36 + 18, 200, 5)).toBe(2);
+    expect(rowSlotAt(200 + 4 * 36 + 20, 200, 5)).toBe(5);
+  });
+
+  test("is clamped at the first slot and at the row count", () => {
+    expect(rowSlotAt(-500, 200, 5)).toBe(0);
+    expect(rowSlotAt(9999, 200, 5)).toBe(5);
+    expect(rowSlotAt(100, 200, 0)).toBe(0);
+  });
+
+  test("follows a scrolled grid: a negative zone top still reaches rows that are not mounted", () => {
+    // scrolled 3,600 px: the body starts at -3400, so y = 300 is 3,700 px in = row 102.78 -> slot 103
+    expect(rowSlotAt(300, -3400, 1000)).toBe(103);
+    expect(rowSlotAt(300, -3400, 50)).toBe(50);
+  });
+});
+
+describe("rowSlotWithin", () => {
+  // the scroller spans y 44..500; its sticky header takes the first 56 px, so rows start at y = 100
+  const bounds = { left: 10, right: 900, top: 100, bottom: 500, scrollerTop: 44 };
+
+  test("answers the slot while the pointer is over the rows", () => {
+    expect(rowSlotWithin({ x: 400, y: 154 }, 100, bounds, 10)).toBe(2);
+    expect(rowSlotWithin({ x: 10, y: 100 }, 100, bounds, 10)).toBe(0);
+  });
+
+  test("over the sticky header it answers the first slot below the header, so scrolling up with a held row keeps a line", () => {
+    // not scrolled: the body starts at the header's bottom edge
+    expect(rowSlotWithin({ x: 400, y: 44 }, 100, bounds, 10)).toBe(0);
+    expect(rowSlotWithin({ x: 400, y: 99 }, 100, bounds, 10)).toBe(0);
+    // scrolled 10 px: the body starts at y = 90, 10 px of row 0 hide under the header, the first slot fully below it is slot 1
+    expect(rowSlotWithin({ x: 400, y: 60 }, 90, bounds, 10)).toBe(1);
+    // scrolled 3,600 px (body top at -3500): the header's bottom edge is 3,600 px in = exactly slot 100
+    expect(rowSlotWithin({ x: 400, y: 60 }, -3500, bounds, 1000)).toBe(100);
+    // never past the row count
+    expect(rowSlotWithin({ x: 400, y: 60 }, -3500, bounds, 20)).toBe(20);
+  });
+
+  test("answers nothing outside the scroller, or without a live pointer, zone, bounds or count", () => {
+    expect(rowSlotWithin({ x: 400, y: 43 }, 100, bounds, 10)).toBeNull(); // above the scroller
+    expect(rowSlotWithin({ x: 400, y: 500 }, 100, bounds, 10)).toBeNull(); // the tray below
+    expect(rowSlotWithin({ x: 9, y: 200 }, 100, bounds, 10)).toBeNull();
+    expect(rowSlotWithin({ x: 900, y: 200 }, 100, bounds, 10)).toBeNull();
+    expect(rowSlotWithin({ x: 9, y: 60 }, 100, bounds, 10)).toBeNull(); // beside the header too
+    expect(rowSlotWithin(null, 100, bounds, 10)).toBeNull();
+    expect(rowSlotWithin({ x: 400, y: 200 }, null, bounds, 10)).toBeNull();
+    expect(rowSlotWithin({ x: 400, y: 200 }, 100, null, 10)).toBeNull();
+    expect(rowSlotWithin({ x: 400, y: 200 }, 100, bounds, undefined)).toBeNull();
+  });
+});
+
+describe("rowPositionAfter / isRowNoop", () => {
+  test("the announced position is the 1-based place the row takes", () => {
+    // the row at index 2 (position 3) of five
+    expect(rowPositionAfter(2, 0)).toBe(1);
+    expect(rowPositionAfter(2, 1)).toBe(2);
+    expect(rowPositionAfter(2, 2)).toBe(3); // the slot before itself
+    expect(rowPositionAfter(2, 3)).toBe(3); // the slot after itself
+    expect(rowPositionAfter(2, 4)).toBe(4);
+    expect(rowPositionAfter(2, 5)).toBe(5);
+  });
+
+  test("only the two slots beside the row change nothing", () => {
+    expect([0, 1, 2, 3, 4, 5].filter((slot) => isRowNoop(2, slot))).toEqual([2, 3]);
   });
 });

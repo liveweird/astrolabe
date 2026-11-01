@@ -1,4 +1,4 @@
-import { useEffect, type ComponentProps } from "react";
+import { useEffect, type ComponentProps, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
@@ -8,7 +8,8 @@ import TimelineArrows from "./TimelineArrows";
 import TimelineDndContext from "./TimelineDndContext";
 import TimelineLoadStrip from "./TimelineLoadStrip";
 import TimelineUnscheduledTray, { type TrayItem } from "./TimelineUnscheduledTray";
-import { TIMELINE_DROP_ID } from "../hooks/useTimelinePreview";
+import { TIMELINE_DROP_ID, TIMELINE_ROW_DROP_ID } from "../hooks/useTimelinePreview";
+import { verticalOnly } from "../utils/timelineDrag";
 import {
   headerHeight,
   type TimelineArrowData,
@@ -24,6 +25,10 @@ import { renderWithProviders } from "../test/render";
 // happy-dom has no layout, so a pointer drag cannot run here (e2e drives the real one). The context is wrapped to hand the test
 // its handlers and announcements: what happens WHEN dnd-kit reports a gesture is ours to pin.
 let dndProps: ComponentProps<typeof DndContext> | null = null;
+// The real DragOverlay renders only while dnd-kit itself holds an active node, which fed events never set up: the stand-in renders its
+// children in place (so the held row's card can be read) and records the props the context gave it.
+let overlayProps: { modifiers?: unknown[]; dropAnimation?: unknown } | null = null;
+let realOverlay = false;
 vi.mock("@dnd-kit/core", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@dnd-kit/core")>();
   return {
@@ -31,6 +36,11 @@ vi.mock("@dnd-kit/core", async (importOriginal) => {
     DndContext: (props: ComponentProps<typeof actual.DndContext>) => {
       dndProps = props;
       return <actual.DndContext {...props} />;
+    },
+    DragOverlay: (props: ComponentProps<typeof actual.DragOverlay>) => {
+      overlayProps = props;
+      // `realOverlay` lets a test run the REAL one: it is what proves a bar drag mounts no overlay wrapper at all
+      return realOverlay ? <actual.DragOverlay {...props} /> : <div data-testid="drag-overlay">{props.children}</div>;
     },
   };
 });
@@ -62,13 +72,22 @@ function Harness({
   rows = ROWS,
   zoom = "week",
   onSchedule = vi.fn(() => true),
+  onReorder,
   onZoomChange = vi.fn(),
+  probe,
   ...rest
-}: Partial<Omit<ComponentProps<typeof Timeline>, "scale">> & { zoom?: Zoom; onSchedule?: (id: number | string, start: string, end: string) => boolean }) {
+}: Partial<Omit<ComponentProps<typeof Timeline>, "scale">> & {
+  /** Rendered beside the Timeline, inside the drag context (to read dnd-kit's state). */
+  probe?: ReactNode;
+  zoom?: Zoom;
+  onSchedule?: (id: number | string, start: string, end: string) => boolean;
+  onReorder?: (id: number | string, slot: number) => boolean;
+}) {
   const scale = scaleOf(zoom);
   return (
-    <TimelineDndContext scale={scale} onSchedule={onSchedule}>
+    <TimelineDndContext scale={scale} onSchedule={onSchedule} onReorder={onReorder}>
       <Timeline label="Project timeline" scale={scale} onZoomChange={onZoomChange} today="2026-09-23" columns={COLUMNS} rows={rows} {...rest} />
+      {probe}
     </TimelineDndContext>
   );
 }
@@ -101,6 +120,8 @@ const geometryOf = (element: HTMLElement) => {
 
 beforeEach(() => {
   dndProps = null;
+  overlayProps = null;
+  realOverlay = false;
 });
 // Every stub a test installs is undone here, pass or fail (the suite shares one registry: isolate is off).
 afterEach(() => {
@@ -619,6 +640,352 @@ describe("a drag proposes dates through onSchedule", () => {
   });
 });
 
+describe("a row drag proposes a slot through onReorder", () => {
+  // The held row is Discovery: position 1 of 3 (index 0). The row zone's top is at client y = 100 (rows 36 px), the grid shows y 100..600.
+  const rowActive = { id: "row:1", data: { current: { kind: "row", barId: 1, label: "Discovery", position: 1, count: 3 } } };
+  // the scroller spans y 44..600 and its sticky header takes the first 56 px
+  const BOUNDS = { left: 0, right: 900, top: 100, bottom: 600, scrollerTop: 44 };
+  const rowZone = (zoneTop = 100, rowBounds: () => unknown = () => BOUNDS) => ({
+    id: TIMELINE_ROW_DROP_ID,
+    data: { current: { zoneTop: () => zoneTop, rowBounds, rowCount: 3 } },
+  });
+  const rowEvent = (over: unknown = null, activatorEvent: unknown = null) => ({ active: rowActive, delta: { x: 0, y: 0 }, over, activatorEvent });
+  const pointerAt = (clientY: number, clientX = 40) =>
+    act(() => {
+      window.dispatchEvent(new PointerEvent("pointermove", { clientX, clientY, isPrimary: true }));
+    });
+  const indicator = () => document.querySelector<HTMLElement>("[data-row-slot]");
+  const say = () => dndProps!.accessibility!.announcements!;
+  // y = 100 + 36 n + 20 sits in the lower half of row n: the slot after it
+  const startRowDrag = () => emit("onDragStart", rowEvent(null, { clientX: 20, clientY: 110 }));
+
+  test("picking a row up shows its card in the overlay, says so, and widens the vertical autoscroll zone until it lets go", () => {
+    renderWithProviders(<Harness onReorder={vi.fn(() => true)} />);
+    // no overlay is mounted until a row is held (a mounted DragOverlay changes how dnd-kit moves EVERY drag)
+    expect(screen.queryByTestId("drag-overlay")).toBeNull();
+    expect(say().onDragStart({ active: rowActive } as never)).toBe(
+      "Picked up Discovery, position 1 of 3. Move the pointer to the new place and release; Escape cancels.",
+    );
+    startRowDrag();
+    expect(within(screen.getByTestId("drag-overlay")).getByText("Discovery")).toBeInTheDocument();
+    expect(dndProps?.autoScroll).toEqual({ threshold: { x: 0.02, y: 0.15 } });
+    // the card only goes up and down, and no drop animation plays over the real row
+    expect(overlayProps?.modifiers).toEqual([verticalOnly]);
+    expect(overlayProps?.dropAnimation).toBeNull();
+    emit("onDragCancel", {});
+    expect(screen.queryByTestId("drag-overlay")).toBeNull();
+    expect(dndProps?.autoScroll).toEqual({ threshold: { x: 0.05, y: 0.02 } });
+  });
+
+  test("the insertion line follows the slot under the pointer, and each new slot is announced once", () => {
+    renderWithProviders(<Harness onReorder={vi.fn(() => true)} />);
+    startRowDrag();
+    expect(indicator()).toBeNull();
+    // y = 190: 90 px into the body = 2.5 rows -> slot 3 (the lower half of row 2)
+    pointerAt(190);
+    emit("onDragMove", rowEvent(rowZone()));
+    expect(indicator()).toHaveAttribute("data-row-slot", "3");
+    expect(indicator()).toHaveStyle({ top: "107px" });
+    expect(say().onDragMove?.({ active: rowActive } as never)).toBe("Discovery: position 3 of 3");
+    // still the same slot: neither a new line nor a new sentence
+    pointerAt(192);
+    emit("onDragMove", rowEvent(rowZone()));
+    expect(say().onDragMove?.({ active: rowActive } as never)).toBeUndefined();
+    // y = 140: 40 px in = slot 1
+    pointerAt(140);
+    emit("onDragMove", rowEvent(rowZone()));
+    expect(indicator()).toHaveAttribute("data-row-slot", "1");
+    expect(indicator()).toHaveStyle({ top: "35px" });
+    expect(say().onDragMove?.({ active: rowActive } as never)).toBe("Discovery: position 1 of 3");
+    emit("onDragEnd", rowEvent(rowZone()));
+    expect(indicator()).toBeNull();
+  });
+
+  test("the slot is read against the zone's LIVE top (a scrolled grid: negative) and reaches rows that are not mounted", () => {
+    const onReorder = vi.fn(() => true);
+    renderWithProviders(<Harness onReorder={onReorder} />);
+    startRowDrag();
+    // scrolled so that the body starts 70 px above the viewport: y = 200 is 270 px in = 7.5 rows -> clamped to the row count, 3
+    pointerAt(200);
+    emit("onDragEnd", rowEvent(rowZone(-70)));
+    expect(onReorder).toHaveBeenCalledExactlyOnceWith(1, 3);
+  });
+
+  test("a drop proposes the slot once and is announced with the position the row takes", () => {
+    const onReorder = vi.fn(() => true);
+    renderWithProviders(<Harness onReorder={onReorder} />);
+    startRowDrag();
+    pointerAt(190);
+    emit("onDragEnd", rowEvent(rowZone()));
+    expect(onReorder).toHaveBeenCalledExactlyOnceWith(1, 3);
+    expect(say().onDragEnd({ active: rowActive } as never)).toBe("Dropped Discovery at position 3 of 3.");
+    // a finished drag is announced once and forgotten
+    expect(say().onDragEnd({ active: rowActive } as never)).toBeUndefined();
+  });
+
+  test("a slot beside the row itself is still PROPOSED (the page compares with the order it shows now) but announced as staying", () => {
+    const onReorder = vi.fn(() => true);
+    renderWithProviders(<Harness onReorder={onReorder} />);
+    for (const [clientY, slot] of [[105, 0], [125, 1]] as const) {
+      // the slot before the row (0) and the slot after it (1)
+      startRowDrag();
+      pointerAt(clientY);
+      emit("onDragEnd", rowEvent(rowZone()));
+      expect(onReorder).toHaveBeenLastCalledWith(1, slot);
+      expect(say().onDragEnd({ active: rowActive } as never)).toBe("Discovery stays at position 1 of 3.");
+    }
+  });
+
+  test("released where nothing lands (no zone, outside the scroller) proposes nothing and says the row stays", () => {
+    const onReorder = vi.fn(() => true);
+    renderWithProviders(<Harness onReorder={onReorder} />);
+    // over: null (no zone at all)
+    startRowDrag();
+    pointerAt(190);
+    emit("onDragEnd", rowEvent(null));
+    expect(say().onDragEnd({ active: rowActive } as never)).toBe("Discovery stays at position 1 of 3.");
+    // above the scroller
+    startRowDrag();
+    pointerAt(30);
+    emit("onDragMove", rowEvent(rowZone()));
+    expect(indicator()).toBeNull();
+    expect(say().onDragMove?.({ active: rowActive } as never)).toBeUndefined();
+    emit("onDragEnd", rowEvent(rowZone()));
+    expect(say().onDragEnd({ active: rowActive } as never)).toBe("Discovery stays at position 1 of 3.");
+    // below the grid (the tray) and beside it
+    startRowDrag();
+    pointerAt(640);
+    emit("onDragEnd", rowEvent(rowZone()));
+    startRowDrag();
+    pointerAt(190, 1200);
+    emit("onDragEnd", rowEvent(rowZone()));
+    expect(onReorder).not.toHaveBeenCalled();
+  });
+
+  test("over the sticky header the line stays at the first slot below it, so scrolling up with a held row keeps a target", () => {
+    const onReorder = vi.fn(() => true);
+    renderWithProviders(<Harness onReorder={onReorder} />);
+    startRowDrag();
+    // scrolled 90 px: the body starts at y = 10, under the header (rows start at y = 100): rows 0..2 are hidden, the first slot fully below it is 3
+    pointerAt(70);
+    emit("onDragMove", rowEvent(rowZone(10)));
+    expect(indicator()).toHaveAttribute("data-row-slot", "3");
+    expect(say().onDragMove?.({ active: rowActive } as never)).toBe("Discovery: position 3 of 3");
+    // not scrolled: the first slot
+    pointerAt(70);
+    emit("onDragMove", rowEvent(rowZone(100)));
+    expect(indicator()).toHaveAttribute("data-row-slot", "0");
+    expect(indicator()).toHaveStyle({ top: "0px" }); // never above the body's own edge
+    emit("onDragEnd", rowEvent(rowZone(100)));
+    expect(onReorder).toHaveBeenCalledExactlyOnceWith(1, 0);
+  });
+
+  test("a drop the page refuses is announced as not changed, never as a drop", () => {
+    const onReorder = vi.fn(() => false);
+    renderWithProviders(<Harness onReorder={onReorder} />);
+    startRowDrag();
+    pointerAt(190);
+    emit("onDragEnd", rowEvent(rowZone()));
+    expect(onReorder).toHaveBeenCalledOnce();
+    expect(say().onDragEnd({ active: rowActive } as never)).toBe("Discovery was not changed: a save is still running. Try again in a moment.");
+  });
+
+  test("cancelling proposes nothing and says where the row stays", () => {
+    const onReorder = vi.fn(() => true);
+    renderWithProviders(<Harness onReorder={onReorder} />);
+    startRowDrag();
+    pointerAt(190);
+    emit("onDragMove", rowEvent(rowZone()));
+    emit("onDragCancel", {});
+    expect(say().onDragCancel?.({ active: rowActive } as never)).toBe("Cancelled; Discovery stays at position 1 of 3.");
+    expect(onReorder).not.toHaveBeenCalled();
+    expect(indicator()).toBeNull();
+  });
+
+  test("the drop still knows the held row when dnd-kit has lost its data (the handle's row left the window mid-drag)", () => {
+    const onReorder = vi.fn(() => true);
+    renderWithProviders(<Harness onReorder={onReorder} />);
+    startRowDrag();
+    pointerAt(190);
+    const orphan = { id: "row:1", data: { current: {} } };
+    emit("onDragMove", { ...rowEvent(rowZone()), active: orphan });
+    expect(indicator()).toHaveAttribute("data-row-slot", "3");
+    expect(dndProps?.modifiers?.[0]({ active: orphan, transform: { x: 40, y: 17, scaleX: 1, scaleY: 1 } } as never)).toMatchObject({ x: 40, y: 17 });
+    emit("onDragEnd", { ...rowEvent(rowZone()), active: orphan });
+    expect(onReorder).toHaveBeenCalledExactlyOnceWith(1, 3);
+  });
+
+  test("the window pointer listener of a row drag is added at the start and removed on drop and on cancel", () => {
+    const add = vi.spyOn(window, "addEventListener");
+    const remove = vi.spyOn(window, "removeEventListener");
+    const moves = (spy: { mock: { calls: unknown[][] } }) => spy.mock.calls.filter(([type]) => type === "pointermove").length;
+    try {
+      renderWithProviders(<Harness onReorder={vi.fn(() => true)} />);
+      startRowDrag();
+      expect(moves(add)).toBe(1);
+      emit("onDragEnd", rowEvent(rowZone()));
+      expect(moves(remove)).toBe(1);
+      startRowDrag();
+      emit("onDragCancel", {});
+      expect(moves(remove)).toBe(2);
+    } finally {
+      add.mockRestore();
+      remove.mockRestore();
+    }
+  });
+
+  test("after the drop or the cancel, an orphaned event (no data, as dnd-kit sends for an unmounted node) resolves to nothing", () => {
+    const onReorder = vi.fn(() => true);
+    renderWithProviders(<Harness onReorder={onReorder} />);
+    const orphan = { id: "row:1", data: { current: {} } };
+    const snap = { transform: { x: 40, y: 17, scaleX: 1, scaleY: 1 } };
+    for (const finish of ["onDragEnd", "onDragCancel"] as const) {
+      startRowDrag();
+      pointerAt(190);
+      emit(finish, rowEvent(rowZone()));
+      // `held` was cleared: nothing is proposed or previewed, and the modifier treats it like any other item (a bar's snap)
+      emit("onDragMove", { ...rowEvent(rowZone()), active: orphan });
+      emit("onDragEnd", { ...rowEvent(rowZone()), active: orphan });
+      expect(indicator()).toBeNull();
+      expect(dndProps?.modifiers?.[0]({ active: orphan, ...snap } as never)).toMatchObject({ x: DAY, y: 0 });
+    }
+    expect(onReorder).toHaveBeenCalledTimes(1); // only the first, real drop
+  });
+
+  test("a bar drag draws no insertion line and mounts no overlay; a held row leaves the bars where they are", () => {
+    renderWithProviders(<Harness onReorder={vi.fn(() => true)} />);
+    const move = active("move");
+    emit("onDragStart", gesture(move, 0));
+    emit("onDragMove", gesture(move, 2));
+    expect(indicator()).toBeNull();
+    expect(screen.queryByTestId("drag-overlay")).toBeNull();
+    emit("onDragCancel", {});
+    startRowDrag();
+    pointerAt(190);
+    emit("onDragMove", rowEvent(rowZone()));
+    expect(geometryOf(barBody("Discovery, Team A, 2026-09-16 to 2026-09-18"))).toEqual({ left: "56px", width: `${3 * DAY}px` });
+  });
+
+  describe("the collision filter", () => {
+    const rect = (top: number, left = 0) => ({ top, left, right: left + 900, bottom: top + 400, width: 900, height: 400 });
+    const args = (activeItem: unknown) => ({
+      active: activeItem,
+      collisionRect: rect(0),
+      // both zones cover the pointer: the track zone and the whole-body row zone
+      droppableRects: new Map([
+        [TIMELINE_DROP_ID, rect(0, 100)],
+        [TIMELINE_ROW_DROP_ID, rect(0)],
+      ]),
+      droppableContainers: [{ id: TIMELINE_DROP_ID }, { id: TIMELINE_ROW_DROP_ID }],
+      pointerCoordinates: { x: 300, y: 100 },
+    });
+    const hits = (activeItem: unknown) => (dndProps!.collisionDetection!(args(activeItem) as never) ?? []).map((collision) => collision.id);
+
+    test("a row drag collides only with the row zone; a bar or tray drag never does", () => {
+      renderWithProviders(<Harness onReorder={vi.fn(() => true)} />);
+      expect(hits(rowActive)).toEqual([TIMELINE_ROW_DROP_ID]);
+      expect(hits(trayActive)).toEqual([TIMELINE_DROP_ID]);
+      expect(hits(active("move"))).toEqual([TIMELINE_DROP_ID]);
+      expect(hits(active("resize-end"))).toEqual([TIMELINE_DROP_ID]);
+    });
+
+    test("a row drag keeps the row zone wherever the pointer is (dnd-kit's snapshot of the zone does not reach over the header)", () => {
+      renderWithProviders(<Harness onReorder={vi.fn(() => true)} />);
+      const outside = { ...args(rowActive), pointerCoordinates: { x: 300, y: -40 } };
+      expect((dndProps!.collisionDetection!(outside as never) ?? []).map((collision) => collision.id)).toEqual([TIMELINE_ROW_DROP_ID]);
+      // a bar drag at the same point still meets nothing
+      expect(dndProps!.collisionDetection!({ ...outside, active: active("move") } as never)).toEqual([]);
+    });
+
+    test("an orphaned active (no data) follows the held drag, and is an ordinary item once that drag is over", () => {
+      renderWithProviders(<Harness onReorder={vi.fn(() => true)} />);
+      const orphan = { id: "row:1", data: { current: {} } };
+      emit("onDragStart", rowEvent(null, { clientX: 20, clientY: 110 }));
+      expect(hits(orphan)).toEqual([TIMELINE_ROW_DROP_ID]);
+      emit("onDragCancel", {});
+      expect(hits(orphan)).toEqual([TIMELINE_DROP_ID]);
+    });
+  });
+});
+
+describe("what Timeline publishes for a row drop", () => {
+  const seen: { data: { zoneTop: () => number | null; rowBounds: () => unknown; rowCount: number } | null } = { data: null };
+  /** Reads the row zone's droppable `data` the way dnd-kit hands it to the context. */
+  function ZoneProbe() {
+    const data = useDndContext().droppableContainers.get(TIMELINE_ROW_DROP_ID)?.data.current as typeof seen.data;
+    useEffect(() => {
+      seen.data = data;
+    });
+    return null;
+  }
+  /** happy-dom lays nothing out: the scroller is at y 50..650 and x 10..910, the row zone starts at `zoneTop`. */
+  function stubRects(zoneTop: number) {
+    return vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
+      const at = (top: number, left: number, right: number, bottom: number) => ({ top, left, right, bottom, width: right - left, height: bottom - top, x: left, y: top, toJSON: () => ({}) });
+      if (this.getAttribute("role") === "region") return at(50, 10, 910, 650);
+      if (this.getAttribute("aria-hidden") === "true" && (this as HTMLElement).style.left === "0px" && (this as HTMLElement).style.top === "0px") return at(zoneTop, 10, 1000, zoneTop + 900);
+      return at(0, 0, 0, 0);
+    });
+  }
+  beforeEach(() => {
+    seen.data = null;
+  });
+
+  test("zoneTop and rowBounds are read live from the DOM; the rows start below the header (56 px, 92 px with a strip); rowCount counts every row", () => {
+    const spy = stubRects(-300);
+    try {
+      renderWithProviders(<Harness probe={<ZoneProbe />} />);
+      expect(seen.data?.rowCount).toBe(3);
+      expect(seen.data?.zoneTop()).toBe(-300);
+      expect(seen.data?.rowBounds()).toEqual({ left: 10, right: 910, top: 50 + headerHeight(false), bottom: 650, scrollerTop: 50 });
+      // the zone moves with the scroll: the reader asks again every time
+      spy.mockRestore();
+      const scrolled = stubRects(-420);
+      expect(seen.data?.zoneTop()).toBe(-420);
+      scrolled.mockRestore();
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
+  test("with a strip the rows start 36 px lower", () => {
+    stubRects(0);
+    try {
+      const strip: TimelineStripData = { label: "Load", render: () => null };
+      renderWithProviders(<Harness strip={strip} probe={<ZoneProbe />} />);
+      expect(seen.data?.rowBounds()).toMatchObject({ top: 50 + headerHeight(true), scrollerTop: 50 });
+      expect(headerHeight(true) - headerHeight(false)).toBe(36);
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
+  test("on the virtual path rowCount is every row, mounted or not, and a drop in a far slot is proposed", () => {
+    const many = Array.from({ length: 200 }, (_, i) => row(i + 1, `Item ${i + 1}`, [bar(i + 1, `Item ${i + 1}`, "2026-09-16", "2026-09-18")]));
+    stubViewport(900, 400);
+    stubRects(-3000);
+    try {
+      const onReorder = vi.fn(() => true);
+      renderWithProviders(<Harness rows={many} virtualizeFrom={5} onReorder={onReorder} probe={<ZoneProbe />} />);
+      expect(within(screen.getByRole("grid")).getAllByRole("rowheader").length).toBeLessThan(30);
+      expect(seen.data?.rowCount).toBe(200);
+      const held = { id: "row:1", data: { current: { kind: "row", barId: 1, label: "Item 1", position: 1, count: 200 } } };
+      const over = { id: TIMELINE_ROW_DROP_ID, data: { current: seen.data } };
+      emit("onDragStart", { active: held, delta: { x: 0, y: 0 }, over: null, activatorEvent: { clientX: 40, clientY: 120 } });
+      act(() => {
+        window.dispatchEvent(new PointerEvent("pointermove", { clientX: 40, clientY: 300, isPrimary: true }));
+      });
+      // the body starts 3,000 px above the viewport: y = 300 is 3,300 px in = row 91.67 -> slot 92, a row that is not mounted
+      emit("onDragMove", { active: held, delta: { x: 0, y: 0 }, over, activatorEvent: null });
+      expect(document.querySelector("[data-row-slot]")).toHaveAttribute("data-row-slot", "92");
+      emit("onDragEnd", { active: held, delta: { x: 0, y: 0 }, over, activatorEvent: null });
+      expect(onReorder).toHaveBeenCalledExactlyOnceWith(1, 92);
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+});
+
 describe("modifiers and sensors", () => {
   test("bars are held to whole days on one row; a tray item is left free", () => {
     renderWithProviders(<Harness />);
@@ -729,6 +1096,25 @@ describe("the keyboard sensor, end to end", () => {
     expect(body).toHaveFocus();
     fireEvent.keyDown(document, { code: "Space", key: " " });
     await waitFor(() => expect(onSchedule).toHaveBeenCalledWith(1, "2026-09-17", "2026-09-19"));
+  });
+
+  test("a held bar mounts no overlay wrapper: dnd-kit's DragOverlay (the REAL one here) would change how every bar drag moves", async () => {
+    realOverlay = true;
+    renderWithProviders(<Harness />);
+    const body = barBody("Discovery, Team A, 2026-09-16 to 2026-09-18");
+    act(() => body.focus());
+    vi.useFakeTimers({ toFake: ["setTimeout"] });
+    fireEvent.keyDown(body, { code: "Space", key: " " });
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    vi.useRealTimers();
+    // the bar IS held (the grid yields the arrows to dnd-kit) ...
+    fireEvent.keyDown(body, { code: "ArrowRight", key: "ArrowRight" });
+    expect(body).toHaveFocus();
+    // ... and no overlay wrapper (fixed, z-index 999; dnd-kit's own hidden live region is fixed too, without a z-index) was rendered over it
+    expect(document.querySelector('[style*="z-index: 999"]')).toBeNull();
+    fireEvent.keyDown(document, { code: "Escape", key: "Escape" });
   });
 });
 

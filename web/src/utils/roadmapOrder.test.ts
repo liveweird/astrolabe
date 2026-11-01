@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { RoadmapProject, RoadmapView } from "../api/roadmap";
-import { appendId, applyRanking, moveBy, moveOver, moveToEdge, removeId } from "./roadmapOrder";
+import { appendId, applyRanking, moveBy, moveOver, moveToEdge, moveToSlot, removeId } from "./roadmapOrder";
 
 describe("moveBy", () => {
   test("moves one place up or down and leaves the input alone", () => {
@@ -30,6 +30,33 @@ describe("moveToEdge", () => {
     expect(moveToEdge([1, 2, 3], 1, "top")).toEqual([1, 2, 3]);
     expect(moveToEdge([1, 2, 3], 3, "bottom")).toEqual([1, 2, 3]);
     expect(moveToEdge([1, 2, 3], 9, "top")).toEqual([1, 2, 3]);
+  });
+});
+
+describe("moveToSlot", () => {
+  const ids = [1, 2, 3, 4];
+
+  test("a slot below the row inserts one earlier, a slot above inserts at the slot itself", () => {
+    expect(moveToSlot(ids, 1, 3)).toEqual([2, 3, 1, 4]);
+    expect(moveToSlot(ids, 1, 4)).toEqual([2, 3, 4, 1]);
+    expect(moveToSlot(ids, 4, 1)).toEqual([1, 4, 2, 3]);
+    expect(moveToSlot(ids, 4, 0)).toEqual([4, 1, 2, 3]);
+    expect(moveToSlot(ids, 3, 0)).toEqual([3, 1, 2, 4]);
+    expect(ids).toEqual([1, 2, 3, 4]);
+  });
+
+  test("a slot of from or from + 1 is the identity", () => {
+    for (const id of ids) {
+      const from = ids.indexOf(id);
+      expect(moveToSlot(ids, id, from)).toEqual(ids);
+      expect(moveToSlot(ids, id, from + 1)).toEqual(ids);
+    }
+  });
+
+  test("a slot outside the list is clamped; an unknown id changes nothing", () => {
+    expect(moveToSlot(ids, 2, 99)).toEqual([1, 3, 4, 2]);
+    expect(moveToSlot(ids, 2, -5)).toEqual([2, 1, 3, 4]);
+    expect(moveToSlot(ids, 9, 2)).toEqual(ids);
   });
 });
 

@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { ApiError } from "../api/http";
 import { isStaleRevision } from "../api/roadmap";
 import { putTeamOrder, type TeamView } from "../api/teams";
-import { moveBy, moveToEdge } from "../utils/roadmapOrder";
+import { moveBy, moveToEdge, moveToSlot } from "../utils/roadmapOrder";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { saveErrorMessage } from "../utils/saveError";
 import { placeScheduled } from "../utils/teamOrderList";
@@ -81,13 +81,16 @@ export function useTeamOrder(teamId: number, view: TeamView | undefined, announc
   };
 
   /** The ONE reorder seam: `id` was put into the displayed scheduled order [permutation]. Answers whether the change was taken. */
-  const placed = (id: number, permutation: number[]): boolean => {
+  const placed = (id: number, permutation: number[], announced = true): boolean => {
     const ids = view && placeScheduled(view, permutation);
     // Not a permutation of the displayed rows (a caller bug): nothing is written or announced.
     if (!ids) return false;
-    return commit(ids, () =>
-      t("teams.view.announce.moved", { name: nameOf(id), position: permutation.indexOf(id) + 1, count: permutation.length }),
-    );
+    // The order the page shows already is this one (a drop beside the row itself): taken, and nothing to save or announce.
+    if (permutation.every((scheduledId, index) => scheduledId === scheduledIds[index])) return true;
+    // A drag passes `announced = false`: dnd-kit's live region already says where it was dropped (the single announcer of a drag).
+    const sentence = () =>
+      t("teams.view.announce.moved", { name: nameOf(id), position: permutation.indexOf(id) + 1, count: permutation.length });
+    return commit(ids, announced ? sentence : undefined);
   };
 
   return {
@@ -100,6 +103,8 @@ export function useTeamOrder(teamId: number, view: TeamView | undefined, announc
     /** Button path: move one place up (-1) or down (+1). Answers whether the change was taken. */
     move: (id: number, delta: -1 | 1) => placed(id, moveBy(scheduledIds, id, delta)),
     moveTo: (id: number, edge: "top" | "bottom") => placed(id, moveToEdge(scheduledIds, id, edge)),
+    /** Row drag: drop `id` into the gap `slot` (0 = above the first row). Answers whether the change was taken. */
+    dropAt: (id: number, slot: number) => placed(id, moveToSlot(scheduledIds, id, slot), false),
     /** Back to the project rank's order: the empty list. Answers whether the reset was taken. */
     reset: () => commit([], () => t("teams.view.announce.reset")),
   };

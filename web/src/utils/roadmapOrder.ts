@@ -16,6 +16,17 @@ export function moveToEdge(ids: readonly number[], id: number, edge: "top" | "bo
   return from < 0 ? [...ids] : placeAt(ids, from, edge === "top" ? 0 : ids.length - 1);
 }
 
+/**
+ * Drop `id` into the gap `slot` (0 = above the first row, `ids.length` = below the last; slot `n` is the gap before the row now at index `n`):
+ * the row is taken out and re-inserted at `slot − 1` when the gap lies below it, else at `slot`. A slot of `from` or `from + 1` is the identity.
+ */
+export function moveToSlot(ids: readonly number[], id: number, slot: number): number[] {
+  const from = ids.indexOf(id);
+  if (from < 0) return [...ids];
+  const clamped = Math.min(Math.max(slot, 0), ids.length);
+  return placeAt(ids, from, clamped > from ? clamped - 1 : clamped);
+}
+
 /** Put `id` where `overId` is now (what dragging a row over another does: the rows in between shift by one). */
 export function moveOver(ids: readonly number[], id: number, overId: number): number[] {
   const from = ids.indexOf(id);

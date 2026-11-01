@@ -25,7 +25,8 @@ type BarRoving = (offset: 0 | 1 | 2) => RovingTarget;
 export default function TimelineBar({ bar, scale, roving }: { bar: TimelineBarData; scale: TimelineScale; roving: BarRoving }) {
   const preview = useTimelinePreview();
   // A resize redraws the bar from the preview; a move keeps its geometry and is translated (see EditableBar).
-  const shown = preview !== null && preview.barId === bar.id && preview.kind !== "move" ? preview : bar;
+  // (a held ROW has a preview too — its slot — which no bar draws)
+  const shown = preview !== null && preview.kind !== "row" && preview.barId === bar.id && preview.kind !== "move" ? preview : bar;
   const start = toEpochDay(shown.start);
   const geometry = { left: scale.xOf(start), width: scale.widthOf(start, toEpochDay(shown.end)) };
   return bar.editable ? (

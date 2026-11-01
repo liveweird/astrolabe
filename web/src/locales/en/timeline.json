@@ -43,6 +43,11 @@
     "dropNone": "{{name}} was not scheduled.",
     "cancel": "Cancelled; {{name}} stays at {{start}} to {{end}}.",
     "cancelTray": "Cancelled; {{name}} was not scheduled.",
-    "dropRefused": "{{name}} was not changed: a save is still running. Try again in a moment."
+    "dropRefused": "{{name}} was not changed: a save is still running. Try again in a moment.",
+    "startRow": "Picked up {{name}}, position {{position}} of {{count}}. Move the pointer to the new place and release; Escape cancels.",
+    "stepRow": "{{name}}: position {{position}} of {{count}}",
+    "dropRow": "Dropped {{name}} at position {{position}} of {{count}}.",
+    "dropRowNone": "{{name}} stays at position {{position}} of {{count}}.",
+    "cancelRow": "Cancelled; {{name}} stays at position {{position}} of {{count}}."
   }
 }

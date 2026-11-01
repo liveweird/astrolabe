@@ -40,6 +40,18 @@ const dropMove = (m: TeamMilestone, days: number) =>
     } as never),
   );
 
+/** A row dragged by its handle and released in `slot`'s gap: the pointer went down at `y` and the row zone starts at client y = 100 (36 px rows). */
+const dropRow = (m: TeamMilestone, position: number, y: number) => {
+  const dragged = { id: `row:${m.id}`, data: { current: { kind: "row", barId: m.id, label: m.name, position, count: 3 } } };
+  const zone = {
+    id: "timeline-rows",
+    data: { current: { zoneTop: () => 100, rowBounds: () => ({ left: 0, right: 900, top: 100, bottom: 600 }), rowCount: 3 } },
+  };
+  const event = { active: dragged, delta: { x: 0, y: 0 }, over: zone, activatorEvent: { clientX: 40, clientY: y } };
+  act(() => dndProps?.onDragStart?.(event as never));
+  act(() => dndProps?.onDragEnd?.(event as never));
+};
+
 const milestone = (id: number, name: string, over: Partial<TeamMilestone> = {}): TeamMilestone => ({
   id,
   projectId: 7,
@@ -424,6 +436,103 @@ describe("Team view page: the order", () => {
     await waitFor(() => expect(rowNames()).toEqual(["tv-a", "tv-b", "tv-c"]));
     await waitFor(() => expect(screen.queryByText("Custom order")).toBeNull());
     expect(liveText()).toContain("The order was reset to the project rank");
+  });
+});
+
+describe("Team view page: the row drag", () => {
+  const handlesIn = (row: HTMLElement) => row.querySelectorAll("[data-row-handle]").length;
+  const rowElements = () => within(screen.getByRole("grid", { name: "Team milestone timeline" })).getAllByRole("row").slice(1);
+
+  test("the manager's rows carry a pointer-only handle (hidden from assistive technology, not a tab stop); a stranger's rows carry none", async () => {
+    const { unmount } = renderPage();
+    await screen.findByRole("grid", { name: "Team milestone timeline" });
+    expect(rowElements().map(handlesIn)).toEqual([1, 1, 1]);
+    // one stop per cell: the handle is no button, no link and not focusable
+    expect(rowElements()[0].querySelector("[data-row-handle]")).not.toHaveAttribute("tabindex");
+    unmount();
+    localStorage.setItem(ROLES_KEY, "[]");
+    view = viewOf({ team: { ...viewOf().team, can: { schedule: false, editCapacity: false, editOrder: false } } });
+    renderPage();
+    await screen.findByRole("grid", { name: "Team milestone timeline" });
+    expect(rowElements().map(handlesIn)).toEqual([0, 0, 0]);
+  });
+
+  test("a drop PUTs the TEAM's order revision and the new order, applies it at once and shows the custom order", async () => {
+    renderPage();
+    await screen.findByRole("grid", { name: "Team milestone timeline" });
+    // y = 172: 72 px into the body = exactly 2 rows, the slot after tv-b
+    dropRow(TV_A, 1, 172);
+    await waitFor(() => expect(orderPuts(mockFetch)).toHaveLength(1));
+    expect(orderPuts(mockFetch)[0]).toEqual({ expectedRevision: 4, milestoneIds: [2, 1, 3] });
+    await waitFor(() => expect(rowNames()).toEqual(["tv-b", "tv-a", "tv-c"]));
+    expect(await screen.findByText("Custom order")).toBeInTheDocument();
+    // dnd-kit's region is the single announcer of a drag: the page's polite region does not repeat the menu's sentence.
+    expect(liveText()).not.toContain("moved to position");
+  });
+
+  test("the slot below the last row drops the milestone last; the slot above the first drops it first", async () => {
+    renderPage();
+    await screen.findByRole("grid", { name: "Team milestone timeline" });
+    dropRow(TV_A, 1, 500);
+    await waitFor(() => expect(orderPuts(mockFetch)).toHaveLength(1));
+    expect(orderPuts(mockFetch)[0]).toEqual({ expectedRevision: 4, milestoneIds: [2, 3, 1] });
+    await waitFor(() => expect(screen.getByRole("grid", { name: "Team milestone timeline" })).toHaveAttribute("aria-busy", "false"));
+    dropRow(TV_C, 3, 101);
+    await waitFor(() => expect(orderPuts(mockFetch)).toHaveLength(2));
+    expect(orderPuts(mockFetch)[1]).toEqual({ expectedRevision: 11, milestoneIds: [3, 2, 1] });
+  });
+
+  test("a drop beside the row itself (the page decides: the order is unchanged) sends nothing, refuses nothing and marks no custom order", async () => {
+    renderPage();
+    await screen.findByRole("grid", { name: "Team milestone timeline" });
+    dropRow(TV_B, 2, 130); // 30 px in = the slot before row 1: tv-b's own place
+    dropRow(TV_B, 2, 170); // 70 px in = the slot after row 1
+    expect(orderPuts(mockFetch)).toHaveLength(0);
+    expect(rowNames()).toEqual(["tv-a", "tv-b", "tv-c"]);
+    expect(screen.queryByRole("note")).toBeNull();
+    expect(screen.queryByText("Custom order")).toBeNull();
+  });
+
+  test("the pick-up position is only for announcements: a drop judged against the order shown NOW (the list changed after pick-up)", async () => {
+    renderPage();
+    await screen.findByRole("grid", { name: "Team milestone timeline" });
+    // tv-b was picked up as position 3 (it was last when the drag began); now it is row 2, so slot 3 (below tv-c) is a real move, slot 2 is none
+    dropRow(TV_B, 3, 172);
+    expect(orderPuts(mockFetch)).toHaveLength(0);
+    dropRow(TV_B, 3, 190);
+    await waitFor(() => expect(orderPuts(mockFetch)).toHaveLength(1));
+    expect(orderPuts(mockFetch)[0]).toEqual({ expectedRevision: 4, milestoneIds: [1, 3, 2] });
+  });
+
+  test("a stale 409 rolls the rows back, reloads the view and says the order changed in the meantime", async () => {
+    orderPut = { status: 409, body: STALE };
+    renderPage();
+    await screen.findByRole("grid", { name: "Team milestone timeline" });
+    dropRow(TV_A, 1, 172);
+    expect(await screen.findByRole("note")).toHaveTextContent(/the team's order changed in the meantime/i);
+    await waitFor(() => expect(rowNames()).toEqual(["tv-a", "tv-b", "tv-c"]));
+    expect(viewGets(mockFetch)).toBeGreaterThan(1);
+  });
+
+  test("a drop made while a save is still running is refused out loud and never sent", async () => {
+    const gate: { release: (() => void) | null } = { release: null };
+    const inner = mockFetch.getMockImplementation() as (url: string, init?: RequestInit) => Promise<Response>;
+    mockFetch.mockImplementation((url: string, init?: RequestInit) =>
+      init?.method === "PUT" && url === "/api/v1/teams/1/milestone-order"
+        ? new Promise<Response>((resolve) => {
+            gate.release = () => resolve(jsonResponse(200, { revision: 11 }));
+          })
+        : inner(url, init),
+    );
+    renderPage();
+    await screen.findByRole("grid", { name: "Team milestone timeline" });
+    dropRow(TV_A, 1, 190);
+    await waitFor(() => expect(gate.release).not.toBeNull());
+    dropRow(TV_C, 3, 101);
+    expect(await screen.findByRole("note")).toHaveTextContent("A save is still running — try your change again in a moment.");
+    expect(orderPuts(mockFetch)).toHaveLength(1);
+    act(() => gate.release?.());
+    await waitFor(() => expect(screen.getByRole("grid", { name: "Team milestone timeline" })).toHaveAttribute("aria-busy", "false"));
   });
 });
 

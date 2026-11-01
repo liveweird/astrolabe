@@ -45,6 +45,11 @@
     "dropNone": "{{name}} nadal nie ma terminu.",
     "cancel": "Przeciąganie anulowane; {{name}} zostaje w terminie od {{start}} do {{end}}.",
     "cancelTray": "Przeciąganie anulowane; {{name}} nadal nie ma terminu.",
-    "dropRefused": "{{name}} bez zmian: zapis jeszcze trwa. Spróbuj za chwilę."
+    "dropRefused": "{{name}} bez zmian: zapis jeszcze trwa. Spróbuj za chwilę.",
+    "startRow": "Trzymasz: {{name}}, pozycja {{position}} z {{count}}. Przesuń wskaźnik w nowe miejsce i puść; Escape anuluje.",
+    "stepRow": "{{name}}: pozycja {{position}} z {{count}}",
+    "dropRow": "{{name}} ma teraz pozycję {{position}} z {{count}}.",
+    "dropRowNone": "{{name}} zostaje na pozycji {{position}} z {{count}}.",
+    "cancelRow": "Przeciąganie anulowane; {{name}} zostaje na pozycji {{position}} z {{count}}."
   }
 }

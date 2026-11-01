@@ -204,7 +204,11 @@ function TeamPage({ id }: { id: number }) {
       {milestoneCount === 0 ? (
         <EmptyState icon={IconCalendarStats} label={t("teams.view.noMilestones")} hint={t("teams.view.noMilestonesHint")} />
       ) : (
-        <TimelineDndContext scale={scale} onSchedule={(barId, start, end) => schedule.commit(Number(barId), start, end)}>
+        <TimelineDndContext
+          scale={scale}
+          onSchedule={(barId, start, end) => schedule.commit(Number(barId), start, end)}
+          onReorder={(barId, slot) => order.dropAt(Number(barId), slot)}
+        >
           <Stack gap="xs">
             <Group gap="sm" align="center" justify="space-between">
               <Group gap="sm" align="center">

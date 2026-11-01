@@ -6,12 +6,25 @@ import type { BarId } from "../utils/timelineModel";
 /** The id of the droppable covering the whole track area: a tray item dropped on it is scheduled at the pointer's day. */
 export const TIMELINE_DROP_ID = "timeline-track";
 
-/** The viewport rectangle (client coordinates) in which a tray drop counts: the scroller's visible track, right of the sticky columns and below the header. */
+/** The id of the droppable covering the whole body (left columns and track): a dragged ROW lands in the slot under the pointer. Inert for every other kind. */
+export const TIMELINE_ROW_DROP_ID = "timeline-rows";
+
+/** The viewport rectangle (client coordinates) in which a drop counts: for a tray item the scroller's visible track, right of the sticky columns and below the header; for a row the scroller from its left edge, rows from `top`. */
 interface DropBounds {
   left: number;
   right: number;
   top: number;
   bottom: number;
+}
+
+/** What the row drop zone puts in its droppable `data`: three live readers (the grid scrolls under a held row, so nothing may be a snapshot). */
+export interface RowDropZoneData {
+  /** The zone's top edge in client coordinates, read NOW (negative once the grid is scrolled). */
+  zoneTop: () => number | null;
+  /** The scroller in which a row drop counts: from its left edge; `top` is where its rows start (below the sticky header), `scrollerTop` its own top edge. */
+  rowBounds: () => (DropBounds & { scrollerTop: number }) | null;
+  /** How many rows the body holds, mounted or not. */
+  rowCount: number;
 }
 
 /** What the track drop zone puts in its droppable `data`: the zone itself is as tall as every row, so the live visible part is asked for. */
@@ -28,15 +41,28 @@ export interface DragData {
   label: string;
   start?: string;
   end?: string;
+  /** A row handle's row: its 1-based place in the order and the row count (the announcements say them). */
+  position?: number;
+  count?: number;
 }
 
 /** The dates a held bar or edge would take if dropped now (while a drag is running), so the bar can draw them. */
-export interface TimelinePreview {
+interface BarPreview {
   barId: BarId;
-  kind: DragKind;
+  kind: Exclude<DragKind, "row">;
   start: string;
   end: string;
 }
+
+/** A held row: the slot it would land in now (`null` while the pointer is where nothing lands), and the label its overlay card shows. */
+interface RowPreview {
+  barId: BarId;
+  kind: "row";
+  label: string;
+  slot: number | null;
+}
+
+export type TimelinePreview = BarPreview | RowPreview;
 
 export const PreviewContext = createContext<TimelinePreview | null>(null);
 

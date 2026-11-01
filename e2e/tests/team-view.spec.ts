@@ -1,6 +1,6 @@
 // The team view (/teams/:id): the team's manager sets a capacity period (any date) with a WIP limit, schedules from the team page and
 // reads the overloaded week and the WIP warning on the strip, the facts line and the weekly table; moves a milestone to the bottom of the
-// team's order, sees the custom order and resets it; a project OWNER (not the manager) reads the same page without the controls.
+// team's order, sees the custom order and resets it; drags a row below another by its handle (Escape cancels first); a project OWNER (not the manager) reads the same page without the controls.
 // Owns: its throwaway users, people, team and plan nodes (unique `e2e-tv-*` names), all seeded through the API and deleted by the
 // afterEach below (the project first - its milestones go with it - then program, work stream, team (its capacity periods go with it),
 // people, users).
@@ -218,6 +218,68 @@ test("the manager moves a milestone to the bottom, sees the custom order, and re
   await expect(facts(page)).not.toContainText("Custom order");
   await expect(confirm).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Reset order" })).toBeDisabled();
+});
+
+/**
+ * Press a row's handle, drag it down the page to `fraction` of the target row's height and (when `release`) let go. dnd-kit activates after
+ * 5 px, so the first step is a short move; the pointer then travels in steps so the slot follows it. The handle and the rows are laid out
+ * and on screen (the page scrolls the timeline into view first).
+ */
+async function dragRowOnto(page: Page, from: string, onto: string, fraction: number, release = true): Promise<void> {
+  const handle = await rows(page).filter({ hasText: from }).locator('[class*="timelineRowHandle"]').boundingBox();
+  const target = await rows(page).filter({ hasText: onto }).boundingBox();
+  if (!handle || !target) throw new Error("the row handle or the target row is not laid out");
+  const x = handle.x + handle.width / 2;
+  await page.mouse.move(x, handle.y + handle.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(x, handle.y + handle.height / 2 + 8, { steps: 4 });
+  await page.mouse.move(x, target.y + target.height * fraction, { steps: 15 });
+  if (release) await page.mouse.up();
+}
+
+test("the manager drags a milestone row below another by its handle and the order is saved", async ({ page }) => {
+  const world = await seedWorld();
+  const first = uniqueText("e2e-tv-ms-a");
+  const second = uniqueText("e2e-tv-ms-b");
+  await scheduleViaApi(world, await seedMilestone(world, first, 3), "2027-02-01", "2027-02-05");
+  await scheduleViaApi(world, await seedMilestone(world, second, 3), "2027-02-08", "2027-02-12");
+  await world.api.dispose();
+
+  await login(page, world.manager.email, world.manager.password);
+  await openTeam(page, world);
+  await expect(rows(page)).toHaveText([new RegExp(first), new RegExp(second)]);
+  await rows(page).first().scrollIntoViewIfNeeded();
+  const region = page.locator('[id^="DndLiveRegion"]');
+  const line = page.locator("[data-row-slot]");
+  const orderPuts: string[] = [];
+  page.on("request", (request) => {
+    if (request.method() === "PUT" && /\/api\/v1\/teams\/\d+\/milestone-order$/.test(request.url())) orderPuts.push(request.url());
+  });
+  await settled(page);
+
+  // Escape mid-drag: the insertion line shows the slot after the second row, the cancel is announced, nothing is saved.
+  await dragRowOnto(page, first, second, 0.75, false);
+  await expect(line).toHaveAttribute("data-row-slot", "2");
+  await page.keyboard.press("Escape");
+  await page.mouse.up();
+  await expect(line).toHaveCount(0);
+  await expect(region).toContainText(`Cancelled; ${first} stays at position 1 of 2.`);
+  await expect(rows(page)).toHaveText([new RegExp(first), new RegExp(second)]);
+  await expect(facts(page)).not.toContainText("Custom order");
+  expect(orderPuts, "the cancelled drag sent nothing").toHaveLength(0);
+
+  // The same drag released in the lower half of the second row: the first row goes below it and the order PUT carries the new list.
+  const [put] = await Promise.all([
+    page.waitForResponse((r) => r.request().method() === "PUT" && /\/api\/v1\/teams\/\d+\/milestone-order$/.test(r.url())),
+    dragRowOnto(page, first, second, 0.75),
+  ]);
+  expect(put.status()).toBe(200);
+  expect(orderPuts).toHaveLength(1);
+  await expect(rows(page)).toHaveText([new RegExp(second), new RegExp(first)]);
+  await expect(rows(page).nth(1)).toHaveAttribute("aria-rowindex", "3");
+  await expect(facts(page)).toContainText("Custom order");
+  await expect(region).toContainText(`Dropped ${first} at position 2 of 2.`);
+  await expect(line).toHaveCount(0);
 });
 
 test("the project owner reads the team page without the manager's controls", async ({ page }) => {

@@ -140,8 +140,9 @@ the same commit** — this list is the coverage map, the scenario file is the de
   adds a capacity period dated on a Wednesday with a WIP limit of 1, schedules two milestones from the page (the tray row's Edit schedule dialog, the tray's
   Schedule button) and reads the overloaded week (the strip cell's `data-overloaded`, the orange "1 week overloaded" badge, the weekly table's prorated
   capacity 4.80 and "Overloaded · +5.20 MD") and then the WIP warning (`data-wip-exceeded`, "1 week over WIP limit", peak 2); moves a milestone to the bottom
-  from its row menu (the team's own order revision, the "Custom order" badge, the live-region sentence) and resets the order; the project owner, who is not the
-  manager, reads the page with read-only bars and none of the controls.
+  from its row menu (the team's own order revision, the "Custom order" badge, the live-region sentence) and resets the order; drags a row below another by
+  its pointer handle (the insertion line's slot, Escape cancels with dnd-kit's announcement, a release saves the new order and announces the drop); the
+  project owner, who is not the manager, reads the page with read-only bars and none of the controls.
 - [`roadmap.spec.ts`](scenarios/roadmap.md) — the Roadmap page: an admin grants ROADMAP_EDITOR on Users → Permissions; that
   editor ranks two API-seeded projects (Rank appends), reorders them with Move up from the keyboard (focus stays in the row),
   dnd-kit's keyboard sensor and a pointer drag, unranks one, and meets the "roadmap changed in the meantime" notice and reload when

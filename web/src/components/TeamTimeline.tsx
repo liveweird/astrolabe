@@ -1,4 +1,4 @@
-import { Anchor, Menu, Text } from "@mantine/core";
+import { Anchor, Group, Menu, Text } from "@mantine/core";
 import { IconArrowBarDown, IconArrowBarUp, IconArrowDown, IconArrowUp, IconCalendarEvent, IconCalendarOff, IconExternalLink } from "@tabler/icons-react";
 import { Link as RouterLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -12,6 +12,7 @@ import RowActionsMenu from "./RowActionsMenu";
 import Timeline from "./Timeline";
 import TimelineArrows from "./TimelineArrows";
 import TimelineLoadStrip from "./TimelineLoadStrip";
+import TimelineRowHandle from "./TimelineRowHandle";
 import TimelineUnscheduledTray, { type TrayItem } from "./TimelineUnscheduledTray";
 
 /** What a milestone row can ask the page to do — the page owns the schedule write path and the order write path. */
@@ -44,6 +45,17 @@ function NameCell({ milestone }: { milestone: TeamMilestone }) {
         </Text>
       )}
     </Text>
+  );
+}
+
+/** A timeline row's name cell: with `placement` (the viewer may reorder) the row's pointer-only drag handle comes first. */
+function RowNameCell({ milestone, placement }: { milestone: TeamMilestone; placement: { index: number; count: number } | null }) {
+  if (placement === null) return <NameCell milestone={milestone} />;
+  return (
+    <Group gap={4} wrap="nowrap" style={{ minWidth: 0 }}>
+      <TimelineRowHandle id={milestone.id} label={milestone.name} position={placement.index + 1} count={placement.count} />
+      <NameCell milestone={milestone} />
+    </Group>
   );
 }
 
@@ -154,7 +166,7 @@ export default function TeamTimeline({
   const rows: TimelineRowData[] = view.scheduled.map((milestone, index) => ({
     id: milestone.id,
     cells: [
-      <NameCell key="name" milestone={milestone} />,
+      <RowNameCell key="name" milestone={milestone} placement={view.team.can.editOrder ? { index, count } : null} />,
       (stop: RovingTarget) => (
         <Anchor component={RouterLink} to={projectPath(milestone.projectId)} size="sm" truncate title={milestone.projectName} aria-label={t("teams.view.openProjectAria", { name: milestone.projectName })} {...stop}>
           {milestone.projectName}

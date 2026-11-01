@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, type CSSProperties, type KeyboardEv
 import { Stack } from "@mantine/core";
 import { useDndContext, useDroppable } from "@dnd-kit/core";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { TIMELINE_DROP_ID, type DropZoneData } from "../hooks/useTimelinePreview";
+import { TIMELINE_DROP_ID, TIMELINE_ROW_DROP_ID, type DropZoneData, type RowDropZoneData } from "../hooks/useTimelinePreview";
 import { useRovingGrid } from "../hooks/useRovingGrid";
 import {
   BAR_HEIGHT,
@@ -23,6 +23,7 @@ import {
 import { scrollLeftToCenter, toEpochDay, weekendBackground, type TimelineScale, type Zoom } from "../utils/timelineScale";
 import ScrollRegion from "./ScrollRegion";
 import TimelineHeader from "./TimelineHeader";
+import TimelineRowDropIndicator from "./TimelineRowDropIndicator";
 import TimelineRow, { TimelineBand } from "./TimelineRow";
 import TimelineToolbar from "./TimelineToolbar";
 import classes from "../theme.module.css";
@@ -99,6 +100,18 @@ export default function Timeline({
     zoneLeft: () => zoneNode.current?.getBoundingClientRect().left ?? null,
   };
   const { setNodeRef: dropRef } = useDroppable({ id: TIMELINE_DROP_ID, data: zoneData });
+  // A second, invisible zone over the WHOLE body: a held ROW lands in the slot under the pointer (the context excludes it for every other kind).
+  // Its readers are live: the grid scrolls under a held row, so the zone's top and the bounds are read at the event, never snapshotted.
+  const rowZoneNode = useRef<HTMLDivElement | null>(null);
+  const rowZoneData: RowDropZoneData = {
+    zoneTop: () => rowZoneNode.current?.getBoundingClientRect().top ?? null,
+    rowBounds: () => {
+      const rect = scrollRef.current?.getBoundingClientRect();
+      return rect === undefined ? null : { left: rect.left, right: rect.right, top: rect.top + head, bottom: rect.bottom, scrollerTop: rect.top };
+    },
+    rowCount: rows.length,
+  };
+  const { setNodeRef: rowDropRef } = useDroppable({ id: TIMELINE_ROW_DROP_ID, data: rowZoneData });
   const virtual = rows.length > virtualizeFrom;
   // TanStack Virtual returns a stable mutable instance the React compiler cannot memoise around; nothing here is memoised on it.
   // eslint-disable-next-line react-hooks/incompatible-library -- see above
@@ -278,6 +291,7 @@ export default function Timeline({
             ))}
             {todayInRange && <div aria-hidden="true" className={classes.timelineToday} style={{ left: leftWidth + scale.xOf(todayDay) + scale.dayWidth / 2 }} />}
             <div ref={(node) => { zoneNode.current = node; dropRef(node); }} aria-hidden="true" style={{ position: "absolute", top: 0, height: bodyHeight, width: scale.totalWidth, pointerEvents: "none", ...trackLeft }} />
+            <div ref={(node) => { rowZoneNode.current = node; rowDropRef(node); }} aria-hidden="true" style={{ position: "absolute", top: 0, left: 0, height: bodyHeight, width: leftWidth + scale.totalWidth, pointerEvents: "none" }} />
             {mountedIndexes.map((index) => (
               <TimelineRow
                 key={rows[index].id}
@@ -291,6 +305,7 @@ export default function Timeline({
                 top={virtual ? index * ROW_HEIGHT : undefined}
               />
             ))}
+            <TimelineRowDropIndicator width={leftWidth + scale.totalWidth} />
             {geometry !== null && overlay !== undefined && (
               <svg aria-hidden="true" className={classes.timelineOverlay} style={{ ...trackLeft, width: scale.totalWidth, height: bodyHeight }}>
                 {overlay(geometry)}

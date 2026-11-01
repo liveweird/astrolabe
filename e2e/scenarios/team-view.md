@@ -40,6 +40,19 @@
    - *Expected*: the order PUT with the empty list succeeds; the rows read first, second again; the badge is gone and **Reset order**
      is disabled.
 
+## Scenario: the manager drags a milestone row below another by its handle and the order is saved
+
+1. The administrator (through the API) schedules two milestones of the team (2027-02-01 – 2027-02-05 and 2027-02-08 – 2027-02-12).
+   The manager signs in and opens the team's page.
+   - *Expected*: the rows read first, second.
+2. They press the first row's handle (the grip at the start of its name cell), move the pointer into the lower half of the second row and
+   press Escape before letting go.
+   - *Expected*: while held, the insertion line sits at the slot after the second row; after Escape the line is gone, dnd-kit's live
+     region says "Cancelled; <first> stays at position 1 of 2.", the rows still read first, second, there is no "Custom order" badge and **no order PUT was sent**.
+3. They repeat the drag and release the pointer in the lower half of the second row.
+   - *Expected*: the order PUT succeeds; the rows read second, first (the first is row 2 of the grid, `aria-rowindex` 3); the facts line
+     shows the gray "Custom order" badge; the live region says "Dropped <first> at position 2 of 2."; no insertion line is left.
+
 ## Scenario: the project owner reads the team page without the manager's controls
 
 1. The administrator (through the API) schedules one of the team's two milestones. The project's owner (who is not the team's
@@ -52,5 +65,8 @@
 
 ## Not covered here (and why)
 
-- **Dragging a row by its handle** — a later commit of the same release (the row-drag gesture and its scenario).
+- **A row drag through autoscroll to a row that is not mounted** — needs a team of 100 rows (the virtual path); the two-row world here
+  cannot scroll. It is a manual pass on the sample dataset (recorded in `timeline.md`), the slot arithmetic is unit-tested.
+- **A row drag from the keyboard** — there is none by design: the handle is pointer-only and the row menu's Move items are the keyboard
+  path (the scenario above, "moves a milestone to the bottom", drives them).
 - **Pointer drags of bars** — the same shared Timeline gesture as the project page; `project-view.spec.ts` owns it.

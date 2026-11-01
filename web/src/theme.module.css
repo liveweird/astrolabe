@@ -501,3 +501,47 @@
   box-shadow: var(--mantine-shadow-md);
   opacity: 0.95;
 }
+
+/* The grip of a draggable timeline row (the team page's order): a pointer affordance only, like the tray's; the row itself never gets a transform. */
+.timelineRowHandle {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  cursor: grab;
+  touch-action: none;
+  color: var(--mantine-color-dimmed);
+}
+
+/* The insertion line of a row drag, at the slot's edge. z 3, after the rows in the DOM: over the sticky left cells (also 3, earlier) but UNDER the
+   sticky header (4), so a slot scrolled up beneath the header is covered by it instead of painting across it. */
+.timelineRowDropLine {
+  position: absolute;
+  left: 0;
+  z-index: 3;
+  height: 2px;
+  background: var(--mantine-primary-color-filled);
+  pointer-events: none;
+}
+
+/* The card that follows the pointer while a row is held (the DragOverlay is position: fixed, so no scroller clips it); the real row stays put. */
+.timelineRowGhost {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  width: 220px;
+  height: 28px;
+  margin-top: -4px;
+  padding: 0 var(--mantine-spacing-xs);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  background: var(--mantine-color-body);
+  border: 1px solid var(--mantine-primary-color-filled);
+  border-radius: var(--mantine-radius-sm);
+  box-shadow: var(--mantine-shadow-md);
+  opacity: 0.95;
+  cursor: grabbing;
+}
