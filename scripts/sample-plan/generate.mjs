@@ -10,16 +10,40 @@
 // summary.json. Records refer to each other by `ref` (a 1-based integer per file); every date is a DAY OFFSET from an anchor Monday that
 // the loader (load.mjs --anchor) resolves, so the dataset is never tied to a calendar. sample-data/plan/README.md documents the files.
 //
+// The 300 milestone-to-milestone links are drawn here; the links with a PROJECT end and the zero-slack cross-project chains come from
+// project-links.mjs (its own seeded stream, every link checked with graph.mjs, the server's cycle rule), measured by critical.mjs.
+//
 // Transcendental maths (exp/log) is deliberately avoided: the only Math.pow is the Zipf weight, whose rounded result the self-test
 // re-checks against the committed files on every platform.
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dayOfWorkIndex, mondayOf, weekday } from "./days.mjs";
-import { dailyWip, linkShortfall, overallRates, quantile, weeklyLoads, weeklyRows } from "./stats.mjs";
+import { criticalChains } from "./critical.mjs";
+import { DRAW_LAGS, LINK_TYPES, TYPE_WEIGHTS, makeProjectLinks, toRecord } from "./project-links.mjs";
+import { dailyWip, endpointResolver, linkShortfall, overallRates, quantile, weeklyLoads, weeklyRows } from "./stats.mjs";
 
 export const DEFAULT_SEED = 42;
-export const COUNTS = { people: 30, teams: 15, workStreams: 5, programs: 20, projects: 100, milestones: 1000, dependencies: 300, rankedProjects: 80, targetWindows: 60, unscheduled: 100, crossProjectDependencies: 75, customOrderTeams: 3 };
+export const COUNTS = {
+  people: 30,
+  teams: 15,
+  workStreams: 5,
+  programs: 20,
+  projects: 100,
+  milestones: 1000,
+  /** The milestone-to-milestone links (the first 300 of dependencies.json), 75 of them across projects. */
+  milestoneDependencies: 300,
+  crossProjectDependencies: 75,
+  /** The zero-slack cross-project chains (projects on each) and the further project-endpoint links per direction (project-links.mjs); a chain's own links add to the latter. */
+  chainLengths: [3, 3, 3, 3, 4, 4, 5, 6],
+  projectDependencies: { projectToProject: 10, milestoneToProject: 8, projectToMilestone: 8 },
+  rankedProjects: 80,
+  targetWindows: 60,
+  unscheduled: 100,
+  customOrderTeams: 3,
+};
+/** The project-endpoint links draw from their own seeded stream (the seed xor this), so adding them left every other file byte-identical. */
+const PROJECT_LINK_STREAM = 0x9e3779b9;
 /**
  * The Zipf exponent of the team sizes: the classic rank-size rule (size of rank k = size of rank 1 / k). With 1,000 milestones over 15
  * teams that is 301, 151, 100, 75, 60, ... 20: three teams above the Timeline's 80-row virtualisation threshold, a fourth (about 68
@@ -234,15 +258,15 @@ function makeDependencies(rng, milestones, projects, rankIndexOf) {
   // A link is drawn with its type and lag first; a candidate the schedule already violates is kept only 1 time in 5, so most links are
   // satisfied and a visible minority is violated (the warnings the project and team views show first).
   const draw = (predecessor, successor) => {
-    const type = rng.weighted(["FS", "SS", "FF"], [70, 15, 15]);
-    const lagDays = rng.pick([0, 0, 0, 0, 1, 2, 3, 5, 10, -1, -2, -5]);
+    const type = rng.weighted(LINK_TYPES, TYPE_WEIGHTS);
+    const lagDays = rng.pick(DRAW_LAGS);
     return { predecessor, successor, type, lagDays, accepted: linkShortfall(type, lagDays, spanOf(predecessor), spanOf(successor)) <= 0 || rng.chance(0.2) };
   };
   const links = [];
   const intraPairs = [];
   for (const list of byProject.values()) for (let i = 0; i + 1 < list.length; i++) intraPairs.push([list[i], list[i + 1]]);
   for (const [predecessor, successor] of rng.shuffle(intraPairs)) {
-    if (links.length === COUNTS.dependencies - COUNTS.crossProjectDependencies) break;
+    if (links.length === COUNTS.milestoneDependencies - COUNTS.crossProjectDependencies) break;
     const link = draw(predecessor, successor);
     if (link.accepted) links.push(link);
   }
@@ -250,7 +274,7 @@ function makeDependencies(rng, milestones, projects, rankIndexOf) {
   // total order on the milestones, and every link goes from an earlier to a later milestone, so the time-point graph is acyclic.
   const projectsByRank = [...projects].sort((a, b) => rankIndexOf.get(a.ref) - rankIndexOf.get(b.ref));
   const seen = new Set(links.map((l) => `${l.predecessor.ref}-${l.successor.ref}`));
-  while (links.length < COUNTS.dependencies) {
+  while (links.length < COUNTS.milestoneDependencies) {
     const rank = rng.int(1, projectsByRank.length - 1);
     const successor = rng.pick(byProject.get(projectsByRank[rank].ref));
     const predecessor = rng.pick(byProject.get(projectsByRank[rank - rng.int(1, Math.min(rank, 10))].ref));
@@ -261,14 +285,9 @@ function makeDependencies(rng, milestones, projects, rankIndexOf) {
     seen.add(key);
     links.push(link);
   }
-  return links.map((l, i) => ({
-    ref: i + 1,
-    predecessorRef: l.predecessor.ref,
-    successorRef: l.successor.ref,
-    successorProjectRef: l.successor.projectRef,
-    type: l.type,
-    lagDays: l.lagDays,
-  }));
+  return links.map((l, i) =>
+    toRecord({ predecessorKind: "MILESTONE", predecessorRef: l.predecessor.ref, successorKind: "MILESTONE", successorRef: l.successor.ref, successorProjectRef: l.successor.projectRef, type: l.type, lagDays: l.lagDays }, i + 1),
+  );
 }
 
 /** 2-4 capacity periods per team, tuned against the team's own schedule so that some weeks are overloaded and some exceed the WIP limit. */
@@ -358,7 +377,9 @@ export function buildDataset(seed = DEFAULT_SEED) {
   for (const project of projects) project.startOffset = 7 * Math.max(-10, -8 + Math.floor(rankIndexOf.get(project.ref) / 2) + rng.int(-6, 6));
 
   const milestones = makeMilestones(rng, projects, teamSizes);
-  const dependencies = makeDependencies(rng, milestones, projects, rankIndexOf);
+  const milestoneLinks = makeDependencies(rng, milestones, projects, rankIndexOf);
+  const projectLinks = makeProjectLinks(makeRng((seed ^ PROJECT_LINK_STREAM) >>> 0), { milestones, projects, milestoneLinks, plan: { chainLengths: COUNTS.chainLengths, extras: COUNTS.projectDependencies } });
+  const dependencies = [...milestoneLinks, ...projectLinks.map((l, i) => toRecord(l, milestoneLinks.length + i + 1))];
   addTargetWindows(rng, projects, milestones);
   for (const project of projects) delete project.startOffset; // a drawing aid, not part of the file
   const capacity = makeCapacity(rng, teamSizes, milestones);
@@ -392,20 +413,34 @@ export function buildDataset(seed = DEFAULT_SEED) {
   };
 }
 
-/** What the dependencies look like against the drawn schedule: types, cross-project links, violated ones, ones with an unscheduled end. */
+/**
+ * What the dependencies look like against the drawn schedule: types, the kind of each end, cross-project links, violated ones, ones with an unscheduled
+ * end, and the zero-slack cross-project chains (critical.mjs: the server's critical path over the holiday-free calendar).
+ */
 export function dependencyStats(dependencies, milestones) {
-  const byRef = new Map(milestones.map((m) => [m.ref, m]));
-  const span = (m) => (m.startOffset === null ? null : { start: m.startOffset, end: m.endOffset });
-  const stats = { byType: { FS: 0, SS: 0, FF: 0 }, crossProject: 0, violated: 0, withUnscheduledEnd: 0 };
+  const resolver = endpointResolver(milestones);
+  const stats = {
+    byType: { FS: 0, SS: 0, FF: 0 },
+    byKind: { milestoneToMilestone: 0, projectToProject: 0, milestoneToProject: 0, projectToMilestone: 0 },
+    projectEndpoint: 0,
+    crossProject: 0,
+    violated: 0,
+    withUnscheduledEnd: 0,
+  };
+  const kindName = { MILESTONE: "milestone", PROJECT: "project" };
+  const capital = (word) => word[0].toUpperCase() + word.slice(1);
   for (const d of dependencies) {
-    const pred = byRef.get(d.predecessorRef);
-    const succ = byRef.get(d.successorRef);
+    const pred = resolver.span(d.predecessorKind, d.predecessorRef);
+    const succ = resolver.span(d.successorKind, d.successorRef);
     stats.byType[d.type]++;
-    if (pred.projectRef !== succ.projectRef) stats.crossProject++;
-    if (!span(pred) || !span(succ)) stats.withUnscheduledEnd++;
-    else if (linkShortfall(d.type, d.lagDays, span(pred), span(succ)) > 0) stats.violated++;
+    stats.byKind[`${kindName[d.predecessorKind]}To${capital(kindName[d.successorKind])}`]++;
+    if (d.predecessorKind === "PROJECT" || d.successorKind === "PROJECT") stats.projectEndpoint++;
+    if (resolver.projectOf(d.predecessorKind, d.predecessorRef) !== resolver.projectOf(d.successorKind, d.successorRef)) stats.crossProject++;
+    if (!pred || !succ) stats.withUnscheduledEnd++;
+    else if (linkShortfall(d.type, d.lagDays, pred, succ) > 0) stats.violated++;
   }
-  return stats;
+  const chains = criticalChains(milestones, dependencies);
+  return { ...stats, zeroSlackCrossProjectLinks: chains.zeroSlackLinks, zeroSlackChains: chains.sinks.length, deepestZeroSlackChain: chains.deepest };
 }
 
 /** The mix of capacity periods: weekday of the start, WIP limits, value ranges. */

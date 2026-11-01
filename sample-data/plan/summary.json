@@ -9,7 +9,7 @@
     "projects": 100,
     "milestones": 1000,
     "scheduledMilestones": 900,
-    "dependencies": 300,
+    "dependencies": 349,
     "capacityPeriods": 44,
     "rankedProjects": 80,
     "customOrderTeams": 3
@@ -50,13 +50,23 @@
   },
   "dependencyStats": {
     "byType": {
-      "FS": 187,
-      "SS": 62,
-      "FF": 51
+      "FS": 214,
+      "SS": 71,
+      "FF": 64
     },
-    "crossProject": 75,
-    "violated": 35,
-    "withUnscheduledEnd": 80
+    "byKind": {
+      "milestoneToMilestone": 315,
+      "projectToProject": 10,
+      "milestoneToProject": 8,
+      "projectToMilestone": 16
+    },
+    "projectEndpoint": 34,
+    "crossProject": 124,
+    "violated": 39,
+    "withUnscheduledEnd": 84,
+    "zeroSlackCrossProjectLinks": 23,
+    "zeroSlackChains": 8,
+    "deepestZeroSlackChain": 6
   },
   "capacityStats": {
     "startsOnMonday": 33,

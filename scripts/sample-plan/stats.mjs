@@ -114,3 +114,29 @@ export function linkShortfall(type, lagDays, predecessor, successor) {
   if (type === "FF") return workIndex(effEnd(predecessor)) + lagDays - workIndex(effEnd(successor));
   throw new Error(`unsupported link type ${type}`);
 }
+
+/**
+ * Resolves a link end to its span and project, the way the server does: a milestone has its own dates (null while unscheduled), a PROJECT its
+ * DERIVED span (the earliest start to the latest end of its scheduled milestones, null while none is scheduled), never its target window.
+ * `milestones` are the dataset's records (`ref`, `projectRef`, `startOffset`, `endOffset`).
+ */
+export function endpointResolver(milestones) {
+  const byRef = new Map(milestones.map((m) => [m.ref, m]));
+  const derived = new Map();
+  for (const m of milestones) {
+    if (m.startOffset === null) continue;
+    const s = derived.get(m.projectRef);
+    if (s) {
+      s.start = Math.min(s.start, m.startOffset);
+      s.end = Math.max(s.end, m.endOffset);
+    } else derived.set(m.projectRef, { start: m.startOffset, end: m.endOffset });
+  }
+  return {
+    span: (kind, ref) => {
+      if (kind === "PROJECT") return derived.get(ref) ?? null;
+      const m = byRef.get(ref);
+      return m.startOffset === null ? null : { start: m.startOffset, end: m.endOffset };
+    },
+    projectOf: (kind, ref) => (kind === "PROJECT" ? ref : byRef.get(ref).projectRef),
+  };
+}

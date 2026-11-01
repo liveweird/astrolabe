@@ -392,8 +392,10 @@ async function loadPlan(client, data, args, loginPassword) {
     revision = Math.max(revision, answer.revision);
   });
 
+  // An end is a milestone or a project (`kind` + the dataset ref); the SUCCESSOR's project authorizes the write (the path), whatever the predecessor is.
+  const endpoint = (kind, ref) => ({ kind, id: (kind === "PROJECT" ? ids.project : ids.milestone).get(ref) });
   await phase("dependencies", data.dependencies, limit, (d) => {
-    const body = { predecessor: { kind: "MILESTONE", id: ids.milestone.get(d.predecessorRef) }, successor: { kind: "MILESTONE", id: ids.milestone.get(d.successorRef) }, type: d.type, lagDays: d.lagDays };
+    const body = { predecessor: endpoint(d.predecessorKind, d.predecessorRef), successor: endpoint(d.successorKind, d.successorRef), type: d.type, lagDays: d.lagDays };
     return post(`/api/v1/projects/${ids.project.get(d.successorProjectRef)}/dependencies`, body, `linking dependency ${d.ref}`);
   });
   await phase("capacity periods", data.capacity, limit, (c) =>

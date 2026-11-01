@@ -74,7 +74,7 @@ so `docker compose up` and Kubernetes restarts need no manual ordering.
 
 ## Try it at scale (development only)
 
-A deterministic sample plan at the intended scale (15 teams with Zipf-skewed sizes, 5 work streams, 20 programs, 100 projects, 1,000 milestones, 300 dependencies, capacity periods with
+A deterministic sample plan at the intended scale (15 teams with Zipf-skewed sizes, 5 work streams, 20 programs, 100 projects, 1,000 milestones, 349 dependencies (milestone and project ends, with zero-slack chains for the critical path), capacity periods with
 WIP limits, a project ranking, three custom team orders) is committed in `sample-data/plan/` and replayed through the public API by a loader. **Never production:** the loader
 refuses any stack that does not serve `GET /openapi/documentation.yaml` (a development stack, like the compose one; a redirect or an HSTS header also means production), before it sends a
 credential, and the data is never part of an image. Node 24 only, nothing to install:

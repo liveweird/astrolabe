@@ -7,8 +7,8 @@ and WIP warnings, the team order override and the roadmap ranking at the scale t
 
 ## Contents
 
-Headline counts: 30 people, 15 teams, 5 work streams, 20 programs, 100 projects, 1,000 milestones (100 of them unscheduled), 300 dependencies, 80 ranked projects, 3 custom team
-orders (the self-test asserts these). **Every other figure** (team sizes, scheduled rows per team, dependency types and how many are violated, the capacity mix, the share of loaded weeks
+Headline counts: 30 people, 15 teams, 5 work streams, 20 programs, 100 projects, 1,000 milestones (100 of them unscheduled), 349 dependencies (300 milestone links, then 8 zero-slack chains and further links with a project end), 80 ranked projects, 3 custom team
+orders (the self-test asserts these). **Every other figure** (team sizes, scheduled rows per team, dependency types and kinds, how many are violated and the zero-slack chains, the capacity mix, the share of loaded weeks
 tuned to be overloaded or over the WIP limit) is in `summary.json`, which the generator writes and the self-test recomputes: read it there, not here.
 
 | File | What |
@@ -17,7 +17,7 @@ tuned to be overloaded or over the WIP limit) is in `summary.json`, which the ge
 | `teams.json` | 15 teams, one manager each; sizes follow the Zipf rank-size rule (size of rank k = size of rank 1 / k), Platform the largest |
 | `plan.json` | 5 work streams, 20 programs, 100 projects with owners; 60 projects carry a target window (some tighter than their milestones, so drift shows) |
 | `milestones.json` | 1,000 milestones (6 to 14 per project, named from a 14-word delivery vocabulary, unique per project), 0.5 to 40 man-days; some spans start or end on a weekend |
-| `dependencies.json` | 300 milestone-to-milestone links (FS, SS, FF; lags -5..10 working days; a quarter across projects), acyclic by construction |
+| `dependencies.json` | 349 links (FS, SS, FF; lags -5..10 working days), each end a `MILESTONE` or a `PROJECT` (`predecessorKind` / `successorKind`): the first 300 are milestone-to-milestone (75 across projects), then 8 zero-slack cross-project chains (23 links), then project-endpoint links; acyclic and unique per pair, checked as the server does (below) |
 | `capacity.json` | 2 to 4 capacity periods per team: most start on a Monday, some mid-week, two on a weekend day; about half carry a `wipLimit` |
 | `ranking.json` | the global project rank: 80 of the 100 projects ranked, 20 unranked |
 | `team-orders.json` | custom (partial) milestone orders for 3 teams |
@@ -26,7 +26,23 @@ tuned to be overloaded or over the WIP limit) is in `summary.json`, which the ge
 Records refer to each other by `ref` (1-based per file). **Every date is a day offset from an anchor Monday** (offset 0 = the anchor, so `7 * n` is a Monday and `7 * n + 5` a
 Saturday): the loader resolves them with `--anchor` (default the Monday of the current week), so the plan surrounds today and the dataset never ages. The generator draws the
 schedule first, then tunes each capacity period against the team's own load (a quantile of its weekly loads and of its daily work in progress), so the overload and WIP warnings
-appear at a visible rate. Dependencies are acyclic by construction: every link goes from an earlier to a later milestone in (project rank, stage) order.
+appear at a visible rate. The 300 milestone links are acyclic by construction: every link goes from an earlier to a later milestone in (project rank, stage) order.
+
+**Project-endpoint links and chains** (`scripts/sample-plan/project-links.mjs`; the milestone links above are untouched, so every other file is byte-identical to before they existed).
+They draw from their OWN seeded stream (the seed xor a constant), after the milestone links, and every candidate is checked **exactly as the server checks it** before it is kept
+(`graph.mjs`, a port of `planning/DependencyGraph.kt`): the START/END time-point graph with the containment edges (a project's start before its milestones' starts, their ends before its end),
+a new edge `u -> v` is refused when `v` already reaches `u` (lags ignored), and at most one link per unordered pair of endpoints. So the loader's `POST` never meets a `409`; `load.test.mjs`
+replays the rule in a stub over the whole load, and `generate.test.mjs` re-checks the file with an independent Kahn pass. All of them cross projects (a link inside one project is redundant with
+containment). The mix: **a quota per direction** (10 project -> project, 8 milestone -> project, 8 project -> milestone, drawn at random like the milestone links: a candidate the schedule
+already violates is kept 1 time in 5) **plus 8 zero-slack chains** of 3, 3, 3, 3, 4, 4, 5 and 6 projects (31 projects, 23 links). A chain is built backwards from a tail project: the tail's latest-ending
+milestone is where it lands; each step back picks a project (in a seeded shuffle) whose link, with the lag set to exactly the gap in the drawn schedule, has slack 0 and a lag in -5..10, and
+whose time-point graph stays acyclic; a middle project is entered at its latest-ending milestone (its end is the project's end, so the zero path runs through it) and left from that
+milestone or from the project's own end; the source is any scheduled milestone or a project. Chain links are never violated. The result is that the critical path of the tail project's page
+should show the chain (the neighbour as a ghost row, the rest under "Critical chain"; not yet measured against a real server) (`summary.json` -> `dependencyStats.zeroSlackChains` / `deepestZeroSlackChain`, measured by `critical.mjs`, a port of the server's
+`CriticalPathKernels` over the holiday-free calendar). **Every zero-slack figure in `summary.json` (`zeroSlackCrossProjectLinks`, `zeroSlackChains`, `deepestZeroSlackChain`, and `violated`) holds on the holiday-free calendar only.** SF links are not generated. The chains are exact on the holiday-free calendar of the figures above; with `--polish-holidays` a holiday inside a chained gap can leave that link violated on the server
+(a violated link ends the chain). The violated share stays about as it was (the 300 milestone links keep their 35; only the
+random project-endpoint links can add to it, the chains never do; the figure is `dependencyStats.violated` in `summary.json`). The totals grow beyond 300 instead of replacing milestone links, so the
+milestone links' own mix (types, lags, a quarter across projects) is unchanged; `dependencyStats.crossProject` now counts the project-endpoint links too.
 
 ## Generate and test
 
@@ -36,9 +52,9 @@ node --test scripts/sample-plan/generate.test.mjs
 node --test scripts/sample-plan/load.test.mjs
 ```
 
-The generator's self-test covers determinism, counts, Zipf sizes, acyclicity and the server's limits, and fails when the committed files differ from a fresh run, so a change to the
+The generator's self-test covers determinism, counts, Zipf sizes, acyclicity (both an independent Kahn pass and `graph.mjs`'s port of the server's rule, link by link in both orders), the project-endpoint links in each direction, the chains and the server's limits, and fails when the committed files differ from a fresh run, so a change to the
 generator ships with the regenerated files (`.gitattributes` keeps them LF). The loader's self-test runs it against `http.createServer` stubs: the development-stack check, argument
-refusals, the reset matching, the collision preflight and the token refresh.
+refusals, the reset matching, the collision preflight, the token refresh and the dependencies phase against a stub that replays the server's cycle rule.
 
 ## Load (development stacks only)
 

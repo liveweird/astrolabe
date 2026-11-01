@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { TimePointGraph } from "./graph.mjs";
 import { Refusal, applyPolishHolidays, assertDevelopmentStack, createClient, findExistingLoad, loadDataset, main, parseArgs, resetLoad, spannedYears } from "./load.mjs";
 
 const DATA_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "sample-data", "plan");
@@ -322,7 +323,7 @@ test("a network error keeps its context and a 409 on a create suggests --reset",
 const PRESET = "POST /api/v1/public-holidays/apply-preset";
 
 /** A stack that accepts the whole load (every create answers an id, every PUT a revision); `holidayStatus` is the preset's answer, `state` an earlier load for `fakeApi`'s reads. */
-async function loadApi({ holidayStatus = 200, state = {} } = {}) {
+async function loadApi({ holidayStatus = 200, state = {}, intercept } = {}) {
   let nextId = 1000;
   const held = new Set();
   return stub((req, res, body) => {
@@ -331,6 +332,7 @@ async function loadApi({ holidayStatus = 200, state = {} } = {}) {
     if (url.pathname === "/openapi/documentation.yaml") { res.writeHead(200, { "content-type": "application/yaml" }); res.end(OPENAPI); }
     else if (url.pathname === "/api/v1/login") json(res, 200, { token: "t", refreshToken: "r" });
     else if (url.pathname === "/api/v1/logout") json(res, 204);
+    else if (intercept?.(req.method, url.pathname, body, (status, payload) => json(res, status, payload))) return;
     else if (url.pathname === "/api/v1/public-holidays/apply-preset") {
       if (holidayStatus !== 200) return json(res, holidayStatus, { title: "Forbidden" });
       const { preset, year } = JSON.parse(body);
@@ -425,6 +427,64 @@ test("--polish-holidays with --reset: the earlier sample data is deleted, no hol
     assert.ok(!lines.some((l) => l.includes("public-holidays") && l !== PRESET), "nothing but the preset touches the dictionary");
     assert.ok(lines.findLastIndex((l) => l.startsWith("DELETE ")) < lines.indexOf(PRESET), "the preset follows the reset and the load");
     assert.equal(lines.filter((l) => l === PRESET).length, spannedYears(data, "2027-06-07").length);
+  } finally {
+    await s.close();
+  }
+});
+
+// ---------------------------------------------------------------------------------------------------------------------------------
+// The dependencies phase: milestone AND project ends, replayed against the server's own rules
+// ---------------------------------------------------------------------------------------------------------------------------------
+test("the load posts every link with its kinds and the successor's project, and a stub that replays the server's cycle rule never answers 400 or 409", async () => {
+  const projects = data.workStreams.flatMap((w) => w.programs.flatMap((p) => p.projects));
+  const projectByName = new Map(projects.map((p) => [p.name, p.ref]));
+  const projectRefOfId = new Map(); // server id -> dataset project ref
+  const milestoneRefOfId = new Map(); // server id -> dataset milestone ref
+  const milestoneByKey = new Map(data.milestones.map((m) => [`${m.projectRef}/${m.name}`, m.ref]));
+  const projectOfMilestone = new Map(data.milestones.map((m) => [m.ref, m.projectRef]));
+  const graph = new TimePointGraph(data.milestones); // the server's graph, filled link by link in the order the requests arrive
+  const posted = [];
+  let nextId = 50_000;
+  const intercept = (method, pathname, body, answer) => {
+    if (method !== "POST") return false;
+    const projectCreate = /^\/api\/v1\/programs\/\d+\/projects$/.exec(pathname);
+    const milestoneCreate = /^\/api\/v1\/projects\/(\d+)\/milestones$/.exec(pathname);
+    const linkCreate = /^\/api\/v1\/projects\/(\d+)\/dependencies$/.exec(pathname);
+    if (projectCreate) {
+      const id = ++nextId;
+      projectRefOfId.set(id, projectByName.get(JSON.parse(body).name));
+      answer(201, { id });
+    } else if (milestoneCreate) {
+      const id = ++nextId;
+      milestoneRefOfId.set(id, milestoneByKey.get(`${projectRefOfId.get(Number(milestoneCreate[1]))}/${JSON.parse(body).name}`));
+      answer(201, { id });
+    } else if (linkCreate) {
+      const request = JSON.parse(body);
+      const end = (e) => ({ kind: e.kind, ref: (e.kind === "PROJECT" ? projectRefOfId : milestoneRefOfId).get(e.id) });
+      const pred = end(request.predecessor);
+      const succ = end(request.successor);
+      const pathProject = projectRefOfId.get(Number(linkCreate[1]));
+      const model = { predecessorKind: pred.kind, predecessorRef: pred.ref, successorKind: succ.kind, successorRef: succ.ref, type: request.type, lagDays: request.lagDays };
+      // 400: both ends must exist and the successor must be the path project or one of its milestones; 409: the cycle and the one-link-per-pair rules.
+      const successorProject = succ.kind === "PROJECT" ? succ.ref : projectOfMilestone.get(succ.ref);
+      let status = 201;
+      if (pred.ref === undefined || succ.ref === undefined || successorProject !== pathProject) status = 400;
+      else if (!graph.tryAdd(model)) status = 409;
+      posted.push({ ...model, status });
+      answer(status, status === 201 ? { id: ++nextId } : { title: "refused" });
+    } else return false;
+    return true;
+  };
+  const s = await loadApi({ intercept });
+  try {
+    await quiet(() => main(["--base-url", s.origin, "--anchor", "2027-06-07", "--concurrency", "4"], ENV));
+    assert.equal(posted.length, data.dependencies.length);
+    assert.deepEqual(posted.filter((p) => p.status !== 201), [], "no link is refused (400 or 409)");
+    const key = (d) => [d.predecessorKind, d.predecessorRef, d.successorKind, d.successorRef, d.type, d.lagDays].join(" ");
+    assert.deepEqual(posted.map(key).sort(), data.dependencies.map(key).sort(), "every dataset link is posted exactly once, with its kinds, refs, type and lag");
+    assert.ok(posted.some((p) => p.predecessorKind === "PROJECT" && p.successorKind === "PROJECT"), "project -> project");
+    assert.ok(posted.some((p) => p.predecessorKind === "MILESTONE" && p.successorKind === "PROJECT"), "milestone -> project");
+    assert.ok(posted.some((p) => p.predecessorKind === "PROJECT" && p.successorKind === "MILESTONE"), "project -> milestone");
   } finally {
     await s.close();
   }
