@@ -1,5 +1,6 @@
 package ch.nokillswit
 
+import ch.nokillswit.infra.time.WorkingCalendar
 import ch.nokillswit.planning.CapacityPeriod
 import ch.nokillswit.planning.DaySpan
 import ch.nokillswit.planning.LoadItem
@@ -12,7 +13,6 @@ import ch.nokillswit.planning.weekCapacity
 import ch.nokillswit.planning.weeklyLoad
 import ch.nokillswit.planning.wipLimitOn
 import ch.nokillswit.planning.wipOn
-import ch.nokillswit.planning.workingDaysBetween
 import java.math.BigDecimal
 import java.time.LocalDate
 import kotlin.test.Test
@@ -35,22 +35,24 @@ class LoadKernelsTest {
 
     private fun period(from: String, mdPerWeek: String, wip: Int? = null) = CapacityPeriod(d(from), md(mdPerWeek), wip)
 
+    private val calendar = WorkingCalendar.MON_FRI
+
     private val firstTwoWeeks = DaySpan(d("2027-02-01"), d("2027-02-14"))
 
     private fun weeks(items: List<LoadItem>, periods: List<CapacityPeriod> = emptyList(), window: DaySpan = firstTwoWeeks): List<WeekLoad> =
-        weeklyLoad(items, periods, window)
+        weeklyLoad(items, periods, window, calendar)
 
     // --- working days -------------------------------------------------------------------------------------------------------
 
     @Test
     fun `working days between - a week, a weekend, a weekend straddle, a Saturday start and an inverted span`() {
-        assertEquals(5, workingDaysBetween(d("2027-02-01"), d("2027-02-05")), "Monday to Friday")
-        assertEquals(0, workingDaysBetween(d("2027-02-06"), d("2027-02-07")), "Saturday to Sunday")
-        assertEquals(2, workingDaysBetween(d("2027-02-05"), d("2027-02-08")), "Friday to Monday")
-        assertEquals(1, workingDaysBetween(d("2027-02-06"), d("2027-02-08")), "a Saturday start counts from the Monday")
-        assertEquals(1, workingDaysBetween(d("2027-02-08"), d("2027-02-08")), "one Monday")
-        assertEquals(5, workingDaysBetween(d("2027-02-03"), d("2027-02-09")), "Wednesday to the next Tuesday")
-        assertEquals(0, workingDaysBetween(d("2027-02-09"), d("2027-02-08")), "inverted")
+        assertEquals(5, calendar.workingDaysBetween(d("2027-02-01"), d("2027-02-05")), "Monday to Friday")
+        assertEquals(0, calendar.workingDaysBetween(d("2027-02-06"), d("2027-02-07")), "Saturday to Sunday")
+        assertEquals(2, calendar.workingDaysBetween(d("2027-02-05"), d("2027-02-08")), "Friday to Monday")
+        assertEquals(1, calendar.workingDaysBetween(d("2027-02-06"), d("2027-02-08")), "a Saturday start counts from the Monday")
+        assertEquals(1, calendar.workingDaysBetween(d("2027-02-08"), d("2027-02-08")), "one Monday")
+        assertEquals(5, calendar.workingDaysBetween(d("2027-02-03"), d("2027-02-09")), "Wednesday to the next Tuesday")
+        assertEquals(0, calendar.workingDaysBetween(d("2027-02-09"), d("2027-02-08")), "inverted")
     }
 
     // --- the spread ---------------------------------------------------------------------------------------------------------
@@ -102,7 +104,7 @@ class LoadKernelsTest {
     fun `a one-day milestone loads its whole estimate into its week`() {
         val rows = weeks(listOf(item("2027-02-03", "2027-02-03", "3")))
         assertEquals(listOf(md("3.00"), md("0.00")), rows.map { it.load })
-        assertEquals(1, wipOn(d("2027-02-03"), listOf(item("2027-02-03", "2027-02-03", "3"))))
+        assertEquals(1, wipOn(d("2027-02-03"), listOf(item("2027-02-03", "2027-02-03", "3")), calendar))
     }
 
     @Test
@@ -114,6 +116,7 @@ class LoadKernelsTest {
             listOf(item("2026-12-31", "2027-01-04", "4"), item("2026-12-28", "2027-01-03", "10")),
             listOf(period("2026-12-28", "10")),
             window.span,
+            calendar,
         )
         assertEquals(listOf(d("2026-12-28"), d("2027-01-04")), rows.map { it.weekStart })
         // Thu 12-31 + Fri 01-01 + Mon 01-04 = 3 days of 4 MD: 2.67 into the first week, 1.33 into the second.
@@ -140,14 +143,14 @@ class LoadKernelsTest {
         val over = loadWindow(listOf(DaySpan(d("2027-02-01"), d("2027-02-01").plusWeeks(MAX_LOAD_WEEKS.toLong()))))!!
         assertTrue(over.truncated, "521 weeks do not")
         assertEquals(d("2027-02-01").plusWeeks(MAX_LOAD_WEEKS.toLong()).minusDays(1), over.span.end, "cut at 520 weeks from the start")
-        assertEquals(MAX_LOAD_WEEKS, weeklyLoad(emptyList(), emptyList(), over.span).size)
-        assertTrue(weeklyLoad(emptyList(), emptyList(), null).isEmpty())
+        assertEquals(MAX_LOAD_WEEKS, weeklyLoad(emptyList(), emptyList(), over.span, calendar).size)
+        assertTrue(weeklyLoad(emptyList(), emptyList(), null, calendar).isEmpty())
     }
 
     // --- capacity -----------------------------------------------------------------------------------------------------------
 
     private fun capacityOfWeeks(vararg periods: CapacityPeriod): List<BigDecimal?> =
-        listOf("2027-01-25", "2027-02-01", "2027-02-08").map { weekCapacity(d(it), periods.toList()) }
+        listOf("2027-01-25", "2027-02-01", "2027-02-08").map { weekCapacity(d(it), periods.toList(), calendar) }
 
     @Test
     fun `a capacity change in the middle of a week is prorated by working days`() {
@@ -251,7 +254,7 @@ class LoadKernelsTest {
     @Test
     fun `the WIP of a day counts the items whose effective span covers it`() {
         val daily = listOf("02-01", "02-02", "02-03", "02-04", "02-05", "02-08", "02-09", "02-10", "02-11", "02-12")
-            .map { wipOn(d("2027-$it"), base) }
+            .map { wipOn(d("2027-$it"), base, calendar) }
         assertEquals(listOf(1, 1, 2, 3, 2, 1, 1, 1, 0, 0), daily)
     }
 
@@ -291,21 +294,58 @@ class LoadKernelsTest {
         val limit1 = listOf(period("2027-02-01", "10", wip = 1))
         assertEquals(wip(weeks(base, limit1))[0], wip(weeks(withE, limit1))[0], "E counts on no day of the earlier week")
         assertEquals(2 to true, wip(weeks(withE, limit1))[1], "Monday: B and E")
-        assertEquals(1, wipOn(d("2027-02-11"), withE), "Thursday: E alone")
-        assertEquals(2, wipOn(d("2027-02-05"), withE), "the Friday before: A and B, E has not started")
+        assertEquals(1, wipOn(d("2027-02-11"), withE, calendar), "Thursday: E alone")
+        assertEquals(2, wipOn(d("2027-02-05"), withE, calendar), "the Friday before: A and B, E has not started")
     }
 
     @Test
     fun `an item dated Friday to Saturday counts on that Friday only`() {
         val withF = base + item("2027-02-05", "2027-02-06", "1")
-        assertEquals(3, wipOn(d("2027-02-05"), withF), "Friday: A, B and F")
-        assertEquals(2, wipOn(d("2027-02-05"), base))
-        assertEquals(1, wipOn(d("2027-02-08"), withF), "F is gone on Monday")
+        assertEquals(3, wipOn(d("2027-02-05"), withF, calendar), "Friday: A, B and F")
+        assertEquals(2, wipOn(d("2027-02-05"), base, calendar))
+        assertEquals(1, wipOn(d("2027-02-08"), withF, calendar), "F is gone on Monday")
         assertEquals(listOf(3 to true, 1 to false), wip(weeks(withF, listOf(period("2027-02-01", "10", wip = 2)))))
     }
 
     @Test
     fun `nothing scheduled has no peak and no warning`() {
         assertEquals(listOf(0 to false, 0 to false), wip(weeks(emptyList(), listOf(period("2027-02-01", "10", wip = 1)))))
+    }
+
+    // --- holidays (the calendar is a parameter; the divisor stays 5) --------------------------------------------------------
+
+    private val epiphany = WorkingCalendar(mapOf(d("2027-01-06") to "Epiphany", d("2027-01-01") to "New Year's Day"))
+    private val epiphanyWeek = DaySpan(d("2027-01-04"), d("2027-01-10"))
+
+    @Test
+    fun `a holiday week keeps the divisor of 5 - 8 capacity, a milestone spread over the other four days is overloaded by 2`() {
+        val periods = listOf(period("2027-01-04", "10"))
+        val rows = weeklyLoad(listOf(item("2027-01-04", "2027-01-08", "10")), periods, epiphanyWeek, epiphany)
+        assertEquals(md("8.00"), rows.single().capacity, "4 covered working days x 10 / 5")
+        assertEquals(md("10.00"), rows.single().load, "the whole estimate lands on the four working days")
+        assertTrue(rows.single().overloaded)
+        assertEquals(md("2.00"), rows.single().overloadMd)
+        assertEquals(md("10.00"), weekCapacity(d("2027-01-04"), periods, WorkingCalendar.MON_FRI), "the same week without the holiday")
+    }
+
+    @Test
+    fun `a holiday inside a milestone is skipped by the spread and by the WIP`() {
+        // Fri 01-01 and Wed 01-06 are holidays: 01-04, 01-05, 01-07, 01-08 are the 4 working days of 8 MD.
+        val item = item("2027-01-01", "2027-01-08", "8")
+        val window = DaySpan(d("2026-12-28"), d("2027-01-10"))
+        val rows = weeklyLoad(listOf(item), listOf(period("2026-12-28", "10", wip = 1)), window, epiphany)
+        assertEquals(listOf(md("0.00"), md("8.00")), rows.map { it.load }, "the Friday holiday carries no share")
+        assertEquals(listOf(0 to false, 1 to false), wip(rows))
+        val capacity = weekCapacity(d("2026-12-28"), listOf(period("2026-12-28", "10")), epiphany)
+        assertEquals(md("8.00"), capacity, "Monday-Thursday, Friday is a holiday")
+    }
+
+    @Test
+    fun `a milestone wholly on a holiday loads nothing and counts no WIP`() {
+        val periods = listOf(period("2027-01-04", "10", wip = 1))
+        val rows = weeklyLoad(listOf(item("2027-01-06", "2027-01-06", "5")), periods, epiphanyWeek, epiphany)
+        assertEquals(md("0.00"), rows.single().load)
+        assertEquals(0, rows.single().maxWip)
+        assertEquals(0, epiphany.workingDaysBetween(d("2027-01-06"), d("2027-01-06")))
     }
 }

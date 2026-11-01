@@ -1,6 +1,7 @@
 package ch.nokillswit.planning
 
 import ch.nokillswit.infra.db.active
+import ch.nokillswit.infra.time.WorkingCalendar
 import ch.nokillswit.teams.TeamService
 import io.ktor.util.AttributeKey
 import io.r2dbc.spi.IsolationLevel
@@ -27,6 +28,8 @@ internal val SNAPSHOT = IsolationLevel.REPEATABLE_READ
 class ProjectViewService(private val database: R2dbcDatabase) {
     suspend fun view(projectId: UInt, actor: PlanActor): ProjectView? = suspendTransaction(database, SNAPSHOT, readOnly = true) {
         val revision = readPlanRevision()
+        // v0.7 C3 swaps this for the holiday dictionary read inside this snapshot.
+        val calendar = WorkingCalendar.MON_FRI
         val projects = ProjectService.Projects
         val programs = ProgramService.Programs
         val streams = WorkStreamService.WorkStreams
@@ -40,7 +43,7 @@ class ProjectViewService(private val database: R2dbcDatabase) {
         val targetEnd = row[projects.targetEnd]
 
         val milestones = milestoneRows(projectId, actor, manage)
-        val dependencies = projectDependencies(projectId, milestones.map { it.view.id }, chain, actor)
+        val dependencies = projectDependencies(projectId, milestones.map { it.view.id }, chain, actor, calendar)
         val (scheduled, unscheduled) = milestones.partition { it.span != null }
         val span = SpanKernels.derivedSpan(scheduled.mapNotNull { it.span })
         val target = if (targetStart != null && targetEnd != null) DaySpan(targetStart, targetEnd) else null

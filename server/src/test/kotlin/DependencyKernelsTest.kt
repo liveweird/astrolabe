@@ -1,5 +1,6 @@
 package ch.nokillswit
 
+import ch.nokillswit.infra.time.WorkingCalendar
 import ch.nokillswit.planning.DaySpan
 import ch.nokillswit.planning.DependencyCheck
 import ch.nokillswit.planning.DependencyKernels
@@ -141,14 +142,15 @@ class DependencyKernelsTest {
     fun `the check per type, lag, weekend and calendar edge`() {
         for (case in cases) {
             val expected = DependencyCheck(case.status, case.shortfall, case.required, case.actual)
-            assertEquals(expected, DependencyKernels.check(case.type, case.lag, case.predecessor, case.successor), case.label)
+            val actual = DependencyKernels.check(case.type, case.lag, case.predecessor, case.successor, WorkingCalendar.MON_FRI)
+            assertEquals(expected, actual, case.label)
         }
     }
 
     @Test
     fun `FS and SF are mirrors - a Friday end then a Monday start, and a Friday end before a Monday start`() {
-        val fsCheck = DependencyKernels.check(fs, 0, weekA, span("2027-02-08", "2027-02-12"))
-        val sfCheck = DependencyKernels.check(sf, 0, span("2027-02-08", "2027-02-12"), weekA)
+        val fsCheck = DependencyKernels.check(fs, 0, weekA, span("2027-02-08", "2027-02-12"), WorkingCalendar.MON_FRI)
+        val sfCheck = DependencyKernels.check(sf, 0, span("2027-02-08", "2027-02-12"), weekA, WorkingCalendar.MON_FRI)
         assertEquals(DependencyStatus.OK, fsCheck.status)
         assertEquals(DependencyStatus.OK, sfCheck.status)
         assertEquals("2027-02-08" to "2027-02-08", fsCheck.requiredDate to fsCheck.actualDate)
@@ -158,12 +160,28 @@ class DependencyKernelsTest {
     @Test
     fun `a satisfied link has no shortfall and a violated one at least 1`() {
         for (case in cases.filter { it.predecessor != null && it.successor != null }) {
-            val check = DependencyKernels.check(case.type, case.lag, case.predecessor, case.successor)
+            val check = DependencyKernels.check(case.type, case.lag, case.predecessor, case.successor, WorkingCalendar.MON_FRI)
             when (check.status) {
                 DependencyStatus.OK -> assertEquals(null, check.shortfallDays, case.label)
                 DependencyStatus.VIOLATED -> assertEquals(true, (check.shortfallDays ?: 0) >= 1, case.label)
                 DependencyStatus.UNSCHEDULED -> error("${case.label}: both ends are scheduled")
             }
         }
+    }
+
+    @Test
+    fun `a holiday is not a working day - a lag of one working day is pushed past it`() {
+        // 2027-01-06 (a Wednesday) is a holiday. FS with lag 1 after Mon 01-04..Tue 01-05 needs the second working day after the end:
+        // Mon-Fri that is Thu 01-07; with the holiday it is Fri 01-08.
+        val holiday = WorkingCalendar(mapOf(LocalDate.parse("2027-01-06") to "Epiphany"))
+        val predecessor = span("2027-01-04", "2027-01-05")
+        val successor = span("2027-01-07", "2027-01-08")
+        val plain = DependencyKernels.check(fs, 1, predecessor, successor, WorkingCalendar.MON_FRI)
+        assertEquals(DependencyCheck(DependencyStatus.OK, null, "2027-01-07", "2027-01-07"), plain)
+        val withHoliday = DependencyKernels.check(fs, 1, predecessor, successor, holiday)
+        assertEquals(DependencyCheck(DependencyStatus.VIOLATED, 1, "2027-01-08", "2027-01-07"), withHoliday)
+        // A successor starting ON the holiday starts on the next working day.
+        val onHoliday = DependencyKernels.check(fs, 0, predecessor, span("2027-01-06", "2027-01-08"), holiday)
+        assertEquals(DependencyCheck(DependencyStatus.OK, null, "2027-01-07", "2027-01-07"), onHoliday)
     }
 }

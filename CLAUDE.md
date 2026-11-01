@@ -115,7 +115,7 @@ override). One line per package; `ls` gives the files. **Layering is one-way (`P
 - `infra/validation/` — cross-feature input helpers (`sanitizeSingleLine`: trim + control-char 400; `Dates.kt`: `parseIsoDate`, `requireDateOrder`).
 - `infra/outbound/` — `OutboundGuard.kt`, the SSRF guard for EVERY server-initiated call (address check, `GuardedDns`, origin rule, no proxy/redirects); no consumer yet, binding guidance in `security.md` "Outbound HTTP calls".
 - `infra/json/` — `CanonicalJson.kt` (canonical JSON + sha256 for stored payloads), `JsonArrays.kt`.
-- `infra/time/` — `Millis.kt`, `MILLIS_PER_DAY` (the fixed-24h-day constant), `WorkingDays.kt` (the Mon–Fri rule and its closed-form working-day index, replaced by the ported calendar in v0.7).
+- `infra/time/` — `Millis.kt`, `MILLIS_PER_DAY` (the fixed-24h-day constant), `WorkingCalendar.kt` (the pure working-day calendar, Flow's `WorkingDayIndex` ported over the closed-form Mon–Fri index; the kernels take it as a parameter, `WorkingCalendar.MON_FRI` = no holidays until the v0.7 holiday table).
 - `infra/config/` — `requireConfigInt`/`requireConfigLong`, boot-validated numeric config (Lettuce's).
 - `infra/Failures.kt` — `catchingFailures` (keeps the failure without swallowing cancellation).
 - `audit/` — the security audit trail: `audit(event, fields…)` → AUDIT-marked structured logs.

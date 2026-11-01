@@ -1,5 +1,6 @@
 package ch.nokillswit.planning
 
+import ch.nokillswit.infra.time.WorkingCalendar
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 
@@ -87,14 +88,15 @@ object RoadmapKernels {
      * The links between PROJECTS, rolled up per ORDERED pair (predecessor project, successor project), ordered by that pair. Each end
      * resolves to its project (a milestone's own, a project itself) and span (the milestone's dates, the project's derived span from
      * [spans]); a link inside one project, or with an end whose project is not among [projects], is skipped. A PROJECT-to-PROJECT link
-     * is the pair's `direct` entry; every other link counts in `milestoneLinks`, checked on working days like the project view's
-     * ([DependencyKernels.check]).
+     * is the pair's `direct` entry; every other link counts in `milestoneLinks`, checked on [calendar]'s working days like the
+     * project view's ([DependencyKernels.check]).
      */
     fun linkAggregates(
         links: Collection<PlanLinkFact>,
         projects: Collection<PlanProjectFact>,
         milestones: Collection<PlanMilestoneFact>,
         spans: Map<UInt, DaySpan>,
+        calendar: WorkingCalendar,
     ): List<RoadmapLink> {
         val known = projects.map { it.id }.toSet()
         val milestoneById = milestones.associateBy { it.id }
@@ -107,7 +109,7 @@ object RoadmapKernels {
             val (predProject, predSpan) = resolve(link.predecessor) ?: continue
             val (succProject, succSpan) = resolve(link.successor) ?: continue
             if (predProject == succProject) continue
-            val check = DependencyKernels.check(link.type, link.lagDays, predSpan, succSpan)
+            val check = DependencyKernels.check(link.type, link.lagDays, predSpan, succSpan, calendar)
             val bundle = pairs.getOrPut(predProject to succProject) { Bundle() }
             if (link.predecessor.kind == EndpointKind.PROJECT && link.successor.kind == EndpointKind.PROJECT) {
                 bundle.direct = RoadmapDirectLink(link.id, link.type, link.lagDays, check)

@@ -1,5 +1,6 @@
 package ch.nokillswit
 
+import ch.nokillswit.infra.time.WorkingCalendar
 import ch.nokillswit.planning.DaySpan
 import ch.nokillswit.planning.DependencyStatus
 import ch.nokillswit.planning.DependencyType
@@ -251,7 +252,8 @@ class RoadmapKernelsTest {
     )
     private val spans = RoadmapKernels.projectSpans(milestones)
 
-    private fun aggregate(vararg links: PlanLinkFact) = RoadmapKernels.linkAggregates(links.toList(), projects, milestones, spans)
+    private fun aggregate(vararg links: PlanLinkFact) =
+        RoadmapKernels.linkAggregates(links.toList(), projects, milestones, spans, WorkingCalendar.MON_FRI)
 
     @Test
     fun `a project-to-project link is the pair's direct entry, checked on the derived spans`() {

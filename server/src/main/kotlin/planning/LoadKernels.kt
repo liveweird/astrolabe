@@ -1,9 +1,6 @@
 package ch.nokillswit.planning
 
-import ch.nokillswit.infra.time.isWorkingDay
-import ch.nokillswit.infra.time.nextWorkingDayOnOrAfter
-import ch.nokillswit.infra.time.previousWorkingDayOnOrBefore
-import ch.nokillswit.infra.time.workingDayIndex
+import ch.nokillswit.infra.time.WorkingCalendar
 import java.math.BigDecimal
 import java.math.BigInteger
 import java.math.RoundingMode
@@ -17,9 +14,9 @@ import java.time.temporal.TemporalAdjusters
  * data classes, exact BigDecimal, one HALF_UP rounding per figure). The team view (`GET /views/team/{id}`) feeds them; the hand-counted
  * vectors are `LoadKernelsTest`, the rules `planning-model.md` "The team view".
  *
- * A WEEK is an ISO week keyed by its Monday; its WORKING days are its Monday-Friday (`isWorkingDay`). v0.7's calendar port subtracts
- * holidays inside the same predicate: a holiday week then has fewer covered days AND a smaller divisor ([WORKING_DAYS_PER_WEEK] becomes
- * the week's working-day count) - recorded here, not built.
+ * A WEEK is an ISO week keyed by its Monday; its WORKING days are those of the [WorkingCalendar] the kernel is handed (Monday-Friday
+ * minus its holidays). The capacity DIVISOR stays [WORKING_DAYS_PER_WEEK] (5) in a holiday week: the holiday is an uncovered day, so a
+ * 10 MD/week team has 8.00 in a week with one holiday, and the milestone spread over the remaining days is overloaded against it.
  */
 
 /** The most weeks the team view reports (about ten years); a longer range is cut at this many weeks from its start. */
@@ -71,17 +68,6 @@ fun loadWindow(spans: Iterable<DaySpan>): LoadWindow? {
     return LoadWindow(DaySpan(start, start.plusWeeks(MAX_LOAD_WEEKS.toLong()).minusDays(1)), truncated = true)
 }
 
-/**
- * The working days in the inclusive span [[start], [end]]: `W(previousWorkingDayOnOrBefore(end)) - W(nextWorkingDayOnOrAfter(start)) + 1`
- * with `W` the closed-form index of `WorkingDays.kt`; 0 for an inverted span or one holding only a weekend.
- */
-fun workingDaysBetween(start: LocalDate, end: LocalDate): Long {
-    if (end.isBefore(start)) return 0
-    val first = workingDayIndex(nextWorkingDayOnOrAfter(start))
-    val last = workingDayIndex(previousWorkingDayOnOrBefore(end))
-    return maxOf(0, last - first + 1)
-}
-
 /** The period in force on [day]: the one with the greatest `effectiveFrom <= day`; null before the first. */
 fun periodOn(day: LocalDate, periods: List<CapacityPeriod>): CapacityPeriod? =
     periods.filter { !it.effectiveFrom.isAfter(day) }.maxByOrNull { it.effectiveFrom }
@@ -95,8 +81,8 @@ fun capacityOn(day: LocalDate, periods: List<CapacityPeriod>): BigDecimal? = per
  * working days and a weekend `effectiveFrom` needs no special case. Working days before the first period contribute 0; null when NO
  * working day of the week is covered ("no capacity", never zero).
  */
-fun weekCapacity(monday: LocalDate, periods: List<CapacityPeriod>): BigDecimal? {
-    val shares = workingDaysOf(monday).mapNotNull { capacityOn(it, periods) }
+fun weekCapacity(monday: LocalDate, periods: List<CapacityPeriod>, calendar: WorkingCalendar): BigDecimal? {
+    val shares = workingDaysOf(monday, calendar).mapNotNull { capacityOn(it, periods) }
     if (shares.isEmpty()) return null
     val divisor = BigDecimal(WORKING_DAYS_PER_WEEK)
     return shares.fold(BigDecimal.ZERO) { sum, md -> sum + md.divide(divisor, SHARE_SCALE, RoundingMode.HALF_UP) }
@@ -109,22 +95,26 @@ fun wipLimitOn(day: LocalDate, periods: List<CapacityPeriod>): Int? = periodOn(d
 /** An item's EFFECTIVE span on the working-day index: first working day on or after the start to the last on or before the end. */
 private class EffectiveSpan(val first: Long, val last: Long)
 
-private fun effectiveSpanOf(span: DaySpan) =
-    EffectiveSpan(workingDayIndex(nextWorkingDayOnOrAfter(span.start)), workingDayIndex(previousWorkingDayOnOrBefore(span.end)))
+private fun effectiveSpanOf(span: DaySpan, calendar: WorkingCalendar) = EffectiveSpan(
+    calendar.workingDayIndex(calendar.nextWorkingDayOnOrAfter(span.start)),
+    calendar.workingDayIndex(calendar.previousWorkingDayOnOrBefore(span.end)),
+)
 
-private fun wipAt(day: LocalDate, spans: List<EffectiveSpan>): Int {
-    val index = workingDayIndex(day)
+private fun wipAt(day: LocalDate, spans: List<EffectiveSpan>, calendar: WorkingCalendar): Int {
+    val index = calendar.workingDayIndex(day)
     return spans.count { it.first <= index && index <= it.last }
 }
 
 /**
  * The number of [items] whose effective span covers the working day [day] (the v0.4 dependency check's effective-span rule: a
- * weekend-only edge counts nothing). Counted by the index, so a weekend [day] reads the Friday before it - ask working days only.
+ * weekend-only edge counts nothing). Counted by the index, so a weekend or holiday [day] reads the working day before it -
+ * ask working days only.
  */
-fun wipOn(day: LocalDate, items: List<LoadItem>): Int = wipAt(day, items.map { effectiveSpanOf(it.span) })
+fun wipOn(day: LocalDate, items: List<LoadItem>, calendar: WorkingCalendar): Int =
+    wipAt(day, items.map { effectiveSpanOf(it.span, calendar) }, calendar)
 
-private fun workingDaysOf(monday: LocalDate): List<LocalDate> =
-    (0 until DAYS_PER_WEEK).map { monday.plusDays(it) }.filter(::isWorkingDay)
+private fun workingDaysOf(monday: LocalDate, calendar: WorkingCalendar): List<LocalDate> =
+    (0 until DAYS_PER_WEEK).map { monday.plusDays(it) }.filter(calendar::isWorkingDay)
 
 /** An exact non-negative rational, reduced by the gcd: the load stays exact until its ONE rounding. */
 private class Fraction(val num: BigInteger, val den: BigInteger) {
@@ -145,10 +135,10 @@ private class Fraction(val num: BigInteger, val den: BigInteger) {
  * working days it has inside the week, i.e. `E * inside / n` as a fraction (never divided first, so no digit is lost before the
  * single rounding); zero outside the week or for an item without a working day.
  */
-private fun shareIn(item: LoadItem, monday: LocalDate, sunday: LocalDate): Fraction {
-    val total = workingDaysBetween(item.span.start, item.span.end)
+private fun shareIn(item: LoadItem, monday: LocalDate, sunday: LocalDate, calendar: WorkingCalendar): Fraction {
+    val total = calendar.workingDaysBetween(item.span.start, item.span.end)
     if (total <= 0) return Fraction.ZERO
-    val inside = workingDaysBetween(maxOf(item.span.start, monday), minOf(item.span.end, sunday))
+    val inside = calendar.workingDaysBetween(maxOf(item.span.start, monday), minOf(item.span.end, sunday))
     if (inside <= 0) return Fraction.ZERO
     val estimate = if (item.estimateMd.scale() < 0) item.estimateMd.setScale(0) else item.estimateMd
     return Fraction.reduced(
@@ -162,11 +152,11 @@ private fun shareIn(item: LoadItem, monday: LocalDate, sunday: LocalDate): Fract
  * item's EXACT spread share summed as a fraction and rounded once, `HALF_UP`, to two decimals, the capacity [weekCapacity],
  * `overloaded` the comparison of the two rounded figures, and the WIP the per-working-day count against the limit in force that day.
  */
-fun weeklyLoad(items: List<LoadItem>, periods: List<CapacityPeriod>, window: DaySpan?): List<WeekLoad> {
+fun weeklyLoad(items: List<LoadItem>, periods: List<CapacityPeriod>, window: DaySpan?, calendar: WorkingCalendar): List<WeekLoad> {
     if (window == null) return emptyList()
-    val effective = items.map { effectiveSpanOf(it.span) }
+    val effective = items.map { effectiveSpanOf(it.span, calendar) }
     val weeks = generateSequence(mondayOf(window.start)) { it.plusWeeks(1) }.takeWhile { !it.isAfter(window.end) }
-    return weeks.map { monday -> weekRow(monday, items, effective, periods) }.toList()
+    return weeks.map { monday -> weekRow(monday, items, effective, periods, calendar) }.toList()
 }
 
 private fun weekRow(
@@ -174,14 +164,15 @@ private fun weekRow(
     items: List<LoadItem>,
     effective: List<EffectiveSpan>,
     periods: List<CapacityPeriod>,
+    calendar: WorkingCalendar,
 ): WeekLoad {
     val sunday = monday.plusDays(DAYS_PER_WEEK - 1)
-    val exact = items.fold(Fraction.ZERO) { sum, item -> sum + shareIn(item, monday, sunday) }
+    val exact = items.fold(Fraction.ZERO) { sum, item -> sum + shareIn(item, monday, sunday, calendar) }
     val load = BigDecimal(exact.num).divide(BigDecimal(exact.den), MONEY_SCALE, RoundingMode.HALF_UP)
-    val capacity = weekCapacity(monday, periods)
+    val capacity = weekCapacity(monday, periods, calendar)
     val overloaded = capacity != null && load > capacity
-    val days = workingDaysOf(monday)
-    val counts = days.map { it to wipAt(it, effective) }
+    val days = workingDaysOf(monday, calendar)
+    val counts = days.map { it to wipAt(it, effective, calendar) }
     return WeekLoad(
         weekStart = monday,
         load = load,

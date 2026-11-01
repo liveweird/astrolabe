@@ -1,6 +1,7 @@
 package ch.nokillswit.planning
 
 import ch.nokillswit.infra.db.active
+import ch.nokillswit.infra.time.WorkingCalendar
 import ch.nokillswit.people.PersonService
 import ch.nokillswit.teams.TeamService
 import io.ktor.util.AttributeKey
@@ -22,6 +23,8 @@ val TeamViewServiceKey = AttributeKey<TeamViewService>("TeamViewService")
 class TeamViewService(private val database: R2dbcDatabase) {
     suspend fun view(teamId: UInt, actor: PlanActor): TeamView? = suspendTransaction(database, SNAPSHOT, readOnly = true) {
         val revision = readPlanRevision()
+        // v0.7 C3 swaps this for the holiday dictionary read inside this snapshot.
+        val calendar = WorkingCalendar.MON_FRI
         val teams = TeamService.Teams
         val team = teams.selectAll().where { (teams.id eq teamId) and teams.active() }.toList().singleOrNull()
             ?: return@suspendTransaction null
@@ -55,11 +58,11 @@ class TeamViewService(private val database: R2dbcDatabase) {
             ),
             order = TeamViewOrder(custom = listed.isNotEmpty(), revision = orderRevisionOf(teamId), milestoneIds = listed),
             capacity = TeamViewCapacity(periodRows),
-            weeks = weeklyLoad(items, periods, window?.span).map { it.toView() },
+            weeks = weeklyLoad(items, periods, window?.span, calendar).map { it.toView() },
             weeksTruncated = window?.truncated ?: false,
             scheduled = scheduled.map { it.view },
             unscheduled = unscheduled.map { it.view },
-            dependencies = viewDependencies(rows.map { it.view.id }, emptyList(), emptyMap(), actor),
+            dependencies = viewDependencies(rows.map { it.view.id }, emptyList(), emptyMap(), actor, calendar),
         )
     }
 

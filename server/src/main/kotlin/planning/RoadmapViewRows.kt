@@ -2,6 +2,7 @@ package ch.nokillswit.planning
 
 import ch.nokillswit.authz.OwnerChain
 import ch.nokillswit.infra.db.active
+import ch.nokillswit.infra.time.WorkingCalendar
 import ch.nokillswit.teams.TeamService
 import kotlinx.coroutines.flow.toList
 import org.jetbrains.exposed.v1.core.*
@@ -35,6 +36,8 @@ private class MilestoneRow(val fact: PlanMilestoneFact, val teamName: String)
  * names, the rank entries, the milestones, the links - bounded by the plan's scale (about 100 projects, 1,000 milestones).
  */
 internal suspend fun loadRoadmapSnapshot(actor: PlanActor): RoadmapSnapshot {
+    // v0.7 C3 swaps this for the holiday dictionary read inside this snapshot.
+    val calendar = WorkingCalendar.MON_FRI
     val rows = projectRows()
     val ranks = rankPositions()
     val milestones = milestoneRows()
@@ -61,7 +64,7 @@ internal suspend fun loadRoadmapSnapshot(actor: PlanActor): RoadmapSnapshot {
     val teams = milestones.filter { it.fact.projectId in known }.associate { it.fact.teamId to it.teamName }
         .map { (id, name) -> RoadmapTeam(id, name) }
         .sortedWith(compareBy({ it.name.lowercase() }, { it.id }))
-    return RoadmapSnapshot(projects, teams, RoadmapKernels.linkAggregates(linkFacts(), projectFacts, facts, spans), spans)
+    return RoadmapSnapshot(projects, teams, RoadmapKernels.linkAggregates(linkFacts(), projectFacts, facts, spans, calendar), spans)
 }
 
 /**

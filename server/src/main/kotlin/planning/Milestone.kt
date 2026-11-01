@@ -1,7 +1,7 @@
 package ch.nokillswit.planning
 
 import ch.nokillswit.infra.paging.PageResponse
-import ch.nokillswit.infra.time.containsWorkingDay
+import ch.nokillswit.infra.time.WorkingCalendar
 import ch.nokillswit.infra.validation.parseIsoDate
 import ch.nokillswit.infra.validation.requireDateOrder
 import ch.nokillswit.infra.validation.requireNameAndDescription
@@ -153,6 +153,8 @@ fun validateSchedule(startDate: String?, endDate: String?): MilestoneSpan? {
     val start = parseIsoDate(startDate, "Start date")
     val end = parseIsoDate(endDate, "End date")
     requireDateOrder(start, end)
-    if (!containsWorkingDay(start, end)) throw BadRequestException("A milestone must cover at least one working day")
+    if (!WorkingCalendar.MON_FRI.containsWorkingDay(start, end)) {
+        throw BadRequestException("A milestone must cover at least one working day")
+    }
     return MilestoneSpan(start, end)
 }

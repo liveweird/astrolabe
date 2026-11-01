@@ -2,6 +2,7 @@ package ch.nokillswit.planning
 
 import ch.nokillswit.authz.OwnerChain
 import ch.nokillswit.infra.db.active
+import ch.nokillswit.infra.time.WorkingCalendar
 import kotlinx.coroutines.flow.toList
 import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.r2dbc.*
@@ -21,12 +22,14 @@ internal suspend fun projectDependencies(
     milestoneIds: Collection<UInt>,
     projectChain: OwnerChain,
     actor: PlanActor,
-): List<ProjectDependency> = viewDependencies(milestoneIds, listOf(projectId), mapOf(projectId to projectChain), actor)
+    calendar: WorkingCalendar,
+): List<ProjectDependency> = viewDependencies(milestoneIds, listOf(projectId), mapOf(projectId to projectChain), actor, calendar)
 
 /**
  * Every ACTIVE link with an end among [milestoneIds] or [projectIds] as the views' [ProjectDependency]s: both ends resolved
  * ([resolveEndpoints], so an end elsewhere carries its project's name, its team and its dates, and a project end its derived span),
- * the pure [DependencyKernels.check] and the caller's `can.delete`, ordered by [DEPENDENCY_ORDER]. Shared by the project view (one
+ * the pure [DependencyKernels.check] on [calendar]'s working days and the caller's `can.delete`, ordered by [DEPENDENCY_ORDER].
+ * Shared by the project view (one
  * project and its milestones) and the team view (one team's milestones, no project ends asked). Reads, in the transaction: the links
  * (one statement), the endpoints (a handful of `inList` statements per kind) and, only for successors in a project not in
  * [knownChains], those projects' owner chains ([projectChains], one statement). An active link's ends are active (the delete cascades
@@ -37,6 +40,7 @@ internal suspend fun viewDependencies(
     projectIds: Collection<UInt>,
     knownChains: Map<UInt, OwnerChain>,
     actor: PlanActor,
+    calendar: WorkingCalendar,
 ): List<ProjectDependency> {
     val links = DependencyService.Dependencies
     val touching = linksTouching(milestoneIds, projectIds) ?: return emptyList()
@@ -56,7 +60,7 @@ internal suspend fun viewDependencies(
             successor = successor,
             type = type,
             lagDays = lagDays,
-            check = DependencyKernels.check(type, lagDays, predecessor.span(), successor.span()),
+            check = DependencyKernels.check(type, lagDays, predecessor.span(), successor.span(), calendar),
             can = ProjectDependencyCan(
                 delete = chains[successor.projectId]?.let { PlanPermissions.canDeleteDependency(actor, it) } ?: false,
             ),
