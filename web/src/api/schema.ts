@@ -1045,7 +1045,7 @@ export interface paths {
          *     starts); `lagDays` are WORKING days (Monday-Friday without the public holidays), negative = a lead, -365..365 (`400` outside; default 0). Linking an
          *     endpoint to itself is `400`. A violated link is only a warning in the project view and never moves anything.
          *     `409` in two cases, both with nothing written and no revision bump: the two endpoints are already linked (at most one
-         *     active link per unordered pair, any type and either direction; change the type by deleting the link and adding another),
+         *     active link per unordered pair, any type and either direction; change a link's type or lag with `PUT /dependencies/{id}`),
          *     or the link would close a directed cycle on the start/end
          *     time-point graph (a project contains its milestones) - then `type` is `urn:astrolabe:problem:dependency-cycle` and `cycle`
          *     names the entities, the first repeated last. Audited as `dependency.created`.
@@ -1072,7 +1072,18 @@ export interface paths {
          *     scheduled). `404` when the dependency, or either end's project, program or work stream, is deleted.
          */
         get: operations["getDependency"];
-        put?: never;
+        /**
+         * Change a dependency's type and lag
+         * @description Replaces the link's `type` and `lagDays` (both required; the same ranges as the create). The two ENDS are not editable -
+         *     pointing a link at another end is delete + add. An owner on the SUCCESSOR's project chain - that project's own owner included -
+         *     or ADMIN, read-before-guard (404, then 403, then the body); the predecessor's owner is asked nothing. Re-checked under the
+         *     plan lock against the chain re-read there. A changed `type` re-runs the cycle check on the start/end time-point graph WITHOUT
+         *     this link's old edge: `409` with `type` `urn:astrolabe:problem:dependency-cycle` and `cycle` naming the entities (the
+         *     predecessor first, repeated last), nothing written and no revision bump. A lag-only change cannot close a cycle. There is no
+         *     duplicate-pair `409`: the pair is already this link's. An accepted PUT always bumps the plan revision, a no-op one included
+         *     (the conservative rule); only a real change touches `updatedAt` and emits the audit event `dependency.updated`.
+         */
+        put: operations["updateDependency"];
         post?: never;
         /**
          * Delete a dependency (soft)
@@ -2222,6 +2233,15 @@ export interface components {
              */
             lagDays: number;
         };
+        /** @description The editable part of a link; the ends are fixed. */
+        DependencyUpdateRequest: {
+            type: components["schemas"]["DependencyType"];
+            /**
+             * Format: int32
+             * @description WORKING days (Monday-Friday without the public holidays) the successor waits after the predecessor's anchor; negative = a lead.
+             */
+            lagDays: number;
+        };
         /** @description One resolved end of a dependency. A project's dates are its DERIVED span (earliest start to latest end over its scheduled milestones), never its target window; they are null while nothing in it is scheduled. */
         DependencyEndpoint: {
             kind: components["schemas"]["EndpointKind"];
@@ -2436,6 +2456,8 @@ export interface components {
             /** @description On the project view: a zero-slack link on the viewed project's critical chain. On the team view always false - no per-project path is computed there. */
             critical: boolean;
             can: {
+                /** @description The caller may change the link's type and lag (`PUT /dependencies/{id}`): an owner on the SUCCESSOR's project chain, or ADMIN. */
+                edit: boolean;
                 /** @description The caller may delete the link: an owner on the SUCCESSOR's project chain, or ADMIN. */
                 delete: boolean;
             };
@@ -5091,6 +5113,46 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    updateDependency: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DependencyUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated (or unchanged) */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description The new type would close a cycle (`type` is `urn:astrolabe:problem:dependency-cycle` and `cycle` lists the entities) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
             500: components["responses"]["InternalServerError"];
         };
     };

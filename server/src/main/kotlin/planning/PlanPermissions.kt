@@ -58,6 +58,12 @@ object PlanPermissions {
     fun canCreateDependency(actor: PlanActor, projectChain: OwnerChain): Boolean = canManage(actor, projectChain)
 
     /**
+     * `PUT /dependencies/{id}` (the type and lag): the same audience as the delete - the owner chain of the SUCCESSOR's project, or ADMIN
+     * (`requireOwnerOrAdmin` on `dependencyChain`); the predecessor's owner is asked nothing.
+     */
+    fun canEditDependency(actor: PlanActor, successorProjectChain: OwnerChain): Boolean = canManage(actor, successorProjectChain)
+
+    /**
      * `DELETE /dependencies/{id}`: the owner chain of the SUCCESSOR's project, or ADMIN (`requireOwnerOrAdmin` on `dependencyChain`) —
      * [successorProjectChain] is the chain of the project holding the successor, never the predecessor's.
      */

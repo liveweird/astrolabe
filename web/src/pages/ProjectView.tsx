@@ -5,7 +5,7 @@ import { IconCalendarStats, IconPencil, IconPlus, IconTrash } from "@tabler/icon
 import { useQueryClient } from "@tanstack/react-query";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
-import type { EndpointRef } from "../api/dependencies";
+import type { EndpointRef, ProjectDependency } from "../api/dependencies";
 import { ApiError } from "../api/http";
 import { deleteMilestone, type ProjectMilestone, type ProjectView as ProjectViewDocument } from "../api/milestones";
 import { deleteProject } from "../api/plan";
@@ -38,8 +38,16 @@ import { defaultRange, makeScale, MILESTONE_ZOOMS, toEpochDay, type Zoom } from 
 /** The schedule dialog remembers the plan revision of the view it was opened on: its save must stale-409 if THIS milestone moved since. */
 type Scheduling = { milestone: ProjectMilestone; revision: number };
 
-/** `dependency` is the Add dependency dialog; `successor` prefills it (the row menu's shortcut), null = the project itself. */
-type Editor = { kind: "create" } | { kind: "edit"; milestone: ProjectMilestone } | { kind: "project" } | { kind: "dependency"; successor: EndpointRef | null };
+/**
+ * `dependency` is the Add dependency dialog; `successor` prefills it (the row menu's shortcut), null = the project itself.
+ * `editDependency` is the same dialog on an existing link (type and lag only).
+ */
+type Editor =
+  | { kind: "create" }
+  | { kind: "edit"; milestone: ProjectMilestone }
+  | { kind: "project" }
+  | { kind: "dependency"; successor: EndpointRef | null }
+  | { kind: "editDependency"; dependency: ProjectDependency };
 
 /** One badge per non-zero drift figure: orange when the project runs LATER than its target (a warning), gray when it is ahead. */
 function driftBadges(drift: NonNullable<ProjectViewDocument["drift"]>, t: TFunction): { key: string; label: string; late: boolean }[] {
@@ -180,7 +188,14 @@ function ProjectPage({ id }: { id: number }) {
   const milestoneCount = view.scheduled.length + view.unscheduled.length;
   const canTrayEdit = view.unscheduled.some((m) => m.can.schedule);
   const closeEditor = () => setEditor(null);
-  const dependencies = <ProjectDependencies view={view} onAdd={() => setEditor({ kind: "dependency", successor: null })} showCritical={criticalPath} />;
+  const dependencies = (
+    <ProjectDependencies
+      view={view}
+      onAdd={() => setEditor({ kind: "dependency", successor: null })}
+      onEdit={(dependency) => setEditor({ kind: "editDependency", dependency })}
+      showCritical={criticalPath}
+    />
+  );
   const criticalToggle = (
     <Button size="compact-sm" variant={criticalPath ? "filled" : "default"} aria-pressed={criticalPath} onClick={() => setCriticalPath(!criticalPath)}>
       {t("timeline.criticalToggle")}
@@ -311,11 +326,12 @@ function ProjectPage({ id }: { id: number }) {
       {editor?.kind === "project" && (
         <ProjectEditorModal program={{ id: project.programId, name: project.programName }} target={project} onClose={closeEditor} onSaved={saved} />
       )}
-      {editor?.kind === "dependency" && (
+      {(editor?.kind === "dependency" || editor?.kind === "editDependency") && (
         <DependencyEditorModal
           project={project}
           milestones={[...view.scheduled, ...view.unscheduled]}
-          successor={editor.successor}
+          successor={editor.kind === "dependency" ? editor.successor : null}
+          target={editor.kind === "editDependency" ? editor.dependency : null}
           onClose={closeEditor}
           onSaved={saved}
         />

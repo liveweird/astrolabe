@@ -45,7 +45,7 @@ Version numbers are not strictly roadmap milestones (`app-releases.md`): a user-
   **working days, negative allowed (a lead), |lag| ≤ 365** (V15's CHECK is immutable); (3) an **unscheduled end is not evaluated** — status UNSCHEDULED, no warning, no arrow, "Not scheduled yet" in
   the table; (4) a link is created **on the successor's project page** (`POST /projects/{id}/dependencies`, the successor fixed to that project or one of its milestones; the predecessor is a free
   search); (5) the project's **summary row** shows only while the project itself is an endpoint; (6) **at most one active link per unordered pair** of ends (a reverse pair answers the same 409 "already
-  linked"; changing the type or lag = delete + add — no PUT yet). The UI shows these as: the Dependencies table (violated first = the conflict list), the red "N conflicts" badge, the dialog's
+  linked"; the type and lag are edited in place with `PUT /dependencies/{id}`, the ends never: pointing a link at another end = delete + add). The UI shows these as: the Dependencies table (violated first = the conflict list), the red "N conflicts" badge, the dialog's
   successor-first form, the cycle notice with its path. The start-to-finish rule is `W(A.effStart) − 1 + lag`.
 - **Ranking.** **One global project rank**. A team's milestone order follows it by default; the team may override locally (and reset).
   **Built (0.5.0, V17), on the user's confirmed reading "A" (2026-11-01)** — two ranks with two meanings: the PROJECT rank is the top-down SUGGESTION of the order in which projects should be delivered; the MILESTONE order is the order of ACTUAL EXECUTION and is per TEAM (each team's manager orders their own team's milestones, and a lower-ranked

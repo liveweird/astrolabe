@@ -3,7 +3,7 @@
 - **Spec**: [tests/dependencies.spec.ts](../tests/dependencies.spec.ts)
 - **Actors**: two throwaway logins seeded through the API - a project OWNER (the person who owns the program, so both projects) and a
   team MANAGER (the manager of the milestones' team, owning nothing); the seed administrator acts only through the API (seeding, the
-  milestones' dates, and the link the second scenario starts from)
+  milestones' dates, and the link the second and third scenarios start from)
 - **Owns** (exclusive server-side state): its throwaway users, people, team, work stream, program, two projects A and B and their
   milestones a1 (A, scheduled 2027-02-01 to 2027-02-05) and b1 (B, scheduled 2027-02-08 to 2027-02-12) and the links between them (unique
   `e2e-dep-*` names), all seeded through the API and removed by the afterEach through the API, the projects first (their milestones
@@ -51,11 +51,28 @@
 3. The owner presses Enter.
    - *Expected*: the picker's value is the last option's label and the listbox closes.
 
+## Scenario: the owner edits a link's type and lag in place and reads the new check; the ends are read-only
+
+1. The administrator links a1 -> b1 (finish-to-start, no lag) through the API. The project owner signs in and opens project B.
+   - *Expected*: the link's row reads **OK** and "Finish → Start (FS)".
+2. They open the link's row menu, choose **Edit** (named "Edit a1 · A → b1"), and the **Edit dependency** dialog opens.
+   - *Expected*: the Predecessor ("a1 · A") and Successor ("b1") are read-only text fields (the Predecessor carries `readonly`); there
+     is no predecessor picker; the Type and Lag are editable.
+3. They choose **Start → Start (SS)**, enter a lag of 6 and press **Save**.
+   - *Expected*: the PUT answers 204 and the dialog closes; after the view refreshes the row reads "Start → Start (SS)", "6 working
+     days", "Violated · 1 working day short" and "needs 2027-02-09 · is 2027-02-08"; the arrow is violated; the facts line shows
+     "1 conflict".
+4. They edit the link again, keep Start → Start (SS), enter a lag of 5 and **Save**.
+   - *Expected*: the row reads **OK** and "needs 2027-02-08 · is 2027-02-08"; the arrow is not violated; the facts line shows no
+     conflicts.
+
 ## Not covered here (and why)
 
 - **The pointer and keyboard gestures of the timeline** (drag, resize, the keyboard sensor) - unchanged, owned by
   [project-view.md](project-view.md); the arrows follow the committed dates, so nothing here drags.
-- **A project owner who owns only the predecessor's project** (403 on create and delete) and the other server rights - the server
-  suite pins the matrix (`DependencyTest`); the UI only reads the view's `can` flags.
+- **A project owner who owns only the predecessor's project** (403 on create, edit and delete) and the other server rights - the server
+  suite pins the matrix (`DependencyTest`, `DependencyUpdateTest`); the UI only reads the view's `can` flags.
+- **An edit that would close a cycle** (the 409 with the path in the Edit dialog) - the server suite (`DependencyUpdateTest`) and the
+  page test (`ProjectView`) cover it; the browser flow is the create's, already driven by the first scenario.
 - **The other three dependency types, a lag, a project as an endpoint** - covered by the unit and page tests (`dependencyForm`,
   `projectDependencies`, `ProjectView`) and the server's check kernel.

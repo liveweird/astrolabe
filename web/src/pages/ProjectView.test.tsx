@@ -103,6 +103,9 @@ let putStatus: { status: number; body?: unknown };
 let dependencyPost: { status: number; body?: unknown };
 /** Runs when a dependency POST is accepted: the test's stand-in for the server adding the link to the view. */
 let onDependencyCreated: (() => void) | null;
+/** The answer of `PUT /dependencies/{id}` (204 = accepted) and what an accepted edit does to the stand-in server's view. */
+let dependencyPut: { status: number; body?: unknown };
+let onDependencyUpdated: (() => void) | null;
 
 /** A tiny server: GET answers the current view; an accepted schedule PUT applies the dates and bumps the revision. */
 function serve(mockFetch: FetchMock) {
@@ -121,6 +124,10 @@ function serve(mockFetch: FetchMock) {
     if (method === "POST" && url === "/api/v1/projects/7/dependencies") {
       if (dependencyPost.status === 201) onDependencyCreated?.();
       return Promise.resolve(jsonResponse(dependencyPost.status, dependencyPost.body ?? { id: 50 }));
+    }
+    if (method === "PUT" && /^\/api\/v1\/dependencies\/\d+$/.test(url)) {
+      if (dependencyPut.status === 204) onDependencyUpdated?.();
+      return Promise.resolve(dependencyPut.status === 204 ? new Response(null, { status: 204 }) : jsonResponse(dependencyPut.status, dependencyPut.body ?? { title: "x", status: dependencyPut.status }));
     }
     if (method === "GET" && url.startsWith("/api/v1/milestones?")) {
       const item = { ...ALPHA_MILESTONE, projectName: "Alpha", projectId: 99 };
@@ -164,6 +171,8 @@ beforeEach(() => {
   putStatus = { status: 200 };
   dependencyPost = { status: 201 };
   onDependencyCreated = null;
+  dependencyPut = { status: 204 };
+  onDependencyUpdated = null;
   dndProps = null;
   mockFetch = vi.fn();
   vi.stubGlobal("fetch", mockFetch);
@@ -851,7 +860,7 @@ const dependencyOf = (id: number, predecessor: DependencyEndpoint, successor: De
   lagDays: 0,
   check: OK_CHECK,
   critical: false,
-  can: { delete: true },
+  can: { edit: true, delete: true },
   ...over,
 });
 
@@ -906,7 +915,7 @@ describe("Project view page: dependencies", () => {
 
   test("a read-only caller sees the links and the conflicts but gets no Add dependency, no menu item and no Delete", async () => {
     view = viewOf({
-      dependencies: [{ ...VIOLATED_LINK, can: { delete: false } }],
+      dependencies: [{ ...VIOLATED_LINK, can: { edit: false, delete: false } }],
       project: withoutLinking(),
       scheduled: [{ ...DISCOVERY, can: { edit: false, delete: false, schedule: false } }, BUILD],
     });
@@ -1042,6 +1051,92 @@ describe("Project view page: dependencies", () => {
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
     await waitFor(() => expect(within(dialog).getByRole("alert")).toHaveTextContent("These two ends are already linked."));
     expect(screen.getByRole("dialog", { name: "Add dependency" })).toBeInTheDocument();
+  });
+
+  test("Edit… opens the dialog on the link with the ends read-only, PUTs the new type and lag, closes and refreshes the view", async () => {
+    const user = userEvent.setup();
+    view = viewOf({ dependencies: [VIOLATED_LINK, OK_LINK] });
+    renderPage();
+    await screen.findByRole("grid", { name: "Milestone timeline" });
+    await user.click(screen.getByRole("button", { name: "Operations for a1 · Alpha → Discovery" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Edit a1 · Alpha → Discovery" }));
+    const dialog = await screen.findByRole("dialog", { name: "Edit dependency" });
+    // the ends are read-only text; there is no predecessor picker
+    expect(within(dialog).getByRole("textbox", { name: "Predecessor" })).toHaveValue("a1 · Alpha");
+    expect(within(dialog).getByRole("textbox", { name: "Predecessor" })).toHaveAttribute("readonly");
+    expect(within(dialog).getByRole("textbox", { name: "Successor" })).toHaveValue("Discovery");
+    expect(within(dialog).queryByRole("combobox", { name: "Predecessor" })).toBeNull();
+    expect(within(dialog).getByRole("combobox", { name: "Type" })).toHaveValue("Finish → Start (FS)");
+    await user.click(within(dialog).getByRole("combobox", { name: "Type" }));
+    await user.click(await screen.findByRole("option", { name: "Start → Start (SS)" }));
+    const lag = within(dialog).getByRole("textbox", { name: /Lag/ });
+    await user.clear(lag);
+    await user.type(lag, "-2");
+    // the server recomputes the check for the new type and lag: the stand-in applies it when the PUT is accepted
+    onDependencyUpdated = () => {
+      view = { ...viewOf({ dependencies: [{ ...VIOLATED_LINK, type: "SS", lagDays: -2, check: OK_CHECK }, OK_LINK] }), revision: 11 };
+    };
+    const before = viewGets(mockFetch);
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(calls(mockFetch, "PUT", /\/dependencies\/31$/).map((c) => c.body)).toEqual([{ type: "SS", lagDays: -2 }]);
+    await waitFor(() => expect(viewGets(mockFetch)).toBeGreaterThan(before));
+    await waitFor(() => expect(tableRows()[0]).toHaveTextContent("Start → Start (SS)"));
+    expect(tableRows()[0]).toHaveTextContent("-2 working days (lead)");
+    expect(screen.queryByText(/conflict/)).toBeNull();
+  });
+
+  test("Edit… and Delete follow the link's own can.edit and can.delete", async () => {
+    const user = userEvent.setup();
+    view = viewOf({ dependencies: [{ ...VIOLATED_LINK, can: { edit: true, delete: false } }, { ...OK_LINK, can: { edit: false, delete: true } }] });
+    renderPage();
+    await screen.findByRole("grid", { name: "Milestone timeline" });
+    await user.click(screen.getByRole("button", { name: "Operations for a1 · Alpha → Discovery" }));
+    expect(await screen.findByRole("menuitem", { name: "Edit a1 · Alpha → Discovery" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Delete a1 · Alpha → Discovery" })).toBeNull();
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("button", { name: "Operations for Discovery → Build" }));
+    expect(await screen.findByRole("menuitem", { name: "Delete Discovery → Build" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Edit Discovery → Build" })).toBeNull();
+  });
+
+  test("an edit that would close a cycle names the path in the dialog and keeps it open; a 400 and a 403 read as fixed sentences", async () => {
+    const user = userEvent.setup();
+    view = viewOf({ dependencies: [VIOLATED_LINK] });
+    renderPage();
+    await screen.findByRole("grid", { name: "Milestone timeline" });
+    await user.click(screen.getByRole("button", { name: "Operations for a1 · Alpha → Discovery" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Edit a1 · Alpha → Discovery" }));
+    const dialog = await screen.findByRole("dialog", { name: "Edit dependency" });
+    dependencyPut = {
+      status: 409,
+      body: {
+        type: "urn:astrolabe:problem:dependency-cycle",
+        title: "Conflict",
+        status: 409,
+        detail: "server words",
+        cycle: [
+          { kind: "MILESTONE", id: 21, name: "a1" },
+          { kind: "MILESTONE", id: 1, name: "Discovery" },
+          { kind: "MILESTONE", id: 21, name: "a1" },
+        ],
+      },
+    };
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    const alert = await within(dialog).findByRole("alert");
+    expect(alert).toHaveTextContent("With this type the link would close a cycle through:");
+    expect(alert).toHaveTextContent("a1 → Discovery → a1");
+    expect(alert).not.toHaveTextContent("server words");
+    dependencyPut = { status: 400, body: { title: "Bad", status: 400, detail: "Lag must be between -365 and 365 working days" } };
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(within(dialog).getByRole("alert")).toHaveTextContent("Enter a whole number of working days from -365 to 365"));
+    dependencyPut = { status: 403, body: { title: "Forbidden", status: 403 } };
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(within(dialog).getByRole("alert")).toHaveTextContent("Only the owners of the successor's project"));
+    dependencyPut = { status: 404, body: { title: "Not found", status: 404 } };
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(within(dialog).getByRole("alert")).toHaveTextContent("This no longer exists"));
+    expect(screen.getByRole("dialog", { name: "Edit dependency" })).toBeInTheDocument();
   });
 
   test("Delete confirms through the shared dialog, DELETEs the link and refreshes the view", async () => {

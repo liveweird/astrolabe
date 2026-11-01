@@ -106,6 +106,10 @@ data class ProjectDependency(
     val can: ProjectDependencyCan,
 )
 
-/** [delete]: the caller may delete the link (`canManage` on the SUCCESSOR's project chain, `PlanPermissions.canDeleteDependency`). */
+/**
+ * [edit]: the caller may change the link's type and lag (`PlanPermissions.canEditDependency`); [delete]: the caller may delete it
+ * (`canDeleteDependency`). Both are `canManage` on the SUCCESSOR's project chain today - two flags so that the day the rules diverge no
+ * client has to change.
+ */
 @Serializable
-data class ProjectDependencyCan(val delete: Boolean)
+data class ProjectDependencyCan(val edit: Boolean, val delete: Boolean)

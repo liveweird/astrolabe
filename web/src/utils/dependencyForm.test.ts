@@ -3,12 +3,17 @@ import i18n from "../i18n";
 import { ApiError } from "../api/http";
 import {
   cyclePathText,
+  dependencyEditValidation,
+  dependencyEndpointText,
   dependencyFormValidation,
   dependencySaveErrorMessage,
+  dependencyUpdateErrorMessage,
+  editDependencyForm,
   emptyDependencyForm,
   PROJECT_SUCCESSOR,
   successorRef,
   toDependencyBody,
+  toDependencyUpdateBody,
   type DependencyFormValues,
 } from "./dependencyForm";
 
@@ -56,6 +61,30 @@ describe("dependency form", () => {
       type: "SF",
       lagDays: -3,
     });
+  });
+
+  test("the edit form starts from the stored type and lag and sends both; only the lag is validated", () => {
+    expect(editDependencyForm({ type: "FF", lagDays: -3 })).toMatchObject({ type: "FF", lagDays: -3 });
+    expect(toDependencyUpdateBody(values({ type: "SF", lagDays: "4" }))).toEqual({ type: "SF", lagDays: 4 });
+    expect(Object.keys(dependencyEditValidation(t))).toEqual(["lagDays"]);
+    expect(dependencyEditValidation(t).lagDays(366)).toBe("Enter a whole number of working days from -365 to 365");
+    expect(dependencyEditValidation(t).lagDays(0)).toBeNull();
+  });
+
+  test("an endpoint reads as its name, with its project when that is another one, or as the whole project", () => {
+    const end = { kind: "MILESTONE", id: 1, name: "a1", projectId: 7, projectName: "Alpha", teamId: 1, teamName: "T", startDate: null, endDate: null } as const;
+    expect(dependencyEndpointText(end, 7, t)).toBe("a1");
+    expect(dependencyEndpointText(end, 8, t)).toBe("a1 · Alpha");
+    expect(dependencyEndpointText({ ...end, kind: "PROJECT", name: "Alpha" }, 8, t)).toBe("Project Alpha");
+  });
+
+  test("edit failures map to the fixed vocabulary: the lag sentence on a 400, never the server's text", () => {
+    const message = (status: number) => dependencyUpdateErrorMessage(new ApiError(status, { detail: "server words" }), t);
+    expect(message(400)).toBe("Enter a whole number of working days from -365 to 365");
+    expect(message(403)).toContain("Only the owners of the successor's project");
+    expect(message(404)).toBe("This no longer exists — reload the page");
+    expect(message(409)).toBe("Save failed (409)");
+    expect(dependencyUpdateErrorMessage(new Error("offline"), t)).toBe("Save failed. Check your connection and try again.");
   });
 
   test("the cycle path reads as names joined by arrows", () => {

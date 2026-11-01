@@ -2,7 +2,7 @@
 // the Add dependency dialog (searchable pickers), sees the other project's milestone as a ghost row with a link and the link as an
 // arrow, and has a link that would close a cycle refused with the path named; the milestone's team manager moves the successor ahead
 // of its predecessor and reads the conflict (the red arrow, the "1 conflict" badge, the table row with what it needs), and the
-// owner deletes the link from the table. Owns: its throwaway users, people, team and plan nodes (unique `e2e-dep-*` names), all
+// owner deletes the link from the table; the owner edits a link's type and lag in place and reads the new check. Owns: its throwaway users, people, team and plan nodes (unique `e2e-dep-*` names), all
 // seeded through the API and deleted by the afterEach below (the projects first - their milestones and links go with them - then
 // program, work stream, team, people, users).
 import { randomUUID } from "node:crypto";
@@ -258,4 +258,52 @@ test("a long predecessor list scrolls by keyboard (arrow down past the visible a
   await picker.press("Enter");
   await expect(picker).toHaveValue(lastLabel);
   await expect(listbox).toBeHidden();
+});
+
+test("the owner edits a link's type and lag in place and reads the new check; the ends are read-only", async ({ page }) => {
+  const { api, owner, a, b } = await seedWorld();
+  const link = await api.post(`/api/v1/projects/${b.id}/dependencies`, {
+    data: { predecessor: { kind: "MILESTONE", id: a.milestoneId }, successor: { kind: "MILESTONE", id: b.milestoneId }, type: "FS", lagDays: 0 },
+  });
+  expect(link.status(), await link.text()).toBe(201);
+  await api.dispose();
+
+  await login(page, owner.email, owner.password);
+  await openProject(page, b);
+  const linkName = `${a.milestone} · ${a.name} → ${b.milestone}`;
+  const row = dependenciesTable(page).getByRole("row").filter({ hasText: a.milestone });
+  await expect(row).toContainText("OK");
+  await expect(row).toContainText("Finish → Start (FS)");
+
+  async function edit(type: string, lag: string): Promise<void> {
+    await rowOperation(page, linkName, `Edit ${linkName}`);
+    const dialog = page.getByRole("dialog", { name: "Edit dependency" });
+    await expect(dialog.getByRole("textbox", { name: "Predecessor" })).toHaveValue(`${a.milestone} · ${a.name}`);
+    await expect(dialog.getByRole("textbox", { name: "Predecessor" })).toHaveAttribute("readonly", "");
+    await expect(dialog.getByRole("textbox", { name: "Successor" })).toHaveValue(b.milestone);
+    await dialog.getByRole("combobox", { name: "Type" }).click();
+    await page.getByRole("option", { name: type, exact: true }).click();
+    await dialog.getByRole("textbox", { name: /Lag/ }).fill(lag);
+    await Promise.all([
+      page.waitForResponse((r) => r.request().method() === "PUT" && /\/api\/v1\/dependencies\/\d+$/.test(r.url()) && r.status() === 204),
+      dialog.getByRole("button", { name: "Save", exact: true }).click(),
+    ]);
+    await expect(dialog).toHaveCount(0);
+  }
+
+  // Start-to-start with a lag of 6 working days needs b1 to start on 2027-02-09; it starts on the 8th, one working day early.
+  await edit("Start → Start (SS)", "6");
+  await expect(row).toContainText("Start → Start (SS)");
+  await expect(row).toContainText("6 working days");
+  await expect(row).toContainText("Violated · 1 working day short");
+  await expect(row).toContainText("needs 2027-02-09 · is 2027-02-08");
+  await expect(arrows(page)).toHaveAttribute("data-violated", "true");
+  await expect(facts(page)).toContainText("1 conflict");
+
+  // A lag of 5 lands exactly on the 8th: the conflict goes.
+  await edit("Start → Start (SS)", "5");
+  await expect(row).toContainText("OK");
+  await expect(row).toContainText("needs 2027-02-08 · is 2027-02-08");
+  await expect(arrows(page)).toHaveAttribute("data-violated", "false");
+  await expect(facts(page)).not.toContainText("conflict");
 });

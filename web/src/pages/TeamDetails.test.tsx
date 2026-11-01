@@ -98,7 +98,7 @@ const LINK: ProjectDependency = {
   lagDays: 0,
   check: { status: "VIOLATED", shortfallDays: 3, requiredDate: "2027-02-08", actualDate: "2027-02-04" },
   critical: false,
-  can: { delete: false },
+  can: { edit: false, delete: false },
 };
 
 const viewOf = (over: Partial<TeamView> = {}): TeamView => ({

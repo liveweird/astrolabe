@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
 import { screen, waitFor, within } from "@testing-library/react";
 import DependencyEditorModal from "./DependencyEditorModal";
-import type { EndpointRef } from "../api/dependencies";
+import type { EndpointRef, ProjectDependency } from "../api/dependencies";
 import { jsonResponse } from "../test/http";
 import { renderWithProviders } from "../test/render";
 
@@ -198,5 +198,53 @@ describe("DependencyEditorModal", () => {
     post = { status: 400, body: { title: "Bad", status: 400, detail: "Unknown or deleted milestone ids: 11" } };
     await user.click(save);
     await waitFor(() => expect(within(dialog).getByRole("alert")).toHaveTextContent("either may have been deleted meanwhile"));
+  });
+
+  describe("edit mode (a target link)", () => {
+    const TARGET: ProjectDependency = {
+      id: 31,
+      predecessor: { kind: "MILESTONE", id: 11, name: "a1", projectId: 2, projectName: "Alpha", teamId: 3, teamName: "Backend", startDate: null, endDate: null },
+      successor: { kind: "PROJECT", id: 7, name: "Invoices", projectId: 7, projectName: "Invoices", teamId: null, teamName: null, startDate: null, endDate: null },
+      type: "FF",
+      lagDays: 3,
+      check: { status: "UNSCHEDULED", shortfallDays: null, requiredDate: null, actualDate: null },
+      critical: false,
+      can: { edit: true, delete: true },
+    };
+    const puts = () => mockFetch.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === "PUT").map(([url, init]) => ({ url: url as string, body: JSON.parse((init as RequestInit).body as string) }));
+
+    function renderEdit(onSaved = vi.fn(() => Promise.resolve())) {
+      renderWithProviders(<DependencyEditorModal project={{ id: 7, name: "Invoices" }} milestones={[]} successor={null} target={TARGET} onClose={vi.fn()} onSaved={onSaved} />);
+      return { onSaved };
+    }
+
+    test("shows both ends as read-only text, prefills the type and lag, and PUTs only those two", async () => {
+      mockFetch.mockImplementation(() => Promise.resolve(new Response(null, { status: 204 })));
+      const user = userEvent.setup();
+      const { onSaved } = renderEdit();
+      const dialog = await screen.findByRole("dialog", { name: "Edit dependency" });
+      expect(within(dialog).getByRole("textbox", { name: "Predecessor" })).toHaveValue("a1 · Alpha");
+      expect(within(dialog).getByRole("textbox", { name: "Successor" })).toHaveValue("Project Invoices");
+      expect(within(dialog).queryByRole("radio")).toBeNull();
+      expect(within(dialog).getByRole("combobox", { name: "Type" })).toHaveValue("Finish → Finish (FF)");
+      expect(within(dialog).getByRole("textbox", { name: /Lag/ })).toHaveValue("3");
+      await user.click(within(dialog).getByRole("combobox", { name: "Type" }));
+      await user.click(await screen.findByRole("option", { name: "Start → Finish (SF)" }));
+      await user.click(within(dialog).getByRole("button", { name: "Save" }));
+      await waitFor(() => expect(onSaved).toHaveBeenCalled());
+      expect(puts()).toEqual([{ url: "/api/v1/dependencies/31", body: { type: "SF", lagDays: 3 } }]);
+      expect(posts()).toEqual([]);
+    });
+
+    test("an out-of-range lag is refused before anything is sent", async () => {
+      const user = userEvent.setup();
+      renderEdit();
+      const dialog = await screen.findByRole("dialog", { name: "Edit dependency" });
+      const lag = within(dialog).getByRole("textbox", { name: /Lag/ });
+      await user.clear(lag);
+      await user.click(within(dialog).getByRole("button", { name: "Save" }));
+      expect(await within(dialog).findByText("Enter a whole number of working days from -365 to 365")).toBeInTheDocument();
+      expect(puts()).toEqual([]);
+    });
   });
 });

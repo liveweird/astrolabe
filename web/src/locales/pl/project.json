@@ -119,6 +119,7 @@
     "milestoneDeleted": "Usunięto kamień milowy",
     "projectDeleted": "Usunięto projekt",
     "dependencyAdded": "Dodano zależność",
+    "dependencySaved": "Zapisano zależność",
     "dependencyDeleted": "Usunięto zależność"
   },
   "conflicts_one": "{{count}} konflikt",
@@ -177,6 +178,9 @@
   "dependency": {
     "add": "Dodaj zależność",
     "createTitle": "Dodaj zależność",
+    "editTitle": "Edytuj zależność",
+    "edit": "Edytuj…",
+    "editIntro": "Tutaj można zmienić tylko typ i opóźnienie. Aby połączyć inne końce, usuń tę zależność i dodaj nową.",
     "intro": "Następnik czeka na poprzednik. Zależności projektu dodaje i usuwa jego właściciel/ka albo administrator/ka; właściciel/ka poprzednika nie jest o nic pytany/a. Zależność, która nie jest dotrzymana, tylko ostrzega - nic się nie przesuwa.",
     "successor": "Następnik",
     "successorHint": "Ten projekt albo jeden z jego kamieni milowych - strona, która czeka.",
@@ -227,6 +231,7 @@
       "dates": "Terminy"
     },
     "cycle": "Ta zależność zamknęłaby cykl przez:",
+    "cycleEdit": "Z tym typem zależność zamknęłaby cykl przez:",
     "duplicate": "Te dwa końce są już połączone zależnością.",
     "saveForbidden": "Zależności projektu zmieniają tylko właściciele/ki projektu następnika albo administrator/ka",
     "saveInvalid": "Sprawdź następnik i poprzednik — każdy z nich mógł w międzyczasie zostać usunięty.",

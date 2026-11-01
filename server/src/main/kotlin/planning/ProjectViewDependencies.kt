@@ -63,6 +63,7 @@ internal suspend fun viewDependencies(
             check = DependencyKernels.check(type, lagDays, predecessor.span(), successor.span(), calendar),
             critical = false,
             can = ProjectDependencyCan(
+                edit = chains[successor.projectId]?.let { PlanPermissions.canEditDependency(actor, it) } ?: false,
                 delete = chains[successor.projectId]?.let { PlanPermissions.canDeleteDependency(actor, it) } ?: false,
             ),
         )

@@ -52,6 +52,14 @@ data class DependencyEndpoint(
     val endDate: String?,
 )
 
+/**
+ * `PUT /dependencies/{id}`: the link's new [type] and [lagDays] (working days, negative = a lead, at most [MAX_LAG_DAYS] either way).
+ * Both are required - a PUT replaces the editable part, there is no partial body - and the two ends are NOT editable (pointing a
+ * link at another end is delete + add: the successor's project chain is what authorized it).
+ */
+@Serializable
+data class DependencyUpdateRequest(val type: DependencyType, val lagDays: Int)
+
 @Serializable
 data class DependencyResponse(
     val id: UInt,
@@ -69,8 +77,15 @@ data class DependencyResponse(
  * existence need the database and are checked under the plan lock.
  */
 fun validateDependencyCreate(request: DependencyCreateRequest) {
-    if (request.lagDays !in -MAX_LAG_DAYS..MAX_LAG_DAYS) {
+    requireLagInRange(request.lagDays)
+    if (request.predecessor == request.successor) throw BadRequestException("A dependency cannot link an endpoint to itself")
+}
+
+/** The request-shape rule of `PUT /dependencies/{id}` (route AND service): the lag within [MAX_LAG_DAYS]; the ends cannot change. */
+fun validateDependencyUpdate(request: DependencyUpdateRequest) = requireLagInRange(request.lagDays)
+
+private fun requireLagInRange(lagDays: Int) {
+    if (lagDays !in -MAX_LAG_DAYS..MAX_LAG_DAYS) {
         throw BadRequestException("Lag must be between -$MAX_LAG_DAYS and $MAX_LAG_DAYS working days")
     }
-    if (request.predecessor == request.successor) throw BadRequestException("A dependency cannot link an endpoint to itself")
 }

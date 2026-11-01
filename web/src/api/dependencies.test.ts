@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { jsonResponse } from "../test/http";
-import { createDependency, deleteDependency, isDependencyCycle } from "./dependencies";
+import { createDependency, deleteDependency, isDependencyCycle, updateDependency } from "./dependencies";
 import { ApiError } from "./http";
 
 type FetchMock = ReturnType<typeof vi.fn>;
@@ -41,6 +41,23 @@ describe("dependencies API wrappers", () => {
     expect(url).toBe("/api/v1/projects/7/dependencies");
     expect(init.method).toBe("POST");
     expect(JSON.parse(init.body as string)).toEqual(body);
+  });
+
+  test("updateDependency PUTs the type and lag to the link and resolves on 204", async () => {
+    mockFetch.mockResolvedValue(new Response(null, { status: 204 }));
+    await updateDependency(9, { type: "SS", lagDays: -2 });
+    const [url, init] = lastCall();
+    expect(url).toBe("/api/v1/dependencies/9");
+    expect(init.method).toBe("PUT");
+    expect(JSON.parse(init.body as string)).toEqual({ type: "SS", lagDays: -2 });
+  });
+
+  test("updateDependency rejects with the ApiError, a cycle 409 recognised by its problem type", async () => {
+    mockFetch.mockResolvedValue(jsonResponse(409, CYCLE));
+    const error = await updateDependency(9, { type: "SS", lagDays: 0 }).catch((e: unknown) => e);
+    expect(isDependencyCycle(error)).toBe(true);
+    mockFetch.mockResolvedValue(jsonResponse(400, { title: "Bad", status: 400 }));
+    expect(await updateDependency(9, { type: "SS", lagDays: 999 }).catch((e: unknown) => e)).toMatchObject({ status: 400 });
   });
 
   test("deleteDependency DELETEs the link", async () => {

@@ -146,7 +146,7 @@ internal suspend fun milestoneChain(id: UInt): MilestoneChain? {
 
 /**
  * The SUCCESSOR-side chain of a dependency (V15): the link must be ACTIVE and the project chain of its successor (the project itself, or
- * the project of the successor milestone) active, else null — the route's 404. The guard of `DELETE /dependencies/{id}` and its
+ * the project of the successor milestone) active, else null — the route's 404. The guard of `PUT` and `DELETE /dependencies/{id}` and its
  * under-the-lock re-read; the predecessor's owner is asked nothing, and a gone predecessor has already taken the link with it (the
  * delete cascades).
  */

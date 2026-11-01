@@ -186,6 +186,18 @@ class PlanPermissionsTest {
     }
 
     @Test
+    fun `the edit-dependency flag equals requireOwnerOrAdmin on the successor's project chain`() {
+        for (actor in actors) for ((level, chain) in chains.filter { it.second.owners.size == 3 }) {
+            val guard = allowed { requireOwnerOrAdmin(actor.caller, actor.personId, chain) }
+            assertEquals(guard, PlanPermissions.canEditDependency(actor.asPlanActor(), chain), "${actor.label} at the $level")
+        }
+        val successorChain = OwnerChain(listOf(stream, program, project))
+        val ownerOfSuccessor = actors.first { it.label == "project owner" }
+        assertTrue(PlanPermissions.canEditDependency(ownerOfSuccessor.asPlanActor(), successorChain))
+        assertFalse(PlanPermissions.canEditDependency(ownerOfSuccessor.asPlanActor(), OwnerChain(listOf(stream, program, outsider))))
+    }
+
+    @Test
     fun `the schedule flag equals requireTeamManagerOrAdmin for every actor and team - ownership never schedules`() {
         var cells = 0
         for (actor in actors) for (team in listOf(teamA, teamB, teamC)) {

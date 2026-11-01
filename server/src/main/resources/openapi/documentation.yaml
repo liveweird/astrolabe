@@ -1590,7 +1590,7 @@ paths:
         starts); `lagDays` are WORKING days (Monday-Friday without the public holidays), negative = a lead, -365..365 (`400` outside; default 0). Linking an
         endpoint to itself is `400`. A violated link is only a warning in the project view and never moves anything.
         `409` in two cases, both with nothing written and no revision bump: the two endpoints are already linked (at most one
-        active link per unordered pair, any type and either direction; change the type by deleting the link and adding another),
+        active link per unordered pair, any type and either direction; change a link's type or lag with `PUT /dependencies/{id}`),
         or the link would close a directed cycle on the start/end
         time-point graph (a project contains its milestones) - then `type` is `urn:astrolabe:problem:dependency-cycle` and `cycle`
         names the entities, the first repeated last. Audited as `dependency.created`.
@@ -1644,6 +1644,41 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    put:
+      tags: [plan]
+      operationId: updateDependency
+      summary: Change a dependency's type and lag
+      description: |
+        Replaces the link's `type` and `lagDays` (both required; the same ranges as the create). The two ENDS are not editable -
+        pointing a link at another end is delete + add. An owner on the SUCCESSOR's project chain - that project's own owner included -
+        or ADMIN, read-before-guard (404, then 403, then the body); the predecessor's owner is asked nothing. Re-checked under the
+        plan lock against the chain re-read there. A changed `type` re-runs the cycle check on the start/end time-point graph WITHOUT
+        this link's old edge: `409` with `type` `urn:astrolabe:problem:dependency-cycle` and `cycle` naming the entities (the
+        predecessor first, repeated last), nothing written and no revision bump. A lag-only change cannot close a cycle. There is no
+        duplicate-pair `409`: the pair is already this link's. An accepted PUT always bumps the plan revision, a no-op one included
+        (the conservative rule); only a real change touches `updatedAt` and emits the audit event `dependency.updated`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DependencyUpdateRequest'
+      responses:
+        '204':
+          description: Updated (or unchanged)
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: >-
+            The new type would close a cycle (`type` is `urn:astrolabe:problem:dependency-cycle` and `cycle` lists the entities)
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetail' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '500': { $ref: '#/components/responses/InternalServerError' }
     delete:
       tags: [plan]
@@ -2970,6 +3005,18 @@ components:
           maximum: 365
           default: 0
           description: WORKING days (Monday-Friday without the public holidays) the successor waits after the predecessor's anchor; negative = a lead.
+    DependencyUpdateRequest:
+      type: object
+      required: [type, lagDays]
+      description: The editable part of a link; the ends are fixed.
+      properties:
+        type: { $ref: '#/components/schemas/DependencyType' }
+        lagDays:
+          type: integer
+          format: int32
+          minimum: -365
+          maximum: 365
+          description: WORKING days (Monday-Friday without the public holidays) the successor waits after the predecessor's anchor; negative = a lead.
     DependencyEndpoint:
       type: object
       description: >-
@@ -3180,8 +3227,9 @@ components:
         critical: { type: boolean, description: 'On the project view: a zero-slack link on the viewed project''s critical chain. On the team view always false - no per-project path is computed there.' }
         can:
           type: object
-          required: [delete]
+          required: [edit, delete]
           properties:
+            edit: { type: boolean, description: 'The caller may change the link''s type and lag (`PUT /dependencies/{id}`): an owner on the SUCCESSOR''s project chain, or ADMIN.' }
             delete: { type: boolean, description: 'The caller may delete the link: an owner on the SUCCESSOR''s project chain, or ADMIN.' }
     DependencyStatus:
       type: string

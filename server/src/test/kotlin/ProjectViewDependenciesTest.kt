@@ -297,7 +297,7 @@ class ProjectViewDependenciesTest {
     private data class LinkRights(val create: Boolean, val deleteIntoA: Boolean, val deleteIntoB: Boolean)
 
     @Test
-    fun `createDependency and each link's delete are set exactly where the real writes let the caller through`() = testApplication {
+    fun `createDependency and each link's edit and delete are set exactly where the real writes agree`() = testApplication {
         usePostgresTestcontainer()
         val w = planWorld("pvd6", teams = true)
         val t = w.requireTeams()
@@ -326,6 +326,9 @@ class ProjectViewDependenciesTest {
             assertEquals(rights.create, view.project.can.createDependency, "$label: createDependency")
             assertEquals(rights.deleteIntoA, view.link(intoA).can.delete, "$label: delete a link into A")
             assertEquals(rights.deleteIntoB, view.link(intoB).can.delete, "$label: delete a link into B")
+            // edit follows the successor's chain exactly like delete
+            assertEquals(rights.deleteIntoA, view.link(intoA).can.edit, "$label: edit a link into A")
+            assertEquals(rights.deleteIntoB, view.link(intoB).can.edit, "$label: edit a link into B")
 
             // The real writes agree.
             val created = caller.client.postDependency(
@@ -334,6 +337,13 @@ class ProjectViewDependenciesTest {
                 projectRef(w.projectId),
             )
             assertEquals(if (rights.create) HttpStatusCode.Created else HttpStatusCode.Forbidden, created.status, "$label: POST")
+            for ((id, allowed) in listOf(intoA to rights.deleteIntoA, intoB to rights.deleteIntoB)) {
+                assertEquals(
+                    if (allowed) HttpStatusCode.NoContent else HttpStatusCode.Forbidden,
+                    caller.client.putDependency(id, DependencyType.SS, 1).status,
+                    "$label: PUT $id",
+                )
+            }
             assertEquals(
                 if (rights.deleteIntoA) HttpStatusCode.NoContent else HttpStatusCode.Forbidden,
                 caller.client.delete("/api/v1/dependencies/$intoA").status,

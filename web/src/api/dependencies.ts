@@ -1,6 +1,6 @@
-// Dependencies API (`POST /api/v1/projects/{id}/dependencies`, `DELETE /api/v1/dependencies/{id}`, V15) — a link between two time
+// Dependencies API (`POST /api/v1/projects/{id}/dependencies`, `PUT` and `DELETE /api/v1/dependencies/{id}`, V15) — a link between two time
 // points of the plan, each a milestone or a project. The SUCCESSOR is the constrained side, so the successor's project chain (or
-// ADMIN) creates and deletes the link; the project view's `dependencies[]` is the read surface (each with its `can.delete`). A
+// ADMIN) creates, edits (type and lag) and deletes the link; the project view's `dependencies[]` is the read surface (each with its `can.edit` and `can.delete`). A
 // violated link only warns. Thin endpoint wrappers: transport (authedFetch/ApiError) in ./http, types from ./schema.
 
 import { ApiError, jsonRequest, voidRequest } from "./http";
@@ -9,6 +9,7 @@ import type { components } from "./schema";
 type Schemas = components["schemas"];
 
 export type DependencyBody = Schemas["DependencyCreateRequest"];
+export type DependencyUpdateBody = Schemas["DependencyUpdateRequest"];
 export type DependencyType = Schemas["DependencyType"];
 export type EndpointKind = Schemas["EndpointKind"];
 export type EndpointRef = Schemas["EndpointRef"];
@@ -21,6 +22,14 @@ const DEPENDENCY_CYCLE_TYPE = "urn:astrolabe:problem:dependency-cycle";
 /** Create a link whose SUCCESSOR is the project or one of its milestones (`201`; no revision travels — a link is set, not merged). */
 export async function createDependency(projectId: number, body: DependencyBody): Promise<Schemas["DependencyResponse"]> {
   return jsonRequest<Schemas["DependencyResponse"]>(`/api/v1/projects/${projectId}/dependencies`, { method: "POST", body: JSON.stringify(body) });
+}
+
+/**
+ * Change a link's type and lag (`PUT /dependencies/{id}`, `204`; both fields are sent — there is no partial body — and the ends never
+ * change). A changed type that would close a cycle answers the same 409 as a create ({@link isDependencyCycle}).
+ */
+export async function updateDependency(id: number, body: DependencyUpdateBody): Promise<void> {
+  await voidRequest(`/api/v1/dependencies/${id}`, { method: "PUT", body: JSON.stringify(body) });
 }
 
 export async function deleteDependency(id: number): Promise<void> {

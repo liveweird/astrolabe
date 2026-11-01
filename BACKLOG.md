@@ -38,7 +38,6 @@ Each increment gets its own plan (architect) before implementation. The domain s
 
 - [new] **Measure the project view on a synthetic long critical chain.** The sample plan has none (51 upstream rows over all 100 project views, the deepest at 2 hops, none critical), so the C10 budget gate (p50 <= 30 ms, p95 <= 45 ms, <= 120 KB) is unproven for a full 100-row `upstream` plus a long chain.
 - [new] **An apply-only mode for `--polish-holidays` on an already-loaded stack.** The loader applies the preset only as the last step of a full load; an existing sample plan cannot get the holidays without re-running it.
-- [new] **Edit a dependency in place.** `PUT /dependencies/{id}` for the type or lag; the cycle check re-runs without the edited edge (today: delete + add).
 - [new] **Arrows follow a drag preview.** Today they redraw at drop.
 - [new] **Index arrow specs by row** for the virtual pages (the team page up to ~270 rows, the roadmap ~100 and the expanded programs tree ~125) if the per-frame filter shows in the profile; at those sizes the scroll holds the 60 Hz cap with the arrows on (v0.6 measurement, `timeline.md`).
 - [new] **A `projectId` filter on `GET /milestones`** when the predecessor picker needs scoping.

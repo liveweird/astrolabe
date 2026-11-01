@@ -4,6 +4,7 @@ import ch.nokillswit.infra.db.active
 import ch.nokillswit.teams.TeamService
 import kotlinx.coroutines.flow.toList
 import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.r2dbc.*
 
 /*
@@ -87,9 +88,10 @@ private suspend fun projectEndpoints(ids: List<UInt>): Map<EndpointRef, Dependen
 /**
  * The time-point graph of the whole ACTIVE plan: every active milestone's containment in its project and every active dependency.
  * Two statements, bounded by the plan's scale (about 1,000 milestones and a few thousand links). An active milestone's project is
- * always active (the project delete cascades its milestones), so no ancestor join is needed.
+ * always active (the project delete cascades its milestones), so no ancestor join is needed. [excludingDependency] leaves one link out:
+ * the one `PUT /dependencies/{id}` is replacing, so its old edge cannot count against its new one.
  */
-internal suspend fun loadTimePointGraph(): TimePointGraph {
+internal suspend fun loadTimePointGraph(excludingDependency: UInt? = null): TimePointGraph {
     val milestones = MilestoneService.Milestones
     val links = DependencyService.Dependencies
     val containment = milestones.select(milestones.id, milestones.projectId)
@@ -97,8 +99,9 @@ internal suspend fun loadTimePointGraph(): TimePointGraph {
         .orderBy(milestones.id)
         .toList()
         .map { ContainmentLink(it[milestones.id].value, it[milestones.projectId].value) }
-    val dependencies = links.selectAll()
-        .where { links.active() }
+    val activeLinks = links.selectAll().where { links.active() }
+    if (excludingDependency != null) activeLinks.andWhere { links.id neq EntityID(excludingDependency, links) }
+    val dependencies = activeLinks
         .orderBy(links.id)
         .toList()
         .map { DependencyEdge(it.predecessorRef(), it.successorRef(), DependencyType.valueOf(it[links.type])) }

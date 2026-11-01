@@ -105,6 +105,7 @@
     "milestoneDeleted": "Milestone deleted",
     "projectDeleted": "Project deleted",
     "dependencyAdded": "Dependency added",
+    "dependencySaved": "Dependency saved",
     "dependencyDeleted": "Dependency deleted"
   },
   "conflicts_one": "{{count}} conflict",
@@ -155,6 +156,9 @@
   "dependency": {
     "add": "Add dependency",
     "createTitle": "Add dependency",
+    "editTitle": "Edit dependency",
+    "edit": "Edit…",
+    "editIntro": "Only the type and the lag can change here. To link other ends, delete this dependency and add a new one.",
     "intro": "The successor waits for the predecessor. The project's owner or an administrator adds and removes the project's links; the predecessor's owner is not asked. A link that does not hold only warns - nothing is moved.",
     "successor": "Successor",
     "successorHint": "This project or one of its milestones - the side that waits.",
@@ -201,6 +205,7 @@
       "dates": "Dates"
     },
     "cycle": "This link would close a cycle through:",
+    "cycleEdit": "With this type the link would close a cycle through:",
     "duplicate": "These two ends are already linked.",
     "saveForbidden": "Only the owners of the successor's project, or an administrator, can change its dependencies",
     "saveInvalid": "Check the successor and the predecessor — either may have been deleted meanwhile.",

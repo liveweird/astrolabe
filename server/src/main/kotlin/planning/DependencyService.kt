@@ -24,14 +24,17 @@ private const val DEPENDENCY_NOT_FOUND = "Dependency not found"
 private const val ALREADY_LINKED = "These two endpoints are already linked"
 
 /**
- * A stored link's successor-side authorization data: the [owners] of the SUCCESSOR's project chain (the guard of `DELETE`), and both
- * ends as stored. See [dependencyChain].
+ * A stored link's successor-side authorization data: the [owners] of the SUCCESSOR's project chain (the guard of `PUT` and `DELETE`),
+ * and both ends as stored. See [dependencyChain].
  */
 data class DependencyChain(val owners: OwnerChain, val predecessor: EndpointRef, val successor: EndpointRef)
 
+/** What `PUT /dependencies/{id}` found under the lock, for the audit: the [chain] (both ends as stored) and the type and lag replaced. */
+data class DependencyUpdate(val chain: DependencyChain, val typeFrom: DependencyType, val lagFrom: Int)
+
 /**
  * Dependencies (V15): links between two milestones, a milestone and a project, or two projects. A dependency IS plan state, so every
- * write runs in [withPlanWrite]; the SUCCESSOR's project chain authorizes it (`POST /projects/{id}/dependencies`, `DELETE
+ * write runs in [withPlanWrite]; the SUCCESSOR's project chain authorizes it (`POST /projects/{id}/dependencies`, `PUT` and `DELETE
  * /dependencies/{id}`: the predecessor's owner is asked nothing, since a link never moves anything) and the guard is re-run under the
  * lock against the chain re-read there. A link that would close a directed cycle on the time-point graph ([TimePointGraph]) is a
  * `409 urn:astrolabe:problem:dependency-cycle` before the insert; a second ACTIVE link on the same ordered pair is the partial unique
@@ -109,6 +112,36 @@ class DependencyService(private val database: R2dbcDatabase) {
     }
 
     /**
+     * Replaces the link's type and lag under the plan lock; the ends never change. In this order: the SUCCESSOR's chain is re-read
+     * (missing = 404, nothing written) and [guard] re-run on it (403) -> a changed TYPE re-runs the cycle check on the graph WITHOUT this
+     * link's old edge plus the new one (409 `urn:astrolabe:problem:dependency-cycle`, nothing written, no bump; a lag-only change moves no
+     * edge, so it skips the check) -> the `UPDATE`, skipped when nothing changed. There is no reverse-pair or duplicate-pair check: the
+     * pair is already this link's alone. The plan revision bumps either way (the conservative rule); `updated_at` only on a change.
+     */
+    suspend fun update(id: UInt, request: DependencyUpdateRequest, guard: PlanGuard): DependencyUpdate {
+        validateDependencyUpdate(request)
+        return database.withPlanWrite {
+            val chain = dependencyChain(id) ?: throw NotFoundException(DEPENDENCY_NOT_FOUND)
+            guard(chain.owners)
+            val links = Dependencies
+            val stored = links.select(links.type, links.lagDays).where { (links.id eq id) and links.active() }.toList().single()
+            val typeFrom = DependencyType.valueOf(stored[links.type])
+            val lagFrom = stored[links.lagDays]
+            if (request.type != typeFrom) {
+                refuseCycle(DependencyEdge(chain.predecessor, chain.successor, request.type), "Changing", excluding = id)
+            }
+            if (request.type != typeFrom || request.lagDays != lagFrom) {
+                links.update({ (links.id eq id) and links.active() }) {
+                    it[type] = request.type.name
+                    it[lagDays] = request.lagDays
+                    it[updatedAt] = nowMillis()
+                }
+            }
+            DependencyUpdate(chain, typeFrom, lagFrom)
+        }.value
+    }
+
+    /**
      * Soft delete under the plan lock: the SUCCESSOR's chain is re-read (missing = 404, nothing written) and [guard] re-run on it.
      * Frees the ordered pair. Returns the chain read under the lock (both ends as stored) for the audit.
      */
@@ -148,13 +181,16 @@ class DependencyService(private val database: R2dbcDatabase) {
         if (exists) throw ConflictException(ALREADY_LINKED)
     }
 
-    /** 409 when [edge] would close a directed cycle on the active plan's graph; the exception carries the cycle as data. */
-    private suspend fun refuseCycle(edge: DependencyEdge) {
-        val cycle = loadTimePointGraph().cycleClosedBy(edge) ?: return
+    /**
+     * 409 when [edge] would close a directed cycle on the active plan's graph (without the link [excluding], the one an edit replaces);
+     * the exception carries the cycle as data. [verb] opens the detail: "Adding" a link, "Changing" one.
+     */
+    private suspend fun refuseCycle(edge: DependencyEdge, verb: String = "Adding", excluding: UInt? = null) {
+        val cycle = loadTimePointGraph(excluding).cycleClosedBy(edge) ?: return
         val names = resolveEndpoints(cycle.distinct())
         val nodes = cycle.map { ProblemCycleNode(it.kind.name, it.id, names.getValue(it).name) }
         throw ConflictException(
-            "Adding this dependency would close a cycle: ${nodes.joinToString(" → ") { it.name }}",
+            "$verb this dependency would close a cycle: ${nodes.joinToString(" → ") { it.name }}",
             problemType = DEPENDENCY_CYCLE_PROBLEM,
             cycle = nodes,
         )

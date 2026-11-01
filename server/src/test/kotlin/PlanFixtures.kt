@@ -3,6 +3,7 @@ package ch.nokillswit
 import ch.nokillswit.planning.DependencyCreateRequest
 import ch.nokillswit.planning.DependencyService
 import ch.nokillswit.planning.DependencyType
+import ch.nokillswit.planning.DependencyUpdateRequest
 import ch.nokillswit.planning.EndpointKind
 import ch.nokillswit.planning.EndpointRef
 import ch.nokillswit.planning.MilestoneCreateRequest
@@ -118,6 +119,10 @@ suspend fun HttpClient.postDependency(
     type: DependencyType = DependencyType.FS,
     lagDays: Int = 0,
 ): HttpResponse = postJson("/api/v1/projects/$projectId/dependencies", DependencyCreateRequest(predecessor, successor, type, lagDays))
+
+/** `PUT /dependencies/{id}` with a typed body — the link's new type and lag; its ends never change. */
+suspend fun HttpClient.putDependency(id: UInt, type: DependencyType, lagDays: Int = 0): HttpResponse =
+    putJson("/api/v1/dependencies/$id", DependencyUpdateRequest(type, lagDays))
 
 /** `PUT /teams/{teamId}/milestone-order` with a typed body. */
 suspend fun HttpClient.putTeamOrder(teamId: UInt, expectedRevision: Long, ids: List<UInt>): HttpResponse =
