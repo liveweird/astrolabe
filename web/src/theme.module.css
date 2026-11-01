@@ -622,3 +622,14 @@
   opacity: 0.95;
   cursor: grabbing;
 }
+
+/* The option list of every Select / MultiSelect / Autocomplete / TagsInput (theme.ts sets withScrollArea: false): the LISTBOX is the scroller.
+   axe's scrollable-region-focusable exempts exactly the element that is the combobox's popup (role=listbox named by the input's aria-controls),
+   while Mantine's default inner ScrollArea viewport is a plain scroller inside the listbox - flagged once the list overflows, and a tab stop
+   there would be a focusable non-option inside the listbox (aria-required-children). The input keeps DOM focus and drives the list through
+   aria-activedescendant, which scrolls the active option into view as before. 13.75rem x scale = Mantine's own default maxDropdownHeight (220 px at the default font size; it follows the font size like the rows). */
+.comboboxOptions {
+  max-height: calc(13.75rem * var(--mantine-scale));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}

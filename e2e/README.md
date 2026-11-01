@@ -158,7 +158,7 @@ the same commit** — this list is the coverage map, the scenario file is the de
   another project through the Add dependency dialog (successor select, searchable predecessor picker), sees the ghost row with its link to the other
   project and the gray arrow, and is refused a reverse link that would close a cycle (the path named in the dialog); the team's manager moves the
   successor ahead of its predecessor and reads the conflict (red arrow, "1 conflict" badge, the Dependencies row "Violated · 10 working days short" with
-  what it needs, the bar's name); the owner deletes the link from the table and the ghost row, the arrow and the conflict go.
+  what it needs, the bar's name); the owner deletes the link from the table and the ghost row, the arrow and the conflict go. A 14-option Predecessor list (more than the 220 px option list shows) is driven by keyboard - arrow down past the visible area, Enter picks - and its open listbox passes an axe scan (the listbox is the scroller, `theme.ts` `withScrollArea: false`).
 - [`team-view.spec.ts`](scenarios/team-view.md) — the team page `/teams/:id` (schedule, order and capacity on the shared Timeline): the team's manager
   adds a capacity period dated on a Wednesday with a WIP limit of 1, schedules two milestones from the page (the tray row's Edit schedule dialog, the tray's
   Schedule button) and reads the overloaded week (the strip cell's `data-overloaded`, the orange "1 week overloaded" badge, the weekly table's prorated

@@ -7,7 +7,7 @@
 // program, work stream, team, people, users).
 import { randomUUID } from "node:crypto";
 import type { APIRequestContext, Locator, Page } from "@playwright/test";
-import { apiAsAdmin, deleteViaApi, expect, login, rowOperation, test, uniqueText } from "./helpers";
+import { apiAsAdmin, axeViolations, deleteViaApi, expect, login, rowOperation, test, uniqueText } from "./helpers";
 
 // Registered in creation order; torn down in reverse (the projects before their program before its stream before the team and the people).
 const teardown: string[] = [];
@@ -31,6 +31,7 @@ interface World {
   api: APIRequestContext;
   owner: Account;
   manager: Account;
+  teamId: number;
   a: Project;
   b: Project;
 }
@@ -88,7 +89,7 @@ async function seedWorld(): Promise<World> {
 
   const a = await project("a", "2027-02-01", "2027-02-05");
   const b = await project("b", "2027-02-08", "2027-02-12");
-  return { api, owner: owner.account, manager: manager.account, a, b };
+  return { api, owner: owner.account, manager: manager.account, teamId, a, b };
 }
 
 /** Type an ISO date and leave the field by clicking the dialog title: Tab would focus the next date input and open its calendar over the footer. */
@@ -216,4 +217,45 @@ test("the team's manager moves the successor before its predecessor and reads th
   await expect(arrows(page)).toHaveCount(0);
   await expect(page.getByRole("grid", { name: "Milestone timeline" }).getByRole("link", { name: new RegExp(`open project ${a.name}$`) })).toHaveCount(0);
   await expect(facts(page)).not.toContainText("conflict");
+});
+
+// The option lists scroll in the LISTBOX itself (theme.ts `withScrollArea: false`; axe exempts the combobox popup, while an inner scroll viewport it flags):
+// the input keeps DOM focus, so the keyboard path is aria-activedescendant, and the active option must be scrolled into view.
+test("a long predecessor list scrolls by keyboard (arrow down past the visible area, Enter picks) and passes axe", async ({ page }) => {
+  const { api, owner, teamId, a, b } = await seedWorld();
+  // Enough milestones in B (they leave with it) to overflow the 13.75rem option list (about six rows at any font size).
+  const prefix = uniqueText("e2e-dep-long");
+  try {
+    for (let n = 1; n <= 14; n++) {
+      const created = await api.post(`/api/v1/projects/${b.id}/milestones`, { data: { name: `${prefix}-${String(n).padStart(2, "0")}`, estimateMd: 1, teamId } });
+      expect(created.status(), await created.text()).toBe(201);
+    }
+  } finally {
+    await api.dispose();
+  }
+
+  await login(page, owner.email, owner.password);
+  await openProject(page, a);
+  await page.getByRole("button", { name: "Add dependency", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Add dependency" });
+  await expect(dialog).toBeVisible();
+  const picker = dialog.getByRole("combobox", { name: "Predecessor" });
+  await picker.fill(prefix);
+  const options = page.getByRole("option");
+  await expect(options).toHaveCount(14);
+  const listbox = page.getByRole("listbox");
+  expect(await listbox.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+  expect(await axeViolations(page, '[role="listbox"]')).toEqual([]);
+
+  // Arrow down until the last option is the active one (the first press may only wake the list); a wrap-around would pass it, so look before each press.
+  const lastLabel = ((await options.last().textContent()) ?? "").trim();
+  for (let press = 0; press < 15 && (await options.last().getAttribute("data-combobox-selected")) === null; press++) {
+    await picker.press("ArrowDown");
+  }
+  await expect(options.last()).toHaveAttribute("data-combobox-selected", "true");
+  expect(await listbox.evaluate((el) => el.scrollTop > 0)).toBe(true);
+  await expect(options.last()).toBeInViewport();
+  await picker.press("Enter");
+  await expect(picker).toHaveValue(lastLabel);
+  await expect(listbox).toBeHidden();
 });

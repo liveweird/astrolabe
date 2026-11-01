@@ -39,6 +39,9 @@ const sans =
 // dark-8 — every place the hue itself must read on the dark canvas (nav marker, hover
 // underline, focus) goes through `--astrolabe-accent-ink` (themeVariables.ts), which flips to the
 // 4-shade there.
+const comboboxDefaults = { filter: foldedOptionsFilter, withScrollArea: false } as const;
+const comboboxClassNames = { options: classes.comboboxOptions };
+
 export const theme = createTheme({
   primaryColor: "astrolabe",
   // Shade 8 in light mode — one step deeper than Mantine's stock cyan 7, which falls short of
@@ -102,10 +105,14 @@ export const theme = createTheme({
     // Every searchable Select/MultiSelect/TagsInput matches accent-insensitively ("zolw" finds
     // "Żółw"), mirroring the server-side unaccent list filters. A per-site `filter` prop still
     // wins — don't pass one unless it preserves the diacritics folding (see utils/text.ts).
-    Select: Select.extend({ defaultProps: { filter: foldedOptionsFilter } }),
-    Autocomplete: Autocomplete.extend({ defaultProps: { filter: foldedOptionsFilter } }),
-    MultiSelect: MultiSelect.extend({ defaultProps: { filter: foldedOptionsFilter } }),
-    TagsInput: TagsInput.extend({ defaultProps: { filter: foldedOptionsFilter } }),
+    // They also drop Mantine's inner ScrollArea (`withScrollArea: false`) and scroll the listbox
+    // itself (`comboboxOptions`): a long option list otherwise fails axe's
+    // scrollable-region-focusable, and the usual tab-stop fix breaks aria-required-children.
+    // Consequence: `maxDropdownHeight`/`scrollAreaProps`/`floatingHeight` no longer apply (the cap is 13.75rem in CSS).
+    Select: Select.extend({ defaultProps: comboboxDefaults, classNames: comboboxClassNames }),
+    Autocomplete: Autocomplete.extend({ defaultProps: comboboxDefaults, classNames: comboboxClassNames }),
+    MultiSelect: MultiSelect.extend({ defaultProps: comboboxDefaults, classNames: comboboxClassNames }),
+    TagsInput: TagsInput.extend({ defaultProps: comboboxDefaults, classNames: comboboxClassNames }),
     Badge: Badge.extend({ defaultProps: { radius: "sm", variant: "light" } }),
     // Form sections (contract and registry forms): flat, headed by a small caps
     // legend over a hairline — the fieldset/legend semantics stay, the boxes go.

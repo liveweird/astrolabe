@@ -147,7 +147,7 @@ scratch, use `npm install --legacy-peer-deps`.
 - The `@mantine/notifications` host is mounted in `main.tsx` (top-center, autoClose 2500, limit 3
   — deliberately not in App, so unit tests never mount it). **Success toasts only, with fixed
   vocabulary only** (`showSuccessToast(t("<area>.toast.*"))` in `utils/toast.tsx` — green, never
-  user-entered values; errors stay inline).
+  user-entered values; errors stay inline). The close X's accessible name (`common.action.closeNotification`) is set there too, at show time.
 
 ## Shared list-page building blocks (the Users.tsx template)
 
@@ -368,6 +368,7 @@ are English (THE default and fallback everywhere) and Polish. All user-facing st
   capped by `maxHeight` goes in `components/ScrollRegion.tsx` (native scroller, `tabIndex={0}`,
   `role="region"`, the table's own i18n name as `aria-label`, the `tableScroll` focus ring) — never a
   bare `Table.ScrollContainer`; axe's `scrollable-region-focusable` fails any that overflows without it.
+- **An option list is a scroller too — and the LISTBOX is the scroller.** The theme gives every `Select`/`MultiSelect`/`Autocomplete`/`TagsInput` `withScrollArea: false` and `classNames.options` (`theme.module.css` `.comboboxOptions`: `max-height: calc(13.75rem * var(--mantine-scale)); overflow-y: auto`). Mantine's default inner `ScrollArea` viewport is a plain scroller inside the `role="listbox"`: axe's `scrollable-region-focusable` flags it once ~100 options overflow, and a tab stop on it puts a focusable non-option in the listbox (`aria-required-children`, the reverted v0.6 C4 attempt). axe exempts exactly the element that IS a combobox popup (the listbox the input's `aria-controls` names), so the listbox scrolls itself; the input keeps DOM focus and `aria-activedescendant` scrolls the active option into view. `maxDropdownHeight`/`scrollAreaProps`/`floatingHeight` therefore no longer apply (the cap is the CSS). Pinned by the overflow + keyboard + axe test in `e2e/tests/dependencies.spec.ts` (the `accessibility.spec.ts` scans of the open lists overflow only on a full stack).
 - The logo SVGs are computed geometry — change them in a vector editor, never by hand-editing the path data; restyle rule: keep aria-labels, roles and real semantic elements stable. Details: `.claude/docs/web-internals.md`.
 
 ## Changelog & app versioning

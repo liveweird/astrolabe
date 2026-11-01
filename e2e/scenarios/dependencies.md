@@ -39,6 +39,18 @@
    - *Expected*: the DELETE answers 204; the table says "No dependencies yet"; no arrow, no ghost row (the link to A's project is
      gone) and no conflicts in the facts line.
 
+## Scenario: a long predecessor list scrolls by keyboard (arrow down past the visible area, Enter picks) and passes axe
+
+1. The administrator adds 14 milestones with a shared unique name prefix to project B through the API. The project owner signs in, opens
+   project A, opens **Add dependency** and types the prefix into the Predecessor picker.
+   - *Expected*: the open listbox holds the 14 options and overflows (`scrollHeight > clientHeight`: the listbox itself is the scroller,
+     `theme.ts` `withScrollArea: false`); an axe scan of the listbox reports zero violations (`scrollable-region-focusable` exempts the
+     combobox popup, which an inner scroll viewport would not be).
+2. The owner presses ArrowDown in the input until the last option is the active one.
+   - *Expected*: the last option carries `data-combobox-selected`, the listbox has scrolled (`scrollTop > 0`) and the option is in the viewport.
+3. The owner presses Enter.
+   - *Expected*: the picker's value is the last option's label and the listbox closes.
+
 ## Not covered here (and why)
 
 - **The pointer and keyboard gestures of the timeline** (drag, resize, the keyboard sensor) - unchanged, owned by
