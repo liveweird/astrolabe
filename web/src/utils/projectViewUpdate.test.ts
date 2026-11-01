@@ -21,6 +21,7 @@ const VIEW = {
   revision: 7,
   span: { start: "2027-01-11", end: "2027-01-22" },
   drift: null,
+  idleGaps: [{ start: "2027-02-01", end: "2027-02-03", workingDays: 3 }],
   scheduled: [milestone(1, "Build", "2027-01-11", "2027-01-15"), milestone(2, "Launch", "2027-01-18", "2027-01-22")],
   unscheduled: [milestone(3, "audit"), milestone(4, "Zeta")],
 } as ProjectView;
@@ -52,6 +53,12 @@ describe("applySchedule", () => {
     expect(next.revision).toBe(7);
     expect(next.span).toEqual(VIEW.span);
     expect(VIEW.scheduled[0].startDate).toBe("2027-01-11");
+  });
+
+  test("the idle gaps are the server's too: kept (not dropped, not recomputed) until the refetch brings the new ones", () => {
+    const next = applySchedule(VIEW, 2, "2027-03-01", "2027-03-05");
+    expect(next.idleGaps).toBe(VIEW.idleGaps);
+    expect(applySchedule(VIEW, 1, null, null).idleGaps).toBe(VIEW.idleGaps);
   });
 
   test("an unknown id answers the view unchanged", () => {

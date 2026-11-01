@@ -5,14 +5,17 @@ import TimelineBar from "./TimelineBar";
 import TimelineDrawSurface from "./TimelineDrawSurface";
 import classes from "../theme.module.css";
 
-/** A decorative band over a day span (the plan window, a drift): its facts live in the page's text, so it is `aria-hidden`. */
+const BAND_TONE_CLASS = { window: "", drift: classes.timelineBandDrift, idle: classes.timelineBandIdle } as const;
+
+/** A decorative band over a day span (the plan window, a drift, an idle gap): its facts live in the page's text, so it is `aria-hidden`; tests read `data-band-tone`. */
 export function TimelineBand({ band, scale }: { band: TimelineBandData; scale: TimelineScale }) {
   const start = toEpochDay(band.start);
   return (
     <div
       aria-hidden="true"
       title={band.label}
-      className={`${classes.timelineBand} ${band.tone === "drift" ? classes.timelineBandDrift : ""}`}
+      data-band-tone={band.tone}
+      className={`${classes.timelineBand} ${BAND_TONE_CLASS[band.tone]}`}
       style={{ left: scale.xOf(start), width: scale.widthOf(start, toEpochDay(band.end)) }}
     />
   );

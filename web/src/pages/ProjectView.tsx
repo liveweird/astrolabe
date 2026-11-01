@@ -18,6 +18,7 @@ import FormErrorAlert from "../components/FormErrorAlert";
 import MilestoneEditorModal from "../components/MilestoneEditorModal";
 import MilestoneScheduleModal from "../components/MilestoneScheduleModal";
 import PageHeader from "../components/PageHeader";
+import IdleGaps from "../components/IdleGaps";
 import ProjectDependencies from "../components/ProjectDependencies";
 import ProjectEditorModal from "../components/ProjectEditorModal";
 import ProjectTimeline, { ProjectTray, type MilestoneActions } from "../components/ProjectTimeline";
@@ -73,6 +74,11 @@ function ProjectFacts({ view }: { view: ProjectViewDocument }) {
       {conflicts > 0 && (
         <Badge color="red" variant="light">
           {t("project.conflicts", { count: conflicts })}
+        </Badge>
+      )}
+      {view.idleGaps.length > 0 && (
+        <Badge color="gray" variant="light">
+          {t("timeline.idle.badge", { count: view.idleGaps.length })}
         </Badge>
       )}
     </Group>
@@ -285,6 +291,8 @@ function ProjectPage({ id }: { id: number }) {
       )}
       {/* After the tray, not between: the tray's pointer drop needs it close to the timeline (and in view with it). */}
       {dependencies}
+      {/* Only with something scheduled: an empty or all-tray project has no span to be idle in. */}
+      {view.scheduled.length > 0 && <IdleGaps gaps={view.idleGaps} scope="project" />}
 
       {editor?.kind === "create" && <MilestoneEditorModal project={project} target={null} onClose={closeEditor} onSaved={saved} />}
       {editor?.kind === "edit" && <MilestoneEditorModal project={project} target={editor.milestone} onClose={closeEditor} onSaved={saved} />}

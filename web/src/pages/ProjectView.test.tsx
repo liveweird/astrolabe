@@ -183,6 +183,7 @@ describe("Project view page", () => {
       [3, "Timeline"],
       [3, "Unscheduled"],
       [3, "Dependencies"],
+      [3, "Idle gaps"],
     ]);
     expect(screen.getByText("Monthly invoicing")).toBeInTheDocument();
     expect(screen.getByText("Billing · Platform · Owner: Ola Owner")).toBeInTheDocument();
@@ -195,6 +196,60 @@ describe("Project view page", () => {
     expect(barOf("Discovery")).toHaveAccessibleName("Discovery, Backend, 2027-01-11 to 2027-01-15, 12.25 man-days");
     const tray = screen.getByRole("table", { name: "Unscheduled milestones" });
     expect(within(tray).getAllByRole("row").slice(1).map((r) => within(r).getAllByRole("cell")[1].textContent)).toEqual(["Audit", "Rollout"]);
+  });
+
+  test("idle gaps: a hatched band per gap (with or without a target window), a gray badge in the facts line and the table behind a disclosure", async () => {
+    const user = userEvent.setup();
+    view = viewOf({ idleGaps: [{ start: "2027-01-19", end: "2027-01-21", workingDays: 3 }] });
+    renderPage();
+    await screen.findByRole("grid", { name: "Milestone timeline" });
+    const band = document.querySelector('[data-band-tone="idle"]');
+    expect(band).toHaveAttribute("title", "Idle 2027-01-19 to 2027-01-21, 3 working days");
+    // Painted after the window and drift bands, which are unchanged.
+    expect([...document.querySelectorAll("[data-band-tone]")].map((b) => b.getAttribute("data-band-tone"))).toEqual(["window", "drift", "idle"]);
+    expect(within(screen.getByRole("group", { name: "Project facts" })).getByText("1 idle gap")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Show the idle gaps" }));
+    const rows = within(await screen.findByRole("table", { name: "Idle gaps" })).getAllByRole("row").slice(1);
+    expect(rows.map((row) => within(row).getAllByRole("cell").map((cell) => cell.textContent))).toEqual([["2027-01-19", "2027-01-21", "3"]]);
+  });
+
+  test("idle gaps of a project without a target window still draw their bands; none = no band, no badge", async () => {
+    view = viewOf({ project: { ...viewOf().project, targetStart: null, targetEnd: null }, drift: null, idleGaps: [{ start: "2027-01-19", end: "2027-01-21", workingDays: 3 }] });
+    const { unmount } = renderPage();
+    await screen.findByRole("grid", { name: "Milestone timeline" });
+    expect([...document.querySelectorAll("[data-band-tone]")].map((b) => b.getAttribute("data-band-tone"))).toEqual(["idle"]);
+    unmount();
+    view = viewOf();
+    renderPage();
+    await screen.findByRole("grid", { name: "Milestone timeline" });
+    expect(document.querySelector('[data-band-tone="idle"]')).toBeNull();
+    expect(within(screen.getByRole("group", { name: "Project facts" })).queryByText(/idle gap/)).toBeNull();
+    expect(screen.getByText("No idle gaps of 3 or more working days.")).toBeInTheDocument();
+  });
+
+  test("nothing scheduled: no Idle gaps section", async () => {
+    view = viewOf({ scheduled: [], idleGaps: [] });
+    renderPage();
+    await screen.findByRole("grid", { name: "Milestone timeline" });
+    expect(screen.queryByRole("heading", { name: "Idle gaps" })).toBeNull();
+  });
+
+  test("a schedule write keeps the shown gaps until the refetch, which brings the server's new ones", async () => {
+    view = viewOf({ idleGaps: [{ start: "2027-01-19", end: "2027-01-21", workingDays: 3 }] });
+    renderPage();
+    await screen.findByRole("grid", { name: "Milestone timeline" });
+    const before = viewGets(mockFetch);
+    // The server recomputes the gaps against the new dates, which the optimistic update cannot do.
+    mockFetch.mockImplementation(((impl) => (url: string, init?: RequestInit) => {
+      if (init?.method === "PUT" && /\/schedule$/.test(url)) view = { ...view, idleGaps: [{ start: "2027-02-01", end: "2027-02-04", workingDays: 4 }] };
+      return impl(url, init);
+    })(mockFetch.getMockImplementation() as (url: string, init?: RequestInit) => Promise<Response>));
+    dropMove(DISCOVERY, -4);
+    // Synchronously after the optimistic step the old gap is still drawn (kept, not dropped).
+    expect(document.querySelector('[data-band-tone="idle"]')).toHaveAttribute("title", "Idle 2027-01-19 to 2027-01-21, 3 working days");
+    await waitFor(() => expect(viewGets(mockFetch)).toBeGreaterThan(before));
+    await waitFor(() => expect(document.querySelector('[data-band-tone="idle"]')).toHaveAttribute("title", "Idle 2027-02-01 to 2027-02-04, 4 working days"));
+    expect(within(screen.getByRole("group", { name: "Project facts" })).getByText("1 idle gap")).toBeInTheDocument();
   });
 
   test("an ahead span is gray, no drift says nothing alarming, no window and nothing scheduled read as such", async () => {

@@ -231,6 +231,7 @@ describe("Team view page", () => {
       [3, "Unscheduled"],
       [3, "Capacity"],
       [3, "Weekly load"],
+      [3, "Idle gaps"],
     ]);
     expect(screen.getByText("Money movers")).toBeInTheDocument();
     expect(screen.getByText("Manager: Cara New")).toBeInTheDocument();
@@ -252,6 +253,40 @@ describe("Team view page", () => {
     // The arrows between this timeline's rows: the one link (a violated one).
     expect(document.querySelectorAll("[data-arrow]")).toHaveLength(1);
     expect(document.querySelector("[data-arrow]")).toHaveAttribute("data-violated", "true");
+  });
+
+  test("idle gaps: a hatched band per gap, a gray badge in the facts line and the table behind a disclosure; none = no band, no badge", async () => {
+    const user = userEvent.setup();
+    view = viewOf({ idleGaps: [{ start: "2027-02-11", end: "2027-02-17", workingDays: 5 }, { start: "2027-03-01", end: "2027-03-03", workingDays: 3 }] });
+    renderPage();
+    await screen.findByRole("grid", { name: "Team milestone timeline" });
+    const bands = [...document.querySelectorAll('[data-band-tone="idle"]')];
+    expect(bands.map((band) => band.getAttribute("title"))).toEqual([
+      "Idle 2027-02-11 to 2027-02-17, 5 working days",
+      "Idle 2027-03-01 to 2027-03-03, 3 working days",
+    ]);
+    expect(within(screen.getByRole("group", { name: "Team facts" })).getByText("2 idle gaps")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Show the idle gaps" }));
+    const rows = within(await screen.findByRole("table", { name: "Idle gaps" })).getAllByRole("row").slice(1);
+    expect(rows.map((row) => within(row).getAllByRole("cell").map((cell) => cell.textContent))).toEqual([
+      ["2027-02-11", "2027-02-17", "5"],
+      ["2027-03-01", "2027-03-03", "3"],
+    ]);
+  });
+
+  test("no idle gaps: no band, no badge, the section says so", async () => {
+    renderPage();
+    await screen.findByRole("grid", { name: "Team milestone timeline" });
+    expect(document.querySelector('[data-band-tone="idle"]')).toBeNull();
+    expect(within(screen.getByRole("group", { name: "Team facts" })).queryByText(/idle gap/)).toBeNull();
+    expect(screen.getByText("No idle gaps of 3 or more working days.")).toBeInTheDocument();
+  });
+
+  test("nothing scheduled: no Idle gaps section", async () => {
+    view = viewOf({ scheduled: [], idleGaps: [] });
+    renderPage();
+    await screen.findByRole("grid", { name: "Team milestone timeline" });
+    expect(screen.queryByRole("heading", { name: "Idle gaps" })).toBeNull();
   });
 
   test("the Capacity section lists the periods with the limit ('—' when none)", async () => {

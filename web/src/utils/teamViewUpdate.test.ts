@@ -55,6 +55,15 @@ describe("applyTeamSchedule", () => {
     expect(next.revision).toBe(10);
   });
 
+  test("the idle gaps are the server's: kept as they were (never dropped or recomputed) until the refetch", () => {
+    const gaps = [{ start: "2027-02-01", end: "2027-02-03", workingDays: 3 }];
+    const view = { ...viewOf([milestone(1, "A"), milestone(2, "B")], [milestone(3, "C")]), idleGaps: gaps };
+    expect(applyTeamSchedule(view, 2, "2027-04-05", "2027-04-09").idleGaps).toBe(gaps);
+    expect(applyTeamSchedule(view, 3, "2027-04-05", "2027-04-09").idleGaps).toBe(gaps);
+    expect(applyTeamSchedule(view, 1, null, null).idleGaps).toBe(gaps);
+    expect(applyTeamOrder(view, [2, 1]).idleGaps).toBe(gaps);
+  });
+
   test("unscheduling moves the row into the tray in the default order (rank, then project, then name)", () => {
     const view = viewOf(
       [milestone(1, "A"), milestone(2, "B", { rankPosition: 2 })],

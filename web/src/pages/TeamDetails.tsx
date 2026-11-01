@@ -17,6 +17,7 @@ import PageHeader from "../components/PageHeader";
 import TeamCapacity from "../components/TeamCapacity";
 import TeamEditorModal from "../components/TeamEditorModal";
 import TeamTimeline, { TeamTray, type TeamActions } from "../components/TeamTimeline";
+import IdleGaps from "../components/IdleGaps";
 import TeamWeeklyLoad from "../components/TeamWeeklyLoad";
 import TimelineDndContext from "../components/TimelineDndContext";
 import { isOneOf, useStoredState } from "../hooks/useStoredState";
@@ -60,6 +61,11 @@ function TeamFacts({ view }: { view: TeamView }) {
       {conflicts > 0 && (
         <Badge color="red" variant="light" tt="none">
           {t("project.conflicts", { count: conflicts })}
+        </Badge>
+      )}
+      {view.idleGaps.length > 0 && (
+        <Badge color="gray" variant="light" tt="none">
+          {t("timeline.idle.badge", { count: view.idleGaps.length })}
         </Badge>
       )}
       {view.order.custom && (
@@ -248,6 +254,7 @@ function TeamPage({ id }: { id: number }) {
 
       <TeamCapacity view={view} />
       <TeamWeeklyLoad weeks={view.weeks} truncated={view.weeksTruncated} />
+      {view.scheduled.length > 0 && <IdleGaps gaps={view.idleGaps} scope="team" />}
 
       {editing && (
         <TeamEditorModal

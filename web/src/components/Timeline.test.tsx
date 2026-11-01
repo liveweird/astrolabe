@@ -215,6 +215,28 @@ describe("Timeline frame", () => {
     expect(screen.getByTitle("Row band").style.left).toBe(`${DAY}px`);
   });
 
+  test("every band carries its tone as data-band-tone; an idle band is a hatched decoration over its days", () => {
+    renderWithProviders(
+      <Harness
+        rows={ROWS}
+        bands={[
+          { id: "w", start: "2026-09-14", end: "2026-09-20", label: "Target window", tone: "window" },
+          { id: "d", start: "2026-09-21", end: "2026-09-22", label: "Overrun", tone: "drift" },
+          { id: "i", start: "2026-09-16", end: "2026-09-18", label: "Idle 2026-09-16 to 2026-09-18, 3 working days", tone: "idle" },
+        ]}
+      />,
+    );
+    expect(screen.getByTitle("Target window")).toHaveAttribute("data-band-tone", "window");
+    expect(screen.getByTitle("Overrun")).toHaveAttribute("data-band-tone", "drift");
+    const idle = screen.getByTitle("Idle 2026-09-16 to 2026-09-18, 3 working days");
+    expect(idle).toHaveAttribute("data-band-tone", "idle");
+    expect(idle).toHaveAttribute("aria-hidden", "true");
+    expect(idle.style.left).toBe(`${2 * DAY}px`);
+    expect(idle.style.width).toBe(`${3 * DAY}px`);
+    // Decoration only: no role, no focus stop.
+    expect(idle).not.toHaveAttribute("tabindex");
+  });
+
   test("a row's own track replaces its bars", () => {
     const custom: TimelineRowData[] = [{ ...ROWS[0], track: <div data-testid="load-strip" /> }];
     renderWithProviders(<Harness rows={custom} />);

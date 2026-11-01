@@ -6,6 +6,7 @@ import type { TFunction } from "i18next";
 import type { TeamMilestone, TeamView } from "../api/teams";
 import { useHolidays } from "../hooks/useHolidays";
 import { arrowSpecsFor, conflictsByBarFor } from "../utils/dependencyArrows";
+import { idleBands } from "../utils/idleGaps";
 import { projectPath } from "../utils/planLinks";
 import type { BarId, RovingTarget, TimelineColumn, TimelineRowData } from "../utils/timelineModel";
 import type { TimelineScale, Zoom } from "../utils/timelineScale";
@@ -210,6 +211,7 @@ export default function TeamTimeline({
       today={today}
       columns={columns}
       rows={rows}
+      bands={idleBands(view.idleGaps, t)}
       holidays={holidays}
       holidaysFailed={holidaysFailed}
       busy={busy}

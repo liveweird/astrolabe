@@ -175,6 +175,7 @@
   --timeline-window-edge: light-dark(var(--mantine-color-gray-6), var(--mantine-color-dark-2));
   /* The target window's tint: the range-wide band (.timelineBand), a window-toned bar (.timelineBarWindow) and the draw ghost share it. */
   --timeline-band: light-dark(rgba(134, 142, 150, 0.1), rgba(130, 130, 130, 0.14));
+  --timeline-idle-ink: light-dark(rgba(134, 142, 150, 0.32), rgba(160, 160, 160, 0.28));
   --timeline-drift-edge: light-dark(var(--mantine-color-orange-8), var(--mantine-color-orange-5));
   /* The overload and the WIP warning (v0.5 load strip): orange = warning, the drift token's pair. */
   --timeline-overload: light-dark(var(--mantine-color-orange-8), var(--mantine-color-orange-5));
@@ -383,6 +384,18 @@
 .timelineBandDrift {
   border-inline-color: var(--timeline-drift-edge);
   background: light-dark(rgba(232, 89, 12, 0.08), rgba(255, 146, 43, 0.12));
+}
+
+/* An idle gap (v0.7): the band tint as a diagonal hatch (45deg, apart from the weekend's vertical stripes), no dashed edges - information, not a plan. */
+.timelineBandIdle {
+  border-inline: 0;
+  background: repeating-linear-gradient(
+    45deg,
+    var(--timeline-idle-ink) 0,
+    var(--timeline-idle-ink) 2px,
+    transparent 2px,
+    transparent 8px
+  );
 }
 
 .timelineToday {

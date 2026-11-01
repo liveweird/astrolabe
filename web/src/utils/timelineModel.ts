@@ -59,8 +59,11 @@ export interface TimelineBandData {
   start: string;
   end: string;
   label: string;
-  /** `window` = a plan window (quiet gray, dashed edges); `drift` = a deviation from it (orange). */
-  tone: "window" | "drift";
+  /**
+   * `window` = a plan window (quiet gray, dashed edges); `drift` = a deviation from it (orange); `idle` (v0.7) = a run of idle
+   * working days (a diagonal gray hatch, no edges: information, neither a plan nor a warning).
+   */
+  tone: "window" | "drift" | "idle";
 }
 
 /**

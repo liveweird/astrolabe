@@ -13,6 +13,22 @@
   "holidaysInView": "Public holidays shown: {{list}}",
   "holidaysInViewMany": "{{count}} public holidays shown; the next ones: {{list}}",
   "holidaysUnavailable": "Public holidays could not be loaded; days off are not marked.",
+  "idle": {
+    "title": "Idle gaps",
+    "introProject": "Runs of three or more working days inside the project's schedule when none of its milestones is in progress. Weekends and public holidays do not count. Information only — nothing moves.",
+    "introTeam": "Runs of three or more working days inside the team's schedule when none of its milestones is in progress. Weekends and public holidays do not count. Information only — nothing moves.",
+    "empty": "No idle gaps of 3 or more working days.",
+    "show": "Show the idle gaps",
+    "hide": "Hide the idle gaps",
+    "tableAria": "Idle gaps",
+    "from": "From",
+    "to": "To",
+    "workingDays": "Working days",
+    "band_one": "Idle {{start}} to {{end}}, {{count}} working day",
+    "band_other": "Idle {{start}} to {{end}}, {{count}} working days",
+    "badge_one": "{{count}} idle gap",
+    "badge_other": "{{count}} idle gaps"
+  },
   "bar": {
     "roleDescription": "movable bar",
     "handleRoleDescription": "resize handle",

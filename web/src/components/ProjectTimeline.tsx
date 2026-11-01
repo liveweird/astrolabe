@@ -6,6 +6,7 @@ import type { TFunction } from "i18next";
 import type { DependencyEndpoint } from "../api/dependencies";
 import type { ProjectMilestone, ProjectView } from "../api/milestones";
 import { useHolidays } from "../hooks/useHolidays";
+import { idleBands } from "../utils/idleGaps";
 import { addDays } from "../utils/isoDate";
 import { projectPath } from "../utils/planLinks";
 import { arrowSpecs, conflictsByBar, ghostEndpoints, ghostRowId, projectRowId, summaryRowNeeded } from "../utils/projectDependencies";
@@ -121,15 +122,20 @@ function MilestoneMenu({
   );
 }
 
-/** The target window as a band across every row, and — when the derived span ends after the target — the overrun in the drift tone. */
+/**
+ * The target window as a band across every row, and — when the derived span ends after the target — the overrun in the drift tone;
+ * then (v0.7) one hatched `idle` band per idle gap the server lists, after them so the hatch is painted over the window's tint.
+ */
 function bandsOf(view: ProjectView, t: TFunction): TimelineBandData[] {
   const { targetStart, targetEnd } = view.project;
-  if (targetStart === null || targetEnd === null) return [];
-  const bands: TimelineBandData[] = [{ id: "window", start: targetStart, end: targetEnd, label: t("project.windowBand", { start: targetStart, end: targetEnd }), tone: "window" }];
-  if (view.span !== null && view.drift !== null && view.drift.endDays > 0) {
-    bands.push({ id: "drift", start: addDays(targetEnd, 1), end: view.span.end, label: t("project.driftBand", { count: view.drift.endDays }), tone: "drift" });
+  const bands: TimelineBandData[] = [];
+  if (targetStart !== null && targetEnd !== null) {
+    bands.push({ id: "window", start: targetStart, end: targetEnd, label: t("project.windowBand", { start: targetStart, end: targetEnd }), tone: "window" });
+    if (view.span !== null && view.drift !== null && view.drift.endDays > 0) {
+      bands.push({ id: "drift", start: addDays(targetEnd, 1), end: view.span.end, label: t("project.driftBand", { count: view.drift.endDays }), tone: "drift" });
+    }
   }
-  return bands;
+  return [...bands, ...idleBands(view.idleGaps, t)];
 }
 
 /** The accessible name of an own bar, with the ", N conflicts" suffix when violated links end on it (so a screen-reader user on the bar hears it). */
