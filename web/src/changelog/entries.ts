@@ -17,6 +17,28 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "0.6.0",
+    date: "2026-11-01",
+    en: `**Astrolabe 0.6.0: the roadmap and programs timelines.**
+
+- The Roadmap is now a timeline: one row per project in rank order, showing the span its milestones cover over its target window. Re-rank by dragging a row by its handle or from the row menu (Move up, down, to top or to bottom, Rank, Unrank); dragging a row across the "Unranked" divider ranks or unranks it.
+- Flags compare the plan with the priority: a project ending after its target window is a warning, and so is a project whose work on a team starts before the work of the project ranked just above it on that team. A late start or finishing early is shown for information. Flags show on each row and in a Flags panel; "Show in timeline" takes you to the row. They are warnings only — nothing is moved.
+- Arrows between projects show their dependencies, one arrow per pair of projects, red when a link no longer holds.
+- Filters by work stream, team, owner and flagged only, and a pick of programs, remembered in your browser and shared with the Programs page.
+- The new Programs page shows the plan as a tree: work streams, their programs and their projects, each with the span it covers and a count of its projects' flags. Expand and collapse from the keyboard or with Expand all / Collapse all.
+- The target window can be set right on the timeline: move or resize its band, draw a new one across an empty row, or use "Edit target window…" and "Clear target window" in the row menu — by an administrator, an owner above the project or a holder of the roadmap-editor permission.
+- A Year zoom: the Roadmap and Programs pages offer Month, Quarter (the default) and Year.`,
+    pl: `**Astrolabe 0.6.0: osie czasu roadmapy i programów.**
+
+- Roadmapa jest teraz osią czasu: jeden wiersz na projekt w kolejności rankingu, z okresem, który obejmują jego kamienie milowe, na tle okna docelowego. Ranking zmienia się, przeciągając wiersz za uchwyt lub z menu wiersza (W górę, W dół, Na początek, Na koniec, Dodaj do rankingu, Usuń z rankingu); przeciągnięcie wiersza przez separator „Bez rankingu” dodaje go do rankingu lub go z niego usuwa.
+- Flagi porównują plan z priorytetami: ostrzeżeniem jest projekt kończący się po swoim oknie docelowym oraz projekt, którego praca w zespole zaczyna się przed pracą projektu stojącego w rankingu tuż nad nim w tym samym zespole. Późny start lub wcześniejsze zakończenie są pokazywane informacyjnie. Flagi widać w każdym wierszu i w panelu Flagi; „Pokaż na osi czasu” przenosi do wiersza. To tylko ostrzeżenia — nic nie przesuwa się samo.
+- Strzałki między projektami pokazują zależności, jedna strzałka na parę projektów, czerwona, gdy powiązanie przestało być spełnione.
+- Filtry według strumienia pracy, zespołu, właściciela/ki i tylko oflagowanych oraz wybór programów, zapamiętywany w przeglądarce i wspólny ze stroną Programy.
+- Nowa strona Programy pokazuje plan jako drzewo: strumienie pracy, ich programy i ich projekty, każdy z okresem, który obejmuje, i liczbą flag swoich projektów. Rozwijanie i zwijanie z klawiatury lub przyciskami Rozwiń wszystko / Zwiń wszystko.
+- Okno docelowe można ustawić wprost na osi czasu: przesunąć lub zmienić jego pasek, narysować nowy na pustym wierszu albo użyć „Edytuj okno docelowe…” i „Wyczyść okno docelowe” w menu wiersza — robi to administrator/ka, właściciel/ka powyżej projektu lub osoba z uprawnieniem edycji roadmapy.
+- Zoom roczny: strony Roadmapa i Programy oferują Miesiąc, Kwartał (domyślnie) i Rok.`,
+  },
+  {
     version: "0.5.0",
     date: "2026-11-01",
     en: `**Astrolabe 0.5.0: the team view and capacity.**
