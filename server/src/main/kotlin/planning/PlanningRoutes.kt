@@ -26,7 +26,8 @@ import io.ktor.server.routing.routing
  * `/views/roadmap`, `/views/programs`, `/views/team/{id}`, `/roadmap/ranking`, since V15 `/dependencies` with
  * `POST /projects/{id}/dependencies`, and since V17 `PUT /teams/{id}/milestone-order`), registered by this ONE
  * module function and split per entity (`WorkStreamRoutes.kt`, `ProgramRoutes.kt`, `ProjectRoutes.kt`, `MilestoneRoutes.kt`,
- * `DependencyRoutes.kt`, `PlanViewRoutes.kt`, `RoadmapRoutes.kt`, `TeamOrderRoutes.kt`) — the first deliberate exception to the
+ * `DependencyRoutes.kt`, `PlanViewRoutes.kt`, `RoadmapRoutes.kt`, `TeamOrderRoutes.kt`, and since V19 `PublicHolidayRoutes.kt` - the ADMIN
+ * registry `/public-holidays`, guard-before-read, whose writes are plan writes) — the first deliberate exception to the
  * one-routes-file template (`conventions.md`): five resources with different guards would blow the
  * 400-line file cap. Every node route is READ-BEFORE-GUARD (chain -> 404, guard -> 403, body -> 400, validate -> 400, write;
  * `authorization.md`): plan ids are sequential and every signed-in user reads the whole plan anyway, so existence is no secret.
@@ -50,6 +51,7 @@ fun Application.configurePlanningRoutes() {
     )
     // Not in PlanRouteDeps: its constructor is at detekt's 12-parameter ceiling, and only one route file reads each of these.
     val teamOrder = attributes[TeamOrderServiceKey]
+    val holidays = attributes[PublicHolidayServiceKey]
     val views = PlanViewServices(
         team = attributes[TeamViewServiceKey],
         roadmap = attributes[RoadmapViewServiceKey],
@@ -65,6 +67,7 @@ fun Application.configurePlanningRoutes() {
             planViewRoutes(deps, views)
             roadmapRoutes(deps, views)
             teamOrderRoutes(deps, teamOrder)
+            publicHolidayRoutes(holidays)
         }
     }
 }

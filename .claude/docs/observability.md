@@ -140,6 +140,9 @@ with `hasKeyValue` from `TestEnvironment.kt`). Emitted today:
 - `roadmap.ranked` (byUserId/revisionFrom/revisionTo/orderFrom/orderTo — the revisions are the PLAN revision around the write, and `revisionTo` is also the ranking's new revision (V18); the ranked project ids before and after as comma-joined text, "" = empty; on EVERY accepted `PUT /roadmap/ranking`, even one that keeps the
   order, since it bumps the plan revision, and the revision pair ties the line to the plan history; a stale 409 or a 400 emits nothing, a 403 is the central `authz.denied`; `planning/RoadmapRoutes.kt`). A project
   delete that compacts the rank is audited as `project.deleted` only,
+- `public_holiday.created` (byUserId/holidayId/date/name/revisionTo — the ISO date and the trimmed name as stored, `revisionTo` the plan revision the write left behind; `POST /public-holidays`) / `public_holiday.deleted` (byUserId/holidayId/date/name/revisionTo — the removed row as STORED; `DELETE /public-holidays/{id}`) /
+  `public_holiday.preset_applied` (byUserId/preset/year/addedCount/addedDates/revisionTo — `addedDates` the comma-joined ISO dates, "" with `addedCount` 0 when the year was already present: the write still bumps the plan revision, the conservative rule; `POST /public-holidays/apply-preset`) — every holiday mutation
+  (`planning/PublicHolidayRoutes.kt`, ADMIN only); a rejected one (403/404/409/400) emits nothing of its own (a 403 is the central `authz.denied`). Each is a plan write, so `revisionTo` ties the line to the plan history (`planning-model.md` "The calendar (V19)"),
 - `bootstrap.admin_password_rotated` (userId/email — the fixed seed-admin email, never the password or
   its hash; `infra/db/Bootstrap.kt`, only when `ADMIN_INITIAL_PASSWORD` actually replaced the seed
   hash, so an idempotent re-boot emits nothing) — the boot-time credential event, so an admin-password reset leaves a trail beyond a log line
@@ -266,5 +269,5 @@ design is multi-process-safe (two replicas, a rolling deploy) and kept that way 
 ### Not yet ported
 
 Flow's sync-job and data-source audit events (`data_source.*`, `sync_job.*`, `outbound.blocked` from the Jira/GitLab clients, `metrics_*`, `team.jira_membership_*`,
-`team.capacity_*`, `public_holiday.*`, `team.work_category_targets_updated`) were dropped with their features; if the Jira/Flow deviation sync is built it re-ports the
+`team.capacity_*`, `team.work_category_targets_updated`) were dropped with their features; if the Jira/Flow deviation sync is built it re-ports the
 job-lifecycle pattern (a per-stream progress counter is an operational signal, NOT an audit event). New planning events are added above in the commit that adds the route.

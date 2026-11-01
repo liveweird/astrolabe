@@ -12,6 +12,8 @@ import ch.nokillswit.planning.ProgramUpdateRequest
 import ch.nokillswit.planning.ProjectCreateRequest
 import ch.nokillswit.planning.ProjectResponse
 import ch.nokillswit.planning.ProjectUpdateRequest
+import ch.nokillswit.planning.RankingResponse
+import ch.nokillswit.planning.RankingUpdateRequest
 import ch.nokillswit.planning.TargetWindowRequest
 import ch.nokillswit.planning.WorkStreamCreateRequest
 import ch.nokillswit.planning.WorkStreamResponse
@@ -487,4 +489,29 @@ class PlanStateTest {
         }
         assertEquals(HttpStatusCode.OK, w.admin.client.get("/api/v1/programs/$programId").status, "the refused delete changed nothing")
     }
+
+    @Test
+    fun `a holiday write is a plan write - it bumps once and stales no schedule, ranking or team order PUT held from before it`() =
+        testApplication {
+            usePostgresTestcontainer()
+            val w = planWorld("holrev", teams = true)
+            val t = w.requireTeams()
+            val milestoneId = TestPlan.milestone(w.projectId, t.teamId)
+            val scheduledAt = TestPlan.schedule(milestoneId, "2026-11-02", "2026-11-06")
+            val orderedAt = TestPlan.teamOrder(t.teamId, listOf(milestoneId))
+            val rankedAt = w.admin.client.putJson("/api/v1/roadmap/ranking", RankingUpdateRequest(TestPlan.revision(), listOf(w.projectId)))
+                .body<RankingResponse>().revision
+            val before = TestPlan.revision()
+
+            TestHolidays.with("2084-02-02") {
+                assertEquals(before + 1, TestPlan.revision(), "the holiday create bumped the plan revision by one")
+                // Every revision below was read BEFORE the holiday write; none of them is stale now.
+                val schedule = MilestoneScheduleRequest(scheduledAt, "2026-11-03", "2026-11-06")
+                assertEquals(HttpStatusCode.OK, t.manager.client.putJson("/api/v1/milestones/$milestoneId/schedule", schedule).status)
+                val ranking = RankingUpdateRequest(rankedAt, listOf(w.projectId))
+                assertEquals(HttpStatusCode.OK, w.admin.client.putJson("/api/v1/roadmap/ranking", ranking).status)
+                assertEquals(HttpStatusCode.OK, t.manager.client.putTeamOrder(t.teamId, orderedAt, listOf(milestoneId)).status)
+            }
+            assertEquals(before + 5, TestPlan.revision(), "the create, the three accepted PUTs and the delete: one bump each")
+        }
 }

@@ -11,7 +11,7 @@ info:
     the `roles` array and only ever ADD privileges on top of that baseline. Every operation requires a bearer
     access token except the seven that declare `security: []` (`/login`, `/login/mfa`, `/refresh`, `/password-reset`,
     `/password-reset/confirm` and the two probes). Beyond that each operation states its own rule: user management (`/users`, apart from
-    reading or changing one's own record where noted) and the writes on people and teams are `ADMIN` only; reading people and teams is open to
+    reading or changing one's own record where noted) and the writes on people, teams and the public-holiday dictionary are `ADMIN` only; reading people, teams and the holidays is open to
     any authenticated user; telemetry is `ADMIN` only. A caller without the right gets a `403`. On the plan nodes (`/work-streams`, `/programs`, `/projects`) any
     authenticated user reads, creating a work stream is `ADMIN` only, and every other write needs the owner of the node or of anything above it
     (or `ADMIN`) - checked after the node is found, so a missing node is a `404` for every caller; elsewhere the `403` is uniform whether or
@@ -43,6 +43,8 @@ tags:
     description: The plan structure - work streams, programs and projects with their owners (people), and the whole-tree plan view. Readable by any authenticated user; writes are scoped to the owners on a node's chain (and ADMIN).
   - name: roadmap
     description: The global project ranking - one dense rank over the projects, rewritten wholesale under the plan lock, with a revision of its own. Readable by any authenticated user; written by ADMIN and ROADMAP_EDITOR holders.
+  - name: calendar
+    description: The global public-holiday dictionary - days nobody works, skipped by every working-day figure. Readable by any authenticated user; written by ADMIN only (a plan write, it bumps the plan revision).
   - name: telemetry
     description: Astrolabe's own vital signs (process memory, JVM, storage, request latency) and their 24h/7d/90d trends - ADMIN only.
 
@@ -1908,6 +1910,106 @@ paths:
               schema: { $ref: '#/components/schemas/ProblemDetail' }
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/public-holidays:
+    get:
+      tags: [calendar]
+      operationId: listPublicHolidays
+      summary: List the public holidays
+      description: |
+        Any authenticated user. The whole dictionary in date order - a bounded `{items}` list (ADMIN-curated, about 14 rows a year), not
+        paged. The dates are the days nobody works: every working-day figure of the views and the schedule write skips them.
+      responses:
+        '200':
+          description: The public holidays
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicHolidayList'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    post:
+      tags: [calendar]
+      operationId: createPublicHoliday
+      summary: Add a public holiday
+      description: |
+        ADMIN only (guarded before the body decodes - a non-admin's malformed body is still `403`). One holiday per date: a date the
+        dictionary already holds is `409`. The dictionary is plan state: an accepted write bumps the plan revision by one (a `409`
+        does not) and stamps nothing else, so no client write is staled by it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublicHolidayCreateRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '201':
+          description: Created; `Location` points at the new holiday
+          headers:
+            Location:
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicHolidayResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/public-holidays/apply-preset:
+    post:
+      tags: [calendar]
+      operationId: applyHolidayPreset
+      summary: Add a preset's public holidays for a year
+      description: |
+        ADMIN only (guarded before the body decodes). Adds every holiday of the preset's set for `year` that the dictionary does not hold
+        yet (`POLISH`: the Polish statutory days, fixed dates plus the Easter-based ones; Sunday-only days such as Easter Sunday are
+        stored too). **The preset projects TODAY's statute onto any year** in 1900-2999: it does not model when each day became (or
+        stopped being) a statutory holiday - for example Epiphany only since 2011, 3 May since 1990, 11 November since 1989, Christmas
+        Eve only from 2025 - so applying it to a past year adds days that were then working days; the ADMIN removes any that do not
+        apply. Idempotent: a date that already has a holiday is left as it is (its name is kept) and listed in `skipped`, so
+        re-applying adds nothing. It is a plan write and bumps the plan revision by one even when nothing was added. An unknown
+        `preset` or a `year` outside 1900-2999 is `400`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HolidayPresetRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '200':
+          description: The holidays added and the dates skipped
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HolidayPresetResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/public-holidays/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    delete:
+      tags: [calendar]
+      operationId: deletePublicHoliday
+      summary: Remove a public holiday
+      description: |
+        ADMIN only, guard-before-read (`403` before the `404`, so a probe learns nothing about which ids exist). A hard delete: the date
+        is free to be added again. A plan write - an accepted delete bumps the plan revision by one, a `404` does not.
+      responses:
+        '204':
+          description: Removed
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   /api/v1/telemetry/current:
     get:
       tags: [telemetry]
@@ -2512,6 +2614,50 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/CapacityPeriodResponse'
+    PublicHolidayResponse:
+      type: object
+      required: [id, date, name]
+      properties:
+        id: { type: integer, format: int32, minimum: 0 }
+        date: { type: string, format: date }
+        name: { type: string, minLength: 1, maxLength: 100 }
+    PublicHolidayList:
+      type: object
+      required: [items]
+      description: The whole public-holiday dictionary in date order - a bounded list (ADMIN-curated, about 14 rows a year), not paged.
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicHolidayResponse'
+    PublicHolidayCreateRequest:
+      type: object
+      required: [date, name]
+      properties:
+        date: { type: string, format: date, description: 'The day nobody works: `YYYY-MM-DD`, years 1900-2999, any weekday (a weekend holiday is stored and changes nothing).' }
+        name: { type: string, minLength: 1, maxLength: 100, description: Trimmed; a control character is a `400`. }
+    HolidayPresetRequest:
+      type: object
+      required: [preset, year]
+      properties:
+        preset:
+          type: string
+          enum: [POLISH]
+          description: The holiday set to add.
+        year: { type: integer, format: int32, minimum: 1900, maximum: 2999 }
+    HolidayPresetResponse:
+      type: object
+      required: [added, skipped]
+      properties:
+        added:
+          type: array
+          description: The holidays this call stored, in date order.
+          items:
+            $ref: '#/components/schemas/PublicHolidayResponse'
+        skipped:
+          type: array
+          description: The ISO dates of the preset's set that already had a holiday (left untouched, name included), in date order.
+          items: { type: string, format: date }
     WorkStreamCreateRequest:
       type: object
       required: [name, ownerPersonId, startDate]

@@ -126,6 +126,7 @@ private val UNIQUE_CONSTRAINT_DETAILS = mapOf(
     "uq_milestones_project_name_active" to "A milestone with this name already exists in this project",
     "uq_dependencies_pair_active" to "These two endpoints are already linked",
     "uq_team_capacity_periods_team_from_active" to "A capacity period already starts on this date for this team",
+    "uq_public_holidays_date" to "A holiday already exists on this date",
 )
 
 private fun Throwable.uniqueViolationDetail(): String {

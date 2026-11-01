@@ -14,10 +14,10 @@ in-network consumers use `postgres:5432`). There is one persistence stack:
   makes every long-lived database refuse to boot (a failure no fresh-container CI run can see).
   `MigrationChecksumTest` pins every file's checksum; a new migration adds one manifest line, and
   a red pin means REVERT the edit (clarifications go into this doc), never update the pinned
-  value. The range today is **V1–V18**: V1 `users`, V2 `revoked_tokens`, V3 the seed admin, V4 the
+  value. The range today is **V1–V19**: V1 `users`, V2 `revoked_tokens`, V3 the seed admin, V4 the
   `unaccent` extension, V5 `user_disabled_features` (V1–V5 are Flow's), V6 `teams` (with the optional
   manager), V7 `users.credential_revision`, V8 `password_reset_tokens`, V9 the `ops` telemetry
-  schema, V10 `people` (the people directory) with `teams.manager_person_id` replacing `manager_user_id`, V11 `user_permissions` (the per-user permission grants), V12 `plan_state` + `work_streams`/`programs`/`projects` (the plan structure), V13 `roadmap_entries` (the global project rank), V14 `milestones` (the fourth plan level), V15 `dependencies` (links between milestones and projects), V16 `team_capacity_periods` (a team's man-days per week and optional WIP limit from an effective-from date), V17 `team_milestone_orders` + `team_order_state` (a team's own milestone order and its revision), V18 `plan_state.ranking_revision` (the ranking's own revision: the plan revision at which `roadmap_entries` was last written; the ranking PUT compares against it, `planning-model.md` "The global project rank"). (Astrolabe renumbered Flow's history when it was bootstrapped; from V10 on, migrations are
+  schema, V10 `people` (the people directory) with `teams.manager_person_id` replacing `manager_user_id`, V11 `user_permissions` (the per-user permission grants), V12 `plan_state` + `work_streams`/`programs`/`projects` (the plan structure), V13 `roadmap_entries` (the global project rank), V14 `milestones` (the fourth plan level), V15 `dependencies` (links between milestones and projects), V16 `team_capacity_periods` (a team's man-days per week and optional WIP limit from an effective-from date), V17 `team_milestone_orders` + `team_order_state` (a team's own milestone order and its revision), V18 `plan_state.ranking_revision` (the ranking's own revision: the plan revision at which `roadmap_entries` was last written; the ranking PUT compares against it, `planning-model.md` "The global project rank"), V19 `public_holidays` (the global ADMIN-curated holiday dictionary, no seed; `planning-model.md` "The calendar (V19)"). (Astrolabe renumbered Flow's history when it was bootstrapped; from V10 on, migrations are
   append-only like any other.)
 - **Exposed + R2DBC** (`infra/db/Database.kt` + the feature services) — runtime DB access.
   `Database.kt` connects the `R2dbcDatabase` and is the composition root: it constructs the
@@ -213,6 +213,8 @@ place:
 - `telemetry/TelemetryRoutes.kt` (the ADMIN read API: `TelemetryReads.kt`, `TelemetryCurrent.kt`, `TelemetryHistory.kt`) READS `ops.telemetry_processes` /
   `ops.telemetry_samples` (its own schema; one SELECT per transaction under `queryTimeout` 5 s, the history grouped per role/metric/label/bucket in SQL).
 
+- `planning/PublicHolidayService` (V19) WRITES only its own table, `public_holidays` (hard-delete), and only inside `withPlanWrite` (so it takes the `plan_state` lock and bumps `plan_state.revision` like every plan write); it reads no other feature's table. The views' and the schedule write's READS of `public_holidays` (the working calendar) are listed here when they land.
+
 List each new cross-feature read/write here as it lands — the list IS the permission.
 
 ### Schemas
@@ -220,7 +222,7 @@ List each new cross-feature read/write here as it lands — the list IS the perm
 Astrolabe's PostgreSQL database is split across schemas:
 
 - **`public`** — the foundation tables (`users`, `people`, `teams`, `revoked_tokens`, `user_disabled_features`, `password_reset_tokens`) and the planning tables
-  (`plan_state`, `work_streams`, `programs`, `projects` since V12, `roadmap_entries` since V13, `milestones` since V14, `dependencies` since V15, `team_milestone_orders` and `team_order_state` since V17; `planning-model.md`), the team data (`team_capacity_periods` since V16). Flyway's own history table also stays here — `flyway.schemas` is left at its default.
+  (`plan_state`, `work_streams`, `programs`, `projects` since V12, `roadmap_entries` since V13, `milestones` since V14, `dependencies` since V15, `team_milestone_orders` and `team_order_state` since V17, `public_holidays` since V19; `planning-model.md`), the team data (`team_capacity_periods` since V16). Flyway's own history table also stays here — `flyway.schemas` is left at its default.
 - **`ops`** — Astrolabe's own operational telemetry (V9, "Telemetry (V9)" below): the process registry and the metric samples each
   process writes about itself. Numbers and labels only, never project data.
 
@@ -280,7 +282,7 @@ transaction under `TELEMETRY_LOCK_KEY`, and a row exactly at its cutoff stays. T
 `users`, `people`, `teams`, `work_streams`, `programs`, `projects`, `milestones`, `dependencies` and `team_capacity_periods` are **soft-deleted** — rows are flagged, never physically removed; every
 business entity follows the same convention. Only join/token tables (today: `revoked_tokens`, a
 pure token registry, `password_reset_tokens` (V8, expiring single-use credentials, not history), `user_disabled_features`, a pure flag join
-whose PUT is a wholesale replace, `user_permissions` (V11, the same shape: a pure grant join rewritten wholesale), `roadmap_entries` (V13, a pure position join: the global rank is rewritten wholesale by `PUT /roadmap/ranking` and compacted when a project is deleted, so a project that leaves the rank has no history worth keeping — the soft-deleted project row stays), `team_milestone_orders` (V17, the same shape per team: a team's order is rewritten wholesale by `PUT /teams/{id}/milestone-order` and compacted when a milestone leaves the team, is deleted or its project is deleted; `team_order_state` beside it is one revision row per team, never removed, inert for a deleted team), and the `ops.telemetry_*` samples (the prune above)) hard-delete — a new
+whose PUT is a wholesale replace, `user_permissions` (V11, the same shape: a pure grant join rewritten wholesale), `roadmap_entries` (V13, a pure position join: the global rank is rewritten wholesale by `PUT /roadmap/ranking` and compacted when a project is deleted, so a project that leaves the rank has no history worth keeping — the soft-deleted project row stays), `team_milestone_orders` (V17, the same shape per team: a team's order is rewritten wholesale by `PUT /teams/{id}/milestone-order` and compacted when a milestone leaves the team, is deleted or its project is deleted; `team_order_state` beside it is one revision row per team, never removed, inert for a deleted team), `public_holidays` (V19, the registry exception: nothing references a holiday by FK, a removed row is simply re-added and its UNIQUE date must free on delete, so a soft-delete flag would only block re-adding it; every write still runs under the plan lock), and the `ops.telemetry_*` samples (the prune above)) hard-delete — a new
 hard-delete table needs a documented justification, exactly like Lettuce's exceptions list. Pure operational history with no reader once
 old (job queues, samples) may be pruned by a fixed documented retention window, the same shape as the JWT blocklist's opportunistic
 pruning of expired `revoked_tokens` rows. To add soft-delete to a new entity, follow the established pattern
@@ -365,6 +367,10 @@ the writers inside `withPlanWrite` — `replaceOrder` (`DELETE` the team's rows,
 sweep and a swap are single statements an immediate check can reject depending on physical row order (`TeamOrderLifecycleTest` pins the swap, the commit-time duplicate and the CHECK). `team_order_state.revision` is the plan revision at which the team's order was last written (the first write inserts the row, later ones update it; a removal never touches it) — the
 `expectedRevision` of the order PUT compares against it, so another team's reorder never stales this one. Both tables are hard-delete, justified in "Soft delete (convention)".
 
+### The public holidays (V19)
+
+`public_holidays (id SERIAL PRIMARY KEY, holiday_date DATE NOT NULL, name VARCHAR(100) NOT NULL, created_at BIGINT NOT NULL, CONSTRAINT uq_public_holidays_date UNIQUE (holiday_date))` (`planning/PublicHolidayService.kt`; semantics in `planning-model.md` "The calendar (V19)"): Flow's V25 registry, ported, with a real `DATE` (the `localDate` column) instead of Flow's `VARCHAR(10)` and **no seed** — the `POLISH` preset endpoint is the path. One global dictionary, unique per date (a duplicate is `23505` -> the central `409`, the plan lock rolled back with it). Hard-delete, justified in "Soft delete (convention)". Every create, delete and preset application is one `withPlanWrite`; the preset selects the year's existing dates under the lock and inserts the rest with `insertRowsIgnoringConflicts` (one statement).
+
 ### The DATE column idiom (`infra/db/LocalDateColumn.kt`)
 
 Dates are Postgres `DATE` (day precision; the planning tables from V12), bound through a repo-local column type because `exposed-r2dbc` 1.6.0 ships no date
@@ -424,4 +430,4 @@ text and sha256 are compared against stored rows.
 
 ### Planned persistence (not yet built)
 
-No planning table is pending for v0.5 (the team milestone order, V17, was the last); the later increments' tables (the calendar, baselines) are sketched in `planning-model.md` and `product.md`. The schema list, the soft-delete list and the cross-feature list above grow in the same commit as each migration.
+No planning table is pending for v0.7 (the public holidays, V19, were the last); the later increments' tables (baselines) are sketched in `planning-model.md` and `product.md`. The schema list, the soft-delete list and the cross-feature list above grow in the same commit as each migration.

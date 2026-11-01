@@ -287,6 +287,15 @@ Layered RBAC. Implemented in the `server/src/main/kotlin/authz/` package.
   - **The roadmap view's `can.editTargetWindow` (built, v0.6.0 C1; `GET /views/roadmap`, any authenticated user).** Per project row: `PlanPermissions.canEditTargetWindow(actor, chain)` — ADMIN, the caller's person among the owners ABOVE the project (`chain.ancestors`), or the `ROADMAP_EDITOR` grant;
     the project's own owner alone is not enough — exactly `requireTargetWindowEditorOrAdmin`'s arithmetic, on the chain read in the same statement as the row (no second lookup). `RoadmapViewTest` checks the flag against the real `PUT /projects/{id}/target-window` for ADMIN, each owner, an editor, a stranger, a person-less login and a team manager. The view adds no guard and no audit event.
   - **The programs view (built, v0.6.0 C2; `GET /views/programs`, any authenticated user).** Its project rows are the roadmap's `RoadmapProject` (the same `can.editTargetWindow` arithmetic above, on the chain read in the same statement as the row); the program and work stream nodes carry only derived spans and flag counts, no rights. No guard, no audit event, no 404 (the view is the whole plan).
+  - **The public-holiday dictionary (V19, built v0.7.0; `planning/PublicHolidayRoutes.kt`) — written by ADMIN only, GUARD-BEFORE-READ** (the `teams/` registry shape, not the plan nodes' read-before-guard: the dictionary is a flat ADMIN registry with no owner chain, so a non-admin probe learns nothing about which ids exist). `GET /public-holidays` is any authenticated caller. `requireAdmin` runs BEFORE `call.receive` and before the id lookup; a plain user's malformed body or unknown id is 403, never 400/404. The writes are plan writes (`withPlanWrite`) but the plan lock is not an authorization: there is no inner re-guard, exactly like the other ADMIN-only registries (`teams/`, `people/`): the ADMIN role is the one `requireAdmin` reads from the per-request-validated principal.
+
+    | Route | Guard (in order) |
+    |---|---|
+    | `POST /public-holidays` | `requireAdmin` 403 → body 400 (ISO date 1900-2999, name 1..100 single-line) → insert (**409** `uq_public_holidays_date`) → 201 + `Location` |
+    | `POST /public-holidays/apply-preset` | `requireAdmin` 403 → body 400 (unknown preset, year outside 1900..2999) → insert the missing dates → 200 `{added, skipped}` |
+    | `DELETE /public-holidays/{id}` | `requireAdmin` 403 → (under the plan lock) row gone 404 → 204 |
+
+    The named product-rule tests (`PublicHolidayTest`, `HolidayPresetTest`): "mutations are ADMIN-only and the guard runs before the body and the id lookup", "only ADMIN may apply a preset and the guard runs before the body is read". Every 403 is the central `authz.denied`.
   - **Still planned:** each new rule lands here with its
     guard order (403 before 400/404, guard-before-read where existence is sensitive) in the same commit as its route.
 - **Existence disclosure (403 vs 404) — deliberate policy (API-ERR-006)**: two sanctioned idioms,

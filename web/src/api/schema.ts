@@ -1328,6 +1328,83 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public-holidays": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the public holidays
+         * @description Any authenticated user. The whole dictionary in date order - a bounded `{items}` list (ADMIN-curated, about 14 rows a year), not
+         *     paged. The dates are the days nobody works: every working-day figure of the views and the schedule write skips them.
+         */
+        get: operations["listPublicHolidays"];
+        put?: never;
+        /**
+         * Add a public holiday
+         * @description ADMIN only (guarded before the body decodes - a non-admin's malformed body is still `403`). One holiday per date: a date the
+         *     dictionary already holds is `409`. The dictionary is plan state: an accepted write bumps the plan revision by one (a `409`
+         *     does not) and stamps nothing else, so no client write is staled by it.
+         */
+        post: operations["createPublicHoliday"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public-holidays/apply-preset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add a preset's public holidays for a year
+         * @description ADMIN only (guarded before the body decodes). Adds every holiday of the preset's set for `year` that the dictionary does not hold
+         *     yet (`POLISH`: the Polish statutory days, fixed dates plus the Easter-based ones; Sunday-only days such as Easter Sunday are
+         *     stored too). **The preset projects TODAY's statute onto any year** in 1900-2999: it does not model when each day became (or
+         *     stopped being) a statutory holiday - for example Epiphany only since 2011, 3 May since 1990, 11 November since 1989, Christmas
+         *     Eve only from 2025 - so applying it to a past year adds days that were then working days; the ADMIN removes any that do not
+         *     apply. Idempotent: a date that already has a holiday is left as it is (its name is kept) and listed in `skipped`, so
+         *     re-applying adds nothing. It is a plan write and bumps the plan revision by one even when nothing was added. An unknown
+         *     `preset` or a `year` outside 1900-2999 is `400`.
+         */
+        post: operations["applyHolidayPreset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public-holidays/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove a public holiday
+         * @description ADMIN only, guard-before-read (`403` before the `404`, so a probe learns nothing about which ids exist). A hard delete: the date
+         *     is free to be added again. A plan write - an accepted delete bumps the plan revision by one, a `404` does not.
+         */
+        delete: operations["deletePublicHoliday"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/telemetry/current": {
         parameters: {
             query?: never;
@@ -1714,6 +1791,41 @@ export interface components {
         /** @description A team's ACTIVE capacity periods in `effectiveFrom` order - a bounded list (a handful per team per year), not paged. */
         CapacityPeriodList: {
             items: components["schemas"]["CapacityPeriodResponse"][];
+        };
+        PublicHolidayResponse: {
+            /** Format: int32 */
+            id: number;
+            /** Format: date */
+            date: string;
+            name: string;
+        };
+        /** @description The whole public-holiday dictionary in date order - a bounded list (ADMIN-curated, about 14 rows a year), not paged. */
+        PublicHolidayList: {
+            items: components["schemas"]["PublicHolidayResponse"][];
+        };
+        PublicHolidayCreateRequest: {
+            /**
+             * Format: date
+             * @description The day nobody works: `YYYY-MM-DD`, years 1900-2999, any weekday (a weekend holiday is stored and changes nothing).
+             */
+            date: string;
+            /** @description Trimmed; a control character is a `400`. */
+            name: string;
+        };
+        HolidayPresetRequest: {
+            /**
+             * @description The holiday set to add.
+             * @enum {string}
+             */
+            preset: "POLISH";
+            /** Format: int32 */
+            year: number;
+        };
+        HolidayPresetResponse: {
+            /** @description The holidays this call stored, in date order. */
+            added: components["schemas"]["PublicHolidayResponse"][];
+            /** @description The ISO dates of the preset's set that already had a holiday (left untouched, name included), in date order. */
+            skipped: string[];
         };
         WorkStreamCreateRequest: {
             name: string;
@@ -5121,6 +5233,116 @@ export interface operations {
             };
             413: components["responses"]["PayloadTooLarge"];
             415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    listPublicHolidays: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The public holidays */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicHolidayList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    createPublicHoliday: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublicHolidayCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Created; `Location` points at the new holiday */
+            201: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicHolidayResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    applyHolidayPreset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HolidayPresetRequest"];
+            };
+        };
+        responses: {
+            /** @description The holidays added and the dates skipped */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HolidayPresetResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    deletePublicHoliday: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
             500: components["responses"]["InternalServerError"];
         };
     };
