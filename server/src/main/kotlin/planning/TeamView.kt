@@ -46,9 +46,13 @@ data class TeamViewTeam(
 @Serializable
 data class TeamViewCan(val schedule: Boolean, val editCapacity: Boolean, val editOrder: Boolean)
 
-/** [custom]: the team has overridden the default order; [revision]: the team's order revision (`PUT /teams/{id}/milestone-order`'s). */
+/**
+ * [custom]: the team has overridden the default order; [revision]: the team's order revision (`PUT /teams/{id}/milestone-order`'s);
+ * [milestoneIds]: the stored custom order itself - the team's ACTIVE milestones currently on it that the manager listed, scheduled or not,
+ * in stored position order (empty when not [custom]). The client needs the unscheduled listed ids to keep their places on its next PUT.
+ */
 @Serializable
-data class TeamViewOrder(val custom: Boolean, val revision: Long)
+data class TeamViewOrder(val custom: Boolean, val revision: Long, val milestoneIds: List<UInt>)
 
 @Serializable
 data class TeamViewCapacity(val periods: List<CapacityPeriodResponse>)

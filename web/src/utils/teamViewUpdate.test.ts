@@ -24,7 +24,7 @@ const milestone = (id: number, name: string, over: Partial<TeamMilestone> = {}):
 const viewOf = (scheduled: TeamMilestone[], unscheduled: TeamMilestone[] = []): TeamView => ({
   revision: 10,
   team: { id: 3, name: "Backend", description: null, managerPersonId: 1, managerName: "Mia", createdAt: 1, updatedAt: 2, can: { schedule: true, editCapacity: true, editOrder: true } },
-  order: { custom: false, revision: 4 },
+  order: { custom: false, revision: 4, milestoneIds: [] },
   capacity: { periods: [] },
   weeks: [],
   weeksTruncated: false,
@@ -77,7 +77,15 @@ describe("applyTeamOrder", () => {
   test("the listed rows come first in that order and the order becomes custom; the order revision is left alone", () => {
     const next = applyTeamOrder(view, [3, 1, 2]);
     expect(ids(next.scheduled)).toEqual([3, 1, 2]);
-    expect(next.order).toEqual({ custom: true, revision: 4 });
+    expect(next.order).toEqual({ custom: true, revision: 4, milestoneIds: [3, 1, 2] });
+  });
+
+  test("the full list is stored as is: an unscheduled listed id keeps its entry, an unknown id is dropped", () => {
+    const withTray = viewOf([milestone(1, "A"), milestone(2, "B")], [milestone(5, "M", { startDate: null, endDate: null })]);
+    const next = applyTeamOrder(withTray, [2, 5, 1, 99]);
+    expect(ids(next.scheduled)).toEqual([2, 1]);
+    expect(next.order.milestoneIds).toEqual([2, 5, 1]);
+    expect(ids(next.unscheduled)).toEqual([5]);
   });
 
   test("an unlisted row follows in the default order; an id that is not scheduled is skipped", () => {
@@ -91,10 +99,10 @@ describe("applyTeamOrder", () => {
       milestone(2, "B", { projectId: 7, projectName: "Alpha", rankPosition: 1 }),
       milestone(3, "C", { projectId: 9, projectName: "Beta", rankPosition: null }),
     ]);
-    const custom = { ...ranked, order: { custom: true, revision: 6 } };
+    const custom = { ...ranked, order: { custom: true, revision: 6, milestoneIds: [1, 3] } };
     const next = applyTeamOrder(custom, []);
     expect(ids(next.scheduled)).toEqual([2, 1, 3]);
-    expect(next.order).toEqual({ custom: false, revision: 6 });
+    expect(next.order).toEqual({ custom: false, revision: 6, milestoneIds: [] });
   });
 
   test("inside one project the default order is start, end, name, id", () => {

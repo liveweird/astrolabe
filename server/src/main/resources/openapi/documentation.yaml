@@ -3109,7 +3109,7 @@ components:
             editOrder: { type: boolean, description: 'The caller may replace this team''s milestone order (`PUT /teams/{id}/milestone-order`).' }
     TeamViewOrder:
       type: object
-      required: [custom, revision]
+      required: [custom, revision, milestoneIds]
       properties:
         custom: { type: boolean, description: True when the team's manager has set an order (the project rank is then only the default for the unlisted tail). }
         revision:
@@ -3117,6 +3117,15 @@ components:
           format: int64
           minimum: 0
           description: The team's order revision (0 when never written); send it back as `expectedRevision` of the order PUT.
+        milestoneIds:
+          type: array
+          maxItems: 1000
+          uniqueItems: true
+          items: { type: integer, format: int32, minimum: 0 }
+          description: >-
+            The stored custom order: the manager's listed milestones that are still ACTIVE milestones of this team, scheduled or not, in
+            stored position order (empty when `custom` is false). The unscheduled ones are listed here only; a client that writes the
+            order again keeps their places (`planning-model.md` "The team milestone order").
     TeamViewCapacity:
       type: object
       required: [periods]

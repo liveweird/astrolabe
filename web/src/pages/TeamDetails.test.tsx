@@ -100,7 +100,7 @@ const viewOf = (over: Partial<TeamView> = {}): TeamView => ({
     updatedAt: 2,
     can: { schedule: true, editCapacity: true, editOrder: true },
   },
-  order: { custom: false, revision: 4 },
+  order: { custom: false, revision: 4, milestoneIds: [] },
   capacity: { periods: [PERIOD] },
   weeks: [
     { weekStart: "2027-02-01", load: 8.5, capacity: 4.8, overloaded: true, overloadMd: 3.7, maxWip: 2, wipExceeded: true },
@@ -129,7 +129,8 @@ function serve(mockFetch: FetchMock) {
     if (method === "PUT" && url === "/api/v1/teams/1/milestone-order") {
       if (orderPut.status !== 200) return Promise.resolve(jsonResponse(orderPut.status, orderPut.body ?? { title: "x", status: orderPut.status }));
       const body = JSON.parse(init?.body as string) as { milestoneIds: number[] };
-      view = { ...applyTeamOrder(view, body.milestoneIds), revision: view.revision + 1, order: { custom: body.milestoneIds.length > 0, revision: view.revision + 1 } };
+      const applied = applyTeamOrder(view, body.milestoneIds);
+      view = { ...applied, revision: view.revision + 1, order: { ...applied.order, revision: view.revision + 1 } };
       return Promise.resolve(jsonResponse(200, { revision: view.revision }));
     }
     const schedule = /^\/api\/v1\/milestones\/(\d+)\/schedule$/.exec(url);
@@ -329,6 +330,21 @@ describe("Team view page: the order", () => {
     expect(orderPuts(mockFetch)[1]).toEqual({ expectedRevision: 11, milestoneIds: [3, 2, 1] });
   });
 
+  test("a listed milestone that is now unscheduled keeps its stored place in the PUT", async () => {
+    const user = userEvent.setup();
+    // Stored order [tv-a, tv-tray (unscheduled), tv-b, tv-c]: Move tv-c to top is [tv-c, tv-tray, tv-a, tv-b] — the tray keeps INDEX 1.
+    view = viewOf({ order: { custom: true, revision: 4, milestoneIds: [1, 4, 2, 3] } });
+    renderPage();
+    await screen.findByRole("grid", { name: "Team milestone timeline" });
+    await openMenu(user, "tv-c");
+    await user.click(await screen.findByRole("menuitem", { name: "Move tv-c to top" }));
+    await waitFor(() => expect(orderPuts(mockFetch)).toHaveLength(1));
+    expect(orderPuts(mockFetch)[0]).toEqual({ expectedRevision: 4, milestoneIds: [3, 4, 1, 2] });
+    // The position and count describe the VISIBLE rows (3), never the full stored list (4).
+    expect(liveText()).toContain("tv-c moved to position 1 of 3");
+    await waitFor(() => expect(rowNames()).toEqual(["tv-c", "tv-a", "tv-b"]));
+  });
+
   test("Move to bottom, and the ends of the list disable what cannot move", async () => {
     const user = userEvent.setup();
     renderPage();
@@ -359,7 +375,7 @@ describe("Team view page: the order", () => {
       if (init?.method === "PUT" && url === "/api/v1/teams/1/milestone-order") refetch.hold = true;
       if (refetch.hold && (init?.method ?? "GET") === "GET" && url === "/api/v1/views/team/1") {
         return new Promise<Response>((resolve) => {
-          refetch.release = () => resolve(jsonResponse(200, viewOf({ scheduled: [TV_C, TV_A, TV_B], order: { custom: true, revision: 9 } })));
+          refetch.release = () => resolve(jsonResponse(200, viewOf({ scheduled: [TV_C, TV_A, TV_B], order: { custom: true, revision: 9, milestoneIds: [3, 1, 2] } })));
         });
       }
       return inner(url, init);
@@ -518,7 +534,7 @@ describe("Team view page: scheduling", () => {
   });
 
   test("a Reset confirmed while a schedule save runs is refused: the dialog stays open and says so; confirmed again after the save it goes through", async () => {
-    view = viewOf({ order: { custom: true, revision: 6 } });
+    view = viewOf({ order: { custom: true, revision: 6, milestoneIds: [1, 2, 3] } });
     const user = userEvent.setup();
     renderPage();
     await screen.findByRole("grid", { name: "Team milestone timeline" });

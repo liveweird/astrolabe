@@ -6,6 +6,7 @@ import { putTeamOrder, type TeamView } from "../api/teams";
 import { moveBy, moveToEdge } from "../utils/roadmapOrder";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { saveErrorMessage } from "../utils/saveError";
+import { placeScheduled } from "../utils/teamOrderList";
 import { applyTeamOrder } from "../utils/teamViewUpdate";
 import { useRefusal } from "./useRefusal";
 import { teamViewKey, teamWriteKey } from "./useTeamSchedule";
@@ -25,17 +26,18 @@ type SaveVariables = { ids: number[]; expectedRevision: number; before: TeamView
 const listChanged = (error: unknown) => isStaleRevision(error) || (error instanceof ApiError && error.status === 400);
 
 /**
- * The team page's order write path (the `useRoadmapRanking` shape): every change — Move up / down / to top / to bottom, Reset — becomes
- * the complete new id list of the SCHEDULED rows and goes out as the wholesale `PUT /teams/{id}/milestone-order` with the TEAM's order
- * revision (`view.order.revision`, never the view's plan `revision`):
+ * The team page's order write path (the `useRoadmapRanking` shape): every change — Move up / down / to top / to bottom, a row drag, Reset —
+ * becomes the complete new id list and goes out as the wholesale `PUT /teams/{id}/milestone-order` with the TEAM's order revision
+ * (`view.order.revision`, never the view's plan `revision`). A reorder is a permutation of the displayed SCHEDULED ids, `placed(id,
+ * permutation)`; `placeScheduled` (`utils/teamOrderList.ts`) turns it into the full list, so a listed milestone that is now unscheduled
+ * keeps its stored place (a manager's order is never reshuffled; Reset sends `[]`):
  *  - the rows are reordered optimistically in the cached view, at once;
  *  - success stores the revision the PUT answers into `order.revision` (and nowhere else), then refreshes `["plan"]` in the background;
  *  - a stale 409 or a 400 (a listed milestone left the team) rolls back, says so (`stale`) and AWAITS the refetch;
  *  - any other failure rolls back and surfaces through `error` (already mapped to words).
  * A change made while any write of this page (this one or a schedule PUT, which share `teamWriteKey`) is in flight is REFUSED out loud:
  * `commit` answers `false`, `refused` is set (the page's visible note) and `project.busy` is announced. A taken change is announced
- * through the page's one live region (`announce`). `move`, `moveTo` and `reset` answer whether the change was taken. A drag (C5b) will
- * feed the same `commit`.
+ * through the page's one live region (`announce`). `move`, `moveTo`, `placed` and `reset` answer whether the change was taken.
  */
 export function useTeamOrder(teamId: number, view: TeamView | undefined, announce: (text: string) => void) {
   const { t } = useTranslation();
@@ -64,7 +66,7 @@ export function useTeamOrder(teamId: number, view: TeamView | undefined, announc
   const scheduledIds = view?.scheduled.map((milestone) => milestone.id) ?? [];
   const nameOf = (id: number) => view?.scheduled.find((milestone) => milestone.id === id)?.name ?? "";
 
-  const commit = (ids: number[], sentence?: (positionOf: (id: number) => number) => string): boolean => {
+  const commit = (ids: number[], sentence?: () => string): boolean => {
     if (!view) return false;
     if (busy) {
       setRefused(true);
@@ -73,13 +75,20 @@ export function useTeamOrder(teamId: number, view: TeamView | undefined, announc
     }
     void queryClient.cancelQueries({ queryKey: ["plan"] });
     queryClient.setQueryData<TeamView>(key, applyTeamOrder(view, ids));
-    if (sentence) announce(sentence((id) => ids.indexOf(id) + 1));
+    if (sentence) announce(sentence());
     save.mutate({ ids, expectedRevision: view.order.revision, before: view });
     return true;
   };
 
-  const placed = (id: number, ids: number[]) =>
-    commit(ids, (positionOf) => t("teams.view.announce.moved", { name: nameOf(id), position: positionOf(id), count: ids.length }));
+  /** The ONE reorder seam: `id` was put into the displayed scheduled order [permutation]. Answers whether the change was taken. */
+  const placed = (id: number, permutation: number[]): boolean => {
+    const ids = view && placeScheduled(view, permutation);
+    // Not a permutation of the displayed rows (a caller bug): nothing is written or announced.
+    if (!ids) return false;
+    return commit(ids, () =>
+      t("teams.view.announce.moved", { name: nameOf(id), position: permutation.indexOf(id) + 1, count: permutation.length }),
+    );
+  };
 
   return {
     pending: busy,
@@ -87,6 +96,7 @@ export function useTeamOrder(teamId: number, view: TeamView | undefined, announc
     refused,
     stale: save.isError && listChanged(save.error),
     error: save.isError && !listChanged(save.error) ? saveErrorMessage(save.error, t, SAVE_ERROR_KEYS) : null,
+    placed,
     /** Button path: move one place up (-1) or down (+1). Answers whether the change was taken. */
     move: (id: number, delta: -1 | 1) => placed(id, moveBy(scheduledIds, id, delta)),
     moveTo: (id: number, edge: "top" | "bottom") => placed(id, moveToEdge(scheduledIds, id, edge)),

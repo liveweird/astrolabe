@@ -48,14 +48,17 @@ export function applyTeamSchedule(view: TeamView, id: number, start: string | nu
 }
 
 /**
- * The view as it will read once the order `ids` is saved: the listed scheduled rows first in that order, the rest (unlisted) after them
- * in the default order, and `order.custom` set — an EMPTY list is the reset: the default order everywhere and `custom` false. An id the
- * view does not schedule is skipped. The order's revision is not touched (the PUT's answer stores it).
+ * The view as it will read once the FULL order list `ids` (`teamOrderList.ts`) is saved: the listed scheduled rows first in that order,
+ * the rest (unlisted) after them in the default order, `order.milestoneIds` the list itself (an id the view holds on neither side is
+ * dropped, as the server would refuse it) and `order.custom` set — an EMPTY list is the reset: the default order everywhere and `custom`
+ * false. The order's revision is not touched (the PUT's answer stores it).
  */
 export function applyTeamOrder(view: TeamView, ids: readonly number[]): TeamView {
   const byId = new Map(view.scheduled.map((milestone) => [milestone.id, milestone]));
   const listed = ids.flatMap((id) => byId.get(id) ?? []);
   const listedIds = new Set(listed.map((milestone) => milestone.id));
   const tail = view.scheduled.filter((milestone) => !listedIds.has(milestone.id)).sort(byDefaultOrder);
-  return { ...view, scheduled: [...listed, ...tail], order: { ...view.order, custom: ids.length > 0 } };
+  const known = new Set([...view.scheduled, ...view.unscheduled].map((milestone) => milestone.id));
+  const milestoneIds = ids.filter((id) => known.has(id));
+  return { ...view, scheduled: [...listed, ...tail], order: { ...view.order, custom: milestoneIds.length > 0, milestoneIds } };
 }

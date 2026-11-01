@@ -30,6 +30,8 @@ class TeamViewService(private val database: R2dbcDatabase) {
 
         val positions = positionsOf(teamId)
         val rows = teamMilestoneRows(teamId, team[teams.name], positions)
+        // The stored order, read FROM the active milestones (a stale row of a gone one never shows), in stored position order.
+        val listed = rows.filter { it.key.customPosition != null }.sortedBy { it.key.customPosition }.map { it.view.id }
         val (periodRows, periods) = teamCapacityRows(teamId)
         val (scheduled, unscheduled) = effectiveOrder(rows) { it.key }.partition { it.span != null }
         val items = scheduled.map { LoadItem(checkNotNull(it.span), it.estimate) }
@@ -51,7 +53,7 @@ class TeamViewService(private val database: R2dbcDatabase) {
                     editOrder = PlanPermissions.canEditTeamOrder(actor, teamId),
                 ),
             ),
-            order = TeamViewOrder(custom = rows.any { it.key.customPosition != null }, revision = orderRevisionOf(teamId)),
+            order = TeamViewOrder(custom = listed.isNotEmpty(), revision = orderRevisionOf(teamId), milestoneIds = listed),
             capacity = TeamViewCapacity(periodRows),
             weeks = weeklyLoad(items, periods, window?.span).map { it.toView() },
             weeksTruncated = window?.truncated ?: false,

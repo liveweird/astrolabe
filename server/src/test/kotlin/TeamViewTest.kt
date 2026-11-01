@@ -1,6 +1,8 @@
 package ch.nokillswit
 
+import ch.nokillswit.planning.MilestoneResponse
 import ch.nokillswit.planning.MilestoneScheduleRequest
+import ch.nokillswit.planning.MilestoneUpdateRequest
 import ch.nokillswit.planning.RankingUpdateRequest
 import ch.nokillswit.planning.TeamView
 import ch.nokillswit.planning.DependencyStatus
@@ -86,6 +88,7 @@ class TeamViewTest {
                 assertTrue(!view.team.managerName.isNullOrBlank())
                 assertFalse(view.order.custom)
                 assertEquals(0L, view.order.revision)
+                assertEquals(emptyList(), view.order.milestoneIds, "no custom order: nothing listed")
                 assertEquals(listOf(first, second), view.capacity.periods.map { it.id }, "by effective date")
                 assertEquals(listOf(3, null), view.capacity.periods.map { it.wipLimit })
                 assertEquals(listOf(10.0, 12.5), view.capacity.periods.map { it.mdPerWeek })
@@ -179,6 +182,7 @@ class TeamViewTest {
             assertEquals(TestPlan.revision(), custom.order.revision)
             assertEquals(listOf(p1a, p3a, p2a, p1b), custom.scheduled.map { it.id }, "the listed, then the rest in rank order")
             assertEquals(listOf(p2u, p1u), custom.unscheduled.map { it.id })
+            assertEquals(listOf(p1a, p3a), custom.order.milestoneIds, "exactly the stored list")
 
             // A rank change reorders only the unlisted tail: the manager's head is untouched.
             val swapped = ranking(w.projectId, second.projectId)
@@ -187,12 +191,42 @@ class TeamViewTest {
             assertEquals(listOf(p1a, p3a, p1b, p2a), afterSwap.scheduled.map { it.id })
             assertEquals(listOf(p1u, p2u), afterSwap.unscheduled.map { it.id })
             assertEquals(custom.order.revision, afterSwap.order.revision, "the rank change did not touch the team's order")
+            assertEquals(listOf(p1a, p3a), afterSwap.order.milestoneIds, "nor the stored list")
 
             // An empty list resets the team to the project rank.
             assertEquals(HttpStatusCode.OK, t.manager.client.putTeamOrder(t.teamId, afterSwap.order.revision, emptyList()).status)
             val reset = w.view(t.teamId)
             assertFalse(reset.order.custom)
+            assertEquals(emptyList(), reset.order.milestoneIds)
             assertEquals(listOf(p1b, p1a, p2a, p3a), reset.scheduled.map { it.id })
+        }
+
+    @Test
+    fun `order milestoneIds is the stored list in position order - unscheduled ones included, a deleted or moved milestone absent`() =
+        testApplication {
+            usePostgresTestcontainer()
+            val w = planWorld("tvl", teams = true)
+            val t = w.requireTeams()
+            val a = w.milestone(t.teamId, "2027-02-01", "2027-02-05", name = "a")
+            val b = w.milestone(t.teamId, "2027-02-08", "2027-02-12", name = "b")
+            val m = TestPlan.milestone(w.projectId, t.teamId, "m") // listed AND unscheduled
+            val c = w.milestone(t.teamId, "2027-02-15", "2027-02-19", name = "c")
+            val d = w.milestone(t.teamId, "2027-02-22", "2027-02-26", name = "d")
+            val unlisted = TestPlan.milestone(w.projectId, t.teamId, "unlisted")
+            TestPlan.teamOrder(t.teamId, listOf(a, b, m, c, d))
+
+            val view = w.view(t.teamId)
+            assertTrue(view.order.custom)
+            assertEquals(listOf(a, b, m, c, d), view.order.milestoneIds, "stored position order, the unscheduled m in its place")
+            assertTrue(m in view.unscheduled.map { it.id } && unlisted !in view.order.milestoneIds)
+
+            // A soft-deleted and a re-teamed milestone leave the list (the hooks close the gap), the rest keeps its order.
+            assertEquals(HttpStatusCode.NoContent, w.admin.client.delete("/api/v1/milestones/$b").status)
+            val current = w.admin.client.get("/api/v1/milestones/$c").body<MilestoneResponse>()
+            val moved = MilestoneUpdateRequest(current.name, current.description, t.otherTeamId, current.estimateMd)
+            assertEquals(HttpStatusCode.NoContent, w.admin.client.putJson("/api/v1/milestones/$c", moved).status)
+            assertEquals(listOf(a, m, d), w.view(t.teamId).order.milestoneIds)
+            assertEquals(emptyList(), w.view(t.otherTeamId).order.milestoneIds, "another team's view lists only its own order")
         }
 
     // --- the weeks ----------------------------------------------------------------------------------------------------------

@@ -2412,6 +2412,8 @@ export interface components {
              * @description The team's order revision (0 when never written); send it back as `expectedRevision` of the order PUT.
              */
             revision: number;
+            /** @description The stored custom order: the manager's listed milestones that are still ACTIVE milestones of this team, scheduled or not, in stored position order (empty when `custom` is false). The unscheduled ones are listed here only; a client that writes the order again keeps their places (`planning-model.md` "The team milestone order"). */
+            milestoneIds: number[];
         };
         TeamViewCapacity: {
             /** @description The team's active capacity periods in `effectiveFrom` order, with their WIP limits. */
