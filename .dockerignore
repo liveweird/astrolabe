@@ -16,6 +16,10 @@ e2e/test-results/
 # checkout: the context transfer fell from 3.84 GB to 17.7 MB. No Dockerfile stage reads .claude/.
 .claude/
 
+# The deterministic sample plan (loaded into a DEVELOPMENT stack through the API by scripts/sample-plan/load.mjs): test data, never
+# part of an image. No Dockerfile stage copies it; excluding it here keeps a future broad COPY from shipping it.
+sample-data/
+
 # IDE / local cruft (.git stays IN the context — the SPA build stage reads the
 # commit sha/timestamp from it for the version stamp)
 **/.idea/

@@ -8,7 +8,7 @@
 #
 # What the three stages cover beyond the build/test gates: web = API-contract, lint, knip, shuffled coverage,
 # build; e2e = the Docker-free statics (lint, knip, typecheck, scenario parity, `test:setup`) plus the
-# toolchain-pins drift check (scripts/check-toolchain-pins.mjs).
+# toolchain-pins drift check (scripts/check-toolchain-pins.mjs) and the sample-plan generator's and loader's `node --test` self-tests (one `node --test <file>` each: node skips a missing file when another argument matches, but a single missing file fails).
 #
 # CI-ONLY on purpose (.claude/docs/ci.md "Local gates vs CI"), none of them is a gate a code change can fail on its own:
 #   - `npm audit` (web runtime deps, e2e full tree) and the HIGH/CRITICAL Gradle lockfile vulnerability scan: they
@@ -60,7 +60,7 @@ web_gates() {
 
 e2e_static() {
   "${record[@]}" e2e-static -- bash -c \
-    'cd "$1/e2e" && npm run lint && npm run knip && npm run typecheck && npm run check:scenarios && npm run test:setup && node "$1/scripts/check-toolchain-pins.mjs"' \
+    'cd "$1/e2e" && npm run lint && npm run knip && npm run typecheck && npm run check:scenarios && npm run test:setup && node "$1/scripts/check-toolchain-pins.mjs" && node --test "$1/scripts/sample-plan/generate.test.mjs" && node --test "$1/scripts/sample-plan/load.test.mjs"' \
     _ "$root"
 }
 

@@ -163,6 +163,20 @@ Measured once, manually, with C4 (a throwaway script, not committed): ONE projec
 
 What the measurement found and fixed: a bar half under the sticky columns took focus with its ring hidden and a pointer press at its centre hit a left cell (the browser does not count sticky parts as covering — `revealFocused`, see "Accessibility model"); dnd-kit's default autoscroll zone scrolled the grid under a resize at the right edge (see "Drag, resize and keyboard contract").
 
+#### Measured figures on the team page at scale (v0.5, sample plan)
+
+*To be measured after C5 (the team page) lands, with the sample plan loaded (`sample-data/plan/`, loader: `README.md` "Try it at scale"); one-off, NON-BINDING, this machine only, not yet recorded.* Pages: the largest team ("Platform", 301 milestones, 268 scheduled rows, the virtual path) and a ~65-row team ("Web Frontend", 67 scheduled rows, the plain path). To record, per page: page ready, rows mounted, `[data-arrow]` count, strip cells, scroll frame p50/p95, a Move to bottom's PUT round trip, a row drag from the first row to the last slot through autoscroll (the PUT body ends with its id; the row is last after the refetch), the view's server time from the access log.
+
+| What | Platform (virtual path) | Web Frontend (plain path) |
+|---|---|---|
+| Page ready | _tbd_ | _tbd_ |
+| Rows mounted | _tbd_ | _tbd_ |
+| `[data-arrow]` count / strip cells | _tbd_ | _tbd_ |
+| Scroll frame interval p50 / p95 | _tbd_ | _tbd_ |
+| Move to bottom, PUT round trip | _tbd_ | _tbd_ |
+| Row drag first row to last slot through autoscroll | _tbd_ | _tbd_ |
+| `GET /views/team/{id}` server time | _tbd_ | _tbd_ |
+
 #### Deliberate departures from the bootstrap sketch
 
 A div grid instead of a `<table>` (virtual rows); `top` instead of `translateY` for virtual rows (stacking); the tray's drag is pointer-only with an explicit Schedule button; dnd-kit's live region is the single announcer for drags (the page's polite region announces only non-drag changes).

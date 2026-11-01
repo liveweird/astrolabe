@@ -69,6 +69,28 @@ On a cold start the app waits for Postgres rather than exiting: Flyway retries i
 (`POSTGRES_CONNECT_RETRIES`, default 10 — about a minute of backing-off attempts; see "Configuration"),
 so `docker compose up` and Kubernetes restarts need no manual ordering.
 
+## Try it at scale (development only)
+
+A deterministic sample plan at the intended scale (15 teams with Zipf-skewed sizes, 5 work streams, 20 programs, 100 projects, 1,000 milestones, 300 dependencies, capacity periods with
+WIP limits, a project ranking, three custom team orders) is committed in `sample-data/plan/` and replayed through the public API by a loader. **Never production:** the loader
+refuses any stack that does not serve `GET /openapi/documentation.yaml` (a development stack, like the compose one; a redirect or an HSTS header also means production), before it sends a
+credential, and the data is never part of an image. Node 24 only, nothing to install:
+
+```bash
+read -rs ASTROLABE_ADMIN_PASSWORD && export ASTROLABE_ADMIN_PASSWORD   # the seed administrator's password (typed, never read from a file)
+node scripts/sample-plan/load.mjs --base-url http://localhost:8086                # load: dates land on the Monday of this week
+node scripts/sample-plan/load.mjs --base-url http://localhost:8086 --reset        # replace an earlier load
+read -rs ASTROLABE_SAMPLE_LOGIN_PASSWORD && export ASTROLABE_SAMPLE_LOGIN_PASSWORD   # 10 to 71 bytes
+node scripts/sample-plan/load.mjs --base-url http://localhost:8086 --reset --logins   # + one login per person
+```
+
+The loader prints progress and a summary (about 15 s against a local stack) and names the largest team's page (`/teams/<id>`). `--logins` creates `<first>.<last>@sample.astrolabe.local` for
+every manager and owner so you can sign in as a team manager; `--anchor YYYY-MM-DD` pins the Monday the dates are offset from. It stops before writing anything when a real team, program
+or work stream already uses one of the dataset's names, and `--reset` only deletes what it can recognise as its own (a sample name together with a sample owner); the sample projects are
+added to the stack's existing project ranking, which stays as it was. Plain `http` is accepted for `localhost`, loopback and `*.local` hosts only (`--insecure-http` overrides). The files are
+regenerated with `node scripts/sample-plan/generate.mjs` (byte-identical for the same seed); `node --test scripts/sample-plan/generate.test.mjs` and `node --test scripts/sample-plan/load.test.mjs` pin that, the
+dataset's invariants and the loader's refusals against http stubs, and runs in `scripts/gates.sh e2e` and CI. Details: `sample-data/plan/README.md`.
+
 ## Running on Kubernetes (local)
 
 Two Deployments, each a single replica with `Recreate` updates (the old pod stops before the

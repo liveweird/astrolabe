@@ -232,7 +232,8 @@ jobs:
   e2e-static:
     # The Docker-free e2e gates: eslint+sonarjs and knip (the web sibling), typecheck
     # (Playwright only TRANSPILES TS), and spec↔scenario parity — the same-commit rule made
-    # mechanical (e2e/README.md).
+    # mechanical (e2e/README.md); then the repo-level node checks (toolchain pins, the sample-plan
+    # generator and loader self-tests).
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     defaults:
@@ -257,6 +258,16 @@ jobs:
       - name: Toolchain pins agree (mise.toml, .nvmrc, ci.yml, Dockerfile)
         working-directory: ${{ github.workspace }}
         run: node scripts/check-toolchain-pins.mjs
+      # Also repo-level: the self-tests of the deterministic sample-plan generator (determinism, counts, Zipf sizes, acyclicity, the
+      # server's limits; the committed sample-data/plan must equal a fresh run) and of its API loader (the development-stack check, the
+      # reset matching, the preflight; against http stubs). Node built-ins only, no install. The test files are named (never globbed: a glob
+      # that matches nothing exits 0) and run one per `node --test` call (with two named files node silently skips a missing one), so a
+      # renamed or deleted test file fails this step instead of running nothing.
+      - name: Sample plan generator and loader self-tests
+        working-directory: ${{ github.workspace }}
+        run: |
+          node --test scripts/sample-plan/generate.test.mjs
+          node --test scripts/sample-plan/load.test.mjs
       # Last on purpose (see the web job): an overnight advisory must not hide the real gates. Everything
       # in e2e/ is a dev tool (Playwright and its lint stack), so the full tree is audited.
       - name: Audit dependencies (high+)

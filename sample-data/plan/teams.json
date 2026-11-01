@@ -1,0 +1,92 @@
+[
+  {
+    "ref": 1,
+    "name": "Platform",
+    "description": "Sample team (generated; never production). The largest: its page takes the virtualised path.",
+    "managerRef": 1
+  },
+  {
+    "ref": 2,
+    "name": "Payments",
+    "description": null,
+    "managerRef": 2
+  },
+  {
+    "ref": 3,
+    "name": "Mobile",
+    "description": null,
+    "managerRef": 3
+  },
+  {
+    "ref": 4,
+    "name": "Web Frontend",
+    "description": null,
+    "managerRef": 4
+  },
+  {
+    "ref": 5,
+    "name": "Data Engineering",
+    "description": null,
+    "managerRef": 5
+  },
+  {
+    "ref": 6,
+    "name": "Search",
+    "description": null,
+    "managerRef": 6
+  },
+  {
+    "ref": 7,
+    "name": "Identity",
+    "description": null,
+    "managerRef": 7
+  },
+  {
+    "ref": 8,
+    "name": "Infrastructure",
+    "description": null,
+    "managerRef": 8
+  },
+  {
+    "ref": 9,
+    "name": "QA Automation",
+    "description": null,
+    "managerRef": 9
+  },
+  {
+    "ref": 10,
+    "name": "Design Systems",
+    "description": null,
+    "managerRef": 10
+  },
+  {
+    "ref": 11,
+    "name": "Analytics",
+    "description": null,
+    "managerRef": 11
+  },
+  {
+    "ref": 12,
+    "name": "Integrations",
+    "description": null,
+    "managerRef": 12
+  },
+  {
+    "ref": 13,
+    "name": "Security",
+    "description": null,
+    "managerRef": 13
+  },
+  {
+    "ref": 14,
+    "name": "Billing",
+    "description": null,
+    "managerRef": 14
+  },
+  {
+    "ref": 15,
+    "name": "Support Tooling",
+    "description": null,
+    "managerRef": 15
+  }
+]

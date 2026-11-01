@@ -1,0 +1,2402 @@
+[
+  {
+    "ref": 1,
+    "predecessorRef": 964,
+    "successorRef": 965,
+    "successorProjectRef": 97,
+    "type": "FS",
+    "lagDays": -5
+  },
+  {
+    "ref": 2,
+    "predecessorRef": 131,
+    "successorRef": 132,
+    "successorProjectRef": 14,
+    "type": "SS",
+    "lagDays": 0
+  },
+  {
+    "ref": 3,
+    "predecessorRef": 950,
+    "successorRef": 951,
+    "successorProjectRef": 95,
+    "type": "SS",
+    "lagDays": 2
+  },
+  {
+    "ref": 4,
+    "predecessorRef": 765,
+    "successorRef": 766,
+    "successorProjectRef": 77,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 5,
+    "predecessorRef": 328,
+    "successorRef": 329,
+    "successorProjectRef": 34,
+    "type": "SS",
+    "lagDays": 0
+  },
+  {
+    "ref": 6,
+    "predecessorRef": 279,
+    "successorRef": 280,
+    "successorProjectRef": 29,
+    "type": "FS",
+    "lagDays": 5
+  },
+  {
+    "ref": 7,
+    "predecessorRef": 886,
+    "successorRef": 887,
+    "successorProjectRef": 89,
+    "type": "FS",
+    "lagDays": 3
+  },
+  {
+    "ref": 8,
+    "predecessorRef": 648,
+    "successorRef": 649,
+    "successorProjectRef": 65,
+    "type": "FS",
+    "lagDays": -1
+  },
+  {
+    "ref": 9,
+    "predecessorRef": 402,
+    "successorRef": 403,
+    "successorProjectRef": 41,
+    "type": "SS",
+    "lagDays": 0
+  },
+  {
+    "ref": 10,
+    "predecessorRef": 593,
+    "successorRef": 594,
+    "successorProjectRef": 60,
+    "type": "FS",
+    "lagDays": 2
+  },
+  {
+    "ref": 11,
+    "predecessorRef": 982,
+    "successorRef": 983,
+    "successorProjectRef": 99,
+    "type": "SS",
+    "lagDays": 2
+  },
+  {
+    "ref": 12,
+    "predecessorRef": 425,
+    "successorRef": 426,
+    "successorProjectRef": 44,
+    "type": "FS",
+    "lagDays": -5
+  },
+  {
+    "ref": 13,
+    "predecessorRef": 688,
+    "successorRef": 689,
+    "successorProjectRef": 69,
+    "type": "FS",
+    "lagDays": -1
+  },
+  {
+    "ref": 14,
+    "predecessorRef": 211,
+    "successorRef": 212,
+    "successorProjectRef": 22,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 15,
+    "predecessorRef": 186,
+    "successorRef": 187,
+    "successorProjectRef": 19,
+    "type": "FS",
+    "lagDays": 1
+  },
+  {
+    "ref": 16,
+    "predecessorRef": 962,
+    "successorRef": 963,
+    "successorProjectRef": 97,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 17,
+    "predecessorRef": 787,
+    "successorRef": 788,
+    "successorProjectRef": 79,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 18,
+    "predecessorRef": 998,
+    "successorRef": 999,
+    "successorProjectRef": 100,
+    "type": "FS",
+    "lagDays": 1
+  },
+  {
+    "ref": 19,
+    "predecessorRef": 599,
+    "successorRef": 600,
+    "successorProjectRef": 61,
+    "type": "FS",
+    "lagDays": 10
+  },
+  {
+    "ref": 20,
+    "predecessorRef": 555,
+    "successorRef": 556,
+    "successorProjectRef": 57,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 21,
+    "predecessorRef": 949,
+    "successorRef": 950,
+    "successorProjectRef": 95,
+    "type": "SS",
+    "lagDays": 0
+  },
+  {
+    "ref": 22,
+    "predecessorRef": 196,
+    "successorRef": 197,
+    "successorProjectRef": 20,
+    "type": "SS",
+    "lagDays": -2
+  },
+  {
+    "ref": 23,
+    "predecessorRef": 393,
+    "successorRef": 394,
+    "successorProjectRef": 40,
+    "type": "FS",
+    "lagDays": -2
+  },
+  {
+    "ref": 24,
+    "predecessorRef": 175,
+    "successorRef": 176,
+    "successorProjectRef": 18,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 25,
+    "predecessorRef": 771,
+    "successorRef": 772,
+    "successorProjectRef": 78,
+    "type": "FF",
+    "lagDays": 0
+  },
+  {
+    "ref": 26,
+    "predecessorRef": 278,
+    "successorRef": 279,
+    "successorProjectRef": 29,
+    "type": "FS",
+    "lagDays": 1
+  },
+  {
+    "ref": 27,
+    "predecessorRef": 853,
+    "successorRef": 854,
+    "successorProjectRef": 86,
+    "type": "FS",
+    "lagDays": 2
+  },
+  {
+    "ref": 28,
+    "predecessorRef": 350,
+    "successorRef": 351,
+    "successorProjectRef": 37,
+    "type": "SS",
+    "lagDays": 5
+  },
+  {
+    "ref": 29,
+    "predecessorRef": 528,
+    "successorRef": 529,
+    "successorProjectRef": 54,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 30,
+    "predecessorRef": 120,
+    "successorRef": 121,
+    "successorProjectRef": 13,
+    "type": "SS",
+    "lagDays": 0
+  },
+  {
+    "ref": 31,
+    "predecessorRef": 609,
+    "successorRef": 610,
+    "successorProjectRef": 61,
+    "type": "FS",
+    "lagDays": 1
+  },
+  {
+    "ref": 32,
+    "predecessorRef": 469,
+    "successorRef": 470,
+    "successorProjectRef": 48,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 33,
+    "predecessorRef": 348,
+    "successorRef": 349,
+    "successorProjectRef": 36,
+    "type": "FF",
+    "lagDays": -5
+  },
+  {
+    "ref": 34,
+    "predecessorRef": 896,
+    "successorRef": 897,
+    "successorProjectRef": 90,
+    "type": "SS",
+    "lagDays": -5
+  },
+  {
+    "ref": 35,
+    "predecessorRef": 811,
+    "successorRef": 812,
+    "successorProjectRef": 82,
+    "type": "FS",
+    "lagDays": -5
+  },
+  {
+    "ref": 36,
+    "predecessorRef": 388,
+    "successorRef": 389,
+    "successorProjectRef": 40,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 37,
+    "predecessorRef": 370,
+    "successorRef": 371,
+    "successorProjectRef": 39,
+    "type": "FS",
+    "lagDays": 5
+  },
+  {
+    "ref": 38,
+    "predecessorRef": 302,
+    "successorRef": 303,
+    "successorProjectRef": 31,
+    "type": "SS",
+    "lagDays": 0
+  },
+  {
+    "ref": 39,
+    "predecessorRef": 89,
+    "successorRef": 90,
+    "successorProjectRef": 10,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 40,
+    "predecessorRef": 623,
+    "successorRef": 624,
+    "successorProjectRef": 62,
+    "type": "FF",
+    "lagDays": -1
+  },
+  {
+    "ref": 41,
+    "predecessorRef": 311,
+    "successorRef": 312,
+    "successorProjectRef": 32,
+    "type": "SS",
+    "lagDays": -5
+  },
+  {
+    "ref": 42,
+    "predecessorRef": 711,
+    "successorRef": 712,
+    "successorProjectRef": 71,
+    "type": "FS",
+    "lagDays": 1
+  },
+  {
+    "ref": 43,
+    "predecessorRef": 490,
+    "successorRef": 491,
+    "successorProjectRef": 50,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 44,
+    "predecessorRef": 960,
+    "successorRef": 961,
+    "successorProjectRef": 97,
+    "type": "FS",
+    "lagDays": -1
+  },
+  {
+    "ref": 45,
+    "predecessorRef": 327,
+    "successorRef": 328,
+    "successorProjectRef": 34,
+    "type": "FS",
+    "lagDays": 3
+  },
+  {
+    "ref": 46,
+    "predecessorRef": 676,
+    "successorRef": 677,
+    "successorProjectRef": 68,
+    "type": "FS",
+    "lagDays": -5
+  },
+  {
+    "ref": 47,
+    "predecessorRef": 918,
+    "successorRef": 919,
+    "successorProjectRef": 92,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 48,
+    "predecessorRef": 147,
+    "successorRef": 148,
+    "successorProjectRef": 15,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 49,
+    "predecessorRef": 4,
+    "successorRef": 5,
+    "successorProjectRef": 1,
+    "type": "FS",
+    "lagDays": -5
+  },
+  {
+    "ref": 50,
+    "predecessorRef": 919,
+    "successorRef": 920,
+    "successorProjectRef": 92,
+    "type": "FS",
+    "lagDays": 5
+  },
+  {
+    "ref": 51,
+    "predecessorRef": 434,
+    "successorRef": 435,
+    "successorProjectRef": 45,
+    "type": "FS",
+    "lagDays": 2
+  },
+  {
+    "ref": 52,
+    "predecessorRef": 58,
+    "successorRef": 59,
+    "successorProjectRef": 6,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 53,
+    "predecessorRef": 697,
+    "successorRef": 698,
+    "successorProjectRef": 70,
+    "type": "FF",
+    "lagDays": 2
+  },
+  {
+    "ref": 54,
+    "predecessorRef": 660,
+    "successorRef": 661,
+    "successorProjectRef": 66,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 55,
+    "predecessorRef": 138,
+    "successorRef": 139,
+    "successorProjectRef": 15,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 56,
+    "predecessorRef": 670,
+    "successorRef": 671,
+    "successorProjectRef": 68,
+    "type": "SS",
+    "lagDays": -5
+  },
+  {
+    "ref": 57,
+    "predecessorRef": 494,
+    "successorRef": 495,
+    "successorProjectRef": 50,
+    "type": "SS",
+    "lagDays": 0
+  },
+  {
+    "ref": 58,
+    "predecessorRef": 975,
+    "successorRef": 976,
+    "successorProjectRef": 98,
+    "type": "FS",
+    "lagDays": 5
+  },
+  {
+    "ref": 59,
+    "predecessorRef": 618,
+    "successorRef": 619,
+    "successorProjectRef": 62,
+    "type": "FS",
+    "lagDays": -5
+  },
+  {
+    "ref": 60,
+    "predecessorRef": 643,
+    "successorRef": 644,
+    "successorProjectRef": 64,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 61,
+    "predecessorRef": 149,
+    "successorRef": 150,
+    "successorProjectRef": 16,
+    "type": "FS",
+    "lagDays": -5
+  },
+  {
+    "ref": 62,
+    "predecessorRef": 300,
+    "successorRef": 301,
+    "successorProjectRef": 31,
+    "type": "FS",
+    "lagDays": 1
+  },
+  {
+    "ref": 63,
+    "predecessorRef": 913,
+    "successorRef": 914,
+    "successorProjectRef": 92,
+    "type": "FF",
+    "lagDays": -2
+  },
+  {
+    "ref": 64,
+    "predecessorRef": 533,
+    "successorRef": 534,
+    "successorProjectRef": 55,
+    "type": "FS",
+    "lagDays": 1
+  },
+  {
+    "ref": 65,
+    "predecessorRef": 571,
+    "successorRef": 572,
+    "successorProjectRef": 59,
+    "type": "SS",
+    "lagDays": -2
+  },
+  {
+    "ref": 66,
+    "predecessorRef": 974,
+    "successorRef": 975,
+    "successorProjectRef": 98,
+    "type": "FS",
+    "lagDays": 2
+  },
+  {
+    "ref": 67,
+    "predecessorRef": 849,
+    "successorRef": 850,
+    "successorProjectRef": 86,
+    "type": "FS",
+    "lagDays": -1
+  },
+  {
+    "ref": 68,
+    "predecessorRef": 657,
+    "successorRef": 658,
+    "successorProjectRef": 66,
+    "type": "SS",
+    "lagDays": -2
+  },
+  {
+    "ref": 69,
+    "predecessorRef": 894,
+    "successorRef": 895,
+    "successorProjectRef": 90,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 70,
+    "predecessorRef": 981,
+    "successorRef": 982,
+    "successorProjectRef": 99,
+    "type": "FF",
+    "lagDays": 2
+  },
+  {
+    "ref": 71,
+    "predecessorRef": 24,
+    "successorRef": 25,
+    "successorProjectRef": 3,
+    "type": "FS",
+    "lagDays": -1
+  },
+  {
+    "ref": 72,
+    "predecessorRef": 347,
+    "successorRef": 348,
+    "successorProjectRef": 36,
+    "type": "SS",
+    "lagDays": 3
+  },
+  {
+    "ref": 73,
+    "predecessorRef": 892,
+    "successorRef": 893,
+    "successorProjectRef": 90,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 74,
+    "predecessorRef": 19,
+    "successorRef": 20,
+    "successorProjectRef": 3,
+    "type": "FS",
+    "lagDays": -5
+  },
+  {
+    "ref": 75,
+    "predecessorRef": 102,
+    "successorRef": 103,
+    "successorProjectRef": 11,
+    "type": "FS",
+    "lagDays": -1
+  },
+  {
+    "ref": 76,
+    "predecessorRef": 922,
+    "successorRef": 923,
+    "successorProjectRef": 93,
+    "type": "FF",
+    "lagDays": 3
+  },
+  {
+    "ref": 77,
+    "predecessorRef": 946,
+    "successorRef": 947,
+    "successorProjectRef": 95,
+    "type": "FS",
+    "lagDays": 1
+  },
+  {
+    "ref": 78,
+    "predecessorRef": 80,
+    "successorRef": 81,
+    "successorProjectRef": 9,
+    "type": "FS",
+    "lagDays": 3
+  },
+  {
+    "ref": 79,
+    "predecessorRef": 301,
+    "successorRef": 302,
+    "successorProjectRef": 31,
+    "type": "SS",
+    "lagDays": -2
+  },
+  {
+    "ref": 80,
+    "predecessorRef": 729,
+    "successorRef": 730,
+    "successorProjectRef": 73,
+    "type": "FS",
+    "lagDays": -5
+  },
+  {
+    "ref": 81,
+    "predecessorRef": 572,
+    "successorRef": 573,
+    "successorProjectRef": 59,
+    "type": "FF",
+    "lagDays": 2
+  },
+  {
+    "ref": 82,
+    "predecessorRef": 202,
+    "successorRef": 203,
+    "successorProjectRef": 21,
+    "type": "FS",
+    "lagDays": -5
+  },
+  {
+    "ref": 83,
+    "predecessorRef": 213,
+    "successorRef": 214,
+    "successorProjectRef": 22,
+    "type": "FF",
+    "lagDays": 0
+  },
+  {
+    "ref": 84,
+    "predecessorRef": 679,
+    "successorRef": 680,
+    "successorProjectRef": 69,
+    "type": "FS",
+    "lagDays": -5
+  },
+  {
+    "ref": 85,
+    "predecessorRef": 21,
+    "successorRef": 22,
+    "successorProjectRef": 3,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 86,
+    "predecessorRef": 239,
+    "successorRef": 240,
+    "successorProjectRef": 25,
+    "type": "FS",
+    "lagDays": 1
+  },
+  {
+    "ref": 87,
+    "predecessorRef": 838,
+    "successorRef": 839,
+    "successorProjectRef": 85,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 88,
+    "predecessorRef": 256,
+    "successorRef": 257,
+    "successorProjectRef": 26,
+    "type": "FF",
+    "lagDays": -2
+  },
+  {
+    "ref": 89,
+    "predecessorRef": 288,
+    "successorRef": 289,
+    "successorProjectRef": 30,
+    "type": "SS",
+    "lagDays": 0
+  },
+  {
+    "ref": 90,
+    "predecessorRef": 816,
+    "successorRef": 817,
+    "successorProjectRef": 82,
+    "type": "FS",
+    "lagDays": 3
+  },
+  {
+    "ref": 91,
+    "predecessorRef": 325,
+    "successorRef": 326,
+    "successorProjectRef": 34,
+    "type": "SS",
+    "lagDays": 1
+  },
+  {
+    "ref": 92,
+    "predecessorRef": 491,
+    "successorRef": 492,
+    "successorProjectRef": 50,
+    "type": "SS",
+    "lagDays": 0
+  },
+  {
+    "ref": 93,
+    "predecessorRef": 556,
+    "successorRef": 557,
+    "successorProjectRef": 57,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 94,
+    "predecessorRef": 592,
+    "successorRef": 593,
+    "successorProjectRef": 60,
+    "type": "SS",
+    "lagDays": -2
+  },
+  {
+    "ref": 95,
+    "predecessorRef": 797,
+    "successorRef": 798,
+    "successorProjectRef": 80,
+    "type": "FS",
+    "lagDays": -2
+  },
+  {
+    "ref": 96,
+    "predecessorRef": 309,
+    "successorRef": 310,
+    "successorProjectRef": 32,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 97,
+    "predecessorRef": 827,
+    "successorRef": 828,
+    "successorProjectRef": 83,
+    "type": "SS",
+    "lagDays": 0
+  },
+  {
+    "ref": 98,
+    "predecessorRef": 339,
+    "successorRef": 340,
+    "successorProjectRef": 36,
+    "type": "SS",
+    "lagDays": 2
+  },
+  {
+    "ref": 99,
+    "predecessorRef": 635,
+    "successorRef": 636,
+    "successorProjectRef": 63,
+    "type": "FS",
+    "lagDays": -5
+  },
+  {
+    "ref": 100,
+    "predecessorRef": 614,
+    "successorRef": 615,
+    "successorProjectRef": 62,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 101,
+    "predecessorRef": 134,
+    "successorRef": 135,
+    "successorProjectRef": 14,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 102,
+    "predecessorRef": 433,
+    "successorRef": 434,
+    "successorProjectRef": 45,
+    "type": "SS",
+    "lagDays": 0
+  },
+  {
+    "ref": 103,
+    "predecessorRef": 18,
+    "successorRef": 19,
+    "successorProjectRef": 3,
+    "type": "FS",
+    "lagDays": -2
+  },
+  {
+    "ref": 104,
+    "predecessorRef": 613,
+    "successorRef": 614,
+    "successorProjectRef": 62,
+    "type": "FS",
+    "lagDays": 1
+  },
+  {
+    "ref": 105,
+    "predecessorRef": 82,
+    "successorRef": 83,
+    "successorProjectRef": 9,
+    "type": "FS",
+    "lagDays": 5
+  },
+  {
+    "ref": 106,
+    "predecessorRef": 44,
+    "successorRef": 45,
+    "successorProjectRef": 5,
+    "type": "FS",
+    "lagDays": 10
+  },
+  {
+    "ref": 107,
+    "predecessorRef": 540,
+    "successorRef": 541,
+    "successorProjectRef": 55,
+    "type": "FS",
+    "lagDays": 2
+  },
+  {
+    "ref": 108,
+    "predecessorRef": 510,
+    "successorRef": 511,
+    "successorProjectRef": 52,
+    "type": "FF",
+    "lagDays": -5
+  },
+  {
+    "ref": 109,
+    "predecessorRef": 223,
+    "successorRef": 224,
+    "successorProjectRef": 23,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 110,
+    "predecessorRef": 784,
+    "successorRef": 785,
+    "successorProjectRef": 79,
+    "type": "FF",
+    "lagDays": 10
+  },
+  {
+    "ref": 111,
+    "predecessorRef": 826,
+    "successorRef": 827,
+    "successorProjectRef": 83,
+    "type": "FF",
+    "lagDays": 0
+  },
+  {
+    "ref": 112,
+    "predecessorRef": 361,
+    "successorRef": 362,
+    "successorProjectRef": 38,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 113,
+    "predecessorRef": 778,
+    "successorRef": 779,
+    "successorProjectRef": 78,
+    "type": "FF",
+    "lagDays": 0
+  },
+  {
+    "ref": 114,
+    "predecessorRef": 108,
+    "successorRef": 109,
+    "successorProjectRef": 12,
+    "type": "FS",
+    "lagDays": -2
+  },
+  {
+    "ref": 115,
+    "predecessorRef": 345,
+    "successorRef": 346,
+    "successorProjectRef": 36,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 116,
+    "predecessorRef": 812,
+    "successorRef": 813,
+    "successorProjectRef": 82,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 117,
+    "predecessorRef": 735,
+    "successorRef": 736,
+    "successorProjectRef": 74,
+    "type": "FS",
+    "lagDays": 3
+  },
+  {
+    "ref": 118,
+    "predecessorRef": 391,
+    "successorRef": 392,
+    "successorProjectRef": 40,
+    "type": "FF",
+    "lagDays": -1
+  },
+  {
+    "ref": 119,
+    "predecessorRef": 22,
+    "successorRef": 23,
+    "successorProjectRef": 3,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 120,
+    "predecessorRef": 664,
+    "successorRef": 665,
+    "successorProjectRef": 67,
+    "type": "SS",
+    "lagDays": -1
+  },
+  {
+    "ref": 121,
+    "predecessorRef": 686,
+    "successorRef": 687,
+    "successorProjectRef": 69,
+    "type": "SS",
+    "lagDays": -5
+  },
+  {
+    "ref": 122,
+    "predecessorRef": 455,
+    "successorRef": 456,
+    "successorProjectRef": 47,
+    "type": "SS",
+    "lagDays": -2
+  },
+  {
+    "ref": 123,
+    "predecessorRef": 953,
+    "successorRef": 954,
+    "successorProjectRef": 96,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 124,
+    "predecessorRef": 373,
+    "successorRef": 374,
+    "successorProjectRef": 39,
+    "type": "FS",
+    "lagDays": 10
+  },
+  {
+    "ref": 125,
+    "predecessorRef": 667,
+    "successorRef": 668,
+    "successorProjectRef": 67,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 126,
+    "predecessorRef": 418,
+    "successorRef": 419,
+    "successorProjectRef": 43,
+    "type": "FS",
+    "lagDays": -2
+  },
+  {
+    "ref": 127,
+    "predecessorRef": 746,
+    "successorRef": 747,
+    "successorProjectRef": 75,
+    "type": "SS",
+    "lagDays": 0
+  },
+  {
+    "ref": 128,
+    "predecessorRef": 262,
+    "successorRef": 263,
+    "successorProjectRef": 27,
+    "type": "FS",
+    "lagDays": -2
+  },
+  {
+    "ref": 129,
+    "predecessorRef": 685,
+    "successorRef": 686,
+    "successorProjectRef": 69,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 130,
+    "predecessorRef": 7,
+    "successorRef": 8,
+    "successorProjectRef": 2,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 131,
+    "predecessorRef": 980,
+    "successorRef": 981,
+    "successorProjectRef": 99,
+    "type": "FS",
+    "lagDays": 5
+  },
+  {
+    "ref": 132,
+    "predecessorRef": 479,
+    "successorRef": 480,
+    "successorProjectRef": 49,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 133,
+    "predecessorRef": 870,
+    "successorRef": 871,
+    "successorProjectRef": 88,
+    "type": "SS",
+    "lagDays": -1
+  },
+  {
+    "ref": 134,
+    "predecessorRef": 956,
+    "successorRef": 957,
+    "successorProjectRef": 96,
+    "type": "FF",
+    "lagDays": 2
+  },
+  {
+    "ref": 135,
+    "predecessorRef": 634,
+    "successorRef": 635,
+    "successorProjectRef": 63,
+    "type": "FF",
+    "lagDays": 2
+  },
+  {
+    "ref": 136,
+    "predecessorRef": 468,
+    "successorRef": 469,
+    "successorProjectRef": 48,
+    "type": "FF",
+    "lagDays": 0
+  },
+  {
+    "ref": 137,
+    "predecessorRef": 27,
+    "successorRef": 28,
+    "successorProjectRef": 3,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 138,
+    "predecessorRef": 659,
+    "successorRef": 660,
+    "successorProjectRef": 66,
+    "type": "FS",
+    "lagDays": 1
+  },
+  {
+    "ref": 139,
+    "predecessorRef": 665,
+    "successorRef": 666,
+    "successorProjectRef": 67,
+    "type": "FS",
+    "lagDays": -5
+  },
+  {
+    "ref": 140,
+    "predecessorRef": 366,
+    "successorRef": 367,
+    "successorProjectRef": 38,
+    "type": "FF",
+    "lagDays": 1
+  },
+  {
+    "ref": 141,
+    "predecessorRef": 595,
+    "successorRef": 596,
+    "successorProjectRef": 60,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 142,
+    "predecessorRef": 217,
+    "successorRef": 218,
+    "successorProjectRef": 22,
+    "type": "SS",
+    "lagDays": 0
+  },
+  {
+    "ref": 143,
+    "predecessorRef": 220,
+    "successorRef": 221,
+    "successorProjectRef": 23,
+    "type": "FS",
+    "lagDays": -1
+  },
+  {
+    "ref": 144,
+    "predecessorRef": 863,
+    "successorRef": 864,
+    "successorProjectRef": 87,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 145,
+    "predecessorRef": 461,
+    "successorRef": 462,
+    "successorProjectRef": 47,
+    "type": "FS",
+    "lagDays": -5
+  },
+  {
+    "ref": 146,
+    "predecessorRef": 143,
+    "successorRef": 144,
+    "successorProjectRef": 15,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 147,
+    "predecessorRef": 376,
+    "successorRef": 377,
+    "successorProjectRef": 39,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 148,
+    "predecessorRef": 484,
+    "successorRef": 485,
+    "successorProjectRef": 50,
+    "type": "SS",
+    "lagDays": -1
+  },
+  {
+    "ref": 149,
+    "predecessorRef": 64,
+    "successorRef": 65,
+    "successorProjectRef": 7,
+    "type": "SS",
+    "lagDays": 1
+  },
+  {
+    "ref": 150,
+    "predecessorRef": 734,
+    "successorRef": 735,
+    "successorProjectRef": 74,
+    "type": "SS",
+    "lagDays": 1
+  },
+  {
+    "ref": 151,
+    "predecessorRef": 992,
+    "successorRef": 993,
+    "successorProjectRef": 100,
+    "type": "SS",
+    "lagDays": 10
+  },
+  {
+    "ref": 152,
+    "predecessorRef": 276,
+    "successorRef": 277,
+    "successorProjectRef": 29,
+    "type": "FS",
+    "lagDays": 3
+  },
+  {
+    "ref": 153,
+    "predecessorRef": 783,
+    "successorRef": 784,
+    "successorProjectRef": 79,
+    "type": "SS",
+    "lagDays": 2
+  },
+  {
+    "ref": 154,
+    "predecessorRef": 93,
+    "successorRef": 94,
+    "successorProjectRef": 10,
+    "type": "FF",
+    "lagDays": -2
+  },
+  {
+    "ref": 155,
+    "predecessorRef": 803,
+    "successorRef": 804,
+    "successorProjectRef": 81,
+    "type": "FS",
+    "lagDays": 5
+  },
+  {
+    "ref": 156,
+    "predecessorRef": 151,
+    "successorRef": 152,
+    "successorProjectRef": 16,
+    "type": "FS",
+    "lagDays": -2
+  },
+  {
+    "ref": 157,
+    "predecessorRef": 55,
+    "successorRef": 56,
+    "successorProjectRef": 6,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 158,
+    "predecessorRef": 401,
+    "successorRef": 402,
+    "successorProjectRef": 41,
+    "type": "FF",
+    "lagDays": 5
+  },
+  {
+    "ref": 159,
+    "predecessorRef": 513,
+    "successorRef": 514,
+    "successorProjectRef": 52,
+    "type": "FS",
+    "lagDays": 3
+  },
+  {
+    "ref": 160,
+    "predecessorRef": 54,
+    "successorRef": 55,
+    "successorProjectRef": 6,
+    "type": "FF",
+    "lagDays": -5
+  },
+  {
+    "ref": 161,
+    "predecessorRef": 890,
+    "successorRef": 891,
+    "successorProjectRef": 90,
+    "type": "FS",
+    "lagDays": -1
+  },
+  {
+    "ref": 162,
+    "predecessorRef": 574,
+    "successorRef": 575,
+    "successorProjectRef": 59,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 163,
+    "predecessorRef": 396,
+    "successorRef": 397,
+    "successorProjectRef": 41,
+    "type": "FS",
+    "lagDays": -5
+  },
+  {
+    "ref": 164,
+    "predecessorRef": 726,
+    "successorRef": 727,
+    "successorProjectRef": 73,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 165,
+    "predecessorRef": 59,
+    "successorRef": 60,
+    "successorProjectRef": 6,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 166,
+    "predecessorRef": 450,
+    "successorRef": 451,
+    "successorProjectRef": 46,
+    "type": "SS",
+    "lagDays": 0
+  },
+  {
+    "ref": 167,
+    "predecessorRef": 63,
+    "successorRef": 64,
+    "successorProjectRef": 7,
+    "type": "FS",
+    "lagDays": 1
+  },
+  {
+    "ref": 168,
+    "predecessorRef": 653,
+    "successorRef": 654,
+    "successorProjectRef": 66,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 169,
+    "predecessorRef": 772,
+    "successorRef": 773,
+    "successorProjectRef": 78,
+    "type": "FS",
+    "lagDays": 2
+  },
+  {
+    "ref": 170,
+    "predecessorRef": 504,
+    "successorRef": 505,
+    "successorProjectRef": 51,
+    "type": "SS",
+    "lagDays": 1
+  },
+  {
+    "ref": 171,
+    "predecessorRef": 959,
+    "successorRef": 960,
+    "successorProjectRef": 97,
+    "type": "FS",
+    "lagDays": -1
+  },
+  {
+    "ref": 172,
+    "predecessorRef": 81,
+    "successorRef": 82,
+    "successorProjectRef": 9,
+    "type": "FS",
+    "lagDays": -5
+  },
+  {
+    "ref": 173,
+    "predecessorRef": 172,
+    "successorRef": 173,
+    "successorProjectRef": 18,
+    "type": "FF",
+    "lagDays": 0
+  },
+  {
+    "ref": 174,
+    "predecessorRef": 420,
+    "successorRef": 421,
+    "successorProjectRef": 43,
+    "type": "FS",
+    "lagDays": -5
+  },
+  {
+    "ref": 175,
+    "predecessorRef": 474,
+    "successorRef": 475,
+    "successorProjectRef": 49,
+    "type": "FS",
+    "lagDays": 5
+  },
+  {
+    "ref": 176,
+    "predecessorRef": 591,
+    "successorRef": 592,
+    "successorProjectRef": 60,
+    "type": "FS",
+    "lagDays": 10
+  },
+  {
+    "ref": 177,
+    "predecessorRef": 371,
+    "successorRef": 372,
+    "successorProjectRef": 39,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 178,
+    "predecessorRef": 298,
+    "successorRef": 299,
+    "successorProjectRef": 30,
+    "type": "FF",
+    "lagDays": -1
+  },
+  {
+    "ref": 179,
+    "predecessorRef": 9,
+    "successorRef": 10,
+    "successorProjectRef": 2,
+    "type": "FS",
+    "lagDays": 3
+  },
+  {
+    "ref": 180,
+    "predecessorRef": 214,
+    "successorRef": 215,
+    "successorProjectRef": 22,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 181,
+    "predecessorRef": 698,
+    "successorRef": 699,
+    "successorProjectRef": 70,
+    "type": "SS",
+    "lagDays": 2
+  },
+  {
+    "ref": 182,
+    "predecessorRef": 226,
+    "successorRef": 227,
+    "successorProjectRef": 23,
+    "type": "FF",
+    "lagDays": -5
+  },
+  {
+    "ref": 183,
+    "predecessorRef": 210,
+    "successorRef": 211,
+    "successorProjectRef": 22,
+    "type": "FF",
+    "lagDays": 0
+  },
+  {
+    "ref": 184,
+    "predecessorRef": 908,
+    "successorRef": 909,
+    "successorProjectRef": 91,
+    "type": "FF",
+    "lagDays": 0
+  },
+  {
+    "ref": 185,
+    "predecessorRef": 285,
+    "successorRef": 286,
+    "successorProjectRef": 29,
+    "type": "FS",
+    "lagDays": -2
+  },
+  {
+    "ref": 186,
+    "predecessorRef": 933,
+    "successorRef": 934,
+    "successorProjectRef": 94,
+    "type": "FS",
+    "lagDays": -2
+  },
+  {
+    "ref": 187,
+    "predecessorRef": 862,
+    "successorRef": 863,
+    "successorProjectRef": 87,
+    "type": "FS",
+    "lagDays": -5
+  },
+  {
+    "ref": 188,
+    "predecessorRef": 245,
+    "successorRef": 246,
+    "successorProjectRef": 25,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 189,
+    "predecessorRef": 464,
+    "successorRef": 465,
+    "successorProjectRef": 48,
+    "type": "FF",
+    "lagDays": -5
+  },
+  {
+    "ref": 190,
+    "predecessorRef": 914,
+    "successorRef": 915,
+    "successorProjectRef": 92,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 191,
+    "predecessorRef": 189,
+    "successorRef": 190,
+    "successorProjectRef": 19,
+    "type": "FF",
+    "lagDays": -1
+  },
+  {
+    "ref": 192,
+    "predecessorRef": 738,
+    "successorRef": 739,
+    "successorProjectRef": 74,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 193,
+    "predecessorRef": 470,
+    "successorRef": 471,
+    "successorProjectRef": 48,
+    "type": "SS",
+    "lagDays": -2
+  },
+  {
+    "ref": 194,
+    "predecessorRef": 453,
+    "successorRef": 454,
+    "successorProjectRef": 47,
+    "type": "FS",
+    "lagDays": 5
+  },
+  {
+    "ref": 195,
+    "predecessorRef": 942,
+    "successorRef": 943,
+    "successorProjectRef": 95,
+    "type": "FF",
+    "lagDays": 0
+  },
+  {
+    "ref": 196,
+    "predecessorRef": 123,
+    "successorRef": 124,
+    "successorProjectRef": 13,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 197,
+    "predecessorRef": 517,
+    "successorRef": 518,
+    "successorProjectRef": 53,
+    "type": "FF",
+    "lagDays": 0
+  },
+  {
+    "ref": 198,
+    "predecessorRef": 323,
+    "successorRef": 324,
+    "successorProjectRef": 34,
+    "type": "SS",
+    "lagDays": -1
+  },
+  {
+    "ref": 199,
+    "predecessorRef": 212,
+    "successorRef": 213,
+    "successorProjectRef": 22,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 200,
+    "predecessorRef": 395,
+    "successorRef": 396,
+    "successorProjectRef": 41,
+    "type": "FF",
+    "lagDays": -5
+  },
+  {
+    "ref": 201,
+    "predecessorRef": 621,
+    "successorRef": 622,
+    "successorProjectRef": 62,
+    "type": "FS",
+    "lagDays": -2
+  },
+  {
+    "ref": 202,
+    "predecessorRef": 334,
+    "successorRef": 335,
+    "successorProjectRef": 35,
+    "type": "FF",
+    "lagDays": 3
+  },
+  {
+    "ref": 203,
+    "predecessorRef": 602,
+    "successorRef": 603,
+    "successorProjectRef": 61,
+    "type": "FS",
+    "lagDays": -2
+  },
+  {
+    "ref": 204,
+    "predecessorRef": 587,
+    "successorRef": 588,
+    "successorProjectRef": 60,
+    "type": "FF",
+    "lagDays": 3
+  },
+  {
+    "ref": 205,
+    "predecessorRef": 842,
+    "successorRef": 843,
+    "successorProjectRef": 85,
+    "type": "FS",
+    "lagDays": 3
+  },
+  {
+    "ref": 206,
+    "predecessorRef": 569,
+    "successorRef": 570,
+    "successorProjectRef": 58,
+    "type": "FS",
+    "lagDays": -5
+  },
+  {
+    "ref": 207,
+    "predecessorRef": 222,
+    "successorRef": 223,
+    "successorProjectRef": 23,
+    "type": "FS",
+    "lagDays": 1
+  },
+  {
+    "ref": 208,
+    "predecessorRef": 807,
+    "successorRef": 808,
+    "successorProjectRef": 81,
+    "type": "FS",
+    "lagDays": 3
+  },
+  {
+    "ref": 209,
+    "predecessorRef": 169,
+    "successorRef": 170,
+    "successorProjectRef": 18,
+    "type": "SS",
+    "lagDays": 2
+  },
+  {
+    "ref": 210,
+    "predecessorRef": 246,
+    "successorRef": 247,
+    "successorProjectRef": 25,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 211,
+    "predecessorRef": 336,
+    "successorRef": 337,
+    "successorProjectRef": 35,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 212,
+    "predecessorRef": 693,
+    "successorRef": 694,
+    "successorProjectRef": 70,
+    "type": "FF",
+    "lagDays": -5
+  },
+  {
+    "ref": 213,
+    "predecessorRef": 763,
+    "successorRef": 764,
+    "successorProjectRef": 77,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 214,
+    "predecessorRef": 989,
+    "successorRef": 990,
+    "successorProjectRef": 100,
+    "type": "FS",
+    "lagDays": -2
+  },
+  {
+    "ref": 215,
+    "predecessorRef": 682,
+    "successorRef": 683,
+    "successorProjectRef": 69,
+    "type": "FF",
+    "lagDays": 5
+  },
+  {
+    "ref": 216,
+    "predecessorRef": 589,
+    "successorRef": 590,
+    "successorProjectRef": 60,
+    "type": "SS",
+    "lagDays": -2
+  },
+  {
+    "ref": 217,
+    "predecessorRef": 390,
+    "successorRef": 391,
+    "successorProjectRef": 40,
+    "type": "FS",
+    "lagDays": -1
+  },
+  {
+    "ref": 218,
+    "predecessorRef": 503,
+    "successorRef": 504,
+    "successorProjectRef": 51,
+    "type": "FS",
+    "lagDays": 10
+  },
+  {
+    "ref": 219,
+    "predecessorRef": 182,
+    "successorRef": 183,
+    "successorProjectRef": 19,
+    "type": "FS",
+    "lagDays": 5
+  },
+  {
+    "ref": 220,
+    "predecessorRef": 873,
+    "successorRef": 874,
+    "successorProjectRef": 88,
+    "type": "SS",
+    "lagDays": 2
+  },
+  {
+    "ref": 221,
+    "predecessorRef": 957,
+    "successorRef": 958,
+    "successorProjectRef": 96,
+    "type": "FF",
+    "lagDays": 2
+  },
+  {
+    "ref": 222,
+    "predecessorRef": 809,
+    "successorRef": 810,
+    "successorProjectRef": 82,
+    "type": "FS",
+    "lagDays": 2
+  },
+  {
+    "ref": 223,
+    "predecessorRef": 68,
+    "successorRef": 69,
+    "successorProjectRef": 7,
+    "type": "SS",
+    "lagDays": 0
+  },
+  {
+    "ref": 224,
+    "predecessorRef": 761,
+    "successorRef": 762,
+    "successorProjectRef": 77,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 225,
+    "predecessorRef": 355,
+    "successorRef": 356,
+    "successorProjectRef": 37,
+    "type": "SS",
+    "lagDays": 0
+  },
+  {
+    "ref": 226,
+    "predecessorRef": 72,
+    "successorRef": 777,
+    "successorProjectRef": 78,
+    "type": "FF",
+    "lagDays": 2
+  },
+  {
+    "ref": 227,
+    "predecessorRef": 908,
+    "successorRef": 9,
+    "successorProjectRef": 2,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 228,
+    "predecessorRef": 227,
+    "successorRef": 184,
+    "successorProjectRef": 19,
+    "type": "SS",
+    "lagDays": -5
+  },
+  {
+    "ref": 229,
+    "predecessorRef": 254,
+    "successorRef": 424,
+    "successorProjectRef": 43,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 230,
+    "predecessorRef": 38,
+    "successorRef": 715,
+    "successorProjectRef": 72,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 231,
+    "predecessorRef": 427,
+    "successorRef": 675,
+    "successorProjectRef": 68,
+    "type": "FS",
+    "lagDays": 3
+  },
+  {
+    "ref": 232,
+    "predecessorRef": 859,
+    "successorRef": 705,
+    "successorProjectRef": 70,
+    "type": "FS",
+    "lagDays": 10
+  },
+  {
+    "ref": 233,
+    "predecessorRef": 646,
+    "successorRef": 284,
+    "successorProjectRef": 29,
+    "type": "FS",
+    "lagDays": 3
+  },
+  {
+    "ref": 234,
+    "predecessorRef": 802,
+    "successorRef": 257,
+    "successorProjectRef": 26,
+    "type": "SS",
+    "lagDays": -5
+  },
+  {
+    "ref": 235,
+    "predecessorRef": 448,
+    "successorRef": 514,
+    "successorProjectRef": 52,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 236,
+    "predecessorRef": 711,
+    "successorRef": 357,
+    "successorProjectRef": 37,
+    "type": "FS",
+    "lagDays": -5
+  },
+  {
+    "ref": 237,
+    "predecessorRef": 459,
+    "successorRef": 466,
+    "successorProjectRef": 48,
+    "type": "FS",
+    "lagDays": 5
+  },
+  {
+    "ref": 238,
+    "predecessorRef": 163,
+    "successorRef": 480,
+    "successorProjectRef": 49,
+    "type": "FF",
+    "lagDays": 5
+  },
+  {
+    "ref": 239,
+    "predecessorRef": 77,
+    "successorRef": 823,
+    "successorProjectRef": 83,
+    "type": "FS",
+    "lagDays": 2
+  },
+  {
+    "ref": 240,
+    "predecessorRef": 305,
+    "successorRef": 980,
+    "successorProjectRef": 99,
+    "type": "FF",
+    "lagDays": 3
+  },
+  {
+    "ref": 241,
+    "predecessorRef": 684,
+    "successorRef": 219,
+    "successorProjectRef": 22,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 242,
+    "predecessorRef": 573,
+    "successorRef": 876,
+    "successorProjectRef": 88,
+    "type": "FF",
+    "lagDays": 2
+  },
+  {
+    "ref": 243,
+    "predecessorRef": 801,
+    "successorRef": 21,
+    "successorProjectRef": 3,
+    "type": "FF",
+    "lagDays": 0
+  },
+  {
+    "ref": 244,
+    "predecessorRef": 767,
+    "successorRef": 674,
+    "successorProjectRef": 68,
+    "type": "FS",
+    "lagDays": 1
+  },
+  {
+    "ref": 245,
+    "predecessorRef": 947,
+    "successorRef": 495,
+    "successorProjectRef": 50,
+    "type": "FS",
+    "lagDays": 5
+  },
+  {
+    "ref": 246,
+    "predecessorRef": 754,
+    "successorRef": 527,
+    "successorProjectRef": 54,
+    "type": "FS",
+    "lagDays": 10
+  },
+  {
+    "ref": 247,
+    "predecessorRef": 13,
+    "successorRef": 807,
+    "successorProjectRef": 81,
+    "type": "FS",
+    "lagDays": 1
+  },
+  {
+    "ref": 248,
+    "predecessorRef": 725,
+    "successorRef": 529,
+    "successorProjectRef": 54,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 249,
+    "predecessorRef": 447,
+    "successorRef": 522,
+    "successorProjectRef": 53,
+    "type": "FS",
+    "lagDays": 5
+  },
+  {
+    "ref": 250,
+    "predecessorRef": 186,
+    "successorRef": 638,
+    "successorProjectRef": 64,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 251,
+    "predecessorRef": 288,
+    "successorRef": 136,
+    "successorProjectRef": 15,
+    "type": "SS",
+    "lagDays": 0
+  },
+  {
+    "ref": 252,
+    "predecessorRef": 383,
+    "successorRef": 472,
+    "successorProjectRef": 48,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 253,
+    "predecessorRef": 645,
+    "successorRef": 527,
+    "successorProjectRef": 54,
+    "type": "FS",
+    "lagDays": -1
+  },
+  {
+    "ref": 254,
+    "predecessorRef": 932,
+    "successorRef": 922,
+    "successorProjectRef": 93,
+    "type": "SS",
+    "lagDays": 2
+  },
+  {
+    "ref": 255,
+    "predecessorRef": 634,
+    "successorRef": 98,
+    "successorProjectRef": 11,
+    "type": "FF",
+    "lagDays": -5
+  },
+  {
+    "ref": 256,
+    "predecessorRef": 850,
+    "successorRef": 445,
+    "successorProjectRef": 46,
+    "type": "FS",
+    "lagDays": 3
+  },
+  {
+    "ref": 257,
+    "predecessorRef": 531,
+    "successorRef": 194,
+    "successorProjectRef": 20,
+    "type": "SS",
+    "lagDays": 0
+  },
+  {
+    "ref": 258,
+    "predecessorRef": 174,
+    "successorRef": 802,
+    "successorProjectRef": 80,
+    "type": "SS",
+    "lagDays": 3
+  },
+  {
+    "ref": 259,
+    "predecessorRef": 237,
+    "successorRef": 300,
+    "successorProjectRef": 31,
+    "type": "SS",
+    "lagDays": 3
+  },
+  {
+    "ref": 260,
+    "predecessorRef": 682,
+    "successorRef": 70,
+    "successorProjectRef": 7,
+    "type": "FF",
+    "lagDays": 2
+  },
+  {
+    "ref": 261,
+    "predecessorRef": 239,
+    "successorRef": 136,
+    "successorProjectRef": 15,
+    "type": "SS",
+    "lagDays": 0
+  },
+  {
+    "ref": 262,
+    "predecessorRef": 380,
+    "successorRef": 524,
+    "successorProjectRef": 54,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 263,
+    "predecessorRef": 481,
+    "successorRef": 133,
+    "successorProjectRef": 14,
+    "type": "FS",
+    "lagDays": 5
+  },
+  {
+    "ref": 264,
+    "predecessorRef": 578,
+    "successorRef": 991,
+    "successorProjectRef": 100,
+    "type": "FF",
+    "lagDays": 0
+  },
+  {
+    "ref": 265,
+    "predecessorRef": 558,
+    "successorRef": 139,
+    "successorProjectRef": 15,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 266,
+    "predecessorRef": 811,
+    "successorRef": 480,
+    "successorProjectRef": 49,
+    "type": "FS",
+    "lagDays": 3
+  },
+  {
+    "ref": 267,
+    "predecessorRef": 140,
+    "successorRef": 917,
+    "successorProjectRef": 92,
+    "type": "FS",
+    "lagDays": 1
+  },
+  {
+    "ref": 268,
+    "predecessorRef": 890,
+    "successorRef": 304,
+    "successorProjectRef": 31,
+    "type": "FS",
+    "lagDays": -2
+  },
+  {
+    "ref": 269,
+    "predecessorRef": 16,
+    "successorRef": 422,
+    "successorProjectRef": 43,
+    "type": "FS",
+    "lagDays": 2
+  },
+  {
+    "ref": 270,
+    "predecessorRef": 640,
+    "successorRef": 332,
+    "successorProjectRef": 35,
+    "type": "FF",
+    "lagDays": 5
+  },
+  {
+    "ref": 271,
+    "predecessorRef": 614,
+    "successorRef": 74,
+    "successorProjectRef": 8,
+    "type": "SS",
+    "lagDays": -5
+  },
+  {
+    "ref": 272,
+    "predecessorRef": 859,
+    "successorRef": 550,
+    "successorProjectRef": 56,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 273,
+    "predecessorRef": 635,
+    "successorRef": 89,
+    "successorProjectRef": 10,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 274,
+    "predecessorRef": 302,
+    "successorRef": 883,
+    "successorProjectRef": 89,
+    "type": "SS",
+    "lagDays": 0
+  },
+  {
+    "ref": 275,
+    "predecessorRef": 594,
+    "successorRef": 52,
+    "successorProjectRef": 6,
+    "type": "FF",
+    "lagDays": -2
+  },
+  {
+    "ref": 276,
+    "predecessorRef": 766,
+    "successorRef": 95,
+    "successorProjectRef": 11,
+    "type": "FS",
+    "lagDays": -5
+  },
+  {
+    "ref": 277,
+    "predecessorRef": 865,
+    "successorRef": 329,
+    "successorProjectRef": 34,
+    "type": "FS",
+    "lagDays": -2
+  },
+  {
+    "ref": 278,
+    "predecessorRef": 426,
+    "successorRef": 106,
+    "successorProjectRef": 11,
+    "type": "SS",
+    "lagDays": 0
+  },
+  {
+    "ref": 279,
+    "predecessorRef": 982,
+    "successorRef": 154,
+    "successorProjectRef": 16,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 280,
+    "predecessorRef": 598,
+    "successorRef": 946,
+    "successorProjectRef": 95,
+    "type": "SS",
+    "lagDays": -1
+  },
+  {
+    "ref": 281,
+    "predecessorRef": 68,
+    "successorRef": 423,
+    "successorProjectRef": 43,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 282,
+    "predecessorRef": 752,
+    "successorRef": 727,
+    "successorProjectRef": 73,
+    "type": "SS",
+    "lagDays": 0
+  },
+  {
+    "ref": 283,
+    "predecessorRef": 644,
+    "successorRef": 516,
+    "successorProjectRef": 53,
+    "type": "SS",
+    "lagDays": 10
+  },
+  {
+    "ref": 284,
+    "predecessorRef": 92,
+    "successorRef": 580,
+    "successorProjectRef": 59,
+    "type": "FS",
+    "lagDays": 2
+  },
+  {
+    "ref": 285,
+    "predecessorRef": 738,
+    "successorRef": 250,
+    "successorProjectRef": 26,
+    "type": "FS",
+    "lagDays": 10
+  },
+  {
+    "ref": 286,
+    "predecessorRef": 841,
+    "successorRef": 4,
+    "successorProjectRef": 1,
+    "type": "FS",
+    "lagDays": 0
+  },
+  {
+    "ref": 287,
+    "predecessorRef": 866,
+    "successorRef": 703,
+    "successorProjectRef": 70,
+    "type": "FF",
+    "lagDays": -5
+  },
+  {
+    "ref": 288,
+    "predecessorRef": 349,
+    "successorRef": 30,
+    "successorProjectRef": 4,
+    "type": "FF",
+    "lagDays": -2
+  },
+  {
+    "ref": 289,
+    "predecessorRef": 65,
+    "successorRef": 416,
+    "successorProjectRef": 43,
+    "type": "FS",
+    "lagDays": -2
+  },
+  {
+    "ref": 290,
+    "predecessorRef": 899,
+    "successorRef": 650,
+    "successorProjectRef": 65,
+    "type": "FF",
+    "lagDays": 1
+  },
+  {
+    "ref": 291,
+    "predecessorRef": 705,
+    "successorRef": 553,
+    "successorProjectRef": 57,
+    "type": "FS",
+    "lagDays": 1
+  },
+  {
+    "ref": 292,
+    "predecessorRef": 341,
+    "successorRef": 653,
+    "successorProjectRef": 66,
+    "type": "FS",
+    "lagDays": 5
+  },
+  {
+    "ref": 293,
+    "predecessorRef": 280,
+    "successorRef": 957,
+    "successorProjectRef": 96,
+    "type": "SS",
+    "lagDays": 1
+  },
+  {
+    "ref": 294,
+    "predecessorRef": 189,
+    "successorRef": 643,
+    "successorProjectRef": 64,
+    "type": "FS",
+    "lagDays": -2
+  },
+  {
+    "ref": 295,
+    "predecessorRef": 600,
+    "successorRef": 861,
+    "successorProjectRef": 87,
+    "type": "FS",
+    "lagDays": 2
+  },
+  {
+    "ref": 296,
+    "predecessorRef": 725,
+    "successorRef": 843,
+    "successorProjectRef": 85,
+    "type": "FF",
+    "lagDays": 0
+  },
+  {
+    "ref": 297,
+    "predecessorRef": 259,
+    "successorRef": 582,
+    "successorProjectRef": 59,
+    "type": "FS",
+    "lagDays": 2
+  },
+  {
+    "ref": 298,
+    "predecessorRef": 236,
+    "successorRef": 892,
+    "successorProjectRef": 90,
+    "type": "FS",
+    "lagDays": 2
+  },
+  {
+    "ref": 299,
+    "predecessorRef": 693,
+    "successorRef": 45,
+    "successorProjectRef": 5,
+    "type": "SS",
+    "lagDays": 0
+  },
+  {
+    "ref": 300,
+    "predecessorRef": 754,
+    "successorRef": 836,
+    "successorProjectRef": 84,
+    "type": "FS",
+    "lagDays": 3
+  }
+]

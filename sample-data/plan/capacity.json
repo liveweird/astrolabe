@@ -1,0 +1,266 @@
+[
+  {
+    "teamRef": 1,
+    "effectiveFromOffset": -77,
+    "mdPerWeek": 41.5,
+    "wipLimit": 7
+  },
+  {
+    "teamRef": 1,
+    "effectiveFromOffset": 49,
+    "mdPerWeek": 44,
+    "wipLimit": 7
+  },
+  {
+    "teamRef": 1,
+    "effectiveFromOffset": 168,
+    "mdPerWeek": 56.5,
+    "wipLimit": null
+  },
+  {
+    "teamRef": 1,
+    "effectiveFromOffset": 294,
+    "mdPerWeek": 56.5,
+    "wipLimit": 4
+  },
+  {
+    "teamRef": 2,
+    "effectiveFromOffset": -70,
+    "mdPerWeek": 16.5,
+    "wipLimit": 3
+  },
+  {
+    "teamRef": 2,
+    "effectiveFromOffset": 53,
+    "mdPerWeek": 22,
+    "wipLimit": 4
+  },
+  {
+    "teamRef": 2,
+    "effectiveFromOffset": 172,
+    "mdPerWeek": 31,
+    "wipLimit": 6
+  },
+  {
+    "teamRef": 2,
+    "effectiveFromOffset": 294,
+    "mdPerWeek": 31,
+    "wipLimit": 3
+  },
+  {
+    "teamRef": 3,
+    "effectiveFromOffset": -70,
+    "mdPerWeek": 13,
+    "wipLimit": 3
+  },
+  {
+    "teamRef": 3,
+    "effectiveFromOffset": 70,
+    "mdPerWeek": 23,
+    "wipLimit": null
+  },
+  {
+    "teamRef": 3,
+    "effectiveFromOffset": 168,
+    "mdPerWeek": 23,
+    "wipLimit": 6
+  },
+  {
+    "teamRef": 3,
+    "effectiveFromOffset": 301,
+    "mdPerWeek": 23,
+    "wipLimit": null
+  },
+  {
+    "teamRef": 4,
+    "effectiveFromOffset": -42,
+    "mdPerWeek": 16.5,
+    "wipLimit": 3
+  },
+  {
+    "teamRef": 4,
+    "effectiveFromOffset": 105,
+    "mdPerWeek": 17.5,
+    "wipLimit": null
+  },
+  {
+    "teamRef": 4,
+    "effectiveFromOffset": 238,
+    "mdPerWeek": 17.5,
+    "wipLimit": 4
+  },
+  {
+    "teamRef": 5,
+    "effectiveFromOffset": -49,
+    "mdPerWeek": 16,
+    "wipLimit": null
+  },
+  {
+    "teamRef": 5,
+    "effectiveFromOffset": 63,
+    "mdPerWeek": 19,
+    "wipLimit": 3
+  },
+  {
+    "teamRef": 5,
+    "effectiveFromOffset": 213,
+    "mdPerWeek": 19,
+    "wipLimit": null
+  },
+  {
+    "teamRef": 6,
+    "effectiveFromOffset": -63,
+    "mdPerWeek": 10,
+    "wipLimit": null
+  },
+  {
+    "teamRef": 6,
+    "effectiveFromOffset": 63,
+    "mdPerWeek": 11,
+    "wipLimit": null
+  },
+  {
+    "teamRef": 6,
+    "effectiveFromOffset": 210,
+    "mdPerWeek": 11,
+    "wipLimit": 3
+  },
+  {
+    "teamRef": 7,
+    "effectiveFromOffset": -63,
+    "mdPerWeek": 16,
+    "wipLimit": null
+  },
+  {
+    "teamRef": 7,
+    "effectiveFromOffset": 168,
+    "mdPerWeek": 16,
+    "wipLimit": 3
+  },
+  {
+    "teamRef": 8,
+    "effectiveFromOffset": -84,
+    "mdPerWeek": 7,
+    "wipLimit": null
+  },
+  {
+    "teamRef": 8,
+    "effectiveFromOffset": 123,
+    "mdPerWeek": 7,
+    "wipLimit": null
+  },
+  {
+    "teamRef": 9,
+    "effectiveFromOffset": -21,
+    "mdPerWeek": 10.5,
+    "wipLimit": null
+  },
+  {
+    "teamRef": 9,
+    "effectiveFromOffset": 92,
+    "mdPerWeek": 12.5,
+    "wipLimit": null
+  },
+  {
+    "teamRef": 9,
+    "effectiveFromOffset": 235,
+    "mdPerWeek": 12.5,
+    "wipLimit": 2
+  },
+  {
+    "teamRef": 10,
+    "effectiveFromOffset": -49,
+    "mdPerWeek": 6.5,
+    "wipLimit": 2
+  },
+  {
+    "teamRef": 10,
+    "effectiveFromOffset": 170,
+    "mdPerWeek": 6.5,
+    "wipLimit": null
+  },
+  {
+    "teamRef": 11,
+    "effectiveFromOffset": -49,
+    "mdPerWeek": 7.5,
+    "wipLimit": 2
+  },
+  {
+    "teamRef": 11,
+    "effectiveFromOffset": 118,
+    "mdPerWeek": 9,
+    "wipLimit": 2
+  },
+  {
+    "teamRef": 11,
+    "effectiveFromOffset": 259,
+    "mdPerWeek": 9,
+    "wipLimit": 2
+  },
+  {
+    "teamRef": 12,
+    "effectiveFromOffset": -91,
+    "mdPerWeek": 12.5,
+    "wipLimit": null
+  },
+  {
+    "teamRef": 12,
+    "effectiveFromOffset": 51,
+    "mdPerWeek": 9.5,
+    "wipLimit": null
+  },
+  {
+    "teamRef": 12,
+    "effectiveFromOffset": 203,
+    "mdPerWeek": 9.5,
+    "wipLimit": null
+  },
+  {
+    "teamRef": 13,
+    "effectiveFromOffset": -56,
+    "mdPerWeek": 9.5,
+    "wipLimit": 3
+  },
+  {
+    "teamRef": 13,
+    "effectiveFromOffset": 91,
+    "mdPerWeek": 10,
+    "wipLimit": null
+  },
+  {
+    "teamRef": 13,
+    "effectiveFromOffset": 210,
+    "mdPerWeek": 10,
+    "wipLimit": 2
+  },
+  {
+    "teamRef": 14,
+    "effectiveFromOffset": -42,
+    "mdPerWeek": 5,
+    "wipLimit": null
+  },
+  {
+    "teamRef": 14,
+    "effectiveFromOffset": 133,
+    "mdPerWeek": 10,
+    "wipLimit": null
+  },
+  {
+    "teamRef": 14,
+    "effectiveFromOffset": 285,
+    "mdPerWeek": 10,
+    "wipLimit": null
+  },
+  {
+    "teamRef": 15,
+    "effectiveFromOffset": -28,
+    "mdPerWeek": 10.5,
+    "wipLimit": null
+  },
+  {
+    "teamRef": 15,
+    "effectiveFromOffset": 150,
+    "mdPerWeek": 10.5,
+    "wipLimit": 3
+  }
+]

@@ -1,0 +1,3 @@
+# The sample plan is compared byte for byte with a fresh generator run (scripts/sample-plan/generate.test.mjs), so a
+# Windows checkout with autocrlf must not turn its LF line endings into CRLF.
+sample-data/** text eol=lf

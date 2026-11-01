@@ -1,0 +1,83 @@
+{
+  "seed": 42,
+  "zipfExponent": 1,
+  "counts": {
+    "people": 30,
+    "teams": 15,
+    "workStreams": 5,
+    "programs": 20,
+    "projects": 100,
+    "milestones": 1000,
+    "scheduledMilestones": 900,
+    "dependencies": 300,
+    "capacityPeriods": 44,
+    "rankedProjects": 80,
+    "customOrderTeams": 3
+  },
+  "teamMilestones": {
+    "Platform": 301,
+    "Payments": 151,
+    "Mobile": 101,
+    "Web Frontend": 75,
+    "Data Engineering": 60,
+    "Search": 50,
+    "Identity": 43,
+    "Infrastructure": 38,
+    "QA Automation": 34,
+    "Design Systems": 30,
+    "Analytics": 27,
+    "Integrations": 25,
+    "Security": 23,
+    "Billing": 22,
+    "Support Tooling": 20
+  },
+  "scheduledByTeam": {
+    "Platform": 268,
+    "Payments": 135,
+    "Mobile": 97,
+    "Web Frontend": 67,
+    "Data Engineering": 51,
+    "Search": 46,
+    "Identity": 41,
+    "Infrastructure": 31,
+    "QA Automation": 30,
+    "Design Systems": 28,
+    "Analytics": 24,
+    "Integrations": 23,
+    "Security": 22,
+    "Billing": 18,
+    "Support Tooling": 19
+  },
+  "dependencyStats": {
+    "byType": {
+      "FS": 187,
+      "SS": 62,
+      "FF": 51
+    },
+    "crossProject": 75,
+    "violated": 35,
+    "withUnscheduledEnd": 80
+  },
+  "capacityStats": {
+    "startsOnMonday": 33,
+    "startsMidWeek": 9,
+    "startsOnWeekend": 2,
+    "withWipLimit": 22,
+    "mdPerWeek": {
+      "min": 5,
+      "max": 56.5
+    },
+    "wipLimit": {
+      "min": 2,
+      "max": 7
+    }
+  },
+  "customOrders": {
+    "Platform": 12,
+    "Data Engineering": 8,
+    "Security": 5
+  },
+  "loadedWeeks": 683,
+  "overloadedWeekShare": 0.13,
+  "wipExceededWeekShare": 0.1
+}

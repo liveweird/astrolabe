@@ -1,0 +1,1009 @@
+{
+  "workStreams": [
+    {
+      "ref": 1,
+      "name": "Customer Experience",
+      "description": "Sample work stream (generated; never production).",
+      "ownerRef": 16,
+      "startOffset": -224,
+      "programs": [
+        {
+          "ref": 1,
+          "name": "Digital Storefront",
+          "description": null,
+          "ownerRef": 16,
+          "projects": [
+            {
+              "ref": 1,
+              "name": "Notifications consolidation",
+              "description": null,
+              "ownerRef": 16,
+              "targetStartOffset": -14,
+              "targetEndOffset": 74
+            },
+            {
+              "ref": 2,
+              "name": "Onboarding modernisation",
+              "description": null,
+              "ownerRef": 17,
+              "targetStartOffset": null,
+              "targetEndOffset": null
+            },
+            {
+              "ref": 3,
+              "name": "Inventory rollout",
+              "description": null,
+              "ownerRef": 18,
+              "targetStartOffset": 280,
+              "targetEndOffset": 361
+            },
+            {
+              "ref": 4,
+              "name": "Pricing pilot",
+              "description": null,
+              "ownerRef": 19,
+              "targetStartOffset": null,
+              "targetEndOffset": null
+            },
+            {
+              "ref": 5,
+              "name": "Onboarding hardening",
+              "description": null,
+              "ownerRef": 20,
+              "targetStartOffset": null,
+              "targetEndOffset": null
+            }
+          ]
+        },
+        {
+          "ref": 2,
+          "name": "Self-Service Portal",
+          "description": null,
+          "ownerRef": 17,
+          "projects": [
+            {
+              "ref": 6,
+              "name": "Search modernisation",
+              "description": null,
+              "ownerRef": 21,
+              "targetStartOffset": 21,
+              "targetEndOffset": 95
+            },
+            {
+              "ref": 7,
+              "name": "Dashboards hardening",
+              "description": null,
+              "ownerRef": 22,
+              "targetStartOffset": 224,
+              "targetEndOffset": 263
+            },
+            {
+              "ref": 8,
+              "name": "Reporting hardening",
+              "description": null,
+              "ownerRef": 23,
+              "targetStartOffset": 21,
+              "targetEndOffset": 39
+            },
+            {
+              "ref": 9,
+              "name": "Recommendations pilot",
+              "description": null,
+              "ownerRef": 5,
+              "targetStartOffset": 154,
+              "targetEndOffset": 200
+            },
+            {
+              "ref": 10,
+              "name": "Checkout redesign",
+              "description": null,
+              "ownerRef": 25,
+              "targetStartOffset": null,
+              "targetEndOffset": null
+            }
+          ]
+        },
+        {
+          "ref": 3,
+          "name": "Mobile Experience",
+          "description": null,
+          "ownerRef": 18,
+          "projects": [
+            {
+              "ref": 11,
+              "name": "Mobile app consolidation",
+              "description": null,
+              "ownerRef": 26,
+              "targetStartOffset": 105,
+              "targetEndOffset": 263
+            },
+            {
+              "ref": 12,
+              "name": "Billing expansion",
+              "description": null,
+              "ownerRef": 5,
+              "targetStartOffset": -28,
+              "targetEndOffset": 4
+            },
+            {
+              "ref": 13,
+              "name": "Recommendations automation",
+              "description": null,
+              "ownerRef": 28,
+              "targetStartOffset": null,
+              "targetEndOffset": null
+            },
+            {
+              "ref": 14,
+              "name": "Loyalty automation",
+              "description": null,
+              "ownerRef": 29,
+              "targetStartOffset": 49,
+              "targetEndOffset": 186
+            },
+            {
+              "ref": 15,
+              "name": "Payments hardening",
+              "description": null,
+              "ownerRef": 30,
+              "targetStartOffset": null,
+              "targetEndOffset": null
+            },
+            {
+              "ref": 16,
+              "name": "Reporting redesign",
+              "description": null,
+              "ownerRef": 16,
+              "targetStartOffset": 182,
+              "targetEndOffset": 277
+            }
+          ]
+        },
+        {
+          "ref": 4,
+          "name": "Customer Loyalty",
+          "description": null,
+          "ownerRef": 19,
+          "projects": [
+            {
+              "ref": 17,
+              "name": "Support portal revamp",
+              "description": null,
+              "ownerRef": 17,
+              "targetStartOffset": -21,
+              "targetEndOffset": 25
+            },
+            {
+              "ref": 18,
+              "name": "Support portal pilot",
+              "description": null,
+              "ownerRef": 18,
+              "targetStartOffset": 182,
+              "targetEndOffset": 270
+            },
+            {
+              "ref": 19,
+              "name": "Messaging rollout",
+              "description": null,
+              "ownerRef": 19,
+              "targetStartOffset": 161,
+              "targetEndOffset": 291
+            },
+            {
+              "ref": 20,
+              "name": "Payments redesign",
+              "description": null,
+              "ownerRef": 20,
+              "targetStartOffset": 287,
+              "targetEndOffset": 382
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "ref": 2,
+      "name": "Platform Foundations",
+      "description": "Sample work stream (generated; never production).",
+      "ownerRef": 17,
+      "startOffset": -245,
+      "programs": [
+        {
+          "ref": 5,
+          "name": "Cloud Migration",
+          "description": null,
+          "ownerRef": 20,
+          "projects": [
+            {
+              "ref": 21,
+              "name": "Subscriptions migration",
+              "description": null,
+              "ownerRef": 8,
+              "targetStartOffset": -7,
+              "targetEndOffset": 4
+            },
+            {
+              "ref": 22,
+              "name": "Recommendations modernisation",
+              "description": null,
+              "ownerRef": 22,
+              "targetStartOffset": null,
+              "targetEndOffset": null
+            },
+            {
+              "ref": 23,
+              "name": "Billing redesign",
+              "description": null,
+              "ownerRef": 23,
+              "targetStartOffset": 126,
+              "targetEndOffset": 200
+            },
+            {
+              "ref": 24,
+              "name": "Catalog expansion",
+              "description": null,
+              "ownerRef": 24,
+              "targetStartOffset": -63,
+              "targetEndOffset": 11
+            }
+          ]
+        },
+        {
+          "ref": 6,
+          "name": "Developer Productivity",
+          "description": null,
+          "ownerRef": 21,
+          "projects": [
+            {
+              "ref": 25,
+              "name": "Subscriptions consolidation",
+              "description": null,
+              "ownerRef": 25,
+              "targetStartOffset": 140,
+              "targetEndOffset": 270
+            },
+            {
+              "ref": 26,
+              "name": "Recommendations migration",
+              "description": null,
+              "ownerRef": 26,
+              "targetStartOffset": null,
+              "targetEndOffset": null
+            },
+            {
+              "ref": 27,
+              "name": "Support portal modernisation",
+              "description": null,
+              "ownerRef": 27,
+              "targetStartOffset": 56,
+              "targetEndOffset": 130
+            },
+            {
+              "ref": 28,
+              "name": "Inventory expansion",
+              "description": null,
+              "ownerRef": 28,
+              "targetStartOffset": null,
+              "targetEndOffset": null
+            }
+          ]
+        },
+        {
+          "ref": 7,
+          "name": "Observability",
+          "description": null,
+          "ownerRef": 22,
+          "projects": [
+            {
+              "ref": 29,
+              "name": "Pricing modernisation",
+              "description": null,
+              "ownerRef": 29,
+              "targetStartOffset": null,
+              "targetEndOffset": null
+            },
+            {
+              "ref": 30,
+              "name": "Mobile app hardening",
+              "description": null,
+              "ownerRef": 30,
+              "targetStartOffset": 105,
+              "targetEndOffset": 193
+            },
+            {
+              "ref": 31,
+              "name": "Subscriptions rollout",
+              "description": null,
+              "ownerRef": 16,
+              "targetStartOffset": null,
+              "targetEndOffset": null
+            },
+            {
+              "ref": 32,
+              "name": "Subscriptions pilot",
+              "description": null,
+              "ownerRef": 17,
+              "targetStartOffset": 28,
+              "targetEndOffset": 200
+            }
+          ]
+        },
+        {
+          "ref": 8,
+          "name": "Core Services",
+          "description": null,
+          "ownerRef": 23,
+          "projects": [
+            {
+              "ref": 33,
+              "name": "Returns consolidation",
+              "description": null,
+              "ownerRef": 18,
+              "targetStartOffset": null,
+              "targetEndOffset": null
+            },
+            {
+              "ref": 34,
+              "name": "Checkout modernisation",
+              "description": null,
+              "ownerRef": 19,
+              "targetStartOffset": 112,
+              "targetEndOffset": 172
+            },
+            {
+              "ref": 35,
+              "name": "Onboarding redesign",
+              "description": null,
+              "ownerRef": 20,
+              "targetStartOffset": 259,
+              "targetEndOffset": 319
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "ref": 3,
+      "name": "Commerce & Growth",
+      "description": "Sample work stream (generated; never production).",
+      "ownerRef": 18,
+      "startOffset": -329,
+      "programs": [
+        {
+          "ref": 9,
+          "name": "Checkout Optimisation",
+          "description": null,
+          "ownerRef": 24,
+          "projects": [
+            {
+              "ref": 36,
+              "name": "Login modernisation",
+              "description": null,
+              "ownerRef": 21,
+              "targetStartOffset": null,
+              "targetEndOffset": null
+            },
+            {
+              "ref": 37,
+              "name": "Loyalty expansion",
+              "description": null,
+              "ownerRef": 22,
+              "targetStartOffset": null,
+              "targetEndOffset": null
+            },
+            {
+              "ref": 38,
+              "name": "Recommendations consolidation",
+              "description": null,
+              "ownerRef": 23,
+              "targetStartOffset": null,
+              "targetEndOffset": null
+            },
+            {
+              "ref": 39,
+              "name": "Messaging redesign",
+              "description": null,
+              "ownerRef": 24,
+              "targetStartOffset": -63,
+              "targetEndOffset": 32
+            },
+            {
+              "ref": 40,
+              "name": "Fulfilment migration",
+              "description": null,
+              "ownerRef": 6,
+              "targetStartOffset": 266,
+              "targetEndOffset": 347
+            },
+            {
+              "ref": 41,
+              "name": "Notifications automation",
+              "description": null,
+              "ownerRef": 26,
+              "targetStartOffset": null,
+              "targetEndOffset": null
+            }
+          ]
+        },
+        {
+          "ref": 10,
+          "name": "Marketplace Expansion",
+          "description": null,
+          "ownerRef": 25,
+          "projects": [
+            {
+              "ref": 42,
+              "name": "Checkout rollout",
+              "description": null,
+              "ownerRef": 27,
+              "targetStartOffset": null,
+              "targetEndOffset": null
+            },
+            {
+              "ref": 43,
+              "name": "Checkout expansion",
+              "description": null,
+              "ownerRef": 28,
+              "targetStartOffset": 273,
+              "targetEndOffset": 445
+            },
+            {
+              "ref": 44,
+              "name": "Search rollout",
+              "description": null,
+              "ownerRef": 29,
+              "targetStartOffset": 63,
+              "targetEndOffset": 67
+            }
+          ]
+        },
+        {
+          "ref": 11,
+          "name": "Pricing & Promotions",
+          "description": null,
+          "ownerRef": 26,
+          "projects": [
+            {
+              "ref": 45,
+              "name": "Search automation",
+              "description": null,
+              "ownerRef": 30,
+              "targetStartOffset": 77,
+              "targetEndOffset": 130
+            },
+            {
+              "ref": 46,
+              "name": "Billing revamp",
+              "description": null,
+              "ownerRef": 3,
+              "targetStartOffset": 231,
+              "targetEndOffset": 375
+            },
+            {
+              "ref": 47,
+              "name": "Subscriptions redesign",
+              "description": null,
+              "ownerRef": 17,
+              "targetStartOffset": 231,
+              "targetEndOffset": 291
+            },
+            {
+              "ref": 48,
+              "name": "Onboarding rollout",
+              "description": null,
+              "ownerRef": 18,
+              "targetStartOffset": null,
+              "targetEndOffset": null
+            },
+            {
+              "ref": 49,
+              "name": "Checkout consolidation",
+              "description": null,
+              "ownerRef": 19,
+              "targetStartOffset": 28,
+              "targetEndOffset": 39
+            },
+            {
+              "ref": 50,
+              "name": "Login revamp",
+              "description": null,
+              "ownerRef": 20,
+              "targetStartOffset": 119,
+              "targetEndOffset": 207
+            }
+          ]
+        },
+        {
+          "ref": 12,
+          "name": "Partner Channels",
+          "description": null,
+          "ownerRef": 27,
+          "projects": [
+            {
+              "ref": 51,
+              "name": "Payments automation",
+              "description": null,
+              "ownerRef": 21,
+              "targetStartOffset": 266,
+              "targetEndOffset": 410
+            },
+            {
+              "ref": 52,
+              "name": "Reporting revamp",
+              "description": null,
+              "ownerRef": 22,
+              "targetStartOffset": null,
+              "targetEndOffset": null
+            },
+            {
+              "ref": 53,
+              "name": "Loyalty pilot",
+              "description": null,
+              "ownerRef": 23,
+              "targetStartOffset": null,
+              "targetEndOffset": null
+            },
+            {
+              "ref": 54,
+              "name": "Notifications redesign",
+              "description": null,
+              "ownerRef": 24,
+              "targetStartOffset": null,
+              "targetEndOffset": null
+            },
+            {
+              "ref": 55,
+              "name": "Messaging automation",
+              "description": null,
+              "ownerRef": 25,
+              "targetStartOffset": null,
+              "targetEndOffset": null
+            },
+            {
+              "ref": 56,
+              "name": "Returns expansion",
+              "description": null,
+              "ownerRef": 26,
+              "targetStartOffset": 126,
+              "targetEndOffset": 200
+            },
+            {
+              "ref": 57,
+              "name": "Checkout hardening",
+              "description": null,
+              "ownerRef": 27,
+              "targetStartOffset": null,
+              "targetEndOffset": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "ref": 4,
+      "name": "Data & Intelligence",
+      "description": "Sample work stream (generated; never production).",
+      "ownerRef": 19,
+      "startOffset": -308,
+      "programs": [
+        {
+          "ref": 13,
+          "name": "Data Platform",
+          "description": null,
+          "ownerRef": 28,
+          "projects": [
+            {
+              "ref": 58,
+              "name": "Support portal automation",
+              "description": null,
+              "ownerRef": 28,
+              "targetStartOffset": null,
+              "targetEndOffset": null
+            },
+            {
+              "ref": 59,
+              "name": "Billing pilot",
+              "description": null,
+              "ownerRef": 29,
+              "targetStartOffset": 119,
+              "targetEndOffset": 277
+            },
+            {
+              "ref": 60,
+              "name": "Mobile app rollout",
+              "description": null,
+              "ownerRef": 30,
+              "targetStartOffset": -21,
+              "targetEndOffset": 123
+            },
+            {
+              "ref": 61,
+              "name": "Reporting rollout",
+              "description": null,
+              "ownerRef": 16,
+              "targetStartOffset": null,
+              "targetEndOffset": null
+            },
+            {
+              "ref": 62,
+              "name": "Fulfilment hardening",
+              "description": null,
+              "ownerRef": 17,
+              "targetStartOffset": null,
+              "targetEndOffset": null
+            },
+            {
+              "ref": 63,
+              "name": "Support portal redesign",
+              "description": null,
+              "ownerRef": 18,
+              "targetStartOffset": null,
+              "targetEndOffset": null
+            },
+            {
+              "ref": 64,
+              "name": "Messaging consolidation",
+              "description": null,
+              "ownerRef": 19,
+              "targetStartOffset": 238,
+              "targetEndOffset": 284
+            }
+          ]
+        },
+        {
+          "ref": 14,
+          "name": "Reporting & Analytics",
+          "description": null,
+          "ownerRef": 29,
+          "projects": [
+            {
+              "ref": 65,
+              "name": "Search hardening",
+              "description": null,
+              "ownerRef": 20,
+              "targetStartOffset": null,
+              "targetEndOffset": null
+            },
+            {
+              "ref": 66,
+              "name": "Login redesign",
+              "description": null,
+              "ownerRef": 21,
+              "targetStartOffset": 7,
+              "targetEndOffset": 88
+            },
+            {
+              "ref": 67,
+              "name": "Inventory pilot",
+              "description": null,
+              "ownerRef": 22,
+              "targetStartOffset": -63,
+              "targetEndOffset": -10
+            },
+            {
+              "ref": 68,
+              "name": "Inventory modernisation",
+              "description": null,
+              "ownerRef": 23,
+              "targetStartOffset": 84,
+              "targetEndOffset": 137
+            }
+          ]
+        },
+        {
+          "ref": 15,
+          "name": "Personalisation",
+          "description": null,
+          "ownerRef": 30,
+          "projects": [
+            {
+              "ref": 69,
+              "name": "Mobile app modernisation",
+              "description": null,
+              "ownerRef": 24,
+              "targetStartOffset": 280,
+              "targetEndOffset": 438
+            },
+            {
+              "ref": 70,
+              "name": "Reporting automation",
+              "description": null,
+              "ownerRef": 25,
+              "targetStartOffset": null,
+              "targetEndOffset": null
+            },
+            {
+              "ref": 71,
+              "name": "Login rollout",
+              "description": null,
+              "ownerRef": 26,
+              "targetStartOffset": null,
+              "targetEndOffset": null
+            },
+            {
+              "ref": 72,
+              "name": "Support portal hardening",
+              "description": null,
+              "ownerRef": 27,
+              "targetStartOffset": 91,
+              "targetEndOffset": 123
+            },
+            {
+              "ref": 73,
+              "name": "Dashboards rollout",
+              "description": null,
+              "ownerRef": 28,
+              "targetStartOffset": 14,
+              "targetEndOffset": 151
+            }
+          ]
+        },
+        {
+          "ref": 16,
+          "name": "Experimentation",
+          "description": null,
+          "ownerRef": 16,
+          "projects": [
+            {
+              "ref": 74,
+              "name": "Billing automation",
+              "description": null,
+              "ownerRef": 29,
+              "targetStartOffset": 210,
+              "targetEndOffset": 270
+            },
+            {
+              "ref": 75,
+              "name": "Onboarding expansion",
+              "description": null,
+              "ownerRef": 30,
+              "targetStartOffset": 266,
+              "targetEndOffset": 403
+            },
+            {
+              "ref": 76,
+              "name": "Payments revamp",
+              "description": null,
+              "ownerRef": 1,
+              "targetStartOffset": -56,
+              "targetEndOffset": 4
+            },
+            {
+              "ref": 77,
+              "name": "Subscriptions expansion",
+              "description": null,
+              "ownerRef": 17,
+              "targetStartOffset": null,
+              "targetEndOffset": null
+            },
+            {
+              "ref": 78,
+              "name": "Payments rollout",
+              "description": null,
+              "ownerRef": 18,
+              "targetStartOffset": 21,
+              "targetEndOffset": 137
+            },
+            {
+              "ref": 79,
+              "name": "Mobile app migration",
+              "description": null,
+              "ownerRef": 10,
+              "targetStartOffset": null,
+              "targetEndOffset": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "ref": 5,
+      "name": "Operations Excellence",
+      "description": "Sample work stream (generated; never production).",
+      "ownerRef": 20,
+      "startOffset": -343,
+      "programs": [
+        {
+          "ref": 17,
+          "name": "Fulfilment & Logistics",
+          "description": null,
+          "ownerRef": 17,
+          "projects": [
+            {
+              "ref": 80,
+              "name": "Fulfilment modernisation",
+              "description": null,
+              "ownerRef": 1,
+              "targetStartOffset": 231,
+              "targetEndOffset": 291
+            },
+            {
+              "ref": 81,
+              "name": "Messaging pilot",
+              "description": null,
+              "ownerRef": 21,
+              "targetStartOffset": -28,
+              "targetEndOffset": 32
+            },
+            {
+              "ref": 82,
+              "name": "Search pilot",
+              "description": null,
+              "ownerRef": 22,
+              "targetStartOffset": null,
+              "targetEndOffset": null
+            },
+            {
+              "ref": 83,
+              "name": "Inventory revamp",
+              "description": null,
+              "ownerRef": 23,
+              "targetStartOffset": 224,
+              "targetEndOffset": 291
+            },
+            {
+              "ref": 84,
+              "name": "Search consolidation",
+              "description": null,
+              "ownerRef": 24,
+              "targetStartOffset": 7,
+              "targetEndOffset": 25
+            },
+            {
+              "ref": 85,
+              "name": "Loyalty rollout",
+              "description": null,
+              "ownerRef": 25,
+              "targetStartOffset": -35,
+              "targetEndOffset": 39
+            }
+          ]
+        },
+        {
+          "ref": 18,
+          "name": "Support Operations",
+          "description": null,
+          "ownerRef": 18,
+          "projects": [
+            {
+              "ref": 86,
+              "name": "Catalog rollout",
+              "description": null,
+              "ownerRef": 26,
+              "targetStartOffset": null,
+              "targetEndOffset": null
+            },
+            {
+              "ref": 87,
+              "name": "Returns modernisation",
+              "description": null,
+              "ownerRef": 27,
+              "targetStartOffset": 28,
+              "targetEndOffset": 88
+            },
+            {
+              "ref": 88,
+              "name": "Returns automation",
+              "description": null,
+              "ownerRef": 28,
+              "targetStartOffset": 126,
+              "targetEndOffset": 179
+            },
+            {
+              "ref": 89,
+              "name": "Inventory hardening",
+              "description": null,
+              "ownerRef": 29,
+              "targetStartOffset": null,
+              "targetEndOffset": null
+            }
+          ]
+        },
+        {
+          "ref": 19,
+          "name": "Security & Compliance",
+          "description": null,
+          "ownerRef": 19,
+          "projects": [
+            {
+              "ref": 90,
+              "name": "Mobile app automation",
+              "description": null,
+              "ownerRef": 30,
+              "targetStartOffset": null,
+              "targetEndOffset": null
+            },
+            {
+              "ref": 91,
+              "name": "Loyalty consolidation",
+              "description": null,
+              "ownerRef": 16,
+              "targetStartOffset": null,
+              "targetEndOffset": null
+            },
+            {
+              "ref": 92,
+              "name": "Fulfilment automation",
+              "description": null,
+              "ownerRef": 17,
+              "targetStartOffset": 189,
+              "targetEndOffset": 221
+            },
+            {
+              "ref": 93,
+              "name": "Recommendations hardening",
+              "description": null,
+              "ownerRef": 18,
+              "targetStartOffset": 154,
+              "targetEndOffset": 242
+            },
+            {
+              "ref": 94,
+              "name": "Login expansion",
+              "description": null,
+              "ownerRef": 14,
+              "targetStartOffset": null,
+              "targetEndOffset": null
+            },
+            {
+              "ref": 95,
+              "name": "Mobile app revamp",
+              "description": null,
+              "ownerRef": 20,
+              "targetStartOffset": 42,
+              "targetEndOffset": 186
+            }
+          ]
+        },
+        {
+          "ref": 20,
+          "name": "Finance Systems",
+          "description": null,
+          "ownerRef": 20,
+          "projects": [
+            {
+              "ref": 96,
+              "name": "Checkout migration",
+              "description": null,
+              "ownerRef": 3,
+              "targetStartOffset": 42,
+              "targetEndOffset": 74
+            },
+            {
+              "ref": 97,
+              "name": "Payments expansion",
+              "description": null,
+              "ownerRef": 22,
+              "targetStartOffset": 196,
+              "targetEndOffset": 368
+            },
+            {
+              "ref": 98,
+              "name": "Fulfilment rollout",
+              "description": null,
+              "ownerRef": 23,
+              "targetStartOffset": null,
+              "targetEndOffset": null
+            },
+            {
+              "ref": 99,
+              "name": "Subscriptions hardening",
+              "description": null,
+              "ownerRef": 24,
+              "targetStartOffset": 161,
+              "targetEndOffset": 249
+            },
+            {
+              "ref": 100,
+              "name": "Payments consolidation",
+              "description": null,
+              "ownerRef": 25,
+              "targetStartOffset": null,
+              "targetEndOffset": null
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
