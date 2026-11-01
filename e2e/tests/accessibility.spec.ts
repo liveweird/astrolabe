@@ -109,6 +109,7 @@ test.describe("detail pages and overlays", () => {
   let projectName: string;
   let linkedProjectId: number;
   let linkedProjectName: string;
+  let fixtureProgramId: number;
 
   async function create(path: string, data: object): Promise<number> {
     const created = await api.post(path, { data });
@@ -130,6 +131,7 @@ test.describe("detail pages and overlays", () => {
     const personId = await create("/api/v1/people", { name: uniqueText("e2e-axe-owner") });
     const streamId = await create("/api/v1/work-streams", { name: streamName, ownerPersonId: personId, startDate: "2026-01-05" });
     const programId = await create(`/api/v1/work-streams/${streamId}/programs`, { name: programName, ownerPersonId: personId });
+    fixtureProgramId = programId;
     // A second program, so the "Move to…" dialog has a target to offer.
     otherProgramName = uniqueText("e2e-axe-program-other");
     const otherProgramId = await create(`/api/v1/work-streams/${streamId}/programs`, { name: otherProgramName, ownerPersonId: personId });
@@ -257,20 +259,27 @@ test.describe("detail pages and overlays", () => {
     registerTeamViewScan("dark");
   });
 
-  // The Roadmap with the fixture project in the ranked list (handles, Move and Unrank buttons) and the rest in Unranked, light and dark.
-  // The project is ranked only for the scan and unranked again, so the shared ranking is as the other specs expect it.
+  // The Roadmap timeline with the fixture project and the linked one in the ranked rows (row handles and menus, the drift flag icon, the
+  // violated milestone link's bundle arrow) and the flag panel open, light and dark. The projects are ranked only for the scan and unranked
+  // again, so the shared ranking is as the other specs expect it.
   function registerRoadmapScan(scheme: Scheme): void {
     const suffix = scheme === "dark" ? " in the dark scheme" : "";
     test(`/roadmap with a ranked project has no WCAG A/AA violations${suffix}`, async ({ page }) => {
-      await updateRankingViaApi(api, (ranked) => [...ranked, projectId]);
+      await updateRankingViaApi(api, (ranked) => [...ranked, projectId, linkedProjectId]);
       try {
         await login(page);
+        // The program pick (a browser setting) narrows the page to the fixture program: a stack that holds more than 80 projects (the sample
+        // plan) virtualises the grid, and the fixture rows - ranked last - would not be mounted.
+        await page.evaluate(([key, value]) => localStorage.setItem(key, value), ["astrolabe.viewSettings.planning.programPick", JSON.stringify([fixtureProgramId])]);
         await page.goto("/roadmap");
-        await expect(page.getByRole("button", { name: `Drag ${projectName}`, exact: true })).toBeVisible();
+        await expect(page.getByRole("link", { name: `Open ${projectName}`, exact: true })).toBeVisible();
+        await expect(page.getByRole("grid", { name: "Roadmap timeline" })).toBeVisible();
+        await page.getByRole("button", { name: /^Show the \d+ flags?$/ }).click();
+        await expect(page.getByRole("table", { name: "Flags of the projects shown" })).toBeVisible();
         await expectScheme(page, scheme);
         await scan(page);
       } finally {
-        await updateRankingViaApi(api, (ranked) => ranked.filter((id) => id !== projectId));
+        await updateRankingViaApi(api, (ranked) => ranked.filter((id) => id !== projectId && id !== linkedProjectId));
       }
     });
   }

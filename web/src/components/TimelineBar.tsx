@@ -81,7 +81,7 @@ function EditableBar({ bar, geometry, handleWidth, roving }: BarProps & { handle
   const data = (kind: DragKind): DragData => ({ kind, barId: bar.id, label: bar.label, start: bar.start, end: bar.end });
   const id = (kind: DragKind) => `bar:${bar.id}:${kind}`;
   const handleRole = t("timeline.bar.handleRoleDescription");
-  // Destructured (like RoadmapRow's useSortable): the hook's result carries a ref the compiler lint will not let us read as a field.
+  // Destructured: the hook's result carries a ref the compiler lint will not let us read as a field.
   const { setNodeRef: bodyRef, attributes: bodyAttrs, listeners: bodyListeners, transform, isDragging: bodyDragging } = useDraggable({
     id: id("move"),
     data: data("move"),

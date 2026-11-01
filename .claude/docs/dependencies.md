@@ -199,10 +199,9 @@ Installed with `npm install --legacy-peer-deps` (the existing web exception: rec
 - **`react-is` override** (`web/package.json` `"overrides": { "react-is": "^19" }`): under React 19 the tree otherwise keeps `react-is@17` (pulled by `@testing-library/dom`'s
   `pretty-format` and `prop-types`), and recharts imports `isFragment` from `react-is` — which must match React's major. `npm ls react-is` must show one version; keep the
   override matched to React's major when React moves.
-- `@dnd-kit/core` 6.3.1, `@dnd-kit/sortable` 10.0.0, `@dnd-kit/utilities` 3.2.2 (**all exact**, `npm install --legacy-peer-deps --save-exact`) — the Roadmap's sortable ranked list (`pages/Roadmap.tsx`) and, later, the shared
-  `Timeline*` component (`timeline.md`). They are one release family like `@mantine/*`: `sortable` declares `@dnd-kit/core ^6.3.0` as a peer and `utilities` is shared by both, so **move the three
-  together and check the lockfile resolves one copy of each** (`npm ls @dnd-kit/core @dnd-kit/sortable @dnd-kit/utilities`). The 0.x `@dnd-kit/dom`/`@dnd-kit/react` rewrite is a different, incompatible
-  API and is NOT what these are — do not mix it in. They ride only the lazy Roadmap chunk (`npm run build` shows it as `Roadmap-*.js`; the main `index-*.js` stays free of them).
+- `@dnd-kit/core` 6.3.1, `@dnd-kit/utilities` 3.2.2 (**both exact**, `npm install --legacy-peer-deps --save-exact`) — the shared `Timeline*` component's bar, row and draw drags (`timeline.md`; the project, team and roadmap pages). `utilities` is shared by `core`'s
+  consumers, so **move the two together and check the lockfile resolves one copy of each** (`npm ls @dnd-kit/core @dnd-kit/utilities`). `@dnd-kit/sortable` was removed in v0.6.0 with the Roadmap's sortable list: the timeline's row drag is its own (`kind: "row"`, no row transform, `timeline.md` "Row drag"),
+  so do not add it back. The 0.x `@dnd-kit/dom`/`@dnd-kit/react` rewrite is a different, incompatible API and is NOT what these are — do not mix it in. They ride only the lazy chunks of the pages that use the Timeline (`npm run build`; the main `index-*.js` stays free of them).
 - `@tanstack/react-virtual` 3.14.24 (**exact**, `npm install --legacy-peer-deps --save-exact`) — row virtualisation of the shared `Timeline*` component (`components/Timeline.tsx`, `timeline.md`), active only above `virtualizeFrom` rows (default 80).
   It brings `@tanstack/virtual-core` (resolved by its own pin in the lockfile). It rides only the chunk of the page that imports `Timeline` (lazy, like every page): `npm run build` must show no `react-virtual` code in
   `index-*.js`. Its `useVirtualizer` is flagged by `react-hooks/incompatible-library`; the one disable in `Timeline.tsx` carries the reason.

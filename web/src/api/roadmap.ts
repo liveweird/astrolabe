@@ -10,6 +10,8 @@ type Schemas = components["schemas"];
 export type RoadmapView = Schemas["RoadmapView"];
 export type RoadmapRankedProject = Schemas["RoadmapRankedProject"];
 export type RoadmapProject = Schemas["RoadmapProject"];
+export type RoadmapLink = Schemas["RoadmapLink"];
+export type PlanFlag = Schemas["PlanFlag"];
 export type RankingBody = Schemas["RankingUpdateRequest"];
 
 /** The problem `type` of the 409 a ranking PUT answers when its `expectedRevision` is behind the plan's. */

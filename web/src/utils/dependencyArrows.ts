@@ -8,7 +8,7 @@ import type { BarId, TimelineArrowData } from "./timelineModel";
  */
 
 /** Dependency type to the bar edges its arrow joins: the predecessor's, then the successor's. */
-const EDGES: Record<DependencyType, readonly ["START" | "END", "START" | "END"]> = {
+export const EDGES: Record<DependencyType, readonly ["START" | "END", "START" | "END"]> = {
   FS: ["END", "START"],
   SS: ["START", "START"],
   FF: ["END", "END"],

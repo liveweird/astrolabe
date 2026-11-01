@@ -18,7 +18,7 @@ Each increment gets its own plan (architect) before implementation; only v0.1.0 
 | Ver | Scope | User can test |
 |---|---|---|
 | **0.1.0 Foundation** | Flow trimmed: auth + email MFA, password reset, Users (renamed from Flow users), feature flags, teams with manager, EN/PL, light/dark, changelog, telemetry panel, cyan brand + logo | sign-in, MFA, reset, users/teams, PL/dark, telemetry |
-| **0.2.0 Plan structure** | People; work streams/programs/projects CRUD with owners + owner-scoped guards; team manager → Person; ROADMAP_EDITOR grant; Plan tree page; Roadmap ranked list (dnd-kit sortable + keyboard move up/down, "Unranked" group) | build hierarchy, rank, check edit rights |
+| **0.2.0 Plan structure** | People; work streams/programs/projects CRUD with owners + owner-scoped guards; team manager → Person; ROADMAP_EDITOR grant; Plan tree page; Roadmap ranked list (dnd-kit sortable + keyboard move up/down, "Unranked" group; a timeline since 0.6.0) | build hierarchy, rank, check edit rights |
 | **0.3.0 Timeline + project view** | Shared `Timeline*` component (zoom, non-working hatching, today line, virtualisation, drag/resize + keyboard); milestones CRUD; `PUT /milestones/{id}/schedule` (team manager/ADMIN); Unscheduled tray; derived project span + target band | split a project, schedule milestones |
 | **0.4.0 Dependencies** | 4 types + lag, all 3 endpoint kinds; SVG arrows; cycles → 409; red violations + conflict list; ghost rows for external endpoints | link across teams/projects, see warnings |
 | **0.5.0 Team view + capacity** | capacity periods; weekly load strip + overload; team order override/reset; schedule from team view; deterministic scale dataset `sample-data/plan/` | plan a team against capacity |
