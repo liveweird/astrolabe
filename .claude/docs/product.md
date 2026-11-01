@@ -13,7 +13,7 @@ Scale assumed: about 15 teams, 5 work streams, 20 programs, 100 projects, 1,000 
 
 ## Roadmap
 
-Each increment gets its own plan (architect) before implementation; only v0.1.0 was specified up front. **Current version: 0.3.0.**
+Each increment gets its own plan (architect) before implementation; only v0.1.0 was specified up front. **Current version: 0.4.0.**
 
 | Ver | Scope | User can test |
 |---|---|---|
@@ -39,13 +39,13 @@ Version numbers are not strictly roadmap milestones (`app-releases.md`): a user-
 - **Scheduling.** Manual drag/resize first. **Auto-proposal** (rank + dependencies + capacity → the user accepts or adjusts) comes later (v0.8).
 - **Dependencies.** milestone↔milestone (cross-project), milestone↔project, project↔project. Types FS/SS/FF/SF plus a lag. Violations **warn only** (a red link and a conflict list),
   never cascade-move anything.
-  **Built (0.4.0), on the unconfirmed defaults the user reviews** (recorded here so overturning one is a known change): (1) who may link — the **successor's** project chain or ADMIN
+  **Built (0.4.0), on the defaults the user confirmed on 2026-11-01** (recorded here so overturning one is a known change): (1) who may link — the **successor's** project chain or ADMIN
   (the predecessor's owner sees the arrow and its warning but cannot remove it; overturned = C1 guard/matrix/tests, C3 `can.delete`, the dialog intro); (2) the lag is an integer of
   **working days, negative allowed (a lead), |lag| ≤ 365** (V15's CHECK is immutable); (3) an **unscheduled end is not evaluated** — status UNSCHEDULED, no warning, no arrow, "Not scheduled yet" in
   the table; (4) a link is created **on the successor's project page** (`POST /projects/{id}/dependencies`, the successor fixed to that project or one of its milestones; the predecessor is a free
   search); (5) the project's **summary row** shows only while the project itself is an endpoint; (6) **at most one active link per unordered pair** of ends (a reverse pair answers the same 409 "already
   linked"; changing the type or lag = delete + add — no PUT yet). The UI shows these as: the Dependencies table (violated first = the conflict list), the red "N conflicts" badge, the dialog's
-  successor-first form, the cycle notice with its path.
+  successor-first form, the cycle notice with its path. The start-to-finish rule is `W(A.effStart) − 1 + lag`.
 - **Ranking.** **One global project rank**. A team's milestone order follows it by default; the team may override locally (and reset).
 - **Owners.** A **people directory** (name, email, optional link to a login) — owners are people, not necessarily users.
 - **Plans.** One live plan; baselines later (v0.9); no scenarios.
@@ -59,6 +59,10 @@ Version numbers are not strictly roadmap milestones (`app-releases.md`): a user-
 ## Assumptions (not asked — change on request)
 
 Day-precision dates; Monday–Friday working days (public holidays arrive with v0.7); week / month / quarter zoom; EN and PL kept; the scale above.
+
+## v0.4.0 — what shipped
+
+Dependencies (V15): a link between two ends, a milestone or a project, of one of four types (finish-to-start, start-to-start, finish-to-finish, start-to-finish) with an integer lag in working days (negative is a lead, |lag| ≤ 365), across projects and teams. The semantics are working days, and every span is a half-open interval. A link that would close a cycle answers 409 and the dialog names the cycle; the owners of the successor's project chain (or ADMIN) add and remove links, and a link is created on the successor's project page. The project view draws the links as SVG arrows on the timeline; a milestone or project from another project is a grayed ghost row linking to its page. A link whose dates no longer hold is drawn red and listed first under Dependencies with what it needs; nothing moves automatically. The searchable milestone and project pickers find the other end.
 
 ## v0.3.0 — what shipped
 

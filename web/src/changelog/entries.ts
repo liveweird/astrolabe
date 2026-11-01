@@ -17,6 +17,24 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "0.4.0",
+    date: "2026-11-01",
+    en: `**Astrolabe 0.4.0: dependencies.**
+
+- Link milestones and projects, also across projects: finish-to-start, start-to-start, finish-to-finish and start-to-finish, with a lag in working days (a negative lag is a lead).
+- A link that would close a cycle is refused, and the dialog names the cycle.
+- The project page draws the links as arrows on the timeline; a milestone or project from another project appears as a grayed row with a link to its page.
+- A link whose dates no longer hold is drawn in red and listed first under Dependencies with what it needs — nothing is ever moved automatically.
+- The project's owners add and remove the links of their project; searchable milestone and project pickers find the other end.`,
+    pl: `**Astrolabe 0.4.0: zależności.**
+
+- Łącz kamienie milowe i projekty, także między projektami: koniec–start, start–start, koniec–koniec i start–koniec, z opóźnieniem w dniach roboczych (ujemne opóźnienie to wyprzedzenie).
+- Zależność, która zamknęłaby cykl, jest odrzucana, a okno dialogowe wskazuje ten cykl.
+- Strona projektu rysuje zależności jako strzałki na osi czasu; kamień milowy lub projekt z innego projektu pojawia się jako wyszarzony wiersz z odnośnikiem do jego strony.
+- Zależność, której terminy nie są już dotrzymane, jest czerwona i wymieniona na początku sekcji Zależności wraz z tym, czego wymaga — nic nie przesuwa się samo.
+- Właściciele/ki projektu dodają i usuwają zależności swojego projektu; wyszukiwarki kamieni milowych i projektów znajdują drugi koniec.`,
+  },
+  {
     version: "0.3.0",
     date: "2026-11-01",
     en: `**Astrolabe 0.3.0: the timeline and the project view.**

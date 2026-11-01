@@ -22,10 +22,9 @@ The `backlog` mod (`liveweird/claude-mods`) summarises the tags on the status li
 Each increment gets its own plan (architect) before implementation. The domain sketch is `.claude/docs/planning-model.md`; the timeline approach is `.claude/docs/timeline.md`.
 
 - [new] **Paged lists for work streams and programs.** Projects and milestones have them since v0.4 (the dependency pickers); the plan view is still the only read surface of work streams and programs. Add theirs per `list-endpoints.md` with their first consumer.
-- [new] **v0.4.0 Dependencies.** Four types (FS/SS/FF/SF) plus lag across all three endpoint kinds; SVG arrows; cycles answer 409; red violations and a conflict list (warn only); ghost rows for external endpoints.
 - [new] **v0.5.0 Team view + capacity.** Capacity periods; the weekly load strip and overload warning; team order override/reset; scheduling from the team view; a deterministic scale dataset `sample-data/plan/` (≈15 teams, 5 streams, 20 programs, 100 projects, 1,000 milestones).
 - [new] **v0.6.0 Roadmap + programs timelines.** Spans derived upward; the target window by drag; drift flags; rank-vs-time flags (an inversion between projects sharing a team is a warning, otherwise info); the program pick.
-- [new] **v0.7.0 Calendar + critical path.** Port Flow's `PublicHoliday*`/`WorkingCalendar`/`WorkingDayIndex` (replaces `infra/time/WorkingDays.kt`, the Mon–Fri placeholder); the critical path; idle gaps per project and team.
+- [new] **v0.7.0 Calendar + critical path.** Port Flow's `PublicHoliday*`/`WorkingCalendar`/`WorkingDayIndex` (replaces `infra/time/WorkingDays.kt`, the Mon–Fri placeholder, and its closed-form working-day index that the v0.4 dependency checks use, with holidays); the critical path; idle gaps per project and team.
 - [new] **v0.8.0 Auto-proposal.** A server scheduler (rank + dependencies + capacity) → a diff preview → accept all or some through the batch schedule endpoint, under the same guards.
 - [new] **v0.9.0 Baselines.** Named snapshots at a plan revision; an overlay and a comparison view.
 
@@ -36,6 +35,10 @@ Each increment gets its own plan (architect) before implementation. The domain s
 
 ## Engineering follow-ups
 
+- [new] **Edit a dependency in place.** `PUT /dependencies/{id}` for the type or lag; the cycle check re-runs without the edited edge (today: delete + add).
+- [new] **Arrows follow a drag preview.** Today they redraw at drop.
+- [new] **Index arrow specs by row** for the 1,000-row virtual pages (v0.5/v0.6) if the per-frame filter shows in the profile.
+- [new] **A `projectId` filter on `GET /milestones`** when the predecessor picker needs scoping.
 - [new] **Time-axis virtualisation of the Timeline.** Rows are virtualised; the time axis is not (one wide track per row), which is fine for a project's months but not for the multi-year v0.6 roadmap range: virtualise the header and bands horizontally, or cap the range per zoom.
 - [new] **Batch schedule reuses `schedule_revision`.** The v0.8 auto-proposal accepts several moves at once through a batch schedule endpoint; keep the per-milestone staleness check of `PUT /milestones/{id}/schedule` (a 409 per milestone moved since the proposal), not a global revision compare.
 - [new] **Timeline print/export.** A printable or exported (PNG/PDF) project timeline for status reports.
