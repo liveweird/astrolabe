@@ -24,7 +24,7 @@
      one warning and no info (`data-flags="1,0"`), B's carries none.
 3. They press the chevron button of program A with the pointer.
    - *Expected*: A is expanded; the status region says "<A> expanded, 2 projects"; `late` has its span bar (2026-03-02 to 2026-04-10), its
-     target window bar (2026-03-02 to 2026-03-31) and the orange drift band ("10 days past the target end") and one warning in its Flags cell;
+     target window bar (2026-03-02 to 2026-03-31; the administrator may change it, so it is a draggable named without "read-only") and the orange drift band ("10 days past the target end") and one warning in its Flags cell;
      `early` has its span bar (2026-02-02 to 2026-02-06) and no flag.
 4. They focus A's chevron button and press Enter.
    - *Expected*: A is collapsed and its button still has the focus; the status says "<A> collapsed"; the project rows are gone.
@@ -68,6 +68,8 @@
   arrow in the DOM, the Year header).
 - **The virtual path of an expanded sample plan (~125 rows)** - a manual pass on the loaded sample plan; the grid's virtualisation is covered
   by `Timeline.test.tsx` and the roadmap's e2e on the same component.
-- **Editing the target window** - the bands are read-only on this page until the window gestures land (a later commit of v0.6).
+- **Editing the target window** - the band's move, the draw and the dialog are the same project row on this page as on the Roadmap: the real-layout
+  gestures run in the roadmap's scenario, this page's own write path (the tree's cache, the roll-up counts that follow a cleared drift, the refusal)
+  is pinned by `Programs.window.test.tsx`.
 - **Flags with real data in the axe scan** - `accessibility.spec.ts` scans the tree with the fixture program opened (drift flag icon, the bundle
   arrow of a violated milestone link), light and dark.

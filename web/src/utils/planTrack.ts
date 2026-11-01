@@ -1,21 +1,41 @@
 import type { TFunction } from "i18next";
 import type { RoadmapLink, RoadmapProject } from "../api/roadmap";
 import { arrowSpecsForLinks, driftBandOf } from "./roadmapRows";
-import type { TimelineArrowData, TimelineBandData, TimelineBarData } from "./timelineModel";
+import type { TimelineArrowData, TimelineBandData, TimelineBarData, TimelineDrawData } from "./timelineModel";
 
-// The track of a PROJECT row, shared by the two plan pages (the roadmap and the programs tree): the bars, the drift band and the arrows between
-// projects. ONE builder, so a gesture added to the project row later (the target window's editing) lands on both pages at once. The server's
-// figures (span, drift, link checks) are only READ here.
+// The track of a PROJECT row, shared by the two plan pages (the roadmap and the programs tree): the bars, the drift band, the draw surface and the
+// arrows between projects. ONE builder, so the target window's gestures (move, resize, draw) are on both pages at once. The server's figures
+// (span, drift, link checks) are only READ here; what the viewer may change is the project's own `can.editTargetWindow`, never the session's roles.
+
+/** The id of a project's window bar (and of the draw that makes one): the page's `onSchedule` recognises it and writes the target window. */
+export const windowBarId = (projectId: number) => `window:${projectId}`;
+
+/** The project id of a window bar's id, or `null` for any other bar. */
+export function projectOfWindowBar(barId: number | string): number | null {
+  const match = /^window:(\d+)$/.exec(String(barId));
+  return match === null ? null : Number(match[1]);
+}
 
 /** The accessible name of a span bar, with the ", N conflicts" suffix when violated links end on its project. */
 const withConflicts = (t: TFunction, describe: string, count: number) => (count > 0 ? `${describe}, ${t("project.barConflicts", { count })}` : describe);
 
-/** The bars of a project row: its target window (a read-only band-look bar behind) and the span its milestones cover (hollow, on top). */
+/**
+ * The bars of a project row: its target window (the band-look bar behind - editable when the viewer may change it) and the span its milestones
+ * cover (hollow, read-only, on top: the Timeline lets the pointer through a summary bar, so the window under it is grabbed where they overlap).
+ */
 function barsOf(project: RoadmapProject, t: TFunction, conflicts: number): TimelineBarData[] {
   const { id, name, targetStart, targetEnd, span } = project;
   const bars: TimelineBarData[] = [];
   if (targetStart !== null && targetEnd !== null) {
-    bars.push({ id: `window:${id}`, start: targetStart, end: targetEnd, label: name, describe: t("timeline.bar.window", { name, start: targetStart, end: targetEnd }), editable: false, tone: "window" });
+    bars.push({
+      id: windowBarId(id),
+      start: targetStart,
+      end: targetEnd,
+      label: name,
+      describe: t("timeline.bar.window", { name, start: targetStart, end: targetEnd }),
+      editable: project.can.editTargetWindow,
+      tone: "window",
+    });
   }
   if (span !== null) {
     bars.push({ id, start: span.start, end: span.end, label: name, describe: withConflicts(t, t("roadmap.barAria", { name, start: span.start, end: span.end }), conflicts), editable: false, tone: "summary" });
@@ -29,9 +49,19 @@ function bandsOf(project: RoadmapProject, t: TFunction): TimelineBandData[] {
   return band === null || project.drift === null ? [] : [{ id: `drift:${project.id}`, ...band, label: t("project.driftBand", { count: project.drift.endDays }), tone: "drift" }];
 }
 
-/** What a project's row draws on its track: the window and span bars, and the drift band. `conflicts` = the violated links ending on each project (`conflictsByProject`). */
-export function projectTrack(project: RoadmapProject, t: TFunction, conflicts: ReadonlyMap<number, number>): { bars: TimelineBarData[]; bands: TimelineBandData[] } {
-  return { bars: barsOf(project, t, conflicts.get(project.id) ?? 0), bands: bandsOf(project, t) };
+/**
+ * What a project's row draws on its track: the window and span bars, the drift band and, for a viewer who may set the window of a project that has
+ * none, the draw surface (a drag across the empty row proposes `onSchedule(window:<id>, start, end)`, the same seam as moving the band).
+ * `conflicts` = the violated links ending on each project (`conflictsByProject`).
+ */
+export function projectTrack(
+  project: RoadmapProject,
+  t: TFunction,
+  conflicts: ReadonlyMap<number, number>,
+): { bars: TimelineBarData[]; bands: TimelineBandData[]; draw?: TimelineDrawData } {
+  const track = { bars: barsOf(project, t, conflicts.get(project.id) ?? 0), bands: bandsOf(project, t) };
+  const drawable = project.can.editTargetWindow && (project.targetStart === null || project.targetEnd === null);
+  return drawable ? { ...track, draw: { barId: windowBarId(project.id), label: project.name } } : track;
 }
 
 /**

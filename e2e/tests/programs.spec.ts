@@ -126,7 +126,8 @@ test("an admin reads the plan as a tree, folds programs from the keyboard, sees 
   await expect(status(page, `${plan.a} expanded, 2 projects`)).toBeAttached();
   await expect(projectRow(page, plan.late).getByRole("img", { name: `${plan.late}, 2026-03-02 to 2026-04-10, read-only` })).toHaveCount(1);
   await expect(projectRow(page, plan.early).getByRole("img", { name: `${plan.early}, 2026-02-02 to 2026-02-06, read-only` })).toHaveCount(1);
-  await expect(projectRow(page, plan.late).getByRole("img", { name: `${plan.late}, target window 2026-03-02 to 2026-03-31, read-only` })).toHaveCount(1);
+  // The administrator may change any window, so the band is a draggable (a button, no "read-only"); its gestures are the roadmap spec's.
+  await expect(projectRow(page, plan.late).getByRole("button", { name: `${plan.late}, target window 2026-03-02 to 2026-03-31` })).toHaveCount(1);
   await expect(projectRow(page, plan.late).locator('[title="10 days past the target end"]')).toHaveCount(1);
   await expect(projectRow(page, plan.late).locator("[data-flags]")).toHaveAttribute("data-flags", "1,0");
   await expect(projectRow(page, plan.early).locator("[data-flags]")).toHaveCount(0);

@@ -1,5 +1,5 @@
 import { Anchor, Badge, Group, Menu, VisuallyHidden } from "@mantine/core";
-import { IconAlertTriangle, IconExternalLink, IconInfoCircle } from "@tabler/icons-react";
+import { IconAlertTriangle, IconCalendarEvent, IconCalendarOff, IconExternalLink, IconInfoCircle } from "@tabler/icons-react";
 import { Link as RouterLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import type { RoadmapProject } from "../api/roadmap";
@@ -8,7 +8,7 @@ import type { FlagCounts } from "../utils/roadmapRows";
 import type { RovingTarget } from "../utils/timelineModel";
 
 // The cells a PROJECT row shares across the two plan pages (the roadmap and the programs tree), with the roll-up cell of a stream / program row:
-// the flag icons, the name as the link into the project and the menu's "Open project" item.
+// the flag icons, the name as the link into the project and the menu's target-window and "Open project" items.
 
 /**
  * Flags as icons with counts: an orange warning triangle and/or a gray info circle (the words are for assistive technology; colour is never the
@@ -43,6 +43,36 @@ export function ProjectLink({ project, stop }: { project: Pick<RoadmapProject, "
     <Anchor component={RouterLink} to={projectPath(project.id)} inherit fw={500} aria-label={t("roadmap.openProjectAria", { name: project.name })} {...stop}>
       {project.name}
     </Anchor>
+  );
+}
+
+/** What a project row's menu asks of the page for the target window: open the dialog, or clear the window outright (the keyboard path of the band's drag). */
+export type WindowActions = {
+  edit: (project: RoadmapProject) => void;
+  clear: (project: RoadmapProject) => void;
+};
+
+/**
+ * "Edit target window…" and (only while the project has a window) "Clear target window", then a divider - only for a viewer who may change THIS
+ * project's window (the view's own `can.editTargetWindow`, never the session's roles); nothing otherwise. The deterministic, keyboard and screen-reader
+ * path of the band's move/resize and the row's draw, on both plan pages.
+ */
+export function TargetWindowItems({ project, actions }: { project: RoadmapProject; actions: WindowActions }) {
+  const { t } = useTranslation();
+  if (!project.can.editTargetWindow) return null;
+  const { name } = project;
+  return (
+    <>
+      <Menu.Item leftSection={<IconCalendarEvent size={14} />} onClick={() => actions.edit(project)} aria-label={t("roadmap.action.editWindowAria", { name })}>
+        {t("roadmap.action.editWindow")}
+      </Menu.Item>
+      {project.targetStart !== null && (
+        <Menu.Item leftSection={<IconCalendarOff size={14} />} onClick={() => actions.clear(project)} aria-label={t("roadmap.action.clearWindowAria", { name })}>
+          {t("roadmap.action.clearWindow")}
+        </Menu.Item>
+      )}
+      <Menu.Divider />
+    </>
   );
 }
 

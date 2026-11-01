@@ -35,7 +35,19 @@
     "unrank": "Usuń z rankingu",
     "unrankAria": "Usuń z rankingu: {{name}}",
     "openProject": "Otwórz projekt",
-    "openProjectAria": "Otwórz projekt {{name}}"
+    "openProjectAria": "Otwórz projekt {{name}}",
+    "editWindow": "Edytuj okno docelowe…",
+    "editWindowAria": "Edytuj okno docelowe: {{name}}",
+    "clearWindow": "Wyczyść okno docelowe",
+    "clearWindowAria": "Wyczyść okno docelowe: {{name}}"
+  },
+  "window": {
+    "title": "Okno docelowe: {{name}}",
+    "hint": "Obie daty są włącznie. Wyczyść usuwa okno docelowe. Możesz też przeciągnąć zacieniowany pas albo narysować go w pustym wierszu.",
+    "clear": "Wyczyść",
+    "forbidden": "Okno docelowe może zmienić tylko administrator/ka, właściciel/ka nad projektem albo redaktor/ka roadmapy",
+    "invalid": "Nie można zapisać tych dat: koniec nie może być przed początkiem",
+    "gone": "Tego projektu nie ma już w planie — został w międzyczasie usunięty."
   },
   "facts": {
     "aria": "Fakty o roadmapie",
@@ -104,6 +116,8 @@
   "announce": {
     "moved": "{{name}} przesunięto na pozycję {{position}} z {{count}}",
     "ranked": "{{name}} dodano do rankingu na pozycji {{position}} z {{count}}",
-    "unranked": "{{name}} usunięto z rankingu"
+    "unranked": "{{name}} usunięto z rankingu",
+    "windowSet": "{{name}}: okno docelowe od {{start}} do {{end}}",
+    "windowCleared": "{{name}}: okno docelowe wyczyszczono"
   }
 }

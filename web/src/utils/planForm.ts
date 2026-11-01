@@ -100,6 +100,27 @@ export function projectFormValidation(t: TFunction) {
   };
 }
 
+/** The target-window dialog's fields (the roadmap and programs pages): dates are `YYYY-MM-DD` strings, null = unset. */
+export type TargetWindowFormValues = { targetStart: string | null; targetEnd: string | null };
+
+/**
+ * The dialog's Save: BOTH dates, real calendar days, the end not before the start (the rules of `projectFormValidation`'s window, which
+ * accepts "neither" because the project editor's other fields can save without it; here "neither" is the dialog's separate Clear button).
+ */
+export function targetWindowFormValidation(t: TFunction) {
+  return {
+    targetStart: (value: string | null) => {
+      if (!present(value)) return t("plan.validation.startRequired");
+      return isValidIsoDate(value) ? null : t("plan.validation.dateShape");
+    },
+    targetEnd: (value: string | null, values: TargetWindowFormValues) => {
+      if (!present(value)) return t("project.validation.endRequired");
+      if (!isValidIsoDate(value)) return t("plan.validation.dateShape");
+      return present(values.targetStart) && isValidIsoDate(values.targetStart) && value < values.targetStart ? t("plan.validation.endBeforeStart") : null;
+    },
+  };
+}
+
 /** A blank description travels as null (the server stores NULL, never ""); a PUT is a full replace. */
 function nodeBody(values: PlanNodeFormValues) {
   const description = values.description.trim();

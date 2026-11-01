@@ -9,8 +9,13 @@ import { saveErrorMessage } from "../utils/saveError";
 import { useRefusal } from "./useRefusal";
 
 const VIEW_KEY = ["roadmap", "view"] as const;
-/** Every write on the cached roadmap view carries this mutation key, so two optimistic writes see each other in flight and the second is refused. */
-const ROADMAP_WRITE_KEY = ["roadmap", "write"] as const;
+/** The cached roadmap view's key (the window write path of the same page writes into it). */
+export const ROADMAP_VIEW_KEY = VIEW_KEY;
+/**
+ * Every write on the cached roadmap and programs views carries this mutation key - the ranking PUT here and the target-window PUT of
+ * `useTargetWindow` - so two optimistic writes see each other in flight and the second is refused (out loud) instead of rolling the first back.
+ */
+export const ROADMAP_WRITE_KEY = ["roadmap", "write"] as const;
 
 /** Zero-width space: toggled on the live-region text so the same sentence twice is announced twice. */
 const REREAD = "​";
@@ -101,6 +106,8 @@ export function useRoadmapRanking() {
     stale: isStaleRevision(save.error),
     error: save.isError && !isStaleRevision(save.error) ? saveErrorMessage(save.error, t, SAVE_ERROR_KEYS) : null,
     announcement,
+    /** Say a sentence in the page's live region (the window write path shares it, so the page has ONE announcer). */
+    announce,
     /** Menu path: move one place up (-1) or down (+1) among the VISIBLE ranked rows. Answers whether the change was taken. */
     move: (id: number, delta: -1 | 1, visible: readonly number[]) => {
       const from = visible.indexOf(id);

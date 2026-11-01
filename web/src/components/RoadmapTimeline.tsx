@@ -7,7 +7,7 @@ import { projectTrack, planArrows } from "../utils/planTrack";
 import { conflictsByProject, countFlags, displayRows, DIVIDER_ID, type DisplayRow, type VisibleProjects } from "../utils/roadmapRows";
 import type { RovingTarget, TimelineColumn, TimelineRowData } from "../utils/timelineModel";
 import { PLAN_ZOOMS, type TimelineScale, type Zoom } from "../utils/timelineScale";
-import { FlagCountsCell, OpenProjectItem, ProjectLink } from "./PlanProjectCells";
+import { FlagCountsCell, OpenProjectItem, ProjectLink, TargetWindowItems, type WindowActions } from "./PlanProjectCells";
 import RowActionsMenu from "./RowActionsMenu";
 import Timeline, { type TimelineHandle } from "./Timeline";
 import TimelineArrows from "./TimelineArrows";
@@ -22,6 +22,8 @@ export type RoadmapActions = {
   unrank: (project: RoadmapProject) => void;
   /** The row's menu has finished closing (its exit transition is over): the page puts the focus back here if a change just moved the row. */
   menuClosed: (project: RoadmapProject) => void;
+  /** The target window's menu items (shown only for a project whose `can.editTargetWindow` is set): open the dialog / clear the window. */
+  window: WindowActions;
 };
 
 /** The sticky left columns: 404 px in all, so the track keeps the width on a laptop (work stream and owner are filters, not columns). */
@@ -29,8 +31,9 @@ const COLUMN_WIDTHS = { rank: 44, project: 240, flags: 64, actions: 56 } as cons
 
 /**
  * The row menu of one project: the ranking moves by the view's `can.editRank` (a ranked row: Move up / down / to top / to bottom, disabled at the
- * ends of the VISIBLE ranked rows, and Unrank; an unranked row: Rank, which appends), and always a link to the project. This menu is the keyboard
- * and screen-reader path of the row drag, and its button keeps focus through its own move.
+ * ends of the VISIBLE ranked rows, and Unrank; an unranked row: Rank, which appends), the target window's items by the project's own
+ * `can.editTargetWindow` (Edit target window…, Clear target window), and always a link to the project. This menu is the keyboard and
+ * screen-reader path of the row drag and of the band's drag, and its button keeps focus through its own move.
  */
 function ProjectMenu({
   project,
@@ -82,6 +85,7 @@ function ProjectMenu({
           <Menu.Divider />
         </>
       )}
+      <TargetWindowItems project={project} actions={actions.window} />
       <OpenProjectItem project={project} />
     </RowActionsMenu>
   );

@@ -186,7 +186,14 @@ describe("Programs page", () => {
     expect(liveText()).toContain("Every work stream and program collapsed");
   });
 
-  test("a project row is the roadmap's: the window band, the span bar, the drift band, the flag icons, a menu with only Open project, nothing editable", async () => {
+  test("a project row is the roadmap's: the window band, the span bar, the drift band, the flag icons, a menu with only Open project, nothing editable without the right", async () => {
+    // A viewer who may change no window (the view's per-project `can`): the band is an image, there is no draw surface and the menu only opens the project.
+    view = viewOf({
+      workStreams: [PLATFORM, ARCHIVE].map((stream) => ({
+        ...stream,
+        programs: stream.programs.map((program) => ({ ...program, projects: program.projects.map((p) => ({ ...p, can: { editTargetWindow: false } })) })),
+      })),
+    });
     const user = userEvent.setup();
     renderWithProviders(<Programs />);
     await waitForGrid();
@@ -198,8 +205,9 @@ describe("Programs page", () => {
     expect(invoices.querySelector("[data-flags]")).toHaveAttribute("data-flags", "1,1");
     expect(invoices).toHaveTextContent("Ola Owner");
     expect(within(grid()).getByRole("link", { name: "Open Invoices" })).toHaveAttribute("href", "/projects/1");
-    // Whatever the project's `can` says, this page edits nothing yet: no handle, no button-like bar, one menu item.
+    // No handle, no button-like bar, no draw surface, one menu item.
     expect(document.querySelectorAll("[data-row-handle]")).toHaveLength(0);
+    expect(document.querySelectorAll("[data-draw-surface]")).toHaveLength(0);
     expect(within(grid()).queryByRole("button", { name: /^Invoices, / })).toBeNull();
     expect(within(within(grid()).getByRole("link", { name: "Open Drafts" }).closest('[role="row"]') as HTMLElement).queryByRole("img")).toBeNull();
     await user.click(screen.getByRole("button", { name: "Operations for Invoices" }));

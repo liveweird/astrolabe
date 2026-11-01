@@ -1536,6 +1536,16 @@ describe("the window tone", () => {
     expect(tones).toEqual(["window", "summary"]);
   });
 
+  test("a read-only summary bar lets the pointer through to the window and the draw surface under it; no other bar does", () => {
+    const span: TimelineBarData = { ...bar(9, "Orbit span", "2026-09-17", "2026-09-30", false), tone: "summary" };
+    const ghost: TimelineBarData = { ...bar(10, "Orbit ghost", "2026-09-17", "2026-09-30", false), tone: "ghost" };
+    renderWithProviders(<Harness rows={[row(4, "Orbit", [WINDOW, span, ghost])]} />);
+    const frameOf = (tone: string) => (screen.getAllByRole("row")[1].querySelector(`[data-tone="${tone}"]`) as HTMLElement).parentElement as HTMLElement;
+    expect(frameOf("summary").className).toMatch(/timelineBarInert/);
+    expect(frameOf("window").className).not.toMatch(/timelineBarInert/);
+    expect(frameOf("ghost").className).not.toMatch(/timelineBarInert/);
+  });
+
   test("a move and each resize propose through onSchedule with the window's own id", () => {
     const onSchedule = vi.fn(() => true);
     renderWithProviders(<Harness rows={[row(4, "Orbit", [WINDOW])]} onSchedule={onSchedule} />);

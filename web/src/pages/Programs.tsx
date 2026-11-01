@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Badge, Button, Group, Stack, Text, Title, VisuallyHidden } from "@mantine/core";
+import { Alert, Badge, Button, Group, Loader, Stack, Text, Title, VisuallyHidden } from "@mantine/core";
 import { IconArrowsMaximize, IconArrowsMinimize, IconListTree } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -7,15 +7,26 @@ import { getProgramsView, programsViewKey, type ProgramsView } from "../api/prog
 import EmptyState from "../components/EmptyState";
 import ErrorAlert from "../components/ErrorAlert";
 import FilterPanel from "../components/FilterPanel";
+import FormErrorAlert from "../components/FormErrorAlert";
 import LoadingBlock from "../components/LoadingBlock";
 import PageHeader from "../components/PageHeader";
+import type { WindowActions } from "../components/PlanProjectCells";
 import ProgramPickField from "../components/ProgramPickField";
 import ProgramsTimeline from "../components/ProgramsTimeline";
+import TargetWindowModal from "../components/TargetWindowModal";
 import type { TimelineHandle } from "../components/Timeline";
+import TimelineDndContext from "../components/TimelineDndContext";
 import { usePlanScale } from "../hooks/usePlanScale";
 import { useProgramPick } from "../hooks/useProgramPick";
-import { allOpen, defaultOpen, programChoices, toggled, treeDates, treeFacts, treeRows } from "../utils/programsTree";
+import { useRowMenuFocus } from "../hooks/useRowMenuFocus";
+import { useTargetWindow } from "../hooks/useTargetWindow";
+import { projectOfWindowBar } from "../utils/planTrack";
+import { allOpen, defaultOpen, programChoices, toggled, treeDates, treeFacts, treeProjects, treeRows } from "../utils/programsTree";
 import { pickAmong } from "../utils/roadmapRows";
+import { applyProgramsWindow } from "../utils/targetWindowUpdate";
+
+/** Zero-width space: toggled on the live-region text so the same sentence twice is announced twice. */
+const REREAD = "​";
 
 /** The facts line under the title: what the pick leaves of the plan, then the flag totals - ORANGE warnings, gray infos (nothing moves). */
 function ProgramsFacts({ view, pick }: { view: ProgramsView; pick: ReadonlySet<number> | null }) {
@@ -44,8 +55,9 @@ function ProgramsFacts({ view, pick }: { view: ProgramsView; pick: ReadonlySet<n
  * The Programs page (`/programs`): the plan as a collapsible tree - work stream -> program -> project - on the shared timeline. A work stream or
  * program row is a summary bar over the span its projects cover with the roll-up of their flags; a project row is the roadmap's (the target window
  * band, the span bar, the drift band, the flag icons). Work streams open expanded and programs collapsed; the chevron button of a node is its
- * keyboard path and the page SAYS what it did. Everyone reads it; there is nothing to write here (a row's rights, once windows can be edited,
- * are the view's `can` flags). The program pick is the one the roadmap shares.
+ * keyboard path and the page SAYS what it did. Everyone reads it; the one thing written here is a project's target window - the band's move
+ * and resize, a draw on a row without one, the row menu's dialog - wherever the project's own `can.editTargetWindow` is set, through the
+ * roadmap's write path (`hooks/useTargetWindow.ts`). The program pick is the one the roadmap shares.
  */
 export default function Programs() {
   const { t } = useTranslation();
@@ -86,6 +98,8 @@ function ProgramsBody({ view }: { view: ProgramsView }) {
   // mounts no row at all). So the toggled node's row takes the focus back after the render, mounted or not (`focusRow`); where the same button
   // is still focused (the usual case) nothing is touched.
   const timelineRef = useRef<TimelineHandle>(null);
+  // A project row's menu actions (the target window's items) keep the keyboard user on the row (`useRowMenuFocus`), as on the roadmap.
+  const rowFocus = useRowMenuFocus(timelineRef);
   const refocus = useRef<string | null>(null);
   useEffect(() => {
     if (refocus.current === null) return;
@@ -94,6 +108,30 @@ function ProgramsBody({ view }: { view: ProgramsView }) {
     const button = document.querySelector(`[data-node-key="${key}"]`);
     if (button === null || button !== document.activeElement) timelineRef.current?.focusRow(key);
   });
+
+  // The target window's write path (the roadmap's, over this tree): a project row's band, draw and menu items. Its sentences go to the same polite
+  // region as the fold announcements; an identical sentence said twice is re-read through a toggled invisible suffix.
+  const announce = (text: string) => setAnnouncement((previous) => (previous.endsWith(REREAD) ? text : text + REREAD));
+  const windowWrite = useTargetWindow({
+    view,
+    queryKey: programsViewKey,
+    apply: applyProgramsWindow,
+    nameOf: (current, id) => treeProjects(current).find((project) => project.id === id)?.name,
+    announce,
+  });
+  const writing = windowWrite.pending;
+  // The dialog is open on one project: read from the view on every render, closed when the project has left it.
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const editing = editingId === null ? undefined : treeProjects(view).find((project) => project.id === editingId);
+  if (editingId !== null && editing === undefined) setEditingId(null);
+  const closeDialog = (id: number) => {
+    setEditingId(null);
+    rowFocus.restore(id);
+  };
+  const windowActions: WindowActions = {
+    edit: (project) => setEditingId(project.id),
+    clear: (project) => rowFocus.keep(project.id, windowWrite.commit(project.id, null, null, { announce: true })),
+  };
 
   function toggle(key: string) {
     refocus.current = key;
@@ -112,6 +150,18 @@ function ProgramsBody({ view }: { view: ProgramsView }) {
 
   return (
     <>
+      {/* The visible notices of the window write path; the status region below says them (an Alert's implicit role="alert" would read each twice). */}
+      {windowWrite.refused && (
+        <Alert color="orange" variant="light" role="note">
+          {t("project.busy")}
+        </Alert>
+      )}
+      {windowWrite.gone && (
+        <Alert color="orange" variant="light" role="note">
+          {t("roadmap.window.gone")}
+        </Alert>
+      )}
+      {windowWrite.error && <FormErrorAlert>{windowWrite.error}</FormErrorAlert>}
       <Group gap="sm" justify="space-between" align="flex-end" wrap="wrap">
         <ProgramsFacts view={view} pick={pick} />
         <Group gap="xs" data-print="hide">
@@ -130,12 +180,57 @@ function ProgramsBody({ view }: { view: ProgramsView }) {
       <VisuallyHidden role="status" aria-live="polite">
         {announcement}
       </VisuallyHidden>
-      <Stack gap="xs">
-        <Title order={3} size="h4">
-          {t("programs.timelineTitle")}
-        </Title>
-        <ProgramsTimeline links={view.links} rows={rows} onToggle={toggle} scale={scale} onZoomChange={setZoom} today={today} label={t("programs.timelineAria")} timelineRef={timelineRef} />
-      </Stack>
+      <TimelineDndContext
+        scale={scale}
+        // The only bar this page edits is a project's window (`window:<id>`): a move, a resize or a draw all land here.
+        onSchedule={(barId, start, end) => {
+          const id = projectOfWindowBar(barId);
+          return id !== null && windowWrite.commit(id, start, end);
+        }}
+      >
+        <Stack gap="xs">
+          <Group gap="sm" align="center">
+            <Title order={3} size="h4">
+              {t("programs.timelineTitle")}
+            </Title>
+            {writing && (
+              <Group gap={6} role="status">
+                <Loader size="xs" />
+                <Text size="sm" c="dimmed">
+                  {t("project.saving")}
+                </Text>
+              </Group>
+            )}
+          </Group>
+          <ProgramsTimeline
+            links={view.links}
+            rows={rows}
+            onToggle={toggle}
+            windowActions={windowActions}
+            menuClosed={(project) => rowFocus.menuClosed(project.id)}
+            scale={scale}
+            onZoomChange={setZoom}
+            today={today}
+            busy={writing}
+            label={t("programs.timelineAria")}
+            timelineRef={timelineRef}
+          />
+        </Stack>
+      </TimelineDndContext>
+
+      {editing !== undefined && (
+        <TargetWindowModal
+          project={editing}
+          refused={windowWrite.refused}
+          onSave={(start, end) => {
+            if (windowWrite.commit(editing.id, start, end, { announce: true, ownRefusalAlert: true })) closeDialog(editing.id);
+          }}
+          onClear={() => {
+            if (windowWrite.commit(editing.id, null, null, { announce: true, ownRefusalAlert: true })) closeDialog(editing.id);
+          }}
+          onClose={() => closeDialog(editing.id)}
+        />
+      )}
     </>
   );
 }

@@ -412,6 +412,11 @@
   height: 24px;
 }
 
+/* A read-only summary bar lets the pointer through to the target window and the draw surface under it (pointer-events inherit to its body). */
+.timelineBarInert {
+  pointer-events: none;
+}
+
 .timelineBarBody {
   width: 100%;
   height: 100%;

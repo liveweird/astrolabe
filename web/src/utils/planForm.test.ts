@@ -6,6 +6,7 @@ import {
   planSaveErrorMessage,
   programFormValidation,
   projectFormValidation,
+  targetWindowFormValidation,
   toProgramBody,
   toProjectCreateBody,
   toProjectFormValues,
@@ -16,6 +17,7 @@ import {
   workStreamFormValidation,
   type PlanNodeFormValues,
   type ProjectFormValues,
+  type TargetWindowFormValues,
   type WorkStreamFormValues,
 } from "./planForm";
 
@@ -58,6 +60,26 @@ describe("planForm validation", () => {
     expect(rules.targetStart("nope", values("nope", "2026-02-01"))).toBe("Enter a valid date (YYYY-MM-DD)");
     expect(rules.targetEnd("nope", values("2026-03-01", "nope"))).toBe("Enter a valid date (YYYY-MM-DD)");
     expect(rules.targetEnd("2026-04-01", values("2026-03-01", "2026-04-01"))).toBeNull();
+  });
+});
+
+describe("the target-window dialog's rules", () => {
+  const rules = targetWindowFormValidation(t);
+  const values = (targetStart: string | null, targetEnd: string | null): TargetWindowFormValues => ({ targetStart, targetEnd });
+
+  test("both dates are required (Clear is the way to have none), real days, the end not before the start", () => {
+    expect(rules.targetStart(null)).toBe("Enter a start date");
+    expect(rules.targetStart("")).toBe("Enter a start date");
+    expect(rules.targetStart("nope")).toBe("Enter a valid date (YYYY-MM-DD)");
+    expect(rules.targetStart("2026-02-30")).toBe("Enter a valid date (YYYY-MM-DD)");
+    expect(rules.targetStart("2026-02-01")).toBeNull();
+    expect(rules.targetEnd(null, values("2026-02-01", null))).toBe("Enter an end date");
+    expect(rules.targetEnd("nope", values("2026-02-01", "nope"))).toBe("Enter a valid date (YYYY-MM-DD)");
+    expect(rules.targetEnd("2026-01-31", values("2026-02-01", "2026-01-31"))).toBe("The end must not be before the start");
+    expect(rules.targetEnd("2026-02-01", values("2026-02-01", "2026-02-01"))).toBeNull();
+    // An unusable start is its own field's message, not an ordering error on the end.
+    expect(rules.targetEnd("2026-01-31", values("nope", "2026-01-31"))).toBeNull();
+    expect(rules.targetEnd("2026-01-31", values(null, "2026-01-31"))).toBeNull();
   });
 });
 

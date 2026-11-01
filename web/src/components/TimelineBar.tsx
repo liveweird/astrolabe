@@ -49,8 +49,16 @@ interface BarProps {
  */
 const TONE_CLASS = { ghost: classes.timelineBarGhost, summary: classes.timelineBarSummary, window: classes.timelineBarWindow } as const;
 
-/** The bar's wrapper class: a window bar fills the whole row height, any other bar sits inset in it. */
-const frameClass = (bar: TimelineBarData) => (bar.tone === "window" ? `${classes.timelineBar} ${classes.timelineBarFrameWindow}` : classes.timelineBar);
+/**
+ * The bar's wrapper class: a window bar fills the whole row height, any other bar sits inset in it. A read-only SUMMARY bar (a project's span) is
+ * transparent to the pointer: it is mounted after - so over - the target window of its row and the row's draw surface, and a hollow outline that
+ * swallowed the pointer would leave the window under it ungrabbable (a span usually covers most of its window) and the draw impossible across it.
+ * The bar stays a labelled, focusable image for the keyboard and for assistive technology.
+ */
+const frameClass = (bar: TimelineBarData) => {
+  if (bar.tone === "window") return `${classes.timelineBar} ${classes.timelineBarFrameWindow}`;
+  return bar.tone === "summary" && !bar.editable ? `${classes.timelineBar} ${classes.timelineBarInert}` : classes.timelineBar;
+};
 
 /** The tone a bar is drawn with: any on a read-only bar, only `window` on an editable one. */
 const toneOf = (bar: TimelineBarData) => (bar.editable && bar.tone !== "window" ? undefined : bar.tone);

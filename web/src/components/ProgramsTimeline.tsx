@@ -9,7 +9,7 @@ import type { NodeRow, ProjectTreeRow, TreeRow } from "../utils/programsTree";
 import { conflictsByProject, countFlags } from "../utils/roadmapRows";
 import type { RovingTarget, TimelineBarData, TimelineColumn, TimelineRowData } from "../utils/timelineModel";
 import { PLAN_ZOOMS, type TimelineScale, type Zoom } from "../utils/timelineScale";
-import { FlagCountsCell, OpenProjectItem, ProjectLink } from "./PlanProjectCells";
+import { FlagCountsCell, OpenProjectItem, ProjectLink, TargetWindowItems, type WindowActions } from "./PlanProjectCells";
 import RowActionsMenu from "./RowActionsMenu";
 import Timeline, { type TimelineHandle } from "./Timeline";
 import TimelineArrows from "./TimelineArrows";
@@ -92,15 +92,20 @@ function summaryBars(row: NodeRow, t: TFunction): TimelineBarData[] {
  * The programs page's timeline: the plan as a tree on the shared Timeline - a row per work stream, under an expanded one its programs, under an
  * expanded program its projects. A stream or program row shows its derived span as a summary bar and the roll-up of its projects' flags; a project
  * row is the roadmap's (`projectTrack`: the window and span bars, the drift band; the flag icons; a menu with the link into the project). The
- * arrows are the rolled-up links between the projects whose rows are shown. Read-only: nothing here writes or decides rights.
+ * arrows are the rolled-up links between the projects whose rows are shown. It must sit inside the page's `TimelineDndContext`; nothing here
+ * writes or decides rights - a project's window bar is editable, its draw surface present and its menu offers the window items by the
+ * project's own `can.editTargetWindow`, and the page's write path answers the proposals.
  */
 export default function ProgramsTimeline({
   links,
   rows: treeRows,
   onToggle,
+  windowActions,
+  menuClosed,
   scale,
   onZoomChange,
   today,
+  busy,
   label,
   timelineRef,
 }: {
@@ -108,9 +113,15 @@ export default function ProgramsTimeline({
   rows: readonly TreeRow[];
   /** Flip a work stream or program (the page owns the expanded set and says what happened). */
   onToggle: (key: string) => void;
+  /** The target window's menu items of a project row (shown only for a project whose `can.editTargetWindow` is set). */
+  windowActions: WindowActions;
+  /** A project row's menu has finished closing (its exit transition is over): the page puts the focus back here if a menu action just ran. */
+  menuClosed: (project: RoadmapProject) => void;
   scale: TimelineScale;
   onZoomChange: (zoom: Zoom) => void;
   today: string;
+  /** A write is in flight (`aria-busy` on the grid). */
+  busy: boolean;
   label: string;
   timelineRef: Ref<TimelineHandle>;
 }) {
@@ -139,7 +150,8 @@ export default function ProgramsTimeline({
         (stop: RovingTarget) => <ProjectLabel project={project} stop={stop} />,
         <FlagCountsCell key="flags" counts={countFlags(project.flags)} />,
         (stop: RovingTarget) => (
-          <RowActionsMenu label={t("common.table.operationsAria", { name: project.name })} trigger={{ ...stop, "data-operations-for": project.id }}>
+          <RowActionsMenu label={t("common.table.operationsAria", { name: project.name })} trigger={{ ...stop, "data-operations-for": project.id }} onClosed={() => menuClosed(project)}>
+            <TargetWindowItems project={project} actions={windowActions} />
             <OpenProjectItem project={project} />
           </RowActionsMenu>
         ),
@@ -165,6 +177,7 @@ export default function ProgramsTimeline({
       today={today}
       columns={columns}
       rows={treeRows.map(rowOf)}
+      busy={busy}
       overlay={arrows.length === 0 ? undefined : (geometry) => <TimelineArrows arrows={arrows} geometry={geometry} />}
     />
   );

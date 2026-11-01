@@ -2,9 +2,9 @@
 
 - **Spec**: [tests/roadmap.spec.ts](../tests/roadmap.spec.ts)
 - **Actors**: the seed administrator (`admin@astrolabe.local`); in each test one throwaway user (the roadmap editor in the first,
-  a plain user in the second)
-- **Owns** (exclusive server-side state): its throwaway people, work streams, programs and projects (unique `e2e-rm-*` names)
-  and users, all deleted by the end of the file (the plan nodes and people also by the afterEach, through the API, children first,
+  a plain user in the second; the third has two, an editor who owns nothing and the projects' own owner)
+- **Owns** (exclusive server-side state): its throwaway people, work streams, programs, projects, one team with two scheduled milestones
+  (the third scenario; they leave with their projects) (unique `e2e-rm-*` names) and users, all deleted by the end of the file (the plan nodes and people also by the afterEach, through the API, children first,
   when a step fails first; deleting a project also removes it from the ranking). The ranking itself is ONE global list shared with
   every other spec's plan writes: this file ranks only its own projects, asserts only the relative order of its own rows, and
   retries a ranking change that the server refuses as stale (another spec wrote the ranking meanwhile; plan writes elsewhere no longer stale it).
@@ -20,7 +20,8 @@
    - *Expected*: the Permissions page opens with the switch off; Save returns to the Users list.
 2. The throwaway user signs in, the program pick is set to the seeded program, and they open **Roadmap** from the Planning section of the sidebar.
    - *Expected*: the page heading is "Roadmap" with a "Timeline" section; the rows are the "Unranked" divider, then first and second;
-     each row carries its target window as a read-only band (an image named "<name>, target window 2026-02-02 to 2026-03-31, read-only").
+     each row carries its target window as a band the editor may move (a draggable named "<name>, target window 2026-02-02 to 2026-03-31",
+     no "read-only": the editor holds the right to change any project's window; the gestures are the third scenario).
 3. They choose **Rank <first>** from first's row menu, then **Rank <second>** from second's.
    - *Expected*: after the first the rows are first, the divider, second (Rank appends at the end of the ranking); after the second, first then
      second and no divider (nothing is unranked any more).
@@ -54,6 +55,32 @@
    - *Expected*: each menu offers **Open project <name>** and no Move, Rank or Unrank item.
 4. The user signs out; the admin signs back in and deletes the user.
 
+## Scenario: a roadmap editor who owns nothing drags the band, draws a window, sets one from the keyboard dialog and clears it; the project's own owner reads the band read-only
+
+1. The admin seeds, through the API: two users (an **editor**, granted ROADMAP_EDITOR and linked to no person, and an **owner**, linked to a
+   person), a login-less lead person owning the work stream and program, a team and two projects owned by the owner's person: **moved** (target
+   window 2026-02-02 to 2026-03-31, one milestone 2026-02-09 to 2026-03-27, so its span lies inside the window) and **bare** (no window, one
+   milestone 2026-04-06 to 2026-04-24).
+2. The editor signs in, sets the program pick to the seeded program and opens **Roadmap**.
+   - *Expected*: moved's window is a draggable band (a button named "<moved>, target window 2026-02-02 to 2026-03-31"); moved's row has no draw
+     surface, bare's row has one (the editor may set a window where there is none).
+3. They press the middle of moved's span bar (the hollow bar over the band) and drag it 42 px to the left (14 days at Quarter zoom).
+   - *Expected*: the page PUTs `/projects/{id}/target-window` (204) with 2026-01-19 to 2026-03-17 - the pointer went through the span to the
+     window - and the band is named "…2026-01-19 to 2026-03-17"; after the refetch the row carries one warning and one info icon (the window now
+     ends before the span: the server's drift flags) and the open flag panel says "Ends 10 days after the target".
+4. They press the middle of bare's span bar and drag 30 px to the right.
+   - *Expected*: the PUT carries a window ten days long that starts on a day of the span; bare's row has the band and no draw surface any more.
+5. From the keyboard they open **Operations for <moved>**, move to **Edit target window of <moved>** and press Enter.
+   - *Expected*: the dialog "Target window of <moved>" opens prefilled with 2026-01-19; they type 2026-02-02 and 2026-03-31 and press Save: the
+     PUT carries that window, the dialog closes, the band follows, the focus is back on **Operations for <moved>** and the screen-reader status
+     says "<moved>: target window 2026-02-02 to 2026-03-31".
+6. From the keyboard they choose **Clear target window of <moved>** from the same menu.
+   - *Expected*: the PUT carries both dates null, moved's row has no band and has the draw surface again, and the focus stays on the menu button.
+7. The editor signs out; the owner (no grant, owner of both projects, owner of nothing above them) signs in, sets the pick and opens Roadmap.
+   - *Expected*: bare's band is a read-only image (named "…, read-only"), not a button; there is no draw surface anywhere; the row menu offers
+     **Open project** and no target-window item (the project's own owner may not change its window, `authorization.md`).
+8. The throwaway users, people, team and plan nodes are removed through the API.
+
 ## Not covered here (and why)
 
 - **The optimistic rollback on a non-409 failure, the 400 and 403 sentences, the refusal of a change made while a save runs, the filters
@@ -63,5 +90,8 @@
   (focus after a menu move, the pointer drag by the handle, the stale notice).
 - **The keyboard drag** - a row has none: the row menu IS the keyboard path (`timeline.md` "Row drag"), driven in step 4. dnd-kit's drag
   announcements are covered by `Timeline.test.tsx`.
-- **Editing the target window** - the bands are read-only on this page until the window gestures land (a later commit of v0.6).
+- **Resizing the band by its handle, the refusal of a window change while a rank save runs (and the other way round), the 403/404/400 sentences,
+  the rollback, the dialog's validation and its Clear button, the Programs page's copy of every gesture** - pinned by `Roadmap.window.test.tsx`,
+  `Programs.window.test.tsx` and `targetWindowUpdate.test.ts`; the draw and the move run here against the real layout (the pointer going
+  through the span bar is the part a unit test cannot show), the real handle resize is the project view's scenario.
 - **Flags with real data** - the flag icons and panel are scanned with a drifting fixture project and a violated link by `accessibility.spec.ts`.

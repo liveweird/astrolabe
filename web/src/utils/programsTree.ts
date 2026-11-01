@@ -135,9 +135,12 @@ export function treeFacts(view: ProgramsView, pick: ReadonlySet<number> | null):
   };
 }
 
+/** Every project of the plan, in the tree's order, whatever is folded or picked away. */
+export function treeProjects(view: ProgramsView): RoadmapProject[] {
+  return view.workStreams.flatMap((stream) => stream.programs.flatMap((program) => program.projects));
+}
+
 /** Every date the page can show (spans and target windows of ALL projects): the range the timeline must cover, whatever is folded or picked away. */
 export function treeDates(view: ProgramsView): string[] {
-  return view.workStreams
-    .flatMap((stream) => stream.programs.flatMap((program) => program.projects))
-    .flatMap((project) => [project.span?.start, project.span?.end, project.targetStart, project.targetEnd].filter((d): d is string => typeof d === "string"));
+  return treeProjects(view).flatMap((project) => [project.span?.start, project.span?.end, project.targetStart, project.targetEnd].filter((d): d is string => typeof d === "string"));
 }

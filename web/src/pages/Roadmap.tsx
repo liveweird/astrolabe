@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useRef, useState } from "react";
 import { Alert, Badge, Group, Loader, Stack, Text, Title, VisuallyHidden } from "@mantine/core";
 import { IconFilterOff, IconListNumbers } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
@@ -12,12 +12,17 @@ import PageHeader from "../components/PageHeader";
 import RoadmapFilterFields from "../components/RoadmapFilters";
 import RoadmapFlagPanel from "../components/RoadmapFlagPanel";
 import RoadmapTimeline, { type RoadmapActions } from "../components/RoadmapTimeline";
+import TargetWindowModal from "../components/TargetWindowModal";
 import type { TimelineHandle } from "../components/Timeline";
 import TimelineDndContext from "../components/TimelineDndContext";
 import { usePlanScale } from "../hooks/usePlanScale";
 import { useProgramPick } from "../hooks/useProgramPick";
 import { useRoadmapFilters } from "../hooks/useRoadmapFilters";
-import { useRoadmapRanking } from "../hooks/useRoadmapRanking";
+import { ROADMAP_VIEW_KEY, useRoadmapRanking } from "../hooks/useRoadmapRanking";
+import { useRowMenuFocus } from "../hooks/useRowMenuFocus";
+import { useTargetWindow } from "../hooks/useTargetWindow";
+import { projectOfWindowBar } from "../utils/planTrack";
+import { applyRoadmapWindow } from "../utils/targetWindowUpdate";
 import {
   activeFilterCount,
   allProjects,
@@ -57,12 +62,22 @@ function RoadmapFacts({ ranked, unranked, flags }: { ranked: number; unranked: n
  * arrows, a collapsible flag panel (the accessible surface of the icons) and the filters with the program pick. Everyone reads it; whether the
  * ranking can be changed is the view's `can.editRank` (the server's own arithmetic), never the session's roles: a row is dragged by its
  * pointer-only handle (across the divider = Rank at that slot / Unrank) or moved from its menu (the keyboard path), and every change is the
- * wholesale ranking PUT of `hooks/useRoadmapRanking.ts`. The target window is shown, not edited, here.
+ * wholesale ranking PUT of `hooks/useRoadmapRanking.ts`. A project's target window is edited by the band (move, resize), a draw on a row
+ * without one, or the row menu's dialog - wherever the project's own `can.editTargetWindow` is set - through `hooks/useTargetWindow.ts`; the two
+ * write paths share one mutation key, so a change made while the other runs is refused out loud.
  */
 export default function Roadmap() {
   const { t } = useTranslation();
   const ranking = useRoadmapRanking();
   const { view, query } = ranking;
+  // The target window's write path: the other write on this page's cached view (one mutation key with the ranking: never two at once).
+  const windowWrite = useTargetWindow({
+    view,
+    queryKey: ROADMAP_VIEW_KEY,
+    apply: applyRoadmapWindow,
+    nameOf: (current, id) => allProjects(current).find((project) => project.id === id)?.name,
+    announce: ranking.announce,
+  });
   const editable = view?.can.editRank ?? false;
   const empty = view !== undefined && view.ranked.length === 0 && view.unranked.length === 0;
 
@@ -72,13 +87,19 @@ export default function Roadmap() {
 
       {query.isError && <ErrorAlert error={query.error} title={t("roadmap.loadFailed")} />}
       {/* The visible notices; the status region below says them (an Alert's implicit role="alert" would read the refusal twice). */}
-      {ranking.refused && (
+      {(ranking.refused || windowWrite.refused) && (
         <Alert color="orange" variant="light" role="note">
           {t("project.busy")}
         </Alert>
       )}
+      {windowWrite.gone && (
+        <Alert color="orange" variant="light" role="note">
+          {t("roadmap.window.gone")}
+        </Alert>
+      )}
       {ranking.stale && <FormErrorAlert>{t("roadmap.stale")}</FormErrorAlert>}
       {ranking.error && <FormErrorAlert>{ranking.error}</FormErrorAlert>}
+      {windowWrite.error && <FormErrorAlert>{windowWrite.error}</FormErrorAlert>}
       {/* Menu-driven changes are announced here (a drag is announced by dnd-kit's own live region). */}
       <VisuallyHidden role="status" aria-live="polite">
         {ranking.announcement}
@@ -86,13 +107,21 @@ export default function Roadmap() {
 
       {query.isLoading && <LoadingBlock />}
       {empty && <EmptyState icon={IconListNumbers} label={t("roadmap.empty")} hint={t("roadmap.emptyHint")} />}
-      {view && !empty && <RoadmapBody view={view} ranking={ranking} />}
+      {view && !empty && <RoadmapBody view={view} ranking={ranking} windowWrite={windowWrite} />}
     </Stack>
   );
 }
 
 /** The page below the title once the view has projects: facts, filters, the timeline in its drag context and the flag panel. */
-function RoadmapBody({ view, ranking }: { view: RoadmapView; ranking: ReturnType<typeof useRoadmapRanking> }) {
+function RoadmapBody({
+  view,
+  ranking,
+  windowWrite,
+}: {
+  view: RoadmapView;
+  ranking: ReturnType<typeof useRoadmapRanking>;
+  windowWrite: ReturnType<typeof useTargetWindow>;
+}) {
   const { t } = useTranslation();
   const { filters: storedFilters, set: setFilters } = useRoadmapFilters();
   const [storedPick, setPick] = useProgramPick();
@@ -107,42 +136,27 @@ function RoadmapBody({ view, ranking }: { view: RoadmapView; ranking: ReturnType
   const rowCount = visible.ranked.length + visible.unranked.length;
   const visibleRankedIds = visible.ranked.map((entry) => entry.project.id);
 
-  // The menu's moves are relative to the rows the user sees; the page binds the visible ranked ids.
-  // A taken menu change reorders the rows, and a browser blurs a focused element whose row is moved in the DOM: the row's menu button takes the
-  // focus back after the render that moved it. On the virtual path the row may have left the mounted window (Move to bottom, Rank): its button is
-  // gone, so the timeline scrolls to the row and focuses its header instead - the keyboard user stays on the row they were working on.
-  // The menu that was used keeps its dropdown - and its focus trap - mounted through its exit transition (~150 ms), and the trap pulls a focus moved
-  // meanwhile into its sentinel, which lands on `body` when the dropdown unmounts: a keyboard user ended on the page body. So the render-time focus
-  // above is repeated once the menu has FINISHED closing (`menuClosed`, from the row menu's `onExitTransitionEnd`); the first covers the rows whose
-  // menu is gone with the row (the virtual path), the second the ones that stay.
-  const refocus = useRef<number | null>(null);
-  const afterExit = useRef<number | null>(null);
-  const putFocusOn = (id: number) => {
-    const button = document.querySelector<HTMLElement>(`[data-operations-for="${id}"]`);
-    if (button === null) timelineRef.current?.focusRow(id);
-    else button.focus();
-  };
-  useEffect(() => {
-    if (refocus.current === null) return;
-    const id = refocus.current;
-    refocus.current = null;
-    putFocusOn(id);
-  });
-  const keepFocus = (project: { id: number }, taken: boolean) => {
-    if (!taken) return;
-    refocus.current = project.id;
-    afterExit.current = project.id;
+  // The menu's moves are relative to the rows the user sees; the page binds the visible ranked ids. A taken menu change keeps the keyboard user on
+  // the row they were working on (`useRowMenuFocus`: the row's menu button, or its header where the virtual path has unmounted the row).
+  const focus = useRowMenuFocus(timelineRef);
+  // The target window's dialog: only which project it is open on; the project is read from the view on every render.
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const editing = editingId === null ? undefined : allProjects(view).find((project) => project.id === editingId);
+  if (editingId !== null && editing === undefined) setEditingId(null); // the project left the view: its dialog closes
+  const closeDialog = (id: number) => {
+    setEditingId(null);
+    focus.restore(id);
   };
   const actions: RoadmapActions = {
-    menuClosed: (project) => {
-      if (afterExit.current !== project.id) return;
-      afterExit.current = null;
-      putFocusOn(project.id);
+    menuClosed: (project) => focus.menuClosed(project.id),
+    move: (project, delta) => focus.keep(project.id, ranking.move(project.id, delta, visibleRankedIds)),
+    moveTo: (project, edge) => focus.keep(project.id, ranking.moveTo(project.id, edge, visibleRankedIds)),
+    rank: (project) => focus.keep(project.id, ranking.rank(project.id)),
+    unrank: (project) => focus.keep(project.id, ranking.unrank(project.id)),
+    window: {
+      edit: (project) => setEditingId(project.id),
+      clear: (project) => focus.keep(project.id, windowWrite.commit(project.id, null, null, { announce: true })),
     },
-    move: (project, delta) => keepFocus(project, ranking.move(project.id, delta, visibleRankedIds)),
-    moveTo: (project, edge) => keepFocus(project, ranking.moveTo(project.id, edge, visibleRankedIds)),
-    rank: (project) => keepFocus(project, ranking.rank(project.id)),
-    unrank: (project) => keepFocus(project, ranking.unrank(project.id)),
   };
 
   const projects = new Map(allProjects(view).map((project) => [project.id, project.name]));
@@ -161,8 +175,11 @@ function RoadmapBody({ view, ranking }: { view: RoadmapView; ranking: ReturnType
       ) : (
         <TimelineDndContext
           scale={scale}
-          // No bar of this page can be edited yet (the target windows are read-only here), so a dropped bar proposes nothing.
-          onSchedule={() => false}
+          // The only bar this page edits is a project's window (`window:<id>`): a move, a resize or a draw all land here.
+          onSchedule={(barId, start, end) => {
+            const id = projectOfWindowBar(barId);
+            return id !== null && windowWrite.commit(id, start, end);
+          }}
           onReorder={(barId, slot) => ranking.dropAt(Number(barId), slot, visibleRankedIds)}
         >
           <Stack gap="xs">
@@ -195,6 +212,20 @@ function RoadmapBody({ view, ranking }: { view: RoadmapView; ranking: ReturnType
       )}
 
       <RoadmapFlagPanel entries={flagEntries(visible)} names={names} onShow={(projectId) => timelineRef.current?.focusRow(projectId)} />
+
+      {editing !== undefined && (
+        <TargetWindowModal
+          project={editing}
+          refused={windowWrite.refused}
+          onSave={(start, end) => {
+            if (windowWrite.commit(editing.id, start, end, { announce: true, ownRefusalAlert: true })) closeDialog(editing.id);
+          }}
+          onClear={() => {
+            if (windowWrite.commit(editing.id, null, null, { announce: true, ownRefusalAlert: true })) closeDialog(editing.id);
+          }}
+          onClose={() => closeDialog(editing.id)}
+        />
+      )}
     </>
   );
 }

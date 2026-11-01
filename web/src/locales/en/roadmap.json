@@ -33,7 +33,19 @@
     "unrank": "Unrank",
     "unrankAria": "Unrank {{name}}",
     "openProject": "Open project",
-    "openProjectAria": "Open project {{name}}"
+    "openProjectAria": "Open project {{name}}",
+    "editWindow": "Edit target window…",
+    "editWindowAria": "Edit target window of {{name}}",
+    "clearWindow": "Clear target window",
+    "clearWindowAria": "Clear target window of {{name}}"
+  },
+  "window": {
+    "title": "Target window of {{name}}",
+    "hint": "Both dates are inclusive. Clear removes the target window. You can also drag the shaded band, or draw one across an empty row.",
+    "clear": "Clear",
+    "forbidden": "Only an administrator, an owner above the project or a roadmap editor can change the target window",
+    "invalid": "These dates cannot be saved: the end must not be before the start",
+    "gone": "This project is no longer in the plan — it was removed in the meantime."
   },
   "facts": {
     "aria": "Roadmap facts",
@@ -86,6 +98,8 @@
   "announce": {
     "moved": "{{name}} moved to position {{position}} of {{count}}",
     "ranked": "{{name}} ranked at position {{position}} of {{count}}",
-    "unranked": "{{name}} removed from the ranking"
+    "unranked": "{{name}} removed from the ranking",
+    "windowSet": "{{name}}: target window {{start}} to {{end}}",
+    "windowCleared": "{{name}}: target window cleared"
   }
 }
