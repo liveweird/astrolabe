@@ -22,6 +22,15 @@
     "schedule": "Zaplanuj",
     "scheduleAria": "Zaplanuj: {{name}}"
   },
+  "strip": {
+    "cell": "Tydzień od {{week}}: {{load}} z {{capacity}} osobodni",
+    "cellNoCapacity": "Tydzień od {{week}}: {{load}} osobodni, brak ustawionej przepustowości",
+    "wip_one": "; do {{count}} kamienia milowego w toku",
+    "wip_few": "; do {{count}} kamieni milowych w toku",
+    "wip_many": "; do {{count}} kamieni milowych w toku",
+    "wip_other": "; do {{count}} kamienia milowego w toku",
+    "wipExceeded": ", powyżej limitu WIP"
+  },
   "dnd": {
     "instructions": "Aby przesunąć pasek, ustaw na nim fokus i naciśnij Spację lub Enter, potem strzałkami w lewo i w prawo przesuwaj go o dzień (z Shift o tydzień), Spacją lub Enterem upuść go, Escape anuluje. Ustaw fokus na uchwycie początku lub końca paska, aby zmienić ten brzeg."
   },

@@ -8,8 +8,8 @@ import {
   BAR_HEIGHT,
   BAR_INSET,
   DEFAULT_VIRTUALIZE_FROM,
-  HEADER_HEIGHT,
   hasColumn,
+  headerHeight,
   lastColumn,
   MIN_BODY_ROWS,
   OVERSCAN_ROWS,
@@ -18,6 +18,7 @@ import {
   type TimelineColumn,
   type TimelineGeometry,
   type TimelineRowData,
+  type TimelineStripData,
 } from "../utils/timelineModel";
 import { scrollLeftToCenter, toEpochDay, weekendBackground, type TimelineScale, type Zoom } from "../utils/timelineScale";
 import ScrollRegion from "./ScrollRegion";
@@ -40,6 +41,11 @@ export interface TimelineProps {
   bands?: readonly TimelineBandData[];
   /** Drawn over the body as one `pointer-events: none` svg, from data-derived geometry (v0.4 dependency arrows). */
   overlay?: (geometry: TimelineGeometry) => ReactNode;
+  /**
+   * A third, sticky header row under the date cells (v0.5: the team's weekly load strip). Decorative: the page's table is the accessible
+   * surface. It makes the header taller, which every sticky-header consumer follows (`headerHeight`, `--timeline-head`).
+   */
+  strip?: TimelineStripData;
   /** More rows than this are virtualised; fewer or equal are all mounted. */
   virtualizeFrom?: number;
   maxHeight?: number | string;
@@ -72,6 +78,7 @@ export default function Timeline({
   rows,
   bands = [],
   overlay,
+  strip,
   virtualizeFrom = DEFAULT_VIRTUALIZE_FROM,
   maxHeight = 640,
   busy = false,
@@ -80,12 +87,14 @@ export default function Timeline({
   const pendingFocus = useRef<{ r: number; c: number } | null>(null);
   const { active: dragging } = useDndContext();
   const leftWidth = columns.reduce((sum, column) => sum + column.width, 0);
+  // The sticky header's height: the ONE number the drop zone, the virtualiser, the reveal and the CSS scroll margins all follow.
+  const head = headerHeight(strip !== undefined);
   // The drop zone is as large as every row; a tray drop only counts inside what the scroller actually shows of it.
   const zoneNode = useRef<HTMLDivElement | null>(null);
   const zoneData: DropZoneData = {
     visibleBounds: () => {
       const rect = scrollRef.current?.getBoundingClientRect();
-      return rect === undefined ? null : { left: rect.left + leftWidth, right: rect.right, top: rect.top + HEADER_HEIGHT, bottom: rect.bottom };
+      return rect === undefined ? null : { left: rect.left + leftWidth, right: rect.right, top: rect.top + head, bottom: rect.bottom };
     },
     zoneLeft: () => zoneNode.current?.getBoundingClientRect().left ?? null,
   };
@@ -99,9 +108,9 @@ export default function Timeline({
     getScrollElement: () => scrollRef.current,
     estimateSize: () => ROW_HEIGHT,
     overscan: OVERSCAN_ROWS,
-    scrollMargin: HEADER_HEIGHT,
+    scrollMargin: head,
     // scrollToIndex must land the row below the sticky header, not under it
-    scrollPaddingStart: HEADER_HEIGHT,
+    scrollPaddingStart: head,
   });
   const windowItems = virtual ? virtualizer.getVirtualItems() : null;
   const first = windowItems === null ? 0 : (windowItems[0]?.index ?? 0);
@@ -194,7 +203,7 @@ export default function Timeline({
     const view = scroller.getBoundingClientRect();
     const viewTop = view.top + scroller.clientTop;
     const viewBottom = viewTop + scroller.clientHeight;
-    const clearTop = viewTop + HEADER_HEIGHT;
+    const clearTop = viewTop + head;
     if (box.top < clearTop) scroller.scrollTop -= clearTop - box.top;
     else if (box.bottom > viewBottom) scroller.scrollTop += Math.min(box.bottom - viewBottom, box.top - clearTop);
     if (target.closest(`.${classes.timelineLeft}`) !== null) return;
@@ -239,7 +248,7 @@ export default function Timeline({
           },
         };
 
-  const gridStyle = { width: leftWidth + scale.totalWidth, "--timeline-left": `${leftWidth}px` } as CSSProperties;
+  const gridStyle = { width: leftWidth + scale.totalWidth, "--timeline-left": `${leftWidth}px`, "--timeline-head": `${head}px` } as CSSProperties;
 
   return (
     <Stack gap="xs">
@@ -260,7 +269,7 @@ export default function Timeline({
             grid.onFocus(event);
           }}
         >
-          <TimelineHeader scale={scale} columns={columns} leftWidth={leftWidth} today={today} />
+          <TimelineHeader scale={scale} columns={columns} leftWidth={leftWidth} today={today} strip={strip} />
           <div role="rowgroup" style={{ position: "relative", height: bodyHeight }}>
             {bands.map((band) => (
               <div key={band.id} style={{ position: "absolute", top: 0, bottom: 0, ...trackLeft }}>

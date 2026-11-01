@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { HEADER_ROW_HEIGHT, type TimelineColumn } from "../utils/timelineModel";
+import { HEADER_ROW_HEIGHT, STRIP_HEIGHT, type TimelineColumn, type TimelineStripData } from "../utils/timelineModel";
 import { headerRows, toEpochDay, type HeaderCell, type TimelineScale } from "../utils/timelineScale";
 import classes from "../theme.module.css";
 
@@ -18,18 +18,21 @@ function HeaderCells({ cells, scale }: { cells: readonly HeaderCell[]; scale: Ti
 /**
  * The sticky header: a group row (weeks / months / quarters; with the today tag) over a cell row (days / weeks / months), both
  * clipped to the range. The group row is decoration; the cell row is the grid's one header `row` — it names the left columns
- * (the bars' dates are in each bar's accessible name, so the date cells are `aria-hidden` too).
+ * (the bars' dates are in each bar's accessible name, so the date cells are `aria-hidden` too). An optional third row, the page's
+ * `strip` (the load strip), sits under them: a sticky caption over a track part; decorative, like the group row.
  */
 export default function TimelineHeader({
   scale,
   columns,
   leftWidth,
   today,
+  strip,
 }: {
   scale: TimelineScale;
   columns: readonly TimelineColumn[];
   leftWidth: number;
   today: string;
+  strip?: TimelineStripData;
 }) {
   const { t } = useTranslation();
   const { groups, cells } = headerRows(scale);
@@ -67,6 +70,18 @@ export default function TimelineHeader({
           <HeaderCells cells={cells} scale={scale} />
         </div>
       </div>
+      {strip !== undefined && (
+        <div className={`${classes.timelineHeadRow} ${classes.timelineStripRow}`} aria-hidden="true">
+          <div className={classes.timelineLeft} style={{ width: leftWidth }}>
+            <div className={`${classes.timelineCell} ${classes.timelineHeadCaption}`} style={{ width: leftWidth }}>
+              {strip.label}
+            </div>
+          </div>
+          <div className={classes.timelineTrack} style={{ width: scale.totalWidth, height: STRIP_HEIGHT }}>
+            {strip.render(scale)}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

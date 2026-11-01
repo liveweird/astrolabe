@@ -163,7 +163,8 @@
 }
 
 /* ---- The Timeline (components/Timeline*.tsx; .claude/docs/timeline.md) ----------------------------------------------------
-   A div grid: a sticky header (two rows) over rows of [sticky left cells | a track as wide as the date range]. Bars are data, so
+   A div grid: a sticky header (two rows, three with the v0.5 load strip; its height is `--timeline-head`, set on the grid by Timeline.tsx
+   from `headerHeight()`, and the scroll margins below follow it) over rows of [sticky left cells | a track as wide as the date range]. Bars are data, so
    they are NEUTRAL gray (the cyan brand marks only focus and the bar being dragged); the weekend hatch is ONE periodic gradient
    per row track (inline `background-image` from timelineScale.ts); the window band is a quiet dashed-edged tint, drift is orange.
    Stacking: bands and the today line < row tracks < the overlay (v0.4 arrows) < the sticky left cells < the sticky header. */
@@ -173,6 +174,8 @@
   --timeline-bar: light-dark(var(--mantine-color-gray-6), var(--mantine-color-dark-2));
   --timeline-window-edge: light-dark(var(--mantine-color-gray-6), var(--mantine-color-dark-2));
   --timeline-drift-edge: light-dark(var(--mantine-color-orange-8), var(--mantine-color-orange-5));
+  /* The overload and the WIP warning (v0.5 load strip): orange = warning, the drift token's pair. */
+  --timeline-overload: light-dark(var(--mantine-color-orange-8), var(--mantine-color-orange-5));
   --timeline-arrow: var(--mantine-color-dimmed);
   --timeline-violation: light-dark(var(--mantine-color-red-8), var(--mantine-color-red-5));
   position: relative;
@@ -230,7 +233,7 @@
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  scroll-margin-top: 56px;
+  scroll-margin-top: var(--timeline-head);
 }
 
 .timelineCell:focus-visible,
@@ -268,6 +271,88 @@
 
 .timelineHeadWeekend {
   background: var(--timeline-hatch);
+}
+
+/* The load strip (components/TimelineLoadStrip.tsx): the header's third row, 36 px (STRIP_HEIGHT). A cell is one ISO week; its column
+   rises from the baseline, the hairline at 24 px is the capacity, a column past it is orange. The fill is translucent so the figure
+   stays readable on top of it; a crisp 2 px top edge carries the hue (non-text contrast >= 3:1). */
+.timelineStripRow {
+  height: 36px;
+}
+
+.timelineStripCell {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  box-sizing: border-box;
+  /* A week cut by the range edge is a narrow cell (3-28 px): its figure and chip must not overprint the next week's. */
+  overflow: hidden;
+  border-left: 1px solid var(--timeline-line);
+}
+
+/* The only "100 %" cue: the SOLID dimmed ink (gray-6 on the light body about 3.3:1, dark-2 on the dark body above 6:1; >= 3:1 non-text), no opacity. */
+.timelineStripLine {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 24px;
+  border-top: 1px solid var(--timeline-arrow);
+}
+
+.timelineStripFill {
+  position: absolute;
+  left: 1px;
+  right: 1px;
+  bottom: 0;
+  box-sizing: border-box;
+  background: color-mix(in srgb, var(--timeline-bar) 30%, transparent);
+  border-top: 2px solid var(--timeline-bar);
+}
+
+.timelineStripFillOverloaded {
+  background: color-mix(in srgb, var(--timeline-overload) 30%, transparent);
+  border-top-color: var(--timeline-overload);
+}
+
+.timelineStripText {
+  position: absolute;
+  left: 4px;
+  bottom: 3px;
+  font-size: var(--mantine-font-size-xs);
+  line-height: 14px;
+  white-space: nowrap;
+  color: var(--mantine-color-text);
+}
+
+.timelineStripTextDim {
+  color: var(--mantine-color-dimmed);
+}
+
+/* Over the WIP limit: a chip with a DASHED outline in the corner (a dot at quarter zoom) — a different shape from the overload
+   column, the same warning hue. The peak is in the chip; its ink stays the text colour (orange text would fall under 4.5:1). */
+.timelineStripWip {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  box-sizing: border-box;
+  min-width: 14px;
+  padding: 0 3px;
+  font-size: 10px;
+  line-height: 12px;
+  text-align: center;
+  color: var(--mantine-color-text);
+  background: var(--mantine-color-body);
+  border: 1px dashed var(--timeline-overload);
+  border-radius: 8px;
+}
+
+.timelineStripWipDot {
+  width: 6px;
+  min-width: 0;
+  height: 6px;
+  padding: 0;
+  background: var(--timeline-overload);
+  border-radius: 50%;
 }
 
 .timelineTodayTag {
@@ -331,7 +416,7 @@
   box-sizing: border-box;
   background: var(--timeline-bar);
   border-radius: 4px;
-  scroll-margin-top: 56px;
+  scroll-margin-top: var(--timeline-head);
   /* --timeline-left (the sticky columns' width) is set on the grid, so a focused bar scrolls clear of them. */
   scroll-margin-left: var(--timeline-left);
 }

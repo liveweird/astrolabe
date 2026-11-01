@@ -10,7 +10,9 @@ import type { TimelineScale } from "./timelineScale";
 /** Pixel layout. Bar positions are pure functions of these and the scale, so an overlay never measures the DOM. */
 export const ROW_HEIGHT = 36;
 export const HEADER_ROW_HEIGHT = 28;
-export const HEADER_HEIGHT = 2 * HEADER_ROW_HEIGHT;
+const HEADER_HEIGHT = 2 * HEADER_ROW_HEIGHT;
+/** The optional third header row (the v0.5 load strip). */
+export const STRIP_HEIGHT = 36;
 export const BAR_INSET = 6;
 export const BAR_HEIGHT = ROW_HEIGHT - 2 * BAR_INSET;
 /** Rows above this count are virtualised (TanStack Virtual); at or below it every row is mounted. */
@@ -21,6 +23,15 @@ export const MIN_BODY_ROWS = 3;
 
 /** A bar owns up to three roving columns after the row's left cells: the bar, then (editable only) its start and end handles. */
 export const COLUMNS_PER_BAR = 3;
+
+/**
+ * The sticky header's height, which EVERY consumer must follow: the drop zone's visible top, the virtualiser's `scrollMargin` and
+ * `scrollPaddingStart`, `revealFocused`'s clear top and (as `--timeline-head`) the CSS `scroll-margin-top`s. Without a strip it
+ * is exactly `HEADER_HEIGHT`, so a timeline without one is unchanged.
+ */
+export function headerHeight(hasStrip: boolean): number {
+  return HEADER_HEIGHT + (hasStrip ? STRIP_HEIGHT : 0);
+}
 
 export type BarId = number | string;
 
@@ -95,8 +106,17 @@ export interface TimelineRowData {
   bars: readonly TimelineBarData[];
   /** Bands confined to this row's track. */
   bands?: readonly TimelineBandData[];
-  /** Replaces the bar rendering of this row's track (the v0.5 load strip): positioned with the exported scale. */
+  /** Replaces the bar rendering of this row's track, positioned with the exported scale. No page uses it: the v0.5 load strip is a header band (`TimelineStripData`). */
   track?: ReactNode;
+}
+
+/**
+ * A third, sticky header row under the date cells (v0.5: the team's weekly load). Decorative (`aria-hidden`): the page's table is the
+ * accessible surface. `label` is the visible caption of the sticky left part; `render` draws the track part, positioned with the scale.
+ */
+export interface TimelineStripData {
+  label: string;
+  render: (scale: TimelineScale) => ReactNode;
 }
 
 /** What the overlay slot (v0.4 arrows) draws against; all in pixels from the track origin (left of the range, top of the first row). */

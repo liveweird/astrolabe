@@ -6,9 +6,18 @@ import { DndContext, useDndContext } from "@dnd-kit/core";
 import Timeline from "./Timeline";
 import TimelineArrows from "./TimelineArrows";
 import TimelineDndContext from "./TimelineDndContext";
+import TimelineLoadStrip from "./TimelineLoadStrip";
 import TimelineUnscheduledTray, { type TrayItem } from "./TimelineUnscheduledTray";
 import { TIMELINE_DROP_ID } from "../hooks/useTimelinePreview";
-import type { TimelineArrowData, TimelineBarData, TimelineColumn, TimelineGeometry, TimelineRowData } from "../utils/timelineModel";
+import {
+  headerHeight,
+  type TimelineArrowData,
+  type TimelineBarData,
+  type TimelineColumn,
+  type TimelineGeometry,
+  type TimelineRowData,
+  type TimelineStripData,
+} from "../utils/timelineModel";
 import { makeScale, toEpochDay, type Zoom } from "../utils/timelineScale";
 import { renderWithProviders } from "../test/render";
 
@@ -952,5 +961,123 @@ describe("dependency arrows in the overlay", () => {
     emit("onDragStart", { active: active("resize-end"), activatorEvent: null });
     emit("onDragMove", gesture(active("resize-end"), 3));
     expect(drawn(container)[0].getAttribute("d")).toBe(before);
+  });
+});
+
+describe("the load strip", () => {
+  const WEEKS = [
+    { weekStart: "2026-09-14", load: 4, capacity: 10, overloaded: false, overloadMd: null, maxWip: 1, wipExceeded: false },
+    { weekStart: "2026-09-21", load: 12, capacity: 10, overloaded: true, overloadMd: 2, maxWip: 3, wipExceeded: true },
+  ];
+  const STRIP: TimelineStripData = { label: "Weekly load", render: (scale) => <TimelineLoadStrip weeks={WEEKS} scale={scale} /> };
+  const MANY: TimelineRowData[] = Array.from({ length: 40 }, (_, i) => row(i + 1, `Item ${i + 1}`, [bar(i + 1, `Item ${i + 1}`, "2026-09-16", "2026-09-18")]));
+  const gridHead = () => screen.getByRole("grid").style.getPropertyValue("--timeline-head");
+  // the header's rows, exposed or not (the group row and the strip are decoration)
+  const headRows = () => screen.getByRole("grid").querySelector('[role="rowgroup"]')?.children.length;
+
+  test("the header height is a pure function of whether a strip exists", () => {
+    expect([headerHeight(false), headerHeight(true)]).toEqual([56, 92]);
+  });
+
+  test.each(["week", "month", "quarter"] as const)("at %s zoom the strip is a third, decorative header row with a visible caption and one cell per week", (zoom) => {
+    renderWithProviders(<Harness zoom={zoom} strip={STRIP} />);
+    expect(headRows()).toBe(3);
+    const cells = document.querySelectorAll<HTMLElement>("[data-week]");
+    expect([...cells].map((c) => c.dataset.week)).toEqual(["2026-09-14", "2026-09-21"]);
+    // the second week sits at xOf(Monday): seven days after the range start (2026-09-14)
+    expect(cells[1].style.left).toBe(`${7 * { week: 28, month: 8, quarter: 3 }[zoom]}px`);
+    const stripRow = screen.getByText("Weekly load").closest('[aria-hidden="true"]');
+    expect(stripRow).toContainElement(cells[0]);
+    // decorative: not a grid row, so the row indices and the count are untouched
+    expect(screen.getByRole("grid")).toHaveAttribute("aria-rowcount", "4");
+    expect(within(screen.getByRole("grid")).getAllByRole("row").map((r) => r.getAttribute("aria-rowindex"))).toEqual(["1", "2", "3", "4"]);
+  });
+
+  test("the overload and the WIP mark are read from the week's data", () => {
+    renderWithProviders(<Harness strip={STRIP} />);
+    const second = document.querySelector<HTMLElement>('[data-week="2026-09-21"]') as HTMLElement;
+    expect(second).toHaveAttribute("data-overloaded", "true");
+    expect(second).toHaveAttribute("data-wip-exceeded", "true");
+    expect(document.querySelector('[data-week="2026-09-14"]')).toHaveAttribute("data-overloaded", "false");
+  });
+
+  test("a week with no capacity is drawn as a figure without a column", () => {
+    const none: TimelineStripData = {
+      label: "Weekly load",
+      render: (scale) => (
+        <TimelineLoadStrip weeks={[{ weekStart: "2026-09-14", load: 3, capacity: null, overloaded: false, overloadMd: null, maxWip: 1, wipExceeded: false }]} scale={scale} />
+      ),
+    };
+    renderWithProviders(<Harness strip={none} />);
+    const cell = document.querySelector<HTMLElement>('[data-week="2026-09-14"]') as HTMLElement;
+    expect(cell.querySelector('[data-part="fill"]')).toBeNull();
+    expect(cell).toHaveAttribute("data-overloaded", "false");
+  });
+
+  test("with a strip --timeline-head is 92 px; without one the geometry is what it was (56 px, two header rows, no strip)", () => {
+    const { unmount } = renderWithProviders(<Harness strip={STRIP} />);
+    expect(gridHead()).toBe("92px");
+    unmount();
+    renderWithProviders(<Harness />);
+    expect(gridHead()).toBe("56px");
+    expect(headRows()).toBe(2);
+    expect(document.querySelector("[data-week]")).toBeNull();
+  });
+
+  test("the tray drop zone's visible top clears the taller header", () => {
+    let visibleBounds: (() => unknown) | undefined;
+    function Probe() {
+      const { droppableContainers } = useDndContext();
+      useEffect(() => {
+        const data = droppableContainers.get(TIMELINE_DROP_ID)?.data.current as { visibleBounds?: () => unknown } | undefined;
+        if (data?.visibleBounds) visibleBounds = data.visibleBounds;
+      });
+      return null;
+    }
+    const probe = (strip?: TimelineStripData) => {
+      const scale = scaleOf();
+      const view = renderWithProviders(
+        <TimelineDndContext scale={scale} onSchedule={vi.fn()}>
+          <Probe />
+          <Timeline label="Project timeline" scale={scale} onZoomChange={vi.fn()} today="2026-09-23" columns={COLUMNS} rows={ROWS} strip={strip} />
+        </TimelineDndContext>,
+      );
+      vi.spyOn(screen.getByRole("region", { name: "Project timeline" }), "getBoundingClientRect").mockReturnValue({ left: 100, right: 900, top: 50, bottom: 650 } as DOMRect);
+      const top = (visibleBounds?.() as { top: number }).top;
+      view.unmount();
+      return top;
+    };
+    expect(probe()).toBe(106);
+    expect(probe(STRIP)).toBe(142);
+  });
+
+  test("a focused row is revealed below the taller header", () => {
+    renderWithProviders(<Harness strip={STRIP} />);
+    const cell = screen.getByRole("rowheader", { name: "Discovery" });
+    const scroller = screen.getByRole("region", { name: "Project timeline" });
+    vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue({ left: 100, top: 50, right: 900, bottom: 650, width: 800, height: 600 } as DOMRect);
+    for (const [name, value] of [["clientLeft", 0], ["clientTop", 0], ["clientWidth", 785], ["clientHeight", 600]] as const) {
+      Object.defineProperty(scroller, name, { configurable: true, value });
+    }
+    vi.spyOn(cell, "getBoundingClientRect").mockReturnValue({ left: 110, top: 90, right: 260, bottom: 114, width: 150, height: 24 } as DOMRect);
+    scroller.scrollTop = 200;
+    act(() => cell.focus());
+    // the clear top is 50 + 92 = 142: the cell at 90 is 52 px under it (with the 56 px header it would be 16)
+    expect(scroller.scrollTop).toBe(200 - 52);
+  });
+
+  test("the virtual window follows the header height (scrollMargin)", () => {
+    stubViewport(900, 180);
+    const firstMounted = (strip?: TimelineStripData) => {
+      const view = renderWithProviders(<Harness rows={MANY} virtualizeFrom={5} strip={strip} />);
+      const scroller = screen.getByRole("region", { name: "Project timeline" });
+      scroller.scrollTop = 20 * 36 + 56;
+      fireEvent.scroll(scroller);
+      const names = within(screen.getByRole("grid")).getAllByRole("rowheader").map((h) => Number(h.textContent?.replace("Item ", "")));
+      view.unmount();
+      return Math.min(...names);
+    };
+    // a 36 px taller header shifts the first visible row up by one
+    expect(firstMounted(STRIP) - firstMounted()).toBe(-1);
   });
 });

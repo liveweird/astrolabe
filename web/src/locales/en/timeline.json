@@ -22,6 +22,13 @@
     "schedule": "Schedule",
     "scheduleAria": "Schedule {{name}}"
   },
+  "strip": {
+    "cell": "Week of {{week}}: {{load}} of {{capacity}} man-days",
+    "cellNoCapacity": "Week of {{week}}: {{load}} man-days, no capacity set",
+    "wip_one": "; up to {{count}} milestone in progress",
+    "wip_other": "; up to {{count}} milestones in progress",
+    "wipExceeded": ", over the WIP limit"
+  },
   "dnd": {
     "instructions": "To move a bar, focus it and press Space or Enter, then use the left and right arrow keys to move it by a day (Shift: a week), Space or Enter to drop it, Escape to cancel. Focus a bar's start or end handle to change that edge instead."
   },
