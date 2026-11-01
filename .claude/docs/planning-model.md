@@ -79,7 +79,7 @@ later state orders against them. v0.2 offers no ETag.
 ### API (all under `/api/v1`, `openapi/documentation.yaml`, tag `plan`)
 
 `POST /work-streams`; `GET/PUT/DELETE /work-streams/{id}`; `POST /work-streams/{id}/programs`; `GET/PUT/DELETE /programs/{id}`; `POST /programs/{id}/projects`; `GET/PUT/DELETE /projects/{id}`;
-`PUT /projects/{id}/target-window`; `POST /projects/{id}/move`; `POST /programs/{id}/move`; `GET /views/plan`; and the ranking (below): `GET /views/roadmap`, `PUT /roadmap/ranking`. PUTs are full replaces (omitted optional = unset; `204`); creates answer `201` + `Location` + the record. **No paged lists** for
+`PUT /projects/{id}/target-window`; `POST /projects/{id}/move`; `POST /programs/{id}/move`; `GET /views/plan`; `GET /views/programs`; and the ranking (below): `GET /views/roadmap`, `PUT /roadmap/ranking`. PUTs are full replaces (omitted optional = unset; `204`); creates answer `201` + `Location` + the record. **No paged lists** for
 work streams/programs (the plan view is the read surface); `GET /projects` is the paged picker list since v0.4 (see "The picker lists" below). `WorkStreamResponse` etc. carry `ownerPersonId` +
 `ownerName`; a project also carries `workStreamId`.
 
@@ -162,8 +162,17 @@ against the real `PUT /projects/{id}/target-window` for every kind of caller). `
 - **Links.** `links[]` rolls the ACTIVE dependencies up per ORDERED pair (predecessor project, successor project), ordered by that pair. Each end resolves to its project (a milestone's own, a project itself) and span (the milestone's dates, the project's derived span);
   a link inside one project is skipped. The pair's `direct` is its PROJECT-to-PROJECT link (`{id, type, lagDays, check}`, at most one per ordered pair by the partial unique index), every other link (a milestone on either end) counts in
   `milestoneLinks{count, violated, unscheduled}`; each is checked like the project view's (`DependencyKernels.check`, working days). Both directions between two projects are two entries.
-- **Roll-up.** `RoadmapKernels.flagCounts` (warnings, infos over a set of flags) is the kernel half of the program/work-stream roll-up (the programs view wires it up next).
+- **Roll-up.** `RoadmapKernels.flagCounts` (warnings, infos over a set of flags) is the kernel half of the program/work-stream roll-up of the programs view (below).
 - **Tests.** `RoadmapKernelsTest` (pure: the drift table, the inversion rule incl. chains, ties, unranked, two teams, the INFO; the link aggregates; the counts), `RoadmapViewTest` (the wire, a flag of each kind, teams, direct/rolled-up links, the deletion, `can` vs. the real PUT, the 401).
+
+## The programs view (built, v0.6.0; `planning/ProgramsView.kt`, `ProgramsTree.kt`, `ProgramsViewService.kt`)
+
+`GET /views/programs` (any authenticated user; no audit, a read) is `{revision, teams[], links[], workStreams[]{id, name, ownerName, startDate, endDate|null, span|null, flags{warnings, infos}, programs[]{id, name, ownerName, span|null, flags, projects[]}}}`; no migration.
+The service is the roadmap view's protocol (ONE read-only REPEATABLE READ transaction, `SNAPSHOT`) with one difference: `revision` is the PLAN revision, read first and informational (no flow on the programs page sends it back; the ranking's revision stays on `GET /views/roadmap`).
+It calls the SAME `loadRoadmapSnapshot` (one set of loaders, one kernel run) plus the active work streams and programs, so `projects[]` are the roadmap's `RoadmapProject` rows exactly (same spans, drift, flags, `can.editTargetWindow`), `teams` and `links` are the roadmap's, and
+an EMPTY program or work stream is present (with a null `span` and zero `flags`). The pure `ProgramsTree.assemble` orders and rolls up: open work streams before closed ones (an `endDate`), streams and programs by lowercase name then id, a program's projects ranked first in rank order, then by name and id.
+A program's `span` = `SpanKernels.derivedSpan` over its projects' spans, a work stream's over its programs' spans (nothing stored); a program's/stream's `flags` = the WARNING and INFO flags over its projects (`RoadmapKernels.flagCounts`). Programs have no target window and no `can`.
+**Tests.** `ProgramsTreeTest` (pure: every ordering, empties, the span and flag roll-ups, orphans dropped), `ProgramsViewTest` (401, the tree through the wire with open/closed/empty nodes, the roll-ups equal the sums of the projects' flags, the rows/`teams`/`links` equal the roadmap's for every kind of caller, the plan-vs-ranking revision, the deletions).
 
 ## Milestones (built — V14, v0.3.0; `planning/Milestone*.kt`)
 
@@ -380,4 +389,4 @@ the three team-level flags apply to every bar. Bound: one team's milestones (abo
 
 - Derived spans, drift (built for the project view, `SpanKernels.kt`) and load (built, `LoadKernels.kt`) are computed at request time in pure kernels (`planning/`, the `CapacityKernels.kt` idiom), with shared JSON test vectors for Kotlin and vitest (deferred to the first
   kernel that needs them; `PlanPermissions` is the first pure kernel and is tested against the guards instead).
-- More view endpoints (`/views/programs`; `/views/plan`, `/views/roadmap`, `/views/project/{id}` and `/views/team/{id}` are built), each one document with `can:{…}` flags and a revision, like Flow's `/reports/home`.
+- More view endpoints (`/views/plan`, `/views/roadmap`, `/views/programs`, `/views/project/{id}` and `/views/team/{id}` are built), each one document with `can:{…}` flags and a revision, like Flow's `/reports/home`.

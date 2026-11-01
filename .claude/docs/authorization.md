@@ -202,6 +202,7 @@ Layered RBAC. Implemented in the `server/src/main/kotlin/authz/` package.
     | `POST /projects/{id}/move` | chain(project) ?: 404 → `requireAncestorOwnerOrAdmin` (the program's or stream's owner; NOT the project's own owner) → body 400 → target program chain ?: **400** "Unknown or deleted program ids: N" → `requireOwnerOrAdmin` on the TARGET chain (both, or ADMIN); 409 name clash in the target program |
     | `PUT /projects/{id}/target-window` | chain(project) ?: 404 → `requireTargetWindowEditorOrAdmin` (ADMIN, the stream's or program's owner, or `ROADMAP_EDITOR`; NOT the project's own owner alone) |
     | `GET /views/roadmap` | authenticated (`can.editRank` shows the caller's right to rank, each project's `can.editTargetWindow` the right to move its band; no audit, a read) |
+    | `GET /views/programs` | authenticated (the project rows carry the roadmap's `can.editTargetWindow`; programs and work streams carry no `can`; no audit, a read) |
     | `PUT /roadmap/ranking` | `requireRoadmapEditorOrAdmin` FIRST — **guard-before-read**: the route addresses no node, so there is no 404 to order against; ADMIN or `ROADMAP_EDITOR`, nobody else (an owner of any node included) |
 
     **A move needs both sides** — the right to take the node out of where it is AND the right to create one where it goes. The source side is `requireAncestorOwnerOrAdmin` on the node's chain: ADMIN or an owner ABOVE the node
@@ -285,7 +286,8 @@ Layered RBAC. Implemented in the `server/src/main/kotlin/authz/` package.
     `requireTeamManagerOrAdmin`'s arithmetic; resolved once per request with `withManagedTeams = true`). Never the project's owner as such. Three flags so a later version may split the rights without a wire change. `PlanPermissionsTest` pins each against the guard; `TeamViewTest` "the three flags are set exactly where the server lets the real write through" checks each against the schedule PUT, the capacity POST and the order PUT for every kind of caller.
   - **The roadmap view's `can.editTargetWindow` (built, v0.6.0 C1; `GET /views/roadmap`, any authenticated user).** Per project row: `PlanPermissions.canEditTargetWindow(actor, chain)` — ADMIN, the caller's person among the owners ABOVE the project (`chain.ancestors`), or the `ROADMAP_EDITOR` grant;
     the project's own owner alone is not enough — exactly `requireTargetWindowEditorOrAdmin`'s arithmetic, on the chain read in the same statement as the row (no second lookup). `RoadmapViewTest` checks the flag against the real `PUT /projects/{id}/target-window` for ADMIN, each owner, an editor, a stranger, a person-less login and a team manager. The view adds no guard and no audit event.
-  - **Still planned (v0.6+):** the programs view's flags. Each new rule lands here with its
+  - **The programs view (built, v0.6.0 C2; `GET /views/programs`, any authenticated user).** Its project rows are the roadmap's `RoadmapProject` (the same `can.editTargetWindow` arithmetic above, on the chain read in the same statement as the row); the program and work stream nodes carry only derived spans and flag counts, no rights. No guard, no audit event, no 404 (the view is the whole plan).
+  - **Still planned:** each new rule lands here with its
     guard order (403 before 400/404, guard-before-read where existence is sensitive) in the same commit as its route.
 - **Existence disclosure (403 vs 404) — deliberate policy (API-ERR-006)**: two sanctioned idioms,
   and every new resource picks one consciously rather than mixing them. **Guard-before-read**

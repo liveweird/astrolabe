@@ -1198,6 +1198,37 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/views/programs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The plan tree with derived spans, flag roll-ups and each project's roadmap row
+         * @description Any authenticated user. One document (a deliberate exception to the paged envelope, bounded by the plan's scale of about 5 work
+         *     streams, 20 programs and 100 projects), read in ONE snapshot: `revision` is the PLAN revision read before the rows
+         *     (informational - no write consumes it; the ranking's revision is `GET /views/roadmap`'s).
+         *
+         *     `workStreams` lists every active work stream, open ones before closed ones (a closed stream has an `endDate`), each level by
+         *     name (case-insensitive) then id; EMPTY programs and work streams are present. A program's `projects` are the roadmap's
+         *     project rows exactly (`RoadmapProject`: derived span, drift, flags, `can.editTargetWindow`), ranked projects first in rank
+         *     order, then the unranked by name and id. `teams` and `links` are `GET /views/roadmap`'s for the same plan.
+         *
+         *     A program's `span` is derived from its projects' spans (earliest start to latest end, null while none is scheduled) and a
+         *     work stream's from its programs' spans; nothing is stored. `flags` roll the projects' flags up: the number of WARNING and INFO
+         *     flags over the program's (work stream's) projects. Programs and work streams carry no target window.
+         */
+        get: operations["getProgramsView"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/views/roadmap": {
         parameters: {
             query?: never;
@@ -2631,6 +2662,61 @@ export interface components {
              * @description How many could not be evaluated (an end has no dates).
              */
             unscheduled: number;
+        };
+        /** @description The roll-up of the flags raised on a set of projects (a program's or a work stream's). */
+        FlagCounts: {
+            /**
+             * Format: int32
+             * @description How many flags are WARNINGs.
+             */
+            warnings: number;
+            /**
+             * Format: int32
+             * @description How many flags are INFOs.
+             */
+            infos: number;
+        };
+        ProgramsView: {
+            /**
+             * Format: int64
+             * @description The PLAN revision, read before the rows. Informational - no flow on the programs page sends it back.
+             */
+            revision: number;
+            /** @description The roadmap view's `teams` (active teams with milestones in the plan, by name). */
+            teams: components["schemas"]["RoadmapTeam"][];
+            /** @description The roadmap view's `links` (the dependencies between projects, rolled up per ordered pair). */
+            links: components["schemas"]["RoadmapLink"][];
+            /** @description Open work streams first, then closed ones, each by name (case-insensitive) then id. */
+            workStreams: components["schemas"]["ProgramsWorkStream"][];
+        };
+        ProgramsWorkStream: {
+            /** Format: int32 */
+            id: number;
+            name: string;
+            ownerName: string;
+            /** Format: date */
+            startDate: string;
+            /**
+             * Format: date
+             * @description Set only when the work stream is closed.
+             */
+            endDate: string | null;
+            /** @description The earliest start to the latest end over its programs' spans; null when none of its projects is scheduled. */
+            span: components["schemas"]["DateSpan"] | null;
+            flags: components["schemas"]["FlagCounts"];
+            /** @description Every active program of the work stream (empty ones included), by name (case-insensitive) then id. */
+            programs: components["schemas"]["ProgramsProgram"][];
+        };
+        ProgramsProgram: {
+            /** Format: int32 */
+            id: number;
+            name: string;
+            ownerName: string;
+            /** @description The earliest start to the latest end over its projects' derived spans; null when none is scheduled. */
+            span: components["schemas"]["DateSpan"] | null;
+            flags: components["schemas"]["FlagCounts"];
+            /** @description The program's projects as the roadmap view's rows; ranked first in rank order, then the unranked by name and id. */
+            projects: components["schemas"]["RoadmapProject"][];
         };
         RankingUpdateRequest: {
             /**
@@ -4910,6 +4996,28 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    getProgramsView: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The programs view */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgramsView"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
             500: components["responses"]["InternalServerError"];
         };
     };

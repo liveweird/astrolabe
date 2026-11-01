@@ -14,7 +14,13 @@ import org.jetbrains.exposed.v1.r2dbc.*
  */
 
 /** What the roadmap and programs views derive from one snapshot: every project row, the team filter's options and the rolled-up links. */
-internal class RoadmapSnapshot(val projects: List<RoadmapProject>, val teams: List<RoadmapTeam>, val links: List<RoadmapLink>)
+internal class RoadmapSnapshot(
+    val projects: List<RoadmapProject>,
+    val teams: List<RoadmapTeam>,
+    val links: List<RoadmapLink>,
+    /** The projects' derived spans by id (absent = none scheduled): the programs view rolls them up without parsing the wire dates. */
+    val spans: Map<UInt, DaySpan>,
+)
 
 /** A project row with the owner chain `can.editTargetWindow` needs; [loadRoadmapSnapshot] completes it into a [RoadmapProject]. */
 private class ProjectRow(val project: RoadmapProject, val chain: OwnerChain, val target: DaySpan?)
@@ -55,7 +61,7 @@ internal suspend fun loadRoadmapSnapshot(actor: PlanActor): RoadmapSnapshot {
     val teams = milestones.filter { it.fact.projectId in known }.associate { it.fact.teamId to it.teamName }
         .map { (id, name) -> RoadmapTeam(id, name) }
         .sortedWith(compareBy({ it.name.lowercase() }, { it.id }))
-    return RoadmapSnapshot(projects, teams, RoadmapKernels.linkAggregates(linkFacts(), projectFacts, facts, spans))
+    return RoadmapSnapshot(projects, teams, RoadmapKernels.linkAggregates(linkFacts(), projectFacts, facts, spans), spans)
 }
 
 /**
