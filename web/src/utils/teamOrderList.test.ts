@@ -31,6 +31,7 @@ const viewOf = (scheduled: number[], unscheduled: number[], stored: number[]): T
   scheduled: scheduled.map((id) => milestone(id)),
   unscheduled: unscheduled.map((id) => milestone(id, false)),
   dependencies: [],
+  idleGaps: [],
 });
 
 // A=1, B=2, M=3 (unscheduled), C=4, N=5 (a newcomer), U=6 (an unlisted unscheduled)

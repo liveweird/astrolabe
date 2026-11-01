@@ -62,6 +62,7 @@ class TeamViewService(private val database: R2dbcDatabase) {
             scheduled = scheduled.map { it.view },
             unscheduled = unscheduled.map { it.view },
             dependencies = viewDependencies(rows.map { it.view.id }, emptyList(), emptyMap(), actor, calendar),
+            idleGaps = idleGapViewsOf(items.map { it.span }, calendar),
         )
     }
 

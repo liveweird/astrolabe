@@ -1,11 +1,12 @@
 package ch.nokillswit
 
+import ch.nokillswit.planning.DependencyStatus
+import ch.nokillswit.planning.IdleGapView
 import ch.nokillswit.planning.MilestoneResponse
 import ch.nokillswit.planning.MilestoneScheduleRequest
 import ch.nokillswit.planning.MilestoneUpdateRequest
 import ch.nokillswit.planning.RankingUpdateRequest
 import ch.nokillswit.planning.TeamView
-import ch.nokillswit.planning.DependencyStatus
 import ch.nokillswit.teams.CapacityPeriodRequest
 import io.ktor.client.call.body
 import io.ktor.client.request.delete
@@ -330,6 +331,57 @@ class TeamViewTest {
             assertEquals(1, bridged.maxWip, "Tuesday and Thursday hold one; the holiday holds none")
             assertFalse(bridged.wipExceeded)
         }
+    }
+
+    @Test
+    fun `idle gaps are the runs of 3 or more working days with none of the team's own milestones in progress`() =
+        testApplication {
+            usePostgresTestcontainer()
+            val w = planWorld("tvi")
+            val team = w.team()
+            assertEquals(emptyList(), w.view(team).idleGaps, "nothing scheduled")
+            w.milestone(team, "2027-02-01", "2027-02-01")
+            assertEquals(emptyList(), w.view(team).idleGaps, "one milestone: nothing before or after it")
+            val other = w.team()
+            w.milestone(other, "2027-02-03", "2027-02-04")
+            assertEquals(emptyList(), w.view(team).idleGaps, "another team's work does not belong to this team's span")
+            w.milestone(team, "2027-02-09", "2027-02-09")
+            // Tue 02-02 .. Mon 02-08: Tue Wed Thu Fri Mon = 5 working days, the weekend between neither counted nor breaking the run;
+            // the other team's Wed..Thu milestone fills nothing of this team's.
+            assertEquals(listOf(IdleGapView("2027-02-02", "2027-02-08", 5)), w.view(team).idleGaps)
+            assertEquals(emptyList(), w.view(other).idleGaps)
+        }
+
+    @Test
+    fun `a holiday shortens an idle gap, a gap too short is absent, and the gap's dates are working days`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("tvih")
+        val team = w.team()
+        w.milestone(team, "2027-01-04", "2027-01-04")
+        w.milestone(team, "2027-01-08", "2027-01-08")
+        assertEquals(listOf(IdleGapView("2027-01-05", "2027-01-07", 3)), w.view(team).idleGaps, "Tue Wed Thu")
+        // Epiphany, Wednesday 2027-01-06: Tue Thu = 2, the gap is gone.
+        TestHolidays.with("2027-01-06") { assertEquals(emptyList(), w.view(team).idleGaps) }
+        assertEquals(1, w.view(team).idleGaps.size, "removing the holiday restores the gap")
+
+        // A holiday on the first idle day moves the gap's start to the next working day.
+        val wide = w.team()
+        w.milestone(wide, "2027-01-04", "2027-01-04")
+        w.milestone(wide, "2027-01-12", "2027-01-12")
+        TestHolidays.with("2027-01-05") {
+            assertEquals(listOf(IdleGapView("2027-01-06", "2027-01-11", 4)), w.view(wide).idleGaps, "Wed Thu Fri Mon (the weekend skipped)")
+        }
+    }
+
+    @Test
+    fun `a milestone whose only day became a holiday opens no leading idle gap on the team either`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("tvil")
+        val team = w.team()
+        w.milestone(team, "2027-02-03", "2027-02-03")
+        w.milestone(team, "2027-02-09", "2027-02-09")
+        assertEquals(listOf(IdleGapView("2027-02-04", "2027-02-08", 3)), w.view(team).idleGaps)
+        TestHolidays.with("2027-02-03") { assertEquals(emptyList(), w.view(team).idleGaps) }
     }
 
     @Test

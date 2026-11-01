@@ -123,6 +123,7 @@ const viewOf = (over: Partial<TeamView> = {}): TeamView => ({
   scheduled: [TV_A, TV_B, TV_C],
   unscheduled: [TRAYED],
   dependencies: [LINK],
+  idleGaps: [],
   ...over,
 });
 

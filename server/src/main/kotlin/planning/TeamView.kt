@@ -27,6 +27,8 @@ data class TeamView(
      * view's [ProjectDependency] shape. Ends are resolved, not listed: there are no ghost rows.
      */
     val dependencies: List<ProjectDependency>,
+    /** The runs of 3 or more working days inside the scheduled milestones' derived span on which none of them is in progress, by start. */
+    val idleGaps: List<IdleGapView>,
 )
 
 /** The [ch.nokillswit.teams.TeamResponse] fields plus what the caller may do with the team's plan. */

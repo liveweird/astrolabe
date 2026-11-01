@@ -31,6 +31,7 @@ const viewOf = (scheduled: TeamMilestone[], unscheduled: TeamMilestone[] = []): 
   scheduled,
   unscheduled,
   dependencies: [],
+  idleGaps: [],
 });
 
 const ids = (list: TeamMilestone[]) => list.map((m) => m.id);

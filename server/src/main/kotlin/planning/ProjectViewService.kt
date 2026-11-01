@@ -78,6 +78,7 @@ class ProjectViewService(private val database: R2dbcDatabase) {
             ).map { it.view },
             unscheduled = unscheduled.sortedWith(compareBy<MilestoneRow>({ it.view.name.lowercase() }, { it.view.id })).map { it.view },
             dependencies = dependencies,
+            idleGaps = idleGapViewsOf(scheduled.mapNotNull { it.span }, calendar),
         )
     }
 

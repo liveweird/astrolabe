@@ -1132,13 +1132,13 @@ export interface paths {
          *
          *     `dependencies` are the project's links: every active link with an end in this project (the project itself or one of its
          *     milestones), both ends resolved (an end in another project carries that project's name, so the page can draw a ghost row; a
-         *     project end carries its DERIVED span, never its target window) and checked on the Monday-Friday working-day index. Bounded
+         *     project end carries its DERIVED span, never its target window) and checked on the working-day calendar (Monday-Friday minus the public holidays). Bounded
          *     by one project's links and the external projects they touch. Ordered so that the top IS the conflict list: `VIOLATED` first
          *     (the largest `shortfallDays` first), then `OK`, then `UNSCHEDULED` (an end without dates: not evaluated, no warning); within a
          *     group by the successor's name, the predecessor's name (case-insensitive) and the id. A violated link only warns - nothing is
          *     ever moved. `project.can.createDependency` is `createMilestone`'s arithmetic (an owner on the project's chain, or ADMIN); a link's
          *     `can.delete` is the same arithmetic on the SUCCESSOR's project chain (so the owner of the predecessor's project alone cannot
-         *     delete it).
+         *     delete it). `idleGaps` lists the runs of 3 or more working days with none of the project's milestones in progress.
          */
         get: operations["getProjectView"];
         put?: never;
@@ -1173,7 +1173,7 @@ export interface paths {
          *
          *     `weeks` has one row per ISO week from the Monday of the earliest scheduled start to the Sunday of the latest scheduled end
          *     (empty while nothing is scheduled; at most 520 weeks from the start, then `weeksTruncated`). A milestone's estimate is spread
-         *     evenly over its Monday-Friday working days, so a week's `load` is the sum of the shares of the working days inside it.
+         *     evenly over its working days (Monday-Friday minus the public holidays), so a week's `load` is the sum of the shares of the working days inside it.
          *     `capacity` is the sum over the week's working days of the man-days per week in force THAT day, divided by 5 - so the week a
          *     capacity period starts in is prorated by working days - and null ("no capacity", never zero, never flagged) when no period is
          *     in force on any working day of the week. `load` and `capacity` are rounded half-up to two decimals and `overloaded` compares the
@@ -1187,7 +1187,7 @@ export interface paths {
          *     `PUT /milestones/{id}/schedule` for this team's milestones, `editCapacity` the capacity period writes, `editOrder` the order
          *     PUT). `dependencies` are the project view's links for the links with an end among the team's milestones, both ends resolved
          *     and checked on the working-day index, violated first; a link's other end may lie in another team or project and is not listed
-         *     as a row of its own.
+         *     as a row of its own. `idleGaps` lists the runs of 3 or more working days with none of the team's milestones in progress.
          */
         get: operations["getTeamView"];
         put?: never;
@@ -2366,6 +2366,8 @@ export interface components {
             unscheduled: components["schemas"]["ProjectMilestone"][];
             /** @description The active links with an end in this project, violated first (the largest shortfall first), then OK, then unscheduled; within a group by successor name, predecessor name and id. */
             dependencies: components["schemas"]["ProjectDependency"][];
+            /** @description The idle gaps inside the span of the milestones that hold a working day: the maximal runs of 3 or more working days on which none of the project's milestones is in progress (weekends and public holidays neither count nor break a run), by start date; empty when there are none. */
+            idleGaps: components["schemas"]["IdleGap"][];
         };
         /** @description A link of the project view (and of the team view) - both ends resolved, the check of the pure kernel and the caller's action. */
         ProjectDependency: {
@@ -2527,6 +2529,26 @@ export interface components {
             unscheduled: components["schemas"]["TeamMilestone"][];
             /** @description The active links with an end among the team's milestones, violated first (the largest shortfall first), then OK, then unscheduled; within a group by successor name, predecessor name and id. Ends are resolved, not listed: there are no ghost rows. */
             dependencies: components["schemas"]["ProjectDependency"][];
+            /** @description The idle gaps inside the span of the team's scheduled milestones: the maximal runs of 3 or more working days on which none of them is in progress (weekends and public holidays neither count nor break a run), by start date; empty when there are none. */
+            idleGaps: components["schemas"]["IdleGap"][];
+        };
+        /** @description A run of idle working days, answered as its first and last working day. */
+        IdleGap: {
+            /**
+             * Format: date
+             * @description The first idle working day.
+             */
+            start: string;
+            /**
+             * Format: date
+             * @description The last idle working day (a working day, never a weekend or holiday).
+             */
+            end: string;
+            /**
+             * Format: int32
+             * @description The number of idle working days from `start` to `end` (weekends and holidays not counted).
+             */
+            workingDays: number;
         };
         /** @description The `TeamResponse` fields plus what the caller may do with the team's plan. */
         TeamViewTeam: {

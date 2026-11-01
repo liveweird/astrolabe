@@ -1,5 +1,6 @@
 package ch.nokillswit
 
+import ch.nokillswit.planning.IdleGapView
 import ch.nokillswit.planning.MilestoneCreateRequest
 import ch.nokillswit.planning.MilestoneScheduleRequest
 import ch.nokillswit.planning.MilestoneUpdateRequest
@@ -354,5 +355,68 @@ class ProjectViewTest {
         assertEquals("2026-11-02" to "2026-11-06", after.span?.let { it.start to it.end })
         TestPlan.schedule(id, null, null)
         assertNull(w.stranger.view(w.projectId).span, "unscheduling drops the span again")
+    }
+
+    @Test
+    fun `idle gaps are the runs of 3 or more working days inside the span that none of the project's own milestones is in progress`() =
+        testApplication {
+            usePostgresTestcontainer()
+            val w = planWorld("pvi")
+            val team = TestTeams.seed(planName("pvi-t"), null)
+            val first = TestPlan.milestone(w.projectId, team, "first", 1.0)
+            assertEquals(emptyList(), w.stranger.view(w.projectId).idleGaps, "nothing scheduled")
+            TestPlan.schedule(first, "2027-02-01", "2027-02-01")
+            assertEquals(emptyList(), w.stranger.view(w.projectId).idleGaps, "one milestone")
+            // A milestone of ANOTHER project, even of the same team, fills nothing of this project's hole.
+            val otherProject = TestPlan.project(w.programId, w.projectOwner.personId!!)
+            TestPlan.schedule(TestPlan.milestone(otherProject, team, "elsewhere", 1.0), "2027-02-03", "2027-02-04")
+            val last = TestPlan.milestone(w.projectId, team, "last", 1.0)
+            TestPlan.schedule(last, "2027-02-09", "2027-02-09")
+            // Tue 02-02 .. Mon 02-08 is five working days; the weekend neither counts nor breaks the run.
+            assertEquals(listOf(IdleGapView("2027-02-02", "2027-02-08", 5)), w.stranger.view(w.projectId).idleGaps)
+            assertEquals(emptyList(), w.stranger.view(otherProject).idleGaps)
+            // Moving the last milestone closer shortens the hole below 3 working days (Tue Wed): no gap.
+            TestPlan.schedule(last, "2027-02-04", "2027-02-04")
+            assertEquals(emptyList(), w.stranger.view(w.projectId).idleGaps)
+        }
+
+    @Test
+    fun `a holiday shortens an idle gap and a milestone over a holiday-only span leaves its hole open`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("pvih")
+        val team = TestTeams.seed(planName("pvih-t"), null)
+        for ((start, end) in listOf("2027-01-04" to "2027-01-04", "2027-01-08" to "2027-01-08")) {
+            TestPlan.schedule(TestPlan.milestone(w.projectId, team, "m-$start", 1.0), start, end)
+        }
+        assertEquals(listOf(IdleGapView("2027-01-05", "2027-01-07", 3)), w.stranger.view(w.projectId).idleGaps, "Tue Wed Thu")
+        // Epiphany, Wednesday 2027-01-06: Tue Thu = 2 working days, the gap is gone.
+        TestHolidays.with("2027-01-06") { assertEquals(emptyList(), w.stranger.view(w.projectId).idleGaps) }
+
+        // A milestone dated only on a day that later becomes a holiday keeps its dates but covers nothing, so it stops splitting the hole.
+        val split = TestPlan.project(w.programId, w.projectOwner.personId!!)
+        for ((start, end) in listOf("2027-01-04" to "2027-01-04", "2027-01-06" to "2027-01-06", "2027-01-11" to "2027-01-11")) {
+            TestPlan.schedule(TestPlan.milestone(split, team, "s-$start", 1.0), start, end)
+        }
+        assertEquals(emptyList(), w.stranger.view(split).idleGaps, "Tue | Thu Fri: 1 and 2 working days")
+        TestHolidays.with("2027-01-06") {
+            assertEquals(listOf(IdleGapView("2027-01-05", "2027-01-08", 3)), w.stranger.view(split).idleGaps, "Tue Thu Fri")
+        }
+    }
+
+    @Test
+    fun `a milestone whose only day became a holiday opens no leading idle gap`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("pvil")
+        val team = TestTeams.seed(planName("pvil-t"), null)
+        // A is only on Wed 2027-02-03, B on Tue 02-09: the hole Thu 04..Mon 08 is 3 working days inside the work.
+        TestPlan.schedule(TestPlan.milestone(w.projectId, team, "a", 1.0), "2027-02-03", "2027-02-03")
+        TestPlan.schedule(TestPlan.milestone(w.projectId, team, "b", 1.0), "2027-02-09", "2027-02-09")
+        assertEquals(listOf(IdleGapView("2027-02-04", "2027-02-08", 3)), w.stranger.view(w.projectId).idleGaps)
+        // Wed 02-03 a holiday: A keeps its dates (the span still starts there) but is no work, so nothing is idle before B.
+        TestHolidays.with("2027-02-03") {
+            val held = w.stranger.view(w.projectId)
+            assertEquals("2027-02-03", held.span?.start)
+            assertEquals(emptyList(), held.idleGaps)
+        }
     }
 }

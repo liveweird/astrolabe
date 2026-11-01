@@ -84,6 +84,7 @@ const viewOf = (over: Partial<ProjectViewDocument> = {}): ProjectViewDocument =>
   scheduled: [DISCOVERY, BUILD],
   unscheduled: [AUDIT, ROLLOUT],
   dependencies: [],
+  idleGaps: [],
   ...over,
 });
 

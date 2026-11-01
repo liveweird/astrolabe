@@ -27,6 +27,8 @@ data class ProjectView(
      * they touch.
      */
     val dependencies: List<ProjectDependency>,
+    /** The runs of 3 or more working days inside [span] on which none of the project's milestones is in progress, by start. */
+    val idleGaps: List<IdleGapView>,
 )
 
 /** [DaySpan] on the wire: ISO `YYYY-MM-DD` strings, inclusive. */
