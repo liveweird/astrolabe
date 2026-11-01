@@ -141,9 +141,13 @@ fun validateScheduleRequest(request: MilestoneScheduleRequest): MilestoneSpan? {
     return validateSchedule(request.startDate, request.endDate)
 }
 
+/** The 400 for a span without a working day: [validateSchedule] raises it for a weekend-only span, the write for a holiday-only. */
+const val NO_WORKING_DAY_MESSAGE = "A milestone must cover at least one working day"
+
 /**
  * The schedule rules: both dates or neither (400 otherwise; neither = unschedule, null result), each an ISO date, the end not before the
- * start, and at least one Monday-Friday day inside the span ("A milestone must cover at least one working day").
+ * start, and at least one Monday-Friday day inside the span ([NO_WORKING_DAY_MESSAGE]). This is the pure, calendar-free half: it runs
+ * before any lock and knows no holidays; `MilestoneService.schedule` adds the holiday-aware check under the plan lock (D2).
  */
 fun validateSchedule(startDate: String?, endDate: String?): MilestoneSpan? {
     if ((startDate == null) != (endDate == null)) {
@@ -154,7 +158,7 @@ fun validateSchedule(startDate: String?, endDate: String?): MilestoneSpan? {
     val end = parseIsoDate(endDate, "End date")
     requireDateOrder(start, end)
     if (!WorkingCalendar.MON_FRI.containsWorkingDay(start, end)) {
-        throw BadRequestException("A milestone must cover at least one working day")
+        throw BadRequestException(NO_WORKING_DAY_MESSAGE)
     }
     return MilestoneSpan(start, end)
 }

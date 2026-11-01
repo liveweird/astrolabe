@@ -277,6 +277,62 @@ class TeamViewTest {
     }
 
     @Test
+    fun `a holiday week keeps the divisor 5 - 8 MD of capacity at 10 per week, so a full-week milestone is overloaded by 2`() =
+        testApplication {
+            usePostgresTestcontainer()
+            val w = planWorld("tvh")
+            val team = w.team()
+            TestPlan.capacityPeriod(team, "2027-01-04", 10.0)
+            w.milestone(team, "2027-01-04", "2027-01-08", 10.0)
+            val plain = w.view(team).weeks.single()
+            assertEquals(10.0, plain.capacity)
+            assertFalse(plain.overloaded)
+
+            // Epiphany, Wednesday 2027-01-06: four covered days over the fixed divisor 5 -> 4 x 10/5; the 10 MD milestone still loads 10.
+            TestHolidays.with("2027-01-06") {
+                val held = w.view(team).weeks.single()
+                assertEquals(10.0, held.load, "all of the estimate lands on the four remaining days")
+                assertEquals(8.0, held.capacity)
+                assertTrue(held.overloaded)
+                assertEquals(2.0, held.overloadMd)
+            }
+            assertEquals(10.0, w.view(team).weeks.single().capacity, "removing the holiday restores the week")
+        }
+
+    @Test
+    fun `a milestone over a holiday spreads its estimate over the remaining working days, and the holiday runs no WIP`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("tvhs")
+        val spread = w.team()
+        TestPlan.capacityPeriod(spread, "2027-01-04", 10.0)
+        w.milestone(spread, "2027-01-04", "2027-01-11", 10.0)
+        assertEquals(listOf(8.33, 1.67), w.view(spread).weeks.map { it.load }, "six working days without the holiday")
+
+        // A single-day milestone scheduled BEFORE its day became a holiday keeps its dates, covers no working day and runs no WIP.
+        val lone = w.team()
+        TestPlan.capacityPeriod(lone, "2027-01-04", 10.0, wipLimit = 1)
+        w.milestone(lone, "2027-01-06", "2027-01-06", 3.0)
+        // Two milestones over the holiday: Wednesday would be a WIP of 2 over the limit of 1, but the holiday counts no one.
+        val pair = w.team()
+        TestPlan.capacityPeriod(pair, "2027-01-04", 10.0, wipLimit = 1)
+        w.milestone(pair, "2027-01-05", "2027-01-07", 4.0)
+        w.milestone(pair, "2027-01-06", "2027-01-06", 4.0)
+        assertEquals(1, w.view(lone).weeks.single().maxWip)
+        assertTrue(w.view(pair).weeks.single().wipExceeded, "without the holiday Wednesday holds two milestones")
+
+        TestHolidays.with("2027-01-06") {
+            assertEquals(listOf(8.0, 2.0), w.view(spread).weeks.map { it.load }, "five working days: 2 MD each")
+            val onlyHoliday = w.view(lone).weeks.single()
+            assertEquals(0, onlyHoliday.maxWip)
+            assertEquals(0.0, onlyHoliday.load)
+            assertFalse(onlyHoliday.wipExceeded)
+            val bridged = w.view(pair).weeks.single()
+            assertEquals(1, bridged.maxWip, "Tuesday and Thursday hold one; the holiday holds none")
+            assertFalse(bridged.wipExceeded)
+        }
+    }
+
+    @Test
     fun `the WIP limit is judged per working day, so a limit changed mid-week keeps its own verdict`() = testApplication {
         usePostgresTestcontainer()
         val w = planWorld("tvi")

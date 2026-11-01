@@ -213,7 +213,8 @@ place:
 - `telemetry/TelemetryRoutes.kt` (the ADMIN read API: `TelemetryReads.kt`, `TelemetryCurrent.kt`, `TelemetryHistory.kt`) READS `ops.telemetry_processes` /
   `ops.telemetry_samples` (its own schema; one SELECT per transaction under `queryTimeout` 5 s, the history grouped per role/metric/label/bucket in SQL).
 
-- `planning/PublicHolidayService` (V19) WRITES only its own table, `public_holidays` (hard-delete), and only inside `withPlanWrite` (so it takes the `plan_state` lock and bumps `plan_state.revision` like every plan write); it reads no other feature's table. The views' and the schedule write's READS of `public_holidays` (the working calendar) are listed here when they land.
+- `planning/PublicHolidayService` (V19) WRITES only its own table, `public_holidays` (hard-delete), and only inside `withPlanWrite` (so it takes the `plan_state` lock and bumps `plan_state.revision` like every plan write); it reads no other feature's table.
+- `planning/` (V19, v0.7 C3): `ProjectViewService`, `TeamViewService`, `RoadmapViewRows.loadRoadmapSnapshot` (the roadmap AND programs views) and `MilestoneService.schedule` READ `PublicHolidayService.PublicHolidays` — the whole dictionary, one unfiltered `SELECT` of `holiday_date, name` — through `loadWorkingCalendar()` (`PublicHolidayService.kt`), a plain suspend function that runs INSIDE the caller's own transaction: right after `readPlanRevision()` in the views' REPEATABLE READ snapshot (so the revision, the rows and the calendar are one snapshot), and under the plan lock in the schedule write. A read, no lock; never from a route, never cached across requests (the calendar is a per-request parameter of the pure kernels).
 
 List each new cross-feature read/write here as it lands — the list IS the permission.
 

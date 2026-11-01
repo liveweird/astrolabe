@@ -14,7 +14,7 @@ val ProgramsViewServiceKey = AttributeKey<ProgramsViewService>("ProgramsViewServ
  * that takes the PLAN revision FIRST, then the roadmap's rows ([loadRoadmapSnapshot]: the SAME loaders and kernel run, so the project
  * rows, `teams` and `links` equal the roadmap view's for the same plan) and the active work streams and programs (so EMPTY ones
  * appear), and folds them with the pure [ProgramsTree]. Reads `WorkStreams ⋈ People` and `Programs ⋈ People` on top of the roadmap
- * view's reads and writes nothing (`persistence.md`).
+ * view's reads (`PublicHolidays` among them) and writes nothing (`persistence.md`).
  */
 class ProgramsViewService(private val database: R2dbcDatabase) {
     suspend fun view(actor: PlanActor): ProgramsView = suspendTransaction(database, SNAPSHOT, readOnly = true) {

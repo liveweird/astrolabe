@@ -2,6 +2,7 @@ package ch.nokillswit
 
 import ch.nokillswit.planning.MilestoneResponse
 import ch.nokillswit.planning.MilestoneScheduleRequest
+import ch.nokillswit.planning.ProjectView
 import ch.nokillswit.planning.ScheduleResponse
 import ch.nokillswit.plugins.ProblemDetail
 import io.ktor.client.HttpClient
@@ -174,6 +175,83 @@ class MilestoneScheduleTest {
         assertEquals(HttpStatusCode.OK, t.manager.client.put(path, before, "2026-11-07", "2026-11-09").status)
         assertEquals(HttpStatusCode.OK, t.manager.client.put(path, TestPlan.revision(), "2026-11-06", "2026-11-06").status)
         assertEquals(HttpStatusCode.OK, t.manager.client.put(path, TestPlan.revision(), "2026-11-06", "2026-11-22").status)
+    }
+
+    @Test
+    fun `a span of only holidays and weekend days is 400 after the guard, one working day inside it is fine`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("hol", teams = true)
+        val t = w.requireTeams()
+        val id = TestPlan.milestone(w.projectId, t.teamId)
+        val path = "/api/v1/milestones/$id"
+        // Fri 2026-11-06 is a holiday here: Fri alone, and Fri..Sun, hold no working day; Fri..Mon holds Monday.
+        TestHolidays.with("2026-11-06") {
+            val before = TestPlan.revision()
+            val onlyOff = listOf("the holiday" to ("2026-11-06" to "2026-11-06"), "holiday + weekend" to ("2026-11-06" to "2026-11-08"))
+            for ((label, span) in onlyOff) {
+                val response = t.manager.client.put(path, before, span.first, span.second)
+                assertEquals(HttpStatusCode.BadRequest, response.status, label)
+                assertEquals("A milestone must cover at least one working day", response.problem().detail, label)
+            }
+            assertEquals(before, TestPlan.revision(), "a refused write rolled back, bump included")
+            assertNull(w.admin.client.read(path).startDate, "nothing was written")
+            // ADMIN is held to the same rule; the working day inside the span lets it through.
+            assertEquals(HttpStatusCode.BadRequest, w.admin.client.put(path, before, "2026-11-06", "2026-11-06").status)
+            assertEquals(HttpStatusCode.OK, t.manager.client.put(path, before, "2026-11-06", "2026-11-09").status)
+            // Clearing the dates is always fine: there is no span to check.
+            assertEquals(HttpStatusCode.OK, t.manager.client.put(path, TestPlan.revision(), null, null).status)
+        }
+        // Without the holiday the same single day is an ordinary Friday.
+        assertEquals(HttpStatusCode.OK, t.manager.client.put(path, TestPlan.revision(), "2026-11-06", "2026-11-06").status)
+    }
+
+    @Test
+    fun `the holiday 400 keeps the order - 404 then 403 first, and it comes before the stale check`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("holo", teams = true)
+        val t = w.requireTeams()
+        val id = TestPlan.milestone(w.projectId, t.teamId)
+        val gone = TestPlan.milestone(w.projectId, t.teamId)
+        assertEquals(HttpStatusCode.NoContent, w.admin.client.delete("/api/v1/milestones/$gone").status)
+        val path = "/api/v1/milestones/$id"
+        TestHolidays.with("2026-11-06") {
+            val viewRevision = TestPlan.revision()
+            // 404 and 403 win over the 400, whatever the span.
+            val unknown = "/api/v1/milestones/999999"
+            assertEquals(HttpStatusCode.NotFound, w.admin.client.put(unknown, viewRevision, "2026-11-06", "2026-11-06").status)
+            val deleted = "/api/v1/milestones/$gone"
+            assertEquals(HttpStatusCode.NotFound, t.manager.client.put(deleted, viewRevision, "2026-11-06", "2026-11-06").status)
+            val outsiders = listOf("stranger" to w.stranger, "project owner" to w.projectOwner, "other manager" to t.otherManager)
+            for ((label, caller) in outsiders) {
+                assertEquals(forbidden, caller.client.put(path, viewRevision, "2026-11-06", "2026-11-06").status, label)
+            }
+            // After the guard the holiday 400 comes before the stale check: a stale revision with a holiday-only span is 400, with a
+            // working span 409.
+            TestPlan.schedule(id, "2026-11-09", "2026-11-13")
+            assertEquals(HttpStatusCode.BadRequest, t.manager.client.put(path, viewRevision, "2026-11-06", "2026-11-06").status)
+            assertEquals(HttpStatusCode.Conflict, t.manager.client.put(path, viewRevision, "2026-11-02", "2026-11-04").status)
+            assertEquals("2026-11-09", w.admin.client.read(path).startDate, "nothing was overwritten")
+        }
+    }
+
+    @Test
+    fun `a milestone that loses its last working day to a later holiday keeps its dates and the views still show it`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("holk", teams = true)
+        val t = w.requireTeams()
+        val id = TestPlan.milestone(w.projectId, t.teamId)
+        val path = "/api/v1/milestones/$id"
+        TestPlan.schedule(id, "2026-11-06", "2026-11-06")
+        TestHolidays.with("2026-11-06") {
+            val stored = w.stranger.client.read(path)
+            assertEquals("2026-11-06" to "2026-11-06", stored.startDate to stored.endDate, "the holiday write did not touch the dates")
+            val view = w.stranger.client.get("/api/v1/views/project/${w.projectId}").body<ProjectView>()
+            assertEquals(listOf(id), view.scheduled.map { it.id }, "the project view still lists it as scheduled")
+            assertEquals("2026-11-06", view.span?.start)
+            // The same span can no longer be written back, but the milestone can be moved to a working day or unscheduled.
+            assertEquals(HttpStatusCode.BadRequest, t.manager.client.put(path, view.revision, "2026-11-06", "2026-11-06").status)
+            assertEquals(HttpStatusCode.OK, t.manager.client.put(path, view.revision, "2026-11-09", "2026-11-09").status)
+        }
     }
 
     @Test

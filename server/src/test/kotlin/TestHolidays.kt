@@ -4,6 +4,8 @@ import ch.nokillswit.authz.NotFoundException
 import ch.nokillswit.planning.PublicHolidayCreateRequest
 import ch.nokillswit.planning.PublicHolidayService
 import java.time.LocalDate
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 
 /**
  * The public-holiday dictionary (`public_holidays`, V19) from the test side. The table is GLOBAL, shared state and starts EMPTY (no
@@ -20,7 +22,8 @@ object TestHolidays {
         return try {
             block()
         } finally {
-            remove(created.id)
+            // NonCancellable: a cancelled test (the 60 s limit) must still remove its holiday, or later pinned figures shift.
+            withContext(NonCancellable) { remove(created.id) }
         }
     }
 

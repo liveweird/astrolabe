@@ -104,6 +104,42 @@ class ProjectViewDependenciesTest {
     }
 
     @Test
+    fun `a holiday moves the needs date of an FS link and counts in a lag - the check reverts when it is removed`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("pvdh", teams = true)
+        val t = w.requireTeams()
+        val b = secondProject(w, "pvdh")
+        val a1 = TestPlan.milestone(w.projectId, t.teamId, "a1")
+        val b1 = TestPlan.milestone(b.projectId, t.teamId, "b1")
+        val b2 = TestPlan.milestone(b.projectId, t.teamId, "b2")
+        // a1 ends Friday 2027-02-05. b1 starts the Monday after (FS, no lag); b2 starts Wednesday 02-10 (FS lag 2: exactly met).
+        TestPlan.schedule(a1, "2027-02-01", "2027-02-05")
+        TestPlan.schedule(b1, "2027-02-08", "2027-02-12")
+        TestPlan.schedule(b2, "2027-02-10", "2027-02-12")
+        val plain = TestPlan.dependency(milestoneRef(a1), milestoneRef(b1))
+        val lagged = TestPlan.dependency(milestoneRef(a1), milestoneRef(b2), DependencyType.FS, 2)
+        val before = w.stranger.view(w.projectId)
+        assertEquals("2027-02-08", before.link(plain).check.requiredDate)
+        assertEquals(DependencyStatus.OK, before.link(plain).check.status)
+        assertEquals("2027-02-10", before.link(lagged).check.requiredDate)
+        assertEquals(DependencyStatus.OK, before.link(lagged).check.status)
+
+        // Monday 02-08 is a holiday: the "needs" date moves to the next working day (Tuesday) and b1, whose effective start is that same
+        // Tuesday, still meets it; the lag now spends one of its two days on the holiday, so b2 is one working day short.
+        TestHolidays.with("2027-02-08") {
+            val held = w.stranger.view(w.projectId)
+            assertEquals("2027-02-09", held.link(plain).check.requiredDate, "the holiday is skipped")
+            assertEquals(DependencyStatus.OK, held.link(plain).check.status)
+            assertEquals("2027-02-11", held.link(lagged).check.requiredDate, "lag 2 counts the working days of the calendar")
+            assertEquals(DependencyStatus.VIOLATED, held.link(lagged).check.status)
+            assertEquals(1, held.link(lagged).check.shortfallDays)
+        }
+        val after = w.stranger.view(w.projectId)
+        assertEquals("2027-02-08", after.link(plain).check.requiredDate)
+        assertEquals(DependencyStatus.OK, after.link(lagged).check.status)
+    }
+
+    @Test
     fun `violated first with the largest shortfall first, then OK, then unscheduled - names case-insensitive within a group`() =
         testApplication {
             usePostgresTestcontainer()

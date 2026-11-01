@@ -1,7 +1,6 @@
 package ch.nokillswit.planning
 
 import ch.nokillswit.infra.db.active
-import ch.nokillswit.infra.time.WorkingCalendar
 import ch.nokillswit.people.PersonService
 import ch.nokillswit.teams.TeamService
 import io.ktor.util.AttributeKey
@@ -18,13 +17,13 @@ val TeamViewServiceKey = AttributeKey<TeamViewService>("TeamViewService")
  * ACTIVE milestones (the team's own positions, read from those milestones, never by iterating the order table), [weeklyLoad] over the
  * scheduled ones for the window of [loadWindow] against the stored capacity periods, and [DependencyKernels.check] per link
  * ([viewDependencies]). The team must be active (null = the route's 404). Reads `Teams`, `People`, the plan tables, `RoadmapEntries`,
- * the order tables, `CapacityPeriods` and `Dependencies` and writes nothing (`persistence.md`).
+ * the order tables, `CapacityPeriods`, `Dependencies` and `PublicHolidays` (the working calendar, [loadWorkingCalendar], read right
+ * after the revision) and writes nothing (`persistence.md`).
  */
 class TeamViewService(private val database: R2dbcDatabase) {
     suspend fun view(teamId: UInt, actor: PlanActor): TeamView? = suspendTransaction(database, SNAPSHOT, readOnly = true) {
         val revision = readPlanRevision()
-        // v0.7 C3 swaps this for the holiday dictionary read inside this snapshot.
-        val calendar = WorkingCalendar.MON_FRI
+        val calendar = loadWorkingCalendar()
         val teams = TeamService.Teams
         val team = teams.selectAll().where { (teams.id eq teamId) and teams.active() }.toList().singleOrNull()
             ?: return@suspendTransaction null

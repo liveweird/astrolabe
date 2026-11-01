@@ -216,6 +216,39 @@ class RoadmapViewTest {
         assertNull(w.stranger.client.view().link(a, b), "no link left between the pair")
     }
 
+    @Test
+    fun `a holiday flips the rolled-up links - a lag counts working days of the calendar, and removing it restores the verdict`() =
+        testApplication {
+            usePostgresTestcontainer()
+            val w = planWorld("rv-hol", teams = true)
+            val t = w.requireTeams()
+            val owner = w.projectOwner.personId!!
+            val a = TestPlan.project(w.programId, owner)
+            val b = TestPlan.project(w.programId, owner)
+            val aMs = TestPlan.milestone(a, t.teamId)
+            val bMs = TestPlan.milestone(b, t.teamId)
+            TestPlan.schedule(aMs, "2027-03-01", "2027-03-05")
+            TestPlan.schedule(bMs, "2027-03-10", "2027-03-12")
+            // FS lag 2: a's end is Friday 03-05, so b may start Wednesday 03-10 - exactly met. A holiday on Monday 03-08 takes a working
+            // day out of the lag, the requirement moves to Thursday 03-11 and both the direct link and the bundle are violated by one.
+            val direct = TestPlan.dependency(projectRef(a), projectRef(b), DependencyType.FS, 2)
+            TestPlan.dependency(milestoneRef(aMs), milestoneRef(bMs), DependencyType.FS, 2)
+            val plain = checkNotNull(w.stranger.client.view().link(a, b))
+            assertEquals(DependencyStatus.OK, plain.direct?.check?.status)
+            assertEquals(0, plain.milestoneLinks.violated)
+
+            TestHolidays.with("2027-03-08") {
+                val held = checkNotNull(w.stranger.client.view().link(a, b))
+                assertEquals(direct, held.direct?.id)
+                assertEquals(DependencyStatus.VIOLATED, held.direct?.check?.status)
+                assertEquals(1, held.direct?.check?.shortfallDays)
+                assertEquals(1, held.milestoneLinks.violated)
+            }
+            val restored = checkNotNull(w.stranger.client.view().link(a, b))
+            assertEquals(DependencyStatus.OK, restored.direct?.check?.status)
+            assertEquals(0, restored.milestoneLinks.violated)
+        }
+
     private fun warningOnGone(teamId: UInt, other: UInt) = flag(FlagKind.RANK_INVERSION, FlagSeverity.WARNING, 7, teamId, other)
 
     @Test

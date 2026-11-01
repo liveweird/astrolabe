@@ -183,9 +183,10 @@ class MilestoneService(private val database: R2dbcDatabase) {
 
     /**
      * The schedule write under the plan lock, in this order: the chain is re-read (missing = 404, nothing written) -> [guard] against it
-     * (the STORED team's manager as of the lock: a manager revoked meanwhile is a 403, not a 409) -> THIS milestone's `schedule_revision`
-     * against `expectedRevision`, which must also not exceed the current plan revision (409 `urn:astrolabe:problem:stale-revision`
-     * either way, nothing written) -> the write, which stamps
+     * (the STORED team's manager as of the lock: a manager revoked meanwhile is a 403, not a 409) -> the span must hold a working day of
+     * the CURRENT holiday calendar (400, D2: a holiday-only span; a stranger is refused before this) -> THIS milestone's
+     * `schedule_revision` against `expectedRevision`, which must also not exceed the current plan revision (409
+     * `urn:astrolabe:problem:stale-revision` either way, nothing written) -> the write, which stamps
      * `schedule_revision` with the new plan revision. The null pair unschedules. The outcome carries the STORED span for the audit.
      */
     suspend fun schedule(id: UInt, request: MilestoneScheduleRequest, guard: ScheduleGuard): ScheduleOutcome {
@@ -193,6 +194,11 @@ class MilestoneService(private val database: R2dbcDatabase) {
         val write = database.withPlanWrite { revision ->
             val chain = milestoneChain(id) ?: throw NotFoundException(MILESTONE_NOT_FOUND)
             guard(chain)
+            // The holiday-aware half of "at least one working day" (D2): the calendar is read HERE, under the lock, so the verdict is
+            // the dictionary as of this write. After the re-guard (a stranger never learns it) and before the stale check.
+            if (span != null && !loadWorkingCalendar().containsWorkingDay(span.start, span.end)) {
+                throw BadRequestException(NO_WORKING_DAY_MESSAGE)
+            }
             val before = Milestones.select(Milestones.startDate, Milestones.endDate, Milestones.scheduleRevision)
                 .where { (Milestones.id eq id) and Milestones.active() }
                 .toList().singleOrNull() ?: throw NotFoundException(MILESTONE_NOT_FOUND)

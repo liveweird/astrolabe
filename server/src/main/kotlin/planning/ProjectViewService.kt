@@ -1,7 +1,6 @@
 package ch.nokillswit.planning
 
 import ch.nokillswit.infra.db.active
-import ch.nokillswit.infra.time.WorkingCalendar
 import ch.nokillswit.teams.TeamService
 import io.ktor.util.AttributeKey
 import io.r2dbc.spi.IsolationLevel
@@ -18,18 +17,18 @@ internal val SNAPSHOT = IsolationLevel.REPEATABLE_READ
 /**
  * One project, its milestones and its dependencies (`GET /views/project/{id}`): ONE read transaction that takes the revision FIRST and
  * the rows after (the plan view's protocol — a row newer than the revision only makes a later schedule PUT carrying it answer a
- * conservative 409), then derives the span and the drift with [SpanKernels], checks the links ([projectDependencies], the pure
- * [DependencyKernels]) and computes the caller's `can` flags with [PlanPermissions]. The project, its program
- * and its work stream must all be active (null = the route's 404). Milestones are split into the scheduled (by start, end, name, id)
- * and the unscheduled (by name, id); names sort case-insensitively. The transaction is READ ONLY at REPEATABLE READ so that the revision,
- * the project's milestones, the links, the external ends and the chains are ONE snapshot (the default READ COMMITTED would let each
+ * conservative 409), then the working calendar ([loadWorkingCalendar], the holiday dictionary, same snapshot), then derives the span
+ * and the drift with [SpanKernels], checks the links ([projectDependencies], the pure [DependencyKernels]) and computes the caller's
+ * `can` flags with [PlanPermissions]. The project, its program and its work stream must all be active (null = the route's 404).
+ * Milestones are split into the scheduled (by start, end, name, id) and the unscheduled (by name, id);
+ * names sort case-insensitively. The transaction is READ ONLY at REPEATABLE READ so that the revision, the project's milestones,
+ * the links, the external ends and the chains are ONE snapshot (the default READ COMMITTED would let each
  * statement see a different committed plan, e.g. a link whose end the milestone read predates).
  */
 class ProjectViewService(private val database: R2dbcDatabase) {
     suspend fun view(projectId: UInt, actor: PlanActor): ProjectView? = suspendTransaction(database, SNAPSHOT, readOnly = true) {
         val revision = readPlanRevision()
-        // v0.7 C3 swaps this for the holiday dictionary read inside this snapshot.
-        val calendar = WorkingCalendar.MON_FRI
+        val calendar = loadWorkingCalendar()
         val projects = ProjectService.Projects
         val programs = ProgramService.Programs
         val streams = WorkStreamService.WorkStreams

@@ -4,6 +4,7 @@ import ch.nokillswit.authz.NotFoundException
 import ch.nokillswit.infra.db.insertRowsIgnoringConflicts
 import ch.nokillswit.infra.db.localDate
 import ch.nokillswit.infra.db.nowMillis
+import ch.nokillswit.infra.time.WorkingCalendar
 import io.ktor.util.AttributeKey
 import kotlinx.coroutines.flow.toList
 import org.jetbrains.exposed.v1.core.ResultRow
@@ -14,11 +15,25 @@ import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.r2dbc.R2dbcDatabase
 import org.jetbrains.exposed.v1.r2dbc.deleteWhere
 import org.jetbrains.exposed.v1.r2dbc.insert
+import org.jetbrains.exposed.v1.r2dbc.select
 import org.jetbrains.exposed.v1.r2dbc.selectAll
 import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
 import java.time.LocalDate
 
 val PublicHolidayServiceKey = AttributeKey<PublicHolidayService>("PublicHolidayService")
+
+/**
+ * The whole holiday dictionary as a [WorkingCalendar], read INSIDE the caller's open transaction (like [readPlanRevision]): a view
+ * calls it right after the revision, so the revision, the rows and the calendar are one REPEATABLE READ snapshot; the schedule write
+ * calls it under the plan lock. Never from a route and never cached across requests - the calendar is a per-request parameter of the
+ * pure kernels. The dictionary is ADMIN-curated (about 14 rows per year), so one unfiltered read is bounded.
+ */
+suspend fun loadWorkingCalendar(): WorkingCalendar {
+    val holidays = PublicHolidayService.PublicHolidays
+    return WorkingCalendar(
+        holidays.select(holidays.holidayDate, holidays.name).toList().associate { it[holidays.holidayDate] to it[holidays.name] },
+    )
+}
 
 /**
  * The public-holiday dictionary (`public_holidays`, V19): flat ADMIN-curated dates, HARD-deleting (the registry exception to the

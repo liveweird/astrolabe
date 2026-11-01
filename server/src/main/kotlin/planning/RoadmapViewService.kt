@@ -12,7 +12,7 @@ val RoadmapViewServiceKey = AttributeKey<RoadmapViewService>("RoadmapViewService
  * pure [RoadmapKernels]), then splits the projects into the ranked ones in position order and the unranked ones by name
  * (case-insensitive, then id). The snapshot keeps the revision and the rows consistent: a write that commits after the
  * transaction began is invisible to every statement of it. Reads `Projects ⋈ Programs ⋈ WorkStreams ⋈ People`,
- * `Milestones ⋈ Teams`, `Dependencies` and `RoadmapEntries` and writes nothing (`persistence.md`).
+ * `Milestones ⋈ Teams`, `Dependencies`, `RoadmapEntries` and `PublicHolidays` and writes nothing (`persistence.md`).
  */
 class RoadmapViewService(private val database: R2dbcDatabase) {
     suspend fun view(actor: PlanActor): RoadmapView = suspendTransaction(database, SNAPSHOT, readOnly = true) {
