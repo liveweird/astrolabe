@@ -36,7 +36,7 @@ Each increment gets its own plan (architect) before implementation. The domain s
 
 ## Engineering follow-ups
 
-- [new] **Measure the project view on a synthetic long critical chain.** The v0.7 measurement ran on a sample plan without a chain (51 upstream rows over all 100 project views, the deepest at 2 hops, none critical); the regenerated plan has eight zero-slack chains up to 6 projects deep (`sample-data/plan/README.md`), which a fresh load can measure, but none reaches a full 100-row `upstream`, so the C10 budget gate (p50 <= 30 ms, p95 <= 45 ms, <= 120 KB) is still unproven for that worst case.
+- [new] **Measure the project view at the `upstream` cap.** On the regenerated sample plan (2026-11-02) the deepest chain is 5 hops and the largest `upstream[]` 39 entries: p50 ~17-18 ms, p95 ~18-20 ms, 15.6 KB, well inside the C10 budget (p50 <= 30 ms, p95 <= 45 ms, <= 120 KB); a plan whose `upstream` reaches the 100-row cap (or a critical chain longer than that) is still unmeasured.
 - [new] **A sample reload over existing holidays fails.** `--reset` never removes holidays, and the loader schedules milestones before it applies the preset, so on a stack that already holds the Polish holidays a milestone whose whole span falls on holidays (e.g. offsets landing on 24-25 Dec) is refused with 400 "must cover at least one working day" mid-load. Apply the preset before scheduling, or skip/shift such spans, or document clearing the dictionary first.
 - [new] **An apply-only mode for `--polish-holidays` on an already-loaded stack.** The loader applies the preset only as the last step of a full load; an existing sample plan cannot get the holidays without re-running it.
 - [new] **Arrows follow a drag preview.** Today they redraw at drop.
