@@ -1376,6 +1376,14 @@ export interface paths {
          *     schedule proposal's `revision`): a value above the current plan revision (a view from the future) is `409` with `type`
          *     `urn:astrolabe:problem:stale-revision` for the WHOLE batch.
          *
+         *     `scopeHash` (optional, the proposal's) turns the call into the accept of THAT proposal: after the revision check, under the lock,
+         *     the team's scope is fingerprinted again from the same rows (its milestones, their estimates, projects and effective order, its
+         *     capacity periods, the links touching it with the dates of their foreign ends, the Monday-Friday holidays) and any other milestone
+         *     of the team that was scheduled after `expectedRevision` and is not in the batch is looked for. A different fingerprint or such a
+         *     milestone is `409` with `type` `urn:astrolabe:problem:stale-scope` for the WHOLE batch: nothing is written and the revision is not
+         *     bumped - propose again. The dates of the batch's OWN milestones are not part of the fingerprint (they stay the per-item `STALE`
+         *     below). Absent = no scope check: N schedule PUTs, the contract before v0.9. A malformed value is `400`.
+         *
          *     Otherwise every item is decided on its own, in body order, under the lock: the first matching `reason` skips it and the rest are
          *     still written - `GONE` (no active milestone has the id), `NOT_ON_TEAM` (it is, or moved to, another team), `NO_WORKING_DAY` (the
          *     span holds no working day of the CURRENT holiday calendar - a holiday added since the view), `STALE` (THIS milestone's schedule was
@@ -3058,6 +3066,8 @@ export interface components {
             expectedRevision: number;
             /** @description One entry per milestone (an id twice is a `400`), applied in this order. */
             items: components["schemas"]["TeamScheduleBatchItem"][];
+            /** @description The proposal's `scopeHash`. Present = the whole batch is refused (`409`, `stale-scope`) when the team's plan changed since that proposal; absent = no scope check. */
+            scopeHash?: string;
         };
         /** @description The single schedule PUT's body for one milestone. */
         TeamScheduleBatchItem: {
@@ -3107,6 +3117,8 @@ export interface components {
              * @description The plan revision the proposal was computed from; send it back as `expectedRevision` of the batch accept.
              */
             revision: number;
+            /** @description A fingerprint of everything the proposal read about the team that the milestones' own schedule revisions do not cover; send it back as `scopeHash` of the batch accept. Stable while the team's plan is unchanged, whatever else happens in the plan. */
+            scopeHash: string;
             /**
              * Format: date
              * @description The request's `asOf`, echoed.
@@ -3191,7 +3203,7 @@ export interface components {
         /** @description RFC 7807 problem detail. Served as `application/problem+json`; instance is the request path without query parameters. */
         ProblemDetail: {
             /**
-             * @description A URI reference identifying the problem type; `about:blank` unless a problem names its own (`urn:astrolabe:problem:stale-revision` on a stale ranking, milestone-schedule or team-order PUT, or a batch schedule from a future revision, `urn:astrolabe:problem:dependency-cycle` on a dependency that would close a cycle).
+             * @description A URI reference identifying the problem type; `about:blank` unless a problem names its own (`urn:astrolabe:problem:stale-revision` on a stale ranking, milestone-schedule or team-order PUT, or a batch schedule from a future revision, `urn:astrolabe:problem:stale-scope` on a batch accept whose team plan changed since its proposal, `urn:astrolabe:problem:dependency-cycle` on a dependency that would close a cycle).
              * @default about:blank
              */
             type: string;
@@ -5630,7 +5642,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
-            /** @description `expectedRevision` is above the current plan revision (`type` is `urn:astrolabe:problem:stale-revision`); nothing was written */
+            /** @description `expectedRevision` is above the current plan revision (`type` is `urn:astrolabe:problem:stale-revision`), or the team's plan changed since the proposal `scopeHash` names (`type` is `urn:astrolabe:problem:stale-scope`); nothing was written */
             409: {
                 headers: {
                     [name: string]: unknown;

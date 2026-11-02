@@ -24,8 +24,10 @@ class TeamScheduleService(private val database: R2dbcDatabase) {
     /**
      * Applies [request] under the plan lock, in this order: the whole-batch shape is validated (400, before the lock) -> the team is
      * re-read and its row locked `FOR SHARE` (gone = 404) -> [guard] (the manager as of the lock: 403, nothing written, no bump) ->
-     * `expectedRevision` above the current plan revision (a view from the future) is a 409 `stale-revision` for the WHOLE batch -> the
-     * working calendar is read once -> per item, in body order, the first of: no active milestone [SkippedScheduleReason.GONE], not on
+     * `expectedRevision` above the current plan revision (a view from the future) is a 409 `stale-revision` for the WHOLE batch -> only
+     * when the request carries a `scopeHash`, [requireScopeUnchanged] (a 409 `stale-scope` for the whole batch: the team's plan changed
+     * beyond the batch's own milestones) -> the working calendar is read once -> per item, in body order, the first of: no active
+     * milestone [SkippedScheduleReason.GONE], not on
      * this team ([SkippedScheduleReason.NOT_ON_TEAM] - a team change keeps `schedule_revision`, so the revision alone would not catch
      * it), a span without a working day of the CURRENT calendar ([SkippedScheduleReason.NO_WORKING_DAY], D2), the milestone's
      * `schedule_revision` above `expectedRevision` ([SkippedScheduleReason.STALE]) skips the item; otherwise the dates are written and
@@ -44,7 +46,8 @@ class TeamScheduleService(private val database: R2dbcDatabase) {
                     problemType = STALE_REVISION_PROBLEM,
                 )
             }
-            val calendar = loadWorkingCalendar()
+            val snapshot = request.scopeHash?.let { requireScopeUnchanged(teamId, request.expectedRevision, items, it) }
+            val calendar = snapshot?.calendar ?: loadWorkingCalendar()
             val stored = storedSchedules(items.map { it.milestoneId })
             val accepted = mutableListOf<AcceptedSchedule>()
             val skipped = mutableListOf<SkippedSchedule>()
@@ -66,6 +69,52 @@ class TeamScheduleService(private val database: R2dbcDatabase) {
             accepted to skipped
         }
         return TeamBatchOutcome(write.revision, write.value.first, write.value.second)
+    }
+
+    /**
+     * The scope check of a batch that carries the proposal's [hash] (under the plan lock, nothing written yet): the same
+     * [loadScheduleSnapshot] and [ScheduleSnapshot.scopeHash] the proposal used must still give [hash], and no OTHER milestone of the
+     * team (one the batch does not name) may carry a `schedule_revision` above [expectedRevision] - the team's own spans are not in the
+     * hash, so that sweep is what notices a colleague's drag of an unticked or in-progress milestone, while a dragged BATCH item stays
+     * the per-item STALE. Either failure is a 409 `stale-scope` and the transaction rolls back. Returns the snapshot (its calendar is
+     * the batch's).
+     */
+    private suspend fun requireScopeUnchanged(
+        teamId: UInt,
+        expectedRevision: Long,
+        items: List<ValidatedBatchItem>,
+        hash: String,
+    ): ScheduleSnapshot {
+        // The fingerprint reads no team name, so the rows are loaded with an empty one (the proposal's wire rows are the only readers).
+        val snapshot = loadScheduleSnapshot(teamId, "")
+        val changed = snapshot.scopeHash(teamId) != hash || reschedulesOutsideBatch(teamId, expectedRevision, items.map { it.milestoneId })
+        if (changed) {
+            throw ConflictException(
+                "The team's plan changed since the proposal (another milestone, a capacity period, a link or a holiday): propose again",
+                problemType = STALE_SCOPE_PROBLEM,
+            )
+        }
+        return snapshot
+    }
+
+    /** Whether an ACTIVE milestone of the team that is not among [batchIds] was scheduled after [expectedRevision]. */
+    private suspend fun reschedulesOutsideBatch(teamId: UInt, expectedRevision: Long, batchIds: List<UInt>): Boolean {
+        val milestones = MilestoneService.Milestones
+        val projects = ProjectService.Projects
+        val programs = ProgramService.Programs
+        val streams = WorkStreamService.WorkStreams
+        return milestones.innerJoin(projects, { milestones.projectId }, { projects.id })
+            .innerJoin(programs, { projects.programId }, { programs.id })
+            .innerJoin(streams, { programs.workStreamId }, { streams.id })
+            .select(milestones.id)
+            .where {
+                (milestones.teamId eq teamId) and (milestones.scheduleRevision greater expectedRevision) and
+                    (milestones.id notInList batchIds) and milestones.active() and projects.active() and programs.active() and
+                    streams.active()
+            }
+            .limit(1)
+            .toList()
+            .isNotEmpty()
     }
 
     private fun skipReason(

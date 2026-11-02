@@ -2,7 +2,7 @@
 // reads them (the owner pickers, the Teams page), ADMIN curates them and their manager.
 // Thin endpoint wrappers: transport (authedFetch/ApiError) in ./http, types from ./schema.
 
-import { buildQuery, jsonRequest, voidRequest } from "./http";
+import { ApiError, buildQuery, jsonRequest, voidRequest } from "./http";
 import type { components, paths } from "./schema";
 
 export type TeamPage = paths["/api/v1/teams"]["get"]["responses"]["200"]["content"]["application/json"];
@@ -93,7 +93,18 @@ export async function proposeTeamSchedule(teamId: number, asOf: string): Promise
   return jsonRequest<ScheduleProposal>(`/api/v1/teams/${teamId}/schedule-proposal`, { method: "POST", body: JSON.stringify({ asOf }) });
 }
 
-/** Writes the listed spans; a milestone that moved since `expectedRevision` is skipped (`STALE`), never overwritten. */
+/** The problem `type` of the 409 a batch accept answers when the team's plan changed since its proposal (`scopeHash`). */
+const STALE_SCOPE_TYPE = "urn:astrolabe:problem:stale-scope";
+
+/** A 409 with the stale-scope problem type: nothing was written, and the proposal it carried is out of date. */
+export function isStaleScope(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 409 && err.type === STALE_SCOPE_TYPE;
+}
+
+/**
+ * Writes the listed spans; a milestone that moved since `expectedRevision` is skipped (`STALE`), never overwritten. With the proposal's
+ * `scopeHash` the whole batch is refused (409 `stale-scope`) when the team's plan changed beyond the batch's own milestones.
+ */
 export async function scheduleTeamMilestones(teamId: number, body: Schemas["TeamScheduleBatchRequest"]): Promise<TeamScheduleBatchResponse> {
   return jsonRequest<TeamScheduleBatchResponse>(`/api/v1/teams/${teamId}/milestone-schedules`, { method: "POST", body: JSON.stringify(body) });
 }

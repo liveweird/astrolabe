@@ -35,6 +35,12 @@ class WorkingCalendar(holidays: Map<LocalDate, String>) {
      */
     private val adjustedOffIndex: LongArray = LongArray(offDays.size) { monFriIndexOfEpochDay(offDays[it]) - (it + 1) }
 
+    /**
+     * The Monday-Friday holidays, ascending: exactly the part of the dictionary the index reads (a weekend holiday changes no count), so
+     * a fingerprint of the calendar over these dates flips only when a working-day count could.
+     */
+    fun offDayDates(): List<LocalDate> = offDays.map(LocalDate::ofEpochDay)
+
     /** Whether [date] is a Monday-Friday that is not a holiday. */
     fun isWorkingDay(date: LocalDate): Boolean = isWeekday(date) && Arrays.binarySearch(offDays, date.toEpochDay()) < 0
 

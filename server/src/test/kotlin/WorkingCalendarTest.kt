@@ -184,4 +184,11 @@ class WorkingCalendarTest {
             date = date.plusDays(1)
         }
     }
+
+    @Test
+    fun `offDayDates lists the Monday to Friday holidays ascending and leaves out a weekend one`() {
+        val subject = WorkingCalendar(mapOf(day("2027-05-03") to "b", day("2027-05-01") to "weekend", day("2027-01-01") to "a"))
+        assertEquals(listOf(day("2027-01-01"), day("2027-05-03")), subject.offDayDates())
+        assertEquals(emptyList(), WorkingCalendar.MON_FRI.offDayDates())
+    }
 }

@@ -180,6 +180,7 @@
     "gone": "Ten zespół już nie istnieje — odśwież stronę",
     "invalid": "Nie udało się zastosować propozycji — zaproponuj harmonogram jeszcze raz",
     "stale": "Plan zmienił się w międzyczasie. Harmonogram został przeładowany, a nic nie zostało zapisane — zaproponuj go jeszcze raz.",
+    "rescoped": "Plan zespołu zmienił się od czasu propozycji: oto nowa. Zaznaczenie zostało zachowane dla kamieni milowych, które nadal się przesuwają.",
     "selectedOf": "Zaznaczono {{selected}} z {{total}}",
     "change": {
       "new_one": "Niezaplanowany → od {{start}} do {{end}}, {{count}} dzień roboczy",

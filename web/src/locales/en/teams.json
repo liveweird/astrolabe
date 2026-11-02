@@ -164,6 +164,7 @@
     "gone": "This team no longer exists — reload the page",
     "invalid": "The proposal could not be applied — propose again",
     "stale": "The plan changed in the meantime — the schedule was reloaded. Nothing was saved; propose again.",
+    "rescoped": "The team's plan changed since the proposal: here is a fresh one. Your selection was kept for the milestones that still move.",
     "selectedOf": "{{selected}} of {{total}} selected",
     "change": {
       "new_one": "Unscheduled → {{start}} to {{end}}, {{count}} working day",

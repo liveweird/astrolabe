@@ -199,6 +199,12 @@ class PlanStateTest {
             bumps(0, "400 for a weekend-only span", {
                 t.manager.client.postJson(path, body(TestPlan.revision(), "2026-11-07", "2026-11-08")).status
             }, HttpStatusCode.BadRequest)
+            bumps(0, "400 for a malformed scope hash", {
+                t.manager.client.postJson(path, body(TestPlan.revision()).copy(scopeHash = "nope")).status
+            }, HttpStatusCode.BadRequest)
+            bumps(0, "409 for a scope hash that no longer matches (stale-scope)", {
+                t.manager.client.postJson(path, body(TestPlan.revision()).copy(scopeHash = "0".repeat(64))).status
+            }, HttpStatusCode.Conflict)
         }
 
     @Test

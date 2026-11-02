@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useIsMutating, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { isStaleRevision } from "../api/roadmap";
-import { proposeTeamSchedule, scheduleTeamMilestones, type ScheduleProposal, type TeamView } from "../api/teams";
+import { isStaleScope, proposeTeamSchedule, scheduleTeamMilestones, type ScheduleProposal, type TeamView } from "../api/teams";
 import { localIsoDate } from "../utils/isoDate";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { saveErrorMessage } from "../utils/saveError";
@@ -19,7 +19,7 @@ const PROPOSE_ERROR_KEYS = {
   failed: "common.error.actionFailed",
 } as const;
 
-type AcceptVariables = { expectedRevision: number; items: ReturnType<typeof acceptItems> };
+type AcceptVariables = { expectedRevision: number; scopeHash: string; items: ReturnType<typeof acceptItems> };
 
 /**
  * The team page's schedule proposal (the third write path of the page, v0.8).
@@ -40,6 +40,11 @@ type AcceptVariables = { expectedRevision: number; items: ReturnType<typeof acce
  * (no toast: the page's visible outcome note and the polite sentence carry it, so a toast would be a third reading) (written count, skipped with the server's reasons). A whole-batch stale 409 closes the preview
  * (`stale`) and reloads; any other failure stays inline in `error` (already mapped to words) with the preview open. Every taken step is
  * said in the page's live region (`announce`).
+ *
+ * The batch carries the proposal's `scopeHash`. When the TEAM's plan changed since the proposal (a 409 `stale-scope`: nothing was
+ * written) the preview closes and a fresh proposal is requested at once, for a fresh `asOf`; the new preview keeps the ticks of the
+ * milestones that were ticked and still move, and `rescoped` says so until the next action. A fresh proposal with nothing to show
+ * opens nothing and leaves its usual `note`.
  */
 export function useScheduleProposal(teamId: number, announce: (text: string) => void) {
   const { t } = useTranslation();
@@ -50,6 +55,9 @@ export function useScheduleProposal(teamId: number, announce: (text: string) => 
   const [noteDate, setNoteDate] = useState("");
   const [outcome, setOutcome] = useState<ProposalOutcome | null>(null);
   const [stale, setStale] = useState(false);
+  const [rescoped, setRescoped] = useState(false);
+  // The ticks of the proposal a stale-scope refusal voided, until the fresh proposal that replaces it has taken them over.
+  const keptTicks = useRef<ReadonlySet<number> | null>(null);
 
   const close = () => {
     setProposal(null);
@@ -59,6 +67,8 @@ export function useScheduleProposal(teamId: number, announce: (text: string) => 
   const request = useMutation({
     mutationFn: () => proposeTeamSchedule(teamId, localIsoDate()),
     onSuccess: (result) => {
+      const kept = keptTicks.current;
+      keptTicks.current = null;
       const found = noteOf(result);
       if (found !== null) {
         setNote(found);
@@ -67,14 +77,19 @@ export function useScheduleProposal(teamId: number, announce: (text: string) => 
         return;
       }
       setProposal(result);
-      setSelected(new Set(result.moves.map((move) => move.milestoneId)));
+      setSelected(new Set(result.moves.map((move) => move.milestoneId).filter((id) => kept === null || kept.has(id))));
+      setRescoped(kept !== null);
       announce(t("teams.proposal.ready", { count: result.moves.length }));
+    },
+    onError: () => {
+      keptTicks.current = null;
     },
   });
 
   const apply = useMutation({
     mutationKey: teamWriteKey(teamId),
-    mutationFn: ({ expectedRevision, items }: AcceptVariables) => scheduleTeamMilestones(teamId, { expectedRevision, items }),
+    mutationFn: ({ expectedRevision, scopeHash, items }: AcceptVariables) =>
+      scheduleTeamMilestones(teamId, { expectedRevision, items, scopeHash }),
     onSuccess: (result, { items }) => {
       // The accepted milestones take their proposed dates in the cached view at once (a skipped one keeps its old dates) and the view
       // adopts the answered revision, so the page is right before the background refetch brings the server's derived figures.
@@ -96,6 +111,17 @@ export function useScheduleProposal(teamId: number, announce: (text: string) => 
       close();
     },
     onError: async (err) => {
+      if (isStaleScope(err)) {
+        // The team's plan moved on under the proposal and nothing was written: ask again at once (a fresh asOf) and keep the ticks.
+        keptTicks.current = selected;
+        close();
+        announce(t("teams.proposal.rescoped"));
+        request.mutate();
+        // NOT awaited: onError settles the accept (`applying`) only when it returns, and the fresh preview must never be shown (or
+        // handed the focus) while the accept still reads as running - the refetch finishes whenever it does.
+        void refreshQueriesAfterMutation(queryClient, ["plan"]);
+        return;
+      }
       if (!isStaleRevision(err)) return;
       close();
       setStale(true);
@@ -112,6 +138,7 @@ export function useScheduleProposal(teamId: number, announce: (text: string) => 
     setNote(null);
     setOutcome(null);
     setStale(false);
+    setRescoped(false);
     request.reset();
     apply.reset();
   };
@@ -120,7 +147,11 @@ export function useScheduleProposal(teamId: number, announce: (text: string) => 
   const total = idsOfMoves.length;
   const say = (count: number) => announce(t("teams.proposal.selectedOf", { selected: count, total }));
 
-  const failure = request.isError ? request.error : apply.isError && !isStaleRevision(apply.error) ? apply.error : null;
+  const failure = request.isError
+    ? request.error
+    : apply.isError && !isStaleRevision(apply.error) && !isStaleScope(apply.error)
+      ? apply.error
+      : null;
 
   return {
     /** The open proposal (a preview), or `null`. */
@@ -134,6 +165,8 @@ export function useScheduleProposal(teamId: number, announce: (text: string) => 
     outcome,
     /** The last accept was refused as a whole (the plan is from before the proposal): the preview closed and the view reloaded. */
     stale,
+    /** The last accept was refused because the team's plan changed since the proposal: the open preview is the fresh one, ticks kept. */
+    rescoped,
     /** The inline failure of the last propose or accept (already words), or `null`. */
     error: failure === null ? null : saveErrorMessage(failure, t, PROPOSE_ERROR_KEYS),
     requesting: request.isPending,
@@ -182,7 +215,8 @@ export function useScheduleProposal(teamId: number, announce: (text: string) => 
       void queryClient.cancelQueries({ queryKey: ["plan"] });
       setOutcome(null);
       setStale(false);
-      apply.mutate({ expectedRevision: proposal.revision, items: acceptItems(proposal, selected) });
+      setRescoped(false);
+      apply.mutate({ expectedRevision: proposal.revision, scopeHash: proposal.scopeHash, items: acceptItems(proposal, selected) });
       return true;
     },
   };

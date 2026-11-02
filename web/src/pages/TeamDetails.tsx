@@ -86,12 +86,12 @@ type Proposal = ReturnType<typeof useScheduleProposal>;
 /**
  * What the proposal flow says outside the section, as dismissible notes that last until the next action: a proposal that opened nothing
  * ("nothing to propose" gray, "no capacity: add a capacity period first" orange), what an accept came to (green; orange when something
- * was skipped, with the server's reasons), the whole-batch stale notice (orange), and the inline failure of a propose or an accept.
+ * was skipped, with the server's reasons), the whole-batch stale notice and the re-proposed-after-a-scope-change notice (orange), and the inline failure of a propose or an accept.
  * Visible only (`role="note"`): the page's status region says each, so an Alert's implicit `role="alert"` would read it twice.
  */
 function ProposalNotes({ proposal }: { proposal: Proposal }) {
   const { t } = useTranslation();
-  const { note, outcome, stale } = proposal;
+  const { note, outcome, stale, rescoped } = proposal;
   const open = proposal.proposal;
   const dismissible = { variant: "light", role: "note", withCloseButton: true, closeButtonLabel: t("common.action.close"), onClose: proposal.dismiss } as const;
   return (
@@ -109,6 +109,11 @@ function ProposalNotes({ proposal }: { proposal: Proposal }) {
       {stale && (
         <Alert color="orange" {...dismissible}>
           {t("teams.proposal.stale")}
+        </Alert>
+      )}
+      {rescoped && (
+        <Alert color="orange" {...dismissible}>
+          {t("teams.proposal.rescoped")}
         </Alert>
       )}
       {/* An accept's failure sits inside the open section; this is a propose's, shown while no preview is open. */}
@@ -193,12 +198,29 @@ function TeamPage({ id }: { id: number }) {
   const discardRef = useRef<HTMLButtonElement>(null);
   const wasOpen = useRef(false);
   const isOpen = open !== null;
+  // Discard takes the focus when a preview opens, but only once the accept is no longer running (a disabled button cannot take it): a
+  // preview that opens while `applying` (a fresh proposal after a stale-scope refusal) waits for it. A failed accept never re-arms this,
+  // so its inline alert keeps the focus it was given.
+  const focusDiscard = useRef(false);
+  const applying = proposal.applying;
   useEffect(() => {
     if (isOpen) {
       wasOpen.current = true;
-      discardRef.current?.focus();
+      focusDiscard.current = true;
     }
   }, [isOpen]);
+  // The fresh preview of a stale-scope refusal may replace the voided one within one render batch (`isOpen` stays true): its note
+  // appearing arms the hand-over as well.
+  const rescoped = proposal.rescoped;
+  useEffect(() => {
+    if (rescoped) focusDiscard.current = true;
+  }, [rescoped]);
+  useEffect(() => {
+    if (isOpen && !applying && focusDiscard.current) {
+      focusDiscard.current = false;
+      discardRef.current?.focus();
+    }
+  }, [isOpen, applying, rescoped]);
   useEffect(() => {
     if (!isOpen && wasOpen.current && !busy) {
       wasOpen.current = false;

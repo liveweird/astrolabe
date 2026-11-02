@@ -49,6 +49,7 @@ const C = move(3, "tp-c", { projectId: 8, projectName: "Checkout" });
 
 const proposalOf = (over: Partial<ScheduleProposal> = {}): ScheduleProposal => ({
   revision: 10,
+  scopeHash: "a".repeat(64),
   asOf: "2042-01-05",
   teamId: 1,
   moves: [A, B, C],

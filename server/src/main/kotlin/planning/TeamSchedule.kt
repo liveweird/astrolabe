@@ -24,12 +24,15 @@ data class TeamScheduleBatchItem(
 /**
  * The batch accept (`POST /teams/{id}/milestone-schedules`): N schedule PUTs in ONE plan write under the team's guard. [expectedRevision]
  * is the plan revision of the view the items were derived from (a proposal's `revision`); an item is stale only when ITS milestone's
- * schedule was written after it (`milestones.schedule_revision`), never because of an unrelated plan write.
+ * schedule was written after it (`milestones.schedule_revision`), never because of an unrelated plan write. [scopeHash] is the
+ * proposal's `scopeHash`: present = the accept of THAT proposal, refused whole (409 `stale-scope`) when the team's plan changed beyond
+ * the batch's own milestones; absent = N schedule PUTs, no scope check (the v0.8 contract).
  */
 @Serializable
 data class TeamScheduleBatchRequest(
     val expectedRevision: Long,
     val items: List<TeamScheduleBatchItem>,
+    val scopeHash: String? = null,
 )
 
 /** Why one item of a batch was not written (the rest were): API-DATA-003 named strings. */
@@ -68,13 +71,19 @@ data class TeamBatchOutcome(val revision: Long, val accepted: List<AcceptedSched
 /** A validated item: its span is null for the unschedule pair. */
 data class ValidatedBatchItem(val milestoneId: UInt, val span: MilestoneSpan?)
 
+private val SCOPE_HASH = Regex("^[0-9a-f]{64}$")
+
 /**
- * The whole-batch rules checked BEFORE the lock, for client bugs only: a non-negative `expectedRevision`, between one and
+ * The whole-batch rules checked BEFORE the lock, for client bugs only: a non-negative `expectedRevision`, a `scopeHash` (when present)
+ * of 64 lowercase hex digits, between one and
  * [MAX_BATCH_SCHEDULE_ITEMS] items, no milestone id twice, and every item through [validateSchedule] (one date only, shape, order, a
  * weekend-only span; the holiday-aware half runs per item under the lock and SKIPS the item). A 400 names the failing item's index.
  */
 fun validateBatchRequest(request: TeamScheduleBatchRequest): List<ValidatedBatchItem> {
     if (request.expectedRevision < 0) throw BadRequestException("expectedRevision must not be negative")
+    if (request.scopeHash != null && !SCOPE_HASH.matches(request.scopeHash)) {
+        throw BadRequestException("scopeHash must be 64 lowercase hexadecimal characters")
+    }
     val items = request.items
     if (items.isEmpty()) throw BadRequestException("items must list at least one milestone")
     if (items.size > MAX_BATCH_SCHEDULE_ITEMS) {
@@ -159,7 +168,8 @@ data class ScheduleProposalLink(
  * team's milestones, at most [MAX_LOAD_WEEKS] weeks and the links touching the team whose verdict is or was violated). A computation:
  * nothing is stored. [revision] is the plan revision of the snapshot it was computed from - the batch accept's `expectedRevision`.
  * [moves] and [unplaced] are in the team's effective order; [unchanged] are the movable milestones that stay on their dates; [weeks]
- * is the team's load AFTER accepting every move (the team view's row shape); [dependencies] are violated-after first.
+ * is the team's load AFTER accepting every move (the team view's row shape); [dependencies] are violated-after first; [scopeHash] is the
+ * fingerprint of the team's plan the proposal read (`ScheduleScope.kt`), which the batch accept sends back to be checked.
  */
 @Serializable
 data class ScheduleProposal(
@@ -172,6 +182,7 @@ data class ScheduleProposal(
     val weeks: List<WeekLoadView>,
     val weeksTruncated: Boolean,
     val dependencies: List<ScheduleProposalLink>,
+    val scopeHash: String,
 )
 
 /**

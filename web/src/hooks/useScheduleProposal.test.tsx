@@ -11,6 +11,7 @@ import { jsonResponse } from "../test/http";
 const toast = vi.hoisted(() => vi.fn());
 vi.mock("../utils/toast", () => ({ showSuccessToast: toast }));
 
+const STALE_SCOPE = { type: "urn:astrolabe:problem:stale-scope", title: "Conflict", status: 409, detail: "scope" };
 const STALE = { type: "urn:astrolabe:problem:stale-revision", title: "Conflict", status: 409, detail: "stale" };
 
 const move = (milestoneId: number, start: string, end: string, over: Record<string, unknown> = {}) => ({
@@ -28,6 +29,7 @@ const move = (milestoneId: number, start: string, end: string, over: Record<stri
 
 const PROPOSAL: ScheduleProposal = {
   revision: 12,
+  scopeHash: "b".repeat(64),
   asOf: "2042-01-05",
   teamId: 1,
   moves: [move(1, "2042-01-07", "2042-01-09"), move(2, "2042-01-07", "2042-01-08"), move(3, "2042-01-13", "2042-01-15")],
@@ -197,6 +199,7 @@ describe("accept", () => {
     expect(bodies(/milestone-schedules$/)).toEqual([
       {
         expectedRevision: 12,
+        scopeHash: "b".repeat(64),
         items: [
           { milestoneId: 1, startDate: "2042-01-07", endDate: "2042-01-09" },
           { milestoneId: 3, startDate: "2042-01-13", endDate: "2042-01-15" },
@@ -268,6 +271,66 @@ describe("accept", () => {
     expect(result.current.outcome).toBeNull();
     expect(announce).toHaveBeenLastCalledWith(expect.stringContaining("The plan changed in the meantime"));
     expect(client.getQueryData<TeamView>(teamViewKey(1))?.revision).toBe(12);
+  });
+
+  test("a stale-scope refusal proposes again at once and keeps the ticks of the milestones that still move", async () => {
+    batchAnswer = jsonResponse(409, STALE_SCOPE);
+    const { result } = await opened();
+    act(() => result.current.toggle(2));
+    // The fresh proposal: 1 and 3 still move, 2 no longer does, 4 is new (it was not ticked before, so it stays unticked).
+    const fresh: ScheduleProposal = {
+      ...PROPOSAL,
+      revision: 14,
+      scopeHash: "c".repeat(64),
+      moves: [move(1, "2042-01-08", "2042-01-10"), move(3, "2042-01-14", "2042-01-16"), move(4, "2042-01-14", "2042-01-15")],
+    };
+    proposalAnswer = jsonResponse(200, fresh);
+    act(() => void result.current.accept());
+    await waitFor(() => expect(result.current.rescoped).toBe(true));
+    await waitFor(() => expect(result.current.proposal?.revision).toBe(14));
+    expect([...result.current.selected]).toEqual([1, 3]);
+    expect(result.current.stale).toBe(false);
+    expect(result.current.error).toBeNull();
+    expect(bodies(/schedule-proposal$/)).toEqual([{ asOf: "2042-01-05" }, { asOf: "2042-01-05" }]);
+    expect(bodies(/milestone-schedules$/)).toHaveLength(1);
+    expect(announce).toHaveBeenCalledWith("The team's plan changed since the proposal: here is a fresh one. Your selection was kept for the milestones that still move.");
+    // The next accept carries the FRESH hash and revision.
+    batchAnswer = jsonResponse(200, { revision: 15, accepted: [1, 3], skipped: [] });
+    act(() => void result.current.accept());
+    await waitFor(() => expect(result.current.outcome).not.toBeNull());
+    expect(bodies(/milestone-schedules$/)[1]).toMatchObject({ expectedRevision: 14, scopeHash: "c".repeat(64) });
+    expect(result.current.rescoped).toBe(false);
+  });
+
+  test("a stale-scope refusal whose fresh proposal has nothing to show opens nothing and leaves the usual note", async () => {
+    batchAnswer = jsonResponse(409, STALE_SCOPE);
+    const { result } = await opened();
+    proposalAnswer = jsonResponse(200, { ...PROPOSAL, revision: 14, moves: [], unchanged: [1, 2, 3] });
+    act(() => void result.current.accept());
+    await waitFor(() => expect(result.current.note).toBe("nothing"));
+    expect(result.current.proposal).toBeNull();
+    expect(result.current.rescoped).toBe(false);
+    expect(result.current.error).toBeNull();
+  });
+
+  test("a fresh proposal that FAILS after a stale-scope refusal shows its error and does not leak the old ticks into the next proposal", async () => {
+    batchAnswer = jsonResponse(409, STALE_SCOPE);
+    const { result } = await opened();
+    act(() => result.current.toggle(2));
+    proposalAnswer = jsonResponse(500, { title: "Server Error", status: 500 });
+    act(() => void result.current.accept());
+    await waitFor(() => expect(result.current.error).not.toBeNull());
+    expect(result.current.proposal).toBeNull();
+    expect(result.current.rescoped).toBe(false);
+    expect(result.current.stale).toBe(false);
+    // A later, ordinary proposal selects every move: the voided ticks were cleared.
+    proposalAnswer = jsonResponse(200, PROPOSAL);
+    act(() => {
+      expect(result.current.propose()).toBe(true);
+    });
+    await waitFor(() => expect(result.current.proposal).not.toBeNull());
+    expect([...result.current.selected]).toEqual([1, 2, 3]);
+    expect(result.current.rescoped).toBe(false);
   });
 
   test("any other failure stays inline with the preview open: 403 and 400 in words", async () => {

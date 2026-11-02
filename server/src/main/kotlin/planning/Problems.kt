@@ -8,3 +8,10 @@ const val STALE_REVISION_PROBLEM = "urn:astrolabe:problem:stale-revision"
  * `cycle` extension member (`ProblemDetail.cycle`): the SPA renders the path in the UI language instead of sniffing the `detail`.
  */
 const val DEPENDENCY_CYCLE_PROBLEM = "urn:astrolabe:problem:dependency-cycle"
+
+/**
+ * The `type` of the 409 a batch accept answers when the TEAM's plan changed since the proposal it carries (`scopeHash`): another
+ * milestone of the team was rescheduled, or a capacity period, the team's order, a link or a holiday changed, or a predecessor in
+ * another team moved. Nothing is written; the SPA proposes again at once.
+ */
+const val STALE_SCOPE_PROBLEM = "urn:astrolabe:problem:stale-scope"

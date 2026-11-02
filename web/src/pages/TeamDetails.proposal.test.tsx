@@ -81,6 +81,7 @@ const move = (milestoneId: number, name: string, over: Partial<ScheduleProposalM
 
 const proposalOf = (over: Partial<ScheduleProposal> = {}): ScheduleProposal => ({
   revision: 10,
+  scopeHash: "a".repeat(64),
   asOf: localIsoDate(),
   teamId: 1,
   moves: [
@@ -502,7 +503,9 @@ describe("the Proposed schedule section", () => {
     expect(acceptButton(1)).toBeEnabled();
     await user.click(acceptButton(1));
     await waitFor(() => expect(screen.queryByRole("table", { name: "Proposed schedule moves" })).toBeNull());
-    expect(batchPosts()).toEqual([{ expectedRevision: 10, items: [{ milestoneId: 2, startDate: "2027-06-14", endDate: "2027-06-16" }] }]);
+    expect(batchPosts()).toEqual([
+      { expectedRevision: 10, scopeHash: "a".repeat(64), items: [{ milestoneId: 2, startDate: "2027-06-14", endDate: "2027-06-16" }] },
+    ]);
     expect(screen.getByRole("note")).toHaveTextContent("1 scheduled");
     expect(liveText()).toContain("1 scheduled");
     expect(proposalBars()).toHaveLength(0);
@@ -539,6 +542,49 @@ describe("the Proposed schedule section", () => {
     expect(liveText()).toContain("The plan changed in the meantime");
     await waitFor(() => expect(reads()).toBeGreaterThan(before));
     await waitFor(() => expect(screen.getByRole("button", { name: "Propose schedule" })).toBeEnabled());
+  });
+
+  test("a stale-scope refusal swaps in a fresh preview with the ticks kept, an orange note, and the focus on Discard", async () => {
+    batchAnswer = jsonResponse(409, { type: "urn:astrolabe:problem:stale-scope", title: "Conflict", status: 409, detail: "scope" });
+    const user = userEvent.setup();
+    await openPreview(user);
+    await user.click(screen.getByRole("checkbox", { name: "Accept tp-tray" }));
+    proposalAnswer = jsonResponse(200, proposalOf({ revision: 11, scopeHash: "d".repeat(64) }));
+    await user.click(acceptButton(1));
+    const note = await screen.findByRole("note");
+    expect(note).toHaveTextContent("The team's plan changed since the proposal: here is a fresh one");
+    expect(table()).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Accept tp-b" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Accept tp-tray" })).not.toBeChecked();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Discard" })).toHaveFocus());
+    expect(screen.queryByRole("alert")).toBeNull();
+    await user.click(within(note).getByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("note")).toBeNull();
+    expect(table()).toBeInTheDocument();
+  });
+
+  test("a stale-scope refusal whose fresh proposal arrives BEFORE the plan refetch still ends with Discard enabled and focused", async () => {
+    batchAnswer = jsonResponse(409, { type: "urn:astrolabe:problem:stale-scope", title: "Conflict", status: 409, detail: "scope" });
+    const user = userEvent.setup();
+    await openPreview(user);
+    // From here on the view's refetch (the refresh after the refusal) is held, so the fresh proposal resolves first.
+    const served = mockFetch.getMockImplementation() as (url: string, init?: RequestInit) => Promise<Response>;
+    const held = { release: () => {} };
+    mockFetch.mockImplementation((url: string, init?: RequestInit) =>
+      url === "/api/v1/views/team/1" && (init?.method ?? "GET") === "GET"
+        ? new Promise<Response>((resolve) => {
+            held.release = () => resolve(jsonResponse(200, view));
+          })
+        : served(url, init),
+    );
+    proposalAnswer = jsonResponse(200, proposalOf({ revision: 11, scopeHash: "d".repeat(64) }));
+    await user.click(acceptButton(2));
+    await screen.findByRole("note");
+    const discard = screen.getByRole("button", { name: "Discard" });
+    await waitFor(() => expect(discard).toBeEnabled());
+    await waitFor(() => expect(discard).toHaveFocus());
+    expect(acceptButton(2)).toBeEnabled();
+    held.release();
   });
 
   test("another failure stays inline with the preview open and the selection kept", async () => {

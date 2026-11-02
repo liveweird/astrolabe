@@ -1977,6 +1977,14 @@ paths:
         schedule proposal's `revision`): a value above the current plan revision (a view from the future) is `409` with `type`
         `urn:astrolabe:problem:stale-revision` for the WHOLE batch.
 
+        `scopeHash` (optional, the proposal's) turns the call into the accept of THAT proposal: after the revision check, under the lock,
+        the team's scope is fingerprinted again from the same rows (its milestones, their estimates, projects and effective order, its
+        capacity periods, the links touching it with the dates of their foreign ends, the Monday-Friday holidays) and any other milestone
+        of the team that was scheduled after `expectedRevision` and is not in the batch is looked for. A different fingerprint or such a
+        milestone is `409` with `type` `urn:astrolabe:problem:stale-scope` for the WHOLE batch: nothing is written and the revision is not
+        bumped - propose again. The dates of the batch's OWN milestones are not part of the fingerprint (they stay the per-item `STALE`
+        below). Absent = no scope check: N schedule PUTs, the contract before v0.9. A malformed value is `400`.
+
         Otherwise every item is decided on its own, in body order, under the lock: the first matching `reason` skips it and the rest are
         still written - `GONE` (no active milestone has the id), `NOT_ON_TEAM` (it is, or moved to, another team), `NO_WORKING_DAY` (the
         span holds no working day of the CURRENT holiday calendar - a holiday added since the view), `STALE` (THIS milestone's schedule was
@@ -2003,7 +2011,9 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409':
-          description: '`expectedRevision` is above the current plan revision (`type` is `urn:astrolabe:problem:stale-revision`); nothing was written'
+          description: >-
+            `expectedRevision` is above the current plan revision (`type` is `urn:astrolabe:problem:stale-revision`), or the team's plan
+            changed since the proposal `scopeHash` names (`type` is `urn:astrolabe:problem:stale-scope`); nothing was written
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/ProblemDetail' }
@@ -3870,6 +3880,12 @@ components:
           maxItems: 1000
           items: { $ref: '#/components/schemas/TeamScheduleBatchItem' }
           description: One entry per milestone (an id twice is a `400`), applied in this order.
+        scopeHash:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+          description: >-
+            The proposal's `scopeHash`. Present = the whole batch is refused (`409`, `stale-scope`) when the team's plan changed since that
+            proposal; absent = no scope check.
     TeamScheduleBatchItem:
       type: object
       required: [milestoneId]
@@ -3915,13 +3931,19 @@ components:
             may move; the others are fixed.
     ScheduleProposal:
       type: object
-      required: [revision, asOf, teamId, moves, unchanged, unplaced, weeks, weeksTruncated, dependencies]
+      required: [revision, asOf, teamId, moves, unchanged, unplaced, weeks, weeksTruncated, dependencies, scopeHash]
       properties:
         revision:
           type: integer
           format: int64
           minimum: 0
           description: The plan revision the proposal was computed from; send it back as `expectedRevision` of the batch accept.
+        scopeHash:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+          description: >-
+            A fingerprint of everything the proposal read about the team that the milestones' own schedule revisions do not cover; send it
+            back as `scopeHash` of the batch accept. Stable while the team's plan is unchanged, whatever else happens in the plan.
         asOf: { type: string, format: date, description: 'The request''s `asOf`, echoed.' }
         teamId: { type: integer, format: int32, minimum: 0 }
         moves:
@@ -4022,7 +4044,7 @@ components:
           type: string
           default: about:blank
           description: >-
-            A URI reference identifying the problem type; `about:blank` unless a problem names its own (`urn:astrolabe:problem:stale-revision` on a stale ranking, milestone-schedule or team-order PUT, or a batch schedule from a future revision, `urn:astrolabe:problem:dependency-cycle` on a dependency that would close a cycle).
+            A URI reference identifying the problem type; `about:blank` unless a problem names its own (`urn:astrolabe:problem:stale-revision` on a stale ranking, milestone-schedule or team-order PUT, or a batch schedule from a future revision, `urn:astrolabe:problem:stale-scope` on a batch accept whose team plan changed since its proposal, `urn:astrolabe:problem:dependency-cycle` on a dependency that would close a cycle).
         title:
           type: string
           description: Short, human-readable summary of the problem type.

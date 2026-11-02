@@ -349,6 +349,63 @@ class ScheduleProposalTest {
         }
 
     @Test
+    fun `a link violated both before and after, and an unscheduled one that lands violated, are both reported`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("splv", teams = true)
+        val t = w.requireTeams()
+        TestPlan.capacityPeriod(t.teamId, "2027-01-04", 10.0)
+        // theirs starts on the first usable day, so no placement of a predecessor can finish before it.
+        val theirs = TestPlan.milestone(w.projectId, t.otherTeamId, planName("theirs"))
+        TestPlan.schedule(theirs, "2027-02-01", "2027-02-05")
+        // still: violated as stored (ends 03-02, after theirs starts) and still violated once moved to 02-01.
+        val still = TestPlan.milestone(w.projectId, t.teamId, planName("still"), 2.0)
+        TestPlan.schedule(still, "2027-03-01", "2027-03-02")
+        val stillLink = TestPlan.dependency(milestoneRef(still), milestoneRef(theirs))
+        // fresh: unscheduled (nothing to check), lands on 02-01 and violates the same way.
+        val fresh = TestPlan.milestone(w.projectId, t.teamId, planName("fresh"), 2.0)
+        val freshLink = TestPlan.dependency(milestoneRef(fresh), milestoneRef(theirs))
+
+        val proposal = t.manager.client.proposal(t.teamId)
+        assertEquals(setOf(still, fresh), proposal.moves.map { it.milestoneId }.toSet(), "both move")
+        assertEquals(setOf(stillLink, freshLink), proposal.dependencies.map { it.id }.toSet(), "both are reported")
+        val kept = proposal.dependencies.single { it.id == stillLink }
+        assertEquals(DependencyStatus.VIOLATED, kept.before)
+        assertEquals(DependencyStatus.VIOLATED, kept.check.status)
+        val landed = proposal.dependencies.single { it.id == freshLink }
+        assertEquals(DependencyStatus.UNSCHEDULED, landed.before)
+        assertEquals(DependencyStatus.VIOLATED, landed.check.status)
+    }
+
+    @Test
+    fun `the scope hash is 64 hex digits, stable across calls and unrelated writes, and moves with the team's own inputs only`() =
+        testApplication {
+            usePostgresTestcontainer()
+            val w = planWorld("spsh", teams = true)
+            val t = w.requireTeams()
+            TestPlan.capacityPeriod(t.teamId, "2027-01-04", 10.0)
+            val own = TestPlan.milestone(w.projectId, t.teamId, planName("own"), 2.0)
+            val first = t.manager.client.proposal(t.teamId)
+            assertTrue(Regex("^[0-9a-f]{64}$").matches(first.scopeHash), first.scopeHash)
+            assertEquals(first.scopeHash, t.manager.client.proposal(t.teamId).scopeHash, "two calls on one plan agree")
+
+            // A write that is not the team's: another team's milestone far from any link, a bumped plan revision, a new asOf.
+            val theirs = TestPlan.milestone(w.projectId, t.otherTeamId, planName("theirs"))
+            TestPlan.schedule(theirs, "2027-06-01", "2027-06-04")
+            val unrelated = t.manager.client.proposal(t.teamId, "2027-01-30")
+            assertTrue(unrelated.revision > first.revision)
+            assertEquals(first.scopeHash, unrelated.scopeHash, "an unlinked foreign milestone and a new asOf do not move the hash")
+
+            // The team's OWN span is not in the hash (the schedule revision covers it).
+            TestPlan.schedule(own, "2027-03-01", "2027-03-02")
+            assertEquals(first.scopeHash, t.manager.client.proposal(t.teamId).scopeHash, "the team's own span change leaves it alone")
+
+            // A capacity write is team data (no plan revision) and still changes the hash.
+            TestPlan.capacityPeriod(t.teamId, "2027-04-05", 4.0)
+            val afterCapacity = t.manager.client.proposal(t.teamId)
+            assertTrue(afterCapacity.scopeHash != first.scopeHash, "a new capacity period moves the hash")
+        }
+
+    @Test
     fun `a link into another team's fixed milestone that the placement breaks is reported VIOLATED, before OK, and nothing is reordered`() =
         testApplication {
             usePostgresTestcontainer()
