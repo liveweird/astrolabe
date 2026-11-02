@@ -39,6 +39,7 @@ Each increment gets its own plan (architect) before implementation. The domain s
 
 ## Engineering follow-ups
 
+- [new] **Reject invisible-only names.** `sanitizeSingleLine` + `isBlank` let a name made only of a zero-width or other format character (e.g. U+200B) through in every registry (teams, people, plan entities, holidays, baselines); treat Unicode format/invisible characters as blank (found in the v0.9 C5 review).
 - [new] **Measure the project view at the `upstream` cap.** On the regenerated sample plan (2026-11-02) the deepest chain is 5 hops and the largest `upstream[]` 39 entries: p50 ~17-18 ms, p95 ~18-20 ms, 15.6 KB, well inside the C10 budget (p50 <= 30 ms, p95 <= 45 ms, <= 120 KB); a plan whose `upstream` reaches the 100-row cap (or a critical chain longer than that) is still unmeasured.
 - [new] **A sample reload over existing holidays fails.** `--reset` never removes holidays, and the loader schedules milestones before it applies the preset, so on a stack that already holds the Polish holidays a milestone whose whole span falls on holidays (e.g. offsets landing on 24-25 Dec) is refused with 400 "must cover at least one working day" mid-load. Apply the preset before scheduling, or skip/shift such spans, or document clearing the dictionary first.
 - [new] **An apply-only mode for `--polish-holidays` on an already-loaded stack.** The loader applies the preset only as the last step of a full load; an existing sample plan cannot get the holidays without re-running it.

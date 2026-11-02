@@ -46,6 +46,13 @@ object PlanPermissions {
     fun canEditRank(actor: PlanActor): Boolean = actor.isAdmin || actor.roadmapEditor
 
     /**
+     * `POST /baselines`, `PUT`/`DELETE /baselines/{id}`: ADMIN or the roadmap-editor grant (`requireRoadmapEditorOrAdmin`) -
+     * [canEditRank]'s arithmetic under its own name (the v0.5 "three names, one arithmetic" rule), so a later version may split the
+     * rights without a wire change.
+     */
+    fun canManageBaselines(actor: PlanActor): Boolean = canEditRank(actor)
+
+    /**
      * `POST /projects/{id}/milestones`: the owner chain of the project, the project's own owner included, or ADMIN
      * (`requireOwnerOrAdmin`) — the same arithmetic as [canManage].
      */

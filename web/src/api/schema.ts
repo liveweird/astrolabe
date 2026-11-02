@@ -1519,6 +1519,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/baselines": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the baselines
+         * @description Any authenticated user. The ACTIVE baselines, newest first (`createdAt` then `id`, both descending) - a bounded `{items, can}`
+         *     set (at most 100 by the cap; the baseline picker needs all of them at once), not paged. `can.manage` is the caller's right to
+         *     take, rename and delete baselines (ADMIN or a `ROADMAP_EDITOR`).
+         */
+        get: operations["listBaselines"];
+        put?: never;
+        /**
+         * Take a baseline
+         * @description ADMIN or a holder of the `ROADMAP_EDITOR` permission; every other caller gets `403` BEFORE the body is read (the route addresses
+         *     no node, like the ranking). The permission is re-checked under the plan lock. A baseline is a named, immutable copy of the plan's
+         *     dated structure - every active milestone (name, project, team, estimate, dates) and every active project (name, program, work
+         *     stream, target window, rank position, derived span) - taken under the plan lock, so it is the plan at ONE revision. Taking one is
+         *     a plan write: it bumps the plan revision by one and the answer's `planRevision` is the revision it left behind (the plan equals
+         *     the baseline at that revision). Links, capacity periods, holidays and team orders are not copied. `409` with `type`
+         *     `urn:astrolabe:problem:baseline-limit` when 100 baselines are already active (delete one first); `409` when another active
+         *     baseline has the name (case-insensitively). Nothing is written on a `409`.
+         */
+        post: operations["createBaseline"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/baselines/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Get a baseline
+         * @description Any authenticated user. `404` for an unknown or deleted baseline.
+         */
+        get: operations["getBaseline"];
+        /**
+         * Rename / re-describe a baseline
+         * @description ADMIN or a holder of the `ROADMAP_EDITOR` permission, GUARD-BEFORE-READ (`403` before the body and before the `404`, like the
+         *     ranking and the holiday registry); the permission is re-checked under the plan lock. A full replace of the name and the
+         *     description (omitted = none); the frozen rows never change. A plan write: it bumps the plan revision by one. `409` when another
+         *     active baseline has the name (case-insensitively).
+         */
+        put: operations["updateBaseline"];
+        post?: never;
+        /**
+         * Delete a baseline (soft)
+         * @description ADMIN or a holder of the `ROADMAP_EDITOR` permission, GUARD-BEFORE-READ; the permission is re-checked under the plan lock. A soft
+         *     delete: the name is free to be reused and the baseline reads as `404` everywhere; its frozen rows are kept. A plan write: it
+         *     bumps the plan revision by one.
+         */
+        delete: operations["deleteBaseline"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/telemetry/current": {
         parameters: {
             query?: never;
@@ -1940,6 +2008,60 @@ export interface components {
             added: components["schemas"]["PublicHolidayResponse"][];
             /** @description The ISO dates of the preset's set that already had a holiday (left untouched, name included), in date order. */
             skipped: string[];
+        };
+        /** @description The login that took a baseline. `name` is the login's linked ACTIVE person's name, else the login's display name (never its email). */
+        BaselineCreator: {
+            /** Format: int32 */
+            userId: number;
+            name: string;
+        };
+        BaselineResponse: {
+            /** Format: int32 */
+            id: number;
+            name: string;
+            description: string | null;
+            /**
+             * Format: int64
+             * @description The plan revision this baseline EQUALS - the one its creation left behind. A view whose `revision` equals it shows no movement.
+             */
+            planRevision: number;
+            /**
+             * Format: int64
+             * @description Epoch millis
+             */
+            createdAt: number;
+            /** @description Null when the login that took the baseline is gone. */
+            createdBy: components["schemas"]["BaselineCreator"] | null;
+            /**
+             * Format: int32
+             * @description The active milestones the baseline captured.
+             */
+            milestoneCount: number;
+            /**
+             * Format: int32
+             * @description The active projects the baseline captured.
+             */
+            projectCount: number;
+        };
+        /** @description The active baselines, newest first - a bounded list (at most 100 by the cap), not paged. */
+        BaselineList: {
+            items: components["schemas"]["BaselineResponse"][];
+            can: components["schemas"]["BaselineCan"];
+        };
+        BaselineCan: {
+            /** @description The caller may take, rename and delete baselines (ADMIN or a `ROADMAP_EDITOR`). */
+            manage: boolean;
+        };
+        BaselineCreateRequest: {
+            /** @description Trimmed; a control character is a `400`. Unique among the active baselines, case-insensitively. */
+            name: string;
+            description?: string | null;
+        };
+        BaselineUpdateRequest: {
+            /** @description Trimmed; a control character is a `400`. Unique among the active baselines, case-insensitively. */
+            name: string;
+            /** @description A full replace - omitted clears it. */
+            description?: string | null;
         };
         WorkStreamCreateRequest: {
             name: string;
@@ -5786,6 +5908,152 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    listBaselines: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The active baselines */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BaselineList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    createBaseline: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BaselineCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Created; `Location` points at the new baseline */
+            201: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BaselineResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            /** @description The name is taken by another active baseline, or the limit of 100 active baselines is reached (`type` is `urn:astrolabe:problem:baseline-limit`) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    getBaseline: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The baseline */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BaselineResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    updateBaseline: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BaselineUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    deleteBaseline: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
             204: {
                 headers: {
                     [name: string]: unknown;

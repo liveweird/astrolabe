@@ -147,6 +147,20 @@ class PlanPermissionsTest {
     }
 
     @Test
+    fun `the manage-baselines flag equals requireRoadmapEditorOrAdmin - it is the rank arithmetic under its own name`() {
+        for (actor in actors) {
+            val lookup: suspend (UInt, Permission) -> Boolean =
+                { _, permission -> actor.granted && permission == Permission.ROADMAP_EDITOR }
+            val guard = allowed { runBlocking { requireRoadmapEditorOrAdmin(actor.caller, lookup) } }
+            assertEquals(guard, PlanPermissions.canManageBaselines(actor.asPlanActor()), actor.label)
+            val planActor = actor.asPlanActor()
+            assertEquals(PlanPermissions.canEditRank(planActor), PlanPermissions.canManageBaselines(planActor), actor.label)
+        }
+        assertFalse(PlanPermissions.canManageBaselines(Actor("project owner", user(4u), project, false).asPlanActor()), "ownership alone")
+        assertFalse(PlanPermissions.canManageBaselines(Actor("team manager", user(10u), null, false, setOf(teamA)).asPlanActor()))
+    }
+
+    @Test
     fun `the create-milestone flag equals requireOwnerOrAdmin on the project's chain - it is the manage arithmetic`() {
         for (actor in actors) for ((level, chain) in chains.filter { it.second.owners.size == 3 }) {
             val guard = allowed { requireOwnerOrAdmin(actor.caller, actor.personId, chain) }

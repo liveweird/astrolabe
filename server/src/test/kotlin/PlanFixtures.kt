@@ -1,5 +1,8 @@
 package ch.nokillswit
 
+import ch.nokillswit.authz.NotFoundException
+import ch.nokillswit.planning.BaselineService
+import ch.nokillswit.planning.BaselineValues
 import ch.nokillswit.planning.DependencyCreateRequest
 import ch.nokillswit.planning.DependencyService
 import ch.nokillswit.planning.DependencyType
@@ -146,6 +149,8 @@ object TestPlan {
     private val dependencies by lazy { DependencyService(sharedDatabaseForTests()) }
     private val capacity by lazy { TeamCapacityService(sharedDatabaseForTests()) }
     private val teamOrders by lazy { TeamOrderService(sharedDatabaseForTests()) }
+    private val baselines by lazy { BaselineService(sharedDatabaseForTests()) }
+    private val seedAdminId by lazy { scalar("SELECT id FROM users WHERE email = 'admin@astrolabe.local'") { it.getInt(1) }.toUInt() }
 
     suspend fun workStream(owner: UInt, name: String = planName("ws"), startDate: String = "2026-01-01", endDate: String? = null): UInt =
         streams.create(WorkStreamCreateRequest(name = name, ownerPersonId = owner, startDate = startDate, endDate = endDate))
@@ -225,6 +230,23 @@ object TestPlan {
             st.executeQuery("SELECT revision FROM team_order_state WHERE team_id = $teamId").use { rs ->
                 if (rs.next()) rs.getLong(1) else null
             }
+        }
+    }
+
+    /**
+     * Takes a baseline named [name] past the guard (the service: the plan lock, the cap, the copy and the bump apply), attributed to
+     * [byUserId] (the seed admin by default); the answer is its id. Baselines are GLOBAL shared state and count toward the cap of 100:
+     * a test that takes one removes it with [deleteBaseline] in a `finally`.
+     */
+    suspend fun baseline(name: String = planName("bl"), byUserId: UInt = seedAdminId): UInt =
+        baselines.create(byUserId, BaselineValues(name, null)) { }.value.id // fixtures seed past the guard
+
+    /** Soft-deletes baseline [id] past the guard (the name frees; the frozen rows stay); a missing one is tolerated. */
+    suspend fun deleteBaseline(id: UInt) {
+        try {
+            baselines.delete(id) { }
+        } catch (_: NotFoundException) {
+            // already gone (the test deleted it through the API)
         }
     }
 

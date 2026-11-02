@@ -28,8 +28,9 @@ import io.ktor.server.routing.routing
  * `POST /teams/{id}/milestone-schedules` and `POST /teams/{id}/schedule-proposal`), registered by this ONE
  * module function and split per entity (`WorkStreamRoutes.kt`, `ProgramRoutes.kt`, `ProjectRoutes.kt`, `MilestoneRoutes.kt`,
  * `DependencyRoutes.kt`, `PlanViewRoutes.kt`, `RoadmapRoutes.kt`, `TeamOrderRoutes.kt`, `TeamScheduleRoutes.kt`, and since V19
- * `PublicHolidayRoutes.kt` - the ADMIN registry `/public-holidays`, guard-before-read, whose writes are plan writes) — the first
- * deliberate exception to the one-routes-file template (`conventions.md`): five resources with different guards would blow the
+ * `PublicHolidayRoutes.kt` - the ADMIN registry `/public-holidays`, guard-before-read, whose writes are plan writes, and since V20
+ * `BaselineRoutes.kt` - the registry `/baselines`, written by ADMIN or a `ROADMAP_EDITOR`, guard-before-read like the ranking) — the first
+ * deliberate exception to the one-routes-file template (`conventions.md`): eleven resources with different guards would blow the
  * 400-line file cap. Every node route is READ-BEFORE-GUARD (chain -> 404, guard -> 403, body -> 400, validate -> 400, write;
  * `authorization.md`): plan ids are sequential and every signed-in user reads the whole plan anyway, so existence is no secret.
  * The guard before the body is for ORDERING only: a request can be held open after it (a slow body), so the write RE-GUARDS under
@@ -55,6 +56,7 @@ fun Application.configurePlanningRoutes() {
     val teamSchedule = attributes[TeamScheduleServiceKey]
     val scheduleProposal = attributes[ScheduleProposalServiceKey]
     val holidays = attributes[PublicHolidayServiceKey]
+    val baselines = attributes[BaselineServiceKey]
     val views = PlanViewServices(
         team = attributes[TeamViewServiceKey],
         roadmap = attributes[RoadmapViewServiceKey],
@@ -72,6 +74,7 @@ fun Application.configurePlanningRoutes() {
             teamOrderRoutes(deps, teamOrder)
             teamScheduleRoutes(deps, teamSchedule, scheduleProposal)
             publicHolidayRoutes(holidays)
+            baselineRoutes(deps, baselines)
         }
     }
 }

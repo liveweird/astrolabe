@@ -8,6 +8,8 @@ import ch.nokillswit.infra.config.requireConfigInt
 import ch.nokillswit.infra.config.requireConfigLong
 import ch.nokillswit.people.PersonService
 import ch.nokillswit.people.PersonServiceKey
+import ch.nokillswit.planning.BaselineService
+import ch.nokillswit.planning.BaselineServiceKey
 import ch.nokillswit.planning.DependencyService
 import ch.nokillswit.planning.DependencyServiceKey
 import ch.nokillswit.planning.MilestoneService
@@ -288,6 +290,7 @@ suspend fun Application.configureDatabase() {
     attributes.put(ScheduleProposalServiceKey, ScheduleProposalService(database))
     attributes.put(TeamViewServiceKey, TeamViewService(database))
     attributes.put(PublicHolidayServiceKey, PublicHolidayService(database))
+    attributes.put(BaselineServiceKey, BaselineService(database))
     attributes.put(
         TokenBlocklistServiceKey,
         TokenBlocklistService(

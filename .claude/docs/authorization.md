@@ -313,6 +313,16 @@ Layered RBAC. Implemented in the `server/src/main/kotlin/authz/` package.
     | `DELETE /public-holidays/{id}` | `requireAdmin` 403 → (under the plan lock) row gone 404 → 204 |
 
     The named product-rule tests (`PublicHolidayTest`, `HolidayPresetTest`): "mutations are ADMIN-only and the guard runs before the body and the id lookup", "only ADMIN may apply a preset and the guard runs before the body is read". Every 403 is the central `authz.denied`.
+  - **The baselines registry (V20, built v0.9.0; `planning/BaselineRoutes.kt`) — written by ADMIN or a `ROADMAP_EDITOR`, GUARD-BEFORE-READ** (the ranking's shape, not the plan nodes' read-before-guard: a baseline is a plan-wide statement with no owner chain, so ownership of any node is irrelevant; guard-before-read for consistency with the ranking and the holiday registry, not because ids are secret). Reads (`GET /baselines`, `GET /baselines/{id}`) are any authenticated caller's; the list carries `can.manage` (`PlanPermissions.canManageBaselines` = `canEditRank`'s arithmetic under its own name, pinned against `requireRoadmapEditorOrAdmin` by `PlanPermissionsTest` and against the real POST by `BaselineTest`). `requireRoadmapEditorOrAdmin` runs FIRST on every write, before `call.receive` and before the id lookup (a non-editor's malformed body or unknown id is 403, never 400/404), and AGAIN inside `withPlanWrite` after the lock (the grant re-read in the same transaction: a grant revoked while the request waited refuses the write, 403, no bump, the central `authz.denied`; `BaselineTest` holds the lock on a raw session for create, rename and delete). The cap (409 `baseline-limit`) and the name clash (409) come after the inner guard, both under the lock, the cap first.
+
+    | Route | Guard (in order) |
+    |---|---|
+    | `GET /baselines`, `GET /baselines/{id}` | authenticated; the list answers `{items, can{manage}}`; an unknown or deleted id is 404; no audit, a read |
+    | `POST /baselines` | `requireRoadmapEditorOrAdmin` 403 → body 400 (name 1..100, description ≤ 500, control characters) → (plan lock) the grant again 403 → cap **409** `urn:astrolabe:problem:baseline-limit` → the copy; name clash **409** (`uq_baselines_name_active`) → 201 + `Location` + `Baseline` |
+    | `PUT /baselines/{id}` | 403 → body 400 → (lock) the grant again 403 → gone 404 → name clash 409 → 204 |
+    | `DELETE /baselines/{id}` | 403 → (lock) the grant again 403 → gone 404 → soft delete → 204 |
+
+    Named tests (`BaselineTest`): "ADMIN and a roadmap editor take baselines - every other caller gets 403 before the body is read and nothing is written", "revoking the grant while a write waits for the plan lock refuses it - 403, nothing written, revision unchanged".
   - **Still planned:** each new rule lands here with its
     guard order (403 before 400/404, guard-before-read where existence is sensitive) in the same commit as its route.
 - **Existence disclosure (403 vs 404) — deliberate policy (API-ERR-006)**: two sanctioned idioms,

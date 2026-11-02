@@ -1,5 +1,8 @@
 package ch.nokillswit
 
+import ch.nokillswit.planning.BaselineCreateRequest
+import ch.nokillswit.planning.BaselineResponse
+import ch.nokillswit.planning.BaselineUpdateRequest
 import ch.nokillswit.planning.DependencyResponse
 import ch.nokillswit.planning.MilestoneCreateRequest
 import ch.nokillswit.planning.MilestoneResponse
@@ -555,5 +558,44 @@ class PlanStateTest {
                 assertEquals(HttpStatusCode.OK, t.manager.client.putTeamOrder(t.teamId, orderedAt, listOf(milestoneId)).status)
             }
             assertEquals(before + 5, TestPlan.revision(), "the create, the three accepted PUTs and the delete: one bump each")
+        }
+
+    @Test
+    fun `a baseline create, rename and delete each bump the revision by one, a rejected one does not, and none stales a client PUT`() =
+        testApplication {
+            usePostgresTestcontainer()
+            val w = planWorld("blrev", teams = true)
+            val t = w.requireTeams()
+            val milestoneId = TestPlan.milestone(w.projectId, t.teamId)
+            val scheduledAt = TestPlan.schedule(milestoneId, "2026-11-02", "2026-11-06")
+            val orderedAt = TestPlan.teamOrder(t.teamId, listOf(milestoneId))
+            val before = TestPlan.revision()
+            val name = planName("blrev")
+
+            val created = w.admin.client.postJson("/api/v1/baselines", BaselineCreateRequest(name))
+            assertEquals(HttpStatusCode.Created, created.status)
+            val baseline = created.body<BaselineResponse>()
+            val id = baseline.id
+            try {
+                assertEquals(before + 1, TestPlan.revision(), "the create is ONE plan write")
+                assertEquals(before + 1, baseline.planRevision, "and the baseline equals the revision it left")
+                assertEquals(HttpStatusCode.Conflict, w.admin.client.postJson("/api/v1/baselines", BaselineCreateRequest(name)).status)
+                val renameBody = BaselineUpdateRequest("$name-b")
+                assertEquals(HttpStatusCode.NoContent, w.editor.client.putJson("/api/v1/baselines/$id", renameBody).status)
+                assertEquals(before + 2, TestPlan.revision(), "a rename bumps once")
+                assertEquals(HttpStatusCode.NoContent, w.editor.client.putJson("/api/v1/baselines/$id", renameBody).status)
+                assertEquals(before + 3, TestPlan.revision(), "a no-op rename still bumps (the conservative rule)")
+                assertEquals(HttpStatusCode.Forbidden, w.stranger.client.delete("/api/v1/baselines/$id").status)
+                assertEquals(HttpStatusCode.NotFound, w.admin.client.delete("/api/v1/baselines/999999999").status)
+                assertEquals(before + 3, TestPlan.revision(), "a refused or rejected write moved nothing")
+                // Revisions read BEFORE the baseline writes are not stale: a baseline touches no schedule, ranking or order revision.
+                val schedule = MilestoneScheduleRequest(scheduledAt, "2026-11-03", "2026-11-06")
+                assertEquals(HttpStatusCode.OK, t.manager.client.putJson("/api/v1/milestones/$milestoneId/schedule", schedule).status)
+                assertEquals(HttpStatusCode.OK, t.manager.client.putTeamOrder(t.teamId, orderedAt, listOf(milestoneId)).status)
+                assertEquals(HttpStatusCode.NoContent, w.admin.client.delete("/api/v1/baselines/$id").status)
+                assertEquals(before + 6, TestPlan.revision(), "the schedule PUT, the order PUT and the delete: one bump each")
+            } finally {
+                TestPlan.deleteBaseline(id)
+            }
         }
 }

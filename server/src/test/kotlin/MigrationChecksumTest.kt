@@ -39,6 +39,7 @@ class MigrationChecksumTest {
         "V17__team_milestone_orders.sql" to 1891634852,
         "V18__ranking_revision.sql" to 1265434272,
         "V19__public_holidays.sql" to 695505857,
+        "V20__baselines.sql" to -44892282,
     )
 
     @Test
