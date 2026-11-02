@@ -100,3 +100,15 @@ Sign in as a team's manager (`--logins`) or as the ADMIN, open `/teams/:id` and 
 - **Support Tooling** (20 rows, 18 moves) or **Security**: the smallest previews, one screen, for a first try; **Design Systems** shows a team where a link turns red while its weeks go clean (10 overloaded weeks -> 0).
 - Every sample team has capacity from before the anchor, so nothing is "could not be placed". To see that note, add a team without a capacity period (and one milestone) and propose for it: "add a capacity period first".
 - Accept all, then propose again: every movable milestone reads "stays". The fixed point is per team: other teams' dates are constraints, so after accepting the other 14 teams Platform proposes ~210 moves again. `--reset` reloads the pristine plan.
+
+## Take a baseline, re-plan, compare (v0.9)
+
+A baseline is a named, frozen copy of the plan's dates; the timelines can overlay one and a comparison page lists what moved (`planning-model.md` "Baselines").
+
+1. Sign in as the ADMIN (or a user with the roadmap-editor grant), open **Baselines** (Planning menu) and press **Take baseline** (about 60 ms; 1,000 milestones and 100 projects are copied).
+2. Re-plan: on the Platform team page press **Propose schedule** and accept all (about 275 moves), then do the same for a few other teams. Each accept is one plan revision; the baseline keeps the dates it froze.
+3. Pick the baseline in the **Baseline** picker of the team page: a thin shadow bar under each bar marks the frozen dates, and the **Movement vs baseline** table lists every later or earlier milestone in working days. The project, roadmap and programs pages take the same pick.
+4. Open the baseline from the list (`/baselines/:id`) for the comparison: the projects with their span movement and the changed milestones under them. After every team's proposal is accepted the whole plan reads as moved: about 820 moved and 100 newly scheduled milestones against a baseline taken before it, so the page has about 1,000 rows (a plain table, about 16,000 DOM nodes; "Changed projects only" is on by default).
+5. Delete the baseline when you are done (it frees the name; the cap is 100 active baselines, about 130 KB each in the database).
+
+Accepting proposals and taking baselines write to the plan, so a stack you want to keep pristine needs a backup first: `pg_dump` the database before (`docker exec astrolabe-postgres pg_dump -U astrolabe -Fc astrolabe > before.dump`) and `pg_restore` it (into a recreated database, with the app stopped) to get the same plan back. Figures: `timeline.md` "Measured figures (v0.9)".
