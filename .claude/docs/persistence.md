@@ -434,4 +434,4 @@ text and sha256 are compared against stored rows.
 
 ### Planned persistence (not yet built)
 
-No planning table is pending for v0.7 (the public holidays, V19, were the last); the later increments' tables (baselines) are sketched in `planning-model.md` and `product.md`. The schema list, the soft-delete list and the cross-feature list above grow in the same commit as each migration.
+No planning table is pending (the public holidays, V19, were the last; the v0.8 auto-proposal added none: a proposal is ephemeral and the batch writes the schedule PUT's columns); the later increments' tables (baselines) are sketched in `planning-model.md` and `product.md`. The schema list, the soft-delete list and the cross-feature list above grow in the same commit as each migration.
