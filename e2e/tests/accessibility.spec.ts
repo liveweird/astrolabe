@@ -6,7 +6,8 @@
 // project's target end and one in the Unscheduled tray, plus a second project with one milestone linked as the fixture milestone's
 // violated predecessor, plus a chain project of two back-to-back milestones whose second one drives the fixture milestone (the zero-slack
 // links of the critical path); unique `e2e-axe-*` names), created and deleted via the API. The fixture team carries one capacity period with a
-// WIP limit of 1 (deleted with the team), so its page shows the strip's overload and WIP marks.
+// WIP limit of 1 (deleted with the team), so its page shows the strip's overload and WIP marks. The open-schedule-proposal scans (the last describe)
+// own their own team pair and plan (unique `e2e-axe-prop-*` names, all dated in 2042), created and deleted via the API.
 import type { APIRequestContext, Locator, Page } from "@playwright/test";
 import {
   apiAsAdmin,
@@ -464,5 +465,101 @@ test.describe("detail pages and overlays", () => {
     await modal.getByRole("combobox", { name: "New program" }).click();
     await expect(page.getByRole("option", { name: otherProgramName })).toBeVisible();
     await scan(page, '[role="listbox"]');
+  });
+});
+
+// The team page with an OPEN schedule proposal (v0.8): the dashed proposal bars, the Proposed schedule section (the summary line, the table with its
+// checkboxes and the select-all, the badges, the links column with a conflict and a resolved link, the Accept/Discard buttons), light and dark.
+// Its own world, in 2042 (no other spec writes a holiday there; the page's range stretches to it, which is why it does not ride the fixture team):
+// team T (the one proposed for) has its first capacity period on Monday 2042-01-06 (10 MD/week, WIP limit 2), `p1` 6 MD unscheduled and `p2` 2 MD
+// at 2042-03-03..04; team X (fixed for the proposal) holds `w` 2042-01-12..13 and `x` 2042-03-10..11. Links `p1 -> w` and `x -> p2` (finish-to-start):
+// p1 lands on 01-06..01-13 and ends after w starts (a link the proposal would violate), p2 waits for x and moves to 03-12..03-13 (a violated link it resolves).
+// Owns: that team pair, a person, a work stream, a program, a project, four milestones and two links (unique `e2e-axe-prop-*` names), created and deleted via the API.
+test.describe("an open schedule proposal", () => {
+  let api: APIRequestContext;
+  let teamId: number;
+  let teamName: string;
+  const paths: string[] = []; // delete paths in creation order, registered the moment each row exists; the afterAll deletes them in reverse
+
+  async function create(path: string, data: object, tear?: string): Promise<number> {
+    const created = await api.post(path, { data });
+    expect(created.status(), await created.text()).toBe(201);
+    const id = ((await created.json()) as { id: number }).id;
+    if (tear !== undefined) paths.push(`${tear}/${id}`);
+    return id;
+  }
+
+  async function schedule(milestoneId: number, ofTeamId: number, startDate: string, endDate: string): Promise<void> {
+    const view = (await (await api.get(`/api/v1/views/team/${ofTeamId}`)).json()) as { revision: number };
+    const written = await api.put(`/api/v1/milestones/${milestoneId}/schedule`, { data: { expectedRevision: view.revision, startDate, endDate } });
+    expect(written.status(), await written.text()).toBe(200);
+  }
+
+  test.beforeAll(async () => {
+    ({ api } = await apiAsAdmin());
+    teamName = uniqueText("e2e-axe-prop-team");
+    teamId = await create("/api/v1/teams", { name: teamName }, "/api/v1/teams");
+    const otherTeamId = await create("/api/v1/teams", { name: uniqueText("e2e-axe-prop-other") }, "/api/v1/teams");
+    await create(`/api/v1/teams/${teamId}/capacity`, { effectiveFrom: "2042-01-06", mdPerWeek: 10, wipLimit: 2 });
+    const personId = await create("/api/v1/people", { name: uniqueText("e2e-axe-prop-owner") }, "/api/v1/people");
+    const streamId = await create("/api/v1/work-streams", { name: uniqueText("e2e-axe-prop-stream"), ownerPersonId: personId, startDate: "2026-01-05" }, "/api/v1/work-streams");
+    const programId = await create(`/api/v1/work-streams/${streamId}/programs`, { name: uniqueText("e2e-axe-prop-program"), ownerPersonId: personId }, "/api/v1/programs");
+    const projectId = await create(`/api/v1/programs/${programId}/projects`, { name: uniqueText("e2e-axe-prop-project"), ownerPersonId: personId }, "/api/v1/projects");
+    const milestone = (label: string, owningTeamId: number, estimateMd: number) =>
+      create(`/api/v1/projects/${projectId}/milestones`, { name: uniqueText(`e2e-axe-prop-${label}`), teamId: owningTeamId, estimateMd });
+    const p1 = await milestone("p1", teamId, 6);
+    const p2 = await milestone("p2", teamId, 2);
+    const w = await milestone("w", otherTeamId, 1);
+    const x = await milestone("x", otherTeamId, 1);
+    await schedule(p2, teamId, "2042-03-03", "2042-03-04");
+    await schedule(w, otherTeamId, "2042-01-12", "2042-01-13");
+    await schedule(x, otherTeamId, "2042-03-10", "2042-03-11");
+    for (const [from, to] of [[p1, w], [x, p2]]) {
+      await create(`/api/v1/projects/${projectId}/dependencies`, {
+        predecessor: { kind: "MILESTONE", id: from },
+        successor: { kind: "MILESTONE", id: to },
+        type: "FS",
+        lagDays: 0,
+      });
+    }
+  });
+  test.afterAll(async () => {
+    try {
+      await deleteViaApi(paths.splice(0).reverse());
+    } finally {
+      await api?.dispose();
+    }
+  });
+
+  function registerProposalScan(scheme: Scheme): void {
+    const suffix = scheme === "dark" ? " in the dark scheme" : "";
+    test(`/teams/:id with an open schedule proposal has no WCAG A/AA violations${suffix}`, async ({ page }) => {
+      await login(page);
+      await page.goto(`/teams/${teamId}`);
+      await expect(page.getByRole("heading", { level: 2, name: teamName })).toBeVisible();
+      await expect(page.getByRole("grid", { name: "Team milestone timeline" })).toBeVisible();
+      await page.getByRole("button", { name: "Propose schedule" }).click();
+      const table = page.getByRole("table", { name: "Proposed schedule moves" });
+      await expect(table).toBeVisible();
+      await expect(table.getByRole("row")).toHaveCount(3); // the header and the two moves
+      await expect(table.getByRole("checkbox", { name: "Accept all" })).toBeChecked();
+      await expect(page.locator('[data-tone="proposal"]')).toHaveCount(2);
+      // The badges and the links column say it in words: one link the proposal would violate, one violated link it resolves.
+      await expect(page.getByText("1 link would be violated")).toBeVisible();
+      await expect(table.getByText("Conflict", { exact: true })).toBeVisible();
+      await expect(table.getByText(/^resolves: link with /)).toBeVisible();
+      await expect(page.getByRole("button", { name: "Accept selected (2)" })).toBeEnabled();
+      await expect(page.getByRole("button", { name: "Discard" })).toBeEnabled();
+      // The pointer still rests where the Propose button was, over the section: hover a table row on purpose, so the scan covers the row the
+      // pointer sits on (the table draws no hover tint, which once dropped the "would violate" red below AA).
+      await table.getByRole("row").nth(1).hover();
+      await expectScheme(page, scheme);
+      await scan(page);
+    });
+  }
+  registerProposalScan("light");
+  test.describe("dark scheme", () => {
+    test.use({ colorScheme: "dark" });
+    registerProposalScan("dark");
   });
 });
