@@ -112,6 +112,8 @@ class TeamTest {
             TeamCreateRequest(name = "x".repeat(101)),
             TeamCreateRequest(name = name("ok"), description = "d".repeat(501)),
             TeamCreateRequest(name = "tab\tcontrol"),
+            TeamCreateRequest(name = "\u200B"),
+            TeamCreateRequest(name = " \u200D\uFEFF\u3164 "),
         )
         for (case in cases) {
             assertEquals(HttpStatusCode.BadRequest, admin.postJson("/api/v1/teams", case).status, "expected 400 for $case")
