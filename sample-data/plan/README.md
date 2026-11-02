@@ -87,3 +87,16 @@ node scripts/sample-plan/load.mjs --base-url http://localhost:8086 [--anchor 202
   `@sample.astrolabe.local` logins. A real work stream that merely shares a sample name is not matched (it is a collision instead). If a matched sample work stream also holds a program or project
   that sample people do not own, the loader refuses and lists them, even with `--reset`: it never deletes what it did not create. `--reset` removes projects (their milestones and links go
   with them), programs, work streams, teams, people and logins, in that order, then loads.
+
+## Try the proposal (v0.8)
+
+Sign in as a team's manager (`--logins`) or as the ADMIN, open `/teams/:id` and press **Propose schedule** (the page sends today as `asOf`; the figures below are for `asOf` = the loader's anchor Monday, measured by
+`POST /teams/{id}/schedule-proposal`, NON-BINDING, re-measure rather than quote: `planning-model.md` "The auto-proposal (v0.8.0)" has the whole per-team table, `timeline.md` "Measured figures (v0.8)" the timings).
+
+- **Platform** (the largest team, 301 milestones, virtual path): about 275 moves, 33 of them newly scheduled (the tray empties), so the preview is a long table; the load strip drops from 11 overloaded and 21 over-WIP weeks to
+  1 and 2; the page shows a red "links would be violated" badge (28 links that held now break, 13 broken ones resolve): the Q2a rule, the order is yours, so move a milestone up and propose again. Response ~170 KB.
+- **Web Frontend** (75 rows): the same shape at a readable size: 67 moves (8 new), 5 links newly violated, overloaded weeks 10 -> 1, over-WIP 6 -> 1.
+- **Mobile** or **Payments**: the few milestones that already sit on their earliest slot answer "stays" (2 and 1 rows), the rest move.
+- **Support Tooling** (20 rows, 18 moves) or **Security**: the smallest previews, one screen, for a first try; **Design Systems** shows a team where a link turns red while its weeks go clean (10 overloaded weeks -> 0).
+- Every sample team has capacity from before the anchor, so nothing is "could not be placed". To see that note, add a team without a capacity period (and one milestone) and propose for it: "add a capacity period first".
+- Accept all, then propose again: every movable milestone reads "stays". The fixed point is per team: other teams' dates are constraints, so after accepting the other 14 teams Platform proposes ~210 moves again. `--reset` reloads the pristine plan.
