@@ -19,7 +19,7 @@ RUN GIT_SHA=$(git rev-parse --short HEAD) \
     npm run build
 
 # ── Stage 2: build the server distribution ────────────────────────────────────
-FROM eclipse-temurin:21.0.12.1_1-jdk-noble@sha256:9bd188045f522a296ad4fbce642b85524da59ac7c1f2c9a17ea9785b00d5a433 AS server
+FROM eclipse-temurin:21.0.12.1_1-jdk-noble@sha256:57424b1d8eca9c4cf8a4fe226207027911f08d6758628891bf59fcfb53777029 AS server
 WORKDIR /src
 # Copy build scripts + wrapper first so the Gradle distribution download caches.
 COPY gradlew settings.gradle.kts build.gradle.kts gradle.properties gradle.lockfile settings-gradle.lockfile buildscript-gradle.lockfile ./
@@ -37,7 +37,7 @@ RUN ./gradlew :server:installDist --no-daemon
 
 # ── Stage 3: runtime ──────────────────────────────────────────────────────────
 # Same major as the toolchain (jvmToolchain(21)) and the test JVM — what is tested is what runs.
-FROM eclipse-temurin:21.0.12.1_1-jre-noble@sha256:435763596c3be2b929e8bb4282520849804715c3483cfffaa323a7433f2caf71 AS runtime
+FROM eclipse-temurin:21.0.12.1_1-jre-noble@sha256:cd35bb33859641c5374415826a5951845104093eaa401cbe9d3d9023444f1c13 AS runtime
 # The reviewed Temurin index still ships older Noble revisions of these packages.
 # Upgrade them from Ubuntu's signed repositories and enforce the security floors; exact
 # revision pins would stop clean rebuilds when Ubuntu supersedes them in the live index.
