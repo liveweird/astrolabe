@@ -2,11 +2,11 @@ import { describe, expect, test } from "vitest";
 import { ACCOUNT_NAV, activeNavPath, homePath, visibleSections } from "./navigation";
 
 describe("visibleSections", () => {
-  test("a regular session sees Overview, Planning and Administration — Plan, Roadmap, Programs, Teams, People and Public holidays stay, the admin-only leaves drop", () => {
+  test("a regular session sees Overview, Planning and Administration — Plan, Roadmap, Programs, Baselines, Teams, People and Public holidays stay, the admin-only leaves drop", () => {
     const sections = visibleSections(false);
     expect(sections.map((s) => s.label)).toEqual(["appShell.section.overview", "appShell.section.planning", "appShell.section.administration"]);
     const paths = sections.flatMap((s) => s.items.map((l) => l.to));
-    expect(paths).toEqual(["/", "/plan", "/roadmap", "/programs", "/teams", "/people", "/public-holidays"]);
+    expect(paths).toEqual(["/", "/plan", "/roadmap", "/programs", "/baselines", "/teams", "/people", "/public-holidays"]);
   });
 
   test("an admin session gets Teams, People, Public holidays, Users and Feature flags in the Administration section", () => {
@@ -14,12 +14,12 @@ describe("visibleSections", () => {
     expect(admin?.items.map((l) => l.to)).toEqual(["/teams", "/people", "/public-holidays", "/users", "/feature-flags"]);
   });
 
-  test("Planning sits above Administration and holds the Plan, Roadmap and Programs leaves for everyone", () => {
+  test("Planning sits above Administration and holds the Plan, Roadmap, Programs and Baselines leaves for everyone", () => {
     for (const admin of [false, true]) {
       const labels = visibleSections(admin).map((s) => s.label);
       expect(labels.indexOf("appShell.section.planning")).toBeLessThan(labels.indexOf("appShell.section.administration"));
       const planning = visibleSections(admin).find((s) => s.label === "appShell.section.planning");
-      expect(planning?.items.map((l) => l.to)).toEqual(["/plan", "/roadmap", "/programs"]);
+      expect(planning?.items.map((l) => l.to)).toEqual(["/plan", "/roadmap", "/programs", "/baselines"]);
     }
   });
 

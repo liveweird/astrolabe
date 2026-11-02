@@ -11,6 +11,7 @@ export default function RegistryEditorActions({
   onClose,
   gap,
   submitDisabled,
+  submitLabel,
 }: {
   error: ReactNode;
   submitting: boolean;
@@ -19,6 +20,8 @@ export default function RegistryEditorActions({
   gap?: GroupProps["gap"];
   /** Holds the submit button off while something the save depends on is still loading. */
   submitDisabled?: boolean;
+  /** Replaces the default "Create" / "Save" (an editor whose create is a verb of its own: "Take baseline"). */
+  submitLabel?: string;
 }) {
   const { t } = useTranslation();
 
@@ -34,7 +37,7 @@ export default function RegistryEditorActions({
           {t("common.action.cancel")}
         </Button>
         <Button type="submit" loading={submitting} disabled={submitDisabled}>
-          {isEdit ? t("common.action.save") : t("common.action.create")}
+          {submitLabel ?? (isEdit ? t("common.action.save") : t("common.action.create"))}
         </Button>
       </Group>
     </>

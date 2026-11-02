@@ -1,5 +1,6 @@
 import type { ParseKeys } from "i18next";
-import { IconAddressBook, IconCalendarOff, IconHistory, IconHome2, IconKey, IconListNumbers, IconListTree, IconSitemap, IconToggleLeft, IconUsers, IconUsersGroup, type Icon } from "@tabler/icons-react";
+import { IconAddressBook, IconCalendarOff, IconCamera, IconHistory, IconHome2, IconKey, IconListNumbers, IconListTree, IconSitemap, IconToggleLeft, IconUsers, IconUsersGroup, type Icon } from "@tabler/icons-react";
+import { baselinesPath } from "./baselineLinks";
 import { publicHolidaysPath } from "./calendarLinks";
 import { peoplePath } from "./peopleLinks";
 import { planPath, programsPath, roadmapPath } from "./planLinks";
@@ -35,7 +36,7 @@ export const homePath = "/";
  * The navigation model, shared by the sidebar and the command palette. Sections are labelled,
  * always-open blocks (never collapsible groups): every leaf is always in the DOM, so tests and
  * deep links address the links directly, and a static label costs less vertical space than a
- * toggle. Home, Plan, Roadmap and Programs (the Planning section, readable by everyone) are visible to everyone; the Administration section holds Teams, People and Public holidays (everyone reads
+ * toggle. Home, Plan, Roadmap, Programs and Baselines (the Planning section, readable by everyone) are visible to everyone; the Administration section holds Teams, People and Public holidays (everyone reads
  * the flat teams list, the people directory and the holiday dictionary; only their create/edit/delete are ADMIN) alongside the ADMIN-only Users and
  * Feature flags leaves — a non-admin session sees just Teams, People and Public holidays there.
  */
@@ -50,6 +51,7 @@ const NAV_SECTIONS: ReadonlyArray<NavSection> = [
       { to: planPath, label: "appShell.nav.plan", icon: IconSitemap },
       { to: roadmapPath, label: "appShell.nav.roadmap", icon: IconListNumbers },
       { to: programsPath, label: "appShell.nav.programs", icon: IconListTree },
+      { to: baselinesPath, label: "appShell.nav.baselines", icon: IconCamera },
     ],
   },
   {

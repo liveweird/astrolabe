@@ -35,6 +35,9 @@ function emptyApi() {
     if (url === "/api/v1/views/programs") {
       return Promise.resolve(jsonResponse(200, { revision: 0, teams: [], links: [], workStreams: [] }));
     }
+    if (url === "/api/v1/baselines") {
+      return Promise.resolve(jsonResponse(200, { items: [], can: { manage: true } }));
+    }
     if (/\/api\/v1\/(users|teams|people)(\?|$)/.test(url)) {
       return Promise.resolve(jsonResponse(200, { items: [], page: 1, pageSize: 20, total: 0 }));
     }
