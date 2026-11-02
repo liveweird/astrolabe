@@ -116,9 +116,17 @@ fun wipOn(day: LocalDate, items: List<LoadItem>, calendar: WorkingCalendar): Int
 private fun workingDaysOf(monday: LocalDate, calendar: WorkingCalendar): List<LocalDate> =
     (0 until DAYS_PER_WEEK).map { monday.plusDays(it) }.filter(calendar::isWorkingDay)
 
-/** An exact non-negative rational, reduced by the gcd: the load stays exact until its ONE rounding. */
-private class Fraction(val num: BigInteger, val den: BigInteger) {
+/**
+ * An exact rational (positive denominator), reduced by the gcd: the load stays exact until its ONE rounding. `internal` since v0.8: the
+ * scheduling kernel's ledger ([ScheduleLedger]) keeps its per-day rates and capacities as the same exact fractions, so "the proposal
+ * never exceeds capacity" is an exact comparison, never a double.
+ */
+internal class Fraction(val num: BigInteger, val den: BigInteger) : Comparable<Fraction> {
     operator fun plus(other: Fraction): Fraction = reduced(num * other.den + other.num * den, den * other.den)
+
+    operator fun minus(other: Fraction): Fraction = reduced(num * other.den - other.num * den, den * other.den)
+
+    override operator fun compareTo(other: Fraction): Int = (num * other.den).compareTo(other.num * den)
 
     companion object {
         val ZERO = Fraction(BigInteger.ZERO, BigInteger.ONE)

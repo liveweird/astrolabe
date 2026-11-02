@@ -66,7 +66,8 @@ object DependencyKernels {
         )
     }
 
-    private fun requiredIndex(type: DependencyType, lagDays: Int, predecessor: DaySpan, calendar: WorkingCalendar): Long = when (type) {
+    /** The working-day index the successor's constrained side must reach (the table's `required`); the scheduler's lower bound. */
+    internal fun requiredIndex(type: DependencyType, lagDays: Int, predecessor: DaySpan, calendar: WorkingCalendar): Long = when (type) {
         DependencyType.FS -> calendar.workingDayIndex(effectiveEnd(predecessor, calendar)) + 1 + lagDays
         DependencyType.FF -> calendar.workingDayIndex(effectiveEnd(predecessor, calendar)) + lagDays
         DependencyType.SS -> calendar.workingDayIndex(effectiveStart(predecessor, calendar)) + lagDays
