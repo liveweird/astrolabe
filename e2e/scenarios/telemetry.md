@@ -5,7 +5,7 @@
 - **Owns** (exclusive server-side state): one throwaway user (the fourth test, deleted
   by the test and by the afterEach). The panel's open flag, expanded sections and range are DEVICE-level
   localStorage. Every test first waits, through the API (bounded, 90 s), until the sampler has taken its
-  first sample and the first storage measurement (the first tick comes seconds after the app starts), and exactly ONE live (non-stale) process is listed: a stack rebuilt within 15 minutes still lists the previous container's process as stale, so the Memory locators are scoped to the live instance by name.
+  first sample and the first storage measurement (the first tick comes seconds after the app starts): the sample is the NEWEST live (non-stale) process's, by `startedAt`. The staleness rule is a liveness bound, not a topology claim, so an app-only rebuild on an existing volume leaves the previous container's process live for up to 15 minutes and the panel can list two; the Memory locators are scoped to the newest instance by name.
 
 ## Scenario: an admin opens the telemetry panel from the account menu and reads the Memory section
 

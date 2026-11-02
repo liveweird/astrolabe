@@ -12,9 +12,11 @@ test.afterEach(async () => {
 });
 
 /**
- * Waits until exactly ONE live (non-stale) process has a sample and the storage has been measured (the panel would otherwise say "no
- * sample yet" for up to a minute), and returns that process's instance name. A stack rebuilt within the last 15 minutes still lists the
- * previous container's process as stale, so the panel can hold two Memory tables: the locators are scoped to the live one by name.
+ * Waits until the NEWEST live (non-stale) process, by `startedAt`, has a sample and the storage has been measured (the panel would
+ * otherwise say "no sample yet" for up to a minute), and returns that process's instance name. The staleness rule is a liveness bound,
+ * not a topology claim: an app-only rebuild on an existing volume (`docker compose up --build -d app`) leaves the previous container's
+ * process live for up to 15 minutes, so the panel can hold two live Memory tables and the new process is the one that proves the
+ * sampler works. The locators are scoped to the returned instance by name.
  */
 async function awaitFirstSamples(api: APIRequestContext): Promise<string> {
   let instance = "";
@@ -23,13 +25,19 @@ async function awaitFirstSamples(api: APIRequestContext): Promise<string> {
       async () => {
         const res = await api.get("/api/v1/telemetry/current");
         if (!res.ok()) return `status ${res.status()}`;
-        const body = (await res.json()) as { processes: { instance: string; stale: boolean; sampledAt: number | null }[]; storage: unknown };
-        const live = body.processes.filter((p) => !p.stale);
-        const ready = live.length === 1 && live[0]?.sampledAt !== null && body.storage !== null;
-        if (ready) instance = live[0]?.instance ?? "";
+        const body = (await res.json()) as {
+          processes: { instance: string; stale: boolean; startedAt: number; sampledAt: number | null }[];
+          storage: unknown;
+        };
+        const newest = body.processes.filter((p) => !p.stale).reduce<(typeof body.processes)[number] | undefined>(
+          (best, p) => (best === undefined || p.startedAt > best.startedAt ? p : best),
+          undefined,
+        );
+        const ready = newest !== undefined && newest.sampledAt !== null && body.storage !== null;
+        if (ready) instance = newest.instance;
         return ready ? "ready" : "waiting";
       },
-      { message: "the sampler's first sample and storage measurement of one live process", timeout: 90_000, intervals: [1_000, 2_000, 5_000] },
+      { message: "the sampler's first sample and storage measurement of the newest live process", timeout: 90_000, intervals: [1_000, 2_000, 5_000] },
     )
     .toBe("ready");
   return instance;
