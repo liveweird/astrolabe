@@ -7,7 +7,8 @@
 // violated predecessor, plus a chain project of two back-to-back milestones whose second one drives the fixture milestone (the zero-slack
 // links of the critical path); unique `e2e-axe-*` names), created and deleted via the API. The fixture team carries one capacity period with a
 // WIP limit of 1 (deleted with the team), so its page shows the strip's overload and WIP marks. The open-schedule-proposal scans (the last describe)
-// own their own team pair and plan (unique `e2e-axe-prop-*` names, all dated in 2042), created and deleted via the API.
+// own their own team pair and plan (unique `e2e-axe-prop-*` names, all dated in 2042), created and deleted via the API. The baseline scans (the very last
+// describe) own a team, a plan and one baseline of their own (unique `e2e-axe-bl-*` names, dated in 2026), created and deleted via the API.
 import type { APIRequestContext, Locator, Page } from "@playwright/test";
 import {
   apiAsAdmin,
@@ -632,5 +633,127 @@ test.describe("an open schedule proposal", () => {
   test.describe("dark scheme", () => {
     test.use({ colorScheme: "dark" });
     registerProposalScan("dark");
+  });
+});
+
+// The baselines (v0.9): the registry with a row, the comparison page and the team page with a baseline picked. One world of its own (the plan is
+// copied whole, so the baseline is taken AFTER the world exists, and then the plan moves under it): team T with `s1` 2026-02-02..06 (moves a week
+// later: the orange "Later" badge and a +5 figure), `s2` 2026-02-09..13 (is unscheduled afterwards: an appended "unscheduled since the baseline" row
+// with its shadow bar only), `s4` 2026-02-16..20 (is deleted: an appended "(removed)" row), and `s3` 2026-02-23..27 created after it ("New"). Three
+// shadow bars (`s1`'s own, the two appended rows'), the Movement table open. The pick is a browser setting, set in the test's own browser context.
+// Owns: that world (a team, a person, a work stream, a program, a project and four milestones; unique `e2e-axe-bl-*` names) and one baseline
+// (`e2e-axe-bl-*`, taken in the beforeAll, soft-deleted first in the afterAll; baselines are shared state, so nothing here counts rows).
+test.describe("a baseline on the plan", () => {
+  let api: APIRequestContext;
+  let teamId: number;
+  let teamName: string;
+  let projectName: string;
+  let baselineId: number;
+  let baselineName: string;
+  let scheduledName: string;
+  let removedName: string;
+  const paths: string[] = []; // delete paths in creation order (the baseline last); the afterAll deletes them in reverse
+
+  async function create(path: string, data: object, tear?: string): Promise<number> {
+    const created = await api.post(path, { data });
+    expect(created.status(), await created.text()).toBe(201);
+    const id = ((await created.json()) as { id: number }).id;
+    if (tear !== undefined) paths.push(`${tear}/${id}`);
+    return id;
+  }
+
+  async function place(milestoneId: number, startDate: string | null, endDate: string | null): Promise<void> {
+    const view = (await (await api.get(`/api/v1/views/team/${teamId}`)).json()) as { revision: number };
+    const written = await api.put(`/api/v1/milestones/${milestoneId}/schedule`, { data: { expectedRevision: view.revision, startDate, endDate } });
+    expect(written.status(), await written.text()).toBe(200);
+  }
+
+  test.beforeAll(async () => {
+    ({ api } = await apiAsAdmin());
+    teamName = uniqueText("e2e-axe-bl-team");
+    teamId = await create("/api/v1/teams", { name: teamName }, "/api/v1/teams");
+    const personId = await create("/api/v1/people", { name: uniqueText("e2e-axe-bl-owner") }, "/api/v1/people");
+    const streamId = await create("/api/v1/work-streams", { name: uniqueText("e2e-axe-bl-stream"), ownerPersonId: personId, startDate: "2026-01-05" }, "/api/v1/work-streams");
+    const programId = await create(`/api/v1/work-streams/${streamId}/programs`, { name: uniqueText("e2e-axe-bl-program"), ownerPersonId: personId }, "/api/v1/programs");
+    projectName = uniqueText("e2e-axe-bl-project");
+    const projectId = await create(`/api/v1/programs/${programId}/projects`, { name: projectName, ownerPersonId: personId }, "/api/v1/projects");
+    const milestone = (label: string, estimateMd: number) => {
+      const name = uniqueText(`e2e-axe-bl-${label}`);
+      return create(`/api/v1/projects/${projectId}/milestones`, { name, teamId, estimateMd }).then((id) => ({ id, name }));
+    };
+    const s1 = await milestone("s1", 3);
+    const s2 = await milestone("s2", 2);
+    const s4 = await milestone("s4", 1);
+    scheduledName = s1.name;
+    removedName = s4.name;
+    await place(s1.id, "2026-02-02", "2026-02-06");
+    await place(s2.id, "2026-02-09", "2026-02-13");
+    await place(s4.id, "2026-02-16", "2026-02-20");
+    baselineName = uniqueText("e2e-axe-bl-baseline");
+    baselineId = await create("/api/v1/baselines", { name: baselineName }, "/api/v1/baselines");
+    // The plan moves under the baseline.
+    await place(s1.id, "2026-02-09", "2026-02-13");
+    await place(s2.id, null, null);
+    expect((await api.delete(`/api/v1/milestones/${s4.id}`)).status()).toBe(204);
+    const s3 = await milestone("s3", 2);
+    await place(s3.id, "2026-02-23", "2026-02-27");
+  });
+  test.afterAll(async () => {
+    try {
+      await deleteViaApi(paths.splice(0).reverse());
+    } finally {
+      await api?.dispose();
+    }
+  });
+
+  function registerBaselineScans(scheme: Scheme): void {
+    const suffix = scheme === "dark" ? " in the dark scheme" : "";
+    test(`/baselines with a row has no WCAG A/AA violations${suffix}`, async ({ page }) => {
+      await login(page);
+      await page.goto("/baselines");
+      await expect(page.getByRole("heading", { level: 2, name: "Baselines" })).toBeVisible();
+      await expect(page.getByRole("link", { name: `Compare ${baselineName} with the plan` })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Take baseline", exact: true })).toBeVisible();
+      await expectScheme(page, scheme);
+      await scan(page);
+    });
+
+    test(`/baselines/:id has no WCAG A/AA violations${suffix}`, async ({ page }) => {
+      await login(page);
+      await page.goto(`/baselines/${baselineId}`);
+      await expect(page.getByRole("heading", { level: 2, name: baselineName })).toBeVisible();
+      // The project filter narrows the table to the fixture project (the stack may hold other specs' rows or the sample plan).
+      await page.getByLabel("Project", { exact: true }).fill(projectName);
+      const projectRow = page.getByRole("row").filter({ has: page.getByRole("link", { name: `Open project ${projectName}` }) });
+      await expect(projectRow).toBeVisible();
+      await expect(projectRow).toContainText("Later");
+      await expect(page.getByRole("row").filter({ hasText: removedName }).getByText("Removed", { exact: true })).toBeVisible();
+      await expectScheme(page, scheme);
+      await scan(page);
+    });
+
+    test(`/teams/:id with a baseline picked has no WCAG A/AA violations${suffix}`, async ({ page }) => {
+      await login(page);
+      // The pick (a browser setting) is stored before the page loads, as the picker would have stored it.
+      await page.evaluate(([key, value]) => localStorage.setItem(key, value), ["astrolabe.viewSettings.timeline.baseline", String(baselineId)]);
+      await page.goto(`/teams/${teamId}`);
+      await expect(page.getByRole("heading", { level: 2, name: teamName })).toBeVisible();
+      await expect(page.getByRole("grid", { name: "Team milestone timeline" })).toBeVisible();
+      await expect(page.getByLabel("Baseline", { exact: true })).toHaveValue(new RegExp(baselineName));
+      // The shadow bars: the moved milestone's own, and the two appended rows' (unscheduled and removed since the baseline).
+      await expect(page.locator('[data-tone="baseline"]')).toHaveCount(3);
+      await expect(page.getByText("(unscheduled since the baseline)")).toBeVisible();
+      await expect(page.getByText("(removed)")).toBeVisible();
+      await page.getByRole("button", { name: "Show the movement" }).click();
+      const movement = page.getByRole("table", { name: "Movement since the baseline" });
+      await expect(movement.getByRole("row").filter({ hasText: scheduledName }).getByText("Later", { exact: true })).toBeVisible();
+      await expectScheme(page, scheme);
+      await scan(page);
+    });
+  }
+  registerBaselineScans("light");
+  test.describe("dark scheme", () => {
+    test.use({ colorScheme: "dark" });
+    registerBaselineScans("dark");
   });
 });
