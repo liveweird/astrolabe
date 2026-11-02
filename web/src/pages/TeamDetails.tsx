@@ -7,8 +7,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "../api/http";
 import type { TeamMilestone, TeamView } from "../api/teams";
 import { useAdmin } from "../auth";
+import BaselineMovement from "../components/BaselineMovement";
+import { PickedLoadState } from "../components/BaselineParts";
+import BaselinePicker from "../components/BaselinePicker";
 import ConfirmActionModal from "../components/ConfirmActionModal";
-import EditPageLoadState from "../components/EditPageLoadState";
 import EmptyState from "../components/EmptyState";
 import ErrorAlert from "../components/ErrorAlert";
 import FormErrorAlert from "../components/FormErrorAlert";
@@ -21,11 +23,13 @@ import TeamTimeline, { TeamTray, type TeamActions } from "../components/TeamTime
 import IdleGaps from "../components/IdleGaps";
 import TeamWeeklyLoad from "../components/TeamWeeklyLoad";
 import TimelineDndContext from "../components/TimelineDndContext";
+import { useBaselinePick, useDropUnknownPick } from "../hooks/useBaselinePick";
 import { isOneOf, useStoredState } from "../hooks/useStoredState";
 import { useProposalLock } from "../hooks/useProposalLock";
 import { useScheduleProposal } from "../hooks/useScheduleProposal";
 import { useTeamOrder } from "../hooks/useTeamOrder";
 import { useTeamSchedule } from "../hooks/useTeamSchedule";
+import { baselineDays } from "../utils/baselineOverlay";
 import { localIsoDate } from "../utils/isoDate";
 import { conflictCountOf } from "../utils/dependencyArrows";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
@@ -184,10 +188,14 @@ function TeamPage({ id }: { id: number }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const admin = useAdmin();
-  const schedule = useTeamSchedule(id);
+  // v0.9: the baseline pick (one for every timeline page) keys the view's query - and so every write path's optimistic step; the typed 400
+  // "unknown baseline" clears it.
+  const { pick, setPick } = useBaselinePick();
+  const schedule = useTeamSchedule(id, pick);
   const { view, query } = schedule;
-  const order = useTeamOrder(id, view, schedule.announce);
-  const proposal = useScheduleProposal(id, schedule.announce);
+  const dropping = useDropUnknownPick(query.error, pick, setPick);
+  const order = useTeamOrder(id, view, schedule.announce, pick, schedule.placeholder);
+  const proposal = useScheduleProposal(id, schedule.announce, schedule.placeholder);
   const lock = useProposalLock(proposal, schedule.announce);
   const { open, locked } = lock;
   const writing = schedule.pending || order.pending;
@@ -239,12 +247,17 @@ function TeamPage({ id }: { id: number }) {
   if (!view) {
     const notFound = !Number.isInteger(id) || (query.error instanceof ApiError && query.error.status === 404);
     return (
-      <EditPageLoadState
+      <PickedLoadState
         isLoading={query.isLoading}
         message={notFound ? t("teams.notFound") : loadErrorMessage(query.error, t)}
         backTo={teamsPath}
         backLabel={t("teams.backToTeams")}
         title={t("teams.title")}
+        pick={pick}
+        isError={query.isError}
+        dropping={dropping}
+        notFound={notFound}
+        onClearPick={() => setPick(null)}
       />
     );
   }
@@ -252,7 +265,9 @@ function TeamPage({ id }: { id: number }) {
   const { team } = view;
   // Every day the page shows: the scheduled milestones (the weekly strip lies inside their span by construction) and, while a proposal
   // previews, every proposed span (so the range only grows and no proposed bar sits outside it).
-  const dates = [...view.scheduled.flatMap((m) => [m.startDate, m.endDate]), ...(open === null ? [] : proposalDays(open.moves))].filter((d): d is string => d !== null);
+  const dates = [...view.scheduled.flatMap((m) => [m.startDate, m.endDate]), ...(open === null ? [] : proposalDays(open.moves)), ...baselineDays(view.baseline)].filter(
+    (d): d is string => d !== null,
+  );
   if (dates.length > 0) {
     const min = dates.reduce((a, b) => (b < a ? b : a));
     const max = dates.reduce((a, b) => (b > a ? b : a));
@@ -372,7 +387,17 @@ function TeamPage({ id }: { id: number }) {
               <TimelineButtons view={view} proposal={proposal} busy={busy} proposeRef={proposeRef} onReset={() => setConfirmReset(true)} />
             </Group>
             <ProposalNotes proposal={proposal} />
-            <TeamTimeline view={view} scale={scale} onZoomChange={setZoom} today={today} busy={busy} actions={actions} label={t("teams.view.timelineAria")} proposal={open ?? undefined} />
+            <TeamTimeline
+              view={view}
+              scale={scale}
+              onZoomChange={setZoom}
+              today={today}
+              busy={busy}
+              actions={actions}
+              label={t("teams.view.timelineAria")}
+              proposal={open ?? undefined}
+              toolbar={<BaselinePicker pick={pick} onPick={setPick} current={view.baseline} disabled={busy || locked} />}
+            />
           </Stack>
           {open !== null && (
             <TeamProposal
@@ -406,6 +431,8 @@ function TeamPage({ id }: { id: number }) {
       <TeamCapacity view={view} readOnly={locked} />
       <TeamWeeklyLoad weeks={view.weeks} truncated={view.weeksTruncated} />
       {view.scheduled.length > 0 && <IdleGaps gaps={view.idleGaps} scope="team" />}
+      {/* v0.9: the accessible surface of the shadow bars, present while a baseline is picked. */}
+      {view.baseline !== undefined && <BaselineMovement baseline={view.baseline} live={[...view.scheduled, ...view.unscheduled]} scope="team" />}
 
       {editing && (
         <TeamEditorModal

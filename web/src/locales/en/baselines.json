@@ -71,6 +71,9 @@
     "empty": "No changes since this baseline",
     "emptyFiltered": "No rows match these filters",
     "openProjectAria": "Open project {{name}}",
+    "showOnRoadmap": "Show on the roadmap",
+    "showOnTimeline": "Show on timeline",
+    "showOnTimelineAria": "Show on timeline: {{name}}",
     "location": "{{program}} › {{workStream}}",
     "projectCounts": "Milestones: {{counts}}",
     "unscheduled": "Unscheduled",
@@ -129,6 +132,7 @@
     "removed": "{{count}} removed",
     "scheduled": "{{count}} newly scheduled",
     "unscheduled": "{{count}} unscheduled",
+    "estimateOnly": "{{count}} re-estimated",
     "none": "No schedule changes"
   }
 }

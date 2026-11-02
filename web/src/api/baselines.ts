@@ -2,7 +2,7 @@
 // now (`/views/baseline/{id}`). Everyone signed in reads both; ADMIN or a ROADMAP_EDITOR takes, renames and deletes (`can.manage`, which the
 // server computes with the guard's own arithmetic). Thin endpoint wrappers: transport (authedFetch/ApiError) in ./http, types from ./schema.
 
-import { ApiError, jsonRequest, voidRequest } from "./http";
+import { ApiError, buildQuery, jsonRequest, voidRequest } from "./http";
 import type { components } from "./schema";
 
 type Schemas = components["schemas"];
@@ -16,6 +16,9 @@ export type BaselineViewProject = Schemas["BaselineViewProject"];
 export type BaselineViewMilestone = Schemas["BaselineViewMilestone"];
 export type BaselineFigures = Schemas["BaselineFigures"];
 export type Movement = Schemas["Movement"];
+export type SpanBaseline = Schemas["SpanBaseline"];
+export type BaselineMilestone = Schemas["BaselineMilestone"];
+export type RemovedMilestone = Schemas["RemovedMilestone"];
 export type MovementTotals = Schemas["MovementTotals"];
 
 /** The most active baselines there can be (the server's cap; a create at the cap is a 409, delete one first). */
@@ -23,6 +26,20 @@ export const BASELINE_CAP = 100;
 
 /** The problem `type` of the 409 a create answers when {@link BASELINE_CAP} baselines are already active. */
 const BASELINE_LIMIT_TYPE = "urn:astrolabe:problem:baseline-limit";
+
+/** The problem `type` of the 400 a view answers when its `?baseline=` names a baseline that is unknown or deleted. */
+const UNKNOWN_BASELINE_TYPE = "urn:astrolabe:problem:unknown-baseline";
+
+/** A 400 with the unknown-baseline problem type: the id the page held (its remembered pick) is gone, so the page drops the pick. */
+export function isUnknownBaseline(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 400 && err.type === UNKNOWN_BASELINE_TYPE;
+}
+
+/** The query string of a view's `?baseline=`: empty for no pick (the document is then exactly the plain view). */
+export function baselineSuffix(baseline: number | null | undefined): string {
+  const query = buildQuery({ baseline });
+  return query === "" ? "" : `?${query}`;
+}
 
 /** A 409 with the baseline-limit problem type (a 409 without it is a name clash). */
 export function isBaselineLimit(err: unknown): boolean {

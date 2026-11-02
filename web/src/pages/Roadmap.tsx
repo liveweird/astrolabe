@@ -2,7 +2,10 @@ import { useRef, useState } from "react";
 import { Alert, Badge, Group, Loader, Stack, Text, Title, VisuallyHidden } from "@mantine/core";
 import { IconFilterOff, IconListNumbers } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
-import type { RoadmapView } from "../api/roadmap";
+import { roadmapViewKey, type RoadmapView } from "../api/roadmap";
+import BaselinePicker from "../components/BaselinePicker";
+import BaselineTotals from "../components/BaselineTotals";
+import { ShowWithoutBaseline } from "../components/BaselineParts";
 import EmptyState from "../components/EmptyState";
 import ErrorAlert from "../components/ErrorAlert";
 import FilterPanel from "../components/FilterPanel";
@@ -15,12 +18,14 @@ import RoadmapTimeline, { type RoadmapActions } from "../components/RoadmapTimel
 import TargetWindowModal from "../components/TargetWindowModal";
 import type { TimelineHandle } from "../components/Timeline";
 import TimelineDndContext from "../components/TimelineDndContext";
+import { useBaselinePick, useDropUnknownPick } from "../hooks/useBaselinePick";
 import { usePlanScale } from "../hooks/usePlanScale";
 import { useProgramPick } from "../hooks/useProgramPick";
 import { useRoadmapFilters } from "../hooks/useRoadmapFilters";
-import { ROADMAP_VIEW_KEY, useRoadmapRanking } from "../hooks/useRoadmapRanking";
+import { useRoadmapRanking } from "../hooks/useRoadmapRanking";
 import { useRowMenuFocus } from "../hooks/useRowMenuFocus";
 import { useTargetWindow } from "../hooks/useTargetWindow";
+import { projectTotals } from "../utils/baselineOverlay";
 import { projectOfWindowBar } from "../utils/planTrack";
 import { applyRoadmapWindow } from "../utils/targetWindowUpdate";
 import {
@@ -68,15 +73,20 @@ function RoadmapFacts({ ranked, unranked, flags }: { ranked: number; unranked: n
  */
 export default function Roadmap() {
   const { t } = useTranslation();
-  const ranking = useRoadmapRanking();
+  // v0.9: the baseline pick (one for every timeline page) keys the view's query - the ranking's and the window write path's optimistic steps too; the
+  // typed 400 "unknown baseline" clears it.
+  const { pick, setPick } = useBaselinePick();
+  const ranking = useRoadmapRanking(pick);
   const { view, query } = ranking;
+  const dropping = useDropUnknownPick(query.error, pick, setPick);
   // The target window's write path: the other write on this page's cached view (one mutation key with the ranking: never two at once).
   const windowWrite = useTargetWindow({
     view,
-    queryKey: ROADMAP_VIEW_KEY,
+    queryKey: roadmapViewKey(pick),
     apply: applyRoadmapWindow,
     nameOf: (current, id) => allProjects(current).find((project) => project.id === id)?.name,
     announce: ranking.announce,
+    loading: ranking.placeholder,
   });
   const editable = view?.can.editRank ?? false;
   const empty = view !== undefined && view.ranked.length === 0 && view.unranked.length === 0;
@@ -85,7 +95,8 @@ export default function Roadmap() {
     <Stack gap="md">
       <PageHeader title={t("roadmap.title")} description={editable ? t("roadmap.introEdit") : t("roadmap.intro")} />
 
-      {query.isError && <ErrorAlert error={query.error} title={t("roadmap.loadFailed")} />}
+      {query.isError && !dropping && <ErrorAlert error={query.error} title={t("roadmap.loadFailed")} />}
+      {pick !== null && query.isError && !dropping && view === undefined && <ShowWithoutBaseline onClick={() => setPick(null)} />}
       {/* The visible notices; the status region below says them (an Alert's implicit role="alert" would read the refusal twice). */}
       {(ranking.refused || windowWrite.refused) && (
         <Alert color="orange" variant="light" role="note">
@@ -105,9 +116,9 @@ export default function Roadmap() {
         {ranking.announcement}
       </VisuallyHidden>
 
-      {query.isLoading && <LoadingBlock />}
+      {(query.isLoading || dropping) && <LoadingBlock />}
       {empty && <EmptyState icon={IconListNumbers} label={t("roadmap.empty")} hint={t("roadmap.emptyHint")} />}
-      {view && !empty && <RoadmapBody view={view} ranking={ranking} windowWrite={windowWrite} />}
+      {view && !empty && <RoadmapBody view={view} ranking={ranking} windowWrite={windowWrite} pick={pick} onPick={setPick} />}
     </Stack>
   );
 }
@@ -117,10 +128,14 @@ function RoadmapBody({
   view,
   ranking,
   windowWrite,
+  pick: baselinePick,
+  onPick,
 }: {
   view: RoadmapView;
   ranking: ReturnType<typeof useRoadmapRanking>;
   windowWrite: ReturnType<typeof useTargetWindow>;
+  pick: number | null;
+  onPick: (id: number | null) => void;
 }) {
   const { t } = useTranslation();
   const { filters: storedFilters, set: setFilters } = useRoadmapFilters();
@@ -166,6 +181,7 @@ function RoadmapBody({
   return (
     <>
       <RoadmapFacts ranked={visible.ranked.length} unranked={visible.unranked.length} flags={flagTotals(visible)} />
+      {view.baseline !== undefined && <BaselineTotals name={view.baseline.name} totals={projectTotals(allProjects(view), view.baseline.removedProjects.length)} />}
       <FilterPanel activeFilterCount={activeFilterCount(filters, pick)} storageKey="roadmap">
         <RoadmapFilterFields view={view} filters={filters} onFilters={setFilters} pick={[...(pick ?? [])]} onPick={setPick} />
       </FilterPanel>
@@ -206,6 +222,7 @@ function RoadmapBody({
               busy={ranking.pending}
               label={t("roadmap.timelineAria")}
               timelineRef={timelineRef}
+              toolbar={<BaselinePicker pick={baselinePick} onPick={onPick} current={view.baseline} disabled={ranking.pending} />}
             />
           </Stack>
         </TimelineDndContext>

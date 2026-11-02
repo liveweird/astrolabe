@@ -15,7 +15,8 @@ const SAVE_ERROR_KEYS = {
   failed: "common.error.saveFailedNetwork",
 } as const;
 
-type SaveVariables<V> = { id: number; start: string | null; end: string | null; before: V };
+/** `key` is the cache entry the change was made on (the pick it was made under): the rollback goes back there. */
+type SaveVariables<V> = { id: number; start: string | null; end: string | null; before: V; key: QueryKey };
 
 /**
  * The ONE target-window write path of the two plan pages (the roadmap and the programs tree), generic over the page's cached view - the
@@ -35,6 +36,7 @@ export function useTargetWindow<V>({
   apply,
   nameOf,
   announce,
+  loading,
 }: {
   /** The page's cached view, or `undefined` while it loads. */
   view: V | undefined;
@@ -44,6 +46,8 @@ export function useTargetWindow<V>({
   /** The project's name in the view, or `undefined` when the project is not in it. */
   nameOf: (view: V, id: number) => string | undefined;
   announce: (text: string) => void;
+  /** The shown view is the previous baseline pick's copy while the new pick loads: nothing is written from it (a change is refused like one made during a write). */
+  loading: boolean;
 }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -57,14 +61,14 @@ export function useTargetWindow<V>({
       // Not awaited: the save is over, so the next change may go at once; its `commit` cancels this refetch.
       void refreshQueriesAfterMutation(queryClient, ["roadmap"], ["plan"]);
     },
-    onError: async (_err, { before }) => {
-      queryClient.setQueryData<V>(queryKey, before);
+    onError: async (_err, { before, key }) => {
+      queryClient.setQueryData<V>(key, before);
       await refreshQueriesAfterMutation(queryClient, ["roadmap"], ["plan"]);
     },
   });
   const busy = useIsMutating({ mutationKey: ROADMAP_WRITE_KEY }) > 0;
   // A change refused because a write was still running: shown (and announced) until THAT write - the ranking's or this one - is over.
-  const [refused, setRefused] = useRefusal(busy);
+  const [refused, setRefused] = useRefusal(busy || loading);
 
   /**
    * Propose a window (both dates, or both null to clear it). Answers whether the change was TAKEN: `false` when the project is not in the view
@@ -80,7 +84,7 @@ export function useTargetWindow<V>({
       announce(t("roadmap.window.gone"));
       return false;
     }
-    if (busy) {
+    if (busy || loading) {
       setRefused(true);
       if (!options.ownRefusalAlert) announce(t("project.busy"));
       return false;
@@ -90,7 +94,7 @@ export function useTargetWindow<V>({
     void queryClient.cancelQueries({ queryKey });
     queryClient.setQueryData<V>(queryKey, apply(view, id, start, end));
     if (options.announce) announce(start === null || end === null ? t("roadmap.announce.windowCleared", { name }) : t("roadmap.announce.windowSet", { name, start, end }));
-    save.mutate({ id, start, end, before: view });
+    save.mutate({ id, start, end, before: view, key: queryKey });
     return true;
   };
 

@@ -9,7 +9,7 @@ import { saveErrorMessage } from "../utils/saveError";
 import { acceptItems, noteOf, outcomeOf, outcomeSentence, type ProposalNote, type ProposalOutcome } from "../utils/scheduleProposal";
 import { applyTeamSchedule } from "../utils/teamViewUpdate";
 import { useRefusal } from "./useRefusal";
-import { teamViewKey, teamWriteKey } from "./useTeamSchedule";
+import { teamViewEntries, teamWriteKey } from "./useTeamSchedule";
 
 const PROPOSE_ERROR_KEYS = {
   forbidden: "teams.proposal.forbidden",
@@ -41,12 +41,15 @@ type AcceptVariables = { expectedRevision: number; scopeHash: string; items: Ret
  * (`stale`) and reloads; any other failure stays inline in `error` (already mapped to words) with the preview open. Every taken step is
  * said in the page's live region (`announce`).
  *
+ * The accepted dates and the answered revision go into every cached baseline-pick entry of the team's view (the page may show another pick's by
+ * now); `loading` (the shown view is the previous pick's copy while the new one loads) refuses an accept like one made during a write.
+ *
  * The batch carries the proposal's `scopeHash`. When the TEAM's plan changed since the proposal (a 409 `stale-scope`: nothing was
  * written) the preview closes and a fresh proposal is requested at once, for a fresh `asOf`; the new preview keeps the ticks of the
  * milestones that were ticked and still move, and `rescoped` says so until the next action. A fresh proposal with nothing to show
  * opens nothing and leaves its usual `note`.
  */
-export function useScheduleProposal(teamId: number, announce: (text: string) => void) {
+export function useScheduleProposal(teamId: number, announce: (text: string) => void, loading: boolean) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [proposal, setProposal] = useState<ScheduleProposal | null>(null);
@@ -94,8 +97,8 @@ export function useScheduleProposal(teamId: number, announce: (text: string) => 
       // The accepted milestones take their proposed dates in the cached view at once (a skipped one keeps its old dates) and the view
       // adopts the answered revision, so the page is right before the background refetch brings the server's derived figures.
       const spans = new Map(items.map((item) => [item.milestoneId, item]));
-      queryClient.setQueryData<TeamView>(
-        teamViewKey(teamId),
+      queryClient.setQueriesData<TeamView>(
+        { queryKey: teamViewEntries(teamId) },
         (current) =>
           current &&
           result.accepted.reduce((view, id) => {
@@ -131,7 +134,7 @@ export function useScheduleProposal(teamId: number, announce: (text: string) => 
   });
   const busy = useIsMutating({ mutationKey: teamWriteKey(teamId) }) > 0;
   // An accept refused because a write of this page was still running: shown and announced until that write is over.
-  const [refused, setRefused] = useRefusal(busy);
+  const [refused, setRefused] = useRefusal(busy || loading);
 
   /** A fresh start: the previous note, outcome and failures are about the last proposal. */
   const clearMessages = () => {
@@ -206,7 +209,7 @@ export function useScheduleProposal(teamId: number, announce: (text: string) => 
     /** Send the selected moves as one batch. Answers whether it was sent (not at zero selected; refused out loud while a write runs). */
     accept: (): boolean => {
       if (proposal === null || selected.size === 0) return false;
-      if (busy) {
+      if (busy || loading) {
         setRefused(true);
         announce(t("project.busy"));
         return false;

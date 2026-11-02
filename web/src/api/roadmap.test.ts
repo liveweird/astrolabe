@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { ApiError } from "./http";
 import { jsonResponse } from "../test/http";
-import { getRoadmapView, isStaleRevision, putRanking } from "./roadmap";
+import { getRoadmapView, isStaleRevision, putRanking, roadmapViewKey } from "./roadmap";
 
 type FetchMock = ReturnType<typeof vi.fn>;
 
@@ -25,6 +25,19 @@ describe("roadmap API wrappers", () => {
     mockFetch.mockResolvedValue(jsonResponse(200, { revision: 4, can: { editRank: true }, ranked: [], unranked: [] }));
     expect((await getRoadmapView()).revision).toBe(4);
     expect(lastCall()[0]).toBe("/api/v1/views/roadmap");
+  });
+
+  test("getRoadmapView asks for the picked baseline with ?baseline= (none, null: the plain view)", async () => {
+    mockFetch.mockImplementation(() => Promise.resolve(jsonResponse(200, { revision: 4, can: { editRank: true }, ranked: [], unranked: [] })));
+    await getRoadmapView(5);
+    expect(lastCall()[0]).toBe("/api/v1/views/roadmap?baseline=5");
+    await getRoadmapView(null);
+    expect(lastCall()[0]).toBe("/api/v1/views/roadmap");
+  });
+
+  test("the cached view's key carries the pick, under the roadmap prefix", () => {
+    expect(roadmapViewKey(null)).toEqual(["roadmap", "view", { baseline: null }]);
+    expect(roadmapViewKey(5)).not.toEqual(roadmapViewKey(null));
   });
 
   test("putRanking PUTs the complete list with the expected revision and answers the new revision", async () => {

@@ -27,6 +27,14 @@ describe("milestones API wrappers", () => {
     expect(lastCall()[0]).toBe("/api/v1/views/project/9");
   });
 
+  test("getProjectView asks for the picked baseline with ?baseline= (none, null: the plain view)", async () => {
+    mockFetch.mockImplementation(() => Promise.resolve(jsonResponse(200, { revision: 4, scheduled: [], unscheduled: [] })));
+    await getProjectView(9, 5);
+    expect(lastCall()[0]).toBe("/api/v1/views/project/9?baseline=5");
+    await getProjectView(9, null);
+    expect(lastCall()[0]).toBe("/api/v1/views/project/9");
+  });
+
   test("listMilestones GETs one page with the sort and the name filter, skipping an absent filter", async () => {
     mockFetch.mockImplementation(() => Promise.resolve(jsonResponse(200, { items: [], page: 1, pageSize: 50, total: 0 })));
     await listMilestones({ page: 1, pageSize: 50, sort: "name", name: "Disc" });

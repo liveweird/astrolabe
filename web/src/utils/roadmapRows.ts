@@ -144,9 +144,11 @@ export function driftBandOf(project: RoadmapProject): { start: string; end: stri
   return { start: addDays(project.targetEnd, 1), end: project.span.end };
 }
 
-/** Every date the page shows (spans and target windows): the range the timeline must cover. */
+/** Every date the page shows (spans, target windows and, with a baseline picked, the frozen spans): the range the timeline must cover. */
 export function datesOf(view: RoadmapView): string[] {
-  return allProjects(view).flatMap((project) => [project.span?.start, project.span?.end, project.targetStart, project.targetEnd].filter((d): d is string => typeof d === "string"));
+  return allProjects(view).flatMap((project) =>
+    [project.span?.start, project.span?.end, project.targetStart, project.targetEnd, project.baseline?.span?.start, project.baseline?.span?.end].filter((d): d is string => typeof d === "string"),
+  );
 }
 
 /** How many violated links end on each project (a direct link and the violated milestone links of a pair), for the span bar's accessible name. */

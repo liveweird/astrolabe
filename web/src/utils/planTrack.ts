@@ -1,5 +1,6 @@
 import type { TFunction } from "i18next";
 import type { RoadmapLink, RoadmapProject } from "../api/roadmap";
+import { shadowBar } from "./baselineOverlay";
 import { arrowSpecsForLinks, driftBandOf } from "./roadmapRows";
 import type { TimelineArrowData, TimelineBandData, TimelineBarData, TimelineDrawData } from "./timelineModel";
 
@@ -21,7 +22,8 @@ const withConflicts = (t: TFunction, describe: string, count: number) => (count 
 
 /**
  * The bars of a project row: its target window (the band-look bar behind - editable when the viewer may change it) and the span its milestones
- * cover (hollow, read-only, on top: the Timeline lets the pointer through a summary bar, so the window under it is grabbed where they overlap).
+ * cover (hollow, read-only, on top: the Timeline lets the pointer through a summary bar, so the window under it is grabbed where they overlap), then,
+ * while a baseline is picked, the shadow bar of the span the baseline froze.
  */
 function barsOf(project: RoadmapProject, t: TFunction, conflicts: number): TimelineBarData[] {
   const { id, name, targetStart, targetEnd, span } = project;
@@ -40,6 +42,9 @@ function barsOf(project: RoadmapProject, t: TFunction, conflicts: number): Timel
   if (span !== null) {
     bars.push({ id, start: span.start, end: span.end, label: name, describe: withConflicts(t, t("roadmap.barAria", { name, start: span.start, end: span.end }), conflicts), editable: false, tone: "summary" });
   }
+  // v0.9: with `?baseline=` a project the baseline also froze carries the span it had then - a thin shadow bar under the span bar, named with its dates and movement.
+  const frozen = project.baseline;
+  if (frozen?.span) bars.push(shadowBar(id, name, frozen.span, frozen.movement, t));
   return bars;
 }
 

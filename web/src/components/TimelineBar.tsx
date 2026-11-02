@@ -45,23 +45,26 @@ interface BarProps {
 
 /**
  * A bar's tone: a ghost (another project's endpoint) is faint and dashed, a summary (the project's span) hollow, a proposal (v0.8: a proposed
- * span) hollow with a dashed outline — all READ-ONLY tones, ignored on an editable bar — and a window (a target window) the band look, honoured on a read-only AND on an editable bar (`toneOf`).
+ * span) hollow with a dashed outline, a baseline (v0.9: the span a baseline froze) a thin shadow bar under the row's bar — all READ-ONLY tones, ignored on an editable bar — and a window (a target window) the band look, honoured on a read-only AND on an editable bar (`toneOf`).
  */
 const TONE_CLASS = {
   ghost: classes.timelineBarGhost,
   summary: classes.timelineBarSummary,
   window: classes.timelineBarWindow,
   proposal: classes.timelineBarProposal,
+  baseline: classes.timelineBarBaseline,
 } as const;
 
 /**
  * The bar's wrapper class: a window bar fills the whole row height, any other bar sits inset in it. A read-only SUMMARY bar (a project's span) is
  * transparent to the pointer: it is mounted after - so over - the target window of its row and the row's draw surface, and a hollow outline that
  * swallowed the pointer would leave the window under it ungrabbable (a span usually covers most of its window) and the draw impossible across it.
- * The bar stays a labelled, focusable image for the keyboard and for assistive technology.
+ * The bar stays a labelled, focusable image for the keyboard and for assistive technology. A read-only BASELINE bar is the same (a 5 px shadow along the
+ * bottom of the row: nothing is grabbed through it, and the roadmap's draw surface stays reachable there) and sits low (`timelineBarFrameBaseline`).
  */
 const frameClass = (bar: TimelineBarData) => {
   if (bar.tone === "window") return `${classes.timelineBar} ${classes.timelineBarFrameWindow}`;
+  if (bar.tone === "baseline" && !bar.editable) return `${classes.timelineBar} ${classes.timelineBarFrameBaseline} ${classes.timelineBarInert}`;
   return bar.tone === "summary" && !bar.editable ? `${classes.timelineBar} ${classes.timelineBarInert}` : classes.timelineBar;
 };
 

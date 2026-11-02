@@ -7,12 +7,14 @@ import type { TFunction } from "i18next";
 import type { DependencyEndpoint } from "../api/dependencies";
 import type { ProjectMilestone, ProjectView, UpstreamEntity } from "../api/milestones";
 import { useHolidays } from "../hooks/useHolidays";
+import { barList, baselineBars, newSince, removedRows } from "../utils/baselineOverlay";
 import { idleBands } from "../utils/idleGaps";
 import { addDays } from "../utils/isoDate";
 import { projectPath } from "../utils/planLinks";
 import { arrowSpecs, conflictsByBar, ghostEndpoints, ghostRowId, projectRowId, summaryCritical, summaryRowNeeded, upstreamIndex, upstreamOf } from "../utils/projectDependencies";
 import type { BarId, RovingTarget, TimelineBandData, TimelineBarData, TimelineColumn, TimelineRowData } from "../utils/timelineModel";
 import type { TimelineScale, Zoom } from "../utils/timelineScale";
+import { BaselineRowName } from "./BaselineParts";
 import RowActionsMenu from "./RowActionsMenu";
 import Timeline from "./Timeline";
 import TimelineArrows from "./TimelineArrows";
@@ -35,13 +37,19 @@ const COLUMN_WIDTHS = { name: 220, team: 130, estimate: 120, slack: 130, actions
 /** The estimate with its unit ("12.25 man-days"). */
 const estimateText = (t: TFunction, milestone: ProjectMilestone) => t("project.estimateUnit", { count: milestone.estimateMd });
 
-/** The name with the description as dimmed text after it; one line (rows are a fixed height), the cell clips the rest. */
-function NameCell({ milestone }: { milestone: ProjectMilestone }) {
+/** The name with the description as dimmed text after it; one line (rows are a fixed height), the cell clips the rest. `mark` (a milestone new since the baseline) goes right after the name. */
+function NameCell({ milestone, mark }: { milestone: ProjectMilestone; mark?: string }) {
   return (
     <Text component="span" size="sm" truncate>
       <Text span fw={500}>
         {milestone.name}
       </Text>
+      {mark !== undefined && (
+        <Text span c="dimmed">
+          {" "}
+          {mark}
+        </Text>
+      )}
       {milestone.description && (
         <Text span c="dimmed">
           {" "}
@@ -306,11 +314,15 @@ export default function ProjectTimeline({
     ...(criticalPath ? [{ id: "slack", header: t("project.column.slack"), width: COLUMN_WIDTHS.slack }] : []),
     { id: "actions", header: t("common.table.operations"), width: COLUMN_WIDTHS.actions },
   ];
+  // v0.9: with `?baseline=` the view carries the overlay - a shadow bar per row the baseline had scheduled, a dimmed "(new …)" mark on a milestone it did not know.
+  const overlay = view.baseline;
+  const shadows = overlay === undefined ? null : baselineBars(overlay, view.scheduled, t);
+  const fresh = overlay === undefined ? null : newSince(overlay, view.scheduled);
   const milestoneRows: TimelineRowData[] = view.scheduled.map((milestone) => ({
     id: milestone.id,
     cells: withSlack(
       [
-        <NameCell key="name" milestone={milestone} />,
+        <NameCell key="name" milestone={milestone} mark={fresh?.has(milestone.id) === true ? t("timeline.baseline.newMark") : undefined} />,
         milestone.teamName,
         estimateText(t, milestone),
         // A function cell holds its own focusable; with no menu the cell stays a static stop, so the tab stop never lands on a missing element.
@@ -318,8 +330,8 @@ export default function ProjectTimeline({
       ],
       criticalPath ? <SlackCell key="slack" slackDays={milestone.slackDays} critical={milestone.critical} /> : null,
     ),
-    bars:
-      milestone.startDate !== null && milestone.endDate !== null
+    bars: [
+      ...(milestone.startDate !== null && milestone.endDate !== null
         ? [
             {
               id: milestone.id,
@@ -344,12 +356,36 @@ export default function ProjectTimeline({
               editable: milestone.can.schedule,
             },
           ]
-        : [],
+        : []),
+      ...barList(shadows?.get(milestone.id)),
+    ],
   }));
+  // The baseline's milestones that are gone, and the ones now in the tray that it had scheduled: dimmed rows appended after the current ones, the shadow bar only.
+  const baselineRows: TimelineRowData[] =
+    overlay === undefined
+      ? []
+      : removedRows(overlay, view.unscheduled, t).map((row) => ({
+          id: row.id,
+          cells: withSlack(
+            [
+              <BaselineRowName key="name" row={row} />,
+              <Text key="team" component="span" size="sm" c="dimmed">
+                {row.teamName}
+              </Text>,
+              <Text key="estimate" component="span" size="sm" c="dimmed">
+                {t("project.estimateUnit", { count: row.estimateMd })}
+              </Text>,
+              null,
+            ],
+            criticalPath ? "" : null,
+          ),
+          bars: [row.bar],
+        }));
   const upstream = criticalPath ? upstreamIndex(view) : null;
   const rows = [
     ...(summaryRowNeeded(view) ? [summaryRow(view, t, conflicts, criticalPath)] : []),
     ...milestoneRows,
+    ...baselineRows,
     ...ghostEndpoints(view).map((endpoint) => ghostRow(endpoint, t, upstream)),
   ];
   const arrows = arrowSpecs(view, criticalPath);

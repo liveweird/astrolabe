@@ -512,6 +512,19 @@ table.table {
   border: 2px solid var(--timeline-bar);
 }
 
+/* A baseline's frozen span (TimelineBarData.tone "baseline", v0.9): a thin SHADOW bar along the bottom of the 36 px row, under the 24 px bar that
+   sits at 6..30 px (the window tone's frame precedent: a wrapper class sets the geometry). A solid fill in the dimmed ink the arrows use, square
+   corners, no outline and no hue - apart from the summary (hollow outline), the ghost (faint full-height fill) and the proposal (hollow, dashed). */
+.timelineBarFrameBaseline {
+  top: 30px;
+  height: 5px;
+}
+
+.timelineBarBaseline {
+  background: var(--timeline-arrow);
+  border-radius: 0;
+}
+
 /* A proposed span (TimelineBarData.tone "proposal", v0.8): hollow with a DASHED 2 px outline in the text colour - apart from the summary
    (solid outline), the ghost (faint dashed fill) and the critical emphasis (an outline around a filled bar); no new hue. It is mounted after the
    row's current bar, so where the two overlap the current bar shows through the hollow middle. */

@@ -1342,6 +1342,26 @@ describe("bar tones", () => {
     expect(body.parentElement?.className).toBe(current.parentElement?.className);
   });
 
+  test("a baseline bar (v0.9) is a read-only shadow: data-tone=baseline, a low pointer-transparent frame of its own, beside the current bar", () => {
+    const shadow = { ...bar(9, "Build", "2026-09-14", "2026-09-18", false), id: "baseline:2", describe: "Baseline: Build, 2026-09-14 to 2026-09-18", tone: "baseline" as const };
+    renderWithProviders(<Harness rows={[row(2, "Build", [BUILD, shadow])]} />);
+    const body = screen.getByRole("img", { name: "Baseline: Build, 2026-09-14 to 2026-09-18, read-only" });
+    expect(body).toHaveAttribute("data-tone", "baseline");
+    const current = screen.getByRole("img", { name: /^Build, Team A/ });
+    expect(body.className).not.toBe(current.className);
+    // the shadow sits low (its own frame class) and lets the pointer through to what is under it
+    expect(body.parentElement?.className).not.toBe(current.parentElement?.className);
+    expect(body.parentElement?.className).toMatch(/timelineBarFrameBaseline/);
+    expect(body.parentElement?.className).toMatch(/timelineBarInert/);
+    // no handles, and it is one more stop of the row's roving grid like any bar
+    expect(screen.queryByRole("button", { name: /Resize/ })).toBeNull();
+  });
+
+  test("an editable bar ignores the baseline tone like the other read-only tones", () => {
+    renderWithProviders(<Harness rows={[row(7, "Edit", [{ ...bar(7, "Edit", "2026-09-16", "2026-09-18"), tone: "baseline" }])]} />);
+    expect(barBody("Edit, Team A, 2026-09-16 to 2026-09-18")).not.toHaveAttribute("data-tone");
+  });
+
   test("an editable bar ignores the proposal tone like the other read-only tones", () => {
     renderWithProviders(<Harness rows={[row(7, "Edit", [{ ...bar(7, "Edit", "2026-09-16", "2026-09-18"), tone: "proposal" }])]} />);
     expect(barBody("Edit, Team A, 2026-09-16 to 2026-09-18")).not.toHaveAttribute("data-tone");

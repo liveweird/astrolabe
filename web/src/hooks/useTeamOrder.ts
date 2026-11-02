@@ -1,4 +1,4 @@
-import { useIsMutating, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useIsMutating, useMutation, useQueryClient, type QueryKey } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { ApiError } from "../api/http";
 import { isStaleRevision } from "../api/roadmap";
@@ -9,7 +9,7 @@ import { saveErrorMessage } from "../utils/saveError";
 import { placeScheduled } from "../utils/teamOrderList";
 import { applyTeamOrder } from "../utils/teamViewUpdate";
 import { useRefusal } from "./useRefusal";
-import { teamViewKey, teamWriteKey } from "./useTeamSchedule";
+import { teamViewEntries, teamViewKey, teamWriteKey } from "./useTeamSchedule";
 
 const SAVE_ERROR_KEYS = {
   forbidden: "teams.view.orderForbidden",
@@ -17,7 +17,8 @@ const SAVE_ERROR_KEYS = {
   failed: "common.error.actionFailed",
 } as const;
 
-type SaveVariables = { ids: number[]; expectedRevision: number; before: TeamView };
+/** `key` is the entry the change was made on: the rollback goes back there. */
+type SaveVariables = { ids: number[]; expectedRevision: number; before: TeamView; key: QueryKey };
 
 /**
  * A refusal that means "the list changed under you": the stale-revision 409, and the 400 the order PUT answers when a listed milestone
@@ -37,23 +38,25 @@ const listChanged = (error: unknown) => isStaleRevision(error) || (error instanc
  *  - any other failure rolls back and surfaces through `error` (already mapped to words).
  * A change made while any write of this page (this one or a schedule PUT, which share `teamWriteKey`) is in flight is REFUSED out loud:
  * `commit` answers `false`, `refused` is set (the page's visible note) and `project.busy` is announced. A taken change is announced
- * through the page's one live region (`announce`). `move`, `moveTo`, `placed` and `reset` answer whether the change was taken.
+ * through the page's one live region (`announce`). `loading` is the page's "the shown view is the previous baseline pick's copy" (`placeholder` of
+ * the schedule path): nothing is written from it, a change is refused like one made during a save; a success stores the order revision into
+ * every cached pick entry of the team's view. `move`, `moveTo`, `placed` and `reset` answer whether the change was taken.
  */
-export function useTeamOrder(teamId: number, view: TeamView | undefined, announce: (text: string) => void) {
+export function useTeamOrder(teamId: number, view: TeamView | undefined, announce: (text: string) => void, baseline: number | null, loading: boolean) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const key = teamViewKey(teamId);
+  const key = teamViewKey(teamId, baseline);
 
   const save = useMutation({
     mutationKey: teamWriteKey(teamId),
     mutationFn: ({ ids, expectedRevision }: SaveVariables) => putTeamOrder(teamId, { milestoneIds: ids, expectedRevision }),
     onSuccess: ({ revision }) => {
-      queryClient.setQueryData<TeamView>(key, (current) => current && { ...current, order: { ...current.order, revision } });
+      queryClient.setQueriesData<TeamView>({ queryKey: teamViewEntries(teamId) }, (current) => current && { ...current, order: { ...current.order, revision } });
       // Not awaited: the save is over, so the next change may go at once; its `commit` cancels this refetch.
       void refreshQueriesAfterMutation(queryClient, ["plan"]);
     },
-    onError: async (err, { before }) => {
-      queryClient.setQueryData<TeamView>(key, before);
+    onError: async (err, { before, key: madeOn }) => {
+      queryClient.setQueryData<TeamView>(madeOn, before);
       // The page shows the visible note; the live region says it too (a screen-reader user otherwise sees the list jump back unannounced).
       if (listChanged(err)) announce(t("teams.view.orderStale"));
       await refreshQueriesAfterMutation(queryClient, ["plan"]);
@@ -61,14 +64,14 @@ export function useTeamOrder(teamId: number, view: TeamView | undefined, announc
   });
   const busy = useIsMutating({ mutationKey: teamWriteKey(teamId) }) > 0;
   // A change refused because a write (this one or a schedule save) was still running: shown and announced until no write is in flight.
-  const [refused, setRefused] = useRefusal(busy);
+  const [refused, setRefused] = useRefusal(busy || loading);
 
   const scheduledIds = view?.scheduled.map((milestone) => milestone.id) ?? [];
   const nameOf = (id: number) => view?.scheduled.find((milestone) => milestone.id === id)?.name ?? "";
 
   const commit = (ids: number[], sentence?: () => string): boolean => {
     if (!view) return false;
-    if (busy) {
+    if (busy || loading) {
       setRefused(true);
       announce(t("project.busy"));
       return false;
@@ -76,7 +79,7 @@ export function useTeamOrder(teamId: number, view: TeamView | undefined, announc
     void queryClient.cancelQueries({ queryKey: ["plan"] });
     queryClient.setQueryData<TeamView>(key, applyTeamOrder(view, ids));
     if (sentence) announce(sentence());
-    save.mutate({ ids, expectedRevision: view.order.revision, before: view });
+    save.mutate({ ids, expectedRevision: view.order.revision, before: view, key });
     return true;
   };
 

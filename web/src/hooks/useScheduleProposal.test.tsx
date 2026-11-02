@@ -87,7 +87,7 @@ beforeEach(() => {
   localStorage.setItem("astrolabe.auth.token", "fake-token");
   announce.mockClear();
   toast.mockClear();
-  client.setQueryData(teamViewKey(1), VIEW);
+  client.setQueryData(teamViewKey(1, null), VIEW);
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date(2042, 0, 5, 12, 0, 0));
 });
@@ -99,7 +99,7 @@ afterEach(() => {
 });
 
 async function opened() {
-  const rendered = renderHook(() => useScheduleProposal(1, announce), { wrapper });
+  const rendered = renderHook(() => useScheduleProposal(1, announce, false), { wrapper });
   act(() => {
     expect(rendered.result.current.propose()).toBe(true);
   });
@@ -128,7 +128,7 @@ describe("propose", () => {
 
   test("a proposal with nothing to show opens nothing: the note and the live-region sentence", async () => {
     proposalAnswer = jsonResponse(200, { ...PROPOSAL, moves: [], unchanged: [4] });
-    const { result } = renderHook(() => useScheduleProposal(1, announce), { wrapper });
+    const { result } = renderHook(() => useScheduleProposal(1, announce, false), { wrapper });
     act(() => void result.current.propose());
     await waitFor(() => expect(result.current.note).toBe("nothing"));
     expect(result.current.proposal).toBeNull();
@@ -137,7 +137,7 @@ describe("propose", () => {
 
   test("nothing placed for lack of capacity: the no-capacity note counts from the day after asOf; dismiss clears it", async () => {
     proposalAnswer = jsonResponse(200, { ...PROPOSAL, moves: [], unchanged: [], unplaced: [{ milestoneId: 1, name: "m1", projectId: 7, projectName: "Invoices", reason: "NO_CAPACITY" }] });
-    const { result } = renderHook(() => useScheduleProposal(1, announce), { wrapper });
+    const { result } = renderHook(() => useScheduleProposal(1, announce, false), { wrapper });
     act(() => void result.current.propose());
     await waitFor(() => expect(result.current.note).toBe("noCapacity"));
     // the note names the request's own asOf, whatever weekday it is
@@ -148,7 +148,7 @@ describe("propose", () => {
   });
 
   test("the server's refusals read in the page's words: 403 forbidden, 404 gone, anything else a generic failure", async () => {
-    const { result } = renderHook(() => useScheduleProposal(1, announce), { wrapper });
+    const { result } = renderHook(() => useScheduleProposal(1, announce, false), { wrapper });
     proposalAnswer = () => jsonResponse(403, { title: "Forbidden", status: 403 });
     act(() => void result.current.propose());
     await waitFor(() => expect(result.current.error).toBe("Only the team's manager or an administrator can propose a schedule"));
@@ -206,7 +206,7 @@ describe("accept", () => {
         ],
       },
     ]);
-    expect(client.getQueryData<TeamView>(teamViewKey(1))?.revision).toBe(13);
+    expect(client.getQueryData<TeamView>(teamViewKey(1, null))?.revision).toBe(13);
     expect(result.current.proposal).toBeNull();
     expect(result.current.outcome).toEqual({ accepted: 3, skipped: [] });
     // no success toast: the outcome note and the polite sentence say it
@@ -219,7 +219,7 @@ describe("accept", () => {
     const { result } = await opened();
     act(() => void result.current.accept());
     await waitFor(() => expect(result.current.outcome).not.toBeNull());
-    const view = client.getQueryData<TeamView>(teamViewKey(1));
+    const view = client.getQueryData<TeamView>(teamViewKey(1, null));
     const scheduled = Object.fromEntries((view?.scheduled ?? []).map((m) => [m.id, [m.startDate, m.endDate]]));
     expect(scheduled).toEqual({ 1: ["2042-01-07", "2042-01-09"], 3: ["2042-01-13", "2042-01-15"], 5: ["2042-03-02", "2042-03-03"] });
     expect(view?.unscheduled.map((m) => [m.id, m.startDate])).toEqual([[2, null]]);
@@ -270,7 +270,7 @@ describe("accept", () => {
     expect(result.current.error).toBeNull();
     expect(result.current.outcome).toBeNull();
     expect(announce).toHaveBeenLastCalledWith(expect.stringContaining("The plan changed in the meantime"));
-    expect(client.getQueryData<TeamView>(teamViewKey(1))?.revision).toBe(12);
+    expect(client.getQueryData<TeamView>(teamViewKey(1, null))?.revision).toBe(12);
   });
 
   test("a stale-scope refusal proposes again at once and keeps the ticks of the milestones that still move", async () => {
@@ -350,7 +350,7 @@ describe("accept", () => {
     batchAnswer = new Promise<Response>((resolve) => {
       release = resolve;
     });
-    const { result } = renderHook(() => ({ proposal: useScheduleProposal(1, announce), schedule: useTeamSchedule(1) }), { wrapper });
+    const { result } = renderHook(() => ({ proposal: useScheduleProposal(1, announce, false), schedule: useTeamSchedule(1, null) }), { wrapper });
     await waitFor(() => expect(result.current.schedule.view).toBeDefined());
     act(() => void result.current.proposal.propose());
     await waitFor(() => expect(result.current.proposal.proposal).not.toBeNull());

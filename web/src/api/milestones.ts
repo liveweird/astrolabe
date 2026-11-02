@@ -4,6 +4,7 @@
 // are the rule. Thin endpoint wrappers: transport (authedFetch/ApiError) in ./http, types from ./schema.
 
 import { buildQuery, jsonRequest, voidRequest } from "./http";
+import { baselineSuffix } from "./baselines";
 import type { components } from "./schema";
 
 type Schemas = components["schemas"];
@@ -24,8 +25,9 @@ export async function listMilestones(q: MilestoneListQuery): Promise<MilestonePa
   return jsonRequest<MilestonePage>(`/api/v1/milestones?${params}`);
 }
 
-export async function getProjectView(projectId: number): Promise<ProjectView> {
-  return jsonRequest<ProjectView>(`/api/v1/views/project/${projectId}`);
+/** `baseline` (v0.9) is the id of the baseline to compare with: the document then gains its `baseline` block; absent or null = the plain view. */
+export async function getProjectView(projectId: number, baseline?: number | null): Promise<ProjectView> {
+  return jsonRequest<ProjectView>(`/api/v1/views/project/${projectId}${baselineSuffix(baseline)}`);
 }
 
 export async function createMilestone(projectId: number, body: MilestoneBody): Promise<Schemas["MilestoneResponse"]> {

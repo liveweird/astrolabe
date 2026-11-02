@@ -1,3 +1,4 @@
+import type { Movement } from "../api/baselines";
 import type { ProgramsProgram, ProgramsView, ProgramsWorkStream } from "../api/programs";
 import type { RoadmapProject } from "../api/roadmap";
 import type { FlagCounts, ProgramOption } from "./roadmapRows";
@@ -8,6 +9,7 @@ import type { FlagCounts, ProgramOption } from "./roadmapRows";
 // (its own figures count programs the viewer has hidden), and that is the server's own definition over the programs that remain.
 
 type DateSpan = { start: string; end: string };
+type NodeBaseline = { span: DateSpan; movement: Movement | null };
 
 /** The key of a work stream's row in the expanded set. */
 const streamKey = (id: number) => `ws:${id}`;
@@ -24,6 +26,11 @@ type NodeBase = {
   span: DateSpan | null;
   /** The roll-up of the flags raised on the node's projects. */
   flags: FlagCounts;
+  /**
+   * With a baseline picked (v0.9): the span the node's baselined projects had then and its movement against the live span (`null` movement for a work
+   * stream the pick shows in part - rolled up over the programs that remain, whose own movement the server does not know); `null` = nothing to draw.
+   */
+  baseline: NodeBaseline | null;
   /** The children one level down (programs of a stream, projects of a program); a node with none cannot be expanded. */
   childCount: number;
   expanded: boolean;
@@ -45,7 +52,17 @@ function unionSpan(spans: readonly (DateSpan | null)[]): DateSpan | null {
 
 const sumFlags = (all: readonly FlagCounts[]): FlagCounts => all.reduce((sum, flags) => ({ warnings: sum.warnings + flags.warnings, infos: sum.infos + flags.infos }), { warnings: 0, infos: 0 });
 
-type ShownStream = { stream: ProgramsWorkStream; programs: ProgramsProgram[]; span: DateSpan | null; flags: FlagCounts };
+type ShownStream = { stream: ProgramsWorkStream; programs: ProgramsProgram[]; span: DateSpan | null; flags: FlagCounts; baseline: NodeBaseline | null };
+
+/** A node's baseline as the row draws it: only a span that exists is drawn. */
+const nodeBaseline = (baseline: { span: DateSpan | null; movement: Movement } | undefined): NodeBaseline | null =>
+  baseline?.span ? { span: baseline.span, movement: baseline.movement } : null;
+
+/** The baseline of a work stream shown in part: the union of the shown programs' frozen spans (no movement: the server's belongs to the whole stream). */
+function partialBaseline(programs: readonly ProgramsProgram[]): NodeBaseline | null {
+  const span = unionSpan(programs.map((program) => program.baseline?.span ?? null));
+  return span === null ? null : { span, movement: null };
+}
 
 /**
  * The work streams the program pick leaves (`null` = no pick: every stream, empty ones too) with the programs it leaves in each. A picked program
@@ -57,7 +74,15 @@ function shownStreams(view: ProgramsView, pick: ReadonlySet<number> | null): Sho
     const programs = pick === null ? stream.programs : stream.programs.filter((program) => pick.has(program.id));
     if (pick !== null && programs.length === 0) return [];
     const whole = programs.length === stream.programs.length;
-    return [{ stream, programs, span: whole ? stream.span : unionSpan(programs.map((program) => program.span)), flags: whole ? stream.flags : sumFlags(programs.map((program) => program.flags)) }];
+    return [
+      {
+        stream,
+        programs,
+        span: whole ? stream.span : unionSpan(programs.map((program) => program.span)),
+        flags: whole ? stream.flags : sumFlags(programs.map((program) => program.flags)),
+        baseline: whole ? nodeBaseline(stream.baseline) : partialBaseline(programs),
+      },
+    ];
   });
 }
 
@@ -68,10 +93,10 @@ function shownStreams(view: ProgramsView, pick: ReadonlySet<number> | null): Sho
  */
 export function treeRows(view: ProgramsView, pick: ReadonlySet<number> | null, open: ReadonlySet<string>): TreeRow[] {
   const rows: TreeRow[] = [];
-  for (const { stream, programs, span, flags } of shownStreams(view, pick)) {
+  for (const { stream, programs, span, flags, baseline } of shownStreams(view, pick)) {
     const key = streamKey(stream.id);
     const expanded = programs.length > 0 && open.has(key);
-    rows.push({ kind: "workStream", key, id: stream.id, name: stream.name, ownerName: stream.ownerName, closed: stream.endDate !== null, span, flags, childCount: programs.length, expanded });
+    rows.push({ kind: "workStream", key, id: stream.id, name: stream.name, ownerName: stream.ownerName, closed: stream.endDate !== null, span, flags, baseline, childCount: programs.length, expanded });
     if (!expanded) continue;
     for (const program of programs) {
       const programRowKey = programKey(program.id);
@@ -85,6 +110,7 @@ export function treeRows(view: ProgramsView, pick: ReadonlySet<number> | null, o
         workStreamId: stream.id,
         span: program.span,
         flags: program.flags,
+        baseline: nodeBaseline(program.baseline),
         childCount: program.projects.length,
         expanded: programExpanded,
       });
@@ -140,7 +166,9 @@ export function treeProjects(view: ProgramsView): RoadmapProject[] {
   return view.workStreams.flatMap((stream) => stream.programs.flatMap((program) => program.projects));
 }
 
-/** Every date the page can show (spans and target windows of ALL projects): the range the timeline must cover, whatever is folded or picked away. */
+/** Every date the page can show (spans, target windows and, with a baseline picked, the frozen spans of ALL projects): the range the timeline must cover, whatever is folded or picked away. */
 export function treeDates(view: ProgramsView): string[] {
-  return treeProjects(view).flatMap((project) => [project.span?.start, project.span?.end, project.targetStart, project.targetEnd].filter((d): d is string => typeof d === "string"));
+  return treeProjects(view).flatMap((project) =>
+    [project.span?.start, project.span?.end, project.targetStart, project.targetEnd, project.baseline?.span?.start, project.baseline?.span?.end].filter((d): d is string => typeof d === "string"),
+  );
 }

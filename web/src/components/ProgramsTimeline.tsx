@@ -1,10 +1,11 @@
-import type { Ref } from "react";
+import type { ReactNode, Ref } from "react";
 import { ActionIcon, Group, Text } from "@mantine/core";
 import { IconChevronDown, IconChevronRight } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import type { RoadmapLink, RoadmapProject } from "../api/roadmap";
 import { useHolidays } from "../hooks/useHolidays";
+import { shadowBar } from "../utils/baselineOverlay";
 import { planArrows, projectTrack } from "../utils/planTrack";
 import type { NodeRow, ProjectTreeRow, TreeRow } from "../utils/programsTree";
 import { conflictsByProject, countFlags } from "../utils/roadmapRows";
@@ -81,12 +82,19 @@ function ProjectLabel({ project, stop }: { project: RoadmapProject; stop: Roving
   );
 }
 
-/** A work stream's or program's summary bar: the span its projects cover, read-only. */
+/**
+ * A work stream's or program's summary bar: the span its projects cover, read-only; with a baseline picked (v0.9) the span they had then follows
+ * as a thin shadow bar (also where nothing is scheduled any more).
+ */
 function summaryBars(row: NodeRow, t: TFunction): TimelineBarData[] {
-  if (row.span === null) return [];
-  const { start, end } = row.span;
-  const key = row.kind === "workStream" ? "programs.streamBarAria" : "programs.programBarAria";
-  return [{ id: row.key, start, end, label: row.name, describe: t(key, { name: row.name, start, end }), editable: false, tone: "summary" }];
+  const bars: TimelineBarData[] = [];
+  if (row.span !== null) {
+    const { start, end } = row.span;
+    const key = row.kind === "workStream" ? "programs.streamBarAria" : "programs.programBarAria";
+    bars.push({ id: row.key, start, end, label: row.name, describe: t(key, { name: row.name, start, end }), editable: false, tone: "summary" });
+  }
+  if (row.baseline !== null) bars.push(shadowBar(row.key, row.name, row.baseline.span, row.baseline.movement, t));
+  return bars;
 }
 
 /**
@@ -109,6 +117,7 @@ export default function ProgramsTimeline({
   busy,
   label,
   timelineRef,
+  toolbar,
 }: {
   links: readonly RoadmapLink[];
   rows: readonly TreeRow[];
@@ -125,6 +134,8 @@ export default function ProgramsTimeline({
   busy: boolean;
   label: string;
   timelineRef: Ref<TimelineHandle>;
+  /** The Timeline's `toolbar` slot: the page's baseline picker. */
+  toolbar?: ReactNode;
 }) {
   const { t } = useTranslation();
   const { holidays, failed: holidaysFailed } = useHolidays();
@@ -182,6 +193,7 @@ export default function ProgramsTimeline({
       holidays={holidays}
       holidaysFailed={holidaysFailed}
       busy={busy}
+      toolbar={toolbar}
       overlay={arrows.length === 0 ? undefined : (geometry) => <TimelineArrows arrows={arrows} geometry={geometry} />}
     />
   );

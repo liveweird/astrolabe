@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { useIsMutating, useMutation, useQuery, useQueryClient, type QueryKey } from "@tanstack/react-query";
+import { keepPreviousData, useIsMutating, useMutation, useQuery, useQueryClient, type QueryKey } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { scheduleMilestone } from "../api/milestones";
 import { isStaleRevision } from "../api/roadmap";
+import { withoutStaleOverlay } from "./useBaselinePick";
 import { useRefusal } from "./useRefusal";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { saveErrorMessage } from "../utils/saveError";
@@ -25,7 +26,8 @@ export type ScheduleView = {
   unscheduled: { id: number; name: string }[];
 };
 
-type SaveVariables<V> = { id: number; start: string | null; end: string | null; expectedRevision: number; before: V };
+/** `key` is the cache entry the change was made on (the pick it was made under): its rollback goes back there, whatever the page shows by then. */
+type SaveVariables<V> = { id: number; start: string | null; end: string | null; expectedRevision: number; before: V; key: QueryKey };
 
 /**
  * The ONE schedule write path of a timeline page (the `useRoadmapRanking` shape), generic over the page's view document — the project
@@ -38,16 +40,24 @@ type SaveVariables<V> = { id: number; start: string | null; end: string | null; 
  *    is the truth; any other failure rolls back, awaits the refetch and surfaces through `error` (already mapped to words).
  * While a save (the PUT, and after a failure the rollback reload) runs, further changes are ignored (`pending`) — and so are they while
  * ANY other write sharing `writeKey` runs (the team page's order PUT): two optimistic writes on one cached view would roll each other back.
+ * The cached view's key includes the baseline pick, so an optimistic step hits the entry the page shows and its rollback the entry it was made
+ * on; a SUCCESS stores the answered revision into every cached pick entry of the view (`entriesKey`, the key without the pick), so no entry keeps
+ * the old revision for the next write. The steps (`apply`) leave the view's `baseline` block untouched like `idleGaps` (the refetch brings the new
+ * movement). A change is REFUSED out loud while the shown copy is only the previous pick's placeholder (`placeholder`): its revision and rows are
+ * not this pick's entry.
  * `announcement` is the live-region sentence for the last non-drag change (a drag is announced by dnd-kit itself).
  */
-export function useScheduleWritePath<V extends ScheduleView>({
+export function useScheduleWritePath<V extends ScheduleView & { baseline?: unknown }>({
   queryKey,
+  entriesKey,
   queryFn,
   apply,
   enabled,
   writeKey,
 }: {
   queryKey: QueryKey;
+  /** The view's key WITHOUT the baseline pick: a prefix of every pick's entry. */
+  entriesKey: QueryKey;
   queryFn: () => Promise<V>;
   /** The optimistic step: the view with one milestone's dates replaced (a null pair unschedules). */
   apply: (view: V, id: number, start: string | null, end: string | null) => V;
@@ -57,8 +67,10 @@ export function useScheduleWritePath<V extends ScheduleView>({
 }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const query = useQuery({ queryKey, queryFn, enabled });
-  const view = query.data;
+  // The key carries the baseline pick (v0.9): another pick is another entry. `keepPreviousData` keeps the page mounted (and the picker focused) while it
+  // loads; the old pick's overlay is dropped from that copy until the new document arrives.
+  const query = useQuery({ queryKey, queryFn, enabled, placeholderData: keepPreviousData });
+  const view = withoutStaleOverlay(query.data, query.isPlaceholderData);
   const [announcement, setAnnouncement] = useState("");
   // A change aimed at a milestone that is no longer in the view (deleted, then refetched away): shown (and announced) until the next taken change.
   const [gone, setGone] = useState(false);
@@ -69,19 +81,22 @@ export function useScheduleWritePath<V extends ScheduleView>({
     mutationKey: writeKey,
     mutationFn: ({ id, start, end, expectedRevision }: SaveVariables<V>) => scheduleMilestone(id, { expectedRevision, startDate: start, endDate: end }),
     onSuccess: ({ revision }) => {
-      queryClient.setQueryData<V>(queryKey, (current) => current && { ...current, revision });
+      // Every pick's entry of this view (the page may show another pick's by now): none keeps the old revision.
+      queryClient.setQueriesData<V>({ queryKey: entriesKey }, (current) => current && { ...current, revision });
       // Not awaited: the save is over, so the next change may go at once; its `commit` cancels this refetch.
       void refreshQueriesAfterMutation(queryClient, ["plan"]);
     },
-    onError: async (_err, { before }) => {
-      queryClient.setQueryData<V>(queryKey, before);
+    onError: async (_err, { before, key }) => {
+      queryClient.setQueryData<V>(key, before);
       await refreshQueriesAfterMutation(queryClient, ["plan"]);
     },
   });
   const writing = useIsMutating({ mutationKey: writeKey }) > 0;
   const busy = save.isPending || writing;
-  // A change refused because a save was still running: shown (and announced) until THAT save — whichever write it was — is over.
-  const [refused, setRefused] = useRefusal(busy);
+  // The shown copy belongs to the previous pick while the new one loads: nothing is written from it either.
+  const placeholder = query.isPlaceholderData;
+  // A change refused because a save was still running (or the pick is loading): shown (and announced) until THAT is over.
+  const [refused, setRefused] = useRefusal(busy || placeholder);
 
   const has = (id: number) => [...(view?.scheduled ?? []), ...(view?.unscheduled ?? [])].some((m) => m.id === id);
   const nameOf = (id: number) => [...(view?.scheduled ?? []), ...(view?.unscheduled ?? [])].find((m) => m.id === id)?.name ?? "";
@@ -107,7 +122,7 @@ export function useScheduleWritePath<V extends ScheduleView>({
       announce(t("project.milestoneGone"));
       return false;
     }
-    if (busy) {
+    if (busy || placeholder) {
       setRefused(true);
       if (!options.ownRefusalAlert) announce(t("project.busy"));
       return false;
@@ -120,7 +135,7 @@ export function useScheduleWritePath<V extends ScheduleView>({
       const name = nameOf(id);
       announce(start === null || end === null ? t("project.announce.unscheduled", { name }) : t("project.announce.scheduled", { name, start, end }));
     }
-    save.mutate({ id, start, end, expectedRevision: options.revision ?? view.revision, before: view });
+    save.mutate({ id, start, end, expectedRevision: options.revision ?? view.revision, before: view, key: queryKey });
     return true;
   };
 
@@ -128,6 +143,8 @@ export function useScheduleWritePath<V extends ScheduleView>({
     view,
     query,
     pending: busy,
+    /** The shown view is the previous pick's copy while the new pick loads: every write is refused until it arrives. */
+    placeholder,
     stale: isStaleRevision(save.error),
     error: save.isError && !isStaleRevision(save.error) ? saveErrorMessage(save.error, t, SAVE_ERROR_KEYS) : null,
     announcement,

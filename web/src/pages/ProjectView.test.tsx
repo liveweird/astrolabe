@@ -650,7 +650,7 @@ describe("Project view page: schedule writes", () => {
       dropMove(DISCOVERY, 1);
       await waitFor(() => expect(schedulePuts(mockFetch)).toHaveLength(1));
       unmount();
-      const cached = () => queryClient.getQueryData<ProjectViewDocument>(["plan", "project", 7]);
+      const cached = () => queryClient.getQueryData<ProjectViewDocument>(["plan", "project", 7, { baseline: null }]);
       const discovery = (current: ProjectViewDocument | undefined) => current?.scheduled.find((m) => m.id === DISCOVERY.id);
       // the optimistic move is what the cache holds while the save is out
       expect(discovery(cached())).toMatchObject({ startDate: "2027-01-12", endDate: "2027-01-16" });
@@ -1283,7 +1283,7 @@ describe("Project view page: the critical path", () => {
       criticalPath: { upstream: [], upstreamTruncated: false },
     });
     // Generated ids differ between two mounts (React's, Mantine's, dnd-kit's) and so does the theme provider's <style>; everything else must be identical.
-    const dom = (container: HTMLElement) => container.innerHTML.replace(/<style[\s\S]*?<\/style>/g, "").replace(/mantine-[a-z0-9]{9}(?![a-z0-9])|DndDescribedBy-\d+|DndLiveRegion-\d+|:r[0-9a-z]+:/g, "ID");
+    const dom = (container: HTMLElement) => container.innerHTML.replace(/<style[\s\S]*?<\/style>/g, "").replace(/mantine-[a-z0-9]{9}(?![a-z0-9])|DndDescribedBy-\d+|DndLiveRegion-\d+|:r[0-9a-z]+:|_r_[0-9a-z]+_/g, "ID");
     view = strip(critically());
     const first = renderPage();
     await screen.findByRole("grid", { name: "Milestone timeline" });

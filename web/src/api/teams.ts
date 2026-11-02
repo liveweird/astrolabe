@@ -2,6 +2,7 @@
 // reads them (the owner pickers, the Teams page), ADMIN curates them and their manager.
 // Thin endpoint wrappers: transport (authedFetch/ApiError) in ./http, types from ./schema.
 
+import { baselineSuffix } from "./baselines";
 import { ApiError, buildQuery, jsonRequest, voidRequest } from "./http";
 import type { components, paths } from "./schema";
 
@@ -51,8 +52,9 @@ export type WeekLoad = Schemas["WeekLoad"];
 export type CapacityPeriod = Schemas["CapacityPeriodResponse"];
 export type CapacityPeriodBody = Schemas["CapacityPeriodRequest"];
 
-export async function getTeamView(id: number): Promise<TeamView> {
-  return jsonRequest<TeamView>(`/api/v1/views/team/${id}`);
+/** `baseline` (v0.9) is the id of the baseline to compare with: the document then gains its `baseline` block; absent or null = the plain view. */
+export async function getTeamView(id: number, baseline?: number | null): Promise<TeamView> {
+  return jsonRequest<TeamView>(`/api/v1/views/team/${id}${baselineSuffix(baseline)}`);
 }
 
 export async function createCapacityPeriod(teamId: number, body: CapacityPeriodBody): Promise<CapacityPeriod> {

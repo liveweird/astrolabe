@@ -31,6 +31,13 @@ const VIEW = {
 const ids = (list: ProjectMilestone[]) => list.map((m) => m.id);
 
 describe("applySchedule", () => {
+  test("keeps the baseline block of the cached view untouched, like the idle gaps (the refetch brings the new movement)", () => {
+    const baseline = { id: 5, name: "Q1", planRevision: 4, project: null, milestones: [], removed: [] };
+    const next = applySchedule({ ...VIEW, baseline }, 1, "2027-01-25", "2027-01-26");
+    expect(next.baseline).toBe(baseline);
+    expect(next.idleGaps).toBe(VIEW.idleGaps);
+  });
+
   test("a tray milestone scheduled joins the scheduled list in start order and leaves the tray", () => {
     const next = applySchedule(VIEW, 3, "2027-01-04", "2027-01-10");
     expect(ids(next.scheduled)).toEqual([3, 1, 2]);

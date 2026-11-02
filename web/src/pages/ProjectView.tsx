@@ -9,8 +9,10 @@ import type { EndpointRef, ProjectDependency } from "../api/dependencies";
 import { ApiError } from "../api/http";
 import { deleteMilestone, type ProjectMilestone, type ProjectView as ProjectViewDocument } from "../api/milestones";
 import { deleteProject } from "../api/plan";
+import BaselineMovement from "../components/BaselineMovement";
+import { PickedLoadState } from "../components/BaselineParts";
+import BaselinePicker from "../components/BaselinePicker";
 import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
-import EditPageLoadState from "../components/EditPageLoadState";
 import EmptyState from "../components/EmptyState";
 import DependencyEditorModal from "../components/DependencyEditorModal";
 import ErrorAlert from "../components/ErrorAlert";
@@ -25,8 +27,10 @@ import ProjectEditorModal from "../components/ProjectEditorModal";
 import ProjectTimeline, { ProjectTray, type MilestoneActions } from "../components/ProjectTimeline";
 import TimelineDndContext from "../components/TimelineDndContext";
 import { useDeleteConfirm } from "../hooks/useDeleteConfirm";
+import { useBaselinePick, useDropUnknownPick } from "../hooks/useBaselinePick";
 import { useMilestoneSchedule } from "../hooks/useMilestoneSchedule";
 import { isBoolean, isOneOf, useStoredState } from "../hooks/useStoredState";
+import { baselineDays, spanBadges } from "../utils/baselineOverlay";
 import { localIsoDate } from "../utils/isoDate";
 import { planPath } from "../utils/planLinks";
 import { conflictCount, linksOfMilestone } from "../utils/projectDependencies";
@@ -80,6 +84,12 @@ function ProjectFacts({ view }: { view: ProjectViewDocument }) {
           {badge.label}
         </Badge>
       ))}
+      {view.baseline !== undefined &&
+        spanBadges(view.baseline.project, t).map((badge) => (
+          <Badge key={`baseline-${badge.key}`} color={badge.late ? "orange" : "gray"} variant="light" tt="none">
+            {badge.label}
+          </Badge>
+        ))}
       {conflicts > 0 && (
         <Badge color="red" variant="light">
           {t("project.conflicts", { count: conflicts })}
@@ -110,8 +120,11 @@ function ProjectPage({ id }: { id: number }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const schedule = useMilestoneSchedule(id);
+  // v0.9: the baseline pick (one for every timeline page) keys the view's query; the typed 400 "unknown baseline" clears it.
+  const { pick, setPick } = useBaselinePick();
+  const schedule = useMilestoneSchedule(id, pick);
   const { view, query } = schedule;
+  const dropping = useDropUnknownPick(query.error, pick, setPick);
   const [zoom, setZoom] = useStoredState<Zoom>("timeline.zoom", "week", isOneOf(MILESTONE_ZOOMS));
   // The critical-path highlight (v0.7), remembered like the zoom: the Slack column, the bar and arrow emphasis, the badges and the Critical chain section.
   const [criticalPath, setCriticalPath] = useStoredState("timeline.criticalPath", false, isBoolean);
@@ -141,12 +154,17 @@ function ProjectPage({ id }: { id: number }) {
   if (!view) {
     const notFound = !Number.isInteger(id) || (query.error instanceof ApiError && query.error.status === 404);
     return (
-      <EditPageLoadState
+      <PickedLoadState
         isLoading={query.isLoading}
         message={notFound ? t("project.notFound") : loadErrorMessage(query.error, t)}
         backTo={planPath}
         backLabel={t("project.backToPlan")}
         title={t("project.pageTitle")}
+        pick={pick}
+        isError={query.isError}
+        dropping={dropping}
+        notFound={notFound}
+        onClearPick={() => setPick(null)}
       />
     );
   }
@@ -154,7 +172,13 @@ function ProjectPage({ id }: { id: number }) {
   const { project } = view;
   // Every day the page shows: the milestones, the window and every link end (a ghost row's, so an arrow to a far-away one is in range).
   const linkEnds = view.dependencies.flatMap((d) => [d.predecessor, d.successor]);
-  const dates = [...view.scheduled.flatMap((m) => [m.startDate, m.endDate]), ...linkEnds.flatMap((e) => [e.startDate, e.endDate]), project.targetStart, project.targetEnd].filter(
+  const dates = [
+    ...view.scheduled.flatMap((m) => [m.startDate, m.endDate]),
+    ...linkEnds.flatMap((e) => [e.startDate, e.endDate]),
+    project.targetStart,
+    project.targetEnd,
+    ...baselineDays(view.baseline),
+  ].filter(
     (d): d is string => d !== null,
   );
   if (dates.length > 0) {
@@ -200,6 +224,12 @@ function ProjectPage({ id }: { id: number }) {
     <Button size="compact-sm" variant={criticalPath ? "filled" : "default"} aria-pressed={criticalPath} onClick={() => setCriticalPath(!criticalPath)}>
       {t("timeline.criticalToggle")}
     </Button>
+  );
+  const toolbar = (
+    <>
+      <BaselinePicker pick={pick} onPick={setPick} current={view.baseline} disabled={schedule.pending} />
+      {criticalToggle}
+    </>
   );
   const saved = async () => {
     closeEditor();
@@ -298,7 +328,7 @@ function ProjectPage({ id }: { id: number }) {
               actions={actions}
               label={t("project.timelineAria")}
               criticalPath={criticalPath}
-              toolbar={criticalToggle}
+              toolbar={toolbar}
             />
           </Stack>
           <Stack gap="xs">
@@ -320,6 +350,8 @@ function ProjectPage({ id }: { id: number }) {
       {criticalPath && milestoneCount > 0 && <CriticalChain view={view} />}
       {/* Only with something scheduled: an empty or all-tray project has no span to be idle in. */}
       {view.scheduled.length > 0 && <IdleGaps gaps={view.idleGaps} scope="project" />}
+      {/* v0.9: the accessible surface of the shadow bars, present while a baseline is picked. */}
+      {view.baseline !== undefined && <BaselineMovement baseline={view.baseline} live={[...view.scheduled, ...view.unscheduled]} scope="project" />}
 
       {editor?.kind === "create" && <MilestoneEditorModal project={project} target={null} onClose={closeEditor} onSaved={saved} />}
       {editor?.kind === "edit" && <MilestoneEditorModal project={project} target={editor.milestone} onClose={closeEditor} onSaved={saved} />}

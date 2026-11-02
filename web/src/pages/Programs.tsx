@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { Alert, Badge, Button, Group, Loader, Stack, Text, Title, VisuallyHidden } from "@mantine/core";
 import { IconArrowsMaximize, IconArrowsMinimize, IconListTree } from "@tabler/icons-react";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { getProgramsView, programsViewKey, type ProgramsView } from "../api/programs";
+import BaselinePicker from "../components/BaselinePicker";
+import BaselineTotals from "../components/BaselineTotals";
+import { ShowWithoutBaseline } from "../components/BaselineParts";
 import EmptyState from "../components/EmptyState";
 import ErrorAlert from "../components/ErrorAlert";
 import FilterPanel from "../components/FilterPanel";
@@ -16,10 +19,12 @@ import ProgramsTimeline from "../components/ProgramsTimeline";
 import TargetWindowModal from "../components/TargetWindowModal";
 import type { TimelineHandle } from "../components/Timeline";
 import TimelineDndContext from "../components/TimelineDndContext";
+import { useBaselinePick, useDropUnknownPick, withoutStaleOverlay } from "../hooks/useBaselinePick";
 import { usePlanScale } from "../hooks/usePlanScale";
 import { useProgramPick } from "../hooks/useProgramPick";
 import { useRowMenuFocus } from "../hooks/useRowMenuFocus";
 import { useTargetWindow } from "../hooks/useTargetWindow";
+import { projectTotals } from "../utils/baselineOverlay";
 import { projectOfWindowBar } from "../utils/planTrack";
 import { allOpen, defaultOpen, programChoices, toggled, treeDates, treeFacts, treeProjects, treeRows } from "../utils/programsTree";
 import { pickAmong } from "../utils/roadmapRows";
@@ -61,23 +66,28 @@ function ProgramsFacts({ view, pick }: { view: ProgramsView; pick: ReadonlySet<n
  */
 export default function Programs() {
   const { t } = useTranslation();
-  const query = useQuery({ queryKey: programsViewKey, queryFn: getProgramsView });
-  const view = query.data;
+  // v0.9: the baseline pick (one for every timeline page) keys the view's query - the window write path's optimistic step too; the typed 400
+  // "unknown baseline" clears it. `keepPreviousData` keeps the page (and the focused picker) while another pick loads, without the old overlay.
+  const { pick, setPick } = useBaselinePick();
+  const query = useQuery({ queryKey: programsViewKey(pick), queryFn: () => getProgramsView(pick), placeholderData: keepPreviousData });
+  const view = withoutStaleOverlay(query.data, query.isPlaceholderData);
+  const dropping = useDropUnknownPick(query.error, pick, setPick);
   const empty = view !== undefined && view.workStreams.length === 0;
 
   return (
     <Stack gap="md">
       <PageHeader title={t("programs.title")} description={t("programs.intro")} />
-      {query.isError && <ErrorAlert error={query.error} title={t("programs.loadFailed")} />}
-      {query.isLoading && <LoadingBlock />}
+      {query.isError && !dropping && <ErrorAlert error={query.error} title={t("programs.loadFailed")} />}
+      {pick !== null && query.isError && !dropping && view === undefined && <ShowWithoutBaseline onClick={() => setPick(null)} />}
+      {(query.isLoading || dropping) && <LoadingBlock />}
       {empty && <EmptyState icon={IconListTree} label={t("programs.empty")} hint={t("programs.emptyHint")} />}
-      {view && !empty && <ProgramsBody view={view} />}
+      {view && !empty && <ProgramsBody view={view} pick={pick} onPick={setPick} loading={query.isPlaceholderData} />}
     </Stack>
   );
 }
 
 /** The page below the title once the plan has work streams: the facts, the pick, the expand/collapse buttons and the timeline. */
-function ProgramsBody({ view }: { view: ProgramsView }) {
+function ProgramsBody({ view, pick: baselinePick, onPick, loading }: { view: ProgramsView; pick: number | null; onPick: (id: number | null) => void; loading: boolean }) {
   const { t } = useTranslation();
   const [storedPick, setPick] = useProgramPick();
   // The expanded set is page state, not persisted. Until the user first changes it the defaults apply (every work stream open), so a stream that
@@ -114,10 +124,11 @@ function ProgramsBody({ view }: { view: ProgramsView }) {
   const announce = (text: string) => setAnnouncement((previous) => (previous.endsWith(REREAD) ? text : text + REREAD));
   const windowWrite = useTargetWindow({
     view,
-    queryKey: programsViewKey,
+    queryKey: programsViewKey(baselinePick),
     apply: applyProgramsWindow,
     nameOf: (current, id) => treeProjects(current).find((project) => project.id === id)?.name,
     announce,
+    loading,
   });
   const writing = windowWrite.pending;
   // The dialog is open on one project: read from the view on every render, closed when the project has left it.
@@ -173,6 +184,7 @@ function ProgramsBody({ view }: { view: ProgramsView }) {
           </Button>
         </Group>
       </Group>
+      {view.baseline !== undefined && <BaselineTotals name={view.baseline.name} totals={projectTotals(treeProjects(view), 0)} />}
       <FilterPanel activeFilterCount={pick === null ? 0 : 1} storageKey="programs">
         <ProgramPickField programs={choices} pick={[...(pick ?? [])]} onPick={setPick} />
       </FilterPanel>
@@ -214,6 +226,7 @@ function ProgramsBody({ view }: { view: ProgramsView }) {
             busy={writing}
             label={t("programs.timelineAria")}
             timelineRef={timelineRef}
+            toolbar={<BaselinePicker pick={baselinePick} onPick={onPick} current={view.baseline} disabled={writing} />}
           />
         </Stack>
       </TimelineDndContext>

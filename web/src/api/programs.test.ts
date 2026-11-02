@@ -18,6 +18,16 @@ test("getProgramsView GETs the view", async () => {
   expect(mockFetch.mock.calls.at(-1)?.[0]).toBe("/api/v1/views/programs");
 });
 
+test("getProgramsView asks for the picked baseline with ?baseline= (none, null: the plain view)", async () => {
+  const mockFetch = vi.fn<(url: string) => Promise<Response>>(() => Promise.resolve(jsonResponse(200, { revision: 4, teams: [], links: [], workStreams: [] })));
+  vi.stubGlobal("fetch", mockFetch);
+  await getProgramsView(5);
+  expect(mockFetch.mock.calls.at(-1)?.[0]).toBe("/api/v1/views/programs?baseline=5");
+  await getProgramsView(null);
+  expect(mockFetch.mock.calls.at(-1)?.[0]).toBe("/api/v1/views/programs");
+});
+
 test("the cached view sits under the roadmap prefix, which the plan and project pages already refresh", () => {
-  expect(programsViewKey[0]).toBe("roadmap");
+  expect(programsViewKey(null)[0]).toBe("roadmap");
+  expect(programsViewKey(7)).not.toEqual(programsViewKey(null));
 });

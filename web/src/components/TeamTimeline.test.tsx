@@ -178,3 +178,46 @@ describe("TeamTimeline previewing a proposal", () => {
     expect(bodyRows()).toHaveLength(2);
   });
 });
+
+describe("TeamTimeline with a baseline (v0.9)", () => {
+  const baseline = {
+    id: 5,
+    name: "Q1",
+    planRevision: 4,
+    milestones: [
+      { milestoneId: 1, teamIdThen: 1, start: "2042-01-26", end: "2042-01-30", estimateMd: 4, movement: { kind: "MOVED" as const, startDays: 5, endDays: 5, estimateDelta: 0 } },
+      { milestoneId: 3, teamIdThen: 1, start: "2042-02-16", end: "2042-02-18", estimateMd: 4, movement: { kind: "UNSCHEDULED" as const, startDays: null, endDays: null, estimateDelta: 0 } },
+    ],
+    removed: [{ milestoneId: 8, projectId: 7, name: "tp-gone", teamId: 1, teamName: "Payments", estimateMd: 2, start: "2042-02-02", end: "2042-02-03" }],
+  };
+  const shadows = () => [...document.querySelectorAll('[data-tone="baseline"]')];
+
+  test("without a baseline nothing changes: no shadow bar, the rows are the schedule's", () => {
+    renderTimeline(viewOf());
+    expect(shadows()).toHaveLength(0);
+    expect(bodyRows()).toHaveLength(2);
+  });
+
+  test("a shadow bar follows the current bar in its row; the appended rows come after the scheduled ones and are read-only with a menu of one item", () => {
+    renderTimeline(viewOf({ baseline }));
+    expect(shadows()).toHaveLength(3);
+    const row = rowOf("tp-a");
+    expect(within(row).getByRole("img", { name: /^Baseline: tp-a, 2042-01-26 to 2042-01-30, 5 working days later \(start and end\), read-only$/ })).toBeInTheDocument();
+    // the current bar stays editable
+    expect(within(row).getByRole("button", { name: /^tp-a, Invoices/ })).toBeInTheDocument();
+    expect(bodyRows().map((r) => /tp-[a-z]+/.exec(r.textContent ?? "")?.[0])).toEqual(["tp-a", "tp-b", "tp-gone", "tp-x"]);
+    expect(rowOf("tp-gone")).toHaveTextContent("tp-gone (removed)");
+    expect(rowOf("tp-b")).toHaveTextContent("tp-b (new since the baseline)");
+    expect(within(rowOf("tp-gone")).queryByRole("button", { name: /^tp-gone, / })).toBeNull();
+  });
+
+  test("it coexists with a proposal preview: three bars in a row, the tones tell them apart", () => {
+    renderTimeline(viewOf({ baseline }), PROPOSAL);
+    const row = rowOf("tp-b");
+    expect(within(row).getAllByRole("img").map((bar) => bar.getAttribute("data-tone"))).toEqual([null, "proposal"]);
+    const a = rowOf("tp-a");
+    expect(within(a).getAllByRole("img").map((bar) => bar.getAttribute("data-tone"))).toEqual([null, "baseline"]);
+    expect(proposalBars()).toHaveLength(3);
+    expect(shadows()).toHaveLength(3);
+  });
+});

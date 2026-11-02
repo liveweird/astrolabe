@@ -64,6 +64,14 @@ describe("applyTeamSchedule", () => {
     expect(applyTeamOrder(view, [2, 1]).idleGaps).toBe(gaps);
   });
 
+  test("the baseline block is kept as the cache had it: a schedule step and an order step both leave it for the refetch (v0.9)", () => {
+    const baseline = { id: 5, name: "Q1", planRevision: 4, milestones: [], removed: [] };
+    const view = { ...viewOf([milestone(1, "A"), milestone(2, "B")], [milestone(3, "C")]), baseline };
+    expect(applyTeamSchedule(view, 2, "2027-04-05", "2027-04-09").baseline).toBe(baseline);
+    expect(applyTeamSchedule(view, 1, null, null).baseline).toBe(baseline);
+    expect(applyTeamOrder(view, [2, 1]).baseline).toBe(baseline);
+  });
+
   test("unscheduling moves the row into the tray in the default order (rank, then project, then name)", () => {
     const view = viewOf(
       [milestone(1, "A"), milestone(2, "B", { rankPosition: 2 })],

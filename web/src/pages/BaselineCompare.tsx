@@ -1,19 +1,21 @@
 import { useState } from "react";
-import { useParams, Link as RouterLink } from "react-router-dom";
-import { Anchor, Badge, Group, Select, Stack, Switch, Table, Text, Title, VisuallyHidden } from "@mantine/core";
+import { useNavigate, useParams, Link as RouterLink } from "react-router-dom";
+import { Anchor, Button, Group, Select, Stack, Switch, Table, Text, Title, VisuallyHidden } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { getBaselineView, type BaselineFigures, type BaselineView, type Movement, type MovementTotals } from "../api/baselines";
+import { getBaselineView, type BaselineView } from "../api/baselines";
 import { ApiError } from "../api/http";
+import { DateRange, Figures, StatusBadge, TotalsBadges } from "../components/BaselineParts";
 import ClearableTextInput from "../components/ClearableTextInput";
 import EditPageLoadState from "../components/EditPageLoadState";
 import PageHeader from "../components/PageHeader";
 import ScrollRegion from "../components/ScrollRegion";
+import { useBaselinePick } from "../hooks/useBaselinePick";
 import { baselinesPath } from "../utils/baselineLinks";
 import { compareGroups, compareTeams, estimateText, type CompareFilters } from "../utils/baselineCompare";
 import { movementSentence, movementStatus, movementTotalsParts, signedDays } from "../utils/baselineOverlay";
 import { formatDateTime } from "../utils/formatDate";
-import { projectPath } from "../utils/planLinks";
+import { projectPath, roadmapPath } from "../utils/planLinks";
 import { loadErrorMessage } from "../utils/saveError";
 
 const NO_WRAP = { whiteSpace: "nowrap" } as const;
@@ -24,55 +26,8 @@ const NAME_COLUMN = { minWidth: 220 } as const;
 /** The table scrolls inside its region (1,000 rows at most, no virtualisation — a plain table). */
 const TABLE_MAX_HEIGHT = "70vh";
 
-/** A row's status: the ORANGE "Later" when a moved row's end is later (the user's rule), gray otherwise. */
-function StatusBadge({ movement }: { movement: Movement }) {
-  const { t } = useTranslation();
-  const status = movementStatus(movement);
-  return (
-    <Badge color={status.late ? "orange" : "gray"} variant="light" miw="max-content">
-      {t(`baselines.status.${status.key}`)}
-    </Badge>
-  );
-}
-
-/** A date range stays on one line: a column of wrapped dates reads as noise (the Start/End headers wrap instead). */
-function DateRange({ start, end }: { start: string; end: string }) {
-  return <span style={NO_WRAP}>{`${start} – ${end}`}</span>;
-}
-
-/** One side of a comparison: the dates, "Unscheduled" for a milestone with none, "—" for a side that does not exist. */
-function Figures({ figures }: { figures: BaselineFigures | null }) {
-  const { t } = useTranslation();
-  if (figures === null) return <>—</>;
-  return figures.start === null || figures.end === null ? <>{t("baselines.compare.unscheduled")}</> : <DateRange start={figures.start} end={figures.end} />;
-}
-
 function Span({ span }: { span: { start: string; end: string } | null }) {
   return span === null ? <>—</> : <DateRange start={span.start} end={span.end} />;
-}
-
-/** The totals of one kind of row as badges (ORANGE for the rows whose end is later), or the "no schedule changes" line. */
-function TotalsLine({ label, totals }: { label: string; totals: MovementTotals }) {
-  const { t } = useTranslation();
-  const parts = movementTotalsParts(totals, t);
-  return (
-    <Group gap="xs" wrap="wrap">
-      <Text size="sm" fw={500} component="span">
-        {label}
-      </Text>
-      {parts.length === 0 ? (
-        <Text size="sm" c="dimmed" component="span">
-          {t("baselines.totals.none")}
-        </Text>
-      ) : (
-        parts.map((part) => (
-          <Badge key={part.key} color={part.late ? "orange" : "gray"} variant="light">
-            {part.label}
-          </Badge>
-        ))
-      )}
-    </Group>
-  );
 }
 
 function Facts({ view }: { view: BaselineView }) {
@@ -132,6 +87,13 @@ function Comparison({ id }: { id: number }) {
   const [teamId, setTeamId] = useState<number | null>(null);
   const [text, setText] = useState("");
   const [changedOnly, setChangedOnly] = useState(true);
+  // "Show on timeline": remember this baseline as the pick of every timeline page (one browser-wide pick), then open the page.
+  const { setPick } = useBaselinePick();
+  const navigate = useNavigate();
+  const showOn = (to: string) => {
+    setPick(id);
+    navigate(to);
+  };
 
   const { data, isLoading, error } = useQuery({ queryKey: ["baselines", "view", id], queryFn: () => getBaselineView(id) });
 
@@ -153,6 +115,11 @@ function Comparison({ id }: { id: number }) {
         title={data.baseline.name}
         description={data.baseline.description ?? undefined}
         backTo={{ to: baselinesPath, label: t("baselines.compare.backToList") }}
+        actions={
+          <Button variant="default" onClick={() => showOn(roadmapPath)}>
+            {t("baselines.compare.showOnRoadmap")}
+          </Button>
+        }
       />
       <Facts view={data} />
 
@@ -160,8 +127,8 @@ function Comparison({ id }: { id: number }) {
         <Title order={3} size="h4">
           {t("baselines.compare.totalsTitle")}
         </Title>
-        <TotalsLine label={t("baselines.compare.totalsMilestones")} totals={data.totals.milestones} />
-        <TotalsLine label={t("baselines.compare.totalsProjects")} totals={data.totals.projects} />
+        <TotalsBadges label={t("baselines.compare.totalsMilestones")} totals={data.totals.milestones} />
+        <TotalsBadges label={t("baselines.compare.totalsProjects")} totals={data.totals.projects} />
       </Stack>
 
       <Stack gap="sm">
@@ -243,6 +210,9 @@ function Comparison({ id }: { id: number }) {
                             {t("baselines.compare.projectCounts", { counts: counts.map((part) => part.label).join(", ") })}
                           </Text>
                         )}
+                        <Button variant="subtle" size="compact-xs" fw={500} aria-label={t("baselines.compare.showOnTimelineAria", { name: project.name })} onClick={() => showOn(projectPath(project.projectId))}>
+                          {t("baselines.compare.showOnTimeline")}
+                        </Button>
                       </Table.Th>
                       <Table.Td />
                       <Table.Td><Span span={project.baselineSpan} /></Table.Td>
@@ -251,7 +221,7 @@ function Comparison({ id }: { id: number }) {
                       <Table.Td ta="right">{signedDays(project.movement.endDays)}</Table.Td>
                       <Table.Td />
                       <Table.Td style={SHRINK}>
-                        <StatusBadge movement={project.movement} />
+                        <StatusBadge status={movementStatus(project.movement)} />
                       </Table.Td>
                     </Table.Tr>
                     {milestones.map((row) => (
@@ -269,7 +239,7 @@ function Comparison({ id }: { id: number }) {
                         <Table.Td ta="right">{signedDays(row.movement.endDays)}</Table.Td>
                         <Table.Td style={NO_WRAP}>{estimateText(row)}</Table.Td>
                         <Table.Td style={SHRINK}>
-                          <StatusBadge movement={row.movement} />
+                          <StatusBadge status={movementStatus(row.movement)} />
                         </Table.Td>
                       </Table.Tr>
                     ))}

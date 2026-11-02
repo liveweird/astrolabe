@@ -35,6 +35,14 @@ describe("team view and capacity API wrappers", () => {
     expect(lastCall()[0]).toBe("/api/v1/views/team/9");
   });
 
+  test("getTeamView asks for the picked baseline with ?baseline= (none, null: the plain view)", async () => {
+    mockFetch.mockImplementation(() => Promise.resolve(jsonResponse(200, { revision: 4, scheduled: [], unscheduled: [] })));
+    await getTeamView(9, 5);
+    expect(lastCall()[0]).toBe("/api/v1/views/team/9?baseline=5");
+    await getTeamView(9, null);
+    expect(lastCall()[0]).toBe("/api/v1/views/team/9");
+  });
+
   test("createCapacityPeriod POSTs the period under the team and answers it", async () => {
     mockFetch.mockResolvedValue(jsonResponse(201, { id: 5, teamId: 9, ...BODY }));
     expect((await createCapacityPeriod(9, BODY)).id).toBe(5);

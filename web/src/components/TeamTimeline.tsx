@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Anchor, Group, Menu, Text } from "@mantine/core";
 import { IconArrowBarDown, IconArrowBarUp, IconArrowDown, IconArrowUp, IconCalendarEvent, IconCalendarOff, IconExternalLink } from "@tabler/icons-react";
 import { Link as RouterLink } from "react-router-dom";
@@ -5,12 +6,14 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import type { TeamMilestone, TeamView } from "../api/teams";
 import { useHolidays } from "../hooks/useHolidays";
+import { barList, baselineBars, newSince, removedRows, type BaselineRow } from "../utils/baselineOverlay";
 import { arrowSpecsFor, conflictsByBarFor } from "../utils/dependencyArrows";
 import { idleBands } from "../utils/idleGaps";
 import { projectPath } from "../utils/planLinks";
 import { proposalBars, proposalRows, type TeamProposalView } from "../utils/scheduleProposal";
 import type { BarId, RovingTarget, TimelineBarData, TimelineColumn, TimelineRowData } from "../utils/timelineModel";
 import type { TimelineScale, Zoom } from "../utils/timelineScale";
+import { BaselineRowName } from "./BaselineParts";
 import RowActionsMenu from "./RowActionsMenu";
 import Timeline from "./Timeline";
 import TimelineArrows from "./TimelineArrows";
@@ -34,8 +37,11 @@ const COLUMN_WIDTHS = { name: 220, project: 150, estimate: 120, actions: 56 } as
 /** The estimate with its unit ("12.25 man-days"). */
 const estimateText = (t: TFunction, milestone: TeamMilestone) => t("project.estimateUnit", { count: milestone.estimateMd });
 
-/** The name with the description as dimmed text after it; one line (rows are a fixed height), the cell clips the rest. A row a preview appends is marked "(new)". */
-function NameCell({ milestone, isNew = false }: { milestone: TeamMilestone; isNew?: boolean }) {
+/**
+ * The name with the description as dimmed text after it; one line (rows are a fixed height), the cell clips the rest. A row a preview appends is
+ * marked "(new)"; `sinceBaseline` (v0.9) marks a milestone the picked baseline did not know.
+ */
+function NameCell({ milestone, isNew = false, sinceBaseline = false }: { milestone: TeamMilestone; isNew?: boolean; sinceBaseline?: boolean }) {
   const { t } = useTranslation();
   return (
     <Text component="span" size="sm" truncate>
@@ -46,6 +52,12 @@ function NameCell({ milestone, isNew = false }: { milestone: TeamMilestone; isNe
         <Text span c="dimmed">
           {" "}
           {t("teams.proposal.newMark")}
+        </Text>
+      )}
+      {sinceBaseline && (
+        <Text span c="dimmed">
+          {" "}
+          {t("timeline.baseline.newMark")}
         </Text>
       )}
       {milestone.description && (
@@ -59,12 +71,12 @@ function NameCell({ milestone, isNew = false }: { milestone: TeamMilestone; isNe
 }
 
 /** A timeline row's name cell: with `placement` (the viewer may reorder) the row's pointer-only drag handle comes first. */
-function RowNameCell({ milestone, placement }: { milestone: TeamMilestone; placement: { index: number; count: number } | null }) {
-  if (placement === null) return <NameCell milestone={milestone} />;
+function RowNameCell({ milestone, placement, sinceBaseline }: { milestone: TeamMilestone; placement: { index: number; count: number } | null; sinceBaseline: boolean }) {
+  if (placement === null) return <NameCell milestone={milestone} sinceBaseline={sinceBaseline} />;
   return (
     <Group gap={4} wrap="nowrap" style={{ minWidth: 0 }}>
       <TimelineRowHandle id={milestone.id} label={milestone.name} position={placement.index + 1} count={placement.count} />
-      <NameCell milestone={milestone} />
+      <NameCell milestone={milestone} sinceBaseline={sinceBaseline} />
     </Group>
   );
 }
@@ -143,6 +155,18 @@ function MilestoneMenu({
   );
 }
 
+/** The menu of a baseline row: it holds only the link to the milestone's project (a removed milestone's project may be gone too: the link then lands on its not-found page). */
+function OpenProjectMenu({ row, trigger }: { row: BaselineRow; trigger: RovingTarget }) {
+  const { t } = useTranslation();
+  return (
+    <RowActionsMenu label={t("common.table.operationsAria", { name: row.name })} trigger={trigger}>
+      <Menu.Item component={RouterLink} to={projectPath(row.projectId)} leftSection={<IconExternalLink size={14} />}>
+        {t("teams.view.action.openProject")}
+      </Menu.Item>
+    </RowActionsMenu>
+  );
+}
+
 /** The accessible name of a bar, with the ", N conflicts" suffix when violated links end on it (so a screen-reader user on the bar hears it). */
 const withConflicts = (t: TFunction, describe: string, count: number) => (count > 0 ? `${describe}, ${t("project.barConflicts", { count })}` : describe);
 
@@ -162,6 +186,11 @@ const proposalBarOf = (proposed: ReadonlyMap<number, TimelineBarData>, milestone
  * beside its current one, a tray milestone the proposal schedules gets a row APPENDED after the scheduled ones (only the proposal bar,
  * "(new)" after its name), the strip shows the proposed load instead, the current bars lose their handles, the row handles are gone and
  * the idle bands (about the current schedule) are not drawn. Arrows stay on the current bars; none ends on a proposal bar.
+ *
+ * With the view's `baseline` (v0.9, `?baseline=N`) every row the baseline had scheduled gets a thin shadow bar under its bar, a milestone it did not
+ * know reads "(new since the baseline)", and the baseline's milestones that are gone from the team (deleted, moved to another team) and the tray
+ * milestones it had scheduled are appended as dimmed rows with the shadow bar only (after the scheduled rows, then a preview's rows). It coexists
+ * with a proposal preview: three bars in a row, the tones differ.
  */
 export default function TeamTimeline({
   view,
@@ -172,6 +201,7 @@ export default function TeamTimeline({
   actions,
   label,
   proposal,
+  toolbar,
 }: {
   view: TeamView;
   scale: TimelineScale;
@@ -181,6 +211,8 @@ export default function TeamTimeline({
   actions: TeamActions;
   label: string;
   proposal?: TeamProposalView;
+  /** The Timeline's `toolbar` slot: the page's baseline picker. */
+  toolbar?: ReactNode;
 }) {
   const { t } = useTranslation();
   const { holidays, failed: holidaysFailed } = useHolidays();
@@ -196,10 +228,13 @@ export default function TeamTimeline({
   const barOf = (endpoint: { kind: string; id: number }): BarId | null => (endpoint.kind === "MILESTONE" && rowIds.has(endpoint.id) ? endpoint.id : null);
   const conflicts = conflictsByBarFor(view.dependencies, barOf);
   const count = view.scheduled.length;
+  const overlay = view.baseline;
+  const shadows = overlay === undefined ? null : baselineBars(overlay, view.scheduled, t);
+  const fresh = overlay === undefined ? null : newSince(overlay, view.scheduled);
   const rows: TimelineRowData[] = view.scheduled.map((milestone, index) => ({
     id: milestone.id,
     cells: [
-      <RowNameCell key="name" milestone={milestone} placement={view.team.can.editOrder && !previewing ? { index, count } : null} />,
+      <RowNameCell key="name" milestone={milestone} placement={view.team.can.editOrder && !previewing ? { index, count } : null} sinceBaseline={fresh?.has(milestone.id) === true} />,
       (stop: RovingTarget) => (
         <Anchor component={RouterLink} to={projectPath(milestone.projectId)} size="sm" truncate title={milestone.projectName} aria-label={t("teams.view.openProjectAria", { name: milestone.projectName })} {...stop}>
           {milestone.projectName}
@@ -232,8 +267,30 @@ export default function TeamTimeline({
           ]
         : []),
       ...proposalBarOf(proposed, milestone),
+      ...barList(shadows?.get(milestone.id)),
     ],
   }));
+  // The baseline's rows (v0.9): gone from the team, or in the tray now though the baseline had them scheduled - dimmed, the shadow bar only.
+  for (const row of overlay === undefined ? [] : removedRows(overlay, view.unscheduled, t)) {
+    rows.push({
+      id: row.id,
+      cells: [
+        <BaselineRowName key="name" row={row} />,
+        row.projectName === null ? (
+          ""
+        ) : (
+          <Text key="project" component="span" size="sm" c="dimmed" truncate title={row.projectName}>
+            {row.projectName}
+          </Text>
+        ),
+        <Text key="estimate" component="span" size="sm" c="dimmed">
+          {t("project.estimateUnit", { count: row.estimateMd })}
+        </Text>,
+        (stop: RovingTarget) => <OpenProjectMenu row={row} trigger={stop} />,
+      ],
+      bars: [row.bar],
+    });
+  }
   // A preview appends the tray milestones the proposal schedules: only the proposal bar (they have no current one).
   for (const milestone of proposalRows(view, proposal?.moves ?? [])) {
     rows.push({
@@ -264,6 +321,7 @@ export default function TeamTimeline({
       holidays={holidays}
       holidaysFailed={holidaysFailed}
       busy={busy}
+      toolbar={toolbar}
       strip={{
         label: previewing ? t("timeline.strip.proposedLabel") : t("teams.view.stripLabel"),
         render: (stripScale) => <TimelineLoadStrip weeks={proposal?.weeks ?? view.weeks} scale={stripScale} />,

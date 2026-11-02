@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { jsonResponse } from "../test/http";
 import { ApiError } from "./http";
-import { BASELINE_CAP, createBaseline, deleteBaseline, getBaseline, getBaselineView, isBaselineLimit, listBaselines, updateBaseline } from "./baselines";
+import { BASELINE_CAP, baselineSuffix, createBaseline, deleteBaseline, getBaseline, getBaselineView, isBaselineLimit, isUnknownBaseline, listBaselines, updateBaseline } from "./baselines";
 
 type FetchMock = ReturnType<typeof vi.fn>;
 
@@ -62,5 +62,20 @@ describe("baseline API wrappers", () => {
     expect(isBaselineLimit(new ApiError(409, { type: "about:blank" }))).toBe(false);
     expect(isBaselineLimit(new ApiError(400, { type: "urn:astrolabe:problem:baseline-limit" }))).toBe(false);
     expect(isBaselineLimit(new Error("x"))).toBe(false);
+  });
+});
+
+describe("the views' baseline parameter", () => {
+  test("isUnknownBaseline is a 400 with the unknown-baseline problem type, nothing else", () => {
+    expect(isUnknownBaseline(new ApiError(400, { type: "urn:astrolabe:problem:unknown-baseline" }))).toBe(true);
+    expect(isUnknownBaseline(new ApiError(400, { type: "about:blank" }))).toBe(false);
+    expect(isUnknownBaseline(new ApiError(404, { type: "urn:astrolabe:problem:unknown-baseline" }))).toBe(false);
+    expect(isUnknownBaseline(new Error("x"))).toBe(false);
+  });
+
+  test("baselineSuffix is empty without a pick and ?baseline=N with one", () => {
+    expect(baselineSuffix(null)).toBe("");
+    expect(baselineSuffix(undefined)).toBe("");
+    expect(baselineSuffix(12)).toBe("?baseline=12");
   });
 });

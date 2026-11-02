@@ -52,7 +52,7 @@ export function compareGroups(view: BaselineView, filters: CompareFilters): Proj
 }
 
 /** The estimate cell: "10" when it did not change, "10 → 12.5" when it did, the one side that exists otherwise, "—" for neither. */
-export function estimateText(row: BaselineViewMilestone): string {
+export function estimateText(row: Pick<BaselineViewMilestone, "frozen" | "live">): string {
   const then = row.frozen?.estimateMd;
   const now = row.live?.estimateMd;
   if (then === undefined && now === undefined) return "—";

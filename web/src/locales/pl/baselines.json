@@ -75,6 +75,9 @@
     "empty": "Brak zmian od utworzenia tej bazy odniesienia",
     "emptyFiltered": "Żaden wiersz nie pasuje do filtrów",
     "openProjectAria": "Otwórz projekt {{name}}",
+    "showOnRoadmap": "Pokaż na roadmapie",
+    "showOnTimeline": "Pokaż na osi czasu",
+    "showOnTimelineAria": "Pokaż na osi czasu: {{name}}",
     "location": "{{program}} › {{workStream}}",
     "projectCounts": "Kamienie milowe: {{counts}}",
     "unscheduled": "Niezaplanowany",
@@ -145,6 +148,7 @@
     "removed": "Usunięte: {{count}}",
     "scheduled": "Nowo zaplanowane: {{count}}",
     "unscheduled": "Wycofane z harmonogramu: {{count}}",
+    "estimateOnly": "Zmieniona estymata: {{count}}",
     "none": "Brak zmian w harmonogramie"
   }
 }

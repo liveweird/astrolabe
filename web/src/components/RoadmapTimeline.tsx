@@ -1,4 +1,4 @@
-import type { Ref } from "react";
+import type { ReactNode, Ref } from "react";
 import { Group, Menu, Text } from "@mantine/core";
 import { IconArrowBarDown, IconArrowBarUp, IconArrowDown, IconArrowUp, IconListNumbers, IconX } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
@@ -124,6 +124,7 @@ export default function RoadmapTimeline({
   busy,
   label,
   timelineRef,
+  toolbar,
 }: {
   view: RoadmapView;
   visible: VisibleProjects;
@@ -134,6 +135,8 @@ export default function RoadmapTimeline({
   busy: boolean;
   label: string;
   timelineRef: Ref<TimelineHandle>;
+  /** The Timeline's `toolbar` slot: the page's baseline picker. */
+  toolbar?: ReactNode;
 }) {
   const { t } = useTranslation();
   const { holidays, failed: holidaysFailed } = useHolidays();
@@ -196,6 +199,7 @@ export default function RoadmapTimeline({
       holidays={holidays}
       holidaysFailed={holidaysFailed}
       busy={busy}
+      toolbar={toolbar}
       overlay={arrows.length === 0 ? undefined : (geometry) => <TimelineArrows arrows={arrows} geometry={geometry} />}
     />
   );

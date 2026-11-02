@@ -71,6 +71,8 @@ function renderPage(route = "/baselines/5") {
   return renderWithProviders(
     <Routes>
       <Route path="/baselines" element={<p>registry</p>} />
+      <Route path="/projects/:id" element={<p>project page</p>} />
+      <Route path="/roadmap" element={<p>roadmap page</p>} />
       <Route path="/baselines/:id" element={<BaselineCompare />} />
     </Routes>,
     { route },
@@ -106,6 +108,22 @@ describe("Baseline comparison page", () => {
     const earlier = screen.getAllByText("1 end earlier")[0];
     expect(earlier.closest(".mantine-Badge-root")!.getAttribute("style") ?? "").toContain("gray");
     expect(headingOutline()).toEqual([[2, "Q2 commitment"], [3, "Totals"], [3, "Changes"]]);
+  });
+
+  test("Show on timeline remembers this baseline as the pick of every timeline page and opens the project's page; the header action opens the roadmap", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Show on timeline: Checkout" }));
+    expect(await screen.findByText("project page")).toBeInTheDocument();
+    expect(JSON.parse(localStorage.getItem("astrolabe.viewSettings.timeline.baseline") ?? "null")).toBe(5);
+  });
+
+  test("the header's Show on the roadmap remembers the pick too", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Show on the roadmap" }));
+    expect(await screen.findByText("roadmap page")).toBeInTheDocument();
+    expect(JSON.parse(localStorage.getItem("astrolabe.viewSettings.timeline.baseline") ?? "null")).toBe(5);
   });
 
   test("says when the plan is exactly the baseline", async () => {

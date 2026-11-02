@@ -1,21 +1,22 @@
 import { useState } from "react";
-import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useIsMutating, useMutation, useQuery, useQueryClient, type QueryKey } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { getRoadmapView, isStaleRevision, putRanking, type RoadmapView } from "../api/roadmap";
+import { getRoadmapView, isStaleRevision, putRanking, roadmapViewKey, type RoadmapView } from "../api/roadmap";
 import { allProjects } from "../utils/roadmapRows";
 import { appendId, applyRanking, moveAmongVisible, rankingAfterDrop, removeId, sameIds } from "../utils/roadmapOrder";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { saveErrorMessage } from "../utils/saveError";
+import { withoutStaleOverlay } from "./useBaselinePick";
 import { useRefusal } from "./useRefusal";
 
-const VIEW_KEY = ["roadmap", "view"] as const;
-/** The cached roadmap view's key (the window write path of the same page writes into it). */
-export const ROADMAP_VIEW_KEY = VIEW_KEY;
 /**
  * Every write on the cached roadmap and programs views carries this mutation key - the ranking PUT here and the target-window PUT of
  * `useTargetWindow` - so two optimistic writes see each other in flight and the second is refused (out loud) instead of rolling the first back.
  */
 export const ROADMAP_WRITE_KEY = ["roadmap", "write"] as const;
+
+/** Every pick's entry of the roadmap view (the key without the baseline pick). */
+const ROADMAP_VIEW_ENTRIES = ["roadmap", "view"] as const;
 
 /** Zero-width space: toggled on the live-region text so the same sentence twice is announced twice. */
 const REREAD = "​";
@@ -27,7 +28,8 @@ const SAVE_ERROR_KEYS = {
   failed: "common.error.actionFailed",
 } as const;
 
-type SaveVariables = { ids: number[]; expectedRevision: number; before: RoadmapView };
+/** `key` is the cache entry the change was made on (the pick it was made under): the rollback goes back there. */
+type SaveVariables = { ids: number[]; expectedRevision: number; before: RoadmapView; key: QueryKey };
 
 /**
  * The Roadmap page's data and its one write path. Every change (a row-menu move, a row drag, Rank, Unrank) becomes the complete new id list and
@@ -42,11 +44,14 @@ type SaveVariables = { ids: number[]; expectedRevision: number; before: RoadmapV
  * ranking) and put the row among them (`moveAmongVisible`); a change that leaves the list as it is (a drop beside the row itself) is taken
  * without a PUT. `announcement` is the live-region sentence for the last non-drag change (a drag is announced by dnd-kit itself, and only by it).
  */
-export function useRoadmapRanking() {
+export function useRoadmapRanking(baseline: number | null) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const query = useQuery({ queryKey: VIEW_KEY, queryFn: getRoadmapView });
-  const view = query.data;
+  // The key carries the baseline pick (v0.9): the ranking's optimistic step, its rollback and the window path all hit the entry the page shows.
+  // `keepPreviousData` keeps the page mounted while another pick loads; the old pick's overlay is dropped from that copy.
+  const viewKey = roadmapViewKey(baseline);
+  const query = useQuery({ queryKey: viewKey, queryFn: () => getRoadmapView(baseline), placeholderData: keepPreviousData });
+  const view = withoutStaleOverlay(query.data, query.isPlaceholderData);
   const [announcement, setAnnouncement] = useState("");
   /** An identical sentence said twice would not be re-read: every announcement flips an invisible suffix. */
   const announce = (text: string) => setAnnouncement((previous) => (previous.endsWith(REREAD) ? text : text + REREAD));
@@ -55,18 +60,21 @@ export function useRoadmapRanking() {
     mutationKey: ROADMAP_WRITE_KEY,
     mutationFn: ({ ids, expectedRevision }: SaveVariables) => putRanking({ projectIds: ids, expectedRevision }),
     onSuccess: ({ revision }) => {
-      queryClient.setQueryData<RoadmapView>(VIEW_KEY, (current) => current && { ...current, revision });
+      // The ranking's revision into every pick's entry (the page may show another pick's by now): none keeps the old one for the next write.
+      queryClient.setQueriesData<RoadmapView>({ queryKey: ROADMAP_VIEW_ENTRIES }, (current) => current && { ...current, revision });
       // Not awaited: the save is over, so the next change may go at once; its `commit` cancels this refetch.
       void refreshQueriesAfterMutation(queryClient, ["roadmap"]);
     },
-    onError: async (_err, { before }) => {
-      queryClient.setQueryData<RoadmapView>(VIEW_KEY, before);
+    onError: async (_err, { before, key }) => {
+      queryClient.setQueryData<RoadmapView>(key, before);
       await refreshQueriesAfterMutation(queryClient, ["roadmap"]);
     },
   });
   const busy = useIsMutating({ mutationKey: ROADMAP_WRITE_KEY }) > 0;
   // A change refused because a write was still running: shown and announced until no write is in flight.
-  const [refused, setRefused] = useRefusal(busy);
+  // The shown copy belongs to the previous pick while the new one loads: nothing is written from it either.
+  const placeholder = query.isPlaceholderData;
+  const [refused, setRefused] = useRefusal(busy || placeholder);
 
   const rankedIds = view?.ranked.map((entry) => entry.project.id) ?? [];
   const nameOf = (id: number) => (view ? allProjects(view).find((project) => project.id === id)?.name ?? "" : "");
@@ -75,15 +83,15 @@ export function useRoadmapRanking() {
   const commit = (ids: number[], sentence?: () => string): boolean => {
     if (!view) return false;
     if (sameIds(ids, rankedIds)) return true;
-    if (busy) {
+    if (busy || placeholder) {
       setRefused(true);
       announce(t("project.busy"));
       return false;
     }
-    void queryClient.cancelQueries({ queryKey: VIEW_KEY });
-    queryClient.setQueryData<RoadmapView>(VIEW_KEY, applyRanking(view, ids));
+    void queryClient.cancelQueries({ queryKey: viewKey });
+    queryClient.setQueryData<RoadmapView>(viewKey, applyRanking(view, ids));
     if (sentence) announce(sentence());
-    save.mutate({ ids, expectedRevision: view.revision, before: view });
+    save.mutate({ ids, expectedRevision: view.revision, before: view, key: viewKey });
     return true;
   };
 
@@ -101,6 +109,8 @@ export function useRoadmapRanking() {
     view,
     query,
     pending: busy,
+    /** The shown view is the previous pick's copy while the new pick loads: every write (this one's and the window's) is refused until it arrives. */
+    placeholder,
     /** A change was refused while a write was running (the page shows the "try again" note). */
     refused,
     stale: isStaleRevision(save.error),
