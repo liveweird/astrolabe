@@ -139,5 +139,75 @@
       "manDays": "Podaj osobodni od 0, z co najwyżej dwoma miejscami po przecinku",
       "wipLimit": "Podaj liczbę całkowitą od 1 do 99 albo zostaw puste, aby nie ustawiać limitu"
     }
+  },
+  "proposal": {
+    "propose": "Zaproponuj harmonogram",
+    "discard": "Odrzuć propozycję",
+    "ready_one": "Propozycja harmonogramu gotowa: {{count}} zmiana",
+    "ready_few": "Propozycja harmonogramu gotowa: {{count}} zmiany",
+    "ready_many": "Propozycja harmonogramu gotowa: {{count}} zmian",
+    "ready_other": "Propozycja harmonogramu gotowa: {{count}} zmiany",
+    "preview": "Podgląd proponowanego harmonogramu ({{figures}}). Paski z przerywanym obrysem pokazują proponowane terminy; nic się nie zmieni, dopóki nie zaakceptujesz propozycji.",
+    "summary": {
+      "moves_one": "{{count}} zmiana",
+      "moves_few": "{{count}} zmiany",
+      "moves_many": "{{count}} zmian",
+      "moves_other": "{{count}} zmiany",
+      "stay_one": "bez zmian: {{count}}",
+      "stay_few": "bez zmian: {{count}}",
+      "stay_many": "bez zmian: {{count}}",
+      "stay_other": "bez zmian: {{count}}",
+      "unplaced_one": "nie udało się umieścić: {{count}}",
+      "unplaced_few": "nie udało się umieścić: {{count}}",
+      "unplaced_many": "nie udało się umieścić: {{count}}",
+      "unplaced_other": "nie udało się umieścić: {{count}}"
+    },
+    "newMark": "(nowy)",
+    "operationsAria": "Operacje dla {{name}} (wiersz propozycji)",
+    "readOnly": "Propozycja jest otwarta, więc harmonogram jest tylko do odczytu — najpierw odrzuć propozycję, potem wprowadź zmianę.",
+    "nothing": "Nie ma czego proponować: każdy kamień milowy już się rozpoczął albo zostaje na swoim miejscu.",
+    "noCapacity": "Nic nie udało się umieścić: zespół nie ma przepustowości po {{date}} — najpierw dodaj okres przepustowości.",
+    "forbidden": "Harmonogram może zaproponować tylko kierownik/czka zespołu albo administrator/ka",
+    "gone": "Ten zespół już nie istnieje — odśwież stronę",
+    "invalid": "Nie udało się zastosować propozycji — zaproponuj harmonogram jeszcze raz",
+    "stale": "Plan zmienił się w międzyczasie. Harmonogram został przeładowany, a nic nie zostało zapisane — zaproponuj go jeszcze raz.",
+    "selectedOf": "Zaznaczono {{selected}} z {{total}}",
+    "change": {
+      "new_one": "Niezaplanowany → od {{start}} do {{end}}, {{count}} dzień roboczy",
+      "new_few": "Niezaplanowany → od {{start}} do {{end}}, {{count}} dni robocze",
+      "new_many": "Niezaplanowany → od {{start}} do {{end}}, {{count}} dni roboczych",
+      "new_other": "Niezaplanowany → od {{start}} do {{end}}, {{count}} dnia roboczego",
+      "earlier_one": "{{count}} dzień roboczy wcześniej",
+      "earlier_few": "{{count}} dni robocze wcześniej",
+      "earlier_many": "{{count}} dni roboczych wcześniej",
+      "earlier_other": "{{count}} dnia roboczego wcześniej",
+      "later_one": "{{count}} dzień roboczy później",
+      "later_few": "{{count}} dni robocze później",
+      "later_many": "{{count}} dni roboczych później",
+      "later_other": "{{count}} dnia roboczego później",
+      "adjusted_one": "Ten sam początek, długość: {{count}} dzień roboczy",
+      "adjusted_few": "Ten sam początek, długość: {{count}} dni robocze",
+      "adjusted_many": "Ten sam początek, długość: {{count}} dni roboczych",
+      "adjusted_other": "Ten sam początek, długość: {{count}} dnia roboczego"
+    },
+    "outcome": {
+      "scheduled_one": "zaplanowano: {{count}}",
+      "scheduled_few": "zaplanowano: {{count}}",
+      "scheduled_many": "zaplanowano: {{count}}",
+      "scheduled_other": "zaplanowano: {{count}}",
+      "skipped_one": "pominięto: {{count}} ({{reasons}})",
+      "skipped_few": "pominięto: {{count}} ({{reasons}})",
+      "skipped_many": "pominięto: {{count}} ({{reasons}})",
+      "skipped_other": "pominięto: {{count}} ({{reasons}})"
+    },
+    "reason": {
+      "stale": "termin zmieniono w międzyczasie",
+      "gone": "już nie istnieje",
+      "notOnTeam": "przeniesiono do innego zespołu",
+      "noWorkingDay": "w przedziale nie został żaden dzień roboczy"
+    },
+    "toast": {
+      "applied": "Harmonogram zaktualizowany"
+    }
   }
 }

@@ -38,6 +38,7 @@
     "critical": "on the critical path",
     "summary": "{{name}}, the project's span {{start}} to {{end}}",
     "window": "{{name}}, target window {{start}} to {{end}}",
+    "proposal": "Proposed: {{name}}, {{start}} to {{end}}",
     "startHandleAria": "Resize start of {{name}}",
     "endHandleAria": "Resize end of {{name}}"
   },
@@ -47,6 +48,7 @@
     "scheduleAria": "Schedule {{name}}"
   },
   "strip": {
+    "proposedLabel": "Proposed load",
     "cell": "Week of {{week}}: {{load}} of {{capacity}} man-days",
     "cellNoCapacity": "Week of {{week}}: {{load}} man-days, no capacity set",
     "wip_one": "; up to {{count}} milestone in progress",

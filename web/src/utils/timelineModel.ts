@@ -48,10 +48,11 @@ export interface TimelineBarData {
   /**
    * How the bar is drawn, read-only or editable: `ghost` = an endpoint that lives on another project (a faint dashed bar),
    * `summary` = the project's own derived span (a hollow outline), `window` (v0.6) = a target window (the band look: the full row
-   * height, the band tint, dashed edges; an EDITABLE window bar keeps its move and resize handles and its keyboard path). Absent = the
+   * height, the band tint, dashed edges; an EDITABLE window bar keeps its move and resize handles and its keyboard path), `proposal` (v0.8) =
+   * a PROPOSED span beside the current one (hollow, a dashed 2 px text-colour outline; read-only: a preview, never an edit). Absent = the
    * ordinary neutral bar.
    */
-  tone?: "ghost" | "summary" | "window";
+  tone?: "ghost" | "summary" | "window" | "proposal";
   /**
    * v0.7 critical-path emphasis, independent of `tone` and honoured on an editable AND a read-only bar: `critical` = a text-colour outline
    * and `data-critical="true"` (monochrome, no new hue). Absent = nothing is drawn or rendered extra.

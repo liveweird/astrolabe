@@ -16,6 +16,8 @@ export interface TrayItem {
   cells: readonly ReactNode[];
   /** May the caller schedule it? (The page's `can` flag.) Without it the row has no handle and no Schedule button. */
   canSchedule: boolean;
+  /** The page is read-only for now (a proposal previews): the Schedule button is disabled and the row cannot be dragged. */
+  disabled?: boolean;
   /** Extra controls after Schedule (the row menu). */
   actions?: ReactNode;
 }
@@ -23,7 +25,8 @@ export interface TrayItem {
 function TrayRow({ item, onSchedule }: { item: TrayItem; onSchedule: (id: BarId) => void }) {
   const { t } = useTranslation();
   const data: DragData = { kind: "tray", barId: item.id, label: item.label };
-  const { setNodeRef, listeners, transform, isDragging } = useDraggable({ id: `tray:${item.id}`, data, disabled: !item.canSchedule });
+  const draggable = item.canSchedule && item.disabled !== true;
+  const { setNodeRef, listeners, transform, isDragging } = useDraggable({ id: `tray:${item.id}`, data, disabled: !draggable });
   // The handle is a pointer affordance only: the Schedule button is the keyboard and screen-reader path, so only the pointer
   // activator is attached to it (never the keyboard sensor's onKeyDown).
   const pointer = { onPointerDown: listeners?.onPointerDown as PointerEventHandler<HTMLSpanElement> | undefined };
@@ -34,7 +37,7 @@ function TrayRow({ item, onSchedule }: { item: TrayItem; onSchedule: (id: BarId)
       style={{ transform: CSS.Translate.toString(transform) }}
     >
       <Table.Td style={{ width: 1 }}>
-        {item.canSchedule && (
+        {draggable && (
           <span aria-hidden="true" className={classes.timelineTrayHandle} {...pointer}>
             <IconGripVertical size={16} />
           </span>
@@ -45,7 +48,7 @@ function TrayRow({ item, onSchedule }: { item: TrayItem; onSchedule: (id: BarId)
       ))}
       <Table.Td style={{ width: 1, whiteSpace: "nowrap" }} ta="right">
         {item.canSchedule && (
-          <Button size="compact-sm" variant="default" aria-label={t("timeline.tray.scheduleAria", { name: item.label })} onClick={() => onSchedule(item.id)}>
+          <Button size="compact-sm" variant="default" disabled={item.disabled === true} aria-label={t("timeline.tray.scheduleAria", { name: item.label })} onClick={() => onSchedule(item.id)}>
             {t("timeline.tray.schedule")}
           </Button>
         )}

@@ -75,3 +75,22 @@ export async function deleteCapacityPeriod(id: number): Promise<void> {
 export async function putTeamOrder(teamId: number, body: Schemas["TeamOrderUpdateRequest"]): Promise<Schemas["TeamOrderResponse"]> {
   return jsonRequest<Schemas["TeamOrderResponse"]>(`/api/v1/teams/${teamId}/milestone-order`, { method: "PUT", body: JSON.stringify(body) });
 }
+
+// ---- the schedule proposal (v0.8: a computation) and its batch accept ----------------------------------------------------------
+// The team's manager or an ADMIN asks for a proposal (nothing is written, nothing is stored); the page holds it and sends the accepted
+// moves back with the proposal's `revision`. The batch is N schedule PUTs under the team's guard with a per-milestone staleness rule.
+
+export type ScheduleProposal = Schemas["ScheduleProposal"];
+export type ScheduleProposalMove = Schemas["ScheduleProposalMove"];
+export type TeamScheduleBatchResponse = Schemas["TeamScheduleBatchResponse"];
+export type SkippedSchedule = Schemas["SkippedSchedule"];
+
+/** `asOf` is the viewer's local calendar day (`localIsoDate`): the milestones that start after it, or have no dates, may move. */
+export async function proposeTeamSchedule(teamId: number, asOf: string): Promise<ScheduleProposal> {
+  return jsonRequest<ScheduleProposal>(`/api/v1/teams/${teamId}/schedule-proposal`, { method: "POST", body: JSON.stringify({ asOf }) });
+}
+
+/** Writes the listed spans; a milestone that moved since `expectedRevision` is skipped (`STALE`), never overwritten. */
+export async function scheduleTeamMilestones(teamId: number, body: Schemas["TeamScheduleBatchRequest"]): Promise<TeamScheduleBatchResponse> {
+  return jsonRequest<TeamScheduleBatchResponse>(`/api/v1/teams/${teamId}/milestone-schedules`, { method: "POST", body: JSON.stringify(body) });
+}

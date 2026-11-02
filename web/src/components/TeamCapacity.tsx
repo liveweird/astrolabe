@@ -19,9 +19,11 @@ type Editor = { kind: "create" } | { kind: "edit"; period: CapacityPeriod };
  * The team's Capacity section: its periods (the date each takes effect, man-days per week, the optional WIP limit — "—" when none),
  * oldest first as the server lists them. This table is where the limits are READ (the weekly load carries only the verdicts). Adding,
  * editing and deleting are the view's `can.editCapacity` (the team's manager or an ADMIN) — the server's guard is the rule. Capacity is
- * team data, not plan state: a write refreshes the view (`["plan"]`) and bumps no revision.
+ * team data, not plan state: a write refreshes the view (`["plan"]`) and bumps no revision. `readOnly` hides Add/Edit/Delete and the empty-state hint
+ * and unmounts an open editor or delete confirm while a schedule proposal is open or being requested (a capacity change would void the
+ * proposal's premise: the manager discards first).
  */
-export default function TeamCapacity({ view }: { view: TeamView }) {
+export default function TeamCapacity({ view, readOnly = false }: { view: TeamView; readOnly?: boolean }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [editor, setEditor] = useState<Editor | null>(null);
@@ -33,20 +35,26 @@ export default function TeamCapacity({ view }: { view: TeamView }) {
     onSuccess: refresh,
     successMessage: t("teams.view.toast.periodDeleted"),
   });
+  // A proposal opening (or being requested) closes whatever was open: the editor and the delete confirm are not rendered while read-only,
+  // and they must not come back on their own when it is over.
+  if (readOnly && (editor !== null || removal.target !== null)) {
+    if (editor !== null) setEditor(null);
+    removal.cancelDelete();
+  }
   return (
     <Stack gap="xs">
       <Group gap="sm" align="center" justify="space-between">
         <Title order={3} size="h4">
           {t("teams.view.capacityTitle")}
         </Title>
-        {canEdit && (
+        {canEdit && !readOnly && (
           <Button variant="default" size="compact-md" leftSection={<IconPlus size={16} />} onClick={() => setEditor({ kind: "create" })}>
             {t("teams.view.action.addPeriod")}
           </Button>
         )}
       </Group>
       {periods.length === 0 ? (
-        <EmptyState icon={IconGauge} label={t("teams.view.noCapacity")} hint={t(canEdit ? "teams.view.noCapacityHint" : "teams.view.noCapacityHintReadOnly")} />
+        <EmptyState icon={IconGauge} label={t("teams.view.noCapacity")} hint={readOnly ? undefined : t(canEdit ? "teams.view.noCapacityHint" : "teams.view.noCapacityHintReadOnly")} />
       ) : (
         <>
           <Text size="sm" c="dimmed">
@@ -69,7 +77,7 @@ export default function TeamCapacity({ view }: { view: TeamView }) {
                     <Table.Td>{period.mdPerWeek}</Table.Td>
                     <Table.Td>{period.wipLimit ?? "—"}</Table.Td>
                     <Table.Td style={{ width: 1 }} ta="right">
-                      {canEdit && (
+                      {canEdit && !readOnly && (
                         <RowActionsMenu label={t("common.table.operationsAria", { name: period.effectiveFrom })}>
                           <Menu.Item
                             leftSection={<IconPencil size={14} />}
@@ -96,7 +104,7 @@ export default function TeamCapacity({ view }: { view: TeamView }) {
           </ScrollRegion>
         </>
       )}
-      {editor !== null && (
+      {editor !== null && !readOnly && (
         <CapacityPeriodModal
           teamId={view.team.id}
           target={editor.kind === "edit" ? editor.period : null}
@@ -107,20 +115,22 @@ export default function TeamCapacity({ view }: { view: TeamView }) {
           }}
         />
       )}
-      <ConfirmDeleteModal
-        confirm={removal}
-        title={t("teams.view.period.deleteTitle")}
-        errorTitle={t("teams.view.period.deleteFailed")}
-        errorMessage={(error) =>
-          saveErrorMessage(error, t, {
-            forbidden: "teams.view.saveForbidden",
-            notFound: "teams.view.saveGone",
-            failedStatus: "common.error.actionFailedStatus",
-            failed: "common.error.actionFailed",
-          })
-        }
-        body={(period) => t("teams.view.period.deleteBody", { date: period.effectiveFrom })}
-      />
+      {!readOnly && (
+        <ConfirmDeleteModal
+          confirm={removal}
+          title={t("teams.view.period.deleteTitle")}
+          errorTitle={t("teams.view.period.deleteFailed")}
+          errorMessage={(error) =>
+            saveErrorMessage(error, t, {
+              forbidden: "teams.view.saveForbidden",
+              notFound: "teams.view.saveGone",
+              failedStatus: "common.error.actionFailedStatus",
+              failed: "common.error.actionFailed",
+            })
+          }
+          body={(period) => t("teams.view.period.deleteBody", { date: period.effectiveFrom })}
+        />
+      )}
     </Stack>
   );
 }

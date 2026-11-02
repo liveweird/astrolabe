@@ -1293,6 +1293,16 @@ describe("the Unscheduled tray", () => {
     expect(rows[1].querySelector("[aria-hidden='true']")).toBeNull();
   });
 
+  test("a disabled row (v0.8: a proposal previews) keeps its Schedule button, disabled, and loses its drag handle", async () => {
+    const user = userEvent.setup();
+    const onSchedule = renderTray([{ ...ITEMS[0], disabled: true }]);
+    const button = screen.getByRole("button", { name: "Schedule Rollout" });
+    expect(button).toBeDisabled();
+    await user.click(button);
+    expect(onSchedule).not.toHaveBeenCalled();
+    expect(screen.getAllByRole("row")[1].querySelector("[aria-hidden='true']")).toBeNull();
+  });
+
   test("with nothing in it, it says so", () => {
     renderTray([]);
     expect(screen.getByText("Nothing waits")).toBeInTheDocument();
@@ -1316,6 +1326,24 @@ describe("bar tones", () => {
   test("an ordinary read-only bar has no tone, and an editable bar ignores one", () => {
     renderWithProviders(<Harness rows={[row(1, "Build", [BUILD]), row(2, "Editable", [{ ...bar(7, "Edit", "2026-09-16", "2026-09-18"), tone: "ghost" }])]} />);
     expect(screen.getByRole("img", { name: /^Build,/ })).not.toHaveAttribute("data-tone");
+    expect(barBody("Edit, Team A, 2026-09-16 to 2026-09-18")).not.toHaveAttribute("data-tone");
+  });
+
+  test("a proposal bar (v0.8) is a read-only image with data-tone=proposal and its own class, beside the current bar of its row", () => {
+    const proposed = { ...bar(8, "Build", "2026-09-28", "2026-10-02", false), id: "proposal:2", describe: "Proposed: Build, 2026-09-28 to 2026-10-02", tone: "proposal" as const };
+    renderWithProviders(<Harness rows={[row(2, "Build", [BUILD, proposed])]} />);
+    const body = screen.getByRole("img", { name: "Proposed: Build, 2026-09-28 to 2026-10-02, read-only" });
+    expect(body).toHaveAttribute("data-tone", "proposal");
+    const current = screen.getByRole("img", { name: /^Build, Team A/ });
+    expect(current).not.toHaveAttribute("data-tone");
+    expect(body.className).not.toBe(current.className);
+    // a proposal is no edit: it has no handles and no summary-style pointer transparency
+    expect(screen.queryByRole("button", { name: /Resize/ })).toBeNull();
+    expect(body.parentElement?.className).toBe(current.parentElement?.className);
+  });
+
+  test("an editable bar ignores the proposal tone like the other read-only tones", () => {
+    renderWithProviders(<Harness rows={[row(7, "Edit", [{ ...bar(7, "Edit", "2026-09-16", "2026-09-18"), tone: "proposal" }])]} />);
     expect(barBody("Edit, Team A, 2026-09-16 to 2026-09-18")).not.toHaveAttribute("data-tone");
   });
 });

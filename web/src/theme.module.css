@@ -504,6 +504,14 @@
   border: 2px solid var(--timeline-bar);
 }
 
+/* A proposed span (TimelineBarData.tone "proposal", v0.8): hollow with a DASHED 2 px outline in the text colour - apart from the summary
+   (solid outline), the ghost (faint dashed fill) and the critical emphasis (an outline around a filled bar); no new hue. It is mounted after the
+   row's current bar, so where the two overlap the current bar shows through the hollow middle. */
+.timelineBarProposal {
+  background: transparent;
+  border: 2px dashed var(--mantine-color-text);
+}
+
 /* The critical-path emphasis (TimelineBarData.emphasis, v0.7): a text-colour outline around the bar, whatever its tone. The focus ring (two classes) still wins. */
 .timelineBarCritical {
   outline: 2px solid var(--timeline-critical);

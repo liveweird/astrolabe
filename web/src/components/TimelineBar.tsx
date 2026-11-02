@@ -44,10 +44,15 @@ interface BarProps {
 }
 
 /**
- * A bar's tone: a ghost (another project's endpoint) is faint and dashed, a summary (the project's span) hollow — both READ-ONLY tones, ignored on
- * an editable bar — and a window (a target window) the band look, honoured on a read-only AND on an editable bar (`toneOf`).
+ * A bar's tone: a ghost (another project's endpoint) is faint and dashed, a summary (the project's span) hollow, a proposal (v0.8: a proposed
+ * span) hollow with a dashed outline — all READ-ONLY tones, ignored on an editable bar — and a window (a target window) the band look, honoured on a read-only AND on an editable bar (`toneOf`).
  */
-const TONE_CLASS = { ghost: classes.timelineBarGhost, summary: classes.timelineBarSummary, window: classes.timelineBarWindow } as const;
+const TONE_CLASS = {
+  ghost: classes.timelineBarGhost,
+  summary: classes.timelineBarSummary,
+  window: classes.timelineBarWindow,
+  proposal: classes.timelineBarProposal,
+} as const;
 
 /**
  * The bar's wrapper class: a window bar fills the whole row height, any other bar sits inset in it. A read-only SUMMARY bar (a project's span) is

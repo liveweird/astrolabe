@@ -133,5 +133,55 @@
       "manDays": "Enter man-days from 0, with at most two decimals",
       "wipLimit": "Enter a whole number from 1 to 99, or leave empty for no limit"
     }
+  },
+  "proposal": {
+    "propose": "Propose schedule",
+    "discard": "Discard proposal",
+    "ready_one": "Proposed schedule ready: {{count}} move",
+    "ready_other": "Proposed schedule ready: {{count}} moves",
+    "preview": "Previewing a proposed schedule ({{figures}}). Dashed bars show the proposed dates; nothing changes until a proposal is accepted.",
+    "summary": {
+      "moves_one": "{{count}} move",
+      "moves_other": "{{count}} moves",
+      "stay_one": "{{count}} stays",
+      "stay_other": "{{count}} stay",
+      "unplaced_one": "{{count}} could not be placed",
+      "unplaced_other": "{{count}} could not be placed"
+    },
+    "newMark": "(new)",
+    "operationsAria": "Operations for {{name}} (proposed row)",
+    "readOnly": "A proposal is open, so the schedule is read-only — discard it first, then make your change.",
+    "nothing": "Nothing to propose: every milestone has started or stays where it is.",
+    "noCapacity": "Nothing could be placed: the team has no capacity after {{date}} — add a capacity period first.",
+    "forbidden": "Only the team's manager or an administrator can propose a schedule",
+    "gone": "This team no longer exists — reload the page",
+    "invalid": "The proposal could not be applied — propose again",
+    "stale": "The plan changed in the meantime — the schedule was reloaded. Nothing was saved; propose again.",
+    "selectedOf": "{{selected}} of {{total}} selected",
+    "change": {
+      "new_one": "Unscheduled → {{start}} to {{end}}, {{count}} working day",
+      "new_other": "Unscheduled → {{start}} to {{end}}, {{count}} working days",
+      "earlier_one": "{{count}} working day earlier",
+      "earlier_other": "{{count}} working days earlier",
+      "later_one": "{{count}} working day later",
+      "later_other": "{{count}} working days later",
+      "adjusted_one": "Same start, {{count}} working day long",
+      "adjusted_other": "Same start, {{count}} working days long"
+    },
+    "outcome": {
+      "scheduled_one": "{{count}} scheduled",
+      "scheduled_other": "{{count}} scheduled",
+      "skipped_one": "{{count}} skipped: {{reasons}}",
+      "skipped_other": "{{count}} skipped: {{reasons}}"
+    },
+    "reason": {
+      "stale": "rescheduled in the meantime",
+      "gone": "no longer exists",
+      "notOnTeam": "moved to another team",
+      "noWorkingDay": "no working day left in the span"
+    },
+    "toast": {
+      "applied": "Schedule updated"
+    }
   }
 }

@@ -42,6 +42,7 @@
     "critical": "na ścieżce krytycznej",
     "summary": "{{name}}, zakres projektu od {{start}} do {{end}}",
     "window": "{{name}}, okno docelowe od {{start}} do {{end}}",
+    "proposal": "Propozycja: {{name}}, od {{start}} do {{end}}",
     "startHandleAria": "Zmień początek: {{name}}",
     "endHandleAria": "Zmień koniec: {{name}}"
   },
@@ -51,6 +52,7 @@
     "scheduleAria": "Zaplanuj: {{name}}"
   },
   "strip": {
+    "proposedLabel": "Proponowane obciążenie",
     "cell": "Tydzień od {{week}}: {{load}} z {{capacity}} osobodni",
     "cellNoCapacity": "Tydzień od {{week}}: {{load}} osobodni, brak ustawionej przepustowości",
     "wip_one": "; do {{count}} kamienia milowego w toku",
