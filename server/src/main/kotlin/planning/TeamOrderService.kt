@@ -73,18 +73,6 @@ class TeamOrderService(private val database: R2dbcDatabase) {
         return TeamOrderOutcome(revisionFrom = write.revision - 1, revisionTo = write.revision, orderFrom = write.value)
     }
 
-    /**
-     * The team must still be ACTIVE (else 404), and its row is locked `FOR SHARE` for every caller, ADMIN included (the manager guard
-     * locks it only for a non-admin): `TeamService.delete` holds `FOR NO KEY UPDATE`, so a delete racing this write either commits first
-     * (404 here) or waits for it, and no state row is ever stamped for a team that went away in between.
-     */
-    private suspend fun lockActiveTeam(teamId: UInt) {
-        val teams = TeamService.Teams
-        val found = teams.select(teams.id).where { (teams.id eq teamId) and teams.active() }
-            .forUpdate(ForUpdateOption.PostgreSQL.ForShare).toList().isNotEmpty()
-        if (!found) throw NotFoundException("Team not found")
-    }
-
     private suspend fun stampOrderRevision(teamId: UInt, revision: Long) {
         val stamp = nowMillis()
         val updated = TeamOrderState.update({ TeamOrderState.teamId eq teamId }) {
@@ -99,6 +87,19 @@ class TeamOrderService(private val database: R2dbcDatabase) {
             }
         }
     }
+}
+
+/**
+ * The team must still be ACTIVE (else 404), and its row is locked `FOR SHARE` for every caller, ADMIN included (the manager guard
+ * locks it only for a non-admin): `TeamService.delete` holds `FOR NO KEY UPDATE`, so a delete racing a team-scoped plan write (the
+ * team order, the batch schedule) either commits first (404 here) or waits for it, and no state row is ever stamped for a team that
+ * went away in between. Runs inside the caller's plan-locked transaction.
+ */
+internal suspend fun lockActiveTeam(teamId: UInt) {
+    val teams = TeamService.Teams
+    val found = teams.select(teams.id).where { (teams.id eq teamId) and teams.active() }
+        .forUpdate(ForUpdateOption.PostgreSQL.ForShare).toList().isNotEmpty()
+    if (!found) throw NotFoundException("Team not found")
 }
 
 /**

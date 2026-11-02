@@ -1350,6 +1350,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/teams/{id}/milestone-schedules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Schedule several of a team's milestones at once (the batch accept)
+         * @description ADMIN or the team's ACTIVE manager, read-before-guard (`404` for an unknown or deleted team, then `403`, then the body: a forbidden
+         *     caller's malformed body is still `403`). The project owner, the other teams' managers and every other caller get `403`. The batch
+         *     is N `PUT /milestones/{id}/schedule` in ONE plan write under the TEAM's guard (a command, not a replace: milestones not listed
+         *     keep their dates); the guard is re-run under the plan lock, so a manager cleared while the request was in flight refuses the
+         *     write (`403`, nothing written, no bump).
+         *
+         *     Each item is the single PUT's body without the revision: `startDate` and `endDate` both set or both null (null unschedules),
+         *     inclusive, the end not before the start, a working day inside. `400` before the lock, with nothing written, for a negative
+         *     `expectedRevision`, an empty list, more than 1000 items, a milestone listed twice, or an item with one date only, a bad date, an end
+         *     before the start or a span of only weekend days. `expectedRevision` is the plan revision of the view the items come from (a
+         *     schedule proposal's `revision`): a value above the current plan revision (a view from the future) is `409` with `type`
+         *     `urn:astrolabe:problem:stale-revision` for the WHOLE batch.
+         *
+         *     Otherwise every item is decided on its own, in body order, under the lock: the first matching `reason` skips it and the rest are
+         *     still written - `GONE` (no active milestone has the id), `NOT_ON_TEAM` (it is, or moved to, another team), `NO_WORKING_DAY` (the
+         *     span holds no working day of the CURRENT holiday calendar - a holiday added since the view), `STALE` (THIS milestone's schedule was
+         *     written after `expectedRevision`, per-milestone as in the single PUT - unrelated plan writes never stale an item). A written item
+         *     has its `schedule_revision` stamped with the new plan revision. The batch bumps the plan revision by ONE, whatever was skipped (an
+         *     all-skipped batch included), and the answer's `revision` is that new revision: send it as the next `expectedRevision`.
+         *     Audited as `milestone.scheduled` per written item whose dates actually changed and ONE `team.schedule_batch_applied`.
+         */
+        post: operations["scheduleTeamMilestones"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/public-holidays": {
         parameters: {
             query?: never;
@@ -2966,10 +3007,54 @@ export interface components {
              */
             revision: number;
         };
+        TeamScheduleBatchRequest: {
+            /**
+             * Format: int64
+             * @description The plan revision of the view the items were derived from (a proposal's `revision`); an item is skipped as `STALE` only when ITS milestone's schedule was written after it, and a value above the current plan revision is a `409` for the whole batch.
+             */
+            expectedRevision: number;
+            /** @description One entry per milestone (an id twice is a `400`), applied in this order. */
+            items: components["schemas"]["TeamScheduleBatchItem"][];
+        };
+        /** @description The single schedule PUT's body for one milestone. */
+        TeamScheduleBatchItem: {
+            /** Format: int32 */
+            milestoneId: number;
+            /**
+             * Format: date
+             * @description Inclusive. Both dates or neither (neither unschedules).
+             */
+            startDate?: string | null;
+            /**
+             * Format: date
+             * @description Inclusive; not before `startDate`; the span needs a working day.
+             */
+            endDate?: string | null;
+        };
+        TeamScheduleBatchResponse: {
+            /**
+             * Format: int64
+             * @description The plan revision after this write (one bump for the whole batch).
+             */
+            revision: number;
+            /** @description The milestones whose dates were written, in request order. */
+            accepted: number[];
+            /** @description The milestones that were not written, in request order, each with its reason. */
+            skipped: components["schemas"]["SkippedSchedule"][];
+        };
+        SkippedSchedule: {
+            /** Format: int32 */
+            milestoneId: number;
+            /**
+             * @description STALE: the milestone's schedule was written after `expectedRevision`. GONE: no active milestone has this id. NOT_ON_TEAM: the milestone is not on this team. NO_WORKING_DAY: the span holds no working day of the current holiday calendar.
+             * @enum {string}
+             */
+            reason: "STALE" | "GONE" | "NOT_ON_TEAM" | "NO_WORKING_DAY";
+        };
         /** @description RFC 7807 problem detail. Served as `application/problem+json`; instance is the request path without query parameters. */
         ProblemDetail: {
             /**
-             * @description A URI reference identifying the problem type; `about:blank` unless a problem names its own (`urn:astrolabe:problem:stale-revision` on a stale ranking, milestone-schedule or team-order PUT, `urn:astrolabe:problem:dependency-cycle` on a dependency that would close a cycle).
+             * @description A URI reference identifying the problem type; `about:blank` unless a problem names its own (`urn:astrolabe:problem:stale-revision` on a stale ranking, milestone-schedule or team-order PUT, or a batch schedule from a future revision, `urn:astrolabe:problem:dependency-cycle` on a dependency that would close a cycle).
              * @default about:blank
              */
             type: string;
@@ -5367,6 +5452,48 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             /** @description `expectedRevision` is stale for THIS team's order (`type` is `urn:astrolabe:problem:stale-revision`) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    scheduleTeamMilestones: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TeamScheduleBatchRequest"];
+            };
+        };
+        responses: {
+            /** @description The batch was applied; the body lists the written and the skipped milestones */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeamScheduleBatchResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description `expectedRevision` is above the current plan revision (`type` is `urn:astrolabe:problem:stale-revision`); nothing was written */
             409: {
                 headers: {
                     [name: string]: unknown;

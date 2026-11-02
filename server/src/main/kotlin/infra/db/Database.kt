@@ -30,6 +30,8 @@ import ch.nokillswit.planning.RoadmapViewService
 import ch.nokillswit.planning.RoadmapViewServiceKey
 import ch.nokillswit.planning.TeamOrderService
 import ch.nokillswit.planning.TeamOrderServiceKey
+import ch.nokillswit.planning.TeamScheduleService
+import ch.nokillswit.planning.TeamScheduleServiceKey
 import ch.nokillswit.planning.TeamViewService
 import ch.nokillswit.planning.TeamViewServiceKey
 import ch.nokillswit.planning.WorkStreamService
@@ -280,6 +282,7 @@ suspend fun Application.configureDatabase() {
     attributes.put(RoadmapViewServiceKey, RoadmapViewService(database))
     attributes.put(ProgramsViewServiceKey, ProgramsViewService(database))
     attributes.put(TeamOrderServiceKey, TeamOrderService(database))
+    attributes.put(TeamScheduleServiceKey, TeamScheduleService(database))
     attributes.put(TeamViewServiceKey, TeamViewService(database))
     attributes.put(PublicHolidayServiceKey, PublicHolidayService(database))
     attributes.put(

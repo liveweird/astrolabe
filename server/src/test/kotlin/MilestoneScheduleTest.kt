@@ -4,6 +4,9 @@ import ch.nokillswit.planning.MilestoneResponse
 import ch.nokillswit.planning.MilestoneScheduleRequest
 import ch.nokillswit.planning.ProjectView
 import ch.nokillswit.planning.ScheduleResponse
+import ch.nokillswit.planning.TeamScheduleBatchItem
+import ch.nokillswit.planning.TeamScheduleBatchRequest
+import ch.nokillswit.planning.TeamScheduleBatchResponse
 import ch.nokillswit.plugins.ProblemDetail
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -466,6 +469,25 @@ class MilestoneScheduleTest {
                 assertEquals(HttpStatusCode.BadRequest, response.status, "$negative")
             }
             assertEquals(forbidden, w.projectOwner.client.put(path, -1, null, null).status, "403 still wins over the 400")
+        }
+
+    @Test
+    fun `a single PUT after a batch passes with the batch's answered revision, and the batch's stamp stales an older view`() =
+        testApplication {
+            usePostgresTestcontainer()
+            val w = planWorld("afterbatch", teams = true)
+            val t = w.requireTeams()
+            val id = TestPlan.milestone(w.projectId, t.teamId)
+            val path = "/api/v1/milestones/$id"
+            val view = TestPlan.revision()
+            val batch = TeamScheduleBatchRequest(view, listOf(TeamScheduleBatchItem(id, "2026-11-02", "2026-11-06")))
+            val posted = t.manager.client.postJson("/api/v1/teams/${t.teamId}/milestone-schedules", batch)
+            val answered = posted.body<TeamScheduleBatchResponse>()
+            assertEquals(listOf(id), answered.accepted)
+            assertEquals(HttpStatusCode.Conflict, t.manager.client.put(path, view, "2026-11-09", "2026-11-13").status,
+                "the batch wrote this milestone after the older view")
+            assertEquals(HttpStatusCode.OK, t.manager.client.put(path, answered.revision, "2026-11-09", "2026-11-13").status)
+            assertEquals("2026-11-09", w.admin.client.read(path).startDate)
         }
 
     @Test

@@ -15,6 +15,8 @@ import ch.nokillswit.planning.ProjectUpdateRequest
 import ch.nokillswit.planning.RankingResponse
 import ch.nokillswit.planning.RankingUpdateRequest
 import ch.nokillswit.planning.TargetWindowRequest
+import ch.nokillswit.planning.TeamScheduleBatchItem
+import ch.nokillswit.planning.TeamScheduleBatchRequest
 import ch.nokillswit.planning.WorkStreamCreateRequest
 import ch.nokillswit.planning.WorkStreamResponse
 import ch.nokillswit.planning.WorkStreamUpdateRequest
@@ -164,6 +166,40 @@ class PlanStateTest {
         }, HttpStatusCode.NoContent)
         assertEquals(HttpStatusCode.NotFound, admin.get("/api/v1/milestones/$other").status)
     }
+
+    @Test
+    fun `a batch schedule bumps the revision by one - an all-skipped batch too - and a refused or rejected batch does not`() =
+        testApplication {
+            usePostgresTestcontainer()
+            val w = planWorld("batchrev", teams = true)
+            val t = w.requireTeams()
+            val id = TestPlan.milestone(w.projectId, t.teamId)
+            val path = "/api/v1/teams/${t.teamId}/milestone-schedules"
+            fun body(expected: Long, start: String? = "2026-11-02", end: String? = "2026-11-06", milestone: UInt = id) =
+                TeamScheduleBatchRequest(expected, listOf(TeamScheduleBatchItem(milestone, start, end)))
+
+            suspend fun bumps(expected: Long, label: String, call: suspend () -> HttpStatusCode, status: HttpStatusCode) {
+                val before = TestPlan.revision()
+                assertEquals(status, call(), label)
+                assertEquals(before + expected, TestPlan.revision(), label)
+            }
+
+            bumps(1, "a batch of one", { t.manager.client.postJson(path, body(TestPlan.revision())).status }, HttpStatusCode.OK)
+            bumps(1, "a no-op batch", { t.manager.client.postJson(path, body(TestPlan.revision())).status }, HttpStatusCode.OK)
+            bumps(1, "an all-skipped batch (an unknown id)", {
+                t.manager.client.postJson(path, body(TestPlan.revision(), milestone = 999_999u)).status
+            }, HttpStatusCode.OK)
+            bumps(0, "403 for the project owner", { w.projectOwner.client.postJson(path, body(TestPlan.revision())).status },
+                HttpStatusCode.Forbidden)
+            bumps(0, "404 for an unknown team", {
+                t.manager.client.postJson("/api/v1/teams/999999/milestone-schedules", body(TestPlan.revision())).status
+            }, HttpStatusCode.NotFound)
+            bumps(0, "409 for a view from the future", { t.manager.client.postJson(path, body(TestPlan.revision() + 1)).status },
+                HttpStatusCode.Conflict)
+            bumps(0, "400 for a weekend-only span", {
+                t.manager.client.postJson(path, body(TestPlan.revision(), "2026-11-07", "2026-11-08")).status
+            }, HttpStatusCode.BadRequest)
+        }
 
     @Test
     fun `a dependency write bumps the revision by one, a refused cycle or duplicate or forbidden write does not`() = testApplication {
