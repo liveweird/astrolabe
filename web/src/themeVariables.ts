@@ -22,6 +22,8 @@ export const LIGHT_TOKENS = {
   surfaceTint: "#f7f8fb",
   border: "#dee2e6",
   borderStrong: "#ced4da",
+  // The table row-hover tint (Mantine's gray-1): 1.11:1 against the white row, every table ink >= 4.9:1 on it (the minimum is the dimmed ink, 4.90:1; theme.test.ts).
+  tableHover: "#f1f3f5",
   error: "#c92a2a",
   inkWarning: "#b23a0a",
   inkError: "#c92a2a",
@@ -38,6 +40,8 @@ export const DARK_TOKENS = {
   surfaceTint: "#2e2e2e",
   border: "#424242",
   borderStrong: "#696969",
+  // dark-6, NOT Mantine's dark-5 (#3b3b3b: dimmed 4.44:1): 1.14:1 against the dark-7 row, dimmed 5.38:1 on it, the minimum.
+  tableHover: "#2e2e2e",
   error: "#ff8787",
   inkWarning: "#ffc078",
   inkError: "#ff8787",
@@ -67,6 +71,7 @@ function schemeVariables(tokens: typeof LIGHT_TOKENS | typeof DARK_TOKENS): Reco
     "--mantine-color-dimmed": tokens.dimmed,
     "--astrolabe-canvas": tokens.canvas,
     "--astrolabe-surface-tint": tokens.surfaceTint,
+    "--astrolabe-table-hover": tokens.tableHover,
     "--mantine-color-default-border": tokens.border,
     "--astrolabe-border-strong": tokens.borderStrong,
     "--mantine-color-error": tokens.error,

@@ -17,6 +17,14 @@
   border-bottom: none;
 }
 
+/* The row-hover tint is theme-owned, one rule for every table: Mantine's own gray-1 / dark-5 left
+   dimmed text at 4.44:1 in the dark scheme. The hexes live in themeVariables.ts (`tableHover`) and
+   `theme.test.ts` pins that every table ink clears AA on them and that the tint stays visible.
+   `table.table` outranks Mantine's `:where(...)` scheme defaults whatever the stylesheet order. */
+table.table {
+  --table-hover-color: var(--astrolabe-table-hover);
+}
+
 /* Neutral, compact table headers: dimmed 600-weight labels on a faint surface tint, with a
    crisper rule under the header row (no brand wash). */
 .tableHead {
@@ -512,11 +520,11 @@
   border: 2px dashed var(--mantine-color-text);
 }
 
-/* The Proposed schedule table's "would violate" text (v0.8): the violation red, a AA-contrast pair for small text on either scheme (the
-   Mantine red.6 default is not) on the row's own background — the table draws no hover tint, which this pair does not clear; the red Badge
-   beside it carries the same fact in words. */
+/* The Proposed schedule table's "would violate" text (v0.8): the theme's error ink (--astrolabe-ink-error), AA-pinned in theme.test.ts on
+   the row's own background AND on the table's hover tint (Mantine's red-8/red-5 pair is ~4.06:1 on the light tint); the red Badge beside it
+   carries the same fact in words. */
 .proposalViolation {
-  color: light-dark(var(--mantine-color-red-8), var(--mantine-color-red-5));
+  color: var(--astrolabe-ink-error);
 }
 
 /* The critical-path emphasis (TimelineBarData.emphasis, v0.7): a text-colour outline around the bar, whatever its tone. The focus ring (two classes) still wins. */

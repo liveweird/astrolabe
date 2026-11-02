@@ -1,3 +1,6 @@
+/// <reference types="node" />
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { DEFAULT_THEME } from "@mantine/core";
 import { describe, expect, it } from "vitest";
 import indexCss from "./index.css?raw";
@@ -12,6 +15,8 @@ function darken(hex: string, alpha: number): string {
   const scaled = [1, 3, 5].map((o) => Math.round(Number.parseInt(hex.slice(o, o + 2), 16) * (1 - alpha)));
   return `#${scaled.map((c) => c.toString(16).padStart(2, "0")).join("")}`;
 }
+// A CSS module imported with `?raw` still goes through the CSS-module plugin (a class-name proxy, not the text), so the source is read from disk (vitest runs from web/).
+const themeCss = readFileSync(resolve(process.cwd(), "src/theme.module.css"), "utf8");
 const WHITE = "#ffffff";
 const AA = 4.5;
 
@@ -64,6 +69,63 @@ describe("theme colour tokens (WCAG AA)", () => {
         expect(contrast(ink, surface), `${ink} on ${surface}`).toBeGreaterThanOrEqual(AA);
       }
     }
+  });
+
+  it("every ink used in table rows clears AA on the hover tint, and the tint stays visible against the row", () => {
+    // The tint is theme-owned: `tableHover` in themeVariables.ts, applied by `table.table` in theme.module.css.
+    const lightTint = LIGHT_TOKENS.tableHover;
+    const darkTint = DARK_TOKENS.tableHover;
+    const darkScale = (hue: string) => scaleOf(hue)[0]; // the dark scheme's light-variant ink is the hue's 0-shade
+    const schemes = [
+      {
+        name: "light",
+        tint: lightTint,
+        row: WHITE, // Table's own background: --mantine-color-body
+        inks: {
+          text: LIGHT_TOKENS.text,
+          dimmed: LIGHT_TOKENS.dimmed,
+          error: LIGHT_TOKENS.error,
+          inkWarning: LIGHT_TOKENS.inkWarning,
+          inkError: LIGHT_TOKENS.inkError,
+          accentInk: LIGHT_TOKENS.accentInk,
+          redInk: LIGHT_VARIANT_INKS.red,
+          orangeInk: LIGHT_VARIANT_INKS.orange,
+          greenInk: LIGHT_VARIANT_INKS.green,
+          grayInk: LIGHT_VARIANT_INKS.gray,
+          grayOutline: scaleOf("gray")[8], // the outline Badge of Users: --mantine-color-gray-outline = gray-<primary light shade 8>
+        },
+      },
+      {
+        name: "dark",
+        tint: darkTint,
+        row: DEFAULT_THEME.colors.dark[7],
+        inks: {
+          text: DARK_TOKENS.text,
+          dimmed: DARK_TOKENS.dimmed,
+          error: DARK_TOKENS.error,
+          inkWarning: DARK_TOKENS.inkWarning,
+          inkError: DARK_TOKENS.inkError,
+          accentInk: DARK_TOKENS.accentInk,
+          redInk: darkScale("red"),
+          orangeInk: darkScale("orange"),
+          greenInk: darkScale("green"),
+          grayInk: darkScale("gray"),
+          grayOutline: scaleOf("gray")[5], // dark: gray-<primary dark shade 9 - 4>
+        },
+      },
+    ];
+    for (const { name, tint, row, inks } of schemes) {
+      for (const [ink, hex] of Object.entries(inks)) {
+        expect(contrast(hex, tint), `${name}: ${ink} ${hex} on the hover tint ${tint}`).toBeGreaterThanOrEqual(AA);
+      }
+      // Visible: the tint reads as a different surface from the row it replaces.
+      expect(contrast(tint, row), `${name}: hover tint ${tint} against the row ${row}`).toBeGreaterThanOrEqual(1.1);
+    }
+  });
+
+  it("theme.module.css applies the hover tint token to every table", () => {
+    // `table.table` (not `.table`) outranks Mantine's :where() scheme defaults whatever the stylesheet order.
+    expect(themeCss).toMatch(/table\.table\s*\{[^}]*--table-hover-color:\s*var\(--astrolabe-table-hover\)/);
   });
 
   it("the brand accent stays usable as filled button, focus ring and accent ink in both schemes", () => {

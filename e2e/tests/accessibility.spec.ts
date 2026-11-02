@@ -146,6 +146,8 @@ test.describe("detail pages and overlays", () => {
   let linkedProjectId: number;
   let linkedProjectName: string;
   let fixtureProgramId: number;
+  let proposalTeamId: number; // the open-proposal world (seedProposalWorld), for the hovered-row scan
+  let proposalTeamName: string;
 
   /** POST a row; `tear` is its collection path when the row needs its own delete (a milestone, capacity period or link goes with its parent). */
   async function create(path: string, data: object, tear?: string): Promise<number> {
@@ -206,6 +208,7 @@ test.describe("detail pages and overlays", () => {
       lagDays: 0,
     });
     await seedChain(api, { programId, personId, teamId, projectId, scheduledId }, (path) => fixturePaths.push(path));
+    ({ teamId: proposalTeamId, teamName: proposalTeamName } = await seedProposalWorld(api, (path) => fixturePaths.push(path)));
   });
   test.afterAll(async () => {
     try {
@@ -321,6 +324,14 @@ test.describe("detail pages and overlays", () => {
   test.describe("dark scheme", () => {
     test.use({ colorScheme: "dark" });
     registerTeamViewScan("dark");
+  });
+
+  // The hovered-row scans (registerHoveredRowScan, below) ride this fixture.
+  const hoverFixture = (): HoverFixture => ({ projectId, teamId, teamName, proposalTeamId, proposalTeamName });
+  registerHoveredRowScan("light", hoverFixture);
+  test.describe("dark scheme", () => {
+    test.use({ colorScheme: "dark" });
+    registerHoveredRowScan("dark", hoverFixture);
   });
 
   // The Roadmap timeline with the fixture project and the linked one in the ranked rows (row handles and menus, the drift flag icon, the
@@ -468,6 +479,104 @@ test.describe("detail pages and overlays", () => {
   });
 });
 
+// The row under the pointer: Mantine's hover tint replaces the row background, and axe measures the computed styles, so the scan of a hovered
+// row checks every ink of that row on the theme's tint (web/src/theme.test.ts chooses it). One row per table kind: the Users list (body and
+// dimmed text), the project's Dependencies table (the violated row: a red badge, dimmed text), the team's expanded Weekly load table (an
+// orange "Overloaded" verdict) and the Proposed schedule table of an open proposal (the checkbox column, the badges, the links column).
+interface HoverFixture {
+  projectId: number;
+  teamId: number;
+  teamName: string;
+  proposalTeamId: number;
+  proposalTeamName: string;
+}
+
+function registerHoveredRowScan(scheme: Scheme, fixture: () => HoverFixture): void {
+  const suffix = scheme === "dark" ? " in the dark scheme" : "";
+  test(`the hovered rows of the Users, Dependencies, Weekly load and Proposed schedule tables have no WCAG A/AA violations${suffix}`, async ({ page }) => {
+    const { projectId, teamId, teamName, proposalTeamId, proposalTeamName } = fixture();
+    await login(page);
+    await page.goto("/users");
+    const users = page.getByRole("table", { name: "Users", exact: true });
+    const adminRow = users.getByRole("row").filter({ hasText: "admin@astrolabe.local" }); // a real data row, not a loading skeleton
+    await expect(adminRow).toBeVisible();
+    await adminRow.hover();
+    await expectScheme(page, scheme);
+    await scan(page);
+
+    await page.goto(`/projects/${projectId}`);
+    const dependencies = page.getByRole("table", { name: "Dependencies of the project" });
+    await expect(dependencies.getByRole("row")).toHaveCount(3); // the header, the violated link and the chain link
+    await dependencies.getByRole("row").nth(1).hover(); // violated links come first
+    await scan(page);
+
+    await page.goto(`/teams/${teamId}`);
+    await expect(page.getByRole("heading", { level: 2, name: teamName })).toBeVisible();
+    await page.getByRole("button", { name: "Show the weekly figures" }).click();
+    const weekly = page.getByRole("table", { name: "Weekly load of the team" });
+    const overloaded = weekly.getByRole("row").filter({ hasText: "Overloaded" }).first();
+    await expect(overloaded).toBeVisible();
+    await overloaded.hover();
+    await scan(page);
+
+    await page.goto(`/teams/${proposalTeamId}`);
+    await expect(page.getByRole("heading", { level: 2, name: proposalTeamName })).toBeVisible();
+    await page.getByRole("button", { name: "Propose schedule" }).click();
+    const proposed = page.getByRole("table", { name: "Proposed schedule moves" });
+    await expect(proposed.getByRole("row")).toHaveCount(3); // the header and the two moves
+    // The row whose Links cell says "would violate" (the red ink of the table): the scan must hover THAT row.
+    const violating = proposed.getByRole("row").filter({ hasText: "would violate" });
+    await expect(violating).toHaveCount(1);
+    await violating.hover();
+    await expect(violating.getByText(/would violate/)).toBeVisible();
+    await scan(page);
+  });
+}
+
+/** The open-proposal world (below): both teams, the plan and the links; every delete path is handed to `track` the moment its row exists. */
+async function seedProposalWorld(api: APIRequestContext, track: (deletePath: string) => void): Promise<{ teamId: number; teamName: string }> {
+  async function create(path: string, data: object, tear?: string): Promise<number> {
+    const created = await api.post(path, { data });
+    expect(created.status(), await created.text()).toBe(201);
+    const id = ((await created.json()) as { id: number }).id;
+    if (tear !== undefined) track(`${tear}/${id}`);
+    return id;
+  }
+
+  async function schedule(milestoneId: number, ofTeamId: number, startDate: string, endDate: string): Promise<void> {
+    const view = (await (await api.get(`/api/v1/views/team/${ofTeamId}`)).json()) as { revision: number };
+    const written = await api.put(`/api/v1/milestones/${milestoneId}/schedule`, { data: { expectedRevision: view.revision, startDate, endDate } });
+    expect(written.status(), await written.text()).toBe(200);
+  }
+
+  const teamName = uniqueText("e2e-axe-prop-team");
+  const teamId = await create("/api/v1/teams", { name: teamName }, "/api/v1/teams");
+  const otherTeamId = await create("/api/v1/teams", { name: uniqueText("e2e-axe-prop-other") }, "/api/v1/teams");
+  await create(`/api/v1/teams/${teamId}/capacity`, { effectiveFrom: "2042-01-06", mdPerWeek: 10, wipLimit: 2 });
+  const personId = await create("/api/v1/people", { name: uniqueText("e2e-axe-prop-owner") }, "/api/v1/people");
+  const streamId = await create("/api/v1/work-streams", { name: uniqueText("e2e-axe-prop-stream"), ownerPersonId: personId, startDate: "2026-01-05" }, "/api/v1/work-streams");
+  const programId = await create(`/api/v1/work-streams/${streamId}/programs`, { name: uniqueText("e2e-axe-prop-program"), ownerPersonId: personId }, "/api/v1/programs");
+  const projectId = await create(`/api/v1/programs/${programId}/projects`, { name: uniqueText("e2e-axe-prop-project"), ownerPersonId: personId }, "/api/v1/projects");
+  const milestone = (label: string, owningTeamId: number, estimateMd: number) =>
+    create(`/api/v1/projects/${projectId}/milestones`, { name: uniqueText(`e2e-axe-prop-${label}`), teamId: owningTeamId, estimateMd });
+  const p1 = await milestone("p1", teamId, 6);
+  const p2 = await milestone("p2", teamId, 2);
+  const w = await milestone("w", otherTeamId, 1);
+  const x = await milestone("x", otherTeamId, 1);
+  await schedule(p2, teamId, "2042-03-03", "2042-03-04");
+  await schedule(w, otherTeamId, "2042-01-12", "2042-01-13");
+  await schedule(x, otherTeamId, "2042-03-10", "2042-03-11");
+  for (const [from, to] of [[p1, w], [x, p2]]) {
+    await create(`/api/v1/projects/${projectId}/dependencies`, {
+      predecessor: { kind: "MILESTONE", id: from },
+      successor: { kind: "MILESTONE", id: to },
+      type: "FS",
+      lagDays: 0,
+    });
+  }
+  return { teamId, teamName };
+}
+
 // The team page with an OPEN schedule proposal (v0.8): the dashed proposal bars, the Proposed schedule section (the summary line, the table with its
 // checkboxes and the select-all, the badges, the links column with a conflict and a resolved link, the Accept/Discard buttons), light and dark.
 // Its own world, in 2042 (no other spec writes a holiday there; the page's range stretches to it, which is why it does not ride the fixture team):
@@ -481,47 +590,9 @@ test.describe("an open schedule proposal", () => {
   let teamName: string;
   const paths: string[] = []; // delete paths in creation order, registered the moment each row exists; the afterAll deletes them in reverse
 
-  async function create(path: string, data: object, tear?: string): Promise<number> {
-    const created = await api.post(path, { data });
-    expect(created.status(), await created.text()).toBe(201);
-    const id = ((await created.json()) as { id: number }).id;
-    if (tear !== undefined) paths.push(`${tear}/${id}`);
-    return id;
-  }
-
-  async function schedule(milestoneId: number, ofTeamId: number, startDate: string, endDate: string): Promise<void> {
-    const view = (await (await api.get(`/api/v1/views/team/${ofTeamId}`)).json()) as { revision: number };
-    const written = await api.put(`/api/v1/milestones/${milestoneId}/schedule`, { data: { expectedRevision: view.revision, startDate, endDate } });
-    expect(written.status(), await written.text()).toBe(200);
-  }
-
   test.beforeAll(async () => {
     ({ api } = await apiAsAdmin());
-    teamName = uniqueText("e2e-axe-prop-team");
-    teamId = await create("/api/v1/teams", { name: teamName }, "/api/v1/teams");
-    const otherTeamId = await create("/api/v1/teams", { name: uniqueText("e2e-axe-prop-other") }, "/api/v1/teams");
-    await create(`/api/v1/teams/${teamId}/capacity`, { effectiveFrom: "2042-01-06", mdPerWeek: 10, wipLimit: 2 });
-    const personId = await create("/api/v1/people", { name: uniqueText("e2e-axe-prop-owner") }, "/api/v1/people");
-    const streamId = await create("/api/v1/work-streams", { name: uniqueText("e2e-axe-prop-stream"), ownerPersonId: personId, startDate: "2026-01-05" }, "/api/v1/work-streams");
-    const programId = await create(`/api/v1/work-streams/${streamId}/programs`, { name: uniqueText("e2e-axe-prop-program"), ownerPersonId: personId }, "/api/v1/programs");
-    const projectId = await create(`/api/v1/programs/${programId}/projects`, { name: uniqueText("e2e-axe-prop-project"), ownerPersonId: personId }, "/api/v1/projects");
-    const milestone = (label: string, owningTeamId: number, estimateMd: number) =>
-      create(`/api/v1/projects/${projectId}/milestones`, { name: uniqueText(`e2e-axe-prop-${label}`), teamId: owningTeamId, estimateMd });
-    const p1 = await milestone("p1", teamId, 6);
-    const p2 = await milestone("p2", teamId, 2);
-    const w = await milestone("w", otherTeamId, 1);
-    const x = await milestone("x", otherTeamId, 1);
-    await schedule(p2, teamId, "2042-03-03", "2042-03-04");
-    await schedule(w, otherTeamId, "2042-01-12", "2042-01-13");
-    await schedule(x, otherTeamId, "2042-03-10", "2042-03-11");
-    for (const [from, to] of [[p1, w], [x, p2]]) {
-      await create(`/api/v1/projects/${projectId}/dependencies`, {
-        predecessor: { kind: "MILESTONE", id: from },
-        successor: { kind: "MILESTONE", id: to },
-        type: "FS",
-        lagDays: 0,
-      });
-    }
+    ({ teamId, teamName } = await seedProposalWorld(api, (path) => paths.push(path)));
   });
   test.afterAll(async () => {
     try {
@@ -551,7 +622,7 @@ test.describe("an open schedule proposal", () => {
       await expect(page.getByRole("button", { name: "Accept selected (2)" })).toBeEnabled();
       await expect(page.getByRole("button", { name: "Discard" })).toBeEnabled();
       // The pointer still rests where the Propose button was, over the section: hover a table row on purpose, so the scan covers the row the
-      // pointer sits on (the table draws no hover tint, which once dropped the "would violate" red below AA).
+      // pointer sits on (the theme's hover tint once dropped the "would violate" red below AA).
       await table.getByRole("row").nth(1).hover();
       await expectScheme(page, scheme);
       await scan(page);

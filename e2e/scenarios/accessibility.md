@@ -8,7 +8,7 @@
   left in the Unscheduled tray - plus a second project with one scheduled milestone that is linked as the fixture milestone's
   violated predecessor, plus a chain project of two back-to-back milestones (2026-01-26..30 and 2026-02-02..06) linked c0 -> c1 -> the
   fixture milestone with no spare day, so the fixture project has zero-slack links; unique `e2e-axe-*` names), created through the API before the
-  detail-page block and deleted after it (the projects first: their milestones and links go with them); the list/form pages and the login screen are read-only; plus, for the open-schedule-proposal scan, its own team pair (the proposed team with one capacity period from 2042-01-06, 10 MD/week, WIP limit 2; and a second team), a person, work stream, program, project, four milestones and two links (unique `e2e-axe-prop-*` names, all dated in 2042), created in that describe's beforeAll and deleted in its afterAll
+  detail-page block and deleted after it (the projects first: their milestones and links go with them); the list/form pages and the login screen are read-only; plus, for the open-schedule-proposal scan, its own team pair (the proposed team with one capacity period from 2042-01-06, 10 MD/week, WIP limit 2; and a second team), a person, work stream, program, project, four milestones and two links (unique `e2e-axe-prop-*` names, all dated in 2042), created in that describe's beforeAll and deleted in its afterAll (the hovered-row scan rides a second copy of that world, created in the detail-page block's beforeAll and deleted in its afterAll)
 
 This is the registered template-title exception (see README.md): one `test()` per page is
 generated from a list, so a single scenario section stands in for each list.
@@ -67,6 +67,22 @@ It also scans the Plan page's "Move to…" modal (the grouped program select) sc
 1. The same at 390x844 with the dark scheme emulated.
    - *Expected*: the burger is visible by name, `<html>` carries the dark scheme and the axe scan
      reports zero violations.
+
+## Scenario: the hovered rows of the Users, Dependencies, Weekly load and Proposed schedule tables have no WCAG A/AA violations
+
+1. The admin signs in and opens `/users`; the pointer rests on the seed administrator's row of the Users table (a data row, not a loading skeleton).
+   - *Expected*: an axe scan (same tags, `color-contrast` included) reports zero violations. Mantine's hover background replaces the row's, and axe measures the computed styles, so the scan covers every ink of that row on the theme's hover tint.
+2. The admin opens the fixture project's page and hovers the violated row of the Dependencies table (the red badge, dimmed text).
+   - *Expected*: zero violations.
+3. The admin opens the fixture team's page, expands the weekly figures and hovers the first week with an "Overloaded" verdict (orange text).
+   - *Expected*: zero violations.
+4. The admin opens the team page of the open-proposal world (a second copy of it, in 2042), proposes a schedule and hovers the move row whose Links cell reads "would violate" (the red ink).
+   - *Expected*: zero violations. The tint is the theme's own, with no per-table opt-out; `web/src/theme.test.ts` chooses its two hexes so every table ink clears 4.5:1 on it and it stays visible against the row.
+
+## Scenario: the hovered rows of the Users, Dependencies, Weekly load and Proposed schedule tables have no WCAG A/AA violations in the dark scheme
+
+1. The same four hovers with the dark scheme emulated.
+   - *Expected*: `<html>` carries the dark scheme and every scan reports zero violations.
 
 ## Not covered here (and why)
 

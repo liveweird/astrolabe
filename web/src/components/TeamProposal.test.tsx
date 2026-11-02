@@ -119,6 +119,11 @@ describe("TeamProposal", () => {
     expect(within(rowOf("tp-c")).getByRole("link", { name: "Open project Checkout" })).toHaveAttribute("href", "/projects/8");
   });
 
+  test("the table takes the theme's hover rule: body rows carry the hover mark, no per-table opt-out", () => {
+    renderWithProviders(<Harness proposal={proposalOf()} spies={spies()} />);
+    expect(rowOf("tp-a")).toHaveAttribute("data-hover", "true");
+  });
+
   test("every move is ticked: Accept all is checked and the action counts them", () => {
     renderWithProviders(<Harness proposal={proposalOf()} spies={spies()} />);
     expect(screen.getByRole("checkbox", { name: "Accept all" })).toBeChecked();

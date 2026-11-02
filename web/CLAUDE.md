@@ -357,7 +357,7 @@ are English (THE default and fallback everywhere) and Polish. All user-facing st
   quiet tinted canvas, white header/navbar surfaces, hairline borders) — new surface styling
   follows that pattern, not `[data-mantine-color-scheme]` selectors. Every `Table` inherits the
   card frame + hoverable rows + neutral compact header from the theme's `Table.extend` — don't add
-  per-table frames.
+  per-table frames. **The hover tint is theme-owned and AA-tested too** (`tableHover` in `themeVariables.ts`, applied by `table.table` in `theme.module.css` as `--table-hover-color`; light gray-1 `#f1f3f5`, dark dark-6 `#2e2e2e`, because Mantine's own dark-5 left dimmed text at 4.44:1): `theme.test.ts` pins that every table ink clears 4.5:1 on it in both schemes and that it stays ≥ 1.1:1 against the row. Never pass `highlightOnHover` (or a hover colour) to a single `Table` — change the token, and the test says whether it still holds; the e2e axe scan of hovered rows is in `accessibility.spec.ts`.
 - Soft diffuse `shadows` scale; tightened heading sizes (pages title themselves with `order={2}`).
 - Inter is bundled (`@fontsource-variable/inter`, imported in `main.tsx`) so it loads same-origin
   and satisfies the CSP `font-src 'self'`; the system stack is the fallback.
