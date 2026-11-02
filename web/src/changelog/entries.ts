@@ -17,6 +17,22 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "0.8.0",
+    date: "2026-11-02",
+    en: `**Astrolabe 0.8.0: the schedule proposal.**
+
+- Propose schedule: on a team's page, the team's manager (or an administrator) presses "Propose schedule". Astrolabe places every milestone that has not started yet — unscheduled ones and those starting after today — in the team's milestone order, after its dependencies, from the earliest possible day, within the team's capacity and WIP limit and around public holidays. A milestone's length follows its estimate and its share of the capacity. Days without a capacity period, or on hold, are never used.
+- Nothing changes until you accept. The proposal is shown on the team's timeline as dashed bars beside the current ones, with the proposed weekly load in the strip, and in the new "Proposed schedule" table: the current and proposed dates, how many working days each milestone moves, the links the proposal would break (in red) or mend, and the milestones that could not be placed and why.
+- Accept all, or tick only some, and press "Accept selected". A milestone someone rescheduled after the proposal is skipped, the others are written, and a note says what happened. Accepting never adds an overloaded or over-WIP week.
+- While a proposal is open, the team page is read-only except for Accept and Discard.`,
+    pl: `**Astrolabe 0.8.0: propozycja harmonogramu.**
+
+- Zaproponuj harmonogram: na stronie zespołu kierownik/czka zespołu (lub administrator/ka) naciska „Zaproponuj harmonogram”. Astrolabe układa każdy kamień milowy, który jeszcze się nie rozpoczął — niezaplanowane i te zaczynające się po dzisiejszym dniu — w kolejności kamieni milowych zespołu, po jego zależnościach, od najwcześniejszego możliwego dnia, w granicach pojemności i limitu WIP zespołu oraz z pominięciem świąt. Długość kamienia milowego wynika z jego szacunku i przypadającej na niego części pojemności. Dni bez okresu pojemności lub wstrzymane nigdy nie są używane.
+- Nic się nie zmienia, dopóki nie zaakceptujesz. Propozycja widnieje na osi czasu zespołu jako przerywane paski obok obecnych, z proponowanym obciążeniem tygodniowym na pasku obciążenia, oraz w nowej tabeli „Proponowany harmonogram”: obecne i proponowane daty, o ile dni roboczych przesuwa się każdy kamień milowy, powiązania, które propozycja by naruszyła (na czerwono) lub naprawiła, oraz kamienie milowe, których nie udało się ułożyć, wraz z powodem.
+- Zaakceptuj wszystko albo zaznacz tylko część i naciśnij „Zaakceptuj zaznaczone”. Kamień milowy, który ktoś przeplanował po propozycji, jest pomijany, pozostałe są zapisywane, a notatka mówi, co się stało. Akceptacja nigdy nie dodaje przeciążonego tygodnia ani tygodnia ponad limit WIP.
+- Gdy propozycja jest otwarta, strona zespołu jest tylko do odczytu, z wyjątkiem przycisków Zaakceptuj i Odrzuć.`,
+  },
+  {
     version: "0.7.0",
     date: "2026-11-02",
     en: `**Astrolabe 0.7.0: the calendar and the critical path.**
