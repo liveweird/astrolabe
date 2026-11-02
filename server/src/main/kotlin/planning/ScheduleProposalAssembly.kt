@@ -45,7 +45,3 @@ internal fun proposalLists(rows: List<TeamMilestoneRow>, result: ScheduleProposa
 }
 
 private fun DaySpan.toDateSpan() = DateSpan(start.toString(), end.toString())
-
-/** Working days from the current effective start to the proposed start: later is positive, earlier negative. */
-private fun shiftInWorkingDays(from: DaySpan, to: DaySpan, calendar: WorkingCalendar): Int =
-    (calendar.workingDayIndex(to.start) - calendar.workingDayIndex(calendar.nextWorkingDayOnOrAfter(from.start))).toInt()

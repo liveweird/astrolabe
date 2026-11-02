@@ -499,6 +499,18 @@ A **baseline** is a named, immutable copy of the plan's DATED STRUCTURE taken at
 - **API** (tag `plan`, `authorization.md` for the guards): `POST /baselines` `{name, description?}` → `201` + `Location` + `Baseline`; `GET /baselines` → `{items, can{manage}}`, the ACTIVE baselines newest first (`created_at` then `id`, descending) — a bounded set (≤ 100 by the cap), not paged; `GET /baselines/{id}`; `PUT /baselines/{id}` → `204`; `DELETE /baselines/{id}` → `204`. `Baseline {id, name, description|null, planRevision, createdAt (epoch millis), createdBy {userId, name}|null, milestoneCount, projectCount}`; `createdBy.name` is the login's linked ACTIVE person's name, else its display name (`users.name`) - NEVER its email, which would reach every reader (a person-less login's email is not public, and an email on a lockout-prone account is a targeting aid) - and `createdBy` is null once the login is gone. Name and description follow the registry rules (trimmed single-line name 1..100, description ≤ 500).
 - **Audit** (`observability.md`): `baseline.created`, `baseline.updated` (only on a change), `baseline.deleted`.
 - **Loaders for the views** (`BaselineRows.kt`, read inside the view's snapshot after `readPlanRevision()` once the overlay lands, v0.9 C7): `activeBaseline(id)`, `frozenProjects(id)`, `frozenMilestonesOfProject(id, projectId)`, `frozenMilestonesOfTeam(id, teamId)`. The comparison kernel, the `?baseline=` overlay on the four views and `GET /views/baseline/{id}` are built in later steps of v0.9.
+- **The comparison kernel** (built, v0.9.0 C6; `BaselineKernels.kt`, pure, `BaselineKernelsTest`): `milestoneMovement(frozen?, live?, calendar)`, `spanMovement(frozenSpan?, liveSpan?, calendar)` (projects, programs, work streams), `totals(movements)`. Deltas are WORKING days on the CURRENT calendar (the user's Q6a), positive = later: `startDays = W(live effective start) - W(frozen effective start)`, `endDays` likewise on the effective ends (`shiftInWorkingDays`/`endShiftInWorkingDays` in `SpanKernels.kt`, shared with the proposal's `shiftDays`; effective start = next working day on or after, effective end = previous on or before). Kinds: no frozen row `ADDED`, no live row `REMOVED` (deltas null); undated -> dated `SCHEDULED`, dated -> undated `UNSCHEDULED`, both undated `UNCHANGED` (deltas null); both dated with both deltas 0 `UNCHANGED` (a Saturday start moved to its Monday is no movement), else `MOVED`. `estimateDelta = live - frozen` whenever both rows exist (an estimate change alone stays `UNCHANGED`). `totals.later`/`earlier` = the `MOVED` rows with `endDays` > 0 / < 0 (a start-only move is `moved`, neither). Vectors (2027-02-01 is a Monday; hand-counted), frozen 02-01..05 unless stated:
+
+  | live | kind | (start, end) |
+  |---|---|---|
+  | 02-08..12 | MOVED | (+5, +5) later |
+  | 01-25..29 | MOVED | (-5, -5) earlier |
+  | 02-01..08 | MOVED | (0, +1) later |
+  | 02-02..05 | MOVED | (+1, 0) neither |
+  | Sat 01-30..Fri 02-05 / 02-01..Sat 02-06 | UNCHANGED | (0, 0) |
+  | 02-08..12, Wed 02-03 a holiday | MOVED | (+4, +5) |
+  | Mon 02-01 a holiday, live 02-02..05 | UNCHANGED | (0, 0) |
+  | null -> 02-01..05 / 02-01..05 -> null / null -> null | SCHEDULED / UNSCHEDULED / UNCHANGED | null |
 - **Tests**: `BaselineTest` (the registry), `BaselineCopyTest` (the copy equals the plan, the trigger, `createdBy`, the loaders), `PlanStateTest` (the revision bumps), `PlanPermissionsTest` (`canManageBaselines`), `MigrationChecksumTest` (V20).
 
 ## Not built yet — the sketch (v0.6+, confirmed by each increment)

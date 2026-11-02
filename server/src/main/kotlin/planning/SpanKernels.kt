@@ -1,5 +1,6 @@
 package ch.nokillswit.planning
 
+import ch.nokillswit.infra.time.WorkingCalendar
 import kotlinx.serialization.Serializable
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
@@ -41,3 +42,25 @@ object SpanKernels {
         )
     }
 }
+
+/**
+ * Working days from [from]'s EFFECTIVE start to [to]'s: later is positive, earlier negative. The effective start is the span's start
+ * snapped forward to a working day (a Saturday-dated start counts as the Monday after it), so a span that only moved between two
+ * non-working days and its next working day shows no shift. Shared by the proposal (`shiftDays`) and the baseline comparison.
+ */
+internal fun shiftInWorkingDays(from: DaySpan, to: DaySpan, calendar: WorkingCalendar): Int =
+    (
+        calendar.workingDayIndex(calendar.nextWorkingDayOnOrAfter(to.start)) -
+            calendar.workingDayIndex(calendar.nextWorkingDayOnOrAfter(from.start))
+        ).toInt()
+
+/**
+ * Working days from [from]'s EFFECTIVE end (its end snapped back to a working day) to [to]'s: later is positive. The working-day
+ * index is flat over every off-day, so the snap is [WorkingCalendar.previousWorkingDayOnOrBefore] and the index of the snapped day
+ * is the index of the date itself.
+ */
+internal fun endShiftInWorkingDays(from: DaySpan, to: DaySpan, calendar: WorkingCalendar): Int =
+    (
+        calendar.workingDayIndex(calendar.previousWorkingDayOnOrBefore(to.end)) -
+            calendar.workingDayIndex(calendar.previousWorkingDayOnOrBefore(from.end))
+        ).toInt()
