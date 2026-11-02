@@ -1,7 +1,10 @@
 package ch.nokillswit.planning
 
+import ch.nokillswit.infra.validation.LAST_PLAN_DAY
+import ch.nokillswit.infra.validation.parseIsoDate
 import io.ktor.server.plugins.BadRequestException
 import kotlinx.serialization.Serializable
+import java.time.LocalDate
 
 /** The most items one batch schedule may carry (`MAX_TEAM_ORDER_MILESTONES`' precedent; the largest sample team, Platform, holds 301). */
 const val MAX_BATCH_SCHEDULE_ITEMS = 1000
@@ -86,4 +89,91 @@ fun validateBatchRequest(request: TeamScheduleBatchRequest): List<ValidatedBatch
         }
         ValidatedBatchItem(item.milestoneId, span)
     }
+}
+
+/**
+ * `POST /teams/{id}/schedule-proposal`: [asOf] is the VIEWER's calendar day (the clock the kernel must not read): a team milestone is
+ * movable when unscheduled or when its start is after it. The wire is day precision, an ISO `YYYY-MM-DD` date.
+ */
+@Serializable
+data class ScheduleProposalRequest(val asOf: String)
+
+/**
+ * One movable milestone the proposal puts on other dates: [from] is its stored span (null = unscheduled), [to] the proposed one,
+ * [workingDays] the working days in [to] (at least 1) and [shiftDays] how many working days later (+) or earlier (-) the proposed
+ * start is than the current one (null when newly scheduled).
+ */
+@Serializable
+data class ScheduleProposalMove(
+    val milestoneId: UInt,
+    val name: String,
+    val projectId: UInt,
+    val projectName: String,
+    val estimateMd: Double,
+    val from: DateSpan?,
+    val to: DateSpan,
+    val workingDays: Int,
+    val shiftDays: Int?,
+)
+
+/** A movable milestone the proposal could not place ([ScheduleKernels]' no-capacity and no-room verdicts). */
+@Serializable
+data class ScheduleProposalUnplaced(
+    val milestoneId: UInt,
+    val name: String,
+    val projectId: UInt,
+    val projectName: String,
+    val reason: UnplacedReason,
+)
+
+/**
+ * A link the proposal touches: both ends resolved with the dates AFTER accepting every move, its status [before] (on the stored
+ * dates) and its [check] after. A link into another team's fixed milestone that the proposal breaks reads `before: OK`, `VIOLATED`.
+ */
+@Serializable
+data class ScheduleProposalLink(
+    val id: UInt,
+    val predecessor: DependencyEndpoint,
+    val successor: DependencyEndpoint,
+    val type: DependencyType,
+    val lagDays: Int,
+    val before: DependencyStatus,
+    val check: DependencyCheck,
+)
+
+/**
+ * The proposal (`POST /teams/{id}/schedule-proposal`, listed under "Batch commands" in `list-endpoints.md`; bounded by ONE
+ * team's milestones, at most [MAX_LOAD_WEEKS] weeks and the links touching the team). A computation: nothing is stored. [revision] is
+ * the plan revision of the snapshot it was computed from - the batch accept's `expectedRevision`. [moves] and [unplaced] are in the
+ * team's effective order; [unchanged] are the movable milestones that stay on their dates; [weeks] is the team's load AFTER accepting
+ * every move (the team view's row shape); [dependencies] are violated-after first.
+ */
+@Serializable
+data class ScheduleProposal(
+    val revision: Long,
+    val asOf: String,
+    val teamId: UInt,
+    val moves: List<ScheduleProposalMove>,
+    val unchanged: List<UInt>,
+    val unplaced: List<ScheduleProposalUnplaced>,
+    val weeks: List<WeekLoadView>,
+    val weeksTruncated: Boolean,
+    val dependencies: List<ScheduleProposalLink>,
+)
+
+/**
+ * The latest `asOf` a proposal accepts: a placement may lie [MAX_LOAD_WEEKS] weeks (the horizon) past the first usable day, plus one week
+ * for the weekend or holiday that day may skip, and the batch accept refuses a date past [LAST_PLAN_DAY] - so a later `asOf` could
+ * produce a proposal that cannot be accepted.
+ */
+private val LATEST_AS_OF: LocalDate = LAST_PLAN_DAY.minusWeeks(MAX_LOAD_WEEKS + 1L)
+
+/**
+ * The proposal request's rules, checked after the guard: `asOf` is an ISO date in the planning calendar's years ([parseIsoDate]) and
+ * not after [LATEST_AS_OF] (a 400 otherwise).
+ */
+fun validateProposalRequest(request: ScheduleProposalRequest): LocalDate {
+    val asOf = parseIsoDate(request.asOf, "asOf")
+    if (asOf.isAfter(LATEST_AS_OF)) throw BadRequestException("asOf must not be after $LATEST_AS_OF")
+    return asOf
 }

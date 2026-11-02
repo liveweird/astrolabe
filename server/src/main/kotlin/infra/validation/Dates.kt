@@ -10,6 +10,9 @@ private val ISO_DATE_SHAPE = Regex("""\d{4}-\d{2}-\d{2}""")
 private const val MIN_YEAR = 1900
 private const val MAX_YEAR = 2999
 
+/** The latest day [parseIsoDate] accepts: what a computed date must stay on or before to be writable back. */
+val LAST_PLAN_DAY: LocalDate = LocalDate.of(MAX_YEAR, 12, 31)
+
 /**
  * Parses a wire date (`type: string, format: date`): exactly `YYYY-MM-DD` with ASCII digits, a real calendar day
  * (`2026-02-30` is not one) in the years 1900-2999. Anything else is a 400 naming [field]; the wire is day precision

@@ -6,6 +6,7 @@ import ch.nokillswit.planning.MilestoneResponse
 import ch.nokillswit.planning.MilestoneScheduleRequest
 import ch.nokillswit.planning.MilestoneUpdateRequest
 import ch.nokillswit.planning.RankingUpdateRequest
+import ch.nokillswit.planning.ScheduleProposalRequest
 import ch.nokillswit.planning.TeamScheduleBatchItem
 import ch.nokillswit.planning.TeamScheduleBatchRequest
 import ch.nokillswit.planning.TeamView
@@ -121,7 +122,11 @@ class TeamViewTest {
         return client.postJson("/api/v1/teams/$teamId/milestone-schedules", TeamScheduleBatchRequest(view.revision, listOf(item))).status
     }
 
-    /** The real writes of the manager's `can` flags (the three, then the batch), each answering the same status for the one caller. */
+    /** The auto-proposal (`POST /teams/{id}/schedule-proposal`): not a write, but the batch's own right, so `can.schedule` mirrors it. */
+    private suspend fun PlanCaller.proposalStatus(teamId: UInt): HttpStatusCode =
+        client.postJson("/api/v1/teams/$teamId/schedule-proposal", ScheduleProposalRequest("2027-01-31")).status
+
+    /** The real writes of the manager's `can` flags (the three, the batch, the proposal), each answering the same status for the caller. */
     private suspend fun PlanCaller.writeStatuses(teamId: UInt, milestone: UInt): List<HttpStatusCode> {
         val view = view(teamId)
         val row = view.scheduled.single()
@@ -129,15 +134,15 @@ class TeamViewTest {
             client.putJson("/api/v1/milestones/$milestone/schedule", MilestoneScheduleRequest(view.revision, row.startDate, row.endDate)),
             client.postJson("/api/v1/teams/$teamId/capacity", CapacityPeriodRequest("2026-01-01", 5.0, null)),
             client.putTeamOrder(teamId, view.revision, emptyList()),
-        ).map { it.status } + batchStatus(teamId, milestone)
+        ).map { it.status } + batchStatus(teamId, milestone) + proposalStatus(teamId)
     }
 
     @Test
     fun `a manager whose person was deleted or unlinked shows as no manager - the flags go false and the real writes are refused`() =
         testApplication {
             usePostgresTestcontainer()
-            val allowed = listOf(HttpStatusCode.OK, HttpStatusCode.Created, HttpStatusCode.OK, HttpStatusCode.OK)
-            val refused = List(4) { HttpStatusCode.Forbidden }
+            val allowed = listOf(HttpStatusCode.OK, HttpStatusCode.Created, HttpStatusCode.OK, HttpStatusCode.OK, HttpStatusCode.OK)
+            val refused = List(5) { HttpStatusCode.Forbidden }
             for (case in listOf("deleted", "unlinked")) {
                 val w = planWorld("tvg-$case", teams = true)
                 val t = w.requireTeams()
@@ -520,6 +525,7 @@ class TeamViewTest {
                     "$label: order",
                 )
                 assertEquals(status(can.schedule, HttpStatusCode.OK), caller.batchStatus(t.teamId, milestone), "$label: batch schedule")
+                assertEquals(status(can.schedule, HttpStatusCode.OK), caller.proposalStatus(t.teamId), "$label: schedule proposal")
             }
         }
 }

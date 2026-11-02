@@ -1,6 +1,7 @@
 package ch.nokillswit.planning
 
 import ch.nokillswit.audit.audit
+import ch.nokillswit.authz.NotFoundException
 import ch.nokillswit.authz.caller
 import io.ktor.http.HttpStatusCode
 import io.ktor.resources.Resource
@@ -15,6 +16,10 @@ import kotlinx.serialization.Serializable
 @Resource("/api/v1/teams/{id}/milestone-schedules")
 class TeamMilestoneSchedulesRoute(val id: UInt)
 
+@Serializable
+@Resource("/api/v1/teams/{id}/schedule-proposal")
+class TeamScheduleProposalRoute(val id: UInt)
+
 /**
  * The team-scoped schedule routes (v0.8.0, beside `TeamOrderRoutes.kt`): the team's manager or ADMIN, nobody else - above all not the
  * project's owner. READ-BEFORE-GUARD like the order PUT: the team is resolved first (missing or deleted = 404 for every caller), then
@@ -22,8 +27,25 @@ class TeamMilestoneSchedulesRoute(val id: UInt)
  * in the service before the lock). The service re-runs the guard under the plan lock ([PlanRouteDeps.teamManagerGuard]), so only that
  * inner verdict authorizes the write.
  */
-internal fun Route.teamScheduleRoutes(d: PlanRouteDeps, schedules: TeamScheduleService) {
+internal fun Route.teamScheduleRoutes(d: PlanRouteDeps, schedules: TeamScheduleService, proposals: ScheduleProposalService) {
+    proposalRoute(d, proposals)
     batchScheduleRoute(d, schedules)
+}
+
+/**
+ * `POST /teams/{id}/schedule-proposal`: the auto-proposal for ONE team's not-yet-started milestones; a computation, so `200` with no
+ * `Location`, no lock, no revision bump and NO audit event (like the view GETs; `observability.md`). The same guard as the batch, run
+ * once - nothing is written, so there is no inner re-guard: read-before-guard (the team resolved first, missing or deleted = 404 for
+ * every caller), `requireTeamManagerOrAdmin` (403), then the body (a forbidden caller's malformed body stays 403), then `asOf` (400).
+ */
+private fun Route.proposalRoute(d: PlanRouteDeps, proposals: ScheduleProposalService) {
+    post<TeamScheduleProposalRoute> { route ->
+        val caller = call.caller()
+        d.requireTeamManager(caller, route.id)
+        val request = call.receive<ScheduleProposalRequest>()
+        val asOf = validateProposalRequest(request)
+        call.respond(HttpStatusCode.OK, proposals.propose(route.id, asOf) ?: throw NotFoundException("Team not found"))
+    }
 }
 
 /**

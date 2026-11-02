@@ -1,6 +1,7 @@
 package ch.nokillswit.planning
 
 import ch.nokillswit.infra.time.WorkingCalendar
+import kotlinx.serialization.Serializable
 import java.math.BigDecimal
 import java.time.LocalDate
 
@@ -36,7 +37,8 @@ data class ScheduleInputs(
 /** A movable milestone's proposed span [to] and the span it has now ([from], null = unscheduled); `to == from` = it stays. */
 data class Placement(val milestoneId: UInt, val from: DaySpan?, val to: DaySpan)
 
-/** Why a movable milestone got no span: no usable day at or after its earliest start, or no span that fits before the horizon. */
+/** Why a movable milestone got no span (also a wire value): no usable day from its earliest start on, or none fits before the horizon. */
+@Serializable
 enum class UnplacedReason { NO_CAPACITY, NO_ROOM }
 
 data class Unplaced(val milestoneId: UInt, val reason: UnplacedReason)

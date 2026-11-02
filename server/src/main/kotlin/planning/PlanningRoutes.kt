@@ -25,7 +25,7 @@ import io.ktor.server.routing.routing
  * The planning REST surface (`/api/v1/work-streams`, `/programs`, `/projects`, `/milestones`, `/views/plan`, `/views/project/{id}`,
  * `/views/roadmap`, `/views/programs`, `/views/team/{id}`, `/roadmap/ranking`, since V15 `/dependencies` with
  * `POST /projects/{id}/dependencies`, since V17 `PUT /teams/{id}/milestone-order` and since v0.8.0
- * `POST /teams/{id}/milestone-schedules`), registered by this ONE
+ * `POST /teams/{id}/milestone-schedules` and `POST /teams/{id}/schedule-proposal`), registered by this ONE
  * module function and split per entity (`WorkStreamRoutes.kt`, `ProgramRoutes.kt`, `ProjectRoutes.kt`, `MilestoneRoutes.kt`,
  * `DependencyRoutes.kt`, `PlanViewRoutes.kt`, `RoadmapRoutes.kt`, `TeamOrderRoutes.kt`, `TeamScheduleRoutes.kt`, and since V19
  * `PublicHolidayRoutes.kt` - the ADMIN registry `/public-holidays`, guard-before-read, whose writes are plan writes) — the first
@@ -53,6 +53,7 @@ fun Application.configurePlanningRoutes() {
     // Not in PlanRouteDeps: its constructor is at detekt's 12-parameter ceiling, and only one route file reads each of these.
     val teamOrder = attributes[TeamOrderServiceKey]
     val teamSchedule = attributes[TeamScheduleServiceKey]
+    val scheduleProposal = attributes[ScheduleProposalServiceKey]
     val holidays = attributes[PublicHolidayServiceKey]
     val views = PlanViewServices(
         team = attributes[TeamViewServiceKey],
@@ -69,7 +70,7 @@ fun Application.configurePlanningRoutes() {
             planViewRoutes(deps, views)
             roadmapRoutes(deps, views)
             teamOrderRoutes(deps, teamOrder)
-            teamScheduleRoutes(deps, teamSchedule)
+            teamScheduleRoutes(deps, teamSchedule, scheduleProposal)
             publicHolidayRoutes(holidays)
         }
     }

@@ -1391,6 +1391,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/teams/{id}/schedule-proposal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Propose a schedule for a team's not-yet-started milestones (a computation, nothing is stored)
+         * @description ADMIN or the team's ACTIVE manager, read-before-guard (`404` for an unknown or deleted team, then `403`, then the body: a forbidden
+         *     caller's malformed body is still `403`, then `asOf` `400`). The project owner, the other teams' managers and every other caller get
+         *     `403`. A COMPUTATION, not a mutation: `200` (no `Location`), nothing is written or stored, no lock is taken, the plan revision does
+         *     not move and no audit event is emitted. The server proposes; the client shows the diff and sends the accepted moves to
+         *     `POST /teams/{id}/milestone-schedules` with this document's `revision` as `expectedRevision`.
+         *
+         *     `asOf` is the VIEWER's calendar day (the server reads no clock): a milestone of the team is MOVABLE when it is unscheduled or its
+         *     start is after `asOf`; one that started on or before it (in progress or past) is fixed and so is every other team's milestone.
+         *     Movable milestones are placed greedily in the team's milestone order (the custom order, else the project rank), after their
+         *     dependencies, on the earliest working days that fit: the duration is the estimate over the capacity share (capacity over the WIP
+         *     limit, the whole capacity when there is none), every day within capacity and the WIP limit, on the public-holiday calendar. Days
+         *     without a capacity period, or on hold (0 man-days per week), take no work. A 0 man-day milestone takes one working day and counts
+         *     toward the WIP limit. A link into another team's fixed milestone that the placement breaks is NOT avoided: it is reported in
+         *     `dependencies` with `check.status` `VIOLATED` (and `before` showing what it was).
+         *
+         *     `moves` lists the movable milestones that change dates, in the team's effective order; `unchanged` those that land on their
+         *     current dates; `unplaced` those that got no dates (`NO_CAPACITY`: no working day with capacity at or after their earliest start;
+         *     `NO_ROOM`: none fits within 520 weeks of the team's first usable day) - a scheduled milestone in `unplaced` keeps its stored
+         *     dates. `weeks` is the team's weekly load as it would be after accepting EVERY move (the team view's `weeks`), `dependencies` the
+         *     links with an end among the team's milestones, or a project end whose span changed, violated-after first, with the dates of moved
+         *     ends as proposed. Bounded by one team's milestones (about 100, 301 on the largest sample team), at most 520 weeks and the links
+         *     touching the team.
+         */
+        post: operations["proposeTeamSchedule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/public-holidays": {
         parameters: {
             query?: never;
@@ -3050,6 +3093,91 @@ export interface components {
              * @enum {string}
              */
             reason: "STALE" | "GONE" | "NOT_ON_TEAM" | "NO_WORKING_DAY";
+        };
+        ScheduleProposalRequest: {
+            /**
+             * Format: date
+             * @description The viewer's calendar day, from 1900-01-01 to 2990-01-05 (a later day is `400`: a placement may lie 520 weeks past the first usable day, and the batch accept refuses dates after 2999-12-31). Milestones of the team that start after it (or have no dates) may move; the others are fixed.
+             */
+            asOf: string;
+        };
+        ScheduleProposal: {
+            /**
+             * Format: int64
+             * @description The plan revision the proposal was computed from; send it back as `expectedRevision` of the batch accept.
+             */
+            revision: number;
+            /**
+             * Format: date
+             * @description The request's `asOf`, echoed.
+             */
+            asOf: string;
+            /** Format: int32 */
+            teamId: number;
+            /** @description The movable milestones that change dates, in the team's effective order. */
+            moves: components["schemas"]["ScheduleProposalMove"][];
+            /** @description The movable milestones that land on their current dates, in the team's effective order. */
+            unchanged: number[];
+            /** @description The movable milestones that got no dates, in the team's effective order. */
+            unplaced: components["schemas"]["ScheduleProposalUnplaced"][];
+            /** @description The team's weekly load AFTER accepting every move, in the team view's row shape (at most 520); empty while nothing would be scheduled. */
+            weeks: components["schemas"]["WeekLoad"][];
+            /** @description True when `weeks` stops at 520 weeks. */
+            weeksTruncated: boolean;
+            /** @description The links with an end among the team's milestones, or a project end whose span changes, violated-after first. Ends carry the dates AFTER the moves; `before` is the link's status on the stored dates, `check` its check after. */
+            dependencies: components["schemas"]["ScheduleProposalLink"][];
+        };
+        ScheduleProposalMove: {
+            /** Format: int32 */
+            milestoneId: number;
+            name: string;
+            /** Format: int32 */
+            projectId: number;
+            projectName: string;
+            /** Format: double */
+            estimateMd: number;
+            /** @description The stored dates; null = unscheduled. */
+            from: components["schemas"]["DateSpan"] | null;
+            /** @description The proposed dates (both working days). */
+            to: components["schemas"]["DateSpan"];
+            /**
+             * Format: int32
+             * @description The working days in `to`.
+             */
+            workingDays: number;
+            /**
+             * Format: int32
+             * @description Working days from the current start to the proposed start - positive later, negative earlier; null when newly scheduled. A stored span that starts on a weekend or holiday counts from the next working day, so a move can have `shiftDays: 0` while its dates differ.
+             */
+            shiftDays: number | null;
+        };
+        ScheduleProposalUnplaced: {
+            /** Format: int32 */
+            milestoneId: number;
+            name: string;
+            /** Format: int32 */
+            projectId: number;
+            projectName: string;
+            /**
+             * @description NO_CAPACITY: no working day with capacity at or after the milestone's earliest start (add a capacity period). NO_ROOM: usable days exist but no span fits within 520 weeks of the team's first usable day.
+             * @enum {string}
+             */
+            reason: "NO_CAPACITY" | "NO_ROOM";
+        };
+        /** @description A link the proposal touches - both ends resolved with the dates AFTER the moves. */
+        ScheduleProposalLink: {
+            /** Format: int32 */
+            id: number;
+            predecessor: components["schemas"]["DependencyEndpoint"];
+            successor: components["schemas"]["DependencyEndpoint"];
+            type: components["schemas"]["DependencyType"];
+            /**
+             * Format: int32
+             * @description Working days; negative = a lead.
+             */
+            lagDays: number;
+            before: components["schemas"]["DependencyStatus"];
+            check: components["schemas"]["DependencyCheck"];
         };
         /** @description RFC 7807 problem detail. Served as `application/problem+json`; instance is the request path without query parameters. */
         ProblemDetail: {
@@ -5502,6 +5630,39 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    proposeTeamSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScheduleProposalRequest"];
+            };
+        };
+        responses: {
+            /** @description The proposal; nothing was changed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduleProposal"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
             413: components["responses"]["PayloadTooLarge"];
             415: components["responses"]["UnsupportedMediaType"];
             500: components["responses"]["InternalServerError"];
