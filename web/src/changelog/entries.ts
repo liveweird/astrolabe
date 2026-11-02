@@ -17,6 +17,24 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "0.9.0",
+    date: "2026-11-02",
+    en: `**Astrolabe 0.9.0: baselines.**
+
+- Baselines: the new Baselines page (Planning) keeps named copies of the whole plan. An administrator or a user with the roadmap-editor permission presses "Take baseline": every milestone's dates and estimate and every project's span are copied as they are now, and the copy can never be changed. Everyone can read them; they can be renamed or deleted, and up to 100 are kept.
+- Compare with a baseline: open a baseline to see what moved since. A totals line counts the milestones whose end is later or earlier, the new, removed, newly scheduled, unscheduled and re-estimated ones; below it, every project that changed with its changed milestones. Start and end are counted separately, in working days on today's calendar, and an end later than the baseline is marked orange "Later". Filter by team or project name.
+- On the timelines: the project, team, roadmap and programs pages have a "Baseline" picker (none by default; your pick is remembered in this browser for every page). With a baseline picked, a thin gray bar under each row shows its baseline dates, milestones removed or unscheduled since then get a dimmed row of their own, new ones are marked "new since the baseline", and the project and team pages list everything in a "Movement vs baseline" table. "Show on timeline" on the comparison page opens a project with that baseline picked.
+- Schedule proposal: if the team's plan changes after a proposal was made (another milestone moved, capacity, a link or a holiday edited), accepting it now writes nothing; the page proposes again at once and keeps your ticks for the milestones that still move.
+- Tables keep their text readable under the mouse in both light and dark themes.`,
+    pl: `**Astrolabe 0.9.0: bazy odniesienia.**
+
+- Bazy odniesienia: nowa strona Bazy odniesienia (Planowanie) przechowuje nazwane kopie całego planu. Administrator/ka lub osoba z uprawnieniem do edycji roadmapy naciska „Utwórz bazę odniesienia”: daty i estymaty wszystkich kamieni milowych oraz zakresy wszystkich projektów zostają skopiowane w obecnym kształcie, a kopii nie da się już zmienić. Każdy może je przeglądać; można zmienić ich nazwę lub je usunąć, a przechowywanych jest do 100.
+- Porównanie z bazą odniesienia: otwórz bazę odniesienia, aby zobaczyć, co się od tego czasu przesunęło. Podsumowanie liczy kamienie milowe kończące się później lub wcześniej oraz nowe, usunięte, nowo zaplanowane, wycofane z harmonogramu i z nową estymatą; poniżej każdy zmieniony projekt wraz z jego zmienionymi kamieniami milowymi. Początek i koniec liczone są osobno, w dniach roboczych według dzisiejszego kalendarza, a koniec późniejszy niż w bazie odniesienia jest oznaczony na pomarańczowo jako „Później”. Można filtrować po zespole lub nazwie projektu.
+- Na osiach czasu: strony projektu, zespołu, roadmapy i programów mają wybór „Baza odniesienia” (domyślnie brak; wybór jest zapamiętywany w tej przeglądarce dla wszystkich stron). Po wybraniu bazy odniesienia cienki szary pasek pod każdym wierszem pokazuje jego daty z bazy, kamienie milowe usunięte lub wycofane z harmonogramu od tego czasu dostają własny przygaszony wiersz, nowe są oznaczone jako nowe od utworzenia bazy, a strony projektu i zespołu zestawiają wszystko w tabeli „Przesunięcia względem bazy odniesienia”. „Pokaż na osi czasu” na stronie porównania otwiera projekt z wybraną tą bazą.
+- Propozycja harmonogramu: jeśli plan zespołu zmieni się po przygotowaniu propozycji (przesunięty inny kamień milowy, zmieniona przepustowość, powiązanie lub święto), jej akceptacja niczego nie zapisuje; strona od razu przygotowuje nową propozycję i zachowuje zaznaczenie kamieni milowych, które nadal się przesuwają.
+- Tabele pozostają czytelne pod kursorem myszy w jasnym i ciemnym motywie.`,
+  },
+  {
     version: "0.8.0",
     date: "2026-11-02",
     en: `**Astrolabe 0.8.0: the schedule proposal.**
