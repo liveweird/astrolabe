@@ -49,32 +49,3 @@ private fun DaySpan.toDateSpan() = DateSpan(start.toString(), end.toString())
 /** Working days from the current effective start to the proposed start: later is positive, earlier negative. */
 private fun shiftInWorkingDays(from: DaySpan, to: DaySpan, calendar: WorkingCalendar): Int =
     (calendar.workingDayIndex(to.start) - calendar.workingDayIndex(calendar.nextWorkingDayOnOrAfter(from.start))).toInt()
-
-/**
- * The dates of the team's milestones and of every project AFTER accepting every move: what the reported links' ends read. A milestone
- * of the team that is absent from [milestones] has no dates; a milestone of another team keeps the stored dates its resolved end carries.
- */
-internal class SpansAfter(
-    private val teamMilestoneIds: Set<UInt>,
-    private val milestones: Map<UInt, DaySpan>,
-    private val projects: Map<UInt, DaySpan>,
-) {
-    /** [end] (the resolved end named by [ref], stored dates) re-dated to the state after the proposal. */
-    fun apply(ref: EndpointRef, end: DependencyEndpoint): DependencyEndpoint = when {
-        ref.kind == EndpointKind.PROJECT -> end.datedAs(projects[ref.id])
-        ref.id in teamMilestoneIds -> end.datedAs(milestones[ref.id])
-        else -> end
-    }
-
-    private fun DependencyEndpoint.datedAs(span: DaySpan?) = copy(startDate = span?.start?.toString(), endDate = span?.end?.toString())
-}
-
-/**
- * The project spans after the run: the derived span (earliest start to latest end, [RoadmapKernels.projectSpans]) over the OTHER teams'
- * stored dates plus this team's [spansAfter].
- */
-internal fun projectSpansAfter(inputs: ScheduleInputs, spansAfter: Map<UInt, DaySpan>): Map<UInt, DaySpan> {
-    val others = inputs.plan.filter { it.teamId != inputs.teamId }
-    val team = inputs.team.map { PlanMilestoneFact(it.id, it.projectId, inputs.teamId, spansAfter[it.id]) }
-    return RoadmapKernels.projectSpans(others + team)
-}

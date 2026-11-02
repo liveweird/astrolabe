@@ -1,7 +1,6 @@
 import { describe, expect, test } from "vitest";
 import i18n from "../i18n";
-import type { DependencyEndpoint } from "../api/dependencies";
-import type { ScheduleProposal, ScheduleProposalLink, ScheduleProposalMove, TeamMilestone } from "../api/teams";
+import type { ScheduleProposal, ScheduleProposalEnd, ScheduleProposalLink, ScheduleProposalMove, TeamMilestone } from "../api/teams";
 import {
   acceptItems,
   changeSentence,
@@ -155,19 +154,14 @@ describe("outcomeSentence", () => {
   });
 });
 
-const endpoint = (kind: "MILESTONE" | "PROJECT", id: number, name: string, projectName = "Web"): DependencyEndpoint => ({
+const endpoint = (kind: "MILESTONE" | "PROJECT", id: number, name: string, projectName = "Web"): ScheduleProposalEnd => ({
   kind,
   id,
   name,
-  projectId: kind === "PROJECT" ? id : 9,
-  projectName,
-  teamId: null,
-  teamName: null,
-  startDate: null,
-  endDate: null,
+  projectName: kind === "PROJECT" ? null : projectName,
 });
 
-const linkOf = (id: number, predecessor: DependencyEndpoint, successor: DependencyEndpoint, before: ScheduleProposalLink["before"], after: ScheduleProposalLink["before"]): ScheduleProposalLink => ({
+const linkOf = (id: number, predecessor: ScheduleProposalEnd, successor: ScheduleProposalEnd, before: ScheduleProposalLink["before"], after: ScheduleProposalLink["before"]): ScheduleProposalLink => ({
   id,
   predecessor,
   successor,

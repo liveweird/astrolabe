@@ -1,8 +1,9 @@
 package ch.nokillswit
 
 import ch.nokillswit.planning.DependencyStatus
-import ch.nokillswit.planning.DependencyType
+import ch.nokillswit.planning.EndpointKind
 import ch.nokillswit.planning.ScheduleProposal
+import ch.nokillswit.planning.ScheduleProposalEnd
 import ch.nokillswit.planning.ScheduleProposalMove
 import ch.nokillswit.planning.ScheduleProposalRequest
 import ch.nokillswit.planning.TeamView
@@ -125,7 +126,7 @@ class ScheduleProposalTest {
             val b = TestPlan.milestone(w.projectId, t.teamId, planName("b"), 6.0)
             val c = TestPlan.milestone(w.projectId, t.teamId, planName("c"), 2.0)
             TestPlan.schedule(c, "2027-04-05", "2027-04-06")
-            val link = TestPlan.dependency(milestoneRef(b), milestoneRef(c))
+            TestPlan.dependency(milestoneRef(b), milestoneRef(c))
 
             val proposal = t.manager.client.proposal(t.teamId)
             assertEquals(t.teamId, proposal.teamId)
@@ -149,14 +150,7 @@ class ScheduleProposalTest {
             assertEquals(listOf(false, false), proposal.weeks.map { it.overloaded or it.wipExceeded })
             assertEquals(listOf(2, 1), proposal.weeks.map { it.maxWip }, "a and b overlap in week one; b ends Monday, c starts Tuesday")
 
-            val reported = proposal.dependencies.single()
-            assertEquals(link, reported.id)
-            assertEquals(DependencyType.FS, reported.type)
-            assertEquals(DependencyStatus.UNSCHEDULED, reported.before, "b had no dates")
-            assertEquals(DependencyStatus.OK, reported.check.status)
-            val predecessor = reported.predecessor
-            assertEquals("2027-02-01" to "2027-02-08", predecessor.startDate to predecessor.endDate, "ends carry the dates AFTER")
-            assertEquals("2027-02-09" to "2027-02-10", reported.successor.startDate to reported.successor.endDate)
+            assertEquals(emptyList(), proposal.dependencies, "b -> c is unscheduled, then fine: only violated links are reported")
 
             val view: TeamView = t.manager.client.get("/api/v1/views/team/${t.teamId}").body()
             assertEquals(view.revision, proposal.revision, "the proposal's revision is the team view's: the batch's expectedRevision")
@@ -291,29 +285,68 @@ class ScheduleProposalTest {
     }
 
     @Test
-    fun `a project end of a reported link carries the derived span AFTER the moves, not the stored one`() = testApplication {
+    fun `a project end of a reported link is named by its project, its verdict reads the derived span AFTER`() = testApplication {
         usePostgresTestcontainer()
         val w = planWorld("spp", teams = true)
         val t = w.requireTeams()
         val second = secondProject(w)
         TestPlan.capacityPeriod(t.teamId, "2027-01-04", 10.0)
-        // Project P holds x (this team, unscheduled, moves to 02-01) and y (the other team, fixed 03-08..03-12): stored span 03-08..03-12.
+        // Project P holds x (this team, unscheduled, moves to 02-01) and y (the other team, fixed 01-18..01-22): stored span 01-18..01-22.
         val x = TestPlan.milestone(w.projectId, t.teamId, planName("x"), 2.0)
         val y = TestPlan.milestone(w.projectId, t.otherTeamId, planName("y"))
-        TestPlan.schedule(y, "2027-03-08", "2027-03-12")
+        TestPlan.schedule(y, "2027-01-18", "2027-01-22")
+        // P must finish before z (another project, the other team, fixed 02-01..02-05) starts: fine as stored, broken once x lands.
         val z = TestPlan.milestone(second.projectId, t.otherTeamId, planName("z"))
-        TestPlan.schedule(z, "2027-03-15", "2027-03-19")
+        TestPlan.schedule(z, "2027-02-01", "2027-02-05")
         val link = TestPlan.dependency(projectRef(w.projectId), milestoneRef(z))
 
         val proposal = t.manager.client.proposal(t.teamId)
         assertEquals("2027-02-01..2027-02-01", proposal.move(x).span())
         val reported = proposal.dependencies.single { it.id == link }
         assertEquals(DependencyStatus.OK, reported.before)
-        assertEquals(DependencyStatus.OK, reported.check.status)
-        val predecessor = reported.predecessor
-        assertEquals("2027-02-01" to "2027-03-12", predecessor.startDate to predecessor.endDate, "the derived span after, not 03-08..03-12")
-        assertEquals("2027-03-15" to "2027-03-19", reported.successor.startDate to reported.successor.endDate)
+        assertEquals(DependencyStatus.VIOLATED, reported.check.status)
+        assertEquals("2027-02-02", reported.check.requiredDate, "P's derived end after the moves is 02-01, not the stored 01-22")
+        val projectEnd = ScheduleProposalEnd(EndpointKind.PROJECT, w.projectId, projectNameOf(w.projectId), null)
+        assertEquals(projectEnd, reported.predecessor, "a project end: its own name, no project")
+        assertEquals(EndpointKind.MILESTONE, reported.successor.kind)
+        assertEquals(z, reported.successor.id)
+        assertEquals(projectNameOf(second.projectId), reported.successor.projectName, "a milestone end names its project")
     }
+
+    private fun projectNameOf(id: UInt): String = TestPlan.scalar("SELECT name FROM projects WHERE id = $id") { it.getString(1) }
+
+    @Test
+    fun `only links violated before or after are reported - a mended one carries its before, a fine one is absent`() =
+        testApplication {
+            usePostgresTestcontainer()
+            val w = planWorld("spl", teams = true)
+            val t = w.requireTeams()
+            TestPlan.capacityPeriod(t.teamId, "2027-01-04", 10.0)
+            val theirs = TestPlan.milestone(w.projectId, t.otherTeamId, planName("theirs"))
+            TestPlan.schedule(theirs, "2027-02-22", "2027-02-26")
+            // mended: m starts 03-01, after theirs starts 02-22 (FS m -> theirs is violated as stored); the proposal moves m to 02-01.
+            val mended = TestPlan.milestone(w.projectId, t.teamId, planName("mended"), 2.0)
+            TestPlan.schedule(mended, "2027-03-01", "2027-03-02")
+            val mendedLink = TestPlan.dependency(milestoneRef(mended), milestoneRef(theirs))
+            // fine: moves from 02-15 to 02-02..02-03 and stays before theirs (OK -> OK).
+            val fine = TestPlan.milestone(w.projectId, t.teamId, planName("fine"), 2.0)
+            TestPlan.schedule(fine, "2027-02-15", "2027-02-16")
+            TestPlan.dependency(milestoneRef(fine), milestoneRef(theirs))
+            // fresh: unscheduled, placed before theirs (UNSCHEDULED -> OK).
+            val fresh = TestPlan.milestone(w.projectId, t.teamId, planName("fresh"), 2.0)
+            TestPlan.dependency(milestoneRef(fresh), milestoneRef(theirs))
+
+            val proposal = t.manager.client.proposal(t.teamId)
+            assertEquals(listOf(mended, fine, fresh).toSet(), proposal.moves.map { it.milestoneId }.toSet(), "all three move")
+            val reported = proposal.dependencies.single()
+            assertEquals(mendedLink, reported.id)
+            assertEquals(DependencyStatus.VIOLATED, reported.before)
+            assertEquals(DependencyStatus.OK, reported.check.status)
+            assertEquals(EndpointKind.MILESTONE, reported.predecessor.kind)
+            assertEquals(mended, reported.predecessor.id)
+            assertEquals(projectNameOf(w.projectId), reported.predecessor.projectName)
+            assertEquals(theirs, reported.successor.id)
+        }
 
     @Test
     fun `a link into another team's fixed milestone that the placement breaks is reported VIOLATED, before OK, and nothing is reordered`() =
@@ -338,10 +371,11 @@ class ScheduleProposalTest {
             assertEquals(DependencyStatus.OK, reported.before)
             assertEquals(DependencyStatus.VIOLATED, reported.check.status)
             assertEquals(7, reported.check.shortfallDays, "theirs starts 02-08, the link needs 02-17: seven working days short")
-            assertEquals("2027-02-15" to "2027-02-16", reported.predecessor.startDate to reported.predecessor.endDate)
-            val successor = reported.successor
-            assertEquals("2027-02-08" to "2027-02-12", successor.startDate to successor.endDate, "the fixed end keeps its dates")
-            assertEquals(t.otherTeamId, reported.successor.teamId)
+            assertEquals("2027-02-17", reported.check.requiredDate)
+            assertEquals("2027-02-08", reported.check.actualDate, "the fixed end keeps its dates")
+            val moved = proposal.move(m)
+            assertEquals(ScheduleProposalEnd(EndpointKind.MILESTONE, m, moved.name, moved.projectName), reported.predecessor)
+            assertEquals(theirs, reported.successor.id)
             assertEquals(link, proposal.dependencies.first().id, "violated-after links come first")
             assertEquals("2027-02-08" to "2027-02-12", datesOf(theirs), "the other team's milestone is never touched")
         }

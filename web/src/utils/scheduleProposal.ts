@@ -1,6 +1,5 @@
 import type { TFunction } from "i18next";
-import type { DependencyEndpoint } from "../api/dependencies";
-import type { ScheduleProposal, ScheduleProposalLink, ScheduleProposalMove, SkippedSchedule, TeamMilestone, TeamScheduleBatchResponse, TeamView } from "../api/teams";
+import type { ScheduleProposal, ScheduleProposalEnd, ScheduleProposalLink, ScheduleProposalMove, SkippedSchedule, TeamMilestone, TeamScheduleBatchResponse, TeamView } from "../api/teams";
 import type { TimelineBarData } from "./timelineModel";
 
 /**
@@ -115,7 +114,8 @@ export const newlyScheduledCount = (moves: readonly ScheduleProposalMove[]): num
 /**
  * The links the summary badges count: `newlyViolated` are violated AFTER the moves and were not before (the red badge: the proposal would
  * break them), `stillViolated` are violated before and after (a gray badge: the proposal leaves them as they were). The server's `check`
- * is the verdict; nothing is re-checked here.
+ * is the verdict; nothing is re-checked here. The server lists only the links violated before or after the moves, so these two counts are
+ * the whole of what the list holds.
  */
 export function linkTotals(links: readonly Pick<ScheduleProposalLink, "before" | "check">[]): { newlyViolated: number; stillViolated: number } {
   const violatedAfter = links.filter((link) => link.check.status === "VIOLATED");
@@ -124,9 +124,9 @@ export function linkTotals(links: readonly Pick<ScheduleProposalLink, "before" |
 }
 
 /** A link at a moved milestone: the other end, and whether THIS milestone is the link's predecessor (else its successor). */
-export type LinkAtMove = { link: ScheduleProposalLink; other: DependencyEndpoint; thisIsPredecessor: boolean };
+export type LinkAtMove = { link: ScheduleProposalLink; other: ScheduleProposalEnd; thisIsPredecessor: boolean };
 
-const isMoveEnd = (end: DependencyEndpoint, move: Pick<ScheduleProposalMove, "milestoneId" | "projectId">) =>
+const isMoveEnd = (end: ScheduleProposalEnd, move: Pick<ScheduleProposalMove, "milestoneId" | "projectId">) =>
   end.kind === "MILESTONE" ? end.id === move.milestoneId : end.id === move.projectId;
 
 /**
@@ -156,6 +156,6 @@ export const PROPOSAL_HORIZON_WEEKS = 520;
 /** Which date of the successor a link type constrains: FS and SS its start, FF and SF its end (the check's `requiredDate`). */
 export const requiredEdge = (type: ScheduleProposalLink["type"]): "start" | "end" => (type === "FS" || type === "SS" ? "start" : "end");
 
-/** A link end in words: a milestone as "Project › Milestone", a project by its name. */
-export const endpointText = (end: Pick<DependencyEndpoint, "kind" | "name" | "projectName">): string =>
-  end.kind === "MILESTONE" ? `${end.projectName} › ${end.name}` : end.name;
+/** A link end in words: a milestone as "Project › Milestone", a project by its name (the wire's `projectName` is null for a project end). */
+export const endpointText = (end: Pick<ScheduleProposalEnd, "name" | "projectName">): string =>
+  end.projectName === null ? end.name : `${end.projectName} › ${end.name}`;

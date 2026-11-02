@@ -127,14 +127,27 @@ data class ScheduleProposalUnplaced(
 )
 
 /**
- * A link the proposal touches: both ends resolved with the dates AFTER accepting every move, its status [before] (on the stored
- * dates) and its [check] after. A link into another team's fixed milestone that the proposal breaks reads `before: OK`, `VIOLATED`.
+ * One end of a [ScheduleProposalLink], named and nothing else: the page prints the other end's words and reads every date from the link's
+ * `check`. [projectName] is the milestone's project for a milestone end, null for a project end (whose [name] IS the project).
+ */
+@Serializable
+data class ScheduleProposalEnd(
+    val kind: EndpointKind,
+    val id: UInt,
+    val name: String,
+    val projectName: String?,
+)
+
+/**
+ * A link the proposal touches AND whose verdict is or was VIOLATED (fine both times, or unscheduled then fine, is not worth a row): both
+ * ends named ([ScheduleProposalEnd]), its status [before] (on the stored dates) and its [check] after the moves. A link into another team's
+ * fixed milestone that the proposal breaks reads `before: OK`, `VIOLATED`.
  */
 @Serializable
 data class ScheduleProposalLink(
     val id: UInt,
-    val predecessor: DependencyEndpoint,
-    val successor: DependencyEndpoint,
+    val predecessor: ScheduleProposalEnd,
+    val successor: ScheduleProposalEnd,
     val type: DependencyType,
     val lagDays: Int,
     val before: DependencyStatus,
@@ -143,10 +156,10 @@ data class ScheduleProposalLink(
 
 /**
  * The proposal (`POST /teams/{id}/schedule-proposal`, listed under "Batch commands" in `list-endpoints.md`; bounded by ONE
- * team's milestones, at most [MAX_LOAD_WEEKS] weeks and the links touching the team). A computation: nothing is stored. [revision] is
- * the plan revision of the snapshot it was computed from - the batch accept's `expectedRevision`. [moves] and [unplaced] are in the
- * team's effective order; [unchanged] are the movable milestones that stay on their dates; [weeks] is the team's load AFTER accepting
- * every move (the team view's row shape); [dependencies] are violated-after first.
+ * team's milestones, at most [MAX_LOAD_WEEKS] weeks and the links touching the team whose verdict is or was violated). A computation:
+ * nothing is stored. [revision] is the plan revision of the snapshot it was computed from - the batch accept's `expectedRevision`.
+ * [moves] and [unplaced] are in the team's effective order; [unchanged] are the movable milestones that stay on their dates; [weeks]
+ * is the team's load AFTER accepting every move (the team view's row shape); [dependencies] are violated-after first.
  */
 @Serializable
 data class ScheduleProposal(

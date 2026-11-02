@@ -84,6 +84,7 @@ export type ScheduleProposal = Schemas["ScheduleProposal"];
 export type ScheduleProposalMove = Schemas["ScheduleProposalMove"];
 export type ScheduleProposalUnplaced = Schemas["ScheduleProposalUnplaced"];
 export type ScheduleProposalLink = Schemas["ScheduleProposalLink"];
+export type ScheduleProposalEnd = Schemas["ScheduleProposalEnd"];
 export type TeamScheduleBatchResponse = Schemas["TeamScheduleBatchResponse"];
 export type SkippedSchedule = Schemas["SkippedSchedule"];
 

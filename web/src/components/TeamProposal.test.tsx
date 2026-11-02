@@ -3,8 +3,7 @@ import { describe, expect, test, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
 import { screen, within } from "@testing-library/react";
 import TeamProposal from "./TeamProposal";
-import type { ScheduleProposal, ScheduleProposalLink, ScheduleProposalMove } from "../api/teams";
-import type { DependencyEndpoint } from "../api/dependencies";
+import type { ScheduleProposal, ScheduleProposalEnd, ScheduleProposalLink, ScheduleProposalMove } from "../api/teams";
 import { renderWithProviders } from "../test/render";
 
 const move = (milestoneId: number, name: string, over: Partial<ScheduleProposalMove> = {}): ScheduleProposalMove => ({
@@ -20,23 +19,18 @@ const move = (milestoneId: number, name: string, over: Partial<ScheduleProposalM
   ...over,
 });
 
-const end = (id: number, name: string, over: Partial<DependencyEndpoint> = {}): DependencyEndpoint => ({
+const end = (id: number, name: string, over: Partial<ScheduleProposalEnd> = {}): ScheduleProposalEnd => ({
   kind: "MILESTONE",
   id,
   name,
-  projectId: 9,
   projectName: "Web",
-  teamId: 1,
-  teamName: "Payments",
-  startDate: null,
-  endDate: null,
   ...over,
 });
 
 const link = (
   id: number,
-  predecessor: DependencyEndpoint,
-  successor: DependencyEndpoint,
+  predecessor: ScheduleProposalEnd,
+  successor: ScheduleProposalEnd,
   before: ScheduleProposalLink["before"],
   status: ScheduleProposalLink["before"],
 ): ScheduleProposalLink => ({
@@ -176,8 +170,8 @@ describe("TeamProposal", () => {
   });
 
   test("a link the proposal would newly break reads in words with a red badge, and the summary counts it; one it mends reads gray", () => {
-    const broken = link(1, end(2, "tp-b", { projectId: 7, projectName: "Invoices" }), end(50, "Checkout page"), "OK", "VIOLATED");
-    const mended = link(2, end(51, "Design"), end(1, "tp-a", { projectId: 7, projectName: "Invoices" }), "VIOLATED", "OK");
+    const broken = link(1, end(2, "tp-b", { projectName: "Invoices" }), end(50, "Checkout page"), "OK", "VIOLATED");
+    const mended = link(2, end(51, "Design"), end(1, "tp-a", { projectName: "Invoices" }), "VIOLATED", "OK");
     const unchanged = link(3, end(52, "Old"), end(53, "Older"), "VIOLATED", "VIOLATED");
     renderWithProviders(<Harness proposal={proposalOf({ dependencies: [broken, mended, unchanged] })} spies={spies()} />);
     expect(screen.getByText("1 link would be violated")).toBeInTheDocument();
@@ -193,13 +187,19 @@ describe("TeamProposal", () => {
   });
 
   test("a milestone that is the successor of the broken link names the predecessor", () => {
-    const broken = link(1, end(50, "Design"), end(3, "tp-c", { projectId: 8, projectName: "Checkout" }), "OK", "VIOLATED");
+    const broken = link(1, end(50, "Design"), end(3, "tp-c", { projectName: "Checkout" }), "OK", "VIOLATED");
     renderWithProviders(<Harness proposal={proposalOf({ dependencies: [broken] })} spies={spies()} />);
     expect(within(rowOf("tp-c")).getByText("would violate: must start on 2042-02-26 or later (link from Web › Design)")).toBeInTheDocument();
   });
 
+  test("a project end of the link is named by the project alone (the wire carries no project name for it)", () => {
+    const broken = link(1, end(2, "tp-b", { projectName: "Invoices" }), end(60, "Checkout", { kind: "PROJECT", projectName: null }), "OK", "VIOLATED");
+    renderWithProviders(<Harness proposal={proposalOf({ dependencies: [broken] })} spies={spies()} />);
+    expect(within(rowOf("tp-b")).getByText("would violate: Checkout must start on 2042-02-26 or later")).toBeInTheDocument();
+  });
+
   test("the violation names the successor's start or end by the link type", () => {
-    const base = link(1, end(2, "tp-b", { projectId: 7, projectName: "Invoices" }), end(50, "Checkout page"), "OK", "VIOLATED");
+    const base = link(1, end(2, "tp-b", { projectName: "Invoices" }), end(50, "Checkout page"), "OK", "VIOLATED");
     const { unmount } = renderWithProviders(<Harness proposal={proposalOf({ dependencies: [{ ...base, type: "SS" }] })} spies={spies()} />);
     expect(within(rowOf("tp-b")).getByText("would violate: Web › Checkout page must start on 2042-02-26 or later")).toBeInTheDocument();
     unmount();

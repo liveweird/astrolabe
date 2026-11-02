@@ -3124,7 +3124,7 @@ export interface components {
             weeks: components["schemas"]["WeekLoad"][];
             /** @description True when `weeks` stops at 520 weeks. */
             weeksTruncated: boolean;
-            /** @description The links with an end among the team's milestones, or a project end whose span changes, violated-after first. Ends carry the dates AFTER the moves; `before` is the link's status on the stored dates, `check` its check after. */
+            /** @description The links touching the team (an end among its milestones, or a project end whose span changes) whose verdict is or was VIOLATED - before or after the moves; a link that is fine both times, or unscheduled and then fine, is not listed. Violated-after first. `before` is the link's status on the stored dates, `check` its check after; the dates are in the check. */
             dependencies: components["schemas"]["ScheduleProposalLink"][];
         };
         ScheduleProposalMove: {
@@ -3164,12 +3164,12 @@ export interface components {
              */
             reason: "NO_CAPACITY" | "NO_ROOM";
         };
-        /** @description A link the proposal touches - both ends resolved with the dates AFTER the moves. */
+        /** @description A link the proposal touches whose verdict is or was VIOLATED - both ends named, the dates in the `check`. */
         ScheduleProposalLink: {
             /** Format: int32 */
             id: number;
-            predecessor: components["schemas"]["DependencyEndpoint"];
-            successor: components["schemas"]["DependencyEndpoint"];
+            predecessor: components["schemas"]["ScheduleProposalEnd"];
+            successor: components["schemas"]["ScheduleProposalEnd"];
             type: components["schemas"]["DependencyType"];
             /**
              * Format: int32
@@ -3178,6 +3178,15 @@ export interface components {
             lagDays: number;
             before: components["schemas"]["DependencyStatus"];
             check: components["schemas"]["DependencyCheck"];
+        };
+        /** @description One end of a proposal link, named and nothing else (no dates, no team). */
+        ScheduleProposalEnd: {
+            kind: components["schemas"]["EndpointKind"];
+            /** Format: int32 */
+            id: number;
+            name: string;
+            /** @description The milestone's project for a milestone end; null for a project end, whose `name` is the project. */
+            projectName: string | null;
         };
         /** @description RFC 7807 problem detail. Served as `application/problem+json`; instance is the request path without query parameters. */
         ProblemDetail: {
