@@ -136,17 +136,24 @@
   },
   "proposal": {
     "propose": "Propose schedule",
-    "discard": "Discard proposal",
+    "discard": "Discard",
+    "title": "Proposed schedule",
+    "intro": "Dashed bars on the timeline show the proposed dates. Link warnings assume every move is accepted. Nothing changes until you accept.",
+    "accept": "Accept selected ({{count}})",
+    "acceptAll": "Accept all",
+    "acceptRowAria": "Accept {{name}}",
+    "tableAria": "Proposed schedule moves",
     "ready_one": "Proposed schedule ready: {{count}} move",
     "ready_other": "Proposed schedule ready: {{count}} moves",
-    "preview": "Previewing a proposed schedule ({{figures}}). Dashed bars show the proposed dates; nothing changes until a proposal is accepted.",
     "summary": {
       "moves_one": "{{count}} move",
       "moves_other": "{{count}} moves",
       "stay_one": "{{count}} stays",
       "stay_other": "{{count}} stay",
       "unplaced_one": "{{count}} could not be placed",
-      "unplaced_other": "{{count}} could not be placed"
+      "unplaced_other": "{{count}} could not be placed",
+      "newly_one": "{{count}} newly scheduled",
+      "newly_other": "{{count}} newly scheduled"
     },
     "newMark": "(new)",
     "operationsAria": "Operations for {{name}} (proposed row)",
@@ -180,8 +187,36 @@
       "notOnTeam": "moved to another team",
       "noWorkingDay": "no working day left in the span"
     },
-    "toast": {
-      "applied": "Schedule updated"
+    "badge": {
+      "violated_one": "{{count}} link would be violated",
+      "violated_other": "{{count}} links would be violated",
+      "stillViolated_one": "{{count}} link stays violated",
+      "stillViolated_other": "{{count}} links stay violated"
+    },
+    "column": {
+      "milestone": "Milestone",
+      "current": "Current",
+      "proposed": "Proposed",
+      "change": "Change",
+      "links": "Links",
+      "accept": "Accept"
+    },
+    "unscheduled": "Unscheduled",
+    "span": "{{start}} to {{end}}",
+    "days_one": "{{count}} working day",
+    "days_other": "{{count}} working days",
+    "links": {
+      "badge": "Conflict",
+      "resolves": "resolves: link with {{name}}",
+      "violatesSuccessorStart": "would violate: {{name}} must start on {{date}} or later",
+      "violatesSuccessorEnd": "would violate: {{name}} must end on {{date}} or later",
+      "violatesPredecessorStart": "would violate: must start on {{date}} or later (link from {{name}})",
+      "violatesPredecessorEnd": "would violate: must end on {{date}} or later (link from {{name}})"
+    },
+    "unplaced": {
+      "title": "Could not be placed",
+      "NO_CAPACITY": "no capacity after {{date}}",
+      "NO_ROOM": "no room within the {{weeks}}-week horizon"
     }
   }
 }

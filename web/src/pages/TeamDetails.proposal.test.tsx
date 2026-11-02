@@ -5,12 +5,13 @@ import { QueryClient } from "@tanstack/react-query";
 import { Route, Routes } from "react-router-dom";
 import TeamDetails from "./TeamDetails";
 import type { ScheduleProposal, ScheduleProposalMove, TeamMilestone, TeamView, WeekLoad } from "../api/teams";
+import { headingOutline } from "../test/headings";
 import { jsonResponse } from "../test/http";
 import { renderWithProviders } from "../test/render";
 import { localIsoDate } from "../utils/isoDate";
 
-// The schedule proposal on the team page, C4: the button, the preview mode on the timeline (read-only, second bars, appended rows, the
-// proposed load), the notes, the minimal Discard. The Proposed schedule section and the accept are C5.
+// The schedule proposal on the team page: the button, the preview mode on the timeline (read-only, second bars, appended rows, the
+// proposed load), the notes, and (C5) the Proposed schedule section - accept selected, the outcome and stale notes, Discard.
 
 const TOKEN_KEY = "astrolabe.auth.token";
 const ROLES_KEY = "astrolabe.auth.roles";
@@ -96,6 +97,7 @@ const proposalOf = (over: Partial<ScheduleProposal> = {}): ScheduleProposal => (
 
 let view: TeamView;
 let proposalAnswer: Response | (() => Response | Promise<Response>);
+let batchAnswer: Response | (() => Response | Promise<Response>);
 let mockFetch: FetchMock;
 
 function serve() {
@@ -104,9 +106,13 @@ function serve() {
     if (method === "GET" && url === "/api/v1/views/team/1") return Promise.resolve(jsonResponse(200, view));
     if (method === "GET" && url === "/api/v1/public-holidays") return Promise.resolve(jsonResponse(200, { items: [] }));
     if (method === "POST" && url === "/api/v1/teams/1/schedule-proposal") return Promise.resolve(typeof proposalAnswer === "function" ? proposalAnswer() : proposalAnswer.clone());
+    if (method === "POST" && url === "/api/v1/teams/1/milestone-schedules") return Promise.resolve(typeof batchAnswer === "function" ? batchAnswer() : batchAnswer.clone());
     return Promise.resolve(jsonResponse(404, { title: "Not Found", status: 404 }));
   });
 }
+
+const batchPosts = () =>
+  mockFetch.mock.calls.filter(([url, init]) => url === "/api/v1/teams/1/milestone-schedules" && (init as RequestInit).method === "POST").map(([, init]) => JSON.parse((init as RequestInit).body as string));
 
 const proposalPosts = () =>
   mockFetch.mock.calls.filter(([url, init]) => url === "/api/v1/teams/1/schedule-proposal" && (init as RequestInit).method === "POST").map(([, init]) => JSON.parse((init as RequestInit).body as string));
@@ -144,12 +150,13 @@ async function openPreview(user: ReturnType<typeof userEvent.setup>) {
   renderPage();
   await screen.findByRole("grid", { name: "Team milestone timeline" });
   await user.click(screen.getByRole("button", { name: "Propose schedule" }));
-  await screen.findByRole("button", { name: "Discard proposal" });
+  await screen.findByRole("button", { name: "Discard" });
 }
 
 beforeEach(() => {
   view = viewOf();
   proposalAnswer = jsonResponse(200, proposalOf());
+  batchAnswer = jsonResponse(200, { revision: 11, accepted: [2, 3], skipped: [] });
   mockFetch = vi.fn();
   vi.stubGlobal("fetch", mockFetch);
   localStorage.setItem(TOKEN_KEY, "fake-token");
@@ -209,7 +216,7 @@ describe("the preview", () => {
     // the strip shows the proposal's weeks; that week lies far past the current schedule, so the range grew over the proposed spans
     expect(document.querySelector('[data-week="2027-06-07"]')).not.toBeNull();
     expect(document.querySelector('[data-week="2027-02-01"]')).toBeNull();
-    expect(screen.getByText(/Previewing a proposed schedule \(2 moves · 1 stays · 0 could not be placed\)/)).toBeInTheDocument();
+    expect(screen.getByText("2 moves · 1 newly scheduled · 1 stays · 0 could not be placed")).toBeInTheDocument();
   });
 
   test("the page is read-only: bars without handles, no row menu schedule or order items, tray Schedule disabled, no Reset order, no capacity edits", async () => {
@@ -222,7 +229,7 @@ describe("the preview", () => {
     expect(screen.getAllByRole("button", { name: /^Resize start/ })).toHaveLength(2);
     expect(document.querySelectorAll("[data-row-handle]")).toHaveLength(2);
     await user.click(screen.getByRole("button", { name: "Propose schedule" }));
-    await screen.findByRole("button", { name: "Discard proposal" });
+    await screen.findByRole("button", { name: "Discard" });
     // after: none of it
     expect(screen.queryByRole("button", { name: "Reset order" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Add period" })).toBeNull();
@@ -241,7 +248,7 @@ describe("the preview", () => {
     const user = userEvent.setup();
     await openPreview(user);
     const before = mockFetch.mock.calls.length;
-    await user.click(screen.getByRole("button", { name: "Discard proposal" }));
+    await user.click(screen.getByRole("button", { name: "Discard" }));
     expect(proposalBars()).toHaveLength(0);
     expect(screen.getAllByText("Weekly load")).toHaveLength(2);
     expect(screen.queryByText("Proposed load")).toBeNull();
@@ -260,7 +267,9 @@ describe("the preview", () => {
     );
     const user = userEvent.setup();
     await openPreview(user);
-    expect(screen.getByText(/0 moves · 0 stay · 1 could not be placed/)).toBeInTheDocument();
+    expect(screen.getByText("0 moves · 0 newly scheduled · 0 stay · 1 could not be placed")).toBeInTheDocument();
+    expect(screen.getByText("no room within the 520-week horizon")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Accept selected (0)" })).toBeDisabled();
     expect(proposalBars()).toHaveLength(0);
   });
 });
@@ -275,7 +284,7 @@ describe("a proposal that opens nothing", () => {
     const note = await screen.findByRole("note");
     expect(note).toHaveTextContent("Nothing to propose: every milestone has started or stays where it is.");
     expect(liveText()).toContain("Nothing to propose");
-    expect(screen.queryByRole("button", { name: "Discard proposal" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Discard" })).toBeNull();
     expect(proposalBars()).toHaveLength(0);
     expect(proposeButton()).toBeEnabled();
     await user.click(within(note).getByRole("button", { name: "Close" }));
@@ -298,7 +307,7 @@ describe("a proposal that opens nothing", () => {
     await screen.findByRole("grid", { name: "Team milestone timeline" });
     await user.click(screen.getByRole("button", { name: "Propose schedule" }));
     expect(await screen.findByRole("note")).toHaveTextContent("Nothing could be placed: the team has no capacity after 2027-01-31 — add a capacity period first.");
-    expect(screen.queryByRole("button", { name: "Discard proposal" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Discard" })).toBeNull();
   });
 
   test("a refused request reads in words, inline, and opens nothing; a new request clears it", async () => {
@@ -311,7 +320,7 @@ describe("a proposal that opens nothing", () => {
     expect(proposalBars()).toHaveLength(0);
     proposalAnswer = jsonResponse(200, proposalOf());
     await user.click(screen.getByRole("button", { name: "Propose schedule" }));
-    await screen.findByRole("button", { name: "Discard proposal" });
+    await screen.findByRole("button", { name: "Discard" });
     expect(screen.queryByText("Only the team's manager or an administrator can propose a schedule")).toBeNull();
   });
 });
@@ -354,7 +363,7 @@ describe("read-only while a proposal is requested or open", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(putCalls()).toEqual([]);
     await release(jsonResponse(200, proposalOf()));
-    await screen.findByRole("button", { name: "Discard proposal" });
+    await screen.findByRole("button", { name: "Discard" });
     // the refusal note now says why in words
     expect(screen.getAllByRole("note").map((n) => n.textContent).join("|")).toContain("A proposal is open, so the schedule is read-only");
     expect(putCalls()).toEqual([]);
@@ -372,7 +381,7 @@ describe("read-only while a proposal is requested or open", () => {
     fireEvent.click(screen.getByRole("button", { name: "Propose schedule", hidden: true }));
     await release(jsonResponse(200, proposalOf()));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    await user.click(await screen.findByRole("button", { name: "Discard proposal" }));
+    await user.click(await screen.findByRole("button", { name: "Discard" }));
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(putCalls()).toEqual([]);
   });
@@ -387,7 +396,7 @@ describe("read-only while a proposal is requested or open", () => {
     fireEvent.click(screen.getByRole("button", { name: "Propose schedule", hidden: true }));
     await release(jsonResponse(200, proposalOf()));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    await user.click(await screen.findByRole("button", { name: "Discard proposal" }));
+    await user.click(await screen.findByRole("button", { name: "Discard" }));
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(putCalls()).toEqual([]);
   });
@@ -402,7 +411,7 @@ describe("read-only while a proposal is requested or open", () => {
     fireEvent.click(screen.getByRole("button", { name: "Propose schedule", hidden: true }));
     await release(jsonResponse(200, proposalOf()));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    await user.click(await screen.findByRole("button", { name: "Discard proposal" }));
+    await user.click(await screen.findByRole("button", { name: "Discard" }));
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
@@ -413,10 +422,10 @@ describe("read-only while a proposal is requested or open", () => {
     await screen.findByRole("grid", { name: "Team milestone timeline" });
     expect(screen.getByText(/Add a period to compare/)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Propose schedule" }));
-    await screen.findByRole("button", { name: "Discard proposal" });
+    await screen.findByRole("button", { name: "Discard" });
     expect(screen.queryByText(/Add a period to compare/)).toBeNull();
     expect(screen.getByText("No capacity set")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Discard proposal" }));
+    await user.click(screen.getByRole("button", { name: "Discard" }));
     expect(screen.getByText(/Add a period to compare/)).toBeInTheDocument();
   });
 
@@ -432,8 +441,8 @@ describe("focus", () => {
   test("opening a proposal moves the focus to Discard and discarding gives it back to Propose", async () => {
     const user = userEvent.setup();
     await openPreview(user);
-    await waitFor(() => expect(screen.getByRole("button", { name: "Discard proposal" })).toHaveFocus());
-    await user.click(screen.getByRole("button", { name: "Discard proposal" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Discard" })).toHaveFocus());
+    await user.click(screen.getByRole("button", { name: "Discard" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Propose schedule" })).toHaveFocus());
   });
 });
@@ -445,7 +454,7 @@ describe("a refetch under an open proposal", () => {
     renderPage(client);
     await screen.findByRole("grid", { name: "Team milestone timeline" });
     await user.click(screen.getByRole("button", { name: "Propose schedule" }));
-    await screen.findByRole("button", { name: "Discard proposal" });
+    await screen.findByRole("button", { name: "Discard" });
     const reads = () => mockFetch.mock.calls.filter(([url, init]) => url === "/api/v1/views/team/1" && ((init as RequestInit | undefined)?.method ?? "GET") === "GET").length;
     const before = reads();
     view = viewOf({ revision: 11 });
@@ -454,6 +463,140 @@ describe("a refetch under an open proposal", () => {
     });
     expect(reads()).toBeGreaterThan(before);
     expect(proposalBars()).toHaveLength(2);
-    expect(screen.getByRole("button", { name: "Discard proposal" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Discard" })).toBeInTheDocument();
+  });
+});
+
+describe("the Proposed schedule section", () => {
+  const table = () => screen.getByRole("table", { name: "Proposed schedule moves" });
+  const acceptButton = (count: number) => screen.getByRole("button", { name: `Accept selected (${count})` });
+
+  test("an h3 right under the timeline, before the Unscheduled tray; absent without a proposal", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByRole("grid", { name: "Team milestone timeline" });
+    expect(headingOutline().map(([, text]) => text)).not.toContain("Proposed schedule");
+    await user.click(screen.getByRole("button", { name: "Propose schedule" }));
+    await screen.findByRole("table", { name: "Proposed schedule moves" });
+    expect(headingOutline()).toEqual([
+      [2, "Payments"],
+      [3, "Timeline"],
+      [3, "Proposed schedule"],
+      [3, "Unscheduled"],
+      [3, "Capacity"],
+      [3, "Weekly load"],
+      [3, "Idle gaps"],
+    ]);
+    const rows = within(table()).getAllByRole("row").slice(1);
+    expect(rows).toHaveLength(2);
+    expect(within(rows[0]).getByText("2027-06-14 to 2027-06-16")).toBeInTheDocument();
+    expect(within(rows[0]).getByText("90 working days later")).toBeInTheDocument();
+    expect(within(rows[1]).getByText("Unscheduled → 2027-06-07 to 2027-06-10, 4 working days")).toBeInTheDocument();
+  });
+
+  test("Accept selected sends exactly the selected moves with the proposal's revision, then the outcome note replaces the section", async () => {
+    batchAnswer = jsonResponse(200, { revision: 11, accepted: [2], skipped: [] });
+    const user = userEvent.setup();
+    await openPreview(user);
+    await user.click(screen.getByRole("checkbox", { name: "Accept tp-tray" }));
+    expect(acceptButton(1)).toBeEnabled();
+    await user.click(acceptButton(1));
+    await waitFor(() => expect(screen.queryByRole("table", { name: "Proposed schedule moves" })).toBeNull());
+    expect(batchPosts()).toEqual([{ expectedRevision: 10, items: [{ milestoneId: 2, startDate: "2027-06-14", endDate: "2027-06-16" }] }]);
+    expect(screen.getByRole("note")).toHaveTextContent("1 scheduled");
+    expect(liveText()).toContain("1 scheduled");
+    expect(proposalBars()).toHaveLength(0);
+    // the focus is back on Propose once the write is over
+    await waitFor(() => expect(screen.getByRole("button", { name: "Propose schedule" })).toHaveFocus());
+    // the note lasts until the next action
+    await user.click(screen.getByRole("button", { name: "Propose schedule" }));
+    await screen.findByRole("table", { name: "Proposed schedule moves" });
+    expect(screen.queryByText("1 scheduled")).toBeNull();
+  });
+
+  test("a skipped milestone is named in the outcome note, with the server's reason in words", async () => {
+    batchAnswer = jsonResponse(200, { revision: 11, accepted: [2], skipped: [{ milestoneId: 3, reason: "STALE" }] });
+    const user = userEvent.setup();
+    await openPreview(user);
+    await user.click(acceptButton(2));
+    const note = await screen.findByRole("note");
+    expect(note).toHaveTextContent("1 scheduled · 1 skipped: rescheduled in the meantime");
+    expect(batchPosts()[0].items).toHaveLength(2);
+    await user.click(within(note).getByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("note")).toBeNull();
+  });
+
+  test("a whole-batch stale refusal closes the preview, says so in a note and reloads the view", async () => {
+    batchAnswer = jsonResponse(409, { type: "urn:astrolabe:problem:stale-revision", title: "Conflict", status: 409, detail: "stale" });
+    const user = userEvent.setup();
+    await openPreview(user);
+    const reads = () => mockFetch.mock.calls.filter(([url]) => url === "/api/v1/views/team/1").length;
+    const before = reads();
+    await user.click(acceptButton(2));
+    const note = await screen.findByRole("note");
+    expect(note).toHaveTextContent("The plan changed in the meantime");
+    expect(screen.queryByRole("table", { name: "Proposed schedule moves" })).toBeNull();
+    expect(liveText()).toContain("The plan changed in the meantime");
+    await waitFor(() => expect(reads()).toBeGreaterThan(before));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Propose schedule" })).toBeEnabled());
+  });
+
+  test("another failure stays inline with the preview open and the selection kept", async () => {
+    batchAnswer = jsonResponse(403, { title: "Forbidden", status: 403 });
+    const user = userEvent.setup();
+    await openPreview(user);
+    await user.click(screen.getByRole("checkbox", { name: "Accept tp-tray" }));
+    await user.click(acceptButton(1));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Only the team's manager or an administrator can propose a schedule");
+    // inline IN the section, above the actions, with the preview still open; the focus moved to it from the disabled Accept
+    expect(screen.getByRole("heading", { name: "Proposed schedule" }).parentElement).toContainElement(alert);
+    expect(alert).toHaveFocus();
+    expect(table()).toBeInTheDocument();
+    expect(acceptButton(1)).toBeEnabled();
+    expect(screen.getByRole("checkbox", { name: "Accept tp-b" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Accept tp-tray" })).not.toBeChecked();
+  });
+
+  test("while the accept runs, Accept and Discard are disabled and a second click sends nothing", async () => {
+    let release: ((response: Response) => void) | null = null;
+    batchAnswer = () =>
+      new Promise<Response>((resolve) => {
+        release = resolve;
+      });
+    const user = userEvent.setup();
+    await openPreview(user);
+    await user.click(acceptButton(2));
+    await waitFor(() => expect(batchPosts()).toHaveLength(1));
+    expect(acceptButton(2)).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Discard" })).toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: "Accept all" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Propose schedule" })).toBeDisabled();
+    fireEvent.click(acceptButton(2));
+    expect(batchPosts()).toHaveLength(1);
+    await waitFor(() => expect(release).not.toBeNull());
+    await act(async () => release?.(jsonResponse(200, { revision: 11, accepted: [2, 3], skipped: [] })));
+    await waitFor(() => expect(screen.queryByRole("table", { name: "Proposed schedule moves" })).toBeNull());
+  });
+
+  test("Discard closes the section without a batch and gives the focus back to Propose", async () => {
+    const user = userEvent.setup();
+    await openPreview(user);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Discard" })).toHaveFocus());
+    await user.click(screen.getByRole("button", { name: "Discard" }));
+    expect(screen.queryByRole("table", { name: "Proposed schedule moves" })).toBeNull();
+    expect(batchPosts()).toEqual([]);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Propose schedule" })).toHaveFocus());
+  });
+
+  test("Accept all and Accept none are announced as 'N of M selected'", async () => {
+    const user = userEvent.setup();
+    await openPreview(user);
+    await user.click(screen.getByRole("checkbox", { name: "Accept all" }));
+    expect(screen.getByRole("checkbox", { name: "Accept tp-b" })).not.toBeChecked();
+    expect(liveText()).toContain("0 of 2 selected");
+    await user.click(screen.getByRole("checkbox", { name: "Accept all" }));
+    expect(liveText()).toContain("2 of 2 selected");
+    expect(acceptButton(2)).toBeEnabled();
   });
 });

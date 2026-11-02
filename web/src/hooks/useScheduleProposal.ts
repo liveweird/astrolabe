@@ -8,7 +8,6 @@ import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { saveErrorMessage } from "../utils/saveError";
 import { acceptItems, noteOf, outcomeOf, outcomeSentence, type ProposalNote, type ProposalOutcome } from "../utils/scheduleProposal";
 import { applyTeamSchedule } from "../utils/teamViewUpdate";
-import { showSuccessToast } from "../utils/toast";
 import { useRefusal } from "./useRefusal";
 import { teamViewKey, teamWriteKey } from "./useTeamSchedule";
 
@@ -37,8 +36,8 @@ type AcceptVariables = { expectedRevision: number; items: ReturnType<typeof acce
  * their own paths, and an accept while any write runs is refused out loud too (`refused`, `project.busy` announced; it answers
  * `false`). It cancels the in-flight `["plan"]` reads first, as every optimistic write does. On success, BEFORE the preview closes, the
  * accepted milestones take their proposed dates in the cached team view and the view adopts the revision the batch answered (a skipped
- * one keeps its old dates), then `["plan"]` is refreshed in the background for the server's derived figures; it toasts when something
- * was written and leaves the `outcome` (written count, skipped with the server's reasons). A whole-batch stale 409 closes the preview
+ * one keeps its old dates), then `["plan"]` is refreshed in the background for the server's derived figures; it leaves the `outcome`
+ * (no toast: the page's visible outcome note and the polite sentence carry it, so a toast would be a third reading) (written count, skipped with the server's reasons). A whole-batch stale 409 closes the preview
  * (`stale`) and reloads; any other failure stays inline in `error` (already mapped to words) with the preview open. Every taken step is
  * said in the page's live region (`announce`).
  */
@@ -92,7 +91,6 @@ export function useScheduleProposal(teamId: number, announce: (text: string) => 
       // Not awaited: the write is over, so the next change may go at once; the refetch brings the server's dates and figures.
       void refreshQueriesAfterMutation(queryClient, ["plan"]);
       const done = outcomeOf(result);
-      if (done.accepted > 0) showSuccessToast(t("teams.proposal.toast.applied"));
       announce(outcomeSentence(done, t));
       setOutcome(done);
       close();

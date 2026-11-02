@@ -1,15 +1,21 @@
 import { describe, expect, test } from "vitest";
 import i18n from "../i18n";
-import type { ScheduleProposal, ScheduleProposalMove, TeamMilestone } from "../api/teams";
+import type { DependencyEndpoint } from "../api/dependencies";
+import type { ScheduleProposal, ScheduleProposalLink, ScheduleProposalMove, TeamMilestone } from "../api/teams";
 import {
   acceptItems,
   changeSentence,
+  endpointText,
+  linksAtMove,
+  linkTotals,
+  newlyScheduledCount,
   noteOf,
   outcomeOf,
   outcomeSentence,
   proposalBars,
   proposalDays,
   proposalRows,
+  requiredEdge,
 } from "./scheduleProposal";
 
 const t = i18n.getFixedT("en");
@@ -146,5 +152,82 @@ describe("outcomeSentence", () => {
     expect(outcomeSentence({ accepted: 0, skipped: [{ milestoneId: 4, reason: "GONE" }] }, t)).toBe("1 skipped: no longer exists");
     expect(outcomeSentence({ accepted: 0, skipped: [{ milestoneId: 4, reason: "NO_WORKING_DAY" }] }, t)).toBe("1 skipped: no working day left in the span");
     expect(outcomeSentence({ accepted: 0, skipped: [] }, t)).toBe("0 scheduled");
+  });
+});
+
+const endpoint = (kind: "MILESTONE" | "PROJECT", id: number, name: string, projectName = "Web"): DependencyEndpoint => ({
+  kind,
+  id,
+  name,
+  projectId: kind === "PROJECT" ? id : 9,
+  projectName,
+  teamId: null,
+  teamName: null,
+  startDate: null,
+  endDate: null,
+});
+
+const linkOf = (id: number, predecessor: DependencyEndpoint, successor: DependencyEndpoint, before: ScheduleProposalLink["before"], after: ScheduleProposalLink["before"]): ScheduleProposalLink => ({
+  id,
+  predecessor,
+  successor,
+  type: "FS",
+  lagDays: 0,
+  before,
+  check: { status: after, shortfallDays: null, requiredDate: null, actualDate: null },
+});
+
+describe("newlyScheduledCount", () => {
+  test("counts the moves from the tray", () => {
+    expect(newlyScheduledCount([move(1), move(2, { from: { start: "2042-01-01", end: "2042-01-02" } }), move(3)])).toBe(2);
+    expect(newlyScheduledCount([])).toBe(0);
+  });
+});
+
+describe("linkTotals", () => {
+  test("violated after and not before is new, violated both times is still; fine after counts for neither", () => {
+    const e = endpoint("MILESTONE", 1, "a");
+    const links = [linkOf(1, e, e, "OK", "VIOLATED"), linkOf(2, e, e, "UNSCHEDULED", "VIOLATED"), linkOf(3, e, e, "VIOLATED", "VIOLATED"), linkOf(4, e, e, "VIOLATED", "OK"), linkOf(5, e, e, "OK", "OK")];
+    expect(linkTotals(links)).toEqual({ newlyViolated: 2, stillViolated: 1 });
+    expect(linkTotals([])).toEqual({ newlyViolated: 0, stillViolated: 0 });
+  });
+});
+
+describe("linksAtMove", () => {
+  const me = { milestoneId: 1, projectId: 7 };
+
+  test("the links with an end on the milestone, sorted into broken and mended, naming the other end and the side", () => {
+    const broken = linkOf(1, endpoint("MILESTONE", 1, "a"), endpoint("MILESTONE", 50, "x"), "OK", "VIOLATED");
+    const mended = linkOf(2, endpoint("MILESTONE", 51, "y"), endpoint("MILESTONE", 1, "a"), "VIOLATED", "OK");
+    const unchanged = linkOf(3, endpoint("MILESTONE", 1, "a"), endpoint("MILESTONE", 52, "z"), "OK", "OK");
+    const elsewhere = linkOf(4, endpoint("MILESTONE", 60, "p"), endpoint("MILESTONE", 61, "q"), "OK", "VIOLATED");
+    const result = linksAtMove([broken, mended, unchanged, elsewhere], me);
+    expect(result.violates.map((e) => [e.link.id, e.other.name, e.thisIsPredecessor])).toEqual([[1, "x", true]]);
+    expect(result.resolves.map((e) => [e.link.id, e.other.name, e.thisIsPredecessor])).toEqual([[2, "y", false]]);
+  });
+
+  test("a link on the milestone's project counts as well (its span moves with the milestone); a milestone id never matches a project id", () => {
+    const onProject = linkOf(1, endpoint("PROJECT", 7, "Invoices"), endpoint("MILESTONE", 50, "x"), "OK", "VIOLATED");
+    const sameNumber = linkOf(2, endpoint("MILESTONE", 7, "other"), endpoint("MILESTONE", 50, "x"), "OK", "VIOLATED");
+    expect(linksAtMove([onProject, sameNumber], me).violates.map((e) => e.link.id)).toEqual([1]);
+  });
+
+  test("a link that is violated before and after, or unscheduled after, is neither", () => {
+    const still = linkOf(1, endpoint("MILESTONE", 1, "a"), endpoint("MILESTONE", 50, "x"), "VIOLATED", "VIOLATED");
+    const gone = linkOf(2, endpoint("MILESTONE", 1, "a"), endpoint("MILESTONE", 50, "x"), "VIOLATED", "UNSCHEDULED");
+    expect(linksAtMove([still, gone], me)).toEqual({ violates: [], resolves: [] });
+  });
+});
+
+describe("endpointText", () => {
+  test("a milestone reads Project › Milestone, a project by its name", () => {
+    expect(endpointText(endpoint("MILESTONE", 1, "Checkout page", "Web"))).toBe("Web › Checkout page");
+    expect(endpointText(endpoint("PROJECT", 2, "Web"))).toBe("Web");
+  });
+});
+
+describe("requiredEdge", () => {
+  test("FS and SS constrain the successor's start, FF and SF its end", () => {
+    expect((["FS", "SS", "FF", "SF"] as const).map(requiredEdge)).toEqual(["start", "start", "end", "end"]);
   });
 });

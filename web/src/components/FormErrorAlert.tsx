@@ -1,3 +1,4 @@
+import type { Ref } from "react";
 import { Alert, type AlertProps } from "@mantine/core";
 
 /**
@@ -5,6 +6,6 @@ import { Alert, type AlertProps } from "@mantine/core";
  * (`saveErrorMessage`, a validation sentence) — red and light, never a toast. A failed QUERY goes
  * through `ErrorAlert`, which maps the error itself. Mantine's `Alert` is already `role="alert"`.
  */
-export default function FormErrorAlert(props: Omit<AlertProps, "color" | "variant">) {
-  return <Alert color="red" variant="light" {...props} />;
+export default function FormErrorAlert({ ref, ...props }: Omit<AlertProps, "color" | "variant"> & { ref?: Ref<HTMLDivElement> }) {
+  return <Alert ref={ref} color="red" variant="light" {...props} />;
 }

@@ -187,7 +187,7 @@ describe("the selection", () => {
 });
 
 describe("accept", () => {
-  test("sends the SELECTED moves with the proposal's revision as ONE batch; adopts the answered revision, closes, toasts and keeps the outcome", async () => {
+  test("sends the SELECTED moves with the proposal's revision as ONE batch; adopts the answered revision, closes and keeps the outcome", async () => {
     const { result } = await opened();
     act(() => result.current.toggle(2));
     act(() => {
@@ -206,7 +206,8 @@ describe("accept", () => {
     expect(client.getQueryData<TeamView>(teamViewKey(1))?.revision).toBe(13);
     expect(result.current.proposal).toBeNull();
     expect(result.current.outcome).toEqual({ accepted: 3, skipped: [] });
-    expect(toast).toHaveBeenCalledWith("Schedule updated");
+    // no success toast: the outcome note and the polite sentence say it
+    expect(toast).not.toHaveBeenCalled();
     expect(announce).toHaveBeenLastCalledWith("3 scheduled");
   });
 
@@ -237,14 +238,14 @@ describe("accept", () => {
     await waitFor(() => expect(result.current.outcome).not.toBeNull());
     expect(result.current.outcome).toEqual({ accepted: 2, skipped: [{ milestoneId: 2, reason: "STALE" }] });
     expect(announce).toHaveBeenLastCalledWith("2 scheduled · 1 skipped: rescheduled in the meantime");
-    expect(toast).toHaveBeenCalledTimes(1);
   });
 
-  test("an all-skipped batch toasts nothing", async () => {
+  test("an all-skipped batch is reported with its reason and toasts nothing", async () => {
     batchAnswer = jsonResponse(200, { revision: 13, accepted: [], skipped: [{ milestoneId: 1, reason: "GONE" }] });
     const { result } = await opened();
     act(() => void result.current.accept());
     await waitFor(() => expect(result.current.outcome).not.toBeNull());
+    expect(result.current.outcome).toEqual({ accepted: 0, skipped: [{ milestoneId: 1, reason: "GONE" }] });
     expect(toast).not.toHaveBeenCalled();
   });
 

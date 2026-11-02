@@ -1,5 +1,6 @@
 import type { TFunction } from "i18next";
-import type { ScheduleProposal, ScheduleProposalMove, SkippedSchedule, TeamMilestone, TeamScheduleBatchResponse, TeamView } from "../api/teams";
+import type { DependencyEndpoint } from "../api/dependencies";
+import type { ScheduleProposal, ScheduleProposalLink, ScheduleProposalMove, SkippedSchedule, TeamMilestone, TeamScheduleBatchResponse, TeamView } from "../api/teams";
 import type { TimelineBarData } from "./timelineModel";
 
 /**
@@ -105,3 +106,56 @@ export function outcomeSentence(outcome: ProposalOutcome, t: TFunction): string 
   }
   return parts.join(" · ");
 }
+
+// ---- the Proposed schedule section: the figures and the links column ----------------------------------------------------------
+
+/** How many moves schedule a milestone that has no dates yet (the summary line's "newly scheduled"). */
+export const newlyScheduledCount = (moves: readonly ScheduleProposalMove[]): number => moves.filter((move) => move.from === null).length;
+
+/**
+ * The links the summary badges count: `newlyViolated` are violated AFTER the moves and were not before (the red badge: the proposal would
+ * break them), `stillViolated` are violated before and after (a gray badge: the proposal leaves them as they were). The server's `check`
+ * is the verdict; nothing is re-checked here.
+ */
+export function linkTotals(links: readonly Pick<ScheduleProposalLink, "before" | "check">[]): { newlyViolated: number; stillViolated: number } {
+  const violatedAfter = links.filter((link) => link.check.status === "VIOLATED");
+  const stillViolated = violatedAfter.filter((link) => link.before === "VIOLATED").length;
+  return { newlyViolated: violatedAfter.length - stillViolated, stillViolated };
+}
+
+/** A link at a moved milestone: the other end, and whether THIS milestone is the link's predecessor (else its successor). */
+export type LinkAtMove = { link: ScheduleProposalLink; other: DependencyEndpoint; thisIsPredecessor: boolean };
+
+const isMoveEnd = (end: DependencyEndpoint, move: Pick<ScheduleProposalMove, "milestoneId" | "projectId">) =>
+  end.kind === "MILESTONE" ? end.id === move.milestoneId : end.id === move.projectId;
+
+/**
+ * The Links column of a move: the links with an end on this milestone (or on its project, whose span the move changes) that the proposal
+ * newly breaks (`violates`: violated after, not before) or mends (`resolves`: violated before, fine after). A link that is unchanged
+ * (fine both times, or violated both times) is not listed; the summary badges count the violated ones.
+ */
+export function linksAtMove(
+  links: readonly ScheduleProposalLink[],
+  move: Pick<ScheduleProposalMove, "milestoneId" | "projectId">,
+): { violates: LinkAtMove[]; resolves: LinkAtMove[] } {
+  const violates: LinkAtMove[] = [];
+  const resolves: LinkAtMove[] = [];
+  for (const link of links) {
+    const thisIsPredecessor = isMoveEnd(link.predecessor, move);
+    if (!thisIsPredecessor && !isMoveEnd(link.successor, move)) continue;
+    const entry = { link, other: thisIsPredecessor ? link.successor : link.predecessor, thisIsPredecessor };
+    if (link.check.status === "VIOLATED" && link.before !== "VIOLATED") violates.push(entry);
+    else if (link.before === "VIOLATED" && link.check.status === "OK") resolves.push(entry);
+  }
+  return { violates, resolves };
+}
+
+/** The server's placement horizon in weeks (the NO_ROOM reason names it); the response does not carry it, so the client mirrors the constant. */
+export const PROPOSAL_HORIZON_WEEKS = 520;
+
+/** Which date of the successor a link type constrains: FS and SS its start, FF and SF its end (the check's `requiredDate`). */
+export const requiredEdge = (type: ScheduleProposalLink["type"]): "start" | "end" => (type === "FS" || type === "SS" ? "start" : "end");
+
+/** A link end in words: a milestone as "Project › Milestone", a project by its name. */
+export const endpointText = (end: Pick<DependencyEndpoint, "kind" | "name" | "projectName">): string =>
+  end.kind === "MILESTONE" ? `${end.projectName} › ${end.name}` : end.name;

@@ -512,6 +512,12 @@
   border: 2px dashed var(--mantine-color-text);
 }
 
+/* The Proposed schedule table's "would violate" text (v0.8): the violation red, a AA-contrast pair for small text on either scheme (the
+   Mantine red.6 default is not); the red Badge beside it carries the same fact in words. */
+.proposalViolation {
+  color: light-dark(var(--mantine-color-red-8), var(--mantine-color-red-5));
+}
+
 /* The critical-path emphasis (TimelineBarData.emphasis, v0.7): a text-colour outline around the bar, whatever its tone. The focus ring (two classes) still wins. */
 .timelineBarCritical {
   outline: 2px solid var(--timeline-critical);

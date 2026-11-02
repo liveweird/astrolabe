@@ -142,12 +142,17 @@
   },
   "proposal": {
     "propose": "Zaproponuj harmonogram",
-    "discard": "Odrzuć propozycję",
+    "discard": "Odrzuć",
+    "title": "Proponowany harmonogram",
+    "intro": "Paski z przerywanym obrysem na osi czasu pokazują proponowane terminy. Ostrzeżenia o zależnościach zakładają, że zaakceptujesz wszystkie zmiany. Nic się nie zmieni, dopóki nie zaakceptujesz propozycji.",
+    "accept": "Zaakceptuj zaznaczone ({{count}})",
+    "acceptAll": "Zaakceptuj wszystkie",
+    "acceptRowAria": "Zaakceptuj: {{name}}",
+    "tableAria": "Proponowane zmiany harmonogramu",
     "ready_one": "Propozycja harmonogramu gotowa: {{count}} zmiana",
     "ready_few": "Propozycja harmonogramu gotowa: {{count}} zmiany",
     "ready_many": "Propozycja harmonogramu gotowa: {{count}} zmian",
     "ready_other": "Propozycja harmonogramu gotowa: {{count}} zmiany",
-    "preview": "Podgląd proponowanego harmonogramu ({{figures}}). Paski z przerywanym obrysem pokazują proponowane terminy; nic się nie zmieni, dopóki nie zaakceptujesz propozycji.",
     "summary": {
       "moves_one": "{{count}} zmiana",
       "moves_few": "{{count}} zmiany",
@@ -160,7 +165,11 @@
       "unplaced_one": "nie udało się umieścić: {{count}}",
       "unplaced_few": "nie udało się umieścić: {{count}}",
       "unplaced_many": "nie udało się umieścić: {{count}}",
-      "unplaced_other": "nie udało się umieścić: {{count}}"
+      "unplaced_other": "nie udało się umieścić: {{count}}",
+      "newly_one": "nowo zaplanowane: {{count}}",
+      "newly_few": "nowo zaplanowane: {{count}}",
+      "newly_many": "nowo zaplanowane: {{count}}",
+      "newly_other": "nowo zaplanowane: {{count}}"
     },
     "newMark": "(nowy)",
     "operationsAria": "Operacje dla {{name}} (wiersz propozycji)",
@@ -206,8 +215,42 @@
       "notOnTeam": "przeniesiono do innego zespołu",
       "noWorkingDay": "w przedziale nie został żaden dzień roboczy"
     },
-    "toast": {
-      "applied": "Harmonogram zaktualizowany"
+    "badge": {
+      "violated_one": "{{count}} zależność zostałaby niedotrzymana",
+      "violated_few": "{{count}} zależności zostałyby niedotrzymane",
+      "violated_many": "{{count}} zależności zostałoby niedotrzymanych",
+      "violated_other": "{{count}} zależności zostałoby niedotrzymanych",
+      "stillViolated_one": "{{count}} zależność nadal niedotrzymana",
+      "stillViolated_few": "{{count}} zależności nadal niedotrzymane",
+      "stillViolated_many": "{{count}} zależności nadal niedotrzymanych",
+      "stillViolated_other": "{{count}} zależności nadal niedotrzymanych"
+    },
+    "column": {
+      "milestone": "Kamień milowy",
+      "current": "Obecnie",
+      "proposed": "Proponowane",
+      "change": "Zmiana",
+      "links": "Zależności",
+      "accept": "Zaakceptuj"
+    },
+    "unscheduled": "Niezaplanowany",
+    "span": "od {{start}} do {{end}}",
+    "days_one": "{{count}} dzień roboczy",
+    "days_few": "{{count}} dni robocze",
+    "days_many": "{{count}} dni roboczych",
+    "days_other": "{{count}} dnia roboczego",
+    "links": {
+      "badge": "Konflikt",
+      "resolves": "zostałaby dotrzymana: zależność z {{name}}",
+      "violatesSuccessorStart": "byłaby niedotrzymana: {{name}} musi zacząć się {{date}} lub później",
+      "violatesSuccessorEnd": "byłaby niedotrzymana: {{name}} musi zakończyć się {{date}} lub później",
+      "violatesPredecessorStart": "byłaby niedotrzymana: musi zacząć się {{date}} lub później (zależność od {{name}})",
+      "violatesPredecessorEnd": "byłaby niedotrzymana: musi zakończyć się {{date}} lub później (zależność od {{name}})"
+    },
+    "unplaced": {
+      "title": "Nie udało się umieścić",
+      "NO_CAPACITY": "brak przepustowości po {{date}}",
+      "NO_ROOM": "brak miejsca w horyzoncie {{weeks}} tygodni"
     }
   }
 }
