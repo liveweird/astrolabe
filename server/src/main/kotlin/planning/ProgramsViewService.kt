@@ -17,11 +17,16 @@ val ProgramsViewServiceKey = AttributeKey<ProgramsViewService>("ProgramsViewServ
  * view's reads (`PublicHolidays` among them) and writes nothing (`persistence.md`).
  */
 class ProgramsViewService(private val database: R2dbcDatabase) {
-    suspend fun view(actor: PlanActor): ProgramsView = suspendTransaction(database, SNAPSHOT, readOnly = true) {
+    suspend fun view(actor: PlanActor, baselineId: UInt? = null): ProgramsView = suspendTransaction(database, SNAPSHOT, readOnly = true) {
         val revision = readPlanRevision()
+        val header = baselineId?.let { requireActiveBaseline(it) }
         val snapshot = loadRoadmapSnapshot(actor)
-        val tree = ProgramsTree.assemble(streamFacts(), programFacts(), snapshot.projects, snapshot.spans)
-        ProgramsView(revision, snapshot.teams, snapshot.links, tree)
+        val overlay = header?.let { overlayRoadmap(it, snapshot.projects, snapshot.spans, snapshot.calendar) }
+        val tree = ProgramsTree.assemble(
+            streamFacts(), programFacts(), overlay?.projects ?: snapshot.projects, snapshot.spans,
+            overlay?.let { TreeBaseline(it.frozenSpans, snapshot.calendar) },
+        )
+        ProgramsView(revision, snapshot.teams, snapshot.links, tree, header?.toRef())
     }
 }
 

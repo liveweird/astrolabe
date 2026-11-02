@@ -6,6 +6,7 @@ import ch.nokillswit.authz.ForbiddenException
 import ch.nokillswit.authz.NotFoundException
 import ch.nokillswit.authz.ProblemCycleNode
 import ch.nokillswit.authz.TooManyRequestsException
+import ch.nokillswit.authz.TypedBadRequestException
 import ch.nokillswit.authz.UnauthorizedException
 import io.ktor.server.auth.jwt.JWTPrincipal
 import io.ktor.server.auth.principal
@@ -238,7 +239,10 @@ fun Application.configureErrorHandling() {
             call.respondProblem(HttpStatusCode.PayloadTooLarge, "Request body exceeds the size limit")
         }
         exception<BadRequestException> { call, cause ->
-            call.respondProblem(HttpStatusCode.BadRequest, clientSafeBadRequestDetail(cause))
+            call.respondProblem(
+                HttpStatusCode.BadRequest, clientSafeBadRequestDetail(cause),
+                type = (cause as? TypedBadRequestException)?.problemType ?: "about:blank",
+            )
         }
         // A POST/PUT with NO Content-Type (a truly body-less request) never enters
         // ContentNegotiation (no converter matches ContentType.Any), so `call.receive` throws

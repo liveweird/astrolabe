@@ -1160,6 +1160,11 @@ export interface paths {
          *     - the critical ones first (the chain, from its origin by start date, end date, name and id), then the rest by slack; a project
          *     is listed only when an included link (not violated, both ends scheduled) names it. The chain is never cut; the others are capped at 100 (`upstreamTruncated`). Entities that
          *     only lie downstream of this project, or are unconnected to its end, are absent.
+         *
+         *     With `?baseline=N` the document gains `baseline` (`ProjectBaseline`): the project's own span then and its movement
+         *     (`project`, null when the project is newer than the baseline), one entry per LIVE milestone the baseline also froze
+         *     (`milestones`: its dates, estimate and team then, and its movement in working days on the CURRENT calendar - a live milestone
+         *     without an entry is new since the baseline) and the baseline's milestones of this project that are gone (`removed`).
          */
         get: operations["getProjectView"];
         put?: never;
@@ -1210,6 +1215,11 @@ export interface paths {
          *     PUT). `dependencies` are the project view's links for the links with an end among the team's milestones, both ends resolved
          *     and checked on the working-day index, violated first; a link's other end may lie in another team or project and is not listed
          *     as a row of its own. `idleGaps` lists the runs of 3 or more working days with none of the team's milestones in progress.
+         *
+         *     With `?baseline=N` the document gains `baseline` (`TeamBaseline`): one entry per LIVE milestone of the team that the baseline
+         *     also froze (`milestones`, with the team it sat on then - `teamIdThen` - and its movement in working days on the CURRENT
+         *     calendar; a live milestone without an entry is new since the baseline) and the baseline's milestones of THIS team that are not
+         *     on it any more (`removed`: deleted, or moved to another team - `now`).
          */
         get: operations["getTeamView"];
         put?: never;
@@ -1241,6 +1251,10 @@ export interface paths {
          *     A program's `span` is derived from its projects' spans (earliest start to latest end, null while none is scheduled) and a
          *     work stream's from its programs' spans; nothing is stored. `flags` roll the projects' flags up: the number of WARNING and INFO
          *     flags over the program's (work stream's) projects. Programs and work streams carry no target window.
+         *
+         *     With `?baseline=N` the document gains `baseline` (the baseline's identity), every project row gains its `baseline` block (as
+         *     `GET /views/roadmap`'s) and a program (work stream) with at least one project the baseline froze gains `baseline`: the span
+         *     those projects (its programs) had, derived like the live span, and its movement against the live span.
          */
         get: operations["getProgramsView"];
         put?: never;
@@ -1278,8 +1292,51 @@ export interface paths {
          *     `can.editRank` is whether THIS caller may `PUT /roadmap/ranking` (ADMIN or a ROADMAP_EDITOR holder) and each project's
          *     `can.editTargetWindow` whether they may `PUT /projects/{id}/target-window` (ADMIN, an owner above the project, or a
          *     ROADMAP_EDITOR holder). `revision` is the RANKING's revision (the plan revision at which the rank was last written), read before the rows - send it back as `expectedRevision`. Plan writes elsewhere do not move it.
+         *
+         *     With `?baseline=N` the document gains `baseline` (the baseline's identity and the projects it froze that are gone) and every
+         *     project the baseline also froze gains a `baseline` block: the derived span, rank position and target window it had and the
+         *     span's movement in working days on the CURRENT calendar (a project row without the block is newer than the baseline).
          */
         get: operations["getRoadmapView"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/views/baseline/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * The comparison of one baseline with the plan now
+         * @description Any authenticated user; `404` when the baseline is unknown or soft-deleted (it is the addressed resource - the views'
+         *     `?baseline=` answers `400` instead, because there the id is a query value the client held). One document (a deliberate
+         *     exception to the paged envelope, bounded by the plan's scale: about 100 project rows and at most about 1,000 milestone rows),
+         *     read in ONE snapshot: `revision` is the plan revision read first. The baseline equals the plan at `baseline.planRevision`, so
+         *     a `revision` equal to it shows no movement.
+         *
+         *     `projects` is the union of the baseline's and the live projects (a project newer than the baseline has `movement.kind` `ADDED`,
+         *     one that is gone `REMOVED`), by work stream, program and project name (case-insensitive) then id: the names are the live ones
+         *     when the project exists now, `rankThen`/`rankNow` the rank positions on either side, `baselineSpan`/`span` the derived spans
+         *     then and now, `movement` the span's movement and `counts` the movement counts over the project's milestones (a removed
+         *     project: its removed milestones). `milestones` lists ONLY the changed milestone rows - every `movement.kind` but `UNCHANGED`,
+         *     or a different estimate (`movement.estimateDelta` not zero) - in the projects' order, then by start (the live one, else the
+         *     frozen one; undated last), end, name and id; the unchanged rows are in `totals` and `counts`.
+         *
+         *     Movement is measured in WORKING days on the CURRENT calendar (Monday-Friday minus the public holidays), positive = later:
+         *     `startDays`/`endDays` are present only for a milestone dated on both sides; a Saturday-dated start moved to its Monday is no
+         *     movement. `totals` counts every milestone row and every project row: `later`/`earlier` are the `MOVED` rows whose END is
+         *     later/earlier (a start-only move is `moved`, neither).
+         */
+        get: operations["getBaselineView"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2063,6 +2120,228 @@ export interface components {
             /** @description A full replace - omitted clears it. */
             description?: string | null;
         };
+        /** @description What happened to one row since a baseline. `startDays`/`endDays` are signed WORKING days on the CURRENT calendar (positive = later) and are non-null only for a row dated on both sides; `estimateDelta` (live minus frozen, man-days) is non-null whenever the row exists on both sides, whatever the kind (an estimate change alone leaves the kind `UNCHANGED`). */
+        Movement: {
+            /**
+             * @description `ADDED` = no row in the baseline; `REMOVED` = no live row; `SCHEDULED`/`UNSCHEDULED` = a dated/undated flip; `MOVED` = dated on both sides with a non-zero start or end delta; `UNCHANGED` otherwise.
+             * @enum {string}
+             */
+            kind: "UNCHANGED" | "MOVED" | "SCHEDULED" | "UNSCHEDULED" | "ADDED" | "REMOVED";
+            /** Format: int32 */
+            startDays: number | null;
+            /** Format: int32 */
+            endDays: number | null;
+            /** Format: double */
+            estimateDelta: number | null;
+        };
+        /** @description The counts of rows by movement kind; `later`/`earlier` are the `moved` rows whose END is later/earlier. */
+        MovementTotals: {
+            /** Format: int32 */
+            unchanged: number;
+            /** Format: int32 */
+            moved: number;
+            /** Format: int32 */
+            later: number;
+            /** Format: int32 */
+            earlier: number;
+            /** Format: int32 */
+            scheduled: number;
+            /** Format: int32 */
+            unscheduled: number;
+            /** Format: int32 */
+            added: number;
+            /** Format: int32 */
+            removed: number;
+        };
+        /** @description The baseline a view's `baseline` blocks compare to. */
+        BaselineRef: {
+            /** Format: int32 */
+            id: number;
+            name: string;
+            /**
+             * Format: int64
+             * @description The plan revision the baseline equals.
+             */
+            planRevision: number;
+        };
+        /** @description A project's, program's or work stream's span in the baseline and what became of it. */
+        SpanBaseline: {
+            /** @description The derived span then; null when nothing was scheduled. */
+            span: components["schemas"]["DateSpan"] | null;
+            movement: components["schemas"]["Movement"];
+        };
+        /** @description A live milestone the baseline also froze - the figures it had then and its movement. */
+        BaselineMilestone: {
+            /** Format: int32 */
+            milestoneId: number;
+            /**
+             * Format: int32
+             * @description The team the milestone sat on in the baseline.
+             */
+            teamIdThen: number;
+            /**
+             * Format: date
+             * @description The start then; null = it was unscheduled.
+             */
+            start: string | null;
+            /** Format: date */
+            end: string | null;
+            /**
+             * Format: double
+             * @description The estimate then, in man-days.
+             */
+            estimateMd: number;
+            movement: components["schemas"]["Movement"];
+        };
+        /** @description A milestone the baseline froze that is no longer where the view looks, as it was then. `now` is present only on the team view and only when the milestone still exists on another team; absent = it was deleted. */
+        RemovedMilestone: {
+            /** Format: int32 */
+            milestoneId: number;
+            /** Format: int32 */
+            projectId: number;
+            name: string;
+            /**
+             * Format: int32
+             * @description The team it sat on in the baseline.
+             */
+            teamId: number;
+            teamName: string;
+            /** Format: double */
+            estimateMd: number;
+            /** Format: date */
+            start: string | null;
+            /** Format: date */
+            end: string | null;
+            now?: {
+                /** Format: int32 */
+                teamId: number;
+                teamName: string;
+            };
+        };
+        /** @description Present only with `?baseline=N`. */
+        ProjectBaseline: {
+            /** Format: int32 */
+            id: number;
+            name: string;
+            /** Format: int64 */
+            planRevision: number;
+            /** @description The project's own span then and its movement; null when the project is newer than the baseline. */
+            project: components["schemas"]["SpanBaseline"] | null;
+            /** @description One entry per live milestone of the project (scheduled or in the tray) that the baseline also froze, by id. */
+            milestones: components["schemas"]["BaselineMilestone"][];
+            /** @description The baseline's milestones of this project that are gone, by start (undated last), end, name and id. */
+            removed: components["schemas"]["RemovedMilestone"][];
+        };
+        /** @description Present only with `?baseline=N`. */
+        TeamBaseline: {
+            /** Format: int32 */
+            id: number;
+            name: string;
+            /** Format: int64 */
+            planRevision: number;
+            /** @description One entry per live milestone of the team that the baseline also froze (whatever team it sat on then - `teamIdThen`), by id. */
+            milestones: components["schemas"]["BaselineMilestone"][];
+            /** @description The baseline's milestones of THIS team that are not on it any more (deleted, or moved - `now`), by start, end, name and id. */
+            removed: components["schemas"]["RemovedMilestone"][];
+        };
+        /** @description A project the baseline froze that is gone now, with its names as they were. */
+        RemovedProject: {
+            /** Format: int32 */
+            projectId: number;
+            name: string;
+            programName: string;
+            workStreamName: string;
+            span: components["schemas"]["DateSpan"] | null;
+        };
+        /** @description Present only with `?baseline=N`. */
+        RoadmapBaseline: {
+            /** Format: int32 */
+            id: number;
+            name: string;
+            /** Format: int64 */
+            planRevision: number;
+            /** @description The baseline's projects that are gone, by work stream, program and name (case-insensitive) then id. */
+            removedProjects: components["schemas"]["RemovedProject"][];
+        };
+        /** @description A project row against the baseline. Present only with `?baseline=N` and only for a project the baseline also froze (absent = the project is newer than the baseline). */
+        RoadmapProjectBaseline: {
+            /** @description The derived span then; null when nothing was scheduled. */
+            span: components["schemas"]["DateSpan"] | null;
+            movement: components["schemas"]["Movement"];
+            /**
+             * Format: int32
+             * @description The rank position then; null = it was unranked.
+             */
+            rankPosition: number | null;
+            /** Format: date */
+            targetStart: string | null;
+            /** Format: date */
+            targetEnd: string | null;
+        };
+        BaselineView: {
+            /**
+             * Format: int64
+             * @description The plan revision, read before the rows.
+             */
+            revision: number;
+            baseline: components["schemas"]["BaselineResponse"];
+            /** @description The movement counts over EVERY milestone row and every project row (changed or not). */
+            totals: {
+                milestones: components["schemas"]["MovementTotals"];
+                projects: components["schemas"]["MovementTotals"];
+            };
+            /** @description The union of the baseline's and the live projects, by work stream, program and name (case-insensitive) then id. */
+            projects: components["schemas"]["BaselineViewProject"][];
+            /** @description Only the CHANGED milestone rows (any kind but `UNCHANGED`, or a different estimate), in the projects' order, then by start, end, name and id. */
+            milestones: components["schemas"]["BaselineViewMilestone"][];
+        };
+        BaselineViewProject: {
+            /** Format: int32 */
+            projectId: number;
+            /** @description The live name; the frozen one for a project that is gone. */
+            name: string;
+            programName: string;
+            workStreamName: string;
+            /**
+             * Format: int32
+             * @description Null = unranked then, or the project is newer than the baseline.
+             */
+            rankThen: number | null;
+            /**
+             * Format: int32
+             * @description Null = unranked now, or the project is gone.
+             */
+            rankNow: number | null;
+            baselineSpan: components["schemas"]["DateSpan"] | null;
+            span: components["schemas"]["DateSpan"] | null;
+            movement: components["schemas"]["Movement"];
+            counts: components["schemas"]["MovementTotals"];
+        };
+        BaselineFigures: {
+            /**
+             * Format: date
+             * @description Null = unscheduled.
+             */
+            start: string | null;
+            /** Format: date */
+            end: string | null;
+            /** Format: double */
+            estimateMd: number;
+        };
+        /** @description A changed milestone. `frozen` is null for one added since the baseline, `live` for one removed; the name and team are the live ones when it exists now. */
+        BaselineViewMilestone: {
+            /** Format: int32 */
+            milestoneId: number;
+            name: string;
+            /** Format: int32 */
+            projectId: number;
+            /** Format: int32 */
+            teamId: number;
+            teamName: string;
+            frozen: components["schemas"]["BaselineFigures"] | null;
+            live: components["schemas"]["BaselineFigures"] | null;
+            movement: components["schemas"]["Movement"];
+        };
         WorkStreamCreateRequest: {
             name: string;
             description?: string | null;
@@ -2614,6 +2893,7 @@ export interface components {
             /** @description The idle gaps inside the span of the milestones that hold a working day: the maximal runs of 3 or more working days on which none of the project's milestones is in progress (weekends and public holidays neither count nor break a run), by start date; empty when there are none. */
             idleGaps: components["schemas"]["IdleGap"][];
             criticalPath: components["schemas"]["CriticalPath"];
+            baseline?: components["schemas"]["ProjectBaseline"];
         };
         /** @description The milestones and projects of OTHER projects that lie upstream of this project's end (their slip would eventually move it), the critical ones first, then the rest by slack. */
         CriticalPath: {
@@ -2827,6 +3107,7 @@ export interface components {
             dependencies: components["schemas"]["ProjectDependency"][];
             /** @description The idle gaps inside the span of the team's scheduled milestones: the maximal runs of 3 or more working days on which none of them is in progress (weekends and public holidays neither count nor break a run), by start date; empty when there are none. */
             idleGaps: components["schemas"]["IdleGap"][];
+            baseline?: components["schemas"]["TeamBaseline"];
         };
         /** @description A run of idle working days, answered as its first and last working day. */
         IdleGap: {
@@ -2986,6 +3267,7 @@ export interface components {
             unranked: components["schemas"]["RoadmapProject"][];
             /** @description The dependencies between projects, rolled up per ordered pair (predecessor, successor project id). */
             links: components["schemas"]["RoadmapLink"][];
+            baseline?: components["schemas"]["RoadmapBaseline"];
         };
         RoadmapTeam: {
             /** Format: int32 */
@@ -3034,6 +3316,7 @@ export interface components {
                 /** @description The caller may `PUT /projects/{id}/target-window`: ADMIN, an owner above the project, or a ROADMAP_EDITOR holder. */
                 editTargetWindow: boolean;
             };
+            baseline?: components["schemas"]["RoadmapProjectBaseline"];
         };
         /** @description One flag raised on a project. Warnings only - nothing is ever moved. */
         PlanFlag: {
@@ -3118,6 +3401,7 @@ export interface components {
             links: components["schemas"]["RoadmapLink"][];
             /** @description Open work streams first, then closed ones, each by name (case-insensitive) then id. */
             workStreams: components["schemas"]["ProgramsWorkStream"][];
+            baseline?: components["schemas"]["BaselineRef"];
         };
         ProgramsWorkStream: {
             /** Format: int32 */
@@ -3136,6 +3420,7 @@ export interface components {
             flags: components["schemas"]["FlagCounts"];
             /** @description Every active program of the work stream (empty ones included), by name (case-insensitive) then id. */
             programs: components["schemas"]["ProgramsProgram"][];
+            baseline?: components["schemas"]["SpanBaseline"];
         };
         ProgramsProgram: {
             /** Format: int32 */
@@ -3147,6 +3432,7 @@ export interface components {
             flags: components["schemas"]["FlagCounts"];
             /** @description The program's projects as the roadmap view's rows; ranked first in rank order, then the unranked by name and id. */
             projects: components["schemas"]["RoadmapProject"][];
+            baseline?: components["schemas"]["SpanBaseline"];
         };
         RankingUpdateRequest: {
             /**
@@ -3675,6 +3961,14 @@ export interface components {
     };
     parameters: {
         ResourceId: number;
+        /**
+         * @description The id of an ACTIVE baseline to compare the view with (`baselines` registry). Absent: no comparison, and the document is exactly
+         *     what it was before baselines existed. A repeated key or a value that is not a non-negative integer is a `400`; an id that is
+         *     unknown or soft-deleted is a `400` whose `type` is `urn:astrolabe:problem:unknown-baseline` (the caller held the id, e.g. a
+         *     remembered pick: it clears the pick and asks again) - answered AFTER the view's own rules, so a deleted project or team is
+         *     still `404`. The comparison is computed in the same snapshot as the view, so its figures are consistent with the rows.
+         */
+        BaselineQuery: number;
         /** @description 1-based page index. Defaults to 1. */
         Page: number;
         /** @description Rows per page. Defaults to 20, maximum 100. */
@@ -5561,7 +5855,16 @@ export interface operations {
     };
     getProjectView: {
         parameters: {
-            query?: never;
+            query?: {
+                /**
+                 * @description The id of an ACTIVE baseline to compare the view with (`baselines` registry). Absent: no comparison, and the document is exactly
+                 *     what it was before baselines existed. A repeated key or a value that is not a non-negative integer is a `400`; an id that is
+                 *     unknown or soft-deleted is a `400` whose `type` is `urn:astrolabe:problem:unknown-baseline` (the caller held the id, e.g. a
+                 *     remembered pick: it clears the pick and asks again) - answered AFTER the view's own rules, so a deleted project or team is
+                 *     still `404`. The comparison is computed in the same snapshot as the view, so its figures are consistent with the rows.
+                 */
+                baseline?: components["parameters"]["BaselineQuery"];
+            };
             header?: never;
             path: {
                 id: components["parameters"]["ResourceId"];
@@ -5579,7 +5882,15 @@ export interface operations {
                     "application/json": components["schemas"]["ProjectView"];
                 };
             };
-            400: components["responses"]["BadRequest"];
+            /** @description Malformed request (an id, or `baseline`, that is not a non-negative integer; a repeated `baseline`), or `baseline` names an unknown or deleted baseline (`type` `urn:astrolabe:problem:unknown-baseline`). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             500: components["responses"]["InternalServerError"];
@@ -5587,7 +5898,16 @@ export interface operations {
     };
     getTeamView: {
         parameters: {
-            query?: never;
+            query?: {
+                /**
+                 * @description The id of an ACTIVE baseline to compare the view with (`baselines` registry). Absent: no comparison, and the document is exactly
+                 *     what it was before baselines existed. A repeated key or a value that is not a non-negative integer is a `400`; an id that is
+                 *     unknown or soft-deleted is a `400` whose `type` is `urn:astrolabe:problem:unknown-baseline` (the caller held the id, e.g. a
+                 *     remembered pick: it clears the pick and asks again) - answered AFTER the view's own rules, so a deleted project or team is
+                 *     still `404`. The comparison is computed in the same snapshot as the view, so its figures are consistent with the rows.
+                 */
+                baseline?: components["parameters"]["BaselineQuery"];
+            };
             header?: never;
             path: {
                 id: components["parameters"]["ResourceId"];
@@ -5605,7 +5925,15 @@ export interface operations {
                     "application/json": components["schemas"]["TeamView"];
                 };
             };
-            400: components["responses"]["BadRequest"];
+            /** @description Malformed request (an id, or `baseline`, that is not a non-negative integer; a repeated `baseline`), or `baseline` names an unknown or deleted baseline (`type` `urn:astrolabe:problem:unknown-baseline`). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             500: components["responses"]["InternalServerError"];
@@ -5613,7 +5941,16 @@ export interface operations {
     };
     getProgramsView: {
         parameters: {
-            query?: never;
+            query?: {
+                /**
+                 * @description The id of an ACTIVE baseline to compare the view with (`baselines` registry). Absent: no comparison, and the document is exactly
+                 *     what it was before baselines existed. A repeated key or a value that is not a non-negative integer is a `400`; an id that is
+                 *     unknown or soft-deleted is a `400` whose `type` is `urn:astrolabe:problem:unknown-baseline` (the caller held the id, e.g. a
+                 *     remembered pick: it clears the pick and asks again) - answered AFTER the view's own rules, so a deleted project or team is
+                 *     still `404`. The comparison is computed in the same snapshot as the view, so its figures are consistent with the rows.
+                 */
+                baseline?: components["parameters"]["BaselineQuery"];
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -5629,13 +5966,31 @@ export interface operations {
                     "application/json": components["schemas"]["ProgramsView"];
                 };
             };
+            /** @description Malformed request (an id, or `baseline`, that is not a non-negative integer; a repeated `baseline`), or `baseline` names an unknown or deleted baseline (`type` `urn:astrolabe:problem:unknown-baseline`). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
             401: components["responses"]["Unauthorized"];
             500: components["responses"]["InternalServerError"];
         };
     };
     getRoadmapView: {
         parameters: {
-            query?: never;
+            query?: {
+                /**
+                 * @description The id of an ACTIVE baseline to compare the view with (`baselines` registry). Absent: no comparison, and the document is exactly
+                 *     what it was before baselines existed. A repeated key or a value that is not a non-negative integer is a `400`; an id that is
+                 *     unknown or soft-deleted is a `400` whose `type` is `urn:astrolabe:problem:unknown-baseline` (the caller held the id, e.g. a
+                 *     remembered pick: it clears the pick and asks again) - answered AFTER the view's own rules, so a deleted project or team is
+                 *     still `404`. The comparison is computed in the same snapshot as the view, so its figures are consistent with the rows.
+                 */
+                baseline?: components["parameters"]["BaselineQuery"];
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -5651,7 +6006,42 @@ export interface operations {
                     "application/json": components["schemas"]["RoadmapView"];
                 };
             };
+            /** @description Malformed request (`baseline` that is not a non-negative integer, or repeated), or `baseline` names an unknown or deleted baseline (`type` `urn:astrolabe:problem:unknown-baseline`). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
             401: components["responses"]["Unauthorized"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    getBaselineView: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The comparison */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BaselineView"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
             500: components["responses"]["InternalServerError"];
         };
     };

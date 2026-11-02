@@ -27,7 +27,10 @@ internal val SNAPSHOT = IsolationLevel.REPEATABLE_READ
  * statement see a different committed plan, e.g. a link whose end the milestone read predates).
  */
 class ProjectViewService(private val database: R2dbcDatabase) {
-    suspend fun view(projectId: UInt, actor: PlanActor): ProjectView? = suspendTransaction(database, SNAPSHOT, readOnly = true) {
+    suspend fun view(
+        projectId: UInt, actor: PlanActor,
+        baselineId: UInt? = null,
+    ): ProjectView? = suspendTransaction(database, SNAPSHOT, readOnly = true) {
         val revision = readPlanRevision()
         val calendar = loadWorkingCalendar()
         val projects = ProjectService.Projects
@@ -35,6 +38,8 @@ class ProjectViewService(private val database: R2dbcDatabase) {
         val streams = WorkStreamService.WorkStreams
         val found = projectChainRow(projectId, projects.columns + listOf(programs.name, programs.workStreamId, streams.name))
             ?: return@suspendTransaction null
+        // The view's own rules first (a gone project is the route's 404 for every caller), then the baseline question.
+        val baseline = baselineId?.let { requireActiveBaseline(it) }
         val row = found.row
         val chain = found.chain
         val ownerId = row[projects.ownerPersonId].value
@@ -83,6 +88,7 @@ class ProjectViewService(private val database: R2dbcDatabase) {
             dependencies = dependencies,
             idleGaps = idleGapViewsOf(scheduled.mapNotNull { it.span }, calendar),
             criticalPath = critical.view,
+            baseline = baseline?.let { projectBaseline(it, projectId, span, milestones.map { m -> m.live }, calendar) },
         )
     }
 
@@ -108,8 +114,10 @@ class ProjectViewService(private val database: R2dbcDatabase) {
                 val teamId = row[milestones.teamId].value
                 val start = row[milestones.startDate]
                 val end = row[milestones.endDate]
+                val span = if (start != null && end != null) DaySpan(start, end) else null
                 MilestoneRow(
-                    span = if (start != null && end != null) DaySpan(start, end) else null,
+                    span = span,
+                    live = LiveMilestone(id, projectId, teamId, row[milestones.name], row[milestones.estimateMd], span),
                     view = ProjectMilestone(
                         id = id,
                         projectId = projectId,
@@ -130,6 +138,9 @@ class ProjectViewService(private val database: R2dbcDatabase) {
             }
     }
 
-    /** A milestone's wire form [view] with its stored [span] (null = unscheduled) kept for the partition and the derived span. */
-    private class MilestoneRow(val span: DaySpan?, val view: ProjectMilestone)
+    /**
+     * A milestone's wire form [view] with its stored [span] (null = unscheduled) kept for the partition and the derived span, and its
+     * [live] figures (the estimate unrounded) for the baseline overlay.
+     */
+    private class MilestoneRow(val span: DaySpan?, val live: LiveMilestone, val view: ProjectMilestone)
 }

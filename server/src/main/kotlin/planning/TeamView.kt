@@ -1,6 +1,10 @@
+@file:OptIn(ExperimentalSerializationApi::class)
+
 package ch.nokillswit.planning
 
 import ch.nokillswit.teams.CapacityPeriodResponse
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 
 /**
@@ -29,6 +33,9 @@ data class TeamView(
     val dependencies: List<ProjectDependency>,
     /** The runs of 3 or more working days inside the scheduled milestones' derived span on which none of them is in progress, by start. */
     val idleGaps: List<IdleGapView>,
+    /** Present only for `?baseline=N`: the team against that baseline ([TeamBaseline]); absent otherwise (the bytes are unchanged). */
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val baseline: TeamBaseline? = null,
 )
 
 /** The [ch.nokillswit.teams.TeamResponse] fields plus what the caller may do with the team's plan. */

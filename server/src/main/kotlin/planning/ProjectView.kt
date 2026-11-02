@@ -1,5 +1,9 @@
+@file:OptIn(ExperimentalSerializationApi::class)
+
 package ch.nokillswit.planning
 
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 
 /**
@@ -31,6 +35,9 @@ data class ProjectView(
     val idleGaps: List<IdleGapView>,
     /** The entities of OTHER projects upstream of this project's end ([CriticalPath], `CriticalPathView.kt`). */
     val criticalPath: CriticalPath,
+    /** Present only for `?baseline=N`: the project against that baseline ([ProjectBaseline]); absent otherwise (bytes unchanged). */
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val baseline: ProjectBaseline? = null,
 )
 
 /** [DaySpan] on the wire: ISO `YYYY-MM-DD` strings, inclusive. */

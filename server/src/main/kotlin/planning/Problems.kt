@@ -21,3 +21,10 @@ const val STALE_SCOPE_PROBLEM = "urn:astrolabe:problem:stale-scope"
  * A name clash is the plain unique-violation 409, not this problem.
  */
 const val BASELINE_LIMIT_PROBLEM = "urn:astrolabe:problem:baseline-limit"
+
+/**
+ * The `type` of the 400 a view answers for `?baseline=N` when baseline N is unknown or soft-deleted (RFC 7807): the id is a query value
+ * the client held (the picker's remembered pick), so the page clears its pick and reloads without it. The comparison view
+ * `GET /views/baseline/{id}` addresses the baseline itself and answers a plain 404 instead.
+ */
+const val UNKNOWN_BASELINE_PROBLEM = "urn:astrolabe:problem:unknown-baseline"

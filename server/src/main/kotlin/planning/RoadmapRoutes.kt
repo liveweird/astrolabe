@@ -31,7 +31,7 @@ class RoadmapRankingRoute
 internal fun Route.roadmapRoutes(d: PlanRouteDeps, views: PlanViewServices) {
     get<RoadmapViewRoute> {
         val caller = call.caller()
-        call.respond(HttpStatusCode.OK, views.roadmap.view(d.actor(caller)))
+        call.respond(HttpStatusCode.OK, views.roadmap.view(d.actor(caller), call.baselineParam()))
     }
     put<RoadmapRankingRoute> {
         val caller = call.caller()

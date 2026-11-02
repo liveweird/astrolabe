@@ -21,12 +21,17 @@ val TeamViewServiceKey = AttributeKey<TeamViewService>("TeamViewService")
  * after the revision) and writes nothing (`persistence.md`).
  */
 class TeamViewService(private val database: R2dbcDatabase) {
-    suspend fun view(teamId: UInt, actor: PlanActor): TeamView? = suspendTransaction(database, SNAPSHOT, readOnly = true) {
+    suspend fun view(
+        teamId: UInt, actor: PlanActor,
+        baselineId: UInt? = null,
+    ): TeamView? = suspendTransaction(database, SNAPSHOT, readOnly = true) {
         val revision = readPlanRevision()
         val calendar = loadWorkingCalendar()
         val teams = TeamService.Teams
         val team = teams.selectAll().where { (teams.id eq teamId) and teams.active() }.toList().singleOrNull()
             ?: return@suspendTransaction null
+        // The view's own rules first (a gone team is the route's 404 for every caller), then the baseline question.
+        val baseline = baselineId?.let { requireActiveBaseline(it) }
         val managerId = team[teams.managerPersonId]?.value
         val managerName = managerId?.let { activePersonName(it) }
 
@@ -63,6 +68,9 @@ class TeamViewService(private val database: R2dbcDatabase) {
             unscheduled = unscheduled.map { it.view },
             dependencies = viewDependencies(rows.map { it.view.id }, emptyList(), emptyMap(), actor, calendar),
             idleGaps = idleGapViewsOf(items.map { it.span }, calendar),
+            baseline = baseline?.let {
+                teamBaseline(it, teamId, team[teams.name], rows.map { r -> r.live() }, calendar)
+            },
         )
     }
 

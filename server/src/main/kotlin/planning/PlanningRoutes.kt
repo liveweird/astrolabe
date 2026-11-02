@@ -23,7 +23,7 @@ import io.ktor.server.routing.routing
 
 /**
  * The planning REST surface (`/api/v1/work-streams`, `/programs`, `/projects`, `/milestones`, `/views/plan`, `/views/project/{id}`,
- * `/views/roadmap`, `/views/programs`, `/views/team/{id}`, `/roadmap/ranking`, since V15 `/dependencies` with
+ * `/views/roadmap`, `/views/programs`, `/views/team/{id}`, `/views/baseline/{id}`, `/roadmap/ranking`, since V15 `/dependencies` with
  * `POST /projects/{id}/dependencies`, since V17 `PUT /teams/{id}/milestone-order` and since v0.8.0
  * `POST /teams/{id}/milestone-schedules` and `POST /teams/{id}/schedule-proposal`), registered by this ONE
  * module function and split per entity (`WorkStreamRoutes.kt`, `ProgramRoutes.kt`, `ProjectRoutes.kt`, `MilestoneRoutes.kt`,
@@ -61,6 +61,7 @@ fun Application.configurePlanningRoutes() {
         team = attributes[TeamViewServiceKey],
         roadmap = attributes[RoadmapViewServiceKey],
         programs = attributes[ProgramsViewServiceKey],
+        baseline = attributes[BaselineViewServiceKey],
     )
     routing {
         authenticate {
@@ -80,7 +81,12 @@ fun Application.configurePlanningRoutes() {
 }
 
 /** The read-only view services passed BESIDE [PlanRouteDeps] (its constructor is at detekt's 12-parameter ceiling). */
-internal class PlanViewServices(val team: TeamViewService, val roadmap: RoadmapViewService, val programs: ProgramsViewService)
+internal class PlanViewServices(
+    val team: TeamViewService,
+    val roadmap: RoadmapViewService,
+    val programs: ProgramsViewService,
+    val baseline: BaselineViewService,
+)
 
 /** The services the planning routes share, plus the per-request caller resolution the guards and the `can` flags need. */
 internal class PlanRouteDeps(

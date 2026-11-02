@@ -44,4 +44,4 @@ internal fun proposalLists(rows: List<TeamMilestoneRow>, result: ScheduleProposa
     return ProposalLists(moves, unchanged, unplaced)
 }
 
-private fun DaySpan.toDateSpan() = DateSpan(start.toString(), end.toString())
+internal fun DaySpan.toDateSpan() = DateSpan(start.toString(), end.toString())

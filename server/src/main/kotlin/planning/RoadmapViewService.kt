@@ -15,10 +15,12 @@ val RoadmapViewServiceKey = AttributeKey<RoadmapViewService>("RoadmapViewService
  * `Milestones ⋈ Teams`, `Dependencies`, `RoadmapEntries` and `PublicHolidays` and writes nothing (`persistence.md`).
  */
 class RoadmapViewService(private val database: R2dbcDatabase) {
-    suspend fun view(actor: PlanActor): RoadmapView = suspendTransaction(database, SNAPSHOT, readOnly = true) {
+    suspend fun view(actor: PlanActor, baselineId: UInt? = null): RoadmapView = suspendTransaction(database, SNAPSHOT, readOnly = true) {
         val revision = readRankingRevision()
+        val header = baselineId?.let { requireActiveBaseline(it) }
         val snapshot = loadRoadmapSnapshot(actor)
-        val (ranked, unranked) = snapshot.projects.partition { it.rankPosition != null }
+        val overlay = header?.let { overlayRoadmap(it, snapshot.projects, snapshot.spans, snapshot.calendar) }
+        val (ranked, unranked) = (overlay?.projects ?: snapshot.projects).partition { it.rankPosition != null }
         RoadmapView(
             revision = revision,
             can = RoadmapViewCan(PlanPermissions.canEditRank(actor)),
@@ -26,6 +28,7 @@ class RoadmapViewService(private val database: R2dbcDatabase) {
             ranked = ranked.sortedBy { it.rankPosition }.map { RoadmapRankedProject(checkNotNull(it.rankPosition), it) },
             unranked = unranked.sortedWith(compareBy({ it.name.lowercase() }, { it.id })),
             links = snapshot.links,
+            baseline = header?.let { RoadmapBaseline(it.id, it.name, it.planRevision, checkNotNull(overlay).removed) },
         )
     }
 }

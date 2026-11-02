@@ -1,5 +1,9 @@
+@file:OptIn(ExperimentalSerializationApi::class)
+
 package ch.nokillswit.planning
 
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 
 /**
@@ -19,6 +23,9 @@ data class ProgramsView(
     val teams: List<RoadmapTeam>,
     val links: List<RoadmapLink>,
     val workStreams: List<ProgramsWorkStream>,
+    /** Present only for `?baseline=N`: the baseline the projects', programs' and work streams' `baseline` blocks compare to. */
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val baseline: BaselineRef? = null,
 )
 
 /**
@@ -35,6 +42,9 @@ data class ProgramsWorkStream(
     val span: DateSpan?,
     val flags: FlagCounts,
     val programs: List<ProgramsProgram>,
+    /** Present only for `?baseline=N` and a work stream with at least one project the baseline froze: [SpanBaseline] over its programs. */
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val baseline: SpanBaseline? = null,
 )
 
 /** A program: [span] is derived from its projects' spans, [flags] counts its projects' flags; programs carry no target window. */
@@ -46,4 +56,7 @@ data class ProgramsProgram(
     val span: DateSpan?,
     val flags: FlagCounts,
     val projects: List<RoadmapProject>,
+    /** Present only for `?baseline=N` and a program with at least one project the baseline froze: [SpanBaseline] over those projects. */
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val baseline: SpanBaseline? = null,
 )

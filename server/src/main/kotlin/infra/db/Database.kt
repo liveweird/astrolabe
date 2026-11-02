@@ -10,6 +10,8 @@ import ch.nokillswit.people.PersonService
 import ch.nokillswit.people.PersonServiceKey
 import ch.nokillswit.planning.BaselineService
 import ch.nokillswit.planning.BaselineServiceKey
+import ch.nokillswit.planning.BaselineViewService
+import ch.nokillswit.planning.BaselineViewServiceKey
 import ch.nokillswit.planning.DependencyService
 import ch.nokillswit.planning.DependencyServiceKey
 import ch.nokillswit.planning.MilestoneService
@@ -291,6 +293,7 @@ suspend fun Application.configureDatabase() {
     attributes.put(TeamViewServiceKey, TeamViewService(database))
     attributes.put(PublicHolidayServiceKey, PublicHolidayService(database))
     attributes.put(BaselineServiceKey, BaselineService(database))
+    attributes.put(BaselineViewServiceKey, BaselineViewService(database))
     attributes.put(
         TokenBlocklistServiceKey,
         TokenBlocklistService(

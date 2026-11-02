@@ -1,6 +1,10 @@
+@file:OptIn(ExperimentalSerializationApi::class)
+
 package ch.nokillswit.planning
 
 import io.ktor.server.plugins.BadRequestException
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 
 /** The most projects one ranking PUT may list (the plan's scale is about 100 projects). */
@@ -21,6 +25,9 @@ data class RoadmapView(
     val ranked: List<RoadmapRankedProject>,
     val unranked: List<RoadmapProject>,
     val links: List<RoadmapLink>,
+    /** Present only for `?baseline=N`: which baseline the projects' `baseline` blocks compare to, and the projects it had that are gone. */
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val baseline: RoadmapBaseline? = null,
 )
 
 /** [editRank]: the caller may `PUT /roadmap/ranking` (ADMIN or a `ROADMAP_EDITOR`, as `requireRoadmapEditorOrAdmin`). */
@@ -57,6 +64,9 @@ data class RoadmapProject(
     val drift: Drift?,
     val flags: List<PlanFlag>,
     val can: RoadmapProjectCan,
+    /** Present only for `?baseline=N` and a project the baseline also froze (absent = the project is newer than the baseline). */
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val baseline: RoadmapProjectBaseline? = null,
 )
 
 /** [editTargetWindow]: the caller may `PUT /projects/{id}/target-window` ([PlanPermissions.canEditTargetWindow]). */

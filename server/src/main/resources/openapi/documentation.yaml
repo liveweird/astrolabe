@@ -1722,6 +1722,8 @@ paths:
       tags: [plan]
       operationId: getProjectView
       summary: One project with its milestones, the derived span and its drift
+      parameters:
+        - $ref: '#/components/parameters/BaselineQuery'
       description: |
         Any authenticated user; `404` when the project, its program or its work stream is deleted, for every caller. One document (a
         deliberate exception to the paged envelope, bounded by ONE project's milestones, about 50). `revision` is the plan revision read
@@ -1752,6 +1754,11 @@ paths:
         - the critical ones first (the chain, from its origin by start date, end date, name and id), then the rest by slack; a project
         is listed only when an included link (not violated, both ends scheduled) names it. The chain is never cut; the others are capped at 100 (`upstreamTruncated`). Entities that
         only lie downstream of this project, or are unconnected to its end, are absent.
+
+        With `?baseline=N` the document gains `baseline` (`ProjectBaseline`): the project's own span then and its movement
+        (`project`, null when the project is newer than the baseline), one entry per LIVE milestone the baseline also froze
+        (`milestones`: its dates, estimate and team then, and its movement in working days on the CURRENT calendar - a live milestone
+        without an entry is new since the baseline) and the baseline's milestones of this project that are gone (`removed`).
       responses:
         '200':
           description: The project view
@@ -1759,7 +1766,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProjectView'
-        '400': { $ref: '#/components/responses/BadRequest' }
+        '400':
+          description: >-
+            Malformed request (an id, or `baseline`, that is not a non-negative integer; a repeated `baseline`), or `baseline` names an
+            unknown or deleted baseline (`type` `urn:astrolabe:problem:unknown-baseline`).
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetail' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalServerError' }
@@ -1770,6 +1783,8 @@ paths:
       tags: [plan]
       operationId: getTeamView
       summary: One team's milestones, weekly load against capacity, and WIP
+      parameters:
+        - $ref: '#/components/parameters/BaselineQuery'
       description: |
         Any authenticated user; `404` when the team is deleted, for every caller. One document (a deliberate exception to the paged
         envelope, bounded by ONE team's milestones - about 100 at the assumed scale -, their links and at most 520 weeks). `revision` is
@@ -1800,6 +1815,11 @@ paths:
         PUT). `dependencies` are the project view's links for the links with an end among the team's milestones, both ends resolved
         and checked on the working-day index, violated first; a link's other end may lie in another team or project and is not listed
         as a row of its own. `idleGaps` lists the runs of 3 or more working days with none of the team's milestones in progress.
+
+        With `?baseline=N` the document gains `baseline` (`TeamBaseline`): one entry per LIVE milestone of the team that the baseline
+        also froze (`milestones`, with the team it sat on then - `teamIdThen` - and its movement in working days on the CURRENT
+        calendar; a live milestone without an entry is new since the baseline) and the baseline's milestones of THIS team that are not
+        on it any more (`removed`: deleted, or moved to another team - `now`).
       responses:
         '200':
           description: The team view
@@ -1807,7 +1827,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TeamView'
-        '400': { $ref: '#/components/responses/BadRequest' }
+        '400':
+          description: >-
+            Malformed request (an id, or `baseline`, that is not a non-negative integer; a repeated `baseline`), or `baseline` names an
+            unknown or deleted baseline (`type` `urn:astrolabe:problem:unknown-baseline`).
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetail' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalServerError' }
@@ -1816,6 +1842,8 @@ paths:
       tags: [plan]
       operationId: getProgramsView
       summary: The plan tree with derived spans, flag roll-ups and each project's roadmap row
+      parameters:
+        - $ref: '#/components/parameters/BaselineQuery'
       description: |
         Any authenticated user. One document (a deliberate exception to the paged envelope, bounded by the plan's scale of about 5 work
         streams, 20 programs and 100 projects), read in ONE snapshot: `revision` is the PLAN revision read before the rows
@@ -1829,6 +1857,10 @@ paths:
         A program's `span` is derived from its projects' spans (earliest start to latest end, null while none is scheduled) and a
         work stream's from its programs' spans; nothing is stored. `flags` roll the projects' flags up: the number of WARNING and INFO
         flags over the program's (work stream's) projects. Programs and work streams carry no target window.
+
+        With `?baseline=N` the document gains `baseline` (the baseline's identity), every project row gains its `baseline` block (as
+        `GET /views/roadmap`'s) and a program (work stream) with at least one project the baseline froze gains `baseline`: the span
+        those projects (its programs) had, derived like the live span, and its movement against the live span.
       responses:
         '200':
           description: The programs view
@@ -1836,6 +1868,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProgramsView'
+        '400':
+          description: >-
+            Malformed request (an id, or `baseline`, that is not a non-negative integer; a repeated `baseline`), or `baseline` names an
+            unknown or deleted baseline (`type` `urn:astrolabe:problem:unknown-baseline`).
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetail' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '500': { $ref: '#/components/responses/InternalServerError' }
   /api/v1/views/roadmap:
@@ -1843,6 +1882,8 @@ paths:
       tags: [roadmap]
       operationId: getRoadmapView
       summary: The global project ranking with spans, flags and rolled-up links
+      parameters:
+        - $ref: '#/components/parameters/BaselineQuery'
       description: |
         Any authenticated user. One document (a deliberate exception to the paged envelope, bounded by the plan's scale of about 100
         projects, 1,000 milestones and 300 project pairs): `ranked` in position order (dense 1..n) and `unranked`, the active projects
@@ -1862,6 +1903,10 @@ paths:
         `can.editRank` is whether THIS caller may `PUT /roadmap/ranking` (ADMIN or a ROADMAP_EDITOR holder) and each project's
         `can.editTargetWindow` whether they may `PUT /projects/{id}/target-window` (ADMIN, an owner above the project, or a
         ROADMAP_EDITOR holder). `revision` is the RANKING's revision (the plan revision at which the rank was last written), read before the rows - send it back as `expectedRevision`. Plan writes elsewhere do not move it.
+
+        With `?baseline=N` the document gains `baseline` (the baseline's identity and the projects it froze that are gone) and every
+        project the baseline also froze gains a `baseline` block: the derived span, rank position and target window it had and the
+        span's movement in working days on the CURRENT calendar (a project row without the block is newer than the baseline).
       responses:
         '200':
           description: The ranking
@@ -1869,7 +1914,51 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/RoadmapView'
+        '400':
+          description: >-
+            Malformed request (`baseline` that is not a non-negative integer, or repeated), or `baseline` names an unknown or deleted
+            baseline (`type` `urn:astrolabe:problem:unknown-baseline`).
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetail' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/views/baseline/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    get:
+      tags: [plan]
+      operationId: getBaselineView
+      summary: The comparison of one baseline with the plan now
+      description: |
+        Any authenticated user; `404` when the baseline is unknown or soft-deleted (it is the addressed resource - the views'
+        `?baseline=` answers `400` instead, because there the id is a query value the client held). One document (a deliberate
+        exception to the paged envelope, bounded by the plan's scale: about 100 project rows and at most about 1,000 milestone rows),
+        read in ONE snapshot: `revision` is the plan revision read first. The baseline equals the plan at `baseline.planRevision`, so
+        a `revision` equal to it shows no movement.
+
+        `projects` is the union of the baseline's and the live projects (a project newer than the baseline has `movement.kind` `ADDED`,
+        one that is gone `REMOVED`), by work stream, program and project name (case-insensitive) then id: the names are the live ones
+        when the project exists now, `rankThen`/`rankNow` the rank positions on either side, `baselineSpan`/`span` the derived spans
+        then and now, `movement` the span's movement and `counts` the movement counts over the project's milestones (a removed
+        project: its removed milestones). `milestones` lists ONLY the changed milestone rows - every `movement.kind` but `UNCHANGED`,
+        or a different estimate (`movement.estimateDelta` not zero) - in the projects' order, then by start (the live one, else the
+        frozen one; undated last), end, name and id; the unchanged rows are in `totals` and `counts`.
+
+        Movement is measured in WORKING days on the CURRENT calendar (Monday-Friday minus the public holidays), positive = later:
+        `startDays`/`endDays` are present only for a milestone dated on both sides; a Saturday-dated start moved to its Monday is no
+        movement. `totals` counts every milestone row and every project row: `later`/`earlier` are the `MOVED` rows whose END is
+        later/earlier (a start-only move is `moved`, neither).
+      responses:
+        '200':
+          description: The comparison
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaselineView'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalServerError' }
   /api/v1/roadmap/ranking:
     put:
@@ -2374,6 +2463,17 @@ components:
       # int32: ids are 32-bit server-side; a non-numeric or out-of-range id is a 400. Ids are database sequences that
       # start at 1, so 0 never addresses anything (it answers 404, like any unknown id).
       schema: { type: integer, format: int32, minimum: 1 }
+    BaselineQuery:
+      name: baseline
+      in: query
+      required: false
+      schema: { type: integer, format: int32, minimum: 0 }
+      description: |
+        The id of an ACTIVE baseline to compare the view with (`baselines` registry). Absent: no comparison, and the document is exactly
+        what it was before baselines existed. A repeated key or a value that is not a non-negative integer is a `400`; an id that is
+        unknown or soft-deleted is a `400` whose `type` is `urn:astrolabe:problem:unknown-baseline` (the caller held the id, e.g. a
+        remembered pick: it clears the pick and asks again) - answered AFTER the view's own rules, so a deleted project or team is
+        still `404`. The comparison is computed in the same snapshot as the view, so its figures are consistent with the rows.
     Page:
       name: page
       in: query
@@ -2991,6 +3091,249 @@ components:
       properties:
         name: { type: string, minLength: 1, maxLength: 100, description: 'Trimmed; a control character is a `400`. Unique among the active baselines, case-insensitively.' }
         description: { type: string, maxLength: 500, nullable: true, description: 'A full replace - omitted clears it.' }
+    Movement:
+      type: object
+      required: [kind, startDays, endDays, estimateDelta]
+      description: >-
+        What happened to one row since a baseline. `startDays`/`endDays` are signed WORKING days on the CURRENT calendar (positive =
+        later) and are non-null only for a row dated on both sides; `estimateDelta` (live minus frozen, man-days) is non-null whenever
+        the row exists on both sides, whatever the kind (an estimate change alone leaves the kind `UNCHANGED`).
+      properties:
+        kind:
+          type: string
+          enum: [UNCHANGED, MOVED, SCHEDULED, UNSCHEDULED, ADDED, REMOVED]
+          description: >-
+            `ADDED` = no row in the baseline; `REMOVED` = no live row; `SCHEDULED`/`UNSCHEDULED` = a dated/undated flip; `MOVED` =
+            dated on both sides with a non-zero start or end delta; `UNCHANGED` otherwise.
+        startDays: { type: integer, format: int32, nullable: true }
+        endDays: { type: integer, format: int32, nullable: true }
+        estimateDelta: { type: number, format: double, nullable: true }
+    MovementTotals:
+      type: object
+      required: [unchanged, moved, later, earlier, scheduled, unscheduled, added, removed]
+      description: The counts of rows by movement kind; `later`/`earlier` are the `moved` rows whose END is later/earlier.
+      properties:
+        unchanged: { type: integer, format: int32, minimum: 0 }
+        moved: { type: integer, format: int32, minimum: 0 }
+        later: { type: integer, format: int32, minimum: 0 }
+        earlier: { type: integer, format: int32, minimum: 0 }
+        scheduled: { type: integer, format: int32, minimum: 0 }
+        unscheduled: { type: integer, format: int32, minimum: 0 }
+        added: { type: integer, format: int32, minimum: 0 }
+        removed: { type: integer, format: int32, minimum: 0 }
+    BaselineRef:
+      type: object
+      required: [id, name, planRevision]
+      description: The baseline a view's `baseline` blocks compare to.
+      properties:
+        id: { type: integer, format: int32, minimum: 0 }
+        name: { type: string }
+        planRevision: { type: integer, format: int64, description: The plan revision the baseline equals. }
+    SpanBaseline:
+      type: object
+      required: [span, movement]
+      description: A project's, program's or work stream's span in the baseline and what became of it.
+      properties:
+        span:
+          nullable: true
+          description: The derived span then; null when nothing was scheduled.
+          allOf:
+            - $ref: '#/components/schemas/DateSpan'
+        movement:
+          $ref: '#/components/schemas/Movement'
+    BaselineMilestone:
+      type: object
+      required: [milestoneId, teamIdThen, start, end, estimateMd, movement]
+      description: A live milestone the baseline also froze - the figures it had then and its movement.
+      properties:
+        milestoneId: { type: integer, format: int32, minimum: 0 }
+        teamIdThen: { type: integer, format: int32, minimum: 0, description: The team the milestone sat on in the baseline. }
+        start: { type: string, format: date, nullable: true, description: The start then; null = it was unscheduled. }
+        end: { type: string, format: date, nullable: true }
+        estimateMd: { type: number, format: double, description: 'The estimate then, in man-days.' }
+        movement:
+          $ref: '#/components/schemas/Movement'
+    RemovedMilestone:
+      type: object
+      required: [milestoneId, projectId, name, teamId, teamName, estimateMd, start, end]
+      description: >-
+        A milestone the baseline froze that is no longer where the view looks, as it was then. `now` is present only on the team view
+        and only when the milestone still exists on another team; absent = it was deleted.
+      properties:
+        milestoneId: { type: integer, format: int32, minimum: 0 }
+        projectId: { type: integer, format: int32, minimum: 0 }
+        name: { type: string }
+        teamId: { type: integer, format: int32, minimum: 0, description: The team it sat on in the baseline. }
+        teamName: { type: string }
+        estimateMd: { type: number, format: double }
+        start: { type: string, format: date, nullable: true }
+        end: { type: string, format: date, nullable: true }
+        now:
+          type: object
+          required: [teamId, teamName]
+          properties:
+            teamId: { type: integer, format: int32, minimum: 0 }
+            teamName: { type: string }
+    ProjectBaseline:
+      type: object
+      required: [id, name, planRevision, project, milestones, removed]
+      description: Present only with `?baseline=N`.
+      properties:
+        id: { type: integer, format: int32, minimum: 0 }
+        name: { type: string }
+        planRevision: { type: integer, format: int64 }
+        project:
+          nullable: true
+          description: The project's own span then and its movement; null when the project is newer than the baseline.
+          allOf:
+            - $ref: '#/components/schemas/SpanBaseline'
+        milestones:
+          type: array
+          description: One entry per live milestone of the project (scheduled or in the tray) that the baseline also froze, by id.
+          items:
+            $ref: '#/components/schemas/BaselineMilestone'
+        removed:
+          type: array
+          description: The baseline's milestones of this project that are gone, by start (undated last), end, name and id.
+          items:
+            $ref: '#/components/schemas/RemovedMilestone'
+    TeamBaseline:
+      type: object
+      required: [id, name, planRevision, milestones, removed]
+      description: Present only with `?baseline=N`.
+      properties:
+        id: { type: integer, format: int32, minimum: 0 }
+        name: { type: string }
+        planRevision: { type: integer, format: int64 }
+        milestones:
+          type: array
+          description: >-
+            One entry per live milestone of the team that the baseline also froze (whatever team it sat on then - `teamIdThen`), by id.
+          items:
+            $ref: '#/components/schemas/BaselineMilestone'
+        removed:
+          type: array
+          description: The baseline's milestones of THIS team that are not on it any more (deleted, or moved - `now`), by start, end, name and id.
+          items:
+            $ref: '#/components/schemas/RemovedMilestone'
+    RemovedProject:
+      type: object
+      required: [projectId, name, programName, workStreamName, span]
+      description: A project the baseline froze that is gone now, with its names as they were.
+      properties:
+        projectId: { type: integer, format: int32, minimum: 0 }
+        name: { type: string }
+        programName: { type: string }
+        workStreamName: { type: string }
+        span:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/DateSpan'
+    RoadmapBaseline:
+      type: object
+      required: [id, name, planRevision, removedProjects]
+      description: Present only with `?baseline=N`.
+      properties:
+        id: { type: integer, format: int32, minimum: 0 }
+        name: { type: string }
+        planRevision: { type: integer, format: int64 }
+        removedProjects:
+          type: array
+          description: The baseline's projects that are gone, by work stream, program and name (case-insensitive) then id.
+          items:
+            $ref: '#/components/schemas/RemovedProject'
+    RoadmapProjectBaseline:
+      type: object
+      required: [span, movement, rankPosition, targetStart, targetEnd]
+      description: >-
+        A project row against the baseline. Present only with `?baseline=N` and only for a project the baseline also froze (absent =
+        the project is newer than the baseline).
+      properties:
+        span:
+          nullable: true
+          description: The derived span then; null when nothing was scheduled.
+          allOf:
+            - $ref: '#/components/schemas/DateSpan'
+        movement:
+          $ref: '#/components/schemas/Movement'
+        rankPosition: { type: integer, format: int32, minimum: 1, nullable: true, description: The rank position then; null = it was unranked. }
+        targetStart: { type: string, format: date, nullable: true }
+        targetEnd: { type: string, format: date, nullable: true }
+    BaselineView:
+      type: object
+      required: [revision, baseline, totals, projects, milestones]
+      properties:
+        revision: { type: integer, format: int64, minimum: 0, description: 'The plan revision, read before the rows.' }
+        baseline:
+          $ref: '#/components/schemas/BaselineResponse'
+        totals:
+          type: object
+          required: [milestones, projects]
+          description: The movement counts over EVERY milestone row and every project row (changed or not).
+          properties:
+            milestones:
+              $ref: '#/components/schemas/MovementTotals'
+            projects:
+              $ref: '#/components/schemas/MovementTotals'
+        projects:
+          type: array
+          description: The union of the baseline's and the live projects, by work stream, program and name (case-insensitive) then id.
+          items:
+            $ref: '#/components/schemas/BaselineViewProject'
+        milestones:
+          type: array
+          description: Only the CHANGED milestone rows (any kind but `UNCHANGED`, or a different estimate), in the projects' order, then by start, end, name and id.
+          items:
+            $ref: '#/components/schemas/BaselineViewMilestone'
+    BaselineViewProject:
+      type: object
+      required: [projectId, name, programName, workStreamName, rankThen, rankNow, baselineSpan, span, movement, counts]
+      properties:
+        projectId: { type: integer, format: int32, minimum: 0 }
+        name: { type: string, description: The live name; the frozen one for a project that is gone. }
+        programName: { type: string }
+        workStreamName: { type: string }
+        rankThen: { type: integer, format: int32, minimum: 1, nullable: true, description: 'Null = unranked then, or the project is newer than the baseline.' }
+        rankNow: { type: integer, format: int32, minimum: 1, nullable: true, description: 'Null = unranked now, or the project is gone.' }
+        baselineSpan:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/DateSpan'
+        span:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/DateSpan'
+        movement:
+          $ref: '#/components/schemas/Movement'
+        counts:
+          $ref: '#/components/schemas/MovementTotals'
+    BaselineFigures:
+      type: object
+      required: [start, end, estimateMd]
+      properties:
+        start: { type: string, format: date, nullable: true, description: Null = unscheduled. }
+        end: { type: string, format: date, nullable: true }
+        estimateMd: { type: number, format: double }
+    BaselineViewMilestone:
+      type: object
+      required: [milestoneId, name, projectId, teamId, teamName, frozen, live, movement]
+      description: A changed milestone. `frozen` is null for one added since the baseline, `live` for one removed; the name and team are the live ones when it exists now.
+      properties:
+        milestoneId: { type: integer, format: int32, minimum: 0 }
+        name: { type: string }
+        projectId: { type: integer, format: int32, minimum: 0 }
+        teamId: { type: integer, format: int32, minimum: 0 }
+        teamName: { type: string }
+        frozen:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/BaselineFigures'
+        live:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/BaselineFigures'
+        movement:
+          $ref: '#/components/schemas/Movement'
     WorkStreamCreateRequest:
       type: object
       required: [name, ownerPersonId, startDate]
@@ -3468,6 +3811,8 @@ components:
             $ref: '#/components/schemas/IdleGap'
         criticalPath:
           $ref: '#/components/schemas/CriticalPath'
+        baseline:
+          $ref: '#/components/schemas/ProjectBaseline'
     CriticalPath:
       type: object
       required: [upstream, upstreamTruncated]
@@ -3666,6 +4011,8 @@ components:
             them is in progress (weekends and public holidays neither count nor break a run), by start date; empty when there are none.
           items:
             $ref: '#/components/schemas/IdleGap'
+        baseline:
+          $ref: '#/components/schemas/TeamBaseline'
     IdleGap:
       type: object
       required: [start, end, workingDays]
@@ -3809,6 +4156,8 @@ components:
           description: The dependencies between projects, rolled up per ordered pair (predecessor, successor project id).
           items:
             $ref: '#/components/schemas/RoadmapLink'
+        baseline:
+          $ref: '#/components/schemas/RoadmapBaseline'
     RoadmapTeam:
       type: object
       required: [id, name]
@@ -3861,6 +4210,8 @@ components:
           required: [editTargetWindow]
           properties:
             editTargetWindow: { type: boolean, description: 'The caller may `PUT /projects/{id}/target-window`: ADMIN, an owner above the project, or a ROADMAP_EDITOR holder.' }
+        baseline:
+          $ref: '#/components/schemas/RoadmapProjectBaseline'
     PlanFlag:
       type: object
       required: [kind, severity, days, teamId, otherProjectId]
@@ -3951,6 +4302,8 @@ components:
           description: Open work streams first, then closed ones, each by name (case-insensitive) then id.
           items:
             $ref: '#/components/schemas/ProgramsWorkStream'
+        baseline:
+          $ref: '#/components/schemas/BaselineRef'
     ProgramsWorkStream:
       type: object
       required: [id, name, ownerName, startDate, endDate, span, flags, programs]
@@ -3972,6 +4325,8 @@ components:
           description: Every active program of the work stream (empty ones included), by name (case-insensitive) then id.
           items:
             $ref: '#/components/schemas/ProgramsProgram'
+        baseline:
+          $ref: '#/components/schemas/SpanBaseline'
     ProgramsProgram:
       type: object
       required: [id, name, ownerName, span, flags, projects]
@@ -3991,6 +4346,8 @@ components:
           description: The program's projects as the roadmap view's rows; ranked first in rank order, then the unranked by name and id.
           items:
             $ref: '#/components/schemas/RoadmapProject'
+        baseline:
+          $ref: '#/components/schemas/SpanBaseline'
     RankingUpdateRequest:
       type: object
       required: [expectedRevision, projectIds]

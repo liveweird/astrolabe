@@ -1,5 +1,6 @@
 package ch.nokillswit.authz
 
+import io.ktor.server.plugins.BadRequestException
 import kotlinx.serialization.Serializable
 
 class UnauthorizedException(message: String = "Authentication required") : RuntimeException(message)
@@ -34,6 +35,13 @@ open class ConflictException(
     val instance: String? = null,
     val cycle: List<ProblemCycleNode>? = null,
 ) : RuntimeException(message)
+
+/**
+ * A `400` a client must tell apart from a malformed request: it names its RFC 7807 [problemType] (a `urn:astrolabe:problem:…` URI), e.g.
+ * the id of a baseline the client still holds that is gone (`?baseline=`). Still a [BadRequestException], so a generic catch keeps
+ * answering 400; `ErrorHandling` copies [problemType] into the body's `type`.
+ */
+class TypedBadRequestException(message: String, val problemType: String) : BadRequestException(message)
 
 /**
  * One entity on the cycle a refused dependency would close — the element of `ProblemDetail.cycle`. [kind] is the wire enum name

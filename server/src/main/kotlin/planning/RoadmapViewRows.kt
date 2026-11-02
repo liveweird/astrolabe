@@ -2,6 +2,7 @@ package ch.nokillswit.planning
 
 import ch.nokillswit.authz.OwnerChain
 import ch.nokillswit.infra.db.active
+import ch.nokillswit.infra.time.WorkingCalendar
 import ch.nokillswit.teams.TeamService
 import kotlinx.coroutines.flow.toList
 import org.jetbrains.exposed.v1.core.*
@@ -20,6 +21,8 @@ internal class RoadmapSnapshot(
     val links: List<RoadmapLink>,
     /** The projects' derived spans by id (absent = none scheduled): the programs view rolls them up without parsing the wire dates. */
     val spans: Map<UInt, DaySpan>,
+    /** The working calendar the snapshot read (the baseline overlay measures movement on it). */
+    val calendar: WorkingCalendar,
 )
 
 /** A project row with the owner chain `can.editTargetWindow` needs; [loadRoadmapSnapshot] completes it into a [RoadmapProject]. */
@@ -35,9 +38,10 @@ internal class MilestoneFactRow(val fact: PlanMilestoneFact, val teamName: Strin
  * Loads the four row sets (projects with their rank and owner chains, milestones, links) and runs [RoadmapKernels] ONCE: the derived
  * spans, the drift and inversion flags, the rolled-up links. [actor] decides each project's `can.editTargetWindow`
  * ([PlanPermissions.canEditTargetWindow] on the chain read in the same statement as the row). Statements: the projects, the owner
- * names, the rank entries, the milestones, the links - bounded by the plan's scale (about 100 projects, 1,000 milestones).
+ * names, the rank entries, the milestones, the links - bounded by the plan's scale (about 100 projects, 1,000 milestones). The
+ * comparison view needs no links ([withLinks] false: `links` is then empty and the link statement is skipped).
  */
-internal suspend fun loadRoadmapSnapshot(actor: PlanActor): RoadmapSnapshot {
+internal suspend fun loadRoadmapSnapshot(actor: PlanActor, withLinks: Boolean = true): RoadmapSnapshot {
     // Right after the caller's readPlanRevision(): the revision, the rows and the calendar are one snapshot.
     val calendar = loadWorkingCalendar()
     val rows = projectRows()
@@ -66,7 +70,8 @@ internal suspend fun loadRoadmapSnapshot(actor: PlanActor): RoadmapSnapshot {
     val teams = milestones.filter { it.fact.projectId in known }.associate { it.fact.teamId to it.teamName }
         .map { (id, name) -> RoadmapTeam(id, name) }
         .sortedWith(compareBy({ it.name.lowercase() }, { it.id }))
-    return RoadmapSnapshot(projects, teams, RoadmapKernels.linkAggregates(linkFacts(), projectFacts, facts, spans, calendar), spans)
+    val links = if (withLinks) RoadmapKernels.linkAggregates(linkFacts(), projectFacts, facts, spans, calendar) else emptyList()
+    return RoadmapSnapshot(projects, teams, links, spans, calendar)
 }
 
 /**

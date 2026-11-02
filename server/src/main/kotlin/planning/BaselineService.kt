@@ -7,7 +7,6 @@ import ch.nokillswit.infra.db.active
 import ch.nokillswit.infra.db.insertRows
 import ch.nokillswit.infra.db.localDate
 import ch.nokillswit.infra.db.nowMillis
-import ch.nokillswit.people.PersonService
 import ch.nokillswit.users.UserService
 import io.ktor.util.AttributeKey
 import kotlinx.coroutines.flow.toList
@@ -16,11 +15,9 @@ import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.dao.id.UIntIdTable
 import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
 import org.jetbrains.exposed.v1.r2dbc.R2dbcDatabase
 import org.jetbrains.exposed.v1.r2dbc.insert
-import org.jetbrains.exposed.v1.r2dbc.select
 import org.jetbrains.exposed.v1.r2dbc.selectAll
 import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
 import org.jetbrains.exposed.v1.r2dbc.update
@@ -29,9 +26,6 @@ import java.time.LocalDate
 val BaselineServiceKey = AttributeKey<BaselineService>("BaselineService")
 
 private const val BASELINE_NOT_FOUND = "Baseline not found"
-
-/** The caller is not asked anything while a baseline is captured: the snapshot's `can` flags are not stored. */
-private val CAPTURE_ACTOR = PlanActor(isAdmin = false, personId = null, roadmapEditor = false, managedTeamIds = emptySet())
 
 /**
  * The baselines registry (V20): named, immutable copies of the plan's dated structure. `baselines` is a soft-deleted business entity
@@ -225,32 +219,4 @@ class BaselineService(private val database: R2dbcDatabase) {
             this[BaselineMilestones.endDate] = m.span?.end
         }
     }
-
-    /**
-     * The creators by login id: an ACTIVE login is named by its ACTIVE linked person (`people.user_id`, one active person per login),
-     * else by the login's display name (`users.name`, never its email: an email would reach every reader); a soft-deleted login is absent
-     * (the response reads `createdBy` as null).
-     */
-    private suspend fun creatorsOf(userIds: Collection<UInt>): Map<UInt, BaselineCreator> {
-        if (userIds.isEmpty()) return emptyMap()
-        val ids = userIds.distinct()
-        val users = UserService.Users
-        val people = PersonService.People
-        val displayNames = users.select(users.id, users.name).where { (users.id inList ids) and users.active() }.toList()
-            .associate { it[users.id].value to it[users.name] }
-        val names = people.select(people.userId, people.name).where { (people.userId inList ids) and people.active() }.toList()
-            .mapNotNull { row -> row[people.userId]?.value?.let { it to row[people.name] } }.toMap()
-        return displayNames.mapValues { (userId, displayName) -> BaselineCreator(userId, names[userId] ?: displayName) }
-    }
-
-    private fun BaselineHeader.toResponse(creators: Map<UInt, BaselineCreator>) = BaselineResponse(
-        id = id,
-        name = name,
-        description = description,
-        planRevision = planRevision,
-        createdAt = createdAt,
-        createdBy = createdByUserId?.let(creators::get),
-        milestoneCount = milestoneCount,
-        projectCount = projectCount,
-    )
 }

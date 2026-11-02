@@ -14,7 +14,10 @@ import java.math.BigDecimal
  */
 
 /** A milestone of the team: its wire form [view], the stored [span] (null = unscheduled), its [estimate] and the ordering [key]. */
-internal class TeamMilestoneRow(val view: TeamMilestone, val span: DaySpan?, val estimate: BigDecimal, val key: OrderKey)
+internal class TeamMilestoneRow(val view: TeamMilestone, val span: DaySpan?, val estimate: BigDecimal, val key: OrderKey) {
+    /** The row as the baseline comparison sees it (the unrounded estimate). */
+    fun live() = LiveMilestone(view.id, view.projectId, view.teamId, view.name, estimate, span)
+}
 
 /**
  * Every ACTIVE milestone of [teamId] with its project, program and work stream names and its project's rank position (`roadmap_entries`,
