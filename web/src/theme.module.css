@@ -513,7 +513,8 @@
 }
 
 /* The Proposed schedule table's "would violate" text (v0.8): the violation red, a AA-contrast pair for small text on either scheme (the
-   Mantine red.6 default is not); the red Badge beside it carries the same fact in words. */
+   Mantine red.6 default is not) on the row's own background — the table draws no hover tint, which this pair does not clear; the red Badge
+   beside it carries the same fact in words. */
 .proposalViolation {
   color: light-dark(var(--mantine-color-red-8), var(--mantine-color-red-5));
 }

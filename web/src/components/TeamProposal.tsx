@@ -208,7 +208,9 @@ export default function TeamProposal({
       </Text>
       <Summary proposal={proposal} />
       <ScrollRegion label={label} minWidth={920} maxHeight={TABLE_MAX_HEIGHT}>
-        <Table aria-label={label} stickyHeader>
+        {/* No hover tint: rows are not clickable (the checkbox is the control), and the theme's hover background drops the "would violate"
+            red and the dimmed working-days text below AA contrast (the e2e axe scan of an open proposal). */}
+        <Table aria-label={label} stickyHeader highlightOnHover={false}>
           <Table.Thead>
             <Table.Tr>
               <Table.Th>
