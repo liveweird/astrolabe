@@ -4,6 +4,7 @@ import { IconLock, IconLockOpen, IconPencil, IconPlus, IconTrash } from "@tabler
 import { useTranslation } from "react-i18next";
 import type { PlanWorkStream } from "../api/plan";
 import type { PlanActions } from "../utils/planActions";
+import DestructiveMenuItem from "./DestructiveMenuItem";
 import PlanProgramBlock from "./PlanProgramBlock";
 import RowActionsMenu from "./RowActionsMenu";
 
@@ -69,14 +70,13 @@ export default function PlanWorkStreamSection({ workStream, actions }: { workStr
                 )}
                 {can.edit && can.delete && <Menu.Divider />}
                 {can.delete && (
-                  <Menu.Item
-                    color="red"
+                  <DestructiveMenuItem
                     leftSection={<IconTrash size={14} />}
                     onClick={() => actions.deleteWorkStream(workStream)}
                     aria-label={t("common.action.deleteAria", { name: workStream.name })}
                   >
                     {t("common.action.delete")}
-                  </Menu.Item>
+                  </DestructiveMenuItem>
                 )}
               </RowActionsMenu>
             )}

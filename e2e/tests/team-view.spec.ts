@@ -200,7 +200,7 @@ test("the manager moves a milestone to the bottom, sees the custom order, and re
   await settled(page);
   await Promise.all([
     page.waitForResponse((r) => r.request().method() === "PUT" && /\/api\/v1\/teams\/\d+\/milestone-order$/.test(r.url()) && r.ok()),
-    rowOperation(page, first, `Move ${first} to bottom`),
+    rowOperation(page, first, `Move to bottom: ${first}`),
   ]);
   await expect(rows(page)).toHaveText([new RegExp(second), new RegExp(first)]);
   await expect(facts(page)).toContainText("Custom order");

@@ -22,6 +22,7 @@ import { flagSignedOut, useAdmin } from "../auth";
 import { asSupportedLanguage, NATIVE_LANGUAGE_NAMES, SUPPORTED_LANGUAGES } from "../i18n";
 import { useChangelogUnseen } from "../hooks/useChangelogSeen";
 import { setTelemetryPanelOpen, useTelemetryPanelOpen } from "../hooks/useTelemetryPanel";
+import DestructiveMenuItem from "./DestructiveMenuItem";
 
 const IDENTITY_STALE_MS = 5 * 60_000;
 
@@ -188,9 +189,9 @@ export default function UserMenu() {
           </Menu.Item>
         )}
         <Menu.Divider />
-        <Menu.Item color="red" leftSection={<IconLogout size={14} />} onClick={() => void handleSignOut()}>
+        <DestructiveMenuItem leftSection={<IconLogout size={14} />} onClick={() => void handleSignOut()}>
           {t("appShell.userMenu.signOut")}
-        </Menu.Item>
+        </DestructiveMenuItem>
       </Menu.Dropdown>
     </Menu>
   );

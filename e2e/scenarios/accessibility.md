@@ -41,6 +41,8 @@ the milestone editor modal (team picker, estimate) and the dependency editor mod
 It scans the team view `/teams/:id` of the fixture team (the sticky weekly load strip with an overloaded column and the dashed WIP chip, the orange "weeks overloaded" and "weeks over WIP limit" badges and the red conflict badge on the facts line, the Capacity table with its limit, the expanded Weekly load table with its status badges, the arrows; light and dark) and the capacity period modal (date, man-days, WIP limit) scoped to its dialog.
 It scans the team page `/teams/:id` with an **open schedule proposal** (v0.8: `/teams/:id with an open schedule proposal has no WCAG A/AA violations`, light and dark; a world of its own in 2042 - team T proposed for, with two moves: a new 6 MD milestone whose proposed span ends after a fixed successor of the other team starts, and a scheduled one that waits for a fixed predecessor of the other team; the proposal is requested with **Propose schedule**, the pointer is parked on the page heading so no row is hover-tinted, and the scan covers the dashed proposal bars, the Proposed schedule section's checkboxes and select-all, the summary line and the red "1 link would be violated" badge, the links column's "Conflict" badge, red "would violate" text and gray "resolves" text, and the Accept selected / Discard buttons).
 It scans the baselines (v0.9; a describe of its own with its own world and baseline, light and dark): `/baselines with a row has no WCAG A/AA violations` (the registry table with the fixture baseline's row, its link and the Take baseline button), `/baselines/:id has no WCAG A/AA violations` (the comparison page, narrowed with the Project filter to the fixture project: the totals badges, the project row with its orange "Later" badge, the moved, new and removed milestone rows) and `/teams/:id with a baseline picked has no WCAG A/AA violations` (the pick stored in the browser before the page loads; the picker, the shadow bars under the moved milestone and the two appended rows "(unscheduled since the baseline)" and "(removed)", the Movement table open with its "Later" and "New" badges); the world is re-planned after the baseline is taken so every row kind exists.
+The baseline world is scanned on three more pages, light and dark (the baseline pick and the program pick are stored in the browser before the page loads, the program pick narrowing a stack that holds the sample plan to the fixture program): `/roadmap with a baseline picked has no WCAG A/AA violations`, `/programs with a baseline picked has no WCAG A/AA violations` (the fixture program opened) and `/projects/:id with a baseline picked has no WCAG A/AA violations` (the shadow bars, the totals line on the plan pages, the Movement section on the project page).
+It scans the OPEN row menus (`the open row menus of the Teams list, the Baselines list and the roadmap timeline have no WCAG A/AA violations`, light and dark): a Mantine menu dropdown only exists in the DOM while open, so a scan of a page with its menus closed never sees it.
 It also scans the Plan page's "Move to…" modal (the grouped program select) scoped to its dialog, and its open option list; the fixture plan has a second program so the select has a target.
 
 ## Scenario: `<path>` has no WCAG A/AA violations in the dark scheme
@@ -84,6 +86,50 @@ It also scans the Plan page's "Move to…" modal (the grouped program select) sc
 
 1. The same four hovers with the dark scheme emulated.
    - *Expected*: `<html>` carries the dark scheme and every scan reports zero violations.
+
+## Scenario: /roadmap with a baseline picked has no WCAG A/AA violations
+
+1. The admin signs in; the browser stores the fixture baseline as the timeline's baseline pick and the fixture program as the planning program pick, then opens `/roadmap` and waits for the Roadmap timeline.
+   - *Expected*: the fixture project's link is visible, the Baseline picker shows the fixture baseline, at least one shadow bar (`data-tone="baseline"`) is attached, the baseline totals line (`role="note"`) is visible, `<html>` carries the light scheme and an axe scan (same tags, `color-contrast` included) reports zero violations.
+
+## Scenario: /roadmap with a baseline picked has no WCAG A/AA violations in the dark scheme
+
+1. The same with the dark scheme emulated.
+   - *Expected*: the dark scheme is on `<html>` and the axe scan reports zero violations.
+
+## Scenario: /programs with a baseline picked has no WCAG A/AA violations
+
+1. The admin signs in with the same two stored picks, opens `/programs` and opens the fixture program's chevron.
+   - *Expected*: the fixture project's link is visible, the Baseline picker shows the fixture baseline, a shadow bar is attached, the totals line (`role="note"`) is visible and the axe scan reports zero violations.
+
+## Scenario: /programs with a baseline picked has no WCAG A/AA violations in the dark scheme
+
+1. The same with the dark scheme emulated.
+   - *Expected*: the dark scheme is on `<html>` and the axe scan reports zero violations.
+
+## Scenario: /projects/:id with a baseline picked has no WCAG A/AA violations
+
+1. The admin signs in with the stored picks and opens the fixture project's page.
+   - *Expected*: the project heading and the Milestone timeline are visible, the Baseline picker shows the fixture baseline, a shadow bar is attached, the heading "Movement vs baseline <name>" is visible and the axe scan reports zero violations.
+
+## Scenario: /projects/:id with a baseline picked has no WCAG A/AA violations in the dark scheme
+
+1. The same with the dark scheme emulated.
+   - *Expected*: the dark scheme is on `<html>` and the axe scan reports zero violations.
+
+## Scenario: the open row menus of the Teams list, the Baselines list and the roadmap timeline have no WCAG A/AA violations
+
+1. The fixture project is ranked through the API for the scan (and unranked again at the end, so the shared ranking is as the other specs expect it). The admin signs in, opens `/teams`, narrows the list to the fixture team with the Name filter and opens that row's "Operations for <team>" menu.
+   - *Expected*: the menu is visible and has settled at full opacity (axe measures contrast against a fade-in's partial opacity), and an axe scan of the whole page reports zero violations: the dropdown holds only menu items (no focus placeholder), the red Delete item clears AA on the dropdown, and every item's accessible name contains its visible text. Escape closes the menu, the kebab that opened it has the focus again (a keyboard user is not sent back to the top of the document), and only then does the next menu open.
+2. The admin opens `/baselines` and opens the fixture baseline's "Operations for <baseline>" menu (Rename, Delete).
+   - *Expected*: the same: zero violations.
+3. The admin opens `/roadmap` (narrowed by the program pick to the fixture program) and opens the fixture project's row menu (Move up, Move down, Move to top, Move to bottom, Unrank, the target-window items, Open project; the first four disabled on the single ranked row).
+   - *Expected*: the same: zero violations.
+
+## Scenario: the open row menus of the Teams list, the Baselines list and the roadmap timeline have no WCAG A/AA violations in the dark scheme
+
+1. The same three menus with the dark scheme emulated.
+   - *Expected*: `<html>` carries the dark scheme and every scan reports zero violations (the dropdown is dark-6; the destructive ink and its hover tint are the theme's dark tokens).
 
 ## Not covered here (and why)
 

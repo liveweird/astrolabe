@@ -10,6 +10,7 @@ import { getUserId } from "../api/session";
 import { useAdmin } from "../auth";
 import ClearableTextInput from "../components/ClearableTextInput";
 import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
+import DestructiveMenuItem from "../components/DestructiveMenuItem";
 import EmptyState from "../components/EmptyState";
 import FilterPanel from "../components/FilterPanel";
 import OneTimePasswordModal from "../components/OneTimePasswordModal";
@@ -219,14 +220,13 @@ export default function Users() {
                           >
                             {t("users.resetPassword")}
                           </Menu.Item>
-                          <Menu.Item
-                            color="red"
+                          <DestructiveMenuItem
                             leftSection={<IconTrash size={14} />}
                             onClick={() => deleteConfirm.requestDelete(user)}
                             aria-label={t("common.action.deleteAria", { name: user.name })}
                           >
                             {t("common.action.delete")}
-                          </Menu.Item>
+                          </DestructiveMenuItem>
                         </>
                       )}
                     </RowActionsMenu>

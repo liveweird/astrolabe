@@ -8,6 +8,7 @@ import { useAdmin } from "../auth";
 import { deletePerson, listPeople, type PersonListItem, type PersonResponse } from "../api/people";
 import ClearableTextInput from "../components/ClearableTextInput";
 import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
+import DestructiveMenuItem from "../components/DestructiveMenuItem";
 import FilterPanel from "../components/FilterPanel";
 import PageHeader from "../components/PageHeader";
 import PersonEditorModal from "../components/PersonEditorModal";
@@ -129,14 +130,13 @@ export default function People() {
                     {t("common.action.edit")}
                   </Menu.Item>
                   <Menu.Divider />
-                  <Menu.Item
-                    color="red"
+                  <DestructiveMenuItem
                     leftSection={<IconTrash size={14} />}
                     onClick={() => remove.requestDelete(person)}
                     aria-label={t("common.action.deleteAria", { name: person.name })}
                   >
                     {t("common.action.delete")}
-                  </Menu.Item>
+                  </DestructiveMenuItem>
                 </RowActionsMenu>
               )}
             </Table.Td>

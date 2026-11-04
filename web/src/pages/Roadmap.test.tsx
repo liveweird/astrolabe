@@ -241,7 +241,7 @@ describe("Roadmap page", () => {
     await screen.findByRole("grid", { name: "Roadmap timeline" });
     expect(document.querySelectorAll("[data-row-handle]")).toHaveLength(4);
     await openMenu(user, "Taxes");
-    for (const name of ["Move up Taxes", "Move down Taxes", "Move Taxes to top", "Move Taxes to bottom", "Unrank Taxes", "Open project Taxes"]) {
+    for (const name of ["Move up Taxes", "Move down Taxes", "Move to top: Taxes", "Move to bottom: Taxes", "Unrank Taxes", "Open project Taxes"]) {
       expect(await screen.findByRole("menuitem", { name })).toBeInTheDocument();
     }
     expect(screen.queryByRole("menuitem", { name: /^Rank / })).toBeNull();
@@ -283,14 +283,14 @@ describe("Roadmap page", () => {
     await screen.findByRole("grid", { name: "Roadmap timeline" });
     await openMenu(user, "Invoices");
     expect(await screen.findByRole("menuitem", { name: "Move up Invoices" })).toHaveAttribute("data-disabled", "true");
-    expect(screen.getByRole("menuitem", { name: "Move Invoices to top" })).toHaveAttribute("data-disabled", "true");
-    await user.click(screen.getByRole("menuitem", { name: "Move Invoices to bottom" }));
+    expect(screen.getByRole("menuitem", { name: "Move to top: Invoices" })).toHaveAttribute("data-disabled", "true");
+    await user.click(screen.getByRole("menuitem", { name: "Move to bottom: Invoices" }));
     await waitFor(() => expect(puts(mockFetch)).toEqual([{ expectedRevision: 7, projectIds: [2, 3, 1] }]));
     await waitFor(() => expect(rowLabels()).toEqual(["Taxes", "Audit", "Invoices", "Unranked", "Ledger"]));
     await waitFor(() => expect(grid()).toHaveAttribute("aria-busy", "false"));
     await openMenu(user, "Invoices");
     expect(await screen.findByRole("menuitem", { name: "Move down Invoices" })).toHaveAttribute("data-disabled", "true");
-    await user.click(screen.getByRole("menuitem", { name: "Move Invoices to top" }));
+    await user.click(screen.getByRole("menuitem", { name: "Move to top: Invoices" }));
     await waitFor(() => expect(puts(mockFetch)).toHaveLength(2));
     expect(puts(mockFetch)[1]).toEqual({ expectedRevision: 8, projectIds: [1, 2, 3] });
   });

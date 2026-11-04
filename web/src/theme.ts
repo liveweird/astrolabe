@@ -101,7 +101,16 @@ export const theme = createTheme({
     // Icon-only controls (row kebabs, edit/delete, tree toggles) are neutral by default;
     // a destructive one passes color="red" explicitly.
     ActionIcon: ActionIcon.extend({ defaultProps: { variant: "subtle", color: "gray" } }),
-    Menu: Menu.extend({ defaultProps: { position: "bottom-end", withinPortal: true, shadow: "md" } }),
+    // No initial-focus placeholder: Mantine's invisible `role="presentation" tabindex="-1"` div as the first child of `role="menu"` fails axe
+    // `aria-required-children` (a menu may hold only items, groups and separators) on every open row menu. Without it the focus trap puts the
+    // focus on the first item when the menu opens (`RowActionsMenu` covers a DISABLED first item, which the trap cannot focus; the ARIA menu
+    // pattern: a following ArrowDown reaches the SECOND item) and the arrow keys,
+    // Home/End and type-ahead move from there. Mantine paints a focused item like a hovered one, so a menu opened by a click would show its first
+    // item highlighted; `menuItem` (theme.module.css) keeps the tint to the hover and to a keyboard focus.
+    Menu: Menu.extend({
+      defaultProps: { position: "bottom-end", withinPortal: true, shadow: "md", withInitialFocusPlaceholder: false },
+      classNames: { item: classes.menuItem },
+    }),
     // Every searchable Select/MultiSelect/TagsInput matches accent-insensitively ("zolw" finds
     // "Żółw"), mirroring the server-side unaccent list filters. A per-site `filter` prop still
     // wins — don't pass one unless it preserves the diacritics folding (see utils/text.ts).

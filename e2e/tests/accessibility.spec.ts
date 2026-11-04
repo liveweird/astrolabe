@@ -8,7 +8,8 @@
 // links of the critical path); unique `e2e-axe-*` names), created and deleted via the API. The fixture team carries one capacity period with a
 // WIP limit of 1 (deleted with the team), so its page shows the strip's overload and WIP marks. The open-schedule-proposal scans (the last describe)
 // own their own team pair and plan (unique `e2e-axe-prop-*` names, all dated in 2042), created and deleted via the API. The baseline scans (the very last
-// describe) own a team, a plan and one baseline of their own (unique `e2e-axe-bl-*` names, dated in 2026), created and deleted via the API.
+// describe) own a team, a plan and one baseline of their own (unique `e2e-axe-bl-*` names, dated in 2026), created and deleted via the API; the
+// baseline is soft-deleted FIRST in the afterAll, so the stack holds none of it afterwards.
 import type { APIRequestContext, Locator, Page } from "@playwright/test";
 import {
   apiAsAdmin,
@@ -17,6 +18,7 @@ import {
   expect,
   expectScheme,
   login,
+  openFilters,
   rowOperation,
   type Scheme,
   test,
@@ -648,6 +650,8 @@ test.describe("a baseline on the plan", () => {
   let teamId: number;
   let teamName: string;
   let projectName: string;
+  let projectId: number;
+  let programId: number;
   let baselineId: number;
   let baselineName: string;
   let scheduledName: string;
@@ -674,9 +678,9 @@ test.describe("a baseline on the plan", () => {
     teamId = await create("/api/v1/teams", { name: teamName }, "/api/v1/teams");
     const personId = await create("/api/v1/people", { name: uniqueText("e2e-axe-bl-owner") }, "/api/v1/people");
     const streamId = await create("/api/v1/work-streams", { name: uniqueText("e2e-axe-bl-stream"), ownerPersonId: personId, startDate: "2026-01-05" }, "/api/v1/work-streams");
-    const programId = await create(`/api/v1/work-streams/${streamId}/programs`, { name: uniqueText("e2e-axe-bl-program"), ownerPersonId: personId }, "/api/v1/programs");
+    programId = await create(`/api/v1/work-streams/${streamId}/programs`, { name: uniqueText("e2e-axe-bl-program"), ownerPersonId: personId }, "/api/v1/programs");
     projectName = uniqueText("e2e-axe-bl-project");
-    const projectId = await create(`/api/v1/programs/${programId}/projects`, { name: projectName, ownerPersonId: personId }, "/api/v1/projects");
+    projectId = await create(`/api/v1/programs/${programId}/projects`, { name: projectName, ownerPersonId: personId }, "/api/v1/projects");
     const milestone = (label: string, estimateMd: number) => {
       const name = uniqueText(`e2e-axe-bl-${label}`);
       return create(`/api/v1/projects/${projectId}/milestones`, { name, teamId, estimateMd }).then((id) => ({ id, name }));
@@ -749,6 +753,98 @@ test.describe("a baseline on the plan", () => {
       await expect(movement.getByRole("row").filter({ hasText: scheduledName }).getByText("Later", { exact: true })).toBeVisible();
       await expectScheme(page, scheme);
       await scan(page);
+    });
+
+    // The pick (a browser setting) is stored before the page loads, as the picker would have stored it; the program pick narrows a stack that
+    // holds the sample plan (more than 80 projects virtualise the grid) to the fixture program.
+    const pickBaselineAndProgram = async (page: Page): Promise<void> => {
+      await page.evaluate(
+        ([baselineKey, baseline, programKey, program]) => {
+          localStorage.setItem(baselineKey, baseline);
+          localStorage.setItem(programKey, program);
+        },
+        ["astrolabe.viewSettings.timeline.baseline", String(baselineId), "astrolabe.viewSettings.planning.programPick", JSON.stringify([programId])],
+      );
+    };
+
+    test(`/roadmap with a baseline picked has no WCAG A/AA violations${suffix}`, async ({ page }) => {
+      await login(page);
+      await pickBaselineAndProgram(page);
+      await page.goto("/roadmap");
+      await expect(page.getByRole("grid", { name: "Roadmap timeline" })).toBeVisible();
+      await expect(page.getByRole("link", { name: `Open ${projectName}`, exact: true })).toBeVisible();
+      await expect(page.getByLabel("Baseline", { exact: true })).toHaveValue(new RegExp(baselineName));
+      await expect(page.locator('[data-tone="baseline"]').first()).toBeAttached();
+      await expect(page.getByRole("note").first()).toBeVisible(); // the totals line
+      await expectScheme(page, scheme);
+      await scan(page);
+    });
+
+    test(`/programs with a baseline picked has no WCAG A/AA violations${suffix}`, async ({ page }) => {
+      await login(page);
+      await pickBaselineAndProgram(page);
+      await page.goto("/programs");
+      await expect(page.getByRole("grid", { name: "Programs timeline" })).toBeVisible();
+      await page.getByRole("button", { name: /^Program e2e-axe-bl-program/ }).click();
+      await expect(page.getByRole("link", { name: `Open ${projectName}`, exact: true })).toBeVisible();
+      await expect(page.getByLabel("Baseline", { exact: true })).toHaveValue(new RegExp(baselineName));
+      await expect(page.locator('[data-tone="baseline"]').first()).toBeAttached();
+      await expect(page.getByRole("note").first()).toBeVisible(); // the totals line
+      await expectScheme(page, scheme);
+      await scan(page);
+    });
+
+    test(`/projects/:id with a baseline picked has no WCAG A/AA violations${suffix}`, async ({ page }) => {
+      await login(page);
+      await pickBaselineAndProgram(page);
+      await page.goto(`/projects/${projectId}`);
+      await expect(page.getByRole("heading", { level: 2, name: projectName })).toBeVisible();
+      await expect(page.getByRole("grid", { name: "Milestone timeline" })).toBeVisible();
+      await expect(page.getByLabel("Baseline", { exact: true })).toHaveValue(new RegExp(baselineName));
+      await expect(page.locator('[data-tone="baseline"]').first()).toBeAttached();
+      await expect(page.getByRole("heading", { level: 3, name: `Movement vs baseline ${baselineName}` })).toBeVisible();
+      await expectScheme(page, scheme);
+      await scan(page);
+    });
+
+    // The OPEN row menus: a Mantine menu dropdown is a portal'd `role="menu"`, only in the DOM while open, so a page scan with the menus closed
+    // never saw it. The Teams list (the fixture team), the Baselines list (the fixture baseline) and the roadmap timeline (the fixture project's
+    // row, ranked for the scan and unranked again). One menu at a time: Escape closes it, returns the focus to its kebab, and the next one opens after it has left the DOM.
+    test(`the open row menus of the Teams list, the Baselines list and the roadmap timeline have no WCAG A/AA violations${suffix}`, async ({ page }) => {
+      async function scanOpenMenu(name: string): Promise<void> {
+        const kebab = page.getByRole("button", { name: `Operations for ${name}`, exact: true });
+        await kebab.click();
+        const menu = page.getByRole("menu");
+        await expect(menu).toBeVisible();
+        await expect(menu).toHaveCSS("opacity", "1"); // axe measures contrast against the fade-in's partial opacity
+        await scan(page);
+        await page.keyboard.press("Escape");
+        await expect(menu).toHaveCount(0);
+        await expect(kebab).toBeFocused(); // Escape gives the focus back to the kebab that opened the menu (it once ended on `body`)
+      }
+      await updateRankingViaApi(api, (ranked) => [...ranked, projectId]);
+      try {
+        await login(page);
+        await page.goto("/teams");
+        await expect(page.getByRole("heading", { level: 2, name: "Teams" })).toBeVisible();
+        await openFilters(page);
+        await page.getByLabel("Name", { exact: true }).fill(teamName); // the filter narrows a stack of many rows to the fixture
+        await expect(page.getByRole("link", { name: `Open team ${teamName}` })).toBeVisible();
+        await expectScheme(page, scheme);
+        await scanOpenMenu(teamName);
+
+        await page.goto("/baselines");
+        await expect(page.getByRole("link", { name: `Compare ${baselineName} with the plan` })).toBeVisible();
+        await scanOpenMenu(baselineName);
+
+        await page.evaluate(([key, value]) => localStorage.setItem(key, value), ["astrolabe.viewSettings.planning.programPick", JSON.stringify([programId])]);
+        await page.goto("/roadmap");
+        await expect(page.getByRole("grid", { name: "Roadmap timeline" })).toBeVisible();
+        await expect(page.getByRole("link", { name: `Open ${projectName}`, exact: true })).toBeVisible();
+        await scanOpenMenu(projectName);
+      } finally {
+        await updateRankingViaApi(api, (ranked) => ranked.filter((id) => id !== projectId));
+      }
     });
   }
   registerBaselineScans("light");

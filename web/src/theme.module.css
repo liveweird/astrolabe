@@ -116,6 +116,21 @@ table.table {
   text-decoration-color: var(--astrolabe-accent-ink);
 }
 
+/* Every menu item. The menu focuses its first item when it opens (theme.ts) and Mantine paints `:focus` like `:hover`, so after a CLICK on
+   the kebab the first item would sit highlighted until the pointer moved. A focus the browser does not mark focus-visible (the pointer opened
+   the menu) and a pointer that is not on the item get no tint; a keyboard focus keeps its ring and tint. */
+.menuItem:focus:not(:focus-visible, :hover) {
+  background-color: transparent;
+}
+
+/* A destructive menu item (DestructiveMenuItem): the AA error ink and its own quiet red hover/focus tint. Mantine's `color="red"` would paint
+   red-6 (3.3:1 on the white dropdown) and its default hover (dark-4) leaves the AA ink at 4.3:1 in the dark scheme. The component passes no
+   `color`, so Mantine writes no inline `--menu-item-*` and these declarations win. */
+.menuItemDestructive {
+  --menu-item-color: var(--astrolabe-ink-error);
+  --menu-item-hover: var(--astrolabe-destructive-hover);
+}
+
 /* The header's command-palette trigger: reads as a search field (hairline, hover-tinted,
    dimmed placeholder text, the shortcut as a Kbd on the right) but is a button. */
 .paletteTrigger {

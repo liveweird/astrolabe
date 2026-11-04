@@ -15,6 +15,7 @@ import { arrowSpecs, conflictsByBar, ghostEndpoints, ghostRowId, projectRowId, s
 import type { BarId, RovingTarget, TimelineBandData, TimelineBarData, TimelineColumn, TimelineRowData } from "../utils/timelineModel";
 import type { TimelineScale, Zoom } from "../utils/timelineScale";
 import { BaselineRowName } from "./BaselineParts";
+import DestructiveMenuItem from "./DestructiveMenuItem";
 import RowActionsMenu from "./RowActionsMenu";
 import Timeline from "./Timeline";
 import TimelineArrows from "./TimelineArrows";
@@ -118,14 +119,13 @@ function MilestoneMenu({
       )}
       {can.delete && (can.edit || can.schedule || canLink) && <Menu.Divider />}
       {can.delete && (
-        <Menu.Item
-          color="red"
+        <DestructiveMenuItem
           leftSection={<IconTrash size={14} />}
           onClick={() => actions.remove(milestone)}
           aria-label={t("common.action.deleteAria", { name: milestone.name })}
         >
           {t("common.action.delete")}
-        </Menu.Item>
+        </DestructiveMenuItem>
       )}
     </RowActionsMenu>
   );

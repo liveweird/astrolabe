@@ -27,6 +27,8 @@ export const LIGHT_TOKENS = {
   error: "#c92a2a",
   inkWarning: "#b23a0a",
   inkError: "#c92a2a",
+  // The hover/focus tint of a destructive menu item (DestructiveMenuItem): a quiet red over the white dropdown (1.14:1), inkError stays 4.8:1 on it.
+  destructiveHover: "#ffecec",
   // The brand hue where it must be PERCEIVED against the canvas (nav marker, hover underline,
   // focus) — the light primary (shade 8, 5.2:1 on the canvas) here, the 4-shade in the dark scheme (see theme.ts).
   accentInk: "#0b7285",
@@ -45,6 +47,8 @@ export const DARK_TOKENS = {
   error: "#ff8787",
   inkWarning: "#ffc078",
   inkError: "#ff8787",
+  // The same tint over the dark dropdown (dark-6): 1.09:1 against it, inkError stays >= 4.5:1 on it. Mantine's own item hover (dark-4) leaves 4.3:1.
+  destructiveHover: "#473131",
   accentInk: "#3bc9db",
 } as const;
 
@@ -77,6 +81,7 @@ function schemeVariables(tokens: typeof LIGHT_TOKENS | typeof DARK_TOKENS): Reco
     "--mantine-color-error": tokens.error,
     "--astrolabe-ink-warning": tokens.inkWarning,
     "--astrolabe-ink-error": tokens.inkError,
+    "--astrolabe-destructive-hover": tokens.destructiveHover,
     "--astrolabe-accent-ink": tokens.accentInk,
   };
 }

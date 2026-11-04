@@ -8,6 +8,7 @@ import { BASELINE_CAP, deleteBaseline, type Baseline } from "../api/baselines";
 import { ApiError } from "../api/http";
 import BaselineEditorModal from "../components/BaselineEditorModal";
 import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
+import DestructiveMenuItem from "../components/DestructiveMenuItem";
 import EmptyState from "../components/EmptyState";
 import ErrorAlert from "../components/ErrorAlert";
 import PageHeader from "../components/PageHeader";
@@ -125,14 +126,13 @@ export default function Baselines() {
                           {t("baselines.rename")}
                         </Menu.Item>
                         <Menu.Divider />
-                        <Menu.Item
-                          color="red"
+                        <DestructiveMenuItem
                           leftSection={<IconTrash size={14} />}
                           onClick={() => remove.requestDelete(baseline)}
                           aria-label={t("common.action.deleteAria", { name: baseline.name })}
                         >
                           {t("common.action.delete")}
-                        </Menu.Item>
+                        </DestructiveMenuItem>
                       </RowActionsMenu>
                     )}
                   </Table.Td>

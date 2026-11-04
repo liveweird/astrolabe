@@ -9,7 +9,7 @@ import type { TimelineHandle } from "../components/Timeline";
  * header instead (`focusRow`).
  *
  * The menu that was used keeps its dropdown - and its focus trap - mounted through its exit transition (~150 ms), and the trap pulls a focus moved
- * meanwhile into its sentinel, which lands on `body` when the dropdown unmounts. So the focus is put once at render (`keep`) and again when the menu
+ * meanwhile back into the dropdown, which lands on `body` when the dropdown unmounts. So the focus is put once at render (`keep`) and again when the menu
  * has FINISHED closing (`menuClosed`, from `RowActionsMenu`'s opt-in `onClosed`): the first covers rows whose menu is gone with the row, the
  * second the ones that stay.
  */

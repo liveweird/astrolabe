@@ -5,6 +5,7 @@ import { Link as RouterLink } from "react-router-dom";
 import type { PlanProgram, PlanWorkStream } from "../api/plan";
 import type { PlanActions } from "../utils/planActions";
 import { projectPath } from "../utils/planLinks";
+import DestructiveMenuItem from "./DestructiveMenuItem";
 import RowActionsMenu from "./RowActionsMenu";
 import ScrollRegion from "./ScrollRegion";
 
@@ -71,14 +72,13 @@ export default function PlanProgramBlock({
               )}
               {(can.edit || canMoveProgram) && can.delete && <Menu.Divider />}
               {can.delete && (
-                <Menu.Item
-                  color="red"
+                <DestructiveMenuItem
                   leftSection={<IconTrash size={14} />}
                   onClick={() => actions.deleteProgram(program)}
                   aria-label={t("common.action.deleteAria", { name: program.name })}
                 >
                   {t("common.action.delete")}
-                </Menu.Item>
+                </DestructiveMenuItem>
               )}
             </RowActionsMenu>
           )}
@@ -147,14 +147,13 @@ export default function PlanProgramBlock({
                         )}
                         {(project.can.edit || project.can.editTargetWindow || actions.canMoveProject(project)) && project.can.delete && <Menu.Divider />}
                         {project.can.delete && (
-                          <Menu.Item
-                            color="red"
+                          <DestructiveMenuItem
                             leftSection={<IconTrash size={14} />}
                             onClick={() => actions.deleteProject(project)}
                             aria-label={t("common.action.deleteAria", { name: project.name })}
                           >
                             {t("common.action.delete")}
-                          </Menu.Item>
+                          </DestructiveMenuItem>
                         )}
                       </RowActionsMenu>
                     )}

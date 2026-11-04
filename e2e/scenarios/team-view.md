@@ -33,7 +33,7 @@
 1. The administrator (through the API) schedules two milestones of the team (2027-02-01 – 2027-02-05 and 2027-02-08 – 2027-02-12).
    The manager signs in and opens the team's page.
    - *Expected*: the rows read first, second (the project rank's order — one project, so by start date); no "Custom order" badge.
-2. From the first row's menu they choose **Move <first> to bottom**.
+2. From the first row's menu they choose **Move to bottom: <first>**.
    - *Expected*: the order PUT succeeds (it carries the team's own order revision); the rows read second, first; the facts line shows
      the gray "Custom order" badge; the live region says "<first> moved to position 2 of 2".
 3. They press **Reset order** and confirm with **Reset** in the dialog (which names the project rank).

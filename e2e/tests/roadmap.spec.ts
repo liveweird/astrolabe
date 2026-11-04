@@ -154,17 +154,20 @@ test("an admin grants the roadmap editor right; the editor ranks two projects fr
   // Move up, with the keyboard: the menu button takes Enter, the item takes Enter; focus is back on the menu button after the move and the
   // screen-reader status says where the row went.
   await change(page, async () => {
-    // The previous change's menu is still fading out for ~150 ms; two dropdowns would have two focus sentinels.
+    // The previous change's menu is still fading out for ~150 ms; two dropdowns would have two focus traps.
     await expect(page.getByRole("menu")).toHaveCount(0);
     await operations(page, second).focus();
     await page.keyboard.press("Enter");
     await expect(operations(page, second)).toHaveAttribute("aria-expanded", "true");
     const item = page.getByRole("menuitem", { name: `Move up ${second}`, exact: true });
-    // As a keyboard user: opened with Enter the menu's focus trap takes the focus into the dropdown (its sentinel), ArrowDown reaches the first item,
+    // As a keyboard user: opened with Enter the menu puts the focus on its first item (no focus placeholder: `theme.ts`), so the item is already
+    // focused; ArrowDown reaches the next ENABLED one (the last ranked row's "Move down" is disabled, so "Move to top") and ArrowUp comes back,
     // Enter takes it. Each step waits for the one before (a programmatic `focus()` straight away races the trap, which can pull the focus back into
     // the dropdown and swallow the Enter).
-    await expect(page.locator("[data-autofocus]")).toBeFocused();
+    await expect(item).toBeFocused();
     await page.keyboard.press("ArrowDown");
+    await expect(page.getByRole("menuitem", { name: `Move to top: ${second}`, exact: true })).toBeFocused();
+    await page.keyboard.press("ArrowUp");
     await expect(item).toBeFocused();
     await page.keyboard.press("Enter");
   });
@@ -346,7 +349,7 @@ async function dragAcross(page: Page, target: Locator, dx: number): Promise<void
 
 /** Open a row's menu as a keyboard user and take the item named `item`: Enter, ArrowDown until the item has the focus, Enter. */
 async function menuItemByKeyboard(page: Page, name: string, item: string): Promise<void> {
-  await expect(page.getByRole("menu")).toHaveCount(0); // a previous menu may still be fading out (two dropdowns, two focus sentinels)
+  await expect(page.getByRole("menu")).toHaveCount(0); // a previous menu may still be fading out (two dropdowns, two focus traps)
   await operations(page, name).focus();
   await expect(operations(page, name)).toBeFocused();
   // dnd-kit swallows the click that follows a drag for 50 ms (its click blocker is removed on a timer), and an Enter on a button IS a click: right
@@ -355,8 +358,8 @@ async function menuItemByKeyboard(page: Page, name: string, item: string): Promi
     if ((await operations(page, name).getAttribute("aria-expanded")) !== "true") await page.keyboard.press("Enter");
     expect(await operations(page, name).getAttribute("aria-expanded")).toBe("true");
   }).toPass({ timeout: 10_000 });
-  // Opened with Enter, the menu's focus trap takes the focus into the dropdown first; each ArrowDown then moves to the next item.
-  await expect(page.locator("[data-autofocus]")).toBeFocused();
+  // Opened with Enter, the menu puts the focus on its first enabled item; each ArrowDown then moves to the next item.
+  await expect(page.getByRole("menu").locator(":focus")).toHaveCount(1);
   const target = page.getByRole("menuitem", { name: item, exact: true });
   for (let step = 0; step < 8 && !(await target.evaluate((element) => element === document.activeElement)); step++) await page.keyboard.press("ArrowDown");
   await expect(target).toBeFocused();

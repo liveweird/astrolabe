@@ -17,8 +17,31 @@ function darken(hex: string, alpha: number): string {
 }
 // A CSS module imported with `?raw` still goes through the CSS-module plugin (a class-name proxy, not the text), so the source is read from disk (vitest runs from web/).
 const themeCss = readFileSync(resolve(process.cwd(), "src/theme.module.css"), "utf8");
+// The dropdown surfaces (Popover.css: white; dark-6 in the dark scheme) and the item hover Mantine paints without a `--menu-item-hover`
+// (Menu.css: gray-1 / dark-4), read from the package's own stylesheets so a Mantine change fails here instead of drifting under the pins.
+const popoverCss = readFileSync(resolve(process.cwd(), "node_modules/@mantine/core/styles/Popover.css"), "utf8");
+const menuCss = readFileSync(resolve(process.cwd(), "node_modules/@mantine/core/styles/Menu.css"), "utf8");
 const WHITE = "#ffffff";
 const AA = 4.5;
+const NON_TEXT = 3; // WCAG 1.4.11: a graphic that carries meaning
+
+/** A `var(--mantine-color-…)` reference of theme.module.css resolved to a hex in one scheme (the theme's own text/dimmed tokens included). */
+function resolveColor(ref: string, scheme: "light" | "dark"): string {
+  const tokens = scheme === "light" ? LIGHT_TOKENS : DARK_TOKENS;
+  if (ref === "var(--mantine-color-text)") return tokens.text;
+  if (ref === "var(--mantine-color-dimmed)") return tokens.dimmed;
+  const shade = /^var\(--mantine-color-([a-z]+)-(\d)\)$/.exec(ref);
+  if (shade === null) throw new Error(`cannot resolve ${ref}`);
+  return scaleOf(shade[1])[Number(shade[2])];
+}
+
+/** A timeline token declared on `.timelineGrid` as `light-dark(<var>, <var>)` or a plain `<var>`, as its light and dark hex. */
+function timelineInk(name: string): { light: string; dark: string } {
+  const declared = new RegExp(`--${name}:\\s*(?:light-dark\\((var\\([^)]+\\)),\\s*(var\\([^)]+\\))\\)|(var\\([^)]+\\)));`).exec(themeCss);
+  if (declared === null) throw new Error(`--${name} is not a light-dark()/var() token in theme.module.css`);
+  const [, light, dark, plain] = declared;
+  return { light: resolveColor(light ?? plain, "light"), dark: resolveColor(dark ?? plain, "dark") };
+}
 
 /** The hue's scale: the app theme's own (`astrolabe`) first, then Mantine's defaults. */
 function scaleOf(hue: string): readonly string[] {
@@ -121,6 +144,56 @@ describe("theme colour tokens (WCAG AA)", () => {
       // Visible: the tint reads as a different surface from the row it replaces.
       expect(contrast(tint, row), `${name}: hover tint ${tint} against the row ${row}`).toBeGreaterThanOrEqual(1.1);
     }
+  });
+
+  it("the destructive menu item's ink clears AA on the dropdown, on its own hover tint and on Mantine's item hover", () => {
+    // The dropdown surface, read from Popover.css: white in the light scheme, dark-6 in the dark one (NOT the body's dark-7).
+    expect(popoverCss).toMatch(/data-mantine-color-scheme='light'\]\) \.m_38a85659 \{[^}]*background-color: var\(--mantine-color-white\)/);
+    expect(popoverCss).toMatch(/data-mantine-color-scheme='dark'\]\) \.m_38a85659 \{[^}]*background-color: var\(--mantine-color-dark-6\)/);
+    // Mantine's own item hover/focus (Menu.css): gray-1 / dark-4, the surface a plain item's text sits on while hovered.
+    expect(menuCss).toMatch(/'light'\]\) \.m_99ac2aa1:where\(:hover[^{]*\{\s*background-color: var\(--menu-item-hover, var\(--mantine-color-gray-1\)\)/);
+    expect(menuCss).toMatch(/'dark'\]\) \.m_99ac2aa1:where\(:hover[^{]*\{\s*background-color: var\(--menu-item-hover, var\(--mantine-color-dark-4\)\)/);
+    const schemes = [
+      { name: "light", tokens: LIGHT_TOKENS, dropdown: WHITE, itemHover: DEFAULT_THEME.colors.gray[1] },
+      { name: "dark", tokens: DARK_TOKENS, dropdown: DEFAULT_THEME.colors.dark[6], itemHover: DEFAULT_THEME.colors.dark[4] },
+    ];
+    for (const { name, tokens, dropdown, itemHover } of schemes) {
+      expect(contrast(tokens.inkError, dropdown), `${name}: destructive ink on the dropdown`).toBeGreaterThanOrEqual(AA);
+      expect(contrast(tokens.destructiveHover, dropdown), `${name}: destructive hover tint against the dropdown`).toBeGreaterThanOrEqual(1.05);
+      expect(contrast(tokens.inkError, tokens.destructiveHover), `${name}: destructive ink on its hover tint`).toBeGreaterThanOrEqual(AA);
+      expect(contrast(tokens.text, itemHover), `${name}: a plain item's text on Mantine's item hover`).toBeGreaterThanOrEqual(AA);
+    }
+    // Mantine's `color="red"` ink (red-6, what the dark scheme's dropdown used to show) is the reason for the component: below AA on both.
+    expect(contrast(scaleOf("red")[6], WHITE)).toBeLessThan(AA);
+    expect(contrast(scaleOf("red")[6], DEFAULT_THEME.colors.dark[6])).toBeLessThan(AA);
+    // Mantine's dark hover would leave the AA ink under 4.5:1: the reason the tint is a token of its own.
+    expect(contrast(DARK_TOKENS.inkError, DEFAULT_THEME.colors.dark[4])).toBeLessThan(AA);
+  });
+
+  it("theme.module.css wires the destructive tokens, and the theme drops the menu's focus placeholder", () => {
+    expect(themeCss).toMatch(/\.menuItemDestructive\s*\{[^}]*--menu-item-color:\s*var\(--astrolabe-ink-error\)[^}]*--menu-item-hover:\s*var\(--astrolabe-destructive-hover\)/);
+    // A focus the browser does not show (the pointer opened the menu) must not tint the first item.
+    expect(themeCss).toMatch(/\.menuItem:focus:not\(:focus-visible, :hover\)\s*\{[^}]*background-color:\s*transparent/);
+    // axe aria-required-children: the invisible placeholder is a `role="presentation"` child of `role="menu"`.
+    expect(theme.components?.Menu?.defaultProps?.withInitialFocusPlaceholder).toBe(false);
+  });
+
+  it("the timeline's bar, ghost, baseline shadow, proposal, window and warning inks are visible on the row (WCAG 1.4.11, 3:1)", () => {
+    // None of these carries text (a bar's dates live in its accessible name), so the bar is a graphic: 3:1 against the row's own surface, the
+    // body (white / dark-7). The ghost's outline and the summary's border are `--timeline-bar`; the baseline shadow bar is `--timeline-arrow` (dimmed);
+    // the proposal's dashed outline and the critical outline are the text colour.
+    const body = { light: WHITE, dark: DEFAULT_THEME.colors.dark[7] };
+    for (const token of ["timeline-bar", "timeline-window-edge", "timeline-drift-edge", "timeline-overload", "timeline-violation", "timeline-arrow", "timeline-critical"]) {
+      const ink = timelineInk(token);
+      expect(contrast(ink.light, body.light), `light: --${token} ${ink.light} on the row`).toBeGreaterThanOrEqual(NON_TEXT);
+      expect(contrast(ink.dark, body.dark), `dark: --${token} ${ink.dark} on the row`).toBeGreaterThanOrEqual(NON_TEXT);
+    }
+    // The proposal bar's text-colour outline and the baseline bar's dimmed fill resolve to the theme's AA tokens, not to a stock shade.
+    expect(timelineInk("timeline-arrow")).toEqual({ light: LIGHT_TOKENS.dimmed, dark: DARK_TOKENS.dimmed });
+    expect(timelineInk("timeline-critical")).toEqual({ light: LIGHT_TOKENS.text, dark: DARK_TOKENS.text });
+    expect(themeCss).toMatch(/\.timelineBarBaseline\s*\{\s*background:\s*var\(--timeline-arrow\)/);
+    expect(themeCss).toMatch(/\.timelineBarProposal\s*\{[^}]*border:\s*2px dashed var\(--mantine-color-text\)/);
+    expect(themeCss).toMatch(/\.timelineBarGhost\s*\{[^}]*border:\s*1px dashed var\(--timeline-bar\)/);
   });
 
   it("theme.module.css applies the hover tint token to every table", () => {

@@ -11,6 +11,7 @@ import { dependencyEndpointText } from "../utils/dependencyForm";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { saveErrorMessage } from "../utils/saveError";
 import ConfirmDeleteModal from "./ConfirmDeleteModal";
+import DestructiveMenuItem from "./DestructiveMenuItem";
 import EmptyState from "./EmptyState";
 import RowActionsMenu from "./RowActionsMenu";
 import ScrollRegion from "./ScrollRegion";
@@ -84,9 +85,9 @@ function DependencyRow({
               </Menu.Item>
             )}
             {dependency.can.delete && (
-              <Menu.Item color="red" leftSection={<IconTrash size={14} />} onClick={() => onDelete(dependency)} aria-label={t("common.action.deleteAria", { name })}>
+              <DestructiveMenuItem leftSection={<IconTrash size={14} />} onClick={() => onDelete(dependency)} aria-label={t("common.action.deleteAria", { name })}>
                 {t("common.action.delete")}
-              </Menu.Item>
+              </DestructiveMenuItem>
             )}
           </RowActionsMenu>
         )}

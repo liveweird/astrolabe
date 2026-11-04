@@ -8,6 +8,7 @@ import { useAdmin } from "../auth";
 import { deleteTeam, getTeam, listTeams, type TeamListItem, type TeamResponse } from "../api/teams";
 import ClearableTextInput from "../components/ClearableTextInput";
 import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
+import DestructiveMenuItem from "../components/DestructiveMenuItem";
 import FilterPanel from "../components/FilterPanel";
 import PageHeader from "../components/PageHeader";
 import RegistryListTable from "../components/RegistryListTable";
@@ -136,14 +137,13 @@ export default function Teams() {
                         {t("common.action.edit")}
                       </Menu.Item>
                       <Menu.Divider />
-                      <Menu.Item
-                        color="red"
+                      <DestructiveMenuItem
                         leftSection={<IconTrash size={14} />}
                         onClick={() => remove.requestDelete(team)}
                         aria-label={t("common.action.deleteAria", { name: team.name })}
                       >
                         {t("common.action.delete")}
-                      </Menu.Item>
+                      </DestructiveMenuItem>
                     </RowActionsMenu>
                   )}
                 </Table.Td>

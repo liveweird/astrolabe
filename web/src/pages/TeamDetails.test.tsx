@@ -382,7 +382,7 @@ describe("Team view page: the order", () => {
     expect(screen.getByRole("button", { name: "Operations for tv-a" })).toHaveFocus();
     // The next change carries the revision the PUT answered (11), not a stale one.
     await openMenu(user, "tv-c");
-    await user.click(await screen.findByRole("menuitem", { name: "Move tv-c to top" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Move to top: tv-c" }));
     await waitFor(() => expect(orderPuts(mockFetch)).toHaveLength(2));
     expect(orderPuts(mockFetch)[1]).toEqual({ expectedRevision: 11, milestoneIds: [3, 2, 1] });
   });
@@ -394,7 +394,7 @@ describe("Team view page: the order", () => {
     renderPage();
     await screen.findByRole("grid", { name: "Team milestone timeline" });
     await openMenu(user, "tv-c");
-    await user.click(await screen.findByRole("menuitem", { name: "Move tv-c to top" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Move to top: tv-c" }));
     await waitFor(() => expect(orderPuts(mockFetch)).toHaveLength(1));
     expect(orderPuts(mockFetch)[0]).toEqual({ expectedRevision: 4, milestoneIds: [3, 4, 1, 2] });
     // The position and count describe the VISIBLE rows (3), never the full stored list (4).
@@ -408,8 +408,8 @@ describe("Team view page: the order", () => {
     await screen.findByRole("grid", { name: "Team milestone timeline" });
     await openMenu(user, "tv-a");
     expect(await screen.findByRole("menuitem", { name: "Move up tv-a" })).toHaveAttribute("data-disabled", "true");
-    expect(screen.getByRole("menuitem", { name: "Move tv-a to top" })).toHaveAttribute("data-disabled", "true");
-    await user.click(screen.getByRole("menuitem", { name: "Move tv-a to bottom" }));
+    expect(screen.getByRole("menuitem", { name: "Move to top: tv-a" })).toHaveAttribute("data-disabled", "true");
+    await user.click(screen.getByRole("menuitem", { name: "Move to bottom: tv-a" }));
     await waitFor(() => expect(orderPuts(mockFetch)).toHaveLength(1));
     expect(orderPuts(mockFetch)[0]).toEqual({ expectedRevision: 4, milestoneIds: [2, 3, 1] });
     await waitFor(() => expect(rowNames()).toEqual(["tv-b", "tv-c", "tv-a"]));
@@ -470,7 +470,7 @@ describe("Team view page: the order", () => {
     await screen.findByRole("grid", { name: "Team milestone timeline" });
     expect(screen.getByRole("button", { name: "Reset order" })).toBeDisabled();
     await openMenu(user, "tv-a");
-    await user.click(await screen.findByRole("menuitem", { name: "Move tv-a to bottom" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Move to bottom: tv-a" }));
     await waitFor(() => expect(screen.getByRole("grid", { name: "Team milestone timeline" })).toHaveAttribute("aria-busy", "false"));
     await user.click(screen.getByRole("button", { name: "Reset order" }));
     const dialog = await screen.findByRole("dialog", { name: "Reset the order?" });
@@ -643,7 +643,7 @@ describe("Team view page: scheduling", () => {
     renderPage();
     await screen.findByRole("grid", { name: "Team milestone timeline" });
     await openMenu(user, "tv-a");
-    await user.click(await screen.findByRole("menuitem", { name: "Move tv-a to bottom" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Move to bottom: tv-a" }));
     await waitFor(() => expect(gate.release).not.toBeNull());
     dropMove(TV_C, 1);
     expect(await screen.findByRole("note")).toHaveTextContent("A save is still running — try your change again in a moment.");
@@ -677,7 +677,7 @@ describe("Team view page: scheduling", () => {
     dropMove(TV_C, 1);
     await waitFor(() => expect(gate.release).not.toBeNull());
     await openMenu(user, "tv-a");
-    await user.click(await screen.findByRole("menuitem", { name: "Move tv-a to bottom" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Move to bottom: tv-a" }));
     expect(await screen.findByRole("note")).toHaveTextContent("A save is still running — try your change again in a moment.");
     expect(liveText()).toContain("A save is still running");
     expect(orderPuts(mockFetch)).toHaveLength(0);

@@ -9,6 +9,7 @@ import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { saveErrorMessage } from "../utils/saveError";
 import CapacityPeriodModal from "./CapacityPeriodModal";
 import ConfirmDeleteModal from "./ConfirmDeleteModal";
+import DestructiveMenuItem from "./DestructiveMenuItem";
 import EmptyState from "./EmptyState";
 import RowActionsMenu from "./RowActionsMenu";
 import ScrollRegion from "./ScrollRegion";
@@ -88,14 +89,13 @@ export default function TeamCapacity({ view, readOnly = false }: { view: TeamVie
                           >
                             {t("common.action.edit")}
                           </Menu.Item>
-                          <Menu.Item
-                            color="red"
+                          <DestructiveMenuItem
                             leftSection={<IconTrash size={14} />}
                             onClick={() => removal.requestDelete(period)}
                             aria-label={t("teams.view.action.deletePeriod", { date: period.effectiveFrom })}
                           >
                             {t("common.action.delete")}
-                          </Menu.Item>
+                          </DestructiveMenuItem>
                         </RowActionsMenu>
                       )}
                     </Table.Td>

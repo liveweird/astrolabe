@@ -193,7 +193,12 @@ Every list page composes the same ported Lettuce blocks — copy `pages/Users.ts
   row with more than two actions bundles them under `components/RowActionsMenu.tsx` — an
   icon-only kebab whose accessible name is `common.table.operationsAria` ("Operations for
   {{name}}"; items are plain `menuitem`s, only one row's menu is open at a time); a per-row
-  `Switch` (Feature flags) is state, not an action.
+  `Switch` (Feature flags) is state, not an action. A menu opens with the focus on its FIRST item
+  (the theme drops Mantine's focus placeholder, which fails axe `aria-required-children`), so the
+  next ArrowDown reaches the second; the item's tint shows for the pointer and for a keyboard focus only.
+  A destructive item (Delete, Sign out) is `components/DestructiveMenuItem.tsx`, never `Menu.Item
+  color="red"` (red-6 is 3.3:1 on the white dropdown); an item's `aria-label` must contain its visible text
+  ("Move to top: {{name}}", not "Move {{name}} to top": axe `label-content-name-mismatch`).
 
 ## Registries (the Teams.tsx template)
 
@@ -378,7 +383,9 @@ are English (THE default and fallback everywhere) and Polish. All user-facing st
 - **Overlay accessibility rules (pinned by the e2e axe sweep over dialogs):** every `Modal` and
   `Drawer` passes `closeButtonProps={{ "aria-label": t("common.action.close") }}` — Mantine's
   close X has no default name — or hides the X with `withCloseButton={false}` when a footer
-  button is the one deliberate exit (`OneTimePasswordModal`).
+  button is the one deliberate exit (`OneTimePasswordModal`). An OPEN row menu is scanned too (the
+  `accessibility` spec opens the Teams, Baselines and roadmap menus, light and dark): its dropdown is
+  white / dark-6, and `theme.test.ts` pins the destructive ink and tint on those surfaces.
 - **A scroller that can overflow is a focusable, labelled region.** A table wider than its box or
   capped by `maxHeight` goes in `components/ScrollRegion.tsx` (native scroller, `tabIndex={0}`,
   `role="region"`, the table's own i18n name as `aria-label`, the `tableScroll` focus ring) — never a
