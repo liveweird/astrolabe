@@ -258,6 +258,11 @@ jobs:
       - name: Toolchain pins agree (mise.toml, .nvmrc, ci.yml, Dockerfile)
         working-directory: ${{ github.workspace }}
         run: node scripts/check-toolchain-pins.mjs
+      # The `server` job holds AlwaysLoadedDocsBudgetTest but is skipped on Markdown-only PRs, exactly the PRs that grow the
+      # always-loaded docs. Same file list (CLAUDE.md plus its `@` imports) and same number (BUDGET_BYTES, read from that test), derived.
+      - name: Always-loaded docs budget
+        working-directory: ${{ github.workspace }}
+        run: node scripts/check-docs-budget.mjs
       # Also repo-level: the self-tests of the deterministic sample-plan generator (determinism, counts, Zipf sizes, acyclicity, the
       # server's limits; the committed sample-data/plan must equal a fresh run) and of its API loader (the development-stack check, the
       # reset matching, the preflight; against http stubs). Node built-ins only, no install. The test files are named (never globbed: a glob

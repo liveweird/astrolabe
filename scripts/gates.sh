@@ -62,7 +62,7 @@ web_gates() {
 
 e2e_static() {
   "${record[@]}" e2e-static -- bash -c \
-    'cd "$1/e2e" && npm run lint && npm run knip && npm run typecheck && npm run check:scenarios && npm run test:setup && node "$1/scripts/check-toolchain-pins.mjs" && node --test "$1/scripts/sample-plan/generate.test.mjs" && node --test "$1/scripts/sample-plan/load.test.mjs"' \
+    'cd "$1/e2e" && npm run lint && npm run knip && npm run typecheck && npm run check:scenarios && npm run test:setup && node "$1/scripts/check-toolchain-pins.mjs" && node "$1/scripts/check-docs-budget.mjs" && node --test "$1/scripts/sample-plan/generate.test.mjs" && node --test "$1/scripts/sample-plan/load.test.mjs"' \
     _ "$root"
 }
 
