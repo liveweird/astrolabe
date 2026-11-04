@@ -116,4 +116,18 @@ describe("ChangePassword page", () => {
     expect(localStorage.getItem(TOKEN_KEY)).toBe("fake-token");
     expect(pendingSignedOut()).toBeNull();
   });
+
+  test("a 429 reads as the temporary lock, not as a wrong password", async () => {
+    mockFetch.mockImplementation(() =>
+      Promise.resolve(jsonResponse(429, { title: "Too Many Requests", status: 429 })),
+    );
+    const user = userEvent.setup();
+    renderPage();
+
+    await fill(user, "old-password-1", "new-password-42");
+    expect(await screen.findByText(/password changes are locked.*reset your password/i)).toBeInTheDocument();
+    expect(screen.queryByText(/current password is incorrect/i)).not.toBeInTheDocument();
+    expect(localStorage.getItem(TOKEN_KEY)).toBe("fake-token");
+    expect(pendingSignedOut()).toBeNull();
+  });
 });

@@ -52,6 +52,7 @@ export default function ChangePassword() {
       setError(
         saveErrorMessage(err, t, {
           forbidden: "users.wrongCurrentPassword",
+          tooManyRequests: "users.passwordChangeLocked",
           failedStatus: "users.changeFailedStatus",
           failed: "users.changeFailedNetwork",
         }),

@@ -91,7 +91,11 @@ with `hasKeyValue` from `TestEnvironment.kt`). Emitted today:
 - `refresh.replay_grace` (userId — a rotated refresh token presented again inside the grace
   (`security.refresh.replayGraceSeconds`) and answered with a fresh pair, at most twice per token; a lost response or a racing tab, or a replay),
 - `password.changed` (targetUserId/byUserId/selfChange) / `password.change_denied` (wrong or
-  missing current password),
+  missing current password; per attempt, bounded by the lock itself: at most `security.lockout.threshold` per window per account),
+  `password.change_locked` (targetUserId — the self change's lock tripped, once per lock),
+  `password.change_rejected_locked` (targetUserId/`suppressed` — an attempt answered 429 while locked; coalesced to one per account per
+  60 s, `suppressed` = rejections folded in since the previous), `password.change_capacity_rejected` (targetUserId — the
+  throttle store is full and the account untracked; 429),
 - `user.features_changed` (byUserId/targetUserId/featuresFrom/featuresTo — only on an actual
   change),
 - `user.permissions_changed` (byUserId/targetUserId/permissionsFrom/permissionsTo — comma-joined sorted `Permission` names, "" = none; only on an

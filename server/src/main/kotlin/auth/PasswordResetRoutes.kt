@@ -3,6 +3,7 @@ package ch.nokillswit.auth
 import ch.nokillswit.audit.audit
 import ch.nokillswit.authz.TooManyRequestsException
 import ch.nokillswit.authz.UnauthorizedException
+import ch.nokillswit.users.PasswordChangeThrottleKey
 import ch.nokillswit.users.UserServiceKey
 import ch.nokillswit.users.canonicalEmail
 import ch.nokillswit.users.validateEmail
@@ -92,6 +93,8 @@ fun Application.configurePasswordResetRoutes() {
                 // A password the rules refuse is a 400 that leaves the grant unconsumed, so the owner can retry on the same link.
                 validatePassword(req.password)
                 val userId = resets.complete(req.token, hashPassword(req.password)) ?: reject()
+                // The emailed link proves ownership and ended every session: lift the self password change's lock too.
+                call.application.attributes[PasswordChangeThrottleKey].clear(userId)
                 audit("password_reset.completed", "userId" to userId.toLong())
                 if (mailer != null) {
                     val app = call.application

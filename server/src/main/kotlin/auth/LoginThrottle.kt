@@ -108,6 +108,15 @@ class LoginThrottle(
         }
     }
 
+    /**
+     * Drops the identity's counter AND any active lock, unlike [recordSuccess] (which refuses while locked). For the
+     * out-of-band proofs of ownership that end every session anyway: an admin reset or the emailed reset link.
+     */
+    fun clear(email: String) {
+        val k = key(email)
+        synchronized(lock) { removeState(k) }
+    }
+
     private fun putState(key: String, state: State) {
         removeState(key)
         states[key] = state

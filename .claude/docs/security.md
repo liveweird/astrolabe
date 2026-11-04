@@ -196,6 +196,21 @@ which rotating hosts sidestep. The 429 is **thrown** (`TooManyRequestsException`
 injected clock) + `LoginLockoutTest` (route). The SPA shows a neutral temporary sign-in limit for
 either 429 cause.
 
+**Self password change throttle** (`users/PasswordChangeThrottle.kt`, wired in `configureUserRoutes`): a stolen session could otherwise grind the owner's
+current password through `PUT /users/{id}/password`. The self change (never the admin reset of another user) counts wrong or missing current passwords per
+USER ID in a SEPARATE `LoginThrottle` instance fed by the same `security.lockout.*` settings (5 attempts, 15 minutes, `maxTracked`): the locked attempt
+answers `429` (thrown `TooManyRequestsException`) even with the correct current password, and a thief can lock only this endpoint, never the owner's `/login`
+(different instance, different key). Order `403` → `429` → `400` (body, then the new password's rules) → `403` (wrong current) (`authorization.md`: the new password is
+validated BEFORE the current one on purpose, so a refused new password is not an oracle for the current one). Revocation of other sessions is unchanged (the
+credential-revision bump).
+**What clears the counter:** a verified current password, an admin reset of that user, a completed emailed password reset (both end every session and lift even an
+ACTIVE lock, `LoginThrottle.clear`), the window expiring, or a restart.
+**The trade-off, plainly:** someone holding a stolen session can keep this lock active for as long as that session lives, so the owner cannot change their password
+from the SPA meanwhile. The owner's exits are the email reset (503 when `MAIL_TRANSPORT=disabled`, the k8s default) or an admin reset; either ends every session. The
+guessing budget: `/login` has its own counter, so a thief gets 10 guesses per 15 minutes across both endpoints (5 + 5). A stolen ADMIN session makes this throttle moot (an admin
+resets any password without the current one). Audit: `password.change_denied` per attempt (bounded by the lock), `password.change_locked` once,
+`password.change_rejected_locked` coalesced with `suppressed`, `password.change_capacity_rejected` (`observability.md`). In-memory and per-instance, like the login lockout;
+`PasswordChangeTest` and `PasswordChangeThrottleTest` are the proof (including that `/login` still answers 200 while the change is locked).
 
 **Self-service password reset by confirm link** (`auth/PasswordResetRoutes.kt`, `auth/PasswordResetService.kt`, V8; SPA:
 "Forgot password?" on `/login` → `/reset-password`, the emailed link opens `/reset-password/confirm`; Toadie's design, 2D3).

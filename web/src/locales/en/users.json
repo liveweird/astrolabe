@@ -50,6 +50,7 @@
   "newPassword": "New password",
   "confirmPassword": "Confirm new password",
   "wrongCurrentPassword": "The current password is incorrect.",
+  "passwordChangeLocked": "Too many wrong current passwords, so password changes are locked for a few minutes. If those attempts weren't yours, sign out and reset your password from the sign-in page, or ask an administrator; that ends every session.",
   "changeFailedStatus": "Change failed ({{status}})",
   "changeFailedNetwork": "Change failed. Check your connection and try again.",
   "toast": {

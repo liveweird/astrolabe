@@ -64,7 +64,8 @@ ktor:
 security:
   # Per-account login lockout (complements the per-IP rate limit): after `threshold`
   # consecutive failures for one email, further attempts are 429 for `durationSeconds`.
-  # A successful login resets the counter. In-memory, per-instance.
+  # A successful login resets the counter. In-memory, per-instance. These settings are ALSO the self password
+  # change's counter (a separate instance keyed by user id, users/PasswordChangeThrottle.kt).
   lockout:
     threshold: "$LOGIN_LOCKOUT_THRESHOLD:5"
     durationSeconds: "$LOGIN_LOCKOUT_DURATION_SECONDS:900"

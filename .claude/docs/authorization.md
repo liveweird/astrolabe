@@ -155,8 +155,17 @@ Layered RBAC. Implemented in the `server/src/main/kotlin/authz/` package.
     must be ≥ 10 chars (`MIN_PASSWORD_LENGTH` in `users/UserRoutes.kt`) and ≤ 71 UTF-8 bytes
     (`MAX_PASSWORD_BYTES`, `auth/Passwords.kt` — the bcrypt ceiling), else `400`. A **self-change**
     (even by an admin) additionally requires a correct `currentPassword` in the body (else `403`,
-    audited `password.change_denied`) — checked BEFORE the length validation, so 403 wins over
-    400 (the convention everywhere); an admin resetting **another** user's password does not. A
+    audited `password.change_denied`); an admin resetting **another** user's password does not. The self
+    change is **throttled per user** (`users/PasswordChangeThrottle.kt`, `security.md`): the order is
+    `403` (the guard) → `429` (locked or untrackable; keyed by the PATH id, so it needs nothing from the
+    payload and rides before `call.receive`, like the guard) → `400` (body decode) → `400` (the new
+    password's rules) → `403` (wrong or missing current password) → write. **A deliberate exception to
+    "403 wins over 400":** the new password is validated BEFORE the current one is verified, otherwise
+    `{currentPassword: <guess>, password: <too short>}` would answer 400 on a right guess and 403 on a
+    wrong one, a silent oracle that neither counts, audits nor bumps a revision; refused first, the 400
+    reveals nothing, costs no bcrypt and touches no counter. A non-self caller never reaches the throttle,
+    so a stranger cannot probe an account's lock state. An admin reset of another user and a completed
+    emailed reset both CLEAR that user's counter, even while locked. A
     successful change stamps `users.password_changed_at` and atomically increments
     `users.credential_revision`, which invalidates all outstanding refresh tokens and pending MFA
     challenges (see "Session auto-extension") and, through the per-request revision check, every outstanding

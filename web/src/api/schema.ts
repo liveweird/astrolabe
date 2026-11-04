@@ -412,7 +412,16 @@ export interface paths {
          *     `currentPassword` is required and must match; an admin resetting another user's
          *     password omits it. A successful change invalidates all outstanding refresh tokens
          *     and pending MFA challenges, including changes within the same clock second
-         *     (already-issued access tokens expire naturally within their TTL).
+         *     (already-issued access tokens expire naturally within their TTL). The self change is
+         *     throttled per user: after `security.lockout.threshold` consecutive wrong or missing current
+         *     passwords it answers `429` for `security.lockout.durationSeconds`, even with the correct
+         *     current password. The counter is separate from the login lockout (a stolen session cannot lock
+         *     the owner out of `POST /login`). A verified current password, an admin reset of the user's
+         *     password, a completed emailed password reset, the window expiring or a restart clears it.
+         *     The admin reset of another user's password is never throttled. Order: 403 (guard), 429 (locked),
+         *     400 (malformed body, then a new password the rules refuse, checked BEFORE the current password
+         *     so a refused new password reveals nothing and counts nothing), 403 (wrong or missing current
+         *     password).
          */
         put: operations["changeUserPassword"];
         post?: never;
@@ -3931,7 +3940,7 @@ export interface components {
                 "application/problem+json": components["schemas"]["ProblemDetail"];
             };
         };
-        /** @description Throttled — either the per-IP rate-limit bucket is exhausted (generic detail), on a telemetry read (`/api/v1/telemetry/**`) the per-USER telemetry bucket is exhausted (30/min), or, on /login, the per-account lockout is active (account-specific detail). All carry a ProblemDetail body. */
+        /** @description Throttled — either the per-IP rate-limit bucket is exhausted (generic detail), on a telemetry read (`/api/v1/telemetry/**`) the per-USER telemetry bucket is exhausted (30/min), or, on /login, the per-account lockout is active (account-specific detail), or, on the self password change, the per-user wrong-current-password lock is active. All carry a ProblemDetail body. */
         TooManyRequests: {
             headers: {
                 [name: string]: unknown;
@@ -4566,6 +4575,7 @@ export interface operations {
             404: components["responses"]["NotFound"];
             413: components["responses"]["PayloadTooLarge"];
             415: components["responses"]["UnsupportedMediaType"];
+            429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalServerError"];
         };
     };

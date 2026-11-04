@@ -102,6 +102,7 @@ class Users {
 
 fun Application.configureUserRoutes() {
     val userService = attributes[UserServiceKey]
+    attributes.put(PasswordChangeThrottleKey, passwordChangeThrottle())
 
     routing {
         authenticate {
@@ -257,30 +258,35 @@ private fun Route.userPassword(userService: UserService) {
     put<Users.Id.Password> { route ->
         val caller = call.caller()
         requireSelfOrAdmin(caller, route.parent.id)
+        val isSelf = caller.userId == route.parent.id
+        // Read at request time (a test may swap it). The throttle's key is the PATH id, so its 429 needs nothing from the
+        // payload and rides BEFORE the body decodes, like the guard (403 -> 429 -> 400): a locked account never pays bcrypt.
+        val throttle = call.application.attributes[PasswordChangeThrottleKey]
+        if (isSelf) throttle.requireNotLocked(caller.userId)
         val req = call.receive<PasswordUpdateRequest>()
-        // Changing one's OWN password always requires the current one (even for an admin);
-        // an admin resetting somebody else's does not. Read before update so a wrong
-        // current password never mutates anything. Checked BEFORE the length validation
-        // so 403 wins over 400 (the convention everywhere else).
-        if (caller.userId == route.parent.id) {
+        // The new password is validated BEFORE the current one is verified (a deliberate exception to "403 wins over 400"):
+        // were it after, `{currentPassword: <guess>, password: <too short>}` would answer 400 on a right guess and 403 on a
+        // wrong one, a free oracle that neither counts nor audits. Refused here, nothing is revealed, no bcrypt is paid and
+        // no counter is touched. (The SPA validates the same rule client-side first, so it never sends that pair.)
+        validatePassword(req.password)
+        // Changing one's OWN password always requires the current one (even for an admin); an admin resetting somebody
+        // else's does not (and never feeds the throttle: it clears it). Read before update so a wrong current password
+        // never mutates anything.
+        if (isSelf) {
             val existing = userService.read(route.parent.id).orNotFound("User")
             if (req.currentPassword == null || !verifyPassword(req.currentPassword, existing.passwordHash)) {
-                audit(
-                    "password.change_denied",
-                    "targetUserId" to route.parent.id.toLong(),
-                    "byUserId" to caller.userId.toLong(),
-                    "reason" to "wrong_current_password",
-                )
-                throw ForbiddenException("Current password is missing or incorrect")
+                throttle.denyWrongCurrent(caller.userId)
             }
+            throttle.recordSuccess(caller.userId)
         }
-        validatePassword(req.password)
         userService.updatePassword(route.parent.id, hashPassword(req.password)).orNotFound("User")
+        // An admin's reset proves nothing about the account's owner yet ends every session: it also lifts a lock.
+        if (!isSelf) throttle.clear(route.parent.id)
         audit(
             "password.changed",
             "targetUserId" to route.parent.id.toLong(),
             "byUserId" to caller.userId.toLong(),
-            "selfChange" to (caller.userId == route.parent.id),
+            "selfChange" to isSelf,
         )
         call.respond(HttpStatusCode.NoContent)
     }
