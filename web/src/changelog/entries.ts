@@ -17,6 +17,28 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.0.0",
+    date: "2026-11-05",
+    en: `**Astrolabe 1.0.0: the checkup.**
+
+- Page titles: the browser tab now names the page you are on.
+- Keyboard focus: moving to another page puts the focus on its content. After a delete the focus goes to the page's heading without scrolling the list; after a cancel it returns to the row's menu button.
+- Row menus: a menu opens with the focus on its first available item, and Escape returns it to the menu button. The menus and the baseline overlays now pass the automated accessibility scan, and the red Delete item is easier to read.
+- Changing your own password: after 5 wrong current passwords, password changes are locked for 15 minutes. Signing in is not affected, and a password reset by email or by an administrator lifts the lock.
+- Sign-in codes: an account keeps at most 3 sign-in codes valid. A new sign-in always sends a fresh code and the oldest one stops working, so use the code from the latest email.
+- Running Astrolabe: the local Kubernetes stack now serves plain HTTP through its own overlay, and the Docker Compose app runs on a read-only file system like the Kubernetes pod.
+- Performance was measured again at the full scale of the plan and stays within its targets, so no performance changes were needed.`,
+    pl: `**Astrolabe 1.0.0: przegląd.**
+
+- Tytuły stron: karta przeglądarki pokazuje teraz nazwę otwartej strony.
+- Fokus klawiatury: przejście na inną stronę przenosi fokus na jej treść. Po usunięciu fokus trafia na nagłówek strony bez przewijania listy, a po anulowaniu wraca na przycisk menu wiersza.
+- Menu wierszy: menu otwiera się z fokusem na pierwszej dostępnej pozycji, a Escape przenosi go z powrotem na przycisk menu. Menu i nakładki baz odniesienia przechodzą teraz automatyczny test dostępności, a czerwona pozycja Usuń jest czytelniejsza.
+- Zmiana własnego hasła: po 5 błędnych podaniach obecnego hasła zmiana hasła jest zablokowana na 15 minut. Blokada nie wpływa na logowanie, a znosi ją reset hasła przez e-mail lub przez administratora/administratorkę.
+- Kody logowania: na koncie ważne są najwyżej 3 kody logowania. Każde nowe logowanie wysyła nowy kod, a najstarszy przestaje działać, więc użyj kodu z najnowszej wiadomości.
+- Uruchamianie Astrolabe: lokalny stos Kubernetes działa teraz po zwykłym HTTP dzięki własnej nakładce, a aplikacja w Docker Compose działa na systemie plików tylko do odczytu, tak jak pod w Kubernetes.
+- Ponownie zmierzyliśmy wydajność przy pełnej skali planu: mieści się w założonych celach, więc nie wymagała zmian.`,
+  },
+  {
     version: "0.9.0",
     date: "2026-11-02",
     en: `**Astrolabe 0.9.0: baselines.**
