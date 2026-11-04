@@ -17,6 +17,7 @@ import ScrollRegion from "../components/ScrollRegion";
 import TableLoadingRow from "../components/TableLoadingRow";
 import { useBaselines } from "../hooks/useBaselines";
 import { useDeleteConfirm } from "../hooks/useDeleteConfirm";
+import { useDialogFocus } from "../hooks/useDialogFocus";
 import { baselinePath } from "../utils/baselineLinks";
 import { formatDateTime } from "../utils/formatDate";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
@@ -35,6 +36,7 @@ export default function Baselines() {
   const queryClient = useQueryClient();
   const { items, can, loading, error } = useBaselines();
   const [editorTarget, setEditorTarget] = useState<Baseline | "new" | null>(null);
+  useDialogFocus(editorTarget !== null);
 
   const refresh = () => refreshQueriesAfterMutation(queryClient, ["baselines"], ["plan"], ["roadmap"]);
   const titleRef = useRef<HTMLHeadingElement>(null);

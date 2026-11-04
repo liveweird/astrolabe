@@ -20,6 +20,7 @@ import SortHeader from "../components/SortHeader";
 import TableLoadingRow from "../components/TableLoadingRow";
 import { useDeleteConfirm } from "../hooks/useDeleteConfirm";
 import { usePagedSort } from "../hooks/usePagedSort";
+import { useDialogFocus } from "../hooks/useDialogFocus";
 import { useResetPassword } from "../hooks/useResetPassword";
 import { isString, useStoredState } from "../hooks/useStoredState";
 import { saveErrorMessage } from "../utils/saveError";
@@ -79,6 +80,8 @@ export default function Users() {
 
   // The reset flow: confirm → generate client-side → PUT → the one-time reveal modal.
   const reset = useResetPassword();
+  // The confirm is followed by the one-time reveal: the focus returns to the kebab after the last of them closes.
+  useDialogFocus(reset.target !== null || reset.revealed !== null);
 
 
   const total = data?.total ?? 0;

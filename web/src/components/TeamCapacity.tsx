@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { deleteCapacityPeriod, type CapacityPeriod, type TeamView } from "../api/teams";
 import { useDeleteConfirm } from "../hooks/useDeleteConfirm";
+import { useDialogFocus } from "../hooks/useDialogFocus";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { saveErrorMessage } from "../utils/saveError";
 import CapacityPeriodModal from "./CapacityPeriodModal";
@@ -28,6 +29,7 @@ export default function TeamCapacity({ view, readOnly = false }: { view: TeamVie
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [editor, setEditor] = useState<Editor | null>(null);
+  useDialogFocus(editor !== null);
   const { periods } = view.capacity;
   const canEdit = view.team.can.editCapacity;
   const refresh = () => refreshQueriesAfterMutation(queryClient, ["plan"]);

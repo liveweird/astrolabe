@@ -28,6 +28,7 @@ import ProjectTimeline, { ProjectTray, type MilestoneActions } from "../componen
 import TimelineDndContext from "../components/TimelineDndContext";
 import { useDeleteConfirm } from "../hooks/useDeleteConfirm";
 import { useBaselinePick, useDropUnknownPick } from "../hooks/useBaselinePick";
+import { useDialogFocus } from "../hooks/useDialogFocus";
 import { useMilestoneSchedule } from "../hooks/useMilestoneSchedule";
 import { isBoolean, isOneOf, useStoredState } from "../hooks/useStoredState";
 import { baselineDays, spanBadges } from "../utils/baselineOverlay";
@@ -130,6 +131,8 @@ function ProjectPage({ id }: { id: number }) {
   const [criticalPath, setCriticalPath] = useStoredState("timeline.criticalPath", false, isBoolean);
   const [editor, setEditor] = useState<Editor | null>(null);
   const [scheduling, setScheduling] = useState<Scheduling | null>(null);
+  useDialogFocus(editor !== null);
+  useDialogFocus(scheduling !== null);
   // The earliest and latest day this page has shown: the range only ever grows, so a drag never shifts the bars under the pointer.
   const [seen, setSeen] = useState<{ min: string; max: string } | null>(null);
   // "Today" is the viewer's own calendar day (their local date), not UTC: the today line and the Schedule button agree with their wall calendar.

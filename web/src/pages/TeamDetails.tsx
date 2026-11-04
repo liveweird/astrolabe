@@ -24,6 +24,7 @@ import IdleGaps from "../components/IdleGaps";
 import TeamWeeklyLoad from "../components/TeamWeeklyLoad";
 import TimelineDndContext from "../components/TimelineDndContext";
 import { useBaselinePick, useDropUnknownPick } from "../hooks/useBaselinePick";
+import { useDialogFocus } from "../hooks/useDialogFocus";
 import { isOneOf, useStoredState } from "../hooks/useStoredState";
 import { useProposalLock } from "../hooks/useProposalLock";
 import { useScheduleProposal } from "../hooks/useScheduleProposal";
@@ -237,7 +238,9 @@ function TeamPage({ id }: { id: number }) {
   }, [isOpen, busy]);
   const [zoom, setZoom] = useStoredState<Zoom>("timeline.zoom", "week", isOneOf(MILESTONE_ZOOMS));
   const [editing, setEditing] = useState(false);
+  useDialogFocus(editing);
   const [scheduling, setScheduling] = useState<Scheduling | null>(null);
+  useDialogFocus(scheduling !== null);
   const [confirmReset, setConfirmReset] = useState(false);
   // The earliest and latest day this page has shown: the range only ever grows, so a drag never shifts the bars under the pointer.
   const [seen, setSeen] = useState<{ min: string; max: string } | null>(null);

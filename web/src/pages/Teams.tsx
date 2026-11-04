@@ -16,6 +16,7 @@ import RowActionsMenu from "../components/RowActionsMenu";
 import SortHeader from "../components/SortHeader";
 import TeamEditorModal from "../components/TeamEditorModal";
 import { useDeleteConfirm } from "../hooks/useDeleteConfirm";
+import { useDialogFocus } from "../hooks/useDialogFocus";
 import { useRegistryListControls } from "../hooks/useRegistryListControls";
 import { saveErrorMessage } from "../utils/saveError";
 import { teamPath } from "../utils/teamLinks";
@@ -48,8 +49,10 @@ export default function Teams() {
   // The editor takes the DETAIL shape (it prefills from it); the list row only has the summary,
   // so Edit fetches the team first — through the detail query key, so the page shares the cache.
   const [editorTarget, setEditorTarget] = useState<TeamResponse | "new" | null>(null);
+  // Edit opens after the fetch, long after the click ended: `claim` takes the row menu's kebab in the click itself.
+  const { claim } = useDialogFocus(editorTarget !== null);
   async function openEditor(row: TeamListItem) {
-    const team = await queryClient.fetchQuery({ queryKey: ["teams", "detail", row.id], queryFn: () => getTeam(row.id) });
+    const team = await claim(queryClient.fetchQuery({ queryKey: ["teams", "detail", row.id], queryFn: () => getTeam(row.id) }));
     setEditorTarget(team);
   }
 

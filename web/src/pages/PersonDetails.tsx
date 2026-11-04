@@ -10,6 +10,7 @@ import { getPerson } from "../api/people";
 import EditPageLoadState from "../components/EditPageLoadState";
 import PageHeader from "../components/PageHeader";
 import PersonEditorModal from "../components/PersonEditorModal";
+import { useDialogFocus } from "../hooks/useDialogFocus";
 import { peoplePath } from "../utils/peopleLinks";
 import { loadErrorMessage } from "../utils/saveError";
 
@@ -25,6 +26,7 @@ export default function PersonDetails() {
 
   const person = useQuery({ queryKey: ["people", "detail", id], queryFn: () => getPerson(id), enabled: Number.isFinite(id) });
   const [editing, setEditing] = useState(false);
+  useDialogFocus(editing);
 
   async function refresh() {
     await queryClient.invalidateQueries({ queryKey: ["people"] });

@@ -1,6 +1,7 @@
 import { type ReactNode, useCallback, useRef } from "react";
 import { ActionIcon, Menu } from "@mantine/core";
 import { IconDotsVertical } from "@tabler/icons-react";
+import { rememberMenuTrigger } from "../utils/menuOpener";
 
 // Mantine re-attaches the dropdown's merged ref when the menu starts closing (the node is the same, kept through the exit transition): without
 // this memory the callback would pull the focus Escape had just returned to the kebab back into the closing menu, and it would end on `body`.
@@ -26,7 +27,8 @@ function focusFirstEnabledItem(dropdown: HTMLDivElement | null): void {
  * helper locate rows by that name and read the trigger's `aria-expanded`/`aria-controls`,
  * both of which Mantine's Menu.Target wires. The caller owns the items (`Menu.Item`,
  * `Menu.Divider`); this component owns only the trigger's shape, so every table's kebab is
- * the same control. The cell around it is `Table.Td style={{ width: 1 }} ta="right"`.
+ * the same control. The cell around it is `Table.Td style={{ width: 1 }} ta="right"`. A click in the menu remembers the kebab for the dialog
+ * its item may open (`utils/menuOpener.ts`, `useDialogFocus`).
  */
 export default function RowActionsMenu({
   label,
@@ -65,7 +67,8 @@ export default function RowActionsMenu({
           <IconDotsVertical size={16} />
         </ActionIcon>
       </Menu.Target>
-      <Menu.Dropdown ref={attachDropdown}>{children}</Menu.Dropdown>
+      {/* Capture: runs before the item's own onClick, so a dialog that item opens can take the trigger in the same click (mouse, or Enter on the item). */}
+      <Menu.Dropdown ref={attachDropdown} onClickCapture={(event) => rememberMenuTrigger(event.target as Element)}>{children}</Menu.Dropdown>
     </Menu>
   );
 }

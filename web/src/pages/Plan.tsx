@@ -26,6 +26,7 @@ import PlanMoveModal from "../components/PlanMoveModal";
 import ProjectEditorModal from "../components/ProjectEditorModal";
 import WorkStreamEditorModal from "../components/WorkStreamEditorModal";
 import { useDeleteConfirm } from "../hooks/useDeleteConfirm";
+import { useDialogFocus } from "../hooks/useDialogFocus";
 import { todayIsoDate } from "../utils/isoDate";
 import type { PlanActions } from "../utils/planActions";
 import { canMoveProgram, canMoveProject, findProgram, findProject, programMoveTargets, projectMoveTargets } from "../utils/planMove";
@@ -75,6 +76,9 @@ export default function Plan() {
   const { data, isLoading, isError, error } = useQuery({ queryKey: ["plan", "view"], queryFn: getPlanView });
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [moving, setMoving] = useState<MoveState | null>(null);
+  // Two hooks: an editor and a move dialog are never open together, but each remembers its own opener.
+  useDialogFocus(editor !== null);
+  useDialogFocus(moving !== null);
 
   // A project created, renamed, re-owned, re-windowed or deleted changes the roadmap too.
   const refresh = () => refreshQueriesAfterMutation(queryClient, ["plan"], ["roadmap"]);

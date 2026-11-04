@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { useDisclosure } from "@mantine/hooks";
 import { useMutation, type UseMutationResult } from "@tanstack/react-query";
+import { takeMenuTrigger } from "../utils/menuOpener";
 import { showSuccessToast } from "../utils/toast";
 
 export type DeleteConfirm<T> = {
@@ -13,12 +14,6 @@ export type DeleteConfirm<T> = {
   onExited: () => void;
   mutation: UseMutationResult<unknown, Error, T>;
 };
-
-/** The trigger of the menu whose item has the focus right now (Mantine: the dropdown's `aria-labelledby` is the target's id), or null. */
-function menuTrigger(): HTMLElement | null {
-  const id = document.activeElement?.closest('[role="menu"]')?.getAttribute("aria-labelledby");
-  return id ? document.getElementById(id) : null;
-}
 
 /**
  * The shared request→confirm→mutate flow behind every ConfirmDeleteModal: the hook owns the
@@ -35,8 +30,8 @@ function menuTrigger(): HTMLElement | null {
  * Mantine, put it somewhere real) -> leave it. A failed delete never arms this: the modal stays open with its error and the focus in it.
  *
  * **Focus after a cancel** (Escape, Cancel, the X, a click outside). A dialog opened from a row menu has no opener to go back to: the menu item
- * that opened it is unmounted, so Mantine's return-focus has nowhere to go and the focus lands on `body`. `requestDelete` therefore remembers the
- * menu's trigger (while the item still has the focus, its `[role="menu"]` carries `aria-labelledby` = the trigger's id); a cancel goes through the
+ * that opened it is unmounted, so Mantine's return-focus has nowhere to go and the focus lands on `body`. `requestDelete` therefore takes the
+ * menu's trigger that `RowActionsMenu` remembered for the click (`utils/menuOpener.ts`, resolved from the item's `[role="menu"]`); a cancel goes through the
  * same rule, and a focus left on `body` returns to that kebab if it is still connected, else to `focusAfterDelete` (a `null` target and no kebab:
  * nowhere). A dialog opened by a plain button leaves no menu to find: Mantine's own return-focus works and the rule finds the focus elsewhere.
  */
@@ -87,7 +82,7 @@ export function useDeleteConfirm<T>({
 
   function requestDelete(row: T) {
     pending.current = null;
-    opener.current = menuTrigger();
+    opener.current = takeMenuTrigger();
     setTarget(row);
     mutation.reset();
     open();

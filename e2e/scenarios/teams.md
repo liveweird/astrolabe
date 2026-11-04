@@ -18,13 +18,17 @@
 5. Back on the Teams list they filter by the new name and delete the team from its row menu.
    - *Expected*: the row is gone and the keyboard focus is on the page's "Teams" heading (not on the document start); the throwaway person is removed afterwards through the API.
 
-## Scenario: dismissing a row's delete dialog with Escape returns the focus to the row's menu button
+## Scenario: dismissing a delete, edit or new-team dialog with Escape returns the focus to what opened it
 
 1. The admin signs in and seeds a throwaway team through the API, then opens the Teams page and filters by its name.
 2. With the keyboard only, they focus the row's **Operations for <name>** button, press Enter, move to **Delete <name>** and press Enter.
    - *Expected*: the confirmation dialog opens.
 3. They press Escape.
-   - *Expected*: the dialog closes and the keyboard focus is back on the row's **Operations for <name>** button (not on the document start); the team is removed afterwards through the API.
+   - *Expected*: the dialog closes and the keyboard focus is back on the row's **Operations for <name>** button (not on the document start).
+4. With the keyboard only again, they press Enter on that button, move to **Edit <name>**, press Enter, and then Escape.
+   - *Expected*: the editor dialog opens and closes, and the keyboard focus is back on the row's **Operations for <name>** button.
+5. They press Enter on **New team**, and then Escape.
+   - *Expected*: the dialog opens and closes, and the keyboard focus is back on **New team**; the team is removed afterwards through the API.
 
 ## Scenario: a regular user sees the read-only teams list
 

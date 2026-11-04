@@ -1,11 +1,16 @@
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test } from "vitest";
 import userEvent from "@testing-library/user-event";
 import { Menu } from "@mantine/core";
 import DestructiveMenuItem from "./DestructiveMenuItem";
 import RowActionsMenu from "./RowActionsMenu";
+import { takeMenuTrigger } from "../utils/menuOpener";
 import { renderWithProviders, screen, waitFor } from "../test/render";
 
 describe("RowActionsMenu", () => {
+  afterEach(() => {
+    takeMenuTrigger();
+  });
+
   test("the kebab trigger carries the full accessible name and the menu wiring the e2e helper reads", async () => {
     const user = userEvent.setup();
     renderWithProviders(
@@ -99,5 +104,43 @@ describe("RowActionsMenu", () => {
       </RowActionsMenu>,
     );
     expect(screen.getByRole("button", { name: "Operations for x" })).toHaveAttribute("data-loading");
+  });
+
+  test("an item's click remembers the kebab for the dialog it opens (by mouse, and by Enter on the item); a click elsewhere does not", async () => {
+    const user = userEvent.setup();
+    const taken: Array<HTMLElement | null> = [];
+    renderWithProviders(
+      <>
+        <button>Elsewhere</button>
+        <RowActionsMenu label="Operations for acquirer">
+          <Menu.Item onClick={() => taken.push(takeMenuTrigger())}>Edit</Menu.Item>
+        </RowActionsMenu>
+      </>,
+    );
+    const kebab = screen.getByRole("button", { name: "Operations for acquirer" });
+    await user.click(kebab);
+    await user.click(await screen.findByRole("menuitem", { name: "Edit" }));
+    expect(taken).toEqual([kebab]);
+
+    await user.click(kebab);
+    await waitFor(() => expect(screen.getByRole("menuitem", { name: "Edit" })).toHaveFocus());
+    await user.keyboard("{Enter}");
+    expect(taken).toEqual([kebab, kebab]);
+
+    await user.click(screen.getByRole("button", { name: "Elsewhere" }));
+    expect(takeMenuTrigger()).toBeNull();
+  });
+
+  test("an item that takes nothing leaves no stale trigger for a later dialog", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(
+      <RowActionsMenu label="Operations for acquirer">
+        <Menu.Item>Move up</Menu.Item>
+      </RowActionsMenu>,
+    );
+    await user.click(screen.getByRole("button", { name: "Operations for acquirer" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Move up" }));
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    expect(takeMenuTrigger()).toBeNull();
   });
 });

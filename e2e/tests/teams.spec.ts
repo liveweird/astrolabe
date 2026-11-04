@@ -70,7 +70,7 @@ test("admin creates a team, renames it, assigns its manager, and deletes it", as
   await expect(page.getByRole("heading", { level: 2, name: "Teams" })).toBeFocused();
 });
 
-test("dismissing a row's delete dialog with Escape returns the focus to the row's menu button", async ({ page }) => {
+test("dismissing a delete, edit or new-team dialog with Escape returns the focus to what opened it", async ({ page }) => {
   await login(page);
   const { api } = await apiAsAdmin();
   const teamName = uniqueText("e2e-esc-team");
@@ -93,6 +93,24 @@ test("dismissing a row's delete dialog with Escape returns the focus to the row'
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(kebab).toBeFocused();
+
+  // The editor, too: it opens after the team's detail has been fetched, and its menu item is just as gone.
+  await page.keyboard.press("Enter");
+  await page.getByRole("menuitem", { name: `Edit ${teamName}` }).focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(kebab).toBeFocused();
+
+  // A plain button's dialog, too: it mounts already open, so Mantine records no opener of its own.
+  const newTeam = page.getByRole("button", { name: "New team" });
+  await newTeam.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(newTeam).toBeFocused();
 });
 
 test("a regular user sees the read-only teams list", async ({ page }) => {

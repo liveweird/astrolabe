@@ -288,6 +288,29 @@ describe("Teams page", () => {
     await waitFor(() => expect(kebab).toHaveFocus());
   });
 
+  test("an edit dialog (opened after a fetch) dismissed with Escape returns the focus to the row's menu button; the New button's dialog returns it to that button", async () => {
+    serve(mockFetch);
+    const user = userEvent.setup();
+    renderPage();
+    const kebab = await screen.findByRole("button", { name: "Operations for Payments" });
+    kebab.focus();
+    await user.keyboard("{Enter}");
+    (await screen.findByRole("menuitem", { name: "Edit Payments" })).focus();
+    await user.keyboard("{Enter}");
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await waitFor(() => expect(kebab).toHaveFocus());
+
+    // A later dialog from a plain button returns to that button, not to the old kebab.
+    const newTeam = screen.getByRole("button", { name: /new team/i });
+    await user.click(newTeam);
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await waitFor(() => expect(newTeam).toHaveFocus());
+  });
+
   test("deleting while the first filtered request is pending cannot restore its stale row", async () => {
     const filtered = deferred<Response>();
     let filteredReads = 0;

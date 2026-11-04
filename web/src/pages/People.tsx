@@ -16,6 +16,7 @@ import RegistryListTable from "../components/RegistryListTable";
 import RowActionsMenu from "../components/RowActionsMenu";
 import SortHeader from "../components/SortHeader";
 import { useDeleteConfirm } from "../hooks/useDeleteConfirm";
+import { useDialogFocus } from "../hooks/useDialogFocus";
 import { useRegistryListControls } from "../hooks/useRegistryListControls";
 import { personPath } from "../utils/peopleLinks";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
@@ -46,6 +47,7 @@ export default function People() {
 
   // A list row carries every field of the detail, so it is the editor's target as it stands.
   const [editorTarget, setEditorTarget] = useState<PersonResponse | "new" | null>(null);
+  useDialogFocus(editorTarget !== null);
 
   const titleRef = useRef<HTMLHeadingElement>(null);
   const remove = useDeleteConfirm<PersonListItem>({

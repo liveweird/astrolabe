@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import type { ReactNode } from "react";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { rememberMenuTrigger, takeMenuTrigger } from "../utils/menuOpener";
 import { useDeleteConfirm } from "./useDeleteConfirm";
 
 vi.mock("../utils/toast", () => ({ showSuccessToast: vi.fn() }));
@@ -46,6 +47,7 @@ async function succeed(hook: Hook) {
 describe("useDeleteConfirm focus after a successful delete", () => {
   afterEach(() => {
     document.body.innerHTML = "";
+    takeMenuTrigger();
     vi.clearAllMocks();
   });
 
@@ -114,9 +116,10 @@ describe("useDeleteConfirm focus after a successful delete", () => {
   });
 
   describe("after a cancel", () => {
-    /** Opens the delete from the menu item (as a keyboard user does), then the menu is gone and the focus is in the dialog; Escape cancels. */
+    /** Opens the delete from the menu item (RowActionsMenu remembers the trigger in the click), then the menu is gone and the focus is in the dialog; Escape cancels. */
     function cancelFromMenu(hook: Hook, els: ReturnType<typeof scaffold>) {
       els.item.focus();
+      rememberMenuTrigger(els.item);
       act(() => hook.current.requestDelete({ id: 1 }));
       els.item.closest('[role="menu"]')!.remove();
       els.inside.focus();

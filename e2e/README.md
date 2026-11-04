@@ -202,7 +202,7 @@ the same commit** — this list is the coverage map, the scenario file is the de
 - [`teams.spec.ts`](scenarios/teams.md) — the flat-teams registry: create through the modal →
   rename → assign an API-seeded person as the team's manager (the Manager picker; the
   details page reads "Manager: …") → delete from the list (the focus lands on the "Teams" heading);
-  dismissing a row's delete dialog with Escape returns the focus to the row's menu button;
+  dismissing a row's delete dialog, then its edit dialog, with Escape returns the focus to the row's menu button, and a plain button's dialog to that button;
   a regular user's read-only list and team page (no New team, no row menu, no Edit button).
 - [`users.spec.ts`](scenarios/users.md) — the account lifecycle: create via the one-time
   password reveal → the new user's limited view + self password change (which signs the device out with its
