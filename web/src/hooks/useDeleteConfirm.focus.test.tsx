@@ -56,6 +56,14 @@ describe("useDeleteConfirm focus after a successful delete", () => {
     await waitFor(() => expect(heading).toHaveFocus());
   });
 
+  test("the heading takes the focus without scrolling: a delete far down a long list keeps the viewer's place", async () => {
+    const { heading } = scaffold();
+    const focus = vi.spyOn(heading, "focus");
+    const hook = mount("heading", () => Promise.resolve());
+    await succeed(hook);
+    await waitFor(() => expect(focus).toHaveBeenCalledWith({ preventScroll: true }));
+  });
+
   test("the focus is still inside the dialog (the modal is fading): wait, then take it when the modal has exited", async () => {
     const { heading, inside } = scaffold();
     const hook = mount("heading", () => Promise.resolve());

@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import { type ReactNode, useCallback, useRef } from "react";
 import { ActionIcon, Menu } from "@mantine/core";
 import { IconDotsVertical } from "@tabler/icons-react";
 
@@ -9,7 +9,7 @@ const seenDropdowns = new WeakSet<HTMLElement>();
  * Mantine's focus trap puts the focus on the first `focusable` descendant of the dropdown, and its test counts a DISABLED item (a `tabindex="-1"`
  * button) as focusable: a menu whose first item is disabled (the first ranked row's "Move up") then leaves the focus on the kebab, outside the menu,
  * where the arrow keys and Escape do nothing. So once the dropdown is mounted the first ENABLED item takes the focus if the trap has not put it
- * anywhere in the menu (`MenuDropdown`'s own ArrowDown picks the same item, by the same selector). Once per dropdown node.
+ * anywhere in the menu (`MenuDropdown`'s own ArrowDown picks the same item, by the same selector). Once per dropdown node, per opening.
  */
 function focusFirstEnabledItem(dropdown: HTMLDivElement | null): void {
   if (dropdown === null || seenDropdowns.has(dropdown)) return;
@@ -47,14 +47,25 @@ export default function RowActionsMenu({
   onClosed?: () => void;
   children: ReactNode;
 }) {
+  const dropdown = useRef<HTMLDivElement | null>(null);
+  const attachDropdown = useCallback((node: HTMLDivElement | null) => {
+    dropdown.current = node;
+    focusFirstEnabledItem(node);
+  }, []);
+  // Reopened inside the exit transition, the menu keeps the same node and no mount happens: this opening needs the focus placed as well.
+  const refocusReopened = () => {
+    if (dropdown.current === null) return;
+    seenDropdowns.delete(dropdown.current);
+    focusFirstEnabledItem(dropdown.current);
+  };
   return (
-    <Menu onExitTransitionEnd={onClosed}>
+    <Menu onOpen={refocusReopened} onExitTransitionEnd={onClosed}>
       <Menu.Target>
         <ActionIcon size="sm" aria-label={label} loading={loading} {...trigger}>
           <IconDotsVertical size={16} />
         </ActionIcon>
       </Menu.Target>
-      <Menu.Dropdown ref={focusFirstEnabledItem}>{children}</Menu.Dropdown>
+      <Menu.Dropdown ref={attachDropdown}>{children}</Menu.Dropdown>
     </Menu>
   );
 }

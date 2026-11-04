@@ -25,9 +25,11 @@
 3. They choose **Rank <first>** from first's row menu, then **Rank <second>** from second's.
    - *Expected*: after the first the rows are first, the divider, second (Rank appends at the end of the ranking); after the second, first then
      second and no divider (nothing is unranked any more).
-4. They focus **Operations for <second>**, press Enter (the menu opens and takes the focus into its dropdown), press ArrowDown (the focus is on its first item, **Move up <second>**) and press Enter.
+4. They focus **Operations for <second>** and press Enter (the menu opens with the focus on its first item, **Move up <second>**), press ArrowDown and ArrowUp (the focus goes to **Move to top: <second>** and back) and press Enter.
    - *Expected*: the rows are second, first; keyboard focus is back on **Operations for <second>**; the screen-reader status says
      "<second> moved to position …".
+   - They press Enter on the same button, Escape and at once Enter again, then Escape.
+   - *Expected*: both openings put the focus on **Move down <second>** (the top row's Move up is disabled); the last Escape closes the menu and the focus is on the button.
 5. They drag <first> by its row handle with the pointer onto the upper half of second's row.
    - *Expected*: the rows are first, second (a ranking change saved by the row drag).
 6. They choose **Unrank <second>** from its row menu.

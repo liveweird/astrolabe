@@ -64,8 +64,12 @@ export function useDeleteConfirm<T>({
     if (active !== null && active !== document.body && active.closest('[role="dialog"]') !== null) return;
     pending.current = null;
     if (active !== null && active !== document.body) return;
-    const kebab = reason === "cancelled" && opener.current?.isConnected ? opener.current : null;
-    (kebab ?? focusAfterDelete?.current)?.focus();
+    if (reason === "cancelled" && opener.current?.isConnected) {
+      opener.current.focus();
+      return;
+    }
+    // The heading is at the top of the page: after a delete far down a long list the viewer's place must not jump there.
+    focusAfterDelete?.current?.focus({ preventScroll: true });
   };
   // Every render, after the DOM is committed (the useRowMenuFocus idiom): the refetch that removes the row is such a render.
   useEffect(settleFocus);

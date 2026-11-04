@@ -175,6 +175,19 @@ test("an admin grants the roadmap editor right; the editor ranks two projects fr
   await expect(operations(page, second)).toBeFocused();
   await expect(page.getByRole("status").filter({ hasText: `${second} moved to position` })).toBeAttached();
 
+  // The top row's "Move up" is disabled, so its menu opens on "Move down"; also when Escape and a reopen come inside the exit transition, where the
+  // dropdown node is reused (the focus once stayed on the kebab there, with the menu open and Escape dead).
+  await expect(page.getByRole("menu")).toHaveCount(0);
+  await page.keyboard.press("Enter");
+  const moveDown = page.getByRole("menuitem", { name: `Move down ${second}`, exact: true });
+  await expect(moveDown).toBeFocused();
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("Enter");
+  await expect(moveDown).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menu")).toHaveCount(0);
+  await expect(operations(page, second)).toBeFocused();
+
   // A pointer drag by the handle inside the ranked rows: the first project onto the upper half of the second's row.
   await settled(page);
   await change(page, () => dragRow(page, first, second, 0.25));
