@@ -210,6 +210,28 @@ describe("App shell", () => {
       expect(document.title).toBe("Teams · Astrolabe");
     });
 
+    test("focus: a fresh render leaves it on the document, a nav click hands it to the main area", async () => {
+      const user = userEvent.setup();
+      vi.mocked(fetch).mockImplementation(() => Promise.resolve(jsonResponse(200, { items: [], page: 1, pageSize: 20, total: 0 })));
+      renderApp("/");
+      await screen.findByRole("heading", { level: 2, name: "Astrolabe" });
+      expect(document.activeElement).toBe(document.body);
+
+      await user.click(screen.getByRole("link", { name: "Teams" }));
+      expect(await screen.findByRole("heading", { level: 2, name: "Teams" })).toBeInTheDocument();
+      expect(screen.getByRole("main")).toHaveFocus();
+    });
+
+    test("focus: a page that autofocuses its first field wins over the main area (lazy chunk arriving after the move)", async () => {
+      localStorage.setItem("astrolabe.auth.roles", JSON.stringify(["ADMIN"]));
+      const user = userEvent.setup();
+      vi.mocked(fetch).mockImplementation(() => Promise.resolve(jsonResponse(200, { items: [], page: 1, pageSize: 20, total: 0 })));
+      renderApp("/users");
+      await user.click(await screen.findByRole("link", { name: "New user" }));
+      const name = await screen.findByRole("textbox", { name: /Name/ });
+      await waitFor(() => expect(name).toHaveFocus());
+    });
+
     test("the account menu holds the Changelog link; the stamp links there and the trigger carries the dot", async () => {
       const user = userEvent.setup();
       renderApp("/");

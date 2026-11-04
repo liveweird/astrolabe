@@ -113,7 +113,7 @@ the same commit** — this list is the coverage map, the scenario file is the de
   including while server revocation is delayed.
 - [`shell.spec.ts`](scenarios/shell.md) — the app shell chrome: the icon rail collapses/expands
   the navbar and remembers the choice across reload; the account menu's theme control switches
-  the color scheme and persists it; the tab title names the page ("Teams · Astrolabe", the brand alone on Home).
+  the color scheme and persists it; the tab title names the page ("Teams · Astrolabe", the brand alone on Home) and a navigation moves the focus to `#main-content` so the next Tab lands inside the page.
 - [`telemetry.spec.ts`](scenarios/telemetry.md) — the ADMIN telemetry panel (Astrolabe's own vital signs): after the sampler's first sample (awaited through the
   API) the admin opens it from the account menu and reads Memory (the compose app's 512 MB container limit and the share of it) and Storage (the database size); the open panel and its expanded sections survive a
   reload and close with their own button; a regular user has no menu item and a hand-stored open flag shows nothing; an axe scan of the panel with every section open.

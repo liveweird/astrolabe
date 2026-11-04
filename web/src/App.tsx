@@ -13,6 +13,7 @@ import UserMenu from "./components/UserMenu";
 import VersionStamp from "./components/VersionStamp";
 import ErrorBoundary, { RouteErrorBoundary } from "./components/ErrorBoundary";
 import { activeNavPath, visibleSections, type NavLeaf } from "./utils/navigation";
+import { useFocusMainOnNavigation } from "./hooks/useFocusMainOnNavigation";
 import { usePrintLifecycle } from "./hooks/usePrintLifecycle";
 import { isBoolean, useStoredState } from "./hooks/useStoredState";
 import { setTelemetryPanelOpen, useTelemetryPanelOpen } from "./hooks/useTelemetryPanel";
@@ -58,6 +59,8 @@ function Shell() {
   const { pathname } = useLocation();
   // Every page prints in the light scheme (the print-aware provider in main.tsx reads what this reports).
   usePrintLifecycle();
+  // A route change hands the focus to the main area (skipped on the first render; a page that owns the focus keeps it).
+  useFocusMainOnNavigation();
   // Desktop navbar collapse — device-level, persisted like the other view settings; the
   // mobile overlay keeps its own `opened` disclosure above and always shows full labels.
   const [navCollapsed, setNavCollapsed] = useStoredState("appShell.navCollapsed", false, isBoolean);

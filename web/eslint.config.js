@@ -77,9 +77,11 @@ export default defineConfig([
     // Single-purpose entry pages: the sign-in form and its MFA code step (the email input unmounts
     // when the step swaps, so without autoFocus the keyboard focus would fall to <body>), the
     // password-reset request, and the create/edit-user form, whose first field is the page's one
-    // task. Not a blanket: every other `autoFocus` (a dialog uses Mantine's `data-autofocus`) is
-    // still a finding.
+    // task; plus the shell-focus hook's test, whose fixture fields must use the real `autoFocus` to
+    // prove the hook leaves a page's own autofocus alone. Not a blanket: every other `autoFocus` (a
+    // dialog uses Mantine's `data-autofocus`) is still a finding.
     files: [
+      'src/hooks/useFocusMainOnNavigation.test.tsx',
       'src/pages/Login.tsx',
       'src/pages/ResetPassword.tsx',
       'src/components/UserFormFields.tsx',

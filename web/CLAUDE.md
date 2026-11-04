@@ -77,7 +77,7 @@ the shared Timeline component and the project view (milestones on the timeline, 
 - **The shell header** is 48px: brand, the `CommandPalette` trigger, and the `UserMenu` (avatar →
   identity from `GET /users/{id}` under the `["user", id]` key, language, theme as a three-state
   SegmentedControl, Change password, Changelog with the what's-new badge, for an ADMIN a "Telemetry panel" toggle, Sign out). The version
-  stamp stays in the sidebar footer. **`components/CommandPalette.tsx`** wraps
+  stamp stays in the sidebar footer. **Focus on navigation**: `hooks/useFocusMainOnNavigation.ts` (called in the `Shell`) focuses `#main-content` (`tabIndex={-1}`, ring suppressed in `index.css`, `preventScroll`) when the PATHNAME changes - never for a `?baseline=`/filter/sort change or a same-path push, never on the first render (a fresh sign-in or reload leaves the document start; the skip link is the first Tab stop) - and leaves a focus that is already inside main alone, so a page's own `autoFocus` wins in either mount order. **`components/CommandPalette.tsx`** wraps
   `@mantine/spotlight` (pinned to the core version — keep every `@mantine/*` on one version) over
   a module-level store (`utils/commandPalette.ts`): the session's pages, plus an ADMIN-only show/hide action for the telemetry panel. No
   `highlightQuery` — it splits labels into `<mark>` fragments that role/name locators cannot

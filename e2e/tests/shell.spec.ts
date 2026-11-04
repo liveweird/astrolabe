@@ -40,8 +40,8 @@ test("switching the theme in the account menu updates the color scheme and persi
   await expect(html).toHaveAttribute("data-mantine-color-scheme", "light");
 });
 
-// The route-change behaviour of the shell. Titles only for now: the focus assertions (`#main-content` is
-// focused after the nav click, a Tab lands inside the page) extend THIS test, so keep the name stable.
+// The route-change behaviour of the shell: the tab title names the page and `#main-content` takes the focus
+// (so the next Tab lands inside the page, past the sidebar). Keep the test name stable: the scenario file mirrors it.
 test("the document title names the page and the focus moves to the main content on navigation", async ({ page }) => {
   await login(page);
   // Home collapses to the brand alone; every other page reads "<page> · Astrolabe".
@@ -50,6 +50,10 @@ test("the document title names the page and the focus moves to the main content 
   await page.getByRole("link", { name: "Teams" }).click();
   await expect(page.getByRole("heading", { level: 2, name: "Teams" })).toBeVisible();
   await expect(page).toHaveTitle("Teams · Astrolabe");
+  // The click left the focus on the sidebar link; the route change handed it to the main area, so a Tab goes into the page.
+  await expect(page.locator("#main-content")).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(page.locator("#main-content :focus")).toHaveCount(1);
 
   await page.getByRole("link", { name: "Home" }).click();
   await expect(page).toHaveTitle("Astrolabe");

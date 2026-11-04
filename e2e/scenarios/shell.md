@@ -34,11 +34,12 @@
    - *Expected*: the tab title is **Astrolabe** (the Home page collapses to the brand alone).
 2. They click **Teams** in the sidebar.
    - *Expected*: the Teams heading shows and the tab title is **Teams · Astrolabe**.
-3. They click **Home**.
+3. Without touching anything else, they look at where the keyboard focus is.
+   - *Expected*: the focus is on the main content area (`#main-content`), not on the sidebar link that was clicked.
+4. They press **Tab**.
+   - *Expected*: the focus lands on a control inside the main content area (the Teams page), not back in the sidebar.
+5. They click **Home**.
    - *Expected*: the tab title is **Astrolabe** again.
-
-(The focus half of the title — `#main-content` focused after the click and a Tab landing inside
-the page — is added to this scenario by the focus-management commit.)
 
 ## Not covered here (and why)
 
