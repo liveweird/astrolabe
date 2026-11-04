@@ -6,7 +6,7 @@
 # .claude/docs/security.md, "Kubernetes pod and network hardening".
 #
 # Traffic this namespace needs (and nothing else):
-#   client/ingress -> app:8086            (allowed below — SOURCE STILL OPEN, see that policy)
+#   client/LoadBalancer -> app:8086       (allowed below — the port is the restriction, see that policy)
 #   app            -> postgres:5432       (allow-postgres-from-app + the egress twin)
 #   app            -> cluster DNS :53     (allow-app-egress)
 #   app            -> public internet     (443 HTTPS, 587/465/25 SMTP)
@@ -52,11 +52,11 @@ spec:
       io.kompose.service: app
   policyTypes: [Ingress]
   ingress:
-    # OPEN DECISION (checkup A13): the source is not restricted yet because the front door is not
-    # decided — the reference still exposes `app` through a LoadBalancer Service (OrbStack), whose
-    # traffic arrives from an address outside the cluster. When an Ingress controller becomes the
-    # entry point, replace this rule's (absent) `from` with that controller's namespace/pod
-    # selector so only it can reach :8086. Until then the port is the restriction.
+    # The front door is the OrbStack LoadBalancer Service (settled for 1.0.0; k8s/local/front-door.yaml).
+    # LoadBalancer traffic reaches the pod from outside the cluster, so no pod or namespace selector
+    # can name its source: the port is the restriction. A deployment that fronts `app` with a TLS
+    # Ingress (k8s/front-door.yaml is its posture) adds the controller's namespace selector as this
+    # rule's `from`, so only the controller can reach :8086.
     - ports:
         - protocol: TCP
           port: 8086

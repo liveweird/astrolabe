@@ -1,0 +1,26 @@
+# The OrbStack overlay (the 1.0.0 decision): Kubernetes stays a LOCAL deployment target, reached through
+# the bare LoadBalancer of k8s/app-service.yaml over plain HTTP, so the app runs in DEVELOPMENT mode
+# behind NO proxy. apply-local.sh applies this file instead of k8s/front-door.yaml (same ConfigMap name).
+#
+# What development mode relaxes (HTTPS redirect/HSTS, `/openapi`, the rate-limit buckets, the fail-closed
+# startup checks, the mail and outbound rules): the complete list is in .claude/docs/security.md, "Security
+# posture: development vs production mode". The REAL secrets still come from `astrolabe-secrets`, and
+# ADMIN_INITIAL_PASSWORD still rotates the seeded admin in any mode. HTTP_BEHIND_PROXY=false means the
+# X-Forwarded-* headers are ignored (client-controlled behind a bare LB), so the rate-limit key is the
+# peer address — probably the LoadBalancer/node address shared by every client (unverified), i.e. one
+# per-IP bucket for everyone: fine for one developer. The probes' X-Forwarded-Proto header is ignored
+# too, harmlessly (no redirect to skip).
+#
+# NEVER for a shared or production cluster. The base file k8s/front-door.yaml is the production posture.
+#
+# The pod reads these keys when a container starts: apply-local.sh's unique image tag rolls the pod on
+# every run, but re-applying with an unchanged tag after editing only this file does not.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: astrolabe-front-door
+  namespace: astrolabe
+data:
+  KTOR_DEVELOPMENT: "true"
+  HTTP_BEHIND_PROXY: "false"
+  HTTP_PROXY_HOPS: "1"

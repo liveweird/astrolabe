@@ -11,7 +11,7 @@ Read on demand before changing a CI job, a Dependabot rule or a static-analysis 
   (`npm run test:coverage -- --sequence.shuffle --sequence.seed=<seed>`, which is also the `isolate: false` independence proof; `scripts/gates.sh web` mirrors it with a
   random seed it prints; CI picks the seed itself and writes it, with the replay command, to the job summary before the run, so a shuffle-order failure can be reproduced), `e2e-static` —
   lint/knip/typecheck/scenario parity/setup, the toolchain-pins check, the always-loaded docs budget (`node scripts/check-docs-budget.mjs`: `CLAUDE.md` plus its `@` imports against `BUDGET_BYTES` read from `AlwaysLoadedDocsBudgetTest`; it runs here because the `server` job holding that test is skipped on Markdown-only PRs), the sample-plan self-tests (`node --test scripts/sample-plan/generate.test.mjs` and `... load.test.mjs`, one call per named file: a glob matching nothing exits 0 and with two named files node skips a missing one: the generator's determinism, counts, Zipf sizes, acyclicity, the server's limits, the committed `sample-data/plan` equal to a fresh run; the loader's development-stack check, reset matching and preflight against http stubs), `npm audit` (high+) on both npm workspaces, `k8s-static` (kubeconform over
-  `k8s/`, and the app deployment pinned to one replica), and `images`, an image build plus a Trivy scan of it, on `master` pushes and on every pull request that changes more than Markdown — the `changes` job decides it, as it does `server`); the blackbox Playwright
+  `k8s/` and `k8s/local/`, the app deployment pinned to one replica, and the front-door ConfigMap pinned: the base `k8s/front-door.yaml` stays the production posture, `apply-local.sh`'s render carries exactly one `astrolabe-front-door` ConfigMap, the `k8s/local/` overlay), and `images`, an image build plus a Trivy scan of it, on `master` pushes and on every pull request that changes more than Markdown — the `changes` job decides it, as it does `server`); the blackbox Playwright
   suite (`e2e.yml`) runs nightly and on demand, and re-scans the image it built with the same Trivy gate (its "Build images" step is a plain `docker compose build`, like `images`). Dependabot (`.github/dependabot.yml`) checks every
   workspace, Actions and container manifests weekly; `.claude/docs/dependencies.md` describes
   grouping, compatibility pins and runtime verification, and
@@ -77,7 +77,7 @@ app's password-reset and MFA email to it (`MAIL_TRANSPORT=smtp`). Ports delibera
 
 (Lettuce's WireMock stub pattern lives on 8096 in this port plan, for the Jira/Flow sync when it is built; Flow's stubs sat on 8094/8095.) Kubernetes
 (OrbStack) deployment targets the dedicated `astrolabe` namespace — see `k8s/secret.yaml`'s header for
-the secret-creation command; the image is `astrolabe-app` and the cluster runs a single `app-deployment.yaml` (one process, no worker) beside postgres.
+the secret-creation command; the image is `astrolabe-app` and the cluster runs a single `app-deployment.yaml` (one process, no worker) beside postgres; `k8s/apply-local.sh` applies the OrbStack overlay `k8s/local/front-door.yaml` (development mode, no proxy) instead of the production-posture base `k8s/front-door.yaml` (`security.md`, "The front door").
 
 **AppCDS (class-data sharing).**
 

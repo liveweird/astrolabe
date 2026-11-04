@@ -1,0 +1,32 @@
+# The front-door posture of the `app` Deployment (KTOR_DEVELOPMENT, HTTP_BEHIND_PROXY, HTTP_PROXY_HOPS),
+# kept apart from the Deployment so a deployment target can swap it without editing the Deployment.
+#
+# THIS BASE FILE IS THE PRODUCTION POSTURE for a deployment behind a TLS-terminating Ingress that sets
+# AND overwrites X-Forwarded-For / X-Forwarded-Proto (stripping whatever the client sent): HTTPS
+# redirect + HSTS on, the fail-closed startup checks on, the rate-limit key and the redirect decision
+# read from the proxy's headers. HTTP_PROXY_HOPS = the trusted proxies that APPEND to X-Forwarded-For
+# (1 = the ingress alone; application.yaml `http.proxyHops`).
+#
+# UNSAFE behind a bare LoadBalancer (what k8s/app-service.yaml is): plain HTTP is answered with the
+# 301 to https://..., and X-Forwarded-For / -Proto are client-controlled, so the per-IP rate-limit key
+# and the redirect skip are spoofable. A deployment that uses this file as-is must put a TLS Ingress in
+# front (and a ClusterIP Service) and tighten `allow-app-ingress` in network-policies.yaml to the
+# controller's namespace.
+#
+# apply-local.sh does NOT apply this file: it applies k8s/local/front-door.yaml (the OrbStack overlay,
+# same ConfigMap name) instead, so exactly one `astrolabe-front-door` ConfigMap ever reaches a cluster
+# through the helper. A plain `kubectl apply -f k8s/` applies THIS one (and the Deployment's
+# placeholder image) — not the supported local path. NEVER use `kubectl apply -R -f k8s/`: it recurses
+# into k8s/local/ and applies BOTH ConfigMaps (the overlay last, silently winning) and secret.yaml,
+# overwriting the real `astrolabe-secrets` with the placeholders. CI (`k8s-static`) pins both files' values.
+#
+# A ConfigMap change does not restart the pod: the Deployment reads these keys when a container starts.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: astrolabe-front-door
+  namespace: astrolabe
+data:
+  KTOR_DEVELOPMENT: "false"
+  HTTP_BEHIND_PROXY: "true"
+  HTTP_PROXY_HOPS: "1"

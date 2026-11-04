@@ -35,6 +35,17 @@ checks**:
   Covered by `CryptoBootTest`; every production-mode boot test overrides
   `security.encryption.key` with `strongEncryptionKey()`.
 
+**Everything development mode relaxes** (the k8s `k8s/local/front-door.yaml` overlay and compose run it; each item
+is the code's own switch on `developmentMode`): no HTTPS redirect and no HSTS; `/openapi` and the Swagger UI
+exposed, with the inline-script CSP exemption on `/openapi` and its subtree (`plugins/SecurityHeaders.kt`);
+the login per-IP bucket 1000/min instead of 10/min and the password-reset bucket 100/min instead of 5/min
+(`plugins/RateLimits.kt`); the JWT-secret, data-encryption-key and seed-password checks only warn (the
+`ADMIN_INITIAL_PASSWORD` candidate's burned-value and length validation is skipped too — `infra/db/Bootstrap.kt`);
+`mail.transport=log` tolerated, which prints reset links and MFA codes into the log (`kubectl logs`);
+`MAIL_APP_URL` may be `http://` (`infra/mail/Mail.kt`); `MFA_CODE_TTL_SECONDS=0` accepted (`auth/AuthRoutes.kt`);
+and the Jira stub host may be a non-https origin (`infra/outbound/OutboundGuard.kt`, no consumer yet). The
+malformed-key and malformed-`MAIL_APP_URL` refusals hold in any mode.
+
 **JWT model** (`auth/Tokens.kt` + `plugins/Security.kt`): login issues an access/refresh **pair**,
 both carrying `email`, `userId`, a `roles` array, a `typ` claim (`"access"`/`"refresh"`), a
 `credentialRevision` and a random `jti`. The `jwt {}` verifier requires audience (`astrolabe-api`), issuer
@@ -446,14 +457,14 @@ NOTHING`. The migration is kept **unchanged** (dev + e2e depend on it; checksums
 **Probes and the plain-HTTP crash-loop** (`k8s/app-deployment.yaml`, ported from Toadie): every
 probe (`startupProbe`/`readinessProbe`/`livenessProbe`) sends `X-Forwarded-Proto: https` — the
 header the TLS-terminating ingress sets, which `HTTP_BEHIND_PROXY`/`HTTP_PROXY_HOPS` above makes
-the app trust. Without it, production mode answers the kubelet's plain-HTTP probe request with a
+the app trust (under the local overlay the header is ignored, harmlessly — development mode never redirects). Without it, production mode answers the kubelet's plain-HTTP probe request with a
 301 to `https://<pod-ip>/`, which the kubelet FOLLOWS (same host) into a refused `:443` — every
 probe fails and the pod crash-loops (Lettuce's v3.6.1 incident, reproduced in production).
 `startupProbe` (30 x 5s = ~150s) covers JVM boot + Flyway migrations before the liveness clock
 starts, so a slow first boot cannot trigger a restart.
 
 **Kubernetes pod and network hardening** (`k8s/*.yaml`, validated by ci.yml's `k8s-static`
-job — `kubeconform -strict` over the raw manifests and over what `k8s/apply-local.sh` renders):
+job — `kubeconform -strict` over the raw manifests (`k8s/*.yaml`, `k8s/local/*.yaml`) and over what `k8s/apply-local.sh` renders):
 
 - **Pods.** Both (`app`, `postgres`) set `automountServiceAccountToken: false` — nothing
   calls the Kubernetes API, so no token is mounted. `app`: uid 10001, `runAsNonRoot`, seccomp
@@ -465,7 +476,7 @@ job — `kubeconform -strict` over the raw manifests and over what `k8s/apply-lo
   capability: the entrypoint's chown/gosu step only runs as root). `readOnlyRootFilesystem` stays off for
   postgres — it writes its socket/lock files under `/var/run/postgresql` and temp files under `/tmp`.
 - **`k8s/network-policies.yaml`.** `default-deny-all` (ingress AND egress for every pod in `astrolabe`), then:
-  `postgres` accepts 5432 only from `app`; `app` accepts 8086 (see the open decision below);
+  `postgres` accepts 5432 only from `app`; `app` accepts 8086 (the front door, below);
   `app` may egress to `postgres:5432`, to cluster DNS (kube-system `k8s-app=kube-dns`, 53
   UDP/TCP) and to public addresses on 443, 587/465/25 (SMTP) — RFC 1918,
   link-local (cloud metadata `169.254.169.254`) and CGNAT ranges excluded, so a compromised pod cannot
@@ -479,15 +490,22 @@ job — `kubeconform -strict` over the raw manifests and over what `k8s/apply-lo
   implements NetworkPolicy (OrbStack's local cluster does). A CNI that does not enforce leaves the objects inert, which is harmless. New
   pods take a few seconds to be programmed, so a very fast first connection can fail once — the
   `startupProbe` window absorbs it.
-- **Still open — the front door (decision pending).** `k8s/app-service.yaml` is an OrbStack
-  `LoadBalancer` and the manifests default to the production posture (`KTOR_DEVELOPMENT=false`,
-  `HTTP_BEHIND_PROXY=true`), which assumes a TLS-terminating proxy that sets and overwrites
-  `X-Forwarded-For`/`-Proto`. The reference ships no Ingress: over the bare LB, a plain-HTTP request gets
-  the production HTTPS redirect and `X-Forwarded-*` is client-controlled. Either (a) add a TLS Ingress +
-  `type: ClusterIP`, or (b) keep the LB and document a local overlay with `KTOR_DEVELOPMENT=true` /
-  `HTTP_BEHIND_PROXY=false`. Whichever is chosen must also tighten `allow-app-ingress`, whose `from` is
-  deliberately absent today (the 8086 port is its only restriction), to the ingress controller's
-  namespace.
+- **The front door (settled, 1.0.0).** Kubernetes is a LOCAL deployment target (OrbStack): `k8s/app-service.yaml` is a
+  `LoadBalancer`, reached over plain HTTP. The `app` Deployment reads `KTOR_DEVELOPMENT`/`HTTP_BEHIND_PROXY`/`HTTP_PROXY_HOPS`
+  from the ConfigMap `astrolabe-front-door`, and `k8s/apply-local.sh` applies the OVERLAY `k8s/local/front-door.yaml`
+  (`KTOR_DEVELOPMENT=true`, `HTTP_BEHIND_PROXY=false`: development mode behind no proxy, so no HTTPS redirect, `/openapi`
+  exposed, the burned/seed credentials tolerated and the `X-Forwarded-*` headers ignored; the real secrets still come
+  from `astrolabe-secrets` and `ADMIN_INITIAL_PASSWORD` still rotates the seeded admin) INSTEAD of the base
+  `k8s/front-door.yaml`. The base file stays the **production posture** for a TLS-terminating Ingress that sets and
+  overwrites `X-Forwarded-For`/`-Proto` and is **unsafe behind a bare LoadBalancer**: plain HTTP gets the 301 to
+  `https://`, and the headers are client-controlled, so the per-IP rate-limit key and the redirect skip are spoofable.
+  Cost accepted: no deployment target runs production mode; only the server suite proves it (compose is development
+  mode too). `allow-app-ingress` is unchanged on purpose: LoadBalancer traffic reaches the pod from outside the
+  cluster, so no pod or namespace selector can name its source and the port is the restriction; a deployment that
+  adds a TLS Ingress and a `ClusterIP` Service adds the controller's namespace selector there. A ConfigMap change
+  does not restart the pod (the env is read when a container starts): `apply-local.sh`'s unique image tag rolls the
+  pod on every run. CI (`k8s-static`) pins the base file to `"false"`/`"true"` and the rendered directory to exactly
+  one `astrolabe-front-door` ConfigMap carrying the overlay.
 
 **Log hygiene.** Every data class that carries a password, token, MFA code, password hash or signing key
 (`LoginRequest`, `LoginResponse`, `MfaVerifyRequest`, `RefreshRequest`, `LogoutRequest`, `User`,

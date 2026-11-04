@@ -297,7 +297,7 @@ jobs:
           echo "9bc2bffbf71f261128533edaf912153948b7ff238f9a531ae6d34466ec287883  $RUNNER_TEMP/kubeconform.tgz" | sha256sum -c -
           tar -xzf "$RUNNER_TEMP/kubeconform.tgz" -C "$RUNNER_TEMP" kubeconform
       - name: Validate the manifests
-        run: '"$RUNNER_TEMP/kubeconform" -strict -summary -kubernetes-version 1.33.0 -schema-location "$KUBECONFORM_SCHEMAS" k8s/*.yaml'
+        run: '"$RUNNER_TEMP/kubeconform" -strict -summary -kubernetes-version 1.33.0 -schema-location "$KUBECONFORM_SCHEMAS" k8s/*.yaml k8s/local/*.yaml'
       # The app keeps the login lockout, MFA challenges and reset throttles in memory, per instance
       # (security.md): a second replica would split them and multiply every limit. Pin it to one replica,
       # with no autoscaler, until that state moves to a shared store.
@@ -307,14 +307,36 @@ jobs:
           if grep -l 'kind: HorizontalPodAutoscaler' k8s/*.yaml; then echo "an autoscaler would scale the app" >&2; exit 1; fi
       - name: Validate what apply-local.sh renders
         run: |
-          # A stand-in kubectl: the Secret "exists", and `apply -f <dir>` records the rendered directory.
+          # A stand-in kubectl: the context is the guard's default (orbstack), the Secret "exists", and
+          # `apply -f <dir>` (after the leading `--context <name>`) records the rendered directory.
           mkdir -p "$RUNNER_TEMP/bin" "$RUNNER_TEMP/rendered"
-          printf '#!/bin/sh\n[ "$1" = apply ] && cp "$3"/*.yaml "$RENDER_OUT"/\nexit 0\n' > "$RUNNER_TEMP/bin/kubectl"
+          printf '#!/bin/sh\n[ "$1" = config ] && { echo orbstack; exit 0; }\n[ "$3" = apply ] && cp "$5"/*.yaml "$RENDER_OUT"/\nexit 0\n' > "$RUNNER_TEMP/bin/kubectl"
           chmod +x "$RUNNER_TEMP/bin/kubectl"
           PATH="$RUNNER_TEMP/bin:$PATH" RENDER_OUT="$RUNNER_TEMP/rendered" sh k8s/apply-local.sh ci-check
           "$RUNNER_TEMP/kubeconform" -strict -summary -kubernetes-version 1.33.0 -schema-location "$KUBECONFORM_SCHEMAS" "$RUNNER_TEMP"/rendered/*.yaml
           test "$(grep -h 'image: astrolabe-app:ci-check' "$RUNNER_TEMP"/rendered/*.yaml | wc -l)" -eq 1
           if grep -q 'local-build' "$RUNNER_TEMP"/rendered/*.yaml; then echo "unrendered image placeholder" >&2; exit 1; fi
+      # The front door (security.md): the base k8s/front-door.yaml stays the production posture, and what
+      # apply-local.sh renders carries exactly ONE `astrolabe-front-door` ConfigMap, the OrbStack overlay.
+      # `kind: ConfigMap` is counted, not the name (the Deployment's configMapKeyRef repeats the name).
+      - name: Pin the front-door ConfigMap (base = production, rendered = the local overlay)
+        run: |
+          test "$(grep -lE '^kind: ConfigMap$' k8s/*.yaml | wc -l)" -eq 1
+          grep -qE '^kind: ConfigMap$' k8s/front-door.yaml
+          test "$(grep -cE '^  name: astrolabe-front-door$' k8s/front-door.yaml)" -eq 1
+          grep -qE '^  KTOR_DEVELOPMENT: "false"$' k8s/front-door.yaml
+          grep -qE '^  HTTP_BEHIND_PROXY: "true"$' k8s/front-door.yaml
+          grep -qE '^  HTTP_PROXY_HOPS: "1"$' k8s/front-door.yaml
+          # The Deployment must READ the ConfigMap: exactly three refs, and no inline value for the three keys.
+          test "$(grep -cE '^ +name: astrolabe-front-door$' k8s/app-deployment.yaml)" -eq 3
+          if grep -A1 -E 'name: (KTOR_DEVELOPMENT|HTTP_BEHIND_PROXY|HTTP_PROXY_HOPS)$' k8s/app-deployment.yaml | grep -qE '^ +value:'; then
+            echo "an inline value overrides the front-door ConfigMap" >&2; exit 1
+          fi
+          test "$(cat "$RUNNER_TEMP"/rendered/*.yaml | grep -cE '^kind: ConfigMap$')" -eq 1
+          rendered=$(grep -lE '^kind: ConfigMap$' "$RUNNER_TEMP"/rendered/*.yaml)
+          test "$(grep -cE '^  name: astrolabe-front-door$' "$rendered")" -eq 1
+          grep -qE '^  KTOR_DEVELOPMENT: "true"$' "$rendered"
+          grep -qE '^  HTTP_BEHIND_PROXY: "false"$' "$rendered"
 
   images:
     # Dockerfile drift guard: the image must still build — and, built, must carry no fixable

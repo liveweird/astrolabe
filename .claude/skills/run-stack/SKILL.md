@@ -79,19 +79,40 @@ side on one machine; host ports bind to 127.0.0.1:
   `astrolabe-secrets` Secret (command in `k8s/secret.yaml`), then run
   `./k8s/apply-local.sh "$ASTROLABE_IMAGE_TAG"`. The script renders the Deployment
   (`k8s/app-deployment.yaml`) with that tag *before* applying any
-  resource and deliberately excludes the Secret template. The checked-in `:local-build` name is a
-  render placeholder; never apply the directory directly. A unique tag makes
+  resource, deliberately excludes the Secret template, and applies the OrbStack overlay
+  `k8s/local/front-door.yaml` (as the ONE `astrolabe-front-door` ConfigMap) instead of the base
+  `k8s/front-door.yaml`. The checked-in `:local-build` name is a
+  render placeholder; never apply the directory directly (that would apply the base, production-posture
+  ConfigMap), and never `kubectl apply -R -f k8s/` (both ConfigMaps, and the placeholder Secret over the real one). The script
+  refuses unless the kubectl context is `orbstack` (`ASTROLABE_KUBE_CONTEXT=<name>` overrides on purpose) and passes
+  `--context` to every call. A unique tag makes
   `imagePullPolicy: IfNotPresent` deterministic while OrbStack's cluster shares Docker's image
-  store, so no push is needed. Everything lives in the dedicated namespace so it coexists with
+  store, so no push is needed, and it rolls the pod on every run — which is what makes the pod read the ConfigMap
+  (a ConfigMap edit alone restarts nothing). Everything lives in the dedicated namespace so it coexists with
   other local stacks. PostgreSQL uses an exact version and multi-platform manifest
-  digest, its argv-list exec probe also serves as the readiness gate. The app runs in production mode
-  (`KTOR_DEVELOPMENT=false`, `HTTP_BEHIND_PROXY=true` — it expects a TLS-terminating ingress/LB that sets
-  `X-Forwarded-For`/`-Proto`) behind `k8s/app-service.yaml`, one replica (the login lockout, MFA and reset throttles are
-  per-instance in-memory state; CI pins `replicas: 1`). `k8s/network-policies.yaml` (default-deny + the few allowed flows)
+  digest, its argv-list exec probe also serves as the readiness gate. The app runs in DEVELOPMENT mode behind no proxy
+  (the overlay: `KTOR_DEVELOPMENT=true`, `HTTP_BEHIND_PROXY=false`; the 1.0.0 decision — Kubernetes stays local) behind
+  `k8s/app-service.yaml` (a LoadBalancer, plain HTTP, no `X-Forwarded-Proto` needed), one replica (the login lockout,
+  MFA and reset throttles are
+  per-instance in-memory state; CI pins `replicas: 1`). The base `k8s/front-door.yaml` is the production posture for a
+  TLS-terminating ingress and is unsafe behind a bare LoadBalancer. `k8s/network-policies.yaml` (default-deny + the few allowed flows)
   is applied with the rest and OrbStack's cluster enforces it: an in-cluster SMTP relay is blocked until you add an
-  egress policy for it (`.claude/docs/security.md`, "Kubernetes pod and network hardening"). For throwaway plain-HTTP
-  local-cluster testing, flip `KTOR_DEVELOPMENT` to `"true"` in the file. **Teardown:** retain database data by scaling the
+  egress policy for it (`.claude/docs/security.md`, "Kubernetes pod and network hardening"). **Teardown:** retain database data by scaling the
   deployments to zero, or delete the deployments, services, network policies and PVC-holding resources explicitly.
+  **k8s smoke routine** (after a rebuild; never print the password):
+  1. `TAG="dev-$(git rev-parse --short=12 HEAD)-$(date +%s)"; docker build -t "astrolabe-app:$TAG" .`
+  2. `./k8s/apply-local.sh "$TAG"` then `kubectl -n astrolabe rollout status deploy/app --timeout=180s`.
+  3. `LB=$(kubectl -n astrolabe get svc app -o jsonpath='{.status.loadBalancer.ingress[0].ip}')`.
+  4. `curl -sS -o /dev/null -w '%{http_code}\n' http://$LB:8086/api/v1/health` and `.../api/v1/ready` print 200 over plain HTTP
+     with NO `X-Forwarded-Proto` (`-f` would exit 0 on a 301; a 301 means the overlay did not apply).
+  5. `PW=$(kubectl -n astrolabe get secret astrolabe-secrets -o jsonpath='{.data.ADMIN_INITIAL_PASSWORD}' | base64 -d)` — keep it
+     in the variable, never echo it; then
+     `TOKEN=$(printf '%s' "$PW" | jq -Rn --arg e admin@astrolabe.local '{email:$e,password:input}' | curl -fsS -H 'Content-Type: application/json' -d @- "http://$LB:8086/api/v1/login" | jq -r .token)`
+     (the password never enters an argv: `printf` is a shell builtin and jq reads it from stdin).
+  6. With the token (`-H "Authorization: Bearer $TOKEN"`): `GET /api/v1/views/plan`, `/api/v1/views/roadmap` and `/api/v1/baselines`
+     answer 200 (`curl -fsS -o /dev/null -w '%{http_code}\n'`).
+  7. `kubectl -n astrolabe logs deploy/app | grep -i flyway` shows the schema up to date (V20).
+  8. The navbar stamp `v<APP_VERSION> · <sha>` read with a Playwright one-liner (the `verify` skill) against `http://$LB:8086`.
   **Secrets:** the deployment consumes the `astrolabe-secrets` Secret via `secretKeyRef` (`JWT_SECRET`,
   `POSTGRES_USER`/`POSTGRES_PASSWORD`, `DATA_ENCRYPTION_KEY`, `ADMIN_INITIAL_PASSWORD`, optional
   `SMTP_USER`/`SMTP_PASSWORD`); `k8s/secret.yaml` is a placeholder **template** — applying it

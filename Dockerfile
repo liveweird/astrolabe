@@ -106,11 +106,12 @@ EXPOSE 8086
 # the redirect itself answers. X-Forwarded-Proto: https marks the request already-secure, the same
 # header every k8s probe sends (k8s/app-deployment.yaml), so curl gets a real 200 instead of a
 # redirect it can't distinguish from success. Ktor only trusts this header when HTTP_BEHIND_PROXY
-# is also set (plugins/Http.kt's XForwardedHeaders); every deployment that ships this image in
-# production mode (k8s) also sets it, so the header makes the check meaningful there. A
-# hypothetical production-mode-without-a-proxy run (not one this repo's manifests produce) would
-# still see the 301-as-success gap — there is no request path that is both meaningful in that
-# combination and still exercises the liveness endpoint over plain HTTP.
+# is also set (plugins/Http.kt's XForwardedHeaders); the base k8s manifests (k8s/front-door.yaml)
+# also set it, so the header makes the check meaningful there. A production-mode-without-a-proxy
+# run (no manifest in this repo produces one: compose and the local k8s overlay run development
+# mode) would still see the 301-as-success gap — there is no request path that is both meaningful
+# in that combination and still exercises the liveness endpoint over plain HTTP. (Kubernetes
+# ignores this instruction; its probes are the Deployment's own.)
 HEALTHCHECK --interval=15s --timeout=3s --start-period=45s --retries=3 \
     CMD curl -fsS -H 'X-Forwarded-Proto: https' http://127.0.0.1:8086/api/v1/health >/dev/null || exit 1
 ENTRYPOINT ["/app/bin/server"]

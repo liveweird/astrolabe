@@ -36,9 +36,11 @@ spec:
       containers:
         - env:
             # Secrets come from the `astrolabe-secrets` Secret — see k8s/secret.yaml for how to
-            # create it (never commit real values). The app fail-closes on placeholder/burned
-            # JWT secrets and on unrotated seed passwords, so a misconfigured deploy crash-loops
-            # instead of running with a backdoor.
+            # create it (never commit real values). In PRODUCTION mode (the base k8s/front-door.yaml)
+            # the app fail-closes on placeholder/burned JWT secrets and on unrotated seed passwords, so
+            # a misconfigured deploy crash-loops instead of running with a backdoor. Under the local
+            # overlay (development mode) those only warn; a malformed DATA_ENCRYPTION_KEY (the
+            # placeholder) still refuses startup in any mode.
             - name: JWT_SECRET
               valueFrom:
                 secretKeyRef:
@@ -68,20 +70,26 @@ spec:
               value: jdbc:postgresql://postgres:5432/astrolabe
             - name: POSTGRES_R2DBC_URL
               value: r2dbc:postgresql://postgres:5432/astrolabe
-            # Production posture (the image default). For throwaway local-cluster testing over
-            # plain HTTP (no TLS ingress), set this to "true" — HTTPS redirect / HSTS turn off
-            # and the seed credentials are tolerated, exactly like the compose demo.
+            # The front-door posture (KTOR_DEVELOPMENT, HTTP_BEHIND_PROXY, HTTP_PROXY_HOPS) comes from
+            # the `astrolabe-front-door` ConfigMap, read when the container starts. The base
+            # k8s/front-door.yaml is the production posture (TLS-terminating ingress; UNSAFE behind a
+            # bare LoadBalancer); apply-local.sh applies k8s/local/front-door.yaml (the OrbStack
+            # overlay) instead — see both files' headers.
             - name: KTOR_DEVELOPMENT
-              value: "false"
-            # The app sits behind an ingress / LB that must terminate TLS and set
-            # X-Forwarded-For + X-Forwarded-Proto (and strip client-supplied values), so rate
-            # limiting keys on the real client IP and the HTTPS redirect sees the real scheme.
-            # HTTP_PROXY_HOPS = trusted proxies that APPEND to X-Forwarded-For (1 = the
-            # ingress alone; see application.yaml `http.proxyHops`).
+              valueFrom:
+                configMapKeyRef:
+                  name: astrolabe-front-door
+                  key: KTOR_DEVELOPMENT
             - name: HTTP_BEHIND_PROXY
-              value: "true"
+              valueFrom:
+                configMapKeyRef:
+                  name: astrolabe-front-door
+                  key: HTTP_BEHIND_PROXY
             - name: HTTP_PROXY_HOPS
-              value: "1"
+              valueFrom:
+                configMapKeyRef:
+                  name: astrolabe-front-door
+                  key: HTTP_PROXY_HOPS
             # Password reset and email MFA need outbound mail. This deployment ships with
             # mail disabled — set "smtp" plus real SMTP_HOST/MAIL_FROM/MAIL_APP_URL to enable
             # those flows (production refuses the `log` transport). MAIL_APP_URL is the https origin
@@ -142,8 +150,9 @@ spec:
           # startupProbe gives JVM boot + Flyway migrations up to ~150s (30 x 5s) before the
           # liveness clock starts, so a slow first boot cannot trigger a restart.
           # Every probe sends X-Forwarded-Proto: https — the header the TLS-terminating ingress
-          # sets (HTTP_BEHIND_PROXY above makes the app trust it). Without it, production mode
-          # answers the plain-HTTP probe with a 301 to https://<pod-ip>/, which the kubelet
+          # sets (the base ConfigMap's HTTP_BEHIND_PROXY=true makes the app trust it; under the
+          # local overlay the header is ignored, harmlessly — development mode never redirects).
+          # Without it, production mode answers the plain-HTTP probe with a 301 to https://<pod-ip>/, which the kubelet
           # FOLLOWS (same host) into a refused :443 — probes never pass and the pod crash-loops
           # (a past incident, reproduced in production). startupProbe/livenessProbe
           # hit /api/v1/health, which never waits on the database (plugins/Health.kt) — the
