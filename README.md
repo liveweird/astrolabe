@@ -194,6 +194,7 @@ class-data-sharing (AppCDS) archive, and setting it drops the archive. Build-tim
 | `MFA_CODE_TTL_SECONDS` | `300` | Lifetime of an emailed MFA code. |
 | `MFA_MAX_ATTEMPTS` | `5` | Wrong-code attempts before a challenge dies. |
 | `MFA_MAX_TRACKED` | `10000` | Maximum pending email-MFA challenges; new issuance receives 429 at capacity. |
+| `MFA_MAX_LIVE_PER_ACCOUNT` | `3` | Live email-MFA challenges one account may hold, 1–100; a new login gets a fresh code (unless the shared store is full) and, at the limit, the account's oldest live challenge is dropped. |
 | `DATA_ENCRYPTION_KEY` | *(dev key, burned)* | AES-256-GCM key (64 hex) for stored credentials (none stored yet in 0.1.0; reserved for the future sync's connection tokens) — the dev default is burned, production refuses it. Back it up apart from the database. |
 | `DATA_ENCRYPTION_KEY_PREVIOUS` | *(blank)* | Decrypt-only fallback during a key rotation (boot once, then remove). |
 | `SECURITY_CSRF_ENABLED` | `false` | CSRF plugin gate — off (bearer JWT, no cookies). |

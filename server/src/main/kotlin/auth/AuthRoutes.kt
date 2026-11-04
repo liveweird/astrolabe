@@ -117,6 +117,7 @@ fun Application.configureAuthRoutes() {
             ttlMillis = mfaTtlSeconds * 1000,
             maxAttempts = requireConfigInt(environment.config, "security.mfa.maxAttempts", min = 1, max = 100),
             maxTracked = requireConfigInt(environment.config, "security.mfa.maxTracked", min = 1, max = MAX_TRACKED_IDENTITIES),
+            maxLivePerAccount = requireConfigInt(environment.config, "security.mfa.maxLivePerAccount", min = 1, max = 100),
         ),
         mfaTtlMinutes = (mfaTtlSeconds + 59) / 60,
         refreshVerifier = JWT.require(Algorithm.HMAC256(jwtConfig.secret))

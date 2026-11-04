@@ -29,10 +29,10 @@ private val CODE_LABEL = LocalizedText(en = "Your sign-in code", pl = "Twój kod
 internal fun mfaEmailBody(name: String, code: String, ttlMinutes: Long, language: String): String = buildString {
     val intro = LocalizedText(
         en = "someone — hopefully you — is signing in to your Astrolabe account. Enter the code " +
-            "below to finish signing in; it is valid for about $ttlMinutes minutes. If this " +
+            "below to finish signing in; it is valid for up to $ttlMinutes minutes. If this " +
             "wasn't you, your password may be compromised — change it after signing in.",
         pl = "ktoś — mamy nadzieję, że Ty — loguje się na Twoje konto Astrolabe. Wpisz poniższy " +
-            "kod, aby dokończyć logowanie; kod jest ważny około $ttlMinutes min. Jeśli to " +
+            "kod, aby dokończyć logowanie; kod jest ważny maksymalnie $ttlMinutes min. Jeśli to " +
             "nie Ty, Twoje hasło mogło wpaść w niepowołane ręce — zmień je po zalogowaniu.",
     )
     appendLine("${GREETING.of(language)} $name,")
@@ -75,7 +75,11 @@ internal suspend fun issueMfaChallenge(
             "Too many sign-in challenges are pending — try again later",
         )
     }
-    audit("login.mfa_challenge", "email" to user.email, "userId" to userId.toLong())
+    // evicted = this account's older challenges the new one displaced (a count, never ids or codes).
+    audit(
+        "login.mfa_challenge",
+        "email" to user.email, "userId" to userId.toLong(), "evicted" to challenge.evicted,
+    )
     // Challenge stored BEFORE responding (the user submits the code right away);
     // only the delivery is fire-and-forget, like the password-reset email.
     val app = call.application
@@ -95,7 +99,7 @@ internal suspend fun issueMfaChallenge(
             // debug lines follow (auth/AuthRoutes.kt): a mail transport's exception message may
             // embed server/recipient detail that does not belong in the audit trail.
             audit("login.mfa_send_failed", "email" to user.email, "errorType" to e.javaClass.simpleName)
-            app.log.error("MFA code email delivery failed for ${user.email}", e)
+            app.log.error("MFA code email delivery failed ({})", e.javaClass.simpleName)
         }
     }
     call.respond(

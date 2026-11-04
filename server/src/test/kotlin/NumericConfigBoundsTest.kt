@@ -37,6 +37,11 @@ class NumericConfigBoundsTest {
     }
 
     @Test
+    fun `a malformed or out-of-range MFA per-account cap refuses to start`() {
+        assertRefused("security.mfa.maxLivePerAccount", "0", "-1", "abc", "101")
+    }
+
+    @Test
     fun `a malformed or overflow-sized MFA code ttl refuses to start`() {
         assertRefused("security.mfa.codeTtlSeconds", "-1", "abc", Long.MAX_VALUE.toString())
     }
@@ -78,6 +83,7 @@ class NumericConfigBoundsTest {
             "jwt.refreshExpiresInSeconds" to "1",
             "security.lockout.maxTracked" to "1000000",
             "security.mfa.codeTtlSeconds" to "0",
+            "security.mfa.maxLivePerAccount" to "100",
             "security.rateLimit.loginPerMinute" to "1000000",
         )
         startApplication() // must not throw

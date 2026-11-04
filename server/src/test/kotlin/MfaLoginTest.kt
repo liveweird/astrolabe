@@ -261,6 +261,62 @@ class MfaLoginTest {
     }
 
     @Test
+    fun `a 4th login for one account still gets a fresh code and evicts the oldest challenge`() = testApplication {
+        usePostgresTestcontainer()
+        val email = uniqueEmail("mfa-account-cap")
+        seedMfaUser(email, "pw-123456789")
+        val mail = LogCapture("ch.nokillswit.mail")
+        val auditEvents = LogCapture("ch.nokillswit.audit")
+        try {
+            val client = jsonClient()
+            // Sequential, waiting for each (asynchronous) email, so challenge i pairs with mail i.
+            val pending = (1..4).map { n ->
+                val response = client.login(email, "pw-123456789")
+                assertEquals(HttpStatusCode.OK, response.status, "login $n must always get a challenge")
+                val challenge = response.body<MfaChallengeResponse>()
+                mail.awaitEvent { mail.events.count { m -> "To: $email" in m.formattedMessage } >= n }
+                val message = mail.events.filter { m -> "To: $email" in m.formattedMessage }[n - 1].formattedMessage
+                challenge.challengeId to checkNotNull(Regex("""(?m)^\d{6}$""").find(message)?.value)
+            }
+            assertEquals(4, mail.events.count { "To: $email" in it.formattedMessage }, "every login mails the owner")
+            // The 4th login displaced exactly one challenge (a count, never ids or codes).
+            assertNotNull(
+                auditEvents.awaitEvent {
+                    it.message == "login.mfa_challenge" && it.hasKeyValue("email", email) && it.hasKeyValue("evicted", 1)
+                },
+            )
+            assertEquals(
+                HttpStatusCode.Unauthorized,
+                client.verify(pending[0].first, pending[0].second).status,
+                "the oldest challenge was evicted - its code no longer works",
+            )
+            assertEquals(HttpStatusCode.OK, client.verify(pending[3].first, pending[3].second).status)
+            assertEquals(HttpStatusCode.OK, client.verify(pending[1].first, pending[1].second).status)
+        } finally {
+            mail.detach()
+            auditEvents.detach()
+        }
+    }
+
+    @Test
+    fun `wrong MFA codes do not feed the login lockout`() = testApplication {
+        configureApp("security.lockout.threshold" to "2")
+        startApplication()
+        val email = uniqueEmail("mfa-no-lockout")
+        seedMfaUser(email, "pw-123456789")
+        val client = jsonClient()
+        val challenge = client.login(email, "pw-123456789").body<MfaChallengeResponse>()
+        repeat(4) { // more than the lockout threshold (2), fewer than the attempt cap (5)
+            assertEquals(HttpStatusCode.Unauthorized, client.verify(challenge.challengeId, "000000").status)
+        }
+        assertEquals(
+            HttpStatusCode.OK,
+            client.login(email, "pw-123456789").status,
+            "the correct password still signs in: MFA failures never lock the account",
+        )
+    }
+
+    @Test
     fun `failed MFA delivery releases capacity so a recovered mail transport can retry`() = testApplication {
         val port = ServerSocket(0).use { it.localPort }
         configureApp(
@@ -274,6 +330,7 @@ class MfaLoginTest {
         val email = uniqueEmail("mfa-delivery-recovery")
         seedMfaUser(email, "pw-123456789")
         val auditEvents = LogCapture("ch.nokillswit.audit")
+        val appLog = LogCapture(org.slf4j.Logger.ROOT_LOGGER_NAME)
         try {
             val client = jsonClient()
             assertEquals(HttpStatusCode.OK, client.login(email, "pw-123456789").status)
@@ -283,6 +340,14 @@ class MfaLoginTest {
                 },
                 "the closed SMTP port should fail the first delivery",
             )
+            // The error line carries the exception CLASS only: no throwable (its message can embed
+            // server replies / recipient detail), no address, no host.
+            val failureLine = assertNotNull(
+                appLog.awaitEvent { it.message.startsWith("MFA code email delivery failed") },
+            )
+            assertEquals(null, failureLine.throwableProxy)
+            assertTrue(Regex("""MFA code email delivery failed \(\w+\)""").matches(failureLine.formattedMessage))
+            assertTrue(email !in failureLine.formattedMessage && "127.0.0.1" !in failureLine.formattedMessage)
 
             SmtpSink(port).use { smtp ->
                 assertEquals(
@@ -294,6 +359,7 @@ class MfaLoginTest {
             }
         } finally {
             auditEvents.detach()
+            appLog.detach()
         }
     }
 

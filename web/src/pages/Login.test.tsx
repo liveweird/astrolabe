@@ -187,7 +187,7 @@ describe("Login", () => {
     await user.click(screen.getByRole("button", { name: "Verify code" }));
 
     expect(
-      await screen.findByText("That code is invalid or has expired. Sign in again to get a new one."),
+      await screen.findByText("That code is invalid or has expired. Use the code emailed for this sign-in, or sign in again to get a new one."),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Verify code" })).toBeInTheDocument();
   });

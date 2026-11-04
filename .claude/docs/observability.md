@@ -63,7 +63,7 @@ with `hasKeyValue` from `TestEnvironment.kt`). Emitted today:
   account) / `login.capacity_rejected` (an unseen identity cannot be admitted into the full
   throttle); login audits use `email` for ordinary identities and a fixed-size `emailDigest` for
   oversized submissions,
-- `login.mfa_challenge` (email/userId — correct credentials, second factor pending) /
+- `login.mfa_challenge` (email/userId/`evicted` — correct credentials, second factor pending; `evicted` = this account's older challenges displaced, a count) /
   `login.mfa_success` / `login.mfa_failure` (with `reason`:
   unknown_challenge/expired/wrong_code/too_many_attempts/user_gone/credential_changed) /
   `login.mfa_unavailable` (MFA enabled on a mail-less deployment → 503) /

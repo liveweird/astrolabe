@@ -315,6 +315,42 @@ language (V1 `users.language`, EN fallback). Its hard `security.mfa.maxTracked` 
 10,000, `$MFA_MAX_TRACKED`) first drops expired challenges, then rejects new issuance with an
 audited `429` at capacity; existing codes remain verifiable and no rejected code is emailed. A
 failed or cancelled delivery discards its challenge so a retry can use that slot.
+**Per-account limit** (`security.mfa.maxLivePerAccount`, default 3, 1..100, `$MFA_MAX_LIVE_PER_ACCOUNT`):
+a new password-correct login gets a fresh code (unless the shared store is genuinely full: the global `429` below). Under the store lock `issue` prunes expired
+entries, drops the account's entries minted under an OLDER credential revision (the password changed
+since; they can never verify; entries of a NEWER revision are never touched, so a late login that read
+an old revision cannot evict the owner's current challenge, and its own entry just expires unusable),
+and if the account still holds the limit of the same revision drops its OLDEST by issue order (a sequence number,
+not the clock, which can tie) until one slot is free; only then does the global `maxTracked` check run, so
+an account at its limit is never refused by a full store (the global `429` stays for a genuinely full
+store). The displaced code stops working; a late `discard` of an evicted id is a no-op. The
+`login.mfa_challenge` audit event carries `evicted` (a count; never codes or challenge ids). What the
+limit does: bounds the live codes per account and the memory, and stops one leaked password from filling
+the shared store. What it does NOT do: bound mails or guesses per account; those stay limited by the
+per-IP buckets. Guessing: `POST /login/mfa` has the hardcoded `mfa` bucket of 10/min per IP, each guess
+hits one challenge's 6-digit code (1 in 10^6) and a challenge dies after `maxAttempts` (5) wrong
+guesses, so one IP gets about 10 guesses a minute = 1e-5 per minute = about 1.4% per day (14,400
+guesses) against a code space of 10^6, minting a fresh challenge every 5 guesses within the login
+bucket; more IPs scale it linearly, and nothing bounds it per account (the accepted per-IP posture).
+Accepted cost: someone who knows the password can invalidate the owner's pending code by logging in
+repeatedly; the owner signs in again for a fresh one, and every such login still emails the owner,
+which is the signal. Sustained, it is worse: a password holder logging in every 6 s (the production
+10/min login bucket, from ONE IP) evicts the owner's fresh code within about 18 s (3 further logins at the
+default limit), so the owner's "sign in again" can lose the race repeatedly. The recovery is a password
+reset, which kills the leaked password: the email reset flow (`POST /password-reset` +
+`/password-reset/confirm`) does NOT require the second factor (traced: no MFA reference in
+`PasswordReset*.kt`; the emailed single-use link is the proof) and its confirm bumps the credential
+revision, which also invalidates every pending challenge. Where mail is disabled the reset request
+answers `503`, which leaves the ADMIN reset (`PUT /users/{id}/password`). Eviction happens before the delivery
+outcome, so a failed mail can cost the oldest code with no replacement. MFA failures do NOT feed the
+login lockout (`LoginThrottle` only counts password failures). A code verifies only with the
+`challengeId` of its own login, so the code step's wrong-code message says to use the code emailed for
+THIS sign-in or sign in again (Back loses the `challengeId`; no server call is made on Back; "the
+newest email" would be wrong with a second tab or device, and an evicted challenge rejects every
+code). An exhausted,
+verified, discarded (failed delivery) or expired challenge frees its slot. Delivery failures are
+logged by exception class only (`MFA code email delivery failed (<Class>)`), like the password-reset
+line.
 `POST /api/v1/login/mfa` `{challengeId, code}` (own per-IP bucket `"mfa"`, hardcoded 10/min in
 every mode) exchanges it for the ordinary `LoginResponse` — one fresh `userService.read` first
 (the `/refresh` precedent: current roles/flags; a user deleted in between → the uniform 401

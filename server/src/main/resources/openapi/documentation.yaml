@@ -114,6 +114,11 @@ paths:
         fails closed with `503`. The pending challenge store admits at most
         `MFA_MAX_TRACKED` challenges (default 10,000); new issuance at capacity receives
         `429` without sending a code, while existing challenges remain verifiable.
+        One account holds at most `MFA_MAX_LIVE_PER_ACCOUNT` live challenges (default 3): a
+        password-correct login gets a fresh code (unless the shared store is full, above), and at
+        the limit the account's oldest live challenge is dropped, so its code stops working. A
+        code verifies only with the `challengeId` of its own login. MFA failures do not feed the
+        login lockout.
       security: []
       requestBody:
         required: true

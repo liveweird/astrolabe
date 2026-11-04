@@ -119,6 +119,11 @@ security:
     codeTtlSeconds: "$MFA_CODE_TTL_SECONDS:300"
     maxAttempts: "$MFA_MAX_ATTEMPTS:5"
     maxTracked: "$MFA_MAX_TRACKED:10000"
+    # Live (unexpired, unverified) challenges one account may hold, 1..100. A new password-correct
+    # login gets a fresh code (unless the shared store is full); at the limit the account's OLDEST live challenge is dropped
+    # (its code stops working). Bounds live codes per account and memory, and stops one leaked
+    # password filling the shared store - it does NOT bound mails or guesses (the per-IP buckets do).
+    maxLivePerAccount: "$MFA_MAX_LIVE_PER_ACCOUNT:3"
   # Application-level encryption at rest (infra/crypto/): an AES-256-GCM key (64 hex chars,
   # `openssl rand -hex 32`) for stored credentials (none stored yet in v0.1.0). The
   # default is a committed dev-only key (infra/crypto/Crypto.kt — it is on the burned list,

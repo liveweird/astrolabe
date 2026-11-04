@@ -14,8 +14,12 @@ import kotlin.test.assertTrue
 class MfaChallengesTest {
 
     private var now = 1_000_000L
-    private fun store(ttlMillis: Long = 300_000, maxAttempts: Int = 5, maxTracked: Int = 10_000) =
-        MfaChallenges(ttlMillis, maxAttempts, clock = { now }, maxTracked = maxTracked)
+    private fun store(
+        ttlMillis: Long = 300_000,
+        maxAttempts: Int = 5,
+        maxTracked: Int = 10_000,
+        maxLivePerAccount: Int = 3,
+    ) = MfaChallenges(ttlMillis, maxAttempts, clock = { now }, maxTracked = maxTracked, maxLivePerAccount = maxLivePerAccount)
 
     @Test
     fun `a correct code succeeds exactly once - the challenge is single-use`() {
@@ -123,6 +127,121 @@ class MfaChallengesTest {
             (s.verify(undelivered.challengeId, undelivered.code) as MfaChallenges.Outcome.Failure).reason,
         )
         assertIs<MfaChallenges.Outcome.Success>(s.verify(replacement.challengeId, replacement.code))
+    }
+
+    @Test
+    fun `the 4th issue evicts the oldest challenge and another account is unaffected`() {
+        val s = store()
+        val other = s.issue(6u, credentialRevision = 0)
+        val live = (1..3).map { s.issue(5u, credentialRevision = 0) }
+        val fourth = s.issue(5u, credentialRevision = 0)
+        assertEquals(1, fourth.evicted)
+        assertEquals(0, live[1].evicted)
+        assertEquals(
+            "unknown_challenge",
+            (s.verify(live[0].challengeId, live[0].code) as MfaChallenges.Outcome.Failure).reason,
+        )
+        (live.drop(1) + fourth + other).forEach {
+            assertIs<MfaChallenges.Outcome.Success>(s.verify(it.challengeId, it.code))
+        }
+    }
+
+    @Test
+    fun `oldest means issue order, not expiry - even when the clock ties or runs backwards`() {
+        val s = store(maxLivePerAccount = 2)
+        val a = s.issue(5u, credentialRevision = 0)
+        now -= 10_000 // b expires EARLIER than a: an expiry-ordered "oldest" would evict b
+        val b = s.issue(5u, credentialRevision = 0)
+        now += 10_000 // back to a's time: c ties with a
+        val c = s.issue(5u, credentialRevision = 0)
+        assertEquals("unknown_challenge", (s.verify(a.challengeId, a.code) as MfaChallenges.Outcome.Failure).reason)
+        assertIs<MfaChallenges.Outcome.Success>(s.verify(b.challengeId, b.code))
+        assertIs<MfaChallenges.Outcome.Success>(s.verify(c.challengeId, c.code))
+    }
+
+    @Test
+    fun `a stale-revision challenge is dropped on issue and does not count toward the limit`() {
+        val s = store(maxLivePerAccount = 2)
+        val stale = s.issue(5u, credentialRevision = 1)
+        val kept = s.issue(5u, credentialRevision = 2)
+        val fresh = s.issue(5u, credentialRevision = 2)
+        // stale went (an older revision), so kept survived: only 1 live entry then, under the limit of 2.
+        assertEquals(1, kept.evicted)
+        assertEquals(0, fresh.evicted)
+        assertEquals("unknown_challenge", (s.verify(stale.challengeId, stale.code) as MfaChallenges.Outcome.Failure).reason)
+        assertIs<MfaChallenges.Outcome.Success>(s.verify(kept.challengeId, kept.code))
+        assertIs<MfaChallenges.Outcome.Success>(s.verify(fresh.challengeId, fresh.code))
+    }
+
+    @Test
+    fun `a late login at an older revision cannot evict the owner's current challenge`() {
+        val s = store(maxLivePerAccount = 1)
+        val current = s.issue(5u, credentialRevision = 2)
+        val late = s.issue(5u, credentialRevision = 1)
+        assertEquals(0, late.evicted)
+        assertIs<MfaChallenges.Outcome.Success>(s.verify(current.challengeId, current.code))
+    }
+
+    @Test
+    fun `an account at its limit succeeds when the global store is full, a stranger does not`() {
+        val s = store(maxTracked = 3, maxLivePerAccount = 3)
+        val live = (1..3).map { s.issue(5u, credentialRevision = 0) }
+        assertFailsWith<MfaChallenges.CapacityExceededException> { s.issue(6u, credentialRevision = 0) }
+        val replacement = s.issue(5u, credentialRevision = 0) // eviction frees the slot first
+        assertEquals(1, replacement.evicted)
+        assertIs<MfaChallenges.Outcome.Success>(s.verify(replacement.challengeId, replacement.code))
+        assertIs<MfaChallenges.Outcome.Success>(s.verify(live[2].challengeId, live[2].code))
+    }
+
+    @Test
+    fun `a verified, exhausted or expired challenge frees its account slot and a late discard of an evicted one is a no-op`() {
+        val s = store(maxAttempts = 1, ttlMillis = 60_000, maxLivePerAccount = 2)
+        val a = s.issue(5u, credentialRevision = 0)
+        val b = s.issue(5u, credentialRevision = 0)
+        assertIs<MfaChallenges.Outcome.Success>(s.verify(a.challengeId, a.code))
+        assertEquals(0, s.issue(5u, credentialRevision = 0).evicted, "the verified slot was free")
+        assertIs<MfaChallenges.Outcome.Failure>(s.verify(b.challengeId, "x")) // maxAttempts = 1 kills it
+        assertEquals(0, s.issue(5u, credentialRevision = 0).evicted, "the exhausted slot was free")
+        now += 60_000
+        assertEquals(0, s.issue(5u, credentialRevision = 0).evicted, "expired entries are pruned, not evicted")
+
+        // A failed delivery's discard of an already-evicted challenge changes nothing.
+        val x = s.issue(7u, credentialRevision = 0)
+        val y = s.issue(7u, credentialRevision = 0)
+        val z = s.issue(7u, credentialRevision = 0) // evicts x
+        s.discard(x.challengeId)
+        assertIs<MfaChallenges.Outcome.Success>(s.verify(y.challengeId, y.code))
+        assertIs<MfaChallenges.Outcome.Success>(s.verify(z.challengeId, z.code))
+    }
+
+    @Test
+    fun `concurrent issuance for ONE account never leaves more than the limit live`() {
+        val s = store(maxLivePerAccount = 3)
+        val threads = 8
+        val ready = CountDownLatch(threads)
+        val go = CountDownLatch(1)
+        val executor = Executors.newFixedThreadPool(threads)
+        try {
+            val futures = (1..threads).map {
+                executor.submit<MfaChallenges.IssuedChallenge> {
+                    ready.countDown()
+                    go.await()
+                    s.issue(5u, credentialRevision = 0)
+                }
+            }
+            ready.await()
+            go.countDown()
+            val issued = futures.map { it.get() }
+            val verifying = issued.count { s.verify(it.challengeId, it.code) is MfaChallenges.Outcome.Success }
+            assertEquals(3, verifying)
+        } finally {
+            executor.shutdownNow()
+        }
+    }
+
+    @Test
+    fun `a non-positive per-account cap is refused at construction`() {
+        assertFailsWith<IllegalArgumentException> { store(maxLivePerAccount = 0) }
     }
 
     @Test
