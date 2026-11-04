@@ -19,7 +19,7 @@ the shared Timeline component and the project view (milestones on the timeline, 
   `web/src/api/schema.ts`. Run this after editing the OpenAPI spec; commit the regenerated
   `schema.ts` in the same change.
 - **Quality gates (the frontend counterpart of the backend's detekt)**: `npm run lint` carries
-  `eslint-plugin-sonarjs` (recommended) plus core size/complexity backstops — zero-findings gate;
+  `eslint-plugin-sonarjs` (recommended), `eslint-plugin-jsx-a11y` (recommended; static accessibility rules, two file-scoped overrides) plus core size/complexity backstops — zero-findings gate;
   rule tuning lives in `eslint.config.js` ONLY, one commented override per deliberate idiom, and
   any inline `eslint-disable` needs a justifying comment. `npm run lint` runs with `--cache --cache-strategy content`
   (`web/.eslintcache`, gitignored; a warm run is ~0.6 s against ~12 s, CI restores the file between runs —

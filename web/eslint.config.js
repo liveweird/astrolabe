@@ -1,5 +1,6 @@
 import js from '@eslint/js'
 import globals from 'globals'
+import jsxA11y from 'eslint-plugin-jsx-a11y'
 import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 import sonarjs from 'eslint-plugin-sonarjs'
@@ -17,6 +18,7 @@ export default defineConfig([
       reactHooks.configs.flat.recommended,
       reactRefresh.configs.vite,
       sonarjs.configs.recommended,
+      jsxA11y.flatConfigs.recommended,
     ],
     languageOptions: {
       globals: globals.browser,
@@ -58,6 +60,32 @@ export default defineConfig([
       'max-depth': ['error', 5],
       // The drill-down link builders (userXxxLink + DrillDownOpts tail params) carry 6.
       'max-params': ['error', 8],
+    },
+  },
+  {
+    // The ARIA grid pattern (the shared Timeline and its roving-grid hook test): the `role="grid"`
+    // container is deliberately NOT a tab stop — `useRovingGrid` keeps exactly ONE tabIndex=0 on a
+    // cell inside it and moves focus with the arrow keys (timeline.md "Accessibility model"), so
+    // `tabIndex` on the container would add a second stop. Scoped to the two files that mount a
+    // roving grid; any other `role="grid"` still has to be focusable.
+    files: ['src/components/Timeline.tsx', 'src/hooks/useRovingGrid.test.tsx'],
+    rules: {
+      'jsx-a11y/interactive-supports-focus': 'off',
+    },
+  },
+  {
+    // Single-purpose entry pages: the sign-in form and its MFA code step (the email input unmounts
+    // when the step swaps, so without autoFocus the keyboard focus would fall to <body>), the
+    // password-reset request, and the create/edit-user form, whose first field is the page's one
+    // task. Not a blanket: every other `autoFocus` (a dialog uses Mantine's `data-autofocus`) is
+    // still a finding.
+    files: [
+      'src/pages/Login.tsx',
+      'src/pages/ResetPassword.tsx',
+      'src/components/UserFormFields.tsx',
+    ],
+    rules: {
+      'jsx-a11y/no-autofocus': 'off',
     },
   },
   {

@@ -182,6 +182,10 @@ Flow's batch-by-batch bump log (2026-09 .. 2026-10) is not carried over: Astrola
 Jira/GitLab-only clients), and its own rounds are recorded below, newest first, as they happen. The v0.1.0 lockfiles and `gradle/verification-metadata.xml` were
 regenerated from an empty `GRADLE_USER_HOME` per `dependency-reproducibility.md`.
 
+- 2026-11 (v1.0.0 checkup C7): `eslint-plugin-jsx-a11y` `^6.10.2` added to `web/` devDependencies (`npm install --legacy-peer-deps --save-dev`; lockfile purely additive: 20 dev packages, no removals).
+  Its declared `eslint` peer stops at `^9` while the SPA is on ESLint 10 — the `--legacy-peer-deps` exception tolerates it, the flat config (`jsxA11y.flatConfigs.recommended`) loads and lints
+  cleanly; revisit when a 6.x/7.x release declares ESLint 10.
+
 Dependencies kept for a future consumer (Ktor's OkHttp client engine with `infra/outbound/OutboundGuard.kt`'s guarded `OkHttpClient`, `ktor-client-mock`) stay on the classpath
 only while a test or source file uses them; knip/dependency analysis flags an orphan, and a consumer-less one is deleted and re-added with the sync.
 

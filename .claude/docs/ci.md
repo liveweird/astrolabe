@@ -46,9 +46,9 @@ first; extend the config only for a genuinely deliberate idiom, and prefer a con
 `@Suppress` (a per-site `@Suppress` needs a one-line justifying comment). Runs in seconds, no
 Docker — safe to run anytime, unlike the test suite.
 
-**Frontend static analysis (sonarjs + knip).** The SPA's counterpart, same
+**Frontend static analysis (sonarjs + jsx-a11y + knip).** The SPA's counterpart, same
 zero-findings/no-baseline policy: `cd web && npm run lint` carries `eslint-plugin-sonarjs`
-(recommended set) plus core size/complexity backstops tuned generously for React's
+(recommended set), `eslint-plugin-jsx-a11y` (`flatConfigs.recommended`: the static half of the accessibility rules the e2e axe sweep checks at run time; its two overrides are file-scoped — the roving `role="grid"` container and the single-purpose entry pages' `autoFocus`) plus core size/complexity backstops tuned generously for React's
 one-function-per-page architecture (`cognitive-complexity` 40, `complexity` 50 — backstops
 against future monsters, not targets); every override in `web/eslint.config.js` carries the idiom
 comment. `cd web && npm run knip` is the dead-code gate (unused files/exports/dependencies; test
