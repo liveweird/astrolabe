@@ -28,7 +28,8 @@ class PackageBoundaryTest {
 
     /**
      * Composition-root exceptions to "infra never references a feature": `infra/db/Database.kt` builds and publishes the feature
-     * services (`teams`, `people`, `users`, `auth`) and `infra/db/Bootstrap.kt` seeds the admin through `users`/`auth`. Keyed by file name,
+     * services (`teams`, `people`, `planning`, `users`, `auth`) and `infra/db/Bootstrap.kt` seeds the admin through
+     * `users`/`auth`. Keyed by file name,
      * valued by the feature packages that file may import;
      * a listed package the file no longer uses fails the test (a stale exception is dead permission).
      */

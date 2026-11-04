@@ -62,7 +62,7 @@ fun Application.configureSecurity() {
         ?.takeIf { it.isNotBlank() }?.toBoolean() ?: false
     if (csrfEnabled) {
         install(CSRF) {
-            allowOrigin("http://localhost:8084")
+            allowOrigin("http://localhost:8086")
             originMatchesHost()
             checkHeader("X-CSRF-Token")
             // The plugin's default rejection is a text/plain 400 and runs before StatusPages —

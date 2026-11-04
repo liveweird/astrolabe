@@ -99,10 +99,10 @@ class AnonymousAccessTest {
         val PATH_PARAMETER = Regex("\\{[^}]+}")
 
         /**
-         * The tripwire floor for the secured surface: 21 of the 28 declared operations as of V10 / the people directory (the
-         * seven public ones declare `security: []`), less a small margin - a shrink is
-         * worth a look. The sweep itself covers EVERY secured operation whatever this number says; the floor only catches the
-         * spec silently losing operations. When the
+         * The tripwire floor for the secured surface: the spec's operations that do not declare `security: []` (the public
+         * ones are health, ready, login, the MFA step, refresh and the password-reset request and confirm), less a small
+         * margin - a shrink is worth a look. The sweep itself covers EVERY secured operation whatever this number says; the
+         * floor only catches the spec silently losing operations. When the
          * secured count grows by a dozen or more, raise it to the new count minus about 5 (read the current figure from
          * `secured.size` in the sweep test).
          */

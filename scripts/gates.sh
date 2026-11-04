@@ -45,7 +45,9 @@ server_build() {
   fi
   # `|| return`: run_gate calls this in an `||` context, where bash ignores `set -e` inside the function, so without it a
   # failed build fell through to the `if` below and the function returned 0 — the gate printed PASS for a red build.
-  "${record[@]}" server-build -- "$root/gradlew" cleanTest check :server:installDist -Pforks="$server_forks" || return
+  "${record[@]}" server-build -- "$root/gradlew" cleanTest check :server:installDist :verifySettingsPluginAudit -Pforks="$server_forks" || return
+  # The lockfile and verification-metadata check CI runs after its build (ci.yml "Confirm lockfiles and verification metadata match").
+  git -C "$root" diff --exit-code -- gradle/verification-metadata.xml gradle.lockfile settings-gradle.lockfile buildscript-gradle.lockfile core/gradle.lockfile core/buildscript-gradle.lockfile server/gradle.lockfile server/buildscript-gradle.lockfile || return
 }
 
 web_gates() {
