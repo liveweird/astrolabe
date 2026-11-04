@@ -41,6 +41,11 @@ describe("Login", () => {
     await user.click(screen.getByRole("button", { name: "Sign in" }));
   }
 
+  test("names the tab after the sign-in step", () => {
+    renderWithProviders(<Login />, { route: "/login" });
+    expect(document.title).toBe("Sign in · Astrolabe");
+  });
+
   test("client-side validation blocks an empty submit without a request", async () => {
     renderWithProviders(<Login />, { route: "/login" });
     const user = userEvent.setup();

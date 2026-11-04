@@ -30,6 +30,10 @@ test("a language switch persists across reload and re-login on a fresh device", 
   await page.reload();
   await expect(page.getByRole("link", { name: "Strona główna" })).toBeVisible();
 
+  // The tab title is localized too: a non-home page reads "<Polish page> · Astrolabe".
+  await page.getByRole("link", { name: "Zespoły" }).click();
+  await expect(page).toHaveTitle("Zespoły · Astrolabe");
+
   // The sync proof: wipe ALL device state and sign in afresh — the UI comes up Polish
   // purely from the server-stored value riding the login response.
   await page.evaluate(() => localStorage.clear());

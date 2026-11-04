@@ -25,4 +25,26 @@ describe("PageHeader", () => {
     expect(screen.getByRole("heading", { level: 2, name: "Users" })).toBeInTheDocument();
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
+
+  test("names the tab after the title, in the \"{page} · Astrolabe\" form", () => {
+    renderWithProviders(<PageHeader title="Teams" />);
+    expect(document.title).toBe("Teams · Astrolabe");
+  });
+
+  test("a title that is the brand sets the brand alone", () => {
+    renderWithProviders(<PageHeader title="Astrolabe" />);
+    expect(document.title).toBe("Astrolabe");
+  });
+
+  test("a blank title (an entity name that has not arrived) never reads \" · Astrolabe\"", () => {
+    renderWithProviders(<PageHeader title="  " />);
+    expect(document.title).toBe("Astrolabe");
+  });
+
+  test("a changed title replaces the tab title", () => {
+    const { rerender } = renderWithProviders(<PageHeader title="Alpha" />);
+    expect(document.title).toBe("Alpha · Astrolabe");
+    rerender(<PageHeader title="Beta" />);
+    expect(document.title).toBe("Beta · Astrolabe");
+  });
 });

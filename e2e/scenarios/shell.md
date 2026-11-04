@@ -1,4 +1,4 @@
-# App shell chrome: the icon rail and the theme switch
+# App shell chrome: the icon rail, the theme switch and route changes
 
 - **Spec**: [tests/shell.spec.ts](../tests/shell.spec.ts)
 - **Actors**: the seed administrator (`admin@astrolabe.local`)
@@ -27,6 +27,18 @@
    - *Expected*: still dark — the device cached the choice.
 3. They open the account menu again and pick **Light**.
    - *Expected*: `<html data-mantine-color-scheme="light">`.
+
+## Scenario: the document title names the page and the focus moves to the main content on navigation
+
+1. The admin signs in.
+   - *Expected*: the tab title is **Astrolabe** (the Home page collapses to the brand alone).
+2. They click **Teams** in the sidebar.
+   - *Expected*: the Teams heading shows and the tab title is **Teams · Astrolabe**.
+3. They click **Home**.
+   - *Expected*: the tab title is **Astrolabe** again.
+
+(The focus half of the title — `#main-content` focused after the click and a Tab landing inside
+the page — is added to this scenario by the focus-management commit.)
 
 ## Not covered here (and why)
 

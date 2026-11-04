@@ -198,6 +198,18 @@ describe("App shell", () => {
       });
     });
 
+    test("the tab title follows the page: brand alone on Home, then \"Teams · Astrolabe\" after navigating", async () => {
+      const user = userEvent.setup();
+      vi.mocked(fetch).mockImplementation(() => Promise.resolve(jsonResponse(200, { items: [], page: 1, pageSize: 20, total: 0 })));
+      renderApp("/");
+      await screen.findByRole("heading", { level: 2, name: "Astrolabe" });
+      expect(document.title).toBe("Astrolabe");
+
+      await user.click(screen.getByRole("link", { name: "Teams" }));
+      expect(await screen.findByRole("heading", { level: 2, name: "Teams" })).toBeInTheDocument();
+      expect(document.title).toBe("Teams · Astrolabe");
+    });
+
     test("the account menu holds the Changelog link; the stamp links there and the trigger carries the dot", async () => {
       const user = userEvent.setup();
       renderApp("/");

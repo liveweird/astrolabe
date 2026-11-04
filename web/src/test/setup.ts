@@ -98,6 +98,8 @@ if (typeof document !== "undefined" && !document.fonts) {
 afterEach(() => {
   cleanup();
   localStorage.clear();
+  // `useDocumentTitle` never restores on unmount and `isolate: false` shares one document across files.
+  document.title = "";
 });
 
 // happy-dom ships an IntersectionObserver that never reports anything (no layout), which would leave `NearViewport` charts

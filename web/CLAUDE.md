@@ -96,6 +96,7 @@ the shared Timeline component and the project view (milestones on the timeline, 
   (`<Title order={3} size="h4">` keeps the look), their inner blocks h4; and every `Table` has an accessible
   name (`aria-label` — the words of the heading above it, or a `<area>.tableAria` key). Page tests pin the
   outline with `test/headings.ts`'s `headingOutline()`.
+  **Tab titles**: `PageHeader` (and `AuthCard` for the pages outside the shell) is the ONE owner of `document.title` through `hooks/usePageTitle.ts` — `appShell.documentTitle` = "{{page}} · Astrolabe", the brand alone for Home or a blank title (a detail page's entity name only exists once loaded; its load/failure states pass a static title). Mantine's `useDocumentTitle` does not restore on unmount, so `test/setup.ts` resets `document.title` after each test.
 
 ## The typed API layer (`src/api/`)
 

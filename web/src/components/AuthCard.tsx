@@ -1,6 +1,7 @@
 import { type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Center, Group, Paper, Stack, Title } from "@mantine/core";
+import { usePageTitle } from "../hooks/usePageTitle";
 import BrandLogo from "./BrandLogo";
 import VersionStamp from "./VersionStamp";
 
@@ -18,6 +19,7 @@ interface Props {
  */
 export default function AuthCard({ title, children }: Props) {
   const { t } = useTranslation();
+  usePageTitle(title);
 
   return (
     <Center

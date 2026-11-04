@@ -1,5 +1,6 @@
 {
   "brand": "Astrolabe",
+  "documentTitle": "{{page}} · Astrolabe",
   "skipToContent": "Skip to main content",
   "toggleNav": "Show or hide the navigation",
   "toggleMobileNav": "Toggle navigation",
