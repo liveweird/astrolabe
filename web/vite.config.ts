@@ -92,12 +92,12 @@ export default defineConfig({
       ],
       // Floors set just below current measured coverage so they gate regressions without
       // blocking unrelated work. Raise as coverage improves, never lower.
-      // (2026-10-31: measured after trimming Flow to Astrolabe's foundation.)
+      // (2026-11-05, the 1.0.0 checkup: lines 98.65, statements 97.87, functions 97.62, branches 93.74; 2026-10-31: measured after trimming Flow to Astrolabe's foundation.)
       thresholds: {
         lines: 98,
-        statements: 96,
-        functions: 96,
-        branches: 91,
+        statements: 97,
+        functions: 97,
+        branches: 93,
       },
     },
   },
