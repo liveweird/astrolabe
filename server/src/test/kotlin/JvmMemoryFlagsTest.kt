@@ -237,10 +237,37 @@ class JvmMemoryFlagsTest {
                     "(STOP_WAIT $stopWait + SDK close $SDK_CLOSE_SECONDS + margin $GRACE_MARGIN_SECONDS)",
             )
         }
+        // Compose does the same SIGTERM -> wait -> SIGKILL; its 10 s default is shorter than STOP_WAIT, so it must be set.
+        val composeGrace = composeServices("docker-compose.yaml").path("app").path("stop_grace_period")
+        assertTrue(
+            composeGrace.isTextual,
+            "docker-compose.yaml app sets no stop_grace_period (the 10 s default is shorter than STOP_WAIT $stopWait)",
+        )
+        assertTrue(
+            composeSeconds(composeGrace.asText()) >= needed,
+            "docker-compose.yaml app: stop_grace_period ${composeGrace.asText()} < ${needed}s " +
+                "(STOP_WAIT $stopWait + SDK close $SDK_CLOSE_SECONDS + margin $GRACE_MARGIN_SECONDS)",
+        )
+    }
+
+    /** A compose duration (`45s`, `1m30s`, `1h`) in whole seconds; sub-second units are not used for a stop grace. */
+    private fun composeSeconds(duration: String): Long {
+        val value = duration.trim()
+        assertTrue(Regex("""(\d+[hms])+""").matches(value), "unreadable compose duration '$duration'")
+        return Regex("""(\d+)([hms])""").findAll(value).sumOf { match ->
+            val unit = when (match.groupValues[2]) {
+                "h" -> SECONDS_PER_HOUR
+                "m" -> SECONDS_PER_MINUTE
+                else -> 1L
+            }
+            match.groupValues[1].toLong() * unit
+        }
     }
 
     private companion object {
         const val KIB_PER_MIB = 1024L
+        const val SECONDS_PER_MINUTE = 60L
+        const val SECONDS_PER_HOUR = 3_600L
 
         /** Non-heap ~150 MiB + <= ~30 MiB outside NMT, plus ~76 MiB of slack (class comment, WHY 17/26). */
         const val HEADROOM_MIB = 256L

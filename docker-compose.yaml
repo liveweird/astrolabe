@@ -84,6 +84,19 @@ services:
       start_period: 30s
     # One process (no worker role): the image's baked -Xmx256m heap plus non-heap (~150 MiB) fits 512m with headroom.
     mem_limit: 512m
+    # SIGTERM to SIGKILL, the k8s figure (terminationGracePeriodSeconds: 45): STOP_WAIT_SECONDS 20 s (plugins/OpenTelemetry.kt)
+    # + the OpenTelemetry SDK close 10 s + 15 s margin; compose's 10 s default would SIGKILL the app mid-flush.
+    # JvmMemoryFlagsTest pins it against STOP_WAIT_SECONDS.
+    stop_grace_period: 45s
+    # Hardened like the k8s pod (k8s/app-deployment.yaml): the image runs as uid 10001 and writes only /tmp
+    # (logs go to stdout; the AppCDS archive is read-only), so no capability and no privilege escalation.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
 
 volumes:
   postgres-data:

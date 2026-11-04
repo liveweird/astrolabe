@@ -30,7 +30,7 @@ latch handler is subscribed from inside the `ApplicationStarted` handler (after 
 own `ApplicationStopped` work — the pool dispose) and therefore runs last. The 20 s sits
 in a budget: Ktor grace + timeout ≈ 11 s by default, and 20 s + the SDK's ≤10 s `close()`
 is exactly the Kubernetes default `terminationGracePeriodSeconds` (30 s), so `k8s/app-deployment.yaml` sets 45 s
-(`JvmMemoryFlagsTest` asserts it is at least `STOP_WAIT_SECONDS` + 10 s + 15 s) — raising Ktor's shutdown timeout or
+(`JvmMemoryFlagsTest` asserts it is at least `STOP_WAIT_SECONDS` + 10 s + 15 s; compose's `app` sets `stop_grace_period: 45s` against the same bound, its 10 s default would SIGKILL mid-flush) — raising Ktor's shutdown timeout or
 lowering the pod's grace must revisit `STOP_WAIT_SECONDS`; if the application never finished starting (a boot failure)
 there is no Ktor stop to wait for and it flushes at once, so the failure's own lines still export. Anything
 that must log during a stop belongs in an `ApplicationStopping`/`ApplicationStopped` handler, never in its

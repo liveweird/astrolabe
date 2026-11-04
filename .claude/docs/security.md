@@ -475,6 +475,7 @@ job — `kubeconform -strict` over the raw manifests (`k8s/*.yaml`, `k8s/local/*
   seccomp `RuntimeDefault`, `allowPrivilegeEscalation: false`, `drop: [ALL]` (a non-root start needs no
   capability: the entrypoint's chown/gosu step only runs as root). `readOnlyRootFilesystem` stays off for
   postgres — it writes its socket/lock files under `/var/run/postgresql` and temp files under `/tmp`.
+- **Compose parity.** The compose `app` service carries the same container posture (`read_only: true` with a `/tmp` tmpfs, `cap_drop: [ALL]`, `no-new-privileges`); `postgres` and `mailpit` stay as shipped (the postgres entrypoint starts as root and needs setuid/chown capabilities).
 - **`k8s/network-policies.yaml`.** `default-deny-all` (ingress AND egress for every pod in `astrolabe`), then:
   `postgres` accepts 5432 only from `app`; `app` accepts 8086 (the front door, below);
   `app` may egress to `postgres:5432`, to cluster DNS (kube-system `k8s-app=kube-dns`, 53
