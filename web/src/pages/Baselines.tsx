@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink } from "react-router-dom";
 import { Anchor, Button, Menu, Stack, Table, Text } from "@mantine/core";
@@ -36,6 +36,7 @@ export default function Baselines() {
   const [editorTarget, setEditorTarget] = useState<Baseline | "new" | null>(null);
 
   const refresh = () => refreshQueriesAfterMutation(queryClient, ["baselines"], ["plan"], ["roadmap"]);
+  const titleRef = useRef<HTMLHeadingElement>(null);
   const remove = useDeleteConfirm<Baseline>({
     mutationFn: async (row) => {
       try {
@@ -48,6 +49,7 @@ export default function Baselines() {
     },
     onSuccess: refresh,
     successMessage: t("baselines.toast.deleted"),
+    focusAfterDelete: titleRef,
   });
 
   const columnCount = 8;
@@ -56,6 +58,7 @@ export default function Baselines() {
   return (
     <Stack gap="md">
       <PageHeader
+        titleRef={titleRef}
         title={t("baselines.title")}
         description={t("baselines.intro")}
         actions={

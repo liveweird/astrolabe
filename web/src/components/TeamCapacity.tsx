@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button, Group, Menu, Stack, Table, Text, Title } from "@mantine/core";
 import { IconGauge, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -30,10 +30,12 @@ export default function TeamCapacity({ view, readOnly = false }: { view: TeamVie
   const { periods } = view.capacity;
   const canEdit = view.team.can.editCapacity;
   const refresh = () => refreshQueriesAfterMutation(queryClient, ["plan"]);
+  const headingRef = useRef<HTMLHeadingElement>(null);
   const removal = useDeleteConfirm<CapacityPeriod>({
     mutationFn: (period) => deleteCapacityPeriod(period.id),
     onSuccess: refresh,
     successMessage: t("teams.view.toast.periodDeleted"),
+    focusAfterDelete: headingRef,
   });
   // A proposal opening (or being requested) closes whatever was open: the editor and the delete confirm are not rendered while read-only,
   // and they must not come back on their own when it is over.
@@ -44,7 +46,7 @@ export default function TeamCapacity({ view, readOnly = false }: { view: TeamVie
   return (
     <Stack gap="xs">
       <Group gap="sm" align="center" justify="space-between">
-        <Title order={3} size="h4">
+        <Title order={3} size="h4" ref={headingRef} tabIndex={-1}>
           {t("teams.view.capacityTitle")}
         </Title>
         {canEdit && !readOnly && (

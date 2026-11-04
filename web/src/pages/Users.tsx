@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink } from "react-router-dom";
 import { Badge, Button, Group, Menu, Modal, Select, Stack, Table, Text } from "@mantine/core";
@@ -67,10 +68,12 @@ export default function Users() {
     enabled: admin,
   });
 
+  const titleRef = useRef<HTMLHeadingElement>(null);
   const deleteConfirm = useDeleteConfirm<UserResponse>({
     mutationFn: (row) => deleteUser(row.id),
     onSuccess: () => refreshQueriesAfterMutation(queryClient, ["users"]),
     successMessage: t("users.toast.deleted"),
+    focusAfterDelete: titleRef,
   });
 
   // The reset flow: confirm → generate client-side → PUT → the one-time reveal modal.
@@ -83,6 +86,7 @@ export default function Users() {
   return (
     <Stack gap="md">
       <PageHeader
+        titleRef={titleRef}
         title={t("users.title")}
         actions={
           <>

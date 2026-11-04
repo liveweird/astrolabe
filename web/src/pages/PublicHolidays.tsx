@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { ActionIcon, Button, Group, Paper, Select, Stack, Table, Text, TextInput, VisuallyHidden } from "@mantine/core";
 import { IconCalendarOff, IconCalendarPlus, IconPlus, IconTrash } from "@tabler/icons-react";
@@ -52,6 +52,7 @@ export default function PublicHolidays() {
 
   const holidays = useQuery({ queryKey: HOLIDAYS_QUERY_KEY, queryFn: listPublicHolidays });
   const refresh = () => refreshQueriesAfterMutation(queryClient, ["calendar"], ["plan"], ["roadmap"]);
+  const titleRef = useRef<HTMLHeadingElement>(null);
   const deleteConfirm = useDeleteConfirm<PublicHoliday>({
     mutationFn: async (row) => {
       try {
@@ -64,6 +65,7 @@ export default function PublicHolidays() {
     },
     onSuccess: refresh,
     successMessage: t("calendar.toast.deleted"),
+    focusAfterDelete: titleRef,
   });
 
   const dateInvalid = date !== "" && !isValidIsoDate(date);
@@ -126,7 +128,7 @@ export default function PublicHolidays() {
 
   return (
     <Stack gap="md">
-      <PageHeader title={t("calendar.title")} description={t(admin ? "calendar.hint" : "calendar.hintReadOnly")} />
+      <PageHeader titleRef={titleRef} title={t("calendar.title")} description={t(admin ? "calendar.hint" : "calendar.hintReadOnly")} />
 
       {admin && (
         <Paper withBorder p="md" maw={CONTENT_MAX_WIDTH}>

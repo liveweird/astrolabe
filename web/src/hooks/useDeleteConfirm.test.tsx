@@ -28,6 +28,7 @@ describe("useDeleteConfirm", () => {
         useDeleteConfirm<Row>({
           mutationFn: vi.fn().mockResolvedValue(undefined),
           onSuccess: vi.fn(),
+          focusAfterDelete: null,
         }),
       { wrapper: createWrapper() },
     );
@@ -47,7 +48,7 @@ describe("useDeleteConfirm", () => {
     const mutationFn = vi.fn().mockResolvedValue(undefined);
     const onSuccess = vi.fn();
     const { result } = renderHook(
-      () => useDeleteConfirm<Row>({ mutationFn, onSuccess, successMessage: "User deleted" }),
+      () => useDeleteConfirm<Row>({ mutationFn, onSuccess, successMessage: "User deleted", focusAfterDelete: null }),
       { wrapper: createWrapper() },
     );
 
@@ -67,6 +68,7 @@ describe("useDeleteConfirm", () => {
         useDeleteConfirm<Row>({
           mutationFn: vi.fn().mockResolvedValue(undefined),
           onSuccess: vi.fn(),
+          focusAfterDelete: null,
         }),
       { wrapper: createWrapper() },
     );
@@ -86,6 +88,7 @@ describe("useDeleteConfirm", () => {
           mutationFn: vi.fn().mockRejectedValue(new Error("boom")),
           onSuccess,
           successMessage: "User deleted",
+          focusAfterDelete: null,
         }),
       { wrapper: createWrapper() },
     );
@@ -103,7 +106,7 @@ describe("useDeleteConfirm", () => {
   test("confirmDelete without a target is a no-op", () => {
     const mutationFn = vi.fn().mockResolvedValue(undefined);
     const { result } = renderHook(
-      () => useDeleteConfirm<Row>({ mutationFn, onSuccess: vi.fn() }),
+      () => useDeleteConfirm<Row>({ mutationFn, onSuccess: vi.fn(), focusAfterDelete: null }),
       { wrapper: createWrapper() },
     );
     act(() => result.current.confirmDelete());
@@ -116,6 +119,7 @@ describe("useDeleteConfirm", () => {
         useDeleteConfirm<Row>({
           mutationFn: () => new Promise(() => {}), // never settles
           onSuccess: vi.fn(),
+          focusAfterDelete: null,
         }),
       { wrapper: createWrapper() },
     );

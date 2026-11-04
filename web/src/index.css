@@ -26,6 +26,13 @@ body,
   outline: none;
 }
 
+/* A heading a page hands the focus to on purpose (`PageHeader`'s title, a section's h3: `tabIndex={-1}`, after a row delete): a programmatic
+   focus shows the accent ring only after keyboard use (`:focus-visible`), the cue that tells a keyboard or screen-reader user where they are. */
+:is(h2, h3)[tabindex="-1"]:focus-visible {
+  outline: 2px solid var(--astrolabe-accent-ink);
+  outline-offset: 2px;
+}
+
 /* The canvas colour before Mantine's variables mount (public/color-scheme.js stamps the
    scheme attribute first, so a dark-scheme user never sees a white flash). The two hexes
    duplicate LIGHT_TOKENS.canvas / DARK_TOKENS.canvas (src/themeVariables.ts) — the bundle's

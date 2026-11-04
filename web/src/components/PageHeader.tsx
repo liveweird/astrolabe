@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import { type ReactNode, type Ref } from "react";
 import { Anchor, Group, Stack, Text, Title } from "@mantine/core";
 import { IconArrowLeft } from "@tabler/icons-react";
 import { Link as RouterLink } from "react-router-dom";
@@ -10,7 +10,8 @@ import { usePageTitle } from "../hooks/usePageTitle";
  * back link above the title, the page's primary action(s) right-aligned on the SAME row,
  * and an optional toolbar row underneath (the list pages' filter/lens/kind row). One
  * component, so a "New …" button can only ever be in one place. It also names the browser tab
- * after the title (`usePageTitle`): the one owner, so every routed page has a tab title.
+ * after the title (`usePageTitle`): the one owner, so every routed page has a tab title. The title is programmatically focusable
+ * (`tabIndex={-1}`, never a tab stop) and `titleRef` hands it out: `useDeleteConfirm` puts the focus there after a row delete.
  */
 export default function PageHeader({
   title,
@@ -18,12 +19,14 @@ export default function PageHeader({
   backTo,
   actions,
   toolbar,
+  titleRef,
 }: {
   title: string;
   description?: ReactNode;
   backTo?: { to: string; label: string };
   actions?: ReactNode;
   toolbar?: ReactNode;
+  titleRef?: Ref<HTMLHeadingElement>;
 }) {
   usePageTitle(title);
   return (
@@ -38,7 +41,9 @@ export default function PageHeader({
               </Group>
             </Anchor>
           )}
-          <Title order={2}>{title}</Title>
+          <Title order={2} ref={titleRef} tabIndex={-1}>
+            {title}
+          </Title>
           {description && (
             <Text c="dimmed" size="sm">
               {description}

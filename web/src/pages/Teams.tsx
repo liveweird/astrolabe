@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { Anchor, Button, Menu, Stack, Table, Text } from "@mantine/core";
@@ -52,10 +52,12 @@ export default function Teams() {
     setEditorTarget(team);
   }
 
+  const titleRef = useRef<HTMLHeadingElement>(null);
   const remove = useDeleteConfirm<TeamListItem>({
     mutationFn: (row) => deleteTeam(row.id),
     onSuccess: () => refreshQueriesAfterMutation(queryClient, ["teams"]),
     successMessage: t("teams.toast.deleted"),
+    focusAfterDelete: titleRef,
   });
 
   const total = data?.total ?? 0;
@@ -64,6 +66,7 @@ export default function Teams() {
   return (
     <Stack gap="md">
       <PageHeader
+        titleRef={titleRef}
         title={t("teams.title")}
         description={t("teams.intro")}
         actions={

@@ -227,6 +227,67 @@ describe("Teams page", () => {
     expect(await screen.findByText(/still referenced elsewhere/)).toBeInTheDocument();
   });
 
+  test("after a successful delete the focus moves to the page heading, the row's kebab and the dialog being gone", async () => {
+    let deleted = false;
+    mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+      const method = init?.method ?? "GET";
+      if (method === "DELETE" && url === "/api/v1/teams/2") {
+        deleted = true;
+        return Promise.resolve(new Response(null, { status: 204 }));
+      }
+      if (method === "GET" && url.startsWith("/api/v1/teams?")) {
+        return Promise.resolve(jsonResponse(200, deleted ? { ...PAGE, items: PAGE.items.slice(0, 1), total: 1 } : PAGE));
+      }
+      return Promise.resolve(jsonResponse(404, { title: "x", status: 404 }));
+    });
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Operations for Identity" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Delete Identity" }));
+    await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: /^delete$/i }));
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Operations for Identity" })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("heading", { level: 2, name: "Teams" })).toHaveFocus());
+    // Mantine's own focus return (10 ms after the close) finds the focus taken and leaves it.
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(screen.getByRole("heading", { level: 2, name: "Teams" })).toHaveFocus();
+    expect(screen.getByRole("heading", { level: 2, name: "Teams" })).toHaveAttribute("tabindex", "-1");
+  });
+
+  test("a failed delete keeps the focus in the open dialog; Cancel then returns it to the row's menu button", async () => {
+    serve(mockFetch, { "DELETE /api/v1/teams/1": { status: 409, body: { title: "Conflict", status: 409 } } });
+    const user = userEvent.setup();
+    renderPage();
+    const kebab = await screen.findByRole("button", { name: "Operations for Payments" });
+    await user.click(kebab);
+    await user.click(await screen.findByRole("menuitem", { name: "Delete Payments" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: /^delete$/i }));
+    expect(await screen.findByText(/still referenced elsewhere/)).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Teams" })).not.toHaveFocus();
+    expect(screen.getByRole("dialog").contains(document.activeElement)).toBe(true);
+
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: /^cancel$/i }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await waitFor(() => expect(kebab).toHaveFocus());
+    expect(screen.getByRole("heading", { level: 2, name: "Teams" })).not.toHaveFocus();
+  });
+
+  test("a delete dialog opened from the keyboard and dismissed with Escape returns the focus to the row's menu button", async () => {
+    serve(mockFetch);
+    const user = userEvent.setup();
+    renderPage();
+    const kebab = await screen.findByRole("button", { name: "Operations for Payments" });
+    kebab.focus();
+    await user.keyboard("{Enter}");
+    (await screen.findByRole("menuitem", { name: "Delete Payments" })).focus();
+    await user.keyboard("{Enter}");
+    expect(await screen.findByText(/"Payments" will be deleted/)).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await waitFor(() => expect(kebab).toHaveFocus());
+  });
+
   test("deleting while the first filtered request is pending cannot restore its stale row", async () => {
     const filtered = deferred<Response>();
     let filteredReads = 0;

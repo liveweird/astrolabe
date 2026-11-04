@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Alert, Badge, Button, Group, Loader, Stack, Text, Title, VisuallyHidden } from "@mantine/core";
 import { IconCalendarStats, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
@@ -136,10 +136,12 @@ function ProjectPage({ id }: { id: number }) {
   const today = localIsoDate();
 
   const refreshPlan = () => refreshQueriesAfterMutation(queryClient, ["plan"]);
+  const titleRef = useRef<HTMLHeadingElement>(null);
   const removeMilestone = useDeleteConfirm<{ milestone: ProjectMilestone; links: number }>({
     mutationFn: ({ milestone }) => deleteMilestone(milestone.id),
     onSuccess: refreshPlan,
     successMessage: t("project.toast.milestoneDeleted"),
+    focusAfterDelete: titleRef,
   });
   const removeProject = useDeleteConfirm<{ id: number; name: string; milestones: number; links: number }>({
     mutationFn: (project) => deleteProject(project.id),
@@ -149,6 +151,8 @@ function ProjectPage({ id }: { id: number }) {
       await refreshQueriesAfterMutation(queryClient, ["plan"], ["roadmap"]);
     },
     successMessage: t("project.toast.projectDeleted"),
+    // The page is left: `useFocusMainOnNavigation` owns the focus (this hook unmounts with the page, so there is nothing to fight).
+    focusAfterDelete: null,
   });
 
   if (!view) {
@@ -246,6 +250,7 @@ function ProjectPage({ id }: { id: number }) {
   return (
     <Stack gap="md">
       <PageHeader
+        titleRef={titleRef}
         title={project.name}
         description={
           <>

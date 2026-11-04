@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button, Stack } from "@mantine/core";
 import { IconPlus, IconSitemap } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -79,10 +79,12 @@ export default function Plan() {
   // A project created, renamed, re-owned, re-windowed or deleted changes the roadmap too.
   const refresh = () => refreshQueriesAfterMutation(queryClient, ["plan"], ["roadmap"]);
 
+  const titleRef = useRef<HTMLHeadingElement>(null);
   const remove = useDeleteConfirm<DeleteTarget>({
     mutationFn: deleteRequest,
     onSuccess: refresh,
     successMessage: t("plan.toast.deleted"),
+    focusAfterDelete: titleRef,
   });
 
   // Close / reopen is the one-step edit: the full-replace PUT of the stream as it stands, with only the end date changed.
@@ -140,6 +142,7 @@ export default function Plan() {
   return (
     <Stack gap="md">
       <PageHeader
+        titleRef={titleRef}
         title={t("plan.title")}
         description={t("plan.intro")}
         actions={

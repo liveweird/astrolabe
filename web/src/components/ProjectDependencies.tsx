@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { Badge, Button, Group, Menu, Stack, Table, Text, Title } from "@mantine/core";
 import { IconLink, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -115,16 +116,18 @@ export default function ProjectDependencies({
 }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const headingRef = useRef<HTMLHeadingElement>(null);
   const removal = useDeleteConfirm<ProjectDependency>({
     mutationFn: (dependency) => deleteDependency(dependency.id),
     onSuccess: () => refreshQueriesAfterMutation(queryClient, ["plan"]),
     successMessage: t("project.toast.dependencyDeleted"),
+    focusAfterDelete: headingRef,
   });
   const { dependencies, project } = view;
   return (
     <Stack gap="xs">
       <Group gap="sm" align="center" justify="space-between">
-        <Title order={3} size="h4">
+        <Title order={3} size="h4" ref={headingRef} tabIndex={-1}>
           {t("project.dependenciesTitle")}
         </Title>
         {project.can.createDependency && (

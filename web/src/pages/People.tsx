@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { Anchor, Button, Menu, Stack, Table, Text } from "@mantine/core";
@@ -46,10 +46,12 @@ export default function People() {
   // A list row carries every field of the detail, so it is the editor's target as it stands.
   const [editorTarget, setEditorTarget] = useState<PersonResponse | "new" | null>(null);
 
+  const titleRef = useRef<HTMLHeadingElement>(null);
   const remove = useDeleteConfirm<PersonListItem>({
     mutationFn: (row) => deletePerson(row.id),
     onSuccess: () => refreshQueriesAfterMutation(queryClient, ["people"]),
     successMessage: t("people.toast.deleted"),
+    focusAfterDelete: titleRef,
   });
 
   const total = data?.total ?? 0;
@@ -58,6 +60,7 @@ export default function People() {
   return (
     <Stack gap="md">
       <PageHeader
+        titleRef={titleRef}
         title={t("people.title")}
         description={t("people.intro")}
         actions={

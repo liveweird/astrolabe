@@ -20,9 +20,16 @@ export default function ConfirmDeleteModal<T>({
   errorMessage?: (error: unknown) => string;
 }) {
   const { t } = useTranslation();
-  const { target, opened, cancelDelete, confirmDelete, mutation } = confirm;
+  const { target, opened, cancelDelete, confirmDelete, onExited, mutation } = confirm;
   return (
-    <Modal closeButtonProps={{ "aria-label": t("common.action.close") }} opened={opened} onClose={cancelDelete} title={title} centered>
+    <Modal
+      closeButtonProps={{ "aria-label": t("common.action.close") }}
+      opened={opened}
+      onClose={cancelDelete}
+      onExitTransitionEnd={onExited}
+      title={title}
+      centered
+    >
       <Stack gap="md">
         {target && <Text>{body(target)}</Text>}
         {mutation.isError && (

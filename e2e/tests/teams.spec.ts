@@ -66,6 +66,33 @@ test("admin creates a team, renames it, assigns its manager, and deletes it", as
     page.getByRole("dialog").getByRole("button", { name: "Delete", exact: true }).click(),
   ]);
   await expect(page.getByRole("link", { name: `Open team ${renamed}` })).toHaveCount(0);
+  // The row (and the kebab that had the focus) is gone: the focus moves to the page heading, not to the start of the document.
+  await expect(page.getByRole("heading", { level: 2, name: "Teams" })).toBeFocused();
+});
+
+test("dismissing a row's delete dialog with Escape returns the focus to the row's menu button", async ({ page }) => {
+  await login(page);
+  const { api } = await apiAsAdmin();
+  const teamName = uniqueText("e2e-esc-team");
+  const created = await api.post("/api/v1/teams", { data: { name: teamName } });
+  expect(created.status(), await created.text()).toBe(201);
+  teardown.push(`/api/v1/teams/${((await created.json()) as { id: number }).id}`);
+  await api.dispose();
+
+  await page.goto("/teams");
+  await openFilters(page);
+  await page.getByLabel("Name", { exact: true }).fill(teamName);
+  const kebab = page.getByRole("button", { name: `Operations for ${teamName}` });
+  // By keyboard end to end: the menu item that opens the dialog is unmounted with its menu, so Mantine's own return-focus has nowhere to go.
+  await kebab.focus();
+  await page.keyboard.press("Enter");
+  const item = page.getByRole("menuitem", { name: `Delete ${teamName}` });
+  await item.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(kebab).toBeFocused();
 });
 
 test("a regular user sees the read-only teams list", async ({ page }) => {

@@ -2,9 +2,9 @@
 
 - **Spec**: [tests/teams.spec.ts](../tests/teams.spec.ts)
 - **Actors**: the seed administrator (`admin@astrolabe.local`); one throwaway person (seeded through
-  the API) in the first test and one throwaway user in the second
+  the API) in the first test, one throwaway team (seeded through the API) in the second and one throwaway user in the third
 - **Owns** (exclusive server-side state): its throwaway teams (unique `e2e-team-*` /
-  `e2e-ro-team-*` names), person (`e2e-person-*`) and user — all deleted by the end of the file
+  `e2e-ro-team-*` / `e2e-esc-team-*` names), person (`e2e-person-*`) and user — all deleted by the end of the file
 
 ## Scenario: admin creates a team, renames it, assigns its manager, and deletes it
 
@@ -16,7 +16,15 @@
 4. They click **Edit** again, search the **Manager** picker for the throwaway person, pick them (the option reads "name (email)"), and Save.
    - *Expected*: the details page reads "Manager: <the person's name>".
 5. Back on the Teams list they filter by the new name and delete the team from its row menu.
-   - *Expected*: the row is gone; the throwaway person is removed afterwards through the API.
+   - *Expected*: the row is gone and the keyboard focus is on the page's "Teams" heading (not on the document start); the throwaway person is removed afterwards through the API.
+
+## Scenario: dismissing a row's delete dialog with Escape returns the focus to the row's menu button
+
+1. The admin signs in and seeds a throwaway team through the API, then opens the Teams page and filters by its name.
+2. With the keyboard only, they focus the row's **Operations for <name>** button, press Enter, move to **Delete <name>** and press Enter.
+   - *Expected*: the confirmation dialog opens.
+3. They press Escape.
+   - *Expected*: the dialog closes and the keyboard focus is back on the row's **Operations for <name>** button (not on the document start); the team is removed afterwards through the API.
 
 ## Scenario: a regular user sees the read-only teams list
 
