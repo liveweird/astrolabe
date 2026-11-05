@@ -40,6 +40,40 @@ test("switching the theme in the account menu updates the color scheme and persi
   await expect(html).toHaveAttribute("data-mantine-color-scheme", "light");
 });
 
+test("Tab in the open account menu stays among its controls and leaves, closing the menu, past the last", async ({ page }) => {
+  await login(page);
+  const trigger = accountMenu(page);
+  await trigger.focus();
+  await page.keyboard.press("Enter");
+  const menu = page.getByRole("menu");
+  await expect(menu).toBeVisible();
+  // The menu opens on its first item; the next Tab stop is the theme control, and past that one Tab leaves.
+  const first = menu.getByRole("menuitem", { name: "English" });
+  const theme = menu.getByRole("radio", { checked: true });
+  await expect(first).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(theme).toBeFocused();
+  await expect(menu).toBeVisible();
+  await page.keyboard.press("Tab");
+  await expect(menu).toHaveCount(0);
+  await expect(trigger).not.toBeFocused();
+  await expect(page.locator("body")).not.toBeFocused();
+
+  // The same with a theme other than the switch's first (the radios are in the order Light, Dark, Auto; the default is Auto).
+  await trigger.click();
+  await page.getByText("Dark", { exact: true }).click();
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
+  await trigger.focus();
+  await page.keyboard.press("Enter");
+  await expect(first).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(menu.getByRole("radio", { name: "Dark" })).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(menu).toHaveCount(0);
+  await expect(page.locator("body")).not.toBeFocused();
+});
+
 // The route-change behaviour of the shell: the tab title names the page and `#main-content` takes the focus
 // (so the next Tab lands inside the page, past the sidebar). Keep the test name stable: the scenario file mirrors it.
 test("the document title names the page and the focus moves to the main content on navigation", async ({ page }) => {

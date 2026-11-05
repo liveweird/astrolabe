@@ -20,6 +20,7 @@ import { getUserId } from "../api/session";
 import { getUser, setUserLanguage } from "../api/users";
 import { flagSignedOut, useAdmin } from "../auth";
 import { asSupportedLanguage, NATIVE_LANGUAGE_NAMES, SUPPORTED_LANGUAGES } from "../i18n";
+import { useMenuTabExit } from "../hooks/useMenuTabExit";
 import { useChangelogUnseen } from "../hooks/useChangelogSeen";
 import { setTelemetryPanelOpen, useTelemetryPanelOpen } from "../hooks/useTelemetryPanel";
 import DestructiveMenuItem from "./DestructiveMenuItem";
@@ -59,6 +60,7 @@ export default function UserMenu() {
   const changelogUnseen = useChangelogUnseen();
   const telemetryOpen = useTelemetryPanelOpen();
   const userId = getUserId();
+  const tabExit = useMenuTabExit();
   const current = asSupportedLanguage(i18n.resolvedLanguage);
 
   const identity = useQuery({
@@ -86,7 +88,7 @@ export default function UserMenu() {
   }
 
   return (
-    <Menu width={260}>
+    <Menu width={260} {...tabExit.menu}>
       {/* The Indicator wraps the TARGET, not the other way round: Menu.Target clones its child
           with aria-expanded/aria-controls, which are only allowed on the button. */}
       <Indicator
@@ -115,7 +117,7 @@ export default function UserMenu() {
           </UnstyledButton>
         </Menu.Target>
       </Indicator>
-      <Menu.Dropdown>
+      <Menu.Dropdown {...tabExit.dropdown}>
         <Box px="sm" py="xs">
           <Text size="sm" fw={500} truncate>
             {name || "—"}
@@ -133,9 +135,11 @@ export default function UserMenu() {
         </Box>
         <Menu.Divider />
         <Menu.Label>{t("appShell.userMenu.language")}</Menu.Label>
-        {SUPPORTED_LANGUAGES.map((lng) => (
+        {SUPPORTED_LANGUAGES.map((lng, index) => (
           <Menu.Item
             key={lng}
+            // The menu opens on its first item, like every menu: without this Mantine's trap takes the first radio of the theme switch, even an unchecked one, where Tab is stuck and an arrow key changes the theme.
+            data-autofocus={index === 0 ? true : undefined}
             onClick={() => pickLanguage(lng)}
             // Mantine fixes the item's role to "menuitem" (not overridable), so the chosen language is carried by the global aria-current.
             aria-current={lng === current ? "true" : undefined}

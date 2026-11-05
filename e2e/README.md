@@ -113,7 +113,7 @@ the same commit** — this list is the coverage map, the scenario file is the de
   including while server revocation is delayed.
 - [`shell.spec.ts`](scenarios/shell.md) — the app shell chrome: the icon rail collapses/expands
   the navbar and remembers the choice across reload; the account menu's theme control switches
-  the color scheme and persists it; the tab title names the page ("Teams · Astrolabe", the brand alone on Home) and a navigation moves the focus to `#main-content` so the next Tab lands inside the page.
+  the color scheme and persists it; the tab title names the page ("Teams · Astrolabe", the brand alone on Home) and a navigation moves the focus to `#main-content` so the next Tab lands inside the page; Tab in the open account menu moves between its controls and, past the last one, closes the menu and moves on.
 - [`telemetry.spec.ts`](scenarios/telemetry.md) — the ADMIN telemetry panel (Astrolabe's own vital signs): after the sampler's first sample (awaited through the
   API) the admin opens it from the account menu and reads Memory (the compose app's 512 MB container limit and the share of it) and Storage (the database size); the open panel and its expanded sections survive a
   reload and close with their own button; a regular user has no menu item and a hand-stored open flag shows nothing; an axe scan of the panel with every section open.
@@ -202,7 +202,7 @@ the same commit** — this list is the coverage map, the scenario file is the de
 - [`teams.spec.ts`](scenarios/teams.md) — the flat-teams registry: create through the modal →
   rename → assign an API-seeded person as the team's manager (the Manager picker; the
   details page reads "Manager: …") → delete from the list (the focus lands on the "Teams" heading);
-  dismissing a row's delete dialog, then its edit dialog, with Escape returns the focus to the row's menu button, and a plain button's dialog to that button;
+  dismissing a row's delete dialog, then its edit dialog, with Escape returns the focus to the row's menu button, and a plain button's dialog to that button; Tab in an open row menu closes it and moves on from the kebab, Shift+Tab goes back (and out of a menu backwards);
   a regular user's read-only list and team page (no New team, no row menu, no Edit button).
 - [`users.spec.ts`](scenarios/users.md) — the account lifecycle: create via the one-time
   password reveal → the new user's limited view + self password change (which signs the device out with its

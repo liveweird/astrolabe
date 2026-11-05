@@ -30,6 +30,18 @@
 5. They press Enter on **New team**, and then Escape.
    - *Expected*: the dialog opens and closes, and the keyboard focus is back on **New team**; the team is removed afterwards through the API.
 
+## Scenario: Tab in an open row menu closes it and moves on from its kebab; Shift+Tab comes back to the kebab
+
+1. The admin signs in and seeds two throwaway teams (a shared unique prefix) through the API, then opens the Teams page and filters by the prefix.
+2. With the keyboard only, they focus the first row's **Operations for <name>** button, and press Enter.
+   - *Expected*: the row menu is open with the focus on its first item, **Edit <name>**.
+3. They press Tab.
+   - *Expected*: the menu is gone; the keyboard focus is on a later control of the page — not the kebab, not the document start, not inside a menu.
+4. They press Shift+Tab.
+   - *Expected*: the focus is back on the first row's **Operations for <name>** button.
+5. They open the menu again and press Shift+Tab.
+   - *Expected*: the menu is gone and the focus is on an earlier control (not the kebab, not the document start); the teams are removed afterwards through the API.
+
 ## Scenario: a regular user sees the read-only teams list
 
 1. The admin creates a throwaway user and a throwaway team, then signs out.

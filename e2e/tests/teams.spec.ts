@@ -113,6 +113,49 @@ test("dismissing a delete, edit or new-team dialog with Escape returns the focus
   await expect(newTeam).toBeFocused();
 });
 
+test("Tab in an open row menu closes it and moves on from its kebab; Shift+Tab comes back to the kebab", async ({ page }) => {
+  await login(page);
+  const { api } = await apiAsAdmin();
+  const prefix = uniqueText("e2e-esc-team");
+  // Two rows, so there is a Tab stop after the first row's kebab whatever else the page offers below its table.
+  for (const suffix of ["a", "b"]) {
+    const created = await api.post("/api/v1/teams", { data: { name: `${prefix}-${suffix}` } });
+    expect(created.status(), await created.text()).toBe(201);
+    teardown.push(`/api/v1/teams/${((await created.json()) as { id: number }).id}`);
+  }
+  await api.dispose();
+
+  await page.goto("/teams");
+  await openFilters(page);
+  await page.getByLabel("Name", { exact: true }).fill(prefix);
+  const kebab = page.getByRole("button", { name: `Operations for ${prefix}-a` });
+  await expect(page.getByRole("button", { name: `Operations for ${prefix}-b` })).toBeVisible();
+  await kebab.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("menu")).toBeVisible();
+  // As a keyboard user: wait for the menu's own focus to land. Mantine places it from a timeout, so a key within about 10 ms of opening is overtaken by it.
+  const item = page.getByRole("menuitem", { name: `Edit ${prefix}-a` });
+  await expect(item).toBeFocused();
+
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("menu")).toHaveCount(0);
+  // The focus moved on past the kebab: not the kebab, not body, not inside a menu.
+  await expect(kebab).not.toBeFocused();
+  await expect(page.locator("body")).not.toBeFocused();
+  await expect(page.locator('[role="menu"]:focus-within')).toHaveCount(0);
+
+  await page.keyboard.press("Shift+Tab");
+  await expect(kebab).toBeFocused();
+
+  // And backwards out of a menu: Shift+Tab closes it and the focus goes to the stop before the kebab.
+  await page.keyboard.press("Enter");
+  await expect(item).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(page.getByRole("menu")).toHaveCount(0);
+  await expect(kebab).not.toBeFocused();
+  await expect(page.locator("body")).not.toBeFocused();
+});
+
 test("a regular user sees the read-only teams list", async ({ page }) => {
   await login(page);
   const user = await createUserViaUi(page, "E2E Team Reader");

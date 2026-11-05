@@ -171,4 +171,87 @@ describe("UserMenu", () => {
     revokeResponse.resolve(new Response(null, { status: 204 }));
     await waitFor(() => expect(localStorage.getItem("astrolabe.auth.token")).toBe("next-token"));
   });
+
+  describe("Tab in the open menu", () => {
+    function renderBetweenButtons() {
+      return renderWithProviders(
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <>
+                <button>Before</button>
+                <UserMenu />
+                <button>After</button>
+              </>
+            }
+          />
+        </Routes>,
+      );
+    }
+
+    async function openMenu(user: ReturnType<typeof userEvent.setup>) {
+      const trigger = screen.getByRole("button", { name: /account menu/i });
+      trigger.focus();
+      await user.keyboard("{Enter}");
+      await screen.findByRole("menuitem", { name: "English" });
+      return trigger;
+    }
+
+    test("opened from the keyboard, the menu takes the focus on its first item, not on a radio of the theme switch", async () => {
+      stubFetch(() => undefined);
+      const user = userEvent.setup();
+      renderBetweenButtons();
+      await openMenu(user);
+      await waitFor(() => expect(screen.getByRole("menuitem", { name: "English" })).toHaveFocus());
+    });
+
+    test("Tab from a language item moves on to the theme control (the menu's only Tab stop) and the menu stays open", async () => {
+      stubFetch(() => undefined);
+      const user = userEvent.setup();
+      renderBetweenButtons();
+      await openMenu(user);
+      screen.getByRole("menuitem", { name: "English" }).focus();
+      await user.keyboard("{Tab}");
+      expect(screen.getByRole("radio", { checked: true })).toHaveFocus();
+      expect(screen.getByRole("menu")).toBeInTheDocument();
+    });
+
+    test("Tab from the theme control, the last Tab stop, closes the menu and moves on from the trigger", async () => {
+      stubFetch(() => undefined);
+      const user = userEvent.setup();
+      renderBetweenButtons();
+      await openMenu(user);
+      screen.getByRole("radio", { checked: true }).focus();
+      await user.keyboard("{Tab}");
+      await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+      expect(screen.getByRole("button", { name: "After" })).toHaveFocus();
+    });
+
+    test("Shift+Tab from the first item, with no Tab stop before it, closes the menu and moves back from the trigger", async () => {
+      stubFetch(() => undefined);
+      const user = userEvent.setup();
+      renderBetweenButtons();
+      await openMenu(user);
+      screen.getByRole("menuitem", { name: "English" }).focus();
+      await user.keyboard("{Shift>}{Tab}{/Shift}");
+      await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+      expect(screen.getByRole("button", { name: "Before" })).toHaveFocus();
+    });
+
+    test("Tab from an item after the theme control closes the menu (nothing further to Tab to); Shift+Tab there goes back to the theme control", async () => {
+      stubFetch(() => undefined);
+      const user = userEvent.setup();
+      renderBetweenButtons();
+      await openMenu(user);
+      screen.getByRole("menuitem", { name: "Change password" }).focus();
+      await user.keyboard("{Shift>}{Tab}{/Shift}");
+      expect(screen.getByRole("radio", { checked: true })).toHaveFocus();
+      expect(screen.getByRole("menu")).toBeInTheDocument();
+      screen.getByRole("menuitem", { name: "Change password" }).focus();
+      await user.keyboard("{Tab}");
+      await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+      expect(screen.getByRole("button", { name: "After" })).toHaveFocus();
+    });
+  });
 });

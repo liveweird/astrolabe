@@ -1,6 +1,7 @@
 import { type ReactNode, useCallback, useRef } from "react";
 import { ActionIcon, Menu } from "@mantine/core";
 import { IconDotsVertical } from "@tabler/icons-react";
+import { useMenuTabExit } from "../hooks/useMenuTabExit";
 import { rememberMenuTrigger } from "../utils/menuOpener";
 
 // Mantine re-attaches the dropdown's merged ref when the menu starts closing (the node is the same, kept through the exit transition): without
@@ -28,7 +29,7 @@ function focusFirstEnabledItem(dropdown: HTMLDivElement | null): void {
  * both of which Mantine's Menu.Target wires. The caller owns the items (`Menu.Item`,
  * `Menu.Divider`); this component owns only the trigger's shape, so every table's kebab is
  * the same control. The cell around it is `Table.Td style={{ width: 1 }} ta="right"`. A click in the menu remembers the kebab for the dialog
- * its item may open (`utils/menuOpener.ts`, `useDialogFocus`).
+ * its item may open (`utils/menuOpener.ts`, `useDialogFocus`); Tab or Shift+Tab closes it and moves on from the kebab (`useMenuTabExit`).
  */
 export default function RowActionsMenu({
   label,
@@ -49,6 +50,7 @@ export default function RowActionsMenu({
   onClosed?: () => void;
   children: ReactNode;
 }) {
+  const tabExit = useMenuTabExit();
   const dropdown = useRef<HTMLDivElement | null>(null);
   const attachDropdown = useCallback((node: HTMLDivElement | null) => {
     dropdown.current = node;
@@ -61,14 +63,16 @@ export default function RowActionsMenu({
     focusFirstEnabledItem(dropdown.current);
   };
   return (
-    <Menu onOpen={refocusReopened} onExitTransitionEnd={onClosed}>
+    <Menu {...tabExit.menu} onOpen={refocusReopened} onExitTransitionEnd={onClosed}>
       <Menu.Target>
         <ActionIcon size="sm" aria-label={label} loading={loading} {...trigger}>
           <IconDotsVertical size={16} />
         </ActionIcon>
       </Menu.Target>
       {/* Capture: runs before the item's own onClick, so a dialog that item opens can take the trigger in the same click (mouse, or Enter on the item). */}
-      <Menu.Dropdown ref={attachDropdown} onClickCapture={(event) => rememberMenuTrigger(event.target as Element)}>{children}</Menu.Dropdown>
+      <Menu.Dropdown ref={attachDropdown} {...tabExit.dropdown} onClickCapture={(event) => rememberMenuTrigger(event.target as Element)}>
+        {children}
+      </Menu.Dropdown>
     </Menu>
   );
 }

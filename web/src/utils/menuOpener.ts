@@ -1,6 +1,12 @@
 let remembered: HTMLElement | null = null;
 let expiry: number | undefined;
 
+/** The trigger of the menu an element sits in (Mantine's dropdown is `[role="menu"]`, its `aria-labelledby` is the target's id), else null. */
+export function menuTriggerOf(fromElementInsideMenu: Element): HTMLElement | null {
+  const id = fromElementInsideMenu.closest('[role="menu"]')?.getAttribute("aria-labelledby");
+  return id ? document.getElementById(id) : null;
+}
+
 /**
  * Remembers the kebab (the menu's trigger) of the row menu a click is happening in, for the dialog that click is about to open. A menu item
  * unmounts with its menu, so a dialog opened from it has no opener of its own to give the focus back to; whoever opens the dialog
@@ -12,8 +18,7 @@ let expiry: number | undefined;
  */
 export function rememberMenuTrigger(fromElementInsideMenu: Element): void {
   window.clearTimeout(expiry);
-  const id = fromElementInsideMenu.closest('[role="menu"]')?.getAttribute("aria-labelledby");
-  remembered = id ? document.getElementById(id) : null;
+  remembered = menuTriggerOf(fromElementInsideMenu);
   if (remembered !== null) expiry = window.setTimeout(() => (remembered = null), 0);
 }
 

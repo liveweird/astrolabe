@@ -143,4 +143,108 @@ describe("RowActionsMenu", () => {
     await new Promise((resolve) => setTimeout(resolve, 5));
     expect(takeMenuTrigger()).toBeNull();
   });
+  describe("Tab leaves an open menu", () => {
+    const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+    function renderBetweenButtons() {
+      return renderWithProviders(
+        <>
+          <button>Before</button>
+          <RowActionsMenu label="Operations for acquirer">
+            <Menu.Item>Edit</Menu.Item>
+            <DestructiveMenuItem>Delete</DestructiveMenuItem>
+          </RowActionsMenu>
+          <button>After</button>
+        </>,
+      );
+    }
+
+    /** What a `document` keydown listener (Mantine's focus trap is one) sees of the keys pressed. */
+    function watchDocumentKeys() {
+      const seen: Array<{ key: string; defaultPrevented: boolean }> = [];
+      const listener = (event: KeyboardEvent) => seen.push({ key: event.key, defaultPrevented: event.defaultPrevented });
+      document.addEventListener("keydown", listener);
+      return { seen, stop: () => document.removeEventListener("keydown", listener) };
+    }
+
+    async function openWithKeyboard(user: ReturnType<typeof userEvent.setup>) {
+      const kebab = screen.getByRole("button", { name: "Operations for acquirer" });
+      kebab.focus();
+      await user.keyboard("{Enter}");
+      await waitFor(() => expect(screen.getByRole("menuitem", { name: "Edit" })).toHaveFocus());
+      return kebab;
+    }
+
+    test("Tab closes the menu and the focus moves on from the kebab: the event never reaches the document, so nothing prevents its default", async () => {
+      const user = userEvent.setup();
+      renderBetweenButtons();
+      const kebab = await openWithKeyboard(user);
+      const document_ = watchDocumentKeys();
+      try {
+        await user.keyboard("{Tab}");
+      } finally {
+        document_.stop();
+      }
+      expect(document_.seen.filter((key) => key.key === "Tab")).toEqual([]);
+      await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+      expect(kebab).toHaveAttribute("aria-expanded", "false");
+      // user-event's own Tab default runs from the focused kebab: the next stop is "After". Past Mantine's focus return (10 ms) it stays there.
+      expect(screen.getByRole("button", { name: "After" })).toHaveFocus();
+      await pause(40);
+      expect(screen.getByRole("button", { name: "After" })).toHaveFocus();
+    });
+
+    test("Shift+Tab closes the menu likewise and the focus moves back from the kebab", async () => {
+      const user = userEvent.setup();
+      renderBetweenButtons();
+      await openWithKeyboard(user);
+      const document_ = watchDocumentKeys();
+      try {
+        await user.keyboard("{Shift>}{Tab}{/Shift}");
+      } finally {
+        document_.stop();
+      }
+      expect(document_.seen.filter((key) => key.key === "Tab")).toEqual([]);
+      await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+      expect(screen.getByRole("button", { name: "Before" })).toHaveFocus();
+      await pause(40);
+      expect(screen.getByRole("button", { name: "Before" })).toHaveFocus();
+    });
+
+    test("other keys do nothing to the menu: ArrowDown moves, a letter does not close it", async () => {
+      const user = userEvent.setup();
+      renderBetweenButtons();
+      await openWithKeyboard(user);
+      await user.keyboard("{ArrowDown}");
+      expect(screen.getByRole("menuitem", { name: "Delete" })).toHaveFocus();
+      // The watcher does see a key the hook leaves alone, so its silence for Tab above is the hook's doing.
+      const document_ = watchDocumentKeys();
+      try {
+        await user.keyboard("x");
+      } finally {
+        document_.stop();
+      }
+      expect(document_.seen.map((key) => key.key)).toEqual(["x"]);
+      expect(screen.getByRole("menu")).toBeInTheDocument();
+    });
+
+    test("a Tab with Ctrl (the browser's own tab switch) is left alone", async () => {
+      const user = userEvent.setup();
+      renderBetweenButtons();
+      await openWithKeyboard(user);
+      await user.keyboard("{Control>}{Tab}{/Control}");
+      expect(screen.getByRole("menu")).toBeInTheDocument();
+    });
+
+    test("the menu opens again after a Tab exit, with the focus on its first item", async () => {
+      const user = userEvent.setup();
+      renderBetweenButtons();
+      const kebab = await openWithKeyboard(user);
+      await user.keyboard("{Tab}");
+      await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+      kebab.focus();
+      await user.keyboard("{Enter}");
+      await waitFor(() => expect(screen.getByRole("menuitem", { name: "Edit" })).toHaveFocus());
+    });
+  });
 });
