@@ -17,6 +17,20 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.0.1",
+    date: "2026-11-05",
+    en: `**Astrolabe 1.0.1: keyboard focus in dialogs and menus.**
+
+- Dialogs: closing a dialog now returns the keyboard focus to what opened it, the row's menu button or the button you pressed, instead of the start of the page. If saving removed that row or moved it elsewhere, the focus goes to the page's main content.
+- Menus: Tab and Shift+Tab now close an open menu and move on from its button. Escape still closes it and stays on the button.
+- Account menu: opened from the keyboard, it starts on its first item, like the other menus, so an arrow key moves through the menu instead of changing the theme. Tab reaches the theme switch and then leaves the menu.`,
+    pl: `**Astrolabe 1.0.1: fokus klawiatury w oknach dialogowych i menu.**
+
+- Okna dialogowe: zamknięcie okna przenosi teraz fokus klawiatury na to, co je otworzyło, czyli na przycisk menu wiersza albo naciśnięty przycisk, a nie na początek strony. Jeśli zapis usunął ten wiersz lub przeniósł go gdzie indziej, fokus trafia na główną treść strony.
+- Menu: Tab i Shift+Tab zamykają teraz otwarte menu i przechodzą dalej od jego przycisku. Escape nadal je zamyka i zostaje na przycisku.
+- Menu konta: otwarte z klawiatury zaczyna od pierwszej pozycji, jak pozostałe menu, więc strzałka porusza się po menu, a nie zmienia motywu. Tab przechodzi na przełącznik motywu, a potem opuszcza menu.`,
+  },
+  {
     version: "1.0.0",
     date: "2026-11-05",
     en: `**Astrolabe 1.0.0: the checkup.**
