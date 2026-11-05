@@ -6,9 +6,7 @@ budgets and the investigation log. Read it before you change a gate, a CI job, t
 test harness (fixtures, forks, Kover) or anything that makes a gate slower.
 
 > **Restart at v0.1.0.** Flow's history (its WHY investigations, status checks and measured figures, ~350 KB) was not carried over: the numbers described a different app and
-> would mislead here. The method and the budget mechanics below are kept. **Every budget in `scripts/timings/budgets.json` is PROVISIONAL** (each row says so) until the
-> first CI run on GitHub and the first local `scripts/gates.sh all` series are measured — **re-baseline at v0.1.0** (`BACKLOG.md`): record the series, set targets from it, and
-> add the first dated "Status check" entry below. Flow's `~/Sources/flow/.claude/docs/build-times.md` is the donor for any technique (statement-timeout cache, batched inserts,
+> would mislead here. The method and the budget mechanics below are kept. **The budgets in `scripts/timings/budgets.json` were measured at the 1.0.0 re-baseline** ("Astrolabe WHY 1" below; each row's `why` holds its figure). Flow's `~/Sources/flow/.claude/docs/build-times.md` is the donor for any technique (statement-timeout cache, batched inserts,
 > fork balancing, the ESLint cache, AppCDS): read its WHY before re-inventing one, port it when the same symptom shows up.
 >
 > **"WHY n" in a code or workflow comment** (e.g. `build-times.md WHY 27`, 13, 24, 51) is the donor's numbering: it points at that WHY entry in Flow's file, not at this one. Astrolabe's own entries start a fresh series below and are cited as `Astrolabe WHY n`.
@@ -77,36 +75,59 @@ It uses the runner's preinstalled `node` (the scripts need node >= 18; ubuntu-24
 
 The ONE place for the numbers is `scripts/timings/budgets.json` (`target` = what it SHOULD take for this app; `alarm` = the hard ceiling; a `why` per row; `ci`, `ci-steps` and
 `local` sections). A target is a claim about the app ("tiny DB, no integrations → this cheap"), and a miss is a question to answer, not a number to adjust. CI runners are
-public-repo `ubuntu-24.04` (4 vCPU, 16 GB); local figures are for the dev machine. The rows (all PROVISIONAL, seconds target/alarm — the JSON is the source of truth, this table only
-orients you):
+public-repo `ubuntu-24.04` (4 vCPU, 16 GB); local figures are for the dev machine. The rows (the JSON is the source of truth, this table only orients you):
 
 | Activity | Target | Alarm |
 |---|---|---|
 | CI `changes` | 15 s | 30 s |
 | CI `server-tests` (the test task alone; the CI warning compares test time with this) | 3 min | 8 min |
-| CI `server` (compile + detekt + tests + Kover) | 5 min | 10 min |
-| CI `web` | 1.5 min | 3 min |
-| CI `e2e-static` | 30 s | 1 min |
+| CI `server` (compile + detekt + tests + Kover) | 6 min | 10 min |
+| CI `web` | 2 min | 4 min |
+| CI `e2e-static` | 1 min | 2 min |
 | CI `gradle-vulnerability-scan` | 1 min | 2 min |
-| CI `images` (plain `docker compose build`, no layer cache, + Trivy) | 2.5 min | 4 min |
+| CI `images` (plain `docker compose build`, no layer cache, + Trivy) | 3.5 min | 5 min |
 | CI `k8s-static` | 20 s | 45 s |
-| CI `e2e` (nightly) and its five steps (`ci-steps`) | 7 min | 15 min |
+| CI `e2e` (nightly) and its five steps (`ci-steps`) | 8 min | 15 min |
 | local `server-build` (`cleanTest check :server:installDist -Pforks=1`) | 3 min | 6 min |
-| local `server-test` | 2 min | 5 min |
-| local `web-gates` | 1.5 min | 3 min |
-| local `e2e-static` | 30 s | 1 min |
-| local `e2e-playwright` | 5 min | 10 min |
+| local `server-test` | 3 min | 5 min |
+| local `web-gates` | 45 s | 1.5 min |
+| local `e2e-static` | 15 s | 30 s |
+| local `e2e-playwright` | 3 min | 6 min |
 
-Nothing here is measured yet: they are Flow's per-gate claims scaled down for a foundation-sized suite. The rule for changing one is below ("Review cadence").
+The rule for changing one is below ("Review cadence").
 
 **Fork balancing (not ported).** The `-Pforks` default is 1 (`ASTROLABE_FORKS` in `gates.sh`, `-Pforks=1` in CI). Flow weight-balanced the class order across forks from a measured `server/test-weights.tsv` once two forks paid;
 the technique and the `slow-tests --forks N` block are described in `test-fixtures.md` "Fork balancing (not ported)". Port it when `server-tests` outgrows its budget (`BACKLOG.md`).
 
 ## Investigation log
 
-Empty. The first entry is the v0.1.0 re-baseline ("Status check, <date>"): the recorded `server-build` / `web-gates` / `e2e-static` series, the first CI medians, and the
-Kover/coverage floors measured at the same time. A later TREND flag or budget breach gets a dated entry here (the symptom, the evidence, the cause, the outcome), keyed by a
-running WHY number so a code comment can point at it (`Astrolabe WHY n`).
+A TREND flag or budget breach gets a dated entry here (the symptom, the evidence, the cause, the outcome), keyed by a running WHY number so a code comment can point at it (`Astrolabe WHY n`).
+
+### Astrolabe WHY 1: the re-baseline (status check, 2026-11-05)
+
+**Symptom.** The first budgets were Flow's claims scaled down, never measured. `ci-times.mjs --branch master` flagged `web` at 3m12s over its 3 min alarm with TREND +44%, `e2e-static` at 1m10s over its 1 min alarm, `gradle-vulnerability-scan` TREND +53%, `k8s-static` TREND +43%; `server`, `images` and the nightly `e2e` sat over target.
+
+**Evidence** (14 successful `ci` runs on master, 2026-10-31 to 2026-11-04, `1deb921`..`abed03f`; 4 nightlies; local `timings.tsv`, Apple M5 Max):
+
+| Job | Median | Range | Latest (`abed03f`) |
+|---|---|---|---|
+| `server` | 5m16s | 3m18s-7m22s | 5m16s; the test task 2m55s for 1,109 tests |
+| `web` | 1m45s | 1m02s-3m12s | 3m12s: tests 1m18s, `npm ci` 56 s, lint 28 s, build 13 s |
+| `e2e-static` | 47 s | 19-70 s | 1m10s: `npm ci` 42 s |
+| `images` | 3m21s (last five) | 2m33s-3m41s | 3m31s: build 2m45s, Trivy 39 s |
+| `gradle-vulnerability-scan` | 55 s (last five) | 32 s-1m16s | 1m10s: the plugin audit 50 s |
+| `k8s-static` | about 8 s | 4-28 s | 8 s |
+| `e2e` (nightly) | 7m32s | 6m03s-9m56s | 9m56s at `6953b44`: specs 4m48s, build 2m40s |
+
+Local (`local-times.mjs report`): `server-build` last five median 2m05s (previous five 2m29s, max 2m59s), `web-gates` 22 s (max 41 s), `e2e-static` 4.2 s (max 6.5 s). One-offs: `:server:test --rerun` 2m40s, the Playwright suite 2m24s for 123 tests.
+
+**Cause.**
+- `web` at 3m12s: `abed03f` was the first run after `3296492` changed `web/package-lock.json` and the ESLint config, and its log reads "Cache not found" for the ESLint cache and saves a NEW npm cache. The previous run (`6953b44`), with both caches hit, took 1m20s. So this is one cold run, not a trend; the earlier 3m01s at `4b10ab6` was not investigated.
+- `e2e-static` at 1m10s: its log shows a cache HIT and `npm ci` still took 42 s; the whole job took 28 s at `6953b44`, also on a hit, with the same steps. So the 19-70 s spread looks like the runner rather than the commits (the job holds only `npm ci`, lint, knip, typecheck, the audit and small self-tests), though the runner itself was not measured.
+- The other TREND flags are small absolute moves on noisy jobs (`k8s-static` 7 -> 10 s); nothing in them was attributed. `gradle-vulnerability-scan` spends 50 of its 70 s on the settings-plugin audit in a `--no-daemon` JVM.
+- `server`, `images` and `e2e` are simply larger than the provisional claims: the suite grew from the foundation to 1,109 tests and the e2e suite to 113, then 123.
+
+**Outcome.** Budgets set from these figures (`budgets.json`; each `why` holds its figure). Tightened: the local `web-gates`, `e2e-static` and `e2e-playwright`, which were far looser than measured. Raised: the CI `server`, `web`, `e2e-static`, `images`, `e2e` targets, and the `web`, `e2e-static` and `images` alarms, so one cold-cache run does not alarm. `ci.server-tests` stays 3 min against the measured 2m55s on purpose: its next breach is the cue for fork balancing. The `ci-steps` rows and the two one-off local rows rest on a single run each, so treat them as weaker. The Kover and vitest floors were re-measured the same day (`server/build.gradle.kts`, `web/vite.config.ts`).
 
 ## Review cadence
 

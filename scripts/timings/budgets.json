@@ -1,5 +1,5 @@
 {
-  "_readme": "The ONE place for time budgets (seconds). target = what it SHOULD take; alarm = hard ceiling. ALL targets are PROVISIONAL until measured at v0.1.0 (carried over from the donor project, not re-measured here). A breach or a rising trend is an investigation entry in .claude/docs/build-times.md, never a reason to raise a number here silently.",
+  "_readme": "The ONE place for time budgets (seconds). target = what it SHOULD take; alarm = hard ceiling. Measured at the 1.0.0 re-baseline (2026-11-05; .claude/docs/build-times.md Astrolabe WHY 1). A breach or a rising trend is an investigation entry in .claude/docs/build-times.md, never a reason to raise a number here silently.",
   "trend": {
     "window": 5,
     "ratio": 1.25,
@@ -12,102 +12,102 @@
       "changes": {
         "target": 15,
         "alarm": 30,
-        "why": "PROVISIONAL until measured at v0.1.0: one checkout + one git diff"
+        "why": "Measured 2026-11-05: 14 master runs, median 6 s, max 23 s: one checkout + one git diff"
       },
       "server-tests": {
         "target": 180,
         "alarm": 480,
-        "why": "PROVISIONAL until measured at v0.1.0: the test task alone, single fork on 4 vCPU; leaves headroom of the server job for setup, compile, detekt and Kover"
+        "why": "Measured 2026-11-05: 2m55s for 1,109 tests on 4 vCPU, single fork, at abed03f: just inside the target; a breach is the cue for fork balancing"
       },
       "server": {
-        "target": 300,
+        "target": 360,
         "alarm": 600,
-        "why": "PROVISIONAL until measured at v0.1.0: compile + detekt + tests + Kover on 4 vCPU; a small foundation suite with a tiny DB should not need more"
+        "why": "Measured 2026-11-05: 14 master runs, median 5m16s, range 3m18s-7m22s: compile + detekt + tests + Kover on 4 vCPU"
       },
       "gradle-vulnerability-scan": {
         "target": 60,
         "alarm": 120,
-        "why": "PROVISIONAL until measured at v0.1.0: resolve lockfiles + one trivy run on a few thousand lines of lockfile"
+        "why": "Measured 2026-11-05: 14 master runs, last five median 55 s, max 1m16s: 50 s of it is the settings-plugin audit under --no-daemon"
       },
       "web": {
-        "target": 90,
-        "alarm": 180,
-        "why": "PROVISIONAL until measured at v0.1.0: npm ci (cached) + lint + knip + vitest + vite build of a small SPA"
+        "target": 120,
+        "alarm": 240,
+        "why": "Measured 2026-11-05: 14 master runs, median 1m45s, range 1m02s-3m12s; 80 s with both caches hit, 192 s when a lockfile and config change misses the npm and ESLint caches (WHY 1)"
       },
       "e2e-static": {
-        "target": 30,
-        "alarm": 60,
-        "why": "PROVISIONAL until measured at v0.1.0: npm ci (cached) + eslint + knip + tsc over a handful of specs"
+        "target": 60,
+        "alarm": 120,
+        "why": "Measured 2026-11-05: 14 master runs, median 47 s, range 19-70 s; npm ci alone took 42 s on a cache hit, 28 s for the whole job on another hit"
       },
       "images": {
-        "target": 150,
-        "alarm": 240,
-        "why": "PROVISIONAL until measured at v0.1.0: multi-stage docker build (gradle installDist + vite build) as a plain compose build, plus the Trivy image scan; the floor is Gradle in Docker plus the Trivy databases"
+        "target": 210,
+        "alarm": 300,
+        "why": "Measured 2026-11-05: 14 master runs, last five median 3m21s, range 2m33s-3m41s: a plain docker compose build (2m45s) + the Trivy image scan (39 s)"
       },
       "k8s-static": {
         "target": 20,
         "alarm": 45,
-        "why": "PROVISIONAL until measured at v0.1.0: one checkout + a kubeconform download + validation of the small manifest set, twice (raw and rendered)"
+        "why": "Measured 2026-11-05: 14 master runs, median about 8 s, max 28 s: one checkout + kubeconform download + validating the manifests, raw and rendered"
       },
       "e2e": {
-        "target": 420,
+        "target": 480,
         "alarm": 900,
-        "why": "PROVISIONAL until measured at v0.1.0: nightly: images build + compose up + Playwright over a tiny stack"
+        "why": "Measured 2026-11-05: 4 nightly runs, median 7m32s, range 6m03s-9m56s: images build + compose up + Playwright (113 tests at the time)"
       }
     },
     "ci-steps": {
       "_readme": "Per-step budgets, keyed '<job>/<step name>' exactly as the workflow names the step; ci-times.mjs --steps <job> shows them beside each step's time. Same rules as above: a breach is a WHY entry, never a silent raise.",
       "e2e/Install e2e deps": {
-        "target": 15,
-        "alarm": 45,
-        "why": "PROVISIONAL until measured at v0.1.0: npm ci of the e2e workspace with the npm cache"
+        "target": 30,
+        "alarm": 60,
+        "why": "Measured 2026-11-05: 31 s in one run (6953b44): npm ci of the e2e workspace with the npm cache"
       },
       "e2e/Install Playwright browser": {
-        "target": 30,
+        "target": 45,
         "alarm": 90,
-        "why": "PROVISIONAL until measured at v0.1.0: install-deps (apt) with the browser cached; slower on a cold cache when chromium is downloaded"
+        "why": "Measured 2026-11-05: 31 s in one run (6953b44): install-deps (apt) with the browser cached; slower on a cold cache when chromium is downloaded"
       },
       "e2e/Build images": {
-        "target": 150,
-        "alarm": 240,
-        "why": "PROVISIONAL until measured at v0.1.0: a plain docker compose build of the app image, no layer cache: the same build as the ci.yml images job"
+        "target": 180,
+        "alarm": 270,
+        "why": "Measured 2026-11-05: 2m40s in one run (6953b44), 2m45s in the images job at abed03f: a plain docker compose build of the app image, no layer cache"
       },
       "e2e/Start the stack": {
-        "target": 45,
+        "target": 30,
         "alarm": 120,
-        "why": "PROVISIONAL until measured at v0.1.0: postgres + app (JVM boot + Flyway) healthy under `up --wait`; the app's healthcheck start_period is 30 s"
+        "why": "Measured 2026-11-05: 16 s in one run (6953b44): postgres + app (JVM boot + Flyway) healthy under up --wait"
       },
       "e2e/Run E2E": {
-        "target": 240,
+        "target": 300,
         "alarm": 540,
-        "why": "PROVISIONAL until measured at v0.1.0: the Playwright specs alone against a running stack"
+        "why": "Measured 2026-11-05: 4m48s in one run (6953b44, 113 tests): the Playwright specs alone against a running stack"
       }
     },
     "local": {
       "server-build": {
         "target": 180,
         "alarm": 360,
-        "why": "PROVISIONAL until measured at v0.1.0: ./gradlew cleanTest check :server:installDist -Pforks=1 (scripts/gates.sh default): compile, detekt, all tests, Kover, alignment"
+        "why": "Measured 2026-11-05: Apple M5 Max, 93 runs, last five median 2m05s, previous five 2m29s, max 2m59s: cleanTest check :server:installDist -Pforks=1"
       },
       "server-test": {
-        "target": 120,
+        "target": 180,
         "alarm": 300,
-        "why": "PROVISIONAL until measured at v0.1.0: ./gradlew :server:test against one shared Postgres container"
+        "why": "Measured 2026-11-05: one run, 2m40s for 1,109 tests: ./gradlew :server:test --rerun against one shared Postgres container"
       },
       "web-gates": {
-        "target": 90,
-        "alarm": 180,
-        "why": "PROVISIONAL until measured at v0.1.0: lint:api + check:api + lint + knip + test:coverage + build"
+        "target": 45,
+        "alarm": 90,
+        "why": "Measured 2026-11-05: Apple M5 Max, 106 runs, last five median 22 s, max 41 s: lint:api + check:api + lint + knip + test:coverage + build"
       },
       "e2e-static": {
-        "target": 30,
-        "alarm": 60,
-        "why": "PROVISIONAL until measured at v0.1.0: lint + knip + typecheck + check:scenarios"
+        "target": 15,
+        "alarm": 30,
+        "why": "Measured 2026-11-05: Apple M5 Max, 43 runs, last five median 4.2 s, max 6.5 s: lint + knip + typecheck + check:scenarios and the small self-tests"
       },
       "e2e-playwright": {
-        "target": 300,
-        "alarm": 600,
-        "why": "PROVISIONAL until measured at v0.1.0: blackbox suite against a running compose stack"
+        "target": 180,
+        "alarm": 360,
+        "why": "Measured 2026-11-05: one run, 2m24s for 123 tests against the running compose stack"
       }
     }
   }

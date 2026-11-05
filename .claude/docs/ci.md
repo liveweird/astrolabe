@@ -15,7 +15,7 @@ Read on demand before changing a CI job, a Dependabot rule or a static-analysis 
   suite (`e2e.yml`) runs nightly and on demand, and re-scans the image it built with the same Trivy gate (its "Build images" step is a plain `docker compose build`, like `images`). Dependabot (`.github/dependabot.yml`) checks every
   workspace, Actions and container manifests weekly; `.claude/docs/dependencies.md` describes
   grouping, compatibility pins and runtime verification, and
-  `.claude/docs/dependency-reproducibility.md` describes the Gradle lock/checksum mechanism itself. The job time budgets are PROVISIONAL until the post-0.1.0 re-baseline (`build-times.md`).
+  `.claude/docs/dependency-reproducibility.md` describes the Gradle lock/checksum mechanism itself. The job time budgets: `build-times.md` "Budgets".
 
 **Concurrency.** `ci.yml` cancels a superseded run only for `pull_request` events (`cancel-in-progress: ${{ github.event_name == 'pull_request' }}`); a push to
 `master` runs in a group of its own (the run id), because inside one shared group GitHub keeps a single pending run and drops the older pending one even without

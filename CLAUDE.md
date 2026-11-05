@@ -163,7 +163,7 @@ disagree, the doc wins. The always-loaded set (this file plus the two imports) s
 | `.claude/docs/dependencies.md` | any dependency, image or runtime-pin change |
 | `.claude/docs/dependency-reproducibility.md` | lockfiles or `gradle/verification-metadata.xml` (the empty-`GRADLE_USER_HOME` rule) |
 | `.claude/docs/app-releases.md` | a version bump, changelog entry, tag or GitHub release |
-| `.claude/docs/build-times.md` | any CI/build/test-time change; when a gate gets slower (`scripts/timings/`, budgets — PROVISIONAL until the v0.1.0 re-baseline) |
+| `.claude/docs/build-times.md` | any CI/build/test-time change; when a gate gets slower (`scripts/timings/`, budgets) |
 
 A new doc under `.claude/docs/` gets a row here, not an `@` import.
 
