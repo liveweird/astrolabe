@@ -197,6 +197,14 @@ class-data-sharing (AppCDS) archive, and setting it drops the archive. Build-tim
 | `MFA_MAX_LIVE_PER_ACCOUNT` | `3` | Live email-MFA challenges one account may hold, 1–100; a new login gets a fresh code (unless the shared store is full) and, at the limit, the account's oldest live challenge is dropped. |
 | `DATA_ENCRYPTION_KEY` | *(dev key, burned)* | AES-256-GCM key (64 hex) that encrypts the stored Jira API tokens — the dev default is burned, production refuses it. It cannot be discarded: losing it loses every stored token. Back it up apart from the database. |
 | `DATA_ENCRYPTION_KEY_PREVIOUS` | *(blank)* | Decrypt-only fallback during a key rotation: set the OLD key here and the new one in `DATA_ENCRYPTION_KEY`, boot once (every stored token is re-encrypted), then remove it. Wired on compose and Kubernetes (optional there); blank = none. |
+| `JIRA_STUB_BASE_URL` | *(blank)* | **Development only.** An `http(s)://host[:port]` origin that stands in for BOTH the Jira site's `tenant_info` host and the Atlassian gateway (the compose/Kubernetes `jira-stub`, port 8096). Production startup **refuses** a non-blank value (`.claude/docs/security.md` "Outbound HTTP calls"). |
+| `JIRA_REQUEST_TIMEOUT_SECONDS` | `30` | One Jira attempt's timeout, 5–120 seconds. |
+| `JIRA_REQUEST_DEADLINE_SECONDS` | `120` | The total time one Jira call may spend across every attempt and backoff, 10–600 seconds. |
+| `JIRA_MAX_RESPONSE_BYTES` | `4194304` | The most bytes one Jira response may carry (refused as `LIMIT_EXCEEDED` past it), 65536–16777216. |
+| `JIRA_MAX_CONCURRENT_REQUESTS` | `2` | In-flight Jira calls across every connection, 1–8. |
+| `JIRA_MAX_RETRIES` | `4` | Retries of a Jira 429/5xx/network failure (exponential backoff with jitter), 0–8. |
+| `JIRA_PAGE_SIZE` | `100` | Issues per Jira search page, 1–500. |
+| `JIRA_INCREMENTAL_OVERLAP_MINUTES` | `10` | Minutes added to the time since the last successful Jira run in an incremental bound, 0–1440. |
 | `SECURITY_CSRF_ENABLED` | `false` | CSRF plugin gate — off (bearer JWT, no cookies). |
 | `JWT_SECRET` | `secret` | HMAC key for the access/refresh pair — production requires a private 64-hex key (`openssl rand -hex 32`); the placeholders and compose demo key are burned. |
 | `JWT_ISSUER` | `http://0.0.0.0:8086/` | The `iss` claim the verifier requires. |

@@ -11,6 +11,7 @@ import ch.nokillswit.auth.PasswordResetConfirmRequest
 import ch.nokillswit.auth.RefreshRequest
 import ch.nokillswit.jira.JiraAuthScheme
 import ch.nokillswit.jira.JiraConnectionRequest
+import ch.nokillswit.jira.JiraTestTarget
 import ch.nokillswit.users.User
 import ch.nokillswit.users.UserCreateRequest
 import ch.nokillswit.users.UserRole
@@ -102,5 +103,14 @@ class SecretToStringTest {
         assertMasked(request.toString(), "sample.atlassian.net")
         assertTrue("authScheme=BEARER" in request.toString() && "projectKeys=[SP]" in request.toString())
         assertTrue("apiToken=null" in request.copy(apiToken = null).toString(), "an absent token renders as null, not ***")
+    }
+
+    @Test
+    fun `a Jira test target masks the decrypted API token and keeps the rest`() {
+        val target = JiraTestTarget("https://sample.atlassian.net", "jira@example.test", secret, JiraAuthScheme.BASIC, listOf("SP"), 7L)
+        assertMasked(target.toString(), "sample.atlassian.net")
+        assertTrue("apiToken=***" in target.toString() && "projectKeys=[SP]" in target.toString())
+        val unreadable = JiraTestTarget("https://s.atlassian.net", "a@b.c", null, JiraAuthScheme.BEARER, listOf("SP"))
+        assertTrue("apiToken=null" in unreadable.toString())
     }
 }

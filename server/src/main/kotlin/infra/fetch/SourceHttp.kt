@@ -35,6 +35,9 @@ private val log = LoggerFactory.getLogger(SourceHttp::class.java)
 
 internal const val DEFAULT_REQUEST_DEADLINE_MILLIS = 180_000L
 
+/** A body over this many bytes is parsed behind the one big-parse lock; `jira/JiraHeapFit.kt` budgets the smaller ones apart. */
+internal const val BIG_BODY_BYTES_FOR_HEAP_FIT = 1024L * 1024
+
 /**
  * The shared, low-level HTTP transport of a connector (Jira's today, `jira/JiraHttp.kt`): retry with [Backoff] on 429/5xx/
  * IOException up to [maxRetries], a [Semaphore] capping concurrent in-flight calls, a bounded
@@ -371,7 +374,7 @@ class SourceHttp(
         private const val SERVER_ERROR_FLOOR = 500
         private val SUCCESS_RANGE = 200..299
         private const val READ_BUFFER_SIZE = 8_192
-        private const val BIG_BODY_BYTES = 1024 * 1024
+        private const val BIG_BODY_BYTES = BIG_BODY_BYTES_FOR_HEAP_FIT.toInt()
 
         private fun codeForStatus(status: Int): String = when (status) {
             401 -> "AUTHENTICATION_FAILED"

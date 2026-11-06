@@ -70,6 +70,12 @@ object RateLimits {
     const val MFA = "mfa"
     /** `POST /api/v1/password-reset/confirm` - the link's token exchange, 10/min per IP in every mode (the [MFA] idiom). */
     const val PASSWORD_RESET_CONFIRM = "password-reset-confirm"
+    /**
+     * Both Test-connection routes of the Jira sync (`POST /api/v1/integrations/jira/connections/test` and `…/{id}/test`), 10/min per IP in
+     * every mode (the [MFA] idiom): each call makes up to ~10 outbound requests with the stored token, so the bound is for a
+     * runaway client.
+     */
+    const val JIRA_TEST = "jira-test"
     /** `GET /api/v1/ready` — the one anonymous route that takes a pooled DB connection per call (checkup D7-2, A16). */
     const val READY = "ready"
     /**
@@ -91,6 +97,7 @@ object RateLimits {
     private const val TELEMETRY_PER_MINUTE = 30
     private const val MFA_PER_MINUTE = 10
     private const val PASSWORD_RESET_CONFIRM_PER_MINUTE = 10
+    private const val JIRA_TEST_PER_MINUTE = 10
     private const val LOGIN_PER_MINUTE_PRODUCTION = 10
     private const val LOGIN_PER_MINUTE_DEVELOPMENT = 1000
     private const val RESET_PER_MINUTE_PRODUCTION = 5
@@ -118,6 +125,7 @@ object RateLimits {
     internal fun telemetryLimit() = TELEMETRY_PER_MINUTE
     internal fun mfaLimit() = MFA_PER_MINUTE
     internal fun passwordResetConfirmLimit() = PASSWORD_RESET_CONFIRM_PER_MINUTE
+    internal fun jiraTestLimit() = JIRA_TEST_PER_MINUTE
 }
 
 /**
@@ -135,6 +143,7 @@ fun Application.configureRateLimits() {
             PASSWORD_RESET to passwordResetLimit(),
             MFA to mfaLimit(),
             PASSWORD_RESET_CONFIRM to passwordResetConfirmLimit(),
+            JIRA_TEST to jiraTestLimit(),
             READY to readyLimit(),
         )
     }

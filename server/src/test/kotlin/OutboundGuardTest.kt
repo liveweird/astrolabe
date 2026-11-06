@@ -1,12 +1,24 @@
 package ch.nokillswit
 
+import ch.nokillswit.infra.fetch.FetchException
 import ch.nokillswit.infra.outbound.BlockedHostException
 import ch.nokillswit.infra.outbound.GuardedDns
 import ch.nokillswit.infra.outbound.isAllowedJiraHost
+import ch.nokillswit.jira.buildGuardedJiraHttpClient
+import ch.nokillswit.jira.createJiraHttp
+import com.github.tomakehurst.wiremock.client.WireMock.aResponse
+import com.github.tomakehurst.wiremock.client.WireMock.get
+import com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo
+import io.ktor.http.HttpMethod
 import java.net.InetAddress
 import java.net.UnknownHostException
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.runBlocking
+import okhttp3.Call
+import okhttp3.Connection
+import okhttp3.EventListener
+import org.junit.BeforeClass
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -18,7 +30,8 @@ import kotlin.test.assertTrue
  * The outbound HTTP boundary (ported from Flow, where the Jira client was its consumer; `.claude/docs/security.md`
  * "Outbound HTTP calls"): the host allow-list ([isAllowedJiraHost]) as the primary boundary, and
  * [GuardedDns]'s address check (ported verbatim from Toadie's `isBlockedAddress`) as defense in
- * depth, with an injected resolver so every case is exact and offline.
+ * depth, with an injected resolver so every case is exact and offline. The "production wiring" cases at the end build the SAME client
+ * `configureJira` wires ([buildGuardedJiraHttpClient]) and drive it through the real OkHttp engine against the loopback [JiraStubServer].
  */
 class OutboundGuardTest {
 
@@ -185,6 +198,167 @@ class OutboundGuardTest {
         assertFailsWith<BlockedHostException> { dns.lookup("api.atlassian.com") }
     }
 
+    // --- Production-wiring cases: [buildGuardedJiraHttpClient] builds EXACTLY the Ktor `HttpClient(OkHttp)` `jira/Jira.kt`'s
+    // `configureJira()` wires, driven against the real, loopback [JiraStubServer] through the REAL OkHttp engine. ---
+
+    private fun jiraHttp(client: io.ktor.client.HttpClient, maxRetries: Int, sleeper: suspend (Long) -> Unit = {}) =
+        createJiraHttp(client, maxRetries = maxRetries, maxResponseBytes = 1_000_000, maxConcurrentRequests = 4, sleeper = sleeper)
+
+    @Test
+    fun `production wiring - an allowed host resolving to a blocked address is BLOCKED_HOST, one attempt, no retry`() = runBlocking {
+        val stubUrl = JiraStubServer.start()
+        var resolveCalls = 0
+        val httpClient = buildGuardedJiraHttpClient(
+            originAllowed = null,
+            allowedHost = { true },
+            resolver = { resolveCalls++; InetAddress.getAllByName(it).toList() },
+            requestTimeoutSeconds = 5,
+        )
+        // Mutation check: revert BlockedHostException to a bare RuntimeException and this becomes UPSTREAM_UNAVAILABLE after 3 resolver
+        // calls (real backoff) instead - OkHttp re-wraps a non-IOException thrown out of the interceptor chain.
+        val error = assertFailsWith<FetchException> {
+            jiraHttp(httpClient, maxRetries = 2).request(HttpMethod.Get, "$stubUrl/_edge/tenant_info")
+        }
+        assertEquals("BLOCKED_HOST", error.code)
+        assertEquals(1, resolveCalls, "BLOCKED_HOST must not be retried")
+    }
+
+    @Test
+    fun `production wiring - a DNS failure is retried and the call succeeds once the resolver answers`() = runBlocking {
+        val stubUrl = JiraStubServer.start()
+        var resolveCalls = 0
+        val httpClient = buildGuardedJiraHttpClient(
+            originAllowed = null,
+            allowedHost = { true },
+            resolver = { host -> if (resolveCalls++ == 0) throw UnknownHostException(host) else InetAddress.getAllByName(host).toList() },
+            // The stub is loopback by construction (the `jira.stubBaseUrl` convention): skip the address-SHAPE check only.
+            addressAllowed = { _, _ -> true },
+            requestTimeoutSeconds = 5,
+        )
+        val result = jiraHttp(httpClient, maxRetries = 2).request(HttpMethod.Get, "$stubUrl/_edge/tenant_info")
+        assertTrue(result.toString().contains("cloudId"), "expected the real tenant_info stub body: $result")
+        assertEquals(2, resolveCalls, "the failed lookup, then the retry's re-resolution")
+    }
+
+    @Test
+    fun `production wiring - a persistent DNS failure is UPSTREAM_UNAVAILABLE, never BLOCKED_HOST`() = runBlocking {
+        val downHost = "dns-down.atlassian.net"
+        var resolveCalls = 0
+        val sleeps = mutableListOf<Long>()
+        val httpClient = buildGuardedJiraHttpClient(
+            originAllowed = null,
+            allowedHost = { true },
+            resolver = { host -> resolveCalls++; throw UnknownHostException(host) },
+            requestTimeoutSeconds = 5,
+        )
+        withAuditCapture { audit ->
+            val error = assertFailsWith<FetchException> {
+                jiraHttp(httpClient, maxRetries = 2) { sleeps += it }.request(HttpMethod.Get, "https://$downHost/_edge/tenant_info")
+            }
+            assertEquals("UPSTREAM_UNAVAILABLE", error.code)
+            assertEquals(3, resolveCalls, "the first attempt plus maxRetries retries")
+            assertEquals(2, sleeps.size, "one backoff per retry")
+            assertFalse(
+                audit.events.any { it.message == "outbound.blocked" && it.hasKeyValue("host", downHost) },
+                "a DNS failure is not a guard rejection",
+            )
+        }
+    }
+
+    @Test
+    fun `production wiring - a disallowed host is BLOCKED_HOST without ever invoking the resolver`() = runBlocking {
+        var resolveCalls = 0
+        val httpClient = buildGuardedJiraHttpClient(
+            originAllowed = null,
+            allowedHost = { false },
+            resolver = { resolveCalls++; listOf(InetAddress.getByName("203.0.113.10")) },
+            requestTimeoutSeconds = 5,
+        )
+        val error = assertFailsWith<FetchException> {
+            jiraHttp(httpClient, maxRetries = 2).request(HttpMethod.Get, "https://evil.example.com/probe")
+        }
+        assertEquals("BLOCKED_HOST", error.code)
+        assertEquals(0, resolveCalls, "an already-disallowed host must never reach the resolver")
+    }
+
+    @Test
+    fun `production wiring - a 3xx from the real OkHttp engine is REDIRECT, never followed`() = runBlocking {
+        val stubUrl = JiraStubServer.start()
+        val redirectPath = "/probe-redirect-${UUID.randomUUID()}"
+        val override = JiraStubServer.addOverride(
+            get(urlPathEqualTo(redirectPath)).willReturn(aResponse().withStatus(302).withHeader("Location", "https://evil.example/")),
+        )
+        try {
+            val httpClient = buildGuardedJiraHttpClient(
+                originAllowed = null,
+                allowedHost = { true },
+                addressAllowed = { _, _ -> true },
+                requestTimeoutSeconds = 5,
+            )
+            val error = assertFailsWith<FetchException> {
+                jiraHttp(httpClient, maxRetries = 0).request(HttpMethod.Get, "$stubUrl$redirectPath")
+            }
+            assertEquals("REDIRECT", error.code)
+        } finally {
+            JiraStubServer.removeOverride(override)
+        }
+    }
+
+    @Test
+    fun `production wiring - ignores a configured system proxy (Proxy_NO_PROXY)`() = runBlocking {
+        val stubUrl = JiraStubServer.start()
+        val originalHost = System.getProperty("http.proxyHost")
+        val originalPort = System.getProperty("http.proxyPort")
+        // An unroutable proxy target: if the guarded client honoured it, the call would fail instead of reaching the loopback stub
+        // directly.
+        System.setProperty("http.proxyHost", "203.0.113.10")
+        System.setProperty("http.proxyPort", "1")
+        try {
+            val httpClient = buildGuardedJiraHttpClient(
+                originAllowed = null, allowedHost = { true }, addressAllowed = { _, _ -> true }, requestTimeoutSeconds = 5,
+            )
+            val result = jiraHttp(httpClient, maxRetries = 0).request(HttpMethod.Get, "$stubUrl/_edge/tenant_info")
+            assertTrue(result.toString().contains("cloudId"), "expected the real tenant_info stub body: $result")
+        } finally {
+            originalHost?.let { System.setProperty("http.proxyHost", it) } ?: System.clearProperty("http.proxyHost")
+            originalPort?.let { System.setProperty("http.proxyPort", it) } ?: System.clearProperty("http.proxyPort")
+        }
+    }
+
+    /** Counts OkHttp's own connection-pool checkout/checkin events - the leak signal. */
+    private class CountingEventListener : EventListener() {
+        val acquired = AtomicInteger(0)
+        val released = AtomicInteger(0)
+        override fun connectionAcquired(call: Call, connection: Connection) {
+            acquired.incrementAndGet()
+        }
+        override fun connectionReleased(call: Call, connection: Connection) {
+            released.incrementAndGet()
+        }
+    }
+
+    @Test
+    fun `every attempt releases its OkHttp connection back to the pool, even on repeated failures`() = runBlocking {
+        val stubUrl = JiraStubServer.start()
+        val failPath = "/probe-fail-${UUID.randomUUID()}"
+        // A body large enough that OkHttp must STREAM it off the socket: only then does an unread body keep the connection checked out.
+        val override = JiraStubServer.addOverride(
+            get(urlPathEqualTo(failPath)).willReturn(aResponse().withStatus(503).withBody("x".repeat(2 * 1024 * 1024))),
+        )
+        val listener = CountingEventListener()
+        try {
+            val httpClient = buildGuardedJiraHttpClient(
+                originAllowed = null, allowedHost = { true }, addressAllowed = { _, _ -> true }, requestTimeoutSeconds = 5,
+                eventListener = listener,
+            )
+            assertFailsWith<FetchException> { jiraHttp(httpClient, maxRetries = 2).request(HttpMethod.Get, "$stubUrl$failPath") }
+            assertTrue(listener.acquired.get() >= 3, "the initial attempt plus 2 retries: ${listener.acquired.get()}")
+            assertEquals(listener.acquired.get(), listener.released.get(), "no leaked connections after repeated failures")
+        } finally {
+            JiraStubServer.removeOverride(override)
+        }
+    }
+
     @Test
     fun `a blocked stub host is audited with its REAL scheme, not a hardcoded https`() = runBlocking {
         withAuditCapture { capture ->
@@ -193,6 +367,14 @@ class OutboundGuardTest {
             val event = capture.awaitEvent { it.message == "outbound.blocked" && it.hasKeyValue("scheme", "http") }
             assertNotNull(event, "expected outbound.blocked audited with the real (http) scheme, not a hardcoded https")
             Unit
+        }
+    }
+
+    companion object {
+        @JvmStatic
+        @BeforeClass
+        fun warmStub() {
+            JiraStubFixture.warm()
         }
     }
 }

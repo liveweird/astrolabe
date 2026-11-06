@@ -75,7 +75,7 @@ app's password-reset and MFA email to it (`MAIL_TRANSPORT=smtp`). Ports delibera
 | Grenadiers | 8085 | 5436 | – | 5177 |
 | **Astrolabe** | **8086** | **5437** | **8029** | **5178** |
 
-(Lettuce's WireMock stub pattern lives on 8096 in this port plan, for the Jira/Flow sync when it is built; Flow's stubs sat on 8094/8095.) Kubernetes
+(The Jira stub — a WireMock over `sample-data/jira-stub`, `JIRA_STUB_BASE_URL` — is the sibling table's port **8096**: the Jira sync's development and test double, served in-JVM by `JiraStubServer` in the server suite and, from a later v1.1.0 step, as the `jira-stub` service on compose and Kubernetes; Flow's stubs sat on 8094/8095. The app boots without it and production refuses its URL, `security.md` "Outbound HTTP calls".) Kubernetes
 (OrbStack) deployment targets the dedicated `astrolabe` namespace — see `k8s/secret.yaml`'s header for
 the secret-creation command; the image is `astrolabe-app` and the cluster runs a single `app-deployment.yaml` (one process, no worker) beside postgres; `k8s/apply-local.sh` applies the OrbStack overlay `k8s/local/front-door.yaml` (development mode, no proxy) instead of the production-posture base `k8s/front-door.yaml` (`security.md`, "The front door").
 

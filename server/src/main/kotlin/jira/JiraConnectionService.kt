@@ -13,12 +13,14 @@ import ch.nokillswit.infra.json.stringArrayJson
 import ch.nokillswit.infra.paging.PageRequest
 import ch.nokillswit.infra.paging.applyPaging
 import io.ktor.util.AttributeKey
+import java.security.GeneralSecurityException
 import kotlinx.coroutines.flow.toList
 import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.core.dao.id.UIntIdTable
 import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
 import org.jetbrains.exposed.v1.r2dbc.*
 import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
+import org.slf4j.LoggerFactory
 
 val JiraConnectionServiceKey = AttributeKey<JiraConnectionService>("JiraConnectionService")
 
@@ -30,6 +32,14 @@ private val SORTABLE_COLUMNS: Map<String, Column<*>> = mapOf(
 
 /** The ONE sortable whitelist - derived from the column map so the two can never drift. */
 val JIRA_CONNECTION_SORT_FIELDS: Set<String> = SORTABLE_COLUMNS.keys
+
+private val log = LoggerFactory.getLogger(JiraConnectionService::class.java)
+
+/** What [JiraConnectionService.recordTest] did: whether the result was stored, and the `discovered_at` now on the row. */
+data class TestRecording(val recorded: Boolean, val discoveredAt: Long?)
+
+/** [JiraConnectionService.readDiscovery]'s answer for a connection no passing Test connection has discovered yet. */
+const val NO_DISCOVERY = ""
 
 /** The stored mapping document of a connection nobody mapped yet (`jira_connections.mapping` default). */
 private const val EMPTY_MAPPING = "{}"
@@ -56,6 +66,9 @@ class JiraConnectionService(
         val projectKeys = jsonb("project_keys")
         val cloudId = varchar("cloud_id", length = 36).nullable()
         val mapping = jsonb("mapping")
+
+        /** The last field/issue-type snapshot (canonical JSON, up to ~300 KB): read only by [JiraConnectionService.readDiscovery]. */
+        val discovery = jsonb("discovery").nullable()
         val discoveredAt = long("discovered_at").nullable()
         val lastTestedAt = long("last_tested_at").nullable()
         val lastTestOk = bool("last_test_ok").nullable()
@@ -67,6 +80,9 @@ class JiraConnectionService(
 
     override val encryptedRowLabel = "Jira API token"
 
+    /** Every column but the discovery blob: the registry's reads and locks never pull the snapshot. */
+    private fun summary() = Connections.select(Connections.columns.filter { it != Connections.discovery })
+
     /** The boot backfill: wraps legacy plaintext tokens once; with a rotation key, re-wraps EVERY row (soft-deleted included). */
     override suspend fun encryptLegacyRows(reencryptAll: Boolean): Int = suspendTransaction(database) {
         cipher.reencryptRows(Connections, listOf(Connections.apiToken), reencryptAll)
@@ -75,13 +91,13 @@ class JiraConnectionService(
     suspend fun list(paging: PageRequest): JiraConnectionListResult = suspendTransaction(database) {
         val predicate = Connections.active()
         val total = Connections.selectAll().where { predicate }.count()
-        val rows = Connections.selectAll().where { predicate }.applyPaging(paging, SORTABLE_COLUMNS).toList()
+        val rows = summary().where { predicate }.applyPaging(paging, SORTABLE_COLUMNS).toList()
         JiraConnectionListResult(rows.map { it.toResponse() }, total)
     }
 
     /** The connection, or null when missing/deleted. */
     suspend fun read(id: UInt): JiraConnectionResponse? = suspendTransaction(database) {
-        Connections.selectAll().where { (Connections.id eq id) and Connections.active() }.toList().singleOrNull()?.toResponse()
+        summary().where { (Connections.id eq id) and Connections.active() }.toList().singleOrNull()?.toResponse()
     }
 
     /** Creates the connection; the token is encrypted before it is bound. A name clash rides the V21 partial index into the central 409. */
@@ -112,16 +128,25 @@ class JiraConnectionService(
         validateJiraConnection(request, apiTokenRequired = false)
         // NO KEY UPDATE: serializes with other registry writers but not with FK-checking inserts that reference the row (persistence.md
         // "Row locks vs. FK locks").
-        val before = Connections.selectAll().where { (Connections.id eq id) and Connections.active() }
+        val before = summary().where { (Connections.id eq id) and Connections.active() }
             .forUpdate(ForUpdateOption.PostgreSQL.ForNoKeyUpdate).toList().singleOrNull()
             ?: return@suspendTransaction JiraConnectionUpdateOutcome(0, false, jiraHostOf(request.siteUrl))
         if (before[Connections.siteUrl] != request.siteUrl) {
             throw ConflictException("The site of a Jira connection cannot be changed - create a new connection")
         }
+        // The last test judged the old credentials and scope: a changed token, account, auth scheme or key set says nothing about the new
+        // ones until the admin tests again (name and `enabled` do not change what a test probes).
+        val testInvalidated = request.apiToken != null || before[Connections.email] != request.email ||
+            before[Connections.authScheme] != request.authScheme.name ||
+            parseStringArray(before[Connections.projectKeys]) != request.projectKeys
         val affected = Connections.update({ (Connections.id eq id) and Connections.active() }) {
             it[name] = request.name
             it[email] = request.email
             request.apiToken?.let { token -> it[apiToken] = cipher.encrypt(token) }
+            if (testInvalidated) {
+                it[lastTestedAt] = null
+                it[lastTestOk] = null
+            }
             it[authScheme] = request.authScheme.name
             it[projectKeys] = stringArrayJson(request.projectKeys)
             it[enabled] = request.enabled
@@ -130,9 +155,80 @@ class JiraConnectionService(
         JiraConnectionUpdateOutcome(affected, tokenRotated = request.apiToken != null, host = jiraHostOf(request.siteUrl))
     }
 
+    /**
+     * The Test connection's ONE reader of the stored token: decrypts it here, in memory, for the connector. A token that cannot be
+     * decrypted (`AEADBadTagException` from a wrong or rotated `DATA_ENCRYPTION_KEY`, a corrupt envelope) reads as `apiToken = null`
+     * - the connector answers a typed row, never a 500 - and the failure is logged without the envelope or the exception text.
+     * Null when the connection is missing or deleted. Its own short transaction: nothing here spans the HTTP calls that follow.
+     */
+    suspend fun readForTest(id: UInt): JiraTestTarget? = suspendTransaction(database) {
+        val row = summary().where { (Connections.id eq id) and Connections.active() }.toList().singleOrNull()
+            ?: return@suspendTransaction null
+        val token = try {
+            cipher.decrypt(row[Connections.apiToken])
+        } catch (cause: GeneralSecurityException) {
+            logUnreadableToken(id, cause)
+        } catch (cause: IllegalArgumentException) {
+            logUnreadableToken(id, cause)
+        }
+        JiraTestTarget(
+            siteUrl = row[Connections.siteUrl],
+            email = row[Connections.email],
+            apiToken = token,
+            authScheme = JiraAuthScheme.valueOf(row[Connections.authScheme]),
+            projectKeys = parseStringArray(row[Connections.projectKeys]),
+            expectedUpdatedAt = row[Connections.updatedAt],
+        )
+    }
+
+    private fun logUnreadableToken(id: UInt, cause: Exception): String? {
+        // The exception CLASS only: a decrypt failure's message can name the cipher's internals, never the value, but the rule is the same
+        // as for the other secret paths (`security.md` "Log hygiene").
+        log.warn("The stored API token of Jira connection {} cannot be decrypted ({})", id, cause.javaClass.simpleName)
+        return null
+    }
+
+    /**
+     * Records a stored-token Test connection: `last_tested_at`/`last_test_ok` always (the real verdict), `cloud_id` when the test resolved
+     * one, and - when [discovery] is given (both `field` and `issuetype` answered, whatever the other probes said) - the snapshot and
+     * `discovered_at`. Skipped (`recorded` false) if the row vanished or was edited since [JiraTestTarget.expectedUpdatedAt] was read (a
+     * rotated token, say: the result judged the old one). Does not bump `updated_at`. [TestRecording.discoveredAt] is the instant of the
+     * snapshot now stored (this one, or the earlier one a test without a snapshot leaves in place).
+     */
+    suspend fun recordTest(
+        id: UInt,
+        expectedUpdatedAt: Long,
+        cloudId: String?,
+        ok: Boolean,
+        discovery: JiraDiscovery?,
+        at: Long,
+    ): TestRecording =
+        suspendTransaction(database) {
+            val row = summary().where { (Connections.id eq id) and Connections.active() }
+                .forUpdate(ForUpdateOption.PostgreSQL.ForNoKeyUpdate).toList().singleOrNull()
+            if (row == null || row[Connections.updatedAt] != expectedUpdatedAt) return@suspendTransaction TestRecording(false, null)
+            Connections.update({ (Connections.id eq id) and Connections.active() }) {
+                it[lastTestedAt] = at
+                it[lastTestOk] = ok
+                cloudId?.let { resolved -> it[Connections.cloudId] = resolved }
+                if (discovery != null) {
+                    it[Connections.discovery] = discovery.toStoredJson()
+                    it[discoveredAt] = discovery.discoveredAt
+                }
+            }
+            TestRecording(true, discovery?.discoveredAt ?: row[Connections.discoveredAt])
+        }
+
+    /** The stored snapshot: null when the connection is missing, [NO_DISCOVERY] when no passing test stored one yet. */
+    suspend fun readDiscovery(id: UInt): String? = suspendTransaction(database) {
+        val row = Connections.select(Connections.discovery).where { (Connections.id eq id) and Connections.active() }
+            .toList().singleOrNull() ?: return@suspendTransaction null
+        row[Connections.discovery] ?: NO_DISCOVERY
+    }
+
     /** Soft delete: the connection stops reading as active and frees its name. `affected` 0 = missing or already deleted (404). */
     suspend fun delete(id: UInt): JiraConnectionDeleteOutcome = suspendTransaction(database) {
-        val row = Connections.selectAll().where { (Connections.id eq id) and Connections.active() }
+        val row = summary().where { (Connections.id eq id) and Connections.active() }
             .forUpdate(ForUpdateOption.PostgreSQL.ForNoKeyUpdate).toList().singleOrNull()
             ?: return@suspendTransaction JiraConnectionDeleteOutcome(0, "", "")
         val affected = Connections.update({ (Connections.id eq id) and Connections.active() }) {

@@ -1777,6 +1777,84 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/integrations/jira/connections/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test a Jira connection that is not (yet) stored
+         * @description ADMIN only (guarded before the body decodes), rate limited per IP (`jira-test`, 10 a minute). Probes the Jira site with the credentials in
+         *     the body - the same shape as a create (`apiToken` required) - and answers one row per endpoint probed. Never `502`: a failed probe, an
+         *     upstream failure and a timeout are rows in a `200`. Nothing is stored. The token travels only in the body and is never logged, audited or
+         *     echoed.
+         */
+        post: operations["testJiraConnectionAdHoc"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/integrations/jira/connections/{id}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test a stored Jira connection
+         * @description ADMIN only (guard before the id lookup), rate limited per IP (`jira-test`, 10 a minute). Probes the site with the STORED token (decrypted in
+         *     memory for the call only) and answers one row per endpoint probed. Never `502`; a stored token that cannot be decrypted (a changed
+         *     `DATA_ENCRYPTION_KEY`) is one failed `stored_token` row with code `TOKEN_UNREADABLE` - re-enter the token. The outcome is recorded on the
+         *     connection (`lastTestedAt`, `lastTestOk` - the real verdict -, and the `cloudId` once resolved), and the field and issue-type discovery is
+         *     stored whenever both the `field` and `issuetype` probes answered, even if another probe failed. `discoveredAt` in the answer is the
+         *     instant of the snapshot now stored (this test's, or an earlier one's); `recorded` is false when an edit of the connection raced the test
+         *     and the result was dropped.
+         */
+        post: operations["testJiraConnection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/integrations/jira/connections/{id}/discovery": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * The stored field and issue-type discovery of a Jira connection
+         * @description ADMIN only, guard before the id lookup. The snapshot a passing Test connection stored: the date, number and recognised fields, the issue
+         *     types, the hierarchy levels and what the name rules resolved (`markers`: Plans' "Target start"/"Target end" - by date-typed name, else by
+         *     their `jpo-custom-field-baseline-*` custom type -, "Start date", `duedate`, story points, the Team field and the legacy parent links - an
+         *     omitted marker is "not found"). `fieldsTruncated` says the site had more fields than the snapshot keeps. `409` with type
+         *     `urn:astrolabe:problem:jira-not-discovered` before any test has stored a snapshot (both `field` and `issuetype` must have answered). A bounded document (at most 2,000 fields and 500 issue
+         *     types), not a paged list.
+         */
+        get: operations["getJiraDiscovery"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -4018,6 +4096,90 @@ export interface components {
             pageSize: number;
             /** Format: int64 */
             total: number;
+        };
+        JiraTestRow: {
+            /** @description The probe: `tenant_info`, `myself`, `issuetype`, `search`, `field`, `projects`, `project:<KEY>` (one per configured key), `issue` or `stored_token`. */
+            name: string;
+            /** @description The endpoint probed (no query string). */
+            path: string;
+            /** @description Whether a failure fails the test. */
+            required: boolean;
+            ok: boolean;
+            /**
+             * Format: int32
+             * @description The upstream HTTP status when one answered.
+             */
+            status?: number | null;
+            /** @description The failure code: `AUTHENTICATION_FAILED`, `FORBIDDEN_SCOPE`, `NOT_FOUND`, `RATE_LIMITED`, `UPSTREAM_UNAVAILABLE`, `TIMEOUT`, `INVALID_RESPONSE`, `LIMIT_EXCEEDED`, `BLOCKED_HOST`, `REDIRECT`, `PROJECT_NOT_VISIBLE` (a configured key the token cannot see) or `TOKEN_UNREADABLE` (the stored token cannot be decrypted). A scoped token missing a scope answers 401, not 403, so one failing probe while `myself` passes means a missing scope, not bad credentials. */
+            code?: string | null;
+            /** @description The Atlassian scope(s) the probe needs; a comma+space separated list. */
+            scopeHint?: string | null;
+        };
+        JiraTestResult: {
+            rows: components["schemas"]["JiraTestRow"][];
+            /** @description The site's cloud id once `tenant_info` answered (validated as a UUID). */
+            cloudId?: string | null;
+            /**
+             * Format: int64
+             * @description Epoch millis of the discovery snapshot now stored on the connection (stored-token variant); null when none or ad hoc.
+             */
+            discoveredAt?: number | null;
+            /** @description Whether the result was stored on the connection (false for an ad-hoc test, or when an edit raced the test). */
+            recorded: boolean;
+        };
+        JiraDiscoveredField: {
+            id: string;
+            name: string;
+            /** @description `schema.type`, e.g. `date`, `datetime`, `number`. */
+            type?: string | null;
+            /** @description `schema.custom`, null for a system field. */
+            custom?: string | null;
+        };
+        JiraDiscoveredIssueType: {
+            id: string;
+            name: string;
+            /**
+             * Format: int32
+             * @description Jira's hierarchy level (Epic 1, sub-task -1); null when the site did not say.
+             */
+            hierarchyLevel?: number | null;
+            subtask: boolean;
+        };
+        JiraDiscoveredLevel: {
+            /** Format: int32 */
+            level: number;
+            typeNames: string[];
+        };
+        /** @description What the name and `schema.custom` rules resolved; an absent member is "not found". */
+        JiraDiscoveryMarkers: {
+            targetStart?: components["schemas"]["JiraDiscoveredField"];
+            targetEnd?: components["schemas"]["JiraDiscoveredField"];
+            startDate?: components["schemas"]["JiraDiscoveredField"];
+            dueDate?: components["schemas"]["JiraDiscoveredField"];
+            storyPoints?: components["schemas"]["JiraDiscoveredField"];
+            team?: components["schemas"]["JiraDiscoveredField"];
+            legacyEpicLink?: components["schemas"]["JiraDiscoveredField"];
+            legacyParentLink?: components["schemas"]["JiraDiscoveredField"];
+        };
+        JiraDiscovery: {
+            /**
+             * Format: int64
+             * @description Epoch millis
+             */
+            discoveredAt: number;
+            /**
+             * Format: int32
+             * @description How many fields the site reported (the snapshot keeps at most 2,000 of them).
+             */
+            fieldCount: number;
+            /** Format: int32 */
+            issueTypeCount: number;
+            /** @description Whether the site had more date/number/recognised fields than the snapshot keeps (the markers are kept first). */
+            fieldsTruncated: boolean;
+            fields: components["schemas"]["JiraDiscoveredField"][];
+            issueTypes: components["schemas"]["JiraDiscoveredIssueType"][];
+            levels: components["schemas"]["JiraDiscoveredLevel"][];
+            markers: components["schemas"]["JiraDiscoveryMarkers"];
         };
     };
     responses: {
@@ -6805,6 +6967,93 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    testJiraConnectionAdHoc: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JiraConnectionRequest"];
+            };
+        };
+        responses: {
+            /** @description The probe rows (and the cloud id once `tenant_info` answered) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JiraTestResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    testJiraConnection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The probe rows (and the cloud id once `tenant_info` answered) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JiraTestResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    getJiraDiscovery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The discovery snapshot */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JiraDiscovery"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
             500: components["responses"]["InternalServerError"];
         };
     };

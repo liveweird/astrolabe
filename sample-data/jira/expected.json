@@ -7,7 +7,7 @@
   "scenario": "jira-day2",
   "pageSize": 100,
   "note": "Dates are absolute for the anchor Monday; statuses are relative to it. Working-day figures are holiday-free (Mon-Fri).",
-  "stub": { "mappings": 1360, "bodies": 1334 },
+  "stub": { "mappings": 1363, "bodies": 1337 },
   "issueTypes": {
     "subtask": { "id": "10000", "hierarchyLevel": -1 },
     "story": { "id": "10001", "hierarchyLevel": 0 },

@@ -54,7 +54,9 @@ ktor:
       - ch.nokillswit.teams.TeamRoutesKt.configureTeamRoutes
       # Work streams, programs, projects and the plan view (V12): after people and teams (the owners are people).
       - ch.nokillswit.planning.PlanningRoutesKt.configurePlanningRoutes
-      # The Jira sync's routes (V21): the ADMIN connection registry; after the plan routes (later steps' bindings read the plan).
+      # The Jira sync's outbound wiring (the guarded client and the connector): after Crypto and Database, before the routes that use it.
+      - ch.nokillswit.jira.JiraKt.configureJira
+      # The Jira sync's routes (V21): the ADMIN connection registry and Test connection; after the plan routes (later steps' bindings read the plan).
       - ch.nokillswit.jira.JiraConnectionRoutesKt.configureJiraRoutes
       - ch.nokillswit.auth.AuthRoutesKt.configureAuthRoutes
       - ch.nokillswit.auth.PasswordResetRoutesKt.configurePasswordResetRoutes
@@ -211,6 +213,27 @@ telemetry:
   sampleIntervalSeconds: "$TELEMETRY_SAMPLE_INTERVAL_SECONDS:300"
   # How often the storage collector measures the database's schema sizes (900..86400).
   storageIntervalSeconds: "$TELEMETRY_STORAGE_INTERVAL_SECONDS:3600"
+
+jira:
+  # The Jira sync's outbound client (jira/Jira.kt, `.claude/docs/security.md` "Outbound HTTP calls"). Every key is boot-validated; a
+  # malformed or out-of-range value refuses startup naming the key.
+  # DEVELOPMENT ONLY: reroutes BOTH the tenant_info host and the Atlassian gateway host to a Jira stub (compose/k8s `jira-stub`, the
+  # in-JVM WireMock of the tests), as `http(s)://host[:port]`. Production startup REFUSES a non-blank value (fail-closed).
+  stubBaseUrl: "$JIRA_STUB_BASE_URL:"
+  # One attempt's deadline (HttpTimeout and the OkHttp timeouts), seconds 5..120.
+  requestTimeoutSeconds: "$JIRA_REQUEST_TIMEOUT_SECONDS:30"
+  # The TOTAL time one logical call may spend across every attempt plus backoff, seconds 10..600.
+  requestDeadlineSeconds: "$JIRA_REQUEST_DEADLINE_SECONDS:120"
+  # The most bytes one response may carry before it is refused (LIMIT_EXCEEDED), 65536..16777216. Also sizes the node ceiling.
+  maxResponseBytes: "$JIRA_MAX_RESPONSE_BYTES:4194304"
+  # In-flight Jira calls across every connection (the permit pool), 1..8. In-flight bodies are bounded by this x maxResponseBytes.
+  maxConcurrentRequests: "$JIRA_MAX_CONCURRENT_REQUESTS:2"
+  # Retries of a 429/5xx/IOException per call (exponential backoff with jitter), 0..8.
+  maxRetries: "$JIRA_MAX_RETRIES:4"
+  # Issues per search page (100 is what Flow verified on a real tenant), 1..500.
+  pageSize: "$JIRA_PAGE_SIZE:100"
+  # Minutes added to the time since the last successful run in an incremental `updated >= "-Nm"` bound, 0..1440.
+  incrementalOverlapMinutes: "$JIRA_INCREMENTAL_OVERLAP_MINUTES:10"
 
 web:
   # When set, the server serves the built React SPA from this directory (static

@@ -39,9 +39,11 @@ class JiraConnectionsRoute {
  */
 fun Application.configureJiraRoutes() {
     val connections = attributes[JiraConnectionServiceKey]
+    val connector = attributes[JiraConnectorKey]
 
     routing {
         authenticate {
+            jiraTestRoutes(connections, connector)
             get<JiraConnectionsRoute> {
                 requireAdmin(call.caller())
                 val paging = call.parsePaging(sortable = JIRA_CONNECTION_SORT_FIELDS)

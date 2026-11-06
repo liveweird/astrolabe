@@ -37,6 +37,7 @@ relative to the anchor Monday **2026-10-26** (ended before it = Done, started = 
 |---|---|---|
 | `GET /_edge/tenant_info` | path | `{cloudId}` |
 | `GET /myself`, `/field`, `/issuetype`, `/project/search` | path + auth | one document each (`project/search` lists all seven projects on one page) |
+| `GET /project/search?keys=A&keys=B` | path + auth + the `keys` set exactly as a scope lists it (`E2E`; the five work-stream keys; those plus `E2E`), priority 2 | only the named projects (any other key set falls to the unfiltered page above) |
 | `GET /issue/{id or key}` | the issue's id OR key in the path; the query is ignored | the full document; 404 for any other key (`issue-unknown-404`) |
 | `GET /search/jql` **full** | `jql` names the scope and has no `updated >=`; `fields` names `summary` and `issuetype` | every issue in scope (100 a page, `nextPageToken`) |
 | `GET /search/jql` **incremental** | `jql` names the scope and has `updated >= "-Nm"`; `fields` as above | the 15 recently updated epics (2 in `E2E`) |

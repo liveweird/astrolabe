@@ -153,6 +153,19 @@ export function buildStub(world) {
   reference("issuetype", "/issuetype", issueTypeCatalog());
   const rows = world.projectRows.map((p) => projectRow(p.id, p.key, p.name));
   reference("project-search", "/project/search", { maxResults: 50, startAt: 0, total: rows.length, isLast: true, values: rows });
+  // `project/search?keys=A&keys=B` (the Test connection's project probe, assumption A8): only the named projects, for each scope's keys in
+  // the order the connection lists them. Any other key set (or none) falls to the unfiltered page above.
+  for (const scope of scopesOf(world)) {
+    const wanted = rows.filter((row) => scope.keys.includes(row.key));
+    const body = { maxResults: 50, startAt: 0, total: wanted.length, isLast: true, values: wanted };
+    files.set(`project-search-${scope.name}.json`, compact(body));
+    addMapping(
+      `project-search-${scope.name}`,
+      get("/project/search", { queryParameters: { keys: { hasExactly: scope.keys.map((key) => ({ equalTo: key })) } } }),
+      json(200, `project-search-${scope.name}.json`),
+      { priority: 2 },
+    );
+  }
 
   // --- the issues: one mapping per issue (id OR key in the path); the day-2 changes are scenario-bound pairs ---
   files.set("issue-not-found.json", compact({ errorMessages: ["Issue does not exist or you do not have permission to see it."], errors: {} }));
