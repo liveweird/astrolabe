@@ -110,7 +110,7 @@ class JiraConnector(
                 JiraJql.scopeAndTypes(projectKeys, seen.milestoneTypeIds)
             }
             val page = client.searchJql(jql, fields = "id", maxResults = SEARCH_PROBE_MAX_RESULTS)
-            seen.firstIssueId = (page.issues.firstOrNull() as? JsonObject)?.get("id")?.jsonPrimitive?.contentOrNull
+            seen.firstIssueId = (page.issues?.firstOrNull() as? JsonObject)?.get("id")?.jsonPrimitive?.contentOrNull
         }
         run.probe("field", "/rest/api/3/field", required = true, scopeHint = "read:field:jira") { seen.fields = client.fields() }
         run.probe("projects", "/rest/api/3/project/search", required = true, scopeHint = "read:project:jira") {

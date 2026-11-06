@@ -59,7 +59,8 @@ private class StoredBinding(val row: ResultRow) {
     val issueKey: String get() = row[JiraBindingService.Bindings.jiraIssueKey]
 }
 
-private fun nodeIdOf(row: ResultRow): UInt? = (
+/** The id of the one node column a binding row sets (the V21 CHECK guarantees exactly one). */
+internal fun nodeIdOf(row: ResultRow): UInt? = (
     row[JiraBindingService.Bindings.programId] ?: row[JiraBindingService.Bindings.projectId]
         ?: row[JiraBindingService.Bindings.milestoneId]
     )?.value

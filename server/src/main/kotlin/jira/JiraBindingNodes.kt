@@ -127,3 +127,17 @@ internal fun namedMilestoneIds(q: String): Query = liveMilestoneIds().andWhere {
 internal fun namedProjectIds(q: String): Query = liveProjectIds().andWhere { projects.name.containsNormalized(q) }
 
 internal fun namedProgramIds(q: String): Query = liveProgramIds().andWhere { programs.name.containsNormalized(q) }
+
+/**
+ * Of [nodeIds] at [level], those whose node and every ancestor are ACTIVE: the run's node sweep releases the bindings of the rest. One
+ * statement for at most a connection's bindings (≤ 1,200); a null-safe test done in Kotlin, because `NOT (a OR b OR c)` over the three
+ * nullable node columns is NULL, not true, for a dead node.
+ */
+internal suspend fun liveNodeIds(level: JiraLevel, nodeIds: Collection<UInt>): Set<UInt> {
+    if (nodeIds.isEmpty()) return emptySet()
+    return when (level) {
+        JiraLevel.PROGRAM -> liveProgramIds().andWhere { programs.id inList nodeIds }.toList().map { it[programs.id].value }
+        JiraLevel.PROJECT -> liveProjectIds().andWhere { projects.id inList nodeIds }.toList().map { it[projects.id].value }
+        JiraLevel.MILESTONE -> liveMilestoneIds().andWhere { milestones.id inList nodeIds }.toList().map { it[milestones.id].value }
+    }.toSet()
+}

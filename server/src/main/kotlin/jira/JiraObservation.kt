@@ -60,8 +60,8 @@ data class JiraObservation(
          * Reads [issue] (`GET /issue/{id}` or one `search/jql` entry) as the observation of a binding at plan [level]: the dates and
          * estimate come from the fields mapped for THAT level, whatever hierarchy level the issue turns out to have (a mismatch is a
          * deviation to show, not a reason to read other fields). Null when the document has no usable numeric `id` or issue `key` (the
-         * caller treats that as an invalid response); every other absent or odd member reads as null, never a failure. [discovery]
-         * supplies a hierarchy level the issue's own type object did not carry.
+         * bind treats that as an invalid response, the run skips the entry); every other absent or odd member reads as null, never a
+         * failure. [discovery] supplies a hierarchy level the issue's own type object did not carry.
          */
         fun of(issue: JsonObject, mapping: JiraMapping, discovery: JiraDiscovery, level: JiraLevel, observedAt: Long): JiraObservation? {
             val id = issue["id"].text(MAX_ID)?.takeIf(ISSUE_ID_PATTERN::matches) ?: return null

@@ -69,6 +69,9 @@ class JiraConnectionService(
         /** The last field/issue-type snapshot (canonical JSON, up to ~300 KB): read only by [JiraConnectionService.readDiscovery]. */
         val discovery = jsonb("discovery").nullable()
         val discoveredAt = long("discovered_at").nullable()
+
+        /** The instant a mapping PUT last CHANGED the canonical document (null = never): a run after it must read in full. */
+        val mappingChangedAt = long("mapping_changed_at").nullable()
         val lastTestedAt = long("last_tested_at").nullable()
         val lastTestOk = bool("last_test_ok").nullable()
         val enabled = bool("enabled")
@@ -174,13 +177,29 @@ class JiraConnectionService(
     }
 
     /**
-     * The bind's reader of its connection (the third and last reader of the stored token, with [readForTest] and [readForPeek]): the
+     * The bind's reader of its connection (the third reader of the stored token, with [readForTest] and [readForPeek]; the run is a
+     * fourth caller of THIS reader, not a new decrypt site): the
      * target (token decrypted in memory, null when it cannot be), the mapping state and whether the connection is enabled, in ONE short
      * transaction before the Jira call. Null when the connection is missing or deleted.
      */
     suspend fun readForBind(id: UInt): JiraBindContext? = suspendTransaction(database) {
         Connections.selectAll().where { (Connections.id eq id) and Connections.active() }.toList().singleOrNull()
-            ?.let { JiraBindContext(targetOf(it), it.toMappingState(), it[Connections.enabled]) }
+            ?.let { JiraBindContext(targetOf(it), it.toMappingState(), it[Connections.enabled], it[Connections.mappingChangedAt]) }
+    }
+
+    /** Whether the connection is active and enabled: what a run needs before it claims (no token is read). */
+    suspend fun isRunnable(id: UInt): Boolean = suspendTransaction(database) {
+        Connections.select(Connections.id).where { (Connections.id eq id) and Connections.active() and (Connections.enabled eq true) }
+            .toList().isNotEmpty()
+    }
+
+    /** Persists the cloud id a run resolved when none is stored yet (never overwrites; `updated_at` stays, so no Test result is staled). */
+    suspend fun storeCloudId(id: UInt, resolved: String) {
+        suspendTransaction(database) {
+            Connections.update({ (Connections.id eq id) and Connections.active() and Connections.cloudId.isNull() }) {
+                it[cloudId] = resolved
+            }
+        }
     }
 
     private fun targetOf(row: ResultRow): JiraTestTarget {
@@ -293,9 +312,12 @@ class JiraConnectionService(
         validateMapping(document, discovery)
         val stored = canonicalJson(row[Connections.mapping])
         val canonical = document.toStoredJson()
+        val changed = stored != canonical
         Connections.update({ (Connections.id eq id) and Connections.active() }) {
             // No `updated_at`: a mapping is not an input of a Test connection, so a PUT landing mid-test must not make recordTest drop it.
             it[mapping] = canonical
+            // Only a document that really changed: an identical PUT must not make the next run a full read.
+            if (changed) it[mappingChangedAt] = nowMillis()
         }
         JiraMappingWriteOutcome(sha256Hex(stored).takeIf { stored != EMPTY_MAPPING }, sha256Hex(canonical))
     }

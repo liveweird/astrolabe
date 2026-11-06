@@ -40,6 +40,7 @@ relative to the anchor Monday **2026-10-26** (ended before it = Done, started = 
 | `GET /project/search?keys=A&keys=B` | path + auth + the `keys` set exactly as a scope lists it (`E2E`; the five work-stream keys; those plus `E2E`), priority 2 | only the named projects (any other key set falls to the unfiltered page above) |
 | `GET /issue/{id or key}` | the issue's id OR key in the path; the query is ignored | the full document; 404 for any other key (`issue-unknown-404`) |
 | `GET /search/jql` **full** | `jql` names the scope and has no `updated >=`; `fields` names `summary` and `issuetype` | every issue in scope (100 a page, `nextPageToken`) |
+| `GET /search/jql` **full, typed** (the run's first read) | `jql` names the scope AND an `issuetype in (...)` set (Epic; Epic + Initiative; all three) with no `updated >=`; `fields` as above, priority 2 | the issues of those types in scope (100 a page, cursors `<scope>-fulltypes-<set>-<state>-p<n>`) |
 | `GET /search/jql` **incremental** | `jql` names the scope and has `updated >= "-Nm"`; `fields` as above | the 15 recently updated epics (2 in `E2E`) |
 | `GET /search/jql` **sweep** | `jql` names the scope and an `issuetype in (...)` set; `fields=id` | `{id}` entries of the in-scope issues of those types |
 | `GET /search/jql` **probe** | the scope; `fields=id`, `maxResults=1` | the first epic in scope |

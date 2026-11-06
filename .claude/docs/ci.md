@@ -77,7 +77,7 @@ app's password-reset and MFA email to it (`MAIL_TRANSPORT=smtp`). Ports delibera
 
 (The Jira stub — a WireMock over `sample-data/jira-stub`, `JIRA_STUB_BASE_URL` — is the sibling table's port **8096**: the Jira sync's development and test double, served in-JVM by `JiraStubServer` in the server suite and, from a later v1.1.0 step, as the `jira-stub` service on compose and Kubernetes; Flow's stubs sat on 8094/8095. The app boots without it and production refuses its URL, `security.md` "Outbound HTTP calls".) Kubernetes
 (OrbStack) deployment targets the dedicated `astrolabe` namespace — see `k8s/secret.yaml`'s header for
-the secret-creation command; the image is `astrolabe-app` and the cluster runs a single `app-deployment.yaml` (one process, no worker) beside postgres; `k8s/apply-local.sh` applies the OrbStack overlay `k8s/local/front-door.yaml` (development mode, no proxy) instead of the production-posture base `k8s/front-door.yaml` (`security.md`, "The front door").
+the secret-creation command; the image is `astrolabe-app` and the cluster runs a single `app-deployment.yaml` (one process, no worker; `replicas: 1` + `Recreate`, and a second replica would be safe but pointless - the sync run's claim is a unique index, not the process, `observability.md` "Sync runs") beside postgres; `k8s/apply-local.sh` applies the OrbStack overlay `k8s/local/front-door.yaml` (development mode, no proxy) instead of the production-posture base `k8s/front-door.yaml` (`security.md`, "The front door").
 
 **AppCDS (class-data sharing).**
 

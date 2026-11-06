@@ -2003,6 +2003,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/integrations/sync/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List sync runs
+         * @description Any authenticated user (a run names no secret, and the Deviations page shows the last one). The newest runs first, a bounded
+         *     `{items}` list of at most 50 (the registry keeps the last 50 finished runs per connection and kind; with no `connectionId` the
+         *     50 newest over all of them). A run still in flight has no `finishedAt` or `outcome`.
+         *
+         *     - Filters: `kind` (equality, by name) and `connectionId` (equality). A repeated key is a `400`.
+         *     - `errorCode` is the run's failure code: a Jira fetch code (`AUTHENTICATION_FAILED`, `FORBIDDEN_SCOPE`, `NOT_FOUND`, `RATE_LIMITED`,
+         *       `UPSTREAM_UNAVAILABLE`, `TIMEOUT`, `INVALID_RESPONSE`, `LIMIT_EXCEEDED`, `BLOCKED_HOST`, `REDIRECT`, `CURSOR_EXPIRED`) or the run's
+         *       own (`TOKEN_UNREADABLE`, `NOT_DISCOVERED`, `MAPPING_INVALID`, `MAPPING_UNREADABLE`, `CONNECTION_GONE`, `CONNECTION_DISABLED`,
+         *       `RUN_DEADLINE`, `SHUTDOWN`, `INTERNAL`, `ABANDONED`). `errorDetail` is a short hint of at most 500 characters and never holds a
+         *       URL, a query string or a credential.
+         */
+        get: operations["listSyncRuns"];
+        put?: never;
+        /**
+         * Start a sync run now
+         * @description ADMIN only, guarded before the body decodes (a non-admin's malformed body is still `403`). Claims the run (an unfinished row in
+         *     the registry), then answers `202` with that row while the run executes in the background: poll `GET /integrations/sync/runs`.
+         *     The run OBSERVES - it reads the bound issues from Jira and records what they look like; it writes nothing to Jira, takes no plan
+         *     lock and bumps no plan revision. A connection that is unknown, deleted or disabled is a `400` on `connectionId`.
+         *
+         *     One run per connection and kind at a time: `409` `urn:astrolabe:problem:run-in-progress` while one is unfinished. A run that
+         *     crashed with the process is abandoned (`ABANDONED`) by the first claim after `sync.maxRunMinutes` (default 10), so the `409` lasts
+         *     at most that long. Audited `jira.sync_requested`.
+         */
+        post: operations["requestSyncRun"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -4516,6 +4556,68 @@ export interface components {
             pageSize: number;
             /** Format: int64 */
             total: number;
+        };
+        SyncRunRequest: {
+            /** @enum {string} */
+            kind: "JIRA";
+            /** Format: int32 */
+            connectionId: number;
+        };
+        /** @description One run of a connector over one connection. Unfinished while `finishedAt` and `outcome` are null. */
+        SyncRun: {
+            /** Format: int32 */
+            id: number;
+            /** @enum {string} */
+            kind: "JIRA";
+            /** Format: int32 */
+            connectionId: number;
+            /** @enum {string} */
+            trigger: "MANUAL" | "SCHEDULED";
+            /**
+             * Format: int32
+             * @description The login that asked; null for a scheduled run.
+             */
+            requestedByUserId?: number | null;
+            /** Format: int64 */
+            startedAt: number;
+            /** Format: int64 */
+            finishedAt?: number | null;
+            /**
+             * @description `ABANDONED` is written by a later claim for a run that never finished.
+             * @enum {string|null}
+             */
+            outcome?: "SUCCEEDED" | "FAILED" | "ABANDONED" | null;
+            errorCode?: string | null;
+            errorDetail?: string | null;
+            /**
+             * Format: int32
+             * @description Bound issues whose observation this run wrote.
+             */
+            observedCount: number;
+            /**
+             * Format: int32
+             * @description Bound issues the run's sweep found out of scope (flagged `gone`).
+             */
+            goneCount: number;
+            /**
+             * Format: int32
+             * @description Requests the run issued to the upstream (a retry is not counted).
+             */
+            callCount: number;
+            /**
+             * Format: int32
+             * @description Responses that were a 429.
+             */
+            rateLimitedCount: number;
+            /**
+             * Format: int64
+             * @description Milliseconds the run's calls asked to sleep in backoff or in a tenant pause.
+             */
+            backoffMs: number;
+        };
+        /** @description The newest runs first, at most 50 - a bounded list, not paged. */
+        SyncRunList: {
+            items: components["schemas"]["SyncRun"][];
         };
     };
     responses: {
@@ -7624,6 +7726,63 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    listSyncRuns: {
+        parameters: {
+            query?: {
+                kind?: "JIRA";
+                connectionId?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The runs, newest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncRunList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    requestSyncRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SyncRunRequest"];
+            };
+        };
+        responses: {
+            /** @description Accepted - the run is claimed and executing */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncRun"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
             500: components["responses"]["InternalServerError"];
         };
     };

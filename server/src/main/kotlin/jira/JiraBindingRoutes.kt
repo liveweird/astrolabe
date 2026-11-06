@@ -180,20 +180,17 @@ private suspend fun observeForBind(
 }
 
 /** The stored mapping, else the defaults - and a `409` when that mapping no longer fits the discovery (or cannot be read). */
-private fun effectiveMapping(state: JiraMappingState, discovery: JiraDiscovery): JiraMapping {
-    if (state.stored == StoredMapping.Unreadable) {
-        throw ConflictException(
+private fun effectiveMapping(state: JiraMappingState, discovery: JiraDiscovery): JiraMapping =
+    when (val resolved = resolveEffectiveMapping(state, discovery)) {
+        is MappingResolution.Usable -> resolved.mapping
+        MappingResolution.Unreadable -> throw ConflictException(
             "The connection's stored mapping cannot be read - ask an administrator to save it again", JIRA_MAPPING_INVALID_PROBLEM,
         )
-    }
-    val mapping = state.mapping ?: JiraMappingDefaults.resolve(discovery)
-    mappingProblems(mapping, discovery).firstOrNull()?.let {
-        throw ConflictException(
-            "The connection's mapping no longer fits the site ($it) - ask an administrator to update it", JIRA_MAPPING_INVALID_PROBLEM,
+        is MappingResolution.Invalid -> throw ConflictException(
+            "The connection's mapping no longer fits the site (${resolved.problem}) - ask an administrator to update it",
+            JIRA_MAPPING_INVALID_PROBLEM,
         )
     }
-    return mapping
-}
 
 private fun levelMismatch(observation: JiraObservation, level: JiraLevel, wanted: Int, discovery: JiraDiscovery): String {
     val actual = observation.hierarchyLevel?.let { "level $it" } ?: "an unknown level"

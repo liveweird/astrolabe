@@ -41,6 +41,7 @@ Each increment gets its own plan (architect) before implementation. The domain s
 
 - [new] **Flow teams/capacity import.** Read teams and their capacity from Flow instead of typing them (Flow's `teams/` and the capacity model are the source); decide the contract with Flow first.
 - [new] **Jira/Flow deviation detection.** Sync with Jira and Flow only to detect deviations from the plan (corrections stay in Astrolabe, nothing is written back). Re-port Flow's `ingest/`, `fetch/`, `jira/`, the role switch (`plugins/Role.kt`) and `EncryptedAtRest`/`Reencrypt`, plus Lettuce's WireMock stub pattern (stub port 8096).
+- [new] **Read bound Jira issues by `id in (...)` chunks if a real site's mapped types still exceed the ceiling.** The run's full read is limited to the mapped levels' types (200 pages x `jira.pageSize`, 20,000 issues at 100 a page); if a real site still has more issues of those types than that, read the bound ones by `id in (...)` chunks instead (unverified on a real site, and a static stub cannot answer arbitrary id sets).
 
 ## Engineering follow-ups
 

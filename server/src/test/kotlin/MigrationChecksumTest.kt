@@ -40,7 +40,8 @@ class MigrationChecksumTest {
         "V18__ranking_revision.sql" to 1265434272,
         "V19__public_holidays.sql" to 695505857,
         "V20__baselines.sql" to -44892282,
-        "V21__jira_sync.sql" to 528403548,
+        // Re-pinned once in 1.1.0 C6 (`mapping_changed_at`): V21 had only been applied by throwaway test containers, never to real data.
+        "V21__jira_sync.sql" to 1607256717,
     )
 
     @Test

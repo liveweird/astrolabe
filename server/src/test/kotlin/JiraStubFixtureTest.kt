@@ -140,6 +140,21 @@ class JiraStubFixtureTest {
     }
 
     @Test
+    fun `a typed full read - the run's first read - answers each issue-type set with the observation fields`() {
+        val epic = typeId("epic")
+        val initiative = typeId("initiative")
+        val program = typeId("program")
+        for ((set, ids) in mapOf("e" to listOf(epic), "ei" to listOf(epic, initiative), "eip" to listOf(epic, initiative, program))) {
+            val (issues, pages) = search("project in ($SAMPLE) AND issuetype in (${ids.joinToString(",")}) ORDER BY id ASC", fullFields)
+            assertEquals(int("search", "sample/fulltypes/$set/started", "issues"), issues.size, set)
+            assertEquals(int("search", "sample/fulltypes/$set/started", "pages"), pages, set)
+            assertTrue(issues.all { it.str("fields", "issuetype", "id") in ids }, "$set: only the asked types")
+            assertTrue(issues.all { "customfield_10022" in it.getValue("fields").jsonObject }, "$set: full documents, not ids")
+        }
+        assertEquals(1000, int("search", "sample/fulltypes/e/started", "issues"))
+    }
+
+    @Test
     fun `a full read pages every issue in scope, in any key order, and needs fields`() {
         val (issues, pages) = search("project in ($SAMPLE) ORDER BY id ASC", fullFields)
         assertEquals(int("search", "sample/full/any/started", "issues"), issues.size)

@@ -17,7 +17,7 @@ e2e/test-results/
 .claude/
 
 # The deterministic sample plan (loaded into a DEVELOPMENT stack through the API by scripts/sample-plan/load.mjs) and the Jira stub dataset
-# (sample-data/jira-stub, ~7 MB of WireMock mappings and bodies): test data, never part of the APP image. No Dockerfile stage copies them; excluding
+# (sample-data/jira-stub, ~20 MB of WireMock mappings and bodies): test data, never part of the APP image. No Dockerfile stage copies them; excluding
 # them here keeps a future broad COPY from shipping them. The stub has its OWN image, built with sample-data/jira-stub itself as the
 # context (its Dockerfile COPYs mappings/ and __files/ from there), so this root ignore file does not apply to that build.
 sample-data/

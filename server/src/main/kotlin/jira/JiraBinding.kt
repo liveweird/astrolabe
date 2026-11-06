@@ -95,4 +95,10 @@ data class JiraBindOutcome(val binding: JiraBindingResponse, val released: List<
 data class JiraUnbindOutcome(val connectionId: UInt, val level: JiraLevel, val nodeId: UInt, val issueId: String, val issueKey: String)
 
 /** What a bind needs of its connection, read in ONE short transaction before the Jira call (token decrypted in memory only). */
-class JiraBindContext(val target: JiraTestTarget, val state: JiraMappingState, val enabled: Boolean)
+class JiraBindContext(
+    val target: JiraTestTarget,
+    val state: JiraMappingState,
+    val enabled: Boolean,
+    /** `jira_connections.mapping_changed_at`: when a PUT last changed the mapping (null = never). */
+    val mappingChangedAt: Long? = null,
+)

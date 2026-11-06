@@ -2,6 +2,7 @@ package ch.nokillswit.jira
 
 import ch.nokillswit.infra.config.requireConfigInt
 import ch.nokillswit.infra.config.requireConfigLong
+import ch.nokillswit.infra.db.R2dbcDatabaseKey
 import ch.nokillswit.infra.fetch.OutboundPermits
 import ch.nokillswit.infra.outbound.Origin
 import ch.nokillswit.infra.outbound.guardedKtorClient
@@ -9,6 +10,8 @@ import ch.nokillswit.infra.outbound.guardedOkHttpClient
 import ch.nokillswit.infra.outbound.isAllowedJiraHost
 import ch.nokillswit.infra.outbound.isAllowedJiraOrigin
 import ch.nokillswit.infra.outbound.publicAddressesOnly
+import ch.nokillswit.sync.SyncConnectorsKey
+import ch.nokillswit.sync.SyncRunServiceKey
 import io.ktor.client.HttpClient
 import io.ktor.server.application.*
 import io.ktor.util.AttributeKey
@@ -77,16 +80,21 @@ fun Application.configureJira() {
         requestDeadlineMillis = requestDeadlineSeconds * MILLIS_PER_SECOND, permits = permits,
     )
     val stubUrl = stub?.let { "${it.scheme}://${it.host}:${it.port}" }
-    attributes.put(
-        JiraConnectorKey,
-        JiraConnector(
-            newClient = { siteUrl, email, apiToken, authScheme ->
-                HttpJiraClient(jiraHttp, stubUrl ?: siteUrl, stubUrl, email, apiToken, authScheme)
-            },
-            pageSize = pageSize,
-            incrementalOverlapMinutes = overlapMinutes,
-        ),
+    val connector = JiraConnector(
+        newClient = { siteUrl, email, apiToken, authScheme ->
+            HttpJiraClient(jiraHttp, stubUrl ?: siteUrl, stubUrl, email, apiToken, authScheme)
+        },
+        pageSize = pageSize,
+        incrementalOverlapMinutes = overlapMinutes,
     )
+    attributes.put(JiraConnectorKey, connector)
+    // The run: the Jira connector of the sync registry (`sync/`), registered here and started by `configureSync`'s routes. The services it
+    // reads were published by `configureDatabase`, which runs before this module.
+    val observer = JiraObserver(
+        connector, attributes[JiraConnectionServiceKey], JiraRunStore(attributes[R2dbcDatabaseKey]), attributes[SyncRunServiceKey],
+    )
+    attributes.put(JiraObserverKey, observer)
+    attributes[SyncConnectorsKey].register(observer)
     // The host only, never the URL.
     log.info("Jira outbound wired (gateway {}{})", "api.atlassian.com", stubHost?.let { ", development stub host $it" }.orEmpty())
 }

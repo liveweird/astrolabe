@@ -205,6 +205,7 @@ class-data-sharing (AppCDS) archive, and setting it drops the archive. Build-tim
 | `JIRA_MAX_RETRIES` | `4` | Retries of a Jira 429/5xx/network failure (exponential backoff with jitter), 0–8. |
 | `JIRA_PAGE_SIZE` | `100` | Issues per Jira search page, 1–500. |
 | `JIRA_INCREMENTAL_OVERLAP_MINUTES` | `10` | Minutes added to the time since the last successful Jira run in an incremental bound, 0–1440. |
+| `SYNC_MAX_RUN_MINUTES` | `10` | How long a sync run's claim stays valid, 1–60 minutes; a run that outlives it is abandoned by the next claim, and the run's own deadline is one minute shorter (never under 30 s). |
 | `SECURITY_CSRF_ENABLED` | `false` | CSRF plugin gate — off (bearer JWT, no cookies). |
 | `JWT_SECRET` | `secret` | HMAC key for the access/refresh pair — production requires a private 64-hex key (`openssl rand -hex 32`); the placeholders and compose demo key are burned. |
 | `JWT_ISSUER` | `http://0.0.0.0:8086/` | The `iss` claim the verifier requires. |

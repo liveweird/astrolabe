@@ -56,6 +56,9 @@ ktor:
       - ch.nokillswit.planning.PlanningRoutesKt.configurePlanningRoutes
       # The Jira sync's outbound wiring (the guarded client and the connector): after Crypto and Database, before the routes that use it.
       - ch.nokillswit.jira.JiraKt.configureJira
+      # The sync run registry's executor and routes (`sync/`): after configureJira (which registers the Jira connector), before the
+      # routing catch-all. A run starts only from the manual route in 1.1; the scheduler is 1.3.
+      - ch.nokillswit.sync.SyncKt.configureSync
       # The Jira sync's routes (V21): the ADMIN connection registry and Test connection; after the plan routes (later steps' bindings read the plan).
       - ch.nokillswit.jira.JiraConnectionRoutesKt.configureJiraRoutes
       - ch.nokillswit.auth.AuthRoutesKt.configureAuthRoutes
@@ -234,6 +237,12 @@ jira:
   pageSize: "$JIRA_PAGE_SIZE:100"
   # Minutes added to the time since the last successful run in an incremental `updated >= "-Nm"` bound, 0..1440.
   incrementalOverlapMinutes: "$JIRA_INCREMENTAL_OVERLAP_MINUTES:10"
+
+sync:
+  # How long a claimed run stays valid, minutes 1..60 (`sync/SyncRunService.kt`, `.claude/docs/observability.md` "Sync runs"). A run that
+  # outlives it is ABANDONED by the next claim of its connection (a process that died); the run's own deadline is one minute shorter
+  # (never under 30 s), so a live run never loses its claim. The same for every connector.
+  maxRunMinutes: "$SYNC_MAX_RUN_MINUTES:10"
 
 web:
   # When set, the server serves the built React SPA from this directory (static

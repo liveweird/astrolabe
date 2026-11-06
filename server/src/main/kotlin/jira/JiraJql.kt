@@ -9,6 +9,9 @@ package ch.nokillswit.jira
 object JiraJql {
     private val TYPE_ID_PATTERN = Regex("^[0-9]{1,20}$")
 
+    /** Whether [id] is an issue-type id [scopeAndTypes] accepts (digits only); a site's odd id is refused before a query is built. */
+    fun isTypeId(id: String): Boolean = TYPE_ID_PATTERN.matches(id)
+
     private fun requireValidKeys(projectKeys: List<String>) {
         require(projectKeys.isNotEmpty()) { "projectKeys must not be empty" }
         projectKeys.forEach {
@@ -31,6 +34,16 @@ object JiraJql {
         issueTypeIds.forEach { require(TYPE_ID_PATTERN.matches(it)) { "invalid issue type id for JQL: $it" } }
         return "${scope(projectKeys)} AND issuetype in (${issueTypeIds.joinToString(",")})"
     }
+
+    /**
+     * The full read: everything in scope OF THE GIVEN TYPES, oldest id first (the first run, and any run that cannot trust a watermark).
+     * Limited to the mapped levels' types - epics and above are a small part of a real site - with the same clause the `search` probe
+     * sends (assumption A3). It is the SAME text as the [sweep]; only the `fields` differ.
+     */
+    fun full(projectKeys: List<String>, issueTypeIds: List<String>): String = "${scopeAndTypes(projectKeys, issueTypeIds)} ORDER BY id ASC"
+
+    /** The sweep: the ids still in scope among the given issue types, oldest id first (read with `fields=id`). */
+    fun sweep(projectKeys: List<String>, issueTypeIds: List<String>): String = "${scopeAndTypes(projectKeys, issueTypeIds)} ORDER BY id ASC"
 
     /** The incremental query: scope AND a relative `updated` bound, oldest first. */
     fun incremental(projectKeys: List<String>, sinceMinutes: Long): String {

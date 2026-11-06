@@ -14,11 +14,16 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.jsonPrimitive
 
-/** `GET /search/jql`: one page of issues (as the JSON the site sent) and the token of the next, absent on the last page. */
+/**
+ * `GET /search/jql`: one page of issues (as the JSON the site sent) and the token of the next, absent on the last page. [issues] is null
+ * when the answer had no `issues` member at all, and [isLast] null when it carried no flag: a caller that must not mistake a malformed
+ * `200` for an empty listing (the run's sweep) tells those apart from a genuine `issues: []`.
+ */
 @Serializable
 data class JiraSearchPage(
-    val issues: JsonArray = JsonArray(emptyList()),
+    val issues: JsonArray? = null,
     val nextPageToken: String? = null,
+    val isLast: Boolean? = null,
 )
 
 /** The common `startAt`/`maxResults`/`total` envelope of the `startAt`-paged endpoints (`GET /project/search`). */

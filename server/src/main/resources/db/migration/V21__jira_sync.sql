@@ -3,7 +3,8 @@
 
 -- A Jira Cloud connection. Soft-deleted (the name frees on delete). api_token holds a FieldCipher envelope ('enc:v1:...'), write-only end to end.
 -- mapping is the canonical mapping document ('{}' = unset); discovery is the last field/issue-type snapshot; cloud_id is persisted by a passing
--- Test connection.
+-- Test connection; mapping_changed_at is the instant a PUT last CHANGED the canonical mapping (null = never), the run's signal that an
+-- incremental read must not be trusted.
 CREATE TABLE jira_connections (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
@@ -16,6 +17,7 @@ CREATE TABLE jira_connections (
     mapping JSONB NOT NULL DEFAULT '{}',
     discovery JSONB NULL,
     discovered_at BIGINT NULL,
+    mapping_changed_at BIGINT NULL,
     last_tested_at BIGINT NULL,
     last_test_ok BOOLEAN NULL,
     enabled BOOLEAN NOT NULL DEFAULT TRUE,

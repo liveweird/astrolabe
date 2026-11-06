@@ -201,7 +201,7 @@ export function buildStub(world) {
   const recentIds = new Set([...world.recent, ...world.e2e.recent].map((i) => i.id));
 
   /** Pages of `issues` (already filtered and in id order) under one mapping group; `idsOnly` serves `{id}` entries. */
-  function addPages(group, issues, request, { idsOnly, state }) {
+  function addPages(group, issues, request, { idsOnly, state, priority = null }) {
     const pages = Math.max(1, Math.ceil(issues.length / PAGE_SIZE));
     counts[group] = { issues: issues.length, pages };
     for (let page = 1; page <= pages; page++) {
@@ -214,7 +214,7 @@ export function buildStub(world) {
         `search-${group.replaceAll("/", "-")}-page-${page}`,
         { ...request, queryParameters: { ...request.queryParameters, nextPageToken: token } },
         json(200, file),
-        dayTwo(state),
+        { ...dayTwo(state), ...(priority === null ? {} : { priority }) },
       );
     }
   }
@@ -229,6 +229,19 @@ export function buildStub(world) {
         `${scope.name}/full/any/${state}`, sweepable,
         base({ jql: { and: [scopeJql, { doesNotMatch: UPDATED_CLAUSE }] }, fields: { matches: FIELDS_CARRY_SUMMARY } }), { idsOnly: false, state },
       );
+      // FULL read LIMITED TO TYPES (the run's first read: `project in (...) AND issuetype in (...) ORDER BY id ASC`, the sweep's clause, with the
+      // observation `fields`): per issue-type set, priority 2 so it wins over the unfiltered full read above (whose scope regex also matches).
+      for (const set of TYPE_SETS) {
+        const typeIds = set.types.map((t) => t.id);
+        addPages(
+          `${scope.name}/fulltypes/${set.name}/${state}`, sweepable.filter((i) => typeIds.includes(TYPE_OF_LEVEL[i.level].id)),
+          base({
+            jql: { and: [scopeJql, { matches: listClause("issuetype", typeIds) }, { doesNotMatch: UPDATED_CLAUSE }] },
+            fields: { matches: FIELDS_CARRY_SUMMARY },
+          }),
+          { idsOnly: false, state, priority: 2 },
+        );
+      }
       // INCREMENTAL (`updated >= "-Nm"`): the recently updated issues only.
       addPages(
         `${scope.name}/incremental/any/${state}`, sweepable.filter((i) => recentIds.has(i.id)),

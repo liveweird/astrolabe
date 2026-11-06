@@ -254,7 +254,7 @@ class JiraClientTest {
         client.resolveCloudId()
         val first = client.searchJql(JQL, fields = "id,key", maxResults = 7)
         assertEquals("page-2", first.nextPageToken)
-        assertEquals(1, first.issues.size)
+        assertEquals(1, first.issues?.size)
         val second = client.searchJql(JQL, fields = "id,key", nextPageToken = first.nextPageToken, maxResults = 7)
         assertNull(second.nextPageToken)
         assertEquals(

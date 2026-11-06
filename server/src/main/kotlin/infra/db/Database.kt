@@ -47,6 +47,10 @@ import ch.nokillswit.planning.TeamViewService
 import ch.nokillswit.planning.TeamViewServiceKey
 import ch.nokillswit.planning.WorkStreamService
 import ch.nokillswit.planning.WorkStreamServiceKey
+import ch.nokillswit.sync.SyncConnectors
+import ch.nokillswit.sync.SyncConnectorsKey
+import ch.nokillswit.sync.SyncRunService
+import ch.nokillswit.sync.SyncRunServiceKey
 import ch.nokillswit.teams.TeamCapacityService
 import ch.nokillswit.teams.TeamCapacityServiceKey
 import ch.nokillswit.teams.TeamService
@@ -302,6 +306,10 @@ suspend fun Application.configureDatabase() {
     // The Jira registry owns the first encrypted-at-rest column (V21); the cipher comes from configureCrypto, registered before Database.
     attributes.put(JiraConnectionServiceKey, JiraConnectionService(database, attributes[FieldCipherKey]))
     attributes.put(JiraBindingServiceKey, JiraBindingService(database))
+    // The run registry (V21 `sync_runs`) and the empty connector registry the connectors' modules fill (`configureJira`).
+    val maxRunMinutes = requireConfigInt(environment.config, "sync.maxRunMinutes", min = 1, max = 60)
+    attributes.put(SyncRunServiceKey, SyncRunService(database, maxRunMinutes))
+    attributes.put(SyncConnectorsKey, SyncConnectors())
     attributes.put(
         TokenBlocklistServiceKey,
         TokenBlocklistService(
