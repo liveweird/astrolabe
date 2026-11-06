@@ -378,7 +378,7 @@ guards: no self-delete (403) and the last active administrator can be neither de
 (409).
 
 **Canonical email identity.** Emails are folded to `trim().lowercase()` (`canonicalEmail` in
-`users/Validation.kt`) at EVERY entry point — login and `findWithIdByEmail` itself (defense-in-
+`infra/validation/Email.kt`, shared with the Jira connection's account email) at EVERY entry point — login and `findWithIdByEmail` itself (defense-in-
 depth) today, and every future create/update/import — so one mailbox is one account and a
 padded/case-variant login matches (and shares one lockout bucket). The V1 partial unique index
 stays byte-wise (all writes are canonical).
@@ -561,7 +561,7 @@ job — `kubeconform -strict` over the raw manifests (`k8s/*.yaml`, `k8s/local/*
 
 **Log hygiene.** Every data class that carries a password, token, MFA code, password hash or signing key
 (`LoginRequest`, `LoginResponse`, `MfaVerifyRequest`, `RefreshRequest`, `LogoutRequest`, `User`,
-`UserCreateRequest`, `PasswordUpdateRequest`, `PasswordResetConfirmRequest`, `JwtConfig`, the MFA challenge types, `IssuedToken`)
+`UserCreateRequest`, `PasswordUpdateRequest`, `PasswordResetConfirmRequest`, `JiraConnectionRequest`, `JwtConfig`, the MFA challenge types, `IssuedToken`)
 overrides `toString()` and prints each secret
 through `maskedSecret` (`infra/Secrets.kt`: `***`, or `null` when absent), so templating one into a log line or an
 exception message never reveals it; a new secret-bearing class does the same. Pinned by `SecretToStringTest`. `infra/db/Flyway.kt`'s startup log line renders the operator-supplied JDBC URL
@@ -588,7 +588,7 @@ content layer (`LocalizedText`) lives beside the transports; `mail.appUrl` is va
 `ch.nokillswit.mail` LogCapture); production-mode boot tests must override `mail.transport` with
 `"disabled"`, since the dev-default `log` transport is refused in production.
 
-**Encryption at rest** (`infra/crypto/`, Lettuce's, ported; v0.1.0 stores no encrypted value yet — the first consumer will be the credential of the Jira/Flow deviation sync). Sensitive columns are encrypted application-side with AES-256-GCM (`FieldCipher`: a
+**Encryption at rest** (`infra/crypto/`, Lettuce's, ported; the first consumer is `jira_connections.api_token`, V21, `jira/JiraConnectionService.kt` — the credential of the Jira deviation sync). Sensitive columns are encrypted application-side with AES-256-GCM (`FieldCipher`: a
 fresh 12-byte nonce per value, 128-bit tag, envelope `enc:v1:<base64(nonce||ciphertext)>`), so a
 database-level attacker — SQL access, `pg_dump`, a stolen volume or backup — sees ciphertext; the
 key lives with the app (`DATA_ENCRYPTION_KEY`, 64 hex chars from `openssl rand -hex 32`; compose
@@ -596,12 +596,9 @@ ships a burned demo key, k8s reads `astrolabe-secrets`), never in the database. 
 every encrypted value** — back it up apart from the DB. Rotation: set the OLD key as
 `DATA_ENCRYPTION_KEY_PREVIOUS` (decrypt-only fallback — a wrong-key attempt fails cleanly on GCM's
 tag, then the previous key is tried) and the new one as `DATA_ENCRYPTION_KEY`, then re-encrypt every row under the
-current key and remove the previous key. **Not ported yet:** Flow's `EncryptedAtRest` registry (a service owning encrypted columns registers
-in `infra/db/Bootstrap.kt`; never remove a registration once one lands — a rotation would strand that feature's rows) and `Reencrypt.kt` (`reencryptRows`,
-the boot backfill/rotation body, selecting through the ONE sanctioned SQL predicate over an encrypted column: `notLike "enc:v1:%"`) have no consumer here and
-come back with the sync. **Never filter or sort on an encrypted column in SQL** — ciphertext carries no order or equality (every value has its own nonce).
-A credential column is write-only end to end: accepted on create/update, never returned, never in an audit line (the response carries a `has…` boolean instead).
-Tests: `FieldCipherTest` (roundtrip, fresh nonces, legacy passthrough, tamper, wrong key, rotation, malformed keys), `CryptoBootTest`.
+current key and remove the previous key. **The registry and the boot backfill** (Flow's, ported with the sync): a service owning encrypted columns implements `EncryptedAtRest` (`infra/crypto/EncryptedAtRest.kt`) and is listed in `encryptedAtRestServices()` in `infra/db/Bootstrap.kt` (never remove a registration once one lands — a rotation would strand that feature's rows; `EncryptedAtRestBootTest` fails an implementer that is not listed). At every boot the loop calls each service's `encryptLegacyRows(reencryptAll)`: without `security.encryption.previousKey` it wraps only rows still holding plaintext, with it it re-encrypts EVERY row (soft-deleted ones included) under the current key, through `Reencrypt.kt`'s `reencryptRows` — the ONE sanctioned SQL predicate over an encrypted column is its `notLike "enc:v1:%"`. A pass that touched rows logs one INFO line and the audit event `crypto.reencrypted` (`rows`, `label`, `rotating` — counts and a noun, never a value). A new rotation therefore ends with one boot under both keys, after which `DATA_ENCRYPTION_KEY_PREVIOUS` can be removed. **Never filter or sort on an encrypted column in SQL** — ciphertext carries no order or equality (every value has its own nonce).
+A credential column is write-only end to end: accepted on create/update, never returned, never in an audit line or a log line (the response carries a `has…` boolean instead), and **never decrypted on a read path** — `JiraConnectionService` only encrypts and re-wraps; the one reader of the plaintext will be the connector that calls Jira. An update that omits the token (or sends a blank one) keeps the stored envelope byte for byte; a present one replaces it.
+Tests: `FieldCipherTest` (roundtrip, fresh nonces, legacy passthrough, tamper, wrong key, rotation, malformed keys), `CryptoBootTest`, `EncryptedAtRestBootTest` (a plaintext row wrapped once and audited, a rotation boot that moves every row and then hands the suite's key back, the registration scan), `JiraConnectionTest` (the stored envelope, keep/rotate, no token in a response, problem body, audit or log line).
 
 **Trusted PostgreSQL extensions.** `unaccent` (V4) is a contrib extension trusted since PG13: `CREATE EXTENSION IF NOT EXISTS` needs only `CREATE` on the
 database, no superuser. A future `btree_gist` (overlap-exclusion constraints, e.g. effective-from capacity periods) is the same class.

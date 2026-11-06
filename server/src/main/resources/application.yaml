@@ -54,6 +54,8 @@ ktor:
       - ch.nokillswit.teams.TeamRoutesKt.configureTeamRoutes
       # Work streams, programs, projects and the plan view (V12): after people and teams (the owners are people).
       - ch.nokillswit.planning.PlanningRoutesKt.configurePlanningRoutes
+      # The Jira sync's routes (V21): the ADMIN connection registry; after the plan routes (later steps' bindings read the plan).
+      - ch.nokillswit.jira.JiraConnectionRoutesKt.configureJiraRoutes
       - ch.nokillswit.auth.AuthRoutesKt.configureAuthRoutes
       - ch.nokillswit.auth.PasswordResetRoutesKt.configurePasswordResetRoutes
       # The telemetry read API (ADMIN, `.claude/docs/observability.md` "Telemetry"): reads what the sampler wrote.
@@ -125,14 +127,14 @@ security:
     # password filling the shared store - it does NOT bound mails or guesses (the per-IP buckets do).
     maxLivePerAccount: "$MFA_MAX_LIVE_PER_ACCOUNT:3"
   # Application-level encryption at rest (infra/crypto/): an AES-256-GCM key (64 hex chars,
-  # `openssl rand -hex 32`) for stored credentials (none stored yet in v0.1.0). The
+  # `openssl rand -hex 32`) for stored credentials (the Jira connections' API tokens, V21). The
   # default is a committed dev-only key (infra/crypto/Crypto.kt — it is on the burned list,
   # so production startup refuses it).
-  # LOSING THIS KEY MEANS LOSING EVERY STORED ENCRYPTED VALUE — back it up apart from the DB.
+  # LOSING THIS KEY MEANS LOSING EVERY STORED JIRA API TOKEN (they would have to be re-entered): back it up apart from the DB.
   encryption:
     key: "$DATA_ENCRYPTION_KEY:ef9b766b3b3dc805220826e796b1b907d7b7fb55048940e1b730af61b7f17aa4"
     # Decrypt-only fallback for key rotation: set the OLD key here and the new one above, boot
-    # once (a re-encrypt backfill, when a service stores encrypted columns, rewrites every row under the new key), then remove it.
+    # once (the boot backfill, infra/db/Bootstrap.kt, rewrites every stored token under the new key), then remove it. Blank = none.
     previousKey: "$DATA_ENCRYPTION_KEY_PREVIOUS:"
   csrf:
     # TEMPLATE PLACEHOLDER — CSRF protection is off by default because this API

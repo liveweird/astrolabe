@@ -9,6 +9,8 @@ import ch.nokillswit.auth.MfaChallenges
 import ch.nokillswit.auth.MfaVerifyRequest
 import ch.nokillswit.auth.PasswordResetConfirmRequest
 import ch.nokillswit.auth.RefreshRequest
+import ch.nokillswit.jira.JiraAuthScheme
+import ch.nokillswit.jira.JiraConnectionRequest
 import ch.nokillswit.users.User
 import ch.nokillswit.users.UserCreateRequest
 import ch.nokillswit.users.UserRole
@@ -89,5 +91,16 @@ class SecretToStringTest {
     fun `configuration shapes mask their secrets`() {
         val jwt = JwtConfig(secret, "issuer-x", "aud-x", "realm-x", 900, 86_400)
         assertMasked(jwt.toString(), "issuer-x")
+    }
+
+    @Test
+    fun `a Jira connection request masks its API token and keeps the rest`() {
+        val request = JiraConnectionRequest(
+            name = "Main", siteUrl = "https://sample.atlassian.net", email = "jira@example.test", apiToken = secret,
+            authScheme = JiraAuthScheme.BEARER, projectKeys = listOf("SP"), enabled = true,
+        )
+        assertMasked(request.toString(), "sample.atlassian.net")
+        assertTrue("authScheme=BEARER" in request.toString() && "projectKeys=[SP]" in request.toString())
+        assertTrue("apiToken=null" in request.copy(apiToken = null).toString(), "an absent token renders as null, not ***")
     }
 }

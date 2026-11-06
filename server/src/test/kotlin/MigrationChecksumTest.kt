@@ -40,6 +40,7 @@ class MigrationChecksumTest {
         "V18__ranking_revision.sql" to 1265434272,
         "V19__public_holidays.sql" to 695505857,
         "V20__baselines.sql" to -44892282,
+        "V21__jira_sync.sql" to 528403548,
     )
 
     @Test

@@ -25,7 +25,7 @@ internal const val DONOR_COMPOSE_DATA_ENCRYPTION_KEY =
 
 /**
  * Builds the [FieldCipher] used for application-level encryption of sensitive columns at rest
- * (e.g. a future stored integration credential) and publishes it as [FieldCipherKey]. Registered in
+ * (today the Jira connection's API token) and publishes it as [FieldCipherKey]. Registered in
  * application.yaml right after configureMail and BEFORE configureDatabase, so the composition
  * root can hand it to any service owning encrypted columns.
  *
@@ -50,6 +50,6 @@ fun Application.configureCrypto() {
         else error(message)
     }
     // Rotating away from a burned key may leave it as previousKey — decrypt-only, so acceptable
-    // in any mode (a re-encrypt backfill, ported later from Flow, rewrites rows under the current key).
+    // in any mode (the boot re-encrypt backfill, `infra/db/Bootstrap.kt`, rewrites rows under the current key).
     attributes.put(FieldCipherKey, FieldCipher(keyHex, previousKeyHex))
 }

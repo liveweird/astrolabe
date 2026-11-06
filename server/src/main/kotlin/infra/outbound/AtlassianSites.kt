@@ -1,8 +1,9 @@
 package ch.nokillswit.infra.outbound
 
 // The Jira Cloud site shape, owned by `infra/outbound` (the allow-list boundary) so the guard needs nothing from a feature
-// package: `ingest/DataSource.kt` (create/update validation) and `OutboundGuard.kt` (the host allow-list) both read it, ONE
-// source of truth. The web mirrors it in `web/src/utils/dataSourceForm.ts`.
+// package: `jira/JiraConnection.kt` (create/update validation) and `OutboundGuard.kt` (the host allow-list) both read it, ONE
+// source of truth. (Flow's `ingest/DataSource.kt` and `web/src/utils/dataSourceForm.ts` are the donor files; the web mirror comes with the
+// connection page.)
 
 /**
  * The allow-list boundary (`.claude/docs/security.md` "Outbound HTTP calls"): a Jira Cloud site's

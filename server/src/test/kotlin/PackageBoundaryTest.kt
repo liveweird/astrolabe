@@ -7,11 +7,12 @@ import kotlin.test.assertTrue
 
 /**
  * The one-way package layering (CLAUDE.md "Package layout", checkup D5): everything under `infra/` is the foundation every feature
- * builds on, so it never references a feature package (`teams`, `people`, `planning`, `users`, `auth`, `authz`, `telemetry`). `audit` (the
- * cross-cutting audit trail) and `plugins` (Ktor wiring: `respondProblem`) are not features and stay open to `infra`.
+ * builds on, so it never references a feature package (`teams`, `people`, `planning`, `users`, `auth`, `authz`, `telemetry`, `jira`).
+ * `audit` (the cross-cutting audit trail) and `plugins` (Ktor wiring: `respondProblem`) are not features and stay open to `infra`.
  * The composition root is the one documented exception ([infraCompositionRoot]): the DB/bootstrap wiring MUST construct the
  * feature services it publishes on
- * `Application.attributes`, so exactly those two files may name exactly those packages. `telemetry/` is the top layer (an observer of
+ * `Application.attributes` (`Bootstrap.kt` also registers the `jira` service with the encryption-at-rest backfill), so exactly those two
+ * files may name exactly those packages. `telemetry/` is the top layer (an observer of
  * every lower one): nothing else names it. A plain source scan (no Docker, no classpath tricks): any non-comment line of a file in
  * the lower package that mentions an upper package by its qualified name (an import, a wildcard import or an inline reference) is a
  * violation.
@@ -28,18 +29,18 @@ class PackageBoundaryTest {
 
     /**
      * Composition-root exceptions to "infra never references a feature": `infra/db/Database.kt` builds and publishes the feature
-     * services (`teams`, `people`, `planning`, `users`, `auth`) and `infra/db/Bootstrap.kt` seeds the admin through
+     * services (`teams`, `people`, `planning`, `users`, `auth`, `jira`) and `infra/db/Bootstrap.kt` seeds the admin through
      * `users`/`auth`. Keyed by file name,
      * valued by the feature packages that file may import;
      * a listed package the file no longer uses fails the test (a stale exception is dead permission).
      */
     private val infraCompositionRoot: Map<String, Set<String>> = mapOf(
-        "Database.kt" to setOf("auth", "people", "planning", "teams", "users"),
-        "Bootstrap.kt" to setOf("auth", "users"),
+        "Database.kt" to setOf("auth", "jira", "people", "planning", "teams", "users"),
+        "Bootstrap.kt" to setOf("auth", "jira", "users"),
     )
 
     private val featurePackages = listOf(
-        "teams", "people", "planning", "users", "auth", "authz", "telemetry",
+        "teams", "people", "planning", "users", "auth", "authz", "telemetry", "jira",
     )
 
     private fun packageOf(text: String): String? =

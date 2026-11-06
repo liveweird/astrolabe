@@ -12,7 +12,7 @@ import ch.nokillswit.plugins.JwtConfigKey
 import ch.nokillswit.users.Feature
 import ch.nokillswit.users.User
 import ch.nokillswit.users.UserServiceKey
-import ch.nokillswit.users.canonicalEmail
+import ch.nokillswit.infra.validation.canonicalEmail
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
 import com.auth0.jwt.exceptions.JWTVerificationException

@@ -6,6 +6,9 @@ import ch.nokillswit.auth.TokenBlocklistService
 import ch.nokillswit.auth.TokenBlocklistServiceKey
 import ch.nokillswit.infra.config.requireConfigInt
 import ch.nokillswit.infra.config.requireConfigLong
+import ch.nokillswit.infra.crypto.FieldCipherKey
+import ch.nokillswit.jira.JiraConnectionService
+import ch.nokillswit.jira.JiraConnectionServiceKey
 import ch.nokillswit.people.PersonService
 import ch.nokillswit.people.PersonServiceKey
 import ch.nokillswit.planning.BaselineService
@@ -294,6 +297,8 @@ suspend fun Application.configureDatabase() {
     attributes.put(PublicHolidayServiceKey, PublicHolidayService(database))
     attributes.put(BaselineServiceKey, BaselineService(database))
     attributes.put(BaselineViewServiceKey, BaselineViewService(database))
+    // The Jira registry owns the first encrypted-at-rest column (V21); the cipher comes from configureCrypto, registered before Database.
+    attributes.put(JiraConnectionServiceKey, JiraConnectionService(database, attributes[FieldCipherKey]))
     attributes.put(
         TokenBlocklistServiceKey,
         TokenBlocklistService(

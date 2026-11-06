@@ -12,7 +12,7 @@ info:
     access token except the seven that declare `security: []` (`/login`, `/login/mfa`, `/refresh`, `/password-reset`,
     `/password-reset/confirm` and the two probes). Beyond that each operation states its own rule: user management (`/users`, apart from
     reading or changing one's own record where noted) and the writes on people, teams and the public-holiday dictionary are `ADMIN` only; reading people, teams and the holidays is open to
-    any authenticated user; telemetry is `ADMIN` only. A caller without the right gets a `403`. On the plan nodes (`/work-streams`, `/programs`, `/projects`) any
+    any authenticated user; telemetry and the Jira connections (reads included) are `ADMIN` only. A caller without the right gets a `403`. On the plan nodes (`/work-streams`, `/programs`, `/projects`) any
     authenticated user reads, creating a work stream is `ADMIN` only, and every other write needs the owner of the node or of anything above it
     (or `ADMIN`) - checked after the node is found, so a missing node is a `404` for every caller; elsewhere the `403` is uniform whether or
     not the addressed resource exists.
@@ -45,6 +45,8 @@ tags:
     description: The global project ranking - one dense rank over the projects, rewritten wholesale under the plan lock, with a revision of its own. Readable by any authenticated user; written by ADMIN and ROADMAP_EDITOR holders.
   - name: calendar
     description: The global public-holiday dictionary - days nobody works, skipped by every working-day figure. Readable by any authenticated user; written by ADMIN only (a plan write, it bumps the plan revision).
+  - name: jira
+    description: The Jira sync - ADMIN-managed Jira Cloud connections (the API token is encrypted at rest and never returned). The sync only observes; nothing is ever written to Jira.
   - name: telemetry
     description: Astrolabe's own vital signs (process memory, JVM, storage, request latency) and their 24h/7d/90d trends - ADMIN only.
 
@@ -2463,6 +2465,122 @@ paths:
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
+  /api/v1/integrations/jira/connections:
+    get:
+      tags: [jira]
+      operationId: listJiraConnections
+      summary: List Jira connections
+      description: |
+        ADMIN only (guarded before anything is read).
+
+        - Sortable fields: `id`, `name`, `createdAt`. Default `id` ascending.
+        - Filters: none.
+        - The API token is never returned; each row carries `hasApiToken`.
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Sort'
+      responses:
+        '200':
+          description: A page of Jira connections
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JiraConnectionPage'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    post:
+      tags: [jira]
+      operationId: createJiraConnection
+      summary: Create a Jira connection
+      description: |
+        ADMIN only (guarded before the body decodes - a non-admin's malformed body is still `403`). The `apiToken` is required; it is
+        encrypted before it is stored and never returned or logged. `siteUrl` is exactly `https://<tenant>.atlassian.net`. A
+        case-insensitive name clash with an active connection is `409`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JiraConnectionRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '201':
+          description: Created; `Location` points at the new connection
+          headers:
+            Location:
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JiraConnection'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/integrations/jira/connections/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    get:
+      tags: [jira]
+      operationId: getJiraConnection
+      summary: Get a Jira connection
+      description: ADMIN only, guard before the id lookup (a non-admin gets a uniform `403`). The API token is never returned.
+      responses:
+        '200':
+          description: The connection
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JiraConnection'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    put:
+      tags: [jira]
+      operationId: updateJiraConnection
+      summary: Update a Jira connection
+      description: |
+        ADMIN only, guard before the id lookup. A full replace of the name, account email, auth scheme, project keys and `enabled`; an
+        omitted or blank `apiToken` keeps the stored token, a present one rotates it. The site is the connection's identity: a different
+        `siteUrl` is `409` (create a new connection). A case-insensitive name clash with another active connection is `409` too.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JiraConnectionRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '204':
+          description: Updated
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    delete:
+      tags: [jira]
+      operationId: deleteJiraConnection
+      summary: Delete a Jira connection (soft)
+      description: ADMIN only, guard before the id lookup. Soft delete - the name is freed for reuse.
+      responses:
+        '204':
+          description: Deleted
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -4776,4 +4894,77 @@ components:
         t: { type: integer, format: int64, description: Epoch millis of the bucket start }
         avg: { type: number, format: double }
         max: { type: number, format: double }
-
+    JiraConnectionRequest:
+      type: object
+      required: [name, siteUrl, email, projectKeys]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        siteUrl:
+          type: string
+          maxLength: 253
+          pattern: '^https://[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.atlassian\.net$'
+          description: The site's origin, exactly `https://<tenant>.atlassian.net` (no path, query, port or trailing slash; Atlassian's own surfaces such as `api` are refused).
+        email:
+          type: string
+          maxLength: 254
+          description: The Atlassian account the token belongs to; folded to lower case.
+        apiToken:
+          type: string
+          format: password
+          writeOnly: true
+          nullable: true
+          maxLength: 1000
+          description: >-
+            Required on create (non-blank). On update an omitted, empty or blank token keeps the stored one and a present one rotates it. Encrypted at rest;
+            never returned, logged or audited.
+        authScheme:
+          type: string
+          enum: [BASIC, BEARER]
+          default: BASIC
+          description: "`BASIC` = `base64(email:token)` (an Atlassian API token), `BEARER` = the token alone."
+        projectKeys:
+          type: array
+          minItems: 1
+          maxItems: 50
+          uniqueItems: true
+          items: { type: string, pattern: '^[A-Z][A-Z0-9_]{1,9}$' }
+          description: The Jira project keys in scope (1 to 50, distinct).
+        enabled: { type: boolean, default: true }
+    JiraConnection:
+      type: object
+      required: [id, name, siteUrl, email, hasApiToken, authScheme, projectKeys, enabled, cloudId, discoveredAt, lastTestedAt, lastTestOk, mappingSet, createdAt, updatedAt]
+      properties:
+        id: { type: integer, format: int32, minimum: 0 }
+        name: { type: string }
+        siteUrl: { type: string }
+        email: { type: string }
+        hasApiToken:
+          type: boolean
+          description: Whether a token is stored. The token itself is write-only and appears in no response.
+        authScheme: { type: string, enum: [BASIC, BEARER] }
+        projectKeys:
+          type: array
+          maxItems: 50
+          items: { type: string }
+        enabled: { type: boolean }
+        cloudId: { type: string, nullable: true, description: "The site's cloud id, persisted by a passing connection test; null until then." }
+        discoveredAt: { type: integer, format: int64, nullable: true, description: Epoch millis of the last field discovery; null until one ran. }
+        lastTestedAt: { type: integer, format: int64, nullable: true, description: Epoch millis of the last connection test. }
+        lastTestOk: { type: boolean, nullable: true, description: Whether the last connection test passed; null until one ran. }
+        mappingSet: { type: boolean, description: Whether a field mapping has been saved. }
+        createdAt: { type: integer, format: int64, description: Epoch millis }
+        updatedAt: { type: integer, format: int64, description: Epoch millis }
+    JiraConnectionPage:
+      type: object
+      required: [items, page, pageSize, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/JiraConnection'
+        page: { type: integer, minimum: 1 }
+        pageSize: { type: integer, minimum: 1, maximum: 100 }
+        total:
+          type: integer
+          format: int64
+          minimum: 0

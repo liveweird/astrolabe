@@ -3,6 +3,8 @@ package ch.nokillswit.infra.db
 import ch.nokillswit.audit.audit
 import ch.nokillswit.auth.hashPassword
 import ch.nokillswit.auth.verifyPassword
+import ch.nokillswit.infra.crypto.EncryptedAtRest
+import ch.nokillswit.jira.JiraConnectionServiceKey
 import ch.nokillswit.users.UserServiceKey
 import ch.nokillswit.users.validatePassword
 import io.ktor.server.application.*
@@ -26,6 +28,8 @@ private val BURNED_INITIAL_PASSWORDS = setOf("changeme", "CHANGE-ME", "change-me
  * - Outside development mode startup **fails closed** (mirroring the JWT-secret check in
  *   plugins/Security.kt) if any active account still carries the well-known seed hash — a
  *   deployment cannot boot with the `changeme` backdoor present.
+ * - The encryption-at-rest backfill: every [EncryptedAtRest] service encrypts its legacy plaintext rows (or, while a rotation
+ *   `security.encryption.previousKey` is configured, re-encrypts every row under the current key).
  */
 suspend fun Application.configureBootstrap() {
     val userService = attributes[UserServiceKey]
@@ -81,4 +85,24 @@ suspend fun Application.configureBootstrap() {
             }
         }
     }
+
+    // Encryption-at-rest backfill (infra/crypto/): rows written before the field cipher existed still hold plaintext - encrypt them once.
+    // While a rotation previousKey is configured, every row is re-encrypted under the current key instead. THE list of
+    // encrypted-at-rest services - a newly encrypted feature registers in [encryptedAtRestServices]; removing an entry would strand its
+    // rows under a rotated-away key.
+    val rotating = environment.config
+        .propertyOrNull("security.encryption.previousKey")?.getString()?.isNotBlank() == true
+    encryptedAtRestServices().forEach { service ->
+        val encrypted = service.encryptLegacyRows(reencryptAll = rotating)
+        if (encrypted > 0) {
+            log.info("Bootstrap: ${if (rotating) "re-" else ""}encrypted $encrypted ${service.encryptedRowLabel} row(s) at rest")
+            audit("crypto.reencrypted", "rows" to encrypted, "label" to service.encryptedRowLabel, "rotating" to rotating)
+        }
+    }
 }
+
+/**
+ * Every service owning encrypted-at-rest columns (see [EncryptedAtRest]). The Jira API token (`jira_connections.api_token`, V21) is the
+ * first entry - never remove one once it lands. `EncryptedAtRestBootTest` pins that every implementation is listed.
+ */
+private fun Application.encryptedAtRestServices(): List<EncryptedAtRest> = listOf(attributes[JiraConnectionServiceKey])

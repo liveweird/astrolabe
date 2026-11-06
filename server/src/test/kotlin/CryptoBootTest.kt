@@ -34,4 +34,15 @@ class CryptoBootTest {
         configureApp("security.encryption.previousKey" to strongEncryptionKey())
         startApplication() // the dev default is burned but permitted here; the previous key is decrypt-only
     }
+
+    @Test
+    fun `a blank previous key means no previous key and boots normally`() {
+        // Compose passes `${DATA_ENCRYPTION_KEY_PREVIOUS:-}` and k8s an optional secretKeyRef: an empty or whitespace value is "unset".
+        for (blank in listOf("", "   ")) {
+            testApplication {
+                configureApp("security.encryption.previousKey" to blank)
+                startApplication()
+            }
+        }
+    }
 }

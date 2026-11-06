@@ -64,6 +64,8 @@ services:
       # Demo key for stored credentials (encrypted at rest). Committed and
       # therefore BURNED like the JWT key: production mode refuses it. `openssl rand -hex 32`.
       DATA_ENCRYPTION_KEY: "${DATA_ENCRYPTION_KEY:-d68246b14fd596319e5f3ee40be4d3ded6f53cd873a1285df6a53950de4c5126}"
+      # Rotation only: the OLD key, decrypt-only. Blank (the default) means no previous key (security.md "Encryption at rest").
+      DATA_ENCRYPTION_KEY_PREVIOUS: "${DATA_ENCRYPTION_KEY_PREVIOUS:-}"
       # Real SMTP delivery into the bundled Mailpit (the image default is MAIL_TRANSPORT=disabled).
       MAIL_TRANSPORT: smtp
       SMTP_HOST: mailpit

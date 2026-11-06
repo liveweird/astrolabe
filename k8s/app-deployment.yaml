@@ -51,6 +51,13 @@ spec:
                 secretKeyRef:
                   name: astrolabe-secrets
                   key: DATA_ENCRYPTION_KEY
+            # Rotation only: the OLD key, decrypt-only (security.md "Encryption at rest"). Absent from the Secret = no previous key.
+            - name: DATA_ENCRYPTION_KEY_PREVIOUS
+              valueFrom:
+                secretKeyRef:
+                  name: astrolabe-secrets
+                  key: DATA_ENCRYPTION_KEY_PREVIOUS
+                  optional: true
             - name: ADMIN_INITIAL_PASSWORD
               valueFrom:
                 secretKeyRef:

@@ -1715,6 +1715,68 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/integrations/jira/connections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Jira connections
+         * @description ADMIN only (guarded before anything is read).
+         *
+         *     - Sortable fields: `id`, `name`, `createdAt`. Default `id` ascending.
+         *     - Filters: none.
+         *     - The API token is never returned; each row carries `hasApiToken`.
+         */
+        get: operations["listJiraConnections"];
+        put?: never;
+        /**
+         * Create a Jira connection
+         * @description ADMIN only (guarded before the body decodes - a non-admin's malformed body is still `403`). The `apiToken` is required; it is
+         *     encrypted before it is stored and never returned or logged. `siteUrl` is exactly `https://<tenant>.atlassian.net`. A
+         *     case-insensitive name clash with an active connection is `409`.
+         */
+        post: operations["createJiraConnection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/integrations/jira/connections/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Get a Jira connection
+         * @description ADMIN only, guard before the id lookup (a non-admin gets a uniform `403`). The API token is never returned.
+         */
+        get: operations["getJiraConnection"];
+        /**
+         * Update a Jira connection
+         * @description ADMIN only, guard before the id lookup. A full replace of the name, account email, auth scheme, project keys and `enabled`; an
+         *     omitted or blank `apiToken` keeps the stored token, a present one rotates it. The site is the connection's identity: a different
+         *     `siteUrl` is `409` (create a new connection). A case-insensitive name clash with another active connection is `409` too.
+         */
+        put: operations["updateJiraConnection"];
+        post?: never;
+        /**
+         * Delete a Jira connection (soft)
+         * @description ADMIN only, guard before the id lookup. Soft delete - the name is freed for reuse.
+         */
+        delete: operations["deleteJiraConnection"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3888,6 +3950,74 @@ export interface components {
             avg: number;
             /** Format: double */
             max: number;
+        };
+        JiraConnectionRequest: {
+            name: string;
+            /** @description The site's origin, exactly `https://<tenant>.atlassian.net` (no path, query, port or trailing slash; Atlassian's own surfaces such as `api` are refused). */
+            siteUrl: string;
+            /** @description The Atlassian account the token belongs to; folded to lower case. */
+            email: string;
+            /**
+             * Format: password
+             * @description Required on create (non-blank). On update an omitted, empty or blank token keeps the stored one and a present one rotates it. Encrypted at rest; never returned, logged or audited.
+             */
+            apiToken?: string | null;
+            /**
+             * @description `BASIC` = `base64(email:token)` (an Atlassian API token), `BEARER` = the token alone.
+             * @default BASIC
+             * @enum {string}
+             */
+            authScheme: "BASIC" | "BEARER";
+            /** @description The Jira project keys in scope (1 to 50, distinct). */
+            projectKeys: string[];
+            /** @default true */
+            enabled: boolean;
+        };
+        JiraConnection: {
+            /** Format: int32 */
+            id: number;
+            name: string;
+            siteUrl: string;
+            email: string;
+            /** @description Whether a token is stored. The token itself is write-only and appears in no response. */
+            hasApiToken: boolean;
+            /** @enum {string} */
+            authScheme: "BASIC" | "BEARER";
+            projectKeys: string[];
+            enabled: boolean;
+            /** @description The site's cloud id, persisted by a passing connection test; null until then. */
+            cloudId: string | null;
+            /**
+             * Format: int64
+             * @description Epoch millis of the last field discovery; null until one ran.
+             */
+            discoveredAt: number | null;
+            /**
+             * Format: int64
+             * @description Epoch millis of the last connection test.
+             */
+            lastTestedAt: number | null;
+            /** @description Whether the last connection test passed; null until one ran. */
+            lastTestOk: boolean | null;
+            /** @description Whether a field mapping has been saved. */
+            mappingSet: boolean;
+            /**
+             * Format: int64
+             * @description Epoch millis
+             */
+            createdAt: number;
+            /**
+             * Format: int64
+             * @description Epoch millis
+             */
+            updatedAt: number;
+        };
+        JiraConnectionPage: {
+            items: components["schemas"]["JiraConnection"][];
+            page: number;
+            pageSize: number;
+            /** Format: int64 */
+            total: number;
         };
     };
     responses: {
@@ -6523,6 +6653,158 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    listJiraConnections: {
+        parameters: {
+            query?: {
+                /** @description 1-based page index. Defaults to 1. */
+                page?: components["parameters"]["Page"];
+                /** @description Rows per page. Defaults to 20, maximum 100. */
+                pageSize?: components["parameters"]["PageSize"];
+                /**
+                 * @description Sort spec. Format: `field` (ascending) or `-field` (descending). Multiple fields are
+                 *     comma-separated, leftmost wins: `sort=-updatedAt,name`. The endpoint declares its
+                 *     sortable-field whitelist; unknown fields are rejected with `400`. `id` ascending is
+                 *     always appended as a deterministic tiebreaker.
+                 */
+                sort?: components["parameters"]["Sort"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of Jira connections */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JiraConnectionPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    createJiraConnection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JiraConnectionRequest"];
+            };
+        };
+        responses: {
+            /** @description Created; `Location` points at the new connection */
+            201: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JiraConnection"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    getJiraConnection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The connection */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JiraConnection"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    updateJiraConnection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JiraConnectionRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    deleteJiraConnection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
             500: components["responses"]["InternalServerError"];
         };
     };

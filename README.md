@@ -195,8 +195,8 @@ class-data-sharing (AppCDS) archive, and setting it drops the archive. Build-tim
 | `MFA_MAX_ATTEMPTS` | `5` | Wrong-code attempts before a challenge dies. |
 | `MFA_MAX_TRACKED` | `10000` | Maximum pending email-MFA challenges; new issuance receives 429 at capacity. |
 | `MFA_MAX_LIVE_PER_ACCOUNT` | `3` | Live email-MFA challenges one account may hold, 1–100; a new login gets a fresh code (unless the shared store is full) and, at the limit, the account's oldest live challenge is dropped. |
-| `DATA_ENCRYPTION_KEY` | *(dev key, burned)* | AES-256-GCM key (64 hex) for stored credentials (none stored yet in 0.1.0; reserved for the future sync's connection tokens) — the dev default is burned, production refuses it. Back it up apart from the database. |
-| `DATA_ENCRYPTION_KEY_PREVIOUS` | *(blank)* | Decrypt-only fallback during a key rotation (boot once, then remove). |
+| `DATA_ENCRYPTION_KEY` | *(dev key, burned)* | AES-256-GCM key (64 hex) that encrypts the stored Jira API tokens — the dev default is burned, production refuses it. It cannot be discarded: losing it loses every stored token. Back it up apart from the database. |
+| `DATA_ENCRYPTION_KEY_PREVIOUS` | *(blank)* | Decrypt-only fallback during a key rotation: set the OLD key here and the new one in `DATA_ENCRYPTION_KEY`, boot once (every stored token is re-encrypted), then remove it. Wired on compose and Kubernetes (optional there); blank = none. |
 | `SECURITY_CSRF_ENABLED` | `false` | CSRF plugin gate — off (bearer JWT, no cookies). |
 | `JWT_SECRET` | `secret` | HMAC key for the access/refresh pair — production requires a private 64-hex key (`openssl rand -hex 32`); the placeholders and compose demo key are burned. |
 | `JWT_ISSUER` | `http://0.0.0.0:8086/` | The `iss` claim the verifier requires. |

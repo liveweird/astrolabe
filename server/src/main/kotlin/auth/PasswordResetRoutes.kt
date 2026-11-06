@@ -5,7 +5,7 @@ import ch.nokillswit.authz.TooManyRequestsException
 import ch.nokillswit.authz.UnauthorizedException
 import ch.nokillswit.users.PasswordChangeThrottleKey
 import ch.nokillswit.users.UserServiceKey
-import ch.nokillswit.users.canonicalEmail
+import ch.nokillswit.infra.validation.canonicalEmail
 import ch.nokillswit.users.validateEmail
 import ch.nokillswit.users.validatePassword
 import ch.nokillswit.infra.config.requireConfigInt
