@@ -29,6 +29,7 @@ function serve(mockFetch: FetchMock, overrides: Partial<World> = {}) {
     if (url === "/api/v1/integrations/jira/connections/2" && method === "GET") return Promise.resolve(jsonResponse(200, { ...CONNECTION, id: 2, name: "Other Jira" }));
     if (url.startsWith("/api/v1/integrations/jira/connections/2/")) return Promise.resolve(jsonResponse(404, { title: "x", status: 404 }));
     if (url === BASE && method === "GET") return Promise.resolve(world.connection ? jsonResponse(200, world.connection) : jsonResponse(404, { title: "Not Found", status: 404 }));
+    if (url.startsWith("/api/v1/integrations/jira/bindings") && method === "GET") return Promise.resolve(jsonResponse(200, { items: [], page: 1, pageSize: 20, total: 0 }));
     if (url === `${BASE}/discovery`) return Promise.resolve(jsonResponse(200, DISCOVERY));
     if (url === `${BASE}/mapping`) return Promise.resolve(jsonResponse(200, MAPPING_DEFAULTS_ONLY));
     if (url === `${BASE}/test` && method === "POST") return Promise.resolve(world.test());
@@ -87,6 +88,7 @@ describe("Jira connection page", () => {
       [4, "Discovery report"],
       [4, "Field mapping"],
       [4, "Peek at an issue"],
+      [3, "Links to plan items"],
     ]);
     const facts = screen.getByRole("table", { name: "Connection facts" });
     const site = within(facts).getByRole("link", { name: "https://acme.atlassian.net" });
@@ -112,6 +114,7 @@ describe("Jira connection page", () => {
       [3, "Connection"],
       [4, "Recent runs"],
       [3, "Mapping"],
+      [3, "Links to plan items"],
     ]);
   });
 

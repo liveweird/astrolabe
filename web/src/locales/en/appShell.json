@@ -17,7 +17,8 @@
     "programs": "Programs",
     "baselines": "Baselines",
     "publicHolidays": "Public holidays",
-    "jira": "Jira"
+    "jira": "Jira",
+    "deviations": "Deviations"
   },
   "section": {
     "overview": "Overview",

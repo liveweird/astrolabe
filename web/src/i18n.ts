@@ -13,6 +13,7 @@ import enAuth from "./locales/en/auth.json";
 import enBaselines from "./locales/en/baselines.json";
 import enCalendar from "./locales/en/calendar.json";
 import enChangelog from "./locales/en/changelog.json";
+import enDeviations from "./locales/en/deviations.json";
 import enUsers from "./locales/en/users.json";
 import enHome from "./locales/en/home.json";
 import enJira from "./locales/en/jira.json";
@@ -66,6 +67,7 @@ export const en = {
   baselines: enBaselines,
   calendar: enCalendar,
   changelog: enChangelog,
+  deviations: enDeviations,
   users: enUsers,
   home: enHome,
   jira: enJira,

@@ -67,7 +67,9 @@
     "deleted": "Connection deleted",
     "mappingSaved": "Mapping saved",
     "refreshStarted": "Refresh started",
-    "savedRetest": "Connection saved. Test it again, the settings changed"
+    "savedRetest": "Connection saved. Test it again, the settings changed",
+    "bound": "Linked to Jira",
+    "unlinked": "Unlinked from Jira"
   },
   "test": {
     "tableAria": "Connection test results",
@@ -295,5 +297,77 @@
     "notDiscovered": "Test the connection first.",
     "tokenUnreadable": "The stored token cannot be decrypted. Edit the connection and enter the token again.",
     "upstream": "Jira could not be reached or refused the request:"
+  },
+  "bindings": {
+    "title": "Links to plan items",
+    "tableAria": "Links to plan items",
+    "intro": "The plan items linked to Jira items through this connection. Unlinking changes nothing in Jira.",
+    "linkNode": "Link a node…",
+    "loadFailed": "Could not load the links",
+    "empty": "No plan item is linked through this connection yet.",
+    "noMatch": "No link matches the filters.",
+    "deadNote": "Links to deleted plan items are not listed here.",
+    "filter": {
+      "level": "Plan item type",
+      "name": "Plan item name",
+      "clearLevel": "Clear the type filter",
+      "clearName": "Clear the name filter"
+    },
+    "column": {
+      "node": "Plan item",
+      "level": "Level",
+      "issue": "Jira item",
+      "linked": "Linked (UTC)",
+      "by": "Linked by"
+    },
+    "gone": "Gone from Jira",
+    "unlink": "Unlink",
+    "unlinkAria": "Unlink: {{name}}",
+    "unlinkTitle": "Unlink from Jira?",
+    "unlinkBody": "{{name}} will no longer be linked to {{key}}. Nothing changes in Jira, and both can be linked again.",
+    "unlinkFailed": "Could not unlink",
+    "unlinkForbidden": "Only the item's owners and administrators can unlink it.",
+    "unlinkGone": "This link no longer exists."
+  },
+  "bind": {
+    "title": "Link to Jira",
+    "intro": "Links one plan item to one Jira item. Astrolabe only reads from Jira, nothing is written there. Each side can be linked once.",
+    "loading": "Loading the Jira connections…",
+    "loadFailed": "Could not load the Jira connections",
+    "noConnections": "No Jira connection has been set up yet.",
+    "noConnectionsAdmin": "Add one under Administration, Jira.",
+    "noConnectionsUser": "An administrator has to add one first.",
+    "allDisabled": "Every Jira connection is disabled. An administrator has to enable one.",
+    "connection": "Jira connection",
+    "connectionMappingMark": "{{name}} (mapping needs fixing)",
+    "mappingNote": "The mapping of this connection does not fit the Jira site now, so linking is refused until an administrator fixes it.",
+    "level": "Plan item type",
+    "planItem": "Plan item",
+    "program": "Program",
+    "pickProgram": "Pick a program",
+    "clearProgram": "Clear the program",
+    "noMatchingPrograms": "No matching programs you may link",
+    "programOption": "{{name}} · {{workStream}}",
+    "pickHint": "Only items you own (or any item, as an administrator) can be linked.",
+    "issueKey": "Jira issue key",
+    "issueKeyHint": "Like ABC-12. The issue must belong to one of the connection's projects and sit at the level the mapping gives this plan item type.",
+    "keyInvalid": "Enter an issue key like ABC-12",
+    "nodeRequired": "Pick a plan item",
+    "submit": "Link",
+    "error": {
+      "invalid": "This link was refused:",
+      "alreadyBound": "Already linked:",
+      "mappingInvalid": "The connection's mapping no longer fits the Jira site. An administrator has to fix it on the connection page.",
+      "notDiscovered": "This connection has not been tested yet. An administrator has to test it first.",
+      "tokenUnreadable": "The connection's token cannot be read. An administrator has to enter it again.",
+      "rateLimited": "Too many link attempts. Wait a minute and try again.",
+      "upstream": "Jira could not be reached or refused the request:",
+      "gone": "This plan item no longer exists.",
+      "forbidden": "Only the item's owners and administrators can link it.",
+      "failedStatus": "The link failed ({{status}})",
+      "failed": "The link failed"
+    },
+    "pickConnection": "Choose a connection to link through.",
+    "retry": "Retry"
   }
 }

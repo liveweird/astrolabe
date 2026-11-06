@@ -20,6 +20,9 @@ export type JiraLevelMapping = Schemas["JiraLevelMapping"];
 export type JiraMappingResponse = Schemas["JiraMappingResponse"];
 export type JiraPeekResponse = Schemas["JiraPeekResponse"];
 export type JiraBindingPage = Schemas["JiraBindingPage"];
+export type JiraBinding = Schemas["JiraBinding"];
+export type JiraBindRequest = Schemas["JiraBindRequest"];
+export type JiraLevel = JiraBindRequest["level"];
 export type JiraEstimateUnit = NonNullable<NonNullable<JiraMapping["estimate"]>["unit"]>;
 export type JiraAuthScheme = JiraConnection["authScheme"];
 
@@ -27,6 +30,21 @@ export type JiraAuthScheme = JiraConnection["authScheme"];
 const NOT_DISCOVERED_TYPE = "urn:astrolabe:problem:jira-not-discovered";
 /** … of the 409 when the stored token cannot be decrypted (a changed `DATA_ENCRYPTION_KEY`): enter it again. */
 const TOKEN_UNREADABLE_TYPE = "urn:astrolabe:problem:jira-token-unreadable";
+
+/** … of the 409 when the node or the issue is already linked (1:1): its `detail` names the other side. */
+const ALREADY_BOUND_TYPE = "urn:astrolabe:problem:already-bound";
+/** … of the 409 when the connection's mapping no longer fits the site: an administrator has to fix it. */
+const MAPPING_INVALID_TYPE = "urn:astrolabe:problem:jira-mapping-invalid";
+
+/** A 409 telling the node or the issue is already linked to something else. */
+export function isAlreadyBound(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 409 && err.type === ALREADY_BOUND_TYPE;
+}
+
+/** A 409 telling the connection's mapping no longer fits the site. */
+export function isJiraMappingInvalid(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 409 && err.type === MAPPING_INVALID_TYPE;
+}
 
 /** A 409 telling the connection has no discovery yet: "Test the connection first". */
 export function isJiraNotDiscovered(err: unknown): boolean {
@@ -94,10 +112,20 @@ export async function peekJiraIssue(id: number, key: string): Promise<JiraPeekRe
   return jsonRequest<JiraPeekResponse>(`/api/v1/integrations/jira/connections/${id}/peek?${params}`);
 }
 
-type JiraBindingListQuery = { page: number; pageSize: number; connectionId?: number; sort?: string };
+type JiraBindingListQuery = { page: number; pageSize: number; connectionId?: number; level?: JiraLevel; q?: string; sort?: string };
 
-/** The active bindings (any signed-in user reads them). The connection page asks for one row only to know how many links a delete unbinds. */
+/** The active bindings of live nodes (any signed-in user reads them). The connection page also asks for one row only to know how many links a delete unbinds. */
 export async function listJiraBindings(q: JiraBindingListQuery): Promise<JiraBindingPage> {
-  const params = buildQuery({ page: q.page, pageSize: q.pageSize, connectionId: q.connectionId, sort: q.sort });
+  const params = buildQuery({ page: q.page, pageSize: q.pageSize, connectionId: q.connectionId, level: q.level, q: q.q, sort: q.sort });
   return jsonRequest<JiraBindingPage>(`/api/v1/integrations/jira/bindings?${params}`);
+}
+
+/** Links a plan node to a Jira issue (the owner chain of the node or ADMIN; 1:1; the server reads the issue once). */
+export async function createJiraBinding(body: JiraBindRequest): Promise<JiraBinding> {
+  return jsonRequest<JiraBinding>("/api/v1/integrations/jira/bindings", { method: "POST", body: JSON.stringify(body) });
+}
+
+/** Unlinks (a soft delete: both the node and the issue are free again). */
+export async function deleteJiraBinding(id: number): Promise<void> {
+  await voidRequest(`/api/v1/integrations/jira/bindings/${id}`, { method: "DELETE" });
 }

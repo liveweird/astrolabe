@@ -17,7 +17,8 @@
     "programs": "Programy",
     "baselines": "Bazy odniesienia",
     "publicHolidays": "Święta państwowe",
-    "jira": "Jira"
+    "jira": "Jira",
+    "deviations": "Odchylenia"
   },
   "section": {
     "overview": "Przegląd",

@@ -12,17 +12,22 @@ export default function ProjectSelect({
   picked,
   onPick,
   error,
+  label,
+  description,
 }: {
   picked: PickedOption | null;
   onPick: (picked: PickedOption | null) => void;
   /** A field error (a validation the form maps onto this control). */
   error?: ReactNode;
+  /** Another field label / hint than the dependency editor's "Predecessor" (the Jira bind dialog's "Project"). */
+  label?: string;
+  description?: string;
 }) {
   const { t } = useTranslation();
   return (
     <SearchPicker
-      label={t("project.dependency.predecessor")}
-      description={t("project.dependency.predecessorHint")}
+      label={label ?? t("project.dependency.predecessor")}
+      description={description ?? t("project.dependency.predecessorHint")}
       placeholder={t("project.dependency.pickProject")}
       clearLabel={t("project.dependency.clearProject")}
       noMatchLabel={t("project.dependency.noMatchingProjects")}

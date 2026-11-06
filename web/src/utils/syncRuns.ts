@@ -4,6 +4,9 @@ import type { SyncOutcome } from "../api/sync";
 /** The poll period while a run is running. */
 export const RUN_POLL_MS = 3_000;
 
+/** The poll period of the Deviations page while a run is running: the page is one big document, so it asks less often than the run table. */
+export const DEVIATIONS_POLL_MS = 10_000;
+
 /**
  * The page-side safety net of the poll: it stops this long after the page first saw a given run running, whatever the server keeps
  * saying (a server that never ends a run's `running` must not keep a tab polling for ever). The server's `running` verdict is what

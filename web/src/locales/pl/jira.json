@@ -69,7 +69,9 @@
     "deleted": "Usunięto połączenie",
     "mappingSaved": "Zapisano mapowanie",
     "refreshStarted": "Rozpoczęto odświeżanie",
-    "savedRetest": "Zapisano połączenie. Przetestuj je ponownie, bo ustawienia się zmieniły"
+    "savedRetest": "Zapisano połączenie. Przetestuj je ponownie, bo ustawienia się zmieniły",
+    "bound": "Powiązano z Jirą",
+    "unlinked": "Odpięto od Jiry"
   },
   "test": {
     "tableAria": "Wyniki testu połączenia",
@@ -303,5 +305,77 @@
     "notDiscovered": "Najpierw przetestuj połączenie.",
     "tokenUnreadable": "Nie można odszyfrować zapisanego tokenu. Edytuj połączenie i wpisz token ponownie.",
     "upstream": "Nie udało się połączyć z Jirą albo odrzuciła żądanie:"
+  },
+  "bindings": {
+    "title": "Powiązania z elementami planu",
+    "tableAria": "Powiązania z elementami planu",
+    "intro": "Elementy planu powiązane z elementami Jiry przez to połączenie. Usunięcie powiązania nic nie zmienia w Jirze.",
+    "linkNode": "Powiąż element…",
+    "loadFailed": "Nie udało się wczytać powiązań",
+    "empty": "Żaden element planu nie jest jeszcze powiązany przez to połączenie.",
+    "noMatch": "Żadne powiązanie nie pasuje do filtrów.",
+    "deadNote": "Powiązania z usuniętymi elementami planu nie są tu wymienione.",
+    "filter": {
+      "level": "Rodzaj elementu planu",
+      "name": "Nazwa elementu planu",
+      "clearLevel": "Wyczyść filtr rodzaju",
+      "clearName": "Wyczyść filtr nazwy"
+    },
+    "column": {
+      "node": "Element planu",
+      "level": "Poziom",
+      "issue": "Element Jiry",
+      "linked": "Powiązano (UTC)",
+      "by": "Powiązał/a"
+    },
+    "gone": "Zniknął z Jiry",
+    "unlink": "Odepnij",
+    "unlinkAria": "Odepnij: {{name}}",
+    "unlinkTitle": "Odpiąć od Jiry?",
+    "unlinkBody": "Element „{{name}}” nie będzie już powiązany z {{key}}. W Jirze nic się nie zmieni, a oba elementy można powiązać ponownie.",
+    "unlinkFailed": "Nie udało się odpiąć",
+    "unlinkForbidden": "Odpiąć element mogą tylko jego właściciele/ki i administratorzy/ki.",
+    "unlinkGone": "To powiązanie już nie istnieje."
+  },
+  "bind": {
+    "title": "Powiąż z Jirą",
+    "intro": "Powiązuje jeden element planu z jednym elementem Jiry. Astrolabe tylko czyta z Jiry, nic tam nie zapisuje. Każdą stronę można powiązać tylko raz.",
+    "loading": "Wczytuję połączenia z Jirą…",
+    "loadFailed": "Nie udało się wczytać połączeń z Jirą",
+    "noConnections": "Nie skonfigurowano jeszcze żadnego połączenia z Jirą.",
+    "noConnectionsAdmin": "Dodaj je w sekcji Administracja, Jira.",
+    "noConnectionsUser": "Najpierw musi je dodać administrator/ka.",
+    "allDisabled": "Wszystkie połączenia z Jirą są wyłączone. Administrator/ka musi włączyć jedno z nich.",
+    "connection": "Połączenie z Jirą",
+    "connectionMappingMark": "{{name}} (mapowanie wymaga poprawy)",
+    "mappingNote": "Mapowanie tego połączenia nie pasuje teraz do witryny Jiry, więc powiązanie zostanie odrzucone, dopóki administrator/ka go nie poprawi.",
+    "level": "Rodzaj elementu planu",
+    "planItem": "Element planu",
+    "program": "Program",
+    "pickProgram": "Wybierz program",
+    "clearProgram": "Wyczyść program",
+    "noMatchingPrograms": "Brak pasujących programów, które możesz powiązać",
+    "programOption": "{{name}} · {{workStream}}",
+    "pickHint": "Powiązać można tylko elementy, których jesteś właścicielem/ką (administrator/ka może każdy).",
+    "issueKey": "Klucz zgłoszenia Jiry",
+    "issueKeyHint": "Na przykład ABC-12. Zgłoszenie musi należeć do jednego z projektów połączenia i leżeć na poziomie, który mapowanie przypisuje temu rodzajowi elementu planu.",
+    "keyInvalid": "Podaj klucz zgłoszenia w rodzaju ABC-12",
+    "nodeRequired": "Wybierz element planu",
+    "submit": "Powiąż",
+    "error": {
+      "invalid": "To powiązanie zostało odrzucone:",
+      "alreadyBound": "Już powiązano:",
+      "mappingInvalid": "Mapowanie połączenia nie pasuje już do witryny Jiry. Administrator/ka musi je poprawić na stronie połączenia.",
+      "notDiscovered": "To połączenie nie było jeszcze testowane. Najpierw musi je przetestować administrator/ka.",
+      "tokenUnreadable": "Nie można odczytać tokenu połączenia. Administrator/ka musi wpisać go ponownie.",
+      "rateLimited": "Zbyt wiele prób powiązania. Odczekaj minutę i spróbuj ponownie.",
+      "upstream": "Nie udało się połączyć z Jirą albo odrzuciła ona żądanie:",
+      "gone": "Ten element planu już nie istnieje.",
+      "forbidden": "Powiązać element mogą tylko jego właściciele/ki i administratorzy/ki.",
+      "failedStatus": "Powiązanie się nie udało ({{status}})",
+      "failed": "Powiązanie się nie udało"
+    },
+    "pickConnection": "Wybierz połączenie, przez które powiązać.",
+    "retry": "Ponów"
   }
 }

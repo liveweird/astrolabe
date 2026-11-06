@@ -42,6 +42,7 @@ Each increment gets its own plan (architect) before implementation. The domain s
 - [new] **Flow teams/capacity import.** Read teams and their capacity from Flow instead of typing them (Flow's `teams/` and the capacity model are the source); decide the contract with Flow first.
 - [new] **Jira/Flow deviation detection.** Sync with Jira and Flow only to detect deviations from the plan (corrections stay in Astrolabe, nothing is written back). Re-port Flow's `ingest/`, `fetch/`, `jira/`, the role switch (`plugins/Role.kt`) and `EncryptedAtRest`/`Reencrypt`, plus Lettuce's WireMock stub pattern (stub port 8096).
 - [new] **Read bound Jira issues by `id in (...)` chunks if a real site's mapped types still exceed the ceiling.** The run's full read is limited to the mapped levels' types (200 pages x `jira.pageSize`, 20,000 issues at 100 a page); if a real site still has more issues of those types than that, read the bound ones by `id in (...)` chunks instead (unverified on a real site, and a static stub cannot answer arbitrary id sets).
+- [new] **Link and unlink program-level Jira bindings outside the connection page.** In 1.1 a program binding can only be made and removed on a connection's page (ADMIN): the plan has no program page, and no non-admin can link one from the UI (the project page links the project and its milestones, and unlinks them for the owner). A program owner would need an action on the Plan or Programs page, with the same `can.edit` gate and the bind dialog fed by a chip-style read of the program's links.
 
 ## Engineering follow-ups
 

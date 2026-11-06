@@ -9,6 +9,7 @@ import { getJiraConnection } from "../api/jira";
 import { useAdmin } from "../auth";
 import EditPageLoadState from "../components/EditPageLoadState";
 import JiraConnectionEditorModal from "../components/JiraConnectionEditorModal";
+import JiraBindingsSection from "../components/JiraBindingsSection";
 import JiraConnectionSection from "../components/JiraConnectionSection";
 import JiraMappingSection from "../components/JiraMappingSection";
 import PageHeader from "../components/PageHeader";
@@ -20,7 +21,7 @@ import { loadErrorMessage } from "../utils/saveError";
 
 /**
  * One Jira connection (`/integrations/jira/:id`, ADMIN only): the Connection section (facts, Test connection, Refresh now, the runs) and the
- * Mapping section (discovery report, the field mapping, Peek). The Bindings section (1.1 C9) joins below as a third h3 section.
+ * Mapping section (discovery report, the field mapping, Peek) and the Bindings section (the plan items linked through it, Unlink, "Link a node…").
  */
 export default function JiraConnectionDetails() {
   const { id: idParam } = useParams();
@@ -68,6 +69,7 @@ function ConnectionPage({ idParam }: { idParam: string | undefined }) {
         <Stack gap="xl">
           <JiraConnectionSection connection={data} />
           <JiraMappingSection connection={data} />
+          <JiraBindingsSection connection={data} />
         </Stack>
       </Box>
       {editing && (

@@ -13,7 +13,9 @@ import { projectPath } from "../utils/planLinks";
 import { proposalBars, proposalRows, type TeamProposalView } from "../utils/scheduleProposal";
 import type { BarId, RovingTarget, TimelineBarData, TimelineColumn, TimelineRowData } from "../utils/timelineModel";
 import type { TimelineScale, Zoom } from "../utils/timelineScale";
+import { markKey, type JiraMark } from "../utils/jiraMarks";
 import { BaselineRowName } from "./BaselineParts";
+import { JiraRowMark } from "./JiraChips";
 import RowActionsMenu from "./RowActionsMenu";
 import Timeline from "./Timeline";
 import TimelineArrows from "./TimelineArrows";
@@ -32,7 +34,7 @@ export type TeamActions = {
   moveTo: (milestone: TeamMilestone, edge: "top" | "bottom") => void;
 };
 
-const COLUMN_WIDTHS = { name: 220, project: 150, estimate: 120, actions: 56 } as const;
+const COLUMN_WIDTHS = { name: 220, project: 150, estimate: 120, jira: 130, actions: 56 } as const;
 
 /** The estimate with its unit ("12.25 man-days"). */
 const estimateText = (t: TFunction, milestone: TeamMilestone) => t("project.estimateUnit", { count: milestone.estimateMd });
@@ -202,6 +204,8 @@ export default function TeamTimeline({
   label,
   proposal,
   toolbar,
+  jira,
+  jiraColumn,
 }: {
   view: TeamView;
   scale: TimelineScale;
@@ -213,15 +217,27 @@ export default function TeamTimeline({
   proposal?: TeamProposalView;
   /** The Timeline's `toolbar` slot: the page's baseline picker. */
   toolbar?: ReactNode;
+  /** The team's Jira links by `markKey("MILESTONE", id)` (a SEPARATE query). */
+  jira?: ReadonlyMap<string, JiraMark>;
+  /** Whether the Jira column exists (`useJiraColumn`: the last visit's answer until the query answers, so a repeat visit never shifts the layout). */
+  jiraColumn?: boolean;
 }) {
   const { t } = useTranslation();
   const { holidays, failed: holidaysFailed } = useHolidays();
   const previewing = proposal !== undefined;
+  const showJira = jiraColumn === true;
+  /** The Jira cell goes just before the operations cell, and only while the column exists. */
+  const withJira = (cells: TimelineRowData["cells"], milestoneId: number | null): TimelineRowData["cells"] => {
+    if (!showJira) return cells;
+    const mark = milestoneId === null ? undefined : jira?.get(markKey("MILESTONE", milestoneId));
+    return [...cells.slice(0, -1), mark === undefined ? "" : <JiraRowMark key="jira" mark={mark} />, ...cells.slice(-1)];
+  };
   const proposed = proposalBars(proposal?.moves ?? [], t);
   const columns: TimelineColumn[] = [
     { id: "name", header: t("project.column.milestone"), width: COLUMN_WIDTHS.name },
     { id: "project", header: t("teams.view.column.project"), width: COLUMN_WIDTHS.project },
     { id: "estimate", header: t("teams.view.column.estimate"), width: COLUMN_WIDTHS.estimate },
+    ...(showJira ? [{ id: "jira", header: t("deviations.chip.column"), width: COLUMN_WIDTHS.jira }] : []),
     { id: "actions", header: t("common.table.operations"), width: COLUMN_WIDTHS.actions },
   ];
   const rowIds = new Set<BarId>(view.scheduled.map((milestone) => milestone.id));
@@ -233,7 +249,7 @@ export default function TeamTimeline({
   const fresh = overlay === undefined ? null : newSince(overlay, view.scheduled);
   const rows: TimelineRowData[] = view.scheduled.map((milestone, index) => ({
     id: milestone.id,
-    cells: [
+    cells: withJira([
       <RowNameCell key="name" milestone={milestone} placement={view.team.can.editOrder && !previewing ? { index, count } : null} sinceBaseline={fresh?.has(milestone.id) === true} />,
       (stop: RovingTarget) => (
         <Anchor component={RouterLink} to={projectPath(milestone.projectId)} size="sm" truncate title={milestone.projectName} aria-label={t("teams.view.openProjectAria", { name: milestone.projectName })} {...stop}>
@@ -242,7 +258,7 @@ export default function TeamTimeline({
       ),
       estimateText(t, milestone),
       (stop: RovingTarget) => <MilestoneMenu milestone={milestone} view={view} actions={actions} placement={{ index, count }} trigger={stop} previewing={previewing} />,
-    ],
+    ], milestone.id),
     bars: [
       ...(milestone.startDate !== null && milestone.endDate !== null
         ? [
@@ -274,7 +290,7 @@ export default function TeamTimeline({
   for (const row of overlay === undefined ? [] : removedRows(overlay, view.unscheduled, t)) {
     rows.push({
       id: row.id,
-      cells: [
+      cells: withJira([
         <BaselineRowName key="name" row={row} />,
         row.projectName === null ? (
           ""
@@ -287,7 +303,7 @@ export default function TeamTimeline({
           {t("project.estimateUnit", { count: row.estimateMd })}
         </Text>,
         (stop: RovingTarget) => <OpenProjectMenu row={row} trigger={stop} />,
-      ],
+      ], null),
       bars: [row.bar],
     });
   }
@@ -295,7 +311,7 @@ export default function TeamTimeline({
   for (const milestone of proposalRows(view, proposal?.moves ?? [])) {
     rows.push({
       id: milestone.id,
-      cells: [
+      cells: withJira([
         <NameCell key="name" milestone={milestone} isNew />,
         (stop: RovingTarget) => (
           <Anchor component={RouterLink} to={projectPath(milestone.projectId)} size="sm" truncate title={milestone.projectName} aria-label={t("teams.view.openProjectAria", { name: milestone.projectName })} {...stop}>
@@ -304,7 +320,7 @@ export default function TeamTimeline({
         ),
         estimateText(t, milestone),
         (stop: RovingTarget) => <MilestoneMenu milestone={milestone} view={view} actions={actions} trigger={stop} previewing proposedRow />,
-      ],
+      ], milestone.id),
       bars: proposalBarOf(proposed, milestone),
     });
   }
@@ -332,7 +348,7 @@ export default function TeamTimeline({
 }
 
 /** The Unscheduled tray of the team's milestones without dates: drag onto the timeline (pointer) or Schedule (button), inside the same `TimelineDndContext`. */
-export function TeamTray({ view, actions, label, previewing = false }: { view: TeamView; actions: TeamActions; label: string; previewing?: boolean }) {
+export function TeamTray({ view, actions, label, previewing = false, jira, jiraColumn = false }: { view: TeamView; actions: TeamActions; label: string; previewing?: boolean; jira?: ReadonlyMap<string, JiraMark>; jiraColumn?: boolean }) {
   const { t } = useTranslation();
   const items: TrayItem[] = view.unscheduled.map((milestone) => ({
     id: milestone.id,
@@ -343,6 +359,7 @@ export function TeamTray({ view, actions, label, previewing = false }: { view: T
         {milestone.projectName}
       </Anchor>,
       estimateText(t, milestone),
+      ...(jiraColumn ? [<JiraRowMark key="jira" mark={jira?.get(markKey("MILESTONE", milestone.id))} />] : []),
     ],
     canSchedule: view.team.can.schedule,
     // While a proposal previews, the page is read-only: the Schedule button is disabled and the row cannot be dragged.
@@ -352,7 +369,7 @@ export function TeamTray({ view, actions, label, previewing = false }: { view: T
   return (
     <TimelineUnscheduledTray
       label={label}
-      columns={[t("project.column.milestone"), t("teams.view.column.project"), t("teams.view.column.estimate")]}
+      columns={[t("project.column.milestone"), t("teams.view.column.project"), t("teams.view.column.estimate"), ...(jiraColumn ? [t("deviations.chip.column")] : [])]}
       items={items}
       emptyText={t("project.noUnscheduled")}
       onSchedule={(id) => {

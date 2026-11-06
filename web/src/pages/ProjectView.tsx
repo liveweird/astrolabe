@@ -22,6 +22,9 @@ import MilestoneScheduleModal from "../components/MilestoneScheduleModal";
 import PageHeader from "../components/PageHeader";
 import CriticalChain from "../components/CriticalChain";
 import IdleGaps from "../components/IdleGaps";
+import JiraBindDialog, { type BindTarget } from "../components/JiraBindDialog";
+import { ProjectJiraButton, ProjectJiraChip } from "../components/JiraChips";
+import JiraUnlinkModal from "../components/JiraUnlinkModal";
 import ProjectDependencies from "../components/ProjectDependencies";
 import ProjectEditorModal from "../components/ProjectEditorModal";
 import ProjectTimeline, { ProjectTray, type MilestoneActions } from "../components/ProjectTimeline";
@@ -29,10 +32,13 @@ import TimelineDndContext from "../components/TimelineDndContext";
 import { useDeleteConfirm } from "../hooks/useDeleteConfirm";
 import { useBaselinePick, useDropUnknownPick } from "../hooks/useBaselinePick";
 import { useDialogFocus } from "../hooks/useDialogFocus";
+import { useViewJiraLinks } from "../hooks/useDeviations";
+import { useJiraUnlink } from "../hooks/useJiraUnlink";
 import { useMilestoneSchedule } from "../hooks/useMilestoneSchedule";
 import { isBoolean, isOneOf, useStoredState } from "../hooks/useStoredState";
 import { baselineDays, spanBadges } from "../utils/baselineOverlay";
 import { localIsoDate } from "../utils/isoDate";
+import { markKey, type JiraMark, type JiraMarks } from "../utils/jiraMarks";
 import { planPath } from "../utils/planLinks";
 import { conflictCount, linksOfMilestone } from "../utils/projectDependencies";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
@@ -52,7 +58,8 @@ type Editor =
   | { kind: "edit"; milestone: ProjectMilestone }
   | { kind: "project" }
   | { kind: "dependency"; successor: EndpointRef | null }
-  | { kind: "editDependency"; dependency: ProjectDependency };
+  | { kind: "editDependency"; dependency: ProjectDependency }
+  | { kind: "jira"; target: BindTarget };
 
 /** One badge per non-zero drift figure: orange when the project runs LATER than its target (a warning), gray when it is ahead. */
 function driftBadges(drift: NonNullable<ProjectViewDocument["drift"]>, t: TFunction): { key: string; label: string; late: boolean }[] {
@@ -66,7 +73,7 @@ function driftBadges(drift: NonNullable<ProjectViewDocument["drift"]>, t: TFunct
 }
 
 /** The facts line under the title: the target window, the derived span and how the span drifts from the target. */
-function ProjectFacts({ view }: { view: ProjectViewDocument }) {
+function ProjectFacts({ view, marks }: { view: ProjectViewDocument; marks: JiraMarks }) {
   const { t } = useTranslation();
   const { targetStart, targetEnd } = view.project;
   const badges = view.drift === null ? [] : driftBadges(view.drift, t);
@@ -101,6 +108,8 @@ function ProjectFacts({ view }: { view: ProjectViewDocument }) {
           {t("timeline.idle.badge", { count: view.idleGaps.length })}
         </Badge>
       )}
+      {/* In this row, not under it: the chip arrives with its own query, and nothing below may move when it does. */}
+      <ProjectJiraChip projectId={view.project.id} marks={marks} />
     </Group>
   );
 }
@@ -126,6 +135,8 @@ function ProjectPage({ id }: { id: number }) {
   const schedule = useMilestoneSchedule(id, pick);
   const { view, query } = schedule;
   const dropping = useDropUnknownPick(query.error, pick, setPick);
+  // The Jira chip and the Link actions know what is linked from their OWN query, asked once the view is in: a failed or slow answer shows no chip and never touches the timeline.
+  const jira = useViewJiraLinks({ projectId: id }, view);
   const [zoom, setZoom] = useStoredState<Zoom>("timeline.zoom", "week", isOneOf(MILESTONE_ZOOMS));
   // The critical-path highlight (v0.7), remembered like the zoom: the Slack column, the bar and arrow emphasis, the badges and the Critical chain section.
   const [criticalPath, setCriticalPath] = useStoredState("timeline.criticalPath", false, isBoolean);
@@ -140,6 +151,7 @@ function ProjectPage({ id }: { id: number }) {
 
   const refreshPlan = () => refreshQueriesAfterMutation(queryClient, ["plan"]);
   const titleRef = useRef<HTMLHeadingElement>(null);
+  const unlinkJira = useJiraUnlink(titleRef);
   const removeMilestone = useDeleteConfirm<{ milestone: ProjectMilestone; links: number }>({
     mutationFn: ({ milestone }) => deleteMilestone(milestone.id),
     onSuccess: refreshPlan,
@@ -208,6 +220,9 @@ function ProjectPage({ id }: { id: number }) {
     if (taken || !schedule.has(target.milestone.id)) setScheduling(null);
   };
 
+  const requestUnlink = (mark: JiraMark | undefined, name: string) => {
+    if (mark !== undefined) unlinkJira.requestDelete({ bindingId: mark.bindingId, key: mark.key, name });
+  };
   const actions: MilestoneActions = {
     edit: (milestone) => setEditor({ kind: "edit", milestone }),
     editSchedule: (milestone) => setScheduling({ milestone, revision: view.revision }),
@@ -215,6 +230,9 @@ function ProjectPage({ id }: { id: number }) {
     remove: (milestone) => removeMilestone.requestDelete({ milestone, links: linksOfMilestone(view, milestone.id) }),
     schedule: scheduleByButton,
     addDependency: (milestone) => setEditor({ kind: "dependency", successor: { kind: "MILESTONE", id: milestone.id } }),
+    linkJira: (milestone) => setEditor({ kind: "jira", target: { level: "MILESTONE", id: milestone.id, name: milestone.name } }),
+    jiraKeyOf: (milestone) => jira.byNode.get(markKey("MILESTONE", milestone.id))?.key,
+    unlinkJira: (milestone) => requestUnlink(jira.byNode.get(markKey("MILESTONE", milestone.id)), milestone.name),
   };
   const milestoneCount = view.scheduled.length + view.unscheduled.length;
   const canTrayEdit = view.unscheduled.some((m) => m.can.schedule);
@@ -280,6 +298,12 @@ function ProjectPage({ id }: { id: number }) {
                 {t("common.action.edit")}
               </Button>
             )}
+            <ProjectJiraButton
+              project={project}
+              marks={jira}
+              onLink={() => setEditor({ kind: "jira", target: { level: "PROJECT", id: project.id, name: project.name } })}
+              onUnlink={(mark) => requestUnlink(mark, project.name)}
+            />
             {project.can.delete && (
               <Button color="red" variant="light" leftSection={<IconTrash size={16} />} onClick={() => removeProject.requestDelete({ id: project.id, name: project.name, milestones: milestoneCount, links: view.dependencies.length })}>
                 {t("common.action.delete")}
@@ -288,7 +312,7 @@ function ProjectPage({ id }: { id: number }) {
           </>
         }
       />
-      <ProjectFacts view={view} />
+      <ProjectFacts view={view} marks={jira} />
 
       {query.isError && <ErrorAlert error={query.error} title={t("project.loadFailed")} />}
       {/* The two notices below are visible only: the status region below says them (an Alert's implicit role="alert" would read each twice). */}
@@ -376,6 +400,18 @@ function ProjectPage({ id }: { id: number }) {
           onSaved={saved}
         />
       )}
+      {editor?.kind === "jira" && (
+        <JiraBindDialog
+          source={{ connections: jira.connections, failed: jira.failed, retry: jira.retry }}
+          target={editor.target}
+          onClose={closeEditor}
+          onBound={async () => {
+            closeEditor();
+            // A link is not plan state: only the Jira queries (the chip, the deviations page) are refreshed, never a timeline view.
+            await refreshQueriesAfterMutation(queryClient, ["jira"]);
+          }}
+        />
+      )}
       {scheduling !== null && (
         <MilestoneScheduleModal
           milestone={scheduling.milestone}
@@ -386,6 +422,7 @@ function ProjectPage({ id }: { id: number }) {
         />
       )}
 
+      <JiraUnlinkModal confirm={unlinkJira} />
       <ConfirmDeleteModal
         confirm={removeMilestone}
         title={t("project.milestone.deleteTitle")}

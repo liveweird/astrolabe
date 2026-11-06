@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Anchor, Menu, Text, VisuallyHidden } from "@mantine/core";
-import { IconCalendarEvent, IconCalendarOff, IconLink, IconPencil, IconTrash } from "@tabler/icons-react";
+import { IconBrandJira, IconCalendarEvent, IconCalendarOff, IconLink, IconLinkOff, IconPencil, IconTrash } from "@tabler/icons-react";
 import { Link as RouterLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
@@ -31,6 +31,12 @@ export type MilestoneActions = {
   schedule: (milestone: ProjectMilestone) => void;
   /** "Add dependency…": open the editor with this milestone as the successor (offered only with the project's `can.createDependency`). */
   addDependency: (milestone: ProjectMilestone) => void;
+  /** "Link to Jira…" (offered with the milestone's own `can.edit` - the bind's guard is the owner chain, the same arithmetic). Absent = the page offers no Jira link. */
+  linkJira?: (milestone: ProjectMilestone) => void;
+  /** The milestone's Jira key when the page knows it is linked (from the SEPARATE deviations query): the menu then says so instead of offering the link. */
+  jiraKeyOf?: (milestone: ProjectMilestone) => string | undefined;
+  /** "Unlink from Jira: KEY" for a linked milestone (with its own `can.edit`): the page confirms and deletes the binding. */
+  unlinkJira?: (milestone: ProjectMilestone) => void;
 };
 
 const COLUMN_WIDTHS = { name: 220, team: 130, estimate: 120, slack: 130, actions: 56 } as const;
@@ -58,6 +64,37 @@ function NameCell({ milestone, mark }: { milestone: ProjectMilestone; mark?: str
         </Text>
       )}
     </Text>
+  );
+}
+
+/**
+ * The milestone's Jira item in its row menu, by what the page knows (the separate chip query) and the milestone's own `can.edit` (the bind's guard):
+ * "Link to Jira…" when it is not linked, "Unlink from Jira: KEY" (the red destructive item, confirmed by the page) when it is, and for a viewer who may
+ * not edit only the key as a disabled line - links are 1:1, so a linked milestone is never offered the link.
+ */
+function JiraLinkItem({ milestone, actions, linkJira }: { milestone: ProjectMilestone; actions: MilestoneActions; linkJira: (milestone: ProjectMilestone) => void }) {
+  const { t } = useTranslation();
+  const key = actions.jiraKeyOf?.(milestone);
+  const { name } = milestone;
+  if (key === undefined) {
+    return milestone.can.edit ? (
+      <Menu.Item leftSection={<IconBrandJira size={14} />} onClick={() => linkJira(milestone)} aria-label={t("deviations.link.actionAria", { name })}>
+        {t("deviations.link.action")}
+      </Menu.Item>
+    ) : null;
+  }
+  if (!milestone.can.edit || actions.unlinkJira === undefined) {
+    return (
+      <Menu.Item leftSection={<IconBrandJira size={14} />} disabled aria-label={t("deviations.link.linkedAria", { key, name })}>
+        {t("deviations.link.linked", { key })}
+      </Menu.Item>
+    );
+  }
+  const unlink = actions.unlinkJira;
+  return (
+    <DestructiveMenuItem leftSection={<IconLinkOff size={14} />} onClick={() => unlink(milestone)} aria-label={t("deviations.link.unlinkKeyAria", { key, name })}>
+      {t("deviations.link.unlinkKey", { key })}
+    </DestructiveMenuItem>
   );
 }
 
@@ -90,6 +127,7 @@ function MilestoneMenu({
           {t("common.action.edit")}
         </Menu.Item>
       )}
+      {actions.linkJira !== undefined && <JiraLinkItem milestone={milestone} actions={actions} linkJira={actions.linkJira} />}
       {can.schedule && (
         <Menu.Item
           leftSection={<IconCalendarEvent size={14} />}

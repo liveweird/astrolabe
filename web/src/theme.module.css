@@ -156,6 +156,12 @@ table.table {
   text-align: start;
 }
 
+/* The scroller is the containing block of what is absolutely positioned inside it: Mantine's VisuallyHidden words in a cell (a severity, a link's "opens in
+   Jira") would otherwise sit at their static position, far right of a narrow viewport, outside the scroller's clip, and widen the whole PAGE. */
+.tableScroll {
+  position: relative;
+}
+
 /* The scroller is a keyboard stop (it scrolls a table wider or taller than the screen): a visible focus ring. */
 .tableScroll:focus-visible {
   outline: 2px solid var(--astrolabe-accent-ink);
