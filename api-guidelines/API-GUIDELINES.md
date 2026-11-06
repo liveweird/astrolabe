@@ -352,6 +352,7 @@ ad-hoc error JSON.
 | Rate limit / throttle / lockout exceeded | `429` |
 | Unexpected server error (logged) | `500` |
 | Feature disabled in this deployment | `503` |
+| An upstream dependency this API calls failed or was unreachable (a typed problem naming the failure code only, never the upstream's body or URL) | `502` |
 
 **Check:** declared error responses use these codes for these meanings.
 

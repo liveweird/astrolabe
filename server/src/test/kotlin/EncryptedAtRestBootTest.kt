@@ -21,9 +21,11 @@ import kotlin.test.assertTrue
  */
 class EncryptedAtRestBootTest {
     private val devCipher = FieldCipher(DEV_DATA_ENCRYPTION_KEY)
-    // `class A(...) : EncryptedAtRest`, `class A : EncryptedAtRest` and `object A : EncryptedAtRest`; generics and a multi-line header too.
+    // `class A(...) : EncryptedAtRest`, `class A : EncryptedAtRest` and `object A : EncryptedAtRest`; generics and a multi-line header too;
+    // no part of the header spans a blank line, so a one-line class declared above the real one cannot swallow it.
+    private val noBlankLine = """(?:(?!\n[ \t]*\n)[^{])"""
     private val implementer =
-        Regex("""\b(?:class|object)\s+(\w+)\s*(?:<[^>{]*>)?\s*(?:\([^{]*?\))?\s*:\s*[^{]*\bEncryptedAtRest\b""")
+        Regex("""\b(?:class|object)\s+(\w+)\s*(?:<[^>{]*>)?\s*(?:\($noBlankLine*?\))?\s*:\s*$noBlankLine*\bEncryptedAtRest\b""")
 
     private fun uniqueName(prefix: String) = "$prefix-${UUID.randomUUID().toString().substring(0, 8)}"
 

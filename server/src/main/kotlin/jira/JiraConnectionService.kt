@@ -8,7 +8,9 @@ import ch.nokillswit.infra.db.SoftDeletable
 import ch.nokillswit.infra.db.active
 import ch.nokillswit.infra.db.jsonb
 import ch.nokillswit.infra.db.nowMillis
+import ch.nokillswit.infra.json.canonicalJson
 import ch.nokillswit.infra.json.parseStringArray
+import ch.nokillswit.infra.json.sha256Hex
 import ch.nokillswit.infra.json.stringArrayJson
 import ch.nokillswit.infra.paging.PageRequest
 import ch.nokillswit.infra.paging.applyPaging
@@ -41,14 +43,11 @@ data class TestRecording(val recorded: Boolean, val discoveredAt: Long?)
 /** [JiraConnectionService.readDiscovery]'s answer for a connection no passing Test connection has discovered yet. */
 const val NO_DISCOVERY = ""
 
-/** The stored mapping document of a connection nobody mapped yet (`jira_connections.mapping` default). */
-private const val EMPTY_MAPPING = "{}"
-
 /**
  * The Jira connection registry (V21), the `teams/` template with the application's first stored credential: `api_token` holds a
  * [FieldCipher] envelope, written here and NEVER decrypted on a read path (no response, audit line or log ever carries it; the connector
- * that calls Jira with it is a later step's one reader). The service owns the encrypted column, so it registers with the boot
- * backfill ([EncryptedAtRest], `infra/db/Bootstrap.kt`).
+ * that calls Jira with it is [readForTest]'s and [readForPeek]'s). The service owns the encrypted column, so it registers with the
+ * boot backfill ([EncryptedAtRest], `infra/db/Bootstrap.kt`).
  */
 class JiraConnectionService(
     private val database: R2dbcDatabase,
@@ -162,8 +161,22 @@ class JiraConnectionService(
      * Null when the connection is missing or deleted. Its own short transaction: nothing here spans the HTTP calls that follow.
      */
     suspend fun readForTest(id: UInt): JiraTestTarget? = suspendTransaction(database) {
-        val row = summary().where { (Connections.id eq id) and Connections.active() }.toList().singleOrNull()
-            ?: return@suspendTransaction null
+        summary().where { (Connections.id eq id) and Connections.active() }.toList().singleOrNull()?.let(::targetOf)
+    }
+
+    /**
+     * Peek's reader (the second and last one of the stored token): the target (token decrypted in memory, null when it cannot be) and the
+     * mapping state, one transaction, nothing held across the Jira call that follows. Null when the connection is missing or deleted.
+     */
+    suspend fun readForPeek(id: UInt): JiraPeekContext? = suspendTransaction(database) {
+        Connections.selectAll().where { (Connections.id eq id) and Connections.active() }.toList().singleOrNull()
+            ?.let { JiraPeekContext(targetOf(it), it.toMappingState()) }
+    }
+
+    private fun targetOf(row: ResultRow): JiraTestTarget {
+        // The search probe narrows by the mapped milestone level; a mapping this build cannot read never fails a Test.
+        val mapped = (parseStoredMapping(row[Connections.mapping]) as? StoredMapping.Valid)?.mapping
+        val id = row[Connections.id].value
         val token = try {
             cipher.decrypt(row[Connections.apiToken])
         } catch (cause: GeneralSecurityException) {
@@ -171,13 +184,14 @@ class JiraConnectionService(
         } catch (cause: IllegalArgumentException) {
             logUnreadableToken(id, cause)
         }
-        JiraTestTarget(
+        return JiraTestTarget(
             siteUrl = row[Connections.siteUrl],
             email = row[Connections.email],
             apiToken = token,
             authScheme = JiraAuthScheme.valueOf(row[Connections.authScheme]),
             projectKeys = parseStringArray(row[Connections.projectKeys]),
             expectedUpdatedAt = row[Connections.updatedAt],
+            milestoneLevel = mapped?.levels?.milestone?.hierarchyLevel,
         )
     }
 
@@ -237,6 +251,38 @@ class JiraConnectionService(
         }
         JiraConnectionDeleteOutcome(affected, row[Connections.name], jiraHostOf(row[Connections.siteUrl]))
     }
+
+    /** The stored mapping document and the discovery snapshot; null when the connection is missing or deleted. */
+    suspend fun readMapping(id: UInt): JiraMappingState? = suspendTransaction(database) {
+        Connections.select(Connections.mapping, Connections.discovery).where { (Connections.id eq id) and Connections.active() }
+            .toList().singleOrNull()?.toMappingState()
+    }
+
+    /**
+     * Stores the mapping canonical. Under the row lock (`FOR NO KEY UPDATE`, serialized with a Test connection that replaces the snapshot)
+     * the rules are checked AGAINST THE SNAPSHOT JUST READ: a connection no test has discovered yet is a 409
+     * (`urn:astrolabe:problem:jira-not-discovered`), a violation a 400. Nothing else is rewritten (bindings and observations keep what
+     * they hold; the next run re-reads the mapped fields). Null when the connection is missing or deleted (404).
+     */
+    suspend fun writeMapping(id: UInt, document: JiraMapping): JiraMappingWriteOutcome? = suspendTransaction(database) {
+        validateMappingShape(document)
+        val row = Connections.select(Connections.mapping, Connections.discovery).where { (Connections.id eq id) and Connections.active() }
+            .forUpdate(ForUpdateOption.PostgreSQL.ForNoKeyUpdate).toList().singleOrNull()
+            ?: return@suspendTransaction null
+        val discovery = row[Connections.discovery]?.let(::parseStoredDiscoveryOrNull)
+            ?: throw ConflictException("Test the connection first - no discovery has been stored yet", JIRA_NOT_DISCOVERED_PROBLEM)
+        validateMapping(document, discovery)
+        val stored = canonicalJson(row[Connections.mapping])
+        val canonical = document.toStoredJson()
+        Connections.update({ (Connections.id eq id) and Connections.active() }) {
+            // No `updated_at`: a mapping is not an input of a Test connection, so a PUT landing mid-test must not make recordTest drop it.
+            it[mapping] = canonical
+        }
+        JiraMappingWriteOutcome(sha256Hex(stored).takeIf { stored != EMPTY_MAPPING }, sha256Hex(canonical))
+    }
+
+    private fun ResultRow.toMappingState() =
+        JiraMappingState(parseStoredMapping(this[Connections.mapping]), this[Connections.discovery]?.let(::parseStoredDiscoveryOrNull))
 
     private fun ResultRow.toResponse(): JiraConnectionResponse = JiraConnectionResponse(
         id = this[Connections.id].value,

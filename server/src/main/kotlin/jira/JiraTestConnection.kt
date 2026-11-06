@@ -22,6 +22,8 @@ class JiraTestTarget(
     val authScheme: JiraAuthScheme,
     val projectKeys: List<String>,
     val expectedUpdatedAt: Long? = null,
+    /** The stored mapping's milestone hierarchy level (null = no readable mapping): the `search` probe asks for the types at it. */
+    val milestoneLevel: Int? = null,
 ) {
     /** The token is a secret: a default rendering must never reach a log line. */
     override fun toString(): String =
@@ -52,18 +54,33 @@ class JiraConnector(
             run.fail(STORED_TOKEN_ROW, "stored API token", required = true, code = TOKEN_UNREADABLE_CODE)
             return JiraTestOutcome(JiraTestResult(run.rows), null)
         }
-        // Defence in depth: the site was validated when it was stored, but it is the one stored value that names a host. A row that no
-        // longer has the genuine tenant shape is refused before any client is built, so no request can name it.
-        if (!target.siteUrl.startsWith("https://") || !isAllowedTenantHost(target.siteUrl.removePrefix("https://"))) {
-            run.fail("tenant_info", "/_edge/tenant_info", required = true, code = "BLOCKED_HOST")
+        if (!hasGenuineSite(target)) {
+            run.fail("tenant_info", "/_edge/tenant_info", required = true, code = BLOCKED_HOST_CODE)
             return JiraTestOutcome(JiraTestResult(run.rows), null)
         }
-        return probe(newClient(target.siteUrl, target.email, token, target.authScheme), target.projectKeys, run)
+        return probe(newClient(target.siteUrl, target.email, token, target.authScheme), target, run)
     }
+
+    /**
+     * A client for [target] with its decrypted [token], for a read that is not the Test connection (Peek; the run later). The same defence
+     * in depth as [testConnection]: a stored site that no longer has the genuine tenant shape is refused (`BLOCKED_HOST`) before any
+     * client exists, so no request can name it.
+     */
+    internal fun clientFor(target: JiraTestTarget, token: String): JiraClient {
+        if (!hasGenuineSite(target)) throw FetchException(JIRA_SOURCE, BLOCKED_HOST_CODE, null, "/_edge/tenant_info")
+        return newClient(target.siteUrl, target.email, token, target.authScheme)
+    }
+
+    /**
+     * Defence in depth: the site was validated when it was stored, but it is the one stored value that names a host. A row that no longer
+     * has the genuine tenant shape is refused before any client is built, so no request can name it.
+     */
+    private fun hasGenuineSite(target: JiraTestTarget): Boolean =
+        target.siteUrl.startsWith("https://") && isAllowedTenantHost(target.siteUrl.removePrefix("https://"))
 
     private class Probed {
         var cloudId: String? = null
-        var levelOneTypeIds: List<String> = emptyList()
+        var milestoneTypeIds: List<String> = emptyList()
         var firstIssueId: String? = null
         var fields: DiscoveredFields? = null
         var issueTypes: List<DiscoveredIssueType>? = null
@@ -71,21 +88,26 @@ class JiraConnector(
     }
 
     @Suppress("LongMethod") // one probe per endpoint, in the order the rows are shown; each is two lines
-    private suspend fun probe(client: JiraClient, projectKeys: List<String>, run: ProbeRun): JiraTestOutcome {
+    private suspend fun probe(client: JiraClient, target: JiraTestTarget, run: ProbeRun): JiraTestOutcome {
+        val projectKeys = target.projectKeys
         val seen = Probed()
         run.probe("tenant_info", "/_edge/tenant_info", required = true) { seen.cloudId = client.resolveCloudId() }
         run.probe("myself", "/rest/api/3/myself", required = true, scopeHint = "read:jira-user") { client.myself() }
-        // Before `search`: the search probe narrows its JQL by issue-type ids (assumption A3), which `issuetype` supplies.
+        // Before `search`: the search probe narrows its JQL by the issue-type ids at the milestone level (assumption A3), which
+        // `issuetype` supplies.
         run.probe("issuetype", "/rest/api/3/issuetype", required = true, scopeHint = "read:issue-type:jira") {
             val types = client.issueTypes()
             seen.issueTypes = types
-            seen.levelOneTypeIds = types.filter { !it.subtask && it.hierarchyLevel == PROBE_HIERARCHY_LEVEL }.map { it.id }
+            // The mapped milestone level, else what JiraMappingDefaults would pick: Epic (1) if the site has one, else the work items (0).
+            val hasEpics = types.any { !it.subtask && it.hierarchyLevel == EPIC_LEVEL }
+            val level = target.milestoneLevel ?: if (hasEpics) EPIC_LEVEL else STORY_LEVEL
+            seen.milestoneTypeIds = types.filter { !it.subtask && it.hierarchyLevel == level }.map { it.id }
         }
         run.probe("search", "/rest/api/3/search/jql", required = true, scopeHint = "read:jql:jira") {
-            val jql = if (seen.levelOneTypeIds.isEmpty()) {
+            val jql = if (seen.milestoneTypeIds.isEmpty()) {
                 JiraJql.scope(projectKeys)
             } else {
-                JiraJql.scopeAndTypes(projectKeys, seen.levelOneTypeIds)
+                JiraJql.scopeAndTypes(projectKeys, seen.milestoneTypeIds)
             }
             val page = client.searchJql(jql, fields = "id", maxResults = SEARCH_PROBE_MAX_RESULTS)
             seen.firstIssueId = (page.issues.firstOrNull() as? JsonObject)?.get("id")?.jsonPrimitive?.contentOrNull
@@ -136,8 +158,11 @@ class JiraConnector(
         const val TOKEN_UNREADABLE_CODE = "TOKEN_UNREADABLE"
         const val PROJECT_NOT_VISIBLE_CODE = "PROJECT_NOT_VISIBLE"
 
-        /** The milestone level's default (an Epic) - the type ids the `search` probe asks for until C4's mapping names another. */
-        private const val PROBE_HIERARCHY_LEVEL = 1
+        const val BLOCKED_HOST_CODE = "BLOCKED_HOST"
+
+        /** The milestone level's defaults (`JiraMappingDefaults`): an Epic, else a Story/Task/Bug - used until a mapping names one. */
+        private const val EPIC_LEVEL = 1
+        private const val STORY_LEVEL = 0
         private const val SEARCH_PROBE_MAX_RESULTS = 1
         private const val MAX_PROJECT_PAGES = 5
     }

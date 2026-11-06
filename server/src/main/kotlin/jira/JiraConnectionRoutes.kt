@@ -33,9 +33,10 @@ class JiraConnectionsRoute {
 
 /**
  * The Jira sync's routes, ONE module function for the whole `jira/` package (`conventions.md`: one routes file per concern - connections
- * here; mapping, bindings and deviations register from here as they land). The registry is ADMIN only, reads included (a connection names a
- * credential-bearing site): `requireAdmin` runs FIRST on every route, before the id lookup and before the body decodes, so a non-admin
- * gets a uniform 403 whether or not the id exists and whatever the body is (guard-before-read, the `teams/` rule).
+ * here; mapping and Peek register from here, bindings and deviations as they land). The registry is ADMIN only, reads included (a
+ * connection names a credential-bearing site): `requireAdmin` runs FIRST on every route, before the id lookup and before the body
+ * decodes, so a non-admin gets a uniform 403 whether or not the id exists and whatever the body is (guard-before-read, the `teams/`
+ * rule).
  */
 fun Application.configureJiraRoutes() {
     val connections = attributes[JiraConnectionServiceKey]
@@ -44,6 +45,7 @@ fun Application.configureJiraRoutes() {
     routing {
         authenticate {
             jiraTestRoutes(connections, connector)
+            jiraMappingRoutes(connections, connector)
             get<JiraConnectionsRoute> {
                 requireAdmin(call.caller())
                 val paging = call.parsePaging(sortable = JIRA_CONNECTION_SORT_FIELDS)

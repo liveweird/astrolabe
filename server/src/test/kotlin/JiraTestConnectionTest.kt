@@ -20,6 +20,7 @@ import io.ktor.client.call.body
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.post
+import io.ktor.client.request.put
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
@@ -141,6 +142,30 @@ class JiraTestConnectionTest {
             val result = admin.postJson("$base/test", request()).result()
             assertTrue(result.passed, "${result.rows}")
         }
+    }
+
+    @Test
+    fun `the search probe asks for the types at the mapped milestone level, else the defaults' level`() = testApplication {
+        start()
+        val admin = seededClient("jtestlevel", UserRole.ADMIN)
+        val created = admin.create(request())
+        // Only the three work-item type ids (Story, Task, Bug) pass; a probe still asking for the Epic would fail its search row.
+        val notLevelZero = notMatching(".*issuetype in \\(10001,10002,10003\\).*")
+        val onlyLevelZero = get(path("search/jql")).atPriority(1).withQueryParam("jql", notLevelZero)
+        withOverride(onlyLevelZero.willReturn(aResponse().withStatus(403))) {
+            val before = admin.post("$base/${created.id}/test").result()
+            assertFalse(before.rows.first { it.name == "search" }.ok, "no mapping yet: the defaults' level 1 (Epic) is asked")
+            val level0 = """{"levels":{"milestone":{"hierarchyLevel":0}}}"""
+            val saved = admin.put("$base/${created.id}/mapping") {
+                contentType(ContentType.Application.Json)
+                setBody(level0)
+            }
+            assertEquals(HttpStatusCode.NoContent, saved.status)
+            val result = admin.post("$base/${created.id}/test").result()
+            assertTrue(result.passed, "${result.rows}")
+        }
+        sql("UPDATE jira_connections SET mapping = '{\"levels\":1}'::jsonb WHERE id = ?", created.id.toInt())
+        assertTrue(admin.post("$base/${created.id}/test").result().passed, "a mapping this build cannot read falls back to the defaults")
     }
 
     @Test

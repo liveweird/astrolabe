@@ -2665,6 +2665,101 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/integrations/jira/connections/{id}/mapping:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    get:
+      tags: [jira]
+      operationId: getJiraMapping
+      summary: The field mapping of a Jira connection
+      description: |
+        ADMIN only, guard before the id lookup. `mapping` is the document last saved (null = never saved), `defaults` what the stored discovery
+        resolves by name and `schema.custom` (Plans' "Target start"/"Target end", else "Start date"/`duedate`; the first story-points number
+        field; the Team field; milestone = Epic level 1, project = 2 and program = 3 when the site has them; null before any discovery),
+        and `effective` the one a run would use (`mapping`, else `defaults`). A read never answers `409`: before a discovery `defaults`
+        and `effective` are null (and `mapping` too when it was never saved). `problems` lists why the stored mapping no longer fits the
+        current discovery (empty when it fits); the Team field must be the site's `atlassian-team` field.
+      responses:
+        '200':
+          description: The stored, default and effective mapping
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JiraMappingResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    put:
+      tags: [jira]
+      operationId: updateJiraMapping
+      summary: Save the field mapping of a Jira connection
+      description: |
+        ADMIN only, guard before the body. A full replace of the document, stored canonical; audited `jira.mapping_changed` with the SHA-256
+        of the canonical document before and after. The milestone level is required; present levels must be strictly decreasing
+        (program > project > milestone); hierarchy levels are 0 or more and every named one needs at least one non-sub-task issue type in the
+        discovery; start/end
+        fields must be `date` fields (a `datetime` is refused: its date depends on a time zone), the estimate field a `number` field and
+        the Team field the site's `atlassian-team` field; `manDaysPerUnit` is greater than 0 and at most 1000 with at most two decimals - each
+        violation a `400`. `409` with type `urn:astrolabe:problem:jira-not-discovered` when no Test connection has stored a discovery yet
+        (the rules are checked against it). Nothing else is rewritten: bindings and observations keep what they hold, and the next run
+        reads the mapped fields.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JiraMapping'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '204':
+          description: Saved
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/integrations/jira/connections/{id}/peek:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    get:
+      tags: [jira]
+      operationId: peekJiraIssue
+      summary: Read one Jira issue through the mapping
+      description: |
+        ADMIN only, guard before the id lookup, rate limited per IP (`jira-test`, 10 a minute, shared with Test connection). Reads the issue
+        `key` (`ABC-12`) from the site with the STORED token - the cheapest way to see what the mapping reads on a real site before any
+        binding - and answers its system fields, the values the mapping resolves (the Astrolabe level its hierarchy level maps to, start,
+        end, estimate, unit, team name) and `raw`: the mapped fields' values exactly as the site sent them, and nothing else of the issue.
+        Uses the stored mapping, else the defaults. Not stored, not audited. `400` for a key that is not an issue key or whose project is not
+        one of the connection's project keys (a moved issue is judged by its new key; a repeated `key` is a `400` too); `404` for an unknown connection or a key Jira does
+        not know; `409` before a discovery (`urn:astrolabe:problem:jira-not-discovered`) or when the stored token cannot be decrypted
+        (`urn:astrolabe:problem:jira-token-unreadable`, enter it again); `502` (`urn:astrolabe:problem:jira-upstream`) when Jira cannot
+        be reached or refuses - the detail names the failure code only (`AUTHENTICATION_FAILED`, `UPSTREAM_UNAVAILABLE`, ...).
+      parameters:
+        - name: key
+          in: query
+          required: true
+          schema: { type: string, pattern: '^[A-Z][A-Z0-9_]{1,9}-[0-9]{1,10}$', maxLength: 21 }
+          description: The Jira issue key, e.g. `ABC-12`.
+      responses:
+        '200':
+          description: The issue read through the mapping
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JiraPeekResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '502': { $ref: '#/components/responses/BadGateway' }
 
 components:
   securitySchemes:
@@ -2760,6 +2855,13 @@ components:
         every endpoint, so declared on every operation that takes a body (field-level maxLength
         rules reject oversized values far earlier on ordinary payloads). Cross-cutting for the
         coverage gate: pinned once by `PayloadValidationTest`, never once per operation.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetail' }
+    BadGateway:
+      description: >-
+        The Jira site could not be reached or refused the request (`type` `urn:astrolabe:problem:jira-upstream`; the detail names the failure
+        code only, never a URL, a body or a credential).
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/ProblemDetail' }
@@ -5139,3 +5241,108 @@ components:
           type: array
           items: { $ref: '#/components/schemas/JiraDiscoveredLevel' }
         markers: { $ref: '#/components/schemas/JiraDiscoveryMarkers' }
+    JiraLevelFields:
+      type: object
+      description: The Jira field ids one level reads; an omitted or null member is "not mapped".
+      properties:
+        start: { type: string, nullable: true, maxLength: 64, description: "A `date` field id (`customfield_10015`, `duedate`)." }
+        end: { type: string, nullable: true, maxLength: 64, description: "A `date` field id." }
+        estimate: { type: string, nullable: true, maxLength: 64, description: "A `number` field id." }
+    JiraLevelMapping:
+      type: object
+      required: [hierarchyLevel]
+      properties:
+        hierarchyLevel: { type: integer, format: int32, minimum: 0, description: "Jira's hierarchy level (Epic 1, Initiative 2; sub-tasks, -1, are never a plan level); the discovery lists the levels the site has." }
+        fields: { $ref: '#/components/schemas/JiraLevelFields' }
+    JiraMappingLevels:
+      type: object
+      required: [milestone]
+      properties:
+        program:
+          nullable: true
+          description: Optional; must sit above the project (or milestone) level.
+          allOf:
+            - $ref: '#/components/schemas/JiraLevelMapping'
+        project:
+          nullable: true
+          description: Optional; must sit above the milestone level.
+          allOf:
+            - $ref: '#/components/schemas/JiraLevelMapping'
+        milestone: { $ref: '#/components/schemas/JiraLevelMapping' }
+    JiraEstimateMapping:
+      type: object
+      properties:
+        unit: { type: string, enum: [POINTS, HOURS, DAYS], description: "What the estimate field counts (default `POINTS`). `DAYS` compares as man-days without a factor." }
+        manDaysPerUnit:
+          type: number
+          format: double
+          nullable: true
+          minimum: 0
+          exclusiveMinimum: true
+          maximum: 1000
+          description: Man-days per unit; greater than 0 and at most 1000 with at most two decimals. Without a factor (and not `DAYS`) the Jira figure is shown, never compared.
+    JiraMapping:
+      type: object
+      required: [levels]
+      properties:
+        levels: { $ref: '#/components/schemas/JiraMappingLevels' }
+        estimate: { $ref: '#/components/schemas/JiraEstimateMapping' }
+        teamFieldId: { type: string, nullable: true, maxLength: 64, description: The Team field's id (a field of the discovery). }
+    JiraMappingResponse:
+      type: object
+      required: [mapping, defaults, effective, discoveredAt, problems]
+      properties:
+        mapping:
+          nullable: true
+          description: The document last saved; null when none was.
+          allOf:
+            - $ref: '#/components/schemas/JiraMapping'
+        defaults:
+          nullable: true
+          description: What the stored discovery resolves; null before any discovery.
+          allOf:
+            - $ref: '#/components/schemas/JiraMapping'
+        effective:
+          nullable: true
+          description: The mapping a run would use - `mapping`, else `defaults`.
+          allOf:
+            - $ref: '#/components/schemas/JiraMapping'
+        discoveredAt: { type: integer, format: int64, nullable: true, description: Epoch millis of the discovery the defaults come from. }
+        problems:
+          type: array
+          items: { type: string }
+          description: >-
+            Why the stored `mapping` no longer fits the discovery as it is now (a later Test connection can replace the snapshot: a level the
+            site lost, a field that changed type) or cannot be read at all. Empty when it fits or none is saved. Nothing is rewritten: save a
+            corrected mapping.
+    JiraPeekIssue:
+      type: object
+      required: [id, key, statusCategory]
+      properties:
+        id: { type: string }
+        key: { type: string }
+        summary: { type: string, nullable: true, maxLength: 255 }
+        typeName: { type: string, nullable: true }
+        hierarchyLevel: { type: integer, format: int32, nullable: true, description: "From the issue's own type when the site sent it, else the discovery's." }
+        statusCategory: { type: string, enum: [TODO, IN_PROGRESS, DONE, UNKNOWN] }
+        parentKey: { type: string, nullable: true }
+    JiraPeekResolved:
+      type: object
+      required: [unit]
+      properties:
+        level: { type: string, enum: [PROGRAM, PROJECT, MILESTONE], nullable: true, description: "The Astrolabe level the issue's hierarchy level maps to; null when it maps to none (then start, end and estimate are null too)." }
+        start: { type: string, format: date, nullable: true }
+        end: { type: string, format: date, nullable: true }
+        estimate: { type: number, format: double, nullable: true, description: "The mapped estimate field as the site sent it, in `unit`." }
+        unit: { type: string, enum: [POINTS, HOURS, DAYS] }
+        teamName: { type: string, nullable: true, maxLength: 100 }
+    JiraPeekResponse:
+      type: object
+      required: [issue, resolved, raw]
+      properties:
+        issue: { $ref: '#/components/schemas/JiraPeekIssue' }
+        resolved: { $ref: '#/components/schemas/JiraPeekResolved' }
+        raw:
+          type: object
+          additionalProperties: true
+          description: The mapped fields' values exactly as the site sent them, keyed by field id (a field the issue lacks is absent); nothing else of the issue.

@@ -1,6 +1,7 @@
 package ch.nokillswit.jira
 
 import ch.nokillswit.infra.json.canonicalJson
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -21,7 +22,7 @@ const val MAX_DISCOVERED_ISSUE_TYPES = 500
 
 // The `schema.custom` fragments of the fields the sync recognises whatever their type (Flow's `FieldIdsCollector` rules): the Team field,
 // the legacy Epic Link and Plans' legacy Parent Link (assumption A2).
-private const val TEAM_CUSTOM = "atlassian-team"
+internal const val TEAM_CUSTOM = "atlassian-team"
 private const val EPIC_LINK_CUSTOM = "gh-epic-link"
 private const val PARENT_LINK_CUSTOM = "jpo-custom-field-parent"
 private val RECOGNISED_CUSTOMS = listOf(TEAM_CUSTOM, EPIC_LINK_CUSTOM, PARENT_LINK_CUSTOM)
@@ -82,6 +83,15 @@ private val DISCOVERY_JSON = Json { ignoreUnknownKeys = true }
 fun JiraDiscovery.toStoredJson(): String = canonicalJson(DISCOVERY_JSON.encodeToJsonElement(this))
 
 fun parseStoredDiscovery(json: String): JiraDiscovery = DISCOVERY_JSON.decodeFromString(json)
+
+/** The stored snapshot, or null when it cannot be decoded (an old shape): the next Test connection replaces it, a read never 500s. */
+fun parseStoredDiscoveryOrNull(json: String): JiraDiscovery? = try {
+    parseStoredDiscovery(json)
+} catch (_: SerializationException) {
+    null
+} catch (_: IllegalArgumentException) {
+    null
+}
 
 /**
  * `GET /field` as the snapshot keeps it: how many fields the site REPORTED ([reported]) and the well-formed ones the mapping can use

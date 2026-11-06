@@ -1855,6 +1855,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/integrations/jira/connections/{id}/mapping": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * The field mapping of a Jira connection
+         * @description ADMIN only, guard before the id lookup. `mapping` is the document last saved (null = never saved), `defaults` what the stored discovery
+         *     resolves by name and `schema.custom` (Plans' "Target start"/"Target end", else "Start date"/`duedate`; the first story-points number
+         *     field; the Team field; milestone = Epic level 1, project = 2 and program = 3 when the site has them; null before any discovery),
+         *     and `effective` the one a run would use (`mapping`, else `defaults`). A read never answers `409`: before a discovery `defaults`
+         *     and `effective` are null (and `mapping` too when it was never saved). `problems` lists why the stored mapping no longer fits the
+         *     current discovery (empty when it fits); the Team field must be the site's `atlassian-team` field.
+         */
+        get: operations["getJiraMapping"];
+        /**
+         * Save the field mapping of a Jira connection
+         * @description ADMIN only, guard before the body. A full replace of the document, stored canonical; audited `jira.mapping_changed` with the SHA-256
+         *     of the canonical document before and after. The milestone level is required; present levels must be strictly decreasing
+         *     (program > project > milestone); hierarchy levels are 0 or more and every named one needs at least one non-sub-task issue type in the
+         *     discovery; start/end
+         *     fields must be `date` fields (a `datetime` is refused: its date depends on a time zone), the estimate field a `number` field and
+         *     the Team field the site's `atlassian-team` field; `manDaysPerUnit` is greater than 0 and at most 1000 with at most two decimals - each
+         *     violation a `400`. `409` with type `urn:astrolabe:problem:jira-not-discovered` when no Test connection has stored a discovery yet
+         *     (the rules are checked against it). Nothing else is rewritten: bindings and observations keep what they hold, and the next run
+         *     reads the mapped fields.
+         */
+        put: operations["updateJiraMapping"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/integrations/jira/connections/{id}/peek": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Read one Jira issue through the mapping
+         * @description ADMIN only, guard before the id lookup, rate limited per IP (`jira-test`, 10 a minute, shared with Test connection). Reads the issue
+         *     `key` (`ABC-12`) from the site with the STORED token - the cheapest way to see what the mapping reads on a real site before any
+         *     binding - and answers its system fields, the values the mapping resolves (the Astrolabe level its hierarchy level maps to, start,
+         *     end, estimate, unit, team name) and `raw`: the mapped fields' values exactly as the site sent them, and nothing else of the issue.
+         *     Uses the stored mapping, else the defaults. Not stored, not audited. `400` for a key that is not an issue key or whose project is not
+         *     one of the connection's project keys (a moved issue is judged by its new key; a repeated `key` is a `400` too); `404` for an unknown connection or a key Jira does
+         *     not know; `409` before a discovery (`urn:astrolabe:problem:jira-not-discovered`) or when the stored token cannot be decrypted
+         *     (`urn:astrolabe:problem:jira-token-unreadable`, enter it again); `502` (`urn:astrolabe:problem:jira-upstream`) when Jira cannot
+         *     be reached or refuses - the detail names the failure code only (`AUTHENTICATION_FAILED`, `UPSTREAM_UNAVAILABLE`, ...).
+         */
+        get: operations["peekJiraIssue"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -4181,6 +4250,104 @@ export interface components {
             levels: components["schemas"]["JiraDiscoveredLevel"][];
             markers: components["schemas"]["JiraDiscoveryMarkers"];
         };
+        /** @description The Jira field ids one level reads; an omitted or null member is "not mapped". */
+        JiraLevelFields: {
+            /** @description A `date` field id (`customfield_10015`, `duedate`). */
+            start?: string | null;
+            /** @description A `date` field id. */
+            end?: string | null;
+            /** @description A `number` field id. */
+            estimate?: string | null;
+        };
+        JiraLevelMapping: {
+            /**
+             * Format: int32
+             * @description Jira's hierarchy level (Epic 1, Initiative 2; sub-tasks, -1, are never a plan level); the discovery lists the levels the site has.
+             */
+            hierarchyLevel: number;
+            fields?: components["schemas"]["JiraLevelFields"];
+        };
+        JiraMappingLevels: {
+            /** @description Optional; must sit above the project (or milestone) level. */
+            program?: components["schemas"]["JiraLevelMapping"] | null;
+            /** @description Optional; must sit above the milestone level. */
+            project?: components["schemas"]["JiraLevelMapping"] | null;
+            milestone: components["schemas"]["JiraLevelMapping"];
+        };
+        JiraEstimateMapping: {
+            /**
+             * @description What the estimate field counts (default `POINTS`). `DAYS` compares as man-days without a factor.
+             * @enum {string}
+             */
+            unit?: "POINTS" | "HOURS" | "DAYS";
+            /**
+             * Format: double
+             * @description Man-days per unit; greater than 0 and at most 1000 with at most two decimals. Without a factor (and not `DAYS`) the Jira figure is shown, never compared.
+             */
+            manDaysPerUnit?: number | null;
+        };
+        JiraMapping: {
+            levels: components["schemas"]["JiraMappingLevels"];
+            estimate?: components["schemas"]["JiraEstimateMapping"];
+            /** @description The Team field's id (a field of the discovery). */
+            teamFieldId?: string | null;
+        };
+        JiraMappingResponse: {
+            /** @description The document last saved; null when none was. */
+            mapping: components["schemas"]["JiraMapping"] | null;
+            /** @description What the stored discovery resolves; null before any discovery. */
+            defaults: components["schemas"]["JiraMapping"] | null;
+            /** @description The mapping a run would use - `mapping`, else `defaults`. */
+            effective: components["schemas"]["JiraMapping"] | null;
+            /**
+             * Format: int64
+             * @description Epoch millis of the discovery the defaults come from.
+             */
+            discoveredAt: number | null;
+            /** @description Why the stored `mapping` no longer fits the discovery as it is now (a later Test connection can replace the snapshot: a level the site lost, a field that changed type) or cannot be read at all. Empty when it fits or none is saved. Nothing is rewritten: save a corrected mapping. */
+            problems: string[];
+        };
+        JiraPeekIssue: {
+            id: string;
+            key: string;
+            summary?: string | null;
+            typeName?: string | null;
+            /**
+             * Format: int32
+             * @description From the issue's own type when the site sent it, else the discovery's.
+             */
+            hierarchyLevel?: number | null;
+            /** @enum {string} */
+            statusCategory: "TODO" | "IN_PROGRESS" | "DONE" | "UNKNOWN";
+            parentKey?: string | null;
+        };
+        JiraPeekResolved: {
+            /**
+             * @description The Astrolabe level the issue's hierarchy level maps to; null when it maps to none (then start, end and estimate are null too).
+             * @enum {string|null}
+             */
+            level?: "PROGRAM" | "PROJECT" | "MILESTONE" | null;
+            /** Format: date */
+            start?: string | null;
+            /** Format: date */
+            end?: string | null;
+            /**
+             * Format: double
+             * @description The mapped estimate field as the site sent it, in `unit`.
+             */
+            estimate?: number | null;
+            /** @enum {string} */
+            unit: "POINTS" | "HOURS" | "DAYS";
+            teamName?: string | null;
+        };
+        JiraPeekResponse: {
+            issue: components["schemas"]["JiraPeekIssue"];
+            resolved: components["schemas"]["JiraPeekResolved"];
+            /** @description The mapped fields' values exactly as the site sent them, keyed by field id (a field the issue lacks is absent); nothing else of the issue. */
+            raw: {
+                [key: string]: unknown;
+            };
+        };
     };
     responses: {
         /** @description Request body must use application/json. A missing body or Content-Type remains a 400. */
@@ -4248,6 +4415,15 @@ export interface components {
         };
         /** @description Request body exceeds the global 10 MiB ceiling — a memory-DoS backstop shared by every endpoint, so declared on every operation that takes a body (field-level maxLength rules reject oversized values far earlier on ordinary payloads). Cross-cutting for the coverage gate: pinned once by `PayloadValidationTest`, never once per operation. */
         PayloadTooLarge: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["ProblemDetail"];
+            };
+        };
+        /** @description The Jira site could not be reached or refused the request (`type` `urn:astrolabe:problem:jira-upstream`; the detail names the failure code only, never a URL, a body or a credential). */
+        BadGateway: {
             headers: {
                 [name: string]: unknown;
             };
@@ -7055,6 +7231,98 @@ export interface operations {
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             500: components["responses"]["InternalServerError"];
+        };
+    };
+    getJiraMapping: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The stored, default and effective mapping */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JiraMappingResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    updateJiraMapping: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JiraMapping"];
+            };
+        };
+        responses: {
+            /** @description Saved */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    peekJiraIssue: {
+        parameters: {
+            query: {
+                /** @description The Jira issue key, e.g. `ABC-12`. */
+                key: string;
+            };
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The issue read through the mapping */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JiraPeekResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalServerError"];
+            502: components["responses"]["BadGateway"];
         };
     };
 }
