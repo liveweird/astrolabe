@@ -10,6 +10,8 @@
 // own their own team pair and plan (unique `e2e-axe-prop-*` names, all dated in 2042), created and deleted via the API. The baseline scans (the very last
 // describe) own a team, a plan and one baseline of their own (unique `e2e-axe-bl-*` names, dated in 2026), created and deleted via the API; the
 // baseline is soft-deleted FIRST in the afterAll, so the stack holds none of it afterwards.
+// The Jira pages (the very last describe) own a team, a plan, a Jira connection scoped to the stub's `E2E` project and one binding of their own (unique
+// `e2e-axe-jira-*` names, dated in 2044), created and deleted via the API; the connection is deleted FIRST in the afterAll (its binding goes with it).
 import type { APIRequestContext, Locator, Page } from "@playwright/test";
 import {
   apiAsAdmin,
@@ -851,5 +853,137 @@ test.describe("a baseline on the plan", () => {
   test.describe("dark scheme", () => {
     test.use({ colorScheme: "dark" });
     registerBaselineScans("dark");
+  });
+});
+
+// The Jira sync's pages (v1.1), in 2044: the connections registry with a row, a connection's page with every section filled (the facts and the runs
+// table, the discovery report, the mapping form and Peek, the Links table with a row), the Deviations page with a deviating row, the connection editor
+// modal (new and edit) and the bind dialog. One world of its own: a connection scoped to the stub's `E2E` project (tested once, in the beforeAll: Test
+// connection and Peek share a 10-a-minute bucket per IP with the Jira spec, so no scan calls either) and a milestone linked to the stub's E2E-4 (which
+// exists in both of the stub's scenario states, so nothing here depends on `jira-sync.spec.ts`'s flips or rows) that ends three working days after
+// Jira's end: the orange warning row. The scans never press Test connection or Peek; `jira-sync.spec.ts` axe-scans the result tables.
+// Owns: that connection (a unique throwaway site), its binding, and a person, a team, a work stream, a program, a project and one milestone (unique
+// `e2e-axe-jira-*` names, dated in 2044), created and deleted via the API in the beforeAll/afterAll (the connection first: its binding goes with it).
+test.describe("the Jira pages", () => {
+  let api: APIRequestContext;
+  let connectionId: number;
+  let connectionName: string;
+  let projectId: number;
+  let milestoneName: string;
+  const paths: string[] = []; // delete paths in creation order (the connection last); the afterAll deletes them in reverse
+
+  async function create(path: string, data: object, tear: string): Promise<number> {
+    const created = await api.post(path, { data });
+    expect(created.status(), await created.text()).toBe(201);
+    const id = ((await created.json()) as { id: number }).id;
+    paths.push(`${tear}/${id}`);
+    return id;
+  }
+
+  test.beforeAll(async () => {
+    ({ api } = await apiAsAdmin());
+    const teamId = await create("/api/v1/teams", { name: uniqueText("e2e-axe-jira-team") }, "/api/v1/teams");
+    const personId = await create("/api/v1/people", { name: uniqueText("e2e-axe-jira-owner") }, "/api/v1/people");
+    const streamId = await create("/api/v1/work-streams", { name: uniqueText("e2e-axe-jira-stream"), ownerPersonId: personId, startDate: "2044-01-04" }, "/api/v1/work-streams");
+    const programId = await create(`/api/v1/work-streams/${streamId}/programs`, { name: uniqueText("e2e-axe-jira-program"), ownerPersonId: personId }, "/api/v1/programs");
+    projectId = await create(`/api/v1/programs/${programId}/projects`, { name: uniqueText("e2e-axe-jira-project"), ownerPersonId: personId }, "/api/v1/projects");
+    milestoneName = uniqueText("e2e-axe-jira-milestone");
+    const milestoneId = await create(`/api/v1/projects/${projectId}/milestones`, { name: milestoneName, teamId, estimateMd: 3 }, "/api/v1/milestones");
+    const view = (await (await api.get(`/api/v1/views/team/${teamId}`)).json()) as { revision: number };
+    const placed = await api.put(`/api/v1/milestones/${milestoneId}/schedule`, { data: { expectedRevision: view.revision, startDate: "2044-01-04", endDate: "2044-01-13" } });
+    expect(placed.status(), await placed.text()).toBe(200);
+    connectionName = uniqueText("e2e-axe-jira-connection");
+    const site = `https://e2eaxejira${uniqueText("s").replace(/[^a-z0-9]/g, "")}.atlassian.net`;
+    connectionId = await create(
+      "/api/v1/integrations/jira/connections",
+      { name: connectionName, siteUrl: site, email: "e2e-axe-jira@astrolabe.local", apiToken: "e2e-axe-jira-token", authScheme: "BASIC", projectKeys: ["E2E"], enabled: true },
+      "/api/v1/integrations/jira/connections",
+    );
+    const tested = await api.post(`/api/v1/integrations/jira/connections/${connectionId}/test`);
+    expect(tested.status(), await tested.text()).toBe(200);
+    const bound = await api.post("/api/v1/integrations/jira/bindings", { data: { connectionId, level: "MILESTONE", nodeId: milestoneId, issueKey: "E2E-4" } });
+    expect(bound.status(), await bound.text()).toBe(201);
+  });
+  test.afterAll(async () => {
+    try {
+      await deleteViaApi(paths.splice(0).reverse());
+    } finally {
+      await api?.dispose();
+    }
+  });
+
+  function registerJiraScans(scheme: Scheme): void {
+    const suffix = scheme === "dark" ? " in the dark scheme" : "";
+    const openRegistry = async (page: Page): Promise<void> => {
+      await login(page);
+      await page.goto("/integrations/jira");
+      await expect(page.getByRole("heading", { level: 2, name: "Jira connections" })).toBeVisible();
+      await expect(page.getByRole("link", { name: `Open connection ${connectionName}` })).toBeVisible();
+      await expectScheme(page, scheme);
+    };
+    const openConnection = async (page: Page): Promise<void> => {
+      await login(page);
+      await page.goto(`/integrations/jira/${connectionId}`);
+      await expect(page.getByRole("heading", { level: 2, name: connectionName })).toBeVisible();
+      // Every section, filled: the facts and runs, the discovery report with the mapping form and Peek, the Links table with the fixture's row.
+      await expect(page.getByRole("heading", { level: 3, name: "Connection" })).toBeVisible();
+      await expect(page.getByRole("table", { name: "Recent runs" })).toBeVisible();
+      await expect(page.getByRole("heading", { level: 3, name: "Mapping" })).toBeVisible();
+      await expect(page.getByRole("heading", { level: 4, name: "Discovery report" })).toBeVisible();
+      await expect(page.getByRole("form", { name: "Field mapping" })).toBeVisible();
+      await expect(page.getByRole("heading", { level: 4, name: "Peek at an issue" })).toBeVisible();
+      await expect(page.getByRole("heading", { level: 3, name: "Links to plan items" })).toBeVisible();
+      await expect(page.getByRole("table", { name: "Links to plan items" }).getByRole("row").filter({ hasText: milestoneName })).toBeVisible();
+      await expectScheme(page, scheme);
+    };
+
+    test(`/integrations/jira has no WCAG A/AA violations${suffix}`, async ({ page }) => {
+      await openRegistry(page);
+      await scan(page);
+    });
+
+    test(`/integrations/jira/:id has no WCAG A/AA violations${suffix}`, async ({ page }) => {
+      await openConnection(page);
+      await scan(page);
+    });
+
+    test(`/deviations has no WCAG A/AA violations${suffix}`, async ({ page }) => {
+      await login(page);
+      await page.goto(`/deviations?projectId=${projectId}`);
+      await expect(page.getByRole("heading", { level: 2, name: "Deviations" })).toBeVisible();
+      const row = page.getByRole("table", { name: "Differences between the plan and Jira" }).getByRole("row").filter({ hasText: milestoneName });
+      await expect(row).toContainText("Ends 3 working days later than Jira");
+      await expectScheme(page, scheme);
+      await scan(page);
+    });
+
+    test(`the Jira connection editor modal has no WCAG A/AA violations${suffix}`, async ({ page }) => {
+      await openRegistry(page);
+      await page.getByRole("button", { name: "New connection" }).click();
+      await expect(page.getByRole("dialog", { name: "New Jira connection" })).toBeVisible();
+      await scan(page, '[role="dialog"]');
+      await page.keyboard.press("Escape");
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      // The edit variant: the site read-only, the token field's "a token is stored" hint.
+      await rowOperation(page, connectionName, `Edit ${connectionName}`);
+      await expect(page.getByRole("dialog", { name: "Edit Jira connection" })).toBeVisible();
+      await expect(page.getByText("A token is stored. Leave blank to keep the current token")).toBeVisible();
+      await scan(page, '[role="dialog"]');
+    });
+
+    test(`the Jira bind dialog has no WCAG A/AA violations${suffix}`, async ({ page }) => {
+      await openConnection(page);
+      await page.getByRole("button", { name: "Link a node…" }).click();
+      const dialog = page.getByRole("dialog", { name: "Link to Jira" });
+      await expect(dialog).toBeVisible();
+      await expect(dialog.getByRole("combobox", { name: "Jira connection" })).toHaveValue(connectionName);
+      await expect(dialog.getByRole("textbox", { name: "Jira issue key" })).toBeVisible();
+      await scan(page, '[role="dialog"]');
+    });
+  }
+  registerJiraScans("light");
+  test.describe("dark scheme", () => {
+    test.use({ colorScheme: "dark" });
+    registerJiraScans("dark");
   });
 });

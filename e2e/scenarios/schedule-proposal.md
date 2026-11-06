@@ -9,7 +9,7 @@
   through the API, the project first (its milestones and link go with it), then program, work stream, team, people and users. Each test
   seeds its own team, so tests never share a mutable row. Every date is in **2042**, a year no spec writes a holiday in (`public-holidays` owns
   2040, `critical-path` 2041): the real clock is the proposal's `asOf`, the team's first capacity period starts on Monday 2042-01-06, and a
-  proposal cannot place anything before the first day with capacity, so the dates do not depend on today.
+  proposal cannot place anything before the first day with capacity, so the dates do not depend on today. The proposal's scope hash also covers the global holiday dictionary, which `public-holidays.spec.ts` writes (2040): a holiday written while a proposal is open would stale the accept (409 `stale-scope`), so both files take the Playwright lock `holiday-dictionary` and never run at the same time.
 
 **The world.** The team's period: from Monday 2042-01-06, 10 man-days per week, WIP limit 2 (so 1 MD a day per milestone, 2 MD a day for the team).
 Milestones: `a` 4 MD and `b` 6 MD unscheduled, `c` 2 MD scheduled Monday 2042-03-03 to Tuesday 2042-03-04; a finish-to-start link `b -> c`.

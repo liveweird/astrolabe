@@ -10,6 +10,10 @@ import { randomUUID } from "node:crypto";
 import type { APIRequestContext, Page } from "@playwright/test";
 import { apiAsAdmin, deleteViaApi, expect, login, test, uniqueText } from "./helpers";
 
+// The holiday dictionary is global, and a schedule proposal's scope hash covers it: a holiday written while a proposal is open stales the accept (409
+// `stale-scope`). Specs that write the dictionary or compare the hash never run at the same time (a named lock holds the whole file's run).
+test.describe.configure({ lock: "holiday-dictionary" });
+
 // Registered in creation order; torn down in reverse (a project before its program before its stream before the team and the people).
 const teardown: string[] = [];
 test.afterEach(async () => {

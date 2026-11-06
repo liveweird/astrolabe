@@ -12,6 +12,10 @@ import { randomUUID } from "node:crypto";
 import type { APIRequestContext, Page } from "@playwright/test";
 import { apiAsAdmin, axeViolations, deleteViaApi, expect, login, test, uniqueText } from "./helpers";
 
+// The holiday dictionary is global, and a schedule proposal's scope hash covers it: a holiday written while a proposal is open stales the accept (409
+// `stale-scope`). Specs that write the dictionary or compare the hash never run at the same time (a named lock holds the whole file's run).
+test.describe.configure({ lock: "holiday-dictionary" });
+
 const YEAR = "2040";
 
 interface Holiday {

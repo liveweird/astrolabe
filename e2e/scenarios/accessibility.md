@@ -8,7 +8,7 @@
   left in the Unscheduled tray - plus a second project with one scheduled milestone that is linked as the fixture milestone's
   violated predecessor, plus a chain project of two back-to-back milestones (2026-01-26..30 and 2026-02-02..06) linked c0 -> c1 -> the
   fixture milestone with no spare day, so the fixture project has zero-slack links; unique `e2e-axe-*` names), created through the API before the
-  detail-page block and deleted after it (the projects first: their milestones and links go with them); the list/form pages and the login screen are read-only; plus, for the open-schedule-proposal scan, its own team pair (the proposed team with one capacity period from 2042-01-06, 10 MD/week, WIP limit 2; and a second team), a person, work stream, program, project, four milestones and two links (unique `e2e-axe-prop-*` names, all dated in 2042), created in that describe's beforeAll and deleted in its afterAll (the hovered-row scan rides a second copy of that world, created in the detail-page block's beforeAll and deleted in its afterAll); plus, for the baseline scans, a world and a baseline of their own (a team, a person, a work stream, a program, a project, four milestones and one baseline taken after the plan existed, unique `e2e-axe-bl-*` names, dated in 2026), created in that describe's beforeAll (the plan is re-planned under the baseline there) and deleted in its afterAll, the baseline first (a soft delete)
+  detail-page block and deleted after it (the projects first: their milestones and links go with them); the list/form pages and the login screen are read-only; plus, for the open-schedule-proposal scan, its own team pair (the proposed team with one capacity period from 2042-01-06, 10 MD/week, WIP limit 2; and a second team), a person, work stream, program, project, four milestones and two links (unique `e2e-axe-prop-*` names, all dated in 2042), created in that describe's beforeAll and deleted in its afterAll (the hovered-row scan rides a second copy of that world, created in the detail-page block's beforeAll and deleted in its afterAll); plus, for the baseline scans, a world and a baseline of their own (a team, a person, a work stream, a program, a project, four milestones and one baseline taken after the plan existed, unique `e2e-axe-bl-*` names, dated in 2026), created in that describe's beforeAll (the plan is re-planned under the baseline there) and deleted in its afterAll, the baseline first (a soft delete). For the Jira pages, a world and a connection of their own (a team, a person, a work stream, a program, a project, one milestone and one Jira connection scoped to the stub's `E2E` project with a unique throwaway site and one binding, unique `e2e-axe-jira-*` names, dated in 2044), created in that describe's beforeAll and deleted in its afterAll, the connection first (its binding goes with it).
 
 This is the registered template-title exception (see README.md): one `test()` per page is
 generated from a list, so a single scenario section stands in for each list.
@@ -44,6 +44,42 @@ It scans the baselines (v0.9; a describe of its own with its own world and basel
 The baseline world is scanned on three more pages, light and dark (the baseline pick and the program pick are stored in the browser before the page loads, the program pick narrowing a stack that holds the sample plan to the fixture program): `/roadmap with a baseline picked has no WCAG A/AA violations`, `/programs with a baseline picked has no WCAG A/AA violations` (the fixture program opened) and `/projects/:id with a baseline picked has no WCAG A/AA violations` (the shadow bars, the totals line on the plan pages, the Movement section on the project page).
 It scans the OPEN row menus (`the open row menus of the Teams list, the Baselines list and the roadmap timeline have no WCAG A/AA violations`, light and dark): a Mantine menu dropdown only exists in the DOM while open, so a scan of a page with its menus closed never sees it.
 It also scans the Plan page's "Move to…" modal (the grouped program select) scoped to its dialog, and its open option list; the fixture plan has a second program so the select has a target.
+
+## Scenario: /integrations/jira has no WCAG A/AA violations
+
+The Jira pages (v1.1) are one describe of their own with their own world: a connection scoped to the stub's `E2E` project (tested once in the beforeAll through the API - no
+scan presses Test connection or Peek, which share the 10-a-minute per-IP bucket with `jira-sync.spec.ts` - so the two result tables are axe-scanned by `jira-sync.spec.ts` instead, at no extra call), one
+milestone (2044-01-04..2044-01-13, a plan, a team and a person of its own, `e2e-axe-jira-*`) linked to the stub's `E2E-4`, which exists in both of the stub's scenario
+states, so nothing here depends on `jira-sync.spec.ts`'s flips or rows. Each test runs in the light scheme and again in the dark one.
+
+1. The administrator opens `/integrations/jira` and waits for the heading and the fixture connection's row link.
+   - *Expected*: the scheme is on `<html>` and an axe scan reports zero violations.
+
+## Scenario: /integrations/jira/:id has no WCAG A/AA violations
+
+1. The administrator opens the fixture connection's page and waits for every section: Connection (facts, the "Recent runs" table), Mapping (the discovery report, the mapping
+   form, "Peek at an issue") and "Links to plan items" with the fixture milestone's row.
+   - *Expected*: zero violations.
+
+## Scenario: /deviations has no WCAG A/AA violations
+
+1. The administrator opens `/deviations?projectId=<fixture project>` and waits for the fixture milestone's row ("Ends 3 working days later than Jira": the orange warning badge).
+   - *Expected*: zero violations.
+
+## Scenario: the Jira connection editor modal has no WCAG A/AA violations
+
+1. The administrator opens the registry and presses **New connection**; the scan is scoped to the dialog; Escape closes it.
+   - *Expected*: zero violations.
+2. They open the fixture row's **Edit** from its row menu (the site read-only, "A token is stored. Leave blank to keep the current token").
+   - *Expected*: zero violations.
+
+## Scenario: the Jira bind dialog has no WCAG A/AA violations
+
+1. The administrator opens the fixture connection's page and presses **Link a node…**; the dialog's connection is the page's own, the node picker and the issue-key field are
+   shown.
+   - *Expected*: the scan scoped to the dialog reports zero violations. (The same dialog is opened from the project page by `jira-sync.spec.ts`.)
+
+(Each of the five has a `… in the dark scheme` twin with the dark scheme emulated: `<html>` carries the dark scheme and the scan reports zero violations.)
 
 ## Scenario: `<path>` has no WCAG A/AA violations in the dark scheme
 

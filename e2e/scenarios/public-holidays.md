@@ -8,7 +8,7 @@
   nothing. Also one throwaway user (the reader) and the calendar scenario's throwaway person, team, work stream, program, two
   projects A and B with one milestone each and their link (unique `e2e-hol-*` names), seeded through the API and removed by the
   afterEach, the projects first (their milestones and the link go with them), then team, program, work stream and person. A holiday write
-  bumps the plan revision but stales no client write (nothing here or in any other spec asserts a revision).
+  bumps the plan revision but stales no revision-checked client write (nothing here or in any other spec asserts a revision); it does stale a schedule proposal's accept. The file takes the Playwright lock `holiday-dictionary` (shared with `schedule-proposal.spec.ts`: a holiday written while a schedule proposal is open stales its accept, since the proposal's scope hash covers the dictionary), so it never runs at the same time as that file.
 
 ## Scenario: an administrator adds a holiday in 2040, meets the duplicate message, applies the Polish preset twice and deletes a row
 
