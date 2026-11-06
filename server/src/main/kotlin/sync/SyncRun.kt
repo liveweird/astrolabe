@@ -29,7 +29,12 @@ object SyncErrorCodes {
 @Serializable
 data class SyncRunRequest(val kind: SyncKind, val connectionId: UInt)
 
-/** A run as the API shows it. `finishedAt`/`outcome` are null while it runs; `errorDetail` never carries a URL with a query or a token. */
+/**
+ * A run as the API shows it. `finishedAt`/`outcome` are null while it runs; `errorDetail` never carries a URL with a query or a token.
+ * [running] is the registry's own verdict ([SyncRunService.isRunning]): an unfinished run younger than `sync.maxRunMinutes`. An unfinished
+ * run that is not [running] was interrupted (a crash leaves its row unfinished until the next claim abandons it), so no client judges
+ * a run's age by its own clock.
+ */
 @Serializable
 data class SyncRunResponse(
     val id: UInt,
@@ -42,6 +47,7 @@ data class SyncRunResponse(
     val outcome: SyncOutcome?,
     val errorCode: String?,
     val errorDetail: String?,
+    val running: Boolean,
     val observedCount: Int,
     val goneCount: Int,
     val callCount: Int,

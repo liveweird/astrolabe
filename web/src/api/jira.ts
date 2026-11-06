@@ -1,0 +1,103 @@
+// Jira API (V21, v1.1.0) — the ADMIN-managed Jira Cloud connections (`/integrations/jira/connections`): the registry, Test connection,
+// the stored field discovery, the field mapping and Peek. Every route here is ADMIN only except the bindings list (any signed-in user).
+// Thin endpoint wrappers: transport (authedFetch/ApiError) in ./http, types from ./schema. The API token is write-only: it appears in a
+// request body and never in a response.
+
+import { ApiError, buildQuery, jsonRequest, voidRequest } from "./http";
+import type { components } from "./schema";
+
+type Schemas = components["schemas"];
+
+export type JiraConnectionPage = Schemas["JiraConnectionPage"];
+export type JiraConnection = Schemas["JiraConnection"];
+export type JiraConnectionRequest = Schemas["JiraConnectionRequest"];
+export type JiraTestResult = Schemas["JiraTestResult"];
+export type JiraTestRow = Schemas["JiraTestRow"];
+export type JiraDiscovery = Schemas["JiraDiscovery"];
+export type JiraDiscoveredField = Schemas["JiraDiscoveredField"];
+export type JiraMapping = Schemas["JiraMapping"];
+export type JiraLevelMapping = Schemas["JiraLevelMapping"];
+export type JiraMappingResponse = Schemas["JiraMappingResponse"];
+export type JiraPeekResponse = Schemas["JiraPeekResponse"];
+export type JiraBindingPage = Schemas["JiraBindingPage"];
+export type JiraEstimateUnit = NonNullable<NonNullable<JiraMapping["estimate"]>["unit"]>;
+export type JiraAuthScheme = JiraConnection["authScheme"];
+
+/** The RFC 7807 `type` of the 409 a mapping PUT / Peek answers before any Test connection has stored a discovery. */
+const NOT_DISCOVERED_TYPE = "urn:astrolabe:problem:jira-not-discovered";
+/** … of the 409 when the stored token cannot be decrypted (a changed `DATA_ENCRYPTION_KEY`): enter it again. */
+const TOKEN_UNREADABLE_TYPE = "urn:astrolabe:problem:jira-token-unreadable";
+
+/** A 409 telling the connection has no discovery yet: "Test the connection first". */
+export function isJiraNotDiscovered(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 409 && err.type === NOT_DISCOVERED_TYPE;
+}
+
+/** A 409 telling the stored token cannot be decrypted: edit the connection and enter the token again. */
+export function isJiraTokenUnreadable(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 409 && err.type === TOKEN_UNREADABLE_TYPE;
+}
+
+type JiraConnectionListQuery = { page: number; pageSize: number; sort?: string };
+
+export async function listJiraConnections(q: JiraConnectionListQuery): Promise<JiraConnectionPage> {
+  const params = buildQuery({ page: q.page, pageSize: q.pageSize, sort: q.sort });
+  return jsonRequest<JiraConnectionPage>(`/api/v1/integrations/jira/connections?${params}`);
+}
+
+export async function getJiraConnection(id: number): Promise<JiraConnection> {
+  return jsonRequest<JiraConnection>(`/api/v1/integrations/jira/connections/${id}`);
+}
+
+export async function createJiraConnection(body: JiraConnectionRequest): Promise<JiraConnection> {
+  return jsonRequest<JiraConnection>("/api/v1/integrations/jira/connections", { method: "POST", body: JSON.stringify(body) });
+}
+
+/** A full replace; an omitted `apiToken` keeps the stored one, a different `siteUrl` is a 409. */
+export async function updateJiraConnection(id: number, body: JiraConnectionRequest): Promise<void> {
+  await voidRequest(`/api/v1/integrations/jira/connections/${id}`, { method: "PUT", body: JSON.stringify(body) });
+}
+
+/** Soft delete; the connection's links are unbound with it. */
+export async function deleteJiraConnection(id: number): Promise<void> {
+  await voidRequest(`/api/v1/integrations/jira/connections/${id}`, { method: "DELETE" });
+}
+
+/** The probe for a connection that is not (yet) stored, or an edit with a new token: needs the token in the body; stores nothing. */
+export async function testJiraConnectionAdHoc(body: JiraConnectionRequest): Promise<JiraTestResult> {
+  return jsonRequest<JiraTestResult>("/api/v1/integrations/jira/connections/test", { method: "POST", body: JSON.stringify(body) });
+}
+
+/** The probe with the STORED token (no body); records the verdict and stores the discovery. */
+export async function testJiraConnection(id: number): Promise<JiraTestResult> {
+  return jsonRequest<JiraTestResult>(`/api/v1/integrations/jira/connections/${id}/test`, { method: "POST" });
+}
+
+/** 409 `jira-not-discovered` until a stored Test connection has answered the `field` and `issuetype` reads. */
+export async function getJiraDiscovery(id: number): Promise<JiraDiscovery> {
+  return jsonRequest<JiraDiscovery>(`/api/v1/integrations/jira/connections/${id}/discovery`);
+}
+
+/** Never 409: before a discovery the defaults and the effective mapping are null. */
+export async function getJiraMapping(id: number): Promise<JiraMappingResponse> {
+  return jsonRequest<JiraMappingResponse>(`/api/v1/integrations/jira/connections/${id}/mapping`);
+}
+
+/** A full replace of the document; the server checks it against the stored discovery (400 per violation, 409 `jira-not-discovered`). */
+export async function putJiraMapping(id: number, body: JiraMapping): Promise<void> {
+  await voidRequest(`/api/v1/integrations/jira/connections/${id}/mapping`, { method: "PUT", body: JSON.stringify(body) });
+}
+
+/** One issue read through the mapping; shares the Test connection's rate-limit bucket. */
+export async function peekJiraIssue(id: number, key: string): Promise<JiraPeekResponse> {
+  const params = buildQuery({ key });
+  return jsonRequest<JiraPeekResponse>(`/api/v1/integrations/jira/connections/${id}/peek?${params}`);
+}
+
+type JiraBindingListQuery = { page: number; pageSize: number; connectionId?: number; sort?: string };
+
+/** The active bindings (any signed-in user reads them). The connection page asks for one row only to know how many links a delete unbinds. */
+export async function listJiraBindings(q: JiraBindingListQuery): Promise<JiraBindingPage> {
+  const params = buildQuery({ page: q.page, pageSize: q.pageSize, connectionId: q.connectionId, sort: q.sort });
+  return jsonRequest<JiraBindingPage>(`/api/v1/integrations/jira/bindings?${params}`);
+}

@@ -3,6 +3,7 @@ package ch.nokillswit
 import ch.nokillswit.infra.crypto.DEV_DATA_ENCRYPTION_KEY
 import ch.nokillswit.infra.crypto.FieldCipher
 import ch.nokillswit.jira.JiraConnectionService
+import ch.nokillswit.sync.SyncRunService
 import io.ktor.server.testing.testApplication
 import kotlinx.coroutines.runBlocking
 import java.io.File
@@ -85,7 +86,8 @@ class EncryptedAtRestBootTest {
         assertEquals(plaintext, devCipher.decrypt(stored))
         assertEquals(enveloped, storedToken(alreadyEncrypted), "an enveloped row is left byte for byte as it was")
         // Idempotent: a second pass finds nothing to wrap.
-        val service = JiraConnectionService(sharedDatabaseForTests(), devCipher)
+        val database = sharedDatabaseForTests()
+        val service = JiraConnectionService(database, devCipher, SyncRunService(database, maxRunMinutes = 10))
         assertEquals(0, runBlocking { service.encryptLegacyRows(reencryptAll = false) })
     }
 

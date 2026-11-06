@@ -161,6 +161,13 @@ class SyncRunService(
                 ?.let { id to it.toResponse() }
         }.toMap()
 
+    /**
+     * THE rule for "running" (the run list, the connection's `lastRun` and the Deviations view all read it): the row is unfinished and was
+     * claimed less than [maxRunMinutes] before [now]. Older, an unfinished row was interrupted and the next claim will abandon it.
+     */
+    fun isRunning(finishedAt: Long?, startedAt: Long, now: Long): Boolean =
+        finishedAt == null && startedAt >= now - maxRunMinutes * MILLIS_PER_MINUTE
+
     private fun ResultRow.toResponse() = SyncRunResponse(
         id = this[Runs.id].value,
         kind = SyncKind.valueOf(this[Runs.kind]),
@@ -172,6 +179,7 @@ class SyncRunService(
         outcome = this[Runs.outcome]?.let(SyncOutcome::valueOf),
         errorCode = this[Runs.errorCode],
         errorDetail = this[Runs.errorDetail],
+        running = isRunning(this[Runs.finishedAt], this[Runs.startedAt], clock()),
         observedCount = this[Runs.observedCount],
         goneCount = this[Runs.goneCount],
         callCount = this[Runs.callCount],
@@ -183,7 +191,7 @@ class SyncRunService(
 /** The response for a run just claimed (its row is unfinished, every counter zero). */
 fun ClaimedRun.toResponse() = SyncRunResponse(
     id = id, kind = kind, connectionId = connectionId, trigger = trigger, requestedByUserId = byUserId, startedAt = startedAt,
-    finishedAt = null, outcome = null, errorCode = null, errorDetail = null,
+    finishedAt = null, outcome = null, errorCode = null, errorDetail = null, running = true,
     observedCount = 0, goneCount = 0, callCount = 0, rateLimitedCount = 0, backoffMs = 0,
 )
 

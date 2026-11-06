@@ -175,4 +175,21 @@ class SyncRunServiceTest {
         assertEquals(499, cut.length)
         assertTrue(cut.all { it == 'y' })
     }
+
+    @Test
+    fun `running is the registry's verdict - true only for an unfinished run inside the claim window`() = runBlocking {
+        val clock = Clock()
+        val runs = service(clock, maxRunMinutes = 10)
+        val id = connection()
+        val claimed = runs.claim(SyncKind.JIRA, id, SyncTrigger.MANUAL, null)
+        assertTrue(runs.list(SyncKind.JIRA, id).single().running, "just claimed")
+        clock.now += 10 * 60_000L
+        assertTrue(runs.list(SyncKind.JIRA, id).single().running, "exactly at the limit: still inside the window")
+        clock.now += 1
+        assertFalse(runs.list(SyncKind.JIRA, id).single().running, "unfinished and older than maxRunMinutes: interrupted")
+        assertFalse(runs.isRunning(finishedAt = null, startedAt = claimed.startedAt, now = clock.now))
+        assertTrue(runs.finish(claimed.id, SyncResult.succeeded(SyncCounts())))
+        assertFalse(runs.list(SyncKind.JIRA, id).single().running, "finished")
+        assertFalse(runs.isRunning(finishedAt = clock.now, startedAt = clock.now, now = clock.now), "a finished run is never running")
+    }
 }

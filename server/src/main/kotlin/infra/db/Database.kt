@@ -306,12 +306,13 @@ suspend fun Application.configureDatabase() {
     attributes.put(BaselineServiceKey, BaselineService(database))
     attributes.put(BaselineViewServiceKey, BaselineViewService(database))
     // The Jira registry owns the first encrypted-at-rest column (V21); the cipher comes from configureCrypto, registered before Database.
-    attributes.put(JiraConnectionServiceKey, JiraConnectionService(database, attributes[FieldCipherKey]))
-    attributes.put(JiraBindingServiceKey, JiraBindingService(database))
-    // The run registry (V21 `sync_runs`) and the empty connector registry the connectors' modules fill (`configureJira`).
+    // The run registry (V21 `sync_runs`) comes first: the connection registry reads each connection's newest run from it.
     val maxRunMinutes = requireConfigInt(environment.config, "sync.maxRunMinutes", min = 1, max = 60)
     val syncRuns = SyncRunService(database, maxRunMinutes)
     attributes.put(SyncRunServiceKey, syncRuns)
+    attributes.put(JiraConnectionServiceKey, JiraConnectionService(database, attributes[FieldCipherKey], syncRuns))
+    attributes.put(JiraBindingServiceKey, JiraBindingService(database))
+    // The empty connector registry the connectors' modules fill (`configureJira`).
     attributes.put(DeviationViewServiceKey, DeviationViewService(database, syncRuns))
     attributes.put(SyncConnectorsKey, SyncConnectors())
     attributes.put(

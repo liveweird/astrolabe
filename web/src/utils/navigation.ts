@@ -1,7 +1,8 @@
 import type { ParseKeys } from "i18next";
-import { IconAddressBook, IconCalendarOff, IconCamera, IconHistory, IconHome2, IconKey, IconListNumbers, IconListTree, IconSitemap, IconToggleLeft, IconUsers, IconUsersGroup, type Icon } from "@tabler/icons-react";
+import { IconAddressBook, IconCalendarOff, IconCamera, IconHistory, IconHome2, IconKey, IconListNumbers, IconListTree, IconPlugConnected, IconSitemap, IconToggleLeft, IconUsers, IconUsersGroup, type Icon } from "@tabler/icons-react";
 import { baselinesPath } from "./baselineLinks";
 import { publicHolidaysPath } from "./calendarLinks";
+import { jiraConnectionsPath } from "./jiraLinks";
 import { peoplePath } from "./peopleLinks";
 import { planPath, programsPath, roadmapPath } from "./planLinks";
 import { teamsPath } from "./teamLinks";
@@ -37,8 +38,8 @@ export const homePath = "/";
  * always-open blocks (never collapsible groups): every leaf is always in the DOM, so tests and
  * deep links address the links directly, and a static label costs less vertical space than a
  * toggle. Home, Plan, Roadmap, Programs and Baselines (the Planning section, readable by everyone) are visible to everyone; the Administration section holds Teams, People and Public holidays (everyone reads
- * the flat teams list, the people directory and the holiday dictionary; only their create/edit/delete are ADMIN) alongside the ADMIN-only Users and
- * Feature flags leaves — a non-admin session sees just Teams, People and Public holidays there.
+ * the flat teams list, the people directory and the holiday dictionary; only their create/edit/delete are ADMIN) alongside the ADMIN-only Users,
+ * Feature flags and Jira (the connections registry) leaves — a non-admin session sees just Teams, People and Public holidays there.
  */
 const NAV_SECTIONS: ReadonlyArray<NavSection> = [
   {
@@ -62,6 +63,7 @@ const NAV_SECTIONS: ReadonlyArray<NavSection> = [
       { to: publicHolidaysPath, label: "appShell.nav.publicHolidays", icon: IconCalendarOff },
       { to: usersPath, label: "appShell.nav.users", icon: IconUsers, adminOnly: true },
       { to: "/feature-flags", label: "appShell.nav.featureFlags", icon: IconToggleLeft, adminOnly: true },
+      { to: jiraConnectionsPath, label: "appShell.nav.jira", icon: IconPlugConnected, adminOnly: true },
     ],
   },
 ];

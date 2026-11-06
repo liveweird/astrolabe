@@ -1,6 +1,7 @@
 package ch.nokillswit.jira
 
 import ch.nokillswit.sync.SyncOutcome
+import ch.nokillswit.sync.SyncRunResponse
 import kotlinx.serialization.Serializable
 
 /** The most items one `GET /views/deviations` answers (≈ 350 B a row, so ≤ 700 KB); beyond it `truncated` is true. */
@@ -59,6 +60,9 @@ data class DeviationLastRun(
     val errorCode: String?,
     val running: Boolean,
 )
+
+/** The newest-run block of a connection, from the registry's row; [running] is the caller's reading of the registry's one rule. */
+fun SyncRunResponse.toLastRun(running: Boolean) = DeviationLastRun(id, startedAt, finishedAt, outcome, errorCode, running)
 
 /** Across the filtered bindings, before the cap: the deviations by severity, the bindings and the bindings whose issue is gone. */
 @Serializable

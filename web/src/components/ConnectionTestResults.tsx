@@ -1,0 +1,87 @@
+import type { TFunction } from "i18next";
+import { Alert, Badge, Stack, Table, Text } from "@mantine/core";
+import { useTranslation } from "react-i18next";
+import type { JiraTestResult, JiraTestRow } from "../api/jira";
+import { errorCodeText } from "../utils/syncRuns";
+import ScrollRegion from "./ScrollRegion";
+
+/** The detail cell of a failed row: the upstream status, the failure in words (code kept visible) and the scope the probe needs. */
+function rowDetail(row: JiraTestRow, t: TFunction): string {
+  if (row.ok) return "—";
+  const parts = [
+    row.status != null ? String(row.status) : null,
+    row.code ? errorCodeText(row.code, t) : null,
+    row.scopeHint ? t("jira.test.scopeHint", { scope: row.scopeHint }) : null,
+  ].filter((part): part is string => Boolean(part));
+  return parts.length > 0 ? parts.join(" · ") : "—";
+}
+
+/**
+ * Atlassian answers a scoped token that lacks a probe's scope with 401, not 403: one failing probe (a 401) next to a passing `myself`
+ * therefore means a missing scope, not bad credentials. The note shows exactly then.
+ */
+function looksLikeMissingScope(rows: readonly JiraTestRow[]): boolean {
+  return rows.some((row) => row.name === "myself" && row.ok) && rows.some((row) => !row.ok && (row.status === 401 || row.code === "AUTHENTICATION_FAILED"));
+}
+
+/**
+ * The Test-connection outcome table: one row per probed endpoint, in the order the server ran them. A passing row is GREEN (the success
+ * colour), a failed REQUIRED row red (blocking), a failed optional one orange (a soft finding: it does not fail the test). Used by the
+ * editor modal (the ad-hoc or stored probe) and the connection page (the stored probe). Ported from Flow's `ConnectionTestResults`.
+ */
+export default function ConnectionTestResults({ result }: { result: JiraTestResult }) {
+  const { t } = useTranslation();
+  return (
+    <Stack gap="xs">
+      <ScrollRegion label={t("jira.test.tableAria")} minWidth={640}>
+        <Table aria-label={t("jira.test.tableAria")}>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>{t("jira.test.column.endpoint")}</Table.Th>
+              <Table.Th>{t("jira.test.column.required")}</Table.Th>
+              <Table.Th>{t("jira.test.column.result")}</Table.Th>
+              <Table.Th>{t("jira.test.column.detail")}</Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {result.rows.map((row) => (
+              <Table.Tr key={row.name}>
+                <Table.Td>
+                  <Text size="sm" fw={500}>
+                    {row.name}
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    {row.path}
+                  </Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="sm">{row.required ? t("jira.test.required") : t("jira.test.optional")}</Text>
+                </Table.Td>
+                <Table.Td style={{ whiteSpace: "nowrap" }}>
+                  <Badge color={row.ok ? "green" : row.required ? "red" : "orange"} variant="light" tt="none">
+                    {row.ok ? t("jira.test.ok") : t("jira.test.failed")}
+                  </Badge>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="sm" c="dimmed">
+                    {rowDetail(row, t)}
+                  </Text>
+                </Table.Td>
+              </Table.Tr>
+            ))}
+          </Table.Tbody>
+        </Table>
+      </ScrollRegion>
+      {looksLikeMissingScope(result.rows) && (
+        <Alert color="orange" variant="light" role="note">
+          {t("jira.test.scopeNote")}
+        </Alert>
+      )}
+      {result.cloudId && (
+        <Text size="xs" c="dimmed">
+          {t("jira.test.cloudId", { cloudId: result.cloudId })}
+        </Text>
+      )}
+    </Stack>
+  );
+}

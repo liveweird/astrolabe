@@ -18,8 +18,6 @@ import java.time.ZoneOffset
 
 val DeviationViewServiceKey = AttributeKey<DeviationViewService>("DeviationViewService")
 
-private const val MILLIS_PER_MINUTE = 60_000L
-
 /**
  * The deviations document (`GET /views/deviations`): ONE read-only REPEATABLE READ transaction ([SNAPSHOT], the timeline views' protocol)
  * that takes the PLAN revision FIRST, then the working calendar, the connections (with their effective mapping resolved NOW against
@@ -74,11 +72,8 @@ class DeviationViewService(
         siteUrl = siteUrl,
         enabled = enabled,
         mappingOk = levels != null,
-        lastRun = run?.let {
-            // An unfinished row is "running" only while a claim could not yet abandon it; older, it was interrupted (no scheduler in 1.1).
-            val fresh = it.startedAt >= now - runs.maxRunMinutes * MILLIS_PER_MINUTE
-            DeviationLastRun(it.id, it.startedAt, it.finishedAt, it.outcome, it.errorCode, running = it.finishedAt == null && fresh)
-        },
+        // The registry's one rule, read against the view's own clock (an unfinished row older than the claim window was interrupted).
+        lastRun = run?.toLastRun(running = runs.isRunning(run.finishedAt, run.startedAt, now)),
     )
 }
 

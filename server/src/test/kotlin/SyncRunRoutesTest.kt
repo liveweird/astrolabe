@@ -20,6 +20,7 @@ import kotlinx.coroutines.withTimeout
 import org.junit.BeforeClass
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -108,6 +109,8 @@ class SyncRunRoutesTest {
             val finished = f.w.admin.client.runs(f.connectionId).single()
             assertEquals(accepted.id, finished.id)
             assertEquals(SyncOutcome.SUCCEEDED, finished.outcome)
+            assertTrue(accepted.running, "the 202 row is the claimed run: running")
+            assertFalse(finished.running, "a finished run is not running")
             assertEquals(0, finished.callCount, "nothing bound: nothing to ask Jira")
             assertNotNull(finished.finishedAt)
         }
@@ -119,6 +122,7 @@ class SyncRunRoutesTest {
             val f = fixture("srclaim")
             val admin = f.w.admin.client
             unfinishedRun(f.connectionId, System.currentTimeMillis())
+            assertTrue(admin.runs(f.connectionId).single().running, "an unfinished run inside the claim window is running")
             withAuditCapture { audit ->
                 val refused = admin.request(f.connectionId)
                 assertEquals(HttpStatusCode.Conflict, refused.status)
@@ -132,6 +136,9 @@ class SyncRunRoutesTest {
             // The same unfinished row, now older than sync.maxRunMinutes (10 by default): the claim abandons it and goes through.
             val old = System.currentTimeMillis() - 11 * 60_000L
             jbSql("UPDATE sync_runs SET started_at = ? WHERE connection_id = ?", old, f.connectionId.toInt())
+            val interrupted = admin.runs(f.connectionId).single()
+            assertNull(interrupted.finishedAt)
+            assertFalse(interrupted.running, "unfinished but older than the claim window: interrupted, not running")
             val accepted = admin.request(f.connectionId)
             assertEquals(HttpStatusCode.Accepted, accepted.status, accepted.bodyAsText())
             val id = jbJson.decodeFromString<SyncRunResponse>(accepted.bodyAsText()).id

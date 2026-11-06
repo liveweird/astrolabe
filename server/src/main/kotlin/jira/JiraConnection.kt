@@ -69,6 +69,8 @@ data class JiraConnectionResponse(
     val lastTestOk: Boolean?,
     /** Whether a field mapping has been saved (the stored document is not `{}`). */
     val mappingSet: Boolean,
+    /** The connection's own newest run (any other connection's runs never count); null before the first. */
+    val lastRun: DeviationLastRun?,
     val createdAt: Long,
     val updatedAt: Long,
 )

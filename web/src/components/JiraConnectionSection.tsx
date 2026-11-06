@@ -1,0 +1,172 @@
+import { useState, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
+import { Alert, Anchor, Badge, Button, Group, Stack, Table, Text, Title } from "@mantine/core";
+import { IconPlayerPlay, IconPlugConnected } from "@tabler/icons-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { testJiraConnection, type JiraConnection, type JiraTestResult } from "../api/jira";
+import { isRunInProgress, requestSyncRun } from "../api/sync";
+import { useSyncRuns, syncRunsKey } from "../hooks/useSyncRuns";
+import { formatDateTime } from "../utils/formatDate";
+import { jiraTestErrorMessage, untestedKey } from "../utils/jiraForm";
+import { jiraSiteUrl } from "../utils/jiraLinks";
+import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
+import { saveErrorMessage } from "../utils/saveError";
+import { showSuccessToast } from "../utils/toast";
+import ConnectionTestResults from "./ConnectionTestResults";
+import ConnectionTestStatus from "./ConnectionTestStatus";
+import FormErrorAlert from "./FormErrorAlert";
+import SyncRunsTable from "./SyncRunsTable";
+
+function Fact({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <Table.Tr>
+      <Table.Th scope="row" w="30%">
+        {label}
+      </Table.Th>
+      <Table.Td style={{ overflowWrap: "anywhere" }}>{children}</Table.Td>
+    </Table.Tr>
+  );
+}
+
+/** The connection's own facts (never the token: only whether one is stored). */
+function ConnectionFacts({ connection }: { connection: JiraConnection }) {
+  const { t } = useTranslation();
+  const site = jiraSiteUrl(connection.siteUrl);
+  return (
+    <Table aria-label={t("jira.details.factsAria")}>
+      <Table.Tbody>
+        <Fact label={t("jira.field.siteUrl")}>
+          {site ? (
+            <Anchor href={site} target="_blank" rel="noopener noreferrer" size="sm">
+              {connection.siteUrl}
+            </Anchor>
+          ) : (
+            connection.siteUrl
+          )}
+        </Fact>
+        <Fact label={t("jira.field.email")}>{connection.email}</Fact>
+        <Fact label={t("jira.field.apiToken")}>{connection.hasApiToken ? t("jira.details.tokenStored") : t("jira.details.tokenMissing")}</Fact>
+        <Fact label={t("jira.field.authScheme")}>{t(`jira.authScheme.${connection.authScheme}`)}</Fact>
+        <Fact label={t("jira.field.projectKeys")}>{connection.projectKeys.join(", ")}</Fact>
+        <Fact label={t("jira.column.enabled")}>{connection.enabled ? t("jira.yes") : t("jira.no")}</Fact>
+        <Fact label={t("jira.details.lastTest")}>
+          {connection.lastTestedAt === null ? (
+            t(untestedKey(connection))
+          ) : (
+            <Group gap="xs" wrap="wrap">
+              <Text size="sm">{formatDateTime(connection.lastTestedAt)}</Text>
+              <Badge color={connection.lastTestOk ? "green" : "red"} variant="light" tt="none">
+                {connection.lastTestOk ? t("jira.test.passed") : t("jira.test.notPassed")}
+              </Badge>
+            </Group>
+          )}
+        </Fact>
+        <Fact label={t("jira.details.discovered")}>{connection.discoveredAt === null ? "—" : formatDateTime(connection.discoveredAt)}</Fact>
+        <Fact label={t("jira.details.cloudId")}>{connection.cloudId ?? "—"}</Fact>
+        <Fact label={t("jira.details.mapping")}>{connection.mappingSet ? t("jira.details.mappingSaved") : t("jira.details.mappingDefaults")}</Fact>
+      </Table.Tbody>
+    </Table>
+  );
+}
+
+/**
+ * The connection page's first section: the facts, Test connection (the STORED token; the result table with its scope hints, and the
+ * discovery it stores), Refresh now (a run is claimed - 202 - and the runs table below follows it by polling) and the run history. A
+ * `409 run-in-progress` is a normal state ("already running"), never an error.
+ */
+export default function JiraConnectionSection({ connection }: { connection: JiraConnection }) {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const { runs, isLoading, isError, error, live } = useSyncRuns("JIRA", connection.id, true);
+  const [testResult, setTestResult] = useState<JiraTestResult | null>(null);
+  const [alreadyRunningNoted, setAlreadyRunningNoted] = useState(false);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
+
+  const test = useMutation({
+    mutationFn: () => testJiraConnection(connection.id),
+    // A stale result must never sit under a new attempt or a new error.
+    onMutate: () => setTestResult(null),
+    onSuccess: async (result) => {
+      setTestResult(result);
+      // The verdict, the discovery and the mapping defaults all moved with a stored test.
+      await refreshQueriesAfterMutation(queryClient, ["jira"]);
+    },
+  });
+  const refresh = useMutation({
+    mutationFn: () => requestSyncRun({ kind: "JIRA", connectionId: connection.id }),
+    onSuccess: () => showSuccessToast(t("jira.toast.refreshStarted")),
+    onError: (err) => {
+      if (isRunInProgress(err)) setAlreadyRunningNoted(true);
+      else setRefreshError(saveErrorMessage(err, t, { forbidden: "jira.saveForbidden", notFound: "jira.saveGone", invalid: "jira.refresh.invalid", failedStatus: "common.error.actionFailedStatus", failed: "common.error.actionFailed" }));
+    },
+    // Either way the registry now holds a run: re-read it, and the list's own polling takes over while it is unfinished.
+    onSettled: () => refreshQueriesAfterMutation(queryClient, syncRunsKey("JIRA", connection.id)),
+  });
+  // The 409 is a state, not a failure; the note stays only while the server still says a run is running.
+  const alreadyRunning = alreadyRunningNoted && live;
+
+  return (
+    <Stack gap="md">
+      <Title order={3} size="h4">
+        {t("jira.details.connection")}
+      </Title>
+      <ConnectionFacts connection={connection} />
+
+      <Group gap="sm" wrap="wrap">
+        <Button variant="default" leftSection={<IconPlugConnected size={16} />} loading={test.isPending} onClick={() => test.mutate()}>
+          {t("jira.testConnection")}
+        </Button>
+        <Button
+          variant="default"
+          leftSection={<IconPlayerPlay size={16} />}
+          loading={refresh.isPending}
+          disabled={!connection.enabled}
+          onClick={() => {
+            setRefreshError(null);
+            setAlreadyRunningNoted(false);
+            refresh.mutate();
+          }}
+        >
+          {t("jira.refreshNow")}
+        </Button>
+        {!connection.enabled && (
+          <Text size="sm" c="dimmed">
+            {t("jira.refresh.disabled")}
+          </Text>
+        )}
+      </Group>
+
+      <ConnectionTestStatus result={testResult} />
+      {test.isError && <FormErrorAlert>{jiraTestErrorMessage(test.error, t)}</FormErrorAlert>}
+      {testResult && (
+        <Stack gap="xs">
+          <Title order={4} size="h5">
+            {t("jira.test.resultTitle")}
+          </Title>
+          {!testResult.recorded && (
+            <Alert color="orange" variant="light" role="note">
+              {t("jira.test.notRecorded")}
+            </Alert>
+          )}
+          <ConnectionTestResults result={testResult} />
+        </Stack>
+      )}
+
+      {refreshError && <FormErrorAlert>{refreshError}</FormErrorAlert>}
+      <div role="status" aria-live="polite">
+        {alreadyRunning ? (
+          <Text size="sm">{t("jira.refresh.alreadyRunning")}</Text>
+        ) : live ? (
+          <Text size="sm">{t("jira.refresh.running")}</Text>
+        ) : null}
+      </div>
+
+      <Stack gap="xs">
+        <Title order={4} size="h5">
+          {t("jira.runs.title")}
+        </Title>
+        <SyncRunsTable runs={runs} isLoading={isLoading} isError={isError} error={error} />
+      </Stack>
+    </Stack>
+  );
+}

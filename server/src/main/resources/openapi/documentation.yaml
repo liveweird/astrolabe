@@ -2577,6 +2577,7 @@ paths:
         - Sortable fields: `id`, `name`, `createdAt`. Default `id` ascending.
         - Filters: none.
         - The API token is never returned; each row carries `hasApiToken`.
+        - Each row carries its connection's newest run as `lastRun` (the server's `running` verdict included), read for the page's rows only.
       parameters:
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/PageSize'
@@ -5560,7 +5561,7 @@ components:
         enabled: { type: boolean, default: true }
     JiraConnection:
       type: object
-      required: [id, name, siteUrl, email, hasApiToken, authScheme, projectKeys, enabled, cloudId, discoveredAt, lastTestedAt, lastTestOk, mappingSet, createdAt, updatedAt]
+      required: [id, name, siteUrl, email, hasApiToken, authScheme, projectKeys, enabled, cloudId, discoveredAt, lastTestedAt, lastTestOk, mappingSet, lastRun, createdAt, updatedAt]
       properties:
         id: { type: integer, format: int32, minimum: 0 }
         name: { type: string }
@@ -5580,6 +5581,11 @@ components:
         lastTestedAt: { type: integer, format: int64, nullable: true, description: Epoch millis of the last connection test. }
         lastTestOk: { type: boolean, nullable: true, description: Whether the last connection test passed; null until one ran. }
         mappingSet: { type: boolean, description: Whether a field mapping has been saved. }
+        lastRun:
+          allOf:
+            - $ref: '#/components/schemas/DeviationLastRun'
+          nullable: true
+          description: "This connection's own newest run (the other connections' runs never count); null before the first. `running` is the server's verdict."
         createdAt: { type: integer, format: int64, description: Epoch millis }
         updatedAt: { type: integer, format: int64, description: Epoch millis }
     JiraConnectionPage:
@@ -5877,7 +5883,7 @@ components:
     SyncRun:
       type: object
       description: One run of a connector over one connection. Unfinished while `finishedAt` and `outcome` are null.
-      required: [id, kind, connectionId, trigger, startedAt, observedCount, goneCount, callCount, rateLimitedCount, backoffMs]
+      required: [id, kind, connectionId, trigger, startedAt, running, observedCount, goneCount, callCount, rateLimitedCount, backoffMs]
       properties:
         id: { type: integer, format: int32, minimum: 0 }
         kind: { type: string, enum: [JIRA] }
@@ -5889,6 +5895,7 @@ components:
         outcome: { type: string, enum: [SUCCEEDED, FAILED, ABANDONED], nullable: true, description: "`ABANDONED` is written by a later claim for a run that never finished." }
         errorCode: { type: string, nullable: true, maxLength: 40 }
         errorDetail: { type: string, nullable: true, maxLength: 500 }
+        running: { type: boolean, description: "The server's verdict: true only for an unfinished run younger than `sync.maxRunMinutes`. An unfinished run that is not running was interrupted; no client judges a run's age by its own clock." }
         observedCount: { type: integer, format: int32, minimum: 0, description: Bound issues whose observation this run wrote. }
         goneCount: { type: integer, format: int32, minimum: 0, description: Bound issues the run's sweep found out of scope (flagged `gone`). }
         callCount: { type: integer, format: int32, minimum: 0, description: Requests the run issued to the upstream (a retry is not counted). }

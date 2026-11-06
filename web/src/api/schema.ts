@@ -1795,6 +1795,7 @@ export interface paths {
          *     - Sortable fields: `id`, `name`, `createdAt`. Default `id` ascending.
          *     - Filters: none.
          *     - The API token is never returned; each row carries `hasApiToken`.
+         *     - Each row carries its connection's newest run as `lastRun` (the server's `running` verdict included), read for the page's rows only.
          */
         get: operations["listJiraConnections"];
         put?: never;
@@ -4506,6 +4507,8 @@ export interface components {
             lastTestOk: boolean | null;
             /** @description Whether a field mapping has been saved. */
             mappingSet: boolean;
+            /** @description This connection's own newest run (the other connections' runs never count); null before the first. `running` is the server's verdict. */
+            lastRun: components["schemas"]["DeviationLastRun"] | null;
             /**
              * Format: int64
              * @description Epoch millis
@@ -4828,6 +4831,8 @@ export interface components {
             outcome?: "SUCCEEDED" | "FAILED" | "ABANDONED" | null;
             errorCode?: string | null;
             errorDetail?: string | null;
+            /** @description The server's verdict: true only for an unfinished run younger than `sync.maxRunMinutes`. An unfinished run that is not running was interrupted; no client judges a run's age by its own clock. */
+            running: boolean;
             /**
              * Format: int32
              * @description Bound issues whose observation this run wrote.

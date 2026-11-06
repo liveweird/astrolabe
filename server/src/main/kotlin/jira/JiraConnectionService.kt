@@ -14,6 +14,9 @@ import ch.nokillswit.infra.json.sha256Hex
 import ch.nokillswit.infra.json.stringArrayJson
 import ch.nokillswit.infra.paging.PageRequest
 import ch.nokillswit.infra.paging.applyPaging
+import ch.nokillswit.sync.SyncKind
+import ch.nokillswit.sync.SyncRunResponse
+import ch.nokillswit.sync.SyncRunService
 import io.ktor.util.AttributeKey
 import java.security.GeneralSecurityException
 import kotlinx.coroutines.flow.toList
@@ -52,6 +55,8 @@ const val NO_DISCOVERY = ""
 class JiraConnectionService(
     private val database: R2dbcDatabase,
     private val cipher: FieldCipher,
+    /** Read-only: the connection's newest run rides every response. `sync/` knows nothing of `jira/`; this is the allowed direction. */
+    private val runs: SyncRunService,
 ) : EncryptedAtRest {
     object Connections : UIntIdTable("jira_connections"), SoftDeletable {
         // Case-folded name uniqueness rides the partial unique index uq_jira_connections_name_active (V21, active rows only).
@@ -94,12 +99,15 @@ class JiraConnectionService(
         val predicate = Connections.active()
         val total = Connections.selectAll().where { predicate }.count()
         val rows = summary().where { predicate }.applyPaging(paging, SORTABLE_COLUMNS).toList()
-        JiraConnectionListResult(rows.map { it.toResponse() }, total)
+        // One indexed LIMIT 1 per listed connection (a page holds at most 100), inside this transaction.
+        val latest = runs.latestRunsInTransaction(SyncKind.JIRA, rows.map { it[Connections.id].value })
+        JiraConnectionListResult(rows.map { it.toResponse(latest[it[Connections.id].value]) }, total)
     }
 
     /** The connection, or null when missing/deleted. */
     suspend fun read(id: UInt): JiraConnectionResponse? = suspendTransaction(database) {
-        summary().where { (Connections.id eq id) and Connections.active() }.toList().singleOrNull()?.toResponse()
+        summary().where { (Connections.id eq id) and Connections.active() }.toList().singleOrNull()
+            ?.toResponse(runs.latestRunsInTransaction(SyncKind.JIRA, listOf(id))[id])
     }
 
     /** Creates the connection; the token is encrypted before it is bound. A name clash rides the V21 partial index into the central 409. */
@@ -325,7 +333,7 @@ class JiraConnectionService(
     private fun ResultRow.toMappingState() =
         JiraMappingState(parseStoredMapping(this[Connections.mapping]), this[Connections.discovery]?.let(::parseStoredDiscoveryOrNull))
 
-    private fun ResultRow.toResponse(): JiraConnectionResponse = JiraConnectionResponse(
+    private fun ResultRow.toResponse(lastRun: SyncRunResponse?): JiraConnectionResponse = JiraConnectionResponse(
         id = this[Connections.id].value,
         name = this[Connections.name],
         siteUrl = this[Connections.siteUrl],
@@ -339,6 +347,7 @@ class JiraConnectionService(
         lastTestedAt = this[Connections.lastTestedAt],
         lastTestOk = this[Connections.lastTestOk],
         mappingSet = this[Connections.mapping] != EMPTY_MAPPING,
+        lastRun = lastRun?.toLastRun(running = lastRun.running),
         createdAt = this[Connections.createdAt],
         updatedAt = this[Connections.updatedAt],
     )
