@@ -1320,6 +1320,72 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/views/deviations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Where the plan and the bound Jira items disagree
+         * @description Any authenticated user (the plan and each binding's issue data are already readable by every login). One document (the view
+         *     endpoints' deliberate exception to the paged envelope; at most one binding per plan node, so bounded by the plan's scale) taken
+         *     from ONE read-only snapshot: the plan `revision` first, then the working calendar (public holidays included), the connections,
+         *     the bindings with their latest observation and the live nodes they sit on. It takes no lock, writes nothing and moves no
+         *     revision.
+         *
+         *     **`connections`** lists EVERY active connection, with or without bindings, enabled or not (`enabled` says which; a bind goes
+         *     through an enabled one only), by name: a non-admin owner's bind dialog gets its connection id here (the registry itself is
+         *     ADMIN only). It carries the name and site and never the email, token, keys or mapping. The id and site of a connection with
+         *     bindings are already in `GET /integrations/jira/bindings`; the name, and the existence of one with none, are new to any login. `mappingOk` is false when the connection's
+         *     EFFECTIVE mapping (stored, else the defaults) cannot be resolved against its discovery now (never discovered, unreadable or
+         *     stale): no `LEVEL_MISMATCH` and no estimate deviation is raised for its bindings, and a bind through it is refused with `409`.
+         *     `lastRun` is the newest run; `running` is true only for an unfinished run younger than `sync.maxRunMinutes` - an older
+         *     unfinished run (a crash; there is no scheduler yet) was interrupted and has no `outcome` until the next claim abandons it.
+         *
+         *     **Items.** Only bindings of an ACTIVE connection and of a LIVE node (it and every ancestor active) are listed; a binding of a
+         *     deleted node or connection is hidden. A binding of a DISABLED connection is listed (it still blocks its node and its issue, so
+         *     it must stay visible and unlinkable); how stale it is shows in `jira.observedAt` and the connection's `lastRun`. By default only
+         *     bindings WITH a deviation; `all=true` adds the others, and `projectId` or `teamId` make `all` default to true (explicit
+         *     `all=false` is respected). Order: bindings with a WARNING first, then work
+         *     stream, program, project, level (program, project, milestone) and name (case-insensitive), then binding id. Capped at 2,000
+         *     items: `truncated` says rows were dropped, `totals` are computed over ALL the filtered bindings BEFORE the cap (`warnings` and
+         *     `infos` count the deviations the items list, `bindings` the filtered bindings - so only DEVIATING bindings unless `all` applies,
+         *     not the number of links -, `gone` those whose issue is gone).
+         *
+         *     **Deviations** (WARNING unless noted; `detail.days` is in WORKING days on the live calendar, POSITIVE = the plan is later):
+         *     `GONE` (the issue is gone; it is raised ALONE - a gone issue's dates are stale); `LEVEL_MISMATCH` (the observed hierarchy level
+         *     is not the one the current mapping gives the level; an unknown observed level counts as a mismatch); `PARENT_MISMATCH`
+         *     (projects and milestones: the observed parent issue is bound, on the same connection, to a node that is not the plan parent -
+         *     an unbound parent raises nothing; the plan parent is the nearest ancestor whose level the connection maps - a milestone's
+         *     project, else its program when the project level is unmapped - and none when no ancestor level is mapped or the mapping does
+         *     not resolve); `RENAMED` (INFO; trimmed, case-insensitive; a name cut at 100 characters compares as a prefix
+         *     of the longer summary); `START_DIFFERS` and `END_DIFFERS` (a milestone's stored dates, a project's or program's DERIVED span,
+         *     against Jira's dates; a date on a non-working day counts as the next working day for a start and the previous one for an end,
+         *     so two dates on the same working day never deviate; WARNING when the plan's END is later than Jira's end in working days, else
+         *     INFO); `TARGET_DIFFERS` (INFO, projects: the target window against Jira's project-level dates, both fully dated and either
+         *     edge differs; `days` is the end's shift, else the start's); `UNSCHEDULED_IN_PLAN` / `UNSCHEDULED_IN_JIRA` (INFO, milestones:
+         *     Jira has a date and the milestone has none / the reverse); `ESTIMATE_DIFFERS` (INFO, milestones: the Jira figure times the
+         *     mapping's factor - or as-is for `DAYS`, which ignores a leftover factor - differs from the man-day estimate by 0.01 or more); `ESTIMATE_NOT_COMPARABLE` (INFO,
+         *     listed only with an EXPLICIT `all=true` or `kind=ESTIMATE_NOT_COMPARABLE`, never through the `all` that `projectId`/`teamId`
+         *     imply: a figure with no declared factor, or read under another unit than the
+         *     mapping names now); `PROGRESS_MISMATCH` (INFO: `DONE` while the plan's end is after `asOf`, `TODO` while its start is before,
+         *     `IN_PROGRESS` while its start is after). A binding that was never observed (none exists normally) lists no deviations.
+         *
+         *     Filters, all equality, a repeated key or a malformed value a `400`: `connectionId`, `level`, `workStreamId`, `programId`
+         *     (the program, its projects and milestones), `projectId` (the project and its milestones), `teamId` (milestones), `severity` and
+         *     `kind` (the bindings having such a deviation, whatever `all` says), `all`. Every item shows all of its binding's deviations.
+         */
+        get: operations["getDeviationsView"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/views/baseline/{id}": {
         parameters: {
             query?: never;
@@ -3590,6 +3656,179 @@ export interface components {
              * @description The project's position in the global project rank; null = unranked.
              */
             rankPosition: number | null;
+        };
+        /** @enum {string} */
+        DeviationKind: "GONE" | "LEVEL_MISMATCH" | "PARENT_MISMATCH" | "RENAMED" | "START_DIFFERS" | "END_DIFFERS" | "TARGET_DIFFERS" | "UNSCHEDULED_IN_PLAN" | "UNSCHEDULED_IN_JIRA" | "ESTIMATE_DIFFERS" | "ESTIMATE_NOT_COMPARABLE" | "PROGRESS_MISMATCH";
+        /**
+         * @description The evidence, every member optional and text so one shape serves every kind. `GONE`: jira = the gone reason. `LEVEL_MISMATCH`:
+         *     jira = the observed hierarchy level (`unknown` when none), plan = the mapped one. `PARENT_MISMATCH`: jira = the observed parent's
+         *     key, plan = the plan parent's name. `RENAMED`: jira = the summary, plan = the name. `START_DIFFERS` / `END_DIFFERS`: the two ISO
+         *     dates and `days`. `TARGET_DIFFERS`: `days` only (the item's `jira` and `plan` blocks hold the dates). `ESTIMATE_DIFFERS`: jira =
+         *     the figure in man-days, plan = the milestone's. `ESTIMATE_NOT_COMPARABLE`: jira = the raw figure, plan = the milestone's man-days.
+         *     `PROGRESS_MISMATCH`: jira = the status category, plan = the plan date that contradicts it. `UNSCHEDULED_*`: nothing.
+         */
+        DeviationDetail: {
+            jira: string | null;
+            plan: string | null;
+            /**
+             * Format: int32
+             * @description Working days, POSITIVE = the plan is later.
+             */
+            days: number | null;
+        };
+        Deviation: {
+            kind: components["schemas"]["DeviationKind"];
+            /** @enum {string} */
+            severity: "WARNING" | "INFO";
+            detail: components["schemas"]["DeviationDetail"];
+        };
+        DeviationLastRun: {
+            /** Format: int32 */
+            id: number;
+            /** Format: int64 */
+            startedAt: number;
+            /** Format: int64 */
+            finishedAt: number | null;
+            /** @enum {string|null} */
+            outcome: "SUCCEEDED" | "FAILED" | "ABANDONED" | null;
+            errorCode: string | null;
+            /** @description True only for an unfinished run younger than `sync.maxRunMinutes`; an older unfinished run was interrupted. */
+            running: boolean;
+        };
+        DeviationConnection: {
+            /** Format: int32 */
+            id: number;
+            name: string;
+            siteUrl: string;
+            /** @description A bind goes through an enabled connection only; a disabled one is listed because its bindings are. */
+            enabled: boolean;
+            /** @description False when the effective mapping cannot be resolved against the discovery now: no level or estimate comparison is made for this connection's bindings. */
+            mappingOk: boolean;
+            lastRun: components["schemas"]["DeviationLastRun"] | null;
+        };
+        /** @description Over the filtered bindings, BEFORE the 2,000-item cap. */
+        DeviationTotals: {
+            /**
+             * Format: int32
+             * @description The WARNING deviations the items list.
+             */
+            warnings: number;
+            /**
+             * Format: int32
+             * @description The INFO deviations the items list.
+             */
+            infos: number;
+            /**
+             * Format: int32
+             * @description The filtered bindings.
+             */
+            bindings: number;
+            /**
+             * Format: int32
+             * @description The filtered bindings whose issue is gone.
+             */
+            gone: number;
+        };
+        /** @description The bound node and every level it sits under (its own level included); a program has no project and only a milestone has a team. */
+        DeviationNode: {
+            /** @enum {string} */
+            kind: "PROGRAM" | "PROJECT" | "MILESTONE";
+            /** Format: int32 */
+            id: number;
+            name: string;
+            /** Format: int32 */
+            projectId: number | null;
+            projectName: string | null;
+            /** Format: int32 */
+            programId: number | null;
+            programName: string | null;
+            /** Format: int32 */
+            workStreamId: number;
+            workStreamName: string;
+            /** Format: int32 */
+            teamId: number | null;
+            teamName: string | null;
+        };
+        /** @description Jira's side as last observed; everything after `url` is null for a binding never observed. */
+        DeviationJira: {
+            issueId: string;
+            key: string;
+            /** @description `<site>/browse/<key>`. */
+            url: string;
+            summary: string | null;
+            typeName: string | null;
+            /** Format: int32 */
+            hierarchyLevel: number | null;
+            statusName: string | null;
+            /** @enum {string|null} */
+            statusCategory: "TODO" | "IN_PROGRESS" | "DONE" | "UNKNOWN" | null;
+            /** Format: date */
+            start: string | null;
+            /** Format: date */
+            end: string | null;
+            /**
+             * Format: double
+             * @description In `estimateUnit`.
+             */
+            estimate: number | null;
+            /** @enum {string|null} */
+            estimateUnit: "POINTS" | "HOURS" | "DAYS" | null;
+            parentKey: string | null;
+            teamName: string | null;
+            /** Format: int64 */
+            observedAt: number | null;
+            gone: boolean;
+        };
+        /** @description The plan's side. `start`/`end` are the dates compared: a milestone's stored dates, a project's or program's derived span (then equal to `spanStart`/`spanEnd`, which are null for a milestone). */
+        DeviationPlan: {
+            /** Format: date */
+            start: string | null;
+            /** Format: date */
+            end: string | null;
+            /**
+             * Format: double
+             * @description A milestone's man-days.
+             */
+            estimateMd: number | null;
+            /** Format: date */
+            targetStart: string | null;
+            /** Format: date */
+            targetEnd: string | null;
+            /** Format: date */
+            spanStart: string | null;
+            /** Format: date */
+            spanEnd: string | null;
+        };
+        DeviationItem: {
+            /** Format: int32 */
+            bindingId: number;
+            /** Format: int32 */
+            connectionId: number;
+            /** @enum {string} */
+            level: "PROGRAM" | "PROJECT" | "MILESTONE";
+            node: components["schemas"]["DeviationNode"];
+            jira: components["schemas"]["DeviationJira"];
+            plan: components["schemas"]["DeviationPlan"];
+            /** @description WARNING first, then by kind; empty for a binding with no deviation (only with `all`). */
+            deviations: components["schemas"]["Deviation"][];
+        };
+        DeviationView: {
+            /**
+             * Format: int64
+             * @description The PLAN's revision, read before the rows; this view moves none.
+             */
+            revision: number;
+            /**
+             * Format: date
+             * @description The UTC date `PROGRESS_MISMATCH` measured against.
+             */
+            asOf: string;
+            /** @description EVERY active connection, by name (case-insensitive) and id - bound or not, enabled or not. */
+            connections: components["schemas"]["DeviationConnection"][];
+            totals: components["schemas"]["DeviationTotals"];
+            items: components["schemas"]["DeviationItem"][];
+            /** @description True when more than 2,000 bindings matched and the tail was dropped. */
+            truncated: boolean;
         };
         RoadmapView: {
             /**
@@ -6774,6 +7013,40 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    getDeviationsView: {
+        parameters: {
+            query?: {
+                connectionId?: number;
+                level?: "PROGRAM" | "PROJECT" | "MILESTONE";
+                severity?: "WARNING" | "INFO";
+                kind?: components["schemas"]["DeviationKind"];
+                workStreamId?: number;
+                programId?: number;
+                projectId?: number;
+                teamId?: number;
+                /** @description Also list bindings with no deviation. Strictly `true` or `false`; defaults to true when `projectId` or `teamId` is given. */
+                all?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The deviations */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeviationView"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             500: components["responses"]["InternalServerError"];
         };

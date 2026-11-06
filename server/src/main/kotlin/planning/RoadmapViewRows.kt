@@ -132,15 +132,16 @@ private suspend fun rankPositions(): Map<UInt, Int> {
  * Every ACTIVE milestone with its team's name, read WITHOUT an `active()` filter on the team or the project: an active milestone's
  * team is always active (`TeamService.delete`'s 409) and its project too (the project delete cascades), the `ownerNames` reasoning.
  * Shared by the roadmap and programs views and the project view's critical path (one statement shape, one snapshot each).
+ * [projectIds] (null = every project, what all three callers want) narrows the read to those projects' milestones.
  */
-internal suspend fun milestoneFacts(): List<MilestoneFactRow> {
+internal suspend fun milestoneFacts(projectIds: Collection<UInt>? = null): List<MilestoneFactRow> {
     val milestones = MilestoneService.Milestones
     val teams = TeamService.Teams
     return milestones.innerJoin(teams, { milestones.teamId }, { teams.id })
         .select(
             milestones.id, milestones.projectId, milestones.teamId, milestones.startDate, milestones.endDate, milestones.name, teams.name,
         )
-        .where { milestones.active() }
+        .where { if (projectIds == null) milestones.active() else milestones.active() and (milestones.projectId inList projectIds) }
         .toList()
         .map { row ->
             val start = row[milestones.startDate]

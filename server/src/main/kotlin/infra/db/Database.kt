@@ -7,6 +7,8 @@ import ch.nokillswit.auth.TokenBlocklistServiceKey
 import ch.nokillswit.infra.config.requireConfigInt
 import ch.nokillswit.infra.config.requireConfigLong
 import ch.nokillswit.infra.crypto.FieldCipherKey
+import ch.nokillswit.jira.DeviationViewService
+import ch.nokillswit.jira.DeviationViewServiceKey
 import ch.nokillswit.jira.JiraBindingService
 import ch.nokillswit.jira.JiraBindingServiceKey
 import ch.nokillswit.jira.JiraConnectionService
@@ -308,7 +310,9 @@ suspend fun Application.configureDatabase() {
     attributes.put(JiraBindingServiceKey, JiraBindingService(database))
     // The run registry (V21 `sync_runs`) and the empty connector registry the connectors' modules fill (`configureJira`).
     val maxRunMinutes = requireConfigInt(environment.config, "sync.maxRunMinutes", min = 1, max = 60)
-    attributes.put(SyncRunServiceKey, SyncRunService(database, maxRunMinutes))
+    val syncRuns = SyncRunService(database, maxRunMinutes)
+    attributes.put(SyncRunServiceKey, syncRuns)
+    attributes.put(DeviationViewServiceKey, DeviationViewService(database, syncRuns))
     attributes.put(SyncConnectorsKey, SyncConnectors())
     attributes.put(
         TokenBlocklistServiceKey,

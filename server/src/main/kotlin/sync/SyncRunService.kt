@@ -149,6 +149,18 @@ class SyncRunService(
             .limit(MAX_LISTED_RUNS).toList().map { it.toResponse() }
     }
 
+    /**
+     * The newest run (by start, then id) of each connection in [connectionIds], read INSIDE the caller's open transaction - it opens none,
+     * so a view can take it in its own snapshot. One indexed `LIMIT 1` per connection (`idx_sync_runs_connection`); a connection with no
+     * run is absent. An unfinished row left by a crash stays unfinished until the next claim abandons it: the caller judges its age.
+     */
+    suspend fun latestRunsInTransaction(kind: SyncKind, connectionIds: Collection<UInt>): Map<UInt, SyncRunResponse> =
+        connectionIds.mapNotNull { id ->
+            Runs.selectAll().where { (Runs.kind eq kind.name) and (Runs.connectionId eq id.toInt()) }
+                .orderBy(Runs.startedAt to SortOrder.DESC, Runs.id to SortOrder.DESC).limit(1).toList().singleOrNull()
+                ?.let { id to it.toResponse() }
+        }.toMap()
+
     private fun ResultRow.toResponse() = SyncRunResponse(
         id = this[Runs.id].value,
         kind = SyncKind.valueOf(this[Runs.kind]),

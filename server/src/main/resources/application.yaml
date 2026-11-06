@@ -61,6 +61,8 @@ ktor:
       - ch.nokillswit.sync.SyncKt.configureSync
       # The Jira sync's routes (V21): the ADMIN connection registry and Test connection; after the plan routes (later steps' bindings read the plan).
       - ch.nokillswit.jira.JiraConnectionRoutesKt.configureJiraRoutes
+      # `GET /views/deviations` (any authenticated, read-only): after the Jira routes, before the routing catch-all.
+      - ch.nokillswit.jira.DeviationRoutesKt.configureDeviationRoutes
       - ch.nokillswit.auth.AuthRoutesKt.configureAuthRoutes
       - ch.nokillswit.auth.PasswordResetRoutesKt.configurePasswordResetRoutes
       # The telemetry read API (ADMIN, `.claude/docs/observability.md` "Telemetry"): reads what the sampler wrote.
