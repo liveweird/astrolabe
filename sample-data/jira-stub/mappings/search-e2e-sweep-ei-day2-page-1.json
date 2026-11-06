@@ -1,0 +1,39 @@
+{
+  "priority": 3,
+  "request": {
+    "method": "GET",
+    "urlPath": "/ex/jira/b3f1a2c4-5d6e-4f7a-8b9c-0d1e2f3a4b5c/rest/api/3/search/jql",
+    "headers": {
+      "Authorization": {
+        "matches": "^(Basic|Bearer) .+$"
+      }
+    },
+    "queryParameters": {
+      "jql": {
+        "and": [
+          {
+            "matches": "[\\s\\S]*\\bproject in \\((?=[^)]*\\bE2E\\b)\\s*\"?(?:E2E)\"?(?:\\s*,\\s*\"?(?:E2E)\"?)*\\s*\\)[\\s\\S]*"
+          },
+          {
+            "matches": "[\\s\\S]*\\bissuetype in \\((?=[^)]*\\b10004\\b)(?=[^)]*\\b10005\\b)\\s*\"?(?:10004|10005)\"?(?:\\s*,\\s*\"?(?:10004|10005)\"?)*\\s*\\)[\\s\\S]*"
+          }
+        ]
+      },
+      "fields": {
+        "equalTo": "id"
+      },
+      "nextPageToken": {
+        "absent": true
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "bodyFileName": "search-ids-22697601ce.json"
+  },
+  "scenarioName": "jira-day2",
+  "requiredScenarioState": "day2"
+}

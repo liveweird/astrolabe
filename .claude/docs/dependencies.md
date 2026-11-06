@@ -182,12 +182,29 @@ Flow's batch-by-batch bump log (2026-09 .. 2026-10) is not carried over: Astrola
 Jira/GitLab-only clients), and its own rounds are recorded below, newest first, as they happen. The v0.1.0 lockfiles and `gradle/verification-metadata.xml` were
 regenerated from an empty `GRADLE_USER_HOME` per `dependency-reproducibility.md`.
 
+- 2026-11 (v1.1.0 C1, the Jira sync's transport and stub): two **test-only** dependencies added to `server/` (`testImplementation`): `org.wiremock:wiremock-standalone` 3.13.2 (catalog key `wiremock`, `libs.wiremock.standalone`) and
+  `io.ktor:ktor-client-mock` 3.6.0 (`ktorLibs.client.mock`, the Ktor catalog's version). Locks and `gradle/verification-metadata.xml` were regenerated from an empty `GRADLE_USER_HOME` (the dependency-report tasks of the
+  command above with `--write-locks` and `--write-verification-metadata sha256` together, then the documented build-driven pass and the strict check from a second empty home); the lock diff is exactly the three
+  `server/gradle.lockfile` lines (`ktor-client-mock`, `ktor-client-mock-jvm`, `wiremock-standalone`, test classpaths only). The metadata diff is those artifacts plus the POM/module files of the transitive versions that lose
+  conflict resolution (Gradle verifies every metadata file it reads). **Provenance** (not just "what Gradle fetched"): the `wiremock-standalone-3.13.2` jar and pom sha256 equal the `.sha256` files Maven Central publishes next to
+  them AND the entries Flow's own metadata recorded independently (Flow runs the same pin); `ktor-client-mock-jvm-3.6.0` jar and module equal Flow's entries too. `:server:checkDependencyAlignment` reads the runtime classpath only,
+  where neither appears (the standalone artifact shades its Jackson/Jetty, so it adds no second family to the test classpath either).
 - 2026-11 (v1.0.0 checkup C7): `eslint-plugin-jsx-a11y` `^6.10.2` added to `web/` devDependencies (`npm install --legacy-peer-deps --save-dev`; lockfile purely additive: 20 dev packages, no removals).
   Its declared `eslint` peer stops at `^9` while the SPA is on ESLint 10 — the `--legacy-peer-deps` exception tolerates it, the flat config (`jsxA11y.flatConfigs.recommended`) loads and lints
   cleanly; revisit when a 6.x/7.x release declares ESLint 10.
 
-Dependencies kept for a future consumer (Ktor's OkHttp client engine with `infra/outbound/OutboundGuard.kt`'s guarded `OkHttpClient`, `ktor-client-mock`) stay on the classpath
-only while a test or source file uses them; knip/dependency analysis flags an orphan, and a consumer-less one is deleted and re-added with the sync.
+Dependencies kept for a future consumer (Ktor's OkHttp client engine with `infra/outbound/OutboundGuard.kt`'s guarded `OkHttpClient`) stay on the classpath
+only while a test or source file uses them; knip/dependency analysis flags an orphan, and a consumer-less one is deleted and re-added with the sync. `ktor-client-mock` was re-added with the sync's transport
+(`infra/fetch/SourceHttp`'s suites drive it through a `MockEngine`).
+
+## WireMock (the Jira stub; test-only)
+
+One engine, two carriers, **one version**: the in-JVM `JiraStubServer` (the `wiremock` entry of `gradle/libs.versions.toml`, test classpath only) and the `jira-stub` image (`sample-data/jira-stub/Dockerfile`:
+`FROM wiremock/wiremock:<tag>@sha256:<index digest>`, served on the compose and Kubernetes stacks) must run the same WireMock, so the mappings behave identically in the suite and on the stacks.
+Dependabot sees both (the Gradle catalog entry, and the `docker` ecosystem has `/sample-data/jira-stub` in its `directories`) but as separate PRs, like the Postgres pins: land ONE hand-assembled PR moving the catalog
+version, the Dockerfile tag and its digest (re-derive the multi-platform index digest with `docker buildx imagetools inspect wiremock/wiremock:<tag>`), and regenerate locks and verification metadata per
+`dependency-reproducibility.md`. `JiraStubFixtureTest` asserts the catalog version equals the Dockerfile tag (and that a digest is pinned), so a partial bump fails the build. The mapping/response format is the engine's:
+after a bump re-run `JiraStubFixtureTest` (it replays every request shape against the committed `sample-data/jira-stub`).
 
 ## Web runtime dependencies with a pairing rule
 

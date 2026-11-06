@@ -445,10 +445,10 @@ loopback, link-local — the cloud metadata address `169.254.169.254` — any-lo
 `SelfManagedHostsTest`; in k8s the egress NetworkPolicy still excludes private ranges, so such a host needs its own egress rule (the policy is the second layer,
 the guard the first).
 
-What pins the transport: `OutboundGuardTest` (the allow-list, every blocked address range, the DNS-failure rule, the injectable address rule, the audit line) runs without a network. Flow's
-`OutboundTransportTest` (a LOCAL socket server holding the rest of a 10 MB body to prove the response/connection release `prepareRequest {}.execute {}` — a 503 surfaces promptly, an oversized body
-is a limit error, the server sees the client close the socket — plus a negative control showing the old `client.request()` pattern times out) is **not ported**: it needs a consumer's bounded-read
-transport to test, and comes back with the first one. `DirectSocketFactory` (in `OutboundGuard.kt`): every self-resolving `createSocket` overload is refused; its socket never consults the JVM
+What pins the transport: `OutboundGuardTest` (the allow-list, every blocked address range, the DNS-failure rule, the injectable address rule, the audit line) runs without a network. `OutboundTransportTest`
+(a LOCAL socket server holding the rest of a 10 MB body to prove the response/connection release `prepareRequest {}.execute {}` — a 503 surfaces promptly, an oversized body
+is a limit error, the server sees the client close the socket — plus a negative control showing the old `client.request()` pattern times out) came back with the bounded-read transport
+(`infra/fetch/SourceHttp`, v1.1.0 C1), which it drives through `guardedKtorClient`. `DirectSocketFactory` (in `OutboundGuard.kt`): every self-resolving `createSocket` overload is refused; its socket never consults the JVM
 `ProxySelector`, and the guarded client connects to exactly the address `GuardedDns` returned. `fastFallback(false)` is a configuration assertion by choice: its effect only shows with several
 resolved addresses and a slow earlier one, which loopback cannot stage without timing races. Note: the guard in the tree still carries Flow's Jira allow-list helpers (`AtlassianSites.kt`,
 `isAllowedJiraHost`) as the worked example of a provider allow-list; replace them with the sync's own when it lands.

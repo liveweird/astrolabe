@@ -67,7 +67,9 @@ updates:
       interval: weekly
   # External image tags and digests are reviewed just like application dependencies.
   - package-ecosystem: docker
-    directories: ["/", "/k8s"]
+    # `/sample-data/jira-stub` is the Jira stub image (a WireMock tag + digest that must equal the `wiremock` pin in gradle/libs.versions.toml;
+    # JiraStubFixtureTest fails a partial bump, dependencies.md "WireMock").
+    directories: ["/", "/k8s", "/sample-data/jira-stub"]
     schedule:
       interval: weekly
     # One PR for a PostgreSQL bump across both directories (compose's copy is a separate ecosystem —

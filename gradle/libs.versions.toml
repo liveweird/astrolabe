@@ -49,6 +49,11 @@ r2dbc-pool = "1.0.2.RELEASE"
 reactor-bom = "2025.0.8"
 swagger-request-validator = "3.0.0"
 testcontainers = "2.0.5"
+# Test-only (the Jira sync, v1.1.0): the in-JVM stub fixture (JiraStubServer.kt) runs the real sample-data/jira-stub mappings through the
+# SAME mapping/response engine as the compose/Kubernetes `jira-stub` image, which pins this exact tag (sample-data/jira-stub/Dockerfile) -
+# move the two together. The `-standalone` shaded artifact bundles its own Jackson/Jetty under relocated packages, so it never drags a second
+# Jackson family onto the test classpath for `:server:checkDependencyAlignment` to trip over (that gate reads the runtime classpath only).
+wiremock = "3.13.2"
 # Runtime security floor (Trivy scan, 2026-09-24): scram-client is a transitive implementation
 # detail of r2dbc-postgresql (its SCRAM auth mechanism); the constraint selects the first fixed
 # release without forcing a coordinated r2dbc-postgresql upgrade.
@@ -96,6 +101,7 @@ reactor-netty-core = { module = "io.projectreactor.netty:reactor-netty-core" }
 reactor-pool = { module = "io.projectreactor.addons:reactor-pool" }
 swagger-request-validator-core = { module = "com.atlassian.oai:openapi-request-validator-core", version.ref = "swagger-request-validator" }
 testcontainers-postgresql = { module = "org.testcontainers:testcontainers-postgresql", version.ref = "testcontainers" }
+wiremock-standalone = { module = "org.wiremock:wiremock-standalone", version.ref = "wiremock" }
 guava = { module = "com.google.guava:guava", version.ref = "guava" }
 scram-client = { module = "com.ongres.scram:scram-client", version.ref = "scram" }
 scram-common = { module = "com.ongres.scram:scram-common", version.ref = "scram" }

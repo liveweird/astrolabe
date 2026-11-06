@@ -99,6 +99,15 @@ The rule for changing one is below ("Review cadence").
 **Fork balancing (not ported).** The `-Pforks` default is 1 (`ASTROLABE_FORKS` in `gates.sh`, `-Pforks=1` in CI). Flow weight-balanced the class order across forks from a measured `server/test-weights.tsv` once two forks paid;
 the technique and the `slow-tests --forks N` block are described in `test-fixtures.md` "Fork balancing (not ported)". Port it when `server-tests` outgrows its budget (`BACKLOG.md`).
 
+## Fixtures that add start-up cost
+
+**Jira stub (v1.1.0 C1, measured 2026-11-06, Apple M5 Max, Docker via OrbStack).** `JiraStubFixture.warm()` starts the in-JVM WireMock over `sample-data/jira-stub` (1,360 mappings, 1,334 bodies, about 7 MB) and makes its
+first two requests: **0.74 s per fork in the full `build`** (0.90 s in a focused run), printed as `fixture-cost jira-stub` and subtracted from the suite that paid it by `local-times.mjs`. It is paid once per fork by the first class that reads
+the stub (today `JiraStubFixtureTest`), in a `@BeforeClass`, never inside `testApplication`'s 60 s. The step's new server classes add 39 tests and about 8 s of class time, 5.8 s of it `OutboundTransportTest` (local sockets only: the negative control
+waits out a 700 ms client timeout, the leak cases wait for the client's connection close); every other new class runs under 1.2 s. A full `./gradlew build` from an empty `GRADLE_USER_HOME` (1,148 tests, `check`, `installDist`)
+took 3m18s including the downloads. The stub dataset is generated in 0.2 s; `e2e-static` gains the generator's self-test and the generate-twice `diff` (both under 1 s). No budget row moved: the CI `server-tests` target (3 min) is
+the figure to re-read after the first CI run on this commit.
+
 ## Investigation log
 
 A TREND flag or budget breach gets a dated entry here (the symptom, the evidence, the cause, the outcome), keyed by a running WHY number so a code comment can point at it (`Astrolabe WHY n`).

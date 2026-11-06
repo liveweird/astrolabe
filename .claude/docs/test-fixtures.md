@@ -93,6 +93,19 @@ distinct JVMs, and only warns about a JVM whose first class was not its warm-up.
 warm-ups to one fork, so the distinct-JVM check can fire once on that rerun: rerun. It guards the Gradle-internals assumptions (round-robin dealing, in-order forwarding,
 class-name dedupe). The throwaway boot runs `Bootstrap` on a fresh database before any test: no test may assume it is the fork's first boot.
 
+**The Jira stub fixture (v1.1.0 C1: `JiraStubServer`, `JiraStubFixture`, `JiraStubWarmupGuardTest`, `JiraStubFixtureTest`).** `JiraStubServer.kt` (Flow's, ported) starts ONE in-JVM WireMock per fork over `sample-data/jira-stub`
+(dynamic port, `disableRequestJournal()` so the shared singleton does not retain every served body), the SAME `mappings/` + `__files/` the compose and Kubernetes `jira-stub` image serves
+(`sample-data/jira/README.md` has the dataset, the request shapes it matches and the planted deviations; `expected.json` the figures a test compares with). A test class that touches
+`JiraStubServer.` or `JiraStubFixture.` calls `JiraStubFixture.warm()` in a `@BeforeClass` (it starts the server, makes one unauthenticated and one authenticated request and prints
+`fixture-cost<TAB>jira-stub<TAB>ms`, which `local-times.mjs` subtracts from the suite that paid it), so the first start (~1,400 mappings, ~1,300 bodies) never lands inside `testApplication`'s 60 s;
+`JiraStubWarmupGuardTest` fails a `*Test.kt` that reads the stub without that call within four lines of a `@BeforeClass`, and a helper file (not `*Test.kt`) that reads it at all (the two fixture files
+excepted). Flow's `SyncedStubFixture`/`DerivedStubFixture` (a SYNC into Postgres once per fork) have no counterpart yet: Astrolabe's stub fixture is only the server. A test flips the day-2 scenario with
+`JiraStubServer.setScenarioState("jira-day2", "day2")` and MUST `resetScenarios()` in a `finally` (the server is shared by every class in the fork); one-off failures come from `addOverride`/`removeOverride`.
+`JiraStubFixtureTest` replays the contract over plain HTTP against `expected.json` (auth forms and the refused token, the reference endpoints, full/sweep/probe/incremental paging, issue by id and key, day 2) and pins
+the `wiremock` version of `gradle/libs.versions.toml` against the stub image's `FROM wiremock/wiremock:<tag>@sha256:...`. The generator's own checks are Node: `node --test sample-data/jira/generate.test.mjs`
+(determinism, the committed `sample-data/jira-stub` + `expected.json` equal to a fresh run, hierarchy, planted counts, the match regexes), run by `scripts/gates.sh` (which also generates twice into scratch directories and `diff`s) and CI's
+`e2e-static`. Start-up cost: `build-times.md` "Jira stub fixture".
+
 **Fork balancing (not ported).** Flow weight-balanced the class order from a measured `server/test-weights.tsv` (`balancedCandidateOrder`: classes sorted by weight, dealt greedily to the
 least loaded fork) once `-Pforks=2` paid. Astrolabe's suite is small and runs one fork by default; port the technique when `server-tests` outgrows its budget (`BACKLOG.md`).
 

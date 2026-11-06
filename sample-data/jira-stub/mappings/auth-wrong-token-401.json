@@ -1,0 +1,19 @@
+{
+  "priority": 1,
+  "request": {
+    "method": "GET",
+    "urlPathPattern": "/ex/jira/b3f1a2c4-5d6e-4f7a-8b9c-0d1e2f3a4b5c/.*",
+    "headers": {
+      "Authorization": {
+        "matches": "^(?:Bearer wrong-token|Basic [A-Za-z0-9+/]*(?:Ondyb25nLXRva2Vu|cm9uZy10b2tlbg==|d3JvbmctdG9rZW4=))$"
+      }
+    }
+  },
+  "response": {
+    "status": 401,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "bodyFileName": "auth-401.json"
+  }
+}

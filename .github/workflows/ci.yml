@@ -267,12 +267,14 @@ jobs:
       # server's limits; the committed sample-data/plan must equal a fresh run) and of its API loader (the development-stack check, the
       # reset matching, the preflight; against http stubs). Node built-ins only, no install. The test files are named (never globbed: a glob
       # that matches nothing exits 0) and run one per `node --test` call (with two named files node silently skips a missing one), so a
-      # renamed or deleted test file fails this step instead of running nothing.
+      # renamed or deleted test file fails this step instead of running nothing. The Jira stub generator's self-test is the third file (two runs
+      # byte-identical, the committed sample-data/jira-stub and expected.json equal to a fresh run, the planted counts, the match regexes).
       - name: Sample plan generator and loader self-tests
         working-directory: ${{ github.workspace }}
         run: |
           node --test scripts/sample-plan/generate.test.mjs
           node --test scripts/sample-plan/load.test.mjs
+          node --test sample-data/jira/generate.test.mjs
       # Last on purpose (see the web job): an overnight advisory must not hide the real gates. Everything
       # in e2e/ is a dev tool (Playwright and its lint stack), so the full tree is audited.
       - name: Audit dependencies (high+)
