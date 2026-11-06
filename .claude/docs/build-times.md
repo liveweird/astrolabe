@@ -108,6 +108,8 @@ waits out a 700 ms client timeout, the leak cases wait for the client's connecti
 took 3m18s including the downloads. The stub dataset is generated in 0.2 s; `e2e-static` gains the generator's self-test and the generate-twice `diff` (both under 1 s). No budget row moved: the CI `server-tests` target (3 min) is
 the figure to re-read after the first CI run on this commit.
 
+**The server suite at 1.1.0 (re-measured 2026-11-07, Apple M5 Max, `scripts/gates.sh server`).** 1,468 tests, `server-build` **2m58s** (2m56s in the full `all` run), against its 3 min target and 6 min alarm: last five median 2m47s, previous five 2m42s, max 2m59s. The Jira sync (C1 to C11) took the suite from about 2m05s (the 1.0.0 median) to the edge of the target, so a next server increment re-reads this row first; no budget moved. `web-gates` 20s (1,857 tests), `e2e-static` 5.6s. The Kover floors held (line 98.53%, branch 86.57%, no raise possible).
+
 ## Investigation log
 
 A TREND flag or budget breach gets a dated entry here (the symptom, the evidence, the cause, the outcome), keyed by a running WHY number so a code comment can point at it (`Astrolabe WHY n`).

@@ -2,13 +2,13 @@
 
 Astrolabe is a planning and roadmapping app (Jira-Plans-like, better UX, more opinionated, Gantt-centred) for a multi-stream / multi-program / multi-team environment. It keeps its own plan
 data in a four-level hierarchy — **work stream → program → project → milestone** — shown in four views (project, team, roadmap, programs) on one shared timeline component. Projects are ranked
-globally, teams schedule their milestones against capacity, and dependencies and overload only ever warn. Later it syncs with Jira and Flow only to detect deviations; corrections are made in
-Astrolabe. The name is the instrument: a tool for reading where everything stands against time.
+globally, teams schedule their milestones against capacity, and dependencies and overload only ever warn. It compares the plan with Jira (on a manual refresh today; Flow later) only to detect deviations; corrections are made in
+Astrolabe and nothing is written back. The Jira sync is proven against a built-in stub and not yet tested against a real Jira site. The name is the instrument: a tool for reading where everything stands against time.
 
-## What's here today (0.9.0 — baselines)
+## What's here today (1.1.0 — Jira connection and deviations)
 
 Astrolabe's repository started as an exact copy of [Flow](https://github.com/liveweird/flow) (1.35.0, `e9c3b726`), trimmed to its generic foundation. 0.2.0 added the plan's structure, 0.3.0 the first timeline view, 0.4.0 the dependencies, 0.5.0 the team view with capacity,
-0.6.0 the roadmap and programs timelines, 0.7.0 the calendar and the critical path, 0.8.0 the auto-proposal and 0.9.0 baselines:
+0.6.0 the roadmap and programs timelines, 0.7.0 the calendar and the critical path, 0.8.0 the auto-proposal, 0.9.0 baselines, 1.0.0 the checkup and 1.1.0 the Jira connection:
 
 - **People** — the directory of the plan's owners and managers, each optionally linked to a login; a team's manager is a person.
 - **Work streams, programs and projects**, each with an owner; owners edit what they own and everything below it, ADMIN everything. A project carries an optional target window; a work
@@ -23,6 +23,7 @@ Astrolabe's repository started as an exact copy of [Flow](https://github.com/liv
 - The **calendar and the critical path** (0.7.0) — an ADMIN-curated list of **public holidays** (`/public-holidays`, add by hand or apply the Polish preset for a year); every working-day figure (dependency checks and lags, weekly load, capacity, WIP, the roadmap's links) skips them, and the timelines hatch them. The project page has a **Critical path** toggle (off by default, remembered in the browser): it outlines the chain of milestones and links, across projects, that determines the project's end, adds a **Slack** column (the working days a milestone could slip before that end moves) and lists the farther chain members under "Critical chain". The project and team pages mark **idle gaps** (3 or more working days with nothing in progress) as hatched bands and list them in an "Idle gaps" table. Nothing moves by itself.
 - The **schedule proposal** (0.8.0) — on a team's page, the team's manager (or ADMIN) presses **Propose schedule**: the server places the team's not-started milestones in the team's order, after their dependencies, within capacity and the WIP limit, on the holiday calendar, and answers a proposal; nothing moves yet. The page shows it as dashed bars beside the current ones, a "Proposed load" strip and a table of moves (what changes, the working days, links it would violate or resolve), each with a checkbox. **Accept selected** writes the ticked moves in one batch under the same rights as dragging a bar; a milestone someone moved in the meantime is skipped ("rescheduled in the meantime") and the rest land; **Discard** drops the proposal. Other teams' dates are constraints, and a proposal never reorders the team's work.
 - **Baselines** (0.9.0) — an ADMIN or a user with the roadmap-editor grant takes a named, immutable **baseline** of the whole plan on `/baselines` (every milestone's dates and estimate and every project's span, frozen at one plan revision; up to 100, deleting makes room). Every timeline page then has a **Baseline** picker: a thin gray shadow bar under each bar, a **Movement** table on the project and team pages (start and end in working days later or earlier, estimate change, new / removed / unscheduled since the baseline) and a totals line on the roadmap and programs pages; `/baselines/:id` compares the baseline with the plan, project by project. Accepting a proposal after the team's plan changed since it was made writes nothing and proposes again.
+- **Jira** (1.1.0) — an ADMIN connects a Jira Cloud site on Administration → Jira (the API token is stored encrypted) and presses **Test connection** (probe by probe, with the scope each failed probe needs), maps the program, project and milestone levels to Jira hierarchy levels and fields (defaults from Jira Plans' names; **Peek** reads one issue through the mapping), and **Refresh now** reads the linked items. Owners and ADMIN link a project or milestone 1:1 to a Jira item from its page (programs are linked on the connection page); the **Deviations** page and the chips on the project and team pages show where the plan and Jira disagree (dates in working days, names, parents, estimates, progress, items gone). Nothing is written to Jira. **Proven against the built-in stub only** ("The Jira stub" below); there is no polling yet.
 - **Sign-in** with a JWT access/refresh pair, a server-side revocation blocklist, per-account lockout and per-IP rate limits; opt-in **email MFA**; **self-service password reset** by an
   emailed single-use link.
 - **Users** (ADMIN-managed, `/api/v1/users`) with per-user **feature flags**, **permissions** and a synced UI/email **language** (English and Polish).
@@ -34,7 +35,7 @@ Astrolabe's repository started as an exact copy of [Flow](https://github.com/liv
 ## Roadmap
 
 0.1.0 the foundation · 0.2.0 plan structure · 0.3.0 the timeline and the project view · 0.4.0 dependencies · 0.5.0 the team view
-and capacity (shipped) · 0.6.0 roadmap and programs timelines (shipped) · 0.7.0 calendar and critical path (shipped) · 0.8.0 auto-proposal (shipped) · 0.9.0 baselines (shipped) · 1.0.0 checkup. The scope of each version and the decisions
+and capacity (shipped) · 0.6.0 roadmap and programs timelines (shipped) · 0.7.0 calendar and critical path (shipped) · 0.8.0 auto-proposal (shipped) · 0.9.0 baselines (shipped) · 1.0.0 checkup (shipped) · 1.1.0 Jira connection, bindings and deviations (shipped; next 1.2 import). The scope of each version and the decisions
 behind it: `.claude/docs/product.md`; open items: `BACKLOG.md`. `CLAUDE.md`'s "Product" and "Donors" sections say which sibling project each capability ports from.
 
 ## The stack
@@ -73,7 +74,7 @@ Mailpit **8029**, the Jira stub **8096**. All host ports bind to 127.0.0.1.
 **The Jira stub.** The compose file also runs `jira-stub` (`astrolabe-jira-stub`, WireMock over the deterministic dataset in `sample-data/jira-stub`, built from its own directory)
 and points the app at it with `JIRA_STUB_BASE_URL=http://jira-stub:8080`, so the Jira sync works offline: sign in as the admin, Administration → Jira → New connection
 (site `https://sample.atlassian.net`, any email, any token, project keys `CE,PF,CG,DI,OE` — the stub's five work-stream projects; `E2E` is the e2e suite's) → Test connection. A token
-of `wrong-token` makes every probe fail with its scope hint. The app does not depend on the stub (it boots, and the rest of the product works, without it) and the stub holds no data
+of `wrong-token` makes every authenticated probe fail (`tenant_info` is unauthenticated and still passes). The app does not depend on the stub (it boots, and the rest of the product works, without it) and the stub holds no data
 of yours; flip its day-2 scenario with `curl -X PUT http://localhost:8096/__admin/scenarios/jira-day2/state -d '{"state":"day2"}'`. The stub exists in development mode only:
 production startup refuses `JIRA_STUB_BASE_URL` ("Configuration" below), and any real deployment leaves it unset.
 

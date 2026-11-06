@@ -74,6 +74,17 @@ class PackageBoundaryTest {
         assertEquals(emptyList(), violations)
     }
 
+    @Test
+    fun `sync imports no connector and planning reads nothing of jira`() {
+        // sync/ is the connector-agnostic run registry (jira/ registers itself in it through an attribute); the plan never reads the sync.
+        for (pkg in listOf("sync", "planning")) {
+            val own = mainSources.filter { packageOf(it.readText()) == "ch.nokillswit.$pkg" }
+            assertTrue(own.size > 3, "the scan saw only ${own.size} sources of $pkg")
+            val violations = own.flatMap { file -> forbiddenReferences(file.readText(), listOf("jira")).map { "${file.name} $it" } }
+            assertEquals(emptyList(), violations, "$pkg must not reference jira")
+        }
+    }
+
     private fun infraSources(): List<Pair<File, String>> = mainSources.mapNotNull { file ->
         val text = file.readText()
         if (packageOf(text)?.startsWith("ch.nokillswit.infra") == true) file to text else null

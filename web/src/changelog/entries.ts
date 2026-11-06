@@ -17,6 +17,28 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.1.0",
+    date: "2026-11-07",
+    en: `**Astrolabe 1.1.0: Jira connection, links and deviations.**
+
+- Connection: Administration, Jira holds the connections to your Jira Cloud site. The API token is stored encrypted and is never shown again. "Test connection" checks the site probe by probe (site lookup, account, issue types, search, fields, projects, one issue) and shows the scope each failed probe needs.
+- Mapping: map the program, project and milestone levels to Jira hierarchy levels, and pick the start, end, estimate and Team fields. After the first Test connection the defaults are read from your site (Jira Plans' "Target start" and "Target end" first), and "Peek at an issue" shows how one issue reads through the mapping.
+- Links: owners and administrators link a project or milestone to one Jira item, one to one, from the project page; an administrator links a program on the connection page.
+- Refresh: an administrator presses "Refresh now" to read the linked items from Jira on demand.
+- Deviations: the new Deviations page lists where the plan and Jira disagree (dates in working days, dates on one side only, names, parents, hierarchy levels, estimates, progress, items gone from Jira). The project and team pages show a chip with the link and its deviation count.
+- Nothing is written back to Jira: corrections are made in Astrolabe.
+- Proven against a built-in Jira stub; not yet tested against a real Jira site.`,
+    pl: `**Astrolabe 1.1.0: połączenie z Jirą, powiązania i odchylenia.**
+
+- Połączenie: Administracja, Jira zawiera połączenia z Twoją witryną Jira Cloud. Token API jest przechowywany w postaci zaszyfrowanej i nigdy nie jest pokazywany ponownie. „Przetestuj połączenie” sprawdza witrynę krok po kroku (wyszukanie witryny, konto, typy zgłoszeń, wyszukiwanie, pola, projekty, jedno zgłoszenie) i pokazuje zakres uprawnień potrzebny każdemu krokowi, który się nie powiódł.
+- Mapowanie: przypisz poziomy programu, projektu i kamienia milowego do poziomów hierarchii Jiry oraz wybierz pola początku, końca, estymaty i zespołu. Po pierwszym teście połączenia domyślne ustawienia są odczytywane z Twojej witryny (najpierw „Target start” i „Target end” z Jira Plans), a „Zajrzyj do zgłoszenia” pokazuje, jak jedno zgłoszenie odczytuje się przez mapowanie.
+- Powiązania: właściciele/ki elementu i administratorzy/rki powiązują projekt lub kamień milowy z jednym elementem Jiry, w relacji jeden do jednego, na stronie projektu; program powiązuje administrator/ka na stronie połączenia.
+- Odświeżanie: administrator/ka używa „Odśwież teraz”, żeby odczytać z Jiry powiązane elementy na żądanie.
+- Odchylenia: nowa strona Odchylenia pokazuje, gdzie plan i Jira się różnią (daty w dniach roboczych, daty tylko po jednej stronie, nazwy, rodzic, poziomy hierarchii, estymaty, postęp, elementy usunięte z Jiry). Strony projektu i zespołu pokazują znacznik z powiązaniem i liczbą jego odchyleń.
+- Nic nie jest zapisywane z powrotem do Jiry: korekty wprowadza się w Astrolabe.
+- Sprawdzone na wbudowanej atrapie Jiry; jeszcze nie przetestowane na prawdziwej witrynie Jira.`,
+  },
+  {
     version: "1.0.1",
     date: "2026-11-05",
     en: `**Astrolabe 1.0.1: keyboard focus in dialogs and menus.**

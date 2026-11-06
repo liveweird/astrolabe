@@ -115,11 +115,11 @@ kover {
         }
         verify {
             rule {
-                // Line-coverage floor (actual 98.53% on 2026-11-06 after the Jira sync C7, 1450 tests, raised 97 -> 98; 97.63% on 2026-11-05 at the 1.0.0 checkup, raised 96 -> 97; 96.98% on 2026-11-01 after the team view, v0.5.0 C3 - just short of 97; 96.81% after the team capacity periods, v0.5.0 C1; 96.74% after the project view's dependencies, v0.4.0 C3; 96.25% on 2026-10-31; measured with the @Serializable exclusion above).
+                // Line-coverage floor (actual 98.53% on 2026-11-07 at 1.1.0, 1468 tests: no further raise; 98.53% on 2026-11-06 after the Jira sync C7, 1450 tests, raised 97 -> 98; 97.63% on 2026-11-05 at the 1.0.0 checkup, raised 96 -> 97; 96.98% on 2026-11-01 after the team view, v0.5.0 C3 - just short of 97; 96.81% after the team capacity periods, v0.5.0 C1; 96.74% after the project view's dependencies, v0.4.0 C3; 96.25% on 2026-10-31; measured with the @Serializable exclusion above).
                 // 2026-10-31: raised 95 -> 96 after the milestones and the project view (v0.3.0 C1-C2); raised 94 -> 95 after the roadmap ranking (v0.2.0 C5); earlier the same day it was measured after
                 // trimming Flow to Astrolabe's foundation. Re-measure with `:server:koverXmlReport` and RAISE, never lower.
                 minBound(98)
-                // Branch-coverage floor (actual 86.54% on 2026-11-06 after the Jira sync C7, raised 85 -> 86; 85.24% on 2026-11-05 at the 1.0.0 checkup, raised 84 -> 85; 84.29% on 2026-11-01 after v0.5.0 C3, raised 83 -> 84; 83.73% after v0.5.0 C1; 83.67% after v0.4.0 C3; 83.15% earlier that day; raised 82 -> 83 after the dependencies, v0.4.0 C1; 81 -> 82 with the line floor earlier). NOTE: `check` runs only
+                // Branch-coverage floor (actual 86.57% on 2026-11-07 at 1.1.0: no further raise; 86.54% on 2026-11-06 after the Jira sync C7, raised 85 -> 86; 85.24% on 2026-11-05 at the 1.0.0 checkup, raised 84 -> 85; 84.29% on 2026-11-01 after v0.5.0 C3, raised 83 -> 84; 83.73% after v0.5.0 C1; 83.67% after v0.4.0 C3; 83.15% earlier that day; raised 82 -> 83 after the dependencies, v0.4.0 C1; 81 -> 82 with the line floor earlier). NOTE: `check` runs only
                 // koverVerify - run `:server:koverXmlReport` for fresh actuals.
                 minBound(86, coverageUnits = kotlinx.kover.gradle.plugin.dsl.CoverageUnit.BRANCH)
             }
