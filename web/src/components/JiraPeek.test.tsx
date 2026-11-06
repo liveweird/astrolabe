@@ -71,6 +71,7 @@ describe("JiraPeek", () => {
     [404, {}, "Jira does not know this issue (or the connection is gone).", null],
     [409, { type: "urn:astrolabe:problem:jira-not-discovered" }, "Test the connection first.", null],
     [409, { type: "urn:astrolabe:problem:jira-token-unreadable" }, "The stored token cannot be decrypted. Edit the connection and enter the token again.", null],
+    [409, { type: "urn:astrolabe:problem:jira-mapping-invalid", detail: "The connection's mapping no longer fits the site (customfield_99999)" }, "The mapping in force (the saved one, or the defaults when none is saved) no longer fits the Jira site, or cannot be read.", "customfield_99999"],
     [502, { type: "urn:astrolabe:problem:jira-upstream", detail: "Jira did not answer (AUTHENTICATION_FAILED)" }, "Jira could not be reached or refused the request:", "Jira refused the credentials (AUTHENTICATION_FAILED)"],
     [429, {}, "Too many tests in a minute. Wait a moment and try again.", null],
   ])("a %i answer is shown inline", async (status, problem, message, detail) => {

@@ -2,7 +2,10 @@ package ch.nokillswit.infra.fetch
 
 import io.ktor.http.Headers
 import io.ktor.http.HttpMethod
+import kotlin.coroutines.AbstractCoroutineContextElement
+import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonElement
 
 // The value types of one `SourceHttp` call (split out of `SourceHttp.kt` to keep it under the source-file size cap).
@@ -39,13 +42,35 @@ internal class Retry(
     val terminal: () -> FetchException,
 ) : Outcome
 
+/**
+ * A coroutine-context element: an INTERACTIVE caller (a plain user's bind) will not queue for a permit longer than [millis]. A call that
+ * would wait longer fails fast with `BUSY` instead, so a burst of binds cannot hold an administrator's Test connection behind them. The
+ * permit pool stays the one process-wide pool `JiraHeapFit` sized the heap on; nothing here adds a permit.
+ */
+class PermitWait(val millis: Long) : AbstractCoroutineContextElement(Key) {
+    companion object Key : CoroutineContext.Key<PermitWait>
+}
+
 /** One call's hold on a semaphore permit, so it can be handed back while the call only waits (backoff, a tenant pause). */
 internal class Permit(private val semaphore: Semaphore) {
     private var held = false
 
-    suspend fun acquire() {
-        semaphore.acquire()
-        held = true
+    /** Takes a permit, waiting at most [limitMillis] (null = as long as it takes); false when none came free in time. */
+    suspend fun acquire(limitMillis: Long? = null): Boolean {
+        when {
+            limitMillis == null -> {
+                semaphore.acquire()
+                held = true
+            }
+            semaphore.tryAcquire() -> held = true
+            // `held` is set in the same resumption that returns from acquire(): a cancel or timeout landing right after the grant still
+            // finds it set, so the caller's `release()` hands the permit back.
+            else -> withTimeoutOrNull(limitMillis.coerceAtLeast(0)) {
+                semaphore.acquire()
+                held = true
+            }
+        }
+        return held
     }
 
     fun release() {

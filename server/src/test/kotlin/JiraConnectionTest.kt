@@ -28,6 +28,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -56,7 +57,9 @@ class JiraConnectionTest {
 
     private suspend fun HttpResponse.connection(): JiraConnectionResponse = json.decodeFromString(bodyAsText())
 
-    private fun storedToken(id: UInt): String = PostgresTestSupport.connect().use { connection ->
+    private fun storedToken(id: UInt): String = checkNotNull(storedTokenOrNull(id)) { "jira_connections row $id holds no token" }
+
+    private fun storedTokenOrNull(id: UInt): String? = PostgresTestSupport.connect().use { connection ->
         connection.prepareStatement("SELECT api_token FROM jira_connections WHERE id = ?").use { st ->
             st.setInt(1, id.toInt())
             st.executeQuery().use { rs ->
@@ -209,6 +212,21 @@ class JiraConnectionTest {
         assertNotEquals(envelope, rotatedEnvelope)
         assertEquals(rotated, cipher.decrypt(rotatedEnvelope))
         assertTrue(admin.get("$base/$id").connection().hasApiToken)
+    }
+
+    @Test
+    fun `deleting a connection destroys its credential - NULL at rest - and no reader sees the row any more`() = testApplication {
+        usePostgresTestcontainer()
+        val admin = seededClient("jiratokendel", UserRole.ADMIN)
+        val token = newToken()
+        val created = admin.create(request(token = token))
+        assertEquals(token, cipher.decrypt(storedToken(created.id)))
+
+        assertEquals(HttpStatusCode.NoContent, admin.delete("$base/${created.id}").status)
+        assertNull(storedTokenOrNull(created.id), "the credential is gone from the database, not re-wrapped")
+        // readForTest / readForPeek / readForBind filter active(): a deleted row answers like a missing one.
+        assertEquals(HttpStatusCode.NotFound, admin.post("$base/${created.id}/test").status)
+        assertEquals(HttpStatusCode.NotFound, admin.get("$base/${created.id}/peek?key=SP-1").status)
     }
 
     @Test
@@ -376,6 +394,7 @@ class JiraConnectionTest {
             assertNotNull(deleted)
             assertTrue(deleted.hasKeyValue("name", renamed), "the name as STORED")
             assertTrue(deleted.hasKeyValue("host", "sample.atlassian.net"))
+            assertTrue(deleted.hasKeyValue("runsDeleted", 0), "no run existed: the count is reported anyway")
 
             val before = capture.events.count { it.message == "jira.connection_created" }
             assertEquals(HttpStatusCode.BadRequest, admin.postJson(base, request(name = "")).status)

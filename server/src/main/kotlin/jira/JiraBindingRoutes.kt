@@ -9,6 +9,7 @@ import ch.nokillswit.authz.orNotFound
 import ch.nokillswit.authz.requireOwnerOrAdmin
 import ch.nokillswit.infra.db.nowMillis
 import ch.nokillswit.infra.fetch.FetchException
+import ch.nokillswit.infra.fetch.PermitWait
 import ch.nokillswit.infra.paging.optionalEnum
 import ch.nokillswit.infra.paging.optionalString
 import ch.nokillswit.infra.paging.optionalUInt
@@ -32,6 +33,7 @@ import io.ktor.server.resources.post
 import io.ktor.server.response.header
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -57,6 +59,8 @@ internal fun Route.jiraBindingRoutes(
     bindings: JiraBindingService,
     people: PersonService,
     connector: JiraConnector,
+    /** `jira.bindPermitWaitMillis`: how long a bind may queue for an outbound permit before it answers 502 `BUSY` (a person is waiting). */
+    bindPermitWaitMillis: Long,
 ) {
     /** The caller's ACTIVE person, or null (not looked up for an ADMIN, who needs no ownership). */
     suspend fun personOf(caller: CallerPrincipal): UInt? = if (caller.isAdmin()) null else people.activePersonIdOf(caller.userId)
@@ -87,7 +91,9 @@ internal fun Route.jiraBindingRoutes(
             requireOwnerOrAdmin(caller, personOf(caller), bindings.chainOf(request.level, request.nodeId).orNotFound(request.level.title()))
             val checked = validateBindRequest(request)
             val observation = try {
-                observeForBind(connections, connector, checked)
+                // Interactive: a bind queues for an outbound permit at most [bindPermitWaitMillis], then answers 502 `BUSY` - never ahead
+                // of an administrator's Test connection for long (the pool is shared, and its size is what the heap was sized on).
+                withContext(PermitWait(bindPermitWaitMillis)) { observeForBind(connections, connector, checked) }
             } catch (failure: FetchException) {
                 // The code only: the exception's text names an endpoint; nothing of the upstream body or the credentials reaches a client.
                 call.respondProblem(HttpStatusCode.BadGateway, "Jira did not answer (${failure.code})", type = JIRA_UPSTREAM_PROBLEM)
@@ -179,8 +185,8 @@ private suspend fun observeForBind(
     return observation
 }
 
-/** The stored mapping, else the defaults - and a `409` when that mapping no longer fits the discovery (or cannot be read). */
-private fun effectiveMapping(state: JiraMappingState, discovery: JiraDiscovery): JiraMapping =
+/** The stored mapping, else the defaults (the bind's and Peek's one resolution); a `409` when it no longer fits or is unreadable. */
+internal fun effectiveMapping(state: JiraMappingState, discovery: JiraDiscovery): JiraMapping =
     when (val resolved = resolveEffectiveMapping(state, discovery)) {
         is MappingResolution.Usable -> resolved.mapping
         MappingResolution.Unreadable -> throw ConflictException(

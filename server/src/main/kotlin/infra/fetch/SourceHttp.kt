@@ -55,7 +55,7 @@ internal const val BIG_BODY_BYTES_FOR_HEAP_FIT = 1024L * 1024
  * deadline fails `RATE_LIMITED` immediately rather than sleeping past the budget; any other retry
  * that would cross it fails with its own terminal code immediately the same way. The deadline is checked
  * again after the backoff and any tenant pause, before the retry asks for a permit again (time spent queueing for a permit is
- * not charged to the retry, as for a first attempt).
+ * not charged to a retry; it IS to a first attempt, whose clock starts before its permit, and a [PermitWait] makes a longer queue `BUSY`).
  *
  * **Permits are held only while a request runs.** The semaphore is process-wide (one [SourceHttp] serves every connection), so a call
  * hands its permit back while it merely waits - during its own backoff and while its tenant is paused - and re-acquires it after
@@ -180,8 +180,9 @@ class SourceHttp(
         )
         val permit = Permit(semaphore)
         try {
-            acquireClear(permit, pauseKey, tally)
-            val deadline = clock() + requestDeadlineMillis
+            // The deadline starts after the last tenant pause and BEFORE the permit queue: the queue is part of the call's budget
+            // (TIMEOUT, or BUSY with a [PermitWait]), a sibling's Retry-After is not.
+            val deadline = acquireClear(permit, pauseKey, tally, requestDeadlineMillis)
             var attempt = 0
             while (true) {
                 when (val outcome = attemptOnce(call)) {
@@ -197,15 +198,27 @@ class SourceHttp(
     /**
      * Takes a permit at a moment [pauseKey]'s tenant is not paused: waits out a pause WITHOUT a permit, and hands the permit back
      * if a pause appeared while the call queued for it. [afterWait] runs after each pause wait and BEFORE the permit is asked for
-     * (a retry's deadline check: the time spent queueing for a permit is not charged to the retry, as it is not for a first attempt).
+     * (a retry's deadline check: the queue is not charged to a retry). A [budgetMillis] (the first attempt only) starts the call's
+     * deadline once the last pause is over, bounds the queueing and returns the deadline. A [PermitWait] bounds every wait for a permit.
      */
-    private suspend fun acquireClear(permit: Permit, pauseKey: String?, tally: CallTally?, afterWait: () -> Unit = {}) {
+    private suspend fun acquireClear(
+        permit: Permit,
+        pauseKey: String?,
+        tally: CallTally?,
+        budgetMillis: Long? = null,
+        afterWait: () -> Unit = {},
+    ): Long {
+        val interactive = currentCoroutineContext()[PermitWait]?.millis
         var seen = 0L
         while (true) {
             seen = awaitPause(pauseKey, seen, tally)
             afterWait()
-            permit.acquire()
-            if (pendingPause(pauseKey, seen) == null) return
+            val deadline = budgetMillis?.let { clock() + it }
+            val remaining = deadline?.let { it - clock() }
+            val busy = interactive != null && interactive <= (remaining ?: interactive)
+            val limit = listOfNotNull(interactive, remaining).minOrNull()
+            if (!permit.acquire(limit)) throw FetchException(source, if (busy) "BUSY" else "TIMEOUT")
+            if (pendingPause(pauseKey, seen) == null) return deadline ?: 0L
             permit.release()
         }
     }

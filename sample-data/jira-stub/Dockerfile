@@ -8,6 +8,7 @@
 # together (.claude/docs/dependencies.md). Any Basic/Bearer Authorization header is accepted except the token `wrong-token`; switch the
 # `jira-day2` scenario with: curl -X PUT http://localhost:8096/__admin/scenarios/jira-day2/state -d '{"state":"day2"}'
 FROM wiremock/wiremock:3.13.2@sha256:0d4ecb3e4dc8213fd7a4d37d6a78f6e6b553a6d2e15bd51b0999781282ac61b3
-COPY mappings /home/wiremock/mappings
-COPY __files /home/wiremock/__files
+# --chmod=a+rX: a checkout made under `umask 077` has 0600/0700 files, which the non-root user the stack runs this image as (uid 10001) could not read.
+COPY --chmod=a+rX mappings /home/wiremock/mappings
+COPY --chmod=a+rX __files /home/wiremock/__files
 CMD ["--disable-banner", "--max-request-journal-entries=1000"]

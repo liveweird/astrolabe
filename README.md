@@ -68,7 +68,14 @@ email): <http://localhost:8029>.
 
 Ports are chosen to coexist with the sibling stacks on the same machine (the full table is in
 `.claude/docs/ci.md`): the app is on **8086**, Postgres is host-mapped to **5437**, the Vite dev server uses **5178**,
-Mailpit **8029**. All host ports bind to 127.0.0.1.
+Mailpit **8029**, the Jira stub **8096**. All host ports bind to 127.0.0.1.
+
+**The Jira stub.** The compose file also runs `jira-stub` (`astrolabe-jira-stub`, WireMock over the deterministic dataset in `sample-data/jira-stub`, built from its own directory)
+and points the app at it with `JIRA_STUB_BASE_URL=http://jira-stub:8080`, so the Jira sync works offline: sign in as the admin, Administration → Jira → New connection
+(site `https://sample.atlassian.net`, any email, any token, project keys `CE,PF,CG,DI,OE` — the stub's five work-stream projects; `E2E` is the e2e suite's) → Test connection. A token
+of `wrong-token` makes every probe fail with its scope hint. The app does not depend on the stub (it boots, and the rest of the product works, without it) and the stub holds no data
+of yours; flip its day-2 scenario with `curl -X PUT http://localhost:8096/__admin/scenarios/jira-day2/state -d '{"state":"day2"}'`. The stub exists in development mode only:
+production startup refuses `JIRA_STUB_BASE_URL` ("Configuration" below), and any real deployment leaves it unset.
 
 On a cold start the app waits for Postgres rather than exiting: Flyway retries its boot connection
 (`POSTGRES_CONNECT_RETRIES`, default 10 — about a minute of backing-off attempts; see "Configuration"),
@@ -100,7 +107,9 @@ dataset's invariants and the loader's refusals against http stubs, and runs in `
 
 Two Deployments, each a single replica with `Recreate` updates (the old pod stops before the
 new one starts, so an upgrade briefly interrupts it): `postgres` and `app` (the HTTP API and the SPA; one process, no worker). The application pod migrates on boot and, under the local overlay below, runs in
-development mode (`KTOR_DEVELOPMENT=true`, no proxy), in the `astrolabe` namespace.
+development mode (`KTOR_DEVELOPMENT=true`, no proxy), in the `astrolabe` namespace. The overlay adds a third, `jira-stub` (`k8s/local/jira-stub.yaml`: the same WireMock image as compose, a
+ClusterIP Service `jira-stub:8080`, and the NetworkPolicy pair app → jira-stub); `apply-local.sh` builds it as `astrolabe-jira-stub:<tag>` and the overlay ConfigMap gives the app
+`JIRA_STUB_BASE_URL=http://jira-stub:8080`. The production base `k8s/` has neither the stub nor the URL.
 
 With a local cluster that shares the Docker image store (e.g. OrbStack):
 
@@ -121,7 +130,7 @@ is the production posture. An existing installation already has the namespace an
 The manifests are hardened: no ServiceAccount token in any pod, non-root/seccomp/`drop: [ALL]` on the
 app and postgres containers, and `k8s/network-policies.yaml` — default-deny plus only
 app → postgres:5432, DNS and public egress on 443 / 587, 465, 25 (SMTP), and 8086 into
-the app. NetworkPolicy is enforced only by a CNI that implements it (OrbStack's cluster does). Details
+the app (the overlay adds app → jira-stub:8080, because the egress rule excludes every private range, the pod network included). NetworkPolicy is enforced only by a CNI that implements it (OrbStack's cluster does). Details
 in `.claude/docs/security.md` ("Kubernetes pod and network hardening"). CI validates every manifest and
 the `apply-local.sh` render with `kubeconform` (`k8s-static` job).
 
@@ -197,9 +206,10 @@ class-data-sharing (AppCDS) archive, and setting it drops the archive. Build-tim
 | `MFA_MAX_LIVE_PER_ACCOUNT` | `3` | Live email-MFA challenges one account may hold, 1–100; a new login gets a fresh code (unless the shared store is full) and, at the limit, the account's oldest live challenge is dropped. |
 | `DATA_ENCRYPTION_KEY` | *(dev key, burned)* | AES-256-GCM key (64 hex) that encrypts the stored Jira API tokens — the dev default is burned, production refuses it. It cannot be discarded: losing it loses every stored token. Back it up apart from the database. |
 | `DATA_ENCRYPTION_KEY_PREVIOUS` | *(blank)* | Decrypt-only fallback during a key rotation: set the OLD key here and the new one in `DATA_ENCRYPTION_KEY`, boot once (every stored token is re-encrypted), then remove it. Wired on compose and Kubernetes (optional there); blank = none. |
-| `JIRA_STUB_BASE_URL` | *(blank)* | **Development only.** An `http(s)://host[:port]` origin that stands in for BOTH the Jira site's `tenant_info` host and the Atlassian gateway (the compose/Kubernetes `jira-stub`, port 8096). Production startup **refuses** a non-blank value (`.claude/docs/security.md` "Outbound HTTP calls"). |
+| `JIRA_STUB_BASE_URL` | *(blank)* | **Development only.** An `http(s)://host[:port]` origin that stands in for BOTH the Jira site's `tenant_info` host and the Atlassian gateway (the compose/Kubernetes-overlay `jira-stub`, port 8096; `docker-compose.yaml` sets `http://jira-stub:8080`, the overlay ConfigMap the same). On compose a value in the HOST environment wins: one exported for `./gradlew :server:run` (e.g. `http://localhost:8096`) is passed into the container, where `localhost` is not the stub, so unset it before `docker compose up`; an empty value disables the stub. Production startup **refuses** a non-blank value (`.claude/docs/security.md` "Outbound HTTP calls"). |
 | `JIRA_REQUEST_TIMEOUT_SECONDS` | `30` | One Jira attempt's timeout, 5–120 seconds. |
-| `JIRA_REQUEST_DEADLINE_SECONDS` | `120` | The total time one Jira call may spend across every attempt and backoff, 10–600 seconds. |
+| `JIRA_REQUEST_DEADLINE_SECONDS` | `180` | The total time one Jira call may spend across every attempt and backoff (the queue for an outbound permit included, a sibling's Retry-After wait not), 10–600 seconds; it must outlast a `Retry-After: 120`. |
+| `JIRA_BIND_PERMIT_WAIT_MILLIS` | `5000` | How long a bind (linking a plan item to a Jira item) queues for an outbound permit before it answers `502` with the code `BUSY`, 100–60000 ms; Test connection and the runs are never cut short by it. |
 | `JIRA_MAX_RESPONSE_BYTES` | `4194304` | The most bytes one Jira response may carry (refused as `LIMIT_EXCEEDED` past it), 65536–16777216. |
 | `JIRA_MAX_CONCURRENT_REQUESTS` | `2` | In-flight Jira calls across every connection, 1–8. |
 | `JIRA_MAX_RETRIES` | `4` | Retries of a Jira 429/5xx/network failure (exponential backoff with jitter), 0–8. |

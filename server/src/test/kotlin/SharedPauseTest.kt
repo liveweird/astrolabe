@@ -115,6 +115,37 @@ class SharedPauseTest {
         }
 
     @Test
+    fun `a call started inside another caller's Retry-After gets its full deadline after the pause, not what the pause left`() =
+        runBlocking<Unit> {
+            val bRequests = AtomicInteger()
+            val retryAfter120 = headersOf(HttpHeaders.RetryAfter, "120")
+            val engine = MockEngine { request ->
+                when {
+                    request.url.encodedPath == "/a" -> respond("{}", HttpStatusCode.TooManyRequests, retryAfter120)
+                    bRequests.incrementAndGet() == 1 -> respond("{}", HttpStatusCode.TooManyRequests, retryAfter120)
+                    else -> respond("{}", HttpStatusCode.OK, JSON_HEADERS)
+                }
+            }
+            val gate = CompletableDeferred<Unit>()
+            // Every sleep is gated and lands on its OWN absolute target, so the two callers' sleeps do not add up on the shared clock.
+            val http = http(engine, limit = 2, maxRetries = 1, deadlineMillis = 150_000) { ms ->
+                val begin = clock.get()
+                gate.await()
+                clock.updateAndGet { maxOf(it, begin + ms) }
+            }
+            val a = async(Dispatchers.Default, start = CoroutineStart.UNDISPATCHED) { runCatching { http.get("/a") } }
+            waitUntil { sleeps.size == 1 } // /a got its 429, recorded the 120 s pause and sleeps its backoff
+            val b = async(Dispatchers.Default, start = CoroutineStart.UNDISPATCHED) { http.get("/b") }
+            waitUntil { sleeps.size == 2 } // /b started INSIDE the pause and waits it out, holding no permit
+
+            gate.complete(Unit)
+            // /b's own 429 (another 120 s) fits the 150 s deadline that began when the pause ended; measured from its start it would not.
+            withTimeout(TIMEOUT_MILLIS) { b.await() }
+            assertEquals(2, bRequests.get(), "/b was retried once and then answered")
+            withTimeout(TIMEOUT_MILLIS) { a.await() }
+        }
+
+    @Test
     fun `a 5xx with Retry-After and a 429 without it pause the tenant, a plain 5xx pauses nobody`() = runBlocking<Unit> {
         val engine = MockEngine { request ->
             when (request.url.encodedPath) {

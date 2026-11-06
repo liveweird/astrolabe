@@ -60,13 +60,16 @@ A background worker (and with it a role split) returns only with the first featu
 ## Running the full stack
 
 Two ways to run, sharing the same `docker-compose.yaml`. Astrolabe's ports (server **8086**, Postgres **5437**, Mailpit UI
-**8029**, Vite **5178**) deliberately avoid the other local stacks' (8080-8085, 5173-5436), so several stacks can run side by
+**8029**, Jira stub **8096**, Vite **5178**) deliberately avoid the other local stacks' (8080-8085, 5173-5436), so several stacks can run side by
 side on one machine; host ports bind to 127.0.0.1:
 
 - **One command (clone & run / demo):** `docker compose up --build` builds the SPA and the
   server, starts PostgreSQL, runs Flyway on boot, and serves everything at
   `http://localhost:8086` (Swagger at `/openapi`; sign in as `admin@astrolabe.local` / `changeme`;
-  Mailpit at `http://localhost:8029`). Tear down with `docker compose down` (add `-v` to drop the
+  Mailpit at `http://localhost:8029`; the Jira stub at `http://localhost:8096`, `app` reaching it as `http://jira-stub:8080` through
+  `JIRA_STUB_BASE_URL`: Administration → Jira → New connection with site `https://sample.atlassian.net`, any email/token and keys
+  `CE,PF,CG,DI,OE` (not `SP`; the stub's projects are in `sample-data/jira/README.md`) → Test connection is green; the app does not depend on the
+  stub, so `docker compose up postgres mailpit` + `./gradlew :server:run` needs none). Tear down with `docker compose down` (add `-v` to drop the
   DB volume).
 - **Local development (hot reload):** in separate terminals, run
   `docker compose up postgres mailpit` (Postgres host port **5437** -> in-container 5432),
@@ -99,6 +102,10 @@ side on one machine; host ports bind to 127.0.0.1:
   is applied with the rest and OrbStack's cluster enforces it: an in-cluster SMTP relay is blocked until you add an
   egress policy for it (`.claude/docs/security.md`, "Kubernetes pod and network hardening"). **Teardown:** retain database data by scaling the
   deployments to zero, or delete the deployments, services, network policies and PVC-holding resources explicitly.
+  The overlay also applies `k8s/local/jira-stub.yaml` (the `jira-stub` Deployment/Service and the app → jira-stub NetworkPolicy pair; `apply-local.sh`
+  builds `astrolabe-jira-stub:<tag>` itself, one `docker build` of `sample-data/jira-stub`, and the overlay ConfigMap carries `JIRA_STUB_BASE_URL`). If Test
+  connection fails on Kubernetes but passes on compose, check `kubectl -n astrolabe get networkpolicies` for `allow-app-egress-to-jira-stub` first (the base
+  egress rule excludes the pod network); `kubectl -n astrolabe exec deploy/app -- curl -s http://jira-stub:8080/__admin/health` is the direct probe.
   **k8s smoke routine** (after a rebuild; never print the password):
   1. `TAG="dev-$(git rev-parse --short=12 HEAD)-$(date +%s)"; docker build -t "astrolabe-app:$TAG" .`
   2. `./k8s/apply-local.sh "$TAG"` then `kubectl -n astrolabe rollout status deploy/app --timeout=180s`.
@@ -111,7 +118,7 @@ side on one machine; host ports bind to 127.0.0.1:
      (the password never enters an argv: `printf` is a shell builtin and jq reads it from stdin).
   6. With the token (`-H "Authorization: Bearer $TOKEN"`): `GET /api/v1/views/plan`, `/api/v1/views/roadmap` and `/api/v1/baselines`
      answer 200 (`curl -fsS -o /dev/null -w '%{http_code}\n'`).
-  7. `kubectl -n astrolabe logs deploy/app | grep -i flyway` shows the schema up to date (V20).
+  7. `kubectl -n astrolabe logs deploy/app | grep -i flyway` shows the schema up to date (V21).
   8. The navbar stamp `v<APP_VERSION> · <sha>` read with a Playwright one-liner (the `verify` skill) against `http://$LB:8086`.
   **Secrets:** the deployment consumes the `astrolabe-secrets` Secret via `secretKeyRef` (`JWT_SECRET`,
   `POSTGRES_USER`/`POSTGRES_PASSWORD`, `DATA_ENCRYPTION_KEY`, `ADMIN_INITIAL_PASSWORD`, optional

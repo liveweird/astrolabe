@@ -2836,10 +2836,11 @@ paths:
         `key` (`ABC-12`) from the site with the STORED token - the cheapest way to see what the mapping reads on a real site before any
         binding - and answers its system fields, the values the mapping resolves (the Astrolabe level its hierarchy level maps to, start,
         end, estimate, unit, team name) and `raw`: the mapped fields' values exactly as the site sent them, and nothing else of the issue.
-        Uses the stored mapping, else the defaults. Not stored, not audited. `400` for a key that is not an issue key or whose project is not
+        Uses the stored mapping, else the defaults - the bind's own resolution: a mapping that no longer fits the discovery, or cannot be
+        read, is a `409` `urn:astrolabe:problem:jira-mapping-invalid`, not a read through a mapping the bind and the run would refuse. Not stored, not audited. `400` for a key that is not an issue key or whose project is not
         one of the connection's project keys (a moved issue is judged by its new key; a repeated `key` is a `400` too); `404` for an unknown connection or a key Jira does
-        not know; `409` before a discovery (`urn:astrolabe:problem:jira-not-discovered`) or when the stored token cannot be decrypted
-        (`urn:astrolabe:problem:jira-token-unreadable`, enter it again); `502` (`urn:astrolabe:problem:jira-upstream`) when Jira cannot
+        not know; `409` before a discovery (`urn:astrolabe:problem:jira-not-discovered`), when the stored token cannot be decrypted
+        (`urn:astrolabe:problem:jira-token-unreadable`, enter it again) or for an unusable mapping (above); `502` (`urn:astrolabe:problem:jira-upstream`) when Jira cannot
         be reached or refuses - the detail names the failure code only (`AUTHENTICATION_FAILED`, `UPSTREAM_UNAVAILABLE`, ...).
       parameters:
         - name: key
@@ -2915,7 +2916,8 @@ paths:
         and its mapping, as stored or by default, must still fit the site as it is now: otherwise `409`
         (`urn:astrolabe:problem:jira-not-discovered`, `urn:astrolabe:problem:jira-mapping-invalid` - an administrator must fix it - or
         `urn:astrolabe:problem:jira-token-unreadable`). `502` (`urn:astrolabe:problem:jira-upstream`, the detail names the failure
-        code only) when Jira cannot be reached or refuses.
+        code only) when Jira cannot be reached or refuses; the code is `BUSY` when the outbound permits stayed taken for longer than `jira.bindPermitWaitMillis` (default 5 s; the pool
+        is shared with the administrators' Test connection and the runs: a bind never queues behind them for long - try again).
 
         Rate limited per signed-in USER (`jira-bind`, 30 a minute), BEFORE the guard: an over-limit caller gets `429` whatever the request
         would have answered.

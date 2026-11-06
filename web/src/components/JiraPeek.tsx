@@ -5,7 +5,7 @@ import { Button, Group, Stack, Table, Text, TextInput } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { useMutation } from "@tanstack/react-query";
 import { ApiError } from "../api/http";
-import { isJiraNotDiscovered, isJiraTokenUnreadable, peekJiraIssue, type JiraPeekResponse } from "../api/jira";
+import { isJiraMappingInvalid, isJiraNotDiscovered, isJiraTokenUnreadable, peekJiraIssue, type JiraPeekResponse } from "../api/jira";
 import { ISSUE_KEY_PATTERN } from "../utils/jiraForm";
 import { errorCodeText } from "../utils/syncRuns";
 import FormErrorAlert from "./FormErrorAlert";
@@ -24,6 +24,7 @@ function rawText(value: unknown): string {
 function peekFailure(err: unknown, t: TFunction): { message: string; detail?: string } {
   if (isJiraNotDiscovered(err)) return { message: t("jira.peek.notDiscovered") };
   if (isJiraTokenUnreadable(err)) return { message: t("jira.peek.tokenUnreadable") };
+  if (isJiraMappingInvalid(err)) return { message: t("jira.peek.mappingInvalid"), detail: (err as ApiError).detail };
   if (err instanceof ApiError) {
     if (err.status === 400) return { message: t("jira.peek.invalid"), detail: err.detail };
     if (err.status === 404) return { message: t("jira.peek.notFound") };

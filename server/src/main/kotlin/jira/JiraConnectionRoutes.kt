@@ -4,6 +4,7 @@ import ch.nokillswit.audit.audit
 import ch.nokillswit.authz.caller
 import ch.nokillswit.authz.orNotFound
 import ch.nokillswit.authz.requireAdmin
+import ch.nokillswit.infra.config.requireConfigLong
 import ch.nokillswit.infra.db.orVanished
 import ch.nokillswit.infra.paging.parsePaging
 import ch.nokillswit.infra.paging.toPage
@@ -32,6 +33,9 @@ class JiraConnectionsRoute {
     class Id(val parent: JiraConnectionsRoute = JiraConnectionsRoute(), val id: UInt)
 }
 
+private const val MIN_BIND_WAIT_MILLIS = 100L
+private const val MAX_BIND_WAIT_MILLIS = 60_000L
+
 /**
  * The Jira sync's routes, ONE module function for the whole `jira/` package (`conventions.md`: one routes file per concern - connections
  * here; mapping and Peek register from here, bindings and deviations as they land). The registry is ADMIN only, reads included (a
@@ -44,12 +48,14 @@ fun Application.configureJiraRoutes() {
     val connector = attributes[JiraConnectorKey]
     val bindings = attributes[JiraBindingServiceKey]
     val people = attributes[PersonServiceKey]
+    val bindWaitKey = "jira.bindPermitWaitMillis"
+    val bindPermitWaitMillis = requireConfigLong(environment.config, bindWaitKey, MIN_BIND_WAIT_MILLIS, MAX_BIND_WAIT_MILLIS)
 
     routing {
         authenticate {
             jiraTestRoutes(connections, connector)
             jiraMappingRoutes(connections, connector)
-            jiraBindingRoutes(connections, bindings, people, connector)
+            jiraBindingRoutes(connections, bindings, people, connector, bindPermitWaitMillis)
             get<JiraConnectionsRoute> {
                 requireAdmin(call.caller())
                 val paging = call.parsePaging(sortable = JIRA_CONNECTION_SORT_FIELDS)
@@ -106,6 +112,7 @@ fun Application.configureJiraRoutes() {
                     "name" to outcome.name,
                     "host" to outcome.host,
                     "bindingsUnbound" to outcome.bindingsUnbound,
+                    "runsDeleted" to outcome.runsDeleted,
                 )
                 call.respond(HttpStatusCode.NoContent)
             }

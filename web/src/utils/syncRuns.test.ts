@@ -37,6 +37,7 @@ describe("errorCodeText", () => {
     "RATE_LIMITED",
     "UPSTREAM_UNAVAILABLE",
     "TIMEOUT",
+    "BUSY",
     "INVALID_RESPONSE",
     "LIMIT_EXCEEDED",
     "BLOCKED_HOST",

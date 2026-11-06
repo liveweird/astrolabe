@@ -48,6 +48,9 @@ private class RunProblem(val code: String, val detail: String) : RuntimeExceptio
  */
 private class RunProgress {
     var onChange: () -> Unit = {}
+
+    /** Run before every search page: ends the run (`RunProblem`) once its connection is deleted or disabled. */
+    var beforePage: suspend () -> Unit = {}
     var calls = 0
         set(value) {
             field = value
@@ -141,6 +144,13 @@ class JiraObserver internal constructor(
             ?: throw RunProblem("MAPPING_INVALID", "A mapped level has no issue type in the discovery snapshot")
         val bound = store.snapshot(run.connectionId)
         if (bound.isEmpty()) return
+        progress.beforePage = {
+            when (connections.runnableState(run.connectionId)) {
+                RunnableState.RUNNABLE -> Unit
+                RunnableState.GONE -> throw RunProblem("CONNECTION_GONE", "The Jira connection was deleted during the run")
+                RunnableState.DISABLED -> throw RunProblem("CONNECTION_DISABLED", "The Jira connection was disabled during the run")
+            }
+        }
 
         val keys = context.target.projectKeys
         val client = connector.clientFor(context.target, token)
@@ -297,6 +307,7 @@ class JiraObserver internal constructor(
         var restarted = false
         var query = ""
         while (true) {
+            progress.beforePage()
             ceiling.next()
             progress.calls++
             if (token == null) query = jql()

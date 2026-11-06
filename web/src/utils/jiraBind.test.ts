@@ -38,6 +38,13 @@ describe("bindFailure - every answer a bind gives, in words", () => {
     });
   });
 
+  test("a 502 BUSY (the outbound permits stayed taken) reads as try again in a moment", () => {
+    expect(bindFailure(problem(502, "urn:astrolabe:problem:jira-upstream", "Jira did not answer (BUSY)"), t)).toEqual({
+      message: "Jira could not be reached or refused the request:",
+      detail: "Too many Jira calls are in flight; try again in a moment (BUSY)",
+    });
+  });
+
   test("an unexpected status or a network failure never shows error.message", () => {
     expect(bindFailure(problem(418, undefined, "x"), t).message).toBe("The link failed (418)");
     expect(bindFailure(new TypeError("Failed to fetch"), t).message).toBe("The link failed");

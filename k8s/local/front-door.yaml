@@ -24,3 +24,7 @@ data:
   KTOR_DEVELOPMENT: "true"
   HTTP_BEHIND_PROXY: "false"
   HTTP_PROXY_HOPS: "1"
+  # The Jira stub (k8s/local/jira-stub.yaml, a ClusterIP Service in this namespace): stands in for BOTH the Jira site's tenant_info host and the
+  # Atlassian gateway, so a connection to https://sample.atlassian.net tests green offline. Development mode ONLY: the application refuses to
+  # boot in production mode with this set, and the base k8s/front-door.yaml (the production posture) must never carry it.
+  JIRA_STUB_BASE_URL: "http://jira-stub:8080"

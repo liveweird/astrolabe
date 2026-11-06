@@ -127,17 +127,21 @@ private fun InetAddress.isSpecialIpv4(): Boolean {
     if (bytes.size != 4) return false
     val b0 = bytes[0].toInt() and 0xFF
     val b1 = bytes[1].toInt() and 0xFF
-    return (b0 == 100 && b1 in 64..127) ||
+    return b0 == 0 || // 0.0.0.0/8, "this network" (only 0.0.0.0 itself is the wildcard address the JDK flags)
+        (b0 == 100 && b1 in 64..127) ||
         (b0 == 192 && b1 == 0 && (bytes[2].toInt() and 0xFF) == 0) ||
-        (b0 == 198 && (b1 == 18 || b1 == 19))
+        (b0 == 198 && (b1 == 18 || b1 == 19)) ||
+        b0 >= 240 // 240.0.0.0/4, reserved, and 255.255.255.255, the limited broadcast, inside it
 }
 
 private fun InetAddress.isNat64(): Boolean {
     val bytes = address
     if (bytes.size != 16) return false
     val prefix = byteArrayOf(0x00, 0x64, 0xFF.toByte(), 0x9B.toByte(), 0, 0, 0, 0, 0, 0, 0, 0)
-    return bytes.copyOfRange(0, 12).contentEquals(prefix) &&
-        InetAddress.getByAddress(bytes.copyOfRange(12, 16)).isBlockedAddress()
+    // 64:ff9b::/96 (RFC 6052): blocked when the embedded IPv4 address is; 64:ff9b:1::/48 (RFC 8215, local-use) is blocked whole.
+    val localUse = byteArrayOf(0x00, 0x64, 0xFF.toByte(), 0x9B.toByte(), 0x00, 0x01)
+    return bytes.copyOfRange(0, 6).contentEquals(localUse) ||
+        (bytes.copyOfRange(0, 12).contentEquals(prefix) && InetAddress.getByAddress(bytes.copyOfRange(12, 16)).isBlockedAddress())
 }
 
 /** A scheme, host and port: what a request's URL is allowed to name. */

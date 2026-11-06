@@ -106,7 +106,10 @@ class SyncRunner(
         when {
             failed -> log.warn("Sync run {} stays unfinished; the next claim after the claim's lifetime will abandon it", run.id)
             written == null -> log.warn("Sync run {} was not finished in time; the next claim will abandon it", run.id)
-            !written -> log.warn("Sync run {} was already finished (abandoned) when it ended as {}", run.id, result.outcome)
+            !written -> log.warn(
+                "Sync run {} was already finished (abandoned) or removed (its connection was deleted) when it ended as {}",
+                run.id, result.outcome,
+            )
             result.outcome == SyncOutcome.SUCCEEDED -> log.info(
                 "Sync run {} ({} connection {}) succeeded: observed={}, gone={}, calls={}, rateLimited={}, backoffMs={}",
                 run.id, run.kind, run.connectionId, result.counts.observed, result.counts.gone, result.counts.calls,

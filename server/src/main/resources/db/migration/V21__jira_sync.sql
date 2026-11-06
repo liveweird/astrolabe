@@ -1,7 +1,8 @@
 -- Jira sync (v1.1.0): the connection registry, the 1:1 bindings of plan nodes to Jira issues, the latest observation per binding and the run
 -- registry. Nothing here ever writes to Jira; the sync only OBSERVES and the deviations are computed from these rows.
 
--- A Jira Cloud connection. Soft-deleted (the name frees on delete). api_token holds a FieldCipher envelope ('enc:v1:...'), write-only end to end.
+-- A Jira Cloud connection. Soft-deleted (the name frees on delete). api_token holds a FieldCipher envelope ('enc:v1:...'), write-only end to end; a delete
+-- sets it NULL (no dormant credential, and no envelope left under a key a later rotation would have to open).
 -- mapping is the canonical mapping document ('{}' = unset); discovery is the last field/issue-type snapshot; cloud_id is persisted by a passing
 -- Test connection; mapping_changed_at is the instant a PUT last CHANGED the canonical mapping (null = never), the run's signal that an
 -- incremental read must not be trusted.
@@ -10,7 +11,7 @@ CREATE TABLE jira_connections (
     name VARCHAR(100) NOT NULL,
     site_url VARCHAR(253) NOT NULL,
     email VARCHAR(254) NOT NULL,
-    api_token TEXT NOT NULL,
+    api_token TEXT NULL,
     auth_scheme VARCHAR(10) NOT NULL,
     project_keys JSONB NOT NULL,
     cloud_id VARCHAR(36) NULL,
@@ -24,6 +25,10 @@ CREATE TABLE jira_connections (
     created_at BIGINT NOT NULL,
     updated_at BIGINT NOT NULL,
     marked_as_deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    -- The token is only ever stored as an envelope (a plaintext value would sit unencrypted at rest): the registry service encrypts before it binds.
+    -- A delete overwrites it with NULL, and only a deleted row may hold NULL.
+    CONSTRAINT ck_jira_connections_api_token CHECK (api_token IS NULL OR api_token LIKE 'enc:v1:%'),
+    CONSTRAINT ck_jira_connections_api_token_live CHECK (marked_as_deleted OR api_token IS NOT NULL),
     CONSTRAINT ck_jira_connections_auth_scheme CHECK (auth_scheme IN ('BASIC', 'BEARER')),
     CONSTRAINT ck_jira_connections_project_keys CHECK (jsonb_typeof(project_keys) = 'array' AND jsonb_array_length(project_keys) BETWEEN 1 AND 50),
     CONSTRAINT ck_jira_connections_mapping CHECK (jsonb_typeof(mapping) = 'object')
@@ -94,7 +99,8 @@ CREATE TABLE jira_observations (
     CONSTRAINT ck_jira_observations_gone_reason CHECK (gone_reason IN ('DELETED', 'OUT_OF_SCOPE', 'FORBIDDEN'))
 );
 
--- One row per run of a connector. Hard-delete by retention (the last 50 per connection, pruned at claim time). connection_id has no FK: kind
+-- One row per run of a connector. Hard-delete by retention (the last 50 per connection, pruned at claim time) and with its connection (the
+-- connection's delete removes its runs in the same transaction). connection_id has no FK: kind
 -- decides which table it names. error_detail never holds a URL with a query or a token.
 -- uq_sync_runs_running is the single-writer claim: at most one unfinished run per (kind, connection).
 CREATE TABLE sync_runs (
@@ -102,7 +108,7 @@ CREATE TABLE sync_runs (
     kind VARCHAR(10) NOT NULL,
     connection_id INTEGER NOT NULL,
     "trigger" VARCHAR(10) NOT NULL,
-    requested_by_user_id BIGINT NULL,
+    requested_by_user_id BIGINT NULL REFERENCES users(id),
     started_at BIGINT NOT NULL,
     finished_at BIGINT NULL,
     outcome VARCHAR(12) NULL,

@@ -97,6 +97,15 @@ spec:
                 configMapKeyRef:
                   name: astrolabe-front-door
                   key: HTTP_PROXY_HOPS
+            # The Jira stub's origin, DEVELOPMENT ONLY: it exists in the OrbStack overlay ConfigMap (k8s/local/front-door.yaml, with
+            # k8s/local/jira-stub.yaml) and nowhere else. The production ConfigMap has no such key, so `optional: true` leaves the
+            # variable UNSET there (the app refuses to boot in production mode with a non-blank value).
+            - name: JIRA_STUB_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: astrolabe-front-door
+                  key: JIRA_STUB_BASE_URL
+                  optional: true
             # Password reset and email MFA need outbound mail. This deployment ships with
             # mail disabled — set "smtp" plus real SMTP_HOST/MAIL_FROM/MAIL_APP_URL to enable
             # those flows (production refuses the `log` transport). MAIL_APP_URL is the https origin

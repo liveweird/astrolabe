@@ -475,6 +475,8 @@ class JiraTestConnectionTest {
             )
         } finally {
             root.detach()
+            // The deleted row holds NULL: no undecryptable envelope is left in the shared table for a later rotation test.
+            admin.delete("$base/${created.id}")
         }
     }
 

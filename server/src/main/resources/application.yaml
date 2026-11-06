@@ -228,7 +228,9 @@ jira:
   # One attempt's deadline (HttpTimeout and the OkHttp timeouts), seconds 5..120.
   requestTimeoutSeconds: "$JIRA_REQUEST_TIMEOUT_SECONDS:30"
   # The TOTAL time one logical call may spend across every attempt plus backoff, seconds 10..600.
-  requestDeadlineSeconds: "$JIRA_REQUEST_DEADLINE_SECONDS:120"
+  requestDeadlineSeconds: "$JIRA_REQUEST_DEADLINE_SECONDS:180"
+  # How long a bind (a plain user's click) queues for an outbound permit before it answers 502 BUSY (100..60000).
+  bindPermitWaitMillis: "$JIRA_BIND_PERMIT_WAIT_MILLIS:5000"
   # The most bytes one response may carry before it is refused (LIMIT_EXCEEDED), 65536..16777216. Also sizes the node ceiling.
   maxResponseBytes: "$JIRA_MAX_RESPONSE_BYTES:4194304"
   # In-flight Jira calls across every connection (the permit pool), 1..8. In-flight bodies are bounded by this x maxResponseBytes.

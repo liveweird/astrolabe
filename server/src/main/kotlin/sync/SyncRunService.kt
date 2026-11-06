@@ -130,7 +130,14 @@ class SyncRunService(
         } == 1
     }
 
-    /** The `started_at` of the newest SUCCEEDED run of the (kind, connection): the incremental read's watermark; null before the first. */
+    /**
+     * Removes every run of the (kind, connection), INSIDE the caller's open transaction (it opens none). A run still in flight
+     * keeps going until its next write: its [finish] then finds no row and answers false.
+     */
+    suspend fun deleteForConnectionInTransaction(kind: SyncKind, connectionId: UInt): Int =
+        Runs.deleteWhere { (Runs.kind eq kind.name) and (Runs.connectionId eq connectionId.toInt()) }
+
+    /** The `started_at` of the newest SUCCEEDED run of the (kind, connection): the incremental watermark; null before the first. */
     suspend fun lastSucceededStart(kind: SyncKind, connectionId: UInt): Long? = suspendTransaction(database) {
         Runs.select(Runs.startedAt)
             .where {

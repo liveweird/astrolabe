@@ -21,7 +21,8 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * The run registry over the shared database (`sync_runs` has no foreign key, so a throwaway connection id isolates a test): the claim and
+ * The run registry over the shared database (`sync_runs.connection_id` has no foreign key, so a throwaway connection id isolates a test;
+ * `requested_by_user_id` does reference `users`, so a requester is a seeded user): the claim and
  * its 409, abandonment by age, the prune to the last 50, what `finish` stores and clamps, and the watermark read.
  */
 class SyncRunServiceTest {
@@ -46,13 +47,14 @@ class SyncRunServiceTest {
     fun `a claim writes the unfinished row and a second claim of the same connection is a 409 run-in-progress`() = runBlocking {
         val runs = service()
         val id = connection()
-        val claimed = runs.claim(SyncKind.JIRA, id, SyncTrigger.MANUAL, 7u)
+        val requester = TestUsers.seed(uniqueEmail("syncrun"), "sync-run-pass-1")
+        val claimed = runs.claim(SyncKind.JIRA, id, SyncTrigger.MANUAL, requester)
         val listed = runs.list(SyncKind.JIRA, id).single()
         assertEquals(claimed.id, listed.id)
         assertNull(listed.finishedAt)
         assertNull(listed.outcome)
         assertEquals(SyncTrigger.MANUAL, listed.trigger)
-        assertEquals(7u, listed.requestedByUserId)
+        assertEquals(requester, listed.requestedByUserId)
         val refused = assertFailsWith<ConflictException> { runs.claim(SyncKind.JIRA, id, SyncTrigger.SCHEDULED, null) }
         assertEquals(RUN_IN_PROGRESS_PROBLEM, refused.problemType)
         assertEquals(1, runs.list(SyncKind.JIRA, id).size, "the refused claim left nothing behind")

@@ -1,19 +1,20 @@
 // Regenerates server/cds/classlist.txt, the class list the Dockerfile dumps its AppCDS archive from
 // (build-times.md WHY 27). The list is what a REAL run of the image loads: this script boots the image against a throwaway
 // compose project (own containers, volume and ports), drives a representative workload
-// through the API (login, MFA-free admin lists, users and teams, feature flags, telemetry, password reset mail),
+// through the API (login, MFA-free admin lists, users and teams, feature flags, telemetry, password reset mail, and the Jira path: a connection
+// against the stub, Test connection (all rows green or the run is refused), discovery, a binding, a sync run, the deviations view — the OkHttp/Ktor-client/Jackson classes only that path loads),
 // stops the app gracefully and keeps the JVM's `-XX:DumpLoadedClassList` output in canonical form (sorted, deduplicated, no ids).
 // Classes missing from the list are simply loaded from the jars at runtime, so a stale list only costs startup time and
 // ~metaspace, never correctness; regenerate when CdsClassListTest warns, before a release, or after a big dependency/code move.
 //
-//   node scripts/cds-classlist.mjs [--image <tag>] [--keep]
+//   node scripts/cds-classlist.mjs [--image <tag>] [--stub-image <tag>] [--keep]
 //
 // By default it BUILDS the image itself from the working tree under its own project (`docker compose -p astrolabe-cds-train build app`, the
 // image `astrolabe-cds-train-app`, removed again with the project), so the list can never be trained on a stale image. The build needs a
 // plain checkout: `COPY .git` fails in a git worktree (its .git is a file), where you pass `--image <tag>` of an image built from a
-// scratch copy instead. `--keep` leaves the project up for inspection. The list is only written when the run looks healthy (see
+// scratch copy instead (`--stub-image` likewise names a prebuilt Jira stub image; without it compose builds `astrolabe-jira-stub` from `sample-data/jira-stub`). `--keep` leaves the project up for inspection. The list is only written when the run looks healthy (see
 // `validate`): a truncated or unhealthy run never overwrites the committed file.
-// Needs Docker, Node >= 24 and free loopback ports 8590 / 5941 / 8534 / 8600. Never touches another compose project.
+// Needs Docker, Node >= 24 and free loopback ports 8590 (app) / 5941 (postgres) / 8534 (mailpit) / 8600 (the Jira stub). Never touches another compose project.
 import { execFileSync } from "node:child_process";
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -25,6 +26,7 @@ const args = process.argv.slice(2);
 const flag = (name) => args.includes(name);
 const option = (name, fallback) => (args.includes(name) ? args[args.indexOf(name) + 1] : fallback);
 const image = option("--image", null);
+const stubImage = option("--stub-image", null); // default: compose builds the stub from sample-data/jira-stub, tagged astrolabe-jira-stub
 const project = "astrolabe-cds-train";
 const base = "http://127.0.0.1:8590";
 const work = mkdtempSync(join(tmpdir(), "astrolabe-cds-"));
@@ -44,6 +46,10 @@ writeFileSync(
     container_name: ${project}-mailpit
     ports: !override
       - "127.0.0.1:8534:8025"
+  jira-stub:${stubImage ? `\n    image: ${stubImage}\n    pull_policy: never` : ""}
+    container_name: ${project}-jira-stub
+    ports: !override
+      - "127.0.0.1:8600:8080"
   app:${image ? `\n    image: ${image}\n    pull_policy: never` : ""}
     container_name: ${project}-app
     ports: !override
@@ -100,9 +106,10 @@ try {
     log(`building the app image under project ${project} (a git worktree needs --image, see the header)`);
     compose("build", "app");
   }
-  compose("up", "-d", "postgres", "mailpit");
+  compose("up", "-d", "postgres", "mailpit", "jira-stub");
   compose("up", "-d", "--no-deps", "app");
   await until("the app to answer /health", async () => (await fetch(`${base}/api/v1/health`).catch(() => null))?.ok, 90);
+  await until("the Jira stub to answer", async () => (await fetch("http://127.0.0.1:8600/__admin/health").catch(() => null))?.ok, 90);
 
   log("workload: auth");
   await call("POST", "/api/v1/login", { email: "admin@astrolabe.local", password: "wrong-password-0" }); // the failure path
@@ -120,6 +127,27 @@ try {
   must(await call("PUT", `/api/v1/users/${user}/language`, { language: "pl" }), "setting the language");
   must(await call("PUT", `/api/v1/users/${user}`, { name: "CDS Training 2", email: "cds-training@astrolabe.local", roles: ["USER"] }), "updating the user");
   await call("POST", "/api/v1/password-reset", { email: "cds-training@astrolabe.local" }); // renders and sends the mail (Mailpit)
+
+  log("workload: the Jira path (connection, Test connection, discovery, a binding, a sync run, the deviations view)");
+  const connection = must(
+    await call("POST", "/api/v1/integrations/jira/connections", { name: "cds-training", siteUrl: "https://sample.atlassian.net", email: "cds@astrolabe.local", apiToken: "cds-training-token", projectKeys: ["CE", "PF", "CG", "DI", "OE"] }),
+    "creating the Jira connection",
+  ).id;
+  const probes = must(await call("POST", `/api/v1/integrations/jira/connections/${connection}/test`), "testing the Jira connection");
+  // A stub path that is broken (wrong keys, no stub, a 401 catch-all) would train a thin list without failing anything else: all rows green or no list.
+  const red = (probes.rows ?? []).filter((r) => !r.ok).map((r) => r.name);
+  if ((probes.rows ?? []).length === 0 || red.length > 0) fail(`Test connection against the Jira stub is not all green (${red.join(", ") || "no rows"})`);
+  must(await call("GET", `/api/v1/integrations/jira/connections/${connection}/discovery`), "reading the discovery");
+  // A binding create (reads the issue through the guarded client, takes the bind lock, stores the first observation): a project under a work stream and program, linked to a stub initiative.
+  const stream = must(await call("POST", "/api/v1/work-streams", { name: "cds-training-stream", ownerPersonId: person, startDate: "2026-01-01" }), "creating the work stream").id;
+  const program = must(await call("POST", `/api/v1/work-streams/${stream}/programs`, { name: "cds-training-program", ownerPersonId: person }), "creating the program").id;
+  const planProject = must(await call("POST", `/api/v1/programs/${program}/projects`, { name: "cds-training-project", ownerPersonId: person }), "creating the project").id;
+  must(await call("POST", "/api/v1/integrations/jira/bindings", { connectionId: connection, level: "PROJECT", nodeId: planProject, issueKey: "CE-5" }), "linking the project");
+  must(await call("POST", "/api/v1/integrations/sync/runs", { kind: "JIRA", connectionId: connection }), "starting a sync run");
+  await until("the sync run to finish", async () => (await call("GET", `/api/v1/integrations/sync/runs?connectionId=${connection}`)).json?.items?.[0]?.outcome, 60);
+  must(await call("GET", "/api/v1/views/deviations"), "reading the deviations");
+  must(await call("GET", "/api/v1/integrations/jira/bindings"), "listing the bindings");
+  await call("DELETE", `/api/v1/integrations/jira/connections/${connection}`);
 
   log("workload: reads");
   const paths = [

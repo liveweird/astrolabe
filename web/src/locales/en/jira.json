@@ -104,6 +104,7 @@
     "RATE_LIMITED": "Jira is rate limiting this site; try again later",
     "UPSTREAM_UNAVAILABLE": "Jira is unavailable",
     "TIMEOUT": "Jira did not answer in time",
+    "BUSY": "Too many Jira calls are in flight; try again in a moment",
     "INVALID_RESPONSE": "Jira sent an answer that could not be read",
     "LIMIT_EXCEEDED": "The answer or the number of pages passed a safety limit",
     "BLOCKED_HOST": "The address is not allowed for outbound calls",
@@ -296,6 +297,7 @@
     "notFound": "Jira does not know this issue (or the connection is gone).",
     "notDiscovered": "Test the connection first.",
     "tokenUnreadable": "The stored token cannot be decrypted. Edit the connection and enter the token again.",
+    "mappingInvalid": "The mapping in force (the saved one, or the defaults when none is saved) no longer fits the Jira site, or cannot be read. Correct it in the mapping section above and save it, then peek again.",
     "upstream": "Jira could not be reached or refused the request:"
   },
   "bindings": {

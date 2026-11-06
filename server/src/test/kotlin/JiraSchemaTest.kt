@@ -93,6 +93,46 @@ class JiraSchemaTest {
     }
 
     @Test
+    fun `the database refuses a plaintext token, and a NULL one unless the connection is deleted`() {
+        PostgresTestSupport.ensureMigrated()
+        fun withToken(value: String?, deleted: Boolean = false): String {
+            val literal = value?.let { "'$it'" } ?: "NULL"
+            return "INSERT INTO jira_connections " +
+                "(name, site_url, email, api_token, auth_scheme, project_keys, created_at, updated_at, marked_as_deleted) " +
+                "VALUES ('${unique("schema")}', 'https://sample.atlassian.net', 'a@b.c', $literal, 'BASIC', " +
+                "'[\"SP\"]'::jsonb, 1, 1, $deleted)"
+        }
+        assertEquals(CHECK, sqlState(withToken("plain-token")), "plaintext at rest is refused")
+        assertEquals(CHECK, sqlState(withToken("")), "an empty value is not an envelope")
+        assertEquals(CHECK, sqlState(withToken("ENC:V1:abc")), "the prefix is exact")
+        assertEquals(CHECK, sqlState(withToken("plain-token", deleted = true)), "a deleted row may not hold plaintext either")
+        assertEquals(CHECK, sqlState(withToken(null)), "an ACTIVE connection always has a token")
+        assertNull(sqlState(withToken(null, deleted = true)), "a deleted connection holds NULL: the destroyed credential")
+        assertNull(sqlState(withToken(FieldCipher(DEV_DATA_ENCRYPTION_KEY).encrypt("x"))))
+        val id = newConnection()
+        assertEquals(CHECK, sqlState("UPDATE jira_connections SET api_token = 'plain-token' WHERE id = $id"), "no downgrade by update")
+        assertEquals(CHECK, sqlState("UPDATE jira_connections SET api_token = NULL WHERE id = $id"), "nor NULLing an active row")
+        assertNull(sqlState("UPDATE jira_connections SET api_token = NULL, marked_as_deleted = TRUE WHERE id = $id"), "a delete does")
+        val revive = sqlState("UPDATE jira_connections SET marked_as_deleted = FALSE WHERE id = $id")
+        assertEquals(CHECK, revive, "and a NULL cannot be revived")
+    }
+
+    @Test
+    fun `a run's requester is a real user`() = runBlocking {
+        PostgresTestSupport.ensureMigrated()
+        val c = newConnection()
+        fun run(requester: String) =
+            sqlState(
+                "INSERT INTO sync_runs (kind, connection_id, \"trigger\", requested_by_user_id, started_at, finished_at, outcome) " +
+                    "VALUES ('JIRA', $c, 'MANUAL', $requester, 1, 2, 'SUCCEEDED')",
+            )
+        assertEquals(FOREIGN_KEY, run("999999999"), "requested_by_user_id references users")
+        assertNull(run("NULL"), "a scheduled or anonymous run has no requester")
+        val user = TestUsers.seed(uniqueEmail("schema"), "schema-pass-1")
+        assertNull(run(user.toString()))
+    }
+
+    @Test
     fun `a binding names exactly one node of its level and is one-to-one both ways`() = runBlocking {
         PostgresTestSupport.ensureMigrated()
         val owner = TestPeople.seed(unique("owner"))

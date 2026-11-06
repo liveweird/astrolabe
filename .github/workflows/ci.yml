@@ -314,9 +314,14 @@ jobs:
           mkdir -p "$RUNNER_TEMP/bin" "$RUNNER_TEMP/rendered"
           printf '#!/bin/sh\n[ "$1" = config ] && { echo orbstack; exit 0; }\n[ "$3" = apply ] && cp "$5"/*.yaml "$RENDER_OUT"/\nexit 0\n' > "$RUNNER_TEMP/bin/kubectl"
           chmod +x "$RUNNER_TEMP/bin/kubectl"
-          PATH="$RUNNER_TEMP/bin:$PATH" RENDER_OUT="$RUNNER_TEMP/rendered" sh k8s/apply-local.sh ci-check
+          # ASTROLABE_SKIP_STUB_BUILD: the render is all this job needs; the script otherwise `docker build`s the Jira stub image.
+          PATH="$RUNNER_TEMP/bin:$PATH" RENDER_OUT="$RUNNER_TEMP/rendered" ASTROLABE_SKIP_STUB_BUILD=1 sh k8s/apply-local.sh ci-check
           "$RUNNER_TEMP/kubeconform" -strict -summary -kubernetes-version 1.33.0 -schema-location "$KUBECONFORM_SCHEMAS" "$RUNNER_TEMP"/rendered/*.yaml
           test "$(grep -h 'image: astrolabe-app:ci-check' "$RUNNER_TEMP"/rendered/*.yaml | wc -l)" -eq 1
+          # The Jira stub is overlay-only: rendered once with the same tag, absent from the production base.
+          test "$(grep -h 'image: astrolabe-jira-stub:ci-check' "$RUNNER_TEMP"/rendered/*.yaml | wc -l)" -eq 1
+          # Neither a stub resource name nor a stub image may appear in the base manifests (a name, an image or a selector label).
+          test "$(grep -lE '^ *(- )?(name|image|io.kompose.service): .*jira-stub' k8s/*.yaml | wc -l)" -eq 0
           if grep -q 'local-build' "$RUNNER_TEMP"/rendered/*.yaml; then echo "unrendered image placeholder" >&2; exit 1; fi
       # The front door (security.md): the base k8s/front-door.yaml stays the production posture, and what
       # apply-local.sh renders carries exactly ONE `astrolabe-front-door` ConfigMap, the OrbStack overlay.
@@ -329,9 +334,13 @@ jobs:
           grep -qE '^  KTOR_DEVELOPMENT: "false"$' k8s/front-door.yaml
           grep -qE '^  HTTP_BEHIND_PROXY: "true"$' k8s/front-door.yaml
           grep -qE '^  HTTP_PROXY_HOPS: "1"$' k8s/front-door.yaml
-          # The Deployment must READ the ConfigMap: exactly three refs, and no inline value for the three keys.
-          test "$(grep -cE '^ +name: astrolabe-front-door$' k8s/app-deployment.yaml)" -eq 3
-          if grep -A1 -E 'name: (KTOR_DEVELOPMENT|HTTP_BEHIND_PROXY|HTTP_PROXY_HOPS)$' k8s/app-deployment.yaml | grep -qE '^ +value:'; then
+          # The Deployment must READ the ConfigMap: exactly four refs (the three keys plus the overlay-only, OPTIONAL JIRA_STUB_BASE_URL),
+          # and no inline value for any of them. The production ConfigMap carries no stub key (the app refuses a stub URL in production).
+          test "$(grep -cE '^ +name: astrolabe-front-door$' k8s/app-deployment.yaml)" -eq 4
+          if grep -q 'JIRA_STUB_BASE_URL' k8s/front-door.yaml; then echo "the production ConfigMap must not carry the Jira stub URL" >&2; exit 1; fi
+          # `optional: true` must sit inside THAT env entry (from its `- name:` line to the next entry), not merely near it.
+          awk '/^ +- name: /{on=($0 ~ /name: JIRA_STUB_BASE_URL$/)} on' k8s/app-deployment.yaml | grep -qE '^ +optional: true$'
+          if grep -A1 -E 'name: (KTOR_DEVELOPMENT|HTTP_BEHIND_PROXY|HTTP_PROXY_HOPS|JIRA_STUB_BASE_URL)$' k8s/app-deployment.yaml | grep -qE '^ +value:'; then
             echo "an inline value overrides the front-door ConfigMap" >&2; exit 1
           fi
           test "$(cat "$RUNNER_TEMP"/rendered/*.yaml | grep -cE '^kind: ConfigMap$')" -eq 1
@@ -339,6 +348,7 @@ jobs:
           test "$(grep -cE '^  name: astrolabe-front-door$' "$rendered")" -eq 1
           grep -qE '^  KTOR_DEVELOPMENT: "true"$' "$rendered"
           grep -qE '^  HTTP_BEHIND_PROXY: "false"$' "$rendered"
+          grep -qE '^  JIRA_STUB_BASE_URL: "http://jira-stub:8080"$' "$rendered"
 
   images:
     # Dockerfile drift guard: the image must still build — and, built, must carry no fixable

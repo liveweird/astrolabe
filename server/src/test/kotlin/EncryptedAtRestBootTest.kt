@@ -2,23 +2,29 @@ package ch.nokillswit
 
 import ch.nokillswit.infra.crypto.DEV_DATA_ENCRYPTION_KEY
 import ch.nokillswit.infra.crypto.FieldCipher
+import ch.nokillswit.infra.crypto.reencryptRows
 import ch.nokillswit.jira.JiraConnectionService
 import ch.nokillswit.sync.SyncRunService
 import io.ktor.server.testing.testApplication
 import kotlinx.coroutines.runBlocking
+import org.jetbrains.exposed.v1.core.dao.id.UIntIdTable
+import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
 import java.io.File
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
  * The encryption-at-rest boot backfill (`infra/db/Bootstrap.kt`, `Reencrypt.kt`): a registered service's legacy plaintext rows are
- * wrapped once at startup, and while `security.encryption.previousKey` is set EVERY row (soft-deleted included) moves to the current key,
- * each time leaving a `crypto.reencrypted` audit line. The only consumer is `jira_connections.api_token` (V21). The rotation test restores
- * the suite's key afterwards: the table is shared, and its rows must stay readable by the dev-key apps the other tests boot.
+ * wrapped once at startup (proven on a throwaway table: V21's `ck_jira_connections_api_token` refuses plaintext in the real one), and
+ * while `security.encryption.previousKey` is set EVERY row (soft-deleted included) moves to the current key,
+ * each time leaving a `crypto.reencrypted` audit line. The only consumer is `jira_connections.api_token` (V21), whose NULL (a deleted
+ * connection's destroyed credential) a rotation skips. The rotation test restores the suite's key afterwards: the table is shared, and its
+ * rows must stay readable by the dev-key apps the other tests boot.
  */
 class EncryptedAtRestBootTest {
     private val devCipher = FieldCipher(DEV_DATA_ENCRYPTION_KEY)
@@ -30,8 +36,8 @@ class EncryptedAtRestBootTest {
 
     private fun uniqueName(prefix: String) = "$prefix-${UUID.randomUUID().toString().substring(0, 8)}"
 
-    /** A row exactly as a build before the cipher (or a manual SQL load) would have left it: [storedToken] verbatim. */
-    private fun insertRow(storedToken: String, deleted: Boolean = false): Int = PostgresTestSupport.connect().use { connection ->
+    /** A row with [storedToken] verbatim: an envelope, or NULL on a deleted row (V21's CHECKs refuse anything else). */
+    private fun insertRow(storedToken: String?, deleted: Boolean = false): Int = PostgresTestSupport.connect().use { connection ->
         connection.prepareStatement(
             "INSERT INTO jira_connections " +
                 "(name, site_url, email, api_token, auth_scheme, project_keys, created_at, updated_at, marked_as_deleted) " +
@@ -47,7 +53,9 @@ class EncryptedAtRestBootTest {
         }
     }
 
-    private fun storedToken(id: Int): String = PostgresTestSupport.connect().use { connection ->
+    private fun storedToken(id: Int): String = checkNotNull(storedTokenOrNull(id)) { "row $id holds no token" }
+
+    private fun storedTokenOrNull(id: Int): String? = PostgresTestSupport.connect().use { connection ->
         connection.prepareStatement("SELECT api_token FROM jira_connections WHERE id = ?").use { st ->
             st.setInt(1, id)
             st.executeQuery().use { rs ->
@@ -57,35 +65,68 @@ class EncryptedAtRestBootTest {
         }
     }
 
-    @Test
-    fun `a legacy plaintext token is encrypted once at boot and the pass is audited`() {
-        val plaintext = "legacy-${UUID.randomUUID()}"
-        val legacy = insertRow(plaintext)
-        val enveloped = devCipher.encrypt("already-${UUID.randomUUID()}")
-        val alreadyEncrypted = insertRow(enveloped)
+    /** A throwaway table the backfill body can run over: V21's CHECK forbids a plaintext `api_token`, so the wrap is proven here. */
+    private class Probe(name: String) : UIntIdTable(name) {
+        val secret = text("secret")
+    }
 
+    private fun <T> withProbeTable(block: (Probe) -> T): T {
+        val probe = Probe("legacy_wrap_${UUID.randomUUID().toString().replace("-", "").substring(0, 12)}")
+        PostgresTestSupport.connect().use { c ->
+            c.createStatement().use { it.executeUpdate("CREATE TABLE ${probe.tableName} (id SERIAL PRIMARY KEY, secret TEXT NOT NULL)") }
+        }
+        try {
+            return block(probe)
+        } finally {
+            PostgresTestSupport.connect().use { c -> c.createStatement().use { it.executeUpdate("DROP TABLE ${probe.tableName}") } }
+        }
+    }
+
+    private fun Probe.insert(value: String): Int = PostgresTestSupport.connect().use { c ->
+        c.prepareStatement("INSERT INTO $tableName (secret) VALUES (?) RETURNING id").use { st ->
+            st.setString(1, value)
+            st.executeQuery().use { rs -> rs.next(); rs.getInt(1) }
+        }
+    }
+
+    private fun Probe.stored(id: Int): String = PostgresTestSupport.connect().use { c ->
+        c.prepareStatement("SELECT secret FROM $tableName WHERE id = ?").use { st ->
+            st.setInt(1, id)
+            st.executeQuery().use { rs -> rs.next(); rs.getString(1) }
+        }
+    }
+
+    private fun wrap(probe: Probe): Int = runBlocking {
+        suspendTransaction(sharedDatabaseForTests()) { devCipher.reencryptRows(probe, listOf(probe.secret), reencryptAll = false) }
+    }
+
+    @Test
+    fun `a legacy plaintext value is wrapped once by the backfill body and an envelope is left byte for byte`() = withProbeTable { probe ->
+        val plaintext = "legacy-${UUID.randomUUID()}"
+        val legacy = probe.insert(plaintext)
+        val enveloped = devCipher.encrypt("already-${UUID.randomUUID()}")
+        val alreadyEncrypted = probe.insert(enveloped)
+
+        assertEquals(1, wrap(probe))
+        assertTrue(probe.stored(legacy).startsWith(FieldCipher.PREFIX), "the plaintext row is now an envelope")
+        assertEquals(plaintext, devCipher.decrypt(probe.stored(legacy)))
+        assertEquals(enveloped, probe.stored(alreadyEncrypted), "an enveloped row is left byte for byte as it was")
+        // Idempotent: a second pass finds nothing to wrap.
+        assertEquals(0, wrap(probe))
+    }
+
+    @Test
+    fun `a boot with no legacy rows touches no token and writes no audit line`() {
+        val enveloped = devCipher.encrypt("already-${UUID.randomUUID()}")
+        val row = insertRow(enveloped)
         testApplication {
             configureApp()
             withAuditCapture { capture ->
                 startApplication()
-                val event = assertNotNull(capture.events.singleOrNull { it.message == "crypto.reencrypted" })
-                assertTrue(event.hasKeyValue("label", "Jira API token"))
-                assertTrue(event.hasKeyValue("rotating", false))
-                // >= 1, not == 1: class order is not a contract, a sibling class may have left a plaintext row in this fork's table.
-                val rows = event.keyValuePairs.single { it.key == "rows" }.value as Int
-                assertTrue(rows >= 1, "at least the plaintext row was touched (saw $rows)")
-                assertTrue(
-                    capture.events.none { e -> e.keyValuePairs.orEmpty().any { plaintext in it.value.toString() } },
-                    "the audit line never carries a token",
-                )
+                assertTrue(capture.events.none { it.message == "crypto.reencrypted" }, "nothing to wrap, nothing audited")
             }
         }
-
-        val stored = storedToken(legacy)
-        assertTrue(stored.startsWith(FieldCipher.PREFIX), "the plaintext row is now an envelope")
-        assertEquals(plaintext, devCipher.decrypt(stored))
-        assertEquals(enveloped, storedToken(alreadyEncrypted), "an enveloped row is left byte for byte as it was")
-        // Idempotent: a second pass finds nothing to wrap.
+        assertEquals(enveloped, storedToken(row))
         val database = sharedDatabaseForTests()
         val service = JiraConnectionService(database, devCipher, SyncRunService(database, maxRunMinutes = 10))
         assertEquals(0, runBlocking { service.encryptLegacyRows(reencryptAll = false) })
@@ -97,10 +138,9 @@ class EncryptedAtRestBootTest {
         val newCipher = FieldCipher(newKey)
         val activePlain = "active-${UUID.randomUUID()}"
         val deletedPlain = "deleted-${UUID.randomUUID()}"
-        val legacyPlain = "legacy-${UUID.randomUUID()}"
         val active = insertRow(devCipher.encrypt(activePlain))
         val deleted = insertRow(devCipher.encrypt(deletedPlain), deleted = true)
-        val legacy = insertRow(legacyPlain)
+        val destroyed = insertRow(null, deleted = true) // a deleted connection's NULL credential: nothing to re-encrypt, nothing to fail
         try {
             testApplication {
                 configureApp("security.encryption.key" to newKey, "security.encryption.previousKey" to DEV_DATA_ENCRYPTION_KEY)
@@ -109,10 +149,16 @@ class EncryptedAtRestBootTest {
                     val event = assertNotNull(capture.events.singleOrNull { it.message == "crypto.reencrypted" })
                     assertTrue(event.hasKeyValue("rotating", true))
                     val rows = event.keyValuePairs.single { it.key == "rows" }.value as Int
-                    assertTrue(rows >= 3, "every row moves, the three of this test at least (saw $rows)")
+                    assertTrue(rows >= 2, "every row moves, the two of this test at least (saw $rows)")
+                    val carriesToken = { text: String -> activePlain in text || deletedPlain in text }
+                    assertTrue(
+                        capture.events.none { e -> e.keyValuePairs.orEmpty().any { carriesToken(it.value.toString()) } },
+                        "the audit lines never carry a token",
+                    )
                 }
             }
-            for ((id, plain) in listOf(active to activePlain, deleted to deletedPlain, legacy to legacyPlain)) {
+            assertNull(storedTokenOrNull(destroyed), "the rotation left the NULL as it was")
+            for ((id, plain) in listOf(active to activePlain, deleted to deletedPlain)) {
                 val stored = storedToken(id)
                 assertEquals(plain, newCipher.decrypt(stored), "readable under the current key alone")
                 assertFailsWith<java.security.GeneralSecurityException>("no longer readable under the previous key") {

@@ -547,7 +547,26 @@ class JiraMappingTest {
             assertTrue(foreign !in response.bodyAsText())
         } finally {
             root.detach()
+            admin.delete("$base/${created.id}") // NULLs the foreign envelope: nothing undecryptable stays in the shared table
         }
+    }
+
+    @Test
+    fun `Peek with a stored mapping the discovery has outgrown is the bind's 409 jira-mapping-invalid`() = testApplication {
+        start()
+        val admin = seededClient("jpeekstale", UserRole.ADMIN)
+        val created = admin.discovered()
+        assertEquals(HttpStatusCode.OK, admin.peek(created.id, "E2E-5").status, "the default mapping peeks")
+        val stale = """{"levels":{"milestone":{"hierarchyLevel":1,"fields":{"start":"customfield_99999"}}}}"""
+        sql("UPDATE jira_connections SET mapping = ?::jsonb WHERE id = ?", stale, created.id.toInt())
+        val refused = admin.peek(created.id, "E2E-5")
+        assertEquals(HttpStatusCode.Conflict, refused.status)
+        val problem = refused.problem()
+        assertEquals("urn:astrolabe:problem:jira-mapping-invalid", problem.type)
+        assertTrue("customfield_99999" in problem.detail.orEmpty(), problem.detail)
+        // A document this build cannot decode is the same problem.
+        sql("""UPDATE jira_connections SET mapping = '{"levels":5}'::jsonb WHERE id = ?""", created.id.toInt())
+        assertEquals("urn:astrolabe:problem:jira-mapping-invalid", admin.peek(created.id, "E2E-5").problem().type)
     }
 
     @Test
@@ -657,7 +676,9 @@ class JiraMappingTest {
         assertEquals(sent, read.effective)
         assertTrue(read.problems.any { "hierarchy level 3" in it && "program" in it }, "${read.problems}")
         assertTrue(read.problems.any { "customfield_10022" in it && "datetime" in it }, "${read.problems}")
-        assertEquals(HttpStatusCode.OK, admin.peek(created.id, "E2E-5").status, "Peek still reads through the stored mapping")
+        val peek = admin.peek(created.id, "E2E-5")
+        assertEquals(HttpStatusCode.Conflict, peek.status, "Peek resolves the mapping like the bind: one the site outgrew is refused")
+        assertEquals("urn:astrolabe:problem:jira-mapping-invalid", peek.problem().type)
         // Saving it again is refused until it is corrected.
         assertEquals(HttpStatusCode.BadRequest, admin.putJson("$base/${created.id}/mapping", sent).status)
         assertEquals(sent, admin.mapping(created.id).mapping)
@@ -677,7 +698,9 @@ class JiraMappingTest {
             assertNull(read.mapping, old)
             assertEquals(read.defaults, read.effective, "an unreadable mapping falls back to the defaults")
             assertTrue(read.problems.single().contains("cannot be read"), old)
-            assertEquals(HttpStatusCode.OK, admin.peek(created.id, "E2E-5").status, old)
+            val peek = admin.peek(created.id, "E2E-5")
+            assertEquals(HttpStatusCode.Conflict, peek.status, "$old: a typed 409 like the bind's, never a 500")
+            assertEquals("urn:astrolabe:problem:jira-mapping-invalid", peek.problem().type, old)
             val test = admin.post("$base/${created.id}/test")
             assertEquals(HttpStatusCode.OK, test.status, "a Test connection never fails on the mapping column")
             assertEquals(HttpStatusCode.NoContent, admin.putJson("$base/${created.id}/mapping", mapping()).status, "it can be replaced")

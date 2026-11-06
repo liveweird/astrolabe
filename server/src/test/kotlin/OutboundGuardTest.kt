@@ -130,6 +130,11 @@ class OutboundGuardTest {
             "link-local" to ipv4(169, 254, 1, 1),
             "multicast" to ipv4(224, 0, 0, 1),
             "any-local (0.0.0.0)" to ipv4(0, 0, 0, 0),
+            "this-network 0.0.0.0/8" to ipv4(0, 0, 0, 1),
+            "this-network 0.255.255.254" to ipv4(0, 255, 255, 254),
+            "reserved 240.0.0.0/4" to ipv4(240, 0, 0, 1),
+            "reserved 254.1.2.3" to ipv4(254, 1, 2, 3),
+            "limited broadcast 255.255.255.255" to ipv4(255, 255, 255, 255),
             "CGNAT 100.64/10" to ipv4(100, 64, 0, 1),
             "IETF protocol assignments 192.0.0/24" to ipv4(192, 0, 0, 1),
             "benchmarking 198.18/15" to ipv4(198, 18, 0, 1),
@@ -143,6 +148,9 @@ class OutboundGuardTest {
             "IPv4-mapped IPv6 loopback ::ffff:127.0.0.1" to ipv6(0, 0, 0, 0, 0, 0xffff, 0x7f00, 0x0001),
             "IPv4-mapped IPv6 private ::ffff:10.0.0.1" to ipv6(0, 0, 0, 0, 0, 0xffff, 0x0a00, 0x0001),
             "NAT64 64:ff9b::/96 embedding a private IPv4" to ipv6(0x0064, 0xff9b, 0, 0, 0, 0, 0xc0a8, 0x0101),
+            "NAT64 local-use 64:ff9b:1::/48 embedding a PUBLIC IPv4" to ipv6(0x0064, 0xff9b, 0x0001, 0, 0, 0, 0x0808, 0x0808),
+            "NAT64 local-use 64:ff9b:1:ffff::" to ipv6(0x0064, 0xff9b, 0x0001, 0, 0xffff, 0xffff, 0xffff, 0xffff),
+            "IPv4-mapped IPv6 broadcast ::ffff:255.255.255.255" to ipv6(0, 0, 0, 0, 0, 0xffff, 0xffff, 0xffff),
         )
         blocked.forEach { (label, address) ->
             val dns = GuardedDns(allowedHost = { true }, resolver = { listOf(address) })

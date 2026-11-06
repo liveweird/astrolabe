@@ -172,6 +172,8 @@ class JiraBindingTest {
             val unreadable = admin.jbBind(f.connectionId, JiraLevel.MILESTONE, node, "E2E-4")
             assertEquals(HttpStatusCode.Conflict, unreadable.status)
             assertEquals("urn:astrolabe:problem:jira-token-unreadable", unreadable.jbProblem().type)
+            // Delete it (the token goes NULL) so the shared table keeps no undecryptable envelope for a later rotation test.
+            assertEquals(HttpStatusCode.NoContent, admin.delete("$JB_CONNECTIONS/${f.connectionId}").status)
         }
         assertEquals(0, jbScalar("SELECT count(*) FROM jira_bindings WHERE milestone_id = ?", node.toInt()) { it.getInt(1) })
     }

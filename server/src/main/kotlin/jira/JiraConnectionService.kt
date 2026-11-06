@@ -55,7 +55,7 @@ const val NO_DISCOVERY = ""
 class JiraConnectionService(
     private val database: R2dbcDatabase,
     private val cipher: FieldCipher,
-    /** Read-only: the connection's newest run rides every response. `sync/` knows nothing of `jira/`; this is the allowed direction. */
+    /** Its newest run rides every response and its delete removes the runs; `sync/` knows nothing of `jira/` (the allowed direction). */
     private val runs: SyncRunService,
 ) : EncryptedAtRest {
     object Connections : UIntIdTable("jira_connections"), SoftDeletable {
@@ -65,7 +65,8 @@ class JiraConnectionService(
         val email = varchar("email", length = MAX_JIRA_EMAIL_LENGTH)
 
         /** A `FieldCipher` envelope (`enc:v1:...`); write-only end to end. */
-        val apiToken = text("api_token")
+        // NULL only on a deleted row (V21 CHECKs): a delete destroys the credential for good.
+        val apiToken = text("api_token").nullable()
         val authScheme = varchar("auth_scheme", length = 10)
         val projectKeys = jsonb("project_keys")
         val cloudId = varchar("cloud_id", length = 36).nullable()
@@ -201,6 +202,21 @@ class JiraConnectionService(
             .toList().isNotEmpty()
     }
 
+    /**
+     * Whether the connection is still there to run against, for a run in flight (checked once per search page): `GONE` once it is
+     * deleted (its token is destroyed, so a copy held in memory must not authenticate one more read), `DISABLED` once an administrator
+     * switched it off. Its own short transaction.
+     */
+    suspend fun runnableState(id: UInt): RunnableState = suspendTransaction(database) {
+        val enabled = Connections.select(Connections.enabled).where { (Connections.id eq id) and Connections.active() }
+            .toList().singleOrNull()?.get(Connections.enabled)
+        when (enabled) {
+            null -> RunnableState.GONE
+            false -> RunnableState.DISABLED
+            true -> RunnableState.RUNNABLE
+        }
+    }
+
     /** Persists the cloud id a run resolved when none is stored yet (never overwrites; `updated_at` stays, so no Test result is staled). */
     suspend fun storeCloudId(id: UInt, resolved: String) {
         suspendTransaction(database) {
@@ -215,7 +231,7 @@ class JiraConnectionService(
         val mapped = (parseStoredMapping(row[Connections.mapping]) as? StoredMapping.Valid)?.mapping
         val id = row[Connections.id].value
         val token = try {
-            cipher.decrypt(row[Connections.apiToken])
+            row[Connections.apiToken]?.let(cipher::decrypt) // null only if a CHECK was bypassed: read as unreadable
         } catch (cause: GeneralSecurityException) {
             logUnreadableToken(id, cause)
         } catch (cause: IllegalArgumentException) {
@@ -286,7 +302,14 @@ class JiraConnectionService(
         val affected = Connections.update({ (Connections.id eq id) and Connections.active() }) {
             it[markedAsDeleted] = true
             it[updatedAt] = stamp
+            // A deleted connection has no use for its credential: the column goes NULL (V21 allows it on a deleted row only), so no secret
+            // stays at rest and no envelope is left under a key that a later rotation would have to open (the rotation skips NULLs).
+            it[apiToken] = null
         }
+        // The connection's runs are operational history of a registry row that no longer shows, so they go with it (a hard delete: the
+        // run list has no connection filter that would hide them). A run still in flight ends as a no-op finish (`SyncRunService.finish`
+        // touches a row that is gone: false), and its chunk writes re-select ACTIVE bindings, of which there are none after the next step.
+        val runsDeleted = runs.deleteForConnectionInTransaction(SyncKind.JIRA, id)
         // D2: the connection's bindings go with it, in this transaction - the node index has no connection column, so a binding left
         // active on a deleted connection would block its node for good. The row lock above made a racing bind wait (it locks the
         // connection `FOR SHARE`) and its committed binding is seen here.
@@ -295,7 +318,7 @@ class JiraConnectionService(
             it[markedAsDeleted] = true
             it[updatedAt] = stamp
         }
-        JiraConnectionDeleteOutcome(affected, row[Connections.name], jiraHostOf(row[Connections.siteUrl]), unbound)
+        JiraConnectionDeleteOutcome(affected, row[Connections.name], jiraHostOf(row[Connections.siteUrl]), unbound, runsDeleted)
     }
 
     /** The stored mapping document and the discovery snapshot; null when the connection is missing or deleted. */
@@ -338,7 +361,7 @@ class JiraConnectionService(
         name = this[Connections.name],
         siteUrl = this[Connections.siteUrl],
         email = this[Connections.email],
-        hasApiToken = this[Connections.apiToken].isNotEmpty(), // the envelope itself is never read past this
+        hasApiToken = this[Connections.apiToken]?.isNotEmpty() == true, // the envelope itself is never read past this
         authScheme = JiraAuthScheme.valueOf(this[Connections.authScheme]),
         projectKeys = parseStringArray(this[Connections.projectKeys]),
         enabled = this[Connections.enabled],

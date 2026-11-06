@@ -40,8 +40,9 @@ class MigrationChecksumTest {
         "V18__ranking_revision.sql" to 1265434272,
         "V19__public_holidays.sql" to 695505857,
         "V20__baselines.sql" to -44892282,
-        // Re-pinned once in 1.1.0 C6 (`mapping_changed_at`): V21 had only been applied by throwaway test containers, never to real data.
-        "V21__jira_sync.sql" to 1607256717,
+        // Re-pinned twice in 1.1.0 (C6 `mapping_changed_at`; C10 the `api_token` envelope CHECK and the `sync_runs.requested_by_user_id`
+        // FK): V21 had only been applied by throwaway test containers, never to real data. Immutable from the first real upgrade.
+        "V21__jira_sync.sql" to -1791624565,
     )
 
     @Test

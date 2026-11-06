@@ -105,6 +105,7 @@
     "NOT_FOUND": "Jira nie zna tego zasobu",
     "RATE_LIMITED": "Jira ogranicza tę witrynę; spróbuj później",
     "UPSTREAM_UNAVAILABLE": "Jira jest niedostępna",
+    "BUSY": "Zbyt wiele wywołań Jiry naraz; spróbuj za chwilę",
     "TIMEOUT": "Jira nie odpowiedziała na czas",
     "INVALID_RESPONSE": "Jira przysłała odpowiedź, której nie dało się odczytać",
     "LIMIT_EXCEEDED": "Odpowiedź lub liczba stron przekroczyła limit bezpieczeństwa",
@@ -304,6 +305,7 @@
     "notFound": "Jira nie zna tego zgłoszenia (albo połączenia już nie ma).",
     "notDiscovered": "Najpierw przetestuj połączenie.",
     "tokenUnreadable": "Nie można odszyfrować zapisanego tokenu. Edytuj połączenie i wpisz token ponownie.",
+    "mappingInvalid": "Obowiązujące mapowanie (zapisane albo, gdy nic nie zapisano, domyślne) nie pasuje już do witryny Jiry albo nie można go odczytać. Popraw je w sekcji mapowania powyżej i zapisz, a potem spróbuj ponownie.",
     "upstream": "Nie udało się połączyć z Jirą albo odrzuciła żądanie:"
   },
   "bindings": {

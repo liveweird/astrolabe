@@ -82,7 +82,9 @@ internal fun Route.jiraMappingRoutes(connections: JiraConnectionService, connect
             val discovery = context.state.discovery ?: throw ConflictException(NOT_DISCOVERED_DETAIL, JIRA_NOT_DISCOVERED_PROBLEM)
             val token = target.apiToken
                 ?: throw ConflictException("The stored API token cannot be decrypted - enter it again", JIRA_TOKEN_UNREADABLE_PROBLEM)
-            val mapping = context.state.mapping ?: JiraMappingDefaults.resolve(discovery)
+            // The bind's own resolution: a stored mapping that no longer fits the discovery (or cannot be read) is the same 409 here, not a
+            // peek through a mapping the bind and the run would refuse.
+            val mapping = effectiveMapping(context.state, discovery)
             val response = try {
                 val issue = connector.peek(target, token, key, mapping) ?: throw NotFoundException("Jira issue not found")
                 peekResponse(issue, mapping, discovery)

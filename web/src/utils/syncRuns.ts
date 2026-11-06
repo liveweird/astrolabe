@@ -53,6 +53,7 @@ const ERROR_CODE_KEYS = {
   RATE_LIMITED: "jira.errorCode.RATE_LIMITED",
   UPSTREAM_UNAVAILABLE: "jira.errorCode.UPSTREAM_UNAVAILABLE",
   TIMEOUT: "jira.errorCode.TIMEOUT",
+  BUSY: "jira.errorCode.BUSY",
   INVALID_RESPONSE: "jira.errorCode.INVALID_RESPONSE",
   LIMIT_EXCEEDED: "jira.errorCode.LIMIT_EXCEEDED",
   BLOCKED_HOST: "jira.errorCode.BLOCKED_HOST",
