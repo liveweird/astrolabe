@@ -173,6 +173,16 @@ class JiraConnectionService(
             ?.let { JiraPeekContext(targetOf(it), it.toMappingState()) }
     }
 
+    /**
+     * The bind's reader of its connection (the third and last reader of the stored token, with [readForTest] and [readForPeek]): the
+     * target (token decrypted in memory, null when it cannot be), the mapping state and whether the connection is enabled, in ONE short
+     * transaction before the Jira call. Null when the connection is missing or deleted.
+     */
+    suspend fun readForBind(id: UInt): JiraBindContext? = suspendTransaction(database) {
+        Connections.selectAll().where { (Connections.id eq id) and Connections.active() }.toList().singleOrNull()
+            ?.let { JiraBindContext(targetOf(it), it.toMappingState(), it[Connections.enabled]) }
+    }
+
     private fun targetOf(row: ResultRow): JiraTestTarget {
         // The search probe narrows by the mapped milestone level; a mapping this build cannot read never fails a Test.
         val mapped = (parseStoredMapping(row[Connections.mapping]) as? StoredMapping.Valid)?.mapping
@@ -244,12 +254,21 @@ class JiraConnectionService(
     suspend fun delete(id: UInt): JiraConnectionDeleteOutcome = suspendTransaction(database) {
         val row = summary().where { (Connections.id eq id) and Connections.active() }
             .forUpdate(ForUpdateOption.PostgreSQL.ForNoKeyUpdate).toList().singleOrNull()
-            ?: return@suspendTransaction JiraConnectionDeleteOutcome(0, "", "")
+            ?: return@suspendTransaction JiraConnectionDeleteOutcome(0, "", "", 0)
+        val stamp = nowMillis()
         val affected = Connections.update({ (Connections.id eq id) and Connections.active() }) {
             it[markedAsDeleted] = true
-            it[updatedAt] = nowMillis()
+            it[updatedAt] = stamp
         }
-        JiraConnectionDeleteOutcome(affected, row[Connections.name], jiraHostOf(row[Connections.siteUrl]))
+        // D2: the connection's bindings go with it, in this transaction - the node index has no connection column, so a binding left
+        // active on a deleted connection would block its node for good. The row lock above made a racing bind wait (it locks the
+        // connection `FOR SHARE`) and its committed binding is seen here.
+        val bindings = JiraBindingService.Bindings
+        val unbound = bindings.update({ (bindings.connectionId eq id) and bindings.active() }) {
+            it[markedAsDeleted] = true
+            it[updatedAt] = stamp
+        }
+        JiraConnectionDeleteOutcome(affected, row[Connections.name], jiraHostOf(row[Connections.siteUrl]), unbound)
     }
 
     /** The stored mapping document and the discovery snapshot; null when the connection is missing or deleted. */

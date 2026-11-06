@@ -59,7 +59,7 @@ internal class RateLimitAuditThrottle(
 }
 
 /**
- * Every token bucket the routes ride (per client IP, except [TELEMETRY]: per signed-in user), named in one place so a
+ * Every token bucket the routes ride (per client IP, except [TELEMETRY] and [JIRA_BIND]: per signed-in user), named in one place so a
  * feature module never has to know another's constant (the auth module used to import the try-it bucket's name — a layering
  * inversion the checkup removed). Route files reference these names; only this plugin installs them.
  */
@@ -85,6 +85,12 @@ object RateLimits {
      * few `ops` aggregations.
      */
     const val TELEMETRY = "telemetry"
+    /**
+     * `POST /api/v1/integrations/jira/bindings` - 30/min per SIGNED-IN USER in every mode. A bind makes up to two outbound calls with the
+     * connection's stored token on behalf of any node owner, so the shared Jira quota and the enumeration the pre-flight answers
+     * (`authorization.md`) are bounded per account; a NAT'd office is not one bucket. A human links a handful of nodes a minute.
+     */
+    const val JIRA_BIND = "jira-bind"
 
     const val DEFAULT_REFRESH_PER_MINUTE = 30
     /**
@@ -95,6 +101,7 @@ object RateLimits {
     const val DEFAULT_READY_PER_MINUTE = 60
     private const val MAX_LIMIT_PER_MINUTE = 1_000_000
     private const val TELEMETRY_PER_MINUTE = 30
+    private const val JIRA_BIND_PER_MINUTE = 30
     private const val MFA_PER_MINUTE = 10
     private const val PASSWORD_RESET_CONFIRM_PER_MINUTE = 10
     private const val JIRA_TEST_PER_MINUTE = 10
@@ -123,6 +130,7 @@ object RateLimits {
         if (developmentMode) RESET_PER_MINUTE_DEVELOPMENT else RESET_PER_MINUTE_PRODUCTION,
     )
     internal fun telemetryLimit() = TELEMETRY_PER_MINUTE
+    internal fun jiraBindLimit() = JIRA_BIND_PER_MINUTE
     internal fun mfaLimit() = MFA_PER_MINUTE
     internal fun passwordResetConfirmLimit() = PASSWORD_RESET_CONFIRM_PER_MINUTE
     internal fun jiraTestLimit() = JIRA_TEST_PER_MINUTE
@@ -147,7 +155,7 @@ fun Application.configureRateLimits() {
             READY to readyLimit(),
         )
     }
-    val perUserBuckets = with(RateLimits) { mapOf(TELEMETRY to telemetryLimit()) }
+    val perUserBuckets = with(RateLimits) { mapOf(TELEMETRY to telemetryLimit(), JIRA_BIND to jiraBindLimit()) }
     install(RateLimit) {
         buckets.forEach { (name, limit) ->
             register(RateLimitName(name)) {
@@ -160,7 +168,8 @@ fun Application.configureRateLimits() {
                 }
             }
         }
-        // The per-USER buckets (telemetry). The routes mount them INSIDE `authenticate {}` (telemetry/TelemetryRoutes.kt), so this key
+        // The per-USER buckets (telemetry, jira-bind). The routes mount them INSIDE `authenticate {}` (telemetry/TelemetryRoutes.kt,
+        // jira/JiraBindingRoutes.kt), so this key
         // runs only for a verified token: an anonymous call is a 401 that never reaches it
         // and never creates a limiter. The plugin keeps one limiter per key and drops it after its refill period, so memory is
         // bounded by the accounts active within a minute.

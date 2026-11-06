@@ -50,10 +50,16 @@ data class JiraPeekResponse(val issue: JiraPeekIssue, val resolved: JiraPeekReso
  * One `GET /issue/{key}` (after the unauthenticated `tenant_info` the gateway path needs) for the mapped and the system fields; null when
  * Jira has no such issue. Any other failure is the [FetchException] the transport classified. Holds no database state.
  */
-suspend fun JiraConnector.peek(target: JiraTestTarget, token: String, key: String, mapping: JiraMapping): JsonObject? {
+suspend fun JiraConnector.peek(target: JiraTestTarget, token: String, key: String, mapping: JiraMapping): JsonObject? =
+    readIssue(target, token, key, (listOf(PEEK_SYSTEM_FIELDS) + mapping.mappedFieldIds()).joinToString(","))
+
+/**
+ * The shared single-issue read of Peek and the bind: `GET /issue/{key}` asking for [fields], after the `tenant_info` the gateway path
+ * needs; null when Jira has no such issue. The database is untouched, so no transaction can span the calls.
+ */
+internal suspend fun JiraConnector.readIssue(target: JiraTestTarget, token: String, key: String, fields: String): JsonObject? {
     val client = clientFor(target, token)
     client.resolveCloudId()
-    val fields = (listOf(PEEK_SYSTEM_FIELDS) + mapping.mappedFieldIds()).joinToString(",")
     return try {
         client.issue(key, fields)
     } catch (failure: FetchException) {
@@ -105,17 +111,17 @@ fun statusCategoryOf(key: String?): JiraStatusCategory = when (key) {
     else -> JiraStatusCategory.UNKNOWN
 }
 
-private const val MAX_ID = 64
+internal const val MAX_ID = 64
 
 private fun invalidIssue() = FetchException(JIRA_SOURCE, "INVALID_RESPONSE", null, ISSUE_ENDPOINT)
 
 /** A string member clamped to [max], or null when absent, `null` or not a string - a malformed entry never throws. */
-private fun JsonElement?.text(max: Int): String? = (this as? JsonPrimitive)?.takeIf { it.isString }?.content?.take(max)
+internal fun JsonElement?.text(max: Int): String? = (this as? JsonPrimitive)?.takeIf { it.isString }?.content?.take(max)
 
-private fun JsonElement?.int(): Int? = (this as? JsonPrimitive)?.takeIf { !it.isString }?.intOrNull
+internal fun JsonElement?.int(): Int? = (this as? JsonPrimitive)?.takeIf { !it.isString }?.intOrNull
 
 /** A plain `YYYY-MM-DD` date field's value; null for absence, a datetime or any other shape (the `raw` map shows what the site sent). */
-private fun isoDateOrNull(value: JsonElement?): String? = value.text(MAX_ID)?.let {
+internal fun isoDateOrNull(value: JsonElement?): String? = value.text(MAX_ID)?.let {
     try {
         parseIsoDate(it, "date").toString()
     } catch (_: BadRequestException) {
@@ -124,5 +130,5 @@ private fun isoDateOrNull(value: JsonElement?): String? = value.text(MAX_ID)?.le
 }
 
 /** The Team field is an object with a `name` (Atlassian Team) or, on some sites, plain text. */
-private fun teamNameOf(value: JsonElement?): String? =
+internal fun teamNameOf(value: JsonElement?): String? =
     if (value is JsonObject) value["name"].text(MAX_TEAM_NAME) else value.text(MAX_TEAM_NAME)

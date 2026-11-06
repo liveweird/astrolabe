@@ -80,8 +80,11 @@ data class JiraConnectionListResult(val items: List<JiraConnectionResponse>, val
 /** `affected` is the updated-row count (0 -> 404); `tokenRotated` whether the PUT carried a token; `host` the site's host (audit). */
 data class JiraConnectionUpdateOutcome(val affected: Int, val tokenRotated: Boolean, val host: String)
 
-/** `affected` is the soft-deleted row count (0 -> 404); `name` and `host` are the row as STORED (the audit fields). */
-data class JiraConnectionDeleteOutcome(val affected: Int, val name: String, val host: String)
+/**
+ * `affected` is the soft-deleted row count (0 -> 404); `name` and `host` are the row as STORED (the audit fields); `bindingsUnbound` the
+ * connection's ACTIVE bindings soft-deleted with it, in the same transaction (the audit's cascade count).
+ */
+data class JiraConnectionDeleteOutcome(val affected: Int, val name: String, val host: String, val bindingsUnbound: Int)
 
 /** The audit/host form of a site URL: the tenant host only, never the scheme or a path. */
 fun jiraHostOf(siteUrl: String): String = siteUrl.removePrefix("https://")

@@ -1924,6 +1924,85 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/integrations/jira/bindings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Jira bindings
+         * @description Any authenticated user (the node names are already public to every reader of the plan). ACTIVE bindings of LIVE nodes only: a
+         *     binding whose node, or any ancestor of it, was deleted is absent (the next bind of its issue releases it, and `DELETE` still
+         *     unbinds it). Each row carries the node and where it sits, the issue, its browse `url` and the latest observation.
+         *
+         *     - Sortable fields: `id`, `createdAt`, `issueKey`. Default `id` ascending.
+         *     - Filters: `connectionId` (equality), `level` (equality, by name), `q` (case- and accent-insensitive substring of the NODE's
+         *       own name, at most 100 characters). A repeated key is a `400`.
+         */
+        get: operations["listJiraBindings"];
+        put?: never;
+        /**
+         * Link a plan node to a Jira issue
+         * @description The owner chain of the node (the work stream's, the program's or the project's owner; a milestone has the project's chain) or
+         *     ADMIN. **Read-before-guard**, the plan nodes' idiom: the node is in the body, so the body is decoded first (a body that does not
+         *     decode, an unknown `level` included, is a `400` before any guard); then the node's chain (`404` for an unknown or deleted node, for
+         *     every caller), then the guard (`403`: a team manager as such has no say), then `issueKey`'s shape and the rest (`400`).
+         *
+         *     The server reads the issue from the connection's site ONCE, outside any transaction, and refuses (`400`) a key outside the
+         *     connection's project keys, an unknown issue, a disabled or unknown connection, a level the mapping does not map, and an issue
+         *     whose hierarchy level is not the one the mapping gives the level (the message names both). The connection must be discovered
+         *     and its mapping, as stored or by default, must still fit the site as it is now: otherwise `409`
+         *     (`urn:astrolabe:problem:jira-not-discovered`, `urn:astrolabe:problem:jira-mapping-invalid` - an administrator must fix it - or
+         *     `urn:astrolabe:problem:jira-token-unreadable`). `502` (`urn:astrolabe:problem:jira-upstream`, the detail names the failure
+         *     code only) when Jira cannot be reached or refuses.
+         *
+         *     Rate limited per signed-in USER (`jira-bind`, 30 a minute), BEFORE the guard: an over-limit caller gets `429` whatever the request
+         *     would have answered.
+         *
+         *     Bindings are 1:1: `409` `urn:astrolabe:problem:already-bound` when the node is linked to another issue, or the issue is linked
+         *     to another node - on this connection or on another active connection of the same site - unless that node was deleted, in which
+         *     case its binding is released (soft-deleted, audited) and the bind goes through. The first observation of the issue is stored with
+         *     the binding. A binding is not plan state: no plan lock, no revision bump. Audited `jira.binding_created` (and
+         *     `jira.binding_released` for each released binding).
+         */
+        post: operations["createJiraBinding"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/integrations/jira/bindings/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Get a Jira binding
+         * @description Any authenticated user. `404` for an unknown or unbound binding, and for one whose node (or an ancestor) was deleted.
+         */
+        get: operations["getJiraBinding"];
+        put?: never;
+        post?: never;
+        /**
+         * Unlink a plan node from its Jira issue
+         * @description The owner chain of the bound node, or ADMIN; read-before-guard (`404`, then `403`). A binding whose node was deleted since is
+         *     unbound by whoever passes `requireOwnerOrAdmin` on the chain the node had when it was last stored (the chain is read without
+         *     the active filter for the guard only). A soft delete: the row stays as history and both the node and the issue are free to be
+         *     bound again. Audited `jira.binding_deleted`.
+         */
+        delete: operations["deleteJiraBinding"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -4348,6 +4427,96 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        JiraBindRequest: {
+            /** Format: int32 */
+            connectionId: number;
+            /**
+             * @description The kind of plan node; `nodeId` is the id of a program, project or milestone accordingly.
+             * @enum {string}
+             */
+            level: "PROGRAM" | "PROJECT" | "MILESTONE";
+            /** Format: int32 */
+            nodeId: number;
+            /** @description The Jira issue key, e.g. `ABC-12`; trimmed. */
+            issueKey: string;
+        };
+        JiraBindingNode: {
+            /** @enum {string} */
+            kind: "PROGRAM" | "PROJECT" | "MILESTONE";
+            /** Format: int32 */
+            id: number;
+            name: string;
+            /** @description A milestone's project. */
+            projectName?: string | null;
+            /** @description A milestone's or project's program. */
+            programName?: string | null;
+            workStreamName?: string | null;
+        };
+        JiraBindingCreator: {
+            /** Format: int32 */
+            userId: number;
+            /** @description The login's active person's name, else its display name - never its email. */
+            name: string;
+        };
+        /** @description The latest observed state of the bound issue, as the site sent it (dates are Jira's own, with no order check). */
+        JiraBindingObservation: {
+            /** Format: int64 */
+            observedAt: number;
+            issueKey?: string | null;
+            summary?: string | null;
+            typeId?: string | null;
+            typeName?: string | null;
+            /** Format: int32 */
+            hierarchyLevel?: number | null;
+            statusName?: string | null;
+            /** @enum {string} */
+            statusCategory: "TODO" | "IN_PROGRESS" | "DONE" | "UNKNOWN";
+            parentIssueId?: string | null;
+            parentIssueKey?: string | null;
+            /** Format: date */
+            startDate?: string | null;
+            /** Format: date */
+            endDate?: string | null;
+            /**
+             * Format: double
+             * @description In `estimateUnit`, at two decimals; null when the mapping reads none or the site sent no usable number.
+             */
+            estimate?: number | null;
+            /** @enum {string|null} */
+            estimateUnit?: "POINTS" | "HOURS" | "DAYS" | null;
+            teamName?: string | null;
+            /** Format: int64 */
+            jiraUpdatedAt?: number | null;
+            /** @description The issue could not be read on a later run (set by the run, never by a bind). */
+            gone: boolean;
+            /** @enum {string|null} */
+            goneReason?: "DELETED" | "OUT_OF_SCOPE" | "FORBIDDEN" | null;
+        };
+        JiraBinding: {
+            /** Format: int32 */
+            id: number;
+            /** Format: int32 */
+            connectionId: number;
+            /** @enum {string} */
+            level: "PROGRAM" | "PROJECT" | "MILESTONE";
+            node: components["schemas"]["JiraBindingNode"];
+            /** @description The numeric Jira issue id (a key changes when an issue moves project). */
+            issueId: string;
+            issueKey: string;
+            /** @description `<site>/browse/<key>`. */
+            url: string;
+            observation?: components["schemas"]["JiraBindingObservation"] | null;
+            /** Format: int64 */
+            createdAt: number;
+            createdBy?: components["schemas"]["JiraBindingCreator"] | null;
+        };
+        JiraBindingPage: {
+            items: components["schemas"]["JiraBinding"][];
+            page: number;
+            pageSize: number;
+            /** Format: int64 */
+            total: number;
+        };
     };
     responses: {
         /** @description Request body must use application/json. A missing body or Content-Type remains a 400. */
@@ -4455,6 +4624,11 @@ export interface components {
         Page: number;
         /** @description Rows per page. Defaults to 20, maximum 100. */
         PageSize: number;
+        /**
+         * @description Free-text search (API-LIST-005): a case- and accent-insensitive substring of the resource's own name, at most 100 characters.
+         *     A blank value is no filter; a repeated key is a `400`.
+         */
+        Q: string;
         /**
          * @description Sort spec. Format: `field` (ascending) or `-field` (descending). Multiple fields are
          *     comma-separated, leftmost wins: `sort=-updatedAt,name`. The endpoint declares its
@@ -7323,6 +7497,134 @@ export interface operations {
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalServerError"];
             502: components["responses"]["BadGateway"];
+        };
+    };
+    listJiraBindings: {
+        parameters: {
+            query?: {
+                /** @description 1-based page index. Defaults to 1. */
+                page?: components["parameters"]["Page"];
+                /** @description Rows per page. Defaults to 20, maximum 100. */
+                pageSize?: components["parameters"]["PageSize"];
+                /**
+                 * @description Sort spec. Format: `field` (ascending) or `-field` (descending). Multiple fields are
+                 *     comma-separated, leftmost wins: `sort=-updatedAt,name`. The endpoint declares its
+                 *     sortable-field whitelist; unknown fields are rejected with `400`. `id` ascending is
+                 *     always appended as a deterministic tiebreaker.
+                 */
+                sort?: components["parameters"]["Sort"];
+                connectionId?: number;
+                level?: "PROGRAM" | "PROJECT" | "MILESTONE";
+                /**
+                 * @description Free-text search (API-LIST-005): a case- and accent-insensitive substring of the resource's own name, at most 100 characters.
+                 *     A blank value is no filter; a repeated key is a `400`.
+                 */
+                q?: components["parameters"]["Q"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of bindings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JiraBindingPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    createJiraBinding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JiraBindRequest"];
+            };
+        };
+        responses: {
+            /** @description Linked; `Location` points at the new binding */
+            201: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JiraBinding"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalServerError"];
+            502: components["responses"]["BadGateway"];
+        };
+    };
+    getJiraBinding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The binding */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JiraBinding"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    deleteJiraBinding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Unlinked */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
         };
     };
 }

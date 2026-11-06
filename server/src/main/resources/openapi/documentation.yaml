@@ -2761,6 +2761,131 @@ paths:
         '500': { $ref: '#/components/responses/InternalServerError' }
         '502': { $ref: '#/components/responses/BadGateway' }
 
+  /api/v1/integrations/jira/bindings:
+    get:
+      tags: [jira]
+      operationId: listJiraBindings
+      summary: List Jira bindings
+      description: |
+        Any authenticated user (the node names are already public to every reader of the plan). ACTIVE bindings of LIVE nodes only: a
+        binding whose node, or any ancestor of it, was deleted is absent (the next bind of its issue releases it, and `DELETE` still
+        unbinds it). Each row carries the node and where it sits, the issue, its browse `url` and the latest observation.
+
+        - Sortable fields: `id`, `createdAt`, `issueKey`. Default `id` ascending.
+        - Filters: `connectionId` (equality), `level` (equality, by name), `q` (case- and accent-insensitive substring of the NODE's
+          own name, at most 100 characters). A repeated key is a `400`.
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Sort'
+        - name: connectionId
+          in: query
+          required: false
+          schema: { type: integer, format: int32, minimum: 0 }
+        - name: level
+          in: query
+          required: false
+          schema: { type: string, enum: [PROGRAM, PROJECT, MILESTONE] }
+        - $ref: '#/components/parameters/Q'
+      responses:
+        '200':
+          description: A page of bindings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JiraBindingPage'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    post:
+      tags: [jira]
+      operationId: createJiraBinding
+      summary: Link a plan node to a Jira issue
+      description: |
+        The owner chain of the node (the work stream's, the program's or the project's owner; a milestone has the project's chain) or
+        ADMIN. **Read-before-guard**, the plan nodes' idiom: the node is in the body, so the body is decoded first (a body that does not
+        decode, an unknown `level` included, is a `400` before any guard); then the node's chain (`404` for an unknown or deleted node, for
+        every caller), then the guard (`403`: a team manager as such has no say), then `issueKey`'s shape and the rest (`400`).
+
+        The server reads the issue from the connection's site ONCE, outside any transaction, and refuses (`400`) a key outside the
+        connection's project keys, an unknown issue, a disabled or unknown connection, a level the mapping does not map, and an issue
+        whose hierarchy level is not the one the mapping gives the level (the message names both). The connection must be discovered
+        and its mapping, as stored or by default, must still fit the site as it is now: otherwise `409`
+        (`urn:astrolabe:problem:jira-not-discovered`, `urn:astrolabe:problem:jira-mapping-invalid` - an administrator must fix it - or
+        `urn:astrolabe:problem:jira-token-unreadable`). `502` (`urn:astrolabe:problem:jira-upstream`, the detail names the failure
+        code only) when Jira cannot be reached or refuses.
+
+        Rate limited per signed-in USER (`jira-bind`, 30 a minute), BEFORE the guard: an over-limit caller gets `429` whatever the request
+        would have answered.
+
+        Bindings are 1:1: `409` `urn:astrolabe:problem:already-bound` when the node is linked to another issue, or the issue is linked
+        to another node - on this connection or on another active connection of the same site - unless that node was deleted, in which
+        case its binding is released (soft-deleted, audited) and the bind goes through. The first observation of the issue is stored with
+        the binding. A binding is not plan state: no plan lock, no revision bump. Audited `jira.binding_created` (and
+        `jira.binding_released` for each released binding).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JiraBindRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '201':
+          description: Linked; `Location` points at the new binding
+          headers:
+            Location:
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JiraBinding'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '502': { $ref: '#/components/responses/BadGateway' }
+  /api/v1/integrations/jira/bindings/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    get:
+      tags: [jira]
+      operationId: getJiraBinding
+      summary: Get a Jira binding
+      description: Any authenticated user. `404` for an unknown or unbound binding, and for one whose node (or an ancestor) was deleted.
+      responses:
+        '200':
+          description: The binding
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JiraBinding'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    delete:
+      tags: [jira]
+      operationId: deleteJiraBinding
+      summary: Unlink a plan node from its Jira issue
+      description: |
+        The owner chain of the bound node, or ADMIN; read-before-guard (`404`, then `403`). A binding whose node was deleted since is
+        unbound by whoever passes `requireOwnerOrAdmin` on the chain the node had when it was last stored (the chain is read without
+        the active filter for the guard only). A soft delete: the row stays as history and both the node and the issue are free to be
+        bound again. Audited `jira.binding_deleted`.
+      responses:
+        '204':
+          description: Unlinked
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -2799,6 +2924,14 @@ components:
       required: false
       schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
       description: Rows per page. Defaults to 20, maximum 100.
+    Q:
+      name: q
+      in: query
+      required: false
+      schema: { type: string, maxLength: 100 }
+      description: |
+        Free-text search (API-LIST-005): a case- and accent-insensitive substring of the resource's own name, at most 100 characters.
+        A blank value is no filter; a repeated key is a `400`.
     Sort:
       name: sort
       in: query
@@ -5346,3 +5479,84 @@ components:
           type: object
           additionalProperties: true
           description: The mapped fields' values exactly as the site sent them, keyed by field id (a field the issue lacks is absent); nothing else of the issue.
+    JiraBindRequest:
+      type: object
+      required: [connectionId, level, nodeId, issueKey]
+      properties:
+        connectionId: { type: integer, format: int32, minimum: 0 }
+        level: { type: string, enum: [PROGRAM, PROJECT, MILESTONE], description: "The kind of plan node; `nodeId` is the id of a program, project or milestone accordingly." }
+        nodeId: { type: integer, format: int32, minimum: 0 }
+        issueKey: { type: string, pattern: '^[A-Z][A-Z0-9_]{1,9}-[0-9]{1,10}$', maxLength: 21, description: "The Jira issue key, e.g. `ABC-12`; trimmed." }
+    JiraBindingNode:
+      type: object
+      required: [kind, id, name]
+      properties:
+        kind: { type: string, enum: [PROGRAM, PROJECT, MILESTONE] }
+        id: { type: integer, format: int32, minimum: 0 }
+        name: { type: string }
+        projectName: { type: string, nullable: true, description: "A milestone's project." }
+        programName: { type: string, nullable: true, description: "A milestone's or project's program." }
+        workStreamName: { type: string, nullable: true }
+    JiraBindingCreator:
+      type: object
+      required: [userId, name]
+      properties:
+        userId: { type: integer, format: int32, minimum: 0 }
+        name: { type: string, description: "The login's active person's name, else its display name - never its email." }
+    JiraBindingObservation:
+      type: object
+      description: The latest observed state of the bound issue, as the site sent it (dates are Jira's own, with no order check).
+      required: [observedAt, statusCategory, gone]
+      properties:
+        observedAt: { type: integer, format: int64 }
+        issueKey: { type: string, nullable: true }
+        summary: { type: string, nullable: true, maxLength: 255 }
+        typeId: { type: string, nullable: true }
+        typeName: { type: string, nullable: true }
+        hierarchyLevel: { type: integer, format: int32, nullable: true }
+        statusName: { type: string, nullable: true }
+        statusCategory: { type: string, enum: [TODO, IN_PROGRESS, DONE, UNKNOWN] }
+        parentIssueId: { type: string, nullable: true }
+        parentIssueKey: { type: string, nullable: true }
+        startDate: { type: string, format: date, nullable: true }
+        endDate: { type: string, format: date, nullable: true }
+        estimate: { type: number, format: double, nullable: true, description: "In `estimateUnit`, at two decimals; null when the mapping reads none or the site sent no usable number." }
+        estimateUnit: { type: string, enum: [POINTS, HOURS, DAYS], nullable: true }
+        teamName: { type: string, nullable: true, maxLength: 100 }
+        jiraUpdatedAt: { type: integer, format: int64, nullable: true }
+        gone: { type: boolean, description: "The issue could not be read on a later run (set by the run, never by a bind)." }
+        goneReason: { type: string, nullable: true, enum: [DELETED, OUT_OF_SCOPE, FORBIDDEN] }
+    JiraBinding:
+      type: object
+      required: [id, connectionId, level, node, issueId, issueKey, url, createdAt]
+      properties:
+        id: { type: integer, format: int32, minimum: 0 }
+        connectionId: { type: integer, format: int32, minimum: 0 }
+        level: { type: string, enum: [PROGRAM, PROJECT, MILESTONE] }
+        node: { $ref: '#/components/schemas/JiraBindingNode' }
+        issueId: { type: string, description: The numeric Jira issue id (a key changes when an issue moves project). }
+        issueKey: { type: string }
+        url: { type: string, description: "`<site>/browse/<key>`." }
+        observation:
+          allOf:
+            - $ref: '#/components/schemas/JiraBindingObservation'
+          nullable: true
+        createdAt: { type: integer, format: int64 }
+        createdBy:
+          allOf:
+            - $ref: '#/components/schemas/JiraBindingCreator'
+          nullable: true
+    JiraBindingPage:
+      type: object
+      required: [items, page, pageSize, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/JiraBinding'
+        page: { type: integer, minimum: 1 }
+        pageSize: { type: integer, minimum: 1, maximum: 100 }
+        total:
+          type: integer
+          format: int64
+          minimum: 0

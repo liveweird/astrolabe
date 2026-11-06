@@ -89,7 +89,7 @@ const val DEFAULT_SEARCH_PAGE_SIZE = 100
 private val CLOUD_ID_PATTERN = Regex("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", RegexOption.IGNORE_CASE)
 
 /** A numeric Jira issue id, as `search`'s `id` field (never the display `key`) always is. */
-private val ISSUE_ID_PATTERN = Regex("^[0-9]{1,20}$")
+internal val ISSUE_ID_PATTERN = Regex("^[0-9]{1,20}$")
 
 /** The Jira Cloud issue-KEY shape (`PROJ-123`) - [JiraClient.issue] accepts either an id or a key. */
 val ISSUE_KEY_PATTERN: Regex = Regex("^[A-Z][A-Z0-9_]{1,9}-[0-9]{1,10}$")

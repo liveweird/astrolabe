@@ -7,6 +7,7 @@ import ch.nokillswit.authz.requireAdmin
 import ch.nokillswit.infra.db.orVanished
 import ch.nokillswit.infra.paging.parsePaging
 import ch.nokillswit.infra.paging.toPage
+import ch.nokillswit.people.PersonServiceKey
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.resources.Resource
@@ -41,11 +42,14 @@ class JiraConnectionsRoute {
 fun Application.configureJiraRoutes() {
     val connections = attributes[JiraConnectionServiceKey]
     val connector = attributes[JiraConnectorKey]
+    val bindings = attributes[JiraBindingServiceKey]
+    val people = attributes[PersonServiceKey]
 
     routing {
         authenticate {
             jiraTestRoutes(connections, connector)
             jiraMappingRoutes(connections, connector)
+            jiraBindingRoutes(connections, bindings, people, connector)
             get<JiraConnectionsRoute> {
                 requireAdmin(call.caller())
                 val paging = call.parsePaging(sortable = JIRA_CONNECTION_SORT_FIELDS)
@@ -101,6 +105,7 @@ fun Application.configureJiraRoutes() {
                     "connectionId" to route.id.toLong(),
                     "name" to outcome.name,
                     "host" to outcome.host,
+                    "bindingsUnbound" to outcome.bindingsUnbound,
                 )
                 call.respond(HttpStatusCode.NoContent)
             }

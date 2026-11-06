@@ -88,4 +88,5 @@ private fun fieldProblem(fields: Map<String, DiscoveredField>, id: String, wante
     }
 }
 
-private fun JiraLevel.label(): String = name.lowercase()
+/** `program`, `project`, `milestone`: the lowercase name of a level in a message. */
+internal fun JiraLevel.label(): String = name.lowercase()

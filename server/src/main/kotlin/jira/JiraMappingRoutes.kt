@@ -100,7 +100,7 @@ internal fun Route.jiraMappingRoutes(connections: JiraConnectionService, connect
 
 private const val NOT_DISCOVERED_DETAIL = "Test the connection first - no discovery has been stored yet"
 
-private fun requireInScope(issueKey: String, projectKeys: List<String>) {
+internal fun requireInScope(issueKey: String, projectKeys: List<String>) {
     if (issueKey.substringBeforeLast('-') !in projectKeys) {
         throw BadRequestException("$issueKey is outside the connection's project keys")
     }
