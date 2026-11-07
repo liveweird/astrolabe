@@ -25,7 +25,7 @@ export const DEV_CONNECTION: DeviationConnection = {
   status: { state: "CURRENT", lastRun: DEV_LAST_RUN, lastSucceededAt: OBSERVED_AT, consecutiveFailures: 0, nextPollAt: OBSERVED_AT + 15 * 60_000 },
 };
 
-export const detail = (over: Partial<Deviation["detail"]> = {}): Deviation["detail"] => ({ jira: null, plan: null, days: null, ...over });
+export const detail = (over: Partial<Deviation["detail"]> = {}): Deviation["detail"] => ({ jira: null, plan: null, days: null, count: null, ...over });
 
 export const endLater = (days: number): Deviation => ({ kind: "END_DIFFERS", severity: days > 0 ? "WARNING" : "INFO", detail: detail({ jira: "2044-03-04", plan: "2044-03-07", days }) });
 

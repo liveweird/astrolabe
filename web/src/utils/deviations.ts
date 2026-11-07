@@ -111,6 +111,11 @@ export function deviationSentence(deviation: Deviation, item: Phrased, t: TFunct
       return estimateNotComparable(detail, item, t);
     case "PROGRESS_MISMATCH":
       return progress(detail, t);
+    case "UNLINKED_IN_JIRA":
+    case "UNLINKED_IN_PLAN":
+    case "CHILDREN_DONE":
+      // The coverage sentences arrive with the 1.4 UI; until then the plain kind label stands (the file's degrade rule).
+      return t(`deviations.kind.${deviation.kind}`);
   }
 }
 

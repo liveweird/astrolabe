@@ -126,6 +126,7 @@ describe("deviationSentence - every other kind, in both languages", () => {
     const kinds: DeviationKind[] = [
       "GONE", "LEVEL_MISMATCH", "PARENT_MISMATCH", "RENAMED", "START_DIFFERS", "END_DIFFERS", "TARGET_DIFFERS",
       "UNSCHEDULED_IN_PLAN", "UNSCHEDULED_IN_JIRA", "ESTIMATE_DIFFERS", "ESTIMATE_NOT_COMPARABLE", "PROGRESS_MISMATCH",
+      "UNLINKED_IN_JIRA", "UNLINKED_IN_PLAN", "CHILDREN_DONE",
     ];
     for (const kind of kinds) {
       for (const t of [en, pl]) {

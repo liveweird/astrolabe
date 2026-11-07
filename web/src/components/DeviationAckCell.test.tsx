@@ -49,7 +49,7 @@ describe("the acknowledgement cell's button matrix (can x has a listed deviation
   });
 
   test("an item whose only listed deviation is an estimate that cannot be compared (shown under 'all') can be acknowledged: the server allows it", () => {
-    const only = { kind: "ESTIMATE_NOT_COMPARABLE" as const, severity: "INFO" as const, detail: { jira: "5", plan: "3.00", days: null } };
+    const only = { kind: "ESTIMATE_NOT_COMPARABLE" as const, severity: "INFO" as const, detail: { jira: "5", plan: "3.00", days: null, count: null } };
     renderCell({ can: { acknowledge: true }, deviations: [only] });
     expect(screen.getByRole("button", { name: "Acknowledge E2E-3" })).toBeInTheDocument();
   });

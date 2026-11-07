@@ -13,8 +13,8 @@ import kotlin.test.assertTrue
 
 /** The pure fingerprint of a deviation list: what an acknowledgement is keyed on. */
 class DeviationFingerprintTest {
-    private val end = Deviation(DeviationKind.END_DIFFERS, DeviationSeverity.WARNING, DeviationDetail("2044-02-04", "2044-02-09", 3))
-    private val renamed = Deviation(DeviationKind.RENAMED, DeviationSeverity.INFO, DeviationDetail("Jira name", "Plan name", null))
+    private val end = Deviation(DeviationKind.END_DIFFERS, DeviationSeverity.WARNING, DeviationDetail("2044-02-04", "2044-02-09", 3, null))
+    private val renamed = Deviation(DeviationKind.RENAMED, DeviationSeverity.INFO, DeviationDetail("Jira name", "Plan name", null, null))
 
     @Test
     fun `it is 64 lower-case hex and equal for equal lists whatever the instance`() {
@@ -38,6 +38,17 @@ class DeviationFingerprintTest {
     fun `a two-element list hashes to a pinned digest - nulls are not written, so an added nullable member moves nothing`() {
         // Canonical JSON, keys sorted, null `days` of the second element omitted. If this moves, every stored acknowledgement reopens.
         assertEquals("de7a297315337783a03217885215208eec0ccfcdf972a89bdc8b44f3f3a5b861", fingerprintOf(listOf(end, renamed)))
+    }
+
+    @Test
+    fun `a count enters the hash as a value, a null count does not, and a coverage list hashes to its own pinned digest`() {
+        val unlinked = Deviation(DeviationKind.UNLINKED_IN_JIRA, DeviationSeverity.WARNING, DeviationDetail("COV-5", null, null, 1))
+        val base = fingerprintOf(listOf(unlinked))
+        assertNotEquals(base, fingerprintOf(listOf(unlinked.copy(detail = unlinked.detail.copy(count = 2)))))
+        assertNotEquals(base, fingerprintOf(listOf(unlinked.copy(detail = unlinked.detail.copy(count = null)))))
+        assertEquals(base, fingerprintOf(listOf(unlinked.copy())))
+        // Canonical JSON of [{"detail":{"count":1,"jira":"COV-5"},"kind":"UNLINKED_IN_JIRA","severity":"WARNING"}], null members omitted.
+        assertEquals("df05b300afe34e2a4284eaa8e16bfa0c7c7e2c7b2aa000618279c5b403407b94", base)
     }
 
     @Test

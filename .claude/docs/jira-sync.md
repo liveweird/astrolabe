@@ -147,6 +147,11 @@ observation (they still block their nodes).
 | `ESTIMATE_DIFFERS` | milestone | comparable (`DAYS`, or a factor) and `|jira × factor − estimateMd| ≥ 0.01` | INFO |
 | `ESTIMATE_NOT_COMPARABLE` | milestone | an estimate with no factor, or one read under a different unit than the mapping names now (listed only with `all=true` or `kind=`) | INFO |
 | `PROGRESS_MISMATCH` | all | `DONE` while the plan's end is after today; `TODO` while the plan's start is past; `IN_PROGRESS` while it is ahead | INFO |
+| `UNLINKED_IN_JIRA` (1.4) | program, project | open (not DONE) Jira items under the bound issue, at the mapping's level for the child plan level, that no active binding covers (`jira` = their keys, at most 10, `count` = all; never a summary) | WARNING |
+| `UNLINKED_IN_PLAN` (1.4) | program, project | the bound node's direct plan children that have no binding (`plan` = their names, at most 10, `count` = all) | INFO |
+| `CHILDREN_DONE` (1.4) | milestone | the bound epic has children, all done (`jira` = `done/children`, `count` = children), while the epic is not DONE (else `PROGRESS_MISMATCH` alone) and the plan's end is after today | INFO |
+
+The three 1.4 kinds are declared last, so they sort after the older ones within a severity; they come from two optional kernel inputs (`ChildRollup`, `UnlinkedChildren`; null = none) that the view's loaders fill from the census mirror (1.4 C5). `DeviationDetail.count` has no default and is omitted from a fingerprint while null, so a binding that gains none of the new kinds keeps its acknowledgement; one that gains one reopens.
 
 Without a usable mapping (no discovery, stale, unreadable) neither the level nor the estimate comparison is made and the connection reads `mappingOk: false`.
 

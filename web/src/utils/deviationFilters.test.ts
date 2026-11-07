@@ -10,6 +10,12 @@ describe("the Deviations page's filters in the URL", () => {
     expect(parse(deviationFilterParams(filter).toString())).toEqual(filter);
   });
 
+  test("the coverage kinds pass the kind whitelist", () => {
+    expect(parse("kind=UNLINKED_IN_JIRA")).toEqual({ kind: "UNLINKED_IN_JIRA" });
+    expect(parse("kind=UNLINKED_IN_PLAN")).toEqual({ kind: "UNLINKED_IN_PLAN" });
+    expect(parse("kind=CHILDREN_DONE")).toEqual({ kind: "CHILDREN_DONE" });
+  });
+
   test("anything malformed is dropped, so a stale or hand-edited link never breaks the page", () => {
     expect(parse("projectId=abc&teamId=0&workStreamId=-2&programId=1e3&connectionId=7abc&severity=info&level=TEAM&kind=NOPE&all=1")).toEqual({});
     expect(parse("projectId=99999999999")).toEqual({});

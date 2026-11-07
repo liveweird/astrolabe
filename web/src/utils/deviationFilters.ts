@@ -15,6 +15,9 @@ const KINDS: readonly DeviationKind[] = [
   "ESTIMATE_DIFFERS",
   "ESTIMATE_NOT_COMPARABLE",
   "PROGRESS_MISMATCH",
+  "UNLINKED_IN_JIRA",
+  "UNLINKED_IN_PLAN",
+  "CHILDREN_DONE",
 ];
 const BOOLEAN_KEYS = ["acknowledged", "all"] as const;
 const ID_KEYS = ["connectionId", "workStreamId", "programId", "projectId", "teamId"] as const;

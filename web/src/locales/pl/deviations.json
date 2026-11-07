@@ -143,7 +143,10 @@
     "UNSCHEDULED_IN_JIRA": "Bez dat w Jirze",
     "ESTIMATE_DIFFERS": "Estymata",
     "ESTIMATE_NOT_COMPARABLE": "Estymata",
-    "PROGRESS_MISMATCH": "Postęp"
+    "PROGRESS_MISMATCH": "Postęp",
+    "UNLINKED_IN_JIRA": "Brak w planie",
+    "UNLINKED_IN_PLAN": "Brak w Jirze",
+    "CHILDREN_DONE": "Dzieci ukończone"
   },
   "phrase": {
     "goneOutOfScope": "Nie da się już odczytać z Jiry: usunięto go, przeniesiono poza projekty połączenia albo konto połączenia już go nie widzi",

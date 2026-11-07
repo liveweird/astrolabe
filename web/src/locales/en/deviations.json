@@ -127,7 +127,10 @@
     "UNSCHEDULED_IN_JIRA": "No Jira dates",
     "ESTIMATE_DIFFERS": "Estimate",
     "ESTIMATE_NOT_COMPARABLE": "Estimate",
-    "PROGRESS_MISMATCH": "Progress"
+    "PROGRESS_MISMATCH": "Progress",
+    "UNLINKED_IN_JIRA": "Not in plan",
+    "UNLINKED_IN_PLAN": "Not in Jira",
+    "CHILDREN_DONE": "Children done"
   },
   "phrase": {
     "goneOutOfScope": "No longer readable in Jira: deleted, moved out of the connection's projects, or no longer visible to its account",

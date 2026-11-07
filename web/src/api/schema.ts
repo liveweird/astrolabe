@@ -1408,6 +1408,14 @@ export interface paths {
          *     mapping names now); `PROGRESS_MISMATCH` (INFO: `DONE` while the plan's end is after `asOf`, `TODO` while its start is before,
          *     `IN_PROGRESS` while its start is after). A binding that was never observed (none exists normally) lists no deviations.
          *
+         *     **Coverage (1.4)** - what the plan or Jira holds under a bound node that the other does not, from the last census a run mirrored
+         *     (`detail.count` carries the full figure, the lists name at most 10): `UNLINKED_IN_JIRA` (WARNING, programs and projects: open
+         *     Jira items - done ones are history - under the bound issue, at the mapping's level for the child plan level, that no active
+         *     binding covers on this or another active connection of the same site; `jira` lists their keys); `UNLINKED_IN_PLAN` (INFO,
+         *     programs and projects: the node's direct plan children that have no binding; `plan` lists their names); `CHILDREN_DONE` (INFO,
+         *     milestones: the bound epic has children, all of them done, while the epic itself is not DONE and the plan's end is after `asOf`;
+         *     `jira` = `done/children`, `plan` = the end date). Each kind sorts after the older ones within its severity.
+         *
          *     Filters, all equality, a repeated key or a malformed value a `400`: `connectionId`, `level`, `workStreamId`, `programId`
          *     (the program, its projects and milestones), `projectId` (the project and its milestones), `teamId` (milestones), `severity` and
          *     `kind` (the bindings having such a deviation, whatever `all` says), `all`. Every item shows all of its binding's deviations.
@@ -3854,7 +3862,7 @@ export interface components {
             flags: components["schemas"]["PlanFlag"][];
         };
         /** @enum {string} */
-        DeviationKind: "GONE" | "LEVEL_MISMATCH" | "PARENT_MISMATCH" | "RENAMED" | "START_DIFFERS" | "END_DIFFERS" | "TARGET_DIFFERS" | "UNSCHEDULED_IN_PLAN" | "UNSCHEDULED_IN_JIRA" | "ESTIMATE_DIFFERS" | "ESTIMATE_NOT_COMPARABLE" | "PROGRESS_MISMATCH";
+        DeviationKind: "GONE" | "LEVEL_MISMATCH" | "PARENT_MISMATCH" | "RENAMED" | "START_DIFFERS" | "END_DIFFERS" | "TARGET_DIFFERS" | "UNSCHEDULED_IN_PLAN" | "UNSCHEDULED_IN_JIRA" | "ESTIMATE_DIFFERS" | "ESTIMATE_NOT_COMPARABLE" | "PROGRESS_MISMATCH" | "UNLINKED_IN_JIRA" | "UNLINKED_IN_PLAN" | "CHILDREN_DONE";
         /**
          * @description The evidence, every member optional and text so one shape serves every kind. `GONE`: jira = the gone reason. `LEVEL_MISMATCH`:
          *     jira = the observed hierarchy level (`unknown` when none), plan = the mapped one. `PARENT_MISMATCH`: jira = the observed parent's
@@ -3862,6 +3870,9 @@ export interface components {
          *     dates and `days`. `TARGET_DIFFERS`: `days` only (the item's `jira` and `plan` blocks hold the dates). `ESTIMATE_DIFFERS`: jira =
          *     the figure in man-days, plan = the milestone's. `ESTIMATE_NOT_COMPARABLE`: jira = the raw figure, plan = the milestone's man-days.
          *     `PROGRESS_MISMATCH`: jira = the status category, plan = the plan date that contradicts it. `UNSCHEDULED_*`: nothing.
+         *     `UNLINKED_IN_JIRA`: jira = the Jira KEYS (at most 10, `, `-joined, ascending by issue id, never a summary) of open items under the
+         *     bound issue that no binding covers. `UNLINKED_IN_PLAN`: plan = the NAMES (at most 10, `, `-joined, ascending by id) of the bound
+         *     node's plan children that no binding covers. `CHILDREN_DONE`: jira = `done/children`, plan = the plan's end date.
          */
         DeviationDetail: {
             jira: string | null;
@@ -3871,6 +3882,11 @@ export interface components {
              * @description Working days, POSITIVE = the plan is later.
              */
             days: number | null;
+            /**
+             * Format: int32
+             * @description The full count behind a truncated list (`UNLINKED_*`: items, at most 10 listed) or the children (`CHILDREN_DONE`); null for every other kind.
+             */
+            count: number | null;
         };
         Deviation: {
             kind: components["schemas"]["DeviationKind"];

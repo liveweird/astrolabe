@@ -1,6 +1,7 @@
 package ch.nokillswit
 
 import ch.nokillswit.infra.time.WorkingCalendar
+import ch.nokillswit.jira.ChildRollup
 import ch.nokillswit.jira.DeviationMapping
 import ch.nokillswit.jira.JiraDeviationKernels
 import ch.nokillswit.jira.JiraEstimateUnit
@@ -10,6 +11,7 @@ import ch.nokillswit.jira.ObservedIssue
 import ch.nokillswit.jira.PlanParent
 import ch.nokillswit.jira.PlanRef
 import ch.nokillswit.jira.PlanSide
+import ch.nokillswit.jira.UnlinkedChildren
 import ch.nokillswit.planning.Deviation
 import ch.nokillswit.planning.DeviationKind
 import ch.nokillswit.planning.DeviationSeverity
@@ -67,7 +69,10 @@ class JiraDeviationKernelsTest {
         parentBoundTo: PlanRef? = null,
         calendar: WorkingCalendar = monFri,
         asOf: String = "2027-02-01",
-    ): List<Deviation> = JiraDeviationKernels.deviations(level, issue, plan, mapping, parentBoundTo, calendar, d(asOf))
+        rollup: ChildRollup? = null,
+        unlinked: UnlinkedChildren? = null,
+    ): List<Deviation> =
+        JiraDeviationKernels.deviations(level, issue, plan, mapping, parentBoundTo, calendar, d(asOf), rollup, unlinked)
 
     private fun List<Deviation>.kinds() = map { it.kind }
 
@@ -398,5 +403,134 @@ class JiraDeviationKernelsTest {
             found.kinds(),
         )
         assertEquals(DeviationSeverity.WARNING, found.first().severity)
+    }
+
+    // --- coverage and roll-ups (1.4) -------------------------------------------------------------------------------------------------
+
+    private fun keys(n: Int) = (1..n).map { "COV-$it" }
+
+    @Test
+    fun `UNLINKED_IN_JIRA is a WARNING on a project listing the keys, and caps the list at 10 with the full count`() {
+        val three = run(issue(), plan(), level = JiraLevel.PROJECT, unlinked = UnlinkedChildren(keys(3), emptyList()))
+        val warning = three.single()
+        assertEquals(DeviationKind.UNLINKED_IN_JIRA, warning.kind)
+        assertEquals(DeviationSeverity.WARNING, warning.severity)
+        assertEquals("COV-1, COV-2, COV-3", warning.detail.jira)
+        assertNull(warning.detail.plan)
+        assertNull(warning.detail.days)
+        assertEquals(3, warning.detail.count)
+
+        val twelve = run(issue(), plan(), level = JiraLevel.PROGRAM, unlinked = UnlinkedChildren(keys(12), emptyList())).single()
+        assertEquals(keys(10).joinToString(", "), twelve.detail.jira)
+        assertEquals(12, twelve.detail.count)
+        assertFalse(twelve.detail.jira!!.contains("COV-11"))
+    }
+
+    @Test
+    fun `UNLINKED_IN_PLAN is an INFO listing the plan names, capped at 10 with the full count`() {
+        val names = (1..12).map { "Milestone $it" }
+        val found = run(issue(), plan(), level = JiraLevel.PROJECT, unlinked = UnlinkedChildren(emptyList(), names)).single()
+        assertEquals(DeviationKind.UNLINKED_IN_PLAN, found.kind)
+        assertEquals(DeviationSeverity.INFO, found.severity)
+        assertNull(found.detail.jira)
+        assertEquals(names.take(10).joinToString(", "), found.detail.plan)
+        assertEquals(12, found.detail.count)
+        val one = run(issue(), plan(), level = JiraLevel.PROGRAM, unlinked = UnlinkedChildren(emptyList(), listOf("Only"))).single()
+        assertEquals("Only", one.detail.plan)
+        assertEquals(1, one.detail.count)
+    }
+
+    @Test
+    fun `coverage is raised for programs and projects only, and only when the loader passes something`() {
+        val both = UnlinkedChildren(keys(2), listOf("A"))
+        assertTrue(run(issue(), plan(), level = JiraLevel.MILESTONE, unlinked = both).isEmpty(), "a milestone has no coverage")
+        assertTrue(run(issue(), plan(), level = JiraLevel.PROJECT, unlinked = null).isEmpty())
+        assertTrue(run(issue(), plan(), level = JiraLevel.PROJECT, unlinked = UnlinkedChildren(emptyList(), emptyList())).isEmpty())
+        assertEquals(
+            listOf(DeviationKind.UNLINKED_IN_JIRA, DeviationKind.UNLINKED_IN_PLAN),
+            run(issue(), plan(), level = JiraLevel.PROJECT, unlinked = both).kinds(),
+        )
+    }
+
+    private val allDone = ChildRollup(2, 2, BigDecimal("5"), 1L)
+
+    @Test
+    fun `CHILDREN_DONE fires when every child is done while the plan ends after today, not otherwise`() {
+        val window = plan(start = "2027-01-25", end = "2027-02-02")
+        val found = run(issue(status = JiraStatusCategory.IN_PROGRESS), window, rollup = allDone).one(DeviationKind.CHILDREN_DONE)
+        assertEquals(DeviationKind.CHILDREN_DONE, found.kind)
+        assertEquals(DeviationSeverity.INFO, found.severity)
+        assertEquals("2/2", found.detail.jira)
+        assertEquals("2027-02-02", found.detail.plan)
+        assertEquals(2, found.detail.count)
+
+        fun kinds(rollup: ChildRollup?, plan: PlanSide = window, status: JiraStatusCategory = JiraStatusCategory.IN_PROGRESS) =
+            run(issue(status = status), plan, rollup = rollup).kinds().filter { it == DeviationKind.CHILDREN_DONE }
+        assertTrue(kinds(ChildRollup(2, 1, null, 1L)).isEmpty(), "1/2 is not all done")
+        assertTrue(kinds(ChildRollup(0, 0, null, 1L)).isEmpty(), "no children")
+        assertTrue(kinds(null).isEmpty(), "no roll-up")
+        assertTrue(kinds(allDone, plan(start = "2027-01-20", end = "2027-01-31")).isEmpty(), "the plan ended yesterday")
+        assertTrue(kinds(allDone, plan(start = "2027-01-20", end = "2027-02-01")).isEmpty(), "ending today is not after today")
+        assertTrue(kinds(allDone, plan()).isEmpty(), "an unscheduled milestone has no end")
+    }
+
+    @Test
+    fun `an epic that is itself DONE raises PROGRESS_MISMATCH alone, never CHILDREN_DONE too`() {
+        val window = plan(start = "2027-01-25", end = "2027-02-02")
+        val found = run(issue(status = JiraStatusCategory.DONE), window, rollup = allDone).kinds()
+        assertTrue(DeviationKind.PROGRESS_MISMATCH in found)
+        assertFalse(DeviationKind.CHILDREN_DONE in found)
+    }
+
+    @Test
+    fun `the new kinds sort after PROGRESS_MISMATCH within INFO, and UNLINKED_IN_JIRA leads as the WARNING`() {
+        val milestone = run(
+            issue(summary = "Beta", status = JiraStatusCategory.DONE, start = "2027-01-25", end = "2027-02-02"),
+            plan(start = "2027-01-25", end = "2027-02-02"),
+            rollup = allDone,
+        )
+        // DONE epic: RENAMED, PROGRESS_MISMATCH; CHILDREN_DONE is suppressed by the DONE epic.
+        assertEquals(listOf(DeviationKind.RENAMED, DeviationKind.PROGRESS_MISMATCH), milestone.kinds())
+        val project = run(
+            issue(summary = "Beta", level = 0), plan(), level = JiraLevel.PROJECT,
+            mapping = DeviationMapping(0, JiraEstimateUnit.POINTS, null), unlinked = UnlinkedChildren(keys(1), listOf("A")),
+        )
+        assertEquals(listOf(DeviationKind.UNLINKED_IN_JIRA, DeviationKind.RENAMED, DeviationKind.UNLINKED_IN_PLAN), project.kinds())
+        val milestoneInfo = run(
+            issue(summary = "Beta", status = JiraStatusCategory.IN_PROGRESS, start = "2027-02-02", end = "2027-02-05"),
+            plan(start = "2027-02-02", end = "2027-02-05"),
+            rollup = allDone,
+        )
+        assertEquals(listOf(DeviationKind.RENAMED, DeviationKind.PROGRESS_MISMATCH, DeviationKind.CHILDREN_DONE), milestoneInfo.kinds())
+    }
+
+    @Test
+    fun `UNLINKED_IN_JIRA sorts after the older warnings`() {
+        val found = run(
+            issue(level = 0, start = "2027-02-01", end = "2027-02-05"),
+            plan(start = "2027-02-02", end = "2027-02-08"),
+            level = JiraLevel.PROJECT,
+            mapping = DeviationMapping(1, JiraEstimateUnit.POINTS, null),
+            unlinked = UnlinkedChildren(keys(1), emptyList()),
+        )
+        assertEquals(
+            listOf(DeviationKind.LEVEL_MISMATCH, DeviationKind.START_DIFFERS, DeviationKind.END_DIFFERS, DeviationKind.UNLINKED_IN_JIRA),
+            found.kinds().take(4),
+        )
+        assertTrue(found.take(4).all { it.severity == DeviationSeverity.WARNING })
+    }
+
+    @Test
+    fun `a gone parent raises GONE alone whatever the census holds, and a never observed one nothing`() {
+        val gone = run(
+            issue(gone = true, goneReason = "OUT_OF_SCOPE"), plan(), level = JiraLevel.PROJECT,
+            unlinked = UnlinkedChildren(keys(2), listOf("A")),
+        )
+        assertEquals(listOf(DeviationKind.GONE), gone.kinds())
+        assertEquals(
+            listOf(DeviationKind.GONE),
+            run(issue(gone = true), plan(end = "2027-02-05"), rollup = allDone).kinds(),
+        )
+        assertEquals(emptyList(), run(null, plan(), level = JiraLevel.PROJECT, unlinked = UnlinkedChildren(keys(2), emptyList())))
     }
 }
