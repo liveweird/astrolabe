@@ -1,6 +1,9 @@
 package ch.nokillswit
 
 import ch.nokillswit.jira.ApplyContext
+import ch.nokillswit.jira.CensusIssue
+import ch.nokillswit.jira.JiraIssueStore
+import ch.nokillswit.jira.JiraStatusCategory
 import ch.nokillswit.jira.ImportOutcome
 import ch.nokillswit.jira.JiraConnectionServiceKey
 import ch.nokillswit.jira.JiraImportAction
@@ -16,6 +19,7 @@ import ch.nokillswit.jira.browseGuard
 import ch.nokillswit.jira.browseScope
 import ch.nokillswit.jira.effectiveMapping
 import io.ktor.server.testing.ApplicationTestBuilder
+import java.math.BigDecimal
 import kotlin.test.assertEquals
 
 // The plan-sized Jira world the scale tests share (`JiraImportScaleTest`, `JiraFlagsScaleTest`): a scripted Jira site (a Ktor MockEngine
@@ -101,10 +105,46 @@ internal suspend fun ApplicationTestBuilder.applyScaleImport(
     return ScaleImport(created, before, (System.nanoTime() - started) / NANOS_PER_MILLI)
 }
 
-/** Hard-deletes what the import wrote (bindings and observations first: they reference the nodes), found by this run's unique tag. */
+/** The first child issue id of [seedScaleChildren]: epic `n`'s child `k` (0-based) is `SCALE_CHILD_BASE + n * SCALE_CHILDREN + k`. */
+internal const val SCALE_CHILD_BASE = 600_000
+
+/** The children [seedScaleChildren] mirrors under each bound epic, the first [SCALE_CHILDREN_DONE] of them done, each worth 3 points. */
+internal const val SCALE_CHILDREN = 5
+internal const val SCALE_CHILDREN_DONE = 2
+
+/** The `observed_at` every seeded child carries (and so the roll-up's newest observation). */
+internal const val SCALE_CHILD_OBSERVED_AT = 1_700_000_000_000L
+
+/**
+ * Mirrors [SCALE_CHILDREN] census rows (hierarchy level 0, 3 points each, the first [SCALE_CHILDREN_DONE] done) under each of the first
+ * [milestones] bound epics of [applyScaleImport], through the store the run writes with, in chunks. The roll-up of every epic is
+ * therefore `5 children, 2 done, 15 points`. [removeScaleRows] takes them out again.
+ */
+internal suspend fun seedScaleChildren(connectionId: UInt, milestones: Int) {
+    val store = JiraIssueStore(sharedDatabaseForTests())
+    val rows = (1..milestones).flatMap { n ->
+        (0 until SCALE_CHILDREN).map { k ->
+            val id = SCALE_CHILD_BASE + n * SCALE_CHILDREN + k
+            val status = if (k < SCALE_CHILDREN_DONE) JiraStatusCategory.DONE else JiraStatusCategory.TODO
+            CensusIssue(
+                "$id", "IMP-$id", "10001", 0, "${MILESTONE_ISSUE_BASE + n}", "Story $id", status, BigDecimal(3), null,
+                SCALE_CHILD_OBSERVED_AT,
+            )
+        }
+    }
+    rows.chunked(SCALE_CHUNK).forEach { assertEquals(it.size, store.upsert(connectionId, it)) }
+}
+
+private const val SCALE_CHUNK = 500
+
+/**
+ * Hard-deletes what the import wrote (bindings and observations first: they reference the nodes), found by this run's unique tag, and
+ * the connection's census mirror rows ([seedScaleChildren]).
+ */
 internal fun removeScaleRows(connectionId: UInt, tag: String) {
     val like = "$tag %"
     val bindings = "SELECT id FROM jira_bindings WHERE connection_id = ${connectionId.toInt()}"
+    jbSql("DELETE FROM jira_issues WHERE connection_id = ?", connectionId.toInt())
     jbSql("DELETE FROM jira_observations WHERE binding_id IN ($bindings)")
     jbSql("DELETE FROM jira_bindings WHERE connection_id = ?", connectionId.toInt())
     jbSql("DELETE FROM milestones WHERE name LIKE ?", like)

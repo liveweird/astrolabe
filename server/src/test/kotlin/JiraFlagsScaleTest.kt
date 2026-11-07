@@ -3,6 +3,7 @@ package ch.nokillswit
 import ch.nokillswit.auth.LoginResponse
 import ch.nokillswit.jira.DeviationViewServiceKey
 import ch.nokillswit.jira.JiraFlagSource
+import ch.nokillswit.planning.JiraRollup
 import ch.nokillswit.planning.PlanActor
 import ch.nokillswit.planning.RoadmapViewService
 import ch.nokillswit.planning.TeamView
@@ -30,12 +31,14 @@ import kotlin.test.assertTrue
  * milestones, ALL bound, every milestone deviating three times (its dates shifted a week from Jira's, `START_DIFFERS` and `END_DIFFERS`,
  * and Jira has it in progress while the plan starts in 2045, `PROGRESS_MISMATCH`: three flags a row; the kernel's ceiling is seven),
  * 15 teams with the largest at 301 milestones like the sample plan's Platform. ONE world, built once through the import (a
- * scripted Jira site, [applyScaleImport]); each view is then read plain and with `?baseline=`, with the connection enabled and
- * then DISABLED (a disabled connection's rows keep a dateless `jira` link but raise no flag, so the second pass, plain only, is the
- * same documents without the flags and the dates: the difference is what the flags and dates cost, not the link itself); the
- * roadmap service is also timed with and without the source, to isolate the Jira computation. Sizes (plain and gzipped) and the median
- * of five warm reads are `scale-figure` lines ([ScaleFigures]), recorded in `timeline.md` "Measured figures (1.3)". The asserted bounds
- * are the documented size gates and loose time tripwires (at least 5x the dev-machine figure), never the machine's speed.
+ * scripted Jira site, [applyScaleImport]) with FIVE mirrored children under every bound epic (1.4: [seedScaleChildren], two done, 3
+ * points each, so every milestone link carries a roll-up; they raise no `CHILDREN_DONE`); each view is then read plain and with
+ * `?baseline=`, with the connection enabled and then DISABLED (a disabled connection's rows keep a dateless `jira` link but raise no
+ * flag, so the second pass, plain only, is the same documents without the flags and the dates: the difference is what the flags and
+ * dates cost, not the link itself); the roadmap service is also timed with and without the source, to isolate the Jira computation.
+ * Sizes (plain and gzipped) and the median of five warm reads are `scale-figure` lines ([ScaleFigures]), recorded in `timeline.md`
+ * "Measured figures (1.3)" (before the roll-up) and "(1.4)". The asserted bounds are the documented size gates and loose time
+ * tripwires (at least 5x the dev-machine figure), never the machine's speed.
  */
 class JiraFlagsScaleTest {
     private class Reading(val bytes: Int, val gzip: Int, val p50: Double, val max: Double)
@@ -92,6 +95,8 @@ class JiraFlagsScaleTest {
                 if (n <= PLATFORM_ROWS) platform else teams[1 + n % (TEAMS - 1)]
             }
             assertEquals(PROGRAMS + PROJECTS + MILESTONES, applied.created.result.created.size)
+            // 1.4: five mirrored children under each bound epic (2 done, 15 points), the roll-up every milestone link now carries.
+            seedScaleChildren(f.connectionId, MILESTONES)
             // The baseline freezes the imported plan, so the shift below is movement on every row (the overlay's worst case, as v0.9's).
             baseline = TestPlan.baseline(planName("jfscale"))
             // Every milestone deviates from Jira's dates by a week (a week shift keeps the start and the end on working days).
@@ -123,6 +128,9 @@ class JiraFlagsScaleTest {
             val shapes = rows.groupingBy { "${it.jira != null}/${it.flags.size}" }.eachCount()
             assertEquals(mapOf("true/$FLAGS_PER_MILESTONE" to PLATFORM_ROWS), shapes, "every milestone is bound and deviates three times")
             assertEquals(listOf(f.connectionId), team.jiraSites.map { it.connectionId })
+            val rollup = JiraRollup(SCALE_CHILDREN, SCALE_CHILDREN_DONE, SCALE_CHILDREN * POINTS_PER_CHILD, SCALE_CHILD_OBSERVED_AT)
+            val rolled = rows.groupingBy { it.jira?.rollup }.eachCount()
+            assertEquals(mapOf<JiraRollup?, Int>(rollup to PLATFORM_ROWS), rolled, "every link rolls up")
 
             jbSql("UPDATE jira_connections SET enabled = FALSE WHERE id = ?", f.connectionId.toInt())
             for ((name, path) in views) unbound[name] = client.read("$name disabled", path, DISABLED_RUNS)
@@ -153,6 +161,7 @@ class JiraFlagsScaleTest {
         private const val TEAMS = 15
         private const val PLATFORM_ROWS = 301
         private const val FLAGS_PER_MILESTONE = 3
+        private const val POINTS_PER_CHILD = 3.0
         private const val RUNS = 5
         private const val DISABLED_RUNS = 3
         private const val NANOS_PER_MILLI = 1_000_000.0

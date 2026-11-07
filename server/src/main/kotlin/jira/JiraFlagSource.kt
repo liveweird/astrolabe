@@ -10,6 +10,7 @@ import ch.nokillswit.planning.FLAG_ORDER
 import ch.nokillswit.planning.FlagKind
 import ch.nokillswit.planning.FlagSeverity
 import ch.nokillswit.planning.JiraLink
+import ch.nokillswit.planning.JiraRollup
 import ch.nokillswit.planning.JiraSite
 import ch.nokillswit.planning.NodeExternal
 import ch.nokillswit.planning.PlanFlag
@@ -21,10 +22,13 @@ import ch.nokillswit.planning.PlanFlag
  * lock.
  *
  * What a row gets:
- * - a binding through a DISABLED connection keeps its [JiraLink] and its site but says nothing else: dates null (so no bar is drawn), no
- *   flag, no roll-up contribution (the registry's `enabled` switch stops the timeline from raising or drawing a source nobody refreshes;
- *   the page still knows the node is linked, so it can show and unlink the binding and never offers a second link);
- * - [JiraLink] otherwise, whatever the deviations: the observed dates are null when the item was never observed or is `gone`;
+ * - a binding through a DISABLED connection keeps its [JiraLink] and its site but says nothing else: dates and census roll-up null (so
+ *   no bar is drawn), no flag, no roll-up contribution (the registry's `enabled` switch stops the timeline from raising or drawing a
+ *   source nobody refreshes; the page still knows the node is linked, so it can show and unlink the binding and never offers a second
+ *   link);
+ * - [JiraLink] otherwise, whatever the deviations: the observed dates are null when the item was never observed or is `gone`; a live
+ *   MILESTONE link also carries its census [JiraRollup] (the deviations view's own loader, [loadRollups]; null for a project link, a
+ *   disabled connection, a gone issue or an epic with no mirrored child);
  * - one [FlagKind.JIRA_DEVIATION] per deviation while the binding is OPEN (it deviates and its acknowledgement is not CURRENT; an
  *   acknowledgement that went stale raises again), at the deviation's severity; `ESTIMATE_NOT_COMPARABLE` ("a figure exists and cannot
  *   be compared") raises nothing;
@@ -76,6 +80,8 @@ internal class JiraFlagSource(private val deviations: DeviationViewService) : Ex
             item.bindingId, item.connectionId, seen.key,
             start = seen.start.takeIf { dated },
             end = seen.end.takeIf { dated },
+            // The loader's figure the deviations view serves (null already beside a gone issue); a disabled connection shows none.
+            rollup = rollup.takeIf { live }?.let { JiraRollup(it.children, it.done, it.points?.toDouble(), it.observedAt) },
         )
     }
 

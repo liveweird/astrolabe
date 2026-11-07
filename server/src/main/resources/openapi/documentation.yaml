@@ -5400,16 +5400,21 @@ components:
           description: The milestones of the project that raised a Jira flag, for `JIRA_MILESTONES` (the flag's severity is the worst among them); null on every other kind.
     JiraLink:
       type: object
-      required: [bindingId, connectionId, issueKey, start, end]
+      required: [bindingId, connectionId, issueKey, start, end, rollup]
       description: >-
         A plan node's Jira item (1.3). The browse URL is not per row: find `connectionId` in the document's `jiraSites`. Present for every bound node;
-        through a DISABLED connection the dates are null (nothing refreshes it) and the node raises no flag.
+        through a DISABLED connection the dates and the roll-up are null (nothing refreshes it) and the node raises no flag.
       properties:
         bindingId: { type: integer, format: int32, minimum: 0 }
         connectionId: { type: integer, format: int32, minimum: 0 }
         issueKey: { type: string }
         start: { type: string, format: date, nullable: true, description: 'The start Jira was last observed to hold; null when never observed, absent in Jira, or the item is gone.' }
         end: { type: string, format: date, nullable: true, description: 'The end Jira was last observed to hold; null when never observed, absent in Jira, or the item is gone.' }
+        rollup:
+          description: "A milestone's epic's children as the last census holds them (1.4), the figure `GET /views/deviations` serves as `jira.rollup`; null for a project link, a DISABLED connection, a gone issue, or an epic with no mirrored child."
+          allOf:
+            - $ref: '#/components/schemas/JiraRollup'
+          nullable: true
     JiraSite:
       type: object
       required: [connectionId, siteUrl]

@@ -4240,7 +4240,7 @@ export interface components {
              */
             count: number | null;
         };
-        /** @description A plan node's Jira item (1.3). The browse URL is not per row: find `connectionId` in the document's `jiraSites`. Present for every bound node; through a DISABLED connection the dates are null (nothing refreshes it) and the node raises no flag. */
+        /** @description A plan node's Jira item (1.3). The browse URL is not per row: find `connectionId` in the document's `jiraSites`. Present for every bound node; through a DISABLED connection the dates and the roll-up are null (nothing refreshes it) and the node raises no flag. */
         JiraLink: {
             /** Format: int32 */
             bindingId: number;
@@ -4257,6 +4257,8 @@ export interface components {
              * @description The end Jira was last observed to hold; null when never observed, absent in Jira, or the item is gone.
              */
             end: string | null;
+            /** @description A milestone's epic's children as the last census holds them (1.4), the figure `GET /views/deviations` serves as `jira.rollup`; null for a project link, a DISABLED connection, a gone issue, or an epic with no mirrored child. */
+            rollup: components["schemas"]["JiraRollup"] | null;
         };
         /** @description A Jira connection (enabled or not) that a binding in the document's scope links to. Never the connection's name or any credential. */
         JiraSite: {

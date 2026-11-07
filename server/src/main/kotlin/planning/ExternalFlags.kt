@@ -12,12 +12,28 @@ import kotlinx.serialization.Serializable
  */
 
 /**
- * A plan node's Jira item as the views show it. [start] and [end] are the dates Jira was last observed to hold (ISO), null when the
- * item was never observed or is gone. The browse URL is NOT per row: [JiraSite.siteUrl] is carried once per document and the client
- * builds `siteUrl + "/browse/" + issueKey`.
+ * A bound epic's children as the last census holds them (1.4): how many ([children], at least 1), how many are done, their story-points
+ * sum ([points], never converted to man-days; null when no child carries a value) and the newest observation ([observedAt], epoch
+ * millis). The source reads it from the same loader the deviations view uses.
  */
 @Serializable
-data class JiraLink(val bindingId: UInt, val connectionId: UInt, val issueKey: String, val start: String?, val end: String?)
+data class JiraRollup(val children: Int, val done: Int, val points: Double?, val observedAt: Long)
+
+/**
+ * A plan node's Jira item as the views show it. [start] and [end] are the dates Jira was last observed to hold (ISO), null when the
+ * item was never observed or is gone. The browse URL is NOT per row: [JiraSite.siteUrl] is carried once per document and the client
+ * builds `siteUrl + "/browse/" + issueKey`. [rollup] is always present (no default, so the response encoder writes it): null for a
+ * project link, a disabled connection, a gone issue, or an epic with no mirrored child.
+ */
+@Serializable
+data class JiraLink(
+    val bindingId: UInt,
+    val connectionId: UInt,
+    val issueKey: String,
+    val start: String?,
+    val end: String?,
+    val rollup: JiraRollup?,
+)
 
 /** A Jira connection a binding in the document's scope links to: the site its keys belong to. Never its name or any credential. */
 @Serializable

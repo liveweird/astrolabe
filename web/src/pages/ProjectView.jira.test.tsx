@@ -15,7 +15,7 @@ import { renderWithProviders } from "../test/render";
 
 const BARS_KEY = "astrolabe.viewSettings.timeline.jiraBars";
 
-const link = (bindingId: number, key: string, start: string | null = null, end: string | null = null): JiraLink => ({ bindingId, connectionId: DEV_CONNECTION.id, issueKey: key, start, end });
+const link = (bindingId: number, key: string, start: string | null = null, end: string | null = null): JiraLink => ({ bindingId, connectionId: DEV_CONNECTION.id, issueKey: key, start, end, rollup: null });
 const flag = (deviation: Deviation, severity: PlanFlag["severity"] = deviation.severity): PlanFlag => ({ kind: "JIRA_DEVIATION", severity, days: null, teamId: null, otherProjectId: null, deviation, count: null });
 const unscheduledInPlan: Deviation = { kind: "UNSCHEDULED_IN_PLAN", severity: "INFO", detail: detail({ jira: "2027-03-01", plan: null }) };
 

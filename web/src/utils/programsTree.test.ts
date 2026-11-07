@@ -155,7 +155,7 @@ describe("the pick, the facts and the range", () => {
     const [stream, ...others] = plain.workStreams;
     const [program, ...programs] = stream.programs;
     const [first, second, ...projects] = program.projects;
-    const bound = (link: { start: string | null; end: string | null }) => ({ bindingId: 1, connectionId: 2, issueKey: "E2E-6", ...link });
+    const bound = (link: { start: string | null; end: string | null }) => ({ bindingId: 1, connectionId: 2, issueKey: "E2E-6", rollup: null, ...link });
     const view = {
       ...plain,
       workStreams: [{ ...stream, programs: [{ ...program, projects: [{ ...first, jira: bound({ start: "2026-03-09", end: "2206-03-05" }) }, { ...second, jira: bound({ start: "2026-05-04", end: null }) }, ...projects] }, ...programs] }, ...others],

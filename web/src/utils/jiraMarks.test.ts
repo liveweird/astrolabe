@@ -7,7 +7,7 @@ import { detail } from "../test/deviations";
 import { markKey, projectMarks, teamMarks } from "./jiraMarks";
 
 const SITES = [{ connectionId: 2, siteUrl: "https://acme.atlassian.net" }];
-const link = (bindingId: number, key: string, connectionId = 2): JiraLink => ({ bindingId, connectionId, issueKey: key, start: "2044-01-04", end: "2044-01-08" });
+const link = (bindingId: number, key: string, connectionId = 2): JiraLink => ({ bindingId, connectionId, issueKey: key, start: "2044-01-04", end: "2044-01-08", rollup: null });
 const endLater: Deviation = { kind: "END_DIFFERS", severity: "WARNING", detail: detail({ jira: "2044-01-08", plan: "2044-01-13", days: 3 }) };
 const flag = (kind: PlanFlag["kind"], severity: PlanFlag["severity"], over: Partial<PlanFlag> = {}): PlanFlag => ({ deviation: null, count: null, kind, severity, days: null, teamId: null, otherProjectId: null, ...over });
 const deviationFlag = (severity: PlanFlag["severity"] = "WARNING") => flag("JIRA_DEVIATION", severity, { deviation: endLater });

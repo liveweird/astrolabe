@@ -172,7 +172,7 @@ describe("driftBandOf / datesOf", () => {
   });
 
   test("the dates Jira holds join the range only with the page's window, only when both are known, and a mistyped one is cut at it", () => {
-    const jira = (start: string | null, end: string | null) => ({ bindingId: 1, connectionId: 2, issueKey: "E2E-6", start, end });
+    const jira = (start: string | null, end: string | null) => ({ bindingId: 1, connectionId: 2, issueKey: "E2E-6", start, end, rollup: null });
     const dated = view({
       ranked: [
         { position: 1, project: project(9, "X", { span: { start: "2027-01-11", end: "2027-02-12" }, jira: jira("2027-01-18", "2206-03-05") }) },

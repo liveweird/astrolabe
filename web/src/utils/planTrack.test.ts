@@ -70,7 +70,7 @@ describe("projectTrack: what the viewer may do with the window", () => {
 
 describe("projectTrack: the Jira shadow bar (1.3)", () => {
   const WINDOW: JiraWindow = { from: "2025-02-02", to: "2027-04-10" };
-  const link = { bindingId: 3, connectionId: 2, issueKey: "E2E-6", start: "2026-03-09", end: "2026-04-03" };
+  const link = { bindingId: 3, connectionId: 2, issueKey: "E2E-6", start: "2026-03-09", end: "2026-04-03", rollup: null };
   const lateEnd = {
     kind: "JIRA_DEVIATION" as const,
     severity: "WARNING" as const,

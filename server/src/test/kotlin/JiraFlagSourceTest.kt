@@ -3,6 +3,7 @@ package ch.nokillswit
 import ch.nokillswit.jira.DeviationViewServiceKey
 import ch.nokillswit.jira.JiraFlagSource
 import ch.nokillswit.jira.JiraLevel
+import ch.nokillswit.jira.JiraStatusCategory
 import ch.nokillswit.planning.DeviationKind
 import ch.nokillswit.planning.DeviationSeverity
 import ch.nokillswit.planning.ExternalFlagRequest
@@ -10,6 +11,7 @@ import ch.nokillswit.planning.ExternalFlags
 import ch.nokillswit.planning.FLAG_ORDER
 import ch.nokillswit.planning.FlagKind
 import ch.nokillswit.planning.FlagSeverity
+import ch.nokillswit.planning.JiraRollup
 import ch.nokillswit.planning.JiraSite
 import ch.nokillswit.planning.NodeExternal
 import ch.nokillswit.planning.PlanFlag
@@ -247,5 +249,78 @@ class JiraFlagSourceTest {
         assertFailsWith<IllegalArgumentException> { ask(emptyList(), null) }
         // Severity vocabulary: a flag's severity is the deviation's, name for name.
         assertEquals(FlagSeverity.entries.map { it.name }, DeviationSeverity.entries.map { it.name })
+    }
+
+    private fun issueOf(binding: UInt) =
+        jbScalar("SELECT jira_issue_id FROM jira_bindings WHERE id = ?", binding.toInt()) { it.getString(1) }
+
+    @Test
+    fun `a live milestone link carries its roll-up, a disabled connection's does not, a project link's is null`() = testApplication {
+        val f = fixture("jfs9")
+        val (counted, countedBinding) = f.milestone()
+        val (childless, _) = f.milestone()
+        val (gone, goneBinding) = f.milestone { DvObs(it, 1, gone = true, goneReason = "DELETED") }
+        val projectBinding = deviatingBinding(f.c, JiraLevel.PROJECT, f.w.projectId)
+        val done = JiraStatusCategory.DONE
+        dvMirror(f.c, "7101", 0, issueOf(countedBinding), done, "3", observedAt = 100)
+        dvMirror(f.c, "7102", 0, issueOf(countedBinding), JiraStatusCategory.TODO, null, observedAt = 300)
+        dvMirror(f.c, "7103", 0, issueOf(countedBinding), done, "2", observedAt = 200)
+        dvMirror(f.c, "7104", 0, issueOf(goneBinding), done)
+        dvMirror(f.c, "7105", 1, issueOf(projectBinding)) // a milestone-level child of the project: coverage, never a link roll-up
+        val ids = listOf(counted, childless, gone)
+
+        val answer = ask(listOf(f.w.projectId), ids)
+        assertEquals(JiraRollup(3, 2, 5.0, 300L), answer.milestone(counted).jira?.rollup)
+        assertNull(answer.milestone(childless).jira?.rollup, "an epic with no mirrored child")
+        assertNotNull(answer.milestone(gone).jira, "a gone epic is still linked")
+        assertNull(answer.milestone(gone).jira?.rollup, "and carries no stale roll-up")
+        assertNotNull(answer.project(f.w.projectId).jira)
+        assertNull(answer.project(f.w.projectId).jira?.rollup, "a project link has no roll-up")
+        // The very figure the deviations view serves for the item: one loader, no second implementation.
+        val view = f.w.admin.client.dvView("connectionId=${f.c}&all=true").byBinding().getValue(countedBinding).jira.rollup
+        assertEquals(listOf(3, 2, 5.0, 300L), listOf(view?.children, view?.done, view?.points, view?.observedAt))
+
+        jbSql("UPDATE jira_connections SET enabled = FALSE WHERE id = ?", f.c.toInt())
+        val disabled = ask(listOf(f.w.projectId), ids)
+        assertNotNull(disabled.milestone(counted).jira, "still linked")
+        assertNull(disabled.milestone(counted).jira?.rollup, "a disabled connection shows no roll-up")
+    }
+
+    @Test
+    fun `a CHILDREN_DONE deviation is a JIRA_DEVIATION flag and counts in the project's JIRA_MILESTONES roll-up`() = testApplication {
+        val f = fixture("jfs10")
+        val (m, binding) = f.milestone("2044-02-01", "2044-02-04") { DvObs(it, 1, start = "2044-02-01", end = "2044-02-04") }
+        dvMirror(f.c, "7201", 0, issueOf(binding), JiraStatusCategory.DONE)
+        dvMirror(f.c, "7202", 0, issueOf(binding), JiraStatusCategory.DONE)
+
+        val answer = ask(listOf(f.w.projectId), listOf(m))
+        assertEquals(listOf(DeviationKind.CHILDREN_DONE to FlagSeverity.INFO), f.shape(answer.milestone(m).flags))
+        val flag = answer.milestone(m).flags.single()
+        assertEquals(FlagKind.JIRA_DEVIATION, flag.kind)
+        assertEquals(listOf<Any?>("2/2", "2044-02-04", 2), flag.deviation?.detail.let { listOf(it?.jira, it?.plan, it?.count) })
+        val rollUp = answer.project(f.w.projectId).flags.single()
+        assertEquals(FlagKind.JIRA_MILESTONES, rollUp.kind)
+        assertEquals(1 to FlagSeverity.INFO, rollUp.count to rollUp.severity)
+
+        // Acknowledged, the milestone and the roll-up fall silent; the link keeps the figure (the bar and the chip stay).
+        f.acknowledge(binding)
+        val quiet = ask(listOf(f.w.projectId), listOf(m))
+        assertEquals(emptyList(), quiet.milestone(m).flags)
+        assertEquals(emptyList(), quiet.project(f.w.projectId).flags)
+        assertEquals(2, quiet.milestone(m).jira?.rollup?.children)
+    }
+
+    @Test
+    fun `an UNLINKED_IN_JIRA deviation flags the project row at WARNING`() = testApplication {
+        val f = fixture("jfs11")
+        val name = TestPlan.scalar("SELECT name FROM projects WHERE id = ${f.w.projectId}") { it.getString(1) }
+        dvBind(f.c, JiraLevel.PROJECT, f.w.projectId, "7301", "COV-7301", DvObs(name, 2))
+        dvMirror(f.c, "7302", 1, "7301")
+        dvMirror(f.c, "7303", 1, "7301", JiraStatusCategory.DONE)
+
+        val project = ask(listOf(f.w.projectId), emptyList()).project(f.w.projectId)
+        assertEquals(listOf(DeviationKind.UNLINKED_IN_JIRA to FlagSeverity.WARNING), f.shape(project.flags))
+        assertEquals("COV-7302", project.flags.single().deviation?.detail?.jira, "keys of open unbound epics only")
+        assertNull(project.jira?.rollup)
     }
 }

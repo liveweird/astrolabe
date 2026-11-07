@@ -39,7 +39,7 @@ const project = (id: number, name: string, over: Partial<RoadmapProject> = {}): 
 // Jira ends a week before the plan's span (2026-04-10): the evidence of the open END deviation agrees with the dates on the bar.
 const endLater: Deviation = { kind: "END_DIFFERS", severity: "WARNING", detail: detail({ plan: "2026-04-10", jira: "2026-04-03", days: 5 }) };
 
-const link = (id: number, key: string, start: string | null, end: string | null, connectionId = 2) => ({ bindingId: id, connectionId, issueKey: key, start, end });
+const link = (id: number, key: string, start: string | null, end: string | null, connectionId = 2) => ({ bindingId: id, connectionId, issueKey: key, start, end, rollup: null });
 
 // Invoices: bound with both dates, one open END deviation and a milestones roll-up; Taxes: bound, Jira has no dates; Audit: bound, clean; Fresh: unbound.
 const INVOICES = project(1, "Invoices", {

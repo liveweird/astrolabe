@@ -41,10 +41,10 @@ const project = (id: number, name: string, over: Partial<RoadmapProject> = {}): 
 const endLater: Deviation = { kind: "END_DIFFERS", severity: "WARNING", detail: detail({ plan: "2026-04-10", jira: "2026-04-03", days: 5 }) };
 
 const INVOICES = project(1, "Invoices", {
-  jira: { bindingId: 11, connectionId: 2, issueKey: "E2E-6", start: "2026-03-02", end: "2026-04-03" },
+  jira: { bindingId: 11, connectionId: 2, issueKey: "E2E-6", start: "2026-03-02", end: "2026-04-03", rollup: null },
   flags: [flag("JIRA_DEVIATION", "WARNING", { deviation: endLater })],
 });
-const TAXES = project(2, "Taxes", { jira: { bindingId: 12, connectionId: 2, issueKey: "E2E-7", start: null, end: null } });
+const TAXES = project(2, "Taxes", { jira: { bindingId: 12, connectionId: 2, issueKey: "E2E-7", start: null, end: null, rollup: null } });
 const BILLING: ProgramsProgram = { id: 10, name: "Billing", ownerName: "Pat Program", span: { start: "2026-03-02", end: "2026-04-10" }, flags: { warnings: 1, infos: 0 }, projects: [INVOICES, TAXES] };
 const PLATFORM: ProgramsWorkStream = {
   id: 1,

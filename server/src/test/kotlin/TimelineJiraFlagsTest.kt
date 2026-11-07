@@ -1,9 +1,11 @@
 package ch.nokillswit
 
 import ch.nokillswit.jira.JiraLevel
+import ch.nokillswit.jira.JiraStatusCategory
 import ch.nokillswit.planning.DeviationKind
 import ch.nokillswit.planning.FlagKind
 import ch.nokillswit.planning.FlagSeverity
+import ch.nokillswit.planning.JiraRollup
 import ch.nokillswit.planning.JiraSite
 import ch.nokillswit.planning.PlanFlag
 import ch.nokillswit.planning.ProgramsView
@@ -17,6 +19,7 @@ import io.ktor.client.request.get
 import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
@@ -270,5 +273,43 @@ class TimelineJiraFlagsTest {
         } finally {
             TestPlan.deleteBaseline(id)
         }
+    }
+
+    /** Every object of [this] document that is a Jira link (it has an `issueKey`), at any depth. */
+    private fun JsonElement.links(): List<JsonObject> = when (this) {
+        is JsonObject -> (if ("issueKey" in this) listOf(this) else emptyList()) + values.flatMap { it.links() }
+        is JsonArray -> flatMap { it.links() }
+        else -> emptyList()
+    }
+
+    @Test
+    fun `every Jira link in the four views carries the rollup member, null or filled`() = testApplication {
+        val b = world("tjf9")
+        val epic = jbScalar("SELECT jira_issue_id FROM jira_bindings WHERE id = ?", b.warn.second.toInt()) { it.getString(1) }
+        dvMirror(b.c, "7401", 0, epic, JiraStatusCategory.DONE, "3", observedAt = 111)
+        dvMirror(b.c, "7402", 0, epic, JiraStatusCategory.TODO, null, observedAt = 222)
+        val filled = JiraRollup(2, 1, 3.0, 222L)
+
+        val paths = listOf(
+            "/api/v1/views/roadmap", "/api/v1/views/programs", "/api/v1/views/project/${b.w.projectId}", "/api/v1/views/team/${b.team}",
+        )
+        for (path in paths) {
+            val links = b.client.rawJson(path).links()
+            assertTrue(links.isNotEmpty(), "$path has bound rows")
+            assertTrue(links.all { "rollup" in it }, "$path: the rollup member is on every link, as an explicit null when empty")
+            assertEquals(
+                paths.indexOf(path) >= 2,
+                links.any { it.getValue("rollup") is JsonObject },
+                "$path: only the milestone-level views carry a filled roll-up",
+            )
+        }
+        val project = b.client.project(b.w.projectId)
+        assertEquals(filled, (project.scheduled + project.unscheduled).single { it.id == b.warn.first }.jira?.rollup)
+        assertNull((project.scheduled + project.unscheduled).single { it.id == b.clean.first }.jira?.rollup)
+        assertNull(project.project.jira?.rollup)
+        val team = b.client.team(b.team)
+        assertEquals(filled, (team.scheduled + team.unscheduled).single { it.id == b.warn.first }.jira?.rollup)
+        assertNull(b.client.roadmap().row(b.w.projectId).jira?.rollup)
+        assertNull(b.client.programs().row(b.w.projectId).jira?.rollup)
     }
 }
