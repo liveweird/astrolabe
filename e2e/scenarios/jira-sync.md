@@ -4,7 +4,7 @@
 - **Actors**: the seed administrator (creates, tests and maps connections in the UI, acts through the API to seed and to link, and presses Refresh now in a
   browser of its own); one throwaway project-owner login per linking test, seeded through the API (a regular user with no administrator right, linked to
   the person who owns the project)
-- **Owns** (exclusive server-side state): its Jira connections (unique `e2e-jira-*` names, each scoped to the stub's `E2E` project ONLY - any other scope
+- **Owns** (exclusive server-side state): its Jira connections (unique `e2e-jira-*` names, each scoped to the stub's `E2E` project ONLY - any scope the stub does not list
   falls through to the stub's 401 catch-all - and each given a unique throwaway site `https://e2ejira<random>.atlassian.net`, which the stub answers for like
   any tenant, so no binding of another spec or of the user's own connections ever meets one of these: a Jira item is bound once per site), their bindings,
   and a throwaway world per linking test (the owner login, people, a team, a work stream, a program, a project and milestones, unique `e2e-jira-*` names,

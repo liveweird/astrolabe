@@ -2,8 +2,8 @@
 // mappings (so they cannot drift) and rendered with short arrays on one line (the key lists are 1,000 entries).
 import { isoDateAt } from "../../scripts/sample-plan/days.mjs";
 import { TYPE } from "./catalog.mjs";
-import { ANCHOR, E2E_ANCHOR, PLANTED } from "./world.mjs";
-import { PAGE_SIZE, SCENARIO, scopesOf } from "./mappings.mjs";
+import { ANCHOR, E2E_ANCHOR, IMP_ANCHOR, PLANTED } from "./world.mjs";
+import { PAGE_SIZE, SCENARIO, keyScopesOf, scopesOf } from "./mappings.mjs";
 import { REJECTED_TOKEN, CLOUD_ID } from "./catalog.mjs";
 
 const isPrimitive = (v) => v === null || typeof v !== "object";
@@ -34,7 +34,7 @@ export const renderExpected = (value) => `${render(value)}\n`;
 const dates = (issue) => ({ start: issue.start === null ? null : isoDateAt(issue.anchor, issue.start), end: issue.end === null ? null : isoDateAt(issue.anchor, issue.end) });
 
 export function buildExpected(world, counts, stub) {
-  const { issues, planted, milestoneIssue, e2e } = world;
+  const { issues, planted, milestoneIssue, e2e, imp } = world;
   const level = (name) => issues.filter((i) => i.level === name);
   const items = (name, extra = () => ({})) => ({
     count: planted[name].length,
@@ -55,10 +55,11 @@ export function buildExpected(world, counts, stub) {
     stub: { mappings: stub.mappings.size, bodies: stub.files.size },
     issueTypes: Object.fromEntries(Object.entries(TYPE).map(([name, t]) => [name, { id: t.id, hierarchyLevel: t.hierarchyLevel }])),
     scopes: Object.fromEntries(scopesOf(world).map((s) => [s.name, s.keys])),
+    importScopes: Object.fromEntries(keyScopesOf(world).map((s) => [s.name, s.keys])),
     totals: { programs: level("program").length, projects: level("project").length, milestones: level("milestone").length, issues: issues.length, e2eIssues: e2e.issues.length },
     projects: world.projectRows.map((p) => ({
       key: p.key, id: p.id, name: p.name,
-      issues: [...issues, ...e2e.issues].filter((i) => i.projectKey === p.key).length,
+      issues: [...issues, ...e2e.issues, ...imp.issues].filter((i) => i.projectKey === p.key).length,
     })),
     keys: {
       programs: level("program").map((i) => i.key),
@@ -87,6 +88,12 @@ export function buildExpected(world, counts, stub) {
       inScopeDelta: world.day2.deleted.length + world.day2.movedOut.length,
     },
     search: counts,
+    imp: {
+      project: "IMP",
+      anchor: IMP_ANCHOR,
+      issues: imp.issues.map((i) => ({ key: i.key, id: i.id, level: i.level, summary: i.summary, parent: i.parentId === null ? null : imp.issues.find((p) => p.id === i.parentId).key, team: i.team?.name ?? null, points: i.points, ...dates(i) })),
+      unscheduled: imp.issues.filter((i) => i.start === null).map((i) => i.key),
+    },
     e2e: {
       project: "E2E",
       anchor: E2E_ANCHOR,

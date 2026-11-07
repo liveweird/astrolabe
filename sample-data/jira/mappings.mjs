@@ -26,7 +26,14 @@ export const scopesOf = (world) => [
   { name: "e2e", keys: ["E2E"] },
   { name: "sample", keys: world.keys },
   { name: "all", keys: [...world.keys, "E2E"] },
+  { name: "imp", keys: ["IMP"] },
 ];
+
+/**
+ * The single-key scopes of the import's browse (an import picks a subset of the connection's keys, one work stream's worth): the typed full
+ * read ONLY, the one shape the browse sends. No connection is scoped to one of them, so they have no `project/search` or probe mapping.
+ */
+export const keyScopesOf = (world) => world.keys.map((key) => ({ name: key.toLowerCase(), keys: [key], only: ["fulltypes"] }));
 
 /** The issue-type sets a sweep/probe `issuetype in (...)` clause can name: the mapped levels from the milestone level upward. */
 export const TYPE_SETS = [
@@ -72,7 +79,7 @@ const typeObject = (issue) => {
 const date = (issue, offset) => (offset === null ? null : isoDateAt(issue.anchor, offset));
 
 export function makeDocs(world) {
-  const all = [...world.issues, ...world.e2e.issues];
+  const all = [...world.issues, ...world.e2e.issues, ...world.imp.issues];
   const byId = new Map(all.map((i) => [i.id, i]));
   const projectOf = new Map(world.projectRows.map((p) => [p.key, p]));
   const project = (key) => ({ id: projectOf.get(key).id, key, name: projectOf.get(key).name });
@@ -114,7 +121,7 @@ export function buildStub(world) {
   const mappings = new Map();
   const files = new Map();
   const { issueDoc, all } = makeDocs(world);
-  const scopes = scopesOf(world);
+  const scopes = [...scopesOf(world), ...keyScopesOf(world)];
   const deletedIds = new Set([...world.day2.deleted, ...world.e2e.deleted].map((i) => i.id));
   const movedIds = new Map(world.day2.movedOut.map((m) => [m.issue.id, m]));
   const counts = {}; // "<scope>/<shape>/<types|any>/<state>" -> { issues, pages }
@@ -221,11 +228,12 @@ export function buildStub(world) {
 
   for (const scope of scopes) {
     const scopeJql = { matches: listClause("project", scope.keys) };
+    const has = (shape) => scope.only === undefined || scope.only.includes(shape);
     for (const state of STATES) {
       const base = (queryParameters) => get("/search/jql", { queryParameters });
       const sweepable = inScope(scope, state);
       // FULL read (no `updated` clause): the first run and the import browse. All types in scope; `fields` must name summary + issuetype.
-      addPages(
+      if (has("full")) addPages(
         `${scope.name}/full/any/${state}`, sweepable,
         base({ jql: { and: [scopeJql, { doesNotMatch: UPDATED_CLAUSE }] }, fields: { matches: FIELDS_CARRY_SUMMARY } }), { idsOnly: false, state },
       );
@@ -243,12 +251,12 @@ export function buildStub(world) {
         );
       }
       // INCREMENTAL (`updated >= "-Nm"`): the recently updated issues only.
-      addPages(
+      if (has("incremental")) addPages(
         `${scope.name}/incremental/any/${state}`, sweepable.filter((i) => recentIds.has(i.id)),
         base({ jql: { and: [scopeJql, { matches: UPDATED_CLAUSE }] }, fields: { matches: FIELDS_CARRY_SUMMARY } }), { idsOnly: false, state },
       );
       // SWEEP (`fields=id`, an `issuetype in (...)` clause): the ids still in scope, per issue-type set.
-      for (const set of TYPE_SETS) {
+      for (const set of has("sweep") ? TYPE_SETS : []) {
         const typeIds = set.types.map((t) => t.id);
         addPages(
           `${scope.name}/sweep/${set.name}/${state}`, sweepable.filter((i) => typeIds.includes(TYPE_OF_LEVEL[i.level].id)),
@@ -256,6 +264,7 @@ export function buildStub(world) {
         );
       }
     }
+    if (!has("probe")) continue;
     // PROBE (`maxResults=1`, `fields=id`): the Test connection's `search` row; the first epic in scope, on both days.
     const first = inScope(scope, "started").find((i) => i.level === "milestone");
     const probeBody = addBody("search-probe", compact({ issues: [{ id: first.id }], isLast: false, nextPageToken: `probe-${scope.name}` }));

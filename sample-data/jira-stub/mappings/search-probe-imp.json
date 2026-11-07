@@ -1,0 +1,33 @@
+{
+  "priority": 2,
+  "request": {
+    "method": "GET",
+    "urlPath": "/ex/jira/b3f1a2c4-5d6e-4f7a-8b9c-0d1e2f3a4b5c/rest/api/3/search/jql",
+    "headers": {
+      "Authorization": {
+        "matches": "^(Basic|Bearer) .+$"
+      }
+    },
+    "queryParameters": {
+      "jql": {
+        "matches": "[\\s\\S]*\\bproject in \\((?=[^)]*\\bIMP\\b)\\s*\"?(?:IMP)\"?(?:\\s*,\\s*\"?(?:IMP)\"?)*\\s*\\)[\\s\\S]*"
+      },
+      "fields": {
+        "equalTo": "id"
+      },
+      "maxResults": {
+        "equalTo": "1"
+      },
+      "nextPageToken": {
+        "absent": true
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "bodyFileName": "search-probe-8aee8e6c46.json"
+  }
+}

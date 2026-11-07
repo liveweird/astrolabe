@@ -1,5 +1,6 @@
 // The stub's Jira world, derived from sample-data/plan/*.json: 20 programs -> `Program`, 100 projects -> `Initiative`, 1,000 milestones
-// -> `Epic`, one Jira project per work stream, plus the small isolated `E2E` project (2044) and the day-2 destination project `OUT`.
+// -> `Epic`, one Jira project per work stream, plus the small isolated `E2E` project (2044), the import's isolated `IMP` project (2045) and
+// the day-2 destination project `OUT`.
 // Pure and deterministic: every random draw comes from one seeded mulberry32 stream and there is no clock.
 //
 // The Jira dates start as the plan's dates (day offsets from the anchor Monday, absolute here); the PLANTED deviations then differ from the
@@ -9,8 +10,10 @@ import { TYPE_OF_LEVEL } from "./catalog.mjs";
 
 export const ANCHOR = "2026-10-26"; // the sample plan's default anchor Monday (timeline.md)
 export const E2E_ANCHOR = "2044-01-04"; // a Monday in the e2e suite's own holiday-free year
+export const IMP_ANCHOR = "2045-01-02"; // a Monday in the import e2e's own year (the next unused after 2044)
 const FIRST_ID = 20_001;
 const E2E_FIRST_ID = 90_001;
+const IMP_FIRST_ID = 95_001;
 const MS = 1000;
 
 /** The planted counts (disjoint sets of scheduled milestones unless noted). */
@@ -213,6 +216,8 @@ export function buildWorld(plan, milestones, teams, seed = 42) {
 
   // --- the E2E project: 3 levels, 10 issues, 2044 ------------------------------------------------------------------------------------
   const e2e = buildE2e();
+  // --- the IMP project: built AFTER every random draw above and drawing none itself, so adding it moves no existing stream ---------------
+  const imp = buildImp();
 
   // Hierarchy-level presence on the issue's own type object: omitted on every third id so the client's /issuetype fallback is exercised too.
   issues.forEach((i) => {
@@ -221,7 +226,10 @@ export function buildWorld(plan, milestones, teams, seed = 42) {
   e2e.issues.forEach((i) => {
     i.anchor = E2E_ANCHOR;
   });
-  [...issues, ...e2e.issues].forEach((i) => {
+  imp.issues.forEach((i) => {
+    i.anchor = IMP_ANCHOR;
+  });
+  [...issues, ...e2e.issues, ...imp.issues].forEach((i) => {
     i.omitLevel = Number(i.id) % 3 === 0;
   });
 
@@ -230,12 +238,13 @@ export function buildWorld(plan, milestones, teams, seed = 42) {
     movedOut: planted.movedOut.map((x, n) => ({ issue: milestoneIssue.get(x.m.ref), movedKey: `OUT-${n + 1}` })),
   };
   return {
-    seed, keys, streams, programs, projects, milestones, issues, e2e, recent, day2, planted, tags, programIssue, projectIssue, milestoneIssue,
+    seed, keys, streams, programs, projects, milestones, issues, e2e, imp, recent, day2, planted, tags, programIssue, projectIssue, milestoneIssue,
     projectsTargetLater, projectsRenamed, programsShifted, typeOf: (i) => TYPE_OF_LEVEL[i.level],
     projectRows: [
       ...streams.map((w, n) => ({ id: String(10_000 + n), key: keys[n], name: w.name })),
       { id: "10005", key: "E2E", name: "Astrolabe e2e" },
       { id: "10006", key: "OUT", name: "Archive (out of scope)" },
+      { id: "10007", key: "IMP", name: "Astrolabe import" },
     ],
   };
 }
@@ -261,4 +270,30 @@ function buildE2e() {
   add(10, { level: "milestone", summary: "E2E Epic Seven", parentId: id(3), start: 70, end: 74, points: 13, team });
   const byKey = (k) => issues.find((i) => i.key === k);
   return { issues, recent: [byKey("E2E-5"), byKey("E2E-7")], deleted: [byKey("E2E-6")] };
+}
+
+/**
+ * The import's isolated project: a Program, two Initiatives, six Epics, all in 2045 (offsets from IMP_ANCHOR), every issue `todo` and
+ * untouched by day 2. The shapes the import's preview has to handle: an undated epic (IMP-6), a 110-character summary (IMP-7), an epic with
+ * no Team value (IMP-5) and an epic parented straight to the program (IMP-8: no project parent).
+ */
+function buildImp() {
+  const issues = [];
+  const add = (n, fields) => issues.push({
+    id: String(IMP_FIRST_ID + n - 1), key: `IMP-${n}`, projectKey: "IMP", points: null, team: null, parentId: null, decoy: false, ref: null,
+    updated: `${isoDateAt(IMP_ANCHOR, -7)}T10:00:00.000+0000`, status: "todo", ...fields,
+  });
+  const id = (n) => String(IMP_FIRST_ID + n - 1);
+  const team = { id: teamUuid(902), name: "IMP Team" };
+  const longSummary = "IMP Epic Four with a deliberately long summary that overflows the plan's one hundred character name limit".padEnd(110, "!");
+  add(1, { level: "program", summary: "IMP Program", start: 0, end: 39 });
+  add(2, { level: "project", summary: "IMP Initiative Alpha", parentId: id(1), start: 0, end: 18 });
+  add(3, { level: "project", summary: "IMP Initiative Beta", parentId: id(1), start: 21, end: 32 });
+  add(4, { level: "milestone", summary: "IMP Epic One", parentId: id(2), start: 0, end: 4, points: 5, team });
+  add(5, { level: "milestone", summary: "IMP Epic Two", parentId: id(2), start: 14, end: 18, points: 8 });
+  add(6, { level: "milestone", summary: "IMP Epic Three", parentId: id(3), start: null, end: null, points: 3, team });
+  add(7, { level: "milestone", summary: longSummary, parentId: id(3), start: 21, end: 25, points: 5, team });
+  add(8, { level: "milestone", summary: "IMP Epic Five", parentId: id(1), start: 35, end: 39, points: 1, team });
+  add(9, { level: "milestone", summary: "IMP Epic Six", parentId: id(3), start: 28, end: 32, points: 2, team });
+  return { issues };
 }

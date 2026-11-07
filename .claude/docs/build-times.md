@@ -101,7 +101,7 @@ the technique and the `slow-tests --forks N` block are described in `test-fixtur
 
 ## Fixtures that add start-up cost
 
-**Jira stub (v1.1.0 C1, measured 2026-11-06, Apple M5 Max, Docker via OrbStack).** `JiraStubFixture.warm()` starts the in-JVM WireMock over `sample-data/jira-stub` (1,360 mappings, 1,334 bodies, about 7 MB) and makes its
+**Jira stub (v1.1.0 C1, measured 2026-11-06, Apple M5 Max, Docker via OrbStack).** `JiraStubFixture.warm()` starts the in-JVM WireMock over `sample-data/jira-stub` (1,360 mappings, 1,334 bodies, about 7 MB when measured; 1.2.0 adds the `IMP` project and the single-key import scopes: 1,612 mappings, 1,567 bodies, 26.8 MB of file bytes, 36 MB by `du` on disk; the stub's RSS was re-measured at that size, about 146 MiB, but this start-up time was not re-timed) and makes its
 first two requests: **0.74 s per fork in the full `build`** (0.90 s in a focused run), printed as `fixture-cost jira-stub` and subtracted from the suite that paid it by `local-times.mjs`. It is paid once per fork by the first class that reads
 the stub (today `JiraStubFixtureTest`), in a `@BeforeClass`, never inside `testApplication`'s 60 s. The step's new server classes add 39 tests and about 8 s of class time, 5.8 s of it `OutboundTransportTest` (local sockets only: the negative control
 waits out a 700 ms client timeout, the leak cases wait for the client's connection close); every other new class runs under 1.2 s. A full `./gradlew build` from an empty `GRADLE_USER_HOME` (1,148 tests, `check`, `installDist`)

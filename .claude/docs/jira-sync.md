@@ -156,13 +156,14 @@ row may be unreadable: that is `TOKEN_UNREADABLE`, never a 500. **Deleting a con
 
 ## The stub on each stack
 
-One WireMock image (`sample-data/jira-stub`, `FROM wiremock/wiremock:3.13.2`, 1,503 mappings) serves compose (`127.0.0.1:8096`, `JIRA_STUB_BASE_URL=http://jira-stub:8080` on `app`) and the OrbStack
+One WireMock image (`sample-data/jira-stub`, `FROM wiremock/wiremock:3.13.2`, 1,612 mappings) serves compose (`127.0.0.1:8096`, `JIRA_STUB_BASE_URL=http://jira-stub:8080` on `app`) and the OrbStack
 overlay (`k8s/local/jira-stub.yaml`, Service `jira-stub:8080`, a NetworkPolicy pair); the server suite starts the same files in-JVM (`JiraStubServer`, warmed in a `@BeforeClass`). Production has neither the
 service nor the variable. **Cloud id** `b3f1a2c4-5d6e-4f7a-8b9c-0d1e2f3a4b5c`; connect with site `https://sample.atlassian.net`, any email, any token except `wrong-token` (that one gets `401` everywhere:
 `auth-wrong-token-401`).
 
-- **Projects** (`expected.json`): `CE PF CG DI OE` (the five work streams: 20 Programs, 100 Initiatives, 1,000 Epics, parents following the plan), `E2E` (10 issues in 2044, only the e2e spec binds it) and
-  `OUT` (no issues; where day 2 moves five epics). **Working scopes** are exactly: `E2E`; `CE PF CG DI OE`; those five plus `E2E` (any key order, quoted or not). Hierarchy levels: Sub-task −1,
+- **Projects** (`expected.json`): `CE PF CG DI OE` (the five work streams: 20 Programs, 100 Initiatives, 1,000 Epics, parents following the plan), `E2E` (10 issues in 2044, only the e2e spec binds it),
+  `IMP` (the import's project, 9 issues in 2045, untouched by day 2; only the import e2e spec imports it) and `OUT` (no issues; where day 2 moves five epics). **Working scopes** are exactly: `E2E`; `CE PF CG DI OE`; those five plus `E2E`; `IMP` (any key order, quoted or not);
+  plus the five single keys `CE`, `PF`, `CG`, `DI`, `OE` for the typed full read ONLY (the import's browse of one key; no connection is scoped to one key). Hierarchy levels: Sub-task −1,
   Story/Task/Bug 0, Epic 1, Initiative 2, Program 3. Dates are absolute for the **anchor Monday 2026-10-26** (statuses are relative to it, so they age).
 - **A request outside a mapped shape falls to the `401` catch-all, and that is misleading on purpose** (it mirrors a real site's id-only default): a `401` on `search` with a good token usually means the
   JQL scope or the `fields` string matched no mapping, not an authentication problem. Adding a shape is an edit in `sample-data/jira/mappings.mjs` plus a regenerate (`scripts/gates.sh` checks the

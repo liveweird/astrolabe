@@ -58,7 +58,7 @@ spec:
             readOnlyRootFilesystem: true
             capabilities:
               drop: [ALL]
-          # WireMock loads ~1,500 mappings on start (~15-30 s on a laptop): a generous startup probe.
+          # WireMock loads ~1,600 mappings on start (~15-30 s on a laptop): a generous startup probe.
           startupProbe:
             httpGet:
               path: /__admin/health

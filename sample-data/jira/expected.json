@@ -7,7 +7,7 @@
   "scenario": "jira-day2",
   "pageSize": 100,
   "note": "Dates are absolute for the anchor Monday; statuses are relative to it. Working-day figures are holiday-free (Mon-Fri).",
-  "stub": { "mappings": 1503, "bodies": 1467 },
+  "stub": { "mappings": 1612, "bodies": 1567 },
   "issueTypes": {
     "subtask": { "id": "10000", "hierarchyLevel": -1 },
     "story": { "id": "10001", "hierarchyLevel": 0 },
@@ -20,7 +20,15 @@
   "scopes": {
     "e2e": ["E2E"],
     "sample": ["CE", "PF", "CG", "DI", "OE"],
-    "all": ["CE", "PF", "CG", "DI", "OE", "E2E"]
+    "all": ["CE", "PF", "CG", "DI", "OE", "E2E"],
+    "imp": ["IMP"]
+  },
+  "importScopes": {
+    "ce": ["CE"],
+    "pf": ["PF"],
+    "cg": ["CG"],
+    "di": ["DI"],
+    "oe": ["OE"]
   },
   "totals": { "programs": 20, "projects": 100, "milestones": 1000, "issues": 1120, "e2eIssues": 10 },
   "projects": [
@@ -30,7 +38,8 @@
     { "key": "DI", "id": "10003", "name": "Data & Intelligence", "issues": 259 },
     { "key": "OE", "id": "10004", "name": "Operations Excellence", "issues": 232 },
     { "key": "E2E", "id": "10005", "name": "Astrolabe e2e", "issues": 10 },
-    { "key": "OUT", "id": "10006", "name": "Archive (out of scope)", "issues": 0 }
+    { "key": "OUT", "id": "10006", "name": "Archive (out of scope)", "issues": 0 },
+    { "key": "IMP", "id": "10007", "name": "Astrolabe import", "issues": 9 }
   ],
   "keys": {
     "programs": [
@@ -569,7 +578,70 @@
     "all/sweep/e/day2": { "issues": 989, "pages": 10 },
     "all/sweep/ei/day2": { "issues": 1091, "pages": 11 },
     "all/sweep/eip/day2": { "issues": 1112, "pages": 12 },
-    "all/probe/any/any": { "issues": 1, "pages": 1 }
+    "all/probe/any/any": { "issues": 1, "pages": 1 },
+    "imp/full/any/started": { "issues": 9, "pages": 1 },
+    "imp/fulltypes/e/started": { "issues": 6, "pages": 1 },
+    "imp/fulltypes/ei/started": { "issues": 8, "pages": 1 },
+    "imp/fulltypes/eip/started": { "issues": 9, "pages": 1 },
+    "imp/incremental/any/started": { "issues": 0, "pages": 1 },
+    "imp/sweep/e/started": { "issues": 6, "pages": 1 },
+    "imp/sweep/ei/started": { "issues": 8, "pages": 1 },
+    "imp/sweep/eip/started": { "issues": 9, "pages": 1 },
+    "imp/full/any/day2": { "issues": 9, "pages": 1 },
+    "imp/fulltypes/e/day2": { "issues": 6, "pages": 1 },
+    "imp/fulltypes/ei/day2": { "issues": 8, "pages": 1 },
+    "imp/fulltypes/eip/day2": { "issues": 9, "pages": 1 },
+    "imp/incremental/any/day2": { "issues": 0, "pages": 1 },
+    "imp/sweep/e/day2": { "issues": 6, "pages": 1 },
+    "imp/sweep/ei/day2": { "issues": 8, "pages": 1 },
+    "imp/sweep/eip/day2": { "issues": 9, "pages": 1 },
+    "imp/probe/any/any": { "issues": 1, "pages": 1 },
+    "ce/fulltypes/e/started": { "issues": 200, "pages": 2 },
+    "ce/fulltypes/ei/started": { "issues": 220, "pages": 3 },
+    "ce/fulltypes/eip/started": { "issues": 224, "pages": 3 },
+    "ce/fulltypes/e/day2": { "issues": 197, "pages": 2 },
+    "ce/fulltypes/ei/day2": { "issues": 217, "pages": 3 },
+    "ce/fulltypes/eip/day2": { "issues": 221, "pages": 3 },
+    "pf/fulltypes/e/started": { "issues": 137, "pages": 2 },
+    "pf/fulltypes/ei/started": { "issues": 152, "pages": 2 },
+    "pf/fulltypes/eip/started": { "issues": 156, "pages": 2 },
+    "pf/fulltypes/e/day2": { "issues": 133, "pages": 2 },
+    "pf/fulltypes/ei/day2": { "issues": 148, "pages": 2 },
+    "pf/fulltypes/eip/day2": { "issues": 152, "pages": 2 },
+    "cg/fulltypes/e/started": { "issues": 223, "pages": 3 },
+    "cg/fulltypes/ei/started": { "issues": 245, "pages": 3 },
+    "cg/fulltypes/eip/started": { "issues": 249, "pages": 3 },
+    "cg/fulltypes/e/day2": { "issues": 219, "pages": 3 },
+    "cg/fulltypes/ei/day2": { "issues": 241, "pages": 3 },
+    "cg/fulltypes/eip/day2": { "issues": 245, "pages": 3 },
+    "di/fulltypes/e/started": { "issues": 233, "pages": 3 },
+    "di/fulltypes/ei/started": { "issues": 255, "pages": 3 },
+    "di/fulltypes/eip/started": { "issues": 259, "pages": 3 },
+    "di/fulltypes/e/day2": { "issues": 232, "pages": 3 },
+    "di/fulltypes/ei/day2": { "issues": 254, "pages": 3 },
+    "di/fulltypes/eip/day2": { "issues": 258, "pages": 3 },
+    "oe/fulltypes/e/started": { "issues": 207, "pages": 3 },
+    "oe/fulltypes/ei/started": { "issues": 228, "pages": 3 },
+    "oe/fulltypes/eip/started": { "issues": 232, "pages": 3 },
+    "oe/fulltypes/e/day2": { "issues": 202, "pages": 3 },
+    "oe/fulltypes/ei/day2": { "issues": 223, "pages": 3 },
+    "oe/fulltypes/eip/day2": { "issues": 227, "pages": 3 }
+  },
+  "imp": {
+    "project": "IMP",
+    "anchor": "2045-01-02",
+    "issues": [
+      { "key": "IMP-1", "id": "95001", "level": "program", "summary": "IMP Program", "parent": null, "team": null, "points": null, "start": "2045-01-02", "end": "2045-02-10" },
+      { "key": "IMP-2", "id": "95002", "level": "project", "summary": "IMP Initiative Alpha", "parent": "IMP-1", "team": null, "points": null, "start": "2045-01-02", "end": "2045-01-20" },
+      { "key": "IMP-3", "id": "95003", "level": "project", "summary": "IMP Initiative Beta", "parent": "IMP-1", "team": null, "points": null, "start": "2045-01-23", "end": "2045-02-03" },
+      { "key": "IMP-4", "id": "95004", "level": "milestone", "summary": "IMP Epic One", "parent": "IMP-2", "team": "IMP Team", "points": 5, "start": "2045-01-02", "end": "2045-01-06" },
+      { "key": "IMP-5", "id": "95005", "level": "milestone", "summary": "IMP Epic Two", "parent": "IMP-2", "team": null, "points": 8, "start": "2045-01-16", "end": "2045-01-20" },
+      { "key": "IMP-6", "id": "95006", "level": "milestone", "summary": "IMP Epic Three", "parent": "IMP-3", "team": "IMP Team", "points": 3, "start": null, "end": null },
+      { "key": "IMP-7", "id": "95007", "level": "milestone", "summary": "IMP Epic Four with a deliberately long summary that overflows the plan's one hundred character name limit!!!!!", "parent": "IMP-3", "team": "IMP Team", "points": 5, "start": "2045-01-23", "end": "2045-01-27" },
+      { "key": "IMP-8", "id": "95008", "level": "milestone", "summary": "IMP Epic Five", "parent": "IMP-1", "team": "IMP Team", "points": 1, "start": "2045-02-06", "end": "2045-02-10" },
+      { "key": "IMP-9", "id": "95009", "level": "milestone", "summary": "IMP Epic Six", "parent": "IMP-3", "team": "IMP Team", "points": 2, "start": "2045-01-30", "end": "2045-02-03" }
+    ],
+    "unscheduled": ["IMP-6"]
   },
   "e2e": {
     "project": "E2E",

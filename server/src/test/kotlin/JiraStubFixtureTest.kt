@@ -136,7 +136,7 @@ class JiraStubFixtureTest {
         assertEquals(mapOf("Sub-task" to -1, "Story" to 0, "Task" to 0, "Bug" to 0, "Epic" to 1, "Initiative" to 2, "Program" to 3), types)
 
         val projects = api("/project/search").obj.getValue("values").jsonArray.map { it.str("key") }
-        assertEquals(listOf("CE", "PF", "CG", "DI", "OE", "E2E", "OUT"), projects)
+        assertEquals(listOf("CE", "PF", "CG", "DI", "OE", "E2E", "OUT", "IMP"), projects)
     }
 
     @Test
@@ -152,6 +152,17 @@ class JiraStubFixtureTest {
             assertTrue(issues.all { "customfield_10022" in it.getValue("fields").jsonObject }, "$set: full documents, not ids")
         }
         assertEquals(1000, int("search", "sample/fulltypes/e/started", "issues"))
+    }
+
+    @Test
+    fun `the import's scopes answer the typed read - IMP through the default type set, CE as a single key - with every page`() {
+        val types = "${typeId("epic")},${typeId("initiative")},${typeId("program")}"
+        for ((key, group) in mapOf("IMP" to "imp/fulltypes/eip/started", "CE" to "ce/fulltypes/eip/started")) {
+            val (issues, pages) = search("project in (\"$key\") AND issuetype in ($types) ORDER BY id ASC", fullFields)
+            assertEquals(int("search", group, "issues"), issues.size, key)
+            assertEquals(int("search", group, "pages"), pages, key)
+            assertTrue(issues.all { it.str("key").startsWith("$key-") }, "$key: only its own project")
+        }
     }
 
     @Test
@@ -171,7 +182,8 @@ class JiraStubFixtureTest {
         val jql = "project in ($SAMPLE) ORDER BY id ASC"
         assertEquals(401, api("/search/jql", mapOf("jql" to jql, "fields" to "id", "maxResults" to "50")).status)
         assertEquals(401, api("/search/jql", mapOf("jql" to jql)).status)
-        assertEquals(401, api("/search/jql", mapOf("jql" to "project in (\"CE\")", "fields" to fullFields)).status, "an unlisted scope")
+        val singleKey = mapOf("jql" to "project in (\"CE\")", "fields" to fullFields)
+        assertEquals(401, api("/search/jql", singleKey).status, "a single key is listed for the typed read only, not the unfiltered one")
     }
 
     @Test
