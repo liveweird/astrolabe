@@ -1,0 +1,215 @@
+package ch.nokillswit.jira
+
+import io.ktor.server.plugins.BadRequestException
+import kotlinx.serialization.Serializable
+
+// The wire shapes of the Jira import (1.2): the preview (`POST …/connections/{id}/import-preview`) and the apply (`…/import`). The
+// pure rules that fill them are `JiraImportKernels`; nothing here is exposed by a route yet (C4 and C5 mount them).
+
+/** The most items one import carries, preview rows and apply items alike, IN TOTAL (not per level): the deviations view's cap. */
+const val MAX_IMPORT_ITEMS = 2_000
+
+/** The most project keys a scope may name (a connection holds at most as many). */
+const val MAX_IMPORT_PROJECT_KEYS = 50
+
+/** The parent of an orphan project (`programId`) or orphan milestone (`projectId`), and the team of a milestone with no name match. */
+@Serializable
+data class JiraImportDefaults(val programId: UInt? = null, val projectId: UInt? = null, val teamId: UInt? = null)
+
+/**
+ * What both requests share: the picked [workStreamId] (every target lies under it), the [ownerPersonId] of every created program and
+ * project, an optional subset of the connection's [projectKeys] (default: all), the [defaults] and whether Jira's milestone dates are
+ * copied (only where the caller may schedule the milestone's team).
+ */
+@Serializable
+data class JiraImportScope(
+    val workStreamId: UInt,
+    val ownerPersonId: UInt,
+    val projectKeys: List<String>? = null,
+    val defaults: JiraImportDefaults? = null,
+    val copyDates: Boolean = true,
+)
+
+/** What an item does: the preview proposes [CREATE], [BIND] (to an unbound same-name node) or [SKIP]; an apply expects the first two. */
+@Serializable
+enum class JiraImportAction { CREATE, BIND, SKIP }
+
+/**
+ * Why a row is not written. The first six are the kernel's own verdicts (a preview shows these; [PARENT_SKIPPED] = the Jira parent is in
+ * the browse and its row is skipped, or, in an apply, left out by the client); [CHANGED] (what the client saw is no longer what the
+ * site and the plan say) exists only in an apply.
+ */
+@Serializable
+enum class JiraImportReason { ALREADY_BOUND, NO_PARENT, NAME_TAKEN, LEVEL_UNMAPPED, NO_TEAM, PARENT_SKIPPED, CHANGED }
+
+/** Something worth a gray word beside a row; none of them stops a row. */
+@Serializable
+enum class JiraImportInfo { NAME_TRUNCATED, ESTIMATE_NOT_CONVERTED, DATES_NOT_COPIED, DATES_INVALID, NO_WORKING_DAY }
+
+/** Where a created row lands: an [EXISTING] node, the new node of another row ([NEW_ROW]) or the level's [DEFAULT] parent. */
+@Serializable
+enum class JiraImportParentKind { EXISTING, NEW_ROW, DEFAULT }
+
+/** How a milestone's team was found: by [MATCHED] name, or the [DEFAULT] team (also what an apply override reads as). */
+@Serializable
+enum class JiraImportTeamRule { MATCHED, DEFAULT }
+
+/**
+ * The parent of a CREATE row (absent for a program: the picked stream). [rowJiraId] names the batch row the parent depends on (a
+ * [NEW_ROW] parent, or the row of a BIND parent whose target node is [nodeId]); null when the parent stands on its own.
+ */
+@Serializable
+data class JiraImportParent(
+    val kind: JiraImportParentKind,
+    val nodeId: UInt? = null,
+    val nodeName: String? = null,
+    val rowJiraId: String? = null,
+)
+
+/**
+ * The node a row is tied to: for BIND the unbound same-name node; for ALREADY_BOUND the holder - then [nodeKind] and [connectionId]
+ * (the connection that holds the binding, possibly another one of the site) are set too.
+ */
+@Serializable
+data class JiraImportTarget(val nodeId: UInt, val nodeName: String, val nodeKind: JiraLevel? = null, val connectionId: UInt? = null)
+
+@Serializable
+data class JiraImportTeam(val id: UInt, val name: String, val rule: JiraImportTeamRule)
+
+/** One Jira item as the import sees it. Dates are ISO `YYYY-MM-DD`; [estimateMd] is a milestone's converted man-days. */
+@Serializable
+data class JiraImportItem(
+    val jiraId: String,
+    val issueKey: String,
+    val summary: String,
+    val typeName: String? = null,
+    val hierarchyLevel: Int? = null,
+    val parentJiraId: String? = null,
+    val parentIssueKey: String? = null,
+    val level: JiraLevel,
+    val action: JiraImportAction,
+    val reason: JiraImportReason? = null,
+    val parent: JiraImportParent? = null,
+    val target: JiraImportTarget? = null,
+    val name: String,
+    val estimateMd: Double? = null,
+    val startDate: String? = null,
+    val endDate: String? = null,
+    val team: JiraImportTeam? = null,
+    val canSchedule: Boolean,
+    val scheduled: Boolean,
+    val infos: List<JiraImportInfo>,
+)
+
+/** [truncated]: more issues were in scope than [MAX_IMPORT_ITEMS] (the user narrows `projectKeys`). */
+@Serializable
+data class JiraImportTotals(val items: Int, val create: Int, val bind: Int, val skip: Int, val truncated: Boolean)
+
+@Serializable
+data class JiraImportPreview(
+    val connectionId: UInt,
+    val workStreamId: UInt,
+    val revision: Long,
+    val asOf: Long,
+    val totals: JiraImportTotals,
+    val unmatchedTeams: List<String>,
+    val items: List<JiraImportItem>,
+)
+
+/** What the preview showed for a ticked row; a difference after the re-browse and the re-read under the lock is a `CHANGED` skip. */
+@Serializable
+data class JiraImportExpected(
+    val action: JiraImportAction,
+    val level: JiraLevel,
+    val parentJiraId: String? = null,
+    val nodeId: UInt? = null,
+)
+
+@Serializable
+data class JiraImportOverrides(val teamId: UInt? = null)
+
+@Serializable
+data class JiraImportApplyItem(val jiraId: String, val expected: JiraImportExpected, val overrides: JiraImportOverrides? = null)
+
+/** `POST …/{id}/import`: the [JiraImportScope] members (flat on the wire) plus the ticked [items]. */
+@Serializable
+data class JiraImportApplyRequest(
+    val workStreamId: UInt,
+    val ownerPersonId: UInt,
+    val projectKeys: List<String>? = null,
+    val defaults: JiraImportDefaults? = null,
+    val copyDates: Boolean = true,
+    val items: List<JiraImportApplyItem>,
+) {
+    fun scope(): JiraImportScope = JiraImportScope(workStreamId, ownerPersonId, projectKeys, defaults, copyDates)
+}
+
+@Serializable
+data class JiraImportCreated(
+    val jiraId: String,
+    val issueKey: String,
+    val kind: JiraLevel,
+    val id: UInt,
+    val bindingId: UInt,
+    val name: String,
+    val scheduled: Boolean,
+)
+
+@Serializable
+data class JiraImportBound(val jiraId: String, val issueKey: String, val kind: JiraLevel, val id: UInt, val bindingId: UInt)
+
+/** [issueKey] is null for an item the re-browse no longer finds. */
+@Serializable
+data class JiraImportSkipped(val jiraId: String, val issueKey: String? = null, val reason: JiraImportReason)
+
+/** [revision] is the plan revision after the ONE bump, also when everything was skipped. */
+@Serializable
+data class JiraImportResult(
+    val revision: Long,
+    val created: List<JiraImportCreated>,
+    val bound: List<JiraImportBound>,
+    val skipped: List<JiraImportSkipped>,
+)
+
+/**
+ * The project keys an import browses: [JiraImportScope.projectKeys] (1 to [MAX_IMPORT_PROJECT_KEYS], distinct, each one of the
+ * connection's [connectionKeys]), else all of them. A `400` on a client bug; the route AND the service both call it.
+ */
+fun validateImportScope(scope: JiraImportScope, connectionKeys: List<String>): List<String> {
+    val requested = scope.projectKeys ?: return connectionKeys
+    if (requested.isEmpty() || requested.size > MAX_IMPORT_PROJECT_KEYS) {
+        throw BadRequestException("projectKeys must list between 1 and $MAX_IMPORT_PROJECT_KEYS keys")
+    }
+    if (requested.toSet().size != requested.size) throw BadRequestException("projectKeys must name each key once")
+    val outside = requested.firstOrNull { it !in connectionKeys }
+    if (outside != null) throw BadRequestException("Project key ${outside.take(MAX_KEY_ECHO)} is not one of the connection's keys")
+    return requested
+}
+
+private const val MAX_KEY_ECHO = 20
+
+/**
+ * The apply items' rules, for client bugs only (the recomputation under the lock is the real protection): between one and
+ * [MAX_IMPORT_ITEMS] items, each Jira id a numeric id named once, `expected.action` CREATE or BIND (a BIND carries its node, a CREATE
+ * does not), `expected.parentJiraId` a numeric id when present. A `400` names the failing item's index.
+ * It cannot see teams: the caller must ALSO refuse (`400`) an `overrides.teamId` that is not an active team before the kernel
+ * runs (the kernel's NO_TEAM for an unknown override is only a backstop).
+ */
+fun validateApplyItems(items: List<JiraImportApplyItem>) {
+    if (items.isEmpty()) throw BadRequestException("items must list at least one Jira item")
+    if (items.size > MAX_IMPORT_ITEMS) throw BadRequestException("items must list at most $MAX_IMPORT_ITEMS Jira items")
+    if (items.map { it.jiraId }.toSet().size != items.size) throw BadRequestException("items must name each Jira item once")
+    items.forEachIndexed { index, item ->
+        val expected = item.expected
+        val problem = when {
+            !ISSUE_ID_PATTERN.matches(item.jiraId) -> "jiraId must be a numeric Jira issue id"
+            expected.action == JiraImportAction.SKIP -> "expected.action must be CREATE or BIND"
+            expected.action == JiraImportAction.BIND && expected.nodeId == null -> "expected.nodeId is required for a BIND"
+            expected.action == JiraImportAction.CREATE && expected.nodeId != null -> "expected.nodeId must be absent for a CREATE"
+            expected.parentJiraId != null && !ISSUE_ID_PATTERN.matches(expected.parentJiraId) ->
+                "expected.parentJiraId must be a numeric Jira issue id"
+            else -> null
+        }
+        if (problem != null) throw BadRequestException("items[$index]: $problem")
+    }
+}
