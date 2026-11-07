@@ -53,6 +53,7 @@ class JiraIssueStoreTest {
 
         val cut = assertNotNull(of(issue(summary = "x".repeat(300)))).summary
         assertEquals(255, cut?.length, "a 300-character summary is cut to the column")
+        assertEquals("a b c", of(issue(summary = "a\\nb\\u0007c"))?.summary, "control characters become spaces")
         assertNull(of(issue(points = "1E10"))?.points, "a figure beyond NUMERIC(12,2) is not stored")
         assertNull(of(issue(points = "\"3\""))?.points, "a string is no figure")
         assertEquals(

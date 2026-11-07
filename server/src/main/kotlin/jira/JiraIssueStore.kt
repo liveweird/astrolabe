@@ -143,8 +143,11 @@ class JiraIssueStore(private val database: R2dbcDatabase) {
             .toList().singleOrNull()?.get(connections.censusAt)
     }
 
-    /** Stamps `census_at` (no `updated_at`: a census says nothing about a Test result); false when the connection is gone. */
-    suspend fun stampCensus(connectionId: UInt, at: Long): Boolean = suspendTransaction(database) {
+    /**
+     * Stamps `census_at` (no `updated_at`: a census says nothing about a Test result); false when the connection is gone. A null [at]
+     * clears it: the next run reads in full and re-seeds the mirror.
+     */
+    suspend fun stampCensus(connectionId: UInt, at: Long?): Boolean = suspendTransaction(database) {
         connections.update({ (connections.id eq connectionId) and connections.active() }) { it[censusAt] = at } > 0
     }
 

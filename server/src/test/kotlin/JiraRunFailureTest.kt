@@ -4,6 +4,7 @@ import ch.nokillswit.infra.db.R2dbcDatabaseKey
 import ch.nokillswit.jira.JiraBindingResponse
 import ch.nokillswit.jira.JiraConnectionServiceKey
 import ch.nokillswit.jira.JiraConnectorKey
+import ch.nokillswit.jira.JiraIssueStore
 import ch.nokillswit.jira.JiraLevel
 import ch.nokillswit.jira.JiraObserver
 import ch.nokillswit.jira.JiraRunStore
@@ -82,7 +83,8 @@ class JiraRunFailureTest {
         val runs = app.attributes[SyncRunServiceKey]
         val observer = JiraObserver(
             app.attributes[JiraConnectorKey], app.attributes[JiraConnectionServiceKey],
-            JiraRunStore(app.attributes[R2dbcDatabaseKey]), runs, chunkSize = chunkSize,
+            JiraRunStore(app.attributes[R2dbcDatabaseKey]),
+            JiraIssueStore(app.attributes[R2dbcDatabaseKey]), runs, chunkSize = chunkSize,
         )
         val claimed = runs.claim(SyncKind.JIRA, connectionId, SyncTrigger.MANUAL, null)
         return observer.run(claimed).also { runs.finish(claimed.id, it) }
@@ -129,8 +131,9 @@ class JiraRunFailureTest {
         try {
             val restarted = run(chunkSize = 100, connectionId = f.connectionId)
             assertEquals(SyncOutcome.SUCCEEDED, restarted.outcome, restarted.errorDetail)
-            // tenant_info, page 1, the expired page 2, then the 12 pages again, then the 12-page sweep.
-            assertEquals(1 + (1 + 1 + 12) + 12, restarted.counts.calls)
+            // tenant_info, page 1, the expired page 2, then the 12 pages again, then the 12-page sweep, then the child level's typed read
+            // (the first run is full: sample/fulltypes/s/started, 6 pages).
+            assertEquals(1 + (1 + 1 + 12) + 12 + 6, restarted.counts.calls)
             assertEquals(2, restarted.counts.observed)
         } finally {
             JiraStubServer.removeOverride(once)

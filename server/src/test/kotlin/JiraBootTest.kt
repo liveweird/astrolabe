@@ -65,7 +65,7 @@ class JiraBootTest {
 
     @Test
     fun `every setting is bound - an out-of-range or non-numeric value refuses to start naming its key`() {
-        val bad = mapOf(
+        val bad = listOf(
             "jira.requestTimeoutSeconds" to "4",
             "jira.requestDeadlineSeconds" to "601",
             "jira.maxResponseBytes" to "1024",
@@ -73,6 +73,8 @@ class JiraBootTest {
             "jira.maxRetries" to "9",
             "jira.pageSize" to "501",
             "jira.incrementalOverlapMinutes" to "1441",
+            "jira.censusHours" to "0",
+            "jira.censusHours" to "169",
         )
         for ((key, value) in bad) {
             testApplication {
@@ -88,11 +90,12 @@ class JiraBootTest {
 
     @Test
     fun `the defaults boot, and the connector carries the configured page size and overlap`() = testApplication {
-        configureApp("jira.pageSize" to "250", "jira.incrementalOverlapMinutes" to "30")
+        configureApp("jira.pageSize" to "250", "jira.incrementalOverlapMinutes" to "30", "jira.censusHours" to "48")
         startApplication()
         val connector = application.attributes[JiraConnectorKey]
         assertEquals(250, connector.pageSize)
         assertEquals(30L, connector.incrementalOverlapMinutes)
+        assertEquals(48, connector.censusHours)
     }
 
     @Test

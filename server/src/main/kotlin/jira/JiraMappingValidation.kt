@@ -8,7 +8,7 @@ const val MAX_MAN_DAYS_PER_UNIT = 1_000.0
 private const val MAX_FACTOR_DECIMALS = 2
 
 /** A Jira field id: `duedate`, `customfield_10015` - the one shape that is safe to put in a `fields=` query and a stored document. */
-private val FIELD_ID_PATTERN = Regex("^[A-Za-z][A-Za-z0-9_]{0,63}$")
+internal val FIELD_ID_PATTERN = Regex("^[A-Za-z][A-Za-z0-9_]{0,63}$")
 
 /** How much of a rejected field id a message quotes back. */
 private const val MAX_ID_ECHO = 64

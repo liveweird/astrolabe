@@ -45,6 +45,8 @@ class JiraConnector(
     val pageSize: Int,
     /** `jira.incrementalOverlapMinutes` (added to the minutes since the last successful run). */
     val incrementalOverlapMinutes: Long,
+    /** `jira.censusHours` (how often a run re-lists the child level as an id sweep; `JiraCensus`). */
+    val censusHours: Int = DEFAULT_CENSUS_HOURS,
     private val now: () -> Long = System::currentTimeMillis,
 ) {
     suspend fun testConnection(target: JiraTestTarget): JiraTestOutcome {
@@ -157,6 +159,7 @@ class JiraConnector(
         const val STORED_TOKEN_ROW = "stored_token"
         const val TOKEN_UNREADABLE_CODE = "TOKEN_UNREADABLE"
         const val PROJECT_NOT_VISIBLE_CODE = "PROJECT_NOT_VISIBLE"
+        const val DEFAULT_CENSUS_HOURS = 24
 
         const val BLOCKED_HOST_CODE = "BLOCKED_HOST"
 

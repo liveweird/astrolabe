@@ -84,6 +84,7 @@ class JiraRunReadTest {
             finishedRun(f.connectionId, lastSucceeded - 3 * DAY, "SUCCEEDED") // an older success: the NEWEST one counts
             finishedRun(f.connectionId, lastSucceeded, "SUCCEEDED")
             finishedRun(f.connectionId, clock - 30 * MINUTE, "FAILED") // a failure after it moves nothing
+            jbSql("UPDATE jira_connections SET census_at = ? WHERE id = ?", clock, f.connectionId.toInt()) // censused: no forced full read
             val expired = AtomicInteger(0)
             val mock = MockJiraRun(application, now = { clock }) { request ->
                 when {
@@ -103,6 +104,24 @@ class JiraRunReadTest {
             assertEquals("""project in ("E2E") AND updated >= "-136m" ORDER BY updated ASC""", reads.first().url.parameters["jql"])
             assertEquals("""project in ("E2E") AND updated >= "-141m" ORDER BY updated ASC""", reads.last().url.parameters["jql"])
             assertEquals(2, reads.size, "one restart, from the first page")
+        }
+
+    @Test
+    fun `a null census_at forces a full read despite a succeeded run and observed bindings, and the stamp it leaves ends the forcing`() =
+        testApplication {
+            val f = fixture("jrrcensus")
+            f.bind("E2E-5")
+            // The upgrade: a trustable watermark, never censused.
+            finishedRun(f.connectionId, System.currentTimeMillis() + 60 * MINUTE, "SUCCEEDED")
+            val mock = MockJiraRun(application) { request ->
+                jsonOk(if (isSweep(request)) idsPage("90005") else searchPage(issueDoc("90005", "E2E-5")))
+            }
+            assertEquals(SyncOutcome.SUCCEEDED, mock.run(f.connectionId).outcome)
+            val reads = { mock.searches.filter { !isSweep(it) && "10006,10005,10004" in it.url.parameters["jql"].orEmpty() } }
+            assertEquals(1, reads().size, "census_at is null: the typed full read, not the incremental window")
+            assertEquals(SyncOutcome.SUCCEEDED, mock.run(f.connectionId).outcome)
+            assertEquals(1, reads().size, "stamped now: the next run is incremental")
+            assertTrue(mock.searches.any { "updated >=" in it.url.parameters["jql"].orEmpty() })
         }
 
     // --- the sweep ----------------------------------------------------------------------------------------------------------------
@@ -185,11 +204,11 @@ class JiraRunReadTest {
         jbSql("UPDATE jira_observations SET summary = 'stale' WHERE binding_id = ?", binding.id.toInt())
         val second = mock.run(f.connectionId)
         assertEquals(SyncOutcome.SUCCEEDED, second.outcome, second.errorDetail)
-        // tenant_info, 200 incremental pages, the full read, the sweep.
-        assertEquals(1 + 200 + 1 + 1, second.counts.calls)
+        // tenant_info, 200 incremental pages, the full read, the sweep, the census's child-level read (the fallback is a full read).
+        assertEquals(1 + 200 + 1 + 1 + 1, second.counts.calls)
         assertEquals(1, second.counts.observed)
         assertEquals("from-full", f.binding(binding.id).observation?.summary)
-        val full = mock.searches.last { !isSweep(it) }.url.parameters["jql"]
+        val full = mock.searches.last { !isSweep(it) && "10006,10005,10004" in it.url.parameters["jql"].orEmpty() }.url.parameters["jql"]
         assertEquals("""project in ("E2E") AND issuetype in (10006,10005,10004) ORDER BY id ASC""", full)
     }
 

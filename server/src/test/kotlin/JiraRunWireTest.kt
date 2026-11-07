@@ -131,9 +131,10 @@ class JiraRunWireTest {
 
             val incremental = mock.run(f.connectionId)
             assertEquals(SyncOutcome.SUCCEEDED, incremental.outcome, incremental.errorDetail)
-            assertEquals(wanted, mock.fieldsAsked(2), "the incremental read")
+            // Searches: the full read, its sweep, the census's child read (the first run is full), then the incremental.
+            assertEquals(wanted, mock.fieldsAsked(3), "the incremental read")
             val watermark = Regex("""project in \("E2E"\) AND updated >= "-\d+m" ORDER BY updated ASC""")
-            assertTrue(watermark.matches(mock.searches[2].url.parameters["jql"].orEmpty()))
+            assertTrue(watermark.matches(mock.searches[3].url.parameters["jql"].orEmpty()))
 
             // Each level read ITS fields: program 10015/duedate/10016, project 10015/duedate/-, milestone 10022/10023/10026.
             val seen = listOf(program, project, milestone).map { f.binding(it.id).observation }.map { assertNotNull(it) }
@@ -244,6 +245,14 @@ class JiraRunWireTest {
         assertEquals(SyncOutcome.SUCCEEDED, empty.outcome)
         assertEquals(0, empty.counts.calls)
         assertTrue(mock.requests.isEmpty())
+        assertEquals(
+            listOf(0, true),
+            jbScalar(
+                "SELECT (SELECT count(*) FROM jira_issues WHERE connection_id = ?), census_at IS NULL FROM jira_connections WHERE id = ?",
+                f.connectionId.toInt(), f.connectionId.toInt(),
+            ) { listOf(it.getInt(1), it.getBoolean(2)) },
+            "no bindings: no census, no stamp",
+        )
 
         f.bind(JiraLevel.MILESTONE, f.milestone(), "E2E-5")
         jbSql("UPDATE jira_connections SET cloud_id = NULL WHERE id = ?", f.connectionId.toInt())
@@ -322,9 +331,10 @@ class JiraRunWireTest {
         val mock = MockJiraRun(mockApp) { request ->
             jsonOk(if (request.url.parameters["fields"] == "id") idsPage("90005") else searchPage(issueDoc("90005", "E2E-5")))
         }
-        // Every run makes two searches (the read, then the sweep); `kinds` is the read's JQL shape per run so far.
-        fun kinds(): List<String> = mock.searches.map { it.url.parameters["jql"].orEmpty() }.filterIndexed { i, _ -> i % 2 == 0 }
-            .map { if ("updated >=" in it) "incremental" else "full" }
+        // `kinds` is the read's JQL shape per run so far: the incremental window, or the mapped types' full read (the sweeps and the
+        // census's child-level reads name other clauses: the id-only `fields`, the child types).
+        fun kinds(): List<String> = mock.searches.filter { it.url.parameters["fields"] != "id" }.map { it.url.parameters["jql"].orEmpty() }
+            .filter { "updated >=" in it || "10006,10005,10004" in it }.map { if ("updated >=" in it) "incremental" else "full" }
         suspend fun run() = assertEquals(SyncOutcome.SUCCEEDED, mock.run(f.connectionId).outcome)
 
         run() // no earlier run: full

@@ -4,6 +4,7 @@ import ch.nokillswit.infra.db.R2dbcDatabaseKey
 import ch.nokillswit.jira.HttpJiraClient
 import ch.nokillswit.jira.JiraConnectionServiceKey
 import ch.nokillswit.jira.JiraConnector
+import ch.nokillswit.jira.JiraIssueStore
 import ch.nokillswit.jira.JiraObserver
 import ch.nokillswit.jira.JiraRunStore
 import ch.nokillswit.jira.RUN_CHUNK
@@ -61,8 +62,8 @@ class MockJiraRun(
             pageSize = 100, incrementalOverlapMinutes = 10,
         )
         observer = JiraObserver(
-            connector, app.attributes[JiraConnectionServiceKey], JiraRunStore(app.attributes[R2dbcDatabaseKey]), runs,
-            now = now, chunkSize = chunkSize,
+            connector, app.attributes[JiraConnectionServiceKey], JiraRunStore(app.attributes[R2dbcDatabaseKey]),
+            JiraIssueStore(app.attributes[R2dbcDatabaseKey]), runs, now = now, chunkSize = chunkSize,
         )
     }
 

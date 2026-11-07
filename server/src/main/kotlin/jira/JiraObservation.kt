@@ -21,7 +21,7 @@ private const val MAX_UPDATED_TEXT = 40
 /** `NUMERIC(12,2)` holds ten integer digits: an estimate at or beyond this is not a figure worth storing. */
 private val ESTIMATE_LIMIT = BigDecimal("1E10")
 
-private const val ISSUE_SYSTEM_FIELDS = "summary,issuetype,status,parent,updated"
+internal const val ISSUE_SYSTEM_FIELDS = "summary,issuetype,status,parent,updated"
 
 /**
  * The `fields` an observation request names: the system fields it reads plus every mapped one. A real site answers only what was asked
@@ -96,8 +96,12 @@ data class JiraObservation(
     }
 }
 
-/** A string for a `VARCHAR` column: a NUL (which PostgreSQL cannot store) becomes U+FFFD and a cut never leaves half a surrogate pair. */
+/**
+ * A string for a `VARCHAR` column: a NUL (which PostgreSQL cannot store) becomes U+FFFD, any other control character a space (a site's
+ * text is never trusted to be single-line), and a cut never leaves half a surrogate pair.
+ */
 internal fun String.fitted(): String = replaceNul().let { if (it.isNotEmpty() && it.last().isHighSurrogate()) it.dropLast(1) else it }
+    .map { if (it.isISOControl()) ' ' else it }.joinToString("")
 
 private fun dateOf(value: JsonElement?): LocalDate? = isoDateOrNull(value)?.let { LocalDate.parse(it) }
 

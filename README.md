@@ -216,6 +216,7 @@ class-data-sharing (AppCDS) archive, and setting it drops the archive. Build-tim
 | `JIRA_MAX_RETRIES` | `4` | Retries of a Jira 429/5xx/network failure (exponential backoff with jitter), 0–8. |
 | `JIRA_PAGE_SIZE` | `100` | Issues per Jira search page, 1–500. |
 | `JIRA_INCREMENTAL_OVERLAP_MINUTES` | `10` | Minutes added to the time since the last successful Jira run in an incremental bound, 0–1440. |
+| `JIRA_CENSUS_HOURS` | `24` | Hours between a Jira run's id-only re-listing of the child level (the stories under the mapped epics, kept for the roll-ups; a full read lists them in full anyway), 1–168. A story deleted or moved out of scope stays in a roll-up for up to this long. |
 | `SYNC_MAX_RUN_MINUTES` | `10` | How long a sync run's claim stays valid, 1–60 minutes; a run that outlives it is abandoned by the next claim, and the run's own deadline is one minute shorter (never under 30 s). |
 | `SYNC_SCHEDULER_ENABLED` | `true` | The in-process Jira poller: every tick it starts a run for each tested, enabled connection whose own polling interval has elapsed (with a failure back-off up to six hours, and at once after an edit to the connection); `false` leaves "Refresh now" as the only way a run starts. Every instance ticks and the run registry lets exactly one claim a run, so a second replica is safe. |
 | `SYNC_TICK_SECONDS` | `60` | How often the poller looks for due connections, 15–600 seconds (validated at every boot); a poll starts at most one tick after its connection's interval has elapsed. |

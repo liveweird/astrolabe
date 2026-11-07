@@ -20,8 +20,6 @@ import io.ktor.util.AttributeKey
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.contentOrNull
 import org.slf4j.LoggerFactory
 
 val JiraObserverKey = AttributeKey<JiraObserver>("JiraObserver")
@@ -79,6 +77,7 @@ class JiraObserver internal constructor(
     private val connector: JiraConnector,
     private val connections: JiraConnectionService,
     private val store: JiraRunStore,
+    private val issues: JiraIssueStore,
     private val runs: SyncRunService,
     private val now: () -> Long = ::nowMillis,
     /** The bindings one write transaction carries ([RUN_CHUNK]); a test shrinks it to see whole chunks. */
@@ -154,22 +153,29 @@ class JiraObserver internal constructor(
         connections.storeCloudId(run.connectionId, client.resolveCloudId())
 
         val byIssue = bound.associateBy { it.issueId }
-        val plan = readPlan(run, bound, discovery, changedAt(context))
-        val fields = observationFields(mapping)
-        suspend fun readAs(shape: ReadPlan) =
-            read(client, readJql(shape, keys, sweepTypes), fields, mapping, discovery, byIssue, progress)
+        val censusAt = issues.censusAt(run.connectionId)
+        val census = JiraCensus(issues, run, keys, discovery, mapping, sweepTypes, now, chunkSize)
+        var shape = readPlan(run, bound, discovery, changedAt(context), censusAt)
+        val fields = census.withPointsField(observationFields(mapping))
+        suspend fun readAs(plan: ReadPlan) =
+            read(client, readJql(plan, keys, sweepTypes), fields, mapping, discovery, byIssue, census, progress)
         val observed = try {
-            readAs(plan)
+            readAs(shape)
         } catch (failure: FetchException) {
             // A long gap on a busy site: the incremental window only grows, so a ceiling hit would wedge every later run. The full read
             // is limited to the mapped types and is bounded by the site, not by the gap.
-            if (plan is ReadPlan.Incremental && failure.code == LIMIT_EXCEEDED_CODE) readAs(ReadPlan.Full) else throw failure
+            if (shape !is ReadPlan.Incremental || failure.code != LIMIT_EXCEEDED_CODE) throw failure
+            shape = ReadPlan.Full
+            readAs(shape)
         }
         val inScope = HashSet<String>()
-        search(client, { JiraJql.sweep(keys, sweepTypes) }, "id", progress) { issues ->
-            issues.forEach { entry -> idOf(entry)?.let(inScope::add) }
+        search(client, { JiraJql.sweep(keys, sweepTypes) }, "id", progress) { page ->
+            page.forEach { entry -> idOf(entry)?.let(inScope::add) }
         }
         reconcile(run, bound, sweepTypes.toSet(), inScope, observed, progress)
+        // The census after the reconcile: the mapped levels' prune, the children (a full read or a due sweep), the stamp.
+        val censusSearch: CensusSearch = { jql, censusFields, onPage -> search(client, jql, censusFields, progress, onPage) }
+        census.complete(censusSearch, inScope, shape is ReadPlan.Full, censusAt, connector.censusHours)
     }
 
     /**
@@ -178,10 +184,18 @@ class JiraObserver internal constructor(
      * (`mapping_changed_at`, set only by a PUT that altered the document), or the connection was edited (`updated_at`: a widened
      * `projectKeys` brings back issues that were not read while out of scope, a new token or account may see other fields). Otherwise the
      * watermark's incremental. The effective mapping falls back to the discovery's defaults, so a re-discovery already covers that case.
+     * A connection never censused (`census_at` null: every one at the 1.4 upgrade) reads in full too, which seeds the mirror.
      */
-    private suspend fun readPlan(run: ClaimedRun, bound: List<BoundIssue>, discovery: JiraDiscovery, changedAt: Long): ReadPlan {
+    private suspend fun readPlan(
+        run: ClaimedRun,
+        bound: List<BoundIssue>,
+        discovery: JiraDiscovery,
+        changedAt: Long,
+        censusAt: Long?,
+    ): ReadPlan {
         val lastStart = runs.lastSucceededStart(SyncKind.JIRA, run.connectionId)
-        val trustable = lastStart != null && bound.all { it.observed } && maxOf(discovery.discoveredAt, changedAt) <= lastStart
+        val trustable = lastStart != null && censusAt != null && bound.all { it.observed } &&
+            maxOf(discovery.discoveredAt, changedAt) <= lastStart
         return if (lastStart != null && trustable) ReadPlan.Incremental(lastStart) else ReadPlan.Full
     }
 
@@ -203,7 +217,7 @@ class JiraObserver internal constructor(
 
     /**
      * Observes every BOUND issue [jql] returns, each at the level of its BINDING (a mismatch with the issue's own type stays a deviation
-     * to show) and writes them in chunks. Answers the issue ids written.
+     * to show) and writes them in chunks. Answers the issue ids written. EVERY entry, bound or not, also goes to the [census].
      */
     @Suppress("LongParameterList") // the read's inputs, assembled once in execute()
     private suspend fun read(
@@ -213,6 +227,7 @@ class JiraObserver internal constructor(
         mapping: JiraMapping,
         discovery: JiraDiscovery,
         byIssue: Map<String, BoundIssue>,
+        census: JiraCensus,
         progress: RunProgress,
     ): Set<String> {
         val written = LinkedHashSet<String>()
@@ -224,9 +239,10 @@ class JiraObserver internal constructor(
             byIssue.values.filter { it.bindingId in writtenIds }.forEach { written += it.issueId }
             progress.observed = written.size
         }
-        search(client, jql, fields, progress) { issues ->
-            for (entry in issues) {
+        search(client, jql, fields, progress) { page ->
+            for (entry in page) {
                 val issue = entry as? JsonObject ?: continue
+                census.observe(issue)
                 val bound = idOf(issue)?.let(byIssue::get) ?: continue
                 val observation = JiraObservation.of(issue, mapping, discovery, bound.level, now()) ?: continue
                 pending += bound.bindingId to observation
@@ -234,6 +250,7 @@ class JiraObserver internal constructor(
             }
         }
         flush()
+        census.flush()
         return written
     }
 
@@ -293,7 +310,4 @@ class JiraObserver internal constructor(
 
     /** The latest instant the connection's reading inputs changed: its last edit or its last real mapping change. */
     private fun changedAt(context: JiraBindContext): Long = maxOf(context.target.expectedUpdatedAt ?: 0L, context.mappingChangedAt ?: 0L)
-
-    private fun idOf(element: Any?): String? =
-        ((element as? JsonObject)?.get("id") as? JsonPrimitive)?.contentOrNull?.takeIf(ISSUE_ID_PATTERN::matches)
 }

@@ -49,6 +49,7 @@ fun Application.configureJira() {
     val maxRetries = requireConfigInt(config, "jira.maxRetries", MIN_RETRIES, MAX_RETRIES)
     val pageSize = requireConfigInt(config, "jira.pageSize", MIN_PAGE_SIZE, MAX_PAGE_SIZE)
     val overlapMinutes = requireConfigLong(config, "jira.incrementalOverlapMinutes", MIN_OVERLAP_MINUTES, MAX_OVERLAP_MINUTES)
+    val censusHours = requireConfigInt(config, "jira.censusHours", MIN_CENSUS_HOURS, MAX_CENSUS_HOURS)
     requireHeapFitsJiraCeilings(maxResponseBytes, maxConcurrentRequests)
     val stub = stubBaseUrl?.let(::validatedStubOrigin)
     val stubHost = stub?.host
@@ -86,12 +87,14 @@ fun Application.configureJira() {
         },
         pageSize = pageSize,
         incrementalOverlapMinutes = overlapMinutes,
+        censusHours = censusHours,
     )
     attributes.put(JiraConnectorKey, connector)
     // The run: the Jira connector of the sync registry (`sync/`), registered here and started by `configureSync`'s routes. The services it
     // reads were published by `configureDatabase`, which runs before this module.
     val observer = JiraObserver(
-        connector, attributes[JiraConnectionServiceKey], JiraRunStore(attributes[R2dbcDatabaseKey]), attributes[SyncRunServiceKey],
+        connector, attributes[JiraConnectionServiceKey], JiraRunStore(attributes[R2dbcDatabaseKey]),
+        JiraIssueStore(attributes[R2dbcDatabaseKey]), attributes[SyncRunServiceKey],
     )
     attributes.put(JiraObserverKey, observer)
     attributes[SyncConnectorsKey].register(observer)
@@ -160,6 +163,8 @@ private const val MIN_PAGE_SIZE = 1
 private const val MAX_PAGE_SIZE = 500
 private const val MIN_OVERLAP_MINUTES = 0L
 private const val MAX_OVERLAP_MINUTES = 1_440L
+private const val MIN_CENSUS_HOURS = 1
+private const val MAX_CENSUS_HOURS = 168
 private const val MILLIS_PER_SECOND = 1_000L
 private const val HTTPS_PORT = 443
 private const val HTTP_PORT = 80

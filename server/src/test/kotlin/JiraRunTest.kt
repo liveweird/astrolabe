@@ -129,8 +129,9 @@ class JiraRunTest {
         assertNull(run.errorCode)
         assertEquals(f.w.admin.userId, run.requestedByUserId)
         assertEquals(listOf(5, 0), listOf(run.observedCount, run.goneCount))
-        // tenant_info, the single full page, the single sweep page (e2e/fulltypes/eip/started and e2e/sweep/eip/started are 1 page each).
-        assertEquals(3, run.callCount)
+        // tenant_info, the single full page, the single sweep page (e2e/fulltypes/eip/started and e2e/sweep/eip/started are 1 page each)
+        // and the census's child-level read (e2e/fulltypes/s/started: an empty page - the E2E project has no stories).
+        assertEquals(4, run.callCount)
         assertEquals(0, run.rateLimitedCount)
         assertEquals(revision, TestPlan.revision(), "a run bumps nothing")
         val seen = bound.associate { it.issueKey to admin.binding(it.id).observation }
@@ -274,9 +275,16 @@ class JiraRunTest {
         val admin = f.w.admin.client
         val first = runAndAwait(admin, f.connectionId)
         assertEquals(SyncOutcome.SUCCEEDED, first.outcome, first.errorDetail)
+        val goneKeys = gone.joinToString(",") { "'$it'" }
+        val censusOf = "SELECT count(*) FROM jira_issues WHERE connection_id = ? AND issue_key IN ($goneKeys)"
+        assertEquals(gone.size, jbScalar(censusOf, f.connectionId.toInt()) { it.getInt(1) }, "the census holds every epic before day 2")
         assertEquals(bound.size, first.observedCount, "the full read observes every bound id (${bound.size})")
         assertEquals(0, first.goneCount)
-        assertEquals(1 + pages("sample/fulltypes/eip/started") + pages("sample/sweep/eip/started"), first.callCount)
+        // The first run is full, so it also reads the child level in full (the census, 1.4).
+        assertEquals(
+            1 + pages("sample/fulltypes/eip/started") + pages("sample/sweep/eip/started") + pages("sample/fulltypes/s/started"),
+            first.callCount,
+        )
         recent.forEach { staleObservation(bound.getValue(it).id) }
         try {
             JiraStubServer.setScenarioState("jira-day2", "day2")
@@ -288,10 +296,36 @@ class JiraRunTest {
             assertEquals(1 + pages("sample/incremental/any/day2") + pages("sample/sweep/eip/day2"), second.callCount)
             val flagged = bound.filter { (_, b) -> admin.binding(b.id).observation?.gone == true }.keys
             assertEquals(gone.toSet(), flagged, "exactly the 12 deleted and the 5 moved-out issues")
+            assertEquals(0, jbScalar(censusOf, f.connectionId.toInt()) { it.getInt(1) }, "and the sweep removes them from the census")
             recent.forEach { assertFalse(admin.binding(bound.getValue(it).id).observation?.gone == true, it) }
         } finally {
             JiraStubServer.resetScenarios()
         }
+    }
+
+    @Test
+    fun `the first run censuses the mapped levels and the stories - COV-3 has four children, two done, 13 points`() = testApplication {
+        val cov = expected.getValue("cov").jsonObject
+        val f = fixture("jrcov", keys = listOf("COV"))
+        f.bind(JiraLevel.MILESTONE, f.milestone(), "COV-3")
+        val run = runAndAwait(f.w.admin.client, f.connectionId)
+        assertEquals(SyncOutcome.SUCCEEDED, run.outcome, run.errorDetail)
+        // tenant_info, the full read and the sweep (1 page each), the child level's typed read (cov/fulltypes/s/started, 1 page).
+        assertEquals(4, run.callCount)
+        val mirror = "SELECT count(*) FROM jira_issues WHERE connection_id = ?"
+        assertEquals(cov.getValue("issues").jsonArray.size, jbScalar(mirror, f.connectionId.toInt()) { it.getInt(1) }, "every COV issue")
+        for ((epic, figures) in cov.getValue("rollups").jsonObject) {
+            val parentId = cov.getValue("issues").jsonArray.map { it.jsonObject }
+                .single { it.getValue("key").jsonPrimitive.content == epic }.getValue("id").jsonPrimitive.content
+            val rolled = jbScalar(
+                "SELECT count(*) || '/' || count(*) FILTER (WHERE status_category = 'DONE') || '/' || sum(points)::int " +
+                    "FROM jira_issues WHERE connection_id = ? AND parent_issue_id = ?",
+                f.connectionId.toInt(), parentId,
+            ) { it.getString(1) }
+            val want = figures.jsonObject.let { "${it.getValue("children")}/${it.getValue("done")}/${it.getValue("points")}" }
+            assertEquals(want, rolled, "$epic rolls up")
+        }
+        assertNotNull(jbScalar("SELECT census_at FROM jira_connections WHERE id = ?", f.connectionId.toInt()) { it.getObject(1) })
     }
 
     @Test
