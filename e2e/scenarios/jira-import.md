@@ -63,9 +63,19 @@ here: every milestone takes the default team.
 1. The same four scans with the dark scheme emulated.
    - *Expected*: the page renders in the dark scheme and axe reports zero violations at each point.
 
+## Scenario: a preview of about 1,100 rows (the virtualised table) has no WCAG A/AA violations, at the top and mid-scroll, light and dark
+
+1. A second connection, scoped to the stub's five work-stream projects (`CE`, `PF`, `CG`, `DI`, `OE`) on its own throwaway site, is created and tested through the API (one more
+   call of the 10-a-minute Test bucket; a 429 waits the minute out once); the administrator opens its import modal, picks the throwaway work stream, the owner and the default team, and presses
+   **Preview**. Nothing is imported.
+   - *Expected*: the table's `aria-rowcount` is above 1,000, the first mounted row is row 2 and fewer than 200 rows are in the DOM (the virtual path); axe reports zero violations in the dialog.
+2. The preview's scroller is scrolled to the middle.
+   - *Expected*: the first mounted row's `aria-rowindex` is above 100; axe reports zero violations.
+3. The dark scheme is emulated on the same page, then the scroller goes back to the top.
+   - *Expected*: the page renders in the dark scheme and axe reports zero violations mid-scroll and at the top (the first mounted row is row 2, after the header).
+   The afterEach deletes the second connection with the rest of the test's rows.
+
 ## Not covered here (and why)
 
 - The outcome's skipped-rows table is not axe-scanned in e2e: the UI never sends a row without a checkbox, so a first import has no skipped row to show.
-- The virtualised table is not scanned in e2e: `IMP` has 9 rows, under the 80-row threshold, so the spacer rows and `aria-rowcount`/`aria-rowindex` are never rendered here. Manual evidence: on
-  2026-11-07, axe over the real five-key preview at 1,120 rows, at the top and mid-scroll, light and dark, found 0 violations; `JiraImportModal.virtual.test.tsx` covers the path in vitest.
 - A second apply (a re-import that writes): after the first import every row is `ALREADY_BOUND`, so the modal has nothing to press; the server's `JiraImportApplyTest` covers the re-import.

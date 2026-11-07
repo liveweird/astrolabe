@@ -1,8 +1,9 @@
 // Import from Jira (v1.2), against the compose stack's Jira STUB and its isolated `IMP` project (a Program, two Initiatives, six Epics, every date in 2045):
 // an administrator imports the tree into a throwaway work stream through the connection page's modal (scope, preview, import), finds the milestones
 // dated in the project view and a second preview offering nothing; unticking a parent unticks what is created under it; a skipped row says how to fix
-// it (a default project); and the modal's three steps pass an axe scan, light and dark.
-// Owns: ONE Jira connection (`e2e-import-connection-*`, scoped to the stub's `IMP` project on a unique throwaway site, tested once in the beforeAll: Test
+// it (a default project); the modal's three steps pass an axe scan, light and dark; and so does a five-key preview of about 1,100 rows (the virtualised table).
+// Owns: ONE Jira connection (`e2e-import-connection-*`, scoped to the stub's `IMP` project on a unique throwaway site, tested once in the beforeAll; the
+// five-key preview test makes, tests and deletes one more, `e2e-import-scale-*`, and never imports through it. Test
 // connection shares a 10-a-minute bucket per IP with the other Jira specs) and, per test, an administrator login (the preview and the apply share a
 // 5-a-minute bucket PER USER, so a throwaway login keeps every test inside it), a person, a team, a work stream (unique `e2e-import-*` names) and what
 // the import creates under that stream - the stub's own names, "IMP Program", "IMP Initiative Alpha/Beta" and the epics. Program names are global, so
@@ -223,11 +224,11 @@ async function fillScope(page: Page, world: World, defaultProject?: { project: s
   await expect(dialog.getByRole("switch", { name: "Copy Jira's dates" })).toBeChecked();
 }
 
-/** Signs in as the world's administrator and opens the modal on the connection's page. */
-async function openImport(page: Page, world: World): Promise<void> {
+/** Signs in as the world's administrator and opens the modal on the connection's page (the spec's IMP connection unless another is given). */
+async function openImport(page: Page, world: World, on: { id: number; name: string } = connection): Promise<void> {
   await login(page, world.admin.email, world.admin.password);
-  await page.goto(`/integrations/jira/${connection.id}`);
-  await expect(page.getByRole("heading", { level: 2, name: connection.name })).toBeVisible();
+  await page.goto(`/integrations/jira/${on.id}`);
+  await expect(page.getByRole("heading", { level: 2, name: on.name })).toBeVisible();
   await page.getByRole("button", { name: "Import from Jira…" }).click();
   await expect(modal(page)).toBeVisible();
   await expect(modal(page)).toHaveCSS("opacity", "1"); // axe measures contrast against the fade-in's partial opacity
@@ -437,4 +438,69 @@ test.describe("dark scheme", () => {
   test("the import modal's three steps have no WCAG A/AA violations in the dark scheme", async ({ page }) => {
     await scanThreeSteps(page, "dark");
   });
+});
+
+/** The stub's five work-stream projects: about 1,120 items, far above the table's 80-row virtualisation threshold. Previewed only, never imported. */
+const SCALE_KEYS = ["CE", "PF", "CG", "DI", "OE"];
+
+/** A second connection, scoped to the five keys on a unique throwaway site and tested once (one more call of the 10-a-minute Test bucket); the afterEach deletes it. */
+async function seedScaleConnection(): Promise<{ id: number; name: string }> {
+  const { api } = await apiAsAdmin();
+  try {
+    const name = uniqueText(`${MARK}scale`);
+    const site = `https://e2eimport${randomUUID().replace(/-/g, "").slice(0, 12)}.atlassian.net`;
+    const body = { name, siteUrl: site, email: "e2e-import@astrolabe.local", apiToken: "e2e-import-token", authScheme: "BASIC", projectKeys: SCALE_KEYS, enabled: true };
+    const id = await create(api, "/api/v1/integrations/jira/connections", body, "/api/v1/integrations/jira/connections");
+    let tested = await api.post(`/api/v1/integrations/jira/connections/${id}/test`);
+    if (tested.status() === 429) {
+      await new Promise((resolve) => setTimeout(resolve, retryAfterMs(tested.headers()["retry-after"])));
+      tested = await api.post(`/api/v1/integrations/jira/connections/${id}/test`);
+    }
+    expect(tested.status(), await tested.text()).toBe(200);
+    return { id, name };
+  } finally {
+    await api.dispose();
+  }
+}
+
+/** Scrolls the preview's own scroller to the middle and waits until the rows mounted there are a window far from the top. */
+async function scrollPreviewToMiddle(page: Page): Promise<void> {
+  const scroller = modal(page).getByRole("region", { name: "Import preview" });
+  await scroller.evaluate((element) => {
+    element.scrollTop = element.scrollHeight / 2;
+  });
+  const firstMounted = previewTable(page).locator("tbody tr[aria-rowindex]").first();
+  await expect.poll(async () => Number(await firstMounted.getAttribute("aria-rowindex"))).toBeGreaterThan(100);
+}
+
+// The unit tests mount at most a few hundred rows under happy-dom and the three-step scan above sees 9: this is the real browser over the VIRTUAL
+// path (spacer rows, aria-rowcount/aria-rowindex, a fixed row height), at the top and mid-scroll, light and then dark on the same preview.
+test("a preview of about 1,100 rows (the virtualised table) has no WCAG A/AA violations, at the top and mid-scroll, light and dark", async ({ page }) => {
+  test.setTimeout(300_000);
+  const scale = await seedScaleConnection();
+  const world = await seedWorld();
+  await openImport(page, world, scale);
+  await expectScheme(page, "light");
+  const dialog = modal(page);
+  // The default team too: the milestone rows then carry their checkbox and team select, the cells the scan most needs to see.
+  await fillScope(page, world);
+  await modal(page).getByRole("button", { name: "Preview", exact: true }).click();
+  await expect(dialog.getByRole("heading", { level: 3, name: "What the import would do" })).toBeVisible({ timeout: 190_000 });
+  const rowCount = Number(await previewTable(page).getAttribute("aria-rowcount"));
+  expect(rowCount).toBeGreaterThan(1_000);
+  // Virtualised: only a window of the rows is in the DOM, and it is mounted (the virtualiser measures its scroller first) before the first scan.
+  await expect(previewTable(page).locator("tbody tr[aria-rowindex]").first()).toHaveAttribute("aria-rowindex", "2");
+  expect(await previewTable(page).locator("tbody tr[aria-rowindex]").count()).toBeLessThan(200);
+  await scan(page);
+  await scrollPreviewToMiddle(page);
+  await scan(page);
+
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expectScheme(page, "dark");
+  await scan(page);
+  await modal(page).getByRole("region", { name: "Import preview" }).evaluate((element) => {
+    element.scrollTop = 0;
+  });
+  await expect(previewTable(page).locator("tbody tr[aria-rowindex]").first()).toHaveAttribute("aria-rowindex", "2");
+  await scan(page);
 });
