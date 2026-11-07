@@ -165,6 +165,7 @@ describe("appendId / removeId", () => {
 });
 
 const project = (id: number, name: string): RoadmapProject => ({
+  jira: null,
   id,
   name,
   programId: 10,
@@ -185,6 +186,7 @@ const project = (id: number, name: string): RoadmapProject => ({
 
 describe("applyRanking", () => {
   const view: RoadmapView = {
+    jiraSites: [],
     revision: 3,
     can: { editRank: true },
     teams: [],

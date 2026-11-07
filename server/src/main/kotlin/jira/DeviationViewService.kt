@@ -2,6 +2,8 @@ package ch.nokillswit.jira
 
 import ch.nokillswit.infra.db.nowMillis
 import ch.nokillswit.infra.time.WorkingCalendar
+import ch.nokillswit.planning.DeviationKind
+import ch.nokillswit.planning.DeviationSeverity
 import ch.nokillswit.planning.PlanActor
 import ch.nokillswit.planning.SNAPSHOT
 import ch.nokillswit.planning.creatorsOf
@@ -86,8 +88,12 @@ class DeviationViewService(
         asOf: LocalDate,
         listNotComparable: Boolean = false,
     ): Computed {
-        val connections = loadConnections(scope.connectionId)
         val bindings = loadBindings(scope)
+        val connections = if (scope.referencedConnectionsOnly) {
+            loadConnections(scope.connectionId, bindings.map { it.connectionId }.distinct())
+        } else {
+            loadConnections(scope.connectionId)
+        }
         val nodes = loadNodes(bindings.map { it.ref })
         val live = bindings.filter { it.ref in nodes }
         val creators = creatorsOf(live.mapNotNull { it.ack?.byUserId })
@@ -107,6 +113,9 @@ class DeviationViewService(
         val scope = DeviationScope(connectionId = connectionId, bindingId = bindingId)
         return computeInTransaction(scope, null, loadWorkingCalendar(), asOf).candidates.singleOrNull()
     }
+
+    /** Today (a UTC date) on this service's clock: the `asOf` the timeline fold shares with the deviations view. */
+    internal fun today(): LocalDate = asOfOf(clock())
 
     private fun asOfOf(now: Long): LocalDate = LocalDate.ofInstant(Instant.ofEpochMilli(now), ZoneOffset.UTC)
 

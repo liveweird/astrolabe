@@ -28,6 +28,11 @@ function flagSentence(t: TFunction, flag: PlanFlag, names: FlagNames): string {
       const other = flag.otherProjectId === null ? "" : names.project(flag.otherProjectId);
       return flag.teamId === null ? t("roadmap.flag.inversionNoTeam", { count, other }) : t("roadmap.flag.inversion", { count, other, team: names.team(flag.teamId) });
     }
+    // The Jira kinds (1.3): the server sends them already; the per-deviation wording and the issue key come with the Jira markers (C8).
+    case "JIRA_DEVIATION":
+      return t("roadmap.flag.jiraDeviation");
+    case "JIRA_MILESTONES":
+      return t("roadmap.flag.jiraMilestones", { count: flag.count ?? 0 });
   }
 }
 

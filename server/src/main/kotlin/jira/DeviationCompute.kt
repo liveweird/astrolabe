@@ -5,6 +5,9 @@ import ch.nokillswit.infra.json.sha256Hex
 import ch.nokillswit.infra.time.WorkingCalendar
 import ch.nokillswit.planning.BaselineCreator
 import ch.nokillswit.planning.DaySpan
+import ch.nokillswit.planning.Deviation
+import ch.nokillswit.planning.DeviationKind
+import ch.nokillswit.planning.DeviationSeverity
 import ch.nokillswit.planning.PlanActor
 import ch.nokillswit.planning.PlanPermissions
 import kotlinx.serialization.builtins.ListSerializer

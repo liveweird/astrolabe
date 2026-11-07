@@ -23,9 +23,10 @@ import {
 
 const NONE: RoadmapFilters = { workStreamId: null, teamId: null, ownerPersonId: null, flaggedOnly: false };
 
-const flag = (kind: PlanFlag["kind"], severity: PlanFlag["severity"], over: Partial<PlanFlag> = {}): PlanFlag => ({ kind, severity, days: 3, teamId: null, otherProjectId: null, ...over });
+const flag = (kind: PlanFlag["kind"], severity: PlanFlag["severity"], over: Partial<PlanFlag> = {}): PlanFlag => ({ kind, severity, days: 3, teamId: null, otherProjectId: null, deviation: null, count: null, ...over });
 
 const project = (id: number, name: string, over: Partial<RoadmapProject> = {}): RoadmapProject => ({
+  jira: null,
   id,
   name,
   programId: 10,
@@ -51,6 +52,7 @@ const C = project(3, "Gamma", { flags: [flag("RANK_INVERSION", "WARNING", { team
 const D = project(4, "Delta", { programId: 11, programName: "Compliance", workStreamId: 2, workStreamName: "Ops", ownerPersonId: 6, ownerName: "Tania Tax" });
 
 const view = (over: Partial<RoadmapView> = {}): RoadmapView => ({
+  jiraSites: [],
   revision: 1,
   can: { editRank: true },
   teams: [

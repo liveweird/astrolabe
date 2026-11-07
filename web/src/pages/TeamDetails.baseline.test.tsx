@@ -32,6 +32,8 @@ const PICK_KEY = "astrolabe.viewSettings.timeline.baseline";
 const UNKNOWN = { type: "urn:astrolabe:problem:unknown-baseline", title: "Bad Request", status: 400, detail: "unknown baseline" };
 
 const milestone = (id: number, name: string, over: Partial<TeamMilestone> = {}): TeamMilestone => ({
+  jira: null,
+  flags: [],
   id,
   projectId: 7,
   name,
@@ -57,6 +59,7 @@ const TV_B = milestone(2, "tv-b", { startDate: "2027-02-08", endDate: "2027-02-1
 const TV_TRAY = milestone(3, "tv-tray");
 
 const plainView = (): TeamView => ({
+  jiraSites: [],
   revision: 10,
   team: { id: 1, name: "Payments", description: null, managerPersonId: 12, managerName: "Cara New", createdAt: 1, updatedAt: 2, can: { schedule: true, editCapacity: true, editOrder: true } },
   order: { custom: false, revision: 4, milestoneIds: [] },

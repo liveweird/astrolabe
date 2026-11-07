@@ -23,6 +23,8 @@ internal class RoadmapSnapshot(
     val spans: Map<UInt, DaySpan>,
     /** The working calendar the snapshot read (the baseline overlay measures movement on it). */
     val calendar: WorkingCalendar,
+    /** The external-tracker connections the bindings in scope link to ([ExternalFlags.sites]; empty without a source or a binding). */
+    val jiraSites: List<JiraSite> = emptyList(),
 )
 
 /** A project row with the owner chain `can.editTargetWindow` needs; [loadRoadmapSnapshot] completes it into a [RoadmapProject]. */
@@ -39,11 +41,18 @@ internal class MilestoneFactRow(val fact: PlanMilestoneFact, val teamName: Strin
  * spans, the drift and inversion flags, the rolled-up links. [actor] decides each project's `can.editTargetWindow`
  * ([PlanPermissions.canEditTargetWindow] on the chain read in the same statement as the row). Statements: the projects, the owner
  * names, the rank entries, the milestones, the links - bounded by the plan's scale (about 100 projects, 1,000 milestones). The
- * comparison view needs no links ([withLinks] false: `links` is then empty and the link statement is skipped).
+ * comparison view needs no links ([withLinks] false: `links` is then empty and the link statement is skipped). [external] (1.3) is asked
+ * about EVERY project and milestone right after the calendar, in the same snapshot, and its links and flags are folded into the project
+ * rows ([withExternal]); the baseline capture and comparison pass none, a baseline freezes spans and ranks, never flags.
  */
-internal suspend fun loadRoadmapSnapshot(actor: PlanActor, withLinks: Boolean = true): RoadmapSnapshot {
+internal suspend fun loadRoadmapSnapshot(
+    actor: PlanActor,
+    withLinks: Boolean = true,
+    external: ExternalFlagSource = NoExternalFlags,
+): RoadmapSnapshot {
     // Right after the caller's readPlanRevision(): the revision, the rows and the calendar are one snapshot.
     val calendar = loadWorkingCalendar()
+    val outside = external.flagsInTransaction(ExternalFlagRequest(projectIds = null, milestoneIds = null, calendar = calendar))
     val rows = projectRows()
     val ranks = rankPositions()
     val milestones = milestoneFacts()
@@ -65,13 +74,13 @@ internal suspend fun loadRoadmapSnapshot(actor: PlanActor, withLinks: Boolean = 
             drift = SpanKernels.drift(span, row.target),
             flags = (RoadmapKernels.driftFlags(span, row.target) + inversions[p.id].orEmpty()).sortedWith(FLAG_ORDER),
             can = RoadmapProjectCan(PlanPermissions.canEditTargetWindow(actor, row.chain)),
-        )
+        ).withExternal(outside.project(p.id))
     }
     val teams = milestones.filter { it.fact.projectId in known }.associate { it.fact.teamId to it.teamName }
         .map { (id, name) -> RoadmapTeam(id, name) }
         .sortedWith(compareBy({ it.name.lowercase() }, { it.id }))
     val links = if (withLinks) RoadmapKernels.linkAggregates(linkFacts(), projectFacts, facts, spans, calendar) else emptyList()
-    return RoadmapSnapshot(projects, teams, links, spans, calendar)
+    return RoadmapSnapshot(projects, teams, links, spans, calendar, outside.sites)
 }
 
 /**

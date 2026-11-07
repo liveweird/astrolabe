@@ -30,6 +30,11 @@ internal object ScaleFigures {
         println("scale-figure\t$name\t${String.format(Locale.ROOT, "%.1f", ms)} ms")
     }
 
+    /** Prints one size figure line (a document's bytes). */
+    fun printBytes(name: String, bytes: Int) {
+        println("scale-figure\t$name\t$bytes B")
+    }
+
     /** Prints the median and the maximum of [timings] as `<name> median` / `<name> max`. */
     fun printSeries(name: String, timings: List<Double>) {
         print("$name median", median(timings))

@@ -18,9 +18,10 @@ val TeamViewServiceKey = AttributeKey<TeamViewService>("TeamViewService")
  * scheduled ones for the window of [loadWindow] against the stored capacity periods, and [DependencyKernels.check] per link
  * ([viewDependencies]). The team must be active (null = the route's 404). Reads `Teams`, `People`, the plan tables, `RoadmapEntries`,
  * the order tables, `CapacityPeriods`, `Dependencies` and `PublicHolidays` (the working calendar, [loadWorkingCalendar], read right
- * after the revision) and writes nothing (`persistence.md`).
+ * after the revision) and writes nothing (`persistence.md`). The milestones' Jira links and flags (1.3) come from [external] inside
+ * the same snapshot, after the calendar.
  */
-class TeamViewService(private val database: R2dbcDatabase) {
+class TeamViewService(private val database: R2dbcDatabase, private val external: ExternalFlagSource = NoExternalFlags) {
     suspend fun view(
         teamId: UInt, actor: PlanActor,
         baselineId: UInt? = null,
@@ -37,6 +38,10 @@ class TeamViewService(private val database: R2dbcDatabase) {
 
         val positions = positionsOf(teamId)
         val rows = teamMilestoneRows(teamId, team[teams.name], positions)
+        // Inside the snapshot, after the calendar: each milestone's Jira link and flags (1.3); no project rows here.
+        val outside = external.flagsInTransaction(
+            ExternalFlagRequest(projectIds = emptyList(), milestoneIds = rows.map { it.view.id }, calendar = calendar),
+        )
         // The stored order, read FROM the active milestones (a stale row of a gone one never shows), in stored position order.
         val listed = rows.filter { it.key.customPosition != null }.sortedBy { it.key.customPosition }.map { it.view.id }
         val (periodRows, periods) = teamCapacityRows(teamId)
@@ -64,10 +69,11 @@ class TeamViewService(private val database: R2dbcDatabase) {
             capacity = TeamViewCapacity(periodRows),
             weeks = weeklyLoad(items, periods, window?.span, calendar).map { it.toView() },
             weeksTruncated = window?.truncated ?: false,
-            scheduled = scheduled.map { it.view },
-            unscheduled = unscheduled.map { it.view },
+            scheduled = scheduled.map { it.view.withExternal(outside.milestone(it.view.id)) },
+            unscheduled = unscheduled.map { it.view.withExternal(outside.milestone(it.view.id)) },
             dependencies = viewDependencies(rows.map { it.view.id }, emptyList(), emptyMap(), actor, calendar),
             idleGaps = idleGapViewsOf(items.map { it.span }, calendar),
+            jiraSites = outside.sites,
             baseline = baseline?.let {
                 teamBaseline(it, teamId, team[teams.name], rows.map { r -> r.live() }, calendar)
             },

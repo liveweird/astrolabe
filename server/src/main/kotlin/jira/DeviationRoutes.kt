@@ -6,6 +6,8 @@ import ch.nokillswit.infra.paging.optionalBoolean
 import ch.nokillswit.infra.paging.optionalEnum
 import ch.nokillswit.infra.paging.optionalUInt
 import ch.nokillswit.people.PersonServiceKey
+import ch.nokillswit.planning.DeviationKind
+import ch.nokillswit.planning.DeviationSeverity
 import ch.nokillswit.planning.PlanActor
 import io.ktor.http.HttpStatusCode
 import io.ktor.resources.Resource

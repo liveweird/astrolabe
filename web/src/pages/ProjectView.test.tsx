@@ -39,6 +39,8 @@ const dropMove = (m: ProjectMilestone, days: number) =>
   );
 
 const milestone = (id: number, name: string, over: Partial<ProjectMilestone> = {}): ProjectMilestone => ({
+  jira: null,
+  flags: [],
   id,
   projectId: 7,
   name,
@@ -65,7 +67,10 @@ const ALPHA_MILESTONE = { ...milestone(21, "a1", { startDate: "2027-01-04", endD
 
 const viewOf = (over: Partial<ProjectViewDocument> = {}): ProjectViewDocument => ({
   revision: 10,
+  jiraSites: [],
   project: {
+    jira: null,
+    flags: [],
     id: 7,
     programId: 70,
     workStreamId: 700,

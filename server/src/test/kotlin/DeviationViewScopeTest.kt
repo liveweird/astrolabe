@@ -1,10 +1,10 @@
 package ch.nokillswit
 
 import ch.nokillswit.jira.DeviationFilter
-import ch.nokillswit.jira.DeviationKind
 import ch.nokillswit.jira.DeviationViewService
 import ch.nokillswit.jira.JiraLevel
 import ch.nokillswit.jira.MAX_DEVIATION_ITEMS
+import ch.nokillswit.planning.DeviationKind
 import ch.nokillswit.sync.SyncOutcome
 import ch.nokillswit.sync.SyncRunService
 import ch.nokillswit.sync.SyncState

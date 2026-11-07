@@ -3,6 +3,8 @@ import type { TeamMilestone, TeamView } from "../api/teams";
 import { fullOrderList, placeScheduled } from "./teamOrderList";
 
 const milestone = (id: number, scheduled = true): TeamMilestone => ({
+  jira: null,
+  flags: [],
   id,
   projectId: 7,
   name: `m${id}`,
@@ -22,6 +24,7 @@ const milestone = (id: number, scheduled = true): TeamMilestone => ({
 
 /** A view whose scheduled rows are `scheduled` (in this displayed order), tray `unscheduled`, stored order `stored`. */
 const viewOf = (scheduled: number[], unscheduled: number[], stored: number[]): TeamView => ({
+  jiraSites: [],
   revision: 10,
   team: { id: 3, name: "Backend", description: null, managerPersonId: 1, managerName: "Mia", createdAt: 1, updatedAt: 2, can: { schedule: true, editCapacity: true, editOrder: true } },
   order: { custom: stored.length > 0, revision: 4, milestoneIds: stored },

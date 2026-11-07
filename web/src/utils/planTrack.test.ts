@@ -6,6 +6,7 @@ import { projectOfWindowBar, projectTrack, windowBarId } from "./planTrack";
 const t = i18n.t;
 
 const project = (over: Partial<RoadmapProject> = {}): RoadmapProject => ({
+  jira: null,
   id: 7,
   name: "Invoices",
   programId: 10,

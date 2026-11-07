@@ -35,6 +35,8 @@ data class ProjectView(
     val idleGaps: List<IdleGapView>,
     /** The entities of OTHER projects upstream of this project's end ([CriticalPath], `CriticalPathView.kt`). */
     val criticalPath: CriticalPath,
+    /** The Jira connections a binding in scope links to (empty without a binding), once per document ([JiraSite]). */
+    val jiraSites: List<JiraSite> = emptyList(),
     /** Present only for `?baseline=N`: the project against that baseline ([ProjectBaseline]); absent otherwise (bytes unchanged). */
     @EncodeDefault(EncodeDefault.Mode.NEVER)
     val baseline: ProjectBaseline? = null,
@@ -44,7 +46,12 @@ data class ProjectView(
 @Serializable
 data class DateSpan(val start: String, val end: String)
 
-/** The [PlanProject] fields plus the names of the project's program and work stream, and the project-level actions. */
+/**
+ * The [PlanProject] fields plus the names of the project's program and work stream, and the project-level actions. [jira] is the
+ * project's own Jira link (null = unbound, or its connection is disabled); [flags] its Jira flags ([FlagKind.JIRA_DEVIATION] per open
+ * deviation of its own binding and the [FlagKind.JIRA_MILESTONES] roll-up of its milestones' - the SAME list the roadmap row carries
+ * for the Jira kinds; the drift and rank flags are the roadmap's).
+ */
 @Serializable
 data class ProjectViewProject(
     val id: UInt,
@@ -61,6 +68,8 @@ data class ProjectViewProject(
     val createdAt: Long,
     val updatedAt: Long,
     val can: ProjectViewCan,
+    val jira: JiraLink? = null,
+    val flags: List<PlanFlag> = emptyList(),
 )
 
 @Serializable
@@ -72,7 +81,10 @@ data class ProjectViewCan(
     val createDependency: Boolean,
 )
 
-/** A milestone as the project view shows it: the [MilestoneResponse] fields (dates null = unscheduled) plus the caller's `can`. */
+/**
+ * A milestone as the project view shows it: the [MilestoneResponse] fields (dates null = unscheduled) plus the caller's `can`, its Jira
+ * link ([jira]: null = unbound or its connection disabled) and its open Jira [flags] ([FlagKind.JIRA_DEVIATION] per deviation).
+ */
 @Serializable
 data class ProjectMilestone(
     val id: UInt,
@@ -91,6 +103,8 @@ data class ProjectMilestone(
     /** On the critical path: zero [slackDays] (every milestone ending on the project's end, and any driving chain into it). */
     val critical: Boolean,
     val can: ProjectMilestoneCan,
+    val jira: JiraLink? = null,
+    val flags: List<PlanFlag> = emptyList(),
 )
 
 @Serializable

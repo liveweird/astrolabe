@@ -1,8 +1,8 @@
 package ch.nokillswit
 
-import ch.nokillswit.jira.DeviationKind
-import ch.nokillswit.jira.DeviationSeverity
 import ch.nokillswit.jira.JiraLevel
+import ch.nokillswit.planning.DeviationKind
+import ch.nokillswit.planning.DeviationSeverity
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode

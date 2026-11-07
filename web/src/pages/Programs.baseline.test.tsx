@@ -19,6 +19,7 @@ const move = (kind: Movement["kind"], startDays: number | null, endDays: number 
 const frozen = (span: { start: string; end: string }, movement: Movement) => ({ span, movement });
 
 const project = (id: number, name: string, over: Partial<RoadmapProject> = {}): RoadmapProject => ({
+  jira: null,
   id,
   name,
   programId: 10,
@@ -58,7 +59,7 @@ const PLATFORM: ProgramsWorkStream = {
   baseline: frozen({ start: "2026-03-02", end: "2026-06-05" }, move("MOVED", 0, 63)),
 };
 
-const viewOf = (): ProgramsView => ({ revision: 9, teams: [], links: [], workStreams: [PLATFORM], baseline: { id: 5, name: "Q1 plan", planRevision: 4 } });
+const viewOf = (): ProgramsView => ({ jiraSites: [], revision: 9, teams: [], links: [], workStreams: [PLATFORM], baseline: { id: 5, name: "Q1 plan", planRevision: 4 } });
 /** The plain document: no `baseline` anywhere. */
 const plainOf = (): ProgramsView => {
   const strip = <T extends { baseline?: unknown }>(item: T): T => ({ ...item, baseline: undefined });

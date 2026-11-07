@@ -12,6 +12,7 @@ import { renderWithProviders } from "../test/render";
 // row count a keyboard user changes from inside the grid. happy-dom lays nothing out, so the scroller is given a size (as Timeline.test.tsx does).
 
 const project = (id: number, programId: number): RoadmapProject => ({
+  jira: null,
   id,
   name: `P${programId}-${id}`,
   programId,
@@ -41,6 +42,7 @@ const programOf = (id: number, count: number): ProgramsProgram => ({
 
 // One work stream, three programs of 1, 40 and 41 projects, so the chevrons sit at the top of the window: opened, 4 rows; with the 41-project one 45; with the 40-project one as well 85 (> 80).
 const VIEW: ProgramsView = {
+  jiraSites: [],
   revision: 1,
   teams: [],
   links: [],

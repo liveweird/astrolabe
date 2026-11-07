@@ -53,6 +53,8 @@ const dropRow = (m: TeamMilestone, position: number, y: number) => {
 };
 
 const milestone = (id: number, name: string, over: Partial<TeamMilestone> = {}): TeamMilestone => ({
+  jira: null,
+  flags: [],
   id,
   projectId: 7,
   name,
@@ -102,6 +104,7 @@ const LINK: ProjectDependency = {
 };
 
 const viewOf = (over: Partial<TeamView> = {}): TeamView => ({
+  jiraSites: [],
   revision: 10,
   team: {
     id: 1,

@@ -51,12 +51,19 @@ internal class ConnectionFacts(
     val connector: ConnectorConnection,
 )
 
-/** Every ACTIVE connection, enabled or not, by id. The discovery blob is decoded here only to resolve the mapping, and never leaves. */
-internal suspend fun loadConnections(onlyId: UInt? = null): List<ConnectionFacts> =
-    connections.select(
+/**
+ * Every ACTIVE connection, enabled or not, by id; [onlyId] narrows to one, [onlyIds] to those (an empty collection reads nothing, and no
+ * statement is issued). The discovery blob is decoded here only to resolve the mapping, and never leaves.
+ */
+internal suspend fun loadConnections(onlyId: UInt? = null, onlyIds: Collection<UInt>? = null): List<ConnectionFacts> =
+    if (onlyIds?.isEmpty() == true) emptyList() else connections.select(
         connections.id, connections.name, connections.siteUrl, connections.enabled, connections.mapping, connections.discovery,
         connections.pollIntervalMinutes, connections.mappingChangedAt, connections.updatedAt, connections.discoveredAt,
-    ).where { connections.active() and (onlyId?.let { connections.id eq it } ?: Op.TRUE) }.orderBy(connections.id).toList().map { row ->
+    ).where {
+        val one = onlyId?.let { connections.id eq it } ?: Op.TRUE
+        val several = onlyIds?.let { connections.id inList it } ?: Op.TRUE
+        connections.active() and one and several
+    }.orderBy(connections.id).toList().map { row ->
             val discovery = row[connections.discovery]?.let(::parseStoredDiscoveryOrNull)
             val state = JiraMappingState(parseStoredMapping(row[connections.mapping]), discovery)
             val usable = discovery?.let { resolveEffectiveMapping(state, it) } as? MappingResolution.Usable
@@ -97,8 +104,11 @@ internal class BindingRow(
 
 /**
  * Which ACTIVE bindings of an ACTIVE connection one computation reads. Every member narrows (null = no restriction on that axis);
- * [programIds], [projectIds] and [milestoneIds] together name the nodes (a binding on ANY of the named ones matches). The acknowledge
- * reads ONE [bindingId]; the timeline fold (1.3, C5) reads the nodes of the rows a view answers.
+ * [programIds], [projectIds] and [milestoneIds] together name the nodes (a binding on ANY of the named ones matches), so a named
+ * level excludes the unnamed ones. A named EMPTY collection names nothing: it matches no binding (never "every one"), and a scope
+ * whose only named collections are empty reads nothing. [levels] keeps the bindings of those plan levels only, which is how a caller
+ * asks for EVERY binding of some levels (the timeline fold: projects and milestones, never programs). The acknowledge reads ONE
+ * [bindingId]; the timeline fold (1.3) reads the nodes of the rows a view answers.
  */
 internal class DeviationScope(
     val connectionId: UInt? = null,
@@ -106,15 +116,20 @@ internal class DeviationScope(
     val projectIds: Collection<UInt>? = null,
     val milestoneIds: Collection<UInt>? = null,
     val bindingId: UInt? = null,
+    val levels: Set<JiraLevel>? = null,
+    /** Resolve only the connections the bindings read reference (the timeline fold), not every active one (the view lists them all). */
+    val referencedConnectionsOnly: Boolean = false,
 ) {
     /** Whether the bindings read are a PART of a connection's bindings: a parent issue's own binding then needs its own lookup. */
-    val restrictsBindings: Boolean get() = bindingId != null || programIds != null || projectIds != null || milestoneIds != null
+    val restrictsBindings: Boolean
+        get() = bindingId != null || programIds != null || projectIds != null || milestoneIds != null || levels != null
 }
 
 private fun DeviationScope.predicate(): Op<Boolean> {
     var predicate: Op<Boolean> = bindings.active() and connections.active()
     connectionId?.let { predicate = predicate and (bindings.connectionId eq it) }
     bindingId?.let { predicate = predicate and (bindings.id eq it) }
+    levels?.let { kept -> predicate = predicate and (bindings.level inList kept.map { it.name }) }
     val named = listOfNotNull<Op<Boolean>>(
         programIds?.let { bindings.programId inList it },
         projectIds?.let { bindings.projectId inList it },

@@ -55,9 +55,10 @@ function drawWindow(project: RoadmapProject, days: number) {
   emit("onDragEnd", { active, delta: { x: 0, y: 0 }, over: zone, activatorEvent: { clientX: 100, clientY: 0 } });
 }
 
-const flag = (kind: PlanFlag["kind"], severity: PlanFlag["severity"], days: number | null): PlanFlag => ({ kind, severity, days, teamId: null, otherProjectId: null });
+const flag = (kind: PlanFlag["kind"], severity: PlanFlag["severity"], days: number | null): PlanFlag => ({ kind, severity, days, teamId: null, otherProjectId: null, deviation: null, count: null });
 
 const project = (id: number, name: string, over: Partial<RoadmapProject> = {}): RoadmapProject => ({
+  jira: null,
   id,
   name,
   programId: 10,
@@ -91,6 +92,7 @@ const AUDIT = project(3, "Audit", { rankPosition: 3, targetStart: "2026-05-04", 
 const LEDGER = project(4, "Ledger");
 
 const viewOf = (): RoadmapView => ({
+  jiraSites: [],
   revision: 7,
   can: { editRank: true },
   teams: [],

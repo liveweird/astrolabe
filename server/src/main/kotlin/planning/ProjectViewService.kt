@@ -24,9 +24,10 @@ internal val SNAPSHOT = IsolationLevel.REPEATABLE_READ
  * Milestones are split into the scheduled (by start, end, name, id) and the unscheduled (by name, id);
  * names sort case-insensitively. The transaction is READ ONLY at REPEATABLE READ so that the revision, the project's milestones,
  * the links, the external ends and the chains are ONE snapshot (the default READ COMMITTED would let each
- * statement see a different committed plan, e.g. a link whose end the milestone read predates).
+ * statement see a different committed plan, e.g. a link whose end the milestone read predates). The Jira links and flags of the project
+ * and its milestones (1.3) come from [external] inside the same snapshot, after the calendar and the milestone rows.
  */
-class ProjectViewService(private val database: R2dbcDatabase) {
+class ProjectViewService(private val database: R2dbcDatabase, private val external: ExternalFlagSource = NoExternalFlags) {
     suspend fun view(
         projectId: UInt, actor: PlanActor,
         baselineId: UInt? = null,
@@ -49,6 +50,10 @@ class ProjectViewService(private val database: R2dbcDatabase) {
 
         val critical = loadCriticalPath(projectId, calendar)
         val milestones = milestoneRows(projectId, actor, manage, critical.result)
+        // Inside the snapshot, after the calendar: the project's own Jira link and every milestone's, with the flags (1.3).
+        val outside = external.flagsInTransaction(
+            ExternalFlagRequest(projectIds = listOf(projectId), milestoneIds = milestones.map { it.view.id }, calendar = calendar),
+        )
         val dependencies = projectDependencies(projectId, milestones.map { it.view.id }, chain, actor, calendar)
             .map { it.copy(critical = it.id in critical.result.criticalDependencies) }
         val (scheduled, unscheduled) = milestones.partition { it.span != null }
@@ -78,16 +83,20 @@ class ProjectViewService(private val database: R2dbcDatabase) {
                     createMilestone = PlanPermissions.canCreateMilestone(actor, chain),
                     createDependency = PlanPermissions.canCreateDependency(actor, chain),
                 ),
+                jira = outside.project(projectId).jira,
+                flags = outside.project(projectId).flags,
             ),
             span = span?.let { DateSpan(it.start.toString(), it.end.toString()) },
             drift = SpanKernels.drift(span, target),
             scheduled = scheduled.sortedWith(
                 compareBy<MilestoneRow>({ it.span?.start }, { it.span?.end }, { it.view.name.lowercase() }, { it.view.id }),
-            ).map { it.view },
-            unscheduled = unscheduled.sortedWith(compareBy<MilestoneRow>({ it.view.name.lowercase() }, { it.view.id })).map { it.view },
+            ).map { it.view.withExternal(outside.milestone(it.view.id)) },
+            unscheduled = unscheduled.sortedWith(compareBy<MilestoneRow>({ it.view.name.lowercase() }, { it.view.id }))
+                .map { it.view.withExternal(outside.milestone(it.view.id)) },
             dependencies = dependencies,
             idleGaps = idleGapViewsOf(scheduled.mapNotNull { it.span }, calendar),
             criticalPath = critical.view,
+            jiraSites = outside.sites,
             baseline = baseline?.let { projectBaseline(it, projectId, span, milestones.map { m -> m.live }, calendar) },
         )
     }

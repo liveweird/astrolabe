@@ -1772,6 +1772,11 @@ paths:
         is listed only when an included link (not violated, both ends scheduled) names it. The chain is never cut; the others are capped at 100 (`upstreamTruncated`). Entities that
         only lie downstream of this project, or are unconnected to its end, are absent.
 
+        Jira (1.3): the project (`project.jira`, `project.flags`: its own `JIRA_DEVIATION` flags and the `JIRA_MILESTONES` roll-up) and
+        every milestone (`scheduled` and `unscheduled`: `jira` and one `JIRA_DEVIATION` flag per OPEN deviation) carry their Jira item,
+        as `GET /views/roadmap` describes; `jiraSites` lists the connections the bindings in scope link to. An unbound node answers `jira: null` and
+        `flags: []`.
+
         With `?baseline=N` the document gains `baseline` (`ProjectBaseline`): the project's own span then and its movement
         (`project`, null when the project is newer than the baseline), one entry per LIVE milestone the baseline also froze
         (`milestones`: its dates, estimate and team then, and its movement in working days on the CURRENT calendar - a live milestone
@@ -1833,6 +1838,10 @@ paths:
         and checked on the working-day index, violated first; a link's other end may lie in another team or project and is not listed
         as a row of its own. `idleGaps` lists the runs of 3 or more working days with none of the team's milestones in progress.
 
+        Jira (1.3): every milestone (`scheduled` and `unscheduled`) bound to a Jira item through an ENABLED connection carries `jira` and
+        one `JIRA_DEVIATION` flag per OPEN deviation, as `GET /views/roadmap` describes; `jiraSites` lists the connections the rows link
+        to. An unbound milestone answers `jira: null` and `flags: []`.
+
         With `?baseline=N` the document gains `baseline` (`TeamBaseline`): one entry per LIVE milestone of the team that the baseline
         also froze (`milestones`, with the team it sat on then - `teamIdThen` - and its movement in working days on the CURRENT
         calendar; a live milestone without an entry is new since the baseline) and the baseline's milestones of THIS team that are not
@@ -1874,6 +1883,9 @@ paths:
         A program's `span` is derived from its projects' spans (earliest start to latest end, null while none is scheduled) and a
         work stream's from its programs' spans; nothing is stored. `flags` roll the projects' flags up: the number of WARNING and INFO
         flags over the program's (work stream's) projects. Programs and work streams carry no target window.
+
+        Jira (1.3): the project rows carry the roadmap's `jira` and Jira flags (so a program's and work stream's `flags` counts include
+        them) and the document carries `jiraSites`, all as `GET /views/roadmap` describes.
 
         With `?baseline=N` the document gains `baseline` (the baseline's identity), every project row gains its `baseline` block (as
         `GET /views/roadmap`'s) and a program (work stream) with at least one project the baseline froze gains `baseline`: the span
@@ -1920,6 +1932,14 @@ paths:
         `can.editRank` is whether THIS caller may `PUT /roadmap/ranking` (ADMIN or a ROADMAP_EDITOR holder) and each project's
         `can.editTargetWindow` whether they may `PUT /projects/{id}/target-window` (ADMIN, an owner above the project, or a
         ROADMAP_EDITOR holder). `revision` is the RANKING's revision (the plan revision at which the rank was last written), read before the rows - send it back as `expectedRevision`. Plan writes elsewhere do not move it.
+
+        Jira (1.3): a project bound to a Jira item through an ENABLED connection carries `jira` (`bindingId`, `connectionId`, `issueKey`
+        and the dates Jira was last observed to hold, null when never observed or gone) and the Jira flags of its OPEN deviations - one
+        `JIRA_DEVIATION` per deviation (with its `deviation`) and one `JIRA_MILESTONES` roll-up of its milestones' (`count` of milestones
+        that raised a flag, the worst severity; never one flag per milestone). A binding is open while it deviates and its acknowledgement
+        is not current; `ESTIMATE_NOT_COMPARABLE` never raises a flag. A disabled connection's rows answer `jira: null` and no flag.
+        `jiraSites` lists the connections the document links to (the client builds `siteUrl + "/browse/" + issueKey`); an unbound plan
+        answers `jira: null`, no Jira flag and `jiraSites: []`. Read inside the same snapshot; `?baseline=` leaves all of it as it is.
 
         With `?baseline=N` the document gains `baseline` (the baseline's identity and the projects it froze that are gone) and every
         project the baseline also froze gains a `baseline` block: the derived span, rank position and target window it had and the
@@ -4597,7 +4617,7 @@ components:
 
     ProjectView:
       type: object
-      required: [revision, project, span, drift, scheduled, unscheduled, dependencies, idleGaps, criticalPath]
+      required: [revision, project, span, drift, scheduled, unscheduled, dependencies, idleGaps, criticalPath, jiraSites]
       properties:
         revision:
           type: integer
@@ -4642,6 +4662,13 @@ components:
             $ref: '#/components/schemas/IdleGap'
         criticalPath:
           $ref: '#/components/schemas/CriticalPath'
+        jiraSites:
+          type: array
+          description: >-
+            The enabled Jira connections that a binding in this document's scope links to (a roadmap or programs document also lists a connection that only has milestone bindings), by connection id, once per document; the client builds a row's
+            browse URL as `siteUrl + "/browse/" + jira.issueKey`. Empty when nothing is linked.
+          items:
+            $ref: '#/components/schemas/JiraSite'
         baseline:
           $ref: '#/components/schemas/ProjectBaseline'
     CriticalPath:
@@ -4742,7 +4769,7 @@ components:
         endDays: { type: integer, format: int64, description: '`span.end` minus `target.end`.' }
     ProjectViewProject:
       type: object
-      required: [id, programId, workStreamId, programName, workStreamName, name, description, ownerPersonId, ownerName, targetStart, targetEnd, createdAt, updatedAt, can]
+      required: [id, programId, workStreamId, programName, workStreamName, name, description, ownerPersonId, ownerName, targetStart, targetEnd, createdAt, updatedAt, can, jira, flags]
       description: The `PlanProject` fields plus the names of the project's program and work stream.
       properties:
         id: { type: integer, format: int32, minimum: 0 }
@@ -4758,6 +4785,18 @@ components:
         targetEnd: { type: string, format: date, nullable: true }
         createdAt: { type: integer, format: int64 }
         updatedAt: { type: integer, format: int64 }
+        jira:
+          nullable: true
+          description: The project's own Jira item (1.3); null when it is unbound or its connection is disabled.
+          allOf:
+            - $ref: '#/components/schemas/JiraLink'
+        flags:
+          type: array
+          description: >-
+            The project's Jira flags (1.3): `JIRA_DEVIATION` per open deviation of its own binding and the `JIRA_MILESTONES` roll-up of its
+            milestones, the same Jira flags the roadmap row carries; WARNING first.
+          items:
+            $ref: '#/components/schemas/PlanFlag'
         can:
           type: object
           required: [edit, delete, editTargetWindow, createMilestone, createDependency]
@@ -4769,7 +4808,7 @@ components:
             createDependency: { type: boolean, description: 'The caller may create a dependency whose successor is the project or one of its milestones (an owner on its chain, or ADMIN).' }
     ProjectMilestone:
       type: object
-      required: [id, projectId, name, description, teamId, teamName, estimateMd, startDate, endDate, createdAt, updatedAt, slackDays, critical, can]
+      required: [id, projectId, name, description, teamId, teamName, estimateMd, startDate, endDate, createdAt, updatedAt, slackDays, critical, can, jira, flags]
       description: A milestone as the project view shows it - the `MilestoneResponse` fields plus the caller's actions. Both dates are null in `unscheduled`, both set in `scheduled`.
       properties:
         id: { type: integer, format: int32, minimum: 0 }
@@ -4785,6 +4824,16 @@ components:
         updatedAt: { type: integer, format: int64, description: Epoch millis }
         slackDays: { type: integer, format: int32, minimum: 0, nullable: true, description: 'Working days this milestone could slip before THIS project''s end moves; null = unscheduled.' }
         critical: { type: boolean, description: 'Zero slack: on the critical path of this project.' }
+        jira:
+          nullable: true
+          description: The node's Jira item (1.3); null when it is unbound or its connection is disabled.
+          allOf:
+            - $ref: '#/components/schemas/JiraLink'
+        flags:
+          type: array
+          description: The open Jira flags of the milestone (`JIRA_DEVIATION`, one per deviation, WARNING first); empty when it is unbound, clean, acknowledged or on a disabled connection.
+          items:
+            $ref: '#/components/schemas/PlanFlag'
         can:
           type: object
           required: [edit, delete, schedule]
@@ -4795,7 +4844,7 @@ components:
 
     TeamView:
       type: object
-      required: [revision, team, order, capacity, weeks, weeksTruncated, scheduled, unscheduled, dependencies, idleGaps]
+      required: [revision, team, order, capacity, weeks, weeksTruncated, scheduled, unscheduled, dependencies, idleGaps, jiraSites]
       properties:
         revision:
           type: integer
@@ -4842,6 +4891,13 @@ components:
             them is in progress (weekends and public holidays neither count nor break a run), by start date; empty when there are none.
           items:
             $ref: '#/components/schemas/IdleGap'
+        jiraSites:
+          type: array
+          description: >-
+            The enabled Jira connections that a binding in this document's scope links to (a roadmap or programs document also lists a connection that only has milestone bindings), by connection id, once per document; the client builds a row's
+            browse URL as `siteUrl + "/browse/" + jira.issueKey`. Empty when nothing is linked.
+          items:
+            $ref: '#/components/schemas/JiraSite'
         baseline:
           $ref: '#/components/schemas/TeamBaseline'
     IdleGap:
@@ -4934,7 +4990,7 @@ components:
         wipExceeded: { type: boolean, description: Some working day's in-progress count exceeds the WIP limit in force that day. }
     TeamMilestone:
       type: object
-      required: [id, projectId, name, description, teamId, teamName, estimateMd, startDate, endDate, createdAt, updatedAt, projectName, programName, workStreamName, rankPosition]
+      required: [id, projectId, name, description, teamId, teamName, estimateMd, startDate, endDate, createdAt, updatedAt, projectName, programName, workStreamName, rankPosition, jira, flags]
       description: A milestone as the team view shows it - the `MilestoneResponse` fields plus the names of its project chain and its project's rank. Both dates are null in `unscheduled`.
       properties:
         id: { type: integer, format: int32, minimum: 0 }
@@ -4952,6 +5008,16 @@ components:
         programName: { type: string }
         workStreamName: { type: string }
         rankPosition: { type: integer, format: int32, minimum: 1, nullable: true, description: The project's position in the global project rank; null = unranked. }
+        jira:
+          nullable: true
+          description: The node's Jira item (1.3); null when it is unbound or its connection is disabled.
+          allOf:
+            - $ref: '#/components/schemas/JiraLink'
+        flags:
+          type: array
+          description: The open Jira flags of the milestone (`JIRA_DEVIATION`, one per deviation, WARNING first); empty when it is unbound, clean, acknowledged or on a disabled connection.
+          items:
+            $ref: '#/components/schemas/PlanFlag'
 
     DeviationKind:
       type: string
@@ -5155,7 +5221,7 @@ components:
         truncated: { type: boolean, description: "True when more than 2,000 bindings matched and the tail was dropped." }
     RoadmapView:
       type: object
-      required: [revision, can, teams, ranked, unranked, links]
+      required: [revision, can, teams, ranked, unranked, links, jiraSites]
       properties:
         revision:
           type: integer
@@ -5187,6 +5253,13 @@ components:
           description: The dependencies between projects, rolled up per ordered pair (predecessor, successor project id).
           items:
             $ref: '#/components/schemas/RoadmapLink'
+        jiraSites:
+          type: array
+          description: >-
+            The enabled Jira connections that a binding in this document's scope links to (a roadmap or programs document also lists a connection that only has milestone bindings), by connection id, once per document; the client builds a row's
+            browse URL as `siteUrl + "/browse/" + jira.issueKey`. Empty when nothing is linked.
+          items:
+            $ref: '#/components/schemas/JiraSite'
         baseline:
           $ref: '#/components/schemas/RoadmapBaseline'
     RoadmapTeam:
@@ -5204,7 +5277,7 @@ components:
           $ref: '#/components/schemas/RoadmapProject'
     RoadmapProject:
       type: object
-      required: [id, name, programId, programName, workStreamId, workStreamName, ownerPersonId, ownerName, targetStart, targetEnd, rankPosition, teamIds, span, drift, flags, can]
+      required: [id, name, programId, programName, workStreamId, workStreamName, ownerPersonId, ownerName, targetStart, targetEnd, rankPosition, teamIds, span, drift, flags, can, jira]
       properties:
         id: { type: integer, format: int32, minimum: 0 }
         name: { type: string }
@@ -5233,7 +5306,10 @@ components:
             - $ref: '#/components/schemas/Drift'
         flags:
           type: array
-          description: The drift and rank-inversion flags raised on this project; WARNING first, then by kind, team and other project.
+          description: >-
+            The flags raised on this project: the drift and rank-inversion flags and (1.3) the Jira ones - `JIRA_DEVIATION` per open
+            deviation of its own binding, one `JIRA_MILESTONES` roll-up of its milestones' (never one flag per milestone); WARNING first,
+            then by kind, team and other project.
           items:
             $ref: '#/components/schemas/PlanFlag'
         can:
@@ -5241,16 +5317,24 @@ components:
           required: [editTargetWindow]
           properties:
             editTargetWindow: { type: boolean, description: 'The caller may `PUT /projects/{id}/target-window`: ADMIN, an owner above the project, or a ROADMAP_EDITOR holder.' }
+        jira:
+          nullable: true
+          description: The project's own Jira item (1.3); null when it is unbound or its connection is disabled.
+          allOf:
+            - $ref: '#/components/schemas/JiraLink'
         baseline:
           $ref: '#/components/schemas/RoadmapProjectBaseline'
     PlanFlag:
       type: object
-      required: [kind, severity, days, teamId, otherProjectId]
-      description: One flag raised on a project. Warnings only - nothing is ever moved.
+      required: [kind, severity, days, teamId, otherProjectId, deviation, count]
+      description: One flag raised on a project or, for `JIRA_DEVIATION`, a milestone. Warnings only - nothing is ever moved.
       properties:
         kind:
           type: string
-          enum: [DRIFT_END_LATE, DRIFT_START_LATE, DRIFT_END_EARLY, RANK_INVERSION]
+          enum: [DRIFT_END_LATE, DRIFT_START_LATE, DRIFT_END_EARLY, RANK_INVERSION, JIRA_DEVIATION, JIRA_MILESTONES]
+          description: >-
+            `JIRA_DEVIATION` is one open deviation between a node and its Jira item (a binding through an enabled connection that is not
+            currently acknowledged; `ESTIMATE_NOT_COMPARABLE` never raises one), `JIRA_MILESTONES` a project's roll-up of its milestones'.
         severity:
           type: string
           enum: [WARNING, INFO]
@@ -5272,6 +5356,36 @@ components:
           minimum: 0
           nullable: true
           description: The higher-ranked project of a rank inversion; null for drift.
+        deviation:
+          nullable: true
+          description: The evidence of a `JIRA_DEVIATION` flag (its severity is the flag's); null on every other kind.
+          allOf:
+            - $ref: '#/components/schemas/Deviation'
+        count:
+          type: integer
+          format: int32
+          minimum: 1
+          nullable: true
+          description: The milestones of the project that raised a Jira flag, for `JIRA_MILESTONES` (the flag's severity is the worst among them); null on every other kind.
+    JiraLink:
+      type: object
+      required: [bindingId, connectionId, issueKey, start, end]
+      description: >-
+        A plan node's Jira item (1.3). The browse URL is not per row: find `connectionId` in the document's `jiraSites`. Present only for a
+        binding through an ENABLED connection.
+      properties:
+        bindingId: { type: integer, format: int32, minimum: 0 }
+        connectionId: { type: integer, format: int32, minimum: 0 }
+        issueKey: { type: string }
+        start: { type: string, format: date, nullable: true, description: 'The start Jira was last observed to hold; null when never observed, absent in Jira, or the item is gone.' }
+        end: { type: string, format: date, nullable: true, description: 'The end Jira was last observed to hold; null when never observed, absent in Jira, or the item is gone.' }
+    JiraSite:
+      type: object
+      required: [connectionId, siteUrl]
+      description: An enabled Jira connection that a binding in the document's scope links to. Never the connection's name or any credential.
+      properties:
+        connectionId: { type: integer, format: int32, minimum: 0 }
+        siteUrl: { type: string, description: 'The site''s origin, e.g. `https://example.atlassian.net`; append `/browse/` and an issue key.' }
     RoadmapLink:
       type: object
       required: [predecessorProjectId, successorProjectId, direct, milestoneLinks]
@@ -5311,7 +5425,7 @@ components:
         infos: { type: integer, format: int32, minimum: 0, description: How many flags are INFOs. }
     ProgramsView:
       type: object
-      required: [revision, teams, links, workStreams]
+      required: [revision, teams, links, workStreams, jiraSites]
       properties:
         revision:
           type: integer
@@ -5333,6 +5447,13 @@ components:
           description: Open work streams first, then closed ones, each by name (case-insensitive) then id.
           items:
             $ref: '#/components/schemas/ProgramsWorkStream'
+        jiraSites:
+          type: array
+          description: >-
+            The enabled Jira connections that a binding in this document's scope links to (a roadmap or programs document also lists a connection that only has milestone bindings), by connection id, once per document; the client builds a row's
+            browse URL as `siteUrl + "/browse/" + jira.issueKey`. Empty when nothing is linked.
+          items:
+            $ref: '#/components/schemas/JiraSite'
         baseline:
           $ref: '#/components/schemas/BaselineRef'
     ProgramsWorkStream:

@@ -1,11 +1,11 @@
 package ch.nokillswit
 
 import ch.nokillswit.infra.json.sha256Hex
-import ch.nokillswit.jira.Deviation
-import ch.nokillswit.jira.DeviationDetail
-import ch.nokillswit.jira.DeviationKind
-import ch.nokillswit.jira.DeviationSeverity
 import ch.nokillswit.jira.fingerprintOf
+import ch.nokillswit.planning.Deviation
+import ch.nokillswit.planning.DeviationDetail
+import ch.nokillswit.planning.DeviationKind
+import ch.nokillswit.planning.DeviationSeverity
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals

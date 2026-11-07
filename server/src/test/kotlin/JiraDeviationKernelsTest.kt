@@ -1,10 +1,7 @@
 package ch.nokillswit
 
 import ch.nokillswit.infra.time.WorkingCalendar
-import ch.nokillswit.jira.Deviation
-import ch.nokillswit.jira.DeviationKind
 import ch.nokillswit.jira.DeviationMapping
-import ch.nokillswit.jira.DeviationSeverity
 import ch.nokillswit.jira.JiraDeviationKernels
 import ch.nokillswit.jira.JiraEstimateUnit
 import ch.nokillswit.jira.JiraLevel
@@ -13,6 +10,9 @@ import ch.nokillswit.jira.ObservedIssue
 import ch.nokillswit.jira.PlanParent
 import ch.nokillswit.jira.PlanRef
 import ch.nokillswit.jira.PlanSide
+import ch.nokillswit.planning.Deviation
+import ch.nokillswit.planning.DeviationKind
+import ch.nokillswit.planning.DeviationSeverity
 import java.math.BigDecimal
 import java.time.LocalDate
 import kotlin.test.Test

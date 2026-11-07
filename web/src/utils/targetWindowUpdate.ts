@@ -4,9 +4,9 @@ import type { PlanFlag, RoadmapProject, RoadmapView } from "../api/roadmap";
 // The optimistic step of a target-window write on the two cached plan views. The window is the one figure the SPA changes; the server's
 // derived figures that depend on it - the drift and the drift flags - are not recomputed here: they are dropped (so a stale overrun band or
 // a stale "ends 10 days after the target" never sits beside the new window) and the refetch after the write brings the server's own.
-// The rank-inversion flags do not depend on the window and stay.
 
-const isDriftFlag = (flag: PlanFlag) => flag.kind !== "RANK_INVERSION";
+// Only the drift kinds depend on the window; the rank-inversion and the Jira flags (1.3) do not and stay.
+const isDriftFlag = (flag: PlanFlag) => flag.kind.startsWith("DRIFT_");
 
 /** The project with its window replaced (a null pair clears it) and its drift and drift flags dropped. */
 function withWindow(project: RoadmapProject, start: string | null, end: string | null): RoadmapProject {

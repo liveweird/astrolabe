@@ -9,6 +9,8 @@ import { jsonResponse } from "../test/http";
 import { renderWithProviders } from "../test/render";
 
 const milestone = (id: number, name: string, over: Partial<ProjectMilestone> = {}): ProjectMilestone => ({
+  jira: null,
+  flags: [],
   id,
   projectId: 7,
   name,
@@ -29,7 +31,10 @@ const milestone = (id: number, name: string, over: Partial<ProjectMilestone> = {
 const projectCan = { edit: true, delete: true, editTargetWindow: false, createMilestone: true, createDependency: false };
 const viewOf = (over: Partial<ProjectViewDocument["project"]["can"]> = {}, milestones: ProjectMilestone[] = [milestone(1, "Discovery"), milestone(2, "Build", { startDate: "2027-01-18", endDate: "2027-01-22" })]): ProjectViewDocument => ({
   revision: 10,
+  jiraSites: [],
   project: {
+    jira: null,
+    flags: [],
     id: 7, programId: 70, workStreamId: 700, programName: "Billing", workStreamName: "Platform", name: "Invoices", description: null,
     ownerPersonId: 5, ownerName: "Ola Owner", targetStart: null, targetEnd: null, createdAt: 1, updatedAt: 2, can: { ...projectCan, ...over },
   },

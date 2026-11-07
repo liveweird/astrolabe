@@ -4,6 +4,7 @@ import type { RoadmapProject } from "../api/roadmap";
 import { allOpen, defaultOpen, programChoices, toggled, treeDates, treeFacts, treeRows } from "./programsTree";
 
 const project = (id: number, name: string, over: Partial<RoadmapProject> = {}): RoadmapProject => ({
+  jira: null,
   id,
   name,
   programId: 0,
@@ -54,6 +55,7 @@ const REPORTS = program(11, "Reports", [project(3, "Dashboards", { span: { start
 const LEGACY = program(12, "Legacy", []);
 
 const viewOf = (): ProgramsView => ({
+  jiraSites: [],
   revision: 3,
   teams: [],
   links: [],

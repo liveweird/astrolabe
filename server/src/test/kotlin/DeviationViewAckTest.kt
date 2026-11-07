@@ -1,17 +1,17 @@
 package ch.nokillswit
 
-import ch.nokillswit.jira.DeviationKind
-import ch.nokillswit.jira.JiraLevel
 import ch.nokillswit.jira.DeviationScope
 import ch.nokillswit.jira.DeviationViewServiceKey
+import ch.nokillswit.jira.JiraLevel
 import ch.nokillswit.jira.fingerprintOf
+import ch.nokillswit.planning.DeviationKind
 import ch.nokillswit.planning.loadWorkingCalendar
 import io.ktor.client.request.get
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
-import org.junit.After
 import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
+import org.junit.After
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

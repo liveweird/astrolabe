@@ -3,9 +3,10 @@ import type { ProgramsView } from "../api/programs";
 import type { PlanFlag, RoadmapProject, RoadmapView } from "../api/roadmap";
 import { applyProgramsWindow, applyRoadmapWindow } from "./targetWindowUpdate";
 
-const flag = (kind: PlanFlag["kind"], severity: PlanFlag["severity"]): PlanFlag => ({ kind, severity, days: 3, teamId: null, otherProjectId: null });
+const flag = (kind: PlanFlag["kind"], severity: PlanFlag["severity"]): PlanFlag => ({ kind, severity, days: 3, teamId: null, otherProjectId: null, deviation: null, count: null });
 
 const project = (id: number, over: Partial<RoadmapProject> = {}): RoadmapProject => ({
+  jira: null,
   id,
   name: `P${id}`,
   programId: 10,
@@ -27,6 +28,7 @@ const project = (id: number, over: Partial<RoadmapProject> = {}): RoadmapProject
 
 describe("applyRoadmapWindow", () => {
   const view: RoadmapView = {
+    jiraSites: [],
     revision: 4,
     can: { editRank: true },
     teams: [],
@@ -54,6 +56,7 @@ describe("applyRoadmapWindow", () => {
 
 describe("applyProgramsWindow", () => {
   const view: ProgramsView = {
+    jiraSites: [],
     revision: 9,
     teams: [],
     links: [],
@@ -91,5 +94,38 @@ describe("applyProgramsWindow", () => {
     expect(moved.workStreams[0].programs[0].flags).toEqual({ warnings: 2, infos: 1 });
     expect(moved.workStreams[0].flags).toEqual({ warnings: 3, infos: 2 });
     expect(applyProgramsWindow(view, 99, null, null).workStreams[0].programs[0]).toBe(view.workStreams[0].programs[0]);
+  });
+});
+
+describe("the Jira flags are not drift", () => {
+  const jira = [flag("JIRA_DEVIATION", "INFO"), flag("JIRA_MILESTONES", "WARNING")];
+  const withJira = project(1, { flags: [flag("DRIFT_END_LATE", "WARNING"), ...jira] });
+
+  test("a window edit keeps a project's Jira flags and the roll-up counts keep them", () => {
+    const roadmap: RoadmapView = { jiraSites: [], revision: 1, can: { editRank: true }, teams: [], links: [], ranked: [], unranked: [withJira] };
+    expect(applyRoadmapWindow(roadmap, 1, null, null).unranked[0].flags.map((f) => f.kind)).toEqual(["JIRA_DEVIATION", "JIRA_MILESTONES"]);
+
+    const programs: ProgramsView = {
+      jiraSites: [],
+      revision: 1,
+      teams: [],
+      links: [],
+      workStreams: [
+        {
+          id: 1,
+          name: "Platform",
+          ownerName: "Sam",
+          startDate: "2026-01-05",
+          endDate: null,
+          span: null,
+          flags: { warnings: 2, infos: 1 },
+          programs: [{ id: 10, name: "Billing", ownerName: "Pat", span: null, flags: { warnings: 2, infos: 1 }, projects: [withJira] }],
+        },
+      ],
+    };
+    const moved = applyProgramsWindow(programs, 1, null, null);
+    expect(moved.workStreams[0].programs[0].projects[0].flags.map((f) => f.kind)).toEqual(["JIRA_DEVIATION", "JIRA_MILESTONES"]);
+    expect(moved.workStreams[0].programs[0].flags).toEqual({ warnings: 1, infos: 1 });
+    expect(moved.workStreams[0].flags).toEqual({ warnings: 1, infos: 1 });
   });
 });

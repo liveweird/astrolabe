@@ -25,6 +25,8 @@ data class RoadmapView(
     val ranked: List<RoadmapRankedProject>,
     val unranked: List<RoadmapProject>,
     val links: List<RoadmapLink>,
+    /** The Jira connections a binding in scope links to (empty without a binding), once per document ([JiraSite]). */
+    val jiraSites: List<JiraSite> = emptyList(),
     /** Present only for `?baseline=N`: which baseline the projects' `baseline` blocks compare to, and the projects it had that are gone. */
     @EncodeDefault(EncodeDefault.Mode.NEVER)
     val baseline: RoadmapBaseline? = null,
@@ -44,7 +46,10 @@ data class RoadmapRankedProject(val position: Int, val project: RoadmapProject)
 /**
  * One project row of the roadmap (and, since v0.6, of the programs view: ONE schema). [span] is DERIVED from its scheduled milestones
  * and [drift] is that span against the target window; [flags] are the drift and rank-inversion flags raised ON this project, WARNING
- * first ([FLAG_ORDER]); [teamIds] are the teams of ALL its active milestones, ascending; [rankPosition] is null while unranked.
+ * first ([FLAG_ORDER]), plus (1.3) the Jira flags of an ENABLED connection's OPEN deviations ([FlagKind.JIRA_DEVIATION] per deviation
+ * of the project's own binding, one [FlagKind.JIRA_MILESTONES] roll-up of its milestones'); [teamIds] are the teams of ALL its active
+ * milestones, ascending; [rankPosition] is null while unranked. [jira] is the project's own Jira link, null when it is unbound or its
+ * connection is disabled.
  */
 @Serializable
 data class RoadmapProject(
@@ -64,6 +69,7 @@ data class RoadmapProject(
     val drift: Drift?,
     val flags: List<PlanFlag>,
     val can: RoadmapProjectCan,
+    val jira: JiraLink? = null,
     /** Present only for `?baseline=N` and a project the baseline also froze (absent = the project is newer than the baseline). */
     @EncodeDefault(EncodeDefault.Mode.NEVER)
     val baseline: RoadmapProjectBaseline? = null,
@@ -73,9 +79,12 @@ data class RoadmapProject(
 @Serializable
 data class RoadmapProjectCan(val editTargetWindow: Boolean)
 
-/** What a flag is about; the declaration order is the flags' order within a severity. */
+/**
+ * What a flag is about; the declaration order is the flags' order within a severity. The Jira kinds come last (1.3):
+ * [JIRA_DEVIATION] is one open deviation between a node and its Jira item, [JIRA_MILESTONES] a project's roll-up of its milestones'.
+ */
 @Serializable
-enum class FlagKind { DRIFT_END_LATE, DRIFT_START_LATE, DRIFT_END_EARLY, RANK_INVERSION }
+enum class FlagKind { DRIFT_END_LATE, DRIFT_START_LATE, DRIFT_END_EARLY, RANK_INVERSION, JIRA_DEVIATION, JIRA_MILESTONES }
 
 /** WARNING sorts before INFO. */
 @Serializable
@@ -84,7 +93,9 @@ enum class FlagSeverity { WARNING, INFO }
 /**
  * One flag raised on a project. [days] is the drift in calendar days (always positive) or, for an inversion, how many calendar days
  * earlier this project starts than [otherProjectId]; [teamId] is the shared team of a per-team inversion (null for the no-shared-team
- * INFO and for drift); [otherProjectId] is the higher-ranked project of an inversion.
+ * INFO and for drift); [otherProjectId] is the higher-ranked project of an inversion. A [FlagKind.JIRA_DEVIATION] carries its
+ * [deviation] (the evidence; [days] stays null, the detail holds them) and a [FlagKind.JIRA_MILESTONES] its [count] of milestones with
+ * an open deviation (the severity is the worst among them); both members are null on every other kind.
  */
 @Serializable
 data class PlanFlag(
@@ -93,6 +104,8 @@ data class PlanFlag(
     val days: Int?,
     val teamId: UInt?,
     val otherProjectId: UInt?,
+    val deviation: Deviation? = null,
+    val count: Int? = null,
 )
 
 /** The number of WARNING and INFO flags over a set of projects (a program's or work stream's roll-up). */

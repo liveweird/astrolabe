@@ -11,9 +11,10 @@ import { renderWithProviders } from "../test/render";
 const PICK_KEY = "astrolabe.viewSettings.planning.programPick";
 const ZOOM_KEY = "astrolabe.viewSettings.timeline.planZoom";
 
-const flag = (kind: PlanFlag["kind"], severity: PlanFlag["severity"], days: number): PlanFlag => ({ kind, severity, days, teamId: null, otherProjectId: null });
+const flag = (kind: PlanFlag["kind"], severity: PlanFlag["severity"], days: number): PlanFlag => ({ kind, severity, days, teamId: null, otherProjectId: null, deviation: null, count: null });
 
 const project = (id: number, name: string, over: Partial<RoadmapProject> = {}): RoadmapProject => ({
+  jira: null,
   id,
   name,
   programId: 10,
@@ -66,7 +67,7 @@ const LINKS: RoadmapLink[] = [
   { predecessorProjectId: 2, successorProjectId: 3, direct: null, milestoneLinks: { count: 2, violated: 1, unscheduled: 0 } },
 ];
 
-const viewOf = (over: Partial<ProgramsView> = {}): ProgramsView => ({ revision: 9, teams: [], links: LINKS, workStreams: [PLATFORM, ARCHIVE], ...over });
+const viewOf = (over: Partial<ProgramsView> = {}): ProgramsView => ({ jiraSites: [], revision: 9, teams: [], links: LINKS, workStreams: [PLATFORM, ARCHIVE], ...over });
 
 let mockFetch: ReturnType<typeof vi.fn>;
 let view: ProgramsView;

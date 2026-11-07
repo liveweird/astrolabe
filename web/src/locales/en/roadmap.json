@@ -80,6 +80,9 @@
     "inversion_other": "Ranked below {{other}}, but starts {{count}} days earlier on {{team}}",
     "inversionNoTeam_one": "Ranked below {{other}}, but starts {{count}} day earlier (no shared team)",
     "inversionNoTeam_other": "Ranked below {{other}}, but starts {{count}} days earlier (no shared team)",
+    "jiraDeviation": "Differs from Jira",
+    "jiraMilestones_one": "{{count}} milestone deviates from Jira",
+    "jiraMilestones_other": "{{count}} milestones deviate from Jira",
     "show": "Show in timeline",
     "showAria": "Show in timeline: {{name}}"
   },

@@ -1,5 +1,8 @@
 package ch.nokillswit.jira
 
+import ch.nokillswit.planning.Deviation
+import ch.nokillswit.planning.DeviationKind
+import ch.nokillswit.planning.DeviationSeverity
 import ch.nokillswit.sync.SyncLastRun
 import ch.nokillswit.sync.SyncStatus
 import kotlinx.serialization.Serializable

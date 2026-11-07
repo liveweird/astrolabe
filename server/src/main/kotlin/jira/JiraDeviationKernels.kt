@@ -2,54 +2,17 @@ package ch.nokillswit.jira
 
 import ch.nokillswit.infra.time.WorkingCalendar
 import ch.nokillswit.planning.DaySpan
+import ch.nokillswit.planning.Deviation
+import ch.nokillswit.planning.DeviationDetail
+import ch.nokillswit.planning.DeviationKind
+import ch.nokillswit.planning.DeviationSeverity
 import ch.nokillswit.planning.MAX_PLAN_NAME_LENGTH
 import ch.nokillswit.planning.endShiftInWorkingDays
 import ch.nokillswit.planning.shiftInWorkingDays
-import kotlinx.serialization.Serializable
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.time.LocalDate
 import java.util.Locale
-
-/**
- * How the plan and Jira disagree about a bound node. The declaration order is the order of the kinds within one item.
- * `ESTIMATE_NOT_COMPARABLE` is the one kind the view lists only on request (`all=true`, or `kind=` naming it): it says "a figure
- * exists and cannot be compared".
- */
-@Serializable
-enum class DeviationKind {
-    GONE,
-    LEVEL_MISMATCH,
-    PARENT_MISMATCH,
-    RENAMED,
-    START_DIFFERS,
-    END_DIFFERS,
-    TARGET_DIFFERS,
-    UNSCHEDULED_IN_PLAN,
-    UNSCHEDULED_IN_JIRA,
-    ESTIMATE_DIFFERS,
-    ESTIMATE_NOT_COMPARABLE,
-    PROGRESS_MISMATCH,
-}
-
-/** WARNING sorts before INFO (the roadmap flags' vocabulary). */
-@Serializable
-enum class DeviationSeverity { WARNING, INFO }
-
-/**
- * The evidence of one deviation, every member optional and a string so one shape serves every kind (the page phrases it per kind):
- * `GONE` jira = the gone reason; `LEVEL_MISMATCH` jira = the observed hierarchy level ("unknown" when none), plan = the mapped one;
- * `PARENT_MISMATCH` jira = the observed parent's key, plan = the plan parent's name; `RENAMED` jira = the summary, plan = the name;
- * `START_DIFFERS` / `END_DIFFERS` the two ISO dates and [days]; `TARGET_DIFFERS` [days] only (the end's shift, else the start's -
- * the item's `jira` and `plan` blocks hold the dates); `ESTIMATE_DIFFERS` jira = the figure converted to man-days, plan = the
- * milestone's; `ESTIMATE_NOT_COMPARABLE` jira = the raw figure, plan = the milestone's man-days; `PROGRESS_MISMATCH` jira = the status
- * category, plan = the plan date that contradicts it; `UNSCHEDULED_*` nothing. [days] is in WORKING days, POSITIVE = the plan is later.
- */
-@Serializable
-data class DeviationDetail(val jira: String?, val plan: String?, val days: Int?)
-
-@Serializable
-data class Deviation(val kind: DeviationKind, val severity: DeviationSeverity, val detail: DeviationDetail)
 
 /** Jira's side of a binding as last observed (a run or the bind wrote it). Dates are Jira's own, with no order check. */
 data class ObservedIssue(

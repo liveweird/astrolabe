@@ -1175,6 +1175,11 @@ export interface paths {
          *     is listed only when an included link (not violated, both ends scheduled) names it. The chain is never cut; the others are capped at 100 (`upstreamTruncated`). Entities that
          *     only lie downstream of this project, or are unconnected to its end, are absent.
          *
+         *     Jira (1.3): the project (`project.jira`, `project.flags`: its own `JIRA_DEVIATION` flags and the `JIRA_MILESTONES` roll-up) and
+         *     every milestone (`scheduled` and `unscheduled`: `jira` and one `JIRA_DEVIATION` flag per OPEN deviation) carry their Jira item,
+         *     as `GET /views/roadmap` describes; `jiraSites` lists the connections the bindings in scope link to. An unbound node answers `jira: null` and
+         *     `flags: []`.
+         *
          *     With `?baseline=N` the document gains `baseline` (`ProjectBaseline`): the project's own span then and its movement
          *     (`project`, null when the project is newer than the baseline), one entry per LIVE milestone the baseline also froze
          *     (`milestones`: its dates, estimate and team then, and its movement in working days on the CURRENT calendar - a live milestone
@@ -1230,6 +1235,10 @@ export interface paths {
          *     and checked on the working-day index, violated first; a link's other end may lie in another team or project and is not listed
          *     as a row of its own. `idleGaps` lists the runs of 3 or more working days with none of the team's milestones in progress.
          *
+         *     Jira (1.3): every milestone (`scheduled` and `unscheduled`) bound to a Jira item through an ENABLED connection carries `jira` and
+         *     one `JIRA_DEVIATION` flag per OPEN deviation, as `GET /views/roadmap` describes; `jiraSites` lists the connections the rows link
+         *     to. An unbound milestone answers `jira: null` and `flags: []`.
+         *
          *     With `?baseline=N` the document gains `baseline` (`TeamBaseline`): one entry per LIVE milestone of the team that the baseline
          *     also froze (`milestones`, with the team it sat on then - `teamIdThen` - and its movement in working days on the CURRENT
          *     calendar; a live milestone without an entry is new since the baseline) and the baseline's milestones of THIS team that are not
@@ -1265,6 +1274,9 @@ export interface paths {
          *     A program's `span` is derived from its projects' spans (earliest start to latest end, null while none is scheduled) and a
          *     work stream's from its programs' spans; nothing is stored. `flags` roll the projects' flags up: the number of WARNING and INFO
          *     flags over the program's (work stream's) projects. Programs and work streams carry no target window.
+         *
+         *     Jira (1.3): the project rows carry the roadmap's `jira` and Jira flags (so a program's and work stream's `flags` counts include
+         *     them) and the document carries `jiraSites`, all as `GET /views/roadmap` describes.
          *
          *     With `?baseline=N` the document gains `baseline` (the baseline's identity), every project row gains its `baseline` block (as
          *     `GET /views/roadmap`'s) and a program (work stream) with at least one project the baseline froze gains `baseline`: the span
@@ -1306,6 +1318,14 @@ export interface paths {
          *     `can.editRank` is whether THIS caller may `PUT /roadmap/ranking` (ADMIN or a ROADMAP_EDITOR holder) and each project's
          *     `can.editTargetWindow` whether they may `PUT /projects/{id}/target-window` (ADMIN, an owner above the project, or a
          *     ROADMAP_EDITOR holder). `revision` is the RANKING's revision (the plan revision at which the rank was last written), read before the rows - send it back as `expectedRevision`. Plan writes elsewhere do not move it.
+         *
+         *     Jira (1.3): a project bound to a Jira item through an ENABLED connection carries `jira` (`bindingId`, `connectionId`, `issueKey`
+         *     and the dates Jira was last observed to hold, null when never observed or gone) and the Jira flags of its OPEN deviations - one
+         *     `JIRA_DEVIATION` per deviation (with its `deviation`) and one `JIRA_MILESTONES` roll-up of its milestones' (`count` of milestones
+         *     that raised a flag, the worst severity; never one flag per milestone). A binding is open while it deviates and its acknowledgement
+         *     is not current; `ESTIMATE_NOT_COMPARABLE` never raises a flag. A disabled connection's rows answer `jira: null` and no flag.
+         *     `jiraSites` lists the connections the document links to (the client builds `siteUrl + "/browse/" + issueKey`); an unbound plan
+         *     answers `jira: null`, no Jira flag and `jiraSites: []`. Read inside the same snapshot; `?baseline=` leaves all of it as it is.
          *
          *     With `?baseline=N` the document gains `baseline` (the baseline's identity and the projects it froze that are gone) and every
          *     project the baseline also froze gains a `baseline` block: the derived span, rank position and target window it had and the
@@ -3461,6 +3481,8 @@ export interface components {
             /** @description The idle gaps inside the span of the milestones that hold a working day: the maximal runs of 3 or more working days on which none of the project's milestones is in progress (weekends and public holidays neither count nor break a run), by start date; empty when there are none. */
             idleGaps: components["schemas"]["IdleGap"][];
             criticalPath: components["schemas"]["CriticalPath"];
+            /** @description The enabled Jira connections that a binding in this document's scope links to (a roadmap or programs document also lists a connection that only has milestone bindings), by connection id, once per document; the client builds a row's browse URL as `siteUrl + "/browse/" + jira.issueKey`. Empty when nothing is linked. */
+            jiraSites: components["schemas"]["JiraSite"][];
             baseline?: components["schemas"]["ProjectBaseline"];
         };
         /** @description The milestones and projects of OTHER projects that lie upstream of this project's end (their slip would eventually move it), the critical ones first, then the rest by slack. */
@@ -3594,6 +3616,10 @@ export interface components {
             createdAt: number;
             /** Format: int64 */
             updatedAt: number;
+            /** @description The project's own Jira item (1.3); null when it is unbound or its connection is disabled. */
+            jira: components["schemas"]["JiraLink"] | null;
+            /** @description The project's Jira flags (1.3): `JIRA_DEVIATION` per open deviation of its own binding and the `JIRA_MILESTONES` roll-up of its milestones, the same Jira flags the roadmap row carries; WARNING first. */
+            flags: components["schemas"]["PlanFlag"][];
             can: {
                 edit: boolean;
                 /** @description A rights flag: the caller may delete the project (its milestones go with it). */
@@ -3646,6 +3672,10 @@ export interface components {
             slackDays: number | null;
             /** @description Zero slack: on the critical path of this project. */
             critical: boolean;
+            /** @description The node's Jira item (1.3); null when it is unbound or its connection is disabled. */
+            jira: components["schemas"]["JiraLink"] | null;
+            /** @description The open Jira flags of the milestone (`JIRA_DEVIATION`, one per deviation, WARNING first); empty when it is unbound, clean, acknowledged or on a disabled connection. */
+            flags: components["schemas"]["PlanFlag"][];
             can: {
                 /** @description The caller may change the plan fields (an owner on the project's chain, or ADMIN). */
                 edit: boolean;
@@ -3675,6 +3705,8 @@ export interface components {
             dependencies: components["schemas"]["ProjectDependency"][];
             /** @description The idle gaps inside the span of the team's scheduled milestones: the maximal runs of 3 or more working days on which none of them is in progress (weekends and public holidays neither count nor break a run), by start date; empty when there are none. */
             idleGaps: components["schemas"]["IdleGap"][];
+            /** @description The enabled Jira connections that a binding in this document's scope links to (a roadmap or programs document also lists a connection that only has milestone bindings), by connection id, once per document; the client builds a row's browse URL as `siteUrl + "/browse/" + jira.issueKey`. Empty when nothing is linked. */
+            jiraSites: components["schemas"]["JiraSite"][];
             baseline?: components["schemas"]["TeamBaseline"];
         };
         /** @description A run of idle working days, answered as its first and last working day. */
@@ -3816,6 +3848,10 @@ export interface components {
              * @description The project's position in the global project rank; null = unranked.
              */
             rankPosition: number | null;
+            /** @description The node's Jira item (1.3); null when it is unbound or its connection is disabled. */
+            jira: components["schemas"]["JiraLink"] | null;
+            /** @description The open Jira flags of the milestone (`JIRA_DEVIATION`, one per deviation, WARNING first); empty when it is unbound, clean, acknowledged or on a disabled connection. */
+            flags: components["schemas"]["PlanFlag"][];
         };
         /** @enum {string} */
         DeviationKind: "GONE" | "LEVEL_MISMATCH" | "PARENT_MISMATCH" | "RENAMED" | "START_DIFFERS" | "END_DIFFERS" | "TARGET_DIFFERS" | "UNSCHEDULED_IN_PLAN" | "UNSCHEDULED_IN_JIRA" | "ESTIMATE_DIFFERS" | "ESTIMATE_NOT_COMPARABLE" | "PROGRESS_MISMATCH";
@@ -4074,6 +4110,8 @@ export interface components {
             unranked: components["schemas"]["RoadmapProject"][];
             /** @description The dependencies between projects, rolled up per ordered pair (predecessor, successor project id). */
             links: components["schemas"]["RoadmapLink"][];
+            /** @description The enabled Jira connections that a binding in this document's scope links to (a roadmap or programs document also lists a connection that only has milestone bindings), by connection id, once per document; the client builds a row's browse URL as `siteUrl + "/browse/" + jira.issueKey`. Empty when nothing is linked. */
+            jiraSites: components["schemas"]["JiraSite"][];
             baseline?: components["schemas"]["RoadmapBaseline"];
         };
         RoadmapTeam: {
@@ -4117,18 +4155,23 @@ export interface components {
             span: components["schemas"]["DateSpan"] | null;
             /** @description `span` against the target window; null unless both exist. */
             drift: components["schemas"]["Drift"] | null;
-            /** @description The drift and rank-inversion flags raised on this project; WARNING first, then by kind, team and other project. */
+            /** @description The flags raised on this project: the drift and rank-inversion flags and (1.3) the Jira ones - `JIRA_DEVIATION` per open deviation of its own binding, one `JIRA_MILESTONES` roll-up of its milestones' (never one flag per milestone); WARNING first, then by kind, team and other project. */
             flags: components["schemas"]["PlanFlag"][];
             can: {
                 /** @description The caller may `PUT /projects/{id}/target-window`: ADMIN, an owner above the project, or a ROADMAP_EDITOR holder. */
                 editTargetWindow: boolean;
             };
+            /** @description The project's own Jira item (1.3); null when it is unbound or its connection is disabled. */
+            jira: components["schemas"]["JiraLink"] | null;
             baseline?: components["schemas"]["RoadmapProjectBaseline"];
         };
-        /** @description One flag raised on a project. Warnings only - nothing is ever moved. */
+        /** @description One flag raised on a project or, for `JIRA_DEVIATION`, a milestone. Warnings only - nothing is ever moved. */
         PlanFlag: {
-            /** @enum {string} */
-            kind: "DRIFT_END_LATE" | "DRIFT_START_LATE" | "DRIFT_END_EARLY" | "RANK_INVERSION";
+            /**
+             * @description `JIRA_DEVIATION` is one open deviation between a node and its Jira item (a binding through an enabled connection that is not currently acknowledged; `ESTIMATE_NOT_COMPARABLE` never raises one), `JIRA_MILESTONES` a project's roll-up of its milestones'.
+             * @enum {string}
+             */
+            kind: "DRIFT_END_LATE" | "DRIFT_START_LATE" | "DRIFT_END_EARLY" | "RANK_INVERSION" | "JIRA_DEVIATION" | "JIRA_MILESTONES";
             /** @enum {string} */
             severity: "WARNING" | "INFO";
             /**
@@ -4146,6 +4189,38 @@ export interface components {
              * @description The higher-ranked project of a rank inversion; null for drift.
              */
             otherProjectId: number | null;
+            /** @description The evidence of a `JIRA_DEVIATION` flag (its severity is the flag's); null on every other kind. */
+            deviation: components["schemas"]["Deviation"] | null;
+            /**
+             * Format: int32
+             * @description The milestones of the project that raised a Jira flag, for `JIRA_MILESTONES` (the flag's severity is the worst among them); null on every other kind.
+             */
+            count: number | null;
+        };
+        /** @description A plan node's Jira item (1.3). The browse URL is not per row: find `connectionId` in the document's `jiraSites`. Present only for a binding through an ENABLED connection. */
+        JiraLink: {
+            /** Format: int32 */
+            bindingId: number;
+            /** Format: int32 */
+            connectionId: number;
+            issueKey: string;
+            /**
+             * Format: date
+             * @description The start Jira was last observed to hold; null when never observed, absent in Jira, or the item is gone.
+             */
+            start: string | null;
+            /**
+             * Format: date
+             * @description The end Jira was last observed to hold; null when never observed, absent in Jira, or the item is gone.
+             */
+            end: string | null;
+        };
+        /** @description An enabled Jira connection that a binding in the document's scope links to. Never the connection's name or any credential. */
+        JiraSite: {
+            /** Format: int32 */
+            connectionId: number;
+            /** @description The site's origin, e.g. `https://example.atlassian.net`; append `/browse/` and an issue key. */
+            siteUrl: string;
         };
         /** @description The dependencies between two projects, rolled up for one ORDERED pair. Links inside one project are not listed. */
         RoadmapLink: {
@@ -4208,6 +4283,8 @@ export interface components {
             links: components["schemas"]["RoadmapLink"][];
             /** @description Open work streams first, then closed ones, each by name (case-insensitive) then id. */
             workStreams: components["schemas"]["ProgramsWorkStream"][];
+            /** @description The enabled Jira connections that a binding in this document's scope links to (a roadmap or programs document also lists a connection that only has milestone bindings), by connection id, once per document; the client builds a row's browse URL as `siteUrl + "/browse/" + jira.issueKey`. Empty when nothing is linked. */
+            jiraSites: components["schemas"]["JiraSite"][];
             baseline?: components["schemas"]["BaselineRef"];
         };
         ProgramsWorkStream: {

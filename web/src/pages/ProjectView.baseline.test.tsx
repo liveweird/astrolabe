@@ -32,6 +32,8 @@ const PICK_KEY = "astrolabe.viewSettings.timeline.baseline";
 const UNKNOWN = { type: "urn:astrolabe:problem:unknown-baseline", title: "Bad Request", status: 400, detail: "unknown baseline" };
 
 const milestone = (id: number, name: string, over: Partial<ProjectMilestone> = {}): ProjectMilestone => ({
+  jira: null,
+  flags: [],
   id,
   projectId: 7,
   name,
@@ -58,7 +60,10 @@ const DELTA = milestone(4, "Delta", { startDate: "2027-01-04", endDate: "2027-01
 
 const plainView = (): ProjectViewDocument => ({
   revision: 10,
+  jiraSites: [],
   project: {
+    jira: null,
+    flags: [],
     id: 7,
     programId: 70,
     workStreamId: 700,

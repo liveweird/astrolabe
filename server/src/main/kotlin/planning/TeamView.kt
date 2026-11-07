@@ -33,6 +33,8 @@ data class TeamView(
     val dependencies: List<ProjectDependency>,
     /** The runs of 3 or more working days inside the scheduled milestones' derived span on which none of them is in progress, by start. */
     val idleGaps: List<IdleGapView>,
+    /** The Jira connections a binding in scope links to (empty without a binding), once per document ([JiraSite]). */
+    val jiraSites: List<JiraSite> = emptyList(),
     /** Present only for `?baseline=N`: the team against that baseline ([TeamBaseline]); absent otherwise (the bytes are unchanged). */
     @EncodeDefault(EncodeDefault.Mode.NEVER)
     val baseline: TeamBaseline? = null,
@@ -78,7 +80,10 @@ data class WeekLoadView(
     val wipExceeded: Boolean,
 )
 
-/** A milestone of the team view: the [MilestoneResponse] fields plus the names of its project chain and its project's rank. */
+/**
+ * A milestone of the team view: the [MilestoneResponse] fields plus the names of its project chain and its project's rank, its Jira
+ * link ([jira]: null = unbound or its connection disabled) and its open Jira [flags] ([FlagKind.JIRA_DEVIATION] per deviation).
+ */
 @Serializable
 data class TeamMilestone(
     val id: UInt,
@@ -97,6 +102,8 @@ data class TeamMilestone(
     val workStreamName: String,
     /** The project's position in the global project rank (1-based); null = unranked. */
     val rankPosition: Int?,
+    val jira: JiraLink? = null,
+    val flags: List<PlanFlag> = emptyList(),
 )
 
 internal fun WeekLoad.toView() = WeekLoadView(

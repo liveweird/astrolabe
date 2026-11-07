@@ -15,6 +15,7 @@ import ch.nokillswit.jira.JiraBindingService
 import ch.nokillswit.jira.JiraBindingServiceKey
 import ch.nokillswit.jira.JiraConnectionService
 import ch.nokillswit.jira.JiraConnectionServiceKey
+import ch.nokillswit.jira.JiraFlagSource
 import ch.nokillswit.jira.JiraImportService
 import ch.nokillswit.jira.JiraImportServiceKey
 import ch.nokillswit.people.PersonService
@@ -298,14 +299,10 @@ suspend fun Application.configureDatabase() {
     attributes.put(MilestoneServiceKey, MilestoneService(database))
     attributes.put(DependencyServiceKey, DependencyService(database))
     attributes.put(PlanViewServiceKey, PlanViewService(database))
-    attributes.put(ProjectViewServiceKey, ProjectViewService(database))
     attributes.put(RoadmapServiceKey, RoadmapService(database))
-    attributes.put(RoadmapViewServiceKey, RoadmapViewService(database))
-    attributes.put(ProgramsViewServiceKey, ProgramsViewService(database))
     attributes.put(TeamOrderServiceKey, TeamOrderService(database))
     attributes.put(TeamScheduleServiceKey, TeamScheduleService(database))
     attributes.put(ScheduleProposalServiceKey, ScheduleProposalService(database))
-    attributes.put(TeamViewServiceKey, TeamViewService(database))
     attributes.put(PublicHolidayServiceKey, PublicHolidayService(database))
     attributes.put(BaselineServiceKey, BaselineService(database))
     attributes.put(BaselineViewServiceKey, BaselineViewService(database))
@@ -322,6 +319,12 @@ suspend fun Application.configureDatabase() {
     val deviationView = DeviationViewService(database, syncRuns)
     attributes.put(DeviationViewServiceKey, deviationView)
     attributes.put(JiraAcknowledgeServiceKey, JiraAcknowledgeService(database, deviationView))
+    // The four timeline views read the Jira links and flags through planning's seam, inside their own snapshot.
+    val jiraFlags = JiraFlagSource(deviationView)
+    attributes.put(ProjectViewServiceKey, ProjectViewService(database, jiraFlags))
+    attributes.put(RoadmapViewServiceKey, RoadmapViewService(database, jiraFlags))
+    attributes.put(ProgramsViewServiceKey, ProgramsViewService(database, jiraFlags))
+    attributes.put(TeamViewServiceKey, TeamViewService(database, jiraFlags))
     attributes.put(SyncConnectorsKey, SyncConnectors())
     attributes.put(
         TokenBlocklistServiceKey,

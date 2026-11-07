@@ -37,9 +37,10 @@ function dragBand(project: RoadmapProject, kind: "move" | "resize-start" | "resi
   emit("onDragEnd", event);
 }
 
-const flag = (kind: PlanFlag["kind"], severity: PlanFlag["severity"], days: number): PlanFlag => ({ kind, severity, days, teamId: null, otherProjectId: null });
+const flag = (kind: PlanFlag["kind"], severity: PlanFlag["severity"], days: number): PlanFlag => ({ kind, severity, days, teamId: null, otherProjectId: null, deviation: null, count: null });
 
 const project = (id: number, name: string, over: Partial<RoadmapProject> = {}): RoadmapProject => ({
+  jira: null,
   id,
   name,
   programId: 10,
@@ -70,6 +71,7 @@ const TAXES = project(2, "Taxes", { span: { start: "2026-05-04", end: "2026-06-0
 const AUDIT = project(3, "Audit", { targetStart: "2026-07-06", targetEnd: "2026-07-31", can: { editTargetWindow: false } });
 
 const viewOf = (): ProgramsView => ({
+  jiraSites: [],
   revision: 9,
   teams: [],
   links: [],

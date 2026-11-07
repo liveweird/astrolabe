@@ -3,6 +3,8 @@ import type { TeamMilestone, TeamView } from "../api/teams";
 import { applyTeamOrder, applyTeamSchedule } from "./teamViewUpdate";
 
 const milestone = (id: number, name: string, over: Partial<TeamMilestone> = {}): TeamMilestone => ({
+  jira: null,
+  flags: [],
   id,
   projectId: 7,
   name,
@@ -22,6 +24,7 @@ const milestone = (id: number, name: string, over: Partial<TeamMilestone> = {}):
 });
 
 const viewOf = (scheduled: TeamMilestone[], unscheduled: TeamMilestone[] = []): TeamView => ({
+  jiraSites: [],
   revision: 10,
   team: { id: 3, name: "Backend", description: null, managerPersonId: 1, managerName: "Mia", createdAt: 1, updatedAt: 2, can: { schedule: true, editCapacity: true, editOrder: true } },
   order: { custom: false, revision: 4, milestoneIds: [] },

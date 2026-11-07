@@ -23,6 +23,8 @@ data class ProgramsView(
     val teams: List<RoadmapTeam>,
     val links: List<RoadmapLink>,
     val workStreams: List<ProgramsWorkStream>,
+    /** The Jira connections a binding in scope links to (empty without a binding), once per document ([JiraSite]). */
+    val jiraSites: List<JiraSite> = emptyList(),
     /** Present only for `?baseline=N`: the baseline the projects', programs' and work streams' `baseline` blocks compare to. */
     @EncodeDefault(EncodeDefault.Mode.NEVER)
     val baseline: BaselineRef? = null,

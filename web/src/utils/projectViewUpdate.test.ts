@@ -3,6 +3,8 @@ import type { ProjectMilestone, ProjectView } from "../api/milestones";
 import { applySchedule } from "./projectViewUpdate";
 
 const milestone = (id: number, name: string, startDate: string | null = null, endDate: string | null = null): ProjectMilestone => ({
+  jira: null,
+  flags: [],
   id,
   projectId: 1,
   name,

@@ -46,6 +46,8 @@ const dropRow = (project: RoadmapProject, position: number, slot: number, count 
 };
 
 const flag = (kind: PlanFlag["kind"], severity: PlanFlag["severity"], days: number | null, over: Partial<PlanFlag> = {}): PlanFlag => ({
+  deviation: null,
+  count: null,
   kind,
   severity,
   days,
@@ -55,6 +57,7 @@ const flag = (kind: PlanFlag["kind"], severity: PlanFlag["severity"], days: numb
 });
 
 const project = (id: number, name: string, over: Partial<RoadmapProject> = {}): RoadmapProject => ({
+  jira: null,
   id,
   name,
   programId: 10,
@@ -99,6 +102,7 @@ const AUDIT = project(3, "Audit", { rankPosition: 3, span: { start: "2026-05-04"
 const LEDGER = project(4, "Ledger", { programId: 11, programName: "Compliance", workStreamId: 2, workStreamName: "Finance", ownerPersonId: 6, ownerName: "Tania Tax" });
 
 const viewOf = (over: Partial<RoadmapView> = {}): RoadmapView => ({
+  jiraSites: [],
   revision: 7,
   can: { editRank: true },
   teams: [

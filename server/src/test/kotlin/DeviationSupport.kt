@@ -1,11 +1,10 @@
 package ch.nokillswit
 
+import ch.nokillswit.jira.DeviationItem
+import ch.nokillswit.jira.DeviationView
 import ch.nokillswit.jira.DiscoveredIssueType
 import ch.nokillswit.jira.DiscoveredLevel
 import ch.nokillswit.jira.DiscoveryMarkers
-import ch.nokillswit.jira.DeviationItem
-import ch.nokillswit.jira.DeviationKind
-import ch.nokillswit.jira.DeviationView
 import ch.nokillswit.jira.JiraConnectionResponse
 import ch.nokillswit.jira.JiraDiscovery
 import ch.nokillswit.jira.JiraEstimateMapping
@@ -15,6 +14,7 @@ import ch.nokillswit.jira.JiraLevelMapping
 import ch.nokillswit.jira.JiraMapping
 import ch.nokillswit.jira.JiraMappingLevels
 import ch.nokillswit.jira.toStoredJson
+import ch.nokillswit.planning.DeviationKind
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText

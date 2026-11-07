@@ -9,6 +9,8 @@ import { renderWithProviders } from "../test/render";
 import { makeScale, toEpochDay } from "../utils/timelineScale";
 
 const milestone = (id: number, name: string, over: Partial<TeamMilestone> = {}): TeamMilestone => ({
+  jira: null,
+  flags: [],
   id,
   projectId: 7,
   name,
@@ -35,6 +37,7 @@ const NEW_Y = milestone(4, "tp-y");
 const week = (weekStart: string, load: number): WeekLoad => ({ weekStart, load, capacity: 10, overloaded: false, overloadMd: null, maxWip: 1, wipExceeded: false });
 
 const viewOf = (over: Partial<TeamView> = {}): TeamView => ({
+  jiraSites: [],
   revision: 10,
   team: {
     id: 1,

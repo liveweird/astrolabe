@@ -98,6 +98,11 @@
     "inversionNoTeam_few": "Niżej w rankingu niż {{other}}, ale zaczyna się {{count}} dni wcześniej (brak wspólnego zespołu)",
     "inversionNoTeam_many": "Niżej w rankingu niż {{other}}, ale zaczyna się {{count}} dni wcześniej (brak wspólnego zespołu)",
     "inversionNoTeam_other": "Niżej w rankingu niż {{other}}, ale zaczyna się {{count}} dnia wcześniej (brak wspólnego zespołu)",
+    "jiraDeviation": "Różni się od Jiry",
+    "jiraMilestones_one": "{{count}} kamień milowy odbiega od Jiry",
+    "jiraMilestones_few": "{{count}} kamienie milowe odbiegają od Jiry",
+    "jiraMilestones_many": "{{count}} kamieni milowych odbiega od Jiry",
+    "jiraMilestones_other": "{{count}} kamienia milowego odbiega od Jiry",
     "show": "Pokaż na osi czasu",
     "showAria": "Pokaż na osi czasu: {{name}}"
   },

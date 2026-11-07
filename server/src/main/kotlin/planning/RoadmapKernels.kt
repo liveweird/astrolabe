@@ -13,8 +13,12 @@ data class PlanProjectFact(val id: UInt, val rankPosition: Int?, val target: Day
 /** A stored link as the roadmap kernels see it. */
 data class PlanLinkFact(val id: UInt, val predecessor: EndpointRef, val successor: EndpointRef, val type: DependencyType, val lagDays: Int)
 
-/** The order of a project's flags: WARNING before INFO, then the kind, the team and the other project (ids start at 1). */
-val FLAG_ORDER: Comparator<PlanFlag> = compareBy({ it.severity }, { it.kind }, { it.teamId ?: 0u }, { it.otherProjectId ?: 0u })
+/**
+ * The order of a project's flags: WARNING before INFO, then the kind, the team and the other project (ids start at 1), then a Jira
+ * flag's deviation kind (the kernel's own order).
+ */
+val FLAG_ORDER: Comparator<PlanFlag> =
+    compareBy({ it.severity }, { it.kind }, { it.teamId ?: 0u }, { it.otherProjectId ?: 0u }, { it.deviation?.kind })
 
 /**
  * The roadmap and programs views' arithmetic as pure functions (no I/O, no clock), the idiom of [SpanKernels] and [LoadKernels]: the

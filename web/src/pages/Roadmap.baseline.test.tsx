@@ -16,6 +16,7 @@ const UNKNOWN = { type: "urn:astrolabe:problem:unknown-baseline", title: "Bad Re
 const move = (kind: Movement["kind"], startDays: number | null, endDays: number | null): Movement => ({ kind, startDays, endDays, estimateDelta: null });
 
 const project = (id: number, name: string, over: Partial<RoadmapProject> = {}): RoadmapProject => ({
+  jira: null,
   id,
   name,
   programId: 10,
@@ -36,6 +37,7 @@ const project = (id: number, name: string, over: Partial<RoadmapProject> = {}): 
 });
 
 const plainView = (): RoadmapView => ({
+  jiraSites: [],
   revision: 7,
   can: { editRank: false },
   teams: [],

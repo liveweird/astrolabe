@@ -9,6 +9,8 @@ import { jsonResponse } from "../test/http";
 import { renderWithProviders } from "../test/render";
 
 const milestone = (id: number, name: string, over: Partial<TeamMilestone> = {}): TeamMilestone => ({
+  jira: null,
+  flags: [],
   id,
   projectId: 7,
   name,
@@ -28,6 +30,7 @@ const milestone = (id: number, name: string, over: Partial<TeamMilestone> = {}):
 });
 
 const TEAM_VIEW: TeamView = {
+  jiraSites: [],
   revision: 10,
   team: { id: 1, name: "Payments", description: null, managerPersonId: 12, managerName: "Cara New", createdAt: 1, updatedAt: 2, can: { schedule: false, editCapacity: false, editOrder: false } },
   order: { custom: false, revision: 4, milestoneIds: [] },
