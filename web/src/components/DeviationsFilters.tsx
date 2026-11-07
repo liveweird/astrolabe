@@ -5,11 +5,12 @@ import type { DeviationConnection, DeviationFilter, DeviationLevel, DeviationSev
 import { getPlanView, type PlanView } from "../api/plan";
 import { listTeams } from "../api/teams";
 import { deviationKindLabel } from "../utils/deviations";
-import { narrowingCount } from "../utils/deviationFilters";
+import { deviationStatus, deviationStatusPatch, narrowingCount, type DeviationStatus } from "../utils/deviationFilters";
 import FilterPanel from "./FilterPanel";
 
 const LEVELS: readonly DeviationLevel[] = ["PROGRAM", "PROJECT", "MILESTONE"];
 const SEVERITIES: readonly DeviationSeverity[] = ["WARNING", "INFO"];
+const STATUSES: readonly DeviationStatus[] = ["open", "acknowledged", "all"];
 
 const idOf = (value: string | null) => (value === null ? undefined : Number(value));
 
@@ -49,7 +50,7 @@ function ScopeChips({ filter, plan, onChange }: { filter: DeviationFilter; plan:
 
 /**
  * The Deviations page's filters, which live in the URL (`utils/deviationFilters.ts`): a select each for connection, plan item type, severity, work
- * stream and team inside the collapsible panel, the "Show everything" switch (`all=true`: items without a deviation and estimates that cannot be
+ * stream and team inside the collapsible panel, the Status select (Open / Acknowledged / All), the "Show everything" switch (`all=true`: items without a deviation and estimates that cannot be
  * compared), and removable chips for a project / program / kind scope. The work stream and team options come from the plan view and the teams list.
  */
 export default function DeviationsFilters({ filter, connections, onChange }: { filter: DeviationFilter; connections: readonly DeviationConnection[]; onChange: (patch: Partial<DeviationFilter>) => void }) {
@@ -61,6 +62,14 @@ export default function DeviationsFilters({ filter, connections, onChange }: { f
   const value = (id: number | undefined) => (id === undefined ? null : String(id));
   return (
     <FilterPanel activeFilterCount={narrowingCount(filter)} storageKey="deviations" aside={<ScopeChips filter={filter} plan={plan.data} onChange={onChange} />}>
+        {/* Open is the server's default (no parameter); the choice composes with a project or team scope as the server does (`deviationStatusPatch`). Never clearable: a status always applies. */}
+        <Select
+          label={t("deviations.filter.status")}
+          data={STATUSES.map((status) => ({ value: status, label: t(`deviations.filter.status_${status}`) }))}
+          value={deviationStatus(filter)}
+          onChange={(selected) => selected !== null && onChange(deviationStatusPatch(selected as DeviationStatus, filter))}
+          allowDeselect={false}
+        />
         <Select
           label={t("deviations.filter.connection")}
           placeholder={t("common.state.any")}

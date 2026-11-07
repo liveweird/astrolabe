@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { jsonResponse } from "../test/http";
 import { view } from "../test/deviations";
-import { getDeviations } from "./deviations";
+import { acknowledgeDeviation, getDeviations, isStaleDeviations, unacknowledgeDeviation } from "./deviations";
 import { createJiraBinding, deleteJiraBinding, isAlreadyBound, isJiraMappingInvalid, listJiraBindings } from "./jira";
 import { ApiError } from "./http";
 
@@ -56,5 +56,36 @@ describe("deviations and bindings API wrappers", () => {
     expect(err).toBeInstanceOf(ApiError);
     expect(isAlreadyBound(err)).toBe(true);
     expect(isJiraMappingInvalid(err)).toBe(false);
+  });
+
+  test("getDeviations sends acknowledged=false as well as true (a set boolean is sent, only an absent one is not)", async () => {
+    mockFetch.mockImplementation(() => Promise.resolve(jsonResponse(200, view())));
+    await getDeviations({ acknowledged: false });
+    expect(lastCall()[0]).toBe("/api/v1/views/deviations?acknowledged=false");
+    await getDeviations({ acknowledged: true, all: false, projectId: 7 });
+    expect(Object.fromEntries(new URL(lastCall()[0], "http://x").searchParams)).toEqual({ acknowledged: "true", all: "false", projectId: "7" });
+  });
+
+  test("acknowledgeDeviation POSTs exactly {fingerprint} to the binding's acknowledge path; unacknowledgeDeviation DELETEs it", async () => {
+    mockFetch.mockImplementation(() => Promise.resolve(jsonResponse(200, { bindingId: 4, fingerprint: "b".repeat(64), acknowledgedAt: 1, acknowledgedBy: "Ada" })));
+    const result = await acknowledgeDeviation(4, "b".repeat(64));
+    expect(result.acknowledgedBy).toBe("Ada");
+    const [url, init] = lastCall();
+    expect(url).toBe("/api/v1/integrations/jira/bindings/4/acknowledge");
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(init?.body as string)).toEqual({ fingerprint: "b".repeat(64) });
+    mockFetch.mockImplementation(() => Promise.resolve(new Response(null, { status: 204 })));
+    await unacknowledgeDeviation(4);
+    expect(lastCall()[0]).toBe("/api/v1/integrations/jira/bindings/4/acknowledge");
+    expect(lastCall()[1]?.method).toBe("DELETE");
+    expect(lastCall()[1]?.body).toBeUndefined();
+  });
+
+  test("a 409 is the stale-deviations state only by its problem type", async () => {
+    mockFetch.mockImplementation(() => Promise.resolve(jsonResponse(409, { type: "urn:astrolabe:problem:stale-deviations", title: "Conflict", status: 409, detail: "changed" })));
+    expect(isStaleDeviations(await acknowledgeDeviation(4, "c".repeat(64)).catch((e: unknown) => e))).toBe(true);
+    mockFetch.mockImplementation(() => Promise.resolve(jsonResponse(409, { type: "urn:astrolabe:problem:already-bound", title: "Conflict", status: 409 })));
+    expect(isStaleDeviations(await acknowledgeDeviation(4, "c".repeat(64)).catch((e: unknown) => e))).toBe(false);
+    expect(isStaleDeviations(new Error("x"))).toBe(false);
   });
 });

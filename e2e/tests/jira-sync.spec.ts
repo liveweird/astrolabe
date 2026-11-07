@@ -482,5 +482,7 @@ test("unlinking the milestone removes its deviation, and a deleted Jira item rea
   await expect(page.getByText("1 gone from Jira")).toBeVisible();
   await expect(gone).toContainText("Warning: Gone");
   await expect(gone).toContainText("No longer readable in Jira: deleted, moved out of the connection's projects, or no longer visible to its account");
-  await expect(gone.getByRole("cell").last()).toHaveText(/ · stale$/); // the "Data as of" cell: what the row shows is what was last read, not a current figure
+  // The "Data as of" cell (the fifth: Plan item, Jira item, Dates, Deviations, Data as of, Acknowledgement): what the row shows is what was last read,
+  // not a current figure.
+  await expect(gone.getByRole("cell").nth(4)).toHaveText(/ · stale$/);
 });

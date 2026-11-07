@@ -11,7 +11,7 @@ import { useDialogFocus } from "../hooks/useDialogFocus";
 import { useRegistryListControls } from "../hooks/useRegistryListControls";
 import { formatDateTime } from "../utils/formatDate";
 import { projectPath } from "../utils/planLinks";
-import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
+import { refreshJiraAndTimelines } from "../utils/queryRefresh";
 import ClearableTextInput from "./ClearableTextInput";
 import JiraBindDialog from "./JiraBindDialog";
 import JiraImportModal from "./JiraImportModal";
@@ -202,7 +202,7 @@ export default function JiraBindingsSection({ connection }: { connection: JiraCo
           onClose={() => setBinding(false)}
           onBound={async () => {
             setBinding(false);
-            await refreshQueriesAfterMutation(queryClient, ["jira"]);
+            await refreshJiraAndTimelines(queryClient);
           }}
         />
       )}

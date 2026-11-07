@@ -41,9 +41,12 @@
     "infos_other": "{{count}} infos",
     "gone_one": "{{count}} gone from Jira",
     "gone_other": "{{count}} gone from Jira",
+    "acknowledged_one": "{{count}} acknowledged",
+    "acknowledged_other": "{{count}} acknowledged",
     "shown_one": "{{count}} item shown",
     "shown_other": "{{count}} items shown",
-    "truncated": "Only the first {{count}} items are listed. The warning and info counts cover every match; narrow the filters to see the rest."
+    "truncated": "Only the first {{count}} items are listed. The warning and info counts cover every match; narrow the filters to see the rest.",
+    "openOnly": "The warning, info and gone figures count open items only, whatever the list shows."
   },
   "filter": {
     "connection": "Connection",
@@ -67,7 +70,11 @@
     "clearAll": "Clear the filters",
     "scopeAria": "Filtered to",
     "kind": "Kind: {{name}}",
-    "removeKind": "Remove the kind filter"
+    "removeKind": "Remove the kind filter",
+    "status": "Status",
+    "status_open": "Open",
+    "status_acknowledged": "Acknowledged",
+    "status_all": "All"
   },
   "severity": {
     "WARNING": "Warning",
@@ -78,7 +85,8 @@
     "jira": "Jira item",
     "dates": "Dates",
     "deviations": "Deviations",
-    "observed": "Data as of"
+    "observed": "Data as of",
+    "acknowledgement": "Acknowledgement"
   },
   "node": {
     "openProjectAria": "Open {{name}}",
@@ -174,7 +182,10 @@
     "noneSince": "No deviations in the data read at {{time}} (UTC).",
     "noneSinceHint": "Nothing has been checked since: refresh to read Jira again.",
     "countFailed": "Could not check whether anything is linked",
-    "noBindingsScoped": "Nothing here is linked to Jira yet."
+    "noBindingsScoped": "Nothing here is linked to Jira yet.",
+    "noOpen": "Nothing is open.",
+    "noOpenHint_one": "{{count}} acknowledged item is hidden. Choose Acknowledged or All under Status to see it.",
+    "noOpenHint_other": "{{count}} acknowledged items are hidden. Choose Acknowledged or All under Status to see them."
   },
   "chip": {
     "jira": "Jira:",
@@ -201,5 +212,24 @@
     "unlinkKeyAria": "Unlink from Jira: {{key}} ({{name}})"
   },
   "staleBanner": "At least one connection has no successful run behind it, or its mapping does not fit the site, so the list below may be out of date. See Data from Jira.",
-  "loadingList": "Updating the list…"
+  "loadingList": "Updating the list…",
+  "ack": {
+    "acknowledge": "Acknowledge",
+    "acknowledgeAria": "Acknowledge {{key}}",
+    "unacknowledge": "Unacknowledge",
+    "unacknowledgeAria": "Unacknowledge {{key}}",
+    "done": "Acknowledged by {{name}} on {{date}}",
+    "doneUnknown": "Acknowledged on {{date}}",
+    "stale": "Acknowledged on {{date}} by {{name}} · changed since",
+    "staleUnknown": "Acknowledged on {{date}} · changed since",
+    "staleNote": "The deviations changed since you looked. The list has been read again: check it, and acknowledge again if it still applies.",
+    "forbidden": "Only the owner of this plan item or an administrator can acknowledge its deviations.",
+    "notFound": "This link no longer exists. The list has been read again.",
+    "notFoundWithdrawn": "That acknowledgement was already withdrawn. The list has been read again.",
+    "failed": "The change could not be saved",
+    "toast": {
+      "acknowledged": "Acknowledged",
+      "withdrawn": "Acknowledgement withdrawn"
+    }
+  }
 }

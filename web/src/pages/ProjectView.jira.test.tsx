@@ -163,7 +163,7 @@ describe("the project page's Jira chip and Link to Jira…", () => {
     expect(JSON.parse((posted?.[1] as RequestInit).body as string)).toEqual({ connectionId: DEV_CONNECTION.id, level: "MILESTONE", nodeId: 1, issueKey: "E2E-9" });
   });
 
-  test("linking refreshes only the Jira queries: the project view is not read again", async () => {
+  test("linking refreshes the Jira queries AND the project view (it carries the link's flags and bar)", async () => {
     deviations = { status: 200, body: deviationsView({ items: [] }) };
     const user = userEvent.setup();
     renderPage();
@@ -173,7 +173,7 @@ describe("the project page's Jira chip and Link to Jira…", () => {
     const viewReads = gets(/views\/project\/7$/);
     await user.click(within(dialog).getByRole("button", { name: "Link" }));
     await waitFor(() => expect(gets(/views\/deviations\?projectId=7/)).toBeGreaterThan(1));
-    expect(gets(/views\/project\/7$/)).toBe(viewReads);
+    await waitFor(() => expect(gets(/views\/project\/7$/)).toBeGreaterThan(viewReads));
     const posted = mockFetch.mock.calls.find(([url, init]) => url === "/api/v1/integrations/jira/bindings" && (init as RequestInit).method === "POST");
     expect(JSON.parse((posted?.[1] as RequestInit).body as string)).toMatchObject({ level: "PROJECT", nodeId: 7 });
   });
@@ -193,7 +193,7 @@ describe("the project page's Jira chip and Link to Jira…", () => {
 
   const unlinkCalls = () => mockFetch.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === "DELETE").map(([url]) => url as string);
 
-  test("the owner unlinks the project from the header: confirm names the item and the key, DELETEs that binding, refreshes only the Jira queries, focus goes to the heading", async () => {
+  test("the owner unlinks the project from the header: confirm names the item and the key, DELETEs that binding, refreshes the Jira queries and the project view, focus goes to the heading", async () => {
     const user = userEvent.setup();
     renderPage();
     await screen.findByRole("group", { name: "Links to Jira" });
@@ -205,7 +205,7 @@ describe("the project page's Jira chip and Link to Jira…", () => {
     await user.click(within(dialog).getByRole("button", { name: "Unlink" }));
     await waitFor(() => expect(unlinkCalls()).toEqual(["/api/v1/integrations/jira/bindings/5"]));
     await waitFor(() => expect(screen.getByRole("button", { name: "Link to Jira…" })).toBeInTheDocument());
-    expect(gets(/views\/project\/7$/)).toBe(viewReads);
+    await waitFor(() => expect(gets(/views\/project\/7$/)).toBeGreaterThan(viewReads));
     await waitFor(() => expect(screen.getByRole("heading", { level: 2, name: "Invoices" })).toHaveFocus());
   });
 

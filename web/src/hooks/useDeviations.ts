@@ -8,7 +8,8 @@ import { isBoolean, useStoredState } from "./useStoredState";
 
 /**
  * The deviations queries live under the `["jira"]` prefix (a bind, an unlink, a refresh and the connection page's mutations refresh it) and
- * under NO plan prefix: no timeline view query is ever invalidated by anything here.
+ * under NO plan prefix. Reading never touches a timeline view; the writes that change the Jira flags those views carry (a bind, an unlink, the
+ * import, an acknowledgement) also re-read `["plan"]` and `["roadmap"]` (`refreshJiraAndTimelines`).
  */
 const deviationsKey = (filter: DeviationFilter) => ["jira", "deviations", "view", filter] as const;
 

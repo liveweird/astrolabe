@@ -2,9 +2,11 @@ import { Link as RouterLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Anchor, Badge, Stack, Table, Text, VisuallyHidden } from "@mantine/core";
 import type { DeviationConnection, DeviationItem } from "../api/deviations";
+import type { Acknowledge } from "../hooks/useAcknowledge";
 import { ageText, deviationKindLabel, deviationSentence } from "../utils/deviations";
 import { formatDateTime } from "../utils/formatDate";
 import { projectPath } from "../utils/planLinks";
+import DeviationAckCell from "./DeviationAckCell";
 import JiraKeyLink from "./JiraKeyLink";
 import ScrollRegion from "./ScrollRegion";
 
@@ -137,14 +139,15 @@ function DeviationsCell({ item }: { item: DeviationItem }) {
 /**
  * The differences list: one row per linked plan node with its Jira item, both sides' dates, every deviation of the binding and how long ago the server
  * last READ the item from Jira (`observedAt` - not when it was linked; a disabled connection or a gone item is marked stale). Unpaged: the view is
- * capped at 2,000 items by the server. In a focusable scroll region so it reads at a phone's width.
+ * capped at 2,000 items by the server. In a focusable scroll region so it reads at a phone's width. The last column is the acknowledgement
+ * (`DeviationAckCell`); `ack` is the page's `useAcknowledge`.
  */
-export default function DeviationsTable({ items, connections, now }: { items: readonly DeviationItem[]; connections: readonly DeviationConnection[]; now: number }) {
+export default function DeviationsTable({ items, connections, now, ack }: { items: readonly DeviationItem[]; connections: readonly DeviationConnection[]; now: number; ack: Acknowledge }) {
   const { t } = useTranslation();
   const label = t("deviations.list.tableAria");
   const byId = new Map(connections.map((connection) => [connection.id, connection]));
   return (
-    <ScrollRegion label={label} minWidth={1000}>
+    <ScrollRegion label={label} minWidth={1180}>
       <Table aria-label={label}>
         <Table.Thead>
           <Table.Tr>
@@ -153,10 +156,11 @@ export default function DeviationsTable({ items, connections, now }: { items: re
             <Table.Th miw={190}>{t("deviations.column.dates")}</Table.Th>
             <Table.Th miw={340}>{t("deviations.column.deviations")}</Table.Th>
             <Table.Th miw={120}>{t("deviations.column.observed")}</Table.Th>
+            <Table.Th miw={180}>{t("deviations.column.acknowledgement")}</Table.Th>
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
-          {items.map((item) => {
+          {items.map((item, index) => {
             const connection = byId.get(item.connectionId);
             const stale = item.jira.gone || connection?.enabled === false;
             return (
@@ -184,6 +188,9 @@ export default function DeviationsTable({ items, connections, now }: { items: re
                       {stale ? ` · ${t("deviations.observed.stale")}` : ""}
                     </Text>
                   )}
+                </Table.Td>
+                <Table.Td>
+                  <DeviationAckCell item={item} ack={ack} neighbours={[items[index + 1]?.bindingId, items[index - 1]?.bindingId].filter((id) => id !== undefined)} />
                 </Table.Td>
               </Table.Tr>
             );

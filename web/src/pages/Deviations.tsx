@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { Link as RouterLink, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Alert, Anchor, Badge, Button, Group, Stack, Text, Title, VisuallyHidden } from "@mantine/core";
@@ -6,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { DeviationFilter, DeviationView } from "../api/deviations";
 import { listJiraBindings } from "../api/jira";
 import { useAdmin } from "../auth";
+import { AckNoticeAlert } from "../components/DeviationAckCell";
 import DeviationsFilters from "../components/DeviationsFilters";
 import DeviationsSources from "../components/DeviationsSources";
 import DeviationsTable from "../components/DeviationsTable";
@@ -13,10 +15,11 @@ import EmptyState from "../components/EmptyState";
 import ErrorAlert from "../components/ErrorAlert";
 import LoadingBlock from "../components/LoadingBlock";
 import PageHeader from "../components/PageHeader";
+import { useAcknowledge, type AckNotice } from "../hooks/useAcknowledge";
 import { useDeviations } from "../hooks/useDeviations";
 import { hasStaleSource, verifiedAt } from "../utils/deviations";
 import { formatDateTime } from "../utils/formatDate";
-import { deviationFilterParams, narrowingCount, parseDeviationFilter } from "../utils/deviationFilters";
+import { deviationFilterParams, deviationStatus, keepStatus, narrowingCount, parseDeviationFilter } from "../utils/deviationFilters";
 import { jiraConnectionsPath } from "../utils/jiraLinks";
 
 /** The empty list, told apart: no connection / nothing linked / the filters match nothing / agreement (only after successful refreshes) or merely "none so far". */
@@ -47,8 +50,9 @@ function EmptyList({ view, filter, onClear }: { view: DeviationView; filter: Dev
     );
   }
   // `totals.bindings` counts the filtered bindings, and with `all` in force (given, or implied by a project or team scope) that is every link in scope.
+  // An acknowledgement filter lists a subset of those links, so only an unfiltered state can say there are none.
   const allApplies = filter.all ?? (filter.projectId !== undefined || filter.teamId !== undefined);
-  if (narrowed && allApplies && view.totals.bindings === 0) {
+  if (narrowed && allApplies && filter.acknowledged === undefined && view.totals.bindings === 0) {
     return <EmptyState icon={IconLinkOff} label={t("deviations.empty.noBindingsScoped")} />;
   }
   if (narrowed) {
@@ -60,6 +64,10 @@ function EmptyList({ view, filter, onClear }: { view: DeviationView; filter: Dev
         </Button>
       </Stack>
     );
+  }
+  // The open list is empty but the acknowledged items are only hidden: say so, and where they are, instead of the dated claim about the read.
+  if (filter.acknowledged === undefined && !allApplies && view.totals.acknowledged > 0) {
+    return <EmptyState icon={IconGitCompare} label={t("deviations.empty.noOpen")} hint={t("deviations.empty.noOpenHint", { count: view.totals.acknowledged })} />;
   }
   if (linked.data === undefined) return linked.isError ? <ErrorAlert error={linked.error} title={t("deviations.empty.countFailed")} /> : <LoadingBlock />;
   if (linked.data.total === 0) {
@@ -75,8 +83,8 @@ function EmptyList({ view, filter, onClear }: { view: DeviationView; filter: Dev
   );
 }
 
-/** The totals under the heading: warnings (orange) and infos (gray) counted over every match, how many items are listed and, when the server cut the list, the note that says so. */
-function Totals({ view }: { view: DeviationView }) {
+/** The totals under the heading: warnings (orange), infos (gray), gone and acknowledged items (gray) counted over every match, how many items are listed and, when the server cut the list, the note that says so. */
+function Totals({ view, filter }: { view: DeviationView; filter: DeviationFilter }) {
   const { t } = useTranslation();
   const { totals } = view;
   return (
@@ -93,6 +101,9 @@ function Totals({ view }: { view: DeviationView }) {
             {t("deviations.totals.gone", { count: totals.gone })}
           </Badge>
         )}
+        <Badge color="gray" variant="light" tt="none">
+          {t("deviations.totals.acknowledged", { count: totals.acknowledged })}
+        </Badge>
         <Text size="sm" c="dimmed">
           {t("deviations.totals.shown", { count: view.items.length })}
         </Text>
@@ -100,6 +111,12 @@ function Totals({ view }: { view: DeviationView }) {
           {t("deviations.asOf", { date: view.asOf })}
         </Text>
       </Group>
+      {deviationStatus(filter) !== "open" && (
+        // The figures count the OPEN items among the matches whatever the list shows (the server's basis), so they differ from the rows below.
+        <Text size="xs" c="dimmed">
+          {t("deviations.totals.openOnly")}
+        </Text>
+      )}
       {view.truncated && (
         <Alert color="orange" variant="light" role="note">
           {t("deviations.totals.truncated", { count: view.items.length })}
@@ -110,10 +127,27 @@ function Totals({ view }: { view: DeviationView }) {
 }
 
 /**
+ * A write's message for a row that has LEFT the list (an acknowledged row leaving Open, a 409 that dropped it): the row's cell is gone, so the page
+ * shows it above the table and brings it into view. A message for a row that is still listed is in that row's cell (`DeviationAckCell`).
+ */
+function OrphanNotice({ notice }: { notice: AckNotice }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    ref.current?.scrollIntoView?.({ block: "nearest" });
+  }, [notice]);
+  return (
+    <div ref={ref}>
+      <AckNoticeAlert notice={notice} />
+    </div>
+  );
+}
+
+/**
  * The Deviations page (`/deviations`, everyone): where the plan and the linked Jira items disagree, from `GET /views/deviations`. The filters
  * live in the URL (`?projectId=7&severity=WARNING`), so a chip's link, a reload and Back all restore them. It says how current the figures are
- * (the connections' newest runs, a failed one never reads as fresh), refetches on window focus and while a run is running, and invalidates no
- * plan view. Refresh now is the ADMIN's, per connection.
+ * (the connections' newest runs, a failed one never reads as fresh), refetches on window focus and while a run is running. The owner of a linked
+ * item (or an ADMIN) acknowledges its deviations in the last column (`useAcknowledge`: that write, unlike the Jira reads, re-reads the timeline
+ * views too); a 409 `stale-deviations` is the inline note under the filters. Refresh now is the ADMIN's, per connection.
  */
 export default function Deviations() {
   const { t } = useTranslation();
@@ -121,8 +155,11 @@ export default function Deviations() {
   const [params, setParams] = useSearchParams();
   const filter = parseDeviationFilter(params);
   const { data, isLoading, isError, error, dataUpdatedAt, isPlaceholderData } = useDeviations(filter);
+  // The focus lands on the list's heading when no row of the list can take it (tabIndex -1: never a tab stop).
+  const listHeading = useRef<HTMLHeadingElement>(null);
+  const ack = useAcknowledge(listHeading, deviationFilterParams(filter).toString());
 
-  const change = (patch: Partial<DeviationFilter>) => setParams(deviationFilterParams({ ...filter, ...patch }), { replace: true });
+  const change = (patch: Partial<DeviationFilter>) => setParams(deviationFilterParams({ ...filter, ...keepStatus(filter, patch) }), { replace: true });
 
   return (
     <Stack gap="md">
@@ -133,7 +170,7 @@ export default function Deviations() {
         <>
           {data.connections.length > 0 && <DeviationsSources connections={data.connections} admin={admin} readAt={dataUpdatedAt} />}
           <Stack gap="md">
-            <Title order={3} size="h4">
+            <Title order={3} size="h4" ref={listHeading} tabIndex={-1}>
               {t("deviations.list.title")}
             </Title>
             {hasStaleSource(data.connections) && (
@@ -142,7 +179,8 @@ export default function Deviations() {
               </Alert>
             )}
             <DeviationsFilters filter={filter} connections={data.connections} onChange={change} />
-            <Totals view={data} />
+            <Totals view={data} filter={filter} />
+            {ack.notice !== null && !data.items.some((listed) => listed.bindingId === ack.notice?.bindingId) && <OrphanNotice notice={ack.notice} />}
             {isPlaceholderData ? (
               // The answer for these filters is still on its way: the kept one belongs to the previous filters, so it may not make an empty-state claim.
               <div role="status" aria-busy="true">
@@ -152,7 +190,7 @@ export default function Deviations() {
             ) : data.items.length === 0 ? (
               <EmptyList view={data} filter={filter} onClear={() => setParams(new URLSearchParams(), { replace: true })} />
             ) : (
-              <DeviationsTable items={data.items} connections={data.connections} now={dataUpdatedAt} />
+              <DeviationsTable items={data.items} connections={data.connections} now={dataUpdatedAt} ack={ack} />
             )}
           </Stack>
         </>

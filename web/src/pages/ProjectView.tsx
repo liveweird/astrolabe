@@ -41,7 +41,7 @@ import { localIsoDate } from "../utils/isoDate";
 import { markKey, type JiraMark, type JiraMarks } from "../utils/jiraMarks";
 import { planPath } from "../utils/planLinks";
 import { conflictCount, linksOfMilestone } from "../utils/projectDependencies";
-import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
+import { refreshJiraAndTimelines, refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { loadErrorMessage, saveErrorMessage } from "../utils/saveError";
 import { dropOutcome } from "../utils/timelineDrag";
 import { defaultRange, makeScale, MILESTONE_ZOOMS, toEpochDay, type Zoom } from "../utils/timelineScale";
@@ -407,8 +407,8 @@ function ProjectPage({ id }: { id: number }) {
           onClose={closeEditor}
           onBound={async () => {
             closeEditor();
-            // A link is not plan state: only the Jira queries (the chip, the deviations page) are refreshed, never a timeline view.
-            await refreshQueriesAfterMutation(queryClient, ["jira"]);
+            // A link is not plan state, but the views carry its flags and bar: the Jira queries and the timeline views are re-read.
+            await refreshJiraAndTimelines(queryClient);
           }}
         />
       )}

@@ -47,11 +47,16 @@
     "gone_few": "{{count}} zniknęły z Jiry",
     "gone_many": "{{count}} zniknęło z Jiry",
     "gone_other": "{{count}} zniknęło z Jiry",
+    "acknowledged_one": "{{count}} potwierdzony",
+    "acknowledged_few": "{{count}} potwierdzone",
+    "acknowledged_many": "{{count}} potwierdzonych",
+    "acknowledged_other": "{{count}} potwierdzonego",
     "shown_one": "Pokazano {{count}} element",
     "shown_few": "Pokazano {{count}} elementy",
     "shown_many": "Pokazano {{count}} elementów",
     "shown_other": "Pokazano {{count}} elementu",
-    "truncated": "Wymieniono tylko pierwsze {{count}} elementów. Liczby ostrzeżeń i informacji obejmują wszystkie pasujące; zawęź filtry, żeby zobaczyć resztę."
+    "truncated": "Wymieniono tylko pierwsze {{count}} elementów. Liczby ostrzeżeń i informacji obejmują wszystkie pasujące; zawęź filtry, żeby zobaczyć resztę.",
+    "openOnly": "Liczby ostrzeżeń, informacji i zniknięć obejmują tylko otwarte elementy, niezależnie od tego, co pokazuje lista."
   },
   "filter": {
     "connection": "Połączenie",
@@ -75,7 +80,11 @@
     "clearAll": "Wyczyść filtry",
     "scopeAria": "Zawężono do",
     "kind": "Rodzaj: {{name}}",
-    "removeKind": "Usuń filtr rodzaju"
+    "removeKind": "Usuń filtr rodzaju",
+    "status": "Stan",
+    "status_open": "Otwarte",
+    "status_acknowledged": "Potwierdzone",
+    "status_all": "Wszystkie"
   },
   "severity": {
     "WARNING": "Ostrzeżenie",
@@ -86,7 +95,8 @@
     "jira": "Element Jiry",
     "dates": "Daty",
     "deviations": "Odchylenia",
-    "observed": "Dane z chwili"
+    "observed": "Dane z chwili",
+    "acknowledgement": "Potwierdzenie"
   },
   "node": {
     "openProjectAria": "Otwórz {{name}}",
@@ -196,7 +206,12 @@
     "noneSince": "Brak odchyleń w danych odczytanych {{time}} (UTC).",
     "noneSinceHint": "Od tego czasu niczego nie sprawdzano: odśwież, żeby ponownie odczytać Jirę.",
     "countFailed": "Nie udało się sprawdzić, czy cokolwiek jest powiązane",
-    "noBindingsScoped": "Nic tutaj nie jest jeszcze powiązane z Jirą."
+    "noBindingsScoped": "Nic tutaj nie jest jeszcze powiązane z Jirą.",
+    "noOpen": "Nic nie jest otwarte.",
+    "noOpenHint_one": "{{count}} potwierdzony element jest ukryty. Wybierz w polu Stan „Potwierdzone” lub „Wszystkie”, żeby go zobaczyć.",
+    "noOpenHint_few": "{{count}} potwierdzone elementy są ukryte. Wybierz w polu Stan „Potwierdzone” lub „Wszystkie”, żeby je zobaczyć.",
+    "noOpenHint_many": "{{count}} potwierdzonych elementów jest ukrytych. Wybierz w polu Stan „Potwierdzone” lub „Wszystkie”, żeby je zobaczyć.",
+    "noOpenHint_other": "{{count}} potwierdzonego elementu jest ukryte. Wybierz w polu Stan „Potwierdzone” lub „Wszystkie”, żeby je zobaczyć."
   },
   "chip": {
     "jira": "Jira:",
@@ -231,5 +246,24 @@
     "unlinkKeyAria": "Odepnij od Jiry: {{key}} ({{name}})"
   },
   "staleBanner": "Co najmniej jedno połączenie nie ma za sobą udanego przebiegu albo jego mapowanie nie pasuje do witryny, więc lista poniżej może być nieaktualna. Zobacz sekcję Dane z Jiry.",
-  "loadingList": "Aktualizuję listę…"
+  "loadingList": "Aktualizuję listę…",
+  "ack": {
+    "acknowledge": "Potwierdź",
+    "acknowledgeAria": "Potwierdź {{key}}",
+    "unacknowledge": "Cofnij potwierdzenie",
+    "unacknowledgeAria": "Cofnij potwierdzenie {{key}}",
+    "done": "Potwierdzone przez {{name}} dnia {{date}}",
+    "doneUnknown": "Potwierdzone dnia {{date}}",
+    "stale": "Potwierdzone przez {{name}} dnia {{date}} · zmieniono od tego czasu",
+    "staleUnknown": "Potwierdzone dnia {{date}} · zmieniono od tego czasu",
+    "staleNote": "Odchylenia zmieniły się od ostatniego odczytu. Listę odczytano ponownie: sprawdź ją i potwierdź jeszcze raz, jeśli nadal ma to sens.",
+    "forbidden": "Odchylenia może potwierdzić tylko właściciel/ka tego elementu planu lub administrator/ka.",
+    "notFound": "To powiązanie już nie istnieje. Listę odczytano ponownie.",
+    "notFoundWithdrawn": "To potwierdzenie zostało już cofnięte. Listę odczytano ponownie.",
+    "failed": "Nie udało się zapisać zmiany",
+    "toast": {
+      "acknowledged": "Potwierdzono",
+      "withdrawn": "Cofnięto potwierdzenie"
+    }
+  }
 }

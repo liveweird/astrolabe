@@ -172,3 +172,11 @@ export function verifiedAt(connections: readonly DeviationConnection[]): number 
   if (connections.length === 0 || connections.some((connection) => staleConnection(connection) || connection.lastRun?.outcome !== "SUCCEEDED")) return null;
   return Math.min(...connections.map((connection) => connection.lastRun?.finishedAt ?? connection.lastRun?.startedAt ?? 0));
 }
+
+/** What the row may offer: Acknowledge for an item with something to acknowledge that is not currently acknowledged, Unacknowledge for a current one - both only with `can.acknowledge`. */
+export function ackActions(item: DeviationItem): { acknowledge: boolean; unacknowledge: boolean } {
+  // `can.acknowledge` is a pure RIGHTS flag (true on a clean item too, where a POST is a guaranteed 409), so the button also needs a listed deviation.
+  // An estimate that cannot be compared is listed - and so acknowledgeable - only where the page asked for everything.
+  const current = item.acknowledgement?.current === true;
+  return { acknowledge: item.can.acknowledge && item.deviations.length > 0 && !current, unacknowledge: item.can.acknowledge && current };
+}

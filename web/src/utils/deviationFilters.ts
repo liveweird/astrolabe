@@ -16,6 +16,7 @@ const KINDS: readonly DeviationKind[] = [
   "ESTIMATE_NOT_COMPARABLE",
   "PROGRESS_MISMATCH",
 ];
+const BOOLEAN_KEYS = ["acknowledged", "all"] as const;
 const ID_KEYS = ["connectionId", "workStreamId", "programId", "projectId", "teamId"] as const;
 
 const oneOf = <T extends string>(allowed: readonly T[], value: string | null): T | undefined => allowed.find((a) => a === value);
@@ -27,7 +28,7 @@ function idOf(value: string | null): number | undefined {
   return id <= 2_147_483_647 ? id : undefined;
 }
 
-/** The page's filters as read from the URL: every unknown or malformed value is dropped (a stale link never breaks the page); `all` only as the exact word `true`. */
+/** The page's filters as read from the URL: every unknown or malformed value is dropped (a stale link never breaks the page); `all` as the exact word `true` / `false`, `acknowledged` only as `true`. */
 export function parseDeviationFilter(params: URLSearchParams): DeviationFilter {
   const filter: DeviationFilter = {};
   for (const key of ID_KEYS) {
@@ -42,6 +43,9 @@ export function parseDeviationFilter(params: URLSearchParams): DeviationFilter {
   if (kind !== undefined) filter.kind = kind;
   const all = params.get("all");
   if (all === "true" || all === "false") filter.all = all === "true";
+  // Only `acknowledged=true` is a state of the page. `false` is dropped: with `all` in force it would list the clean, never-acknowledged
+  // bindings too, which no Status choice means (Open is "no parameter", or the `all=false` override under a scope).
+  if (params.get("acknowledged") === "true") filter.acknowledged = true;
   return filter;
 }
 
@@ -55,11 +59,63 @@ export function deviationFilterParams(filter: DeviationFilter): URLSearchParams 
   if (filter.level !== undefined) params.set("level", filter.level);
   if (filter.severity !== undefined) params.set("severity", filter.severity);
   if (filter.kind !== undefined) params.set("kind", filter.kind);
-  if (filter.all !== undefined) params.set("all", String(filter.all));
+  for (const key of BOOLEAN_KEYS) {
+    const value = filter[key];
+    if (value !== undefined) params.set(key, String(value));
+  }
   return params;
 }
 
-/** How many filters narrow the list: the ones the panel shows count too; `all` widens it, so it is not counted. */
+/** How many filters narrow the list: the ones the panel shows count too (the Status select's Acknowledged included); `all` widens it, so it is not counted. */
 export function narrowingCount(filter: DeviationFilter): number {
   return Object.entries(filter).filter(([key, value]) => key !== "all" && value !== undefined).length;
+}
+
+/** The Status select's three choices: the OPEN items (the server's default), the currently ACKNOWLEDGED ones, or ALL of them. */
+export type DeviationStatus = "open" | "acknowledged" | "all";
+
+/**
+ * The Status the filters read as. `acknowledged=true` is Acknowledged; otherwise whether `all` is in force - given, or implied by a project or team
+ * scope, the server's rule - decides between All and Open.
+ */
+export function deviationStatus(filter: DeviationFilter): DeviationStatus {
+  if (filter.acknowledged === true) return "acknowledged";
+  return (filter.all ?? (filter.projectId !== undefined || filter.teamId !== undefined)) ? "all" : "open";
+}
+
+/**
+ * The filter change a Status choice makes, composed as the server does. Open sends no parameter - except under a project or team scope, which
+ * implies `all`, where it sends `all=false` (the override) so the list is the open items and not every link. Acknowledged sends
+ * `acknowledged=true` and keeps an explicit `all=true` (the "Show everything" switch still decides about the estimate lines). All sends `all=true` and
+ * drops `acknowledged`.
+ */
+export function deviationStatusPatch(status: DeviationStatus, filter: DeviationFilter): Partial<DeviationFilter> {
+  const scoped = filter.projectId !== undefined || filter.teamId !== undefined;
+  switch (status) {
+    case "open":
+      return { acknowledged: undefined, all: scoped ? false : undefined };
+    case "acknowledged":
+      // An explicit all=false has no effect on an acknowledged list (only an explicit all=true does: the estimate lines), so it is not carried over.
+      return { acknowledged: true, all: filter.all === true ? true : undefined };
+    case "all":
+      return { acknowledged: undefined, all: true };
+  }
+}
+
+const isScoped = (filter: DeviationFilter) => filter.projectId !== undefined || filter.teamId !== undefined;
+
+/**
+ * A filter change that adds or removes a project / team scope must not flip an Open the user chose, because the server implies `all` under a
+ * scope. A change that names `all` or `acknowledged` itself (the Status select, the switch) is left as it is.
+ *  - Open + a scope added: send the override `all=false` (the same patch the Status select sends); Open + the last scope removed: drop it again.
+ *  - All that only the scope implied goes with the scope: removing the last project / team chip falls back to the default Open list (the implied
+ *    `all` is the chip's - "is it linked, and how" - and not a choice; an explicit `all=true` is the user's and stays).
+ *  - Acknowledged is unaffected by the implied `all`.
+ */
+export function keepStatus(filter: DeviationFilter, patch: Partial<DeviationFilter>): Partial<DeviationFilter> {
+  if ("all" in patch || "acknowledged" in patch) return patch;
+  const before = isScoped(filter);
+  const after = isScoped({ ...filter, ...patch });
+  if (before === after || deviationStatus(filter) !== "open") return patch;
+  return { ...patch, all: after ? false : undefined };
 }
