@@ -3,6 +3,8 @@ package ch.nokillswit
 import ch.nokillswit.sync.ClaimedRun
 import ch.nokillswit.sync.Connector
 import ch.nokillswit.sync.ConnectorConnection
+import ch.nokillswit.sync.JitterFraction
+import ch.nokillswit.sync.NO_JITTER
 import ch.nokillswit.sync.SyncConnectors
 import ch.nokillswit.sync.SyncCounts
 import ch.nokillswit.sync.SyncKind
@@ -12,7 +14,9 @@ import ch.nokillswit.sync.SyncRunResponse
 import ch.nokillswit.sync.SyncRunService
 import ch.nokillswit.sync.SyncRunner
 import ch.nokillswit.sync.SyncScheduler
+import ch.nokillswit.sync.SyncStatusKernels
 import ch.nokillswit.sync.SyncTrigger
+import ch.nokillswit.sync.failureJitterFraction
 import io.ktor.server.plugins.BadRequestException
 import java.util.concurrent.ThreadLocalRandom
 import java.util.concurrent.atomic.AtomicInteger
@@ -32,6 +36,7 @@ import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -99,10 +104,12 @@ class SyncSchedulerTest {
         runner: SyncRunner = this.runner,
         tickMillis: Long = 50,
         budgetMillis: Long = 30_000,
+        jitter: JitterFraction = NO_JITTER, // the back-off rows below pin exact instants; the jitter tests pass their own
     ): SyncScheduler {
         val connectors = SyncConnectors().also { it.register(connector) }
         return SyncScheduler(
             runs, runner, connectors, tickMillis, firstTickDelayMillis = 0, clock = now::get, tickBudgetMillis = budgetMillis,
+            jitter = jitter,
         )
     }
 
@@ -189,6 +196,64 @@ class SyncSchedulerTest {
         assertEquals(SyncOutcome.ABANDONED, listed.single { it.id == inFlight.id }.outcome)
         assertEquals(SyncTrigger.SCHEDULED, listed.first { it.id != inFlight.id }.trigger)
         assertEquals(1, fake.runCalls.get())
+    }
+
+    @Test
+    fun `a failed run's retry is pushed back by the jitter, to the millisecond, and a success is not`() = runBlocking {
+        val id = connectionId()
+        val fake = FakeConnector().apply {
+            rows = listOf(conn(id))
+            body = { SyncResult.failed("BOOM") }
+        }
+        // Half the span: min(backoff / 2, interval / 2) = 7.5 min at 15 minutes, so 3 min 45 s.
+        val scheduler = scheduler(fake, jitter = { _, _ -> 0.5 })
+
+        scheduler.tickAndSettle(id)
+        at(15, 224_999)
+        scheduler.tickAndSettle(id)
+        assertEquals(1, rows(id).size, "one interval is not enough: the jitter is added")
+        at(15, 225_000)
+        scheduler.tickAndSettle(id)
+        assertEquals(2, rows(id).size)
+
+        // Two failures: the second retry waits 30 min plus half of min(30 / 2, 7.5) = 7.5 min after the second run finished (now).
+        fake.body = { SyncResult.succeeded(SyncCounts()) }
+        val secondFinished = now.get()
+        now.set(secondFinished + 30 * minute + 225_000 - 1)
+        scheduler.tickAndSettle(id)
+        assertEquals(2, rows(id).size, "the second retry waits two intervals plus the jitter")
+        now.set(secondFinished + 30 * minute + 225_000)
+        scheduler.tickAndSettle(id)
+        assertEquals(SyncOutcome.SUCCEEDED, rows(id).first().outcome)
+
+        val succeededAt = now.get()
+        now.set(succeededAt + 15 * minute - 1)
+        scheduler.tickAndSettle(id)
+        assertEquals(3, rows(id).size)
+        now.set(succeededAt + 15 * minute)
+        scheduler.tickAndSettle(id)
+        assertEquals(4, rows(id).size, "a success is back to the plain interval, no jitter")
+    }
+
+    @Test
+    fun `the status reports the instant the scheduler really claims, with the production jitter`() = runBlocking {
+        val id = connectionId()
+        val fake = FakeConnector().apply {
+            rows = listOf(conn(id))
+            body = { SyncResult.failed("BOOM") }
+        }
+        val scheduler = scheduler(fake, jitter = ::failureJitterFraction)
+        scheduler.tickAndSettle(id)
+
+        val facts = runs.recentRuns(SyncKind.JIRA, listOf(id)).getValue(id)
+        val reported = assertNotNull(SyncStatusKernels.derive(conn(id), facts, now.get(), 10).nextPollAt)
+        assertTrue(reported >= t0 + 15 * minute && reported < t0 + 15 * minute + 450_000, "one interval plus less than half of it")
+        now.set(reported - 1)
+        scheduler.tickAndSettle(id)
+        assertEquals(1, rows(id).size, "not a millisecond before nextPollAt")
+        now.set(reported)
+        scheduler.tickAndSettle(id)
+        assertEquals(2, rows(id).size, "exactly at nextPollAt")
     }
 
     @Test

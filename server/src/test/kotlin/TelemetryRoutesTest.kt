@@ -14,6 +14,8 @@ import ch.nokillswit.sync.SyncRunService
 import ch.nokillswit.sync.SyncRunServiceKey
 import ch.nokillswit.sync.SyncState
 import ch.nokillswit.sync.SyncTrigger
+import ch.nokillswit.sync.failureJitterFraction
+import ch.nokillswit.sync.failureJitterMillis
 import ch.nokillswit.users.UserRole
 import ch.nokillswit.telemetry.HistoryGroup
 import ch.nokillswit.telemetry.HistoryRange
@@ -520,7 +522,12 @@ class TelemetryRoutesTest {
                 assertEquals(1, row.status.consecutiveFailures)
                 assertEquals("TIMEOUT", row.status.lastRun!!.errorCode)
                 assertEquals(SyncTrigger.SCHEDULED, row.status.lastRun!!.trigger)
-                assertEquals(failedAt + 1_000 + 15 * TELE_MINUTE, row.status.nextPollAt, "one interval after the failed run finished")
+                // One interval after the failed run finished, plus the retry jitter hashed from this connection and this run.
+                val lastRun = assertNotNull(row.status.lastRun)
+                val interval = 15 * TELE_MINUTE
+                val jitter = failureJitterMillis(interval, interval, failureJitterFraction(row.connectionId, lastRun.id))
+                assertTrue(jitter > 0, "this connection's jitter is not zero")
+                assertEquals(failedAt + 1_000 + interval + jitter, row.status.nextPollAt, "one interval plus the jitter after the finish")
                 assertFalse(listOf(created.siteUrl, created.email, "JTOK").any { raw.contains(it) }, "no site, email or token")
             } finally {
                 // Removes the connection (and its runs): a due connection must not stay in the shared database for a later scheduler test.

@@ -17,6 +17,8 @@ import ch.nokillswit.sync.SyncRunService
 import ch.nokillswit.sync.SyncRunnerKey
 import ch.nokillswit.sync.SyncState
 import ch.nokillswit.sync.SyncTrigger
+import ch.nokillswit.sync.failureJitterFraction
+import ch.nokillswit.sync.failureJitterMillis
 import ch.nokillswit.users.UserRole
 import com.github.tomakehurst.wiremock.client.WireMock.aResponse
 import com.github.tomakehurst.wiremock.client.WireMock.equalTo
@@ -49,6 +51,10 @@ class JiraConnectionStatusTest {
     companion object {
         private const val SEARCH = "/ex/jira/${JiraStubServer.CLOUD_ID}/rest/api/3/search/jql"
         private const val INTERVAL = 15 * 60_000L
+
+        /** The retry jitter of a failed run: the scheduler's own hash of the connection and the run, never a second copy of the rule. */
+        private fun jitter(connectionId: UInt, runId: UInt, backoff: Long) =
+            failureJitterMillis(INTERVAL, backoff, failureJitterFraction(connectionId, runId))
 
         @JvmStatic
         @BeforeClass
@@ -163,13 +169,19 @@ class JiraConnectionStatusTest {
             assertEquals("UPSTREAM_UNAVAILABLE", one.lastRun!!.errorCode)
             assertEquals(1, one.consecutiveFailures)
             assertNull(one.lastSucceededAt)
-            assertEquals(first.finishedAt!! + INTERVAL, one.nextPollAt, "the first retry waits one interval")
+            assertEquals(
+                first.finishedAt!! + INTERVAL + jitter(connection.id, first.id, INTERVAL), one.nextPollAt,
+                "one interval plus the jitter",
+            )
 
             val second = runAndAwait(admin, connection.id)
             val two = admin.listed(connection.id).status
             assertEquals(SyncState.FAILED, two.state)
             assertEquals(2, two.consecutiveFailures)
-            assertEquals(second.finishedAt!! + 2 * INTERVAL, two.nextPollAt, "then it doubles: the scheduler's own back-off")
+            assertEquals(
+                second.finishedAt!! + 2 * INTERVAL + jitter(connection.id, second.id, 2 * INTERVAL), two.nextPollAt,
+                "then it doubles: the scheduler's own back-off, plus the jitter",
+            )
         } finally {
             JiraStubServer.removeOverride(override)
             JiraStubServer.resetScenarios()

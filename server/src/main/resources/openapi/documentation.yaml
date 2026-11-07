@@ -5085,7 +5085,7 @@ components:
           nullable: true
         lastSucceededAt: { type: integer, format: int64, nullable: true, description: "Epoch millis the newest SUCCEEDED run STARTED (the data is as of then); null before the first." }
         consecutiveFailures: { type: integer, format: int32, minimum: 0, description: "The trailing finished runs that failed or were abandoned (an interrupted newest run adds one), back to the last success." }
-        nextPollAt: { type: integer, format: int64, nullable: true, description: "Epoch millis the scheduler claims next (now when due); null for a disabled, untested, manual-only or running connection. Computed by the scheduler's own rule, back-off included." }
+        nextPollAt: { type: integer, format: int64, nullable: true, description: "Epoch millis the scheduler claims next (now when due); null for a disabled, untested, manual-only or running connection. Computed by the scheduler's own rule, back-off and the per-connection retry jitter after a failure included." }
     DeviationConnection:
       type: object
       required: [id, name, siteUrl, enabled, mappingOk, lastRun, status]

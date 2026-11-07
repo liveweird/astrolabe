@@ -10,6 +10,8 @@ import ch.nokillswit.sync.SyncState
 import ch.nokillswit.sync.SyncStatusKernels
 import ch.nokillswit.sync.SyncTrigger
 import ch.nokillswit.sync.decide
+import ch.nokillswit.sync.failureJitterFraction
+import ch.nokillswit.sync.failureJitterMillis
 import ch.nokillswit.sync.isRunLive
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -209,9 +211,11 @@ class SyncStatusKernelsTest {
             }
             assertEquals(expected, derive(runs, c).nextPollAt, label)
         }
-        // The back-off is real: after two failures the next poll is two intervals after the newest finish.
+        // The back-off is real: after two failures the next poll is two intervals after the newest finish, plus the connection's jitter.
         val two = tableau.getValue("two failures")
-        assertEquals(two.first().finishedAt!! + 2 * interval * minute, derive(two, c).nextPollAt)
+        val jitter = failureJitterMillis(interval * minute, 2 * interval * minute, failureJitterFraction(c.id, two.first().id))
+        assertTrue(jitter in 1 until interval * minute / 2, "this connection's jitter is not zero: $jitter")
+        assertEquals(two.first().finishedAt!! + 2 * interval * minute + jitter, derive(two, c).nextPollAt)
         // A connection changed after the newest run started is due at once, whatever the back-off.
         val changed = connection(changedAt = now - 2 * minute)
         assertEquals(now, derive(tableau.getValue("one failure"), changed).nextPollAt)

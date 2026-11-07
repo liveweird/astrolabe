@@ -3930,7 +3930,7 @@ export interface components {
             consecutiveFailures: number;
             /**
              * Format: int64
-             * @description Epoch millis the scheduler claims next (now when due); null for a disabled, untested, manual-only or running connection. Computed by the scheduler's own rule, back-off included.
+             * @description Epoch millis the scheduler claims next (now when due); null for a disabled, untested, manual-only or running connection. Computed by the scheduler's own rule, back-off and the per-connection retry jitter after a failure included.
              */
             nextPollAt: number | null;
         };

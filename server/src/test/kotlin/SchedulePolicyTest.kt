@@ -3,14 +3,19 @@ package ch.nokillswit
 import ch.nokillswit.sync.ConnectorConnection
 import ch.nokillswit.sync.Decision
 import ch.nokillswit.sync.MAX_BACKOFF_MILLIS
+import ch.nokillswit.sync.MAX_JITTER_MILLIS
+import ch.nokillswit.sync.NO_JITTER
 import ch.nokillswit.sync.RunFact
 import ch.nokillswit.sync.SyncOutcome
 import ch.nokillswit.sync.SyncTrigger
 import ch.nokillswit.sync.backoffMillis
 import ch.nokillswit.sync.decide
+import ch.nokillswit.sync.failureJitterFraction
+import ch.nokillswit.sync.failureJitterMillis
 import ch.nokillswit.sync.trailingFailures
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /**
  * The scheduler's pure due rule (`sync/SchedulePolicy.kt`): the back-off table at the two usual intervals, the failure streak, and every
@@ -33,8 +38,9 @@ class SchedulePolicyTest {
 
     private fun unfinished(startedAt: Long) = RunFact(startedAt, null, null, 0u, SyncTrigger.MANUAL, null)
 
+    // NO_JITTER: the tables below pin the back-off itself; the jitter has its own tests at the end.
     private fun decision(runs: List<RunFact>, at: Long = now, connection: ConnectorConnection = connection()) =
-        decide(connection, runs, at, maxRun)
+        decide(connection, runs, at, maxRun, NO_JITTER)
 
     @Test
     fun `the back-off doubles from the first retry and stops at six hours, for 5 and 15 minutes`() {
@@ -134,5 +140,49 @@ class SchedulePolicyTest {
         val ended = now
         val fails = (0 until 9).map { finished(ended - (it + 2) * minute, ended - (it + 1) * minute, SyncOutcome.FAILED) }
         assertEquals(Decision.Wait(ended - minute + MAX_BACKOFF_MILLIS), decision(fails, at = ended))
+    }
+
+    @Test
+    fun `the jitter is a share of at most half the interval, never above an hour, and added to the back-off only`() {
+        assertEquals(0L, failureJitterMillis(15 * minute, 15 * minute, 0.0))
+        assertEquals(225_000L, failureJitterMillis(15 * minute, 15 * minute, 0.5), "half of min(7.5 min, 7.5 min)")
+        // A longer back-off does not widen it: interval / 2 bounds it (a back-off is never below the interval).
+        assertEquals(225_000L, failureJitterMillis(15 * minute, 240 * minute, 0.5))
+        // A 24 h interval is capped at an hour, not 12 h.
+        assertEquals(MAX_JITTER_MILLIS / 2, failureJitterMillis(1440 * minute, 1440 * minute, 0.5))
+        assertTrue(failureJitterMillis(5 * minute, 5 * minute, 0.999_999) < 150_000L)
+    }
+
+    @Test
+    fun `a failed connection retries at the back-off plus its jitter, a successful one exactly on the interval`() {
+        val ended = now
+        val failed = listOf(finished(ended - minute, ended, SyncOutcome.FAILED))
+        val half = { _: UInt, _: UInt -> 0.5 }
+        assertEquals(Decision.Wait(ended + 15 * minute + 225_000), decide(connection(), failed, now, maxRun, half))
+        assertEquals(Decision.Due, decide(connection(), failed, ended + 15 * minute + 225_000, maxRun, half))
+        val two = listOf(finished(ended + 15 * minute, ended + 16 * minute, SyncOutcome.FAILED)) + failed
+        assertEquals(Decision.Wait(ended + 16 * minute + 30 * minute + 225_000), decide(connection(), two, now, maxRun, half))
+        val ok = listOf(finished(ended - minute, ended, SyncOutcome.SUCCEEDED))
+        assertEquals(Decision.Wait(ended + 15 * minute), decide(connection(), ok, now, maxRun, half), "a success is never jittered")
+        // A change to the connection is due at once, the jitter does not hold a fixed token back.
+        assertEquals(Decision.Due, decide(connection(changedAt = now), failed, now, maxRun, half))
+    }
+
+    @Test
+    fun `connections that failed together retry at different instants, and each one at the same instant every time it is asked`() {
+        val ended = now
+        val waits = (1u..40u).map { id ->
+            val c = ConnectorConnection(id, "c", true, 15, true, 0)
+            val failed = listOf(RunFact(ended - minute, ended, SyncOutcome.FAILED, 7u, SyncTrigger.SCHEDULED, null))
+            val first = decide(c, failed, now, maxRun)
+            assertEquals(first, decide(c, failed, now + 1, maxRun), "deterministic: no draw per read")
+            (first as Decision.Wait).until - (ended + 15 * minute)
+        }
+        assertTrue(waits.all { it in 0 until 450_000 }, "within [0, interval / 2)")
+        assertTrue(waits.toSet().size >= 35, "spread, not clustered: ${waits.toSet().size} distinct offsets of 40")
+        assertTrue(waits.max() - waits.min() > 300_000, "covers most of the span")
+        // The next failure of the same connection is a new run id and draws a new offset.
+        assertTrue((1u..40u).any { failureJitterFraction(it, 7u) != failureJitterFraction(it, 8u) })
+        assertTrue((1u..1000u).all { failureJitterFraction(it, it) in 0.0..<1.0 })
     }
 }

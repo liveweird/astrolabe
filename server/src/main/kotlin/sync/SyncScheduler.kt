@@ -39,6 +39,9 @@ private const val TICK = "tick"
  * - **A claimed row always gets its run.** The claim and `runner.start` run together in [NonCancellable] (both are short): the tick's
  *   budget or the shutdown can never leave an unfinished row behind with nothing running it (it would block the connection for
  *   `sync.maxRunMinutes`). `runner.start` records the finish even on a cancelled scope.
+ * - **A failed connection retries spread, not all at once.** After a shared outage every connection fails in the same tick; [decide] adds
+ *   a deterministic per-connection offset to the back-off ([failureJitterMillis]) so the retries do not land in one tick on the two
+ *   shared outbound permits. The status reports the same instant (`nextPollAt`).
  * - **A failure never stops the loop.** The tick runs under [tickBudgetMillis]; a connector that throws fails only its own section, one
  *   connection that throws only itself, and each is one WARN then DEBUG then "recovered" ([FailureLog], the exception CLASS only).
  *
@@ -55,6 +58,8 @@ class SyncScheduler(
     private val clock: () -> Long = ::nowMillis,
     /** The whole tick's budget: half a tick by default, so a slow database can never make ticks overlap. */
     private val tickBudgetMillis: Long = tickMillis / 2,
+    /** The retry spread of a failed connection ([failureJitterFraction]); a test pins it. The status uses the default, so keep it. */
+    private val jitter: JitterFraction = ::failureJitterFraction,
 ) {
     private val failures = FailureLog(log, "Scheduler") { it.javaClass.name }
 
@@ -131,7 +136,7 @@ class SyncScheduler(
         }
         var clean = true
         for (connection in pollable) {
-            if (decide(connection, recent[connection.id].orEmpty(), now, runs.maxRunMinutes) != Decision.Due) continue
+            if (decide(connection, recent[connection.id].orEmpty(), now, runs.maxRunMinutes, jitter) != Decision.Due) continue
             clean = pollOne(connector, connection, now) && clean
         }
         if (clean) failures.ok(section)
@@ -189,6 +194,6 @@ class SyncScheduler(
         }
         val fresh = connector.connections().firstOrNull { it.id == connection.id } ?: return false
         val facts = runs.recentRuns(connector.kind, listOf(connection.id))[connection.id].orEmpty()
-        return decide(fresh, facts, now, runs.maxRunMinutes) == Decision.Due
+        return decide(fresh, facts, now, runs.maxRunMinutes, jitter) == Decision.Due
     }
 }
