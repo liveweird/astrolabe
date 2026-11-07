@@ -186,6 +186,24 @@ describe("Deviations page - how current the figures are", () => {
     expect(screen.getByText(/may be out of date\. See Data from Jira/)).toBeInTheDocument();
   });
 
+  test("each connection's derived status is a badge in the sources table, with its failure streak or next poll", async () => {
+    const failed = { ...run, outcome: "FAILED" as const, errorCode: "TIMEOUT" };
+    doc = view({
+      connections: [
+        { ...DEV_CONNECTION, lastRun: failed, status: { state: "FAILED", lastRun: failed, lastSucceededAt: null, consecutiveFailures: 2, nextPollAt: NOW } },
+        { ...DEV_CONNECTION, id: 2, name: "Second Jira", status: { ...DEV_CONNECTION.status, state: "STALE", nextPollAt: Date.now() + 4 * 60_000 - 5_000 } },
+      ],
+    });
+    renderPage();
+    const sources = await screen.findByRole("table", { name: "Data from Jira" });
+    expect(within(sources).getByRole("columnheader", { name: "Status" })).toBeInTheDocument();
+    const first = within(sources).getByText("Acme Jira").closest("tr")!;
+    expect(within(first).getByText("2 failures in a row · TIMEOUT")).toBeInTheDocument();
+    const second = within(sources).getByText("Second Jira").closest("tr")!;
+    expect(within(second).getByText("Stale")).toBeInTheDocument();
+    expect(within(second).getByText("next poll in 4 min")).toBeInTheDocument();
+  });
+
   test("never refreshed, interrupted (unfinished and not running) and abandoned each read as not current", async () => {
     doc = view({ connections: [{ ...DEV_CONNECTION, lastRun: null }] });
     const first = renderPage();

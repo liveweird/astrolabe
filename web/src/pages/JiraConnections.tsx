@@ -13,16 +13,18 @@ import PageHeader from "../components/PageHeader";
 import RegistryListTable from "../components/RegistryListTable";
 import RowActionsMenu from "../components/RowActionsMenu";
 import SortHeader from "../components/SortHeader";
+import SyncStatusBadge from "../components/SyncStatusBadge";
 import { useDeleteConfirm } from "../hooks/useDeleteConfirm";
 import { useDialogFocus } from "../hooks/useDialogFocus";
 import { useBoundedPoll } from "../hooks/useBoundedPoll";
+import { useNow } from "../hooks/useNow";
 import { usePagedSort } from "../hooks/usePagedSort";
 import { formatDateTime } from "../utils/formatDate";
 import { untestedKey } from "../utils/jiraForm";
 import { jiraConnectionPath, jiraSiteUrl } from "../utils/jiraLinks";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { saveErrorMessage } from "../utils/saveError";
-import { RUN_STATE_COLOR, runState } from "../utils/syncRuns";
+import { IDLE_REFRESH_MS, RUN_STATE_COLOR, runState } from "../utils/syncRuns";
 
 const SORT_FIELDS = ["name", "createdAt"] as const;
 type SortField = (typeof SORT_FIELDS)[number];
@@ -77,7 +79,7 @@ export default function JiraConnections() {
   });
 
   const poll = useBoundedPoll();
-  const { data, isLoading, isError, error } = useQuery({
+  const { data, isLoading, isError, error, dataUpdatedAt } = useQuery({
     queryKey: ["jira", "list", page, pageSize, sortParam],
     queryFn: () => listJiraConnections({ page, pageSize, sort: sortParam }),
     placeholderData: keepPreviousData,
@@ -85,9 +87,11 @@ export default function JiraConnections() {
     // While any listed connection's newest run is running (the server's verdict), the list is re-read so its badge moves by itself.
     refetchInterval: (query) => {
       const running = query.state.data?.items.filter((c) => c.lastRun?.running).map((c) => `${c.id}:${c.lastRun?.id}`);
-      return poll(running && running.length > 0 ? running.join(",") : null);
+      // Nothing running: still re-read slowly while the page is visible, a scheduled run starts without anyone asking.
+      return poll(running && running.length > 0 ? running.join(",") : null) || IDLE_REFRESH_MS;
     },
   });
+  const now = useNow(60_000, dataUpdatedAt);
 
   const [editorTarget, setEditorTarget] = useState<JiraConnection | "new" | null>(null);
   useDialogFocus(editorTarget !== null);
@@ -100,7 +104,7 @@ export default function JiraConnections() {
     focusAfterDelete: titleRef,
   });
 
-  const columnCount = 6;
+  const columnCount = 7;
 
   return (
     <Stack gap="md">
@@ -124,7 +128,7 @@ export default function JiraConnections() {
         hasData={Boolean(data)}
         rowCount={data?.items.length ?? 0}
         columnCount={columnCount}
-        scrollMinWidth={860}
+        scrollMinWidth={980}
         emptyIcon={IconPlugConnected}
         emptyLabel={t("jira.empty")}
         header={
@@ -133,6 +137,7 @@ export default function JiraConnections() {
             <Table.Th>{t("jira.column.site")}</Table.Th>
             <Table.Th>{t("jira.column.projectKeys")}</Table.Th>
             <Table.Th>{t("jira.column.lastTest")}</Table.Th>
+            <Table.Th>{t("jira.column.status")}</Table.Th>
             <Table.Th>{t("jira.column.lastRun")}</Table.Th>
             <Table.Th aria-label={t("common.table.operations")} style={{ width: 1 }} />
           </Table.Tr>
@@ -179,6 +184,9 @@ export default function JiraConnections() {
                   <Text size="sm">{formatDateTime(connection.lastTestedAt)}</Text>
                 </Group>
               )}
+            </Table.Td>
+            <Table.Td>
+              <SyncStatusBadge status={connection.status} now={now} ready={connection.discoveredAt !== null} pollIntervalMinutes={connection.pollIntervalMinutes} />
             </Table.Td>
             <Table.Td>
               <LastRun run={connection.lastRun} />

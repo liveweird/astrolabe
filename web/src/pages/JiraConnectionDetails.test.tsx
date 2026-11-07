@@ -1,12 +1,13 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
 import { Link, Route, Routes } from "react-router-dom";
-import { renderWithProviders, screen, waitFor, within } from "../test/render";
+import { act, renderWithProviders, screen, waitFor, within } from "../test/render";
 import { jsonResponse } from "../test/http";
 import { headingOutline } from "../test/headings";
 import { CONNECTION, DISCOVERY, FAILING_TEST, MAPPING_DEFAULTS_ONLY, PASSING_TEST, run } from "../test/jira";
 import type { JiraConnection } from "../api/jira";
 import type { SyncRun } from "../api/sync";
+import { IDLE_REFRESH_MS } from "../utils/syncRuns";
 import JiraConnectionDetails from "./JiraConnectionDetails";
 
 const TOKEN_KEY = "astrolabe.auth.token";
@@ -194,15 +195,140 @@ describe("Jira connection page", () => {
   });
 
   test("a 409 run-in-progress is a normal state: told as a note, never an error", async () => {
-    serve(mockFetch, {
-      runs: [run({ id: 5, outcome: null, finishedAt: null, startedAt: Date.now() - 5_000, running: true })],
-      claim: () => jsonResponse(409, { title: "Conflict", status: 409, type: "urn:astrolabe:problem:run-in-progress" }),
+    // The race: the button was enabled, and a scheduled run claimed the connection before the click arrived.
+    const world = serve(mockFetch, {
+      claim: () => {
+        world.runs = [run({ id: 5, trigger: "SCHEDULED", requestedByUserId: null, outcome: null, finishedAt: null, startedAt: Date.now() - 5_000, running: true })];
+        return jsonResponse(409, { title: "Conflict", status: 409, type: "urn:astrolabe:problem:run-in-progress" });
+      },
     });
     const user = userEvent.setup();
     renderPage();
     await user.click(await screen.findByRole("button", { name: "Refresh now" }));
     expect(await screen.findByText(/A refresh is already running for this connection/)).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    // The runs list followed: the scheduled run is there, and the button now waits for it.
+    expect(await within(screen.getByRole("table", { name: "Recent runs" })).findByText("Scheduled")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Refresh now" })).toBeDisabled();
+  });
+
+  test("Refresh now is disabled while a run is running (the polled list's verdict) and comes back when it ends, re-reading the connection", async () => {
+    const world = serve(mockFetch, { runs: [run({ id: 5, outcome: null, finishedAt: null, running: true })] });
+    renderPage();
+    const button = await screen.findByRole("button", { name: "Refresh now" });
+    await waitFor(() => expect(button).toBeDisabled());
+    const connectionReads = () => mockFetch.mock.calls.filter(([url, init]) => url === BASE && ((init as RequestInit | undefined)?.method ?? "GET") === "GET").length;
+    const before = connectionReads();
+    // The run ends: the next poll of the list says so (RUN_POLL_MS), and the status facts are read again.
+    world.runs = [run({ id: 5, outcome: "SUCCEEDED", running: false })];
+    await waitFor(() => expect(button).toBeEnabled(), { timeout: 6_000 });
+    await waitFor(() => expect(connectionReads()).toBeGreaterThan(before));
+  });
+
+  describe("an open page follows the server without a reload", () => {
+    afterEach(() => vi.useRealTimers());
+    const T0 = Date.UTC(2026, 10, 6, 11, 0);
+    const advance = (ms: number) => act(async () => { await vi.advanceTimersByTimeAsync(ms); });
+    const scheduled = { id: 7, startedAt: T0 + 1_000, finishedAt: T0 + 5_000, outcome: "SUCCEEDED" as const, errorCode: null, trigger: "SCHEDULED" as const, running: false };
+
+    test("a scheduled run that started and finished while the page was open reaches the runs table and the facts at the next slow refresh", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      vi.setSystemTime(T0);
+      const world = serve(mockFetch);
+      renderPage();
+      const facts = await screen.findByRole("table", { name: "Connection facts" });
+      expect(within(screen.getByRole("table", { name: "Recent runs" })).queryByText("Scheduled")).not.toBeInTheDocument();
+      expect(within(facts).getByText("Never synced")).toBeInTheDocument();
+      // The scheduler ran, nobody clicked anything.
+      world.runs = [run(scheduled)];
+      world.connection = { ...CONNECTION, lastRun: scheduled, status: { state: "CURRENT", lastRun: scheduled, lastSucceededAt: scheduled.startedAt, consecutiveFailures: 0, nextPollAt: T0 + 20 * 60_000 } };
+      await advance(IDLE_REFRESH_MS + 100);
+      expect(await within(screen.getByRole("table", { name: "Recent runs" })).findByText("Scheduled")).toBeInTheDocument();
+      expect(within(screen.getByRole("table", { name: "Connection facts" })).getByRole("rowheader", { name: "Status" }).closest("tr")).toHaveTextContent("Current");
+      expect(within(screen.getByRole("table", { name: "Connection facts" })).getByRole("rowheader", { name: "Last success (UTC)" }).closest("tr")).toHaveTextContent("2026-11-06 11:00");
+    });
+
+    test("a connection that became due mid-minute reads 'due now' alone, with no clock time, not 'next poll in 1 min' against the older tick", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      vi.setSystemTime(T0);
+      const world = serve(mockFetch);
+      renderPage();
+      await screen.findByRole("table", { name: "Connection facts" });
+      world.connection = { ...CONNECTION, status: { state: "CURRENT", lastRun: scheduled, lastSucceededAt: scheduled.startedAt, consecutiveFailures: 0, nextPollAt: T0 + 20_000 } };
+      await advance(IDLE_REFRESH_MS + 100);
+      const next = await waitFor(() => {
+        const row = within(screen.getByRole("table", { name: "Connection facts" })).getByRole("rowheader", { name: "Next poll (UTC)" }).closest("tr")!;
+        expect(row).toHaveTextContent("due now");
+        return row;
+      });
+      expect(next).not.toHaveTextContent("2026-11-06");
+      expect(next).not.toHaveTextContent("next poll in");
+    });
+
+    test("a manual refresh that finished before the first poll still moves the facts: the connection is re-read when the claim settles", async () => {
+      const world = serve(mockFetch);
+      const base = mockFetch.getMockImplementation() as (url: string, init?: RequestInit) => Promise<Response>;
+      mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+        if (url === "/api/v1/integrations/sync/runs" && init?.method === "POST") {
+          const done = run({ id: 8, outcome: "SUCCEEDED", running: false });
+          world.runs = [done];
+          world.connection = { ...CONNECTION, status: { state: "CURRENT", lastRun: { id: 8, startedAt: done.startedAt, finishedAt: done.finishedAt ?? null, outcome: "SUCCEEDED", errorCode: null, trigger: "MANUAL", running: false }, lastSucceededAt: done.startedAt, consecutiveFailures: 0, nextPollAt: null } };
+          return Promise.resolve(jsonResponse(202, done));
+        }
+        return base(url, init);
+      });
+      const user = userEvent.setup();
+      renderPage();
+      await user.click(await screen.findByRole("button", { name: "Refresh now" }));
+      const facts = screen.getByRole("table", { name: "Connection facts" });
+      await waitFor(() => expect(within(facts).getByRole("rowheader", { name: "Status" }).closest("tr")).toHaveTextContent("Current"));
+      expect(screen.getByRole("button", { name: "Refresh now" })).toBeEnabled();
+    });
+  });
+
+  test("the sync facts: the state with its next poll, the last success (dated and aged), the next poll and the interval", async () => {
+    const NOW = Date.UTC(2026, 10, 6, 11, 0);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(NOW);
+    try {
+      const startedAt = NOW - 4 * 60_000;
+      const last = { id: 7, startedAt, finishedAt: startedAt + 60_000, outcome: "SUCCEEDED" as const, errorCode: null, trigger: "SCHEDULED" as const, running: false };
+      serve(mockFetch, { connection: { ...CONNECTION, lastRun: last, status: { state: "CURRENT", lastRun: last, lastSucceededAt: startedAt, consecutiveFailures: 0, nextPollAt: NOW + 7 * 60_000 - 5_000 } } });
+      renderPage();
+      const facts = await screen.findByRole("table", { name: "Connection facts" });
+      const rowOf = (label: string) => within(facts).getByRole("rowheader", { name: label }).closest("tr")!;
+      expect(within(rowOf("Status")).getByText("Current")).toBeInTheDocument();
+      expect(within(rowOf("Status")).getByText("next poll in 7 min")).toBeInTheDocument();
+      expect(within(rowOf("Last success (UTC)")).getByText("2026-11-06 10:56")).toBeInTheDocument();
+      expect(within(rowOf("Last success (UTC)")).getByText("4 minutes ago")).toBeInTheDocument();
+      expect(within(rowOf("Next poll (UTC)")).getByText("2026-11-06 11:06")).toBeInTheDocument();
+      expect(within(rowOf("Next poll (UTC)")).getByText("next poll in 7 min")).toBeInTheDocument();
+      expect(within(rowOf("Polling")).getByText("every 15 min")).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("a manual-only connection says so (Polling, Next poll and the status line); an untested one says to test first; a failing one counts its streak with the code", async () => {
+    serve(mockFetch, { connection: { ...CONNECTION, pollIntervalMinutes: null, status: { ...CONNECTION.status, state: "CURRENT", lastSucceededAt: 1 } } });
+    const first = renderPage();
+    const facts = await screen.findByRole("table", { name: "Connection facts" });
+    expect(within(facts).getByRole("rowheader", { name: "Polling" }).closest("tr")).toHaveTextContent("Manual only");
+    expect(within(facts).getByRole("rowheader", { name: "Next poll (UTC)" }).closest("tr")).toHaveTextContent("manual only");
+    first.unmount();
+
+    serve(mockFetch, { connection: { ...CONNECTION, discoveredAt: null, lastTestedAt: null, lastTestOk: null } });
+    const second = renderPage();
+    const untested = await screen.findByRole("table", { name: "Connection facts" });
+    // The Status row's line and the Next poll fact both say it.
+    expect(within(untested).getAllByText("not polled: test the connection first")).toHaveLength(2);
+    second.unmount();
+
+    const failed = { id: 7, startedAt: 1, finishedAt: 2, outcome: "FAILED" as const, errorCode: "TOKEN_UNREADABLE", trigger: "SCHEDULED" as const, running: false };
+    serve(mockFetch, { connection: { ...CONNECTION, status: { state: "FAILED", lastRun: failed, lastSucceededAt: null, consecutiveFailures: 3, nextPollAt: 99 } } });
+    renderPage();
+    const failing = await screen.findByRole("table", { name: "Connection facts" });
+    expect(within(failing).getByRole("rowheader", { name: "Status" }).closest("tr")).toHaveTextContent("Failed3 failures in a row · TOKEN_UNREADABLE");
   });
 
   test("an unfinished run the server does not call running reads as interrupted, in words that claim nothing about what happens next", async () => {

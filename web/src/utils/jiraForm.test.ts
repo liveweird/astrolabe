@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import i18n from "../i18n";
 import { CONNECTION } from "../test/jira";
-import { EMPTY_JIRA_FORM, fromJiraConnection, ISSUE_KEY_PATTERN, jiraFormValidation, probeSettingsDiffer, toJiraConnectionRequest, untestedKey } from "./jiraForm";
+import { DEFAULT_POLL_INTERVAL_MINUTES, EMPTY_JIRA_FORM, fromJiraConnection, ISSUE_KEY_PATTERN, jiraFormValidation, probeSettingsDiffer, toJiraConnectionRequest, untestedKey } from "./jiraForm";
 
 const t = i18n.t.bind(i18n);
 const create = jiraFormValidation(t, false);
@@ -31,6 +31,15 @@ describe("jiraFormValidation (mirrors JiraConnection.kt)", () => {
     expect(create.projectKeys(Array.from({ length: 51 }, (_, i) => `K${String(i).padStart(2, "0")}`))).not.toBeNull();
   });
 
+  test("the polling interval is a whole number of minutes from 5 to 1440; with Manual only the number is not looked at", () => {
+    const rule = create.pollIntervalMinutes;
+    const polling = { ...EMPTY_JIRA_FORM, manualOnly: false };
+    for (const good of [5, 15, 1440, "30"]) expect(rule(good, polling), String(good)).toBeNull();
+    for (const bad of [4, 0, -5, 1441, 7.5, "", "  ", "abc"]) expect(rule(bad, polling), String(bad)).not.toBeNull();
+    expect(rule("", { ...polling, manualOnly: true })).toBeNull();
+    expect(rule(4, { ...polling, manualOnly: true })).toBeNull();
+  });
+
   test("name 1..100 characters, email needs an @", () => {
     expect(create.name("  ")).not.toBeNull();
     expect(create.name("x".repeat(101))).not.toBeNull();
@@ -51,8 +60,39 @@ describe("the wire body", () => {
       authScheme: "BASIC",
       projectKeys: ["E2E", "PF"],
       enabled: true,
+      pollIntervalMinutes: 15,
     });
     expect(toJiraConnectionRequest({ ...base, apiToken: "  secret  ", authScheme: "BEARER", enabled: false })).toMatchObject({ apiToken: "secret", authScheme: "BEARER", enabled: false });
+  });
+
+  test("pollIntervalMinutes ALWAYS travels (a PUT is a full replace and an omitted member resets the server to 15): the number, or an explicit null", () => {
+    const polling = toJiraConnectionRequest({ ...EMPTY_JIRA_FORM, pollIntervalMinutes: 45 });
+    expect(polling.pollIntervalMinutes).toBe(45);
+    const manual = toJiraConnectionRequest({ ...EMPTY_JIRA_FORM, manualOnly: true });
+    expect(manual).toHaveProperty("pollIntervalMinutes", null);
+    expect(JSON.stringify(manual)).toContain('"pollIntervalMinutes":null');
+    // A typed string is turned into the number; a value the form refuses (the probe sends the body unvalidated) falls back to the default, never undefined.
+    expect(toJiraConnectionRequest({ ...EMPTY_JIRA_FORM, pollIntervalMinutes: "20" }).pollIntervalMinutes).toBe(20);
+    for (const refused of ["", 4, 1441, "abc"]) {
+      expect(toJiraConnectionRequest({ ...EMPTY_JIRA_FORM, pollIntervalMinutes: refused }).pollIntervalMinutes, String(refused)).toBe(DEFAULT_POLL_INTERVAL_MINUTES);
+    }
+  });
+
+  test("a manual-only connection round-tripped through an edit (a rename) is still manual only, and the body is exactly the stored settings", () => {
+    const stored = { ...CONNECTION, pollIntervalMinutes: null };
+    const values = fromJiraConnection(stored);
+    expect(values).toMatchObject({ manualOnly: true, pollIntervalMinutes: DEFAULT_POLL_INTERVAL_MINUTES });
+    expect(JSON.parse(JSON.stringify(toJiraConnectionRequest({ ...values, name: "Renamed" })))).toEqual({
+      name: "Renamed",
+      siteUrl: "https://acme.atlassian.net",
+      email: "robot@acme.example",
+      authScheme: "BASIC",
+      projectKeys: ["E2E", "PF"],
+      enabled: true,
+      pollIntervalMinutes: null,
+    });
+    // A polling connection keeps its own number.
+    expect(toJiraConnectionRequest(fromJiraConnection({ ...CONNECTION, pollIntervalMinutes: 45 })).pollIntervalMinutes).toBe(45);
   });
 
   test("the stored token is never copied into the edit form", () => {

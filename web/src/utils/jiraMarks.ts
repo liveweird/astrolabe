@@ -36,7 +36,9 @@ export function jiraMarksOf(view: DeviationView): JiraMarks {
   const sites = new Map(view.connections.map((connection) => [connection.id, connection.siteUrl]));
   const byNode = new Map<string, JiraMark>();
   for (const item of view.items) {
-    const { warnings, infos } = countDeviations(item.deviations);
+    // Open deviations only, as the chip's server totals count them: a CURRENT acknowledgement keeps its mark (the link is still there) but
+    // not its counts (an acknowledged-then-changed item is open again, so its `current` is false).
+    const { warnings, infos } = item.acknowledgement?.current ? { warnings: 0, infos: 0 } : countDeviations(item.deviations);
     byNode.set(markKey(item.level, item.node.id), {
       bindingId: item.bindingId,
       connectionId: item.connectionId,

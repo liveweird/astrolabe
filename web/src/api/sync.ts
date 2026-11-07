@@ -11,6 +11,8 @@ export type SyncRunList = Schemas["SyncRunList"];
 export type SyncRunRequest = Schemas["SyncRunRequest"];
 export type SyncKind = SyncRunRequest["kind"];
 export type SyncOutcome = NonNullable<SyncRun["outcome"]>;
+export type SyncStatus = Schemas["SyncStatus"];
+export type SyncState = SyncStatus["state"];
 
 /** The RFC 7807 `type` of the 409 a claim answers while a run of the same connection and kind is unfinished. */
 const RUN_IN_PROGRESS_TYPE = "urn:astrolabe:problem:run-in-progress";

@@ -15,15 +15,16 @@ function newestLiveRunId(runs: readonly SyncRun[] | undefined): string | null {
  * One connection's runs (the newest 50), polled while the SERVER says a run is running (`run.running`: unfinished and inside its claim
  * window; the client never judges a run's age). It stops when the run ends and when the page unmounts (the query's observer goes away
  * with it). As a safety net the poll also stops `RUN_POLL_MAX_MS` after the page first saw the newest running run, and a new run starts
- * it again (`useBoundedPoll`).
+ * it again (`useBoundedPoll`). With `idleMs` the list is also re-read at that slow period when nothing is being polled (nothing running, or
+ * the safety net has stopped the fast poll): a scheduled run starts on its own, and a run the server stopped calling running is noticed.
  */
-export function useSyncRuns(kind: SyncKind, connectionId: number, enabled: boolean) {
+export function useSyncRuns(kind: SyncKind, connectionId: number, enabled: boolean, idleMs: number | false = false) {
   const poll = useBoundedPoll();
   const query = useQuery({
     queryKey: syncRunsKey(kind, connectionId),
     queryFn: () => listSyncRuns(kind, connectionId),
     enabled,
-    refetchInterval: (q) => poll(newestLiveRunId(q.state.data?.items)),
+    refetchInterval: (q) => poll(newestLiveRunId(q.state.data?.items)) || idleMs,
   });
   const runs = query.data?.items;
   return { runs, isLoading: query.isLoading, isError: query.isError, error: query.error, live: runs?.some((run) => run.running) ?? false };

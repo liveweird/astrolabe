@@ -16,9 +16,18 @@ describe("SyncRunsTable", () => {
     expect(within(row).getByText("2026-11-06 10:00")).toBeInTheDocument();
     expect(within(row).getByText("2026-11-06 10:01")).toBeInTheDocument();
     expect(within(row).getByText("Succeeded")).toBeInTheDocument();
-    expect(within(row).getByText("A person")).toBeInTheDocument();
+    expect(within(row).getByText("Manual")).toBeInTheDocument();
     expect(within(row).getByText("12")).toBeInTheDocument();
     expect(within(row).getByText("9")).toBeInTheDocument();
+  });
+
+  test("the trigger column says Manual for a person's refresh and Scheduled for the scheduler's run", () => {
+    renderRuns([run({ id: 9, trigger: "SCHEDULED", requestedByUserId: null }), run({ id: 8, trigger: "MANUAL" })]);
+    const table = screen.getByRole("table", { name: "Recent runs" });
+    expect(within(table).getByRole("columnheader", { name: "Trigger" })).toBeInTheDocument();
+    const [scheduled, manual] = within(table).getAllByRole("row").slice(1);
+    expect(within(scheduled).getByText("Scheduled")).toBeInTheDocument();
+    expect(within(manual).getByText("Manual")).toBeInTheDocument();
   });
 
   test("a failed run shows the typed error in words with its code, and the server's short hint as text", () => {

@@ -7,6 +7,7 @@ import { IconPlayerPlay } from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { DeviationConnection } from "../api/deviations";
 import { isRunInProgress, requestSyncRun } from "../api/sync";
+import { useNow } from "../hooks/useNow";
 import { formatDateTime } from "../utils/formatDate";
 import { jiraConnectionPath } from "../utils/jiraLinks";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
@@ -15,6 +16,7 @@ import { showSuccessToast } from "../utils/toast";
 import { errorCodeText, RUN_STATE_COLOR, runState } from "../utils/syncRuns";
 import FormErrorAlert from "./FormErrorAlert";
 import ScrollRegion from "./ScrollRegion";
+import SyncStatusBadge from "./SyncStatusBadge";
 
 /** What the connection's newest run says about how current the figures are, in words ("did not succeed" never reads as current). */
 function runNotes(connection: DeviationConnection, t: TFunction): string[] {
@@ -48,9 +50,10 @@ function runNotes(connection: DeviationConnection, t: TFunction): string[] {
  * connection disabled, the mapping not fitting the site) and - ADMIN only - Refresh now. A `409 run-in-progress` is a normal state, never an
  * error. The refresh refreshes the `["jira"]` queries only: no plan view is touched.
  */
-export default function DeviationsSources({ connections, admin }: { connections: readonly DeviationConnection[]; admin: boolean }) {
+export default function DeviationsSources({ connections, admin, readAt }: { connections: readonly DeviationConnection[]; admin: boolean; readAt: number }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const now = useNow(60_000, readAt);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const refresh = useMutation({
     mutationFn: (connection: DeviationConnection) => requestSyncRun({ kind: "JIRA", connectionId: connection.id }),
@@ -71,11 +74,12 @@ export default function DeviationsSources({ connections, admin }: { connections:
       <Title order={3} size="h4">
         {t("deviations.sources.title")}
       </Title>
-      <ScrollRegion label={label} minWidth={720}>
+      <ScrollRegion label={label} minWidth={820}>
         <Table aria-label={label}>
           <Table.Thead>
             <Table.Tr>
               <Table.Th>{t("deviations.sources.column.connection")}</Table.Th>
+              <Table.Th>{t("deviations.sources.column.status")}</Table.Th>
               <Table.Th>{t("deviations.sources.column.lastRun")}</Table.Th>
               <Table.Th>{t("deviations.sources.column.notes")}</Table.Th>
               {admin && <Table.Th aria-label={t("common.table.operations")} style={{ width: 1 }} />}
@@ -101,6 +105,9 @@ export default function DeviationsSources({ connections, admin }: { connections:
                         {t("deviations.sources.disabled")}
                       </Badge>
                     )}
+                  </Table.Td>
+                  <Table.Td>
+                    <SyncStatusBadge status={connection.status} now={now} />
                   </Table.Td>
                   <Table.Td>
                     {connection.lastRun === null || state === null ? (

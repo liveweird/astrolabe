@@ -165,7 +165,8 @@ export function hasStaleSource(connections: readonly DeviationConnection[]): boo
 /**
  * When an empty list may be called "no deviations in the data read at T": the OLDEST finish among the connections' newest runs, and only when
  * there is a connection and none is stale (every one enabled, its mapping fitting and its newest run SUCCEEDED). A disabled connection may hold
- * bindings nobody refreshes, so one anywhere withholds the claim. There is no scheduler in 1.1, so the claim is dated, never in the present tense.
+ * bindings nobody refreshes, so one anywhere withholds the claim. A connection polls only while it has an interval, is enabled and was tested (a
+ * manual-only one re-reads when an administrator asks), so the claim is dated, never in the present tense.
  */
 export function verifiedAt(connections: readonly DeviationConnection[]): number | null {
   if (connections.length === 0 || connections.some((connection) => staleConnection(connection) || connection.lastRun?.outcome !== "SUCCEEDED")) return null;

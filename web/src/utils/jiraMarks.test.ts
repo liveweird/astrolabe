@@ -24,6 +24,15 @@ describe("jiraMarksOf", () => {
     expect(marks.byNode.get(markKey("MILESTONE", 11))?.siteUrl).toBeNull();
   });
 
+  test("only OPEN deviations are counted: a current acknowledgement keeps the mark but not its counts, a changed-since one counts again", () => {
+    const ack = { at: 1, by: "Anna", current: true };
+    const acknowledged = item({ bindingId: 5, acknowledgement: ack });
+    const changed = item({ bindingId: 6, level: "PROJECT", node: { ...item().node, kind: "PROJECT", id: 7 }, acknowledgement: { ...ack, current: false }, deviations: [endLater(2)] });
+    const marks = jiraMarksOf(view({ items: [acknowledged, changed] }));
+    expect(marks.byNode.get(markKey("MILESTONE", 11))).toMatchObject({ bindingId: 5, key: "E2E-3", warnings: 0, infos: 0 });
+    expect(marks.byNode.get(markKey("PROJECT", 7))).toMatchObject({ bindingId: 6, warnings: 1, infos: 0 });
+  });
+
   test("a gone issue is marked gone", () => {
     const gone = item({ jira: { ...item().jira, gone: true } });
     expect(jiraMarksOf(view({ items: [gone] })).byNode.get(markKey("MILESTONE", 11))?.gone).toBe(true);

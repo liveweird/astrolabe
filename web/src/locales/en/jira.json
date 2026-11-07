@@ -20,6 +20,7 @@
     "projectKeys": "Project keys",
     "lastTest": "Last test (UTC)",
     "lastRun": "Last run (UTC)",
+    "status": "Status",
     "enabled": "Enabled"
   },
   "field": {
@@ -34,7 +35,11 @@
     "projectKeys": "Project keys",
     "projectKeysHint": "The Jira projects in scope (1 to 50). Type a key and press Enter.",
     "authScheme": "Authentication",
-    "enabled": "Enabled"
+    "enabled": "Enabled",
+    "polling": "Polling",
+    "pollInterval": "Polling interval (minutes)",
+    "pollIntervalHint": "How often Astrolabe reads Jira on its own: every 5 minutes up to once a day (1440). A connection that is disabled or not yet tested is not polled.",
+    "manualOnly": "Manual only (no polling)"
   },
   "authScheme": {
     "BASIC": "Account email + API token (Basic)",
@@ -49,7 +54,8 @@
     "apiTokenTooLong": "The API token must be at most 1,000 characters",
     "projectKeysCount": "Enter 1 to 50 project keys",
     "projectKeysInvalid": "“{{key}}” is not a Jira project key (capital letters, digits and underscores, 2 to 10 characters, starting with a letter)",
-    "projectKeysDistinct": "Each project key can be listed once"
+    "projectKeysDistinct": "Each project key can be listed once",
+    "pollInterval": "The polling interval must be a whole number of minutes from 5 to 1440"
   },
   "saveForbidden": "Only administrators can manage Jira connections",
   "saveConflict": "A connection with this name already exists",
@@ -130,7 +136,7 @@
     "column": {
       "started": "Started (UTC)",
       "finished": "Finished (UTC)",
-      "trigger": "Started by",
+      "trigger": "Trigger",
       "outcome": "Outcome",
       "observed": "Observed",
       "gone": "Gone",
@@ -138,8 +144,8 @@
       "error": "Error"
     },
     "trigger": {
-      "MANUAL": "A person",
-      "SCHEDULED": "The schedule"
+      "MANUAL": "Manual",
+      "SCHEDULED": "Scheduled"
     },
     "state": {
       "running": "Running",
@@ -158,8 +164,31 @@
     "alreadyRunning": "A refresh is already running for this connection. Its progress shows in the table below.",
     "running": "A refresh is running. The table below updates by itself."
   },
+  "status": {
+    "CURRENT": "Current",
+    "FAILED": "Failed",
+    "STALE": "Stale",
+    "NEVER_SYNCED": "Never synced",
+    "DISABLED": "Disabled",
+    "dueNow": "due now",
+    "nextPollIn_one": "next poll in {{count}} min",
+    "nextPollIn_other": "next poll in {{count}} min",
+    "nextPollInHours_one": "next poll in {{count}} h",
+    "nextPollInHours_other": "next poll in {{count}} h",
+    "manualOnly": "manual only",
+    "manualOnlyTitle": "Manual only",
+    "every": "every {{count}} min",
+    "failuresInARow_one": "{{count}} failure in a row",
+    "failuresInARow_other": "{{count}} failures in a row",
+    "testFirst": "not polled: test the connection first",
+    "refreshing": "refreshing now"
+  },
   "details": {
     "factsAria": "Connection facts",
+    "status": "Status",
+    "lastSuccess": "Last success (UTC)",
+    "nextPoll": "Next poll (UTC)",
+    "polling": "Polling",
     "connection": "Connection",
     "mappingSection": "Mapping",
     "tokenStored": "A token is stored",

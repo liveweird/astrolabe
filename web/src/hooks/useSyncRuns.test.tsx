@@ -4,7 +4,7 @@ import { act, renderHook } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { jsonResponse } from "../test/http";
 import { run } from "../test/jira";
-import { RUN_POLL_MAX_MS, RUN_POLL_MS } from "../utils/syncRuns";
+import { IDLE_REFRESH_MS, RUN_POLL_MAX_MS, RUN_POLL_MS } from "../utils/syncRuns";
 import { useSyncRuns } from "./useSyncRuns";
 
 /** Advances the fake clock inside `act`, so the hook's state updates are flushed like in the browser. */
@@ -91,6 +91,38 @@ describe("useSyncRuns polling", () => {
     expect(stopped).toBeLessThanOrEqual(RUN_POLL_MAX_MS / RUN_POLL_MS + 3);
     await advance(RUN_POLL_MAX_MS);
     expect(calls()).toBe(stopped);
+  });
+
+  test("with an idle period the list is also re-read when nothing is running (a scheduled run starts on its own), at the slow period", async () => {
+    let items = [run()];
+    mockFetch.mockImplementation(() => Promise.resolve(jsonResponse(200, { items })));
+    const { result } = renderHook(() => useSyncRuns("JIRA", 1, true, IDLE_REFRESH_MS), { wrapper });
+    await advance(0);
+    expect(calls()).toBe(1);
+    await advance(IDLE_REFRESH_MS - 1);
+    expect(calls()).toBe(1);
+    // The scheduler started a run meanwhile: the next idle read finds it and the fast poll takes over.
+    items = [live(8), ...items];
+    await advance(1);
+    await advance(50);
+    expect(calls()).toBe(2);
+    expect(result.current.live).toBe(true);
+    await advance(RUN_POLL_MS);
+    expect(calls()).toBe(3);
+  });
+
+  test("after the safety net stopped the fast poll the idle period still follows the server, so a run it stops calling running frees the page", async () => {
+    let current = live();
+    mockFetch.mockImplementation(() => Promise.resolve(jsonResponse(200, { items: [current] })));
+    const { result } = renderHook(() => useSyncRuns("JIRA", 1, true, IDLE_REFRESH_MS), { wrapper });
+    await advance(RUN_POLL_MAX_MS + 2 * RUN_POLL_MS);
+    expect(result.current.live).toBe(true);
+    const stopped = calls();
+    // The fast poll is over; one idle period later the list is read again, and the server no longer says running.
+    current = run({ id: 7, outcome: "ABANDONED", running: false });
+    await advance(IDLE_REFRESH_MS + 50);
+    expect(calls()).toBeGreaterThan(stopped);
+    expect(result.current.live).toBe(false);
   });
 
   test("a NEW claim after the bound polls again: the safety net is latched on the newest running run's id", async () => {

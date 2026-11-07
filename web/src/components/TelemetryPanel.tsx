@@ -13,8 +13,9 @@ import TelemetryJvmSection from "./TelemetryJvmSection";
 import TelemetryMemorySection from "./TelemetryMemorySection";
 import TelemetryRequestsSection from "./TelemetryRequestsSection";
 import TelemetryStorageSection from "./TelemetryStorageSection";
+import TelemetrySyncSection from "./TelemetrySyncSection";
 
-const SECTION_IDS = ["memory", "storage", "requests", "jvm"] as const;
+const SECTION_IDS = ["memory", "storage", "sync", "requests", "jvm"] as const;
 type SectionId = (typeof SECTION_IDS)[number];
 const RANGES = ["24h", "7d", "90d"] as const;
 
@@ -24,6 +25,7 @@ const REFRESH_MS = 60_000;
 const VIEWS: Record<SectionId, ComponentType<{ current: TelemetryCurrent; range: TelemetryRange; active: boolean }>> = {
   memory: TelemetryMemorySection,
   storage: TelemetryStorageSection,
+  sync: TelemetrySyncSection,
   requests: TelemetryRequestsSection,
   jvm: TelemetryJvmSection,
 };
@@ -34,7 +36,7 @@ const isSectionList = (value: unknown): value is SectionId[] =>
 
 /**
  * The telemetry panel (ADMIN only, the shell's right-hand aside): the latest sample of Astrolabe's own process in
- * four accordion sections - memory, storage, requests, JVM - each with its 24 h / 7 d / 90 d trend. The range and the
+ * five accordion sections - memory, storage, sync, requests, JVM - each with its 24 h / 7 d / 90 d trend (sync: the current figures only). The range and the
  * expanded sections are remembered on this device. The component is mounted only while the panel is open, so the one-minute
  * refresh of `current` stops with it, and a section's history is only requested while it is expanded.
  */

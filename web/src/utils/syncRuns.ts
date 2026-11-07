@@ -4,6 +4,13 @@ import type { SyncOutcome } from "../api/sync";
 /** The poll period while a run is running. */
 export const RUN_POLL_MS = 3_000;
 
+/**
+ * The slow refresh of a Jira page that stays open (the connection, its runs, the registry): a scheduled run starts without anyone clicking, so
+ * an open page re-reads at this period while it is visible (TanStack pauses `refetchInterval` in a background tab). Far slower than
+ * {@link RUN_POLL_MS}, which only applies while a run is known to be running.
+ */
+export const IDLE_REFRESH_MS = 30_000;
+
 /** The poll period of the Deviations page while a run is running: the page is one big document, so it asks less often than the run table. */
 export const DEVIATIONS_POLL_MS = 10_000;
 

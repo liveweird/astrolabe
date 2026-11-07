@@ -5,6 +5,7 @@ import { act, renderWithProviders, screen, waitFor, within } from "../test/rende
 import { jsonResponse } from "../test/http";
 import { headingOutline } from "../test/headings";
 import { CONNECTION } from "../test/jira";
+import { IDLE_REFRESH_MS } from "../utils/syncRuns";
 import JiraConnections from "./JiraConnections";
 
 const TOKEN_KEY = "astrolabe.auth.token";
@@ -92,6 +93,57 @@ describe("Jira connections page", () => {
     // Unfinished and not running by the SERVER's verdict: interrupted.
     expect(within(interrupted).getByText("Interrupted")).toBeInTheDocument();
     expect(headingOutline()).toEqual([[2, "Jira connections"]]);
+  });
+
+  test("the Status column tells each connection's derived state with its secondary line", async () => {
+    const NOW = Date.UTC(2026, 10, 6, 11, 0);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(NOW);
+    try {
+      const failed = { ...LAST_RUN, outcome: "FAILED" as const, errorCode: "TOKEN_UNREADABLE", trigger: "SCHEDULED" as const };
+      const items = [
+        { ...CONNECTION, lastRun: LAST_RUN, status: { state: "CURRENT" as const, lastRun: LAST_RUN, lastSucceededAt: LAST_RUN.startedAt, consecutiveFailures: 0, nextPollAt: NOW + 7 * 60_000 - 5_000 } },
+        { ...CONNECTION, id: 2, name: "Beta Jira", enabled: false, status: { ...CONNECTION.status, state: "DISABLED" as const } },
+        { ...CONNECTION, id: 3, name: "Gamma Jira", lastRun: failed, status: { state: "FAILED" as const, lastRun: failed, lastSucceededAt: null, consecutiveFailures: 3, nextPollAt: NOW + 60 * 60_000 } },
+        { ...CONNECTION, id: 4, name: "Delta Jira", pollIntervalMinutes: null, status: { ...CONNECTION.status, state: "CURRENT" as const, lastSucceededAt: 1 } },
+        { ...CONNECTION, id: 5, name: "Echo Jira", discoveredAt: null, status: { ...CONNECTION.status, state: "NEVER_SYNCED" as const } },
+        { ...CONNECTION, id: 6, name: "Foxtrot Jira", status: { state: "STALE" as const, lastRun: LAST_RUN, lastSucceededAt: 1, consecutiveFailures: 0, nextPollAt: NOW - 1_000 } },
+      ];
+      mockFetch.mockImplementation((url: string) =>
+        Promise.resolve(url.startsWith("/api/v1/integrations/jira/connections?") ? jsonResponse(200, { items, page: 1, pageSize: 20, total: items.length }) : jsonResponse(404, { title: "x", status: 404 })),
+      );
+      renderPage();
+      await screen.findByRole("link", { name: "Open connection Acme Jira" });
+      const table = screen.getByRole("table", { name: "Jira connections" });
+      expect(within(table).getByRole("columnheader", { name: "Status" })).toBeInTheDocument();
+      const row = (name: string) => within(table).getByText(name).closest("tr")!;
+      expect(row("Acme Jira")).toHaveTextContent("Currentnext poll in 7 min");
+      expect(row("Beta Jira")).toHaveTextContent("Disabled");
+      expect(row("Gamma Jira")).toHaveTextContent("Failed3 failures in a row · TOKEN_UNREADABLE");
+      expect(row("Delta Jira")).toHaveTextContent("Currentmanual only");
+      expect(row("Echo Jira")).toHaveTextContent("Never syncednot polled: test the connection first");
+      expect(row("Foxtrot Jira")).toHaveTextContent("Staledue now");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("an open list re-reads slowly: a connection the scheduler polled meanwhile shows its new status without a reload", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      let status: (typeof CONNECTION)["status"] = { ...CONNECTION.status };
+      mockFetch.mockImplementation((url: string) =>
+        Promise.resolve(url.startsWith("/api/v1/integrations/jira/connections?") ? jsonResponse(200, { items: [{ ...CONNECTION, status }], page: 1, pageSize: 20, total: 1 }) : jsonResponse(404, { title: "x", status: 404 })),
+      );
+      renderPage();
+      const row = (await screen.findByRole("link", { name: "Open connection Acme Jira" })).closest("tr")!;
+      expect(row).toHaveTextContent("Never synced");
+      status = { state: "CURRENT", lastRun: null, lastSucceededAt: 1, consecutiveFailures: 0, nextPollAt: null };
+      await act(async () => { await vi.advanceTimersByTimeAsync(IDLE_REFRESH_MS + 100); });
+      await waitFor(() => expect(screen.getByRole("link", { name: "Open connection Acme Jira" }).closest("tr")).toHaveTextContent("Current"));
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   test("the empty state spans every column", async () => {
@@ -187,8 +239,11 @@ describe("Jira connections page", () => {
       await act(async () => { await vi.advanceTimersByTimeAsync(50); });
       expect(screen.getByText("Succeeded")).toBeInTheDocument();
       const settled = listCalls();
-      await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
-      expect(listCalls(), "no run is running: the polling has stopped").toBe(settled);
+      // No run is running: the fast poll has stopped, only the slow refresh remains.
+      await act(async () => { await vi.advanceTimersByTimeAsync(IDLE_REFRESH_MS - 5_000); });
+      expect(listCalls(), "the fast polling has stopped").toBe(settled);
+      await act(async () => { await vi.advanceTimersByTimeAsync(5_100); });
+      expect(listCalls(), "one slow refresh").toBe(settled + 1);
     } finally {
       vi.useRealTimers();
     }

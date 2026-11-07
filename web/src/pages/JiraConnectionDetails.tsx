@@ -18,6 +18,7 @@ import { jiraConnectionsPath } from "../utils/jiraLinks";
 import { CONTENT_MAX_WIDTH } from "../utils/layout";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { loadErrorMessage } from "../utils/saveError";
+import { IDLE_REFRESH_MS } from "../utils/syncRuns";
 
 /**
  * One Jira connection (`/integrations/jira/:id`, ADMIN only): the Connection section (facts, Test connection, Refresh now, the runs) and the
@@ -38,7 +39,8 @@ function ConnectionPage({ idParam }: { idParam: string | undefined }) {
   const [editing, setEditing] = useState(false);
   useDialogFocus(editing);
 
-  const connection = useQuery({ queryKey: ["jira", "connection", id], queryFn: () => getJiraConnection(id), enabled: idIsValid && admin });
+  // Re-read slowly while the page is visible: the scheduler starts runs (and moves the status) without anyone clicking.
+  const connection = useQuery({ queryKey: ["jira", "connection", id], queryFn: () => getJiraConnection(id), enabled: idIsValid && admin, refetchInterval: IDLE_REFRESH_MS });
 
   if (!idIsValid || connection.isLoading || connection.isError || !connection.data) {
     const notFound = !idIsValid || (connection.error instanceof ApiError && connection.error.status === 404);
@@ -67,7 +69,7 @@ function ConnectionPage({ idParam }: { idParam: string | undefined }) {
       />
       <Box maw={CONTENT_MAX_WIDTH}>
         <Stack gap="xl">
-          <JiraConnectionSection connection={data} />
+          <JiraConnectionSection connection={data} readAt={connection.dataUpdatedAt} />
           <JiraMappingSection connection={data} />
           <JiraBindingsSection connection={data} />
         </Stack>

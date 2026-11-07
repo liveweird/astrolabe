@@ -26,6 +26,7 @@
   "section": {
     "memory": "Pamięć",
     "storage": "Przestrzeń dyskowa",
+    "sync": "Synchronizacja",
     "requests": "Żądania",
     "jvm": "JVM"
   },
@@ -76,6 +77,25 @@
     "tableAria": "Rozmiar bazy według schematów",
     "database": "Baza danych",
     "schema": "Schemat {{name}}"
+  },
+  "sync": {
+    "tableAria": "Stan synchronizacji każdego połączenia",
+    "none": "Nie ma jeszcze połączenia do synchronizacji.",
+    "kind": {
+      "JIRA": "Jira"
+    },
+    "schedulerOn": "Harmonogram sprawdza co {{seconds}} s, które połączenia czekają na odpytanie.",
+    "schedulerOff": "Harmonogram jest wyłączony w procesie, który odpowiedział, więc nie uruchamia zaplanowanych przebiegów.",
+    "column": {
+      "connection": "Połączenie",
+      "state": "Stan",
+      "lastSuccess": "Ostatni udany odczyt",
+      "failures": "Błędy z rzędu",
+      "nextPoll": "Następne odpytanie",
+      "polling": "Odpytywanie"
+    },
+    "never": "Nigdy",
+    "running": "Trwa przebieg"
   },
   "trend": {
     "empty": "Nie ma jeszcze historii dla tego zakresu.",

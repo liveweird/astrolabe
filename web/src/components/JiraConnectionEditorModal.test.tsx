@@ -71,6 +71,7 @@ describe("JiraConnectionEditorModal", () => {
       authScheme: "BASIC",
       projectKeys: ["E2E", "PF"],
       enabled: true,
+      pollIntervalMinutes: 15,
     });
     await waitFor(() => expect(onSaved).toHaveBeenCalledWith(expect.objectContaining({ id: 9 })));
   });
@@ -202,5 +203,107 @@ describe("JiraConnectionEditorModal", () => {
     const alert = await within(dialog).findByRole("alert");
     expect(alert).toHaveTextContent("One or more fields are invalid");
     expect(alert).toHaveTextContent("Invalid project key: e2e (must match ^[A-Z][A-Z0-9_]{1,9}$)");
+  });
+
+  describe("polling", () => {
+    const INTERVAL = "Polling interval (minutes)";
+    const MANUAL = "Manual only (no polling)";
+    const URL = "/api/v1/integrations/jira/connections/1";
+
+    test("the Polling group defaults to 15 minutes with Manual only unticked", () => {
+      const { dialog } = open(null);
+      expect(within(dialog).getByText("Polling")).toBeInTheDocument();
+      expect(within(dialog).getByLabelText(INTERVAL)).toHaveValue("15");
+      expect(within(dialog).getByLabelText(INTERVAL)).toBeEnabled();
+      expect(within(dialog).getByLabelText(MANUAL)).not.toBeChecked();
+    });
+
+    test("Manual only disables the interval and a create sends an explicit null; unticking brings the interval back", async () => {
+      mockFetch.mockResolvedValue(jsonResponse(201, { ...CONNECTION, id: 9, pollIntervalMinutes: null }));
+      const { user, dialog } = open(null);
+      await fillCreate(user, dialog);
+      await user.click(within(dialog).getByLabelText(MANUAL));
+      expect(within(dialog).getByLabelText(INTERVAL)).toBeDisabled();
+      await user.click(within(dialog).getByLabelText(MANUAL));
+      expect(within(dialog).getByLabelText(INTERVAL)).toBeEnabled();
+      expect(within(dialog).getByLabelText(INTERVAL)).toHaveValue("15");
+      await user.click(within(dialog).getByLabelText(MANUAL));
+      await user.click(within(dialog).getByRole("button", { name: "Create" }));
+      await waitFor(() => expect(call(mockFetch, "POST", "/api/v1/integrations/jira/connections")).toBeDefined());
+      expect(body(mockFetch, "POST", "/api/v1/integrations/jira/connections")).toHaveProperty("pollIntervalMinutes", null);
+    });
+
+    test("a typed interval travels as the number", async () => {
+      mockFetch.mockResolvedValue(new Response(null, { status: 204 }));
+      const { user, dialog } = open(CONNECTION);
+      await user.clear(within(dialog).getByLabelText(INTERVAL));
+      await user.type(within(dialog).getByLabelText(INTERVAL), "30");
+      await user.click(within(dialog).getByRole("button", { name: "Save" }));
+      await waitFor(() => expect(call(mockFetch, "PUT", URL)).toBeDefined());
+      expect(body(mockFetch, "PUT", URL).pollIntervalMinutes).toBe(30);
+    });
+
+    test("a PUT is a full replace: renaming a MANUAL-ONLY connection sends the exact body with an explicit null, never an omitted member", async () => {
+      mockFetch.mockResolvedValue(new Response(null, { status: 204 }));
+      const { user, dialog } = open({ ...CONNECTION, pollIntervalMinutes: null });
+      expect(within(dialog).getByLabelText(MANUAL)).toBeChecked();
+      expect(within(dialog).getByLabelText(INTERVAL)).toBeDisabled();
+      await user.type(within(dialog).getByLabelText("Name"), " renamed");
+      await user.click(within(dialog).getByRole("button", { name: "Save" }));
+      await waitFor(() => expect(call(mockFetch, "PUT", URL)).toBeDefined());
+      expect(body(mockFetch, "PUT", URL)).toEqual({
+        name: "Acme Jira renamed",
+        siteUrl: "https://acme.atlassian.net",
+        email: "robot@acme.example",
+        authScheme: "BASIC",
+        projectKeys: ["E2E", "PF"],
+        enabled: true,
+        pollIntervalMinutes: null,
+      });
+      expect((call(mockFetch, "PUT", URL)![1] as RequestInit).body).toContain('"pollIntervalMinutes":null');
+    });
+
+    test("a polling connection keeps its interval through a rename", async () => {
+      mockFetch.mockResolvedValue(new Response(null, { status: 204 }));
+      const { user, dialog } = open({ ...CONNECTION, pollIntervalMinutes: 45 });
+      expect(within(dialog).getByLabelText(INTERVAL)).toHaveValue("45");
+      await user.type(within(dialog).getByLabelText("Name"), "!");
+      await user.click(within(dialog).getByRole("button", { name: "Save" }));
+      await waitFor(() => expect(call(mockFetch, "PUT", URL)).toBeDefined());
+      expect(body(mockFetch, "PUT", URL).pollIntervalMinutes).toBe(45);
+    });
+
+    test.each([["4"], ["1441"], ["0"]])("an interval of %s is refused with the rule's sentence and nothing is sent", async (typed) => {
+      const { user, dialog } = open(CONNECTION);
+      await user.clear(within(dialog).getByLabelText(INTERVAL));
+      await user.type(within(dialog).getByLabelText(INTERVAL), typed);
+      await user.click(within(dialog).getByRole("button", { name: "Save" }));
+      expect(await within(dialog).findByText("The polling interval must be a whole number of minutes from 5 to 1440")).toBeInTheDocument();
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    test("ticking Manual only takes the interval's refusal away from under the disabled input", async () => {
+      const { user, dialog } = open(CONNECTION);
+      await user.clear(within(dialog).getByLabelText(INTERVAL));
+      await user.click(within(dialog).getByRole("button", { name: "Save" }));
+      const sentence = "The polling interval must be a whole number of minutes from 5 to 1440";
+      expect(await within(dialog).findByText(sentence)).toBeInTheDocument();
+      await user.click(within(dialog).getByLabelText(MANUAL));
+      expect(within(dialog).queryByText(sentence)).not.toBeInTheDocument();
+      expect(within(dialog).getByLabelText(INTERVAL)).toBeDisabled();
+    });
+
+    test("a cleared interval is refused; with Manual only ticked the number is not looked at", async () => {
+      mockFetch.mockResolvedValue(new Response(null, { status: 204 }));
+      const { user, dialog } = open(CONNECTION);
+      await user.clear(within(dialog).getByLabelText(INTERVAL));
+      await user.click(within(dialog).getByRole("button", { name: "Save" }));
+      expect(await within(dialog).findByText("The polling interval must be a whole number of minutes from 5 to 1440")).toBeInTheDocument();
+      expect(mockFetch).not.toHaveBeenCalled();
+      await user.click(within(dialog).getByLabelText(MANUAL));
+      await user.click(within(dialog).getByRole("button", { name: "Save" }));
+      await waitFor(() => expect(call(mockFetch, "PUT", URL)).toBeDefined());
+      expect(body(mockFetch, "PUT", URL).pollIntervalMinutes).toBeNull();
+    });
   });
 });

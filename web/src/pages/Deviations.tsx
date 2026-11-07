@@ -65,8 +65,8 @@ function EmptyList({ view, filter, onClear }: { view: DeviationView; filter: Dev
   if (linked.data.total === 0) {
     return <EmptyState icon={IconLinkOff} label={t("deviations.empty.noBindings")} hint={admin ? t("deviations.empty.noBindingsAdminHint") : t("deviations.empty.noBindingsHint")} />;
   }
-  // "No deviations" is a claim about a read, so it is DATED (there is no scheduler in 1.1: nothing re-reads on its own) and withheld unless every
-  // connection is enabled, its mapping fits the site and its newest run succeeded.
+  // "No deviations" is a claim about a read, so it is DATED (the scheduler re-reads only the connections that poll; a manual-only one waits for
+  // Refresh now) and withheld unless every connection is enabled, its mapping fits the site and its newest run succeeded.
   const readAt = verifiedAt(view.connections);
   return readAt === null ? (
     <EmptyState icon={IconGitCompare} label={t("deviations.empty.noneSoFar")} hint={t("deviations.empty.noneSoFarHint")} />
@@ -131,7 +131,7 @@ export default function Deviations() {
       {isLoading && !data && <LoadingBlock />}
       {data && (
         <>
-          {data.connections.length > 0 && <DeviationsSources connections={data.connections} admin={admin} />}
+          {data.connections.length > 0 && <DeviationsSources connections={data.connections} admin={admin} readAt={dataUpdatedAt} />}
           <Stack gap="md">
             <Title order={3} size="h4">
               {t("deviations.list.title")}

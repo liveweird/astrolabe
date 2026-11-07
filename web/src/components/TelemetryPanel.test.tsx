@@ -53,7 +53,7 @@ describe("TelemetryPanel", () => {
     localStorage.clear();
   });
 
-  test("shows the title, when the newest sample was taken, a close button and the four sections with Memory open", async () => {
+  test("shows the title, when the newest sample was taken, a close button and the five sections with Memory open", async () => {
     stubApi();
     const onClose = vi.fn();
     const user = userEvent.setup();
@@ -61,7 +61,7 @@ describe("TelemetryPanel", () => {
     expect(await screen.findByRole("heading", { level: 2, name: "Telemetry" })).toBeInTheDocument();
     // The header (the newest sample of any process) and the first process's own heading.
     expect(await screen.findAllByText("Sampled at 2026-10-24 11:55 UTC")).toHaveLength(2);
-    for (const name of ["Memory", "Storage", "Requests", "JVM"]) {
+    for (const name of ["Memory", "Storage", "Sync", "Requests", "JVM"]) {
       expect(section(name)).toBeInTheDocument();
     }
     expect(section("Memory")).toHaveAttribute("aria-expanded", "true");
@@ -159,6 +159,25 @@ describe("TelemetryPanel", () => {
     localStorage.setItem("astrolabe.viewSettings.telemetry.sections", '["requests"]');
     renderPanel();
     expect(await screen.findByText(/No process has a recent sample/)).toBeInTheDocument();
+  });
+
+  test("Sync lists the connector's connections from the current figures and asks for no history", async () => {
+    const lastRun = { id: 4, startedAt: 1, finishedAt: 2, outcome: "SUCCEEDED" as const, errorCode: null, trigger: "SCHEDULED" as const, running: false };
+    const fetchMock = stubApi(
+      currentFixture({
+        sync: {
+          schedulerEnabled: true,
+          tickSeconds: 60,
+          connections: [{ kind: "JIRA", connectionId: 1, name: "Acme Jira", pollIntervalMinutes: 15, ready: true, status: { state: "CURRENT", lastRun, lastSucceededAt: 1, consecutiveFailures: 0, nextPollAt: null } }],
+        },
+      }),
+    );
+    const user = userEvent.setup();
+    renderPanel();
+    await user.click(await screen.findByRole("button", { name: "Sync" }));
+    const table = await screen.findByRole("table", { name: "Sync status per connection" });
+    expect(within(table).getByText("Acme Jira")).toBeInTheDocument();
+    expect(calls(fetchMock, "/api/v1/telemetry/history").some((url) => url.includes("group=sync"))).toBe(false);
   });
 
   test("JVM shows CPU, threads, GC and the pool of each process", async () => {
@@ -285,6 +304,7 @@ describe("TelemetryPanel", () => {
       [4, "App · astrolabe-app-1"],
       [4, "App · astrolabe-app-2"],
       [3, "Storage"],
+      [3, "Sync"],
       [3, "Requests"],
       [3, "JVM"],
     ]);

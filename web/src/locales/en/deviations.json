@@ -9,6 +9,7 @@
     "column": {
       "connection": "Connection",
       "notes": "Notes",
+      "status": "Status",
       "lastRun": "Last run (UTC)"
     },
     "never": "Never refreshed",

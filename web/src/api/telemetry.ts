@@ -10,6 +10,8 @@ const HISTORY = "/api/v1/telemetry/history";
 
 export type TelemetryCurrent = paths[typeof CURRENT]["get"]["responses"]["200"]["content"]["application/json"];
 export type TelemetryProcess = TelemetryCurrent["processes"][number];
+type TelemetrySync = TelemetryCurrent["sync"];
+export type TelemetrySyncConnection = TelemetrySync["connections"][number];
 export type TelemetryRouteStats = TelemetryCurrent["requests"]["total"];
 
 export type TelemetryHistory = paths[typeof HISTORY]["get"]["responses"]["200"]["content"]["application/json"];

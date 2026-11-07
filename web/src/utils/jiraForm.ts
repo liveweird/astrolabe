@@ -10,6 +10,10 @@ const MAX_JIRA_EMAIL_LENGTH = 254;
 export const MAX_API_TOKEN_LENGTH = 1000;
 const MIN_PROJECT_KEYS = 1;
 export const MAX_PROJECT_KEYS = 50;
+/** The polling interval's bounds and default, in minutes (`MIN/MAX/DEFAULT_POLL_INTERVAL_MINUTES` in `JiraConnection.kt`). */
+export const MIN_POLL_INTERVAL_MINUTES = 5;
+export const MAX_POLL_INTERVAL_MINUTES = 1440;
+export const DEFAULT_POLL_INTERVAL_MINUTES = 15;
 
 /** The Jira Cloud project-key shape: one uppercase letter, then 1-9 uppercase letters/digits/underscores. */
 const PROJECT_KEY_PATTERN = /^[A-Z][A-Z0-9_]{1,9}$/;
@@ -38,6 +42,10 @@ export type JiraFormValues = {
   authScheme: JiraAuthScheme;
   projectKeys: string[];
   enabled: boolean;
+  /** Minutes between scheduled runs. A NumberInput hands back a string while it holds no number (cleared, or half typed). Ignored while {@link manualOnly}. */
+  pollIntervalMinutes: number | string;
+  /** No polling: the wire carries an explicit `null`. */
+  manualOnly: boolean;
 };
 
 export const EMPTY_JIRA_FORM: JiraFormValues = {
@@ -48,6 +56,8 @@ export const EMPTY_JIRA_FORM: JiraFormValues = {
   authScheme: "BASIC",
   projectKeys: [],
   enabled: true,
+  pollIntervalMinutes: DEFAULT_POLL_INTERVAL_MINUTES,
+  manualOnly: false,
 };
 
 /** The form values of a stored connection; the token field stays empty (the server never returns it). */
@@ -60,7 +70,17 @@ export function fromJiraConnection(connection: JiraConnection): JiraFormValues {
     authScheme: connection.authScheme,
     projectKeys: connection.projectKeys,
     enabled: connection.enabled,
+    // `null` = manual only; the field then keeps the default, which is what unticking the box brings back.
+    pollIntervalMinutes: connection.pollIntervalMinutes ?? DEFAULT_POLL_INTERVAL_MINUTES,
+    manualOnly: connection.pollIntervalMinutes === null,
   };
+}
+
+/** The interval a NumberInput value stands for: a whole number of minutes inside the server's bounds, else null. */
+function validPollInterval(value: number | string): number | null {
+  if (typeof value === "string" && value.trim() === "") return null;
+  const minutes = Number(value);
+  return Number.isInteger(minutes) && minutes >= MIN_POLL_INTERVAL_MINUTES && minutes <= MAX_POLL_INTERVAL_MINUTES ? minutes : null;
 }
 
 /**
@@ -92,15 +112,20 @@ export function jiraFormValidation(t: TFunction, isEdit: boolean) {
       if (bad) return t("jira.validation.projectKeysInvalid", { key: bad });
       return new Set(value).size === value.length ? null : t("jira.validation.projectKeysDistinct");
     },
+    // The server's rule: 5..1440 minutes, or null for manual only (then the number is not looked at).
+    pollIntervalMinutes: (value: number | string, values: JiraFormValues) =>
+      values.manualOnly || validPollInterval(value) !== null ? null : t("jira.validation.pollInterval"),
   };
 }
 
 /**
- * The wire body. A PUT is a full replace: `authScheme` and `enabled` always travel, and the site is the connection's identity (the
- * editor shows it read-only on edit, the server answers a different one with 409). A blank token is omitted - on edit that keeps the
- * stored one - and the token is NEVER logged or echoed.
+ * The wire body. A PUT is a full replace: `authScheme`, `enabled` and `pollIntervalMinutes` always travel, and the site is the
+ * connection's identity (the editor shows it read-only on edit, the server answers a different one with 409). A blank token is omitted -
+ * on edit that keeps the stored one - and the token is NEVER logged or echoed. **The interval is never omitted**: a number, or an explicit
+ * `null` for manual only, because an omitted member means "15" to the server (a rename would silently re-enable polling). A value the
+ * form would refuse (the Test-connection probe sends the body unvalidated) travels as the default; a save is validated first.
  */
-export function toJiraConnectionRequest(values: JiraFormValues): JiraConnectionRequest {
+export function toJiraConnectionRequest(values: JiraFormValues): JiraConnectionRequest & { pollIntervalMinutes: number | null } {
   const apiToken = values.apiToken.trim();
   return {
     name: values.name.trim(),
@@ -110,6 +135,7 @@ export function toJiraConnectionRequest(values: JiraFormValues): JiraConnectionR
     authScheme: values.authScheme,
     projectKeys: values.projectKeys.map((key) => key.trim().toUpperCase()),
     enabled: values.enabled,
+    pollIntervalMinutes: values.manualOnly ? null : (validPollInterval(values.pollIntervalMinutes) ?? DEFAULT_POLL_INTERVAL_MINUTES),
   };
 }
 

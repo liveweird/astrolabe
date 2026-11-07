@@ -26,6 +26,7 @@
   "section": {
     "memory": "Memory",
     "storage": "Storage",
+    "sync": "Sync",
     "requests": "Requests",
     "jvm": "JVM"
   },
@@ -76,6 +77,25 @@
     "tableAria": "Database size per schema",
     "database": "Database",
     "schema": "Schema {{name}}"
+  },
+  "sync": {
+    "tableAria": "Sync status per connection",
+    "none": "No connection is set up for syncing yet.",
+    "kind": {
+      "JIRA": "Jira"
+    },
+    "schedulerOn": "The scheduler looks for connections that are due every {{seconds}} s.",
+    "schedulerOff": "The scheduler is switched off on the process that answered, so it starts no scheduled runs.",
+    "column": {
+      "connection": "Connection",
+      "state": "State",
+      "lastSuccess": "Last success",
+      "failures": "Failures in a row",
+      "nextPoll": "Next poll",
+      "polling": "Polling"
+    },
+    "never": "Never",
+    "running": "Running now"
   },
   "trend": {
     "empty": "No history for this range yet.",
