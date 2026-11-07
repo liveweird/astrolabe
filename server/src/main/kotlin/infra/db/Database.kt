@@ -13,6 +13,8 @@ import ch.nokillswit.jira.JiraBindingService
 import ch.nokillswit.jira.JiraBindingServiceKey
 import ch.nokillswit.jira.JiraConnectionService
 import ch.nokillswit.jira.JiraConnectionServiceKey
+import ch.nokillswit.jira.JiraImportService
+import ch.nokillswit.jira.JiraImportServiceKey
 import ch.nokillswit.people.PersonService
 import ch.nokillswit.people.PersonServiceKey
 import ch.nokillswit.planning.BaselineService
@@ -312,6 +314,7 @@ suspend fun Application.configureDatabase() {
     attributes.put(SyncRunServiceKey, syncRuns)
     attributes.put(JiraConnectionServiceKey, JiraConnectionService(database, attributes[FieldCipherKey], syncRuns))
     attributes.put(JiraBindingServiceKey, JiraBindingService(database))
+    attributes.put(JiraImportServiceKey, JiraImportService(database, teamService))
     // The empty connector registry the connectors' modules fill (`configureJira`).
     attributes.put(DeviationViewServiceKey, DeviationViewService(database, syncRuns))
     attributes.put(SyncConnectorsKey, SyncConnectors())

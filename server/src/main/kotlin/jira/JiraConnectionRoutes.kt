@@ -48,6 +48,7 @@ fun Application.configureJiraRoutes() {
     val connector = attributes[JiraConnectorKey]
     val bindings = attributes[JiraBindingServiceKey]
     val people = attributes[PersonServiceKey]
+    val imports = attributes[JiraImportServiceKey]
     val bindWaitKey = "jira.bindPermitWaitMillis"
     val bindPermitWaitMillis = requireConfigLong(environment.config, bindWaitKey, MIN_BIND_WAIT_MILLIS, MAX_BIND_WAIT_MILLIS)
 
@@ -56,6 +57,7 @@ fun Application.configureJiraRoutes() {
             jiraTestRoutes(connections, connector)
             jiraMappingRoutes(connections, connector)
             jiraBindingRoutes(connections, bindings, people, connector, bindPermitWaitMillis)
+            jiraImportRoutes(connections, imports, people, connector)
             get<JiraConnectionsRoute> {
                 requireAdmin(call.caller())
                 val paging = call.parsePaging(sortable = JIRA_CONNECTION_SORT_FIELDS)

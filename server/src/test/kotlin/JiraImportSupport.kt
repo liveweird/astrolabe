@@ -28,6 +28,7 @@ import ch.nokillswit.jira.JiraMapping
 import ch.nokillswit.jira.JiraMappingLevels
 import ch.nokillswit.jira.JiraObservation
 import ch.nokillswit.jira.JiraStatusCategory
+import io.ktor.client.engine.mock.respond
 import java.math.BigDecimal
 import java.time.LocalDate
 
@@ -147,3 +148,34 @@ fun tick(row: ImportRow, teamOverride: UInt? = null) = JiraImportApplyItem(
 fun ImportPlan.row(id: String): ImportRow = rows.single { it.item.jiraId == id }
 
 fun ImportPlan.ids(): List<String> = rows.map { it.item.jiraId }
+
+/**
+ * A scripted Jira site: a Ktor `MockEngine` under the real `HttpJiraClient` and transport, answering [pages] in order, one per search
+ * request. [onSearch] runs (suspending) with the request's index BEFORE its page is answered: a test flips database rows or stalls there.
+ * [searches] is every search request that reached the site. Reads no stub, so it may live outside a `*Test.kt` file.
+ */
+class ScriptedSite(vararg pages: String, onSearch: suspend (Int) -> Unit = {}) {
+    private val next = java.util.concurrent.atomic.AtomicInteger()
+    val engine = io.ktor.client.engine.mock.MockEngine { request ->
+        val headers = io.ktor.http.headersOf(io.ktor.http.HttpHeaders.ContentType, "application/json")
+        if (request.url.encodedPath.endsWith("/_edge/tenant_info")) {
+            respond("""{"cloudId":"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"}""", io.ktor.http.HttpStatusCode.OK, headers)
+        } else {
+            val index = next.getAndIncrement()
+            onSearch(index)
+            respond(pages[index], io.ktor.http.HttpStatusCode.OK, headers)
+        }
+    }
+    val searches get() = engine.requestHistory.filter { it.url.encodedPath.endsWith("/search/jql") }
+    val connector: ch.nokillswit.jira.JiraConnector
+
+    init {
+        val http = ch.nokillswit.jira.createJiraHttp(
+            io.ktor.client.HttpClient(engine) { expectSuccess = false },
+            maxRetries = 0, maxResponseBytes = 8_000_000, maxConcurrentRequests = 2, sleeper = { },
+        )
+        connector = ch.nokillswit.jira.JiraConnector(
+            { site, email, apiToken, scheme -> ch.nokillswit.jira.HttpJiraClient(http, site, null, email, apiToken, scheme) }, 2, 10,
+        )
+    }
+}

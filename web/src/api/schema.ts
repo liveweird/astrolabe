@@ -1992,6 +1992,56 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/integrations/jira/connections/{id}/import-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview an import from Jira into one work stream
+         * @description ADMIN, or an owner of every target the import touches: any `defaults.programId` / `defaults.projectId`, every existing node a
+         *     created row would land under or a bound row would bind to, and the picked work stream when a program would be created (the owner
+         *     of a work stream owns everything under it; the owner of a program or project owns that subtree). A login that owns no plan node
+         *     at all is refused up front; a caller who owns neither the work stream nor any target is refused too. The `403` names the first
+         *     target the caller does not own. The connection's existence is public (`GET /views/deviations`), so this route does not hide it.
+         *
+         *     **Order** (the plan's read-before-guard): the per-USER bucket (`jira-import`, 5 a minute, shared with the apply, spent BEFORE
+         *     everything else, so an over-limit caller gets `429` whatever the request would have answered) -> the connection (`404`) -> the body
+         *     (`400`) -> the named targets' chains (`404`: `Work stream not found`, `Program not found`, `Project not found`) -> the guard on
+         *     each named default (`403`; before it, a `403` for a login that owns no active work stream, program or project) -> the shape (`400`: `projectKeys` a subset of the connection's keys, `ownerPersonId` an active person,
+         *     `defaults.teamId` an active team, `defaults.programId` / `defaults.projectId` under the picked work stream) -> the connection
+         *     enabled (`400`), its token (`409` `urn:astrolabe:problem:jira-token-unreadable`), discovery (`409`
+         *     `urn:astrolabe:problem:jira-not-discovered`) and effective mapping (`409` `urn:astrolabe:problem:jira-mapping-invalid`) -> ONE
+         *     paged read of the connection's scope from the site with the stored token, outside any transaction, stopped at 2,000 issues
+         *     (`502` `urn:astrolabe:problem:jira-upstream`, the detail names the failure code only; a connection deleted or disabled while it
+         *     is read ends the preview with `404` / `400`) -> one read-only snapshot of the plan -> the pure rules -> the resolved-target guards
+         *     (`403`).
+         *
+         *     Answers, per Jira item and top-down (programs, projects, milestones; Jira ids ascending inside a level), whether it would be
+         *     created, bound to an unbound same-name node, or skipped and why. Nothing is stored and nothing is audited (a read). The
+         *     caller's right to schedule shows only in `canSchedule` (a milestone's dates are copied only where the caller may schedule the
+         *     team) - never as a refusal. `totals.truncated` = more than 2,000 issues were in scope: narrow `projectKeys` (an apply refuses a
+         *     truncated scope). The whole read is bounded to 170 seconds (`502`, code `TIMEOUT`).
+         *
+         *     **For a caller who is not ADMIN, a skipped row other than `ALREADY_BOUND` carries no Jira text:** `summary` is empty, `name` is the
+         *     issue key and `infos` is empty (key, level, type name, `reason` and parent keys stay; `totals` and the order are the full ones), and
+         *     `unmatchedTeams` lists the Jira team names of the rows that would be created only. Without this a skipped row, which no ownership
+         *     guard looks at, would hand a plan-node owner every summary in scope. Residual, inherent in "ADMIN or an owner of every target": rows
+         *     that land on the caller's own targets are shown in full, and the owner of the picked work stream sees the whole tree under it.
+         */
+        post: operations["previewJiraImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/integrations/jira/bindings": {
         parameters: {
             query?: never;
@@ -4710,6 +4760,154 @@ export interface components {
             raw: {
                 [key: string]: unknown;
             };
+        };
+        /** @description The parent of an orphan row and the team of a milestone with no name match. Each id must lie under the picked work stream / be active. */
+        JiraImportDefaults: {
+            /**
+             * Format: int32
+             * @description The parent program of a project whose Jira parent is neither in the plan nor in the browse.
+             */
+            programId?: number | null;
+            /**
+             * Format: int32
+             * @description The parent project of a milestone, likewise.
+             */
+            projectId?: number | null;
+            /**
+             * Format: int32
+             * @description The team of a milestone whose Jira Team value matches no Astrolabe team.
+             */
+            teamId?: number | null;
+        };
+        JiraImportScope: {
+            /**
+             * Format: int32
+             * @description The picked work stream; every target lies under it (work streams are never imported).
+             */
+            workStreamId: number;
+            /**
+             * Format: int32
+             * @description The owner of every created program and project (an ACTIVE person).
+             */
+            ownerPersonId: number;
+            /** @description A subset of the connection's project keys to browse; default (null or absent): all of them. */
+            projectKeys?: string[] | null;
+            defaults?: components["schemas"]["JiraImportDefaults"] | null;
+            /**
+             * @description Copy Jira's dates to a milestone - only where the caller may schedule the milestone's team.
+             * @default true
+             */
+            copyDates: boolean;
+        };
+        /** @description Where a CREATE row lands (absent for a program, which lands under the picked work stream). */
+        JiraImportParent: {
+            /**
+             * @description An existing node, the node another row of the batch creates, or the level's default parent.
+             * @enum {string}
+             */
+            kind: "EXISTING" | "NEW_ROW" | "DEFAULT";
+            /** Format: int32 */
+            nodeId?: number | null;
+            nodeName: string;
+            /** @description The batch row the parent depends on (a NEW_ROW parent, or the row of a BIND parent). */
+            rowJiraId?: string | null;
+        };
+        /** @description For BIND the unbound same-name node; for ALREADY_BOUND the holder (then `nodeKind` and `connectionId` are set: the connection may be another one of the site). */
+        JiraImportTarget: {
+            /** Format: int32 */
+            nodeId: number;
+            nodeName: string;
+            /** @enum {string|null} */
+            nodeKind?: "PROGRAM" | "PROJECT" | "MILESTONE" | null;
+            /** Format: int32 */
+            connectionId?: number | null;
+        };
+        JiraImportTeam: {
+            /** Format: int32 */
+            id: number;
+            name: string;
+            /**
+             * @description By the Jira Team value's name, or the default team.
+             * @enum {string}
+             */
+            rule: "MATCHED" | "DEFAULT";
+        };
+        JiraImportItem: {
+            /** @description The numeric Jira issue id. */
+            jiraId: string;
+            issueKey: string;
+            summary: string;
+            typeName?: string | null;
+            /** Format: int32 */
+            hierarchyLevel?: number | null;
+            parentJiraId?: string | null;
+            parentIssueKey?: string | null;
+            /**
+             * @description The plan level the issue's hierarchy level maps to (an unmapped one keeps the nearest, with action SKIP).
+             * @enum {string}
+             */
+            level: "PROGRAM" | "PROJECT" | "MILESTONE";
+            /** @enum {string} */
+            action: "CREATE" | "BIND" | "SKIP";
+            /**
+             * @description SKIP rows only. PARENT_SKIPPED: the Jira parent is in the browse and its row is skipped (never re-homed under a default).
+             * @enum {string|null}
+             */
+            reason?: "ALREADY_BOUND" | "NO_PARENT" | "NAME_TAKEN" | "LEVEL_UNMAPPED" | "NO_TEAM" | "PARENT_SKIPPED" | null;
+            parent?: components["schemas"]["JiraImportParent"] | null;
+            target?: components["schemas"]["JiraImportTarget"] | null;
+            /** @description The plan name: the summary with control characters and runs of whitespace collapsed, cut at 100 characters; the issue key when blank. */
+            name: string;
+            /**
+             * Format: double
+             * @description A milestone's converted man-days (0 when none or not convertible).
+             */
+            estimateMd?: number | null;
+            /**
+             * Format: date
+             * @description Jira's start, shown when `copyDates` is on (it is written only if `scheduled`).
+             */
+            startDate?: string | null;
+            /** Format: date */
+            endDate?: string | null;
+            team?: components["schemas"]["JiraImportTeam"] | null;
+            /** @description The caller may schedule the milestone's team (ADMIN: always). */
+            canSchedule: boolean;
+            /** @description What WILL happen: the milestone is created with Jira's dates (`copyDates`, the caller may schedule, a valid span with a working day). */
+            scheduled: boolean;
+            infos: ("NAME_TRUNCATED" | "ESTIMATE_NOT_CONVERTED" | "DATES_NOT_COPIED" | "DATES_INVALID" | "NO_WORKING_DAY")[];
+        };
+        JiraImportTotals: {
+            /** Format: int32 */
+            items: number;
+            /** Format: int32 */
+            create: number;
+            /** Format: int32 */
+            bind: number;
+            /** Format: int32 */
+            skip: number;
+            /** @description More than 2,000 issues were in scope; the rows are the lowest ids. Narrow `projectKeys`. */
+            truncated: boolean;
+        };
+        JiraImportPreview: {
+            /** Format: int32 */
+            connectionId: number;
+            /** Format: int32 */
+            workStreamId: number;
+            /**
+             * Format: int64
+             * @description The plan revision of the snapshot the rows were computed on.
+             */
+            revision: number;
+            /**
+             * Format: int64
+             * @description Epoch milliseconds of the read.
+             */
+            asOf: number;
+            totals: components["schemas"]["JiraImportTotals"];
+            /** @description Jira Team names that matched no Astrolabe team, among the milestones that needed one. */
+            unmatchedTeams: string[];
+            items: components["schemas"]["JiraImportItem"][];
         };
         JiraBindRequest: {
             /** Format: int32 */
@@ -7876,6 +8074,42 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalServerError"];
+            502: components["responses"]["BadGateway"];
+        };
+    };
+    previewJiraImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JiraImportScope"];
+            };
+        };
+        responses: {
+            /** @description What the import would do */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JiraImportPreview"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalServerError"];
             502: components["responses"]["BadGateway"];

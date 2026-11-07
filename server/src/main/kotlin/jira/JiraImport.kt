@@ -4,7 +4,7 @@ import io.ktor.server.plugins.BadRequestException
 import kotlinx.serialization.Serializable
 
 // The wire shapes of the Jira import (1.2): the preview (`POST …/connections/{id}/import-preview`) and the apply (`…/import`). The
-// pure rules that fill them are `JiraImportKernels`; nothing here is exposed by a route yet (C4 and C5 mount them).
+// pure rules that fill them are `JiraImportKernels`; `JiraImportRoutes` serves the preview (the apply mounts with step C5).
 
 /** The most items one import carries, preview rows and apply items alike, IN TOTAL (not per level): the deviations view's cap. */
 const val MAX_IMPORT_ITEMS = 2_000
@@ -62,7 +62,7 @@ enum class JiraImportTeamRule { MATCHED, DEFAULT }
 data class JiraImportParent(
     val kind: JiraImportParentKind,
     val nodeId: UInt? = null,
-    val nodeName: String? = null,
+    val nodeName: String,
     val rowJiraId: String? = null,
 )
 

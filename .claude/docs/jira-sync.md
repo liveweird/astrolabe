@@ -13,9 +13,10 @@ Related: schema `persistence.md` "The Jira sync tables (V21)"; outbound guard `s
 | `…/integrations/jira/connections` (CRUD), `…/connections/test`, `…/{id}/test`, `…/{id}/discovery`, `…/{id}/mapping`, `…/{id}/peek` | ADMIN, `requireAdmin` BEFORE the body (guard-before-read) |
 | `POST /integrations/sync/runs {kind, connectionId}` (Refresh now) | ADMIN; `202` with the unfinished run |
 | `POST /integrations/jira/bindings`, `DELETE …/bindings/{id}` | the node's owner chain or ADMIN (`requireOwnerOrAdmin`), read-before-guard; a link writes no dates, so the team-manager rule does not apply |
+| `POST …/connections/{id}/import-preview` (1.2) | ADMIN, or an owner of every target (`requireOwnerOrAdmin` on the named defaults before the browse, on the resolved targets after it); read-before-guard, a read |
 | `GET …/bindings`, `GET …/sync/runs`, `GET /views/deviations` | any authenticated user |
 
-Rate buckets: `jira-test` 10/min per IP (Test connection, ad hoc or stored, and Peek); `jira-bind` 30/min per user (spent before the guard, so a 403 costs a token too).
+Rate buckets: `jira-test` 10/min per IP (Test connection, ad hoc or stored, and Peek); `jira-bind` 30/min per user (spent before the guard, so a 403 costs a token too); `jira-import` 5/min per user, shared by the import preview and apply (each browses the whole scope; spent before the guard).
 
 ## The transport and the gateway
 
@@ -145,6 +146,35 @@ observation (they still block their nodes).
 | `PROGRESS_MISMATCH` | all | `DONE` while the plan's end is after today; `TODO` while the plan's start is past; `IN_PROGRESS` while it is ahead | INFO |
 
 Without a usable mapping (no discovery, stale, unreadable) neither the level nor the estimate comparison is made and the connection reads `mappingOk: false`.
+
+## Import (1.2): the preview
+
+`POST …/connections/{id}/import-preview {workStreamId, ownerPersonId, projectKeys?, defaults{programId?, projectId?, teamId?}?, copyDates}` answers what importing the connection's scope into ONE picked work
+stream WOULD do, per Jira item: CREATE a program / project / milestone, BIND an existing unbound same-name node, or SKIP. It stores nothing and takes no lock. Work streams are never imported; the
+import PICKS one, and an item is created only under it. Checks in order (`authorization.md` has the guards): the `jira-import` bucket, the connection (`404`), the body, the named targets (`404`, then
+`403`), the shape (`400`: `projectKeys` a subset, the owner an active person, `defaults.teamId` an active team, the defaults under the stream), the connection enabled (`400`) and its token /
+discovery / mapping (`409`, the bind's resolution), then:
+
+1. **One browse, outside any transaction** (`jira/JiraImportBrowse.kt`): `JiraJql.full(keys, sweepTypeIds)` (the run's typed full read) with the run's `fields` (the system fields and every mapped date,
+   estimate and Team id), paged by the shared `searchPages` (`jira.pageSize`, at most 200 pages, `CURSOR_EXPIRED` restarted once). It **stops paging at 2,000 issues** (`MAX_IMPORT_ITEMS`): the first
+   issue beyond it ends the read with `truncated: true` (a full page exactly at the cap costs one more page to find out); what is kept is the lowest ids. Each issue is read through the mapping at ITS OWN
+   plan level, and keeps the issue type of its direct Jira parent (`fields.parent.fields.issuetype`; its level through the discovery by type id when the object omits `hierarchyLevel`, which the stub
+   does for ids divisible by 3). **Before every page the connection's liveness is asked** (`runnableState`): deleted meanwhile = `404`, disabled meanwhile = `400`, never a `500`.
+   The token is only the client's `Authorization` header: never a URL, log line, exception text or response. The whole browse has a **170 s deadline** (`withTimeoutOrNull`, under the web client's
+   180 s abort): past it the answer is `502 jira-upstream (TIMEOUT)`; only the browse's own deadline is turned into that, a cancelled caller stays cancelled.
+2. **One snapshot** (`JiraImportService.read`, `READ ONLY REPEATABLE READ`, the plan revision first): the holiday calendar, the picked stream's active tree with each node's owner and whether it carries an
+   active binding, ALL active program names (program names are globally unique), the active bindings of the browsed issues AND of their Jira parents on every active connection of the same site (D1: a
+   holder is `live` when its node and every ancestor are active), the active teams and the teams the caller manages (ADMIN: every team).
+3. **The pure kernel** (`JiraImportKernels.plan`, shared with the apply): rows top-down; a child's parent is the node bound to its direct Jira parent (under the stream), else the batch row of that parent,
+   else the level's default parent, else `NO_PARENT`; a child of a skipped parent in the browse is `PARENT_SKIPPED`; names compare case-insensitively (BIND to an unbound same-name sibling, `NAME_TAKEN`
+   otherwise; program names against every active program); team by folded name, then `defaults.teamId`, else `NO_TEAM`; estimates convert only with a declared unit or factor (`ESTIMATE_NOT_CONVERTED`);
+   a milestone's dates are copied only where the caller may schedule its team (`DATES_NOT_COPIED`) and are valid (`DATES_INVALID`, `NO_WORKING_DAY`).
+4. **The resolved targets' guards**, then the redaction for a non-admin (a skipped row other than `ALREADY_BOUND` loses its summary, name and infos, and `unmatchedTeams` counts the created rows only: `authorization.md`), then `200`: `{connectionId, workStreamId, revision, asOf, totals{items, create, bind, skip, truncated}, unmatchedTeams[], items[]}`, unpaged, at most 2,000 rows.
+   `truncated` is only reported here; the apply refuses a truncated scope.
+
+Tests: `JiraImportPreviewTest` (the `IMP` tree against the stub), `JiraImportPreviewGuardsTest` and `JiraImportRedactionTest` (the resolved-target guards and the redaction), `JiraImportPreviewSnapshotTest`
+(D1 holders: another connection, a deleted one, a dead node, an unbrowsed parent), `JiraImportPreviewErrorsTest` (the order, every status, the cap, the mid-browse stop, the `fields` the request names),
+`JiraImportBrowseTest` (the browse over a scripted site, the deadline), `JiraImportKernelsTest`.
 
 ## The token's life
 
