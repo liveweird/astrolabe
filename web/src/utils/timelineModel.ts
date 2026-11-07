@@ -51,9 +51,10 @@ export interface TimelineBarData {
    * height, the band tint, dashed edges; an EDITABLE window bar keeps its move and resize handles and its keyboard path), `proposal` (v0.8) =
    * a PROPOSED span beside the current one (hollow, a dashed 2 px text-colour outline; read-only: a preview, never an edit), `baseline` (v0.9)
    * = the span a baseline froze, a thin SHADOW bar along the bottom of the row under the current bar (a solid dimmed fill, square corners;
-   * read-only, pointer-transparent). Absent = the ordinary neutral bar.
+   * read-only, pointer-transparent), `jira` (1.3) = the dates Jira holds for the row, a 5 px dashed OUTLINE along the TOP of the row (hollow, the
+   * dimmed arrow ink; read-only, pointer-transparent). Absent = the ordinary neutral bar.
    */
-  tone?: "ghost" | "summary" | "window" | "proposal" | "baseline";
+  tone?: "ghost" | "summary" | "window" | "proposal" | "baseline" | "jira";
   /**
    * v0.7 critical-path emphasis, independent of `tone` and honoured on an editable AND a read-only bar: `critical` = a text-colour outline
    * and `data-critical="true"` (monochrome, no new hue). Absent = nothing is drawn or rendered extra.

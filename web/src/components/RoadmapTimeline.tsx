@@ -4,6 +4,7 @@ import { IconArrowBarDown, IconArrowBarUp, IconArrowDown, IconArrowUp, IconListN
 import { useTranslation } from "react-i18next";
 import type { RoadmapProject, RoadmapView } from "../api/roadmap";
 import { useHolidays } from "../hooks/useHolidays";
+import type { JiraWindow } from "../utils/jiraBars";
 import { projectTrack, planArrows } from "../utils/planTrack";
 import { conflictsByProject, countFlags, displayRows, DIVIDER_ID, type DisplayRow, type VisibleProjects } from "../utils/roadmapRows";
 import type { RovingTarget, TimelineColumn, TimelineRowData } from "../utils/timelineModel";
@@ -125,6 +126,7 @@ export default function RoadmapTimeline({
   label,
   timelineRef,
   toolbar,
+  jira,
 }: {
   view: RoadmapView;
   visible: VisibleProjects;
@@ -135,8 +137,10 @@ export default function RoadmapTimeline({
   busy: boolean;
   label: string;
   timelineRef: Ref<TimelineHandle>;
-  /** The Timeline's `toolbar` slot: the page's baseline picker. */
+  /** The Timeline's `toolbar` slot: the page's baseline picker and the "Jira dates" toggle. */
   toolbar?: ReactNode;
+  /** The page's Jira window while the "Jira dates" toggle is on (each project's Jira shadow bar), else `null`. */
+  jira: JiraWindow | null;
 }) {
   const { t } = useTranslation();
   const { holidays, failed: holidaysFailed } = useHolidays();
@@ -176,7 +180,7 @@ export default function RoadmapTimeline({
         <FlagCountsCell key="flags" counts={countFlags(project.flags)} />,
         (stop: RovingTarget) => <ProjectMenu project={project} rankedIndex={rankedIndex} rankedCount={rankedCount} canRank={canRank} actions={actions} trigger={stop} />,
       ],
-      ...projectTrack(project, t, conflicts),
+      ...projectTrack(project, t, conflicts, jira),
     };
   }
 

@@ -10,6 +10,7 @@ import EmptyState from "../components/EmptyState";
 import ErrorAlert from "../components/ErrorAlert";
 import FilterPanel from "../components/FilterPanel";
 import FormErrorAlert from "../components/FormErrorAlert";
+import JiraBarsToggle from "../components/JiraBarsToggle";
 import LoadingBlock from "../components/LoadingBlock";
 import PageHeader from "../components/PageHeader";
 import RoadmapFilterFields from "../components/RoadmapFilters";
@@ -19,6 +20,7 @@ import TargetWindowModal from "../components/TargetWindowModal";
 import type { TimelineHandle } from "../components/Timeline";
 import TimelineDndContext from "../components/TimelineDndContext";
 import { useBaselinePick, useDropUnknownPick } from "../hooks/useBaselinePick";
+import { useJiraBarsPick } from "../hooks/useJiraBarsPick";
 import { usePlanScale } from "../hooks/usePlanScale";
 import { useProgramPick } from "../hooks/useProgramPick";
 import { useRoadmapFilters } from "../hooks/useRoadmapFilters";
@@ -26,6 +28,8 @@ import { useRoadmapRanking } from "../hooks/useRoadmapRanking";
 import { useRowMenuFocus } from "../hooks/useRowMenuFocus";
 import { useTargetWindow } from "../hooks/useTargetWindow";
 import { projectTotals } from "../utils/baselineOverlay";
+import { localIsoDate } from "../utils/isoDate";
+import { jiraWindow } from "../utils/jiraBars";
 import { projectOfWindowBar } from "../utils/planTrack";
 import { applyRoadmapWindow } from "../utils/targetWindowUpdate";
 import {
@@ -141,8 +145,13 @@ function RoadmapBody({
   const { filters: storedFilters, set: setFilters } = useRoadmapFilters();
   const [storedPick, setPick] = useProgramPick();
   const timelineRef = useRef<TimelineHandle>(null);
+  // The "Jira dates" toggle (1.3, remembered, on by default; offered only where the view links a Jira site): `jira` is the window the shadow bars are
+  // drawn in while they are on - the plan's own dates padded by a year - and their dates join the range only inside it (a mistyped Jira date must not
+  // stretch the grow-only range).
+  const jiraBars = useJiraBarsPick();
+  const jira = jiraBars.shown ? jiraWindow(datesOf(view), localIsoDate()) : null;
   // Every date of the whole plan, not only of the visible rows: a filter never changes the range under the user.
-  const { scale, setZoom, today } = usePlanScale(datesOf(view));
+  const { scale, setZoom, today } = usePlanScale(datesOf(view, jira));
 
   // Stored values may name things that are gone; the filters and the pick are read through what the view still has.
   const filters = knownFilters(view, storedFilters);
@@ -222,13 +231,19 @@ function RoadmapBody({
               busy={ranking.pending}
               label={t("roadmap.timelineAria")}
               timelineRef={timelineRef}
-              toolbar={<BaselinePicker pick={baselinePick} onPick={onPick} current={view.baseline} disabled={ranking.pending} />}
+              jira={jira}
+              toolbar={
+                <>
+                  <BaselinePicker pick={baselinePick} onPick={onPick} current={view.baseline} disabled={ranking.pending} />
+                  {view.jiraSites.length > 0 && <JiraBarsToggle shown={jiraBars.shown} onChange={jiraBars.setShown} />}
+                </>
+              }
             />
           </Stack>
         </TimelineDndContext>
       )}
 
-      <RoadmapFlagPanel entries={flagEntries(visible)} names={names} onShow={(projectId) => timelineRef.current?.focusRow(projectId)} />
+      <RoadmapFlagPanel entries={flagEntries(visible)} names={names} jiraSites={view.jiraSites} onShow={(projectId) => timelineRef.current?.focusRow(projectId)} />
 
       {editing !== undefined && (
         <TargetWindowModal

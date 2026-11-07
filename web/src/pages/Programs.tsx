@@ -11,6 +11,7 @@ import EmptyState from "../components/EmptyState";
 import ErrorAlert from "../components/ErrorAlert";
 import FilterPanel from "../components/FilterPanel";
 import FormErrorAlert from "../components/FormErrorAlert";
+import JiraBarsToggle from "../components/JiraBarsToggle";
 import LoadingBlock from "../components/LoadingBlock";
 import PageHeader from "../components/PageHeader";
 import type { WindowActions } from "../components/PlanProjectCells";
@@ -20,11 +21,14 @@ import TargetWindowModal from "../components/TargetWindowModal";
 import type { TimelineHandle } from "../components/Timeline";
 import TimelineDndContext from "../components/TimelineDndContext";
 import { useBaselinePick, useDropUnknownPick, withoutStaleOverlay } from "../hooks/useBaselinePick";
+import { useJiraBarsPick } from "../hooks/useJiraBarsPick";
 import { usePlanScale } from "../hooks/usePlanScale";
 import { useProgramPick } from "../hooks/useProgramPick";
 import { useRowMenuFocus } from "../hooks/useRowMenuFocus";
 import { useTargetWindow } from "../hooks/useTargetWindow";
 import { projectTotals } from "../utils/baselineOverlay";
+import { localIsoDate } from "../utils/isoDate";
+import { jiraWindow } from "../utils/jiraBars";
 import { projectOfWindowBar } from "../utils/planTrack";
 import { allOpen, defaultOpen, programChoices, toggled, treeDates, treeFacts, treeProjects, treeRows } from "../utils/programsTree";
 import { pickAmong } from "../utils/roadmapRows";
@@ -94,8 +98,13 @@ function ProgramsBody({ view, pick: baselinePick, onPick, loading }: { view: Pro
   // arrives with a refetch opens too; the first change freezes the set as the user sees it.
   const [expanded, setExpanded] = useState<ReadonlySet<string> | null>(null);
   const [announcement, setAnnouncement] = useState("");
+  // The "Jira dates" toggle (1.3, remembered, on by default; offered only where the view links a Jira site): `jira` is the window the project rows' shadow
+  // bars are drawn in while they are on - the plan's own dates padded by a year - and their dates join the range only inside it (a mistyped Jira date
+  // must not stretch the grow-only range).
+  const jiraBars = useJiraBarsPick();
+  const jira = jiraBars.shown ? jiraWindow(treeDates(view), localIsoDate()) : null;
   // Every date of the whole plan, not only of the shown rows: neither the pick nor a fold changes the range under the user.
-  const { scale, setZoom, today } = usePlanScale(treeDates(view));
+  const { scale, setZoom, today } = usePlanScale(treeDates(view, jira));
 
   // A stored id of a program the plan no longer has filters nothing instead of hiding every row.
   const choices = programChoices(view);
@@ -226,7 +235,13 @@ function ProgramsBody({ view, pick: baselinePick, onPick, loading }: { view: Pro
             busy={writing}
             label={t("programs.timelineAria")}
             timelineRef={timelineRef}
-            toolbar={<BaselinePicker pick={baselinePick} onPick={onPick} current={view.baseline} disabled={writing} />}
+            jira={jira}
+            toolbar={
+              <>
+                <BaselinePicker pick={baselinePick} onPick={onPick} current={view.baseline} disabled={writing} />
+                {view.jiraSites.length > 0 && <JiraBarsToggle shown={jiraBars.shown} onChange={jiraBars.setShown} />}
+              </>
+            }
           />
         </Stack>
       </TimelineDndContext>

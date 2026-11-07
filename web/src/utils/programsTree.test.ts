@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { ProgramsProgram, ProgramsView, ProgramsWorkStream } from "../api/programs";
 import type { RoadmapProject } from "../api/roadmap";
+import { jiraWindow } from "./jiraBars";
 import { allOpen, defaultOpen, programChoices, toggled, treeDates, treeFacts, treeRows } from "./programsTree";
 
 const project = (id: number, name: string, over: Partial<RoadmapProject> = {}): RoadmapProject => ({
@@ -147,5 +148,21 @@ describe("the pick, the facts and the range", () => {
 
   test("treeDates holds the spans and windows of every project, whatever is folded or picked away", () => {
     expect(treeDates(viewOf()).sort()).toEqual(["2026-02-01", "2026-03-02", "2026-03-31", "2026-04-10", "2026-05-04", "2026-06-05", "2026-08-03", "2026-09-04"]);
+  });
+
+  test("treeDates adds the dates Jira holds only with the page's window, only when both are known, cut at it", () => {
+    const plain = viewOf();
+    const [stream, ...others] = plain.workStreams;
+    const [program, ...programs] = stream.programs;
+    const [first, second, ...projects] = program.projects;
+    const bound = (link: { start: string | null; end: string | null }) => ({ bindingId: 1, connectionId: 2, issueKey: "E2E-6", ...link });
+    const view = {
+      ...plain,
+      workStreams: [{ ...stream, programs: [{ ...program, projects: [{ ...first, jira: bound({ start: "2026-03-09", end: "2206-03-05" }) }, { ...second, jira: bound({ start: "2026-05-04", end: null }) }, ...projects] }, ...programs] }, ...others],
+    };
+    const window = jiraWindow(treeDates(view), "2030-01-01");
+    expect(treeDates(view)).toEqual(treeDates(view, null));
+    expect(treeDates(view).some((date) => date > "2100")).toBe(false);
+    expect(treeDates(view, window).filter((date) => !treeDates(view).includes(date))).toEqual(["2026-03-09", "2027-09-04"]);
   });
 });

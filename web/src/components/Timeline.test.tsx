@@ -1357,6 +1357,36 @@ describe("bar tones", () => {
     expect(screen.queryByRole("button", { name: /Resize/ })).toBeNull();
   });
 
+  test("a jira bar (1.3) is a read-only image: data-tone=jira, a high pointer-transparent frame of its own, one roving stop, no handles", () => {
+    const jira = { ...bar(9, "Build", "2026-09-14", "2026-09-18", false), id: "jira:2", describe: "Jira E2E-6: 2026-09-14 to 2026-09-18", tone: "jira" as const };
+    renderWithProviders(<Harness rows={[row(2, "Build", [BUILD, jira])]} />);
+    const body = screen.getByRole("img", { name: "Jira E2E-6: 2026-09-14 to 2026-09-18, read-only" });
+    expect(body).toHaveAttribute("data-tone", "jira");
+    const current = screen.getByRole("img", { name: /^Build, Team A/ });
+    expect(body.className).not.toBe(current.className);
+    expect(body.parentElement?.className).toMatch(/timelineBarFrameJira/);
+    expect(body.parentElement?.className).toMatch(/timelineBarInert/);
+    expect(body.parentElement?.className).not.toMatch(/timelineBarFrameBaseline/);
+    expect(screen.queryByRole("button", { name: /Resize/ })).toBeNull();
+    expect(body).toHaveAttribute("data-grid-pos");
+    expect(body).toHaveAttribute("tabindex");
+  });
+
+  test("a jira bar coexists with a baseline and a proposal bar in one row: three tones, three frames, every one a stop", () => {
+    const shadow = { ...bar(9, "Build", "2026-09-14", "2026-09-18", false), id: "baseline:2", describe: "Baseline: Build, 2026-09-14 to 2026-09-18", tone: "baseline" as const };
+    const proposed = { ...bar(8, "Build", "2026-09-28", "2026-10-02", false), id: "proposal:2", describe: "Proposed: Build, 2026-09-28 to 2026-10-02", tone: "proposal" as const };
+    const jira = { ...bar(10, "Build", "2026-09-15", "2026-09-30", false), id: "jira:2", describe: "Jira E2E-6: 2026-09-15 to 2026-09-30", tone: "jira" as const };
+    const { container } = renderWithProviders(<Harness rows={[row(2, "Build", [BUILD, proposed, shadow, jira])]} />);
+    expect([...container.querySelectorAll("[data-tone]")].map((el) => el.getAttribute("data-tone"))).toEqual(["proposal", "baseline", "jira"]);
+    const frames = ["Baseline", "Jira", "Proposed"].map((name) => screen.getByRole("img", { name: new RegExp(`^${name}`) }).parentElement?.className);
+    expect(new Set(frames).size).toBe(3);
+  });
+
+  test("an editable bar ignores the jira tone like the other read-only tones", () => {
+    renderWithProviders(<Harness rows={[row(7, "Edit", [{ ...bar(7, "Edit", "2026-09-16", "2026-09-18"), tone: "jira" }])]} />);
+    expect(barBody("Edit, Team A, 2026-09-16 to 2026-09-18")).not.toHaveAttribute("data-tone");
+  });
+
   test("an editable bar ignores the baseline tone like the other read-only tones", () => {
     renderWithProviders(<Harness rows={[row(7, "Edit", [{ ...bar(7, "Edit", "2026-09-16", "2026-09-18"), tone: "baseline" }])]} />);
     expect(barBody("Edit, Team A, 2026-09-16 to 2026-09-18")).not.toHaveAttribute("data-tone");

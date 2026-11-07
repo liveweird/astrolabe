@@ -14,6 +14,7 @@
   "holidaysInViewMany": "{{count}} public holidays shown; the next ones: {{list}}",
   "holidaysUnavailable": "Public holidays could not be loaded; days off are not marked.",
   "criticalToggle": "Critical path",
+  "jiraToggle": "Jira dates",
   "idle": {
     "title": "Idle gaps",
     "introProject": "Runs of three or more working days inside the project's schedule when none of its milestones is in progress. Weekends and public holidays do not count. Information only — nothing moves.",
@@ -85,6 +86,7 @@
     "window": "{{name}}, target window {{start}} to {{end}}",
     "proposal": "Proposed: {{name}}, {{start}} to {{end}}",
     "baseline": "Baseline: {{name}}, {{start}} to {{end}}",
+    "jira": "Jira {{key}}: {{start}} to {{end}}",
     "startHandleAria": "Resize start of {{name}}",
     "endHandleAria": "Resize end of {{name}}"
   },

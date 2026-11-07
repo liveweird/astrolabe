@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { PlanFlag, RoadmapLink, RoadmapProject, RoadmapView } from "../api/roadmap";
+import { jiraWindow } from "./jiraBars";
 import {
   activeFilterCount,
   allProjects,
@@ -168,6 +169,24 @@ describe("driftBandOf / datesOf", () => {
     const dated = view({ ranked: [{ position: 1, project: project(9, "X", { targetStart: "2027-01-04", targetEnd: "2027-01-29", span: { start: "2027-01-11", end: "2027-02-12" } }) }], unranked: [] });
     expect(datesOf(dated).sort()).toEqual(["2027-01-04", "2027-01-11", "2027-01-29", "2027-02-12"]);
     expect(datesOf(view())).toEqual([]);
+  });
+
+  test("the dates Jira holds join the range only with the page's window, only when both are known, and a mistyped one is cut at it", () => {
+    const jira = (start: string | null, end: string | null) => ({ bindingId: 1, connectionId: 2, issueKey: "E2E-6", start, end });
+    const dated = view({
+      ranked: [
+        { position: 1, project: project(9, "X", { span: { start: "2027-01-11", end: "2027-02-12" }, jira: jira("2027-01-18", "2206-03-05") }) },
+        { position: 2, project: project(8, "Y", { jira: jira("2027-02-01", null) }) },
+        { position: 3, project: project(7, "Z", { jira: jira("2206-03-01", "2206-03-05") }) },
+      ],
+      unranked: [],
+    });
+    const window = jiraWindow(datesOf(dated), "2030-01-01");
+    expect(window).toEqual({ from: "2026-01-11", to: "2028-02-12" });
+    expect(datesOf(dated).sort()).toEqual(["2027-01-11", "2027-02-12"]);
+    expect(datesOf(dated, null).sort()).toEqual(["2027-01-11", "2027-02-12"]);
+    // the one-date link and the wholly-outside one add nothing; the 2206 end is cut at the window
+    expect(datesOf(dated, window).sort()).toEqual(["2027-01-11", "2027-01-18", "2027-02-12", "2028-02-12"]);
   });
 });
 

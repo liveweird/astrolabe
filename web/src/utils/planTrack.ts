@@ -1,6 +1,7 @@
 import type { TFunction } from "i18next";
 import type { RoadmapLink, RoadmapProject } from "../api/roadmap";
 import { shadowBar } from "./baselineOverlay";
+import { jiraBar, type JiraWindow } from "./jiraBars";
 import { arrowSpecsForLinks, driftBandOf } from "./roadmapRows";
 import type { TimelineArrowData, TimelineBandData, TimelineBarData, TimelineDrawData } from "./timelineModel";
 
@@ -23,9 +24,10 @@ const withConflicts = (t: TFunction, describe: string, count: number) => (count 
 /**
  * The bars of a project row: its target window (the band-look bar behind - editable when the viewer may change it) and the span its milestones
  * cover (hollow, read-only, on top: the Timeline lets the pointer through a summary bar, so the window under it is grabbed where they overlap), then,
- * while a baseline is picked, the shadow bar of the span the baseline froze.
+ * while a baseline is picked, the shadow bar of the span the baseline froze and, while the "Jira dates" toggle is on (`jira`, the page's window), the shadow bar of
+ * the dates Jira holds (1.3; only for a project whose link carries both, cut at the window).
  */
-function barsOf(project: RoadmapProject, t: TFunction, conflicts: number): TimelineBarData[] {
+function barsOf(project: RoadmapProject, t: TFunction, conflicts: number, jira: JiraWindow | null): TimelineBarData[] {
   const { id, name, targetStart, targetEnd, span } = project;
   const bars: TimelineBarData[] = [];
   if (targetStart !== null && targetEnd !== null) {
@@ -45,6 +47,8 @@ function barsOf(project: RoadmapProject, t: TFunction, conflicts: number): Timel
   // v0.9: with `?baseline=` a project the baseline also froze carries the span it had then - a thin shadow bar under the span bar, named with its dates and movement.
   const frozen = project.baseline;
   if (frozen?.span) bars.push(shadowBar(id, name, frozen.span, frozen.movement, t));
+  const shadow = jira === null ? undefined : jiraBar(id, name, project.jira, project.flags, jira, t);
+  if (shadow !== undefined) bars.push(shadow);
   return bars;
 }
 
@@ -57,14 +61,15 @@ function bandsOf(project: RoadmapProject, t: TFunction): TimelineBandData[] {
 /**
  * What a project's row draws on its track: the window and span bars, the drift band and, for a viewer who may set the window of a project that has
  * none, the draw surface (a drag across the empty row proposes `onSchedule(window:<id>, start, end)`, the same seam as moving the band).
- * `conflicts` = the violated links ending on each project (`conflictsByProject`).
+ * `conflicts` = the violated links ending on each project (`conflictsByProject`); `jira` = the page's Jira window while the "Jira dates" toggle is on (`jiraWindow`), else `null`.
  */
 export function projectTrack(
   project: RoadmapProject,
   t: TFunction,
   conflicts: ReadonlyMap<number, number>,
+  jira: JiraWindow | null,
 ): { bars: TimelineBarData[]; bands: TimelineBandData[]; draw?: TimelineDrawData } {
-  const track = { bars: barsOf(project, t, conflicts.get(project.id) ?? 0), bands: bandsOf(project, t) };
+  const track = { bars: barsOf(project, t, conflicts.get(project.id) ?? 0, jira), bands: bandsOf(project, t) };
   const drawable = project.can.editTargetWindow && (project.targetStart === null || project.targetEnd === null);
   return drawable ? { ...track, draw: { barId: windowBarId(project.id), label: project.name } } : track;
 }

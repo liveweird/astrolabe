@@ -13,6 +13,9 @@ export type RoadmapRankedProject = Schemas["RoadmapRankedProject"];
 export type RoadmapProject = Schemas["RoadmapProject"];
 export type RoadmapLink = Schemas["RoadmapLink"];
 export type PlanFlag = Schemas["PlanFlag"];
+/** A plan node's Jira item (1.3): the key, the dates Jira was last observed to hold and the connection (its site is in the document's `jiraSites`). */
+export type JiraLink = Schemas["JiraLink"];
+export type JiraSite = Schemas["JiraSite"];
 export type RankingBody = Schemas["RankingUpdateRequest"];
 
 /** The problem `type` of the 409 a ranking PUT answers when its `expectedRevision` is behind the plan's. */

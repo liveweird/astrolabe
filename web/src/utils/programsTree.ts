@@ -1,6 +1,7 @@
 import type { Movement } from "../api/baselines";
 import type { ProgramsProgram, ProgramsView, ProgramsWorkStream } from "../api/programs";
 import type { RoadmapProject } from "../api/roadmap";
+import { jiraRangeDates, type JiraWindow } from "./jiraBars";
 import type { FlagCounts, ProgramOption } from "./roadmapRows";
 
 // The programs page's pure model: the server's tree (work stream -> program -> project) turned into the rows of the timeline for the program
@@ -166,9 +167,16 @@ export function treeProjects(view: ProgramsView): RoadmapProject[] {
   return view.workStreams.flatMap((stream) => stream.programs.flatMap((program) => program.projects));
 }
 
-/** Every date the page can show (spans, target windows and, with a baseline picked, the frozen spans of ALL projects): the range the timeline must cover, whatever is folded or picked away. */
-export function treeDates(view: ProgramsView): string[] {
-  return treeProjects(view).flatMap((project) =>
+/**
+ * Every date the page can show (spans, target windows and, with a baseline picked, the frozen spans of ALL projects): the range the timeline must cover,
+ * whatever is folded or picked away. With the page's Jira `window` (the "Jira dates" toggle on, `jiraWindow(treeDates(view), today)`) the Jira dates of
+ * each bound project join it, CUT at the window so a mistyped Jira date cannot stretch the grow-only range.
+ */
+export function treeDates(view: ProgramsView, jira: JiraWindow | null = null): string[] {
+  const projects = treeProjects(view);
+  const own = projects.flatMap((project) =>
     [project.span?.start, project.span?.end, project.targetStart, project.targetEnd, project.baseline?.span?.start, project.baseline?.span?.end].filter((d): d is string => typeof d === "string"),
   );
+  if (jira === null) return own;
+  return [...own, ...jiraRangeDates(projects, jira)];
 }

@@ -1,6 +1,7 @@
 import type { PlanFlag, RoadmapLink, RoadmapProject, RoadmapRankedProject, RoadmapView } from "../api/roadmap";
 import { EDGES } from "./dependencyArrows";
 import { addDays } from "./isoDate";
+import { jiraRangeDates, type JiraWindow } from "./jiraBars";
 import type { TimelineArrowData } from "./timelineModel";
 
 // The roadmap page's pure model: which projects the filters and the program pick leave visible, the rows they make (ranked rows, the divider,
@@ -144,11 +145,17 @@ export function driftBandOf(project: RoadmapProject): { start: string; end: stri
   return { start: addDays(project.targetEnd, 1), end: project.span.end };
 }
 
-/** Every date the page shows (spans, target windows and, with a baseline picked, the frozen spans): the range the timeline must cover. */
-export function datesOf(view: RoadmapView): string[] {
-  return allProjects(view).flatMap((project) =>
+/**
+ * Every date the page shows (spans, target windows and, with a baseline picked, the frozen spans): the range the timeline must cover. With the page's
+ * Jira `window` (the "Jira dates" toggle on, `jiraWindow(datesOf(view), today)`) the Jira dates of each bound project join it, CUT at the window so a
+ * mistyped Jira date cannot stretch the range (the range only grows, and the toggle could not undo it).
+ */
+export function datesOf(view: RoadmapView, jira: JiraWindow | null = null): string[] {
+  const own = allProjects(view).flatMap((project) =>
     [project.span?.start, project.span?.end, project.targetStart, project.targetEnd, project.baseline?.span?.start, project.baseline?.span?.end].filter((d): d is string => typeof d === "string"),
   );
+  if (jira === null) return own;
+  return [...own, ...jiraRangeDates(allProjects(view), jira)];
 }
 
 /** How many violated links end on each project (a direct link and the violated milestone links of a pair), for the span bar's accessible name. */

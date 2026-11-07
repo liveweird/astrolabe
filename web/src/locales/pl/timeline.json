@@ -14,6 +14,7 @@
   "holidaysInViewMany": "Widoczne święta państwowe: {{count}}; najbliższe: {{list}}",
   "holidaysUnavailable": "Nie udało się wczytać świąt państwowych; dni wolne nie są zaznaczone.",
   "criticalToggle": "Ścieżka krytyczna",
+  "jiraToggle": "Daty z Jiry",
   "idle": {
     "title": "Przestoje",
     "introProject": "Ciągi co najmniej trzech dni roboczych w harmonogramie projektu, w których żaden jego kamień milowy nie jest w toku. Weekendy i święta państwowe nie liczą się. Tylko informacja – nic się nie przesuwa.",
@@ -97,6 +98,7 @@
     "window": "{{name}}, okno docelowe od {{start}} do {{end}}",
     "proposal": "Propozycja: {{name}}, od {{start}} do {{end}}",
     "baseline": "Baza odniesienia: {{name}}, od {{start}} do {{end}}",
+    "jira": "Jira {{key}}: od {{start}} do {{end}}",
     "startHandleAria": "Zmień początek: {{name}}",
     "endHandleAria": "Zmień koniec: {{name}}"
   },

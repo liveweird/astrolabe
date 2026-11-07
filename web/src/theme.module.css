@@ -546,6 +546,20 @@ table.table {
   border-radius: 0;
 }
 
+/* The dates Jira holds (TimelineBarData.tone "jira", 1.3): a 5 px dashed OUTLINE along the TOP of the 36 px row, above the 24 px bar that sits at 6..30 px
+   (the baseline's shadow mirrors it along the bottom; a wrapper class sets the geometry). Hollow, a 1 px dashed border in the dimmed arrow ink (`--timeline-arrow` = Mantine's `dimmed`, resolved per scheme: not a `light-dark()` token), square
+   corners, no hue: apart from the baseline (solid fill, bottom), the proposal (2 px dashed, full height) and the summary (solid outline, full height). */
+.timelineBarFrameJira {
+  top: 1px;
+  height: 5px;
+}
+
+.timelineBarJira {
+  background: transparent;
+  border: 1px dashed var(--timeline-arrow);
+  border-radius: 0;
+}
+
 /* A proposed span (TimelineBarData.tone "proposal", v0.8): hollow with a DASHED 2 px outline in the text colour - apart from the summary
    (solid outline), the ghost (faint dashed fill) and the critical emphasis (an outline around a filled bar); no new hue. It is mounted after the
    row's current bar, so where the two overlap the current bar shows through the hollow middle. */

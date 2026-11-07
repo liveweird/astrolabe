@@ -58,7 +58,7 @@
   },
   "flags": {
     "title": "Flags",
-    "intro": "What the icons in the Flags column mean, one line per flag: a project running past its target window or starting or ending off it, and a project ranked below another that starts earlier. Warnings first. Nothing is ever moved.",
+    "intro": "What the icons in the Flags column mean, one line per flag: a project running past its target window or starting or ending off it, a project ranked below another that starts earlier, and where Jira's dates or items differ from the plan. Warnings first. Nothing is ever moved.",
     "none": "No flags on the projects shown.",
     "show_one": "Show the {{count}} flag",
     "show_other": "Show the {{count}} flags",
@@ -80,7 +80,8 @@
     "inversion_other": "Ranked below {{other}}, but starts {{count}} days earlier on {{team}}",
     "inversionNoTeam_one": "Ranked below {{other}}, but starts {{count}} day earlier (no shared team)",
     "inversionNoTeam_other": "Ranked below {{other}}, but starts {{count}} days earlier (no shared team)",
-    "jiraDeviation": "Differs from Jira",
+    "jiraDeviation": "Jira {{key}}: {{sentence}}",
+    "jiraDeviationBare": "Differs from Jira",
     "jiraMilestones_one": "{{count}} milestone deviates from Jira",
     "jiraMilestones_other": "{{count}} milestones deviate from Jira",
     "show": "Show in timeline",

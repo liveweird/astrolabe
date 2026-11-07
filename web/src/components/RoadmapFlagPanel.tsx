@@ -3,9 +3,12 @@ import { IconTarget } from "@tabler/icons-react";
 import { Link as RouterLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
-import type { PlanFlag } from "../api/roadmap";
+import type { JiraSite, PlanFlag, RoadmapProject } from "../api/roadmap";
+import { deviationSentence } from "../utils/deviations";
+import { siteUrls } from "../utils/jiraBars";
 import { projectPath } from "../utils/planLinks";
 import type { FlagEntry } from "../utils/roadmapRows";
+import JiraKeyLink from "./JiraKeyLink";
 import ScrollRegion from "./ScrollRegion";
 import TableDisclosure from "./TableDisclosure";
 
@@ -14,8 +17,11 @@ const TABLE_MAX_HEIGHT = 420;
 /** The names a flag's sentence can mention: the other project of a rank inversion, the shared team. */
 export type FlagNames = { project: (id: number) => string; team: (id: number) => string };
 
-/** A flag in words, by kind (never colour alone); the day counts are calendar days, the sentences name the project and team they compare. */
-function flagSentence(t: TFunction, flag: PlanFlag, names: FlagNames): string {
+/**
+ * A flag in words, by kind (never colour alone); the day counts are calendar days, the sentences name the project and team they compare. A
+ * `JIRA_DEVIATION` is the deviation page's own sentence for `flag.deviation` (`utils/deviations.ts`, working days) behind the project's Jira key.
+ */
+function flagSentence(t: TFunction, flag: PlanFlag, names: FlagNames, project: RoadmapProject): string {
   const count = flag.days ?? 0;
   switch (flag.kind) {
     case "DRIFT_END_LATE":
@@ -28,9 +34,12 @@ function flagSentence(t: TFunction, flag: PlanFlag, names: FlagNames): string {
       const other = flag.otherProjectId === null ? "" : names.project(flag.otherProjectId);
       return flag.teamId === null ? t("roadmap.flag.inversionNoTeam", { count, other }) : t("roadmap.flag.inversion", { count, other, team: names.team(flag.teamId) });
     }
-    // The Jira kinds (1.3): the server sends them already; the per-deviation wording and the issue key come with the Jira markers (C8).
-    case "JIRA_DEVIATION":
-      return t("roadmap.flag.jiraDeviation");
+    case "JIRA_DEVIATION": {
+      // Without the evidence (the contract always sends it) the sentence degrades to the bare "differs", never to an invented figure.
+      const sentence = flag.deviation === null ? t("roadmap.flag.jiraDeviationBare") : deviationSentence(flag.deviation, { jira: { estimateUnit: null } }, t);
+      return project.jira === null ? sentence : t("roadmap.flag.jiraDeviation", { key: project.jira.issueKey, sentence });
+    }
+    // The roll-up of the project's milestones' open deviations; the detail lives on the project page's rows.
     case "JIRA_MILESTONES":
       return t("roadmap.flag.jiraMilestones", { count: flag.count ?? 0 });
   }
@@ -41,8 +50,20 @@ function flagSentence(t: TFunction, flag: PlanFlag, names: FlagNames): string {
  * severity in words, the project as a link, the sentence and "Show in timeline", which moves the keyboard focus to the project's row. Behind a
  * disclosure (a plan can raise a couple of hundred flags); the heading and the count stay visible.
  */
-export default function RoadmapFlagPanel({ entries, names, onShow }: { entries: readonly FlagEntry[]; names: FlagNames; onShow: (projectId: number) => void }) {
+export default function RoadmapFlagPanel({
+  entries,
+  names,
+  jiraSites,
+  onShow,
+}: {
+  entries: readonly FlagEntry[];
+  names: FlagNames;
+  /** The view's `jiraSites`: a `JIRA_DEVIATION` row links its key to the issue through them (the URL is never per row). */
+  jiraSites: readonly JiraSite[];
+  onShow: (projectId: number) => void;
+}) {
   const { t } = useTranslation();
+  const sites = siteUrls(jiraSites);
   return (
     <Stack gap="xs">
       <Title order={3} size="h4">
@@ -80,7 +101,12 @@ export default function RoadmapFlagPanel({ entries, names, onShow }: { entries: 
                       </Anchor>
                     </Table.Td>
                     <Table.Td>
-                      <Text size="sm">{flagSentence(t, flag, names)}</Text>
+                      <Text size="sm">
+                        {flagSentence(t, flag, names, project)}
+                        {flag.kind === "JIRA_DEVIATION" && project.jira !== null && (
+                          <JiraKeyLink issueKey={project.jira.issueKey} siteUrl={sites.get(project.jira.connectionId)} iconOnly />
+                        )}
+                      </Text>
                     </Table.Td>
                     <Table.Td>
                       <Button

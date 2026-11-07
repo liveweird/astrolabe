@@ -6,6 +6,7 @@ import type { TFunction } from "i18next";
 import type { RoadmapLink, RoadmapProject } from "../api/roadmap";
 import { useHolidays } from "../hooks/useHolidays";
 import { shadowBar } from "../utils/baselineOverlay";
+import type { JiraWindow } from "../utils/jiraBars";
 import { planArrows, projectTrack } from "../utils/planTrack";
 import type { NodeRow, ProjectTreeRow, TreeRow } from "../utils/programsTree";
 import { conflictsByProject, countFlags } from "../utils/roadmapRows";
@@ -118,6 +119,7 @@ export default function ProgramsTimeline({
   label,
   timelineRef,
   toolbar,
+  jira,
 }: {
   links: readonly RoadmapLink[];
   rows: readonly TreeRow[];
@@ -134,8 +136,10 @@ export default function ProgramsTimeline({
   busy: boolean;
   label: string;
   timelineRef: Ref<TimelineHandle>;
-  /** The Timeline's `toolbar` slot: the page's baseline picker. */
+  /** The Timeline's `toolbar` slot: the page's baseline picker and the "Jira dates" toggle. */
   toolbar?: ReactNode;
+  /** The page's Jira window while the "Jira dates" toggle is on (each project's Jira shadow bar), else `null`. */
+  jira: JiraWindow | null;
 }) {
   const { t } = useTranslation();
   const { holidays, failed: holidaysFailed } = useHolidays();
@@ -169,7 +173,7 @@ export default function ProgramsTimeline({
           </RowActionsMenu>
         ),
       ],
-      ...projectTrack(project, t, conflicts),
+      ...projectTrack(project, t, conflicts, jira),
     };
   }
 
