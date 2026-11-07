@@ -6,9 +6,10 @@ import ch.nokillswit.planning.DaySpan
 import ch.nokillswit.planning.SNAPSHOT
 import ch.nokillswit.planning.loadWorkingCalendar
 import ch.nokillswit.planning.readPlanRevision
+import ch.nokillswit.sync.RunFact
 import ch.nokillswit.sync.SyncKind
-import ch.nokillswit.sync.SyncRunResponse
 import ch.nokillswit.sync.SyncRunService
+import ch.nokillswit.sync.SyncStatusKernels
 import io.ktor.util.AttributeKey
 import org.jetbrains.exposed.v1.r2dbc.R2dbcDatabase
 import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
@@ -40,7 +41,7 @@ class DeviationViewService(
         val asOf = LocalDate.ofInstant(Instant.ofEpochMilli(now), ZoneOffset.UTC)
         val calendar = loadWorkingCalendar()
         val connections = loadConnections()
-        val latestRuns = runs.latestRunsInTransaction(SyncKind.JIRA, connections.map { it.id })
+        val recentRuns = runs.recentRunsInTransaction(SyncKind.JIRA, connections.map { it.id })
         val bindings = loadBindings()
         val nodes = loadNodes(bindings.map { it.ref })
         val live = bindings.filter { it.ref in nodes }
@@ -54,7 +55,7 @@ class DeviationViewService(
             revision = revision,
             asOf = asOf.toString(),
             connections = connections.sortedWith(compareBy<ConnectionFacts>({ it.name.lowercase() }, { it.id }))
-                .map { it.toWire(latestRuns[it.id], now) },
+                .map { it.toWire(recentRuns.getValue(it.id), now) },
             totals = DeviationTotals(
                 warnings = candidates.sumOf { c -> c.shown.count { it.severity == DeviationSeverity.WARNING } },
                 infos = candidates.sumOf { c -> c.shown.count { it.severity == DeviationSeverity.INFO } },
@@ -66,15 +67,19 @@ class DeviationViewService(
         )
     }
 
-    private fun ConnectionFacts.toWire(run: SyncRunResponse?, now: Long) = DeviationConnection(
-        id = id,
-        name = name,
-        siteUrl = siteUrl,
-        enabled = enabled,
-        mappingOk = levels != null,
-        // The registry's one rule, read against the view's own clock (an unfinished row older than the claim window was interrupted).
-        lastRun = run?.toLastRun(running = runs.isRunning(run.finishedAt, run.startedAt, now)),
-    )
+    /** The status is derived against the view's own clock (an unfinished row older than the claim window was interrupted). */
+    private fun ConnectionFacts.toWire(recent: List<RunFact>, now: Long): DeviationConnection {
+        val status = SyncStatusKernels.derive(connector, recent, now, runs.maxRunMinutes)
+        return DeviationConnection(
+            id = id,
+            name = name,
+            siteUrl = siteUrl,
+            enabled = enabled,
+            mappingOk = levels != null,
+            lastRun = status.lastRun,
+            status = status,
+        )
+    }
 }
 
 /** A binding's finished row and the deviations it LISTS ([shown]: `ESTIMATE_NOT_COMPARABLE` only on request). */

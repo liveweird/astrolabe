@@ -11,7 +11,7 @@ const TOKEN_KEY = "astrolabe.auth.token";
 const ROLES_KEY = "astrolabe.auth.roles";
 type FetchMock = ReturnType<typeof vi.fn>;
 
-const LAST_RUN = { id: 7, startedAt: Date.UTC(2026, 10, 6, 10, 0), finishedAt: Date.UTC(2026, 10, 6, 10, 1), outcome: "SUCCEEDED" as const, errorCode: null, running: false };
+const LAST_RUN = { id: 7, startedAt: Date.UTC(2026, 10, 6, 10, 0), finishedAt: Date.UTC(2026, 10, 6, 10, 1), outcome: "SUCCEEDED" as const, errorCode: null, trigger: "MANUAL" as const, running: false };
 
 const PAGE = {
   items: [

@@ -38,6 +38,13 @@ interface Connector {
     suspend fun connections(): List<ConnectorConnection>
 
     /**
+     * [connections] under a statement budget of [queryTimeoutSeconds] (whole seconds, the transaction's `queryTimeout`; 0 = none): the
+     * telemetry read API's reads all carry one. The default ignores the budget, so a connector that does not own a database (a test
+     * fake) needs nothing; the Jira connector applies it.
+     */
+    suspend fun connections(queryTimeoutSeconds: Int): List<ConnectorConnection> = connections()
+
+    /**
      * The whole run for the claimed row: reads the upstream, writes the connector's own tables and answers how it ended. A problem of the
      * run itself (an unreadable token, a stale mapping, a failed fetch) is a [SyncResult.failed], never an exception; whatever else is
      * thrown is reported by the runner as `INTERNAL`. It must rethrow cancellation untouched (the runner's deadline and the shutdown

@@ -2,9 +2,12 @@ package ch.nokillswit.telemetry
 
 import ch.nokillswit.authz.caller
 import ch.nokillswit.authz.requireAdmin
+import ch.nokillswit.infra.config.requireConfigInt
 import ch.nokillswit.infra.db.R2dbcDatabaseKey
 import ch.nokillswit.infra.paging.optionalString
 import ch.nokillswit.plugins.RateLimits
+import ch.nokillswit.sync.MAX_TICK_SECONDS
+import ch.nokillswit.sync.MIN_TICK_SECONDS
 import io.ktor.http.HttpStatusCode
 import io.ktor.resources.Resource
 import io.ktor.server.application.Application
@@ -37,7 +40,9 @@ fun Application.configureTelemetryRoutes() {
     val config = readTelemetryConfig(environment.config)
     val store = TelemetryStore(attributes[R2dbcDatabaseKey], config.statementTimeoutSeconds)
     val reads = TelemetryReads(store, config.sampleIntervalSeconds)
-    val current = TelemetryCurrentReport(reads, config.sampleIntervalSeconds)
+    val tickSeconds = requireConfigInt(environment.config, "sync.tickSeconds", MIN_TICK_SECONDS, MAX_TICK_SECONDS)
+    val sync = TelemetrySyncReport(attributes, tickSeconds, config.statementTimeoutSeconds)
+    val current = TelemetryCurrentReport(reads, config.sampleIntervalSeconds, sync)
     val history = TelemetryHistoryReport(reads, config.sampleIntervalSeconds)
     // Read per request: a test replaces the clock on `application {}` after this module has run.
     val clock: () -> Long = { attributes.getOrNull(TelemetryOverridesKey)?.clock?.invoke() ?: System.currentTimeMillis() }

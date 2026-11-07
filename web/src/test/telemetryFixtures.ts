@@ -76,6 +76,7 @@ export function currentFixture(overrides: Partial<TelemetryCurrent> = {}): Telem
         { route: "/api/v1/users", count: 100, p50Ms: 30, p95Ms: 200, serverErrors: 0, rateLimited: 0 },
       ],
     },
+    sync: { schedulerEnabled: true, tickSeconds: 60, connections: [] },
     ...overrides,
   };
 }

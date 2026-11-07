@@ -1342,7 +1342,10 @@ export interface paths {
          *     EFFECTIVE mapping (stored, else the defaults) cannot be resolved against its discovery now (never discovered, unreadable or
          *     stale): no `LEVEL_MISMATCH` and no estimate deviation is raised for its bindings, and a bind through it is refused with `409`.
          *     `lastRun` is the newest run; `running` is true only for an unfinished run younger than `sync.maxRunMinutes` - an older
-         *     unfinished run (a crash; there is no scheduler yet) was interrupted and has no `outcome` until the next claim abandons it.
+         *     unfinished run (a crash) was interrupted and has no `outcome` until the next claim abandons it. `status` (1.3) is the
+         *     connection's derived sync state (`SyncStatus`: nothing stored, computed per read from the same snapshot's runs); it
+         *     carries `lastRun` again plus the state, the last success, the failure streak and the next poll, and is operational and
+         *     secret-free like `lastRun` (never the token, an error message or a count).
          *
          *     **Items.** Only bindings of an ACTIVE connection and of a LIVE node (it and every ancestor active) are listed; a binding of a
          *     deleted node or connection is hidden. A binding of a DISABLED connection is listed (it still blocks its node and its issue, so
@@ -1740,7 +1743,9 @@ export interface paths {
          *     sample intervals. A figure the process could not measure is null (no container limit outside a cgroup, no `memory.peak` on an
          *     old kernel) - never zero; `percentOfLimit` is the cgroup working set over the container limit, in percent. `storage` is the
          *     newest database / per-schema size (null before the first measurement). `requests` is the latest sample interval of the live
-         *     processes: the `*` total and the 15 busiest routes.
+         *     processes: the `*` total and the 15 busiest routes. `sync` (1.3) is always present: whether this process runs the scheduler, its
+         *     tick, and every active connector connection with its derived `SyncStatus` (empty `connections` with no connector); it carries
+         *     no site, email or token.
          */
         get: operations["getTelemetryCurrent"];
         put?: never;
@@ -1795,7 +1800,8 @@ export interface paths {
          *     - Sortable fields: `id`, `name`, `createdAt`. Default `id` ascending.
          *     - Filters: none.
          *     - The API token is never returned; each row carries `hasApiToken`.
-         *     - Each row carries its connection's newest run as `lastRun` (the server's `running` verdict included), read for the page's rows only.
+         *     - Each row carries its connection's newest run as `lastRun` (the server's `running` verdict included) and its derived sync `status`
+         *       (`SyncStatus`: state, last success, failure streak, next poll), both read for the page's rows only.
          */
         get: operations["listJiraConnections"];
         put?: never;
@@ -3785,7 +3791,8 @@ export interface components {
             severity: "WARNING" | "INFO";
             detail: components["schemas"]["DeviationDetail"];
         };
-        DeviationLastRun: {
+        /** @description A connection's newest sync run, any trigger (the run list carries the full row). */
+        SyncLastRun: {
             /** Format: int32 */
             id: number;
             /** Format: int64 */
@@ -3795,8 +3802,31 @@ export interface components {
             /** @enum {string|null} */
             outcome: "SUCCEEDED" | "FAILED" | "ABANDONED" | null;
             errorCode: string | null;
+            /** @enum {string} */
+            trigger: "MANUAL" | "SCHEDULED";
             /** @description True only for an unfinished run younger than `sync.maxRunMinutes`; an older unfinished run was interrupted. */
             running: boolean;
+        };
+        /** @description A connection's derived sync state (1.3; nothing is stored). In order: disabled is DISABLED; the newest FINISHED run failed or was abandoned, or the newest run was interrupted (unfinished and older than the claim window), is FAILED; no run ever succeeded is NEVER_SYNCED; a polling interval and a last success that started more than three intervals ago is STALE; else CURRENT (a manual-only connection stays CURRENT after any success). */
+        SyncStatus: {
+            /** @enum {string} */
+            state: "NEVER_SYNCED" | "CURRENT" | "STALE" | "FAILED" | "DISABLED";
+            lastRun: components["schemas"]["SyncLastRun"] | null;
+            /**
+             * Format: int64
+             * @description Epoch millis the newest SUCCEEDED run STARTED (the data is as of then); null before the first.
+             */
+            lastSucceededAt: number | null;
+            /**
+             * Format: int32
+             * @description The trailing finished runs that failed or were abandoned (an interrupted newest run adds one), back to the last success.
+             */
+            consecutiveFailures: number;
+            /**
+             * Format: int64
+             * @description Epoch millis the scheduler claims next (now when due); null for a disabled, untested, manual-only or running connection. Computed by the scheduler's own rule, back-off included.
+             */
+            nextPollAt: number | null;
         };
         DeviationConnection: {
             /** Format: int32 */
@@ -3807,7 +3837,8 @@ export interface components {
             enabled: boolean;
             /** @description False when the effective mapping cannot be resolved against the discovery now: no level or estimate comparison is made for this connection's bindings. */
             mappingOk: boolean;
-            lastRun: components["schemas"]["DeviationLastRun"] | null;
+            lastRun: components["schemas"]["SyncLastRun"] | null;
+            status: components["schemas"]["SyncStatus"];
         };
         /** @description Over the filtered bindings, BEFORE the 2,000-item cap. */
         DeviationTotals: {
@@ -4331,6 +4362,30 @@ export interface components {
             /** @description The newest storage measurement; null until the cluster section has taken one. */
             storage: components["schemas"]["TelemetryStorage"] | null;
             requests: components["schemas"]["TelemetryRequests"];
+            sync: components["schemas"]["TelemetrySync"];
+        };
+        /** @description The connector sync (1.3), always present. `schedulerEnabled` is whether THIS process runs the scheduler (`sync.scheduler.enabled`); `tickSeconds` its configured cadence, reported either way; `connections` every active connection of every registered connector (empty when there is none), by connector then id. */
+        TelemetrySync: {
+            schedulerEnabled: boolean;
+            /** Format: int32 */
+            tickSeconds: number;
+            connections: components["schemas"]["TelemetrySyncConnection"][];
+        };
+        /** @description One connection's derived sync status. Never its site, email or token. */
+        TelemetrySyncConnection: {
+            /** @enum {string} */
+            kind: "JIRA";
+            /** Format: int32 */
+            connectionId: number;
+            name: string;
+            /**
+             * Format: int32
+             * @description Minutes between scheduled runs; null means manual only.
+             */
+            pollIntervalMinutes: number | null;
+            /** @description Whether a passing connection test stored a discovery; an untested connection is never polled. */
+            ready: boolean;
+            status: components["schemas"]["SyncStatus"];
         };
         /** @description One sampling process (a JVM run) with its latest raw sample. */
         TelemetryProcess: {
@@ -4620,7 +4675,8 @@ export interface components {
             /** @description Whether a field mapping has been saved. */
             mappingSet: boolean;
             /** @description This connection's own newest run (the other connections' runs never count); null before the first. `running` is the server's verdict. */
-            lastRun: components["schemas"]["DeviationLastRun"] | null;
+            lastRun: components["schemas"]["SyncLastRun"] | null;
+            status: components["schemas"]["SyncStatus"];
             /**
              * Format: int64
              * @description Epoch millis

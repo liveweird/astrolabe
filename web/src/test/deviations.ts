@@ -5,13 +5,24 @@ const OBSERVED_AT = Date.UTC(2026, 10, 6, 10, 0);
 /** "Now" for the age wording: five minutes after the observation. */
 export const NOW = OBSERVED_AT + 5 * 60_000;
 
+const DEV_LAST_RUN: NonNullable<DeviationConnection["lastRun"]> = {
+  id: 9,
+  startedAt: OBSERVED_AT,
+  finishedAt: OBSERVED_AT + 60_000,
+  outcome: "SUCCEEDED",
+  errorCode: null,
+  trigger: "MANUAL",
+  running: false,
+};
+
 export const DEV_CONNECTION: DeviationConnection = {
   id: 1,
   name: "Acme Jira",
   siteUrl: "https://acme.atlassian.net",
   enabled: true,
   mappingOk: true,
-  lastRun: { id: 9, startedAt: OBSERVED_AT, finishedAt: OBSERVED_AT + 60_000, outcome: "SUCCEEDED", errorCode: null, running: false },
+  lastRun: DEV_LAST_RUN,
+  status: { state: "CURRENT", lastRun: DEV_LAST_RUN, lastSucceededAt: OBSERVED_AT, consecutiveFailures: 0, nextPollAt: OBSERVED_AT + 15 * 60_000 },
 };
 
 export const detail = (over: Partial<Deviation["detail"]> = {}): Deviation["detail"] => ({ jira: null, plan: null, days: null, ...over });

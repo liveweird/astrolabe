@@ -5,6 +5,7 @@ import ch.nokillswit.sync.Decision
 import ch.nokillswit.sync.MAX_BACKOFF_MILLIS
 import ch.nokillswit.sync.RunFact
 import ch.nokillswit.sync.SyncOutcome
+import ch.nokillswit.sync.SyncTrigger
 import ch.nokillswit.sync.backoffMillis
 import ch.nokillswit.sync.decide
 import ch.nokillswit.sync.trailingFailures
@@ -27,9 +28,10 @@ class SchedulePolicyTest {
         changedAt: Long = 0,
     ) = ConnectorConnection(1u, "c", enabled, interval, ready, changedAt)
 
-    private fun finished(startedAt: Long, finishedAt: Long, outcome: SyncOutcome) = RunFact(startedAt, finishedAt, outcome)
+    private fun finished(startedAt: Long, finishedAt: Long, outcome: SyncOutcome) =
+        RunFact(startedAt, finishedAt, outcome, 0u, SyncTrigger.MANUAL, null)
 
-    private fun unfinished(startedAt: Long) = RunFact(startedAt, null, null)
+    private fun unfinished(startedAt: Long) = RunFact(startedAt, null, null, 0u, SyncTrigger.MANUAL, null)
 
     private fun decision(runs: List<RunFact>, at: Long = now, connection: ConnectorConnection = connection()) =
         decide(connection, runs, at, maxRun)

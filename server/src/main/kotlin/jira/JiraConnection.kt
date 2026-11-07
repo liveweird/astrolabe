@@ -7,6 +7,8 @@ import ch.nokillswit.infra.paging.PageResponse
 import ch.nokillswit.infra.validation.canonicalEmail
 import ch.nokillswit.infra.validation.requireNameAndDescription
 import ch.nokillswit.infra.validation.sanitizeSingleLine
+import ch.nokillswit.sync.SyncLastRun
+import ch.nokillswit.sync.SyncStatus
 import io.ktor.server.plugins.BadRequestException
 import kotlinx.serialization.Serializable
 
@@ -77,7 +79,9 @@ data class JiraConnectionResponse(
     /** Whether a field mapping has been saved (the stored document is not `{}`). */
     val mappingSet: Boolean,
     /** The connection's own newest run (any other connection's runs never count); null before the first. */
-    val lastRun: DeviationLastRun?,
+    val lastRun: SyncLastRun?,
+    /** The derived sync state (`SyncStatusKernels`): state, newest run, last success, failure streak, next poll. */
+    val status: SyncStatus,
     val createdAt: Long,
     val updatedAt: Long,
 )

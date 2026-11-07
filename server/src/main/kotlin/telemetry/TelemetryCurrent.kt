@@ -30,6 +30,7 @@ private val PROCESS_METRICS: List<MetricDef> = TelemetryMetrics.all.filter {
 internal class TelemetryCurrentReport(
     private val reads: TelemetryReads,
     private val intervalSeconds: Int,
+    private val sync: TelemetrySyncReport,
 ) {
     suspend fun build(now: Long): TelemetryCurrent {
         val seen = reads.processesSeenSince(now - LISTED_FOR_MILLIS)
@@ -44,6 +45,7 @@ internal class TelemetryCurrentReport(
             processes = processes.map { it.toWire(samples[it.id], it.id in stale) },
             storage = storage(cluster),
             requests = requests(api),
+            sync = sync.build(now),
         )
     }
 

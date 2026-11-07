@@ -614,11 +614,13 @@ class JiraMappingTest {
         start()
         val admin = seededClient("jpeekquiet", UserRole.ADMIN)
         val created = admin.discovered()
-        val before = admin.connection(created.id)
+        // A tested connection with no run is due "now": its derived nextPollAt moves with the clock, everything stored must not.
+        suspend fun stored() = admin.connection(created.id).let { it.copy(status = it.status.copy(nextPollAt = null)) }
+        val before = stored()
         withAuditCapture { audit ->
             assertEquals(HttpStatusCode.OK, admin.peek(created.id, "E2E-5").status)
             assertEquals(HttpStatusCode.NotFound, admin.peek(created.id, "E2E-999").status)
-            assertEquals(before, admin.connection(created.id))
+            assertEquals(before, stored())
             // A positive control that cannot false-pass: events arrive in order, so once the audited PUT below is seen, any event a Peek
             // had emitted before it is already in the list.
             assertEquals(HttpStatusCode.NoContent, admin.putJson("$base/${created.id}/mapping", mapping()).status)

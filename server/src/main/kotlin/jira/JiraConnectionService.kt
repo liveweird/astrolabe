@@ -16,8 +16,8 @@ import ch.nokillswit.infra.paging.PageRequest
 import ch.nokillswit.infra.paging.applyPaging
 import ch.nokillswit.sync.ConnectorConnection
 import ch.nokillswit.sync.SyncKind
-import ch.nokillswit.sync.SyncRunResponse
 import ch.nokillswit.sync.SyncRunService
+import ch.nokillswit.sync.SyncStatus
 import io.ktor.util.AttributeKey
 import java.security.GeneralSecurityException
 import kotlinx.coroutines.flow.toList
@@ -104,15 +104,15 @@ class JiraConnectionService(
         val predicate = Connections.active()
         val total = Connections.selectAll().where { predicate }.count()
         val rows = summary().where { predicate }.applyPaging(paging, SORTABLE_COLUMNS).toList()
-        // One indexed LIMIT 1 per listed connection (a page holds at most 100), inside this transaction.
-        val latest = runs.latestRunsInTransaction(SyncKind.JIRA, rows.map { it[Connections.id].value })
-        JiraConnectionListResult(rows.map { it.toResponse(latest[it[Connections.id].value]) }, total)
+        // One indexed LIMIT query per listed connection (a page holds at most 100), inside this transaction.
+        val statuses = runs.statusesInTransaction(rows.map { it.toConnectorConnection() })
+        JiraConnectionListResult(rows.zip(statuses) { row, status -> row.toResponse(status) }, total)
     }
 
     /** The connection, or null when missing/deleted. */
     suspend fun read(id: UInt): JiraConnectionResponse? = suspendTransaction(database) {
         summary().where { (Connections.id eq id) and Connections.active() }.toList().singleOrNull()
-            ?.toResponse(runs.latestRunsInTransaction(SyncKind.JIRA, listOf(id))[id])
+            ?.let { row -> row.toResponse(runs.statusesInTransaction(listOf(row.toConnectorConnection())).single()) }
     }
 
     /** Creates the connection; the token is encrypted before it is bound. A name clash rides the V21 partial index into the central 409. */
@@ -205,7 +205,7 @@ class JiraConnectionService(
     }
 
     /** The scheduler's rows (`JiraConnectionPolling.kt`): the active connections' poll facts, never the token or the discovery. */
-    suspend fun pollRows(): List<ConnectorConnection> = pollRowsOf(database)
+    suspend fun pollRows(queryTimeoutSeconds: Int = 0): List<ConnectorConnection> = pollRowsOf(database, queryTimeoutSeconds)
 
     /** Whether the connection is active and enabled: what a run needs before it claims (no token is read). */
     suspend fun isRunnable(id: UInt): Boolean = suspendTransaction(database) {
@@ -367,7 +367,7 @@ class JiraConnectionService(
     private fun ResultRow.toMappingState() =
         JiraMappingState(parseStoredMapping(this[Connections.mapping]), this[Connections.discovery]?.let(::parseStoredDiscoveryOrNull))
 
-    private fun ResultRow.toResponse(lastRun: SyncRunResponse?): JiraConnectionResponse = JiraConnectionResponse(
+    private fun ResultRow.toResponse(status: SyncStatus): JiraConnectionResponse = JiraConnectionResponse(
         id = this[Connections.id].value,
         name = this[Connections.name],
         siteUrl = this[Connections.siteUrl],
@@ -382,7 +382,8 @@ class JiraConnectionService(
         lastTestedAt = this[Connections.lastTestedAt],
         lastTestOk = this[Connections.lastTestOk],
         mappingSet = this[Connections.mapping] != EMPTY_MAPPING,
-        lastRun = lastRun?.toLastRun(running = lastRun.running),
+        lastRun = status.lastRun,
+        status = status,
         createdAt = this[Connections.createdAt],
         updatedAt = this[Connections.updatedAt],
     )

@@ -93,6 +93,8 @@ class JiraObserver internal constructor(
     /** The scheduler's poll rows (no token, no discovery): `JiraConnectionService.pollRows`. */
     override suspend fun connections(): List<ConnectorConnection> = connections.pollRows()
 
+    override suspend fun connections(queryTimeoutSeconds: Int): List<ConnectorConnection> = connections.pollRows(queryTimeoutSeconds)
+
     override suspend fun run(run: ClaimedRun): SyncResult {
         val tally = CallTally()
         val progress = RunProgress()

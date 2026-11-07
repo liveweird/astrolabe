@@ -1,7 +1,7 @@
 package ch.nokillswit.jira
 
-import ch.nokillswit.sync.SyncOutcome
-import ch.nokillswit.sync.SyncRunResponse
+import ch.nokillswit.sync.SyncLastRun
+import ch.nokillswit.sync.SyncStatus
 import kotlinx.serialization.Serializable
 
 /** The most items one `GET /views/deviations` answers (≈ 350 B a row, so ≤ 700 KB); beyond it `truncated` is true. */
@@ -43,26 +43,11 @@ data class DeviationConnection(
     val siteUrl: String,
     val enabled: Boolean,
     val mappingOk: Boolean,
-    val lastRun: DeviationLastRun?,
+    /** The newest run, also [SyncStatus.lastRun] (kept for the page's existing readers). */
+    val lastRun: SyncLastRun?,
+    /** The connection's derived sync state (1.3): operational and secret-free, the same disclosure class as [lastRun]. */
+    val status: SyncStatus,
 )
-
-/**
- * The connection's newest run. A run left unfinished by a crash keeps `finishedAt = null` until the next claim abandons it (1.1 has no
- * scheduler), so [running] is the page's rule: true only for an unfinished run younger than `sync.maxRunMinutes`. An unfinished run that
- * is not [running] was interrupted.
- */
-@Serializable
-data class DeviationLastRun(
-    val id: UInt,
-    val startedAt: Long,
-    val finishedAt: Long?,
-    val outcome: SyncOutcome?,
-    val errorCode: String?,
-    val running: Boolean,
-)
-
-/** The newest-run block of a connection, from the registry's row; [running] is the caller's reading of the registry's one rule. */
-fun SyncRunResponse.toLastRun(running: Boolean) = DeviationLastRun(id, startedAt, finishedAt, outcome, errorCode, running)
 
 /** Across the filtered bindings, before the cap: the deviations by severity, the bindings and the bindings whose issue is gone. */
 @Serializable

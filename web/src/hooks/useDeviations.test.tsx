@@ -10,7 +10,7 @@ import { useDeviations, useJiraLinks, useViewJiraLinks } from "./useDeviations";
 const advance = (ms: number) => act(async () => { await vi.advanceTimersByTimeAsync(ms); });
 const URL_ = "/api/v1/views/deviations";
 
-const running = (id = 9) => ({ ...DEV_CONNECTION, lastRun: { id, startedAt: 1, finishedAt: null, outcome: null, errorCode: null, running: true } });
+const running = (id = 9) => ({ ...DEV_CONNECTION, lastRun: { id, startedAt: 1, finishedAt: null, outcome: null, errorCode: null, trigger: "MANUAL" as const, running: true } });
 
 describe("useDeviations", () => {
   let mockFetch: ReturnType<typeof vi.fn>;

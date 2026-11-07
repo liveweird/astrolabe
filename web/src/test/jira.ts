@@ -18,6 +18,7 @@ export const CONNECTION: JiraConnection = {
   lastTestOk: true,
   mappingSet: false,
   lastRun: null,
+  status: { state: "NEVER_SYNCED", lastRun: null, lastSucceededAt: null, consecutiveFailures: 0, nextPollAt: null },
   createdAt: 1,
   updatedAt: 2,
 };

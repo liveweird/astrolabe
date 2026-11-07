@@ -9,6 +9,7 @@ import ch.nokillswit.planning.RoadmapKernels
 import ch.nokillswit.planning.SpanKernels
 import ch.nokillswit.planning.WorkStreamService
 import ch.nokillswit.planning.milestoneFacts
+import ch.nokillswit.sync.ConnectorConnection
 import ch.nokillswit.teams.TeamService
 import kotlinx.coroutines.flow.toList
 import org.jetbrains.exposed.v1.core.*
@@ -44,18 +45,24 @@ internal class ConnectionFacts(
     val siteUrl: String,
     val enabled: Boolean,
     val levels: Map<JiraLevel, DeviationMapping>?,
+    /** The poll facts the status derives from (`SyncStatusKernels`). */
+    val connector: ConnectorConnection,
 )
 
 /** Every ACTIVE connection, enabled or not, by id. The discovery blob is decoded here only to resolve the mapping, and never leaves. */
 internal suspend fun loadConnections(): List<ConnectionFacts> =
     connections.select(
         connections.id, connections.name, connections.siteUrl, connections.enabled, connections.mapping, connections.discovery,
+        connections.pollIntervalMinutes, connections.mappingChangedAt, connections.updatedAt, connections.discoveredAt,
     ).where { connections.active() }.orderBy(connections.id).toList().map { row ->
             val discovery = row[connections.discovery]?.let(::parseStoredDiscoveryOrNull)
             val state = JiraMappingState(parseStoredMapping(row[connections.mapping]), discovery)
             val usable = discovery?.let { resolveEffectiveMapping(state, it) } as? MappingResolution.Usable
             val levels = usable?.mapping?.let(::deviationLevels)
-            ConnectionFacts(row[connections.id].value, row[connections.name], row[connections.siteUrl], row[connections.enabled], levels)
+            ConnectionFacts(
+                row[connections.id].value, row[connections.name], row[connections.siteUrl], row[connections.enabled], levels,
+                row.toConnectorConnection(),
+            )
         }
 
 private fun deviationLevels(mapping: JiraMapping): Map<JiraLevel, DeviationMapping> =

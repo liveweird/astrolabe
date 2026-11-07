@@ -158,43 +158,48 @@ class SyncRunService(
     }
 
     /**
-     * The newest run (by start, then id) of each connection in [connectionIds], read INSIDE the caller's open transaction - it opens none,
-     * so a view can take it in its own snapshot. One indexed `LIMIT 1` per connection (`idx_sync_runs_connection`); a connection with no
-     * run is absent. An unfinished row left by a crash stays unfinished until the next claim abandons it: the caller judges its age.
-     */
-    suspend fun latestRunsInTransaction(kind: SyncKind, connectionIds: Collection<UInt>): Map<UInt, SyncRunResponse> =
-        connectionIds.mapNotNull { id ->
-            Runs.selectAll().where { (Runs.kind eq kind.name) and (Runs.connectionId eq id.toInt()) }
-                .orderBy(Runs.startedAt to SortOrder.DESC, Runs.id to SortOrder.DESC).limit(1).toList().singleOrNull()
-                ?.let { id to it.toResponse() }
-        }.toMap()
-
-    /**
      * The policy's view of each connection's runs, newest first (by start, then id), at most [limit] per connection, read INSIDE the
      * caller's open transaction - it opens none. One indexed `LIMIT` query per connection (`idx_sync_runs_connection`); a connection
-     * with no run maps to an empty list. [RunFact] carries the three columns the due rule reads and nothing else (no error text).
+     * with no run maps to an empty list. [RunFact] carries the columns the due rule and the status read and nothing else (no error text).
      */
     suspend fun recentRunsInTransaction(
         kind: SyncKind,
         connectionIds: Collection<UInt>,
         limit: Int = MAX_LISTED_RUNS,
     ): Map<UInt, List<RunFact>> = connectionIds.associateWith { id ->
-        Runs.select(Runs.startedAt, Runs.finishedAt, Runs.outcome)
+        Runs.select(Runs.id, Runs.trigger, Runs.startedAt, Runs.finishedAt, Runs.outcome, Runs.errorCode)
             .where { (Runs.kind eq kind.name) and (Runs.connectionId eq id.toInt()) }
             .orderBy(Runs.startedAt to SortOrder.DESC, Runs.id to SortOrder.DESC).limit(limit).toList()
-            .map { RunFact(it[Runs.startedAt], it[Runs.finishedAt], it[Runs.outcome]?.let(SyncOutcome::valueOf)) }
+            .map {
+                RunFact(
+                    it[Runs.startedAt], it[Runs.finishedAt], it[Runs.outcome]?.let(SyncOutcome::valueOf),
+                    it[Runs.id].value, SyncTrigger.valueOf(it[Runs.trigger]), it[Runs.errorCode],
+                )
+            }
     }
 
-    /** [recentRunsInTransaction] in a transaction of its own: one snapshot for the whole batch of connections. */
-    suspend fun recentRuns(kind: SyncKind, connectionIds: Collection<UInt>, limit: Int = MAX_LISTED_RUNS): Map<UInt, List<RunFact>> =
-        suspendTransaction(database) { recentRunsInTransaction(kind, connectionIds, limit) }
+    /**
+     * [recentRunsInTransaction] in a transaction of its own: one snapshot for the whole batch of connections, under a statement budget of
+     * [queryTimeoutSeconds] (whole seconds; 0 = none, the default).
+     */
+    suspend fun recentRuns(
+        kind: SyncKind,
+        connectionIds: Collection<UInt>,
+        limit: Int = MAX_LISTED_RUNS,
+        queryTimeoutSeconds: Int = 0,
+    ): Map<UInt, List<RunFact>> = suspendTransaction(database) {
+        queryTimeout = queryTimeoutSeconds
+        recentRunsInTransaction(kind, connectionIds, limit)
+    }
 
     /**
      * THE rule for "running" (the run list, the connection's `lastRun` and the Deviations view all read it): the row is unfinished and was
      * claimed less than [maxRunMinutes] before [now]. Older, an unfinished row was interrupted and the next claim will abandon it.
      */
-    fun isRunning(finishedAt: Long?, startedAt: Long, now: Long): Boolean =
-        finishedAt == null && startedAt >= now - maxRunMinutes * MILLIS_PER_MINUTE
+    fun isRunning(finishedAt: Long?, startedAt: Long, now: Long): Boolean = isRunLive(finishedAt, startedAt, now, maxRunMinutes)
+
+    /** The registry's clock (epoch millis): the "now" a status is derived against, so one injected clock governs every age. */
+    fun now(): Long = clock()
 
     private fun ResultRow.toResponse() = SyncRunResponse(
         id = this[Runs.id].value,

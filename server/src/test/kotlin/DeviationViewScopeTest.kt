@@ -7,6 +7,8 @@ import ch.nokillswit.jira.JiraLevel
 import ch.nokillswit.jira.MAX_DEVIATION_ITEMS
 import ch.nokillswit.sync.SyncOutcome
 import ch.nokillswit.sync.SyncRunService
+import ch.nokillswit.sync.SyncState
+import ch.nokillswit.sync.SyncTrigger
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
@@ -191,6 +193,54 @@ class DeviationViewScopeTest {
             listOf(atLimit, past).forEach { sql("DELETE FROM sync_runs WHERE connection_id = ?", it.toInt()) }
         }
     }
+
+    @Test
+    fun `every connection block carries its derived status, judged at the view's clock, with the same newest run as lastRun`() =
+        testApplication {
+            usePostgresTestcontainer()
+            val w = planWorld("dvst", teams = true)
+            val admin = w.admin.client
+            val untouched = admin.dvConnection()
+            val current = admin.dvConnection()
+            val failing = admin.dvConnection()
+            val disabled = admin.dvConnection(enabled = false)
+            val noon = Instant.parse("2044-02-02T12:00:00Z").toEpochMilli()
+            val minute = 60_000L
+            run(current, noon - 5 * minute, noon - 4 * minute, "SUCCEEDED")
+            run(failing, noon - 120 * minute, noon - 119 * minute, "SUCCEEDED")
+            run(failing, noon - 10 * minute, noon - 9 * minute, "FAILED", "TIMEOUT")
+            run(disabled, noon - 5 * minute, noon - 4 * minute, "SUCCEEDED")
+            try {
+                val db = sharedDatabaseForTests()
+                suspend fun blocks(at: Long) =
+                    DeviationViewService(db, SyncRunService(db, 10), { at }).view(DeviationFilter()).connections.associateBy { it.id }
+                val onTheDay = blocks(noon)
+                val never = onTheDay.getValue(untouched).status
+                assertEquals(SyncState.NEVER_SYNCED, never.state)
+                assertNull(never.lastRun)
+                assertEquals(noon, never.nextPollAt, "tested (discovered), no run: due at the view's own instant")
+                val ok = onTheDay.getValue(current)
+                assertEquals(SyncState.CURRENT, ok.status.state)
+                assertEquals(noon - 5 * minute, ok.status.lastSucceededAt)
+                assertEquals(noon - 4 * minute + 15 * minute, ok.status.nextPollAt)
+                assertEquals(ok.lastRun, ok.status.lastRun, "lastRun is the status's newest run")
+                val bad = onTheDay.getValue(failing)
+                assertEquals(SyncState.FAILED, bad.status.state)
+                assertEquals(1, bad.status.consecutiveFailures)
+                assertEquals("TIMEOUT", bad.status.lastRun!!.errorCode)
+                assertEquals(noon - 120 * minute, bad.status.lastSucceededAt)
+                assertEquals(SyncTrigger.MANUAL, bad.status.lastRun!!.trigger)
+                val off = onTheDay.getValue(disabled).status
+                assertEquals(SyncState.DISABLED, off.state)
+                assertNull(off.nextPollAt)
+                // The view's clock decides staleness: four hours on, the polled connections' last success is older than 3 x 15 minutes.
+                val later = blocks(noon + 4 * 60 * minute)
+                assertEquals(SyncState.STALE, later.getValue(current).status.state)
+                assertEquals(SyncState.FAILED, later.getValue(failing).status.state, "FAILED outranks STALE")
+            } finally {
+                listOf(current, failing, disabled).forEach { sql("DELETE FROM sync_runs WHERE connection_id = ?", it.toInt()) }
+            }
+        }
 
     // --- mapping ----------------------------------------------------------------------------------------------------------------------
 

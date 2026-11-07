@@ -1,5 +1,19 @@
 package ch.nokillswit
 
+import ch.nokillswit.jira.JiraConnectionResponse
+import ch.nokillswit.sync.ClaimedRun
+import ch.nokillswit.sync.Connector
+import ch.nokillswit.sync.ConnectorConnection
+import ch.nokillswit.sync.SyncConnectors
+import ch.nokillswit.sync.SyncConnectorsKey
+import ch.nokillswit.sync.SyncCounts
+import ch.nokillswit.sync.SyncFirstTickDelayKey
+import ch.nokillswit.sync.SyncKind
+import ch.nokillswit.sync.SyncResult
+import ch.nokillswit.sync.SyncRunService
+import ch.nokillswit.sync.SyncRunServiceKey
+import ch.nokillswit.sync.SyncState
+import ch.nokillswit.sync.SyncTrigger
 import ch.nokillswit.users.UserRole
 import ch.nokillswit.telemetry.HistoryGroup
 import ch.nokillswit.telemetry.HistoryRange
@@ -8,10 +22,14 @@ import ch.nokillswit.telemetry.TelemetryHistory
 import ch.nokillswit.telemetry.TelemetryMetrics
 import ch.nokillswit.telemetry.TelemetryOverrides
 import ch.nokillswit.telemetry.TelemetryOverridesKey
+import ch.nokillswit.telemetry.READ_TIMEOUT_SECONDS
+import ch.nokillswit.telemetry.TelemetrySync
+import ch.nokillswit.telemetry.TelemetrySyncReport
 import ch.nokillswit.telemetry.TelemetrySeries
 import ch.nokillswit.telemetry.hourFloor
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
+import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
@@ -466,5 +484,110 @@ class TelemetryRoutesTest {
     @Test
     fun `the raw tier filter lists exactly the resolutions the V9 check allows below an hour`() {
         assertEquals((60 until 3600).filter { 3600 % it == 0 }, ch.nokillswit.telemetry.RAW_RESOLUTIONS)
+    }
+
+    // ---- the sync block ------------------------------------------------------------------------------------------------
+
+    @Test
+    fun `the sync block lists a connection with its derived status and nothing of its site, and reports the scheduler off by default`() =
+        testApplication {
+            configureApp()
+            startApplication()
+            val admin = seededClient("telemetry-sync", UserRole.ADMIN)
+            val created = jbJson.decodeFromString<JiraConnectionResponse>(admin.postJson(JB_CONNECTIONS, jbRequest()).bodyAsText())
+            val failedAt = System.currentTimeMillis() - 10 * TELE_MINUTE
+            // The connection was last edited BEFORE the run began, else the edit makes it due at once (the scheduler's rule).
+            jbSql(
+                "UPDATE jira_connections SET discovered_at = 1, created_at = ?, updated_at = ? WHERE id = ?",
+                failedAt - TELE_MINUTE, failedAt - TELE_MINUTE, created.id.toInt(),
+            )
+            jbSql(
+                "INSERT INTO sync_runs (kind, connection_id, \"trigger\", started_at, finished_at, outcome, error_code) " +
+                    "VALUES ('JIRA', ?, 'SCHEDULED', ?, ?, 'FAILED', 'TIMEOUT')",
+                created.id.toInt(), failedAt, failedAt + 1_000,
+            )
+            try {
+                val raw = admin.get("/api/v1/telemetry/current").bodyAsText()
+                val sync = jbJson.decodeFromString<TelemetryCurrent>(raw).sync
+                assertFalse(sync.schedulerEnabled, "the harness runs no scheduler")
+                assertEquals(60, sync.tickSeconds, "the configured tick is reported either way")
+                val row = sync.connections.single { it.connectionId == created.id }
+                assertEquals(SyncKind.JIRA, row.kind)
+                assertEquals(created.name, row.name)
+                assertEquals(15, row.pollIntervalMinutes)
+                assertTrue(row.ready)
+                assertEquals(SyncState.FAILED, row.status.state)
+                assertEquals(1, row.status.consecutiveFailures)
+                assertEquals("TIMEOUT", row.status.lastRun!!.errorCode)
+                assertEquals(SyncTrigger.SCHEDULED, row.status.lastRun!!.trigger)
+                assertEquals(failedAt + 1_000 + 15 * TELE_MINUTE, row.status.nextPollAt, "one interval after the failed run finished")
+                assertFalse(listOf(created.siteUrl, created.email, "JTOK").any { raw.contains(it) }, "no site, email or token")
+            } finally {
+                // Removes the connection (and its runs): a due connection must not stay in the shared database for a later scheduler test.
+                admin.delete("$JB_CONNECTIONS/${created.id}")
+            }
+        }
+
+    @Test
+    fun `the sync block says the scheduler is on when it runs, with the configured tick`() = testApplication {
+        configureApp("sync.scheduler.enabled" to "true", "sync.tickSeconds" to "30")
+        application { attributes.put(SyncFirstTickDelayKey, 3_600_000L) } // the loop never ticks: no run is claimed in the shared database
+        startApplication()
+        val sync = seededClient("telemetry-sync-on", UserRole.ADMIN).current().sync
+        assertTrue(sync.schedulerEnabled)
+        assertEquals(30, sync.tickSeconds)
+    }
+
+    private class FakeConnector(private val listing: (Int) -> List<ConnectorConnection>) : Connector {
+        override val kind = SyncKind.JIRA
+        var budget: Int? = null
+
+        override suspend fun requireRunnable(connectionId: UInt) = Unit
+
+        override suspend fun connections(): List<ConnectorConnection> = error("the telemetry block must pass its statement budget")
+
+        override suspend fun connections(queryTimeoutSeconds: Int): List<ConnectorConnection> {
+            budget = queryTimeoutSeconds
+            return listing(queryTimeoutSeconds)
+        }
+
+        override suspend fun run(run: ClaimedRun): SyncResult = SyncResult.succeeded(SyncCounts())
+    }
+
+    private fun syncAttributes(connector: Connector) = io.ktor.util.Attributes().also {
+        it.put(SyncConnectorsKey, SyncConnectors().also { connectors -> connectors.register(connector) })
+        it.put(SyncRunServiceKey, SyncRunService(sharedDatabaseForTests(), maxRunMinutes = 10))
+    }
+
+    @Test
+    fun `the sync block reads under the telemetry statement budget`() = runBlocking {
+        val connector = FakeConnector { emptyList() }
+        TelemetrySyncReport(syncAttributes(connector), tickSeconds = 60).build(now)
+        assertEquals(READ_TIMEOUT_SECONDS, connector.budget, "the same 5 s queryTimeout as the other reads")
+    }
+
+    @Test
+    fun `a failing connector costs the sync block its connections, never the report, and warns once with the exception class only`() =
+        runBlocking {
+            val connector = FakeConnector { error("connection string with a-secret-value") }
+            val capture = LogCapture(TelemetrySyncReport::class.java.name)
+            try {
+                val report = TelemetrySyncReport(syncAttributes(connector), tickSeconds = 60)
+                repeat(2) {
+                    assertEquals(TelemetrySync(schedulerEnabled = false, tickSeconds = 60, connections = emptyList()), report.build(now))
+                }
+                val warnings = capture.events.filter { it.level == ch.qos.logback.classic.Level.WARN }
+                assertEquals(1, warnings.size, "the repeat is a DEBUG")
+                assertTrue(warnings.single().formattedMessage.contains("IllegalStateException"))
+                assertFalse(capture.events.any { it.formattedMessage.contains("a-secret-value") }, "the class, never the message")
+            } finally {
+                capture.detach()
+            }
+        }
+
+    @Test
+    fun `without a connector the sync block is empty, the scheduler off and the tick still reported`() = runBlocking {
+        val bare = TelemetrySyncReport(io.ktor.util.Attributes(), tickSeconds = 45)
+        assertEquals(TelemetrySync(schedulerEnabled = false, tickSeconds = 45, connections = emptyList()), bare.build(now))
     }
 }

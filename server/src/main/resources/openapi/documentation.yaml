@@ -1959,7 +1959,10 @@ paths:
         EFFECTIVE mapping (stored, else the defaults) cannot be resolved against its discovery now (never discovered, unreadable or
         stale): no `LEVEL_MISMATCH` and no estimate deviation is raised for its bindings, and a bind through it is refused with `409`.
         `lastRun` is the newest run; `running` is true only for an unfinished run younger than `sync.maxRunMinutes` - an older
-        unfinished run (a crash; there is no scheduler yet) was interrupted and has no `outcome` until the next claim abandons it.
+        unfinished run (a crash) was interrupted and has no `outcome` until the next claim abandons it. `status` (1.3) is the
+        connection's derived sync state (`SyncStatus`: nothing stored, computed per read from the same snapshot's runs); it
+        carries `lastRun` again plus the state, the last success, the failure streak and the next poll, and is operational and
+        secret-free like `lastRun` (never the token, an error message or a count).
 
         **Items.** Only bindings of an ACTIVE connection and of a LIVE node (it and every ancestor active) are listed; a binding of a
         deleted node or connection is hidden. A binding of a DISABLED connection is listed (it still blocks its node and its issue, so
@@ -2509,7 +2512,9 @@ paths:
         sample intervals. A figure the process could not measure is null (no container limit outside a cgroup, no `memory.peak` on an
         old kernel) - never zero; `percentOfLimit` is the cgroup working set over the container limit, in percent. `storage` is the
         newest database / per-schema size (null before the first measurement). `requests` is the latest sample interval of the live
-        processes: the `*` total and the 15 busiest routes.
+        processes: the `*` total and the 15 busiest routes. `sync` (1.3) is always present: whether this process runs the scheduler, its
+        tick, and every active connector connection with its derived `SyncStatus` (empty `connections` with no connector); it carries
+        no site, email or token.
       responses:
         '200':
           description: The current figures
@@ -2577,7 +2582,8 @@ paths:
         - Sortable fields: `id`, `name`, `createdAt`. Default `id` ascending.
         - Filters: none.
         - The API token is never returned; each row carries `hasApiToken`.
-        - Each row carries its connection's newest run as `lastRun` (the server's `running` verdict included), read for the page's rows only.
+        - Each row carries its connection's newest run as `lastRun` (the server's `running` verdict included) and its derived sync `status`
+          (`SyncStatus`: state, last success, failure streak, next poll), both read for the page's rows only.
       parameters:
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/PageSize'
@@ -4893,19 +4899,37 @@ components:
         kind: { $ref: '#/components/schemas/DeviationKind' }
         severity: { type: string, enum: [WARNING, INFO] }
         detail: { $ref: '#/components/schemas/DeviationDetail' }
-    DeviationLastRun:
+    SyncLastRun:
       type: object
-      required: [id, startedAt, finishedAt, outcome, errorCode, running]
+      description: A connection's newest sync run, any trigger (the run list carries the full row).
+      required: [id, startedAt, finishedAt, outcome, errorCode, trigger, running]
       properties:
         id: { type: integer, format: int32, minimum: 0 }
         startedAt: { type: integer, format: int64 }
         finishedAt: { type: integer, format: int64, nullable: true }
         outcome: { type: string, enum: [SUCCEEDED, FAILED, ABANDONED], nullable: true }
         errorCode: { type: string, nullable: true, maxLength: 40 }
+        trigger: { type: string, enum: [MANUAL, SCHEDULED] }
         running: { type: boolean, description: "True only for an unfinished run younger than `sync.maxRunMinutes`; an older unfinished run was interrupted." }
+    SyncStatus:
+      type: object
+      description: >-
+        A connection's derived sync state (1.3; nothing is stored). In order: disabled is DISABLED; the newest FINISHED run failed or was
+        abandoned, or the newest run was interrupted (unfinished and older than the claim window), is FAILED; no run ever succeeded is NEVER_SYNCED; a polling interval and a last success that started more than three
+        intervals ago is STALE; else CURRENT (a manual-only connection stays CURRENT after any success).
+      required: [state, lastRun, lastSucceededAt, consecutiveFailures, nextPollAt]
+      properties:
+        state: { type: string, enum: [NEVER_SYNCED, CURRENT, STALE, FAILED, DISABLED] }
+        lastRun:
+          allOf:
+            - $ref: '#/components/schemas/SyncLastRun'
+          nullable: true
+        lastSucceededAt: { type: integer, format: int64, nullable: true, description: "Epoch millis the newest SUCCEEDED run STARTED (the data is as of then); null before the first." }
+        consecutiveFailures: { type: integer, format: int32, minimum: 0, description: "The trailing finished runs that failed or were abandoned (an interrupted newest run adds one), back to the last success." }
+        nextPollAt: { type: integer, format: int64, nullable: true, description: "Epoch millis the scheduler claims next (now when due); null for a disabled, untested, manual-only or running connection. Computed by the scheduler's own rule, back-off included." }
     DeviationConnection:
       type: object
-      required: [id, name, siteUrl, enabled, mappingOk, lastRun]
+      required: [id, name, siteUrl, enabled, mappingOk, lastRun, status]
       properties:
         id: { type: integer, format: int32, minimum: 0 }
         name: { type: string }
@@ -4914,8 +4938,9 @@ components:
         mappingOk: { type: boolean, description: "False when the effective mapping cannot be resolved against the discovery now: no level or estimate comparison is made for this connection's bindings." }
         lastRun:
           allOf:
-            - $ref: '#/components/schemas/DeviationLastRun'
+            - $ref: '#/components/schemas/SyncLastRun'
           nullable: true
+        status: { $ref: '#/components/schemas/SyncStatus' }
     DeviationTotals:
       type: object
       description: Over the filtered bindings, BEFORE the 2,000-item cap.
@@ -5489,7 +5514,7 @@ components:
 
     TelemetryCurrent:
       type: object
-      required: [generatedAt, sampleIntervalSeconds, processes, storage, requests]
+      required: [generatedAt, sampleIntervalSeconds, processes, storage, requests, sync]
       properties:
         generatedAt: { type: integer, format: int64, description: Epoch millis }
         sampleIntervalSeconds: { type: integer, format: int32, description: The cadence of the raw samples; also the `requests` window. }
@@ -5501,6 +5526,31 @@ components:
           nullable: true
           description: The newest storage measurement; null until the cluster section has taken one.
         requests: { $ref: '#/components/schemas/TelemetryRequests' }
+        sync: { $ref: '#/components/schemas/TelemetrySync' }
+    TelemetrySync:
+      type: object
+      description: >-
+        The connector sync (1.3), always present. `schedulerEnabled` is whether THIS process runs the scheduler (`sync.scheduler.enabled`);
+        `tickSeconds` its configured cadence, reported either way; `connections` every active connection of every registered connector
+        (empty when there is none), by connector then id.
+      required: [schedulerEnabled, tickSeconds, connections]
+      properties:
+        schedulerEnabled: { type: boolean }
+        tickSeconds: { type: integer, format: int32, minimum: 15, maximum: 600 }
+        connections:
+          type: array
+          items: { $ref: '#/components/schemas/TelemetrySyncConnection' }
+    TelemetrySyncConnection:
+      type: object
+      description: One connection's derived sync status. Never its site, email or token.
+      required: [kind, connectionId, name, pollIntervalMinutes, ready, status]
+      properties:
+        kind: { type: string, enum: [JIRA] }
+        connectionId: { type: integer, format: int32, minimum: 0 }
+        name: { type: string }
+        pollIntervalMinutes: { type: integer, format: int32, nullable: true, description: Minutes between scheduled runs; null means manual only. }
+        ready: { type: boolean, description: "Whether a passing connection test stored a discovery; an untested connection is never polled." }
+        status: { $ref: '#/components/schemas/SyncStatus' }
     TelemetryProcess:
       type: object
       description: One sampling process (a JVM run) with its latest raw sample.
@@ -5694,7 +5744,7 @@ components:
             means manual only (Refresh now still works).
     JiraConnection:
       type: object
-      required: [id, name, siteUrl, email, hasApiToken, authScheme, projectKeys, enabled, pollIntervalMinutes, cloudId, discoveredAt, lastTestedAt, lastTestOk, mappingSet, lastRun, createdAt, updatedAt]
+      required: [id, name, siteUrl, email, hasApiToken, authScheme, projectKeys, enabled, pollIntervalMinutes, cloudId, discoveredAt, lastTestedAt, lastTestOk, mappingSet, lastRun, status, createdAt, updatedAt]
       properties:
         id: { type: integer, format: int32, minimum: 0 }
         name: { type: string }
@@ -5717,9 +5767,10 @@ components:
         mappingSet: { type: boolean, description: Whether a field mapping has been saved. }
         lastRun:
           allOf:
-            - $ref: '#/components/schemas/DeviationLastRun'
+            - $ref: '#/components/schemas/SyncLastRun'
           nullable: true
           description: "This connection's own newest run (the other connections' runs never count); null before the first. `running` is the server's verdict."
+        status: { $ref: '#/components/schemas/SyncStatus' }
         createdAt: { type: integer, format: int64, description: Epoch millis }
         updatedAt: { type: integer, format: int64, description: Epoch millis }
     JiraConnectionPage:

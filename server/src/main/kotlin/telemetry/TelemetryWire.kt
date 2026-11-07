@@ -1,5 +1,7 @@
 package ch.nokillswit.telemetry
 
+import ch.nokillswit.sync.SyncKind
+import ch.nokillswit.sync.SyncStatus
 import kotlinx.serialization.Serializable
 
 /**
@@ -16,6 +18,28 @@ data class TelemetryCurrent(
     /** The newest storage measurement; null until the cluster section has taken one. */
     val storage: TelemetryStorage?,
     val requests: TelemetryRequests,
+    /** The connector sync (1.3): always present, with no connections when no connector is registered. */
+    val sync: TelemetrySync,
+)
+
+/**
+ * The sync block of `GET /telemetry/current`: [schedulerEnabled] is whether THIS process runs the scheduler (`sync.scheduler.enabled`),
+ * [tickSeconds] its configured cadence (reported either way), [connections] every active connection of every registered connector.
+ */
+@Serializable
+data class TelemetrySync(val schedulerEnabled: Boolean, val tickSeconds: Int, val connections: List<TelemetrySyncConnection>)
+
+/** One connection's derived sync status; never a site, an email or a token. */
+@Serializable
+data class TelemetrySyncConnection(
+    val kind: SyncKind,
+    val connectionId: UInt,
+    val name: String,
+    /** Minutes between scheduled runs; null = manual only. */
+    val pollIntervalMinutes: Int?,
+    /** Whether a passing Test connection stored a discovery (an untested connection is never polled). */
+    val ready: Boolean,
+    val status: SyncStatus,
 )
 
 /** One sampling process (a JVM run) with its latest raw sample. */

@@ -20,8 +20,19 @@ fun backoffMillis(intervalMillis: Long, trailingFailures: Int): Long {
     return maxOf(intervalMillis, minOf(intervalMillis * (1L shl doublings), MAX_BACKOFF_MILLIS))
 }
 
-/** One run as the policy sees it (the registry's row, nothing connector-specific). [finishedAt] and [outcome] are null while unfinished. */
-data class RunFact(val startedAt: Long, val finishedAt: Long?, val outcome: SyncOutcome?)
+/**
+ * One run as the policy and the status see it (the registry's row, nothing connector-specific, no error text). [finishedAt] and
+ * [outcome] are null while unfinished. The due rule reads only the first three members; [id], [trigger] and [errorCode] ride along for
+ * the status's `lastRun` ([SyncStatusKernels.derive]).
+ */
+data class RunFact(
+    val startedAt: Long,
+    val finishedAt: Long?,
+    val outcome: SyncOutcome?,
+    val id: UInt,
+    val trigger: SyncTrigger,
+    val errorCode: String?,
+)
 
 /**
  * The failure streak: how many of the NEWEST FINISHED runs ended other than `SUCCEEDED`, counted back to the first success.
@@ -64,8 +75,7 @@ fun decide(connection: ConnectorConnection, runsNewestFirst: List<RunFact>, now:
     val newest = runsNewestFirst.firstOrNull() ?: return Decision.Due
     val finishedAt = newest.finishedAt
     return when {
-        finishedAt == null ->
-            if (newest.startedAt >= now - maxRunMinutes * MILLIS_PER_MINUTE) Decision.Running else Decision.Due
+        finishedAt == null -> if (isRunLive(null, newest.startedAt, now, maxRunMinutes)) Decision.Running else Decision.Due
         connection.changedAt > newest.startedAt -> Decision.Due
         else -> {
             val nextDue = finishedAt + backoffMillis(intervalMinutes * MILLIS_PER_MINUTE, trailingFailures(runsNewestFirst))
