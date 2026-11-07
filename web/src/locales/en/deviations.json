@@ -115,6 +115,14 @@
     "stale": "stale"
   },
   "inLine": "No deviation",
+  "rollup": {
+    "short": "{{done}}/{{children}}",
+    "shortPoints": "{{done}}/{{children}} · {{points}} pt",
+    "sentence_one": "{{count}} child issue in Jira, done: {{done}}",
+    "sentence_other": "{{count}} child issues in Jira, done: {{done}}",
+    "sentencePoints_one": "{{count}} child issue in Jira, done: {{done}}, story points: {{points}}",
+    "sentencePoints_other": "{{count}} child issues in Jira, done: {{done}}, story points: {{points}}"
+  },
   "kind": {
     "GONE": "Gone",
     "LEVEL_MISMATCH": "Level",
@@ -166,6 +174,13 @@
     "progressTodo": "Not started in Jira, but the plan started on {{plan}}",
     "progressInProgress": "In progress in Jira, but the plan starts on {{plan}}",
     "progressBare": "The Jira status does not fit the plan's dates",
+    "unlinkedInJira_one": "{{count}} Jira item is not in the plan: {{keys}}",
+    "unlinkedInJira_other": "{{count}} Jira items are not in the plan: {{keys}}",
+    "unlinkedInPlan_one": "{{count}} plan item is not linked to Jira: {{names}}",
+    "unlinkedInPlan_other": "{{count}} plan items are not linked to Jira: {{names}}",
+    "andMore": "and {{more}} more",
+    "childrenDone_one": "The only child issue is done in Jira while the plan ends {{date}}",
+    "childrenDone_other": "All {{count}} child issues are done in Jira while the plan ends {{date}}",
     "unit": {
       "POINTS": "points",
       "HOURS": "hours",

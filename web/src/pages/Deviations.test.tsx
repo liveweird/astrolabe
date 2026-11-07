@@ -100,6 +100,46 @@ describe("Deviations page", () => {
     expect(screen.getByRole("table", { name: "Data from Jira" })).toBeInTheDocument();
   });
 
+  test("the Jira cell shows the epic's roll-up under the summary (name = the sentence); an item without one shows none", async () => {
+    const withRollup = item({ jira: { ...item().jira, rollup: { children: 4, done: 2, points: 13, observedAt: NOW - 60_000 } } });
+    const plain = item({ bindingId: 2, node: { ...item().node, id: 12, name: "Docs" }, jira: { ...item().jira, key: "E2E-4" } });
+    doc = view({ items: [withRollup, plain] });
+    renderPage();
+    const table = await screen.findByRole("table", { name: "Differences between the plan and Jira" });
+    const rows = within(table).getAllByRole("row");
+    const first = rows.find((row) => row.textContent?.includes("Checkout page"));
+    const second = rows.find((row) => row.textContent?.includes("Docs"));
+    expect(first).toBeDefined();
+    expect(second).toBeDefined();
+    expect(within(first as HTMLElement).getByText("2/4 · 13 pt")).toHaveAttribute("aria-hidden", "true");
+    expect(within(first as HTMLElement).getByText("4 child issues in Jira, done: 2, story points: 13")).toBeInTheDocument();
+    expect(within(first as HTMLElement).getByTitle("4 child issues in Jira, done: 2, story points: 13")).toHaveTextContent("2/4 · 13 pt");
+    expect(second).not.toHaveTextContent("child issues");
+    expect(second).not.toHaveTextContent("pt");
+  });
+
+  test("the coverage deviations read as their sentences, with the 'and N more' rule", async () => {
+    const keys = Array.from({ length: 10 }, (_, i) => `COV-${i + 1}`).join(", ");
+    doc = view({
+      items: [
+        item({
+          level: "PROJECT",
+          node: { ...item().node, kind: "PROJECT", name: "Cover", teamId: null, teamName: null },
+          deviations: [
+            { kind: "UNLINKED_IN_JIRA", severity: "WARNING", detail: detail({ jira: keys, count: 12 }) },
+            { kind: "UNLINKED_IN_PLAN", severity: "INFO", detail: detail({ plan: "Unlinked one", count: 1 }) },
+          ],
+        }),
+      ],
+    });
+    renderPage();
+    const table = await screen.findByRole("table", { name: "Differences between the plan and Jira" });
+    expect(within(table).getByText(`12 Jira items are not in the plan: ${keys} and 2 more`)).toBeInTheDocument();
+    expect(within(table).getByText("1 plan item is not linked to Jira: Unlinked one")).toBeInTheDocument();
+    expect(within(table).getByText("Not in plan")).toBeInTheDocument();
+    expect(within(table).getByText("Not in Jira")).toBeInTheDocument();
+  });
+
   test("the filters come from the URL, are sent as such, and a project chip names the project and removes itself", async () => {
     const user = userEvent.setup();
     renderPage("/deviations?projectId=7&severity=WARNING&bogus=1");

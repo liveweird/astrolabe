@@ -42,6 +42,8 @@ export type MilestoneActions = {
   unlinkJira?: (milestone: ProjectMilestone) => void;
 };
 
+/** The Flags column grows to `FLAGS_WITH_ROLLUP_WIDTH` while a scheduled row shows a Jira roll-up ("5/12 · 34 pt"). */
+const FLAGS_WITH_ROLLUP_WIDTH = 190;
 const COLUMN_WIDTHS = { name: 220, team: 130, estimate: 120, flags: 130, slack: 130, actions: 56 } as const;
 
 /** The estimate with its unit ("12.25 man-days"). */
@@ -375,12 +377,13 @@ export default function ProjectTimeline({
   const conflicts = conflictsByBar(view);
   // The Flags column exists while some scheduled milestone is linked to Jira (the view says so: no stored answer, no second request).
   const flagsColumn = view.scheduled.some((milestone) => milestone.jira !== null);
+  const flagsWidth = view.scheduled.some((milestone) => milestone.jira?.rollup != null) ? FLAGS_WITH_ROLLUP_WIDTH : COLUMN_WIDTHS.flags;
   const sites = siteUrls(view.jiraSites);
   const columns: TimelineColumn[] = [
     { id: "name", header: t("project.column.milestone"), width: COLUMN_WIDTHS.name },
     { id: "team", header: t("project.column.team"), width: COLUMN_WIDTHS.team },
     { id: "estimate", header: t("project.column.estimate"), width: COLUMN_WIDTHS.estimate },
-    ...(flagsColumn ? [{ id: "flags", header: t("roadmap.column.flags"), width: COLUMN_WIDTHS.flags }] : []),
+    ...(flagsColumn ? [{ id: "flags", header: t("roadmap.column.flags"), width: flagsWidth }] : []),
     ...(criticalPath ? [{ id: "slack", header: t("project.column.slack"), width: COLUMN_WIDTHS.slack }] : []),
     { id: "actions", header: t("common.table.operations"), width: COLUMN_WIDTHS.actions },
   ];

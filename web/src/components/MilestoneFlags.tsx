@@ -5,12 +5,14 @@ import type { JiraLink, PlanFlag } from "../api/roadmap";
 import { milestoneFlagLabel } from "../utils/flagSentences";
 import { countFlags } from "../utils/roadmapRows";
 import JiraKeyLink from "./JiraKeyLink";
+import JiraRollupText from "./JiraRollupText";
 import { FlagCountsCell } from "./PlanProjectCells";
 
 // A milestone row's Jira link and open flags on the project and team pages (1.3): the key as an external link (out of the grid's tab order - the
 // Deviations page has the same link) and the roadmap's icons (an orange triangle for warnings, a gray info circle for infos) whose accessible label is
 // the flags' own sentences - colour and icon are never the only carrier. A linked row with no open flag (clean, acknowledged, or on a disabled
-// connection) still shows its key, with "Linked to Jira: KEY" for assistive technology, so it is told apart from an unlinked one.
+// connection) still shows its key, with "Linked to Jira: KEY" for assistive technology, so it is told apart from an unlinked one. A milestone linked to
+// an epic with mirrored children adds the roll-up LAST, after the key and the flag icons (1.4: "5/12 · 34 pt", `JiraRollupText`, its accessible name the full sentence): it is the least critical element, so a clipped cell loses it before a warning badge.
 
 /**
  * The Flags column's cell and the tray's addition to the name: nothing for an unlinked row. `sites` is the view's `jiraSites` by connection id
@@ -28,6 +30,7 @@ export function MilestoneFlags({ flags, link, sites }: { flags: readonly PlanFla
         </Text>
       )}
       <FlagCountsCell counts={countFlags(flags)} label={milestoneFlagLabel(t, flags, link?.issueKey ?? null)} />
+      {link !== null && <JiraRollupText rollup={link.rollup} />}
     </Group>
   );
 }

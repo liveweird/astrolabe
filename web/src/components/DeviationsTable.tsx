@@ -8,6 +8,7 @@ import { formatDateTime } from "../utils/formatDate";
 import { projectPath } from "../utils/planLinks";
 import DeviationAckCell from "./DeviationAckCell";
 import JiraKeyLink from "./JiraKeyLink";
+import JiraRollupText from "./JiraRollupText";
 import ScrollRegion from "./ScrollRegion";
 
 const levelWord = (kind: DeviationItem["level"]) => `jira.mapping.level.${kind.toLowerCase() as "program" | "project" | "milestone"}` as const;
@@ -64,6 +65,11 @@ function JiraCell({ item, connection, showConnection }: { item: DeviationItem; c
         <Text size="xs" c="dimmed">
           {meta}
         </Text>
+      )}
+      {jira.rollup !== null && (
+        <div>
+          <JiraRollupText rollup={jira.rollup} />
+        </div>
       )}
       {showConnection && connection && (
         <Text size="xs" c="dimmed">

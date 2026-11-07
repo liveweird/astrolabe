@@ -131,6 +131,18 @@
     "stale": "nieaktualne"
   },
   "inLine": "Brak odchyleń",
+  "rollup": {
+    "short": "{{done}}/{{children}}",
+    "shortPoints": "{{done}}/{{children}} · {{points}} pkt",
+    "sentence_one": "{{count}} zgłoszenie podrzędne w Jirze, ukończone: {{done}}",
+    "sentence_few": "{{count}} zgłoszenia podrzędne w Jirze, ukończone: {{done}}",
+    "sentence_many": "{{count}} zgłoszeń podrzędnych w Jirze, ukończone: {{done}}",
+    "sentence_other": "{{count}} zgłoszenia podrzędnego w Jirze, ukończone: {{done}}",
+    "sentencePoints_one": "{{count}} zgłoszenie podrzędne w Jirze, ukończone: {{done}}, punkty: {{points}}",
+    "sentencePoints_few": "{{count}} zgłoszenia podrzędne w Jirze, ukończone: {{done}}, punkty: {{points}}",
+    "sentencePoints_many": "{{count}} zgłoszeń podrzędnych w Jirze, ukończone: {{done}}, punkty: {{points}}",
+    "sentencePoints_other": "{{count}} zgłoszenia podrzędnego w Jirze, ukończone: {{done}}, punkty: {{points}}"
+  },
   "kind": {
     "GONE": "Zniknął",
     "LEVEL_MISMATCH": "Poziom",
@@ -190,6 +202,19 @@
     "progressTodo": "W Jirze niezaczęte, a plan zaczął się {{plan}}",
     "progressInProgress": "W Jirze w toku, a plan zaczyna się {{plan}}",
     "progressBare": "Status w Jirze nie pasuje do dat w planie",
+    "unlinkedInJira_one": "W planie brakuje {{count}} elementu Jiry: {{keys}}",
+    "unlinkedInJira_few": "W planie brakuje {{count}} elementów Jiry: {{keys}}",
+    "unlinkedInJira_many": "W planie brakuje {{count}} elementów Jiry: {{keys}}",
+    "unlinkedInJira_other": "W planie brakuje {{count}} elementu Jiry: {{keys}}",
+    "unlinkedInPlan_one": "{{count}} element planu nie jest powiązany z Jirą: {{names}}",
+    "unlinkedInPlan_few": "{{count}} elementy planu nie są powiązane z Jirą: {{names}}",
+    "unlinkedInPlan_many": "{{count}} elementów planu nie jest powiązanych z Jirą: {{names}}",
+    "unlinkedInPlan_other": "{{count}} elementu planu nie jest powiązanego z Jirą: {{names}}",
+    "andMore": "i jeszcze {{more}}",
+    "childrenDone_one": "Jedyne zgłoszenie podrzędne jest ukończone w Jirze, a plan kończy się {{date}}",
+    "childrenDone_few": "Wszystkie zgłoszenia podrzędne ({{count}}) są ukończone w Jirze, a plan kończy się {{date}}",
+    "childrenDone_many": "Wszystkie zgłoszenia podrzędne ({{count}}) są ukończone w Jirze, a plan kończy się {{date}}",
+    "childrenDone_other": "Wszystkie zgłoszenia podrzędne ({{count}}) są ukończone w Jirze, a plan kończy się {{date}}",
     "unit": {
       "POINTS": "punkty",
       "HOURS": "godziny",

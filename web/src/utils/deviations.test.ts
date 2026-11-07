@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import i18n from "../i18n";
 import type { Deviation, DeviationKind } from "../api/deviations";
 import { DEV_CONNECTION, detail } from "../test/deviations";
-import { ageText, countDeviations, deviationKindLabel, deviationSentence, hasStaleSource, staleConnection, verifiedAt } from "./deviations";
+import { ageText, countDeviations, deviationKindLabel, deviationSentence, formatPoints, hasStaleSource, rollupSentence, rollupText, staleConnection, verifiedAt } from "./deviations";
 
 const en = i18n.getFixedT("en");
 const pl = i18n.getFixedT("pl");
@@ -151,6 +151,80 @@ describe("deviationSentence - a missing member degrades to a plainer sentence, n
     );
     expect(deviationSentence(bare("PROGRESS_MISMATCH"), POINTS, en)).toBe("The Jira status does not fit the plan's dates");
     expect(deviationSentence(bare("PROGRESS_MISMATCH", { jira: "UNKNOWN", plan: "2044-01-01" }), POINTS, en)).toBe("The Jira status does not fit the plan's dates");
+  });
+});
+
+describe("deviationSentence - the coverage kinds (1.4)", () => {
+  const coverage = (kind: DeviationKind, over: Partial<Deviation["detail"]>, severity: Deviation["severity"] = "INFO"): Deviation => ({ kind, severity, detail: detail(over) });
+
+  test("UNLINKED_IN_JIRA names the keys and the count; one reads in the singular", () => {
+    expect(deviationSentence(coverage("UNLINKED_IN_JIRA", { jira: "COV-5", count: 1 }, "WARNING"), POINTS, en)).toBe("1 Jira item is not in the plan: COV-5");
+    expect(deviationSentence(coverage("UNLINKED_IN_JIRA", { jira: "COV-5, COV-6", count: 2 }, "WARNING"), POINTS, en)).toBe("2 Jira items are not in the plan: COV-5, COV-6");
+  });
+
+  test("UNLINKED_IN_PLAN names the plan items and the count", () => {
+    expect(deviationSentence(coverage("UNLINKED_IN_PLAN", { plan: "Rollout", count: 1 }), POINTS, en)).toBe("1 plan item is not linked to Jira: Rollout");
+    expect(deviationSentence(coverage("UNLINKED_IN_PLAN", { plan: "A, B, C", count: 3 }), POINTS, en)).toBe("3 plan items are not linked to Jira: A, B, C");
+  });
+
+  test("the 'and N more' rule: only when the count exceeds the ten the server lists; a name containing a comma does not move it", () => {
+    const keys = Array.from({ length: 10 }, (_, i) => `COV-${i + 1}`).join(", ");
+    expect(deviationSentence(coverage("UNLINKED_IN_JIRA", { jira: keys, count: 10 }, "WARNING"), POINTS, en)).toBe(`10 Jira items are not in the plan: ${keys}`);
+    expect(deviationSentence(coverage("UNLINKED_IN_JIRA", { jira: keys, count: 13 }, "WARNING"), POINTS, en)).toBe(`13 Jira items are not in the plan: ${keys} and 3 more`);
+    const names = "Phase 1, backend, B, C, D, E, F, G, H, I";
+    expect(deviationSentence(coverage("UNLINKED_IN_PLAN", { plan: names, count: 11 }), POINTS, en)).toBe(`11 plan items are not linked to Jira: ${names} and 1 more`);
+    expect(deviationSentence(coverage("UNLINKED_IN_PLAN", { plan: names, count: 10 }), POINTS, en)).toBe(`10 plan items are not linked to Jira: ${names}`);
+    expect(deviationSentence(coverage("UNLINKED_IN_PLAN", { plan: names, count: 12 }), POINTS, pl)).toBe(`12 elementów planu nie jest powiązanych z Jirą: ${names} i jeszcze 2`);
+  });
+
+  test("CHILDREN_DONE: the children and the plan's end; one child reads 'the only'", () => {
+    expect(deviationSentence(coverage("CHILDREN_DONE", { jira: "2/2", plan: "2046-03-01", count: 2 }), POINTS, en)).toBe("All 2 child issues are done in Jira while the plan ends 2046-03-01");
+    expect(deviationSentence(coverage("CHILDREN_DONE", { jira: "1/1", plan: "2046-03-01", count: 1 }), POINTS, en)).toBe("The only child issue is done in Jira while the plan ends 2046-03-01");
+  });
+
+  test("a missing member degrades to the plain kind label, never to an invented value", () => {
+    expect(deviationSentence(coverage("UNLINKED_IN_JIRA", { jira: "COV-5", count: null }, "WARNING"), POINTS, en)).toBe("Not in plan");
+    expect(deviationSentence(coverage("UNLINKED_IN_JIRA", { jira: null, count: 2 }, "WARNING"), POINTS, en)).toBe("Not in plan");
+    expect(deviationSentence(coverage("UNLINKED_IN_PLAN", { plan: "", count: 2 }), POINTS, en)).toBe("Not in Jira");
+    expect(deviationSentence(coverage("CHILDREN_DONE", { plan: null, count: 2 }), POINTS, en)).toBe("Children done");
+    expect(deviationSentence(coverage("CHILDREN_DONE", { plan: "2046-03-01", count: null }), POINTS, en)).toBe("Children done");
+  });
+
+  test.each([
+    [1, "W planie brakuje 1 elementu Jiry: COV-5", "1 element planu nie jest powiązany z Jirą: A", "Jedyne zgłoszenie podrzędne jest ukończone w Jirze, a plan kończy się 2046-03-01"],
+    [2, "W planie brakuje 2 elementów Jiry: COV-5", "2 elementy planu nie są powiązane z Jirą: A", "Wszystkie zgłoszenia podrzędne (2) są ukończone w Jirze, a plan kończy się 2046-03-01"],
+    [5, "W planie brakuje 5 elementów Jiry: COV-5", "5 elementów planu nie jest powiązanych z Jirą: A", "Wszystkie zgłoszenia podrzędne (5) są ukończone w Jirze, a plan kończy się 2046-03-01"],
+    [22, "W planie brakuje 22 elementów Jiry: COV-5", "22 elementy planu nie są powiązane z Jirą: A", "Wszystkie zgłoszenia podrzędne (22) są ukończone w Jirze, a plan kończy się 2046-03-01"],
+  ])("PL, count %i: the one/few/many forms", (count, inJira, inPlan, done) => {
+    const more = count > 10 ? ` i jeszcze ${count - 10}` : "";
+    expect(deviationSentence(coverage("UNLINKED_IN_JIRA", { jira: "COV-5", count }, "WARNING"), POINTS, pl)).toBe(`${inJira}${more}`);
+    expect(deviationSentence(coverage("UNLINKED_IN_PLAN", { plan: "A", count }), POINTS, pl)).toBe(`${inPlan}${more}`);
+    expect(deviationSentence(coverage("CHILDREN_DONE", { jira: `${count}/${count}`, plan: "2046-03-01", count }), POINTS, pl)).toBe(done);
+  });
+});
+
+describe("rollupText and rollupSentence - Jira's own figures, never converted", () => {
+  const base = { children: 12, done: 5, points: 34, observedAt: 1 };
+  test("the compact text and the sentence, in both languages", () => {
+    expect(rollupText(base, en)).toBe("5/12 · 34 pt");
+    expect(rollupSentence(base, en)).toBe("12 child issues in Jira, done: 5, story points: 34");
+    expect(rollupText(base, pl)).toBe("5/12 · 34 pkt");
+    expect(rollupSentence(base, pl)).toBe("12 zgłoszeń podrzędnych w Jirze, ukończone: 5, punkty: 34");
+  });
+
+  test("null points omit the points part; the plural forms follow the children", () => {
+    expect(rollupText({ ...base, points: null }, en)).toBe("5/12");
+    expect(rollupSentence({ ...base, points: null, children: 1 }, en)).toBe("1 child issue in Jira, done: 5");
+    expect(rollupSentence({ ...base, points: null, children: 1 }, pl)).toBe("1 zgłoszenie podrzędne w Jirze, ukończone: 5");
+    expect(rollupSentence({ ...base, points: null, children: 3 }, pl)).toBe("3 zgłoszenia podrzędne w Jirze, ukończone: 5");
+  });
+
+  test("points keep up to two decimals and drop trailing zeros; zero points are a figure, not an absence", () => {
+    expect(formatPoints(7.5)).toBe("7.5");
+    expect(formatPoints(13)).toBe("13");
+    expect(formatPoints(13.0)).toBe("13");
+    expect(formatPoints(0.125)).toBe("0.13");
+    expect(rollupText({ ...base, points: 0 }, en)).toBe("5/12 · 0 pt");
   });
 });
 

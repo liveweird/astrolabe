@@ -35,6 +35,8 @@ export type TeamActions = {
   moveTo: (milestone: TeamMilestone, edge: "top" | "bottom") => void;
 };
 
+/** The Flags column grows to `FLAGS_WITH_ROLLUP_WIDTH` while a scheduled row shows a Jira roll-up ("5/12 · 34 pt"). */
+const FLAGS_WITH_ROLLUP_WIDTH = 190;
 const COLUMN_WIDTHS = { name: 220, project: 150, estimate: 120, flags: 130, actions: 56 } as const;
 
 /** The estimate with its unit ("12.25 man-days"). */
@@ -235,6 +237,7 @@ export default function TeamTimeline({
   const previewing = proposal !== undefined;
   // The Flags column exists while some scheduled milestone is linked to Jira (the view says so: no stored answer, no second request).
   const flagsColumn = view.scheduled.some((milestone) => milestone.jira !== null);
+  const flagsWidth = view.scheduled.some((milestone) => milestone.jira?.rollup != null) ? FLAGS_WITH_ROLLUP_WIDTH : COLUMN_WIDTHS.flags;
   const sites = siteUrls(view.jiraSites);
   /** The Flags cell goes just before the operations cell, and only while the column exists; `milestone` null = a row with no flags of its own (an empty cell). */
   const withFlags = (cells: TimelineRowData["cells"], milestone: TeamMilestone | null): TimelineRowData["cells"] => {
@@ -247,7 +250,7 @@ export default function TeamTimeline({
     { id: "name", header: t("project.column.milestone"), width: COLUMN_WIDTHS.name },
     { id: "project", header: t("teams.view.column.project"), width: COLUMN_WIDTHS.project },
     { id: "estimate", header: t("teams.view.column.estimate"), width: COLUMN_WIDTHS.estimate },
-    ...(flagsColumn ? [{ id: "flags", header: t("roadmap.column.flags"), width: COLUMN_WIDTHS.flags }] : []),
+    ...(flagsColumn ? [{ id: "flags", header: t("roadmap.column.flags"), width: flagsWidth }] : []),
     { id: "actions", header: t("common.table.operations"), width: COLUMN_WIDTHS.actions },
   ];
   const rowIds = new Set<BarId>(view.scheduled.map((milestone) => milestone.id));

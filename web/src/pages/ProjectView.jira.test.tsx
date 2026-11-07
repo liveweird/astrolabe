@@ -167,6 +167,20 @@ describe("the project page's Jira markers", () => {
       expect(within(discovery).queryByRole("link", { name: /E2E-/ })).not.toBeInTheDocument();
     });
 
+    test("a linked row with a roll-up shows it after the key, its name the sentence; a row without one shows only the key (1.4)", async () => {
+      const rollup = { children: 12, done: 5, points: 34, observedAt: 1 };
+      project = viewOf({ scheduled: [DISCOVERY, { ...BUILD, jira: { ...link(6, "E2E-3", "2027-01-18", "2027-01-19"), rollup } }, { ...DISCOVERY, id: 9, name: "Plain", jira: link(9, "E2E-9") }] });
+      renderPage();
+      const grid = await timeline();
+      const build = within(grid).getByRole("row", { name: /Build/ });
+      expect(within(build).getByText("5/12 · 34 pt")).toBeInTheDocument();
+      expect(within(build).getByText("12 child issues in Jira, done: 5, story points: 34")).toBeInTheDocument();
+      expect(build.querySelector("[data-flags]")).toHaveAttribute("data-flags", "1,0");
+      const plain = within(grid).getByRole("row", { name: /Plain/ });
+      expect(plain).toHaveTextContent("E2E-9");
+      expect(plain).not.toHaveTextContent("child issues");
+    });
+
     test("a clean or acknowledged linked row (no open flag) shows its key link, told apart from an unlinked one, and no icon", async () => {
       project = viewOf({ scheduled: [DISCOVERY, { ...BUILD, flags: [] }] });
       renderPage();

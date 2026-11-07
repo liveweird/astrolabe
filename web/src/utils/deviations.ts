@@ -1,5 +1,6 @@
 import type { TFunction } from "i18next";
 import type { Deviation, DeviationConnection, DeviationItem, DeviationKind } from "../api/deviations";
+import type { JiraLink } from "../api/roadmap";
 import { runState } from "./syncRuns";
 
 /** The part of an item the phrasing needs besides the deviation itself (the estimate's unit is on Jira's side of the item). */
@@ -75,6 +76,29 @@ function progress(detail: Deviation["detail"], t: TFunction): string {
   }
 }
 
+/** The server lists at most this many keys or names of an `UNLINKED_*` deviation (`MAX_LISTED` in `server/.../jira/JiraDeviationKernels.kt`, the spec's "at most 10"; keep the two in step); `detail.count` is the full figure. */
+const MAX_LISTED = 10;
+
+/**
+ * "3 Jira items are not in the plan: A-1, A-2, A-3", plus " and 4 more" when the full count exceeds what is listed. The listed figure is
+ * `min(count, MAX_LISTED)`, never a split of the joined text (a plan name may itself contain ", "). Without the list or the count the plain kind label stands.
+ */
+function unlinked(kind: "UNLINKED_IN_JIRA" | "UNLINKED_IN_PLAN", detail: Deviation["detail"], t: TFunction): string {
+  const list = kind === "UNLINKED_IN_JIRA" ? detail.jira : detail.plan;
+  if (list === null || list === "" || detail.count === null || detail.count < 1) return t(`deviations.kind.${kind}`);
+  const { count } = detail;
+  const sentence =
+    kind === "UNLINKED_IN_JIRA" ? t("deviations.phrase.unlinkedInJira", { count, keys: list }) : t("deviations.phrase.unlinkedInPlan", { count, names: list });
+  const more = count - Math.min(count, MAX_LISTED);
+  return more > 0 ? `${sentence} ${t("deviations.phrase.andMore", { more })}` : sentence;
+}
+
+/** `detail.count` is the epic's children, `detail.plan` the plan's end date; either missing degrades to the plain kind label. */
+function childrenDone(detail: Deviation["detail"], t: TFunction): string {
+  if (detail.count === null || detail.count < 1 || detail.plan === null) return t("deviations.kind.CHILDREN_DONE");
+  return t("deviations.phrase.childrenDone", { count: detail.count, date: detail.plan });
+}
+
 /**
  * One deviation as a sentence in the UI language: "Ends 3 working days later than Jira (plan 2044-03-07, Jira 2044-03-04)". Every kind of
  * `DeviationKind` has one; the evidence is the server's `detail` (`days` in WORKING days, positive = the plan is later; the member
@@ -113,9 +137,9 @@ export function deviationSentence(deviation: Deviation, item: Phrased, t: TFunct
       return progress(detail, t);
     case "UNLINKED_IN_JIRA":
     case "UNLINKED_IN_PLAN":
+      return unlinked(deviation.kind, detail, t);
     case "CHILDREN_DONE":
-      // The coverage sentences arrive with the 1.4 UI; until then the plain kind label stands (the file's degrade rule).
-      return t(`deviations.kind.${deviation.kind}`);
+      return childrenDone(detail, t);
   }
 }
 
@@ -137,6 +161,26 @@ export function countDeviations(deviations: readonly Deviation[]): { warnings: n
     else infos += 1;
   }
   return { warnings, infos };
+}
+
+/** A Jira epic's children as the last census holds them (`JiraLink.rollup`, `DeviationJira.rollup`), never null here. */
+type Rollup = NonNullable<JiraLink["rollup"]>;
+
+/** Jira's story-point figure as it is, never converted: at most two decimals, trailing zeros dropped ("34", "7.5"). */
+export function formatPoints(points: number): string {
+  return String(Number(points.toFixed(2)));
+}
+
+/** The compact text of a roll-up: "5/12 · 34 pt" (the points part is omitted when no child carries a value). */
+export function rollupText(rollup: Rollup, t: TFunction): string {
+  const { done, children, points } = rollup;
+  return points === null ? t("deviations.rollup.short", { done, children }) : t("deviations.rollup.shortPoints", { done, children, points: formatPoints(points) });
+}
+
+/** The full sentence behind the compact text, for the accessible name and the tooltip: "12 child issues in Jira, done: 5, story points: 34". */
+export function rollupSentence(rollup: Rollup, t: TFunction): string {
+  const { done, children, points } = rollup;
+  return points === null ? t("deviations.rollup.sentence", { count: children, done }) : t("deviations.rollup.sentencePoints", { count: children, done, points: formatPoints(points) });
 }
 
 const MINUTE_MS = 60_000;

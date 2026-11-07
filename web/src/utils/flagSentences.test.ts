@@ -20,6 +20,14 @@ describe("flagSentence", () => {
     expect(flagSentence(pl, deviationFlag(endLater(3)), NAMES, "E2E-3")).toMatch(/^Jira E2E-3: /);
   });
 
+  test("the coverage kinds ride the same phrasing behind the key (1.4)", () => {
+    const unlinked: Deviation = { kind: "UNLINKED_IN_JIRA", severity: "WARNING", detail: detail({ jira: "COV-5", count: 1 }) };
+    const done: Deviation = { kind: "CHILDREN_DONE", severity: "INFO", detail: detail({ jira: "2/2", plan: "2046-03-01", count: 2 }) };
+    expect(flagSentence(en, deviationFlag(unlinked), NAMES, "COV-2")).toBe("Jira COV-2: 1 Jira item is not in the plan: COV-5");
+    expect(flagSentence(en, deviationFlag(done), NAMES, "COV-4")).toBe("Jira COV-4: All 2 child issues are done in Jira while the plan ends 2046-03-01");
+    expect(flagSentence(pl, deviationFlag(unlinked), NAMES, "COV-2")).toBe("Jira COV-2: W planie brakuje 1 elementu Jiry: COV-5");
+  });
+
   test("without the evidence it degrades to the bare 'differs', and the roll-up counts milestones", () => {
     expect(flagSentence(en, flag("JIRA_DEVIATION", "WARNING"), NAMES, "E2E-3")).toBe("Jira E2E-3: Differs from Jira");
     expect(flagSentence(en, flag("JIRA_MILESTONES", "WARNING", { count: 1 }), NAMES, null)).toBe("1 milestone deviates from Jira");

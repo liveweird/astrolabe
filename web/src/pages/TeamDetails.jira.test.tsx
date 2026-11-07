@@ -106,6 +106,22 @@ describe("the team page's Jira markers", () => {
       expect(screen.queryByRole("button", { name: "Jira dates" })).not.toBeInTheDocument();
     });
 
+    test("the Flags cell and the tray row show a milestone's roll-up after its key (1.4)", async () => {
+      const rollup = { children: 4, done: 2, points: null, observedAt: 1 };
+      teamView = {
+        ...TEAM_VIEW,
+        scheduled: TEAM_VIEW.scheduled.map((m) => (m.id === 2 ? { ...m, jira: { ...link(2, "E2E-4"), rollup } } : m)),
+        unscheduled: [milestone(4, "tv-tray", { startDate: null, endDate: null, jira: { ...link(4, "E2E-9"), rollup: { ...rollup, children: 1, done: 1, points: 8 } } })],
+      };
+      renderPage();
+      const grid = await timeline();
+      const rowB = within(grid).getByRole("row", { name: /tv-b/ });
+      expect(within(rowB).getByText("2/4")).toBeInTheDocument();
+      expect(within(rowB).getByText("4 child issues in Jira, done: 2")).toBeInTheDocument();
+      const tray = screen.getByRole("table", { name: "Unscheduled milestones of the team" });
+      expect(within(tray).getByText("1/1 · 8 pt")).toBeInTheDocument();
+    });
+
     test("a linked tray milestone is counted by the chip", async () => {
       teamView = { ...TEAM_VIEW, unscheduled: [milestone(4, "tv-tray", { startDate: null, endDate: null, jira: link(4, "E2E-9") })] };
       renderPage();
