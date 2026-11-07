@@ -1,0 +1,42 @@
+{
+  "priority": 2,
+  "request": {
+    "method": "GET",
+    "urlPath": "/ex/jira/b3f1a2c4-5d6e-4f7a-8b9c-0d1e2f3a4b5c/rest/api/3/search/jql",
+    "headers": {
+      "Authorization": {
+        "matches": "^(Basic|Bearer) .+$"
+      }
+    },
+    "queryParameters": {
+      "jql": {
+        "and": [
+          {
+            "matches": "[\\s\\S]*\\bproject in \\((?=[^)]*\\bCOV\\b)\\s*\"?(?:COV)\"?(?:\\s*,\\s*\"?(?:COV)\"?)*\\s*\\)[\\s\\S]*"
+          },
+          {
+            "matches": "[\\s\\S]*\\bissuetype in \\((?=[^)]*\\b10004\\b)(?=[^)]*\\b10005\\b)\\s*\"?(?:10004|10005)\"?(?:\\s*,\\s*\"?(?:10004|10005)\"?)*\\s*\\)[\\s\\S]*"
+          },
+          {
+            "doesNotMatch": "[\\s\\S]*\\bupdated >= \"-\\d+m\"[\\s\\S]*"
+          }
+        ]
+      },
+      "fields": {
+        "matches": "(?=[\\s\\S]*\\bsummary\\b)(?=[\\s\\S]*\\bissuetype\\b)[\\s\\S]*"
+      },
+      "nextPageToken": {
+        "absent": true
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "bodyFileName": "search-issues-c2d5fc8ac6.json"
+  },
+  "scenarioName": "jira-day2",
+  "requiredScenarioState": "Started"
+}

@@ -1,19 +1,23 @@
 // The stub's Jira world, derived from sample-data/plan/*.json: 20 programs -> `Program`, 100 projects -> `Initiative`, 1,000 milestones
-// -> `Epic`, one Jira project per work stream, plus the small isolated `E2E` project (2044), the import's isolated `IMP` project (2045) and
-// the day-2 destination project `OUT`.
+// -> `Epic`, one Jira project per work stream, plus the small isolated `E2E` project (2044), the import's isolated `IMP` project (2045), the
+// coverage `COV` project (2046) and the day-2 destination project `OUT`. Under every fifth epic of the work streams sit 1..4 Stories (level 0,
+// the 1.4 census's child level), and ten planted epics carry only done children.
 // Pure and deterministic: every random draw comes from one seeded mulberry32 stream and there is no clock.
 //
 // The Jira dates start as the plan's dates (day offsets from the anchor Monday, absolute here); the PLANTED deviations then differ from the
 // plan on purpose and are counted in expected.json, so a test or the manual walk-through knows exactly what the sync must find.
 import { containsWorkingDay, dayOfWorkIndex, isoDateAt, nextWorkingOnOrAfter, prevWorkingOnOrBefore, workIndex } from "../../scripts/sample-plan/days.mjs";
-import { TYPE_OF_LEVEL } from "./catalog.mjs";
+import { TYPE, typeOf } from "./catalog.mjs";
 
 export const ANCHOR = "2026-10-26"; // the sample plan's default anchor Monday (timeline.md)
 export const E2E_ANCHOR = "2044-01-04"; // a Monday in the e2e suite's own holiday-free year
 export const IMP_ANCHOR = "2045-01-02"; // a Monday in the import e2e's own year (the next unused after 2044)
+export const COV_ANCHOR = "2046-03-05"; // a Monday in the coverage e2e's own year (the next unused after 2045); March, so COV-10's "past" is still 2046
 const FIRST_ID = 20_001;
 const E2E_FIRST_ID = 90_001;
 const IMP_FIRST_ID = 95_001;
+const COV_FIRST_ID = 97_001;
+const STORY_POINTS = [1, 2, 3, 5, 8];
 const MS = 1000;
 
 /** The planted counts (disjoint sets of scheduled milestones unless noted). */
@@ -32,6 +36,7 @@ export const PLANTED = {
   projectsTargetLater: 10, // a project's Jira dates end +5 working days after its target window
   projectsRenamed: 5,
   programsShifted: 2, // a program's Jira span is +3 working days
+  childrenDone: 10, // 1.4: an In Progress epic whose 2-3 stories are ALL done while the plan's end is still ahead
 };
 
 function mulberry32(seed) {
@@ -127,6 +132,9 @@ export function buildWorld(plan, milestones, teams, seed = 42) {
     estimateChanged: take(PLANTED.estimateChanged).map((m) => ({ m, delta: 3 + Math.floor(rng() * 7) })),
     deleted: take(PLANTED.deleted).map((m) => ({ m })),
     movedOut: take(PLANTED.movedOut).map((m) => ({ m })),
+    // LAST, so no earlier set moves; starting after the anchor and ending two weeks or more past it: the epic's own status stays To Do (as
+    // generated, never forced), so CHILDREN_DONE is its only deviation (no PROGRESS_MISMATCH) and no existing epic body changes.
+    childrenDone: take(PLANTED.childrenDone, (m) => m.startOffset > 0 && m.endOffset >= 14).map((m) => ({ m })),
   };
   const unscheduled = shuffled(milestones.filter((m) => m.startOffset === null), rng);
   planted.datedInJiraOnly = unscheduled.slice(0, PLANTED.datedInJiraOnly).map((m) => {
@@ -145,12 +153,14 @@ export function buildWorld(plan, milestones, teams, seed = 42) {
   // --- the issues, in creation (= id) order: per work stream its programs, then its initiatives, then its epics ------------------
   const issues = [];
   const counters = new Map(keys.map((k) => [k, 0]));
+  const stories = [];
+  let sink = issues; // where `make` appends: the plan-level issues, then (once they exist) the stories
   let nextId = FIRST_ID;
   const make = (projectKey, fields) => {
     const number = counters.get(projectKey) + 1;
     counters.set(projectKey, number);
     const issue = { id: String(nextId++), key: `${projectKey}-${number}`, projectKey, parentId: null, points: null, team: null, decoy: false, ...fields };
-    issues.push(issue);
+    sink.push(issue);
     return issue;
   };
   const programIssue = new Map();
@@ -214,10 +224,32 @@ export function buildWorld(plan, milestones, teams, seed = 42) {
     i.updated = `${isoDateAt(ANCHOR, recentDay)}T09:30:00.000+0000`;
   });
 
+  // --- the stories: drawn AFTER every random draw above, so adding them moves no existing stream (their ids follow the 1,120) -------------
+  sink = stories;
+  for (const epic of issues.filter((i) => i.level === "milestone")) {
+    const done = tags.childrenDone.has(epic.ref);
+    // The planted epics override the every-fifth draw; the day-2 epics (deleted, moved out) hold no stories, so no story is ever orphaned.
+    if ((!done && epic.ref % 5 !== 0) || tags.deleted.has(epic.ref) || tags.movedOut.has(epic.ref)) continue;
+    const count = done ? 2 + Math.floor(rng() * 2) : 1 + Math.floor(rng() * 4);
+    const own = [];
+    for (let n = 1; n <= count; n++) {
+      const status = done ? "done" : ["todo", "doing", "done", "done"][Math.floor(rng() * 4)];
+      own.push(make(epic.projectKey, {
+        level: "story", ref: null, summary: `${epic.summary} - story ${n}`, parentId: epic.id, start: null, end: null, status, points: STORY_POINTS[Math.floor(rng() * STORY_POINTS.length)],
+        updated: stamp(ANCHOR, -(1 + Math.floor(rng() * 60)), rng),
+      }));
+    }
+    // Only the planted epics may have ALL children done (CHILDREN_DONE fires on exactly those): the last story of any other epic stays open.
+    if (!done && own.every((x) => x.status === "done")) own[own.length - 1].status = "doing";
+  }
+  sink = issues;
+
   // --- the E2E project: 3 levels, 10 issues, 2044 ------------------------------------------------------------------------------------
   const e2e = buildE2e();
   // --- the IMP project: built AFTER every random draw above and drawing none itself, so adding it moves no existing stream ---------------
   const imp = buildImp();
+  // --- the COV project: fixed, draws none ---------------------------------------------------------------------------------------------
+  const cov = buildCov();
 
   // Hierarchy-level presence on the issue's own type object: omitted on every third id so the client's /issuetype fallback is exercised too.
   issues.forEach((i) => {
@@ -229,7 +261,10 @@ export function buildWorld(plan, milestones, teams, seed = 42) {
   imp.issues.forEach((i) => {
     i.anchor = IMP_ANCHOR;
   });
-  [...issues, ...e2e.issues, ...imp.issues].forEach((i) => {
+  [...stories, ...cov.issues].forEach((i) => {
+    i.anchor = i.projectKey === "COV" ? COV_ANCHOR : ANCHOR;
+  });
+  [...issues, ...stories, ...e2e.issues, ...imp.issues, ...cov.issues].forEach((i) => {
     i.omitLevel = Number(i.id) % 3 === 0;
   });
 
@@ -238,13 +273,14 @@ export function buildWorld(plan, milestones, teams, seed = 42) {
     movedOut: planted.movedOut.map((x, n) => ({ issue: milestoneIssue.get(x.m.ref), movedKey: `OUT-${n + 1}` })),
   };
   return {
-    seed, keys, streams, programs, projects, milestones, issues, e2e, imp, recent, day2, planted, tags, programIssue, projectIssue, milestoneIssue,
-    projectsTargetLater, projectsRenamed, programsShifted, typeOf: (i) => TYPE_OF_LEVEL[i.level],
+    seed, keys, streams, programs, projects, milestones, issues, stories, e2e, imp, cov, recent, day2, planted, tags, programIssue, projectIssue, milestoneIssue,
+    projectsTargetLater, projectsRenamed, programsShifted, typeOf,
     projectRows: [
       ...streams.map((w, n) => ({ id: String(10_000 + n), key: keys[n], name: w.name })),
       { id: "10005", key: "E2E", name: "Astrolabe e2e" },
       { id: "10006", key: "OUT", name: "Archive (out of scope)" },
       { id: "10007", key: "IMP", name: "Astrolabe import" },
+      { id: "10008", key: "COV", name: "Astrolabe coverage" },
     ],
   };
 }
@@ -296,4 +332,32 @@ function buildImp() {
   add(8, { level: "milestone", summary: "IMP Epic Five", parentId: id(1), start: 35, end: 39, points: 1, team });
   add(9, { level: "milestone", summary: "IMP Epic Six", parentId: id(3), start: 28, end: 32, points: 2, team });
   return { issues };
+}
+
+/**
+ * The coverage project (1.4): a Program, an Initiative, five Epics and seven children, all in 2046 (offsets from COV_ANCHOR). The coverage e2e
+ * binds COV-2, COV-3 and COV-4 and leaves COV-5 and COV-10 unbound: COV-3 rolls up 2 of 4 children done (13 points), COV-4 2 of 2 (5 points,
+ * the CHILDREN_DONE epic), COV-5 is open and unbound (UNLINKED_IN_JIRA), COV-10 is done and unbound (excluded: closed work is history).
+ */
+function buildCov() {
+  const issues = [];
+  const add = (n, fields) => issues.push({
+    id: String(COV_FIRST_ID + n - 1), key: `COV-${n}`, projectKey: "COV", points: null, team: null, parentId: null, decoy: false, ref: null,
+    updated: `${isoDateAt(COV_ANCHOR, -7)}T10:00:00.000+0000`, status: "todo", start: null, end: null, ...fields,
+  });
+  const id = (n) => String(COV_FIRST_ID + n - 1);
+  const team = { id: teamUuid(903), name: "COV Team" };
+  add(1, { level: "program", summary: "COV Program", start: 0, end: 74 });
+  add(2, { level: "project", summary: "COV Initiative Alpha", parentId: id(1), start: -14, end: 60 });
+  add(3, { level: "milestone", summary: "COV Epic One", parentId: id(2), start: 0, end: 4, points: 8, team, status: "todo" });
+  add(4, { level: "milestone", summary: "COV Epic Two", parentId: id(2), start: 14, end: 18, points: 5, team, status: "todo" });
+  add(5, { level: "milestone", summary: "COV Epic Three", parentId: id(2), start: 28, end: 32, points: 3, team });
+  add(6, { level: "story", summary: "COV story one", parentId: id(3), status: "done", points: 3 });
+  add(7, { level: "story", summary: "COV story two", parentId: id(3), status: "done", points: 5 });
+  add(8, { level: "story", type: TYPE.task, summary: "COV task", parentId: id(3), status: "doing", points: 2 });
+  add(9, { level: "story", type: TYPE.bug, summary: "COV bug", parentId: id(3), status: "todo", points: 3 });
+  add(10, { level: "milestone", summary: "COV Epic Four", parentId: id(2), start: -14, end: -10, points: 2, team, status: "done" });
+  add(11, { level: "story", summary: "COV story three", parentId: id(4), status: "done", points: 2 });
+  add(12, { level: "story", summary: "COV story four", parentId: id(4), status: "done", points: 3 });
+  return { issues, unbound: ["COV-5", "COV-10"] };
 }

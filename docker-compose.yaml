@@ -120,7 +120,7 @@ services:
     ports:
       - "127.0.0.1:8096:8080"
     # Measured (1.2.0: 1,612 mappings, 1,567 bodies, 26.8 MB of file bytes, 36 MB by `du` on disk; the image's JVM sizes its heap at 25 % of the limit): ~146 MiB RSS measured after the mappings load and a
-    # walk of the IMP and single-key scopes (1.1.0, 1,503 mappings: ~125 MiB idle, ~165 MiB after 300 concurrent admin reads, ~150 MiB after a full 1,120-binding sync run, 25 calls).
+    # walk of the IMP and single-key scopes. 1.4.0 grows the set to 2,278 mappings, 2,208 bodies, 31.4 MB of file bytes (46 MB by `du`) with the stories, the child-level type set and `COV`; ~144 MiB RSS measured after boot at that size (1.1.0, 1,503 mappings: ~125 MiB idle, ~165 MiB after 300 concurrent admin reads, ~150 MiB after a full 1,120-binding sync run, 25 calls).
     # 384m (a 96 MiB heap) leaves ~2.3x headroom; 256m also booted and served, but with little margin for the request journal.
     mem_limit: 384m
     # Hardened like the app: the image runs as root by default, but WireMock only reads /home/wiremock and needs a writable /tmp

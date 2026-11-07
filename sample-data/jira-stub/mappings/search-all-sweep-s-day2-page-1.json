@@ -1,0 +1,39 @@
+{
+  "priority": 3,
+  "request": {
+    "method": "GET",
+    "urlPath": "/ex/jira/b3f1a2c4-5d6e-4f7a-8b9c-0d1e2f3a4b5c/rest/api/3/search/jql",
+    "headers": {
+      "Authorization": {
+        "matches": "^(Basic|Bearer) .+$"
+      }
+    },
+    "queryParameters": {
+      "jql": {
+        "and": [
+          {
+            "matches": "[\\s\\S]*\\bproject in \\((?=[^)]*\\bCE\\b)(?=[^)]*\\bPF\\b)(?=[^)]*\\bCG\\b)(?=[^)]*\\bDI\\b)(?=[^)]*\\bOE\\b)(?=[^)]*\\bE2E\\b)\\s*\"?(?:CE|PF|CG|DI|OE|E2E)\"?(?:\\s*,\\s*\"?(?:CE|PF|CG|DI|OE|E2E)\"?)*\\s*\\)[\\s\\S]*"
+          },
+          {
+            "matches": "[\\s\\S]*\\bissuetype in \\((?=[^)]*\\b10001\\b)(?=[^)]*\\b10002\\b)(?=[^)]*\\b10003\\b)\\s*\"?(?:10001|10002|10003)\"?(?:\\s*,\\s*\"?(?:10001|10002|10003)\"?)*\\s*\\)[\\s\\S]*"
+          }
+        ]
+      },
+      "fields": {
+        "equalTo": "id"
+      },
+      "nextPageToken": {
+        "absent": true
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "bodyFileName": "search-ids-e19379c660.json"
+  },
+  "scenarioName": "jira-day2",
+  "requiredScenarioState": "day2"
+}

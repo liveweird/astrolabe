@@ -12,8 +12,7 @@
 import { createHash } from "node:crypto";
 import { isoDateAt } from "../../scripts/sample-plan/days.mjs";
 import {
-  ACCOUNT, AUTH_HEADER_PATTERN, BASE, CLOUD_ID, F, REJECTED_TOKEN, STATUS, TYPE, TYPE_OF_LEVEL, fieldCatalog, issueTypeCatalog,
-  projectRow,
+  ACCOUNT, AUTH_HEADER_PATTERN, BASE, CLOUD_ID, F, REJECTED_TOKEN, STATUS, TYPE, fieldCatalog, issueTypeCatalog, projectRow, typeOf,
 } from "./catalog.mjs";
 
 export const SCENARIO = "jira-day2";
@@ -27,6 +26,7 @@ export const scopesOf = (world) => [
   { name: "sample", keys: world.keys },
   { name: "all", keys: [...world.keys, "E2E"] },
   { name: "imp", keys: ["IMP"] },
+  { name: "cov", keys: ["COV"] },
 ];
 
 /**
@@ -35,11 +35,15 @@ export const scopesOf = (world) => [
  */
 export const keyScopesOf = (world) => world.keys.map((key) => ({ name: key.toLowerCase(), keys: [key], only: ["fulltypes"] }));
 
-/** The issue-type sets a sweep/probe `issuetype in (...)` clause can name: the mapped levels from the milestone level upward. */
+/**
+ * The issue-type sets a sweep/probe `issuetype in (...)` clause can name: the mapped levels from the milestone level upward, and `s`, the
+ * child level below it (Story, Task, Bug: what the server's `typeIdsAtLevel(0)` names; the 1.4 census reads it).
+ */
 export const TYPE_SETS = [
   { name: "e", types: [TYPE.epic] },
   { name: "ei", types: [TYPE.epic, TYPE.initiative] },
   { name: "eip", types: [TYPE.epic, TYPE.initiative, TYPE.program] },
+  { name: "s", types: [TYPE.story, TYPE.task, TYPE.bug] },
 ];
 
 /** The fixed-order JSON the files are written in (2-space indent for mappings, minified for bodies). */
@@ -73,13 +77,13 @@ export function wrongTokenPattern(token = REJECTED_TOKEN) {
 const authHeader = { Authorization: { matches: AUTH_HEADER_PATTERN } };
 const statusObject = (key) => ({ id: STATUS[key].id, name: STATUS[key].name, statusCategory: STATUS[key].category });
 const typeObject = (issue) => {
-  const type = TYPE_OF_LEVEL[issue.level];
+  const type = typeOf(issue);
   return { id: type.id, name: type.name, subtask: false, ...(issue.omitLevel ? {} : { hierarchyLevel: type.hierarchyLevel }) };
 };
 const date = (issue, offset) => (offset === null ? null : isoDateAt(issue.anchor, offset));
 
 export function makeDocs(world) {
-  const all = [...world.issues, ...world.e2e.issues, ...world.imp.issues];
+  const all = [...world.issues, ...world.stories, ...world.e2e.issues, ...world.imp.issues, ...world.cov.issues];
   const byId = new Map(all.map((i) => [i.id, i]));
   const projectOf = new Map(world.projectRows.map((p) => [p.key, p]));
   const project = (key) => ({ id: projectOf.get(key).id, key, name: projectOf.get(key).name });
@@ -242,7 +246,7 @@ export function buildStub(world) {
       for (const set of TYPE_SETS) {
         const typeIds = set.types.map((t) => t.id);
         addPages(
-          `${scope.name}/fulltypes/${set.name}/${state}`, sweepable.filter((i) => typeIds.includes(TYPE_OF_LEVEL[i.level].id)),
+          `${scope.name}/fulltypes/${set.name}/${state}`, sweepable.filter((i) => typeIds.includes(typeOf(i).id)),
           base({
             jql: { and: [scopeJql, { matches: listClause("issuetype", typeIds) }, { doesNotMatch: UPDATED_CLAUSE }] },
             fields: { matches: FIELDS_CARRY_SUMMARY },
@@ -259,7 +263,7 @@ export function buildStub(world) {
       for (const set of has("sweep") ? TYPE_SETS : []) {
         const typeIds = set.types.map((t) => t.id);
         addPages(
-          `${scope.name}/sweep/${set.name}/${state}`, sweepable.filter((i) => typeIds.includes(TYPE_OF_LEVEL[i.level].id)),
+          `${scope.name}/sweep/${set.name}/${state}`, sweepable.filter((i) => typeIds.includes(typeOf(i).id)),
           base({ jql: { and: [scopeJql, { matches: listClause("issuetype", typeIds) }] }, fields: { equalTo: "id" } }), { idsOnly: true, state },
         );
       }

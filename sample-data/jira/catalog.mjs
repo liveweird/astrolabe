@@ -24,8 +24,14 @@ export const TYPE = {
 };
 export const ISSUE_TYPES = Object.values(TYPE);
 
-/** The plan level each Jira type carries: program -> Program, project -> Initiative, milestone -> Epic. */
-export const TYPE_OF_LEVEL = { program: TYPE.program, project: TYPE.initiative, milestone: TYPE.epic };
+/**
+ * The plan level each Jira type carries: program -> Program, project -> Initiative, milestone -> Epic. `story` is the child level BELOW the
+ * plan (Jira hierarchy level 0, no plan counterpart): the epics' stories; a Task or a Bug is a story-level issue with a per-issue `type`.
+ */
+export const TYPE_OF_LEVEL = { program: TYPE.program, project: TYPE.initiative, milestone: TYPE.epic, story: TYPE.story };
+
+/** The Jira type of a world issue: its own `type` override (a Task, a Bug) or the type its level carries. */
+export const typeOf = (issue) => issue.type ?? TYPE_OF_LEVEL[issue.level];
 
 export const STATUS = {
   todo: { id: "10000", name: "To Do", category: { id: 2, key: "new", name: "To Do", colorName: "blue-gray" } },

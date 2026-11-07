@@ -10,6 +10,7 @@ import java.time.Duration
 import java.util.Base64
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -136,7 +137,7 @@ class JiraStubFixtureTest {
         assertEquals(mapOf("Sub-task" to -1, "Story" to 0, "Task" to 0, "Bug" to 0, "Epic" to 1, "Initiative" to 2, "Program" to 3), types)
 
         val projects = api("/project/search").obj.getValue("values").jsonArray.map { it.str("key") }
-        assertEquals(listOf("CE", "PF", "CG", "DI", "OE", "E2E", "OUT", "IMP"), projects)
+        assertEquals(listOf("CE", "PF", "CG", "DI", "OE", "E2E", "OUT", "IMP", "COV"), projects)
     }
 
     @Test
@@ -170,7 +171,8 @@ class JiraStubFixtureTest {
         val (issues, pages) = search("project in ($SAMPLE) ORDER BY id ASC", fullFields)
         assertEquals(int("search", "sample/full/any/started", "issues"), issues.size)
         assertEquals(int("search", "sample/full/any/started", "pages"), pages)
-        assertEquals(int("totals", "issues"), issues.size)
+        // The untyped full read lists the plan's issues AND the stories under every fifth epic (1.4: totals.stories).
+        assertEquals(int("totals", "issues") + int("totals", "stories"), issues.size, "totals.issues (the plan levels) + totals.stories")
         assertEquals(issues.size, issues.map { it.str("id") }.toSet().size)
         val fields = issues.first { it.str("fields", "issuetype", "name") == "Epic" }.getValue("fields")
         assertTrue(fields.str("customfield_10022").startsWith("20"), "Target start is an ISO date")
@@ -203,6 +205,61 @@ class JiraStubFixtureTest {
         val incremental = search("project in ($SAMPLE) AND updated >= \"-15m\" ORDER BY updated ASC", fullFields)
         val recent = figure("incremental", "epics").jsonArray.map { it.jsonPrimitive.content }.toSet()
         assertEquals(recent, incremental.first.map { it.str("key") }.toSet())
+    }
+
+    @Test
+    fun `the child level answers the typed read and the sweep per scope, and COV's roll-up figures equal expected json`() {
+        val childTypes = listOf("story", "task", "bug").joinToString(",") { typeId(it) }
+        // The sweep: ids only, the stories of the sample scope and nothing else.
+        val (ids, sweepPages) = search("project in ($SAMPLE) AND issuetype in ($childTypes) ORDER BY id ASC", "id")
+        assertEquals(int("search", "sample/sweep/s/started", "issues"), ids.size)
+        assertEquals(int("totals", "stories"), ids.size)
+        assertEquals(int("search", "sample/sweep/s/started", "pages"), sweepPages)
+        assertTrue(ids.all { it.keys == setOf("id") }, "ids only")
+
+        // The typed full read of the sample scope: full documents, every one hanging under an epic.
+        val (stories, storyPages) = search("project in ($SAMPLE) AND issuetype in ($childTypes) ORDER BY id ASC", fullFields)
+        assertEquals(int("search", "sample/fulltypes/s/started", "issues"), stories.size)
+        assertEquals(int("search", "sample/fulltypes/s/started", "pages"), storyPages)
+        assertTrue(
+            stories.all { it.str("fields", "parent", "fields", "issuetype", "id") == typeId("epic") },
+            "every story hangs under an epic",
+        )
+        assertEquals(ids.map { it.str("id") }, stories.map { it.str("id") }, "the sweep and the full read list the same stories, in order")
+
+        // COV: the typed read of the child level, folded by parent, equals the roll-ups expected json promises.
+        val (children, covPages) = search("project in (\"COV\") AND issuetype in ($childTypes) ORDER BY id ASC", fullFields)
+        assertEquals(int("search", "cov/fulltypes/s/started", "issues"), children.size)
+        assertEquals(int("search", "cov/fulltypes/s/started", "pages"), covPages)
+        val rollups = figure("cov", "rollups").jsonObject
+        val parents = children.map { it.str("fields", "parent", "key") }.toSet()
+        assertEquals(rollups.keys, parents, "COV children hang under the rolled-up epics")
+        for ((epic, rollup) in rollups) {
+            val mine = children.filter { it.str("fields", "parent", "key") == epic }
+            assertEquals(rollup.str("children").toInt(), mine.size, "$epic children")
+            val done = mine.count { it.str("fields", "status", "statusCategory", "key") == "done" }
+            assertEquals(rollup.str("done").toInt(), done, "$epic done")
+            val points = mine.sumOf { it.str("fields", "customfield_10026").toDouble() }
+            assertEquals(rollup.str("points").toDouble(), points, "$epic points")
+        }
+
+        // COV's documents by key: type, parent and points as expected json lists them (a Task and a Bug among the stories).
+        for (issue in figure("cov", "issues").jsonArray) {
+            val doc = api("/issue/${issue.str("key")}").obj
+            assertEquals(issue.str("type"), doc.str("fields", "issuetype", "name"), issue.str("key"))
+            val parent = issue.jsonObject.getValue("parent")
+            if (parent is JsonNull) {
+                assertTrue("parent" !in doc.getValue("fields").jsonObject, issue.str("key"))
+            } else {
+                assertEquals(parent.jsonPrimitive.content, doc.str("fields", "parent", "key"), issue.str("key"))
+            }
+            val points = issue.jsonObject.getValue("points")
+            if (points !is JsonNull) {
+                assertEquals(points.jsonPrimitive.content.toDouble(), doc.str("fields", "customfield_10026").toDouble(), issue.str("key"))
+            }
+        }
+        assertEquals(setOf("COV-5"), figure("cov", "unlinkedOpen").jsonArray.map { it.jsonPrimitive.content }.toSet())
+        assertEquals(setOf("COV-10"), figure("cov", "unlinkedDone").jsonArray.map { it.jsonPrimitive.content }.toSet())
     }
 
     @Test
