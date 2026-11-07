@@ -504,4 +504,25 @@ class JiraConnectionTest {
             )
         }
     }
+
+    @Test
+    fun `deleting a connection removes its census rows and no other connection's`() = testApplication {
+        usePostgresTestcontainer()
+        val admin = seededClient("jiracensus", UserRole.ADMIN)
+        val doomed = admin.create(request()).id
+        val kept = admin.create(request()).id
+        fun rows(id: UInt) = jbScalar("SELECT count(*) FROM jira_issues WHERE connection_id = ?", id.toInt()) { it.getInt(1) }
+        for (id in listOf(doomed, kept)) {
+            jbSql(
+                "INSERT INTO jira_issues (connection_id, issue_id, issue_key, hierarchy_level, status_category, observed_at) " +
+                    "VALUES (?, '1', 'SP-1', 0, 'TODO', 1), (?, '2', 'SP-2', 1, 'DONE', 1)",
+                id.toInt(), id.toInt(),
+            )
+        }
+        assertEquals(HttpStatusCode.NoContent, admin.delete("$base/$doomed").status)
+        assertEquals(0, rows(doomed), "the mirror goes with its connection")
+        assertEquals(2, rows(kept), "another connection's mirror is untouched")
+        assertEquals(HttpStatusCode.NoContent, admin.delete("$base/$kept").status)
+        assertEquals(0, rows(kept))
+    }
 }

@@ -99,6 +99,7 @@ enum class RunnableState { RUNNABLE, GONE, DISABLED }
 /**
  * `affected` is the soft-deleted row count (0 -> 404); `name` and `host` are the row as STORED (the audit fields); `bindingsUnbound` the
  * connection's ACTIVE bindings soft-deleted with it, in the same transaction, and `runsDeleted` its hard-deleted runs (the audit's counts).
+ * `censusDeleted` (V23) is the hard-deleted census mirror rows: a log INFO count after the commit, NOT an audit field.
  */
 data class JiraConnectionDeleteOutcome(
     val affected: Int,
@@ -106,6 +107,7 @@ data class JiraConnectionDeleteOutcome(
     val host: String,
     val bindingsUnbound: Int,
     val runsDeleted: Int = 0,
+    val censusDeleted: Int = 0,
 )
 
 /** The audit/host form of a site URL: the tenant host only, never the scheme or a path. */

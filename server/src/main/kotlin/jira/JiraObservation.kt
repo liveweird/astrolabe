@@ -111,7 +111,7 @@ private const val MAX_ESTIMATE_EXPONENT = 64
  * bounded BEFORE any scaling: `BigDecimal("1e999999999").setScale(2)` throws `ArithmeticException` and `1e30000000` burns seconds of
  * CPU building its 30-million-digit expansion, so a hostile or odd number never reaches the arithmetic.
  */
-private fun estimateOf(value: JsonElement?): BigDecimal? {
+internal fun estimateOf(value: JsonElement?): BigDecimal? {
     val primitive = (value as? JsonPrimitive)?.takeIf { !it.isString } ?: return null
     if (primitive.content.length > MAX_ESTIMATE_LITERAL) return null
     val number = try {
@@ -127,7 +127,7 @@ private fun estimateOf(value: JsonElement?): BigDecimal? {
  * `fields.updated` as epoch millis through [parseJiraInstantEpochMillis] (the `+0000` spelling included); null when absent or odd -
  * including an instant the parser accepts but `Instant.toEpochMilli` cannot hold (`+999999999-12-31T...`, an `ArithmeticException`).
  */
-private fun instantOf(value: JsonElement?): Long? = value.text(MAX_UPDATED_TEXT)?.let {
+internal fun instantOf(value: JsonElement?): Long? = value.text(MAX_UPDATED_TEXT)?.let {
     try {
         parseJiraInstantEpochMillis(it)
     } catch (_: DateTimeException) {

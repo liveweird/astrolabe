@@ -79,6 +79,9 @@ class JiraConnectionService(
 
         /** The instant a mapping PUT last CHANGED the canonical document (null = never): a run after it must read in full. */
         val mappingChangedAt = long("mapping_changed_at").nullable()
+
+        /** V23: when the child level was last fully censused (null = never: the next run reads in full); [JiraIssueStore] writes it. */
+        val censusAt = long("census_at").nullable()
         val lastTestedAt = long("last_tested_at").nullable()
         val lastTestOk = bool("last_test_ok").nullable()
         val enabled = bool("enabled")
@@ -304,8 +307,12 @@ class JiraConnectionService(
         row[Connections.discovery] ?: NO_DISCOVERY
     }
 
-    /** Soft delete: the connection stops reading as active and frees its name. `affected` 0 = missing or already deleted (404). */
-    suspend fun delete(id: UInt): JiraConnectionDeleteOutcome = suspendTransaction(database) {
+    /** Soft delete: frees the name, `affected` 0 = missing/deleted (404). The census rows removed are logged after the commit. */
+    suspend fun delete(id: UInt): JiraConnectionDeleteOutcome = deleteInTransaction(id).also {
+        if (it.censusDeleted > 0) log.info("Jira connection {} deleted: {} census rows removed", id, it.censusDeleted)
+    }
+
+    private suspend fun deleteInTransaction(id: UInt): JiraConnectionDeleteOutcome = suspendTransaction(database) {
         val row = summary().where { (Connections.id eq id) and Connections.active() }
             .forUpdate(ForUpdateOption.PostgreSQL.ForNoKeyUpdate).toList().singleOrNull()
             ?: return@suspendTransaction JiraConnectionDeleteOutcome(0, "", "", 0)
@@ -321,6 +328,8 @@ class JiraConnectionService(
         // run list has no connection filter that would hide them). A run still in flight ends as a no-op finish (`SyncRunService.finish`
         // touches a row that is gone: false), and its chunk writes re-select ACTIVE bindings, of which there are none after the next step.
         val runsDeleted = runs.deleteForConnectionInTransaction(SyncKind.JIRA, id)
+        // The census mirror too (V23); a run's census write re-checks the connection is ACTIVE under a row lock (JiraIssueStore.upsert).
+        val censusDeleted = JiraIssueStore.deleteForConnectionInTransaction(id)
         // D2: the connection's bindings go with it, in this transaction - the node index has no connection column, so a binding left
         // active on a deleted connection would block its node for good. The row lock above made a racing bind wait (it locks the
         // connection `FOR SHARE`) and its committed binding is seen here.
@@ -329,7 +338,8 @@ class JiraConnectionService(
             it[markedAsDeleted] = true
             it[updatedAt] = stamp
         }
-        JiraConnectionDeleteOutcome(affected, row[Connections.name], jiraHostOf(row[Connections.siteUrl]), unbound, runsDeleted)
+        val host = jiraHostOf(row[Connections.siteUrl])
+        JiraConnectionDeleteOutcome(affected, row[Connections.name], host, unbound, runsDeleted, censusDeleted)
     }
 
     /** The stored mapping document and the discovery snapshot; null when the connection is missing or deleted. */

@@ -62,6 +62,7 @@ class JiraSchemaTest {
             st.executeUpdate("DELETE FROM jira_observations WHERE binding_id IN ($bindings)")
             st.executeUpdate("DELETE FROM jira_bindings WHERE connection_id IN ($mine)")
             st.executeUpdate("DELETE FROM sync_runs WHERE connection_id IN ($mine)")
+            st.executeUpdate("DELETE FROM jira_issues WHERE connection_id IN ($mine)")
             st.executeUpdate("DELETE FROM jira_connections WHERE name LIKE 'schema-%'")
         }
     }
@@ -295,5 +296,37 @@ class JiraSchemaTest {
         assertNull(sqlState("UPDATE sync_runs SET finished_at = 2, outcome = 'SUCCEEDED' WHERE connection_id = $c AND kind = 'JIRA'"))
         assertNull(run(c, trigger = "SCHEDULED"), "a finished run releases the claim")
         assertNull(run(c, finished = "3", outcome = "'ABANDONED'"), "finished runs pile up as history")
+    }
+
+    @Test
+    fun `a census row is one issue per connection with a closed status vocabulary, and census_at is nullable`() {
+        PostgresTestSupport.ensureMigrated()
+        val c = newConnection()
+        fun issue(id: String = "5", connection: Int = c, status: String = "TODO", level: String = "0") = sqlState(
+            "INSERT INTO jira_issues (connection_id, issue_id, issue_key, hierarchy_level, status_category, observed_at) " +
+                "VALUES ($connection, '$id', 'SP-5', $level, '$status', 1)",
+        )
+
+        assertNull(issue())
+        assertEquals(UNIQUE, issue(), "one mirror row per (connection, issue)")
+        assertNull(issue(connection = newConnection()), "another connection mirrors the same issue id")
+        assertEquals(FOREIGN_KEY, issue(connection = 999999999), "the connection must exist")
+        assertEquals(CHECK, issue(id = "6", status = "WAITING"), "the status vocabulary is closed")
+        assertEquals(CHECK, issue(id = "abc"), "the issue id is digits")
+        assertEquals(TOO_LONG, issue(id = "1".repeat(21)), "a 21-digit id never fits the column")
+        val tooLong = "INSERT INTO jira_issues (connection_id, issue_id, issue_key, hierarchy_level, status_category, summary, " +
+            "observed_at) VALUES ($c, '7', 'SP-7', 0, 'DONE', '${"x".repeat(256)}', 1)"
+        assertEquals(TOO_LONG, sqlState(tooLong), "the summary column is 255 wide: the store fits it first")
+        for ((column, width) in listOf("issue_key" to 50, "type_id" to 20, "parent_issue_id" to 20)) {
+            val wide = "INSERT INTO jira_issues (connection_id, issue_id, issue_key, hierarchy_level, status_category, observed_at" +
+                (if (column == "issue_key") "" else ", $column") + ") VALUES ($c, '8', " +
+                (if (column == "issue_key") "'${"K".repeat(width + 1)}'" else "'SP-8'") + ", 0, 'DONE', 1" +
+                (if (column == "issue_key") "" else ", '${"1".repeat(width + 1)}'") + ")"
+            assertEquals(TOO_LONG, sqlState(wide), "$column is $width wide")
+        }
+        assertEquals(1, int("SELECT count(*) FROM pg_indexes WHERE indexname = 'ix_jira_issues_parent'"), "the parent index exists")
+        assertEquals(0, int("SELECT count(census_at) FROM jira_connections WHERE id = $c"), "census_at is NULL on a new row")
+        assertNull(sqlState("UPDATE jira_connections SET census_at = 5 WHERE id = $c"))
+        assertNull(sqlState("UPDATE jira_connections SET census_at = NULL WHERE id = $c"), "and nullable again")
     }
 }
