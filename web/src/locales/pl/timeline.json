@@ -15,6 +15,7 @@
   "holidaysUnavailable": "Nie udało się wczytać świąt państwowych; dni wolne nie są zaznaczone.",
   "criticalToggle": "Ścieżka krytyczna",
   "jiraToggle": "Daty z Jiry",
+  "jiraTrayNote": "Jira: od {{start}} do {{end}}",
   "idle": {
     "title": "Przestoje",
     "introProject": "Ciągi co najmniej trzech dni roboczych w harmonogramie projektu, w których żaden jego kamień milowy nie jest w toku. Weekendy i święta państwowe nie liczą się. Tylko informacja – nic się nie przesuwa.",

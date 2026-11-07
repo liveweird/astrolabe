@@ -22,6 +22,7 @@ import org.junit.After
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -157,24 +158,29 @@ class JiraFlagSourceTest {
     }
 
     @Test
-    fun `a disabled connection raises nothing, answers no link and no site, and its siblings are unaffected`() = testApplication {
+    fun `a disabled connection raises and draws nothing but keeps its link and site, and its siblings are unaffected`() = testApplication {
         val f = fixture("jfs5")
         val disabled = ledger.track(f.w.admin.client.dvConnection(enabled = false))
         val (live, _) = f.milestone { DvObs("Not the name", 1) }
-        val (off, _) = f.milestone(connection = disabled) { DvObs("Not the name", 1, start = "2044-02-07", end = "2044-02-11") }
+        val (off, offBinding) = f.milestone(connection = disabled) { DvObs("Not the name", 1, start = "2044-02-07", end = "2044-02-11") }
         val answer = ask(emptyList(), listOf(live, off))
 
-        assertEquals(NodeExternal.NONE, answer.milestone(off))
+        // The node is still linked (the page can show and unlink the binding, and never offers a second link), with no dates and no flag.
+        val link = assertNotNull(answer.milestone(off).jira)
+        assertEquals(listOf(offBinding, disabled), listOf(link.bindingId, link.connectionId))
+        assertEquals(listOf<String?>(null, null), listOf(link.start, link.end), "no dates, so no bar")
+        assertEquals(emptyList(), answer.milestone(off).flags)
         assertEquals(1, answer.milestone(live).flags.size)
-        assertEquals(listOf(f.c), answer.sites.map { it.connectionId }, "the disabled connection is not a site")
-        val siteUrl = f.w.admin.client.dvView().connections.single { it.id == f.c }.siteUrl
-        assertEquals(listOf(JiraSite(f.c, siteUrl)), answer.sites)
+        val urls = f.w.admin.client.dvView().connections.associate { it.id to it.siteUrl }
+        val expectedSites = listOf(JiraSite(f.c, urls.getValue(f.c)), JiraSite(disabled, urls.getValue(disabled)))
+        assertEquals(expectedSites.sortedBy { it.connectionId }, answer.sites)
 
         // The same rule when the connection is switched off AFTER the binding raised a flag.
         jbSql("UPDATE jira_connections SET enabled = FALSE WHERE id = ?", f.c.toInt())
         val after = ask(emptyList(), listOf(live, off))
-        assertEquals(emptyList(), after.milestones.keys.toList())
-        assertEquals(emptyList(), after.sites)
+        assertEquals(listOf(live, off).toSet(), after.milestones.keys)
+        assertTrue(after.milestones.values.all { it.flags.isEmpty() && it.jira?.start == null && it.jira?.end == null })
+        assertEquals(2, after.sites.size)
     }
 
     @Test

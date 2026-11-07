@@ -1,19 +1,19 @@
 import { Link as RouterLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Badge, Button, Group, Text, VisuallyHidden } from "@mantine/core";
+import { Badge, Button, Group, Text } from "@mantine/core";
 import { IconBrandJira, IconLinkOff } from "@tabler/icons-react";
 import { deviationsForProjectPath, deviationsForTeamPath } from "../utils/deviationLinks";
 import { markKey, type JiraMark, type JiraMarks } from "../utils/jiraMarks";
 import JiraKeyLink from "./JiraKeyLink";
 
-/** The deviation count as a link into the Deviations page (orange when it holds a warning, gray when only infos); "No deviations seen" when there is none, "may be out of date" when a connection behind it is stale. */
-function DeviationCount({ to, warnings, infos, stale }: { to: string; warnings: number; infos: number; stale: boolean }) {
+/** The open-flag count as a link into the Deviations page (orange when it holds a warning, gray when only infos); "No deviations seen" when there is none. */
+function DeviationCount({ to, warnings, infos }: { to: string; warnings: number; infos: number }) {
   const { t } = useTranslation();
   const count = warnings + infos;
   if (count === 0) {
     return (
       <Badge color="gray" variant="light" tt="none" component={RouterLink} to={to}>
-        {t(stale ? "deviations.chip.inLineStale" : "deviations.chip.inLine")}
+        {t("deviations.chip.inLine")}
       </Badge>
     );
   }
@@ -25,9 +25,9 @@ function DeviationCount({ to, warnings, infos, stale }: { to: string; warnings: 
 }
 
 /**
- * The project page's Jira chip, in the facts line, from the SEPARATE `?projectId=` deviations query (so it appears only once that has answered,
- * and never when it fails): "Jira: ABC-12" when the project itself is linked, how many of its milestones are linked, and the deviation count of
- * both (a link into the Deviations page filtered to this project). Nothing at all while nothing is linked.
+ * The project page's Jira chip, in the facts line, built from the project VIEW's own `jira` blocks (`projectMarks`): "Jira: ABC-12" when the project
+ * itself is linked, how many of its milestones are linked, and the count of open flags of both (a link into the Deviations page filtered to this
+ * project). Nothing at all while nothing is linked.
  */
 export function ProjectJiraChip({ projectId, marks }: { projectId: number; marks: JiraMarks }) {
   const { t } = useTranslation();
@@ -42,54 +42,30 @@ export function ProjectJiraChip({ projectId, marks }: { projectId: number; marks
         </Text>
       )}
       {milestones > 0 && <Text size="sm">{t("deviations.chip.milestones", { count: milestones })}</Text>}
-      <DeviationCount to={deviationsForProjectPath(projectId)} warnings={marks.warnings} infos={marks.infos} stale={marks.stale} />
+      <DeviationCount to={deviationsForProjectPath(projectId)} warnings={marks.warnings} infos={marks.infos} />
     </Group>
   );
 }
 
-/** The team page's chip: how many of the team's milestones are linked and their deviation count (a link into the page filtered to the team). */
+/** The team page's chip: how many of the team's milestones are linked and their open-flag count (a link into the page filtered to the team). */
 export function TeamJiraChip({ teamId, marks }: { teamId: number; marks: JiraMarks }) {
   const { t } = useTranslation();
   if (marks.byNode.size === 0) return null;
   return (
     <Group gap="xs" role="group" aria-label={t("deviations.chip.groupAria")}>
       <Text size="sm">{t("deviations.chip.teamLinked", { count: marks.byNode.size })}</Text>
-      <DeviationCount to={deviationsForTeamPath(teamId)} warnings={marks.warnings} infos={marks.infos} stale={marks.stale} />
-    </Group>
-  );
-}
-
-/**
- * The team timeline's Jira cell for one milestone row: its key (an external link, out of the grid's tab order - the Deviations page, one click
- * away from the chip above, has the same link) and, when it deviates, the count in words for a screen reader. Empty for an unlinked milestone.
- */
-export function JiraRowMark({ mark }: { mark: JiraMark | undefined }) {
-  const { t } = useTranslation();
-  if (mark === undefined) return null;
-  const count = mark.warnings + mark.infos;
-  return (
-    <Group gap={6} wrap="nowrap">
-      <Text size="sm" component="span">
-        <JiraKeyLink issueKey={mark.key} siteUrl={mark.siteUrl} skipTab underline="always" />
-      </Text>
-      {count > 0 && (
-        <Badge size="sm" color={mark.warnings > 0 ? "orange" : "gray"} variant="light" tt="none">
-          <span aria-hidden="true">{count}</span>
-          <VisuallyHidden component="span">{t("deviations.chip.rowCount", { count })}</VisuallyHidden>
-        </Badge>
-      )}
+      <DeviationCount to={deviationsForTeamPath(teamId)} warnings={marks.warnings} infos={marks.infos} />
     </Group>
   );
 }
 
 /**
  * The project header's Jira action, offered with the project's own `can.edit` (the bind's and the unbind's guard is the owner chain or ADMIN, the same
- * arithmetic as `canManage`) and only once the chip query has answered (before that it would flash "Link" on a linked project; after a failure there
- * is neither): "Link to Jira…" while the project is not linked, "Unlink from Jira" once it is (the chip names the key).
+ * arithmetic as `canManage`): "Link to Jira…" while the project is not linked (the view says so), "Unlink from Jira" once it is (the chip names the key).
  */
 export function ProjectJiraButton({ project, marks, onLink, onUnlink }: { project: { id: number; can: { edit: boolean } }; marks: JiraMarks; onLink: () => void; onUnlink: (mark: JiraMark) => void }) {
   const { t } = useTranslation();
-  if (!project.can.edit || !marks.answered) return null;
+  if (!project.can.edit) return null;
   const own = marks.byNode.get(markKey("PROJECT", project.id));
   return own === undefined ? (
     <Button variant="default" leftSection={<IconBrandJira size={16} />} onClick={onLink}>

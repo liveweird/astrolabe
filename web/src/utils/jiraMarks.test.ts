@@ -1,52 +1,64 @@
 import { describe, expect, test } from "vitest";
-import { DEV_CONNECTION, endLater, item, view } from "../test/deviations";
-import { EMPTY_MARKS, jiraMarksOf, markKey } from "./jiraMarks";
+import type { Deviation } from "../api/deviations";
+import type { ProjectMilestone } from "../api/milestones";
+import type { JiraLink, PlanFlag } from "../api/roadmap";
+import type { TeamMilestone } from "../api/teams";
+import { detail } from "../test/deviations";
+import { markKey, projectMarks, teamMarks } from "./jiraMarks";
 
-describe("jiraMarksOf", () => {
-  test("one mark per linked node: the key, the connection's site, the deviations by severity and the server's totals", () => {
-    const project = item({
-      bindingId: 2,
-      level: "PROJECT",
-      node: { ...item().node, kind: "PROJECT", id: 7, name: "Invoices" },
-      jira: { ...item().jira, key: "E2E-1" },
-      deviations: [],
+const SITES = [{ connectionId: 2, siteUrl: "https://acme.atlassian.net" }];
+const link = (bindingId: number, key: string, connectionId = 2): JiraLink => ({ bindingId, connectionId, issueKey: key, start: "2044-01-04", end: "2044-01-08" });
+const endLater: Deviation = { kind: "END_DIFFERS", severity: "WARNING", detail: detail({ jira: "2044-01-08", plan: "2044-01-13", days: 3 }) };
+const flag = (kind: PlanFlag["kind"], severity: PlanFlag["severity"], over: Partial<PlanFlag> = {}): PlanFlag => ({ deviation: null, count: null, kind, severity, days: null, teamId: null, otherProjectId: null, ...over });
+const deviationFlag = (severity: PlanFlag["severity"] = "WARNING") => flag("JIRA_DEVIATION", severity, { deviation: endLater });
+
+const milestone = (id: number, over: Partial<ProjectMilestone & TeamMilestone> = {}) => ({ id, jira: null, flags: [], ...over }) as ProjectMilestone & TeamMilestone;
+const project = (over: Partial<{ jira: JiraLink | null; flags: PlanFlag[] }> = {}) => ({ id: 7, jira: null, flags: [], ...over }) as Parameters<typeof projectMarks>[0]["project"];
+
+describe("projectMarks", () => {
+  test("one mark per linked node, the project's own included: the key, the connection's site (from jiraSites), the binding and the open flags by severity", () => {
+    const marks = projectMarks({
+      jiraSites: SITES,
+      project: project({ jira: link(5, "E2E-1") }),
+      scheduled: [milestone(11, { jira: link(6, "E2E-3"), flags: [deviationFlag("WARNING"), deviationFlag("INFO")] }), milestone(12)],
+      unscheduled: [milestone(13, { jira: link(7, "E2E-4") })],
     });
-    const milestone = item({ deviations: [endLater(3), { kind: "ESTIMATE_NOT_COMPARABLE", severity: "INFO", detail: { jira: "8", plan: "5", days: null } }] });
-    const marks = jiraMarksOf(view({ items: [project, milestone] }));
-    expect(marks.byNode.get(markKey("PROJECT", 7))).toMatchObject({ key: "E2E-1", siteUrl: DEV_CONNECTION.siteUrl, warnings: 0, infos: 0, gone: false });
-    expect(marks.byNode.get(markKey("MILESTONE", 11))).toMatchObject({ key: "E2E-3", warnings: 1, infos: 0 });
-    expect(marks.warnings).toBe(1);
-    expect(marks.byNode.has(markKey("MILESTONE", 7))).toBe(false);
+    expect(marks.byNode.get(markKey("PROJECT", 7))).toEqual({ bindingId: 5, key: "E2E-1", siteUrl: "https://acme.atlassian.net", warnings: 0, infos: 0 });
+    expect(marks.byNode.get(markKey("MILESTONE", 11))).toEqual({ bindingId: 6, key: "E2E-3", siteUrl: "https://acme.atlassian.net", warnings: 1, infos: 1 });
+    expect(marks.byNode.get(markKey("MILESTONE", 13))).toMatchObject({ bindingId: 7, warnings: 0, infos: 0 });
+    expect(marks.byNode.has(markKey("MILESTONE", 12))).toBe(false);
+    expect([marks.warnings, marks.infos]).toEqual([1, 1]);
   });
 
-  test("a binding whose connection is not in the connections block still gets its mark, without a site (its key then reads as plain text)", () => {
-    const marks = jiraMarksOf(view({ items: [item({ connectionId: 99 })], connections: [DEV_CONNECTION] }));
+  test("the project's JIRA_MILESTONES roll-up is not counted (its milestone rows are): a deviation is never counted twice", () => {
+    const marks = projectMarks({
+      jiraSites: SITES,
+      project: project({ jira: link(5, "E2E-1"), flags: [deviationFlag("INFO"), flag("JIRA_MILESTONES", "WARNING", { count: 2 })] }),
+      scheduled: [milestone(11, { jira: link(6, "E2E-3"), flags: [deviationFlag()] })],
+      unscheduled: [],
+    });
+    expect(marks.byNode.get(markKey("PROJECT", 7))).toMatchObject({ warnings: 0, infos: 1 });
+    expect([marks.warnings, marks.infos]).toEqual([1, 1]);
+  });
+
+  test("a link whose connection is not in jiraSites still gets its mark, without a site (its key then reads as plain text)", () => {
+    const marks = projectMarks({ jiraSites: [], project: project(), scheduled: [milestone(11, { jira: link(6, "E2E-3", 99) })], unscheduled: [] });
     expect(marks.byNode.get(markKey("MILESTONE", 11))?.siteUrl).toBeNull();
   });
 
-  test("only OPEN deviations are counted: a current acknowledgement keeps the mark but not its counts, a changed-since one counts again", () => {
-    const ack = { at: 1, by: "Anna", current: true };
-    const acknowledged = item({ bindingId: 5, acknowledgement: ack });
-    const changed = item({ bindingId: 6, level: "PROJECT", node: { ...item().node, kind: "PROJECT", id: 7 }, acknowledgement: { ...ack, current: false }, deviations: [endLater(2)] });
-    const marks = jiraMarksOf(view({ items: [acknowledged, changed] }));
-    expect(marks.byNode.get(markKey("MILESTONE", 11))).toMatchObject({ bindingId: 5, key: "E2E-3", warnings: 0, infos: 0 });
-    expect(marks.byNode.get(markKey("PROJECT", 7))).toMatchObject({ bindingId: 6, warnings: 1, infos: 0 });
+  test("an unlinked document has no marks at all", () => {
+    expect(projectMarks({ jiraSites: [], project: project(), scheduled: [milestone(1)], unscheduled: [] })).toEqual({ byNode: new Map(), warnings: 0, infos: 0 });
   });
+});
 
-  test("a gone issue is marked gone", () => {
-    const gone = item({ jira: { ...item().jira, gone: true } });
-    expect(jiraMarksOf(view({ items: [gone] })).byNode.get(markKey("MILESTONE", 11))?.gone).toBe(true);
-  });
-
-  test("answered, the connections and 'stale' come with the marks: stale only for a connection one of the marked items uses", () => {
-    const failing = { ...DEV_CONNECTION, lastRun: { ...DEV_CONNECTION.lastRun!, outcome: "FAILED" as const, errorCode: "TIMEOUT" } };
-    const unrelated = { ...DEV_CONNECTION, id: 2, name: "Other", mappingOk: false };
-    const fresh = jiraMarksOf(view({ items: [item()], connections: [DEV_CONNECTION, unrelated] }));
-    expect(fresh).toMatchObject({ answered: true, stale: false });
-    expect(fresh.connections).toHaveLength(2);
-    expect(jiraMarksOf(view({ items: [item()], connections: [failing] })).stale).toBe(true);
-    expect(jiraMarksOf(view({ items: [item()], connections: [{ ...DEV_CONNECTION, enabled: false }] })).stale).toBe(true);
-    expect(jiraMarksOf(view({ items: [], connections: [failing] })).stale).toBe(false);
-    expect(EMPTY_MARKS).toMatchObject({ answered: false, connections: null });
+describe("teamMarks", () => {
+  test("the team's linked milestones, scheduled and in the tray, with their open flags summed", () => {
+    const marks = teamMarks({
+      jiraSites: SITES,
+      scheduled: [milestone(1, { jira: link(1, "E2E-3"), flags: [deviationFlag()] }), milestone(2)],
+      unscheduled: [milestone(3, { jira: link(3, "E2E-9"), flags: [deviationFlag("INFO")] })],
+    });
+    expect([...marks.byNode.keys()]).toEqual([markKey("MILESTONE", 1), markKey("MILESTONE", 3)]);
+    expect([marks.warnings, marks.infos]).toEqual([1, 1]);
   });
 });

@@ -13,12 +13,13 @@ import type { RovingTarget } from "../utils/timelineModel";
 /**
  * Flags as icons with counts: an orange warning triangle and/or a gray info circle (the words are for assistive technology; colour is never the
  * only carrier). A project row passes its own flags' counts, a work stream / program row the roll-up of its projects'. Nothing when there are none.
+ * `label` replaces the counts in words with the flags' own sentences (a milestone row's, on the project and team pages).
  */
-export function FlagCountsCell({ counts }: { counts: FlagCounts }) {
+export function FlagCountsCell({ counts, label }: { counts: FlagCounts; label?: string }) {
   const { t } = useTranslation();
   const { warnings, infos } = counts;
   if (warnings + infos === 0) return null;
-  const sentence = [warnings > 0 ? t("roadmap.facts.warnings", { count: warnings }) : null, infos > 0 ? t("roadmap.facts.infos", { count: infos }) : null].filter(Boolean).join(", ");
+  const sentence = label ?? [warnings > 0 ? t("roadmap.facts.warnings", { count: warnings }) : null, infos > 0 ? t("roadmap.facts.infos", { count: infos }) : null].filter(Boolean).join(", ");
   return (
     <Group gap={4} wrap="nowrap" title={sentence} data-flags={`${warnings},${infos}`}>
       {warnings > 0 && (

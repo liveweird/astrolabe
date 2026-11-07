@@ -31,11 +31,11 @@ import kotlin.test.assertTrue
  * and Jira has it in progress while the plan starts in 2045, `PROGRESS_MISMATCH`: three flags a row; the kernel's ceiling is seven),
  * 15 teams with the largest at 301 milestones like the sample plan's Platform. ONE world, built once through the import (a
  * scripted Jira site, [applyScaleImport]); each view is then read plain and with `?baseline=`, with the connection enabled and
- * then DISABLED (a disabled connection's rows answer `jira: null`, so the second pass, plain only, is the same documents without
- * the Jira payload: the difference is what the blocks cost); the roadmap service is also timed with and without the source, to
- * isolate the Jira computation. Sizes (plain and gzipped) and the median of five warm reads are
- * `scale-figure` lines ([ScaleFigures]), recorded in `timeline.md` "Measured figures (1.3)". The asserted bounds are the documented size
- * gates and loose time tripwires (at least 5x the dev-machine figure), never the machine's speed.
+ * then DISABLED (a disabled connection's rows keep a dateless `jira` link but raise no flag, so the second pass, plain only, is the
+ * same documents without the flags and the dates: the difference is what the flags and dates cost, not the link itself); the
+ * roadmap service is also timed with and without the source, to isolate the Jira computation. Sizes (plain and gzipped) and the median
+ * of five warm reads are `scale-figure` lines ([ScaleFigures]), recorded in `timeline.md` "Measured figures (1.3)". The asserted bounds
+ * are the documented size gates and loose time tripwires (at least 5x the dev-machine figure), never the machine's speed.
  */
 class JiraFlagsScaleTest {
     private class Reading(val bytes: Int, val gzip: Int, val p50: Double, val max: Double)

@@ -16,7 +16,7 @@ import type { PickedOption } from "./SearchPicker";
 /** A plan node the dialog is aimed at in advance (the project page's header and milestone rows): the node picker is skipped. */
 export type BindTarget = { level: JiraLevel; id: number; name: string };
 
-/** Where the dialog's connections come from: the page's own (the connection page) or the chip query's `connections[]` (the project page); null = not known (yet, or the query failed). */
+/** Where the dialog's connections come from: the page's own (the connection page) or `useJiraLinks`' `connections[]` (the project page, fetched while the dialog is open); null = not known (yet, or the query failed). */
 export type BindSource = { connections: readonly DeviationConnection[] | null; failed: boolean; retry: () => void };
 
 const LEVELS: readonly JiraLevel[] = ["PROJECT", "MILESTONE", "PROGRAM"];
@@ -26,7 +26,7 @@ const LEVELS: readonly JiraLevel[] = ["PROJECT", "MILESTONE", "PROGRAM"];
  * connections come from `GET /views/deviations` `connections[]` (the registry is ADMIN only) and only enabled ones are offered - with
  * exactly one, it is preselected; one whose mapping does not fit the site (`mappingOk: false`) is marked and refuses the link in words.
  * `target` fixes the node (the project page); otherwise a level select and a picker choose it. `connectionId` fixes the connection (the
- * connection page). It asks for nothing itself: `source` is what the page already has - on the project page the chip query's `connections[]`; when that
+ * connection page). It asks for nothing itself: `source` is what the page already has - on the project page `useJiraLinks`' `connections[]`; when that
  * query failed (or has not answered) the dialog says so and offers a retry. Every failure is an inline alert with the entered key kept (`bindFailure`); nothing is ever only a toast.
  */
 export default function JiraBindDialog({

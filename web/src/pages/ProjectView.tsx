@@ -22,6 +22,7 @@ import MilestoneScheduleModal from "../components/MilestoneScheduleModal";
 import PageHeader from "../components/PageHeader";
 import CriticalChain from "../components/CriticalChain";
 import IdleGaps from "../components/IdleGaps";
+import JiraBarsToggle from "../components/JiraBarsToggle";
 import JiraBindDialog, { type BindTarget } from "../components/JiraBindDialog";
 import { ProjectJiraButton, ProjectJiraChip } from "../components/JiraChips";
 import JiraUnlinkModal from "../components/JiraUnlinkModal";
@@ -32,13 +33,15 @@ import TimelineDndContext from "../components/TimelineDndContext";
 import { useDeleteConfirm } from "../hooks/useDeleteConfirm";
 import { useBaselinePick, useDropUnknownPick } from "../hooks/useBaselinePick";
 import { useDialogFocus } from "../hooks/useDialogFocus";
-import { useViewJiraLinks } from "../hooks/useDeviations";
+import { useJiraLinks } from "../hooks/useDeviations";
+import { useJiraBarsPick } from "../hooks/useJiraBarsPick";
 import { useJiraUnlink } from "../hooks/useJiraUnlink";
 import { useMilestoneSchedule } from "../hooks/useMilestoneSchedule";
 import { isBoolean, isOneOf, useStoredState } from "../hooks/useStoredState";
 import { baselineDays, spanBadges } from "../utils/baselineOverlay";
 import { localIsoDate } from "../utils/isoDate";
-import { markKey, type JiraMark, type JiraMarks } from "../utils/jiraMarks";
+import { jiraPageRange } from "../utils/jiraBars";
+import { markKey, projectMarks, type JiraMark, type JiraMarks } from "../utils/jiraMarks";
 import { planPath } from "../utils/planLinks";
 import { conflictCount, linksOfMilestone } from "../utils/projectDependencies";
 import { refreshJiraAndTimelines, refreshQueriesAfterMutation } from "../utils/queryRefresh";
@@ -60,6 +63,9 @@ type Editor =
   | { kind: "dependency"; successor: EndpointRef | null }
   | { kind: "editDependency"; dependency: ProjectDependency }
   | { kind: "jira"; target: BindTarget };
+
+/** The bind dialog is open (the connections it offers are asked for only then). */
+const isJiraEditor = (editor: Editor | null): editor is Extract<Editor, { kind: "jira" }> => editor?.kind === "jira";
 
 /** One badge per non-zero drift figure: orange when the project runs LATER than its target (a warning), gray when it is ahead. */
 function driftBadges(drift: NonNullable<ProjectViewDocument["drift"]>, t: TFunction): { key: string; label: string; late: boolean }[] {
@@ -108,7 +114,7 @@ function ProjectFacts({ view, marks }: { view: ProjectViewDocument; marks: JiraM
           {t("timeline.idle.badge", { count: view.idleGaps.length })}
         </Badge>
       )}
-      {/* In this row, not under it: the chip arrives with its own query, and nothing below may move when it does. */}
+      {/* In this row, not under it: the chip comes and goes with the links (a bind, an unlink), and nothing below may move when it does. */}
       <ProjectJiraChip projectId={view.project.id} marks={marks} />
     </Group>
   );
@@ -135,12 +141,14 @@ function ProjectPage({ id }: { id: number }) {
   const schedule = useMilestoneSchedule(id, pick);
   const { view, query } = schedule;
   const dropping = useDropUnknownPick(query.error, pick, setPick);
-  // The Jira chip and the Link actions know what is linked from their OWN query, asked once the view is in: a failed or slow answer shows no chip and never touches the timeline.
-  const jira = useViewJiraLinks({ projectId: id }, view);
+  // The "Jira dates" toggle (1.3, remembered, on by default; offered only where the view links a Jira site).
+  const jiraBars = useJiraBarsPick();
   const [zoom, setZoom] = useStoredState<Zoom>("timeline.zoom", "week", isOneOf(MILESTONE_ZOOMS));
   // The critical-path highlight (v0.7), remembered like the zoom: the Slack column, the bar and arrow emphasis, the badges and the Critical chain section.
   const [criticalPath, setCriticalPath] = useStoredState("timeline.criticalPath", false, isBoolean);
   const [editor, setEditor] = useState<Editor | null>(null);
+  // What is linked comes from the view itself; the bind dialog alone needs the connections to offer, asked while it is open.
+  const links = useJiraLinks(id, isJiraEditor(editor));
   const [scheduling, setScheduling] = useState<Scheduling | null>(null);
   useDialogFocus(editor !== null);
   useDialogFocus(scheduling !== null);
@@ -189,9 +197,10 @@ function ProjectPage({ id }: { id: number }) {
   }
 
   const { project } = view;
+  const marks = projectMarks(view);
   // Every day the page shows: the milestones, the window and every link end (a ghost row's, so an arrow to a far-away one is in range).
   const linkEnds = view.dependencies.flatMap((d) => [d.predecessor, d.successor]);
-  const dates = [
+  const planDates = [
     ...view.scheduled.flatMap((m) => [m.startDate, m.endDate]),
     ...linkEnds.flatMap((e) => [e.startDate, e.endDate]),
     project.targetStart,
@@ -200,6 +209,8 @@ function ProjectPage({ id }: { id: number }) {
   ].filter(
     (d): d is string => d !== null,
   );
+  // The Jira window (the plan's own dates padded by a year) bounds the shadow bars and what they add to the range: a mistyped Jira date cannot stretch the page.
+  const { window: jiraWindowNow, dates } = jiraPageRange(jiraBars.shown, planDates, view.scheduled, today);
   if (dates.length > 0) {
     const min = dates.reduce((a, b) => (b < a ? b : a));
     const max = dates.reduce((a, b) => (b > a ? b : a));
@@ -231,8 +242,8 @@ function ProjectPage({ id }: { id: number }) {
     schedule: scheduleByButton,
     addDependency: (milestone) => setEditor({ kind: "dependency", successor: { kind: "MILESTONE", id: milestone.id } }),
     linkJira: (milestone) => setEditor({ kind: "jira", target: { level: "MILESTONE", id: milestone.id, name: milestone.name } }),
-    jiraKeyOf: (milestone) => jira.byNode.get(markKey("MILESTONE", milestone.id))?.key,
-    unlinkJira: (milestone) => requestUnlink(jira.byNode.get(markKey("MILESTONE", milestone.id)), milestone.name),
+    jiraKeyOf: (milestone) => marks.byNode.get(markKey("MILESTONE", milestone.id))?.key,
+    unlinkJira: (milestone) => requestUnlink(marks.byNode.get(markKey("MILESTONE", milestone.id)), milestone.name),
   };
   const milestoneCount = view.scheduled.length + view.unscheduled.length;
   const canTrayEdit = view.unscheduled.some((m) => m.can.schedule);
@@ -254,6 +265,7 @@ function ProjectPage({ id }: { id: number }) {
     <>
       <BaselinePicker pick={pick} onPick={setPick} current={view.baseline} disabled={schedule.pending} />
       {criticalToggle}
+      {view.jiraSites.length > 0 && <JiraBarsToggle shown={jiraBars.shown} onChange={jiraBars.setShown} />}
     </>
   );
   const saved = async () => {
@@ -300,7 +312,7 @@ function ProjectPage({ id }: { id: number }) {
             )}
             <ProjectJiraButton
               project={project}
-              marks={jira}
+              marks={marks}
               onLink={() => setEditor({ kind: "jira", target: { level: "PROJECT", id: project.id, name: project.name } })}
               onUnlink={(mark) => requestUnlink(mark, project.name)}
             />
@@ -312,7 +324,7 @@ function ProjectPage({ id }: { id: number }) {
           </>
         }
       />
-      <ProjectFacts view={view} marks={jira} />
+      <ProjectFacts view={view} marks={marks} />
 
       {query.isError && <ErrorAlert error={query.error} title={t("project.loadFailed")} />}
       {/* The two notices below are visible only: the status region below says them (an Alert's implicit role="alert" would read each twice). */}
@@ -361,6 +373,7 @@ function ProjectPage({ id }: { id: number }) {
               label={t("project.timelineAria")}
               criticalPath={criticalPath}
               toolbar={toolbar}
+              jira={jiraWindowNow}
             />
           </Stack>
           <Stack gap="xs">
@@ -400,9 +413,9 @@ function ProjectPage({ id }: { id: number }) {
           onSaved={saved}
         />
       )}
-      {editor?.kind === "jira" && (
+      {isJiraEditor(editor) && (
         <JiraBindDialog
-          source={{ connections: jira.connections, failed: jira.failed, retry: jira.retry }}
+          source={links}
           target={editor.target}
           onClose={closeEditor}
           onBound={async () => {

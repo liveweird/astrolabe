@@ -4,8 +4,8 @@ import { isBoolean, useStoredState } from "./useStoredState";
 const JIRA_BARS_KEY = "timeline.jiraBars";
 
 /**
- * Whether the timeline pages draw the Jira shadow bar (1.3, the "Jira dates" toggle): ONE browser-remembered boolean for the timeline pages that draw it (the
- * roadmap and programs pages; the project and team pages join in C9), through `localStorage` and `useStoredState` (best-effort: without storage the choice lives
+ * Whether the timeline pages draw the Jira shadow bar (1.3, the "Jira dates" toggle): ONE browser-remembered boolean shared by the four timeline pages (the
+ * roadmap, programs, project and team pages), through `localStorage` and `useStoredState` (best-effort: without storage the choice lives
  * for the page only). **On by default**: seeing
  * Jira's dates beside the plan's is the point of the markers, and the bar is a thin outline; whoever finds it noisy hides it once. A stored value that
  * is not a boolean is ignored.

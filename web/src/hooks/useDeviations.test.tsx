@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { DEV_CONNECTION, item, view } from "../test/deviations";
 import { jsonResponse } from "../test/http";
 import { DEVIATIONS_POLL_MS, RUN_POLL_MAX_MS } from "../utils/syncRuns";
-import { useDeviations, useJiraLinks, useViewJiraLinks } from "./useDeviations";
+import { useDeviations, useJiraLinks } from "./useDeviations";
 
 const advance = (ms: number) => act(async () => { await vi.advanceTimersByTimeAsync(ms); });
 const URL_ = "/api/v1/views/deviations";
@@ -77,47 +77,29 @@ describe("useDeviations", () => {
     expect(DEVIATIONS_POLL_MS).toBe(10_000);
   });
 
-  test("the chip asks for its scope, answers with its connections, and a changed plan revision re-reads it (kept data shows meanwhile)", async () => {
+  test("the bind dialog's connections are asked for the project, only while enabled, and answered as connections[]", async () => {
     mockFetch.mockImplementation(() => Promise.resolve(jsonResponse(200, view({ items: [item()] }))));
-    let revision = 10;
-    const links = renderHook(() => useViewJiraLinks({ projectId: 7 }, { revision }), { wrapper });
+    const links = renderHook(({ enabled }) => useJiraLinks(7, enabled), { wrapper, initialProps: { enabled: false } });
+    await advance(0);
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(links.result.current).toMatchObject({ connections: null, failed: false });
+    links.rerender({ enabled: true });
     await advance(0);
     expect(mockFetch.mock.calls.at(-1)?.[0]).toBe(`${URL_}?projectId=7`);
-    expect(links.result.current).toMatchObject({ answered: true, failed: false });
     expect(links.result.current.connections).toEqual([DEV_CONNECTION]);
     expect(chipCalls()).toBe(1);
-    links.rerender();
-    await advance(0);
-    expect(chipCalls()).toBe(1);
-    revision = 11;
-    links.rerender();
-    // The previous answer stays while the new one is on its way.
-    expect(links.result.current.answered).toBe(true);
-    await advance(0);
-    expect(chipCalls()).toBe(2);
   });
 
   test("a malformed id is never asked, and a failed answer is reported as failed with a retry", async () => {
     mockFetch.mockImplementation(() => Promise.resolve(jsonResponse(500, { title: "x", status: 500 })));
-    renderHook(() => useViewJiraLinks({ projectId: Number.NaN }, { revision: 1 }), { wrapper });
+    renderHook(() => useJiraLinks(Number.NaN, true), { wrapper });
     await advance(0);
     expect(mockFetch).not.toHaveBeenCalled();
-    const failing = renderHook(() => useJiraLinks({ projectId: 7 }), { wrapper });
+    const failing = renderHook(() => useJiraLinks(7, true), { wrapper });
     await advance(0);
-    expect(failing.result.current).toMatchObject({ answered: false, failed: true, connections: null });
+    expect(failing.result.current).toMatchObject({ connections: null, failed: true });
     failing.result.current.retry();
     await advance(0);
     expect(chipCalls()).toBe(2);
-  });
-
-  test("the chip's marks stay empty while the query is loading or failed - and it is not asked at all when disabled", async () => {
-    mockFetch.mockImplementation(() => Promise.resolve(jsonResponse(500, { title: "x", status: 500 })));
-    const failing = renderHook(() => useJiraLinks({ teamId: 3 }), { wrapper });
-    await advance(0);
-    expect(failing.result.current.byNode.size).toBe(0);
-    mockFetch.mockClear();
-    renderHook(() => useJiraLinks({ teamId: 4 }, false), { wrapper });
-    await advance(0);
-    expect(mockFetch).not.toHaveBeenCalled();
   });
 });

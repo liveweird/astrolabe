@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { jiraRangeDates, jiraWindow, visibleJiraDates } from "./jiraBars";
+import { jiraPageRange, jiraRangeDates, jiraWindow, visibleJiraDates } from "./jiraBars";
 
 describe("jiraWindow", () => {
   test("the plan's earliest and latest date, a year either side", () => {
@@ -38,4 +38,23 @@ test("jiraRangeDates lists both visible ends of each row that draws a bar, and n
   const window = { from: "2025-03-02", to: "2028-01-15" };
   const rows = [{ jira: { start: "2026-03-09", end: "2206-04-03" } }, { jira: { start: "2026-03-09", end: null } }, { jira: null }, { jira: { start: "2206-01-01", end: "2206-02-01" } }];
   expect(jiraRangeDates(rows, window)).toEqual(["2026-03-09", "2028-01-15"]);
+});
+
+describe("jiraPageRange", () => {
+  const rows = [{ jira: { start: "2027-03-01", end: "2027-03-05" } }, { jira: null }, { jira: { start: "2027-04-01", end: null } }];
+
+  test("with the toggle off: no window and the plan's own dates only", () => {
+    expect(jiraPageRange(false, ["2027-01-11", "2027-01-22"], rows, "2027-01-01")).toEqual({ window: null, dates: ["2027-01-11", "2027-01-22"] });
+  });
+
+  test("with it on: the window a year either side of the plan, and the Jira dates of the rows that draw a bar join the range", () => {
+    expect(jiraPageRange(true, ["2027-01-11", "2027-01-22"], rows, "2027-01-01")).toEqual({
+      window: { from: "2026-01-11", to: "2028-01-22" },
+      dates: ["2027-01-11", "2027-01-22", "2027-03-01", "2027-03-05"],
+    });
+  });
+
+  test("a Jira range wholly outside the window adds nothing", () => {
+    expect(jiraPageRange(true, ["2027-01-11"], [{ jira: { start: "2040-01-01", end: "2040-01-05" } }], "2027-01-01").dates).toEqual(["2027-01-11"]);
+  });
 });

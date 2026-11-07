@@ -47,6 +47,22 @@ export function jiraRangeDates(rows: readonly { jira: Pick<JiraLink, "start" | "
   });
 }
 
+/**
+ * What a page that draws the Jira bars of its milestone rows (the project and team pages) needs: the window while the "Jira dates" toggle is `shown`
+ * (`null` while it is off: no bar is drawn and no Jira date joins the range), and the dates its range follows - the plan's own `planDates`, plus the
+ * Jira dates of `rows` inside the window.
+ */
+export function jiraPageRange(
+  shown: boolean,
+  planDates: readonly string[],
+  rows: readonly { jira: Pick<JiraLink, "start" | "end"> | null }[],
+  today: string,
+): { window: JiraWindow | null; dates: string[] } {
+  if (!shown) return { window: null, dates: [...planDates] };
+  const window = jiraWindow(planDates, today);
+  return { window, dates: [...planDates, ...jiraRangeDates(rows, window)] };
+}
+
 /** The bar's id: `jira:<node id>`. */
 const jiraBarId = (key: number | string) => `jira:${key}`;
 

@@ -19,6 +19,7 @@ import PageHeader from "../components/PageHeader";
 import TeamCapacity from "../components/TeamCapacity";
 import TeamEditorModal from "../components/TeamEditorModal";
 import TeamProposal from "../components/TeamProposal";
+import JiraBarsToggle from "../components/JiraBarsToggle";
 import { TeamJiraChip } from "../components/JiraChips";
 import TeamTimeline, { TeamTray, type TeamActions } from "../components/TeamTimeline";
 import IdleGaps from "../components/IdleGaps";
@@ -30,10 +31,12 @@ import { isOneOf, useStoredState } from "../hooks/useStoredState";
 import { useProposalLock } from "../hooks/useProposalLock";
 import { useScheduleProposal } from "../hooks/useScheduleProposal";
 import { useTeamOrder } from "../hooks/useTeamOrder";
-import { useJiraColumn, useViewJiraLinks } from "../hooks/useDeviations";
+import { useJiraBarsPick } from "../hooks/useJiraBarsPick";
 import { useTeamSchedule } from "../hooks/useTeamSchedule";
 import { baselineDays } from "../utils/baselineOverlay";
 import { localIsoDate } from "../utils/isoDate";
+import { jiraPageRange } from "../utils/jiraBars";
+import { teamMarks } from "../utils/jiraMarks";
 import { conflictCountOf } from "../utils/dependencyArrows";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { loadErrorMessage } from "../utils/saveError";
@@ -196,9 +199,8 @@ function TeamPage({ id }: { id: number }) {
   const { pick, setPick } = useBaselinePick();
   const schedule = useTeamSchedule(id, pick);
   const { view, query } = schedule;
-  // The Jira chip and column come from their OWN query, asked once the view is in: a failed or slow answer shows nothing and never touches the timeline.
-  const jira = useViewJiraLinks({ teamId: id }, view);
-  const jiraColumn = useJiraColumn(id, jira);
+  // The "Jira dates" toggle (1.3, remembered, on by default; offered only where the view links a Jira site).
+  const jiraBars = useJiraBarsPick();
   const dropping = useDropUnknownPick(query.error, pick, setPick);
   const order = useTeamOrder(id, view, schedule.announce, pick, schedule.placeholder);
   const proposal = useScheduleProposal(id, schedule.announce, schedule.placeholder);
@@ -273,9 +275,11 @@ function TeamPage({ id }: { id: number }) {
   const { team } = view;
   // Every day the page shows: the scheduled milestones (the weekly strip lies inside their span by construction) and, while a proposal
   // previews, every proposed span (so the range only grows and no proposed bar sits outside it).
-  const dates = [...view.scheduled.flatMap((m) => [m.startDate, m.endDate]), ...(open === null ? [] : proposalDays(open.moves)), ...baselineDays(view.baseline)].filter(
+  const planDates = [...view.scheduled.flatMap((m) => [m.startDate, m.endDate]), ...(open === null ? [] : proposalDays(open.moves)), ...baselineDays(view.baseline)].filter(
     (d): d is string => d !== null,
   );
+  // The Jira window (the plan's own dates padded by a year) bounds the shadow bars and what they add to the range: a mistyped Jira date cannot stretch the page.
+  const { window: jiraWindowNow, dates } = jiraPageRange(jiraBars.shown, planDates, view.scheduled, today);
   if (dates.length > 0) {
     const min = dates.reduce((a, b) => (b < a ? b : a));
     const max = dates.reduce((a, b) => (b > a ? b : a));
@@ -338,7 +342,7 @@ function TeamPage({ id }: { id: number }) {
         }
       />
       <TeamFacts view={view} />
-      <TeamJiraChip teamId={id} marks={jira} />
+      <TeamJiraChip teamId={id} marks={teamMarks(view)} />
 
       {query.isError && <ErrorAlert error={query.error} title={t("teams.view.loadFailed")} />}
       {/* The notices below are visible only: the status region below says them (an Alert's implicit role="alert" would read each twice). */}
@@ -405,9 +409,13 @@ function TeamPage({ id }: { id: number }) {
               actions={actions}
               label={t("teams.view.timelineAria")}
               proposal={open ?? undefined}
-              jira={jira.byNode}
-              jiraColumn={jiraColumn}
-              toolbar={<BaselinePicker pick={pick} onPick={setPick} current={view.baseline} disabled={busy || locked} />}
+              jira={jiraWindowNow}
+              toolbar={
+                <>
+                  <BaselinePicker pick={pick} onPick={setPick} current={view.baseline} disabled={busy || locked} />
+                  {view.jiraSites.length > 0 && <JiraBarsToggle shown={jiraBars.shown} onChange={jiraBars.setShown} />}
+                </>
+              }
             />
           </Stack>
           {open !== null && (
@@ -434,7 +442,7 @@ function TeamPage({ id }: { id: number }) {
                 {team.can.schedule ? t("project.trayIntro") : t("project.trayIntroReadOnly")}
               </Text>
             )}
-            <TeamTray view={view} actions={actions} label={t("teams.view.trayAria")} previewing={open !== null} jira={jira.byNode} jiraColumn={jiraColumn} />
+            <TeamTray view={view} actions={actions} label={t("teams.view.trayAria")} previewing={open !== null} />
           </Stack>
         </TimelineDndContext>
       )}

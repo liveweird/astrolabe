@@ -21,8 +21,9 @@ import ch.nokillswit.planning.PlanFlag
  * lock.
  *
  * What a row gets:
- * - a binding through a DISABLED connection is invisible: no link, no flag, no site (the registry's `enabled` switch stops the
- *   timeline from drawing a source nobody refreshes; its bindings still list on the Deviations page);
+ * - a binding through a DISABLED connection keeps its [JiraLink] and its site but says nothing else: dates null (so no bar is drawn), no
+ *   flag, no roll-up contribution (the registry's `enabled` switch stops the timeline from raising or drawing a source nobody refreshes;
+ *   the page still knows the node is linked, so it can show and unlink the binding and never offers a second link);
  * - [JiraLink] otherwise, whatever the deviations: the observed dates are null when the item was never observed or is `gone`;
  * - one [FlagKind.JIRA_DEVIATION] per deviation while the binding is OPEN (it deviates and its acknowledgement is not CURRENT; an
  *   acknowledgement that went stale raises again), at the deviation's severity; `ESTIMATE_NOT_COMPARABLE` ("a figure exists and cannot
@@ -40,8 +41,11 @@ internal class JiraFlagSource(private val deviations: DeviationViewService) : Ex
             referencedConnectionsOnly = true,
         )
         val computed = deviations.computeInTransaction(scope, null, request.calendar, deviations.today())
-        val enabled = computed.connections.filter { it.enabled }.associateBy { it.id }
-        val rows = computed.candidates.filter { it.item.connectionId in enabled }.map { FlagRow(it, it.link(), it.raised()) }
+        val connections = computed.connections.associateBy { it.id }
+        val rows = computed.candidates.filter { it.item.connectionId in connections }.map {
+            val live = connections.getValue(it.item.connectionId).enabled
+            FlagRow(it, it.link(live), if (live) it.raised() else emptyList())
+        }
 
         val milestones = rows.filter { it.candidate.node.ref.level == JiraLevel.MILESTONE }
         val named = request.projectIds?.toSet()
@@ -54,7 +58,7 @@ internal class JiraFlagSource(private val deviations: DeviationViewService) : Ex
             val own = ownProjects[id]
             NodeExternal(own?.link, (own?.flags.orEmpty() + listOfNotNull(rollUps[id])).sortedWith(FLAG_ORDER))
         }
-        val sites = rows.map { it.link.connectionId }.distinct().sorted().map { JiraSite(it, enabled.getValue(it).siteUrl) }
+        val sites = rows.map { it.link.connectionId }.distinct().sorted().map { JiraSite(it, connections.getValue(it).siteUrl) }
         return ExternalFlags(
             projects = projects,
             milestones = milestones.associate { it.candidate.node.ref.id to NodeExternal(it.link, it.flags) },
@@ -62,15 +66,16 @@ internal class JiraFlagSource(private val deviations: DeviationViewService) : Ex
         )
     }
 
-    /** A live binding of an enabled connection: its link and the flags it raises ([flags] empty = clean, acknowledged or noise only). */
+    /** A live binding: its link and the flags it raises ([flags] empty = clean, acknowledged, noise only or a disabled connection). */
     private class FlagRow(val candidate: Candidate, val link: JiraLink, val flags: List<PlanFlag>)
 
-    private fun Candidate.link(): JiraLink {
+    private fun Candidate.link(live: Boolean): JiraLink {
         val seen = item.jira
+        val dated = live && !seen.gone
         return JiraLink(
             item.bindingId, item.connectionId, seen.key,
-            start = seen.start.takeUnless { seen.gone },
-            end = seen.end.takeUnless { seen.gone },
+            start = seen.start.takeIf { dated },
+            end = seen.end.takeIf { dated },
         )
     }
 

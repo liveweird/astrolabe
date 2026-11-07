@@ -228,13 +228,7 @@
     "teamLinked_few": "{{count}} kamienie milowe powiązane z Jirą",
     "teamLinked_many": "{{count}} kamieni milowych powiązanych z Jirą",
     "teamLinked_other": "{{count}} kamienia milowego powiązanego z Jirą",
-    "column": "Jira",
-    "rowCount_one": "{{count}} odchylenie",
-    "rowCount_few": "{{count}} odchylenia",
-    "rowCount_many": "{{count}} odchyleń",
-    "rowCount_other": "{{count}} odchylenia",
-    "groupAria": "Powiązania z Jirą",
-    "inLineStale": "Nie widać odchyleń, dane mogą być nieaktualne"
+    "groupAria": "Powiązania z Jirą"
   },
   "link": {
     "action": "Powiąż z Jirą…",

@@ -15,6 +15,7 @@
   "holidaysUnavailable": "Public holidays could not be loaded; days off are not marked.",
   "criticalToggle": "Critical path",
   "jiraToggle": "Jira dates",
+  "jiraTrayNote": "Jira: {{start}} to {{end}}",
   "idle": {
     "title": "Idle gaps",
     "introProject": "Runs of three or more working days inside the project's schedule when none of its milestones is in progress. Weekends and public holidays do not count. Information only — nothing moves.",

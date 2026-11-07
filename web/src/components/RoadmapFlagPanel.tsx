@@ -2,9 +2,8 @@ import { Anchor, Badge, Button, Stack, Table, Text, Title } from "@mantine/core"
 import { IconTarget } from "@tabler/icons-react";
 import { Link as RouterLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import type { TFunction } from "i18next";
-import type { JiraSite, PlanFlag, RoadmapProject } from "../api/roadmap";
-import { deviationSentence } from "../utils/deviations";
+import type { JiraSite } from "../api/roadmap";
+import { flagSentence, type FlagNames } from "../utils/flagSentences";
 import { siteUrls } from "../utils/jiraBars";
 import { projectPath } from "../utils/planLinks";
 import type { FlagEntry } from "../utils/roadmapRows";
@@ -13,37 +12,6 @@ import ScrollRegion from "./ScrollRegion";
 import TableDisclosure from "./TableDisclosure";
 
 const TABLE_MAX_HEIGHT = 420;
-
-/** The names a flag's sentence can mention: the other project of a rank inversion, the shared team. */
-export type FlagNames = { project: (id: number) => string; team: (id: number) => string };
-
-/**
- * A flag in words, by kind (never colour alone); the day counts are calendar days, the sentences name the project and team they compare. A
- * `JIRA_DEVIATION` is the deviation page's own sentence for `flag.deviation` (`utils/deviations.ts`, working days) behind the project's Jira key.
- */
-function flagSentence(t: TFunction, flag: PlanFlag, names: FlagNames, project: RoadmapProject): string {
-  const count = flag.days ?? 0;
-  switch (flag.kind) {
-    case "DRIFT_END_LATE":
-      return t("roadmap.flag.endLate", { count });
-    case "DRIFT_START_LATE":
-      return t("roadmap.flag.startLate", { count });
-    case "DRIFT_END_EARLY":
-      return t("roadmap.flag.endEarly", { count });
-    case "RANK_INVERSION": {
-      const other = flag.otherProjectId === null ? "" : names.project(flag.otherProjectId);
-      return flag.teamId === null ? t("roadmap.flag.inversionNoTeam", { count, other }) : t("roadmap.flag.inversion", { count, other, team: names.team(flag.teamId) });
-    }
-    case "JIRA_DEVIATION": {
-      // Without the evidence (the contract always sends it) the sentence degrades to the bare "differs", never to an invented figure.
-      const sentence = flag.deviation === null ? t("roadmap.flag.jiraDeviationBare") : deviationSentence(flag.deviation, { jira: { estimateUnit: null } }, t);
-      return project.jira === null ? sentence : t("roadmap.flag.jiraDeviation", { key: project.jira.issueKey, sentence });
-    }
-    // The roll-up of the project's milestones' open deviations; the detail lives on the project page's rows.
-    case "JIRA_MILESTONES":
-      return t("roadmap.flag.jiraMilestones", { count: flag.count ?? 0 });
-  }
-}
 
 /**
  * The Flags section: the ACCESSIBLE surface of the row icons. One table row per flag of the visible projects (warnings first, then by rank) with its
@@ -102,7 +70,7 @@ export default function RoadmapFlagPanel({
                     </Table.Td>
                     <Table.Td>
                       <Text size="sm">
-                        {flagSentence(t, flag, names, project)}
+                        {flagSentence(t, flag, names, project.jira?.issueKey ?? null)}
                         {flag.kind === "JIRA_DEVIATION" && project.jira !== null && (
                           <JiraKeyLink issueKey={project.jira.issueKey} siteUrl={sites.get(project.jira.connectionId)} iconOnly />
                         )}

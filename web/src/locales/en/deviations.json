@@ -196,11 +196,7 @@
     "milestones_other": "{{count}} milestones linked to Jira",
     "teamLinked_one": "{{count}} milestone linked to Jira",
     "teamLinked_other": "{{count}} milestones linked to Jira",
-    "column": "Jira",
-    "rowCount_one": "{{count}} deviation",
-    "rowCount_other": "{{count}} deviations",
-    "groupAria": "Links to Jira",
-    "inLineStale": "No deviations seen, may be out of date"
+    "groupAria": "Links to Jira"
   },
   "link": {
     "action": "Link to Jira…",

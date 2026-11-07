@@ -5,10 +5,10 @@ import { MantineProvider } from "@mantine/core";
 import { theme } from "../theme";
 import type { JiraMark, JiraMarks } from "../utils/jiraMarks";
 import { markKey } from "../utils/jiraMarks";
-import { JiraRowMark, ProjectJiraButton, ProjectJiraChip, TeamJiraChip } from "./JiraChips";
+import { ProjectJiraButton, ProjectJiraChip, TeamJiraChip } from "./JiraChips";
 
-const mark = (over: Partial<JiraMark> = {}): JiraMark => ({ bindingId: 1, connectionId: 1, key: "E2E-3", siteUrl: "https://acme.atlassian.net", warnings: 0, infos: 0, gone: false, ...over });
-const marks = (entries: [string, JiraMark][], warnings = 0, infos = 0, over: Partial<JiraMarks> = {}): JiraMarks => ({ byNode: new Map(entries), warnings, infos, answered: true, stale: false, connections: [], ...over });
+const mark = (over: Partial<JiraMark> = {}): JiraMark => ({ bindingId: 1, key: "E2E-3", siteUrl: "https://acme.atlassian.net", warnings: 0, infos: 0, ...over });
+const marks = (entries: [string, JiraMark][], warnings = 0, infos = 0): JiraMarks => ({ byNode: new Map(entries), warnings, infos });
 
 function show(ui: React.ReactElement) {
   return render(
@@ -24,16 +24,18 @@ describe("ProjectJiraChip", () => {
     expect(screen.queryByRole("group", { name: "Links to Jira" })).not.toBeInTheDocument();
   });
 
+  test("the count is the marks' open flags (3 here), and the key of a site that is not https reads as plain text", () => {
+    show(<ProjectJiraChip projectId={7} marks={marks([[markKey("PROJECT", 7), mark({ key: "E2E-1", siteUrl: "http://plain.example" })]], 2, 1)} />);
+    expect(screen.getByRole("link", { name: "3 Jira deviations" })).toHaveAttribute("href", "/deviations?projectId=7");
+    expect(screen.getByText(/E2E-1/)).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /E2E-1/ })).not.toBeInTheDocument();
+  });
+
   test("the project's own key without milestones: the key and 'No deviations seen', both link-shaped", () => {
     show(<ProjectJiraChip projectId={7} marks={marks([[markKey("PROJECT", 7), mark({ key: "E2E-1" })]])} />);
     expect(screen.getByRole("link", { name: /E2E-1/ })).toHaveAttribute("href", "https://acme.atlassian.net/browse/E2E-1");
     expect(screen.getByRole("link", { name: "No deviations seen" })).toHaveAttribute("href", "/deviations?projectId=7");
     expect(screen.queryByText(/milestone.* linked to Jira/)).not.toBeInTheDocument();
-  });
-
-  test("the zero state says 'may be out of date' when a connection behind it is stale", () => {
-    show(<ProjectJiraChip projectId={7} marks={marks([[markKey("PROJECT", 7), mark()]], 0, 0, { stale: true })} />);
-    expect(screen.getByRole("link", { name: "No deviations seen, may be out of date" })).toBeInTheDocument();
   });
 
   test("milestones only, infos only: the count is a link and no project key is shown", () => {
@@ -55,22 +57,6 @@ describe("TeamJiraChip", () => {
   });
 });
 
-describe("JiraRowMark", () => {
-  test("an unlinked row has no mark; a linked one shows its key and, when it deviates, the count in words", () => {
-    const { unmount } = show(<JiraRowMark mark={undefined} />);
-    expect(screen.queryByRole("link")).not.toBeInTheDocument();
-    unmount();
-    show(<JiraRowMark mark={mark({ warnings: 1, infos: 1 })} />);
-    expect(screen.getByRole("link", { name: /E2E-3/ })).toHaveAttribute("tabindex", "-1");
-    expect(screen.getByText("2 deviations")).toBeInTheDocument();
-  });
-
-  test("a linked row without a deviation shows no count", () => {
-    show(<JiraRowMark mark={mark()} />);
-    expect(screen.queryByText(/deviation/)).not.toBeInTheDocument();
-  });
-});
-
 describe("ProjectJiraButton", () => {
   const project = { id: 7, can: { edit: true } };
   test("Link to Jira… while the project is not linked; Unlink from Jira, handing over the mark, once it is", () => {
@@ -87,11 +73,8 @@ describe("ProjectJiraButton", () => {
     expect(unlinked).toEqual([own]);
   });
 
-  test("neither without can.edit, and neither until the chip query has answered (no flash of Link on a linked project, nothing after a failure)", () => {
-    const first = show(<ProjectJiraButton project={{ id: 7, can: { edit: false } }} marks={marks([])} onLink={() => undefined} onUnlink={() => undefined} />);
-    expect(screen.queryByRole("button")).not.toBeInTheDocument();
-    first.unmount();
-    show(<ProjectJiraButton project={project} marks={marks([], 0, 0, { answered: false })} onLink={() => undefined} onUnlink={() => undefined} />);
+  test("nothing without the project's can.edit", () => {
+    show(<ProjectJiraButton project={{ id: 7, can: { edit: false } }} marks={marks([])} onLink={() => undefined} onUnlink={() => undefined} />);
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 });

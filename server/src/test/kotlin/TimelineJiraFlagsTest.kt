@@ -220,7 +220,7 @@ class TimelineJiraFlagsTest {
     }
 
     @Test
-    fun `a disabled connection leaves no link, no flag and no site in any view, and a gone item is a GONE flag with no dates`() =
+    fun `a disabled connection keeps its link and site but raises no flag or dates in any view, and a gone item is a dateless GONE flag`() =
         testApplication {
             val b = world("tjf7")
             jbSql("UPDATE jira_observations SET gone = TRUE, gone_reason = 'DELETED' WHERE binding_id = ?", b.warn.second.toInt())
@@ -231,18 +231,21 @@ class TimelineJiraFlagsTest {
 
             jbSql("UPDATE jira_connections SET enabled = FALSE WHERE id = ?", b.c.toInt())
             val project = b.client.project(b.w.projectId)
-            assertNull(project.project.jira)
             assertEquals(emptyList(), project.project.flags)
-            assertTrue((project.scheduled + project.unscheduled).all { it.jira == null && it.flags.isEmpty() })
-            assertEquals(emptyList(), project.jiraSites)
+            // Still linked (the page shows the link and can unlink it), with no flags and no dates.
+            val linked = (project.scheduled + project.unscheduled).filter { it.jira != null }
+            assertTrue(linked.isNotEmpty())
+            assertTrue(linked.all { it.flags.isEmpty() && it.jira?.start == null && it.jira?.end == null && it.jira?.connectionId == b.c })
+            assertEquals(listOf(b.c), project.jiraSites.map { it.connectionId })
             val team = b.client.team(b.team)
-            assertTrue((team.scheduled + team.unscheduled).all { it.jira == null && it.flags.isEmpty() })
-            assertEquals(emptyList(), team.jiraSites)
+            assertTrue((team.scheduled + team.unscheduled).all { it.flags.isEmpty() && it.jira?.start == null && it.jira?.end == null })
+            assertTrue((team.scheduled + team.unscheduled).any { it.jira != null })
+            assertEquals(listOf(b.c), team.jiraSites.map { it.connectionId })
             val roadmap = b.client.roadmap()
-            assertNull(roadmap.row(b.w.projectId).jira)
             assertEquals(emptyList(), roadmap.row(b.w.projectId).flags.filter { it.kind in jiraKinds })
-            assertTrue(roadmap.jiraSites.none { it.connectionId == b.c })
-            assertTrue(b.client.programs().jiraSites.none { it.connectionId == b.c })
+            assertNull(roadmap.row(b.w.projectId).jira?.start)
+            assertTrue(roadmap.jiraSites.any { it.connectionId == b.c })
+            assertTrue(b.client.programs().jiraSites.any { it.connectionId == b.c })
             assertEquals(
                 true,
                 b.w.admin.client.dvView("connectionId=${b.c}&all=true").items.isNotEmpty(),
