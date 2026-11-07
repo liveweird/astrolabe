@@ -1,8 +1,8 @@
-### The Jira sync (v1.1.0)
+### The Jira sync (v1.2.0)
 
 Read before touching `jira/`, `sync/`, `infra/fetch/` or the Jira pages. **What it is:** Astrolabe reads Jira Cloud and compares it with the plan; **nothing is ever written to Jira**
-and corrections are made in Astrolabe. 1.1.0 is the connection, the mapping, 1:1 bindings, a manual Refresh and the Deviations page. **It is proven against the built-in Jira stub and
-not yet tested against a real Jira site** (the walk-through below is the first real test). Not in 1.1: polling and acknowledge (1.3), import (1.2), coverage (1.4), Flow (1.5).
+and corrections are made in Astrolabe. 1.1.0 is the connection, the mapping, 1:1 bindings, a manual Refresh and the Deviations page; 1.2.0 adds the import (preview, then apply). **It is proven against the built-in Jira stub and
+not yet tested against a real Jira site** (the walk-through below is the first real test). Not yet: polling and acknowledge (1.3), coverage (1.4), Flow (1.5).
 Related: schema `persistence.md` "The Jira sync tables (V21)"; outbound guard `security.md` "Outbound HTTP calls"; audit events and the run log lines `observability.md`; per-route guards
 `authorization.md`; the web pages `web/CLAUDE.md` "Jira connections" and "Deviations"; the stub's dataset `sample-data/jira/README.md`.
 
@@ -177,6 +177,16 @@ Tests: `JiraImportPreviewTest` (the `IMP` tree against the stub), `JiraImportPre
 (D1 holders: another connection, a deleted one, a dead node, an unbrowsed parent), `JiraImportPreviewErrorsTest` (the order, every status, the cap, the mid-browse stop, the `fields` the request names),
 `JiraImportBrowseTest` (the browse over a scripted site, the deadline), `JiraImportKernelsTest`.
 
+**What a user must know about the preview** (the planner's rules, pinned by `JiraImportKernelsTest`):
+
+- **Linking is by name.** An unlinked plan sibling with the same name (compared with `lowercase` only: accents count; the Jira summary is first cleaned by `importName` - control characters become spaces, inner whitespace is collapsed, it is trimmed and cut at 100 characters - while a plan name is not, so a plan name with a double space never matches) is proposed as a BIND; anything else is a CREATE. So **an item renamed in Jira, and not yet linked, does not match its plan
+  item and previews as a NEW one**: importing it would add a second node. The user must read the preview (an already linked item is `ALREADY_BOUND` whatever it is called now). Matching renamed items is a backlog item.
+- **Only the direct Jira parent counts** (`fields.parent` holds the immediate parent and nothing further, and the browse reads only the mapped levels' types). An item whose direct parent sits on a level the mapping skips (an epic under an unmapped
+  initiative under a mapped program) has no parent at its own plan level: it goes under the default parent for its level, else it is skipped `NO_PARENT`. Browsing the unmapped levels too is a backlog item.
+- **A non-admin sees less.** A skipped row other than `ALREADY_BOUND` shows no summary, its issue key as its name and no infos, and the unmatched Jira team names come from the rows that would be created only (`JiraImportRedaction.kt`); the web table renders the key.
+- **Scope and time.** At most 2,000 items (more is `truncated`: the preview lists the lowest ids, the modal disables Import and the apply is a `400`); the browse has a 170 s deadline and the web client aborts a call at 180 s; `jira-import` allows 5 calls a minute per user, preview and apply together.
+- **Who sees the button.** "Import from Jira…" is on the connection page, which is ADMIN's. The API lets an owner of every target import (tested), but no page offers it to an owner yet.
+
 ### The apply
 
 `POST …/connections/{id}/import {workStreamId, ownerPersonId, projectKeys?, defaults?, copyDates, items[1..2,000 of {jiraId, expected{action, level, parentJiraId?, nodeId?}, overrides{teamId?}?}]}` writes what the user ticked in the
@@ -222,6 +232,7 @@ service nor the variable. **Cloud id** `b3f1a2c4-5d6e-4f7a-8b9c-0d1e2f3a4b5c`; c
   JQL scope or the `fields` string matched no mapping, not an authentication problem. Adding a shape is an edit in `sample-data/jira/mappings.mjs` plus a regenerate (`scripts/gates.sh` checks the
   committed files against a fresh run).
 - **`jira-day2`**: `PUT http://localhost:8096/__admin/scenarios/jira-day2/state` with `{"state":"day2"}` deletes 12 epics, moves 5 to `OUT` and deletes `E2E-6`; back with `{"state":"Started"}`.
+- **Do not import the five work-stream projects into their real streams on a stack that holds your data.** Importing `CE` into the loaded sample plan's Customer Experience stream previewed 10 create, 212 link and 2 skipped (measured 2026-11-07): the stub's deliberately renamed items ("Documentation (renamed)") match no plan name and would be created. Use `IMP` and a throwaway work stream, or stop after the preview.
 - The stub does not filter `fields` (documents carry a superset), so the server tests assert the REQUESTED `fields` string; a missed field would pass here and read null on a real site.
 - **`expected.json` is holiday-free** (Mon–Fri): the planted working-day shifts and counts match only on a plan WITHOUT the Polish holiday preset. With the preset loaded (the compose sample plan may have it)
   figures that span a public holiday differ by the holidays between the dates.
@@ -242,7 +253,14 @@ Do this when a real site and token arrive. Use an account and a scoped or classi
 4. **Peek** one real epic (and, where the site has them, an initiative): the type, hierarchy level, parent key, the dates as plain `YYYY-MM-DD` (**A5**: a datetime field is refused), the estimate, the Team name. `raw` shows what the site sent.
 5. **Bind** one node per mapped level to known issues: "Link to Jira…" on the project page for a project or a milestone (an owner or ADMIN), "Link a node…" in the connection page's Bindings section for a program (ADMIN). A wrong level reads `400` naming both levels. Then **Refresh now** (ADMIN) and read the run row: `observed`, `calls`, the error code; `rateLimited` and `backoffMs` are in `GET /integrations/sync/runs` and in the INFO log line, not in the table.
    Compare the Deviations page with the Jira UI for those items.
-6. **When something fails:** the run row's `errorCode` (`FORBIDDEN_SCOPE`, `INVALID_RESPONSE`, `LIMIT_EXCEEDED`, `MAPPING_INVALID`, `TOKEN_UNREADABLE`, …); the `ch.nokillswit.sync` log lines (counts and codes
+6. **Import** (only after steps 1 to 5 read right). A real import creates real plan rows, and nothing undoes it in one step (each node is deleted by hand), and program names are globally unique, so:
+   - **Use a throwaway work stream** the first time (create one, with a throwaway owner), and a connection scoped to a small project (`projectKeys` narrows a larger connection); never a work stream with real data.
+   - **Review the mapping first** (step 3): the import reads exactly the mapped levels, fields, unit and Team field, and a wrong level or no declared factor (a unit other than `DAYS` with no man-days per unit) shows up in the preview (rows skipped, a milestone's `ESTIMATE_NOT_CONVERTED`).
+   - Administration → Jira → the connection → Bindings → **Import from Jira…**; pick the stream, an owner and, say, a default team; then **Preview** and read it before anything else: the totals, which rows are CREATE, BIND and SKIP and why. Expect renamed items to preview as new (above).
+     Tick only what you want. **Assert the totals against what you expect** (how many Jira items at each level) before pressing Import; do not import on a hunch.
+   - A lot of `NO_PARENT` rows: either the items have no parent at the level above (give a default program or project) or the site's `search/jql` entries do not carry `parent.fields.issuetype` (**A10**); a preview that takes minutes is the browse itself (pages of `jira.pageSize`, retries on 429; it stops at 170 s).
+   - After **Import**, read the outcome (created, linked, skipped with reasons), open the project page (milestones dated, or created unscheduled where you do not manage the team), run **Refresh now** and compare the Deviations page. A second import must create nothing when everything was imported (`ALREADY_BOUND`; items left out, or whose plan item was deleted since, are offered again).
+7. **When something fails:** the run row's `errorCode` (`FORBIDDEN_SCOPE`, `INVALID_RESPONSE`, `LIMIT_EXCEEDED`, `MAPPING_INVALID`, `TOKEN_UNREADABLE`, …); the `ch.nokillswit.sync` log lines (counts and codes
    only); the `jira.connection_tested` / `jira.sync_requested` audit events; `502 BUSY` on a bind means the permit pool was occupied (retry, or raise `JIRA_MAX_CONCURRENT_REQUESTS`).
 
 ## Assumptions ledger
@@ -260,6 +278,7 @@ Do this when a real site and token arrive. Use an account and a scoped or classi
 | A7 | The site's usable fields (≤ 2,000) and issue types (≤ 500) fit the snapshot | stub-only (Flow's tenant had 1,344 fields before the date/number/custom filter) | `fieldsTruncated` |
 | A8 | `project/search` accepts up to 50 repeated `keys` | **from memory of Atlassian's docs, not verified anywhere** | the `projects` probe |
 | A9 | The Team field's value is an object with a `name`, or plain text on some sites (`teamNameOf`) | stub-only; Atlassian Team is the object form, the plain-text form is defensive | Peek `teamName`, `raw` |
+| A10 | A `search/jql` entry carries its direct parent's `fields.issuetype` (the import needs it only for a parent outside the browsed set; absent = the parent's level is unknown = the item is an orphan) | stub-only; the stub's parent type object even omits `hierarchyLevel` for some ids, which the planner resolves through the discovery by type id | import preview: items read `NO_PARENT` that have a parent in Jira |
 
 Also unverified until a real site: the gateway with a scoped token and which auth scheme it needs, `hierarchyLevel` on issue documents (the client falls back to the `/issuetype` index), this tenant's
 page sizes and rate-limit behaviour.

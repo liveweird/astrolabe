@@ -387,7 +387,7 @@
     "back": "Back",
     "previewAgain": "Preview again",
     "scope": {
-      "intro": "Reads the connection's Jira projects and shows what importing them into one work stream would do. Nothing is changed until you confirm, existing plan items are never overwritten, and nothing is written to Jira.",
+      "intro": "Reads the connection's Jira projects and shows what importing them into one work stream would do. Nothing is changed until you confirm, existing plan items are never overwritten, and nothing is written to Jira. Plan items are matched by name under the same parent, so an item renamed in Jira shows up as new.",
       "planFailed": "Could not load the plan",
       "workStream": "Work stream",
       "workStreamHint": "Everything is created under this work stream.",

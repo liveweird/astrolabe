@@ -395,7 +395,7 @@
     "back": "Wstecz",
     "previewAgain": "Pokaż podgląd ponownie",
     "scope": {
-      "intro": "Wczytuje projekty Jiry z tego połączenia i pokazuje, co da ich import do jednego strumienia pracy. Nic się nie zmieni, dopóki nie potwierdzisz; istniejące elementy planu nigdy nie są nadpisywane, a do Jiry nic nie jest zapisywane.",
+      "intro": "Wczytuje projekty Jiry z tego połączenia i pokazuje, co da ich import do jednego strumienia pracy. Nic się nie zmieni, dopóki nie potwierdzisz; istniejące elementy planu nigdy nie są nadpisywane, a do Jiry nic nie jest zapisywane. Elementy planu są dopasowywane po nazwie pod tym samym rodzicem, więc element, którego nazwę zmieniono w Jirze, pojawi się jako nowy.",
       "planFailed": "Nie udało się wczytać planu",
       "workStream": "Strumień pracy",
       "workStreamHint": "Wszystko zostanie utworzone w tym strumieniu pracy.",

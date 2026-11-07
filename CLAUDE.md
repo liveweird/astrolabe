@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Product
 
 Astrolabe is a planning and roadmapping app (Jira-Plans-like, better UX, more opinionated, Gantt-centred) for a multi-stream / multi-program / multi-team environment, at a scale of about
-15 teams, 5 work streams, 20 programs, 100 projects and 1,000 milestones. It keeps its **own** plan data; it reads Jira (Flow later) only to **detect deviations** (corrections are made
+15 teams, 5 work streams, 20 programs, 100 projects and 1,000 milestones. It keeps its **own** plan data; it reads Jira (Flow later) to **detect deviations** and, on request, import its items (corrections are made
 in Astrolabe, never written back).
 
 **Hierarchy (4 levels):** work stream (owner; end set only on close) → program (owner; span derived from its projects) → project (owner; optional target window; real span derived from its
@@ -13,7 +13,7 @@ milestones) → milestone (start/end, man-day estimate, exactly one team, no own
 (its milestones against capacity), the **roadmap** (projects by one global rank, and in time) and the **programs** view. **Planning flow:** build the hierarchy and rank the projects; the
 team manager schedules milestones (manual drag/resize, or accept a server proposal); dependencies (FS/SS/FF/SF + lag) and capacity overload only ever **warn**, never move anything.
 
-**Roadmap:** 0.1.0 foundation · 0.2.0 plan structure · 0.3.0 timeline + project view · 0.4.0 dependencies · 0.5.0 team view + capacity · 0.6.0 roadmap + programs timelines · 0.7.0 calendar + critical path · 0.8.0 auto-proposal · 0.9.0 baselines · 1.0.0 checkup · **1.1.0 (current)** Jira connection + mapping + bindings + deviations (stub-proven) · next 1.2 import. Per-version scope, the user's domain decisions and the assumptions: `.claude/docs/product.md`; the domain sketch:
+**Roadmap:** 0.1.0 foundation · 0.2.0 plan structure · 0.3.0 timeline + project view · 0.4.0 dependencies · 0.5.0 team view + capacity · 0.6.0 roadmap + programs timelines · 0.7.0 calendar + critical path · 0.8.0 auto-proposal · 0.9.0 baselines · 1.0.0 checkup · 1.1.0 Jira sync · **1.2.0 (current)** Jira import (stub-proven) · next 1.3. Per-version scope, the user's domain decisions and the assumptions: `.claude/docs/product.md`; the domain sketch:
 `.claude/docs/planning-model.md`; the timeline: `.claude/docs/timeline.md`. Open items: `BACKLOG.md`.
 
 Brand: deep cyan (the `astrolabe` colour tuple in `web/src/theme.ts`, `primaryShade: { light: 8, dark: 9 }`); the logo is a stylised astrolabe (limb ring with ticks, rete star pointers, alidade).
@@ -121,7 +121,7 @@ override). One line per package; `ls` gives the files. **Layering is one-way (`P
 - `teams/` — flat teams (V6) with an optional manager (a person since V10): GET any authenticated, POST/PUT/DELETE ADMIN only; and the team's capacity periods (V16, `TeamCapacityRoutes.kt`: man-days per week + an optional WIP limit from any date, written by the team's manager or ADMIN, team data). **The feature template** (below).
 - `planning/` — work streams, programs, projects (V12), milestones (V14: dates only by the team's manager/ADMIN), dependencies (V15: the SUCCESSOR's chain writes, cycle-checked), `GET /views/plan`, `GET /views/project/{id}` (derived span + drift, `criticalPath` + slack: pure `CriticalPathKernels`), `GET /views/team/{id}` (weekly load vs capacity and WIP: pure `LoadKernels`); both views' `idleGaps` (pure `IdleGapKernels`), the global project rank (V13, `/roadmap/ranking`; `GET /views/roadmap` and `/views/programs`: pure `RoadmapKernels`), the team milestone order (V17, `PUT /teams/{id}/milestone-order`: the team's own execution order), the v0.8 auto-proposal (`POST /teams/{id}/schedule-proposal`: pure `ScheduleKernels`, nothing stored; `POST /teams/{id}/milestone-schedules`: the batch accept, per-milestone stale check + scope check, one revision bump), the public-holiday dictionary (V19, `/public-holidays`: ADMIN registry + Polish preset, read once per view into the `WorkingCalendar`), the baselines (V20, `/baselines` by ADMIN or `ROADMAP_EDITOR`: frozen rows; the views' `?baseline=` and `GET /views/baseline/{id}`: movement in working days, pure `BaselineKernels`): owner-scoped writes under the `plan_state` lock; pure `PlanPermissions` kernel.
 - `infra/fetch/` — the bounded outbound transport (Flow's, ported): retry/backoff, permits, size and page ceilings; `SourceHttp.kt` is at the 400-line cap.
-- `jira/` — the Jira sync (V21, `/api/v1/integrations/jira`, `GET /views/deviations`): the ADMIN connection registry (token encrypted), probes, mapping, 1:1 bindings, the observer, the pure deviation kernel; one routes file per concern (`jira-sync.md`).
+- `jira/` — the Jira sync (V21, `/api/v1/integrations/jira`, `GET /views/deviations`): the ADMIN connection registry (token encrypted), probes, mapping, 1:1 bindings, the observer, the deviation kernel, the import (`JiraImport*`); one routes file per concern (`jira-sync.md`).
 - `sync/` — the connector-agnostic run registry (`sync_runs`, claimed by a unique index) and its executor.
 - `telemetry/` — per-process JVM/cgroup/request/storage samples in `ops.*` (V9), 90 days, hourly, ADMIN read API (`observability.md`).
 

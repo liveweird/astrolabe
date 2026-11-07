@@ -17,6 +17,30 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.2.0",
+    date: "2026-11-07",
+    en: `**Astrolabe 1.2.0: import from Jira.**
+
+- Import: on a Jira connection's page, an administrator presses "Import from Jira…", picks the work stream, the owner, an optional default team, program and project, and which of the connection's Jira projects to read. Only administrators have the button for now (the API already allows plan owners onto their own items).
+- Preview first: every Jira item is listed as created, linked to an existing plan item, or skipped, with the reason. Nothing is written to Jira, and nothing reaches the plan until you press Import. You tick what to import; Import is disabled while the scope has more than 2,000 items, so narrow the Jira projects.
+- Apply: the ticked items become programs, projects and milestones under the chosen work stream, each linked to its Jira item, in one change to the plan.
+- Never overwrites: an existing plan item is never changed, and an item that is already linked is skipped, so importing again never duplicates what is already linked; items you left out, or whose plan item was deleted since, are offered again.
+- Matching is by name, ignoring case, among the items under the same parent (names are cut at 100 characters; accents count). An unlinked plan item with that name is linked instead of duplicated; one that is already linked, or a program name used in another work stream, makes the item skip. An item that was renamed in Jira does not match its plan item and shows up as a new one, so read the preview before you import.
+- Parents: an item goes under the plan item linked to its direct Jira parent, inside the chosen work stream. If it has no such parent, it goes under the default program or project you picked, or is skipped; if its parent is itself skipped, so is it. This includes an item whose parent sits on a Jira level you did not map.
+- Dates: with "Copy Jira's dates" on (it is by default), a milestone gets Jira's dates when you manage its team (an administrator: any team) and Jira holds valid dates that contain a working day; otherwise it is created without dates, with a note. Estimates are converted only when the mapping's unit is days or it gives man-days per unit; otherwise the milestone gets 0 man-days and a note. A milestone's team is the one named like Jira's Team, else your default team, else the item is skipped.
+- Proven against a built-in Jira stub; not yet tested against a real Jira site.`,
+    pl: `**Astrolabe 1.2.0: import z Jiry.**
+
+- Import: na stronie połączenia z Jirą administrator/ka naciska „Importuj z Jiry…”, wybiera strumień pracy, właściciela/kę, opcjonalnie domyślny zespół, program i projekt oraz to, które projekty Jiry połączenia mają zostać odczytane. Na razie przycisk mają tylko administratorzy/rki (API pozwala już właścicielom/kom planu importować na własne elementy).
+- Najpierw podgląd: każdy element Jiry jest wymieniony jako utworzony, powiązany z istniejącym elementem planu albo pominięty, wraz z powodem. Nic nie jest zapisywane w Jirze i nic nie trafia do planu, dopóki nie naciśniesz „Importuj”. Zaznaczasz, co zaimportować; Import jest wyłączony, gdy zakres ma ponad 2000 elementów, więc zawęź projekty Jiry.
+- Zapis: zaznaczone elementy stają się programami, projektami i kamieniami milowymi w wybranym strumieniu pracy, każdy powiązany ze swoim elementem Jiry, w jednej zmianie planu.
+- Bez nadpisywania: istniejący element planu nigdy nie jest zmieniany, a element już powiązany jest pomijany, więc ponowny import nie duplikuje tego, co już powiązano; elementy pominięte lub takie, których element planu usunięto, są proponowane ponownie.
+- Dopasowanie następuje po nazwie, bez względu na wielkość liter, wśród elementów pod tym samym rodzicem (nazwy są obcinane do 100 znaków; znaki diakrytyczne się liczą). Niepowiązany element planu o takiej nazwie zostaje powiązany zamiast zduplikowany; element już powiązany albo nazwa programu użyta w innym strumieniu pracy powoduje pominięcie. Element, którego nazwę zmieniono w Jirze, nie pasuje do swojego elementu planu i pojawia się jako nowy, więc przeczytaj podgląd przed importem.
+- Rodzice: element trafia pod element planu powiązany z jego bezpośrednim rodzicem w Jirze, w wybranym strumieniu pracy. Jeśli takiego rodzica nie ma, trafia pod domyślny program lub projekt, który wybrano, albo jest pomijany; jeśli jego rodzic jest pominięty, on również. Dotyczy to także elementu, którego rodzic leży na poziomie Jiry bez mapowania.
+- Daty: przy włączonym „Kopiuj daty z Jiry” (domyślnie jest włączone) kamień milowy dostaje daty z Jiry, gdy zarządzasz jego zespołem (administrator/ka: dowolnym zespołem), a Jira ma poprawne daty zawierające dzień roboczy; w przeciwnym razie powstaje bez dat, z uwagą. Estymaty są przeliczane tylko wtedy, gdy jednostką są dni albo mapowanie podaje osobodni na jednostkę; w przeciwnym razie kamień milowy dostaje 0 osobodni i uwagę. Zespołem kamienia milowego jest ten o nazwie takiej jak zespół w Jirze, w razie braku zespół domyślny, a jeśli i jego nie ma, element jest pomijany.
+- Sprawdzone na wbudowanej atrapie Jiry; jeszcze nie przetestowane na prawdziwej witrynie Jira.`,
+  },
+  {
     version: "1.1.0",
     date: "2026-11-07",
     en: `**Astrolabe 1.1.0: Jira connection, links and deviations.**
