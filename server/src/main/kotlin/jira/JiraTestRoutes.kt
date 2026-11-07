@@ -79,8 +79,8 @@ internal fun Route.jiraTestRoutes(connections: JiraConnectionService, connector:
 }
 
 /**
- * `jira.connection_tested`: who, which connection (null = ad hoc), the site HOST, the verdict and the failed probe names - never the
- * token.
+ * `jira.connection_tested`: who, which connection (null = ad hoc), the site HOST, the verdict and the failed probe names (a SKIPPED row
+ * did not run and is no failure) - never the token.
  */
 private fun auditTest(byUserId: UInt, connectionId: UInt?, siteUrl: String, result: JiraTestResult) {
     audit(
@@ -89,7 +89,7 @@ private fun auditTest(byUserId: UInt, connectionId: UInt?, siteUrl: String, resu
         "connectionId" to connectionId?.toLong(),
         "host" to jiraHostOf(siteUrl),
         "ok" to result.passed,
-        "failedProbes" to result.rows.filterNot { it.ok }.map { it.name },
+        "failedProbes" to result.rows.filter { !it.ok && it.code != SKIPPED_CODE }.map { it.name },
         "recorded" to result.recorded,
     )
 }

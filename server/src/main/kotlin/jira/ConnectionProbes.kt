@@ -34,6 +34,9 @@ data class JiraTestResult(
     val passed: Boolean get() = rows.none { it.required && !it.ok }
 }
 
+/** The row code of a probe that never ran because an earlier probe failed (`ok: false`, so a skipped REQUIRED row still fails the test). */
+const val SKIPPED_CODE = "SKIPPED"
+
 /** A probe's own verdict that is not an upstream failure (a configured project key the token cannot see): the row's [code]. */
 class ProbeFailure(val code: String) : RuntimeException(code)
 
@@ -57,6 +60,9 @@ class ProbeRun(
     fun fail(name: String, path: String, required: Boolean, code: String, scopeHint: String? = null) {
         collected += ConnectionTestRow(name, path, required, ok = false, code = code, scopeHint = scopeHint)
     }
+
+    /** Records a row for a probe that was not run because an earlier probe failed: not a failure of its own endpoint ([SKIPPED_CODE]). */
+    fun skip(name: String, path: String, required: Boolean) = fail(name, path, required, SKIPPED_CODE)
 
     @Suppress("LongParameterList") // the row's own fields: one call shape for every probe
     suspend fun probe(name: String, path: String, required: Boolean, scopeHint: String? = null, block: suspend () -> Unit) {
@@ -82,10 +88,6 @@ class ProbeRun(
             )
         } catch (cause: ProbeFailure) {
             fail(name, path, required, cause.code, scopeHint)
-        } catch (_: IllegalStateException) {
-            // A prior REQUIRED probe (tenant_info) never resolved the gateway: every probe downstream of it is unreachable, not a
-            // distinct failure of ITS OWN endpoint.
-            fail(name, path, required, "NOT_FOUND", scopeHint)
         } catch (_: RuntimeException) {
             // A raw `.jsonObject`/`.jsonArray`/`.jsonPrimitive` cast (here, or one a future client forgets to route through its decode
             // helper) throws `IllegalArgumentException` on a shape mismatch: reported as the one malformed probe, never a crashed test.

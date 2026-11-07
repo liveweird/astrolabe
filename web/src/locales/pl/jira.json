@@ -91,6 +91,8 @@
     "optional": "Opcjonalny",
     "ok": "OK",
     "failed": "Niepowodzenie",
+    "skipped": "Pominięty",
+    "skippedDetail": "Nie uruchomiono: wcześniejsza sonda nie powiodła się",
     "passed": "Zaliczony",
     "notPassed": "Niezaliczony",
     "scopeHint": "wymaga zakresu: {{scope}}",

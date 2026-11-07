@@ -1,6 +1,7 @@
 import { Text } from "@mantine/core";
 import { useTranslation } from "react-i18next";
 import type { JiraTestResult } from "../api/jira";
+import { isSkipped } from "../utils/connectionTestRows";
 
 /**
  * The polite status region that SAYS what a Test connection came to ("Test passed. OK: 8 of 8."), so a screen reader hears the verdict
@@ -13,9 +14,12 @@ export default function ConnectionTestStatus({ result }: { result: JiraTestResul
   if (result) {
     const total = result.rows.length;
     const ok = result.rows.filter((row) => row.ok).length;
-    const failedRequired = result.rows.filter((row) => !row.ok && row.required).length;
-    const failedOptional = result.rows.filter((row) => !row.ok && !row.required).length;
-    if (failedRequired > 0) text = t("jira.test.summaryFailed", { failed: failedRequired, total });
+    // A skipped row did not run: it is no failure of its own (the failed `tenant_info` above it is the one counted).
+    const failedRequired = result.rows.filter((row) => !row.ok && row.required && !isSkipped(row)).length;
+    const failedOptional = result.rows.filter((row) => !row.ok && !row.required && !isSkipped(row)).length;
+    // Defensive: whatever the codes say, a required row that is not ok never reads as a pass (a skipped-only payload counts its skips).
+    const notOkRequired = result.rows.filter((row) => !row.ok && row.required).length;
+    if (notOkRequired > 0) text = t("jira.test.summaryFailed", { failed: failedRequired || notOkRequired, total });
     else if (failedOptional > 0) text = t("jira.test.summaryPassedOptional", { ok, total, optional: failedOptional });
     else text = t("jira.test.summaryPassed", { ok, total });
   }

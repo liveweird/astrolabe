@@ -100,7 +100,7 @@ warm-ups to one fork, so the distinct-JVM check can fire once on that rerun: rer
 class-name dedupe). The throwaway boot runs `Bootstrap` on a fresh database before any test: no test may assume it is the fork's first boot.
 
 **The Jira stub fixture (v1.1.0 C1: `JiraStubServer`, `JiraStubFixture`, `JiraStubWarmupGuardTest`, `JiraStubFixtureTest`).** `JiraStubServer.kt` (Flow's, ported) starts ONE in-JVM WireMock per fork over `sample-data/jira-stub`
-(dynamic port, `disableRequestJournal()` so the shared singleton does not retain every served body), the SAME `mappings/` + `__files/` the compose and Kubernetes `jira-stub` image serves
+(dynamic port, a request journal capped at 50 entries so the shared singleton does not retain every served body; `resetRequests()` + `countRequests(pattern)` let a test assert what was or was not called), the SAME `mappings/` + `__files/` the compose and Kubernetes `jira-stub` image serves
 (`sample-data/jira/README.md` has the dataset, the request shapes it matches and the planted deviations; `expected.json` the figures a test compares with). A test class that touches
 `JiraStubServer.` or `JiraStubFixture.` calls `JiraStubFixture.warm()` in a `@BeforeClass` (it starts the server, makes one unauthenticated and one authenticated request and prints
 `fixture-cost<TAB>jira-stub<TAB>ms`, which `local-times.mjs` subtracts from the suite that paid it), so the first start (~2,300 mappings, ~2,200 bodies at 1.4.0) never lands inside `testApplication`'s 60 s;

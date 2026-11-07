@@ -43,11 +43,10 @@ is ok. In this order: `tenant_info` (unauthenticated), `myself` (`read:jira-user
 (`GET /search/jql`, `maxResults=1`, `fields=id`, the JQL = the connection's scope AND `issuetype in (<ids at the mapped milestone level, else Epic level 1, else level 0>)`;
 `read:jql:jira`), `field` (`read:field:jira`), `projects` (`GET /project/search?keys=…` with exactly the configured keys; `read:project:jira`), one `project:<KEY>` per key (a key the token cannot
 see is a failed row, code `PROJECT_NOT_VISIBLE`), and `issue` (`GET /issue/{id}` on the first id the search returned; `read:issue-details:jira`; **no row at all** when the search returned nothing).
-Other typed row codes: `TOKEN_UNREADABLE` (the stored token cannot be decrypted: a wrong or rotated `DATA_ENCRYPTION_KEY`; one `stored_token` row, nothing called), `BLOCKED_HOST`, `TIMEOUT`,
+Other typed row codes: `SKIPPED` (not run: `tenant_info` failed), `TOKEN_UNREADABLE` (the stored token cannot be decrypted: a wrong or rotated `DATA_ENCRYPTION_KEY`; one `stored_token` row, nothing called), `BLOCKED_HOST`, `TIMEOUT`,
 `INVALID_RESPONSE` (a malformed body or an `IllegalArgumentException`).
 
-**When `tenant_info` fails the later rows read `NOT_FOUND`**: there is no gateway to call, so `myself`, `issuetype`, `search`, `field` and `projects` each fail with `NOT_FOUND`
-(and no `project:<KEY>` or `issue` rows appear). On a host that is simply down that reads as many separate not-found failures; read the FIRST failed row only (backlog: show them as skipped).
+**When `tenant_info` fails the later rows read `SKIPPED`**: there is no gateway to call, so `myself`, `issuetype`, `search`, `field` and `projects` are not run and each answers `ok: false`, code `SKIPPED` (no status, no scope hint; `JiraConnector.probe`'s `gatewayProbe`, `ProbeRun.skip`). They still count as failed REQUIRED rows for `passed` (so does `tenant_info` itself), but the UI shows them as a gray "Skipped" and counts only the real failure. No `project:<KEY>` or `issue` rows appear. Read the first failed row.
 
 `POST …/connections/test` is ad hoc (carries the token, stores nothing); `POST …/{id}/test` uses the stored token, records `last_tested_at/ok`, `cloud_id` and **the discovery whenever both `field`
 and `issuetype` answered, even if another probe failed (D3)** so a failing first test still leaves the report that diagnoses it. A result is recorded only if the row was not edited meanwhile
@@ -307,7 +306,7 @@ Do this when a real site and token arrive. Use an account and a scoped or classi
 
 1. **Connect.** Administration → Jira → New connection: the real site URL (`https://<name>.atlassian.net`), the account email, the token, auth scheme `BASIC` first (`BEARER` if the site demands it), a few project
    keys (≤ 50). **Test connection** and read the rows top to bottom; the FIRST failed row is the cause.
-   - `tenant_info` failed (everything after reads `NOT_FOUND`): the site URL is wrong, or `BLOCKED_HOST` (not a tenant host), or a network/DNS block (`outbound.blocked` audit event).
+   - `tenant_info` failed (everything after reads `SKIPPED`): the site URL is wrong, or `BLOCKED_HOST` (not a tenant host), or a network/DNS block (`outbound.blocked` audit event).
    - `myself` 401: the token or the auth scheme. `myself` ok but another row 401: a missing scope; the row's hint names it (a missing scope is a 401, not a 403).
    - `search` 400 or `INVALID_RESPONSE`: **A3** (issue-type ids in JQL); `projects` 400: **A8** (50 `keys`). These two are the likeliest surprises; both are one-line client changes.
    - `project:<KEY>` `PROJECT_NOT_VISIBLE`: the token cannot see that project. No `issue` row: the search returned nothing.

@@ -4,6 +4,7 @@ import com.github.tomakehurst.wiremock.WireMockServer
 import com.github.tomakehurst.wiremock.client.MappingBuilder
 import com.github.tomakehurst.wiremock.client.WireMock
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration
+import com.github.tomakehurst.wiremock.matching.RequestPatternBuilder
 import com.github.tomakehurst.wiremock.stubbing.StubMapping
 import java.io.File
 
@@ -28,9 +29,10 @@ object JiraStubServer {
             WireMockConfiguration.options()
                 .usingFilesUnderDirectory(stubRoot.absolutePath)
                 .dynamicPort()
-                // No test reads the request journal, and WireMock keeps it unbounded by default - every served request WITH its response
-                // body, for the whole suite's lifetime in this shared singleton (Flow's 512 MiB test JVM ran out of heap on it).
-                .disableRequestJournal(),
+                // WireMock keeps the journal unbounded by default - every served request WITH its response body, for the whole suite's
+                // lifetime in this shared singleton (Flow's 512 MiB test JVM ran out of heap on it). Only [countRequests] reads it, right
+                // after a [resetRequests], so the newest few entries are all it ever needs.
+                .maxRequestJournalEntries(JOURNAL_ENTRIES),
         ).apply {
             start()
             Runtime.getRuntime().addShutdownHook(Thread { stop() })
@@ -56,4 +58,12 @@ object JiraStubServer {
     fun addOverride(stub: MappingBuilder): StubMapping = client.register(stub)
 
     fun removeOverride(mapping: StubMapping) = client.removeStubMapping(mapping)
+
+    /** Forgets the journal: call just before the interaction a [countRequests] will judge. */
+    fun resetRequests() = client.resetRequests()
+
+    /** How many requests the journal holds for [pattern] (at most [JOURNAL_ENTRIES] are kept, newest first). */
+    fun countRequests(pattern: RequestPatternBuilder): Int = client.find(pattern).size
+
+    private const val JOURNAL_ENTRIES = 50
 }

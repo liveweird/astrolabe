@@ -89,6 +89,8 @@
     "optional": "Optional",
     "ok": "OK",
     "failed": "Failed",
+    "skipped": "Skipped",
+    "skippedDetail": "Not run: an earlier probe failed",
     "passed": "Passed",
     "notPassed": "Failed",
     "scopeHint": "needs scope: {{scope}}",

@@ -22,12 +22,12 @@ class ProbeRunTest {
         run.probe("ok", "/a", required = true, scopeHint = "read:a") {}
         run.probe("fetch", "/b", required = true, scopeHint = "read:b") { throw FetchException(JIRA_SOURCE, "FORBIDDEN_SCOPE", 403, "/b") }
         run.probe("verdict", "/c", required = false) { throw ProbeFailure("PROJECT_NOT_VISIBLE") }
-        run.probe("gateway", "/d", required = true) { throw IllegalStateException("resolveCloudId() must run first") }
+        run.skip("skipped", "/d", required = true)
         run.probe("cast", "/e", required = true) { throw IllegalArgumentException("not an object") }
         run.probe("oops", "/f", required = true) { throw UnsupportedOperationException("anything unexpected") }
         assertEquals(
             listOf(
-                "ok" to null, "fetch" to "FORBIDDEN_SCOPE", "verdict" to "PROJECT_NOT_VISIBLE", "gateway" to "NOT_FOUND",
+                "ok" to null, "fetch" to "FORBIDDEN_SCOPE", "verdict" to "PROJECT_NOT_VISIBLE", "skipped" to "SKIPPED",
                 "cast" to "INVALID_RESPONSE", "oops" to "INVALID_RESPONSE",
             ),
             run.rows.map { it.name to it.code },
@@ -36,6 +36,13 @@ class ProbeRunTest {
         assertEquals(403, run.rows[1].status)
         assertEquals("read:b", run.rows[1].scopeHint)
         assertFalse(run.rows[2].required)
+    }
+
+    @Test
+    fun `a stray IllegalStateException is an INVALID_RESPONSE row, never a skip`() = runBlocking {
+        val run = ProbeRun(now = { 0L })
+        run.probe("stray", "/a", required = true) { throw IllegalStateException("anything") }
+        assertEquals("INVALID_RESPONSE", run.rows.single().code)
     }
 
     @Test

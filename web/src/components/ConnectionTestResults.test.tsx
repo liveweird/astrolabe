@@ -41,4 +41,20 @@ describe("ConnectionTestResults", () => {
     renderWithProviders(<ConnectionTestResults result={{ rows, recorded: true }} />);
     expect(screen.getByText("The stored token cannot be decrypted; enter it again (TOKEN_UNREADABLE)")).toBeInTheDocument();
   });
+
+  test("rows skipped after a failed tenant_info read Skipped, not Failed, with a plain reason", () => {
+    const rows = [
+      { name: "tenant_info", path: "/_edge/tenant_info", required: true, ok: false, status: 404, code: "NOT_FOUND" },
+      { name: "myself", path: "/rest/api/3/myself", required: true, ok: false, code: "SKIPPED" },
+      { name: "field", path: "/rest/api/3/field", required: true, ok: false, code: "SKIPPED" },
+    ];
+    renderWithProviders(<ConnectionTestResults result={{ rows, recorded: true }} />);
+    const myself = screen.getByText("myself").closest("tr")!;
+    expect(within(myself).getByText("Skipped")).toBeInTheDocument();
+    expect(within(myself).queryByText("Failed")).not.toBeInTheDocument();
+    expect(within(myself).getByText("Not run: an earlier probe failed")).toBeInTheDocument();
+    expect(within(screen.getByText("tenant_info").closest("tr")!).getByText("Failed")).toBeInTheDocument();
+    expect(screen.getAllByText("Failed")).toHaveLength(1);
+    expect(screen.getAllByText("Skipped")).toHaveLength(2);
+  });
 });

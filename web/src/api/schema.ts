@@ -4922,7 +4922,7 @@ export interface components {
              * @description The upstream HTTP status when one answered.
              */
             status?: number | null;
-            /** @description The failure code: `AUTHENTICATION_FAILED`, `FORBIDDEN_SCOPE`, `NOT_FOUND`, `RATE_LIMITED`, `UPSTREAM_UNAVAILABLE`, `TIMEOUT`, `INVALID_RESPONSE`, `LIMIT_EXCEEDED`, `BLOCKED_HOST`, `REDIRECT`, `PROJECT_NOT_VISIBLE` (a configured key the token cannot see) or `TOKEN_UNREADABLE` (the stored token cannot be decrypted). A scoped token missing a scope answers 401, not 403, so one failing probe while `myself` passes means a missing scope, not bad credentials. */
+            /** @description The failure code: `AUTHENTICATION_FAILED`, `FORBIDDEN_SCOPE`, `NOT_FOUND`, `RATE_LIMITED`, `UPSTREAM_UNAVAILABLE`, `TIMEOUT`, `INVALID_RESPONSE`, `LIMIT_EXCEEDED`, `BLOCKED_HOST`, `REDIRECT`, `PROJECT_NOT_VISIBLE` (a configured key the token cannot see), `TOKEN_UNREADABLE` (the stored token cannot be decrypted), or `SKIPPED` (the probe did not run because `tenant_info` failed, so there is no gateway to call: `ok` is false, with no `status` and no `scopeHint`; read the first failed row). A scoped token missing a scope answers 401, not 403, so one failing probe while `myself` passes means a missing scope, not bad credentials. */
             code?: string | null;
             /** @description The Atlassian scope(s) the probe needs; a comma+space separated list. */
             scopeHint?: string | null;

@@ -94,10 +94,19 @@ class JiraConnector(
         val projectKeys = target.projectKeys
         val seen = Probed()
         run.probe("tenant_info", "/_edge/tenant_info", required = true) { seen.cloudId = client.resolveCloudId() }
-        run.probe("myself", "/rest/api/3/myself", required = true, scopeHint = "read:jira-user") { client.myself() }
+        // Every gateway probe needs the cloud id: without it there is no gateway to call, so those rows read SKIPPED (not run), never
+        // five separate failures of their own endpoints.
+        suspend fun gatewayProbe(name: String, path: String, scopeHint: String, block: suspend () -> Unit) {
+            if (seen.cloudId == null) {
+                run.skip(name, path, required = true)
+            } else {
+                run.probe(name, path, required = true, scopeHint = scopeHint, block = block)
+            }
+        }
+        gatewayProbe("myself", "/rest/api/3/myself", scopeHint = "read:jira-user") { client.myself() }
         // Before `search`: the search probe narrows its JQL by the issue-type ids at the milestone level (assumption A3), which
         // `issuetype` supplies.
-        run.probe("issuetype", "/rest/api/3/issuetype", required = true, scopeHint = "read:issue-type:jira") {
+        gatewayProbe("issuetype", "/rest/api/3/issuetype", scopeHint = "read:issue-type:jira") {
             val types = client.issueTypes()
             seen.issueTypes = types
             // The mapped milestone level, else what JiraMappingDefaults would pick: Epic (1) if the site has one, else the work items (0).
@@ -105,7 +114,7 @@ class JiraConnector(
             val level = target.milestoneLevel ?: if (hasEpics) EPIC_LEVEL else STORY_LEVEL
             seen.milestoneTypeIds = types.filter { !it.subtask && it.hierarchyLevel == level }.map { it.id }
         }
-        run.probe("search", "/rest/api/3/search/jql", required = true, scopeHint = "read:jql:jira") {
+        gatewayProbe("search", "/rest/api/3/search/jql", scopeHint = "read:jql:jira") {
             val jql = if (seen.milestoneTypeIds.isEmpty()) {
                 JiraJql.scope(projectKeys)
             } else {
@@ -114,8 +123,8 @@ class JiraConnector(
             val page = client.searchJql(jql, fields = "id", maxResults = SEARCH_PROBE_MAX_RESULTS)
             seen.firstIssueId = (page.issues?.firstOrNull() as? JsonObject)?.get("id")?.jsonPrimitive?.contentOrNull
         }
-        run.probe("field", "/rest/api/3/field", required = true, scopeHint = "read:field:jira") { seen.fields = client.fields() }
-        run.probe("projects", "/rest/api/3/project/search", required = true, scopeHint = "read:project:jira") {
+        gatewayProbe("field", "/rest/api/3/field", scopeHint = "read:field:jira") { seen.fields = client.fields() }
+        gatewayProbe("projects", "/rest/api/3/project/search", scopeHint = "read:project:jira") {
             seen.visibleProjectKeys = visibleProjectKeys(client, projectKeys)
         }
         seen.visibleProjectKeys?.let { visible ->

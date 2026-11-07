@@ -2,18 +2,27 @@ import type { TFunction } from "i18next";
 import { Alert, Badge, Stack, Table, Text } from "@mantine/core";
 import { useTranslation } from "react-i18next";
 import type { JiraTestResult, JiraTestRow } from "../api/jira";
+import { isSkipped } from "../utils/connectionTestRows";
 import { errorCodeText } from "../utils/syncRuns";
 import ScrollRegion from "./ScrollRegion";
 
 /** The detail cell of a failed row: the upstream status, the failure in words (code kept visible) and the scope the probe needs. */
 function rowDetail(row: JiraTestRow, t: TFunction): string {
   if (row.ok) return "—";
+  if (isSkipped(row)) return t("jira.test.skippedDetail");
   const parts = [
     row.status != null ? String(row.status) : null,
     row.code ? errorCodeText(row.code, t) : null,
     row.scopeHint ? t("jira.test.scopeHint", { scope: row.scopeHint }) : null,
   ].filter((part): part is string => Boolean(part));
   return parts.length > 0 ? parts.join(" · ") : "—";
+}
+
+/** Green passed, neutral gray skipped (not run, no verdict of its own), red a failed required row, orange a failed optional one. */
+function rowColor(row: JiraTestRow): string {
+  if (row.ok) return "green";
+  if (isSkipped(row)) return "gray";
+  return row.required ? "red" : "orange";
 }
 
 /**
@@ -26,7 +35,8 @@ function looksLikeMissingScope(rows: readonly JiraTestRow[]): boolean {
 
 /**
  * The Test-connection outcome table: one row per probed endpoint, in the order the server ran them. A passing row is GREEN (the success
- * colour), a failed REQUIRED row red (blocking), a failed optional one orange (a soft finding: it does not fail the test). Used by the
+ * colour), a failed REQUIRED row red (blocking), a failed optional one orange (a soft finding: it does not fail the test), a skipped one gray
+ * (not run because `tenant_info` failed; the first failed row is the cause). Used by the
  * editor modal (the ad-hoc or stored probe) and the connection page (the stored probe). Ported from Flow's `ConnectionTestResults`.
  */
 export default function ConnectionTestResults({ result }: { result: JiraTestResult }) {
@@ -58,8 +68,8 @@ export default function ConnectionTestResults({ result }: { result: JiraTestResu
                   <Text size="sm">{row.required ? t("jira.test.required") : t("jira.test.optional")}</Text>
                 </Table.Td>
                 <Table.Td style={{ whiteSpace: "nowrap" }}>
-                  <Badge color={row.ok ? "green" : row.required ? "red" : "orange"} variant="light" tt="none">
-                    {row.ok ? t("jira.test.ok") : t("jira.test.failed")}
+                  <Badge color={rowColor(row)} variant="light" tt="none">
+                    {row.ok ? t("jira.test.ok") : isSkipped(row) ? t("jira.test.skipped") : t("jira.test.failed")}
                   </Badge>
                 </Table.Td>
                 <Table.Td>

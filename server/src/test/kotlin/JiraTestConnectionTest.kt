@@ -12,6 +12,7 @@ import ch.nokillswit.plugins.ProblemDetail
 import ch.nokillswit.users.UserRole
 import com.github.tomakehurst.wiremock.client.WireMock.aResponse
 import com.github.tomakehurst.wiremock.client.WireMock.get
+import com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor
 import com.github.tomakehurst.wiremock.client.WireMock.notMatching
 import com.github.tomakehurst.wiremock.client.WireMock.urlPathMatching
 import com.github.tomakehurst.wiremock.http.Fault
@@ -375,12 +376,13 @@ class JiraTestConnectionTest {
     }
 
     @Test
-    fun `a tenant_info failure cascades to NOT_FOUND rows, resolves no cloud id and keeps the one stored earlier`() = testApplication {
+    fun `a tenant_info failure skips the later rows, resolves no cloud id and keeps the one stored earlier`() = testApplication {
         start()
         val admin = seededClient("jtestcloud", UserRole.ADMIN)
         val created = admin.create(request())
         assertTrue(admin.post("$base/${created.id}/test").result().passed)
         withOverride(get(urlPathMatching("/_edge/tenant_info")).atPriority(1).willReturn(aResponse().withStatus(404))) {
+            JiraStubServer.resetRequests()
             val response = admin.post("$base/${created.id}/test")
             assertEquals(HttpStatusCode.OK, response.status)
             val result = response.result()
@@ -388,7 +390,13 @@ class JiraTestConnectionTest {
             val rows = result.rows.associateBy { it.name }
             assertEquals(Pair("NOT_FOUND", 404), rows.getValue("tenant_info").let { it.code to it.status })
             assertEquals(listOf("tenant_info", "myself", "issuetype", "search", "field", "projects"), result.rows.map { it.name })
-            assertTrue(result.rows.all { !it.ok && it.code == "NOT_FOUND" }, "${result.rows}")
+            assertTrue(result.rows.all { !it.ok }, "${result.rows}")
+            assertEquals(List(5) { "SKIPPED" }, result.rows.drop(1).map { it.code }, "no status, no scope hint: nothing was called")
+            assertTrue(result.rows.drop(1).all { it.status == null && it.scopeHint == null }, "${result.rows}")
+            assertFalse(result.passed)
+            assertEquals(0, JiraStubServer.countRequests(getRequestedFor(urlPathMatching("/ex/jira/.*"))), "no gateway request was made")
+            val tenantInfo = getRequestedFor(urlPathMatching("/_edge/tenant_info"))
+            assertEquals(1, JiraStubServer.countRequests(tenantInfo), "the journal sees requests")
         }
         val stored = admin.connection(created.id)
         assertEquals(false, stored.lastTestOk)
@@ -532,7 +540,14 @@ class JiraTestConnectionTest {
                 assertNotNull(stored)
                 assertTrue(stored.hasKeyValue("ok", false) && stored.hasKeyValue("failedProbes", listOf("field")))
                 admin.postJson("$base/test", request(token = "wrong-token"))
-                assertEquals(3, audit.events.count { it.message == "jira.connection_tested" }, "one event per test")
+                withOverride(get(urlPathMatching("/_edge/tenant_info")).atPriority(1).willReturn(aResponse().withStatus(404))) {
+                    admin.post("$base/${created.id}/test")
+                }
+                val down = audit.awaitEvent {
+                    it.message == "jira.connection_tested" && it.hasKeyValue("failedProbes", listOf("tenant_info"))
+                }
+                assertNotNull(down, "the SKIPPED rows are not failed probes: a down host lists tenant_info alone")
+                assertEquals(4, audit.events.count { it.message == "jira.connection_tested" }, "one event per test")
             }
             val leaks = root.events.filter { event ->
                 listOf(token, basic).any { secret ->
