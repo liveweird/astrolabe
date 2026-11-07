@@ -17,6 +17,30 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.4.0",
+    date: "2026-11-07",
+    en: `**Astrolabe 1.4.0: coverage and roll-ups.**
+
+- Jira items the plan misses: for a linked program or project, the Deviations page now lists the open Jira items under it that nothing in the plan is linked to (a warning, with their keys; finished Jira items are not listed). Acknowledge it once, and it reopens if another unplanned item appears.
+- Plan items Jira does not track: the same rows list the linked program's projects and the linked project's milestones that are not linked to a Jira item (an info, with their names). Both lists show ten entries and "and N more" beyond that.
+- Children done: when every child issue of a linked epic is done in Jira while the epic is still open and the plan's end is still ahead, the Deviations page says so (an info).
+- Roll-up on milestone chips: a milestone linked to an epic shows "5/12 · 34 pt" after its Jira key and flags on the project and team pages and in the unscheduled tray: child issues done of all, and story points (left out when Jira has none). Its full sentence is the tooltip and the accessible name, and the Deviations page shows the same figure under the Jira item. No figure means the last read found no child issues for that epic.
+- Where it comes from: the same polling and Refresh now as before, with no extra clicks. The first run after the upgrade is a full read plus the child issues. After that, changed stories arrive with each poll and the child list is re-read once a day, so a story deleted in Jira can still count in a roll-up for up to a day.
+- Existing acknowledgements stay unless the item gains a coverage or children deviation, which reopens it.
+- Nothing is written to Jira: corrections are made in Astrolabe.
+- Proven against a built-in Jira stub; not yet tested against a real Jira site.`,
+    pl: `**Astrolabe 1.4.0: pokrycie i podsumowania.**
+
+- Elementy Jiry, których brakuje w planie: dla powiązanego programu lub projektu strona Odchylenia wymienia teraz otwarte elementy Jiry pod nim, z którymi nic w planie nie jest powiązane (ostrzeżenie, z ich kluczami; zakończone elementy Jiry nie są wymieniane). Potwierdzasz je raz, a wracają, gdy pojawi się kolejny niezaplanowany element.
+- Elementy planu, których Jira nie śledzi: te same wiersze wymieniają projekty powiązanego programu i kamienie milowe powiązanego projektu, które nie są powiązane z żadnym elementem Jiry (informacja, z ich nazwami). Obie listy pokazują dziesięć pozycji i „i jeszcze N” ponad to.
+- Dzieci ukończone: gdy wszystkie zgłoszenia podrzędne powiązanego epiku są ukończone w Jirze, a epik jest nadal otwarty i koniec planu jest jeszcze przed nami, strona Odchylenia to zgłasza (informacja).
+- Podsumowanie na kamieniach milowych: kamień milowy powiązany z epikiem pokazuje „5/12 · 34 pkt” po kluczu Jiry i flagach na stronach projektu i zespołu oraz na liście niezaplanowanych: ukończone zgłoszenia podrzędne ze wszystkich oraz punkty historii (pomijane, gdy Jira ich nie ma). Pełne zdanie jest podpowiedzią i nazwą dostępną, a strona Odchylenia pokazuje tę samą liczbę pod elementem Jiry. Brak liczby oznacza, że ostatni odczyt nie znalazł zgłoszeń podrzędnych tego epiku.
+- Skąd to się bierze: z tego samego odpytywania i „Odśwież teraz” co dotąd, bez dodatkowych kliknięć. Pierwszy odczyt po aktualizacji jest pełny i obejmuje zgłoszenia podrzędne. Potem zmienione historie napływają z każdym odpytywaniem, a lista zgłoszeń podrzędnych jest czytana raz na dobę, więc historia usunięta w Jirze może jeszcze przez dobę wliczać się do podsumowania.
+- Istniejące potwierdzenia pozostają, chyba że element zyska odchylenie pokrycia lub zgłoszeń podrzędnych, co ponownie go otwiera.
+- Nic nie jest zapisywane do Jiry: korekty wprowadza się w Astrolabe.
+- Sprawdzone na wbudowanej atrapie Jiry; jeszcze nie przetestowane na prawdziwej witrynie Jira.`,
+  },
+  {
     version: "1.3.0",
     date: "2026-11-07",
     en: `**Astrolabe 1.3.0: polling, status, acknowledge and Jira markers.**

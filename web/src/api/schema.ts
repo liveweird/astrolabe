@@ -1904,7 +1904,7 @@ export interface paths {
         put?: never;
         /**
          * Test a Jira connection that is not (yet) stored
-         * @description ADMIN only (guarded before the body decodes), rate limited per IP (`jira-test`, 10 a minute). Probes the Jira site with the credentials in
+         * @description ADMIN only (guarded before the body decodes), rate limited per IP (`jira-test`, 10 a minute by default). Probes the Jira site with the credentials in
          *     the body - the same shape as a create (`apiToken` required) - and answers one row per endpoint probed. Never `502`: a failed probe, an
          *     upstream failure and a timeout are rows in a `200`. Nothing is stored. The token travels only in the body and is never logged, audited or
          *     echoed.
@@ -1929,7 +1929,7 @@ export interface paths {
         put?: never;
         /**
          * Test a stored Jira connection
-         * @description ADMIN only (guard before the id lookup), rate limited per IP (`jira-test`, 10 a minute). Probes the site with the STORED token (decrypted in
+         * @description ADMIN only (guard before the id lookup), rate limited per IP (`jira-test`, 10 a minute by default). Probes the site with the STORED token (decrypted in
          *     memory for the call only) and answers one row per endpoint probed. Never `502`; a stored token that cannot be decrypted (a changed
          *     `DATA_ENCRYPTION_KEY`) is one failed `stored_token` row with code `TOKEN_UNREADABLE` - re-enter the token. The outcome is recorded on the
          *     connection (`lastTestedAt`, `lastTestOk` - the real verdict -, and the `cloudId` once resolved), and the field and issue-type discovery is
@@ -2021,7 +2021,7 @@ export interface paths {
         };
         /**
          * Read one Jira issue through the mapping
-         * @description ADMIN only, guard before the id lookup, rate limited per IP (`jira-test`, 10 a minute, shared with Test connection). Reads the issue
+         * @description ADMIN only, guard before the id lookup, rate limited per IP (`jira-test`, 10 a minute by default, shared with Test connection). Reads the issue
          *     `key` (`ABC-12`) from the site with the STORED token - the cheapest way to see what the mapping reads on a real site before any
          *     binding - and answers its system fields, the values the mapping resolves (the Astrolabe level its hierarchy level maps to, start,
          *     end, estimate, unit, team name) and `raw`: the mapped fields' values exactly as the site sent them, and nothing else of the issue.
