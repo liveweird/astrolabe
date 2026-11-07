@@ -1,4 +1,4 @@
-# Jira sync (connect, map, link, deviations, unlink, gone)
+# Jira sync (connect, map, link, deviations, unlink, gone, flags, acknowledge)
 
 - **Spec**: [tests/jira-sync.spec.ts](../tests/jira-sync.spec.ts)
 - **Actors**: the seed administrator (creates, tests and maps connections in the UI, acts through the API to seed and to link, and presses Refresh now in a
@@ -19,7 +19,7 @@
   from the first scenario and spends the bucket again. The three scenarios that show a result table also scan it with axe (WCAG A/AA), at no extra call.
 
 The stub's `E2E` project (`sample-data/jira/expected.json`, key `e2e`): E2E-1 a Program, E2E-2 and E2E-3 Initiatives, E2E-4..E2E-10 Epics, every date in 2044.
-`E2E-4` "E2E Epic One" runs Mon 2044-01-04 to Fri 2044-01-08. `E2E-6` "E2E Epic Three" runs Mon 2044-02-14 to Fri 2044-02-18 and is deleted on day 2. The refused
+`E2E-4` "E2E Epic One" runs Mon 2044-01-04 to Fri 2044-01-08. `E2E-6` "E2E Epic Three" runs Sun 2044-02-14 to Thu 2044-02-18 and is deleted on day 2. The refused
 token is `wrong-token`. A run takes seconds and the page's Refresh now starts it: nothing here sleeps, every wait is on what the page shows.
 
 ## Scenario: admin creates a Jira connection, tests it and sees every probe green
@@ -89,7 +89,7 @@ read "2"). The stub's own figure for its E2E data (`endLaterWorkingDays: 3`) is 
 
 ## Scenario: unlinking the milestone removes its deviation, and a deleted Jira item reads as gone
 
-1. Two milestones of one project are linked to the connection through the API: `moved` (Mon 2044-01-04 to Wed 2044-01-13) to `E2E-4`, `kept` (Mon 2044-02-14 to Fri
+1. Two milestones of one project are linked to the connection through the API: `moved` (Mon 2044-01-04 to Wed 2044-01-13) to `E2E-4`, `kept` (Sun 2044-02-14 to Thu
    2044-02-18, the days of `E2E-6`) to `E2E-6`. The project owner opens `/deviations?projectId=<id>`.
    - *Expected*: `moved` reads "Ends 3 working days later than Jira"; `kept` has the same dates on both sides and no working-day sentence.
 2. The owner opens the project page and, from `moved`'s row menu, chooses **Unlink from Jira: E2E-4** and confirms.
@@ -104,6 +104,33 @@ read "2"). The stub's own figure for its E2E data (`endLaterWorkingDays: 3`) is 
      Jira".
 6. The afterAll puts the stub back to `Started` once more, as the backstop.
    - *Expected*: nothing of this test's state remains - the connection (and with it the bindings), the plan rows and the logins are deleted.
+
+## Scenario: the owner's milestone deviation shows as a flag and a Jira bar on the project page and on the roadmap; acknowledging it clears the flag, and the Jira item's deletion brings it back
+
+The sixth scenario of the serial group, and the second user of the `jira-day2` flip. Its world (the usual per-test one, dated 2044): one milestone scheduled Sun
+2044-02-14 to **Tue 2044-02-23** and linked (through the API, as the setup) to `E2E-6` (Sun 02-14 to Thu 02-18: three working days later, Fri 19, Mon 22, Tue 23), and its project linked
+to `E2E-2` "E2E Initiative Alpha" (2044-01-04 to 02-18, `E2E-6`'s own parent in Jira, so there is no parent mismatch), whose dates the project's derived span misses at both ends.
+It spends no Test connection call (the shared `linking` connection is already tested).
+
+1. The project owner (no administrator right) opens the project page.
+   - *Expected*: a **Flags** column; the milestone row's key link "E2E-6 (opens in Jira)" and its flag icon, whose label reads "Jira E2E-6: Ends 3 working days later than
+     Jira"; the toolbar's **Jira dates** toggle is on (`aria-pressed`, on by default) and exactly one dashed `[data-tone="jira"]` bar is drawn.
+2. They open the roadmap, narrowed to the world's own program (the program pick is a browser setting), and press **Show the N flags**.
+   - *Expected*: the **Jira dates** toggle is on; the flag table reads "1 milestone deviates from Jira" and "Jira E2E-2: Ends 3 working days later than Jira" for the
+     project; the project's own dashed Jira bar is drawn (one `[data-tone="jira"]`).
+3. They open `/deviations?projectId=<id>&all=false` (the Open list under a project scope), see the milestone's row ("Ends 3 working days later than Jira") and press
+   **Acknowledge E2E-6**.
+   - *Expected*: the row leaves the Open list. They open Filters and choose Status **Acknowledged**: the row is back, "Acknowledged by …", with **Unacknowledge E2E-6**.
+4. They open the project page and the roadmap again.
+   - *Expected*: the key link stays, the flag icon is gone (no `data-flags` for the row), the Jira bar stays (it shows Jira's dates, not the deviation); the roadmap's flag
+     table still has the project's "Jira E2E-2" sentence and no longer says "deviates from Jira".
+5. The stub moves to day 2 (`E2E-6` deleted); the administrator, in a browser of their own, presses **Refresh now: <connection>** on the Deviations page and waits for the
+   milestone's row to show "Gone from Jira". The stub goes back to day 1 at once (in a `finally`).
+6. The owner opens the Open list again (`&all=false`).
+   - *Expected*: the milestone is listed again, "Gone from Jira", its acknowledgement cell reads "… · changed since" (the acknowledgement was of the deviations as they
+     were) with **Acknowledge E2E-6** offered anew; the project page's row has its flag icon back (the "gone" sentence), and the roadmap's flag table says "1 milestone
+     deviates from Jira" again.
+7. The afterEach removes the bindings and the world; the afterAll puts the stub back to `Started`, as the backstop.
 
 ## Not covered here (and why)
 

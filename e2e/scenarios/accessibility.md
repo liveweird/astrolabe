@@ -8,7 +8,7 @@
   left in the Unscheduled tray - plus a second project with one scheduled milestone that is linked as the fixture milestone's
   violated predecessor, plus a chain project of two back-to-back milestones (2026-01-26..30 and 2026-02-02..06) linked c0 -> c1 -> the
   fixture milestone with no spare day, so the fixture project has zero-slack links; unique `e2e-axe-*` names), created through the API before the
-  detail-page block and deleted after it (the projects first: their milestones and links go with them); the list/form pages and the login screen are read-only; plus, for the open-schedule-proposal scan, its own team pair (the proposed team with one capacity period from 2042-01-06, 10 MD/week, WIP limit 2; and a second team), a person, work stream, program, project, four milestones and two links (unique `e2e-axe-prop-*` names, all dated in 2042), created in that describe's beforeAll and deleted in its afterAll (the hovered-row scan rides a second copy of that world, created in the detail-page block's beforeAll and deleted in its afterAll); plus, for the baseline scans, a world and a baseline of their own (a team, a person, a work stream, a program, a project, four milestones and one baseline taken after the plan existed, unique `e2e-axe-bl-*` names, dated in 2026), created in that describe's beforeAll (the plan is re-planned under the baseline there) and deleted in its afterAll, the baseline first (a soft delete). For the Jira pages, a world and a connection of their own (a team, a person, a work stream, a program, a project, one milestone and one Jira connection scoped to the stub's `E2E` project with a unique throwaway site and one binding, unique `e2e-axe-jira-*` names, dated in 2044), created in that describe's beforeAll and deleted in its afterAll, the connection first (its binding goes with it).
+  detail-page block and deleted after it (the projects first: their milestones and links go with them); the list/form pages and the login screen are read-only; plus, for the open-schedule-proposal scan, its own team pair (the proposed team with one capacity period from 2042-01-06, 10 MD/week, WIP limit 2; and a second team), a person, work stream, program, project, four milestones and two links (unique `e2e-axe-prop-*` names, all dated in 2042), created in that describe's beforeAll and deleted in its afterAll (the hovered-row scan rides a second copy of that world, created in the detail-page block's beforeAll and deleted in its afterAll); plus, for the baseline scans, a world and a baseline of their own (a team, a person, a work stream, a program, a project, four milestones and one baseline taken after the plan existed, unique `e2e-axe-bl-*` names, dated in 2026), created in that describe's beforeAll (the plan is re-planned under the baseline there) and deleted in its afterAll, the baseline first (a soft delete). For the Jira pages, a world and a connection of their own (a team, a person, a work stream, a program, a project, one milestone and one Jira connection scoped to the stub's `E2E` project with a unique throwaway site and one binding, unique `e2e-axe-jira-*` names, dated in 2044), created in that describe's beforeAll and deleted in its afterAll, the connection first (its binding goes with it). The connection is manual-only and runs once, manually, in the beforeAll (its status reads Current); the one Deviations scan that acknowledges the binding withdraws it again in a `finally`.
 
 This is the registered template-title exception (see README.md): one `test()` per page is
 generated from a list, so a single scenario section stands in for each list.
@@ -79,7 +79,39 @@ states, so nothing here depends on `jira-sync.spec.ts`'s flips or rows. Each tes
    shown.
    - *Expected*: the scan scoped to the dialog reports zero violations. (The same dialog is opened from the project page by `jira-sync.spec.ts`.)
 
-(Each of the five has a `… in the dark scheme` twin with the dark scheme emulated: `<html>` carries the dark scheme and the scan reports zero violations.)
+## Scenario: the Jira connection editor's Polling controls have no WCAG A/AA violations
+
+1. The administrator opens the fixture connection's page and presses **Edit**: the connection is manual-only, so **Manual only (no polling)** is checked and the interval is disabled.
+   - *Expected*: the scan scoped to the dialog reports zero violations.
+2. They uncheck it, type 3 in **Polling interval (minutes)** and press **Save**.
+   - *Expected*: the rule's refusal ("… from 5 to 1440") shows under the field, nothing is saved, and the scan scoped to the dialog reports zero violations.
+
+## Scenario: /projects/:id with the Flags column and a Jira bar has no WCAG A/AA violations
+
+1. The administrator opens the fixture project's page: the milestone is linked to `E2E-4`, so the **Flags** column holds its key link "E2E-4 (opens in Jira)" and its flag icon, and the dashed Jira bar is drawn under the **Jira dates** toggle (on).
+   - *Expected*: zero violations.
+
+## Scenario: /roadmap with a Jira entry in the open flag panel has no WCAG A/AA violations
+
+1. The administrator opens the roadmap (the program pick, stored before the load, narrows it to the fixture program) and presses **Show the N flags**.
+   - *Expected*: the flag table lists "1 milestone deviates from Jira"; zero violations.
+
+## Scenario: /deviations with the Acknowledge button and the status badges has no WCAG A/AA violations
+
+1. The administrator opens `/deviations?projectId=<fixture project>&all=false` (the Open list) with the Filters panel open.
+   - *Expected*: the milestone's row offers **Acknowledge E2E-4**; "Data from Jira" shows the connection's "Succeeded" badge (the fixture connection ran once, manually, in the beforeAll); the Status select reads Open; zero violations.
+
+## Scenario: /deviations with an acknowledged item has no WCAG A/AA violations
+
+1. The administrator presses **Acknowledge E2E-4** (the row leaves the Open list), then opens `/deviations?projectId=<fixture project>&acknowledged=true`.
+   - *Expected*: the row reads "Acknowledged by …" and offers **Unacknowledge E2E-4**; the Status select reads Acknowledged; zero violations. A `finally` withdraws the acknowledgement through the API whatever happened, so the other scans meet the item open.
+
+## Scenario: the telemetry panel's Sync section has no WCAG A/AA violations
+
+1. The administrator opens the telemetry panel from the account menu and expands **Sync**.
+   - *Expected*: the table "Sync status per connection" has the fixture connection's row with the state "Current"; zero violations.
+
+(Each of the eleven has a `… in the dark scheme` twin with the dark scheme emulated: `<html>` carries the dark scheme and the scan reports zero violations.)
 
 ## Scenario: `<path>` has no WCAG A/AA violations in the dark scheme
 

@@ -1,7 +1,8 @@
 // Jira sync (v1.1), against the compose stack's Jira STUB (WireMock, `E2E_JIRA_STUB_URL`, default http://localhost:8096) and its small isolated `E2E`
 // project (every date in 2044): an administrator creates a connection and tests it, a wrong token shows the failed probes with their scope hints,
 // the administrator maps the levels and fields and peeks an issue, a project owner links a milestone to an epic and the Deviations page shows the
-// end three working days later than Jira's after a refresh, and an unlink removes the deviation while an epic deleted on "day 2" reads as gone.
+// end three working days later than Jira's after a refresh, and an unlink removes the deviation while an epic deleted on "day 2" reads as gone; and (1.3)
+// the owner's flag and Jira bar on the project page and the roadmap, the acknowledgement that clears them and the deletion that brings them back.
 // Owns: its Jira connections (unique `e2e-jira-*` names, each scoped to the stub's `E2E` project only and bound to a unique throwaway site, so no
 // bindings of another spec or of the user's own connections ever meet), their bindings, and a throwaway world per test (a project-owner login, people,
 // a team, a work stream, a program, a project and milestones, unique `e2e-jira-*` names, every date in 2044, which nothing writes a holiday in), all
@@ -10,7 +11,7 @@
 // state): the afterAll puts it back even after a failure, and the beforeAll starts from a known state.
 import { randomUUID } from "node:crypto";
 import { type APIRequestContext, type Locator, type Page, request as playwrightRequest } from "@playwright/test";
-import { apiAsAdmin, axeViolations, deleteViaApi, expect, login, test, uniqueText } from "./helpers";
+import { apiAsAdmin, axeViolations, deleteViaApi, expect, login, openFilters, test, testJiraConnectionViaApi, uniqueText } from "./helpers";
 
 /** The stub's admin API: the same WireMock that answers the app's outbound calls, on the host port compose publishes. */
 const STUB_URL = process.env.E2E_JIRA_STUB_URL ?? "http://localhost:8096";
@@ -37,6 +38,7 @@ let linking: Connection;
 let uiConnection: Connection | undefined;
 const linkingTeardown: string[] = [];
 test.beforeAll(async () => {
+  test.setTimeout(180_000); // the Test connection call may wait a 429 out (one minute)
   await setStubState("Started");
   const { api } = await apiAsAdmin();
   try {
@@ -73,6 +75,7 @@ interface Connection {
 interface World {
   api: APIRequestContext;
   owner: Account;
+  programId: number;
   project: string;
   projectId: number;
   teamId: number;
@@ -95,14 +98,6 @@ async function seedConnection(api: APIRequestContext, label: string, track: stri
   const body = { name, siteUrl: uniqueSite(), email: "e2e-jira@astrolabe.local", apiToken: "e2e-jira-token", authScheme: "BASIC", projectKeys: ["E2E"], enabled: true, pollIntervalMinutes: null };
   const id = await create(api, "/api/v1/integrations/jira/connections", body, "/api/v1/integrations/jira/connections", track);
   return { id, name };
-}
-
-/** The stored Test connection (records the verdict and the discovery the mapping and the bind need). */
-async function testConnection(api: APIRequestContext, connection: Connection): Promise<void> {
-  const response = await api.post(`/api/v1/integrations/jira/connections/${connection.id}/test`);
-  expect(response.status(), await response.text()).toBe(200);
-  const result = (await response.json()) as { rows: { name: string; ok: boolean }[] };
-  expect(result.rows.filter((row) => !row.ok)).toEqual([]);
 }
 
 /**
@@ -137,7 +132,7 @@ async function observedAt(projectId: number): Promise<number> {
 /** A tested connection, ready to link through. */
 async function seedTestedConnection(api: APIRequestContext, label: string, track: string[] = teardown): Promise<Connection> {
   const connection = await seedConnection(api, label, track);
-  await testConnection(api, connection);
+  await testJiraConnectionViaApi(api, connection.id);
   return connection;
 }
 
@@ -167,12 +162,12 @@ async function seedWorld(): Promise<World> {
   const programId = await create(api, `/api/v1/work-streams/${streamId}/programs`, { name: uniqueText("e2e-jira-program"), ownerPersonId: lead }, "/api/v1/programs");
   const project = uniqueText("e2e-jira-project");
   const projectId = await create(api, `/api/v1/programs/${programId}/projects`, { name: project, ownerPersonId: ownerPerson }, "/api/v1/projects");
-  return { api, owner, project, projectId, teamId };
+  return { api, owner, programId, project, projectId, teamId };
 }
 
-/** Link a milestone to an issue through the API as the administrator (the setup of a test whose subject is not the link itself); torn down with the test. */
-async function bindMilestone(api: APIRequestContext, connection: Connection, nodeId: number, issueKey: string): Promise<void> {
-  await create(api, "/api/v1/integrations/jira/bindings", { connectionId: connection.id, level: "MILESTONE", nodeId, issueKey }, "/api/v1/integrations/jira/bindings");
+/** Link a plan node to an issue through the API as the administrator (the setup of a test whose subject is not the link itself); torn down with the test. */
+async function bindNode(api: APIRequestContext, connection: Connection, level: "PROJECT" | "MILESTONE", nodeId: number, issueKey: string): Promise<void> {
+  await create(api, "/api/v1/integrations/jira/bindings", { connectionId: connection.id, level, nodeId, issueKey }, "/api/v1/integrations/jira/bindings");
 }
 
 /** Type one key into the editor's tags input and commit it with Enter (Mantine's TagsInput is a combobox). */
@@ -433,12 +428,12 @@ test("an owner links a milestone to a Jira epic and the Deviations page shows it
 
 test("unlinking the milestone removes its deviation, and a deleted Jira item reads as gone", async ({ page, browser }) => {
   const world = await seedWorld();
-  // `moved` is linked to E2E-4 (Mon 2044-01-04 to Fri 01-08) and ends three working days later; `kept` is linked to E2E-6 (Mon 2044-02-14 to Fri 02-18,
+  // `moved` is linked to E2E-4 (Mon 2044-01-04 to Fri 01-08) and ends three working days later; `kept` is linked to E2E-6 (Sun 2044-02-14 to Thu 02-18,
   // which the stub deletes on day 2) and has the same days.
   const moved = await seedMilestone(world, "moved", 3, "2044-01-04", "2044-01-13");
   const kept = await seedMilestone(world, "kept", 3, "2044-02-14", "2044-02-18");
-  await bindMilestone(world.api, linking, moved.id, "E2E-4");
-  await bindMilestone(world.api, linking, kept.id, "E2E-6");
+  await bindNode(world.api, linking, "MILESTONE", moved.id, "E2E-4");
+  await bindNode(world.api, linking, "MILESTONE", kept.id, "E2E-6");
   await world.api.dispose();
 
   // The owner reads the project's links: one deviating, one in line.
@@ -485,4 +480,87 @@ test("unlinking the milestone removes its deviation, and a deleted Jira item rea
   // The "Data as of" cell (the fifth: Plan item, Jira item, Dates, Deviations, Data as of, Acknowledgement): what the row shows is what was last read,
   // not a current figure.
   await expect(gone.getByRole("cell").nth(4)).toHaveText(/ · stale$/);
+});
+
+test("the owner's milestone deviation shows as a flag and a Jira bar on the project page and on the roadmap; acknowledging it clears the flag, and the Jira item's deletion brings it back", async ({ page, browser }) => {
+  test.setTimeout(120_000); // about twice scenario 5's work: two roadmap loads, an acknowledgement, a day-2 refresh and the pages again
+  const world = await seedWorld();
+  // The milestone is linked to E2E-6 (Sun 2044-02-14 to Thu 02-18, deleted on day 2) and ends on Tue 02-23: three working days later (Fri 19, Mon 22, Tue 23). Its project is linked to
+  // E2E-2, "E2E Initiative Alpha" (2044-01-04 to 02-18, E2E-6's own parent in Jira, so no parent mismatch), whose dates the project's derived span (02-14 to 02-23)
+  // misses at both ends: that is the roadmap's "Jira E2E-2" entry and its dashed bar. The bindings are the setup; the owner's flow is what the test is about.
+  const milestone = await seedMilestone(world, "flagged", 3, "2044-02-14", "2044-02-23");
+  await bindNode(world.api, linking, "PROJECT", world.projectId, "E2E-2");
+  await bindNode(world.api, linking, "MILESTONE", milestone.id, "E2E-6");
+  await world.api.dispose();
+
+  const milestoneFlag = page.locator('[data-flags][title*="Jira E2E-6: Ends 3 working days later than Jira"]');
+  const jiraBars = page.locator('[data-tone="jira"]');
+  const keyLink = page.getByRole("link", { name: "E2E-6 (opens in Jira)" });
+  const roadmapFlags = async (): Promise<Locator> => {
+    // The roadmap, narrowed to the world's own program (the pick is a browser setting; the page is shared by every spec's projects).
+    await page.evaluate(([key, value]) => localStorage.setItem(key, value), ["astrolabe.viewSettings.planning.programPick", JSON.stringify([world.programId])]);
+    await page.goto("/roadmap");
+    await expect(page.getByRole("grid", { name: "Roadmap timeline" })).toBeVisible();
+    await expect(page.getByRole("link", { name: `Open ${world.project}`, exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Jira dates" })).toHaveAttribute("aria-pressed", "true");
+    await page.getByRole("button", { name: /^Show the \d+ flags?$/ }).click();
+    return page.getByRole("table", { name: "Flags of the projects shown" });
+  };
+
+  // The owner reads the project page: the Flags column with the milestone's key link and its flag, and the dashed Jira bar (the toggle is on by default).
+  await login(page, world.owner.email, world.owner.password);
+  await page.goto(`/projects/${world.projectId}`);
+  await expect(page.getByRole("grid", { name: "Milestone timeline" })).toBeVisible();
+  await expect(page.getByRole("columnheader", { name: "Flags" })).toBeVisible();
+  await expect(keyLink).toBeVisible();
+  await expect(milestoneFlag).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "Jira dates" })).toHaveAttribute("aria-pressed", "true");
+  await expect(jiraBars).toHaveCount(1);
+
+  // The roadmap: the project's flag panel names the milestone roll-up and the project's own Jira entry, and its own dashed bar is drawn.
+  let flags = await roadmapFlags();
+  await expect(flags).toContainText("1 milestone deviates from Jira");
+  await expect(flags).toContainText("Jira E2E-2: Ends 3 working days later than Jira");
+  await expect(jiraBars).toHaveCount(1);
+
+  // Acknowledge: the row leaves the Open list and the Acknowledged status lists it, with who and when. (A project scope alone implies "all": `all=false` is the
+  // Open list under a scope, which is what the Status select's Open sends.)
+  await page.goto(`/deviations?projectId=${world.projectId}&all=false`);
+  const row = rowOf(page, milestone.name);
+  await expect(row).toContainText("Ends 3 working days later than Jira");
+  await row.getByRole("button", { name: "Acknowledge E2E-6" }).click();
+  await expect(row).toHaveCount(0);
+  await openFilters(page);
+  await page.getByRole("combobox", { name: "Status" }).click();
+  await page.getByRole("option", { name: "Acknowledged", exact: true }).click();
+  await expect(row).toContainText("Acknowledged by");
+  await expect(row.getByRole("button", { name: "Unacknowledge E2E-6" })).toBeVisible();
+
+  // The project page's flag is gone (the link stays, and so does the bar: it shows the Jira dates, not the deviation); so is the roadmap's roll-up entry.
+  await page.goto(`/projects/${world.projectId}`);
+  await expect(keyLink).toBeVisible();
+  await expect(milestoneFlag).toHaveCount(0);
+  await expect(jiraBars).toHaveCount(1);
+  flags = await roadmapFlags();
+  await expect(flags).toContainText("Jira E2E-2: Ends 3 working days later than Jira");
+  await expect(flags).not.toContainText("deviates from Jira");
+
+  // Day 2: E2E-6 is deleted in Jira. After the administrator's refresh the item is open again - the acknowledgement was of what the deviations were - as GONE.
+  const adminContext = await browser.newContext();
+  try {
+    await setStubState("day2");
+    await refreshAsAdmin(await adminContext.newPage(), linking, world.projectId, (admin) => rowOf(admin, milestone.name).getByText("Gone from Jira", { exact: true }));
+  } finally {
+    await setStubState("Started");
+    await adminContext.close();
+  }
+  await page.goto(`/deviations?projectId=${world.projectId}&all=false`);
+  const gone = rowOf(page, milestone.name);
+  await expect(gone.getByText("Gone from Jira", { exact: true })).toBeVisible();
+  await expect(gone).toContainText("· changed since");
+  await expect(gone.getByRole("button", { name: "Acknowledge E2E-6" })).toBeVisible();
+  await page.goto(`/projects/${world.projectId}`);
+  await expect(page.locator('[data-flags][title*="Jira E2E-6: No longer readable in Jira"]')).toHaveCount(1); // the flag is back, now with the "gone" sentence
+  flags = await roadmapFlags();
+  await expect(flags).toContainText("1 milestone deviates from Jira");
 });

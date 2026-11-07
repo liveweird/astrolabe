@@ -12,6 +12,8 @@
 // baseline is soft-deleted FIRST in the afterAll, so the stack holds none of it afterwards.
 // The Jira pages (the very last describe) own a team, a plan, a Jira connection scoped to the stub's `E2E` project and one binding of their own (unique
 // `e2e-axe-jira-*` names, dated in 2044), created and deleted via the API; the connection is deleted FIRST in the afterAll (its binding goes with it).
+// The connection is manual-only and refreshed once through the API in the beforeAll (one manual run: its status reads Current), and the Deviations scans
+// that acknowledge the world's one item withdraw the acknowledgement again in a finally.
 import type { APIRequestContext, Locator, Page } from "@playwright/test";
 import {
   apiAsAdmin,
@@ -24,6 +26,7 @@ import {
   rowOperation,
   type Scheme,
   test,
+  testJiraConnectionViaApi,
   uniqueText,
   updateRankingViaApi,
 } from "./helpers";
@@ -868,8 +871,11 @@ test.describe("the Jira pages", () => {
   let api: APIRequestContext;
   let connectionId: number;
   let connectionName: string;
+  let programId: number;
   let projectId: number;
+  let projectName: string;
   let milestoneName: string;
+  let bindingId: number;
   const paths: string[] = []; // delete paths in creation order (the connection last); the afterAll deletes them in reverse
 
   async function create(path: string, data: object, tear: string): Promise<number> {
@@ -881,12 +887,14 @@ test.describe("the Jira pages", () => {
   }
 
   test.beforeAll(async () => {
+    test.setTimeout(180_000); // the Test connection call may wait a 429 out (one minute)
     ({ api } = await apiAsAdmin());
     const teamId = await create("/api/v1/teams", { name: uniqueText("e2e-axe-jira-team") }, "/api/v1/teams");
     const personId = await create("/api/v1/people", { name: uniqueText("e2e-axe-jira-owner") }, "/api/v1/people");
     const streamId = await create("/api/v1/work-streams", { name: uniqueText("e2e-axe-jira-stream"), ownerPersonId: personId, startDate: "2044-01-04" }, "/api/v1/work-streams");
-    const programId = await create(`/api/v1/work-streams/${streamId}/programs`, { name: uniqueText("e2e-axe-jira-program"), ownerPersonId: personId }, "/api/v1/programs");
-    projectId = await create(`/api/v1/programs/${programId}/projects`, { name: uniqueText("e2e-axe-jira-project"), ownerPersonId: personId }, "/api/v1/projects");
+    programId = await create(`/api/v1/work-streams/${streamId}/programs`, { name: uniqueText("e2e-axe-jira-program"), ownerPersonId: personId }, "/api/v1/programs");
+    projectName = uniqueText("e2e-axe-jira-project");
+    projectId = await create(`/api/v1/programs/${programId}/projects`, { name: projectName, ownerPersonId: personId }, "/api/v1/projects");
     milestoneName = uniqueText("e2e-axe-jira-milestone");
     const milestoneId = await create(`/api/v1/projects/${projectId}/milestones`, { name: milestoneName, teamId, estimateMd: 3 }, "/api/v1/milestones");
     const view = (await (await api.get(`/api/v1/views/team/${teamId}`)).json()) as { revision: number };
@@ -899,10 +907,22 @@ test.describe("the Jira pages", () => {
       { name: connectionName, siteUrl: site, email: "e2e-axe-jira@astrolabe.local", apiToken: "e2e-axe-jira-token", authScheme: "BASIC", projectKeys: ["E2E"], enabled: true, pollIntervalMinutes: null },
       "/api/v1/integrations/jira/connections",
     );
-    const tested = await api.post(`/api/v1/integrations/jira/connections/${connectionId}/test`);
-    expect(tested.status(), await tested.text()).toBe(200);
+    await testJiraConnectionViaApi(api, connectionId);
     const bound = await api.post("/api/v1/integrations/jira/bindings", { data: { connectionId, level: "MILESTONE", nodeId: milestoneId, issueKey: "E2E-4" } });
     expect(bound.status(), await bound.text()).toBe(201);
+    bindingId = ((await bound.json()) as { id: number }).id;
+    // One manual run, awaited: the connection page, the Deviations page's "Data from Jira" and the telemetry panel then show the status Current.
+    const requested = await api.post("/api/v1/integrations/sync/runs", { data: { kind: "JIRA", connectionId } });
+    expect(requested.status(), await requested.text()).toBe(202);
+    await expect
+      .poll(
+        async () => {
+          const runs = await api.get(`/api/v1/integrations/sync/runs?kind=JIRA&connectionId=${connectionId}`);
+          return ((await runs.json()) as { items: { outcome: string | null }[] }).items[0]?.outcome ?? "running";
+        },
+        { message: "the fixture connection's one manual run", timeout: 30_000 },
+      )
+      .toBe("SUCCEEDED");
   });
   test.afterAll(async () => {
     try {
@@ -928,6 +948,11 @@ test.describe("the Jira pages", () => {
       // Every section, filled: the facts and runs, the discovery report with the mapping form and Peek, the Links table with the fixture's row.
       await expect(page.getByRole("heading", { level: 3, name: "Connection" })).toBeVisible();
       await expect(page.getByRole("table", { name: "Recent runs" })).toBeVisible();
+      // The status facts, filled by the one manual run: the Current badge, a last success, the polling line.
+      const facts = page.getByRole("table", { name: "Connection facts" });
+      await expect(facts.getByText("Current", { exact: true })).toBeVisible();
+      await expect(facts).toContainText("Manual only");
+      await expect(page.getByRole("table", { name: "Recent runs" }).getByText("Succeeded", { exact: true })).toBeVisible();
       await expect(page.getByRole("heading", { level: 3, name: "Mapping" })).toBeVisible();
       await expect(page.getByRole("heading", { level: 4, name: "Discovery report" })).toBeVisible();
       await expect(page.getByRole("form", { name: "Field mapping" })).toBeVisible();
@@ -979,6 +1004,102 @@ test.describe("the Jira pages", () => {
       await expect(dialog.getByRole("combobox", { name: "Jira connection" })).toHaveValue(connectionName);
       await expect(dialog.getByRole("textbox", { name: "Jira issue key" })).toBeVisible();
       await scan(page, '[role="dialog"]');
+    });
+
+    test(`the Jira connection editor's Polling controls have no WCAG A/AA violations${suffix}`, async ({ page }) => {
+      await openConnection(page);
+      await page.getByRole("button", { name: "Edit", exact: true }).click();
+      const dialog = page.getByRole("dialog", { name: "Edit Jira connection" });
+      await expect(dialog).toBeVisible();
+      const interval = dialog.getByRole("textbox", { name: "Polling interval (minutes)" });
+      const manualOnly = dialog.getByRole("checkbox", { name: "Manual only (no polling)" });
+      // The saved state: manual only, so the number is disabled (a disabled control is exempt from the contrast rule, its label is not).
+      await expect(manualOnly).toBeChecked();
+      await expect(interval).toBeDisabled();
+      await scan(page, '[role="dialog"]');
+      // The number enabled, with the rule's refusal under it (the red error text on the dialog's surface).
+      await manualOnly.uncheck();
+      await interval.fill("3");
+      await dialog.getByRole("button", { name: "Save", exact: true }).click();
+      await expect(dialog.getByText(/from 5 to 1440/)).toBeVisible();
+      await expect(dialog).toBeVisible();
+      await scan(page, '[role="dialog"]');
+    });
+
+    test(`/projects/:id with the Flags column and a Jira bar has no WCAG A/AA violations${suffix}`, async ({ page }) => {
+      await login(page);
+      await page.goto(`/projects/${projectId}`);
+      await expect(page.getByRole("heading", { level: 2, name: projectName })).toBeVisible();
+      await expect(page.getByRole("grid", { name: "Milestone timeline" })).toBeVisible();
+      await expect(page.getByRole("columnheader", { name: "Flags" })).toBeVisible();
+      await expect(page.getByRole("link", { name: "E2E-4 (opens in Jira)" })).toBeVisible();
+      await expect(page.locator('[data-flags][title*="Jira E2E-4"]')).toHaveCount(1);
+      await expect(page.getByRole("button", { name: "Jira dates" })).toHaveAttribute("aria-pressed", "true");
+      await expect(page.locator('[data-tone="jira"]').first()).toBeAttached();
+      await expectScheme(page, scheme);
+      await scan(page);
+    });
+
+    test(`/roadmap with a Jira entry in the open flag panel has no WCAG A/AA violations${suffix}`, async ({ page }) => {
+      await login(page);
+      await page.evaluate(([key, value]) => localStorage.setItem(key, value), ["astrolabe.viewSettings.planning.programPick", JSON.stringify([programId])]);
+      await page.goto("/roadmap");
+      await expect(page.getByRole("grid", { name: "Roadmap timeline" })).toBeVisible();
+      await expect(page.getByRole("link", { name: `Open ${projectName}`, exact: true })).toBeVisible();
+      await page.getByRole("button", { name: /^Show the \d+ flags?$/ }).click();
+      await expect(page.getByRole("table", { name: "Flags of the projects shown" })).toContainText("1 milestone deviates from Jira");
+      await expectScheme(page, scheme);
+      await scan(page);
+    });
+
+    test(`/deviations with the Acknowledge button and the status badges has no WCAG A/AA violations${suffix}`, async ({ page }) => {
+      await login(page);
+      await page.goto(`/deviations?projectId=${projectId}&all=false`);
+      await expect(page.getByRole("heading", { level: 2, name: "Deviations" })).toBeVisible();
+      const row = page.getByRole("table", { name: "Differences between the plan and Jira" }).getByRole("row").filter({ hasText: milestoneName });
+      await expect(row.getByRole("button", { name: "Acknowledge E2E-4" })).toBeVisible();
+      // The run-state badge of "Data from Jira" (the one manual run succeeded) and the totals badges.
+      await expect(page.getByRole("table", { name: "Data from Jira" }).getByText("Succeeded", { exact: true })).toBeVisible();
+      await openFilters(page);
+      await expect(page.getByRole("combobox", { name: "Status" })).toHaveValue("Open");
+      await expectScheme(page, scheme);
+      await scan(page);
+    });
+
+    test(`/deviations with an acknowledged item has no WCAG A/AA violations${suffix}`, async ({ page }) => {
+      await login(page);
+      try {
+        await page.goto(`/deviations?projectId=${projectId}&all=false`);
+        const table = page.getByRole("table", { name: "Differences between the plan and Jira" });
+        await table.getByRole("row").filter({ hasText: milestoneName }).getByRole("button", { name: "Acknowledge E2E-4" }).click();
+        await expect(table.getByRole("row").filter({ hasText: milestoneName })).toHaveCount(0);
+        await page.goto(`/deviations?projectId=${projectId}&acknowledged=true`);
+        const row = table.getByRole("row").filter({ hasText: milestoneName });
+        await expect(row).toContainText("Acknowledged by");
+        await expect(row.getByRole("button", { name: "Unacknowledge E2E-4" })).toBeVisible();
+        await openFilters(page);
+        await expect(page.getByRole("combobox", { name: "Status" })).toHaveValue("Acknowledged");
+        await expectScheme(page, scheme);
+        await scan(page);
+      } finally {
+        // Withdraw it whatever happened, so the other scans meet the item open (a 404 = it was never acknowledged).
+        const withdrawn = await api.delete(`/api/v1/integrations/jira/bindings/${bindingId}/acknowledge`);
+        expect([204, 404]).toContain(withdrawn.status());
+      }
+    });
+
+    test(`the telemetry panel's Sync section has no WCAG A/AA violations${suffix}`, async ({ page }) => {
+      await login(page);
+      await page.getByRole("button", { name: "Account menu" }).click();
+      await page.getByRole("menuitem", { name: "Telemetry panel" }).click();
+      const panel = page.getByRole("complementary", { name: "Telemetry" });
+      await expect(panel).toBeVisible();
+      const section = panel.getByRole("button", { name: "Sync", exact: true });
+      if ((await section.getAttribute("aria-expanded")) !== "true") await section.click();
+      const row = panel.getByRole("table", { name: "Sync status per connection" }).getByRole("row").filter({ hasText: connectionName });
+      await expect(row).toContainText("Current");
+      await expectScheme(page, scheme);
+      await scan(page);
     });
   }
   registerJiraScans("light");

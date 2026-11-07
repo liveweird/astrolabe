@@ -15,7 +15,7 @@
 // the user's - and the run fails fast with that message instead.
 import { randomUUID } from "node:crypto";
 import { type APIRequestContext, type Locator, type Page } from "@playwright/test";
-import { apiAsAdmin, axeViolations, deleteViaApi, expect, expectScheme, login, test, uniqueText, type Scheme } from "./helpers";
+import { apiAsAdmin, axeViolations, deleteViaApi, expect, expectScheme, login, test, testJiraConnectionViaApi, uniqueText, type Scheme } from "./helpers";
 
 // The stub's IMP project is one shared fixture and "IMP Program" a global name: copies of this file (a `--repeat-each` run) take turns. The lock is
 // all it does - no other spec imports `IMP`. The timeout leaves the longest inner wait (the apply's 60 s) room to fire before the test's own.
@@ -109,9 +109,6 @@ async function sweepStale(api: APIRequestContext): Promise<void> {
   }
 }
 
-/** The pause the bucket asks for: the answer's `Retry-After` when it carries one (the app's own 429 does not, a registered gap), else the minute the bucket is counted in. */
-const retryAfterMs = (retryAfter: string | undefined): number => (retryAfter !== undefined && Number(retryAfter) > 0 ? Number(retryAfter) * 1000 : 61_000);
-
 // The one Test connection call (10 a minute per IP across the suite) is spent once per WORKER START of this file, not once per run: a failed test
 // restarts the worker and runs this again. A 429 waits the bucket out once.
 test.beforeAll(async () => {
@@ -125,14 +122,7 @@ test.beforeAll(async () => {
     const response = await api.post("/api/v1/integrations/jira/connections", { data: body });
     expect(response.status(), await response.text()).toBe(201);
     connection = { id: ((await response.json()) as { id: number }).id, name };
-    let tested = await api.post(`/api/v1/integrations/jira/connections/${connection.id}/test`);
-    if (tested.status() === 429) {
-      await new Promise((resolve) => setTimeout(resolve, retryAfterMs(tested.headers()["retry-after"])));
-      tested = await api.post(`/api/v1/integrations/jira/connections/${connection.id}/test`);
-    }
-    expect(tested.status(), await tested.text()).toBe(200);
-    const result = (await tested.json()) as { rows: { name: string; ok: boolean }[] };
-    expect(result.rows.filter((row) => !row.ok)).toEqual([]);
+    await testJiraConnectionViaApi(api, connection.id);
   } finally {
     await api.dispose();
   }
@@ -451,12 +441,7 @@ async function seedScaleConnection(): Promise<{ id: number; name: string }> {
     const site = `https://e2eimport${randomUUID().replace(/-/g, "").slice(0, 12)}.atlassian.net`;
     const body = { name, siteUrl: site, email: "e2e-import@astrolabe.local", apiToken: "e2e-import-token", authScheme: "BASIC", projectKeys: SCALE_KEYS, enabled: true, pollIntervalMinutes: null };
     const id = await create(api, "/api/v1/integrations/jira/connections", body, "/api/v1/integrations/jira/connections");
-    let tested = await api.post(`/api/v1/integrations/jira/connections/${id}/test`);
-    if (tested.status() === 429) {
-      await new Promise((resolve) => setTimeout(resolve, retryAfterMs(tested.headers()["retry-after"])));
-      tested = await api.post(`/api/v1/integrations/jira/connections/${id}/test`);
-    }
-    expect(tested.status(), await tested.text()).toBe(200);
+    await testJiraConnectionViaApi(api, id);
     return { id, name };
   } finally {
     await api.dispose();

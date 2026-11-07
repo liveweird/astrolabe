@@ -213,6 +213,26 @@ export async function apiAsAdmin(): Promise<{ api: APIRequestContext; userId: nu
   return { api, userId };
 }
 
+/** The pause a 429 asks for: the answer's `Retry-After` when it carries one (the app's own 429 does not, a registered gap), else the minute the bucket is counted in. */
+const retryAfterMs = (retryAfter: string | undefined): number => (retryAfter !== undefined && Number(retryAfter) > 0 ? Number(retryAfter) * 1000 : 61_000);
+
+/**
+ * The stored Test connection of a Jira connection through the API (it records the verdict and the discovery that polling, the mapping and the bind need) and
+ * asserts every probe green. Test connection and Peek share a 10-a-minute bucket per IP across the whole suite (`e2e/README.md`): a 429 waits the bucket out ONCE and
+ * tries again, so a caller that runs in a beforeAll must raise its timeout past the minute (`test.setTimeout(180_000)`).
+ */
+export async function testJiraConnectionViaApi(api: APIRequestContext, connectionId: number): Promise<void> {
+  const path = `/api/v1/integrations/jira/connections/${connectionId}/test`;
+  let tested = await api.post(path);
+  if (tested.status() === 429) {
+    await new Promise((resolve) => setTimeout(resolve, retryAfterMs(tested.headers()["retry-after"])));
+    tested = await api.post(path);
+  }
+  expect(tested.status(), await tested.text()).toBe(200);
+  const result = (await tested.json()) as { rows: { name: string; ok: boolean }[] };
+  expect(result.rows.filter((row) => !row.ok)).toEqual([]);
+}
+
 /**
  * Teardown through the API for the rows a test created, for a spec's `test.afterEach` — so a failing step leaves nothing
  * behind (stale e2e rows would pile up in the dev volume). `paths` are deleted IN THE GIVEN ORDER
