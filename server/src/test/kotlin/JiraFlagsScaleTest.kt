@@ -1,8 +1,10 @@
 package ch.nokillswit
 
 import ch.nokillswit.auth.LoginResponse
+import ch.nokillswit.infra.time.WorkingCalendar
 import ch.nokillswit.jira.DeviationViewServiceKey
 import ch.nokillswit.jira.JiraFlagSource
+import ch.nokillswit.planning.ExternalFlagRequest
 import ch.nokillswit.planning.JiraRollup
 import ch.nokillswit.planning.PlanActor
 import ch.nokillswit.planning.RoadmapViewService
@@ -21,6 +23,10 @@ import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
+import org.jetbrains.exposed.v1.core.statements.StatementContext
+import org.jetbrains.exposed.v1.r2dbc.R2dbcTransaction
+import org.jetbrains.exposed.v1.r2dbc.statements.SuspendStatementInterceptor
+import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
 import org.junit.BeforeClass
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -38,7 +44,8 @@ import kotlin.test.assertTrue
  * dates cost, not the link itself); the roadmap service is also timed with and without the source, to isolate the Jira computation.
  * Sizes (plain and gzipped) and the median of five warm reads are `scale-figure` lines ([ScaleFigures]), recorded in `timeline.md`
  * "Measured figures (1.3)" (before the roll-up) and "(1.4)". The asserted bounds are the documented size gates and loose time
- * tripwires (at least 5x the dev-machine figure), never the machine's speed.
+ * tripwires (at least 5x the dev-machine figure), never the machine's speed. The Jira source's statement count is pinned too
+ * ([assertLoaderStatementsAreFlat]): the same number whatever the size, which the timing of 1,000 rows cannot show.
  */
 class JiraFlagsScaleTest {
     private class Reading(val bytes: Int, val gzip: Int, val p50: Double, val max: Double)
@@ -80,6 +87,44 @@ class JiraFlagsScaleTest {
         ScaleFigures.print("flags roadmap service with the Jira source median", p50 { RoadmapViewService(db, jira).view(actor) })
         ScaleFigures.print("flags team service without a source median", p50 { TeamViewService(db).view(platform, actor) })
         ScaleFigures.print("flags team service with the Jira source median", p50 { TeamViewService(db, jira).view(platform, actor) })
+    }
+
+    /** Records every statement one transaction sends (Flow's `InsertCounter` shape: a per-transaction `SuspendStatementInterceptor`). */
+    private class StatementCounter : SuspendStatementInterceptor {
+        val sql = mutableListOf<String>()
+
+        override suspend fun beforeExecution(transaction: R2dbcTransaction, context: StatementContext) {
+            sql += context.sql(transaction)
+        }
+    }
+
+    /** The statements [JiraFlagSource.flagsInTransaction] sends for [projectIds]/[milestoneIds] (both null = the whole plan). */
+    private suspend fun flagLoadStatements(jira: JiraFlagSource, projectIds: List<UInt>?, milestoneIds: List<UInt>?): List<String> {
+        val counter = StatementCounter()
+        val flags = suspendTransaction(sharedDatabaseForTests()) {
+            registerInterceptor(counter)
+            jira.flagsInTransaction(ExternalFlagRequest(projectIds, milestoneIds, WorkingCalendar.MON_FRI))
+        }
+        assertTrue(flags.milestones.isNotEmpty(), "the load must have found bindings to count anything")
+        return counter.sql
+    }
+
+    /**
+     * Pins the Jira source's statement count (the roll-up loader included) as INDEPENDENT of size: the whole plan (100 projects, 1,000
+     * bound milestones, 5,000 mirrored children) and ONE project with its milestones must send the SAME number of statements, so a
+     * query per binding, per milestone or per epic fails here although the 1,000-row world's timing hides it. The loader is called
+     * directly in a transaction of its own, which isolates it: an unrelated extra query elsewhere in a view cannot move this count.
+     * The exact figure is [LOADER_STATEMENTS]; a deliberate new loader raises it with its line in that constant's comment.
+     */
+    private suspend fun assertLoaderStatementsAreFlat(jira: JiraFlagSource, projectId: UInt) {
+        val milestoneIds = jbScalar("SELECT array_agg(id) FROM milestones WHERE project_id = ?", projectId.toInt()) { rs ->
+            (rs.getArray(1).array as Array<*>).map { (it as Int).toUInt() }
+        }
+        val whole = flagLoadStatements(jira, null, null)
+        val one = flagLoadStatements(jira, listOf(projectId), milestoneIds)
+        println("scale-figure flags loader statements, whole plan: ${whole.size}, one project: ${one.size}\n${whole.joinToString("\n")}")
+        assertEquals(whole.size, one.size, "the statement count must not follow the number of bindings:\n${whole.joinToString("\n")}")
+        assertEquals(LOADER_STATEMENTS, whole.size, "the loader's statements:\n${whole.joinToString("\n")}")
     }
 
     @Test
@@ -132,6 +177,8 @@ class JiraFlagsScaleTest {
             val rolled = rows.groupingBy { it.jira?.rollup }.eachCount()
             assertEquals(mapOf<JiraRollup?, Int>(rollup to PLATFORM_ROWS), rolled, "every link rolls up")
 
+            assertLoaderStatementsAreFlat(JiraFlagSource(application.attributes[DeviationViewServiceKey]), milestoneRow)
+
             jbSql("UPDATE jira_connections SET enabled = FALSE WHERE id = ?", f.connectionId.toInt())
             for ((name, path) in views) unbound[name] = client.read("$name disabled", path, DISABLED_RUNS)
             for ((name, reading) in unbound) {
@@ -163,6 +210,15 @@ class JiraFlagsScaleTest {
         private const val FLAGS_PER_MILESTONE = 3
         private const val POINTS_PER_CHILD = 3.0
         private const val RUNS = 5
+
+        /**
+         * The statements one [JiraFlagSource.flagsInTransaction] load sends, whole plan or one project alike (measured 2026-11-07):
+         * the bindings with their latest observation (1), the connections (1), the plan nodes (the project and milestone rows, 2), the
+         * derived spans (1), the bound-to map (1), the coverage reads (programs, projects, the Jira children of bound parents and the
+         * plan's milestone names: 4) and the ONE roll-up `GROUP BY (connection, parent)` (1) = 11. Every one is an `IN (...)` over the
+         * scoped ids; none is per binding. A deliberate new loader raises this figure and gets its entry here.
+         */
+        private const val LOADER_STATEMENTS = 11
         private const val DISABLED_RUNS = 3
         private const val NANOS_PER_MILLI = 1_000_000.0
 
