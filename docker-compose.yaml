@@ -81,6 +81,9 @@ services:
       # THIS container, where `localhost` is the container itself, not the stub, and Test connection then fails; unset it for compose. An EMPTY value
       # (JIRA_STUB_BASE_URL= docker compose up) disables the stub; only an UNSET variable gets the default below.
       JIRA_STUB_BASE_URL: ${JIRA_STUB_BASE_URL-http://jira-stub:8080}
+      # The per-IP Test connection / Peek bucket: 30/min here (the e2e suite drives the Jira specs from one host and a retried group
+      # would exhaust the default 10); the shipped production manifests keep the default (security.md "Per-IP login bucket").
+      JIRA_TEST_RATE_LIMIT_PER_MINUTE: "30"
     ports:
       - "127.0.0.1:8086:8086"
     # Mirrors the image's HEALTHCHECK (stated here so `depends_on: service_healthy` and the e2e

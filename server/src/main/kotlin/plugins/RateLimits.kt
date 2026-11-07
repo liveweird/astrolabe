@@ -71,9 +71,9 @@ object RateLimits {
     /** `POST /api/v1/password-reset/confirm` - the link's token exchange, 10/min per IP in every mode (the [MFA] idiom). */
     const val PASSWORD_RESET_CONFIRM = "password-reset-confirm"
     /**
-     * Both Test-connection routes of the Jira sync (`POST /api/v1/integrations/jira/connections/test` and `…/{id}/test`), 10/min per IP in
-     * every mode (the [MFA] idiom): each call makes up to ~10 outbound requests with the stored token, so the bound is for a
-     * runaway client.
+     * Both Test-connection routes of the Jira sync (`POST /api/v1/integrations/jira/connections/test` and `…/{id}/test`) and Peek, per IP:
+     * 10/min by default in every mode, pinnable within 1..100 via `security.rateLimit.jiraTestPerMinute` (the e2e stacks set 30). Each call
+     * makes up to ~10 outbound requests with the stored token, so the bound is for a runaway client.
      */
     const val JIRA_TEST = "jira-test"
     /** `GET /api/v1/ready` — the one anonymous route that takes a pooled DB connection per call (checkup D7-2, A16). */
@@ -113,18 +113,19 @@ object RateLimits {
     private const val MFA_PER_MINUTE = 10
     private const val PASSWORD_RESET_CONFIRM_PER_MINUTE = 10
     private const val JIRA_TEST_PER_MINUTE = 10
+    private const val JIRA_TEST_MAX_PER_MINUTE = 100
     private const val LOGIN_PER_MINUTE_PRODUCTION = 10
     private const val LOGIN_PER_MINUTE_DEVELOPMENT = 1000
     private const val RESET_PER_MINUTE_PRODUCTION = 5
     private const val RESET_PER_MINUTE_DEVELOPMENT = 100
 
     /** Blank follows the mode; a number pins the bucket in either mode (the `http.exposeOpenApi` idiom). */
-    internal fun Application.configuredLimit(key: String, default: Int): Int =
+    internal fun Application.configuredLimit(key: String, default: Int, max: Int = MAX_LIMIT_PER_MINUTE): Int =
         if (environment.config.propertyOrNull(key)?.getString().isNullOrBlank()) {
             default
         } else {
             // Boot-validated: a non-numeric or non-positive limit (0 blocks every request) refuses startup.
-            requireConfigInt(environment.config, key, min = 1, max = MAX_LIMIT_PER_MINUTE)
+            requireConfigInt(environment.config, key, min = 1, max = max)
         }
 
     internal fun Application.loginLimit() = configuredLimit(
@@ -142,7 +143,9 @@ object RateLimits {
     internal fun jiraImportLimit() = JIRA_IMPORT_PER_MINUTE
     internal fun mfaLimit() = MFA_PER_MINUTE
     internal fun passwordResetConfirmLimit() = PASSWORD_RESET_CONFIRM_PER_MINUTE
-    internal fun jiraTestLimit() = JIRA_TEST_PER_MINUTE
+    /** The shipped manifests keep 10; the e2e stacks (compose, the OrbStack overlay) pin 30. Capped at 100: each call fans out to Jira. */
+    internal fun Application.jiraTestLimit() =
+        configuredLimit("security.rateLimit.jiraTestPerMinute", JIRA_TEST_PER_MINUTE, max = JIRA_TEST_MAX_PER_MINUTE)
 }
 
 /**

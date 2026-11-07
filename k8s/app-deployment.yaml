@@ -106,6 +106,14 @@ spec:
                   name: astrolabe-front-door
                   key: JIRA_STUB_BASE_URL
                   optional: true
+            # The Test connection / Peek per-IP bucket, raised to 30 in the OrbStack overlay only (e2e); absent from the production
+            # ConfigMap, so `optional: true` leaves it UNSET there and the application keeps its default of 10.
+            - name: JIRA_TEST_RATE_LIMIT_PER_MINUTE
+              valueFrom:
+                configMapKeyRef:
+                  name: astrolabe-front-door
+                  key: JIRA_TEST_RATE_LIMIT_PER_MINUTE
+                  optional: true
             # Password reset and email MFA need outbound mail. This deployment ships with
             # mail disabled — set "smtp" plus real SMTP_HOST/MAIL_FROM/MAIL_APP_URL to enable
             # those flows (production refuses the `log` transport). MAIL_APP_URL is the https origin

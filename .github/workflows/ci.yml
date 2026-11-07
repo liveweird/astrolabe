@@ -334,13 +334,16 @@ jobs:
           grep -qE '^  KTOR_DEVELOPMENT: "false"$' k8s/front-door.yaml
           grep -qE '^  HTTP_BEHIND_PROXY: "true"$' k8s/front-door.yaml
           grep -qE '^  HTTP_PROXY_HOPS: "1"$' k8s/front-door.yaml
-          # The Deployment must READ the ConfigMap: exactly four refs (the three keys plus the overlay-only, OPTIONAL JIRA_STUB_BASE_URL),
+          # The Deployment must READ the ConfigMap: exactly five refs (the three keys plus the overlay-only, OPTIONAL JIRA_STUB_BASE_URL and
+          # JIRA_TEST_RATE_LIMIT_PER_MINUTE),
           # and no inline value for any of them. The production ConfigMap carries no stub key (the app refuses a stub URL in production).
-          test "$(grep -cE '^ +name: astrolabe-front-door$' k8s/app-deployment.yaml)" -eq 4
+          test "$(grep -cE '^ +name: astrolabe-front-door$' k8s/app-deployment.yaml)" -eq 5
           if grep -q 'JIRA_STUB_BASE_URL' k8s/front-door.yaml; then echo "the production ConfigMap must not carry the Jira stub URL" >&2; exit 1; fi
+          if grep -q 'JIRA_TEST_RATE_LIMIT_PER_MINUTE' k8s/front-door.yaml; then echo "the production ConfigMap keeps the default jira-test bucket" >&2; exit 1; fi
           # `optional: true` must sit inside THAT env entry (from its `- name:` line to the next entry), not merely near it.
           awk '/^ +- name: /{on=($0 ~ /name: JIRA_STUB_BASE_URL$/)} on' k8s/app-deployment.yaml | grep -qE '^ +optional: true$'
-          if grep -A1 -E 'name: (KTOR_DEVELOPMENT|HTTP_BEHIND_PROXY|HTTP_PROXY_HOPS|JIRA_STUB_BASE_URL)$' k8s/app-deployment.yaml | grep -qE '^ +value:'; then
+          awk '/^ +- name: /{on=($0 ~ /name: JIRA_TEST_RATE_LIMIT_PER_MINUTE$/)} on' k8s/app-deployment.yaml | grep -qE '^ +optional: true$'
+          if grep -A1 -E 'name: (KTOR_DEVELOPMENT|HTTP_BEHIND_PROXY|HTTP_PROXY_HOPS|JIRA_STUB_BASE_URL|JIRA_TEST_RATE_LIMIT_PER_MINUTE)$' k8s/app-deployment.yaml | grep -qE '^ +value:'; then
             echo "an inline value overrides the front-door ConfigMap" >&2; exit 1
           fi
           test "$(cat "$RUNNER_TEMP"/rendered/*.yaml | grep -cE '^kind: ConfigMap$')" -eq 1

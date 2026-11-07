@@ -65,7 +65,6 @@ Each increment gets its own plan (architect) before implementation. The domain s
 - [new] **A NOT_CONFIGURED connection state (1.3 Q2b).** An untested connection is told apart only by `discoveredAt == null` ("Test the connection first"); a sixth state would put it in the badge, the telemetry block and the filters.
 - [new] **Jitter after an outage (1.3).** When the site or the database comes back every connection is due at once, and the two outbound permits are shared; fine at today's few connections, a random spread of the first retry would flatten the burst.
 - [new] **A claim racing a connection delete leaves an unpruned `sync_runs` row (1.3).** The scheduler's claim and the manual route can both insert a run for a connection that is deleted a moment later; the row is never pruned. Prune by connection at claim time or sweep orphans.
-- [new] **Raise the `jira-test` rate bucket if the e2e suite outgrows it (1.3).** The Jira specs share the 10/min per-IP bucket with Peek and Test connection; if the e2e tally of test calls grows past it, raise the bucket for the e2e stack rather than splitting the specs.
 
 ## Engineering follow-ups
 

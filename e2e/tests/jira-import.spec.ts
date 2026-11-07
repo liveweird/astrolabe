@@ -4,7 +4,7 @@
 // it (a default project); the modal's three steps pass an axe scan, light and dark; and so does a five-key preview of about 1,100 rows (the virtualised table).
 // Owns: ONE Jira connection (`e2e-import-connection-*`, scoped to the stub's `IMP` project on a unique throwaway site, tested once in the beforeAll; the
 // five-key preview test makes, tests and deletes one more, `e2e-import-scale-*`, and never imports through it. Test
-// connection shares a 10-a-minute bucket per IP with the other Jira specs) and, per test, an administrator login (the preview and the apply share a
+// connection shares a per-IP bucket (10 a minute by default, 30 on the e2e stacks) with the other Jira specs) and, per test, an administrator login (the preview and the apply share a
 // 5-a-minute bucket PER USER, so a throwaway login keeps every test inside it), a person, a team, a work stream (unique `e2e-import-*` names) and what
 // the import creates under that stream - the stub's own names, "IMP Program", "IMP Initiative Alpha/Beta" and the epics. Program names are global, so
 // this is the only spec that may import `IMP`, and it holds the Playwright lock `jira-import-stub`. Nothing here ever applies into an existing work
@@ -433,7 +433,7 @@ test.describe("dark scheme", () => {
 /** The stub's five work-stream projects: about 1,120 items, far above the table's 80-row virtualisation threshold. Previewed only, never imported. */
 const SCALE_KEYS = ["CE", "PF", "CG", "DI", "OE"];
 
-/** A second connection, scoped to the five keys on a unique throwaway site and tested once (one more call of the 10-a-minute Test bucket); the afterEach deletes it. */
+/** A second connection, scoped to the five keys on a unique throwaway site and tested once (one more call of the per-IP Test bucket (10 a minute by default, 30 on the e2e stacks)); the afterEach deletes it. */
 async function seedScaleConnection(): Promise<{ id: number; name: string }> {
   const { api } = await apiAsAdmin();
   try {

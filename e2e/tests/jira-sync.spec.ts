@@ -30,7 +30,7 @@ async function setStubState(state: "Started" | "day2"): Promise<void> {
   }
 }
 
-// The connection the linking tests (4 and 5) share, tested once (Test connection shares a 10-a-minute bucket per IP with Peek), and its own teardown:
+// The connection the linking tests (4 and 5) share, tested once (Test connection shares a per-IP bucket (10 a minute by default, 30 on the e2e stacks) with Peek), and its own teardown:
 // the afterEach below removes only what a test made, so a binding is unlinked per test and the connection survives to the afterAll. The first
 // scenario's UI-created (and tested) connection also survives to the afterAll, for the third to map and peek through: a call saved. Run alone,
 // the third seeds and tests its own. Under `retries` (CI: 2) a retried group starts from the first scenario again and spends the bucket again.

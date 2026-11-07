@@ -74,6 +74,7 @@ class NumericConfigBoundsTest {
         assertRefused("security.rateLimit.refreshPerMinute", "0", "abc")
         assertRefused("security.rateLimit.readyPerMinute", "0", "abc")
         assertRefused("security.rateLimit.passwordResetPerMinute", "-5", "abc")
+        assertRefused("security.rateLimit.jiraTestPerMinute", "0", "-1", "abc", "101")
     }
 
     @Test
@@ -85,6 +86,7 @@ class NumericConfigBoundsTest {
             "security.mfa.codeTtlSeconds" to "0",
             "security.mfa.maxLivePerAccount" to "100",
             "security.rateLimit.loginPerMinute" to "1000000",
+            "security.rateLimit.jiraTestPerMinute" to "100",
         )
         startApplication() // must not throw
     }

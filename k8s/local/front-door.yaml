@@ -28,3 +28,6 @@ data:
   # Atlassian gateway, so a connection to https://sample.atlassian.net tests green offline. Development mode ONLY: the application refuses to
   # boot in production mode with this set, and the base k8s/front-door.yaml (the production posture) must never carry it.
   JIRA_STUB_BASE_URL: "http://jira-stub:8080"
+  # The per-IP Test connection / Peek bucket (`jira-test`): 30/min for the e2e suite on this local stack; the shipped production manifests keep the 10 default,
+  # so the base k8s/front-door.yaml carries no such key (the Deployment reads it `optional`, like the stub URL).
+  JIRA_TEST_RATE_LIMIT_PER_MINUTE: "30"

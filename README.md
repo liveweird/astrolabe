@@ -197,6 +197,7 @@ class-data-sharing (AppCDS) archive, and setting it drops the archive. Build-tim
 | `REFRESH_RATE_LIMIT_PER_MINUTE` | *(blank)* | Per-IP refresh bucket (blank = 30). |
 | `READY_RATE_LIMIT_PER_MINUTE` | *(blank)* | Per-IP bucket on `GET /api/v1/ready` (blank = 60; the kubelet probes 12/min). |
 | `PASSWORD_RESET_RATE_LIMIT_PER_MINUTE` | *(blank)* | Per-IP reset bucket; blank follows the mode (5 prod / 100 dev). |
+| `JIRA_TEST_RATE_LIMIT_PER_MINUTE` | *(blank)* | Per-IP bucket on the Jira Test connection and Peek (blank = 10, a number 1..100 pins it; each Test makes up to ~10 outbound calls). `docker-compose.yaml` and the OrbStack overlay pin 30 for the e2e suite. |
 | `REFRESH_REPLAY_GRACE_SECONDS` | `60` | How long a rotated refresh token may be replayed (a lost `/refresh` response, two racing tabs) before the replay is a 401; `0` = strict one-time use. In-memory, per instance (`.claude/docs/security.md` "Token storage"). |
 | `PASSWORD_RESET_MIN_INTERVAL_SECONDS` | `60` | One reset request per submitted email per interval. |
 | `PASSWORD_RESET_MAX_TRACKED` | `10000` | Maximum in-memory reset cooldowns; new identities receive 429 at capacity. |

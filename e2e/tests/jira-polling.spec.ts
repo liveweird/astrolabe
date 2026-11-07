@@ -3,7 +3,7 @@
 // manual only in the editor; the telemetry panel's Sync section lists the connections with their state.
 // Owns: its Jira connections (unique `e2e-poll-*` names, each scoped to the stub's `E2E` project ONLY and bound to a unique throwaway site), created through the
 // API in the beforeAll and removed in the afterAll. It binds nothing, creates no plan node and dates nothing (no year), so a run of its connections calls Jira
-// for nothing and no other spec's figures meet it. It never flips the stub. Test connection shares a 10-a-minute bucket per IP with the other Jira specs: the
+// for nothing and no other spec's figures meet it. It never flips the stub. Test connection shares a per-IP bucket (10 a minute by default, 30 on the e2e stacks) with the other Jira specs: the
 // beforeAll spends ONE call per worker start (the polled connection; the manual-only one is never tested), a 429 waits the minute out once.
 import { randomUUID } from "node:crypto";
 import type { APIRequestContext, Locator, Page } from "@playwright/test";

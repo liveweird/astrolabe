@@ -97,6 +97,11 @@ security:
     # (POST /api/v1/password-reset/confirm) rides its own `password-reset-confirm` bucket: 10/min per IP in
     # every mode, NOT configurable (the MFA bucket idiom; plugins/RateLimits.kt).
     passwordResetPerMinute: "$PASSWORD_RESET_RATE_LIMIT_PER_MINUTE:"
+    # Per-IP bucket on the Jira Test connection and Peek (`jira-test`; each Test makes up to ~10 outbound calls with the
+    # stored token). Blank keeps the default 10/min (both modes); a number 1..100 pins it. The shipped production manifests
+    # keep the default; only the e2e stacks (docker-compose.yaml, the OrbStack overlay k8s/local/front-door.yaml) pin 30
+    # so a retried Jira spec group does not exhaust it.
+    jiraTestPerMinute: "$JIRA_TEST_RATE_LIMIT_PER_MINUTE:"
   # Not configurable, stated for the operator: the per-request access-token check
   # (auth/TokenBlocklistService.accessVerdict, plugins/Security.kt) is ONE uncached database
   # statement (revocation, account liveness, credential revision, roles), so a logout, a delete,

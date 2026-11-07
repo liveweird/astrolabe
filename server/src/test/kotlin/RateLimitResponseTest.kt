@@ -2,6 +2,9 @@ package ch.nokillswit
 
 import ch.nokillswit.auth.LoginRequest
 import ch.nokillswit.plugins.RateLimitAuditThrottle
+import ch.nokillswit.plugins.RateLimits
+import ch.nokillswit.users.UserRole
+import io.ktor.client.request.post
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.testing.testApplication
@@ -34,6 +37,25 @@ class RateLimitResponseTest {
             "the RateLimit plugin's bodiless 429 must be dressed as problem+json",
         )
         assertContains(throttled.bodyAsText(), "Rate limit exceeded")
+    }
+
+    @Test
+    fun `a blank Test connection bucket keeps the code default of 10`() = testApplication {
+        configureApp("security.rateLimit.jiraTestPerMinute" to "")
+        startApplication()
+        assertEquals(10, with(RateLimits) { application.jiraTestLimit() })
+    }
+
+    @Test
+    fun `a configured Test connection bucket is the one enforced`() = testApplication {
+        configureApp("security.rateLimit.jiraTestPerMinute" to "2")
+        startApplication()
+        assertEquals(2, with(RateLimits) { application.jiraTestLimit() })
+        val admin = seededClient("jtbucket", UserRole.ADMIN)
+        val stored = "/api/v1/integrations/jira/connections/999999/test"
+        // An unknown id is a cheap 404 that still spends the per-IP token.
+        repeat(2) { assertEquals(HttpStatusCode.NotFound, admin.post(stored).status) }
+        assertEquals(HttpStatusCode.TooManyRequests, admin.post(stored).status)
     }
 
     @Test

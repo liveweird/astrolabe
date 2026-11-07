@@ -18,7 +18,7 @@ Related: schema `persistence.md` "The Jira sync tables (V21)"; outbound guard `s
 | `POST …/connections/{id}/import` (1.2) | ADMIN, or an owner of EVERY ticked CREATE/BIND row's target, re-run under the plan lock; not the preview's rule (an owner may apply rows on their own targets where a full preview would be a 403); the one Jira write that moves the plan (`### The apply`) |
 | `GET …/bindings`, `GET …/sync/runs`, `GET /views/deviations` | any authenticated user |
 
-Rate buckets: `jira-test` 10/min per IP (Test connection, ad hoc or stored, and Peek); `jira-bind` 30/min per user (spent before the guard, so a 403 costs a token too); `jira-import` 5/min per user, shared by the import preview and apply (each browses the whole scope; spent before the guard).
+Rate buckets: `jira-test` 10/min per IP by default, `JIRA_TEST_RATE_LIMIT_PER_MINUTE` (1..100; the e2e stacks pin 30) (Test connection, ad hoc or stored, and Peek); `jira-bind` 30/min per user (spent before the guard, so a 403 costs a token too); `jira-import` 5/min per user, shared by the import preview and apply (each browses the whole scope; spent before the guard).
 
 ## The transport and the gateway
 
