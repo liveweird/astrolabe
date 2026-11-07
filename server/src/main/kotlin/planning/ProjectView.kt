@@ -48,9 +48,9 @@ data class DateSpan(val start: String, val end: String)
 
 /**
  * The [PlanProject] fields plus the names of the project's program and work stream, and the project-level actions. [jira] is the
- * project's own Jira link (null = unbound, or its connection is disabled); [flags] its Jira flags ([FlagKind.JIRA_DEVIATION] per open
- * deviation of its own binding and the [FlagKind.JIRA_MILESTONES] roll-up of its milestones' - the SAME list the roadmap row carries
- * for the Jira kinds; the drift and rank flags are the roadmap's).
+ * project's own Jira link (null = unbound; a disabled connection keeps it, dates null); [flags] its Jira flags
+ * ([FlagKind.JIRA_DEVIATION] per open deviation of its own binding and the [FlagKind.JIRA_MILESTONES] roll-up of its milestones' - the
+ * SAME list the roadmap row carries for the Jira kinds; the drift and rank flags are the roadmap's).
  */
 @Serializable
 data class ProjectViewProject(
@@ -83,7 +83,8 @@ data class ProjectViewCan(
 
 /**
  * A milestone as the project view shows it: the [MilestoneResponse] fields (dates null = unscheduled) plus the caller's `can`, its Jira
- * link ([jira]: null = unbound or its connection disabled) and its open Jira [flags] ([FlagKind.JIRA_DEVIATION] per deviation).
+ * link ([jira]: null = unbound; a disabled connection's dates are null) and its open Jira [flags] ([FlagKind.JIRA_DEVIATION] per
+ * deviation).
  */
 @Serializable
 data class ProjectMilestone(

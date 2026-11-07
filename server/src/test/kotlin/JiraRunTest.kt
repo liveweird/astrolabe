@@ -97,7 +97,7 @@ class JiraRunTest {
         expected.getValue("e2e").jsonObject.getValue("issues").jsonArray.map { it.jsonObject }
             .single { it.getValue("key").jsonPrimitive.content == key }
 
-    private class Fixture(val w: PlanWorld, val connectionId: UInt, val site: String) {
+    private class Fixture(val w: PlanWorld, val connectionId: UInt, val site: String, val token: String) {
         suspend fun milestone() = TestPlan.milestone(w.projectId, w.requireTeams().teamId, planName("ms"))
     }
 
@@ -105,7 +105,7 @@ class JiraRunTest {
         start()
         val w = planWorld(prefix, teams = true)
         val request = jbRequest(keys = keys)
-        return Fixture(w, w.admin.client.jbConnection(request).id, request.siteUrl)
+        return Fixture(w, w.admin.client.jbConnection(request).id, request.siteUrl, request.apiToken!!)
     }
 
     private suspend fun Fixture.bind(level: JiraLevel, node: UInt, key: String): JiraBindingResponse =
@@ -164,13 +164,28 @@ class JiraRunTest {
         suspend fun listed() = jbJson.decodeFromString<SyncRunList>(
             f.w.admin.client.get("$SYNC_RUNS?kind=JIRA&connectionId=${f.connectionId}").bodyAsText(),
         ).items
-        val polled = withAuditCapture { audit ->
-            scheduler.tick()
-            val started = listed().single()
-            withTimeout(45_000) { runner.await(started.id) }
-            assertTrue(audit.events.none { it.message == "jira.sync_requested" }, "a scheduled run is not a requested one")
-            listed().single { it.id == started.id }
+        // The token is decrypted on a timer with no user behind it: neither the logs nor the audit trail may ever carry it.
+        val root = LogCapture("ROOT")
+        val polled = try {
+            withAuditCapture { audit ->
+                scheduler.tick()
+                val started = listed().single()
+                withTimeout(45_000) { runner.await(started.id) }
+                assertTrue(audit.events.none { it.message == "jira.sync_requested" }, "a scheduled run is not a requested one")
+                assertTrue(audit.events.none { f.token in it.formattedMessage || f.token in it.keyValuePairs.orEmpty().toString() })
+                listed().single { it.id == started.id }
+            }
+        } finally {
+            root.detach()
         }
+        assertTrue(root.events.any { it.formattedMessage.startsWith("Scheduler started run") }, "the scheduler said what it started")
+        assertTrue(
+            root.events.none { e ->
+                listOf(e.formattedMessage, e.throwableProxy?.message.orEmpty(), e.keyValuePairs.orEmpty().toString())
+                    .any { f.token in it || "Basic " in it || "Bearer " in it }
+            },
+            "no log line of a scheduled run carries the token or an Authorization value",
+        )
 
         assertEquals(SyncTrigger.SCHEDULED, polled.trigger)
         assertNull(polled.requestedByUserId)

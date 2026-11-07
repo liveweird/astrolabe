@@ -17,6 +17,28 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.3.0",
+    date: "2026-11-07",
+    en: `**Astrolabe 1.3.0: polling, status, acknowledge and Jira markers.**
+
+- Polling: each Jira connection is read by itself, every 15 minutes by default. Set another interval from 5 minutes to a day, or "Manual only", in the connection's Polling group; "Refresh now" keeps working either way. After a failed run the retries back off (one interval, then twice as long each time, up to six hours, never sooner than the interval). Any change to the connection (a new token, a mapping change, a new test) polls it at once. A connection that has not been tested yet is not polled, and neither is a disabled one. Connections that already exist start polling every 15 minutes after the upgrade; set them to Manual only to keep the old behaviour.
+- Status: every connection shows one of Current, Stale (no successful run for three intervals), Failed (the latest run failed or was interrupted, with the failure count and its code), Never synced or Disabled, together with the last success and the next poll. You see it on the Jira list, the connection page, the Deviations page and, for administrators, in the new Sync section of the telemetry panel.
+- Acknowledge until changed: on the Deviations page, owners and administrators acknowledge a linked item's deviations once. The item leaves the open list and stops raising flags until anything on either side changes a deviation, which reopens it as "changed since". The new Status filter shows Open (the default), Acknowledged or All, and Unacknowledge withdraws it.
+- Jira flags: the roadmap, programs, project and team pages now flag the deviations of linked projects and milestones, with the same warning and info icons and counts as the other flags. The roadmap's flag panel names the Jira item and the difference; programs and work streams add up their projects' flags; a project whose milestones deviate also gets one "N milestones deviate from Jira" flag. Acknowledged items, items of a disabled connection and estimates that cannot be compared raise no flag. The project and team pages get a Flags column with the Jira key as a link.
+- Jira dates bar: a linked row draws the dates Jira holds as a dashed outline along the top of its row. The "Jira dates" toggle in the timeline toolbar hides it, and your choice is remembered in the browser. Jira dates far outside the plan's own dates never stretch the timeline.
+- Nothing is written to Jira: corrections are made in Astrolabe.
+- Proven against a built-in Jira stub; not yet tested against a real Jira site.`,
+    pl: `**Astrolabe 1.3.0: odpytywanie, status, potwierdzanie i znaczniki Jiry.**
+
+- Odpytywanie: każde połączenie z Jirą jest odczytywane samo, domyślnie co 15 minut. W grupie Odpytywanie połączenia ustawisz inny odstęp, od 5 minut do doby, albo „Tylko ręcznie”; „Odśwież teraz” działa w obu przypadkach. Po nieudanym odczycie ponowne próby są odsuwane (najpierw o jeden odstęp, potem każdorazowo dwa razy dłużej, do sześciu godzin, nigdy wcześniej niż po jednym odstępie). Każda zmiana połączenia (nowy token, zmiana mapowania, nowy test) powoduje natychmiastowy odczyt. Połączenie, którego jeszcze nie przetestowano, nie jest odpytywane, podobnie jak wyłączone. Istniejące połączenia po aktualizacji zaczynają być odpytywane co 15 minut; aby zachować dotychczasowe działanie, ustaw w nich „Tylko ręcznie”.
+- Stan: każde połączenie ma jeden ze stanów: Aktualne, Nieaktualne (brak udanego odczytu przez trzy odstępy), Błąd (ostatni odczyt się nie powiódł albo został przerwany, z liczbą niepowodzeń i kodem), Nie synchronizowano lub Wyłączone, a obok ostatni sukces i następny odczyt. Zobaczysz go na liście Jiry, na stronie połączenia, na stronie Odchylenia, a administratorzy/rki także w nowej sekcji Synchronizacja panelu telemetrii.
+- Potwierdzanie do zmiany: na stronie Odchylenia właściciele/ki i administratorzy/rki potwierdzają odchylenia powiązanego elementu jednorazowo. Element znika z listy otwartych i przestaje wywoływać flagi, dopóki jakakolwiek zmiana po którejkolwiek stronie nie zmieni odchylenia; wtedy wraca jako „zmieniono od tego czasu”. Nowy filtr Stan pokazuje Otwarte (domyślnie), Potwierdzone lub Wszystkie, a „Cofnij potwierdzenie” je wycofuje.
+- Flagi Jiry: strony Roadmapa, Programy, projektu i zespołu flagują teraz odchylenia powiązanych projektów i kamieni milowych, z tymi samymi ikonami ostrzeżeń i informacji oraz licznikami co pozostałe flagi. Panel flag roadmapy wskazuje element Jiry i różnicę; programy i strumienie pracy sumują flagi swoich projektów; projekt, którego kamienie milowe odbiegają, dostaje też jedną flagę „N kamieni milowych odbiega od Jiry”. Elementy potwierdzone, elementy wyłączonego połączenia i estymaty, których nie da się porównać, nie wywołują flag. Strony projektu i zespołu mają kolumnę Flagi z kluczem Jiry jako odnośnikiem.
+- Pasek dat z Jiry: powiązany wiersz rysuje daty, które zna Jira, jako przerywany obrys wzdłuż góry wiersza. Przełącznik „Daty z Jiry” na pasku narzędzi osi czasu go ukrywa, a Twój wybór jest zapamiętywany w przeglądarce. Daty z Jiry daleko poza datami planu nigdy nie rozciągają osi czasu.
+- Nic nie jest zapisywane do Jiry: korekty wprowadza się w Astrolabe.
+- Sprawdzone na wbudowanej atrapie Jiry; jeszcze nie przetestowane na prawdziwej witrynie Jira.`,
+  },
+  {
     version: "1.2.1",
     date: "2026-11-07",
     en: `**Astrolabe 1.2.1: a keyboard fix.**

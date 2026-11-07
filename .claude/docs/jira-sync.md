@@ -1,8 +1,8 @@
-### The Jira sync (v1.2.0)
+### The Jira sync (v1.3.0)
 
 Read before touching `jira/`, `sync/`, `infra/fetch/` or the Jira pages. **What it is:** Astrolabe reads Jira Cloud and compares it with the plan; **nothing is ever written to Jira**
-and corrections are made in Astrolabe. 1.1.0 is the connection, the mapping, 1:1 bindings, a manual Refresh and the Deviations page; 1.2.0 adds the import (preview, then apply); 1.3 (in progress) adds polling and acknowledge, and the connection stores its `pollIntervalMinutes` (V22: default 15, 5..1440, `null` = manual only), which the in-process scheduler reads ("Polling (1.3)" below). **It is proven against the built-in Jira stub and
-not yet tested against a real Jira site** (the walk-through below is the first real test). Not yet: the status, acknowledge and the timeline markers (1.3), coverage (1.4), Flow (1.5).
+and corrections are made in Astrolabe. 1.1.0 is the connection, the mapping, 1:1 bindings, a manual Refresh and the Deviations page; 1.2.0 adds the import (preview, then apply); 1.3.0 adds polling, the connection status, acknowledge and the timeline markers; the connection stores its `pollIntervalMinutes` (V22: default 15, 5..1440, `null` = manual only), which the in-process scheduler reads ("Polling (1.3)", "Status (1.3)", "Acknowledge (1.3)" below). **It is proven against the built-in Jira stub and
+not yet tested against a real Jira site** (the walk-through below is the first real test). Not yet: coverage (1.4), Flow (1.5).
 Related: schema `persistence.md` "The Jira sync tables (V21)"; outbound guard `security.md` "Outbound HTTP calls"; audit events and the run log lines `observability.md`; per-route guards
 `authorization.md`; the web pages `web/CLAUDE.md` "Jira connections" and "Deviations"; the stub's dataset `sample-data/jira/README.md`.
 
@@ -219,7 +219,7 @@ An in-process scheduler (`sync/SyncScheduler.kt`, `observability.md` "Sync runs"
 - **A poll of a connection with no bindings** succeeds having called nothing: one database read per interval.
 - **Concurrency:** a scheduled run and a manual one are the same claim (the loser of the unique index is a `409` on the route, a "claimed elsewhere" INFO in the scheduler); a poll never takes the plan lock and is independent of an import (they meet only on binding rows, in id order). Outbound permits (2) are shared with binds: a bind during a poll may queue up to `jira.bindPermitWaitMillis` and then answer `502 BUSY`.
 - **Scheduled runs** are ordinary rows of the run list with `trigger` `SCHEDULED` and `requestedByUserId` null, and write no `jira.sync_requested` audit line.
-- **Proven by** `SchedulePolicyTest` (the table), `SyncSchedulerTest` (a real registry, a fake connector, an injected clock, two instances, a throwing connector, the tick budget, the shutdown), `SyncBootTest` and `JiraRunTest` "a scheduled run observes the bound issues like a refresh" (the stub). The e2e harness and the compose demo: the API-seeded e2e connections are manual-only (`pollIntervalMinutes: null`); the one the SPA modal creates in "admin creates a Jira connection, tests it…" (`jira-sync.spec.ts`) is polled until C6 makes the form send the member (the modal omits it, so the server stores 15) - it has no bindings, so its run calls nothing; the compose stack polls its demo connection every 15 minutes.
+- **Proven by** `SchedulePolicyTest` (the table), `SyncSchedulerTest` (a real registry, a fake connector, an injected clock, two instances, a throwing connector, the tick budget, the shutdown), `SyncBootTest` and `JiraRunTest` "a scheduled run observes the bound issues like a refresh" (the stub). The e2e harness and the compose demo: the API-seeded e2e connections are manual-only (`pollIntervalMinutes: null`); the one the SPA modal creates in "admin creates a Jira connection, tests it…" (`jira-sync.spec.ts`) polls at the editor's default 15 minutes (the form always sends the member) - it has no bindings, so its run calls nothing; the compose stack polls its demo connection every 15 minutes.
 
 ## Status (1.3)
 
@@ -303,6 +303,8 @@ Do this when a real site and token arrive. Use an account and a scoped or classi
    - After **Import**, read the outcome (created, linked, skipped with reasons), open the project page (milestones dated, or created unscheduled where you do not manage the team), run **Refresh now** and compare the Deviations page. A second import must create nothing when everything was imported (`ALREADY_BOUND`; items left out, or whose plan item was deleted since, are offered again).
 7. **When something fails:** the run row's `errorCode` (`FORBIDDEN_SCOPE`, `INVALID_RESPONSE`, `LIMIT_EXCEEDED`, `MAPPING_INVALID`, `TOKEN_UNREADABLE`, …); the `ch.nokillswit.sync` log lines (counts and codes
    only); the `jira.connection_tested` / `jira.sync_requested` audit events; `502 BUSY` on a bind means the permit pool was occupied (retry, or raise `JIRA_MAX_CONCURRENT_REQUESTS`).
+
+8. **Leave it running** (1.3, after steps 1 to 7 read right): keep the connection at its 15-minute default for a day. Watch the status (Administration → Jira, or the telemetry panel's Sync section): **Current**, "next poll in N min", and the runs table gaining **Scheduled** rows with no one's name behind them; a token the site rejects must read **Failed** with its code and a doubling wait (one interval, then two, up to six hours), and a corrected token must poll at once. Then read the flags: the Jira flags on the roadmap and the project and team pages should name the same items the Deviations page lists as open, acknowledging one must silence its flag on all four pages, and the "Jira dates" bar must sit where Jira's own dates are. Compare the polled data with the Jira UI at the end of the day; a site's rate limits show as `RATE_LIMITED` run codes, in which case lengthen the interval.
 
 ## Assumptions ledger
 

@@ -82,7 +82,8 @@ data class WeekLoadView(
 
 /**
  * A milestone of the team view: the [MilestoneResponse] fields plus the names of its project chain and its project's rank, its Jira
- * link ([jira]: null = unbound or its connection disabled) and its open Jira [flags] ([FlagKind.JIRA_DEVIATION] per deviation).
+ * link ([jira]: null = unbound; a disabled connection's dates are null) and its open Jira [flags] ([FlagKind.JIRA_DEVIATION] per
+ * deviation).
  */
 @Serializable
 data class TeamMilestone(

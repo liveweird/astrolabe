@@ -48,8 +48,8 @@ data class RoadmapRankedProject(val position: Int, val project: RoadmapProject)
  * and [drift] is that span against the target window; [flags] are the drift and rank-inversion flags raised ON this project, WARNING
  * first ([FLAG_ORDER]), plus (1.3) the Jira flags of an ENABLED connection's OPEN deviations ([FlagKind.JIRA_DEVIATION] per deviation
  * of the project's own binding, one [FlagKind.JIRA_MILESTONES] roll-up of its milestones'); [teamIds] are the teams of ALL its active
- * milestones, ascending; [rankPosition] is null while unranked. [jira] is the project's own Jira link, null when it is unbound or its
- * connection is disabled.
+ * milestones, ascending; [rankPosition] is null while unranked. [jira] is the project's own Jira link, null when it is unbound (a
+ * disabled connection keeps it, with null dates).
  */
 @Serializable
 data class RoadmapProject(
