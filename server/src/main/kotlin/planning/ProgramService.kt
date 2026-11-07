@@ -64,14 +64,7 @@ class ProgramService(private val database: R2dbcDatabase) {
             guard(workStreamChain(workStreamId) ?: throw NotFoundException("Work stream not found"))
             requireActiveOwner(request.ownerPersonId)
             val stamp = nowMillis()
-            Programs.insert {
-                it[this.workStreamId] = workStreamId
-                it[name] = request.name
-                it[description] = request.description
-                it[ownerPersonId] = request.ownerPersonId
-                it[createdAt] = stamp
-                it[updatedAt] = stamp
-            }[Programs.id].value
+            insertProgramRow(workStreamId, request.name, request.description, request.ownerPersonId, stamp)
         }.value
     }
 

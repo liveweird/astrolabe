@@ -128,16 +128,7 @@ class ProjectService(private val database: R2dbcDatabase) {
             guard(programChain(programId) ?: throw NotFoundException("Program not found"))
             requireActiveOwner(request.ownerPersonId)
             val stamp = nowMillis()
-            Projects.insert {
-                it[this.programId] = programId
-                it[name] = request.name
-                it[description] = request.description
-                it[ownerPersonId] = request.ownerPersonId
-                it[targetStart] = window?.start
-                it[targetEnd] = window?.end
-                it[createdAt] = stamp
-                it[updatedAt] = stamp
-            }[Projects.id].value
+            insertProjectRow(programId, request.name, request.description, request.ownerPersonId, window, stamp)
         }.value
     }
 

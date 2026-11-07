@@ -49,6 +49,9 @@ internal const val BIND_LOCK_KEY = 0x417374726F4A4264L
  */
 class JiraBindCommand(val connectionId: UInt, val level: JiraLevel, val nodeId: UInt, val observation: JiraObservation, val byUserId: UInt)
 
+/** What [JiraBindingService.insertBoundLocked] wrote: the new binding's id and the dead-node holders it released. */
+internal class BoundInsert(val bindingId: UInt, val released: List<ReleasedBinding>)
+
 /** A binding row as stored, with the connection's site (for the browse URL and D1's same-site test). */
 private class StoredBinding(val row: ResultRow) {
     val id: UInt get() = row[JiraBindingService.Bindings.id].value
@@ -114,16 +117,38 @@ class JiraBindingService(private val database: R2dbcDatabase) {
         if (!lockNodeShared(command.level, command.nodeId)) throw NotFoundException("${command.level.title()} not found")
         guard(activeChain(command.level, command.nodeId) ?: throw NotFoundException("${command.level.title()} not found"))
 
+        val siteConnections = connections.select(connections.id)
+            .where { connections.active() and (LowerCase(connections.siteUrl) eq site.lowercase()) }
+            .toList().map { it[connections.id].value }
+        val inserted = insertBoundLocked(command, siteConnections)
+        val binding = checkNotNull(readOne(Bindings.id eq inserted.bindingId)) { "the binding just inserted is readable" }
+        JiraBindOutcome(binding, inserted.released)
+    }
+
+    /**
+     * The checks and inserts of a bind, for [bind] and the Jira import (1.2). The node's own active binding is a `409`; the issue's active
+     * bindings on [siteConnectionIds] are a `409` unless their node is gone, in which case they are released (soft-deleted) and reported in
+     * [BoundInsert.released] for the caller to audit after the commit. Then the binding row and its first observation are inserted.
+     *
+     * The checks are exact only if the CALLER has already, in its own `suspendTransaction`: taken `BIND_LOCK_KEY` (so nothing else can
+     * create an active binding meanwhile) and the connection row `FOR SHARE`; called `requireInScope` against the locked connection's
+     * `projectKeys`; called `lockNodeShared` on the node when it already exists (a node inserted in the same transaction needs none);
+     * read and guarded the node's chain; and read [siteConnectionIds] under those locks - EVERY active connection of the site (D1),
+     * the command's own included.
+     *
+     * Lock order, which a caller must not invert: the plan lock (if any), the bind lock, the connection row, the node row, the person
+     * row (inside the guard), then the binding rows. A bind holds the bind lock and waits only on node, person and binding rows; the
+     * import takes the plan lock first and the bind lock before touching any row, so there is no cycle.
+     */
+    internal suspend fun insertBoundLocked(command: JiraBindCommand, siteConnectionIds: List<UInt>): BoundInsert {
         val node = command.level to command.nodeId
         val onNode = lockedActive(nodeColumn(command.level) eq command.nodeId)
         onNode.firstOrNull()?.let { other ->
             val me = describeNodes(listOf(node)).getValue(node)
             throw ConflictException("${me.kind.title()} ${me.name} is already linked to ${other.issueKey}", ALREADY_BOUND_PROBLEM)
         }
-        val siteConnections = connections.select(connections.id)
-            .where { connections.active() and (LowerCase(connections.siteUrl) eq site.lowercase()) }.toList().map { it[connections.id] }
         val sameIssue = lockedActive(
-            (Bindings.connectionId inList siteConnections) and (Bindings.jiraIssueId eq command.observation.issueId),
+            (Bindings.connectionId inList siteConnectionIds) and (Bindings.jiraIssueId eq command.observation.issueId),
         )
         val released = sameIssue.mapNotNull { other -> releaseOrRefuse(other, command.observation.issueKey) }
 
@@ -139,7 +164,7 @@ class JiraBindingService(private val database: R2dbcDatabase) {
             it[updatedAt] = stamp
         }[Bindings.id].value
         insertFirstObservation(id, command.observation)
-        JiraBindOutcome(checkNotNull(readOne(Bindings.id eq id)) { "the binding just inserted is readable" }, released)
+        return BoundInsert(id, released)
     }
 
     /**

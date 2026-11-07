@@ -375,7 +375,7 @@ class TeamTest {
         val t = w.requireTeams()
         PostgresTestSupport.connect().use { raw ->
             raw.autoCommit = false
-            // What a milestone write holds before its INSERT: the team row FOR SHARE (MilestoneService.requireActiveTeam).
+            // What a milestone write holds before its INSERT: the team row FOR SHARE (requireActiveTeam in PlanNodeInserts.kt).
             raw.prepareStatement("SELECT id FROM teams WHERE id = ? FOR SHARE").use { st ->
                 st.setInt(1, t.teamId.toInt())
                 st.executeQuery().close()

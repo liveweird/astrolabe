@@ -189,7 +189,7 @@ class TeamService(private val database: R2dbcDatabase) {
     /**
      * Soft delete: the team stops reading as active and frees its name. `0` = missing or already deleted (404). A team that an ACTIVE
      * milestone names is a 409 (move or delete the milestones first): the count runs under the team row lock, and a milestone write locks
-     * the team row `FOR SHARE` (`MilestoneService.requireActiveTeam`), so "count, then delete" cannot interleave with an assignment.
+     * the team row `FOR SHARE` (`requireActiveTeam`, `PlanNodeInserts.kt`), so "count, then delete" cannot interleave with an assignment.
      * The team's ACTIVE capacity periods (V16) are soft-deleted in the same transaction, after the 409 (a refused delete changes
      * nothing); a period write locks the team row too, so none can slip in between.
      */

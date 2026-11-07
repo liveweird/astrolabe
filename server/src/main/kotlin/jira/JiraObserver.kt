@@ -6,8 +6,6 @@ import ch.nokillswit.infra.fetch.BACKOFF_MS_KEY
 import ch.nokillswit.infra.fetch.CallTally
 import ch.nokillswit.infra.fetch.FetchException
 import ch.nokillswit.infra.fetch.LIMIT_EXCEEDED_CODE
-import ch.nokillswit.infra.fetch.PageCeiling
-import ch.nokillswit.infra.fetch.PageTokenGuard
 import ch.nokillswit.infra.fetch.RATE_LIMITED_KEY
 import ch.nokillswit.infra.fetch.TENANT_PAUSED_MS_KEY
 import ch.nokillswit.sync.ClaimedRun
@@ -29,14 +27,6 @@ val JiraObserverKey = AttributeKey<JiraObserver>("JiraObserver")
 
 private val log = LoggerFactory.getLogger("ch.nokillswit.sync")
 
-private const val SEARCH_ENDPOINT = "/rest/api/3/search/jql"
-
-/**
- * The search pages ONE read may follow (200 x `jira.pageSize` issues); more is `LIMIT_EXCEEDED`, never a silent truncation. It is per
- * read, not per run: the read and the sweep each get their own 200.
- */
-private const val MAX_SEARCH_PAGES = 200
-private const val CURSOR_EXPIRED = "CURSOR_EXPIRED"
 private const val MILLIS_PER_MINUTE = 60_000L
 
 /** Typed run failures the connector reports as `FAILED` + [code]; none involves a call to Jira. */
@@ -286,49 +276,14 @@ class JiraObserver internal constructor(
         if (released.isNotEmpty()) log.info("Sync run {} released {} binding(s) of deleted plan nodes", run.id, released.size)
     }
 
-    /**
-     * Pages through `search/jql` for [jql]/[fields] and hands each page's issues to [onPage]. Bounded by [MAX_SEARCH_PAGES] and a guard
-     * against a cycling `nextPageToken`. [jql] is asked for at every FIRST-page request, so a restart after an expired cursor starts from
-     * the first page of a query rebuilt at that moment (the relative bound moves with the clock); a second expiry fails the run
-     * `CURSOR_EXPIRED`. The restart re-delivers pages, which every caller tolerates (an upsert, a set). A `200` that is not a listing - no
-     * `issues` member, or `isLast: false` with no token to continue from - is `INVALID_RESPONSE`, never an empty or a final page: the
-     * sweep would otherwise read it as "nothing is in scope" and flag every bound issue.
-     */
+    /** The shared pager ([searchPages]) with the run's per-page stop and its call tally. */
     private suspend fun search(
         client: JiraClient,
         jql: () -> String,
         fields: String,
         progress: RunProgress,
         onPage: suspend (JsonArray) -> Unit,
-    ) {
-        val ceiling = PageCeiling(JIRA_SOURCE, SEARCH_ENDPOINT, MAX_SEARCH_PAGES)
-        val tokens = PageTokenGuard(JIRA_SOURCE, SEARCH_ENDPOINT)
-        var token: String? = null
-        var restarted = false
-        var query = ""
-        while (true) {
-            progress.beforePage()
-            ceiling.next()
-            progress.calls++
-            if (token == null) query = jql()
-            val page = try {
-                client.searchJql(query, fields, token, connector.pageSize)
-            } catch (failure: FetchException) {
-                if (failure.code != CURSOR_EXPIRED || restarted) throw failure
-                restarted = true
-                token = null
-                tokens.restart()
-                continue
-            }
-            val issues = page.issues ?: throw invalidPage("a search page without an issues member")
-            if (page.isLast == false && page.nextPageToken == null) throw invalidPage("a search page that is not the last has no token")
-            onPage(issues)
-            tokens.accept(page.nextPageToken)
-            token = page.nextPageToken ?: return
-        }
-    }
-
-    private fun invalidPage(detail: String) = FetchException(JIRA_SOURCE, "INVALID_RESPONSE", null, SEARCH_ENDPOINT, detail)
+    ) = searchPages(client, jql, fields, connector.pageSize, { progress.beforePage() }, { progress.calls++ }, onPage)
 
     /** The latest instant the connection's reading inputs changed: its last edit or its last real mapping change. */
     private fun changedAt(context: JiraBindContext): Long = maxOf(context.target.expectedUpdatedAt ?: 0L, context.mappingChangedAt ?: 0L)

@@ -15,7 +15,6 @@ import io.ktor.util.AttributeKey
 import kotlinx.coroutines.flow.toList
 import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.core.dao.id.UIntIdTable
-import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
 import org.jetbrains.exposed.v1.r2dbc.*
 import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
 
@@ -142,16 +141,7 @@ class MilestoneService(private val database: R2dbcDatabase) {
             guard(projectChain(projectId) ?: throw NotFoundException("Project not found"))
             requireActiveTeam(request.teamId)
             val stamp = nowMillis()
-            Milestones.insert {
-                it[this.projectId] = projectId
-                it[teamId] = request.teamId
-                it[name] = request.name
-                it[description] = request.description
-                it[estimateMd] = estimate
-                it[scheduleRevision] = revision + 1
-                it[createdAt] = stamp
-                it[updatedAt] = stamp
-            }[Milestones.id].value
+            insertMilestoneRow(projectId, request.teamId, request.name, request.description, estimate, revision + 1, stamp)
         }.value
     }
 
@@ -244,22 +234,6 @@ class MilestoneService(private val database: R2dbcDatabase) {
         removeFromTeamOrder(id)
         deleteDependenciesOf(milestoneIds = listOf(id), projectIds = emptyList())
     }.value
-
-    /**
-     * The team of a new or changed milestone must be ACTIVE — a client-supplied FK is a 400, never a 500 from the constraint. The check
-     * locks the team row `FOR SHARE`, which conflicts with `TeamService.delete`'s `lockActiveForWrite` (`FOR NO KEY UPDATE`): a delete
-     * racing this write either commits first (the team reads inactive here, 400) or waits for this transaction and then counts the
-     * milestone (409) — never an active milestone left on a deleted team. The plan lock held by the caller does not cover teams.
-     */
-    private suspend fun requireActiveTeam(teamId: UInt) {
-        val teams = TeamService.Teams
-        val exists = teams.select(teams.id)
-            .where { (teams.id eq teamId) and teams.active() }
-            .forUpdate(ForUpdateOption.PostgreSQL.ForShare)
-            .toList()
-            .isNotEmpty()
-        if (!exists) throw BadRequestException("Unknown or deleted team ids: $teamId")
-    }
 
     /** The team's name, read WITHOUT an `active()` filter: an active milestone's team is always active (`TeamService.delete`'s 409). */
     private suspend fun teamName(teamId: UInt): String {
