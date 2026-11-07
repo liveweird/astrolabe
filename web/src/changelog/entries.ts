@@ -17,6 +17,24 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.4.1",
+    date: "2026-11-07",
+    en: `**Astrolabe 1.4.1: clearer connection tests and spread-out retries.**
+
+- Test connection: when the Jira site cannot be reached, only the first check fails. The checks that could not run after it now read "Skipped" in gray, instead of five more failures, and the result counts only the real failures.
+- Retries after a failed poll: a connection's next attempt is now spread by up to half its polling interval (an hour at most), so connections that failed together (for example while Jira was down) no longer all retry at the same moment. The next poll time shown for the connection includes this.
+- A connection whose Jira data can never be fully read (an item the sync cannot store, or child issues that always fail to load) no longer forces a full read on every poll: after three such polls in a row it falls back to one full read a day and logs a warning for administrators.
+- Nothing is written to Jira: corrections are made in Astrolabe.
+- Proven against a built-in Jira stub; not yet tested against a real Jira site.`,
+    pl: `**Astrolabe 1.4.1: czytelniejsze testy połączenia i rozłożone ponowne próby.**
+
+- Przetestuj połączenie: gdy witryna Jira jest nieosiągalna, nie powodzi się tylko pierwsza sonda. Sondy, których po niej nie uruchomiono, mają teraz szary stan „Pominięty” zamiast pięciu kolejnych błędów, a wynik liczy tylko rzeczywiste niepowodzenia.
+- Ponowne próby po nieudanym odpytaniu: następna próba połączenia jest teraz rozłożona o maksymalnie połowę jego odstępu odpytywania (najwyżej o godzinę), więc połączenia, które zawiodły razem (na przykład gdy Jira nie działała), nie ponawiają już wszystkie w tej samej chwili. Uwzględnia to czas następnego odpytania pokazywany przy połączeniu.
+- Połączenie, którego danych z Jiry nigdy nie da się odczytać w całości (element, którego synchronizacja nie może zapisać, albo zgłoszenia podrzędne, których odczyt zawsze się nie udaje), nie wymusza już pełnego odczytu przy każdym odpytaniu: po trzech takich odpytaniach z rzędu przechodzi na jeden pełny odczyt na dobę i zapisuje ostrzeżenie dla administratorów/ek.
+- Nic nie jest zapisywane do Jiry: korekty wprowadza się w Astrolabe.
+- Sprawdzone na wbudowanej atrapie Jiry; jeszcze nie przetestowane na prawdziwej witrynie Jira.`,
+  },
+  {
     version: "1.4.0",
     date: "2026-11-07",
     en: `**Astrolabe 1.4.0: coverage and roll-ups.**
