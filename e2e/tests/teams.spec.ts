@@ -81,7 +81,11 @@ test("dismissing a delete, edit or new-team dialog with Escape returns the focus
 
   await page.goto("/teams");
   await openFilters(page);
+  // Wait for the debounced filter's own answer: in three CI failures it landed while the Delete dialog was closing and the kebab never got
+  // the focus back (not reproduced locally; BACKLOG). This test is about Escape, so the list is settled first.
+  const filtered = page.waitForResponse((r) => /\/api\/v1\/teams\?/.test(r.url()) && new URL(r.url()).searchParams.get("name") === teamName && r.ok());
   await page.getByLabel("Name", { exact: true }).fill(teamName);
+  await filtered;
   const kebab = page.getByRole("button", { name: `Operations for ${teamName}` });
   // By keyboard end to end: the menu item that opens the dialog is unmounted with its menu, so Mantine's own return-focus has nowhere to go.
   await kebab.focus();
