@@ -85,6 +85,9 @@ class JiraObserver internal constructor(
 ) : Connector {
     override val kind = SyncKind.JIRA
 
+    /** The census loop guard: in-memory per-connection counts, shared by this process's concurrent runs (`CensusLoopGuard`). */
+    private val loopGuard = CensusLoopGuard()
+
     override suspend fun requireRunnable(connectionId: UInt) {
         if (!connections.isRunnable(connectionId)) throw BadRequestException(UNKNOWN_CONNECTION)
     }
@@ -123,7 +126,7 @@ class JiraObserver internal constructor(
 
     private suspend fun execute(run: ClaimedRun, progress: RunProgress) {
         val context = connections.readForBind(run.connectionId)
-            ?: throw RunProblem("CONNECTION_GONE", "The Jira connection no longer exists")
+            ?: throw connectionGone(run.connectionId)
         if (!context.enabled) throw RunProblem("CONNECTION_DISABLED", "The Jira connection is disabled")
         releaseDeadNodeBindings(run)
         val token = context.target.apiToken ?: throw RunProblem(
@@ -154,7 +157,7 @@ class JiraObserver internal constructor(
 
         val byIssue = bound.associateBy { it.issueId }
         val censusAt = issues.censusAt(run.connectionId)
-        val census = JiraCensus(issues, run, keys, discovery, mapping, sweepTypes, now, chunkSize)
+        val census = JiraCensus(issues, run, keys, discovery, mapping, sweepTypes, now, chunkSize, loopGuard)
         var shape = readPlan(run, bound, discovery, changedAt(context), censusAt)
         val fields = census.withPointsField(observationFields(mapping))
         suspend fun readAs(plan: ReadPlan) =
@@ -194,6 +197,8 @@ class JiraObserver internal constructor(
         censusAt: Long?,
     ): ReadPlan {
         val lastStart = runs.lastSucceededStart(SyncKind.JIRA, run.connectionId)
+        // A config change forces the full read anyway: it also lifts the census loop guard, so a mapping fix untrips at once.
+        if (lastStart != null && maxOf(discovery.discoveredAt, changedAt) > lastStart) loopGuard.forget(run.connectionId)
         val trustable = lastStart != null && censusAt != null && bound.all { it.observed } &&
             maxOf(discovery.discoveredAt, changedAt) <= lastStart
         return if (lastStart != null && trustable) ReadPlan.Incremental(lastStart) else ReadPlan.Full
@@ -279,6 +284,12 @@ class JiraObserver internal constructor(
         gone.map { it.bindingId }.chunked(chunkSize).forEach { store.markGone(it) }
         back.map { it.bindingId }.chunked(chunkSize).forEach { store.clearGone(it) }
         progress.gone = gone.size
+    }
+
+    /** The run's failure for a connection that no longer exists; the loop guard drops its entry. */
+    private fun connectionGone(connectionId: UInt): RunProblem {
+        loopGuard.forget(connectionId)
+        return RunProblem("CONNECTION_GONE", "The Jira connection no longer exists")
     }
 
     private suspend fun releaseDeadNodeBindings(run: ClaimedRun) {

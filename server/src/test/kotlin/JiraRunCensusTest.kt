@@ -23,6 +23,7 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
 import org.junit.BeforeClass
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -320,6 +321,283 @@ class JiraRunCensusTest {
         assertEquals(2, mock.searches.count { !it.isIds() && "10006,10005,10004" in it.jql() }, "the third run is a full read")
         assertEquals(listOf("90005"), mirrorIds(f.connectionId, 1))
         assertNotNull(censusAt(f.connectionId))
+    }
+
+    /** A bound epic of a type the census refuses (10099): it is never a mirror row, yet the sweeps list it. [override] answers first. */
+    private fun ApplicationTestBuilder.unmirroredEpic(override: (HttpRequestData) -> String? = { null }) =
+        MockJiraRun(application) { request ->
+            jsonOk(
+                override(request) ?: when {
+                    request.isIds() -> idsPage("90005")
+                    request.isChild() || request.isIncremental() -> searchPage()
+                    else -> searchPage(issueDoc("90005", "E2E-5", typeId = "10099"))
+                },
+            )
+        }
+
+    private fun MockJiraRun.fullReads() = searches.count { !it.isIds() && !it.isIncremental() && !it.isChild() }
+
+    private suspend fun MockJiraRun.runOk(connectionId: UInt) {
+        val result = run(connectionId)
+        assertEquals(SyncOutcome.SUCCEEDED, result.outcome, result.errorDetail)
+    }
+
+    /** Eight runs: full (seeds), then heal and full three times (each heal forces a full read), then the 4th heal, which trips. */
+    private suspend fun MockJiraRun.tripHeal(connectionId: UInt) {
+        repeat(8) { runOk(connectionId) }
+        assertEquals(4, fullReads())
+    }
+
+    private fun LogCapture.trips() = events.count { "cannot converge" in it.formattedMessage }
+
+    @Test
+    fun `a heal that recurs stops forcing full reads after three and warns once, and a converged run resets the count`() = testApplication {
+        val f = fixture("jrcloop")
+        f.bind("E2E-5")
+        val mock = unmirroredEpic()
+        val warnings = LogCapture("ch.nokillswit.sync")
+        try {
+            // full (seeds), heal 1, full, heal 2, full, heal 3, full: three heals, each followed by a forced full read.
+            repeat(7) { mock.runOk(f.connectionId) }
+            assertEquals(4, mock.fullReads())
+            assertNotNull(censusAt(f.connectionId))
+            assertEquals(0, warnings.trips())
+
+            // The fourth heal is not forced: census_at stays, with one WARN that names the connection and no issue.
+            mock.runOk(f.connectionId)
+            assertNotNull(censusAt(f.connectionId), "not cleared")
+            val warn = warnings.events.single { "cannot converge" in it.formattedMessage }
+            assertEquals("WARN", warn.level.toString())
+            assertTrue("connection ${f.connectionId}" in warn.formattedMessage, warn.formattedMessage)
+            assertTrue("keeps listing an issue the mirror lacks" in warn.formattedMessage && "E2E-" !in warn.formattedMessage)
+            repeat(2) { mock.runOk(f.connectionId) }
+            assertEquals(4, mock.fullReads(), "no further full read while it cannot converge")
+            assertEquals(1, warnings.trips(), "one WARN, not one per poll")
+
+            // The issue becomes a mirror row and the child sweep is due: a conclusive converged run resets the count ...
+            seed(f.connectionId, "90005", 1)
+            val stale = System.currentTimeMillis() - 25 * HOUR
+            jbSql("UPDATE jira_connections SET census_at = ? WHERE id = ?", stale, f.connectionId.toInt())
+            mock.runOk(f.connectionId)
+            assertEquals(1, mock.searches.count { it.isIds() && it.isChild() }, "the due child sweep ran")
+            // ... so the next heal clears census_at again (the first of a fresh streak).
+            jbSql("DELETE FROM jira_issues WHERE connection_id = ? AND issue_id = '90005'", f.connectionId.toInt())
+            mock.runOk(f.connectionId)
+            assertNull(censusAt(f.connectionId), "cleared again: the guard started over")
+            assertEquals(1, warnings.trips())
+        } finally {
+            warnings.detach()
+        }
+    }
+
+    @Test
+    fun `a tripped heal never stamps, so the due child sweep still runs, and forces one full read a day, then trips again at once`() =
+        testApplication {
+            val f = fixture("jrcdaily")
+            f.bind("E2E-5")
+            val mock = unmirroredEpic()
+            val warnings = LogCapture("ch.nokillswit.sync")
+            try {
+                mock.tripHeal(f.connectionId)
+                val stamp = assertNotNull(censusAt(f.connectionId))
+                repeat(2) { mock.runOk(f.connectionId) }
+                assertEquals(stamp, censusAt(f.connectionId), "a tripped gap run with no child pass must not push census_at forward")
+                assertEquals(4, mock.fullReads())
+
+                // A day on: the child sweep is due, and a tripped run clears census_at once.
+                val stale = System.currentTimeMillis() - 25 * HOUR
+                jbSql("UPDATE jira_connections SET census_at = ? WHERE id = ?", stale, f.connectionId.toInt())
+                mock.runOk(f.connectionId)
+                assertEquals(1, mock.searches.count { it.isIds() && it.isChild() }, "the child sweep ran: nothing stamped it away")
+                assertNull(censusAt(f.connectionId), "the daily forced full read")
+                mock.runOk(f.connectionId)
+                assertEquals(5, mock.fullReads())
+                val restamped = assertNotNull(censusAt(f.connectionId))
+
+                // The streak was held at the threshold: the next gap trips at once (no clear, no second WARN).
+                mock.runOk(f.connectionId)
+                assertEquals(restamped, censusAt(f.connectionId))
+                assertEquals(5, mock.fullReads())
+                assertEquals(1, warnings.trips())
+            } finally {
+                warnings.detach()
+            }
+        }
+
+    @Test
+    fun `a config change that forces the full read untrips the guard`() = testApplication {
+        val f = fixture("jrcconfig")
+        f.bind("E2E-5")
+        val mock = unmirroredEpic()
+        mock.tripHeal(f.connectionId)
+        // Any edit newer than the last succeeded run's start makes the next read full (`readPlan`).
+        jbSql("UPDATE jira_connections SET updated_at = ? WHERE id = ?", System.currentTimeMillis(), f.connectionId.toInt())
+        mock.runOk(f.connectionId)
+        assertEquals(5, mock.fullReads(), "the config change forced a full read")
+        assertNotNull(censusAt(f.connectionId))
+        mock.runOk(f.connectionId)
+        assertNull(censusAt(f.connectionId), "the first heal of a fresh streak clears again: the entry was dropped")
+    }
+
+    @Test
+    fun `a truncated children listing neither counts nor resets the heal streak`() = testApplication {
+        val f = fixture("jrctruncloop")
+        f.bind("E2E-5")
+        val truncate = AtomicBoolean(false)
+        val pages = AtomicInteger(0)
+        val mock = unmirroredEpic { request ->
+            if (truncate.get() && request.isIds() && request.isChild()) {
+                searchPage("""{"id":"91001"}""", next = "cursor-${pages.incrementAndGet()}")
+            } else {
+                null
+            }
+        }
+        val warnings = LogCapture("ch.nokillswit.sync")
+        try {
+            repeat(7) { mock.runOk(f.connectionId) } // three heals, each followed by a full read
+            seed(f.connectionId, "90005", 1) // no gap in the truncated run
+            val stale = System.currentTimeMillis() - 25 * HOUR
+            jbSql("UPDATE jira_connections SET census_at = ? WHERE id = ?", stale, f.connectionId.toInt())
+            truncate.set(true)
+            mock.runOk(f.connectionId)
+            truncate.set(false)
+            assertTrue(pages.get() >= 200, "the child sweep hit the page ceiling")
+            val stamp = assertNotNull(censusAt(f.connectionId), "a truncated listing still stamps")
+            // Had the truncated run reset the streak, this heal would be the first of a new one and clear census_at.
+            jbSql("DELETE FROM jira_issues WHERE connection_id = ? AND issue_id = '90005'", f.connectionId.toInt())
+            mock.runOk(f.connectionId)
+            assertEquals(stamp, censusAt(f.connectionId), "the streak went on: the fourth heal tripped")
+            assertEquals(1, warnings.trips())
+        } finally {
+            warnings.detach()
+        }
+    }
+
+    @Test
+    fun `a completed children pass resets the failure streak, so the failures must be three in a row`() = testApplication {
+        val f = fixture("jrcfailreset")
+        f.bind("E2E-5")
+        val childrenWork = AtomicBoolean(false)
+        val mock = MockJiraRun(application) { request ->
+            when {
+                request.isIds() -> jsonOk(idsPage("90005"))
+                request.isChild() -> if (childrenWork.get()) jsonOk(searchPage()) else failure(HttpStatusCode.ServiceUnavailable)
+                else -> jsonOk(searchPage(issueDoc("90005", "E2E-5")))
+            }
+        }
+        val warnings = LogCapture("ch.nokillswit.sync")
+        try {
+            repeat(2) {
+                mock.runOk(f.connectionId)
+                assertNull(censusAt(f.connectionId))
+            }
+            childrenWork.set(true)
+            mock.runOk(f.connectionId)
+            assertNotNull(censusAt(f.connectionId), "a completed children pass stamps and ends the failure streak")
+            childrenWork.set(false)
+            jbSql("UPDATE jira_connections SET census_at = NULL WHERE id = ?", f.connectionId.toInt())
+            repeat(3) {
+                mock.runOk(f.connectionId)
+                assertNull(censusAt(f.connectionId), "three failures in a row after the reset do not trip: 2 + 3 would have")
+            }
+            assertEquals(0, warnings.trips())
+        } finally {
+            warnings.detach()
+        }
+    }
+
+    /** Every children request (the typed read and the id sweep) answers 503 while [childrenWork] is false; the epic itself reads fine. */
+    private fun ApplicationTestBuilder.failingChildren(childrenWork: AtomicBoolean = AtomicBoolean(false), epicType: String = "10004") =
+        MockJiraRun(application) { request ->
+            when {
+                request.isChild() -> if (childrenWork.get()) jsonOk(searchPage()) else failure(HttpStatusCode.ServiceUnavailable)
+                request.isIds() -> jsonOk(idsPage("90005"))
+                request.isIncremental() -> jsonOk(searchPage())
+                else -> jsonOk(searchPage(issueDoc("90005", "E2E-5", typeId = epicType)))
+            }
+        }
+
+    @Test
+    fun `a tripped failure is stamped, and a failing sweep the next day stamps again, a daily retry with the one WARN`() = testApplication {
+        val f = fixture("jrcdailyfail")
+        f.bind("E2E-5")
+        val mock = failingChildren()
+        val warnings = LogCapture("ch.nokillswit.sync")
+        try {
+            repeat(4) { mock.runOk(f.connectionId) }
+            assertNotNull(censusAt(f.connectionId), "the fourth failure stamps")
+            val stale = System.currentTimeMillis() - 25 * HOUR
+            jbSql("UPDATE jira_connections SET census_at = ? WHERE id = ?", stale, f.connectionId.toInt())
+            mock.runOk(f.connectionId) // incremental: the due child sweep fails
+            assertTrue(assertNotNull(censusAt(f.connectionId)) > stale + HOUR, "stamped again: the retry is daily")
+            assertEquals(1, warnings.trips(), "one WARN for the streak")
+        } finally {
+            warnings.detach()
+        }
+    }
+
+    @Test
+    fun `a working child sweep does not untrip a failing full read, so the daily forced full read costs one run`() = testApplication {
+        val f = fixture("jrcsweepfail")
+        f.bind("E2E-5")
+        val childrenWork = AtomicBoolean(false)
+        val mock = failingChildren(childrenWork)
+        repeat(4) { mock.runOk(f.connectionId) } // the full read fails four times: tripped and stamped
+        // A day on the id sweep works (the typed read still would not).
+        childrenWork.set(true)
+        jbSql("UPDATE jira_connections SET census_at = ? WHERE id = ?", System.currentTimeMillis() - 25 * HOUR, f.connectionId.toInt())
+        mock.runOk(f.connectionId)
+        // The daily forced full read (a heal clears census_at) fails once and stamps at once: the streak was not reset by the sweep.
+        childrenWork.set(false)
+        jbSql("UPDATE jira_connections SET census_at = NULL WHERE id = ?", f.connectionId.toInt())
+        mock.runOk(f.connectionId)
+        assertNotNull(censusAt(f.connectionId), "a single failing full read stamps: the failure streak is still tripped")
+    }
+
+    @Test
+    fun `a run that is both a gap and a children failure that trips the failure streak warns for it`() = testApplication {
+        val f = fixture("jrcgapfail")
+        f.bind("E2E-5")
+        val mock = failingChildren(epicType = "10099") // the epic is never a mirror row: every incremental run sees a gap
+        val warnings = LogCapture("ch.nokillswit.sync")
+        try {
+            repeat(3) { mock.runOk(f.connectionId) } // full reads whose children fail: the failure streak is 3, untripped
+            assertEquals(0, warnings.trips())
+            jbSql("UPDATE jira_connections SET census_at = ? WHERE id = ?", System.currentTimeMillis() - 25 * HOUR, f.connectionId.toInt())
+            mock.runOk(f.connectionId) // incremental: the due child sweep fails (4th failure) AND the mapped sweep lists the epic (a gap)
+            val warn = warnings.events.single { "cannot converge" in it.formattedMessage }
+            assertEquals("WARN", warn.level.toString())
+            assertTrue("the children read keeps failing" in warn.formattedMessage, warn.formattedMessage)
+            assertNull(censusAt(f.connectionId), "the gap's verdict stands: cleared (a first heal)")
+        } finally {
+            warnings.detach()
+        }
+    }
+
+    @Test
+    fun `a children read that always fails stops leaving census_at unstamped after three runs and warns the reason`() = testApplication {
+        val f = fixture("jrcloopfail")
+        f.bind("E2E-5")
+        val mock = MockJiraRun(application) { request ->
+            when {
+                request.isIds() -> jsonOk(idsPage("90005"))
+                request.isChild() -> failure(HttpStatusCode.ServiceUnavailable)
+                else -> jsonOk(searchPage(issueDoc("90005", "E2E-5")))
+            }
+        }
+        val warnings = LogCapture("ch.nokillswit.sync")
+        try {
+            repeat(3) {
+                assertEquals(SyncOutcome.SUCCEEDED, mock.run(f.connectionId).outcome)
+                assertNull(censusAt(f.connectionId), "unstamped, so the next run is full")
+            }
+            assertEquals(SyncOutcome.SUCCEEDED, mock.run(f.connectionId).outcome)
+            assertNotNull(censusAt(f.connectionId), "the fourth failed run stamps")
+            val warn = warnings.events.single { "cannot converge" in it.formattedMessage }
+            assertTrue("keeps failing" in warn.formattedMessage && "connection ${f.connectionId}" in warn.formattedMessage)
+        } finally {
+            warnings.detach()
+        }
     }
 
     @Test

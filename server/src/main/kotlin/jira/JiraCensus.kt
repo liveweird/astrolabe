@@ -12,6 +12,9 @@ import org.slf4j.LoggerFactory
 
 private val log = LoggerFactory.getLogger("ch.nokillswit.sync")
 
+private const val HEALING_REASON = "a sweep keeps listing an issue the mirror lacks; census_at is cleared once a day instead of every run"
+private const val FAILING_REASON = "the children read keeps failing; census_at is stamped, so it is retried once a day"
+
 private const val MILLIS_PER_HOUR = 3_600_000L
 
 /** The run's search, as the census calls it: the observer's shared pager with its per-page stop and call tally. */
@@ -44,6 +47,8 @@ internal class JiraCensus(
     private val now: () -> Long,
     /** The rows one write transaction carries ([RUN_CHUNK]); a test shrinks it. */
     private val chunkSize: Int = RUN_CHUNK,
+    /** The process-wide loop guard ([CensusLoopGuard]); a standalone census gets its own. */
+    private val guard: CensusLoopGuard = CensusLoopGuard(),
 ) {
     private val mappedLevels: Set<Int> = mapping.mappedLevels().map { it.second.hierarchyLevel }.toSet()
 
@@ -63,6 +68,7 @@ internal class JiraCensus(
     private var mappedWritten = 0
     private var childWritten = 0
     private var pruned = 0
+    private var truncated = false
 
     private fun childTypeIdsAt(level: Int): List<String> =
         discovery.typeIdsAtLevel(level).takeIf { ids -> ids.all(JiraJql::isTypeId) }.orEmpty()
@@ -104,7 +110,9 @@ internal class JiraCensus(
      * listed an in-scope id the mirror lacks and this run did not read (rows lost to an earlier false-empty or partial listing, or
      * issues that arrived unseen), so the next run is full and re-seeds. A failing children pass (a typed failure other than the ceiling)
      * never fails the run: it warns with the code and counts, skips its prune and the stamp, and the next run tries again; a
-     * deleted or disabled connection still ends the run (the observer's per-page stop).
+     * deleted or disabled connection still ends the run (the observer's per-page stop). A census that heals, or whose children pass
+     * fails, more than [MAX_UNCONVERGED_RUNS] runs in a row cannot converge, and forcing a full read on every poll would never help:
+     * [settle] ([CensusLoopGuard]) stops forcing it and warns once.
      */
     suspend fun complete(search: CensusSearch, inScope: Set<String>, fullRead: Boolean, censusAt: Long?, censusHours: Int) {
         flush()
@@ -119,6 +127,7 @@ internal class JiraCensus(
             else -> ChildPass.NONE
         }
         var stamp = fullRead
+        var failed = false
         try {
             when (pass) {
                 ChildPass.FULL -> readChildren(search, index)
@@ -129,9 +138,76 @@ internal class JiraCensus(
         } catch (failure: FetchException) {
             log.warn("Sync run {} children census failed: {} (roll-ups may be incomplete, retried by the next run)", run.id, failure.code)
             stamp = false
+            failed = true
         }
-        if (gap) store.stampCensus(run.connectionId, null) else if (stamp) store.stampCensus(run.connectionId, run.startedAt)
+        val completed = pass.takeIf { it != ChildPass.NONE && !failed && !truncated }
+        // Only a run that could see a gap on BOTH levels is conclusive: a full read cannot see one (it re-seeds), a run whose child sweep
+        // is not due has not looked at the child level, and a truncated listing has not seen all of it.
+        val concluded = !fullRead && !truncated && (pass == ChildPass.SWEEP || childTypeIds.isEmpty())
+        val outcome = PassOutcome(gap, failed, due(censusAt, censusHours), stamp, completed, concluded)
+        when (settle(outcome)) {
+            Stamp.CLEAR -> store.stampCensus(run.connectionId, null)
+            Stamp.SET -> store.stampCensus(run.connectionId, run.startedAt)
+            Stamp.KEEP -> Unit
+        }
         log.info("Sync run {} census: issues={} children={} pruned={} childPass={}", run.id, mappedWritten, childWritten, pruned, pass)
+    }
+
+    /** What the run does to `census_at`: clear it (re-seed next run), stamp it with the run's start, or leave it. */
+    private enum class Stamp { CLEAR, SET, KEEP }
+
+    /**
+     * What the run's census pass found, for [settle]: [due] = the child sweep is due; [completed] = the children pass that ran to its
+     * end (not failed, not truncated); [concluded] = it could see a gap on both levels.
+     */
+    private class PassOutcome(
+        val gap: Boolean,
+        val failed: Boolean,
+        val due: Boolean,
+        val stamp: Boolean,
+        val completed: ChildPass?,
+        val concluded: Boolean,
+    )
+
+    /**
+     * What happens to `census_at`, through the loop guard. A completed children FULL read ends the failure streak (a completed id SWEEP
+     * ends it only while it is not tripped: the sweep working says nothing of the full read that keeps failing), a conclusive run with
+     * no gap the heal streak (a truncated listing or a pass that did not run neither counts nor resets). A gap CLEARS (the next run is
+     * full) until its streak is tripped; a tripped gap run then leaves `census_at` ALONE (stamping it would push the child sweep's
+     * [PassOutcome.due] forward for ever, and stale children would never be pruned), except once the sweep is due: one forced full
+     * read a day, which may heal a later genuine gap, the streak held at the threshold so the next gap trips at once. A failed
+     * children pass leaves it unstamped until its streak is tripped, then STAMPS it, so the retry cadence is the child sweep's (daily).
+     */
+    private fun settle(o: PassOutcome): Stamp {
+        val id = run.connectionId
+        when (o.completed) {
+            ChildPass.FULL -> guard.failureReset(id)
+            ChildPass.SWEEP -> guard.failureSweepDone(id)
+            else -> Unit
+        }
+        if (!o.gap && !o.failed && o.concluded) guard.healReset(id)
+        val failure = if (o.failed) guard.failure(id) else null
+        if (failure?.tripped == true) warnTripped(failure, FAILING_REASON) // also when the same run is a gap: its WARN is not lost
+        if (o.gap) {
+            val trip = guard.heal(id)
+            if (!trip.tripped) return Stamp.CLEAR
+            warnTripped(trip, HEALING_REASON)
+            if (!o.due) return Stamp.KEEP
+            guard.healSettled(id)
+            return Stamp.CLEAR
+        }
+        if (failure != null) return if (failure.tripped) Stamp.SET else Stamp.KEEP
+        return if (o.stamp) Stamp.SET else Stamp.KEEP
+    }
+
+    /** One WARN per streak (the connection id and a fixed reason, nothing of the issues); DEBUG while it stays stuck. */
+    private fun warnTripped(trip: LoopTrip, reason: String) {
+        val message = "Sync run {} (connection {}) census cannot converge after {} runs in a row: {}; roll-ups may be incomplete"
+        if (trip.first) {
+            log.warn(message, run.id, run.connectionId, MAX_UNCONVERGED_RUNS, reason)
+        } else {
+            log.debug(message, run.id, run.connectionId, MAX_UNCONVERGED_RUNS, reason)
+        }
     }
 
     /** The typed full read of the child level: every row upserted, then the child rows not read pruned - unless a ceiling cut it. */
@@ -170,6 +246,7 @@ internal class JiraCensus(
         if (finished) {
             prune(index, doomed)
         } else {
+            truncated = true
             log.warn(
                 "Sync run {} children census truncated at {} pages after {} child issue(s) (a listing or response ceiling): " +
                     "roll-ups may be incomplete",
