@@ -76,7 +76,7 @@ jobs:
           distribution: temurin
           # The exact patch of mise.toml's pin (and the Dockerfile's eclipse-temurin tag), so CI compiles
           # and tests on the JDK the repo was verified on; bump the three together.
-          java-version: 21.0.12
+          java-version: 21.0.13
           cache: gradle
       # The test Postgres image downloads while Gradle compiles instead of inside the first fork's container
       # start (the `postgres` fixture cost was 12-15 s per fork on CI against ~4 s with a cached image, measured in Flow).
@@ -124,7 +124,7 @@ jobs:
           distribution: temurin
           # The exact patch of mise.toml's pin (and the Dockerfile's eclipse-temurin tag), so CI compiles
           # and tests on the JDK the repo was verified on; bump the three together.
-          java-version: 21.0.12
+          java-version: 21.0.13
           cache: gradle
       - run: ./gradlew :verifySettingsPluginAudit --no-daemon
       - name: Scan Gradle lockfiles
