@@ -1,6 +1,5 @@
 package ch.nokillswit.jira
 
-import ch.nokillswit.infra.db.insertRows
 import ch.nokillswit.infra.db.localDate
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.Table
@@ -34,7 +33,10 @@ object JiraObservations : Table("jira_observations") {
     override val primaryKey = PrimaryKey(bindingId)
 }
 
-/** Inserts the FIRST observation of a new binding in the caller's transaction (a later one overwrites: the observer's upsert). */
+/**
+ * Inserts the FIRST observation of a new binding in the caller's transaction (a later one overwrites: the observer's upsert). The bind
+ * and the Jira import (through `JiraBindingService.insertBoundLocked`) both write it here, one row per binding.
+ */
 internal suspend fun insertFirstObservation(bindingId: UInt, observation: JiraObservation) {
     JiraObservations.insert {
         it[JiraObservations.bindingId] = bindingId
@@ -56,34 +58,6 @@ internal suspend fun insertFirstObservation(bindingId: UInt, observation: JiraOb
         it[jiraUpdatedAt] = observation.jiraUpdatedAt
         it[gone] = observation.gone
         it[goneReason] = observation.goneReason
-    }
-}
-
-/**
- * [insertFirstObservation] for many new bindings at once (the Jira import's rows, `(binding id, observation)`): the same columns through
- * [insertRows], so a batch is a few statements instead of one per binding. An empty list writes nothing.
- */
-internal suspend fun insertFirstObservations(rows: List<Pair<UInt, JiraObservation>>) {
-    JiraObservations.insertRows(rows) { (bindingId, observation) ->
-        this[JiraObservations.bindingId] = bindingId
-        this[JiraObservations.observedAt] = observation.observedAt
-        this[JiraObservations.issueKey] = observation.issueKey
-        this[JiraObservations.summary] = observation.summary
-        this[JiraObservations.typeId] = observation.typeId
-        this[JiraObservations.typeName] = observation.typeName
-        this[JiraObservations.hierarchyLevel] = observation.hierarchyLevel
-        this[JiraObservations.statusName] = observation.statusName
-        this[JiraObservations.statusCategory] = observation.statusCategory.name
-        this[JiraObservations.parentIssueId] = observation.parentIssueId
-        this[JiraObservations.parentIssueKey] = observation.parentIssueKey
-        this[JiraObservations.startDate] = observation.startDate
-        this[JiraObservations.endDate] = observation.endDate
-        this[JiraObservations.estimate] = observation.estimate
-        this[JiraObservations.estimateUnit] = observation.estimateUnit?.name
-        this[JiraObservations.teamName] = observation.teamName
-        this[JiraObservations.jiraUpdatedAt] = observation.jiraUpdatedAt
-        this[JiraObservations.gone] = observation.gone
-        this[JiraObservations.goneReason] = observation.goneReason
     }
 }
 

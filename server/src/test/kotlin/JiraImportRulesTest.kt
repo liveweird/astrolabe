@@ -6,6 +6,8 @@ import ch.nokillswit.jira.JiraImportAction
 import ch.nokillswit.jira.JiraImportApplyItem
 import ch.nokillswit.jira.JiraImportApplyRequest
 import ch.nokillswit.jira.JiraImportExpected
+import ch.nokillswit.jira.JiraImportExpectedParent
+import ch.nokillswit.jira.JiraImportParentKind
 import ch.nokillswit.jira.JiraImportKernels
 import ch.nokillswit.jira.JiraImportScope
 import ch.nokillswit.jira.JiraLevel
@@ -158,7 +160,12 @@ class JiraImportRulesTest {
     // ---- validateApplyItems -----------------------------------------------------------------------------------------------------
 
     private fun create(id: String, parent: String? = null) =
-        JiraImportApplyItem(id, JiraImportExpected(JiraImportAction.CREATE, JiraLevel.MILESTONE, parent))
+        JiraImportApplyItem(
+            id,
+            JiraImportExpected(
+                JiraImportAction.CREATE, JiraLevel.MILESTONE, parent, parent = JiraImportExpectedParent(JiraImportParentKind.NEW_ROW),
+            ),
+        )
 
     private fun bind(id: String, nodeId: UInt?) =
         JiraImportApplyItem(id, JiraImportExpected(JiraImportAction.BIND, JiraLevel.PROJECT, nodeId = nodeId))
@@ -189,6 +196,9 @@ class JiraImportRulesTest {
         val createWithNode = JiraImportApplyItem("1", JiraImportExpected(JiraImportAction.CREATE, JiraLevel.MILESTONE, nodeId = 3u))
         assertTrue(refused(createWithNode).contains("absent for a CREATE"))
         assertTrue(refused(create("1", parent = "IMP-9")).contains("expected.parentJiraId"))
+        val orphan = JiraImportApplyItem("1", JiraImportExpected(JiraImportAction.CREATE, JiraLevel.MILESTONE, "2"))
+        assertTrue(refused(orphan).contains("expected.parent is required"))
+        validateApplyItems(listOf(JiraImportApplyItem("1", JiraImportExpected(JiraImportAction.CREATE, JiraLevel.PROGRAM))))
     }
 
     @Test

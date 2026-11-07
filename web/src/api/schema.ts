@@ -2008,7 +2008,8 @@ export interface paths {
          * @description ADMIN, or an owner of every target the import touches: any `defaults.programId` / `defaults.projectId`, every existing node a
          *     created row would land under or a bound row would bind to, and the picked work stream when a program would be created (the owner
          *     of a work stream owns everything under it; the owner of a program or project owns that subtree). A login that owns no plan node
-         *     at all is refused up front; a caller who owns neither the work stream nor any target is refused too. The `403` names the first
+         *     at all is refused up front; a caller who owns neither the work stream, any target nor any node of the work stream's tree is refused too.
+         *     A caller who owns only nodes of the tree (no target) gets the rows, with the same redaction of skipped rows. The `403` names the first
          *     target the caller does not own. The connection's existence is public (`GET /views/deviations`), so this route does not hide it.
          *
          *     **Order** (the plan's read-before-guard): the per-USER bucket (`jira-import`, 5 a minute, shared with the apply, spent BEFORE
@@ -2036,6 +2037,55 @@ export interface paths {
          *     that land on the caller's own targets are shown in full, and the owner of the picked work stream sees the whole tree under it.
          */
         post: operations["previewJiraImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/integrations/jira/connections/{id}/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply an import from Jira into one work stream
+         * @description Creates the ticked programs, projects and milestones under the picked work stream and binds each to its Jira item, or binds an
+         *     existing unbound same-name node, in ONE plan write: exactly one plan-revision bump, also when every item is skipped. It never
+         *     updates an existing node. The only Jira write that moves the plan; nothing is written to Jira. Rights: ADMIN, or an owner of the
+         *     target of EVERY ticked CREATE or BIND row (the picked work stream when a program is created, the existing parent a row lands
+         *     under, the node a BIND binds); a ticked row whose target the caller does not own is a `403` for the whole request, with nothing
+         *     written and no bump. This is deliberately NOT the preview's rule: the preview is refused when ANY row of the whole scope targets a
+         *     node the caller does not own, while an owner may apply the rows they tick onto their own targets even then. Each apply is
+         *     audited (`jira.import_applied`) and leaves visible rows.
+         *
+         *     **Order:** the same checks as the preview up to and including the browse (the per-USER `jira-import` bucket, shared with the
+         *     preview, then the connection `404`, the body, the named targets `404`/`403`, the shape `400` - which also covers the items: each
+         *     `jiraId` a numeric Jira id named once, 1 to 2,000 items, and every `overrides.teamId` an active team - then the connection state
+         *     `400`/`409`, then the browse `502`); a browse that stopped at the 2,000-issue cap is a `400` before any write, because a parent cut
+         *     away by the cap cannot be told from an orphan. Then ONE plan write that takes the plan lock, the bind lock, the connection row and
+         *     the caller's person, re-reads the plan and re-runs every guard under them (a connection deleted meanwhile is `404`, disabled or
+         *     out of scope `400`, its mapping or discovery changed `409`; an ownership revoked meanwhile `403`), recomputes the rows with the preview's rules
+         *     over rows read under the lock, and writes. The lock is never held while Jira is called.
+         *
+         *     **No update, no guess:** each ticked item is compared with `expected` (what the preview showed) after the re-browse and the re-read;
+         *     a difference, or an item the site no longer holds, is skipped `CHANGED`; for a CREATE the difference includes where it would land
+         *     (`expected.parent`), so a row is never silently re-homed under another parent. A BIND target bound elsewhere meanwhile is `NAME_TAKEN`. An item whose parent row was left out is skipped
+         *     `PARENT_SKIPPED`. A name taken by another node is decided under the lock (`NAME_TAKEN`). A milestone is scheduled only when
+         *     `copyDates` is on, its dates are valid, the caller manages its team (ADMIN: any) and the span holds a working day; otherwise it is
+         *     created unscheduled. A dead-node holder of a written item's issue (this connection or another of the same site) is released and
+         *     audited. A uniqueness violation that still escapes is the whole-request `409`.
+         *
+         *     The answer lists ids, keys and reasons, plus the `name` of each created row - which IS the Jira summary (cut at 100 characters) of an issue on the caller's own target; a skipped row carries no text. `revision` is the plan
+         *     revision after the bump.
+         */
+        post: operations["applyJiraImport"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4908,6 +4958,105 @@ export interface components {
             /** @description Jira Team names that matched no Astrolabe team, among the milestones that needed one. */
             unmatchedTeams: string[];
             items: components["schemas"]["JiraImportItem"][];
+        };
+        /** @description What the preview showed for a ticked row. A difference after the apply's re-browse and re-read is a `CHANGED` skip. */
+        JiraImportExpected: {
+            /**
+             * @description A BIND carries `nodeId`, a CREATE does not.
+             * @enum {string}
+             */
+            action: "CREATE" | "BIND";
+            /** @enum {string} */
+            level: "PROGRAM" | "PROJECT" | "MILESTONE";
+            /** @description The row's `parentJiraId` as previewed. */
+            parentJiraId?: string | null;
+            /**
+             * Format: int32
+             * @description The BIND target node as previewed.
+             */
+            nodeId?: number | null;
+            /** @description Where a CREATE landed in the preview (its `parent`: absent for a program). A different landing after the re-browse and the re-read - for example the default parent because the Jira parent was bound elsewhere meanwhile - is a `CHANGED` skip, never a silent re-homing. Required (`400` without it) for a CREATE below a program; ignored for a BIND. */
+            parent?: components["schemas"]["JiraImportExpectedParent"] | null;
+            /**
+             * Format: int32
+             * @description For a milestone CREATE: the team the preview row showed (its `team.id`: the Jira Team name's match or `defaults.teamId`, WITHOUT any override). A different team after the re-browse - the Jira Team field moved - is a `CHANGED` skip. An `overrides.teamId` is applied on top and is not compared. Absent for other rows.
+             */
+            teamId?: number | null;
+        };
+        JiraImportExpectedParent: {
+            /**
+             * @description The preview row's `parent.kind`.
+             * @enum {string}
+             */
+            kind: "EXISTING" | "NEW_ROW" | "DEFAULT";
+            /**
+             * Format: int32
+             * @description The preview row's `parent.nodeId` (null for a NEW_ROW).
+             */
+            nodeId?: number | null;
+        };
+        JiraImportOverrides: {
+            /**
+             * Format: int32
+             * @description The team of this milestone; an ACTIVE team, else 400.
+             */
+            teamId?: number | null;
+        };
+        JiraImportApplyItem: {
+            /** @description The numeric Jira issue id, named once per request. */
+            jiraId: string;
+            expected: components["schemas"]["JiraImportExpected"];
+            overrides?: components["schemas"]["JiraImportOverrides"] | null;
+        };
+        /** @description The members of `JiraImportScope` (flat) plus the ticked items. */
+        JiraImportApplyRequest: components["schemas"]["JiraImportScope"] & {
+            items: components["schemas"]["JiraImportApplyItem"][];
+        };
+        JiraImportCreated: {
+            jiraId: string;
+            issueKey: string;
+            /** @enum {string} */
+            kind: "PROGRAM" | "PROJECT" | "MILESTONE";
+            /**
+             * Format: int32
+             * @description The new node's id.
+             */
+            id: number;
+            /** Format: int32 */
+            bindingId: number;
+            name: string;
+            /** @description A milestone created with Jira's dates. */
+            scheduled: boolean;
+        };
+        JiraImportBound: {
+            jiraId: string;
+            issueKey: string;
+            /** @enum {string} */
+            kind: "PROGRAM" | "PROJECT" | "MILESTONE";
+            /**
+             * Format: int32
+             * @description The existing node that was bound.
+             */
+            id: number;
+            /** Format: int32 */
+            bindingId: number;
+        };
+        JiraImportSkipped: {
+            jiraId: string;
+            /** @description Null for an item the re-browse no longer finds. */
+            issueKey?: string | null;
+            /** @enum {string} */
+            reason: "ALREADY_BOUND" | "NO_PARENT" | "NAME_TAKEN" | "LEVEL_UNMAPPED" | "NO_TEAM" | "PARENT_SKIPPED" | "CHANGED";
+        };
+        JiraImportResult: {
+            /**
+             * Format: int64
+             * @description The plan revision after the ONE bump (also when everything was skipped).
+             */
+            revision: number;
+            created: components["schemas"]["JiraImportCreated"][];
+            bound: components["schemas"]["JiraImportBound"][];
+            skipped: components["schemas"]["JiraImportSkipped"][];
         };
         JiraBindRequest: {
             /** Format: int32 */
@@ -8101,6 +8250,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JiraImportPreview"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalServerError"];
+            502: components["responses"]["BadGateway"];
+        };
+    };
+    applyJiraImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JiraImportApplyRequest"];
+            };
+        };
+        responses: {
+            /** @description What the import wrote and skipped */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JiraImportResult"];
                 };
             };
             400: components["responses"]["BadRequest"];

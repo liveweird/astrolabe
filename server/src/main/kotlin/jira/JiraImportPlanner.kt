@@ -58,6 +58,7 @@ internal class ImportPlanner(private val input: ImportInput) {
     private val claimedNodes = HashSet<Pair<JiraLevel, UInt>>()
     private val takenNames = HashSet<Pair<String, String>>()
     private val unmatchedTeams = HashSet<String>()
+    private val naturalTeams = HashMap<String, UInt?>()
     private val projectsByParent = tree.projects.groupBy { it.parentId }
     private val milestonesByParent = tree.milestones.groupBy { it.parentId }
     private val nodeIdsByLevel = mapOf(
@@ -267,15 +268,20 @@ internal class ImportPlanner(private val input: ImportInput) {
 
     // ---- team, dates -----------------------------------------------------------------------------------------------------------
 
-    /** An apply override wins (an unknown team is NO_TEAM, never another one); else the name match; else the default team. */
+    /**
+     * An apply override wins (an unknown team is NO_TEAM, never another one); else the name match; else the default team. The team
+     * WITHOUT the override is remembered in [naturalTeams]: it is what a preview shows, so it is what an apply compares.
+     */
     private fun teamFor(issue: ImportBrowsedIssue): JiraImportTeam? {
         val name = issue.observation.teamName
         val matched = name?.let { teamsByFold[JiraImportKernels.foldName(it)] }
         if (matched == null && !name.isNullOrBlank()) unmatchedTeams.add(name.trim())
+        val natural = matched?.let { JiraImportTeam(it.id, it.name, JiraImportTeamRule.MATCHED) }
+            ?: input.defaults.teamId?.let(teamsById::get)?.let { JiraImportTeam(it.id, it.name, JiraImportTeamRule.DEFAULT) }
+        naturalTeams[issue.observation.issueId] = natural?.id
         val override = ticks[issue.observation.issueId]?.overrides?.teamId
         if (override != null) return teamsById[override]?.let { JiraImportTeam(it.id, it.name, JiraImportTeamRule.DEFAULT) }
-        if (matched != null) return JiraImportTeam(matched.id, matched.name, JiraImportTeamRule.MATCHED)
-        return input.defaults.teamId?.let(teamsById::get)?.let { JiraImportTeam(it.id, it.name, JiraImportTeamRule.DEFAULT) }
+        return natural
     }
 
     private fun datesFor(obs: JiraObservation, canSchedule: Boolean): DatesVerdict {
@@ -320,5 +326,14 @@ internal class ImportPlanner(private val input: ImportInput) {
 
     private fun matches(expected: JiraImportExpected, item: JiraImportItem): Boolean =
         expected.action == item.action && expected.level == item.level && expected.parentJiraId == item.parentJiraId &&
-            expected.nodeId == item.target?.nodeId
+            expected.nodeId == item.target?.nodeId && landsWhereSeen(expected, item) && teamAsSeen(expected, item)
+
+    /** A milestone CREATE keeps the team the preview showed (the natural one, before any override); other rows have no team. */
+    private fun teamAsSeen(expected: JiraImportExpected, item: JiraImportItem): Boolean =
+        item.action != JiraImportAction.CREATE || item.level != JiraLevel.MILESTONE || expected.teamId == naturalTeams[item.jiraId]
+
+    /** A CREATE lands under the parent the client saw: the same kind and, for an existing node, the same node. A BIND lands nowhere. */
+    private fun landsWhereSeen(expected: JiraImportExpected, item: JiraImportItem): Boolean =
+        item.action != JiraImportAction.CREATE ||
+            (expected.parent?.kind == item.parent?.kind && expected.parent?.nodeId == item.parent?.nodeId)
 }

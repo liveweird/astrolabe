@@ -56,7 +56,7 @@ timeline will show it closed later). The owner is changed through the ordinary f
 ### The `plan_state` lock protocol and the 409 contract (`planning/PlanState.kt`)
 
 `R2dbcDatabase.withPlanWrite { revision -> … }` = one transaction: `SELECT revision FROM plan_state WHERE id = 1 FOR UPDATE`, run the block, `UPDATE plan_state SET revision = revision + 1`. **Every
-mutation of `work_streams`, `programs`, `projects`, `roadmap_entries` (V13), `milestones` (V14), `team_milestone_orders` / `team_order_state` (V17), `public_holidays` (V19) and the `baselines` registry with its frozen rows (V20) runs inside it** — people and teams are not plan state. A block that throws (404/409/400 found after the lock) rolls
+mutation of `work_streams`, `programs`, `projects`, `roadmap_entries` (V13), `milestones` (V14), `team_milestone_orders` / `team_order_state` (V17), `public_holidays` (V19) and the `baselines` registry with its frozen rows (V20) runs inside it** — people and teams are not plan state. (The Jira import's apply (1.2) is such a writer too: the ONE Jira write that takes `withPlanWrite`, after every HTTP call; it also takes the bind's advisory lock right after the plan lock — `persistence.md`.) A block that throws (404/409/400 found after the lock) rolls
 back the bump with everything else, so a rejected write never moves the revision; a no-op PUT still bumps (conservative). Consequences the code relies on:
 
 - **"Count the children, then delete" is race-free**: the delete counts ACTIVE children under the plan lock, so a concurrent child create (which holds the same lock) either commits first and the

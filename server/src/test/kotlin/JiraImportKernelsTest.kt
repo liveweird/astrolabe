@@ -467,6 +467,61 @@ class JiraImportKernelsTest {
     }
 
     @Test
+    fun `a row never lands under a different parent than the one the client saw - the landing is part of what is compared`() {
+        val defaults = JiraImportDefaults(programId = 7u, projectId = 7u, teamId = 10u)
+        val shownIssues = listOf(issue("200", JIRA_PROJECT, "Fresh project"), issue("300", JIRA_EPIC, "Epic A", parent = "200"))
+        val shown = ImportCase(shownIssues, tree = stream, defaults = defaults).plan()
+        assertEquals(JiraImportParentKind.NEW_ROW, shown.row("300").item.parent!!.kind)
+        val ticks = tickable(shown)
+        val epic = { case: ImportCase -> case.plan(ticks).row("300").apply }
+
+        assertTrue(epic(ImportCase(shownIssues, tree = stream, defaults = defaults)) is ImportApply.Write, "unchanged is written")
+        // The parent was bound elsewhere meanwhile: the epic would land under that node.
+        val otherNode = listOf(holder("200", JiraLevel.PROJECT, 8u, "Other"))
+        val elsewhere = ImportCase(shownIssues, tree = stream, defaults = defaults, holders = otherNode)
+        assertEquals(JiraImportReason.CHANGED, (epic(elsewhere) as ImportApply.Skipped).reason)
+        // The parent left the browse: the epic would fall to the default project.
+        val gone = ImportCase(shownIssues.drop(1), tree = stream, defaults = defaults)
+        assertEquals(JiraImportReason.CHANGED, (epic(gone) as ImportApply.Skipped).reason)
+        // The other way: the preview saw the parent bound (the epic under that node), and the holder has been unbound since.
+        val seenBound = ImportCase(shownIssues, tree = stream, defaults = defaults, holders = otherNode)
+        val boundTicks = tickable(seenBound.plan())
+        assertEquals(JiraImportParentKind.EXISTING, seenBound.plan().row("300").item.parent!!.kind)
+        val unbound = ImportCase(shownIssues, tree = stream, defaults = defaults).plan(boundTicks).row("300").apply
+        assertEquals(JiraImportReason.CHANGED, (unbound as ImportApply.Skipped).reason)
+    }
+
+    @Test
+    fun `a milestone keeps the team the preview showed - a changed Jira Team is CHANGED, an override is not compared`() {
+        val payments = ImportTeam(11u, "Payments")
+        fun case(team: String) = ImportCase(
+            listOf(issue("300", JIRA_EPIC, "Epic A", team = team)),
+            tree = stream,
+            teams = listOf(PLATFORM, payments),
+            defaults = JiraImportDefaults(projectId = 7u, teamId = 10u),
+        )
+        val shown = case("Platform").plan()
+        assertEquals(PLATFORM.id, shown.row("300").item.team!!.id)
+        val ticks = tickable(shown)
+        assertTrue(case("Platform").plan(ticks).row("300").apply is ImportApply.Write, "unchanged is written")
+        // Someone edits Jira's Team field: the apply would put the milestone on Payments - unseen.
+        val moved = case("Payments").plan(ticks).row("300").apply
+        assertEquals(JiraImportReason.CHANGED, (moved as ImportApply.Skipped).reason)
+        // An override applies on top of what was shown: written, on the override's team, not CHANGED.
+        val overridden = case("Platform").plan(listOf(tick(shown.row("300"), teamOverride = payments.id))).row("300")
+        assertTrue(overridden.apply is ImportApply.Write)
+        assertEquals(payments.id, overridden.item.team!!.id)
+        // The default team is the same on both sides: a milestone with no Team value keeps it.
+        val withDefault = JiraImportDefaults(projectId = 7u, teamId = 10u)
+        val plain = ImportCase(listOf(issue("300", JIRA_EPIC, "Epic A")), tree = stream, defaults = withDefault)
+        assertTrue(plain.plan(tickable(plain.plan())).row("300").apply is ImportApply.Write)
+        // A client that sent no team is not trusted to mean "any".
+        val seen = tick(shown.row("300"))
+        val noTeam = seen.copy(expected = seen.expected.copy(teamId = null))
+        assertEquals(JiraImportReason.CHANGED, (case("Platform").plan(listOf(noTeam)).row("300").apply as ImportApply.Skipped).reason)
+    }
+
+    @Test
     fun `an id the browse no longer holds is CHANGED without a key`() {
         val case = ImportCase(listOf(issue("100", JIRA_PROGRAM)))
         val ticks = tickable(case.plan()) + JiraImportApplyItem("777", JiraImportExpected(JiraImportAction.CREATE, JiraLevel.PROGRAM))

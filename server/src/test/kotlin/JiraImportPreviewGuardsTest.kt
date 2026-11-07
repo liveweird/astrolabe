@@ -64,13 +64,18 @@ class JiraImportPreviewGuardsTest {
     }
 
     @Test
-    fun `an owner of an unrelated node, with no named default and nothing to create or bind, is refused, and the stream's owner is not`() =
+    fun `with nothing to create or bind, an owner of a node of the tree sees redacted rows, one who owns nothing in it is refused`() =
         testApplication {
             val w = worlds("jipall")
-            // Every row skips in B's stream; B's project owner owns neither the stream nor any target.
-            val refused = w.b.projectOwner.client.preview(w.a.connectionId, w.scopeB())
+            // Every row skips in B's stream. A's project owner owns a node elsewhere only: refused.
+            val refused = w.a.w.projectOwner.client.preview(w.a.connectionId, w.scopeB())
             assertEquals(HttpStatusCode.Forbidden, refused.status)
             assertEquals("Owner or admin role required", refused.jbProblem().detail)
+            // B's project owner owns a node of the tree (no stream, no target): the rows come, redacted (ALREADY_BOUND keep text, C4).
+            val partial = w.b.projectOwner.client.preview(w.a.connectionId, w.scopeB()).previewBody()
+            assertEquals(9, partial.items.size)
+            val others = partial.items.filter { it.reason != JiraImportReason.ALREADY_BOUND }
+            assertTrue(others.isNotEmpty() && others.all { it.summary == "" && it.name == it.issueKey && it.infos.isEmpty() }, "blank")
             val owner = w.b.streamOwner.client.preview(w.a.connectionId, w.scopeB()).previewBody()
             assertEquals(listOf(9, 0, 0, 9), owner.totals.let { listOf(it.items, it.create, it.bind, it.skip) })
         }

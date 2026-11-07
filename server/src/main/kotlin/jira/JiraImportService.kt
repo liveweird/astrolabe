@@ -13,6 +13,7 @@ import ch.nokillswit.planning.projectChain
 import ch.nokillswit.planning.loadWorkingCalendar
 import ch.nokillswit.planning.ownsActivePlanNode
 import ch.nokillswit.planning.readPlanRevision
+import ch.nokillswit.planning.withPlanWrite
 import ch.nokillswit.planning.workStreamChain
 import ch.nokillswit.teams.TeamService
 import io.ktor.server.plugins.BadRequestException
@@ -48,10 +49,30 @@ class ImportRead(
 /**
  * The Jira import's database side (1.2; `persistence.md` "Cross-feature table reads AND writes"). It READS `planning` (the picked work
  * stream's tree, every active program name, the holiday dictionary), `people` and `teams` (the owner and the teams, the caller's managed
- * teams) and `jira_bindings` / `jira_connections` (who holds an issue on the site); the preview writes nothing and takes no lock. Every
- * Jira call happens in the route, OUTSIDE any of these transactions.
+ * teams) and `jira_bindings` / `jira_connections` (who holds an issue on the site); the preview writes nothing and takes no lock. The
+ * apply ([apply]) is the one plan write. Every Jira call happens in the route, OUTSIDE any of these transactions.
  */
-class JiraImportService(private val database: R2dbcDatabase, private val teams: TeamService) {
+class JiraImportService(
+    private val database: R2dbcDatabase,
+    private val teams: TeamService,
+    private val bindingService: JiraBindingService,
+) {
+    /**
+     * The apply: ONE `withPlanWrite` ([LockedApply.run] has the lock order and every re-check), after the browse the route made OUTSIDE
+     * any transaction - the plan lock is never held across HTTP. A truncated browse is a `400` before the lock, because a parent cut away
+     * by the cap cannot be told from an orphan. The commit bumps the plan revision exactly once, also when every item was skipped. A
+     * `23505` that escapes (a name the Kotlin-side decision could not see, for instance `LOWER()` disagreeing with `lowercase()` on an
+     * exotic character) aborts the transaction and is the central whole-request `409`: the documented backstop, never caught per row.
+     */
+    internal suspend fun apply(ctx: ApplyContext): ImportOutcome {
+        // The route validated these too; the service never trusts its caller for a client bug (conventions.md).
+        validateApplyItems(ctx.request.items)
+        if (ctx.browse.truncated) throw BadRequestException(IMPORT_TRUNCATED)
+        val write = database.withPlanWrite { revision -> LockedApply(this, teams, bindingService, ctx, revision).run() }
+        val written = write.value
+        return ImportOutcome(JiraImportResult(write.revision, written.created, written.bound, written.skipped), written.released)
+    }
+
     /**
      * The targets the request NAMES, for the checks that precede the browse (read-before-guard): the picked work stream must exist, and
      * so must `defaults.programId` and `defaults.projectId` - the first one that is missing or deleted is a `404` - and the answer is the
@@ -70,17 +91,24 @@ class JiraImportService(private val database: R2dbcDatabase, private val teams: 
     suspend fun ownsAnyNode(personId: UInt): Boolean = suspendTransaction(database) { ownsActivePlanNode(personId) }
 
     /**
-     * The request's shape rules that need rows, after the guards (`400`): the owner an ACTIVE person, `defaults.teamId` an active team,
+     * The request's shape rules that need rows, after the guards (`400`): the owner an ACTIVE person, `defaults.teamId` and every
+     * apply item's `overrides.teamId` ([overrideTeamIds]) an active team,
      * `defaults.programId` / `defaults.projectId` under the picked work stream. Plain reads, no lock (the preview writes nothing; an
      * apply re-checks under its own locks).
      */
-    suspend fun requireShape(scope: JiraImportScope): Unit = suspendTransaction(database) {
+    suspend fun requireShape(scope: JiraImportScope, overrideTeamIds: Collection<UInt> = emptyList()): Unit = suspendTransaction(database) {
         val people = PersonService.People
         if (people.select(people.id).where { (people.id eq scope.ownerPersonId) and people.active() }.toList().isEmpty()) {
             throw BadRequestException("Unknown or deleted owner ids: ${scope.ownerPersonId}")
         }
-        val defaults = scope.defaults ?: return@suspendTransaction
         val activeTeams = TeamService.Teams
+        val wanted = overrideTeamIds.toSet()
+        if (wanted.isNotEmpty()) {
+            val active = activeTeams.select(activeTeams.id).where { (activeTeams.id inList wanted) and activeTeams.active() }.toList()
+                .map { it[activeTeams.id].value }.toSet()
+            if (!active.containsAll(wanted)) throw BadRequestException("overrides.teamId is not an active team")
+        }
+        val defaults = scope.defaults ?: return@suspendTransaction
         defaults.teamId?.let { teamId ->
             if (activeTeams.select(activeTeams.id).where { (activeTeams.id eq teamId) and activeTeams.active() }.toList().isEmpty()) {
                 throw BadRequestException("defaults.teamId is not an active team")
@@ -113,23 +141,38 @@ class JiraImportService(private val database: R2dbcDatabase, private val teams: 
     suspend fun read(workStreamId: UInt, siteUrl: String, issueIds: Collection<String>, managerUserId: UInt?): ImportRead? =
         suspendTransaction(database, SNAPSHOT, readOnly = true) {
             val revision = readPlanRevision()
-            val calendar = loadWorkingCalendar()
-            val streamOwner = workStreamChain(workStreamId)?.owners?.single() ?: return@suspendTransaction null
-            val tree = readTree(workStreamId, streamOwner)
-            val allProgramNames = programs.select(programs.name).where { programs.active() }.toList().map { it[programs.name] }
-            val activeTeams = TeamService.Teams
-            val teamRows = activeTeams.select(activeTeams.id, activeTeams.name).where { activeTeams.active() }.toList()
-                .map { ImportTeam(it[activeTeams.id].value, it[activeTeams.name]) }
-            val snapshot = ImportSnapshot(
-                tree = tree.tree,
-                allProgramNames = allProgramNames,
-                holders = readHolders(siteUrl, issueIds),
-                teams = teamRows,
-                canScheduleTeamIds = managerUserId?.let { teams.activeManagedTeamIds(it) },
-                calendar = calendar,
-            )
-            ImportRead(revision, snapshot, OwnerChain(listOf(streamOwner)), tree.chains)
+            val canSchedule = managerUserId?.let { teams.activeManagedTeamIds(it) }
+            loadPlanSide(workStreamId, siteUrl, issueIds, canSchedule, revision)
         }
+
+    /**
+     * The reads of [read], inside the CALLER's transaction: the snapshot's, or (the apply) the plan-locked one, where they are exact.
+     * [canScheduleTeamIds] = the teams the caller may schedule, null = every team. Null when the work stream is gone.
+     */
+    internal suspend fun loadPlanSide(
+        workStreamId: UInt,
+        siteUrl: String,
+        issueIds: Collection<String>,
+        canScheduleTeamIds: Set<UInt>?,
+        revision: Long,
+    ): ImportRead? {
+        val calendar = loadWorkingCalendar()
+        val streamOwner = workStreamChain(workStreamId)?.owners?.single() ?: return null
+        val tree = readTree(workStreamId, streamOwner)
+        val allProgramNames = programs.select(programs.name).where { programs.active() }.toList().map { it[programs.name] }
+        val activeTeams = TeamService.Teams
+        val teamRows = activeTeams.select(activeTeams.id, activeTeams.name).where { activeTeams.active() }.toList()
+            .map { ImportTeam(it[activeTeams.id].value, it[activeTeams.name]) }
+        val snapshot = ImportSnapshot(
+            tree = tree.tree,
+            allProgramNames = allProgramNames,
+            holders = readHolders(siteUrl, issueIds),
+            teams = teamRows,
+            canScheduleTeamIds = canScheduleTeamIds,
+            calendar = calendar,
+        )
+        return ImportRead(revision, snapshot, OwnerChain(listOf(streamOwner)), tree.chains)
+    }
 
     private class Tree(val tree: ImportTree, val chains: Map<Pair<JiraLevel, UInt>, OwnerChain>)
 

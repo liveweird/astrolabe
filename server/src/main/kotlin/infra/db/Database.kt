@@ -313,8 +313,9 @@ suspend fun Application.configureDatabase() {
     val syncRuns = SyncRunService(database, maxRunMinutes)
     attributes.put(SyncRunServiceKey, syncRuns)
     attributes.put(JiraConnectionServiceKey, JiraConnectionService(database, attributes[FieldCipherKey], syncRuns))
-    attributes.put(JiraBindingServiceKey, JiraBindingService(database))
-    attributes.put(JiraImportServiceKey, JiraImportService(database, teamService))
+    val jiraBindings = JiraBindingService(database)
+    attributes.put(JiraBindingServiceKey, jiraBindings)
+    attributes.put(JiraImportServiceKey, JiraImportService(database, teamService, jiraBindings))
     // The empty connector registry the connectors' modules fill (`configureJira`).
     attributes.put(DeviationViewServiceKey, DeviationViewService(database, syncRuns))
     attributes.put(SyncConnectorsKey, SyncConnectors())

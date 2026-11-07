@@ -14,6 +14,7 @@ Related: schema `persistence.md` "The Jira sync tables (V21)"; outbound guard `s
 | `POST /integrations/sync/runs {kind, connectionId}` (Refresh now) | ADMIN; `202` with the unfinished run |
 | `POST /integrations/jira/bindings`, `DELETE …/bindings/{id}` | the node's owner chain or ADMIN (`requireOwnerOrAdmin`), read-before-guard; a link writes no dates, so the team-manager rule does not apply |
 | `POST …/connections/{id}/import-preview` (1.2) | ADMIN, or an owner of every target (`requireOwnerOrAdmin` on the named defaults before the browse, on the resolved targets after it); read-before-guard, a read |
+| `POST …/connections/{id}/import` (1.2) | ADMIN, or an owner of EVERY ticked CREATE/BIND row's target, re-run under the plan lock; not the preview's rule (an owner may apply rows on their own targets where a full preview would be a 403); the one Jira write that moves the plan (`### The apply`) |
 | `GET …/bindings`, `GET …/sync/runs`, `GET /views/deviations` | any authenticated user |
 
 Rate buckets: `jira-test` 10/min per IP (Test connection, ad hoc or stored, and Peek); `jira-bind` 30/min per user (spent before the guard, so a 403 costs a token too); `jira-import` 5/min per user, shared by the import preview and apply (each browses the whole scope; spent before the guard).
@@ -147,7 +148,7 @@ observation (they still block their nodes).
 
 Without a usable mapping (no discovery, stale, unreadable) neither the level nor the estimate comparison is made and the connection reads `mappingOk: false`.
 
-## Import (1.2): the preview
+## Import (1.2): the preview and the apply
 
 `POST …/connections/{id}/import-preview {workStreamId, ownerPersonId, projectKeys?, defaults{programId?, projectId?, teamId?}?, copyDates}` answers what importing the connection's scope into ONE picked work
 stream WOULD do, per Jira item: CREATE a program / project / milestone, BIND an existing unbound same-name node, or SKIP. It stores nothing and takes no lock. Work streams are never imported; the
@@ -175,6 +176,28 @@ discovery / mapping (`409`, the bind's resolution), then:
 Tests: `JiraImportPreviewTest` (the `IMP` tree against the stub), `JiraImportPreviewGuardsTest` and `JiraImportRedactionTest` (the resolved-target guards and the redaction), `JiraImportPreviewSnapshotTest`
 (D1 holders: another connection, a deleted one, a dead node, an unbrowsed parent), `JiraImportPreviewErrorsTest` (the order, every status, the cap, the mid-browse stop, the `fields` the request names),
 `JiraImportBrowseTest` (the browse over a scripted site, the deadline), `JiraImportKernelsTest`.
+
+### The apply
+
+`POST …/connections/{id}/import {workStreamId, ownerPersonId, projectKeys?, defaults?, copyDates, items[1..2,000 of {jiraId, expected{action, level, parentJiraId?, nodeId?}, overrides{teamId?}?}]}` writes what the user ticked in the
+preview: it creates programs, projects and milestones under the ONE picked work stream, binds each to its Jira item (or binds an existing unbound same-name node), and never updates an existing node. The only Jira write that
+moves the plan; nothing is written to Jira. Same rights as the preview (`authorization.md` has the apply's order). It runs the preview's checks and its browse again (the SAME `JiraJql.full` read, matched by id: a static stub cannot answer
+`id in (...)`), then:
+
+1. **A truncated browse is a `400`** before any write (a parent cut by the cap cannot be told from an orphan), so is any `overrides.teamId` that is not an active team.
+2. **ONE `withPlanWrite`** (`JiraImportService.apply`, `LockedApply.run`; the lock order is in `persistence.md`): plan lock, then the bind's advisory lock, the connection row, the caller's person, and everything re-read and
+   re-guarded under them. The kernel runs over the rows read under the lock with the client's ticks: a ticked row that is no longer exactly what the preview showed (`expected`: action, level, Jira parent, BIND node, and for a CREATE the previewed LANDING `parent{kind, nodeId?}` - a row is never silently re-homed, e.g. under the default parent because its Jira parent was bound elsewhere; for a milestone also the previewed `teamId`, before any override - a Jira Team edited meanwhile cannot move it to another team unseen; an `overrides.teamId` applies on top and is not compared) is skipped `CHANGED` (a BIND target that was bound meanwhile is `NAME_TAKEN`, one that was deleted turns the row into a CREATE: `CHANGED`),
+   an item the re-browse no longer finds is `CHANGED` without a key, a child of a row the client left out or whose own row was skipped is `PARENT_SKIPPED`, and a name taken meanwhile is `NAME_TAKEN` - decided in Kotlin under the lock,
+   never by catching a `23505`. A caller who may not schedule a milestone's team (decided with `lockedIsActiveManager` under the lock) gets it created unscheduled.
+3. **Inserts top-down** (a child's parent id is the one just returned), the dates for the scheduled milestones through `writeSchedules` at `revision + 1` (the milestone was inserted at the same value), then a binding and its first
+   observation per written row through `insertBoundLocked`; a dead-node holder of the issue (this connection or another of the site, D1) is released. **Exactly one revision bump**, also when every item was skipped (a re-import answers
+   `skipped[] = ALREADY_BOUND` and still moves the revision by one).
+4. After the commit: `jira.binding_released` per released holder, then ONE `jira.import_applied` line (`observability.md`). The answer is `{revision, created[{jiraId, issueKey, kind, id, bindingId, name, scheduled}], bound[…], skipped[{jiraId,
+   issueKey?, reason}]}`: ids, keys and reasons only.
+
+The plan lock is held about 1 s for the plan's whole scale (20 / 100 / 1,000) and about 2 s at the 2,000-item cap (`build-times.md`); the browse, at most 170 s, happens before it. Under the lock the connection's project keys, `mapping_changed_at` AND `discovered_at` are compared with what the browse used (the effective mapping depends on both): keys `400`, mapping or discovery `409`. The dead holders to release are locked in one `ORDER BY id FOR NO KEY UPDATE` before the first bind (the run's sweep updates in id order). Tests: `JiraImportApplyTest` (the `IMP` tree, bindings and
+observations, the revision, the audit line, the schedule PUT's stamp, a re-import, owners and scheduling, BIND and `NAME_TAKEN`), `JiraImportApplyChangesTest` (`CHANGED`, `PARENT_SKIPPED`, a released holder), `JiraImportApplyGuardsTest` (the landing, the team override, a re-import by a node owner), `JiraImportApplyRecheckTest` (every check repeated under the lock), `JiraImportApplyErrorsTest`
+(every status), `JiraImportApplyRaceTest` (revocation while waiting, a plan write ahead, a connection deleted meanwhile, the bind race), `JiraImportScaleTest` (the measured hold).
 
 ## The token's life
 

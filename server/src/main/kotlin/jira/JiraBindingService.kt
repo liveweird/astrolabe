@@ -136,9 +136,11 @@ class JiraBindingService(private val database: R2dbcDatabase) {
      * read and guarded the node's chain; and read [siteConnectionIds] under those locks - EVERY active connection of the site (D1),
      * the command's own included.
      *
-     * Lock order, which a caller must not invert: the plan lock (if any), the bind lock, the connection row, the node row, the person
-     * row (inside the guard), then the binding rows. A bind holds the bind lock and waits only on node, person and binding rows; the
-     * import takes the plan lock first and the bind lock before touching any row, so there is no cycle.
+     * Lock order of the two callers: a bind takes the bind lock, the connection row, the node row, the person row (inside the guard),
+     * then the binding rows; the import takes the plan lock FIRST and the bind lock before touching any row. The bind never takes the
+     * plan lock, so a bind waits only on node, person and binding rows - which a plan writer (it holds the plan lock, so never
+     * concurrently with the import), a person writer or the run can hold, none of which waits for the bind lock: no cycle. A caller that
+     * took the bind lock AFTER row locks, or waited for the plan lock while holding it, would close one.
      */
     internal suspend fun insertBoundLocked(command: JiraBindCommand, siteConnectionIds: List<UInt>): BoundInsert {
         val node = command.level to command.nodeId

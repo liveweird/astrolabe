@@ -16,9 +16,11 @@ import ch.nokillswit.jira.ImportTree
 import ch.nokillswit.jira.JiraDiscovery
 import ch.nokillswit.jira.JiraEstimateMapping
 import ch.nokillswit.jira.JiraEstimateUnit
+import ch.nokillswit.jira.JiraImportAction
 import ch.nokillswit.jira.JiraImportApplyItem
 import ch.nokillswit.jira.JiraImportDefaults
 import ch.nokillswit.jira.JiraImportExpected
+import ch.nokillswit.jira.JiraImportExpectedParent
 import ch.nokillswit.jira.JiraImportOverrides
 import ch.nokillswit.jira.JiraImportKernels
 import ch.nokillswit.jira.JiraLevel
@@ -141,7 +143,11 @@ fun tickable(preview: ImportPlan, vararg leaveOut: String): List<JiraImportApply
 
 fun tick(row: ImportRow, teamOverride: UInt? = null) = JiraImportApplyItem(
     row.item.jiraId,
-    JiraImportExpected(row.item.action, row.item.level, row.item.parentJiraId, row.item.target?.nodeId),
+    JiraImportExpected(
+        row.item.action, row.item.level, row.item.parentJiraId, row.item.target?.nodeId,
+        row.item.parent?.let { JiraImportExpectedParent(it.kind, it.nodeId) },
+        row.item.team?.id.takeIf { row.item.level == JiraLevel.MILESTONE && row.item.action == JiraImportAction.CREATE },
+    ),
     teamOverride?.let { JiraImportOverrides(it) },
 )
 

@@ -4,7 +4,7 @@ import io.ktor.server.plugins.BadRequestException
 import kotlinx.serialization.Serializable
 
 // The wire shapes of the Jira import (1.2): the preview (`POST …/connections/{id}/import-preview`) and the apply (`…/import`). The
-// pure rules that fill them are `JiraImportKernels`; `JiraImportRoutes` serves the preview (the apply mounts with step C5).
+// pure rules that fill them are `JiraImportKernels`; `JiraImportRoutes` serves both, the apply through `JiraImportApply`.
 
 /** The most items one import carries, preview rows and apply items alike, IN TOTAL (not per level): the deviations view's cap. */
 const val MAX_IMPORT_ITEMS = 2_000
@@ -116,13 +116,25 @@ data class JiraImportPreview(
     val items: List<JiraImportItem>,
 )
 
-/** What the preview showed for a ticked row; a difference after the re-browse and the re-read under the lock is a `CHANGED` skip. */
+/** Where a CREATE row landed in the preview: the parent's [kind] and, for an existing node, its [nodeId] (null for a new row). */
+@Serializable
+data class JiraImportExpectedParent(val kind: JiraImportParentKind, val nodeId: UInt? = null)
+
+/**
+ * What the preview showed for a ticked row; a difference after the re-browse and the re-read under the lock is a `CHANGED` skip. For a
+ * CREATE that includes the LANDING ([parent]: absent for a program, else the previewed parent): a row never silently lands under a
+ * different parent than the one the user saw (for instance the default parent, because its Jira parent was bound elsewhere meanwhile).
+ * For a milestone CREATE, [teamId] is the team the preview row showed (the name match or `defaults.teamId`, WITHOUT any override): a
+ * changed Jira Team value must not move the milestone to another team unseen. An `overrides.teamId` is applied on top and is not compared.
+ */
 @Serializable
 data class JiraImportExpected(
     val action: JiraImportAction,
     val level: JiraLevel,
     val parentJiraId: String? = null,
     val nodeId: UInt? = null,
+    val parent: JiraImportExpectedParent? = null,
+    val teamId: UInt? = null,
 )
 
 @Serializable
@@ -191,7 +203,8 @@ private const val MAX_KEY_ECHO = 20
 /**
  * The apply items' rules, for client bugs only (the recomputation under the lock is the real protection): between one and
  * [MAX_IMPORT_ITEMS] items, each Jira id a numeric id named once, `expected.action` CREATE or BIND (a BIND carries its node, a CREATE
- * does not), `expected.parentJiraId` a numeric id when present. A `400` names the failing item's index.
+ * does not), `expected.parentJiraId` a numeric id when present, `expected.parent` present for a CREATE below a program. A `400` names
+ * the failing item's index.
  * It cannot see teams: the caller must ALSO refuse (`400`) an `overrides.teamId` that is not an active team before the kernel
  * runs (the kernel's NO_TEAM for an unknown override is only a backstop).
  */
@@ -208,6 +221,8 @@ fun validateApplyItems(items: List<JiraImportApplyItem>) {
             expected.action == JiraImportAction.CREATE && expected.nodeId != null -> "expected.nodeId must be absent for a CREATE"
             expected.parentJiraId != null && !ISSUE_ID_PATTERN.matches(expected.parentJiraId) ->
                 "expected.parentJiraId must be a numeric Jira issue id"
+            expected.action == JiraImportAction.CREATE && expected.level != JiraLevel.PROGRAM && expected.parent == null ->
+                "expected.parent is required for a CREATE below a program"
             else -> null
         }
         if (problem != null) throw BadRequestException("items[$index]: $problem")
