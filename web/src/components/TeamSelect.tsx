@@ -8,11 +8,16 @@ import SearchPicker, { type PickedOption } from "./SearchPicker";
  * the team whose manager schedules it. Options read the team's name; the caller holds the pick (its label survives later searches).
  */
 export default function TeamSelect({
+  label,
+  description,
   picked,
   onPick,
   disabled,
   error,
 }: {
+  /** Replaces the milestone editor's field label / hint where the team means something else (the import's default team). */
+  label?: string;
+  description?: string;
   picked: PickedOption | null;
   onPick: (picked: PickedOption | null) => void;
   disabled?: boolean;
@@ -22,8 +27,8 @@ export default function TeamSelect({
   const { t } = useTranslation();
   return (
     <SearchPicker
-      label={t("common.field.team")}
-      description={t("project.milestone.teamHint")}
+      label={label ?? t("common.field.team")}
+      description={description ?? t("project.milestone.teamHint")}
       placeholder={t("project.milestone.pickTeam")}
       clearLabel={t("project.milestone.clearTeam")}
       noMatchLabel={t("project.milestone.noMatchingTeams")}

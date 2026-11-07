@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Anchor, Badge, Button, Group, Select, Stack, Table, Text, Title } from "@mantine/core";
-import { IconLink, IconLinkOff } from "@tabler/icons-react";
+import { IconFileImport, IconLink, IconLinkOff } from "@tabler/icons-react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { DeviationConnection } from "../api/deviations";
 import { listJiraBindings, type JiraBinding, type JiraConnection, type JiraLevel } from "../api/jira";
@@ -14,6 +14,7 @@ import { projectPath } from "../utils/planLinks";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import ClearableTextInput from "./ClearableTextInput";
 import JiraBindDialog from "./JiraBindDialog";
+import JiraImportModal from "./JiraImportModal";
 import JiraKeyLink from "./JiraKeyLink";
 import JiraUnlinkModal from "./JiraUnlinkModal";
 import RegistryListTable from "./RegistryListTable";
@@ -75,10 +76,12 @@ export default function JiraBindingsSection({ connection }: { connection: JiraCo
   });
 
   const [binding, setBinding] = useState(false);
-  useDialogFocus(binding);
+  const [importing, setImporting] = useState(false);
+  useDialogFocus(binding || importing);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const unlink = useJiraUnlink(titleRef);
   const filtered = level !== null || q !== "";
+  const canImport = connection.enabled && connection.discoveredAt != null;
 
   return (
     <Stack gap="md">
@@ -86,13 +89,29 @@ export default function JiraBindingsSection({ connection }: { connection: JiraCo
         <Title order={3} size="h4" ref={titleRef} tabIndex={-1}>
           {t("jira.bindings.title")}
         </Title>
-        <Button variant="default" leftSection={<IconLink size={16} />} disabled={!connection.enabled} onClick={() => setBinding(true)}>
-          {t("jira.bindings.linkNode")}
-        </Button>
+        <Group gap="sm">
+          {/* The import needs a stored discovery (a passing Test connection) to read the mapping against; the server's 409 covers a mapping that no longer fits. */}
+          <Button
+            variant="default"
+            leftSection={<IconFileImport size={16} />}
+            disabled={!canImport}
+            onClick={() => setImporting(true)}
+          >
+            {t("jira.import.entry")}
+          </Button>
+          <Button variant="default" leftSection={<IconLink size={16} />} disabled={!connection.enabled} onClick={() => setBinding(true)}>
+            {t("jira.bindings.linkNode")}
+          </Button>
+        </Group>
       </Group>
       <Text size="sm" c="dimmed">
         {t("jira.bindings.intro")}
       </Text>
+      {!canImport && (
+        <Text size="xs" c="dimmed" role="note">
+          {t("jira.bindings.importDisabled")}
+        </Text>
+      )}
       <Group align="flex-end" gap="sm" wrap="wrap">
         <Select
           label={t("jira.bindings.filter.level")}
@@ -187,6 +206,7 @@ export default function JiraBindingsSection({ connection }: { connection: JiraCo
           }}
         />
       )}
+      {importing && <JiraImportModal connection={connection} onClose={() => setImporting(false)} />}
       <JiraUnlinkModal confirm={unlink} />
     </Stack>
   );

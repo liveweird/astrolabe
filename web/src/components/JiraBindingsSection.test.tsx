@@ -119,4 +119,25 @@ describe("JiraBindingsSection", () => {
     renderWithProviders(<JiraBindingsSection connection={{ ...CONNECTION, enabled: false }} />);
     expect(await screen.findByRole("button", { name: "Link a node…" })).toBeDisabled();
   });
+
+  test("Import from Jira… opens the import modal and Close returns the focus to the button", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<JiraBindingsSection connection={CONNECTION} />);
+    const entry = await screen.findByRole("button", { name: "Import from Jira…" });
+    await user.click(entry);
+    const dialog = await screen.findByRole("dialog", { name: "Import from Jira" });
+    expect(within(dialog).getByText("Step 1 of 3: choose what to import")).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await waitFor(() => expect(entry).toHaveFocus());
+  });
+
+  test("the import needs an enabled connection that has been tested (a stored discovery), and says so", async () => {
+    const { unmount } = renderWithProviders(<JiraBindingsSection connection={{ ...CONNECTION, discoveredAt: null }} />);
+    expect(await screen.findByRole("button", { name: "Import from Jira…" })).toBeDisabled();
+    expect(screen.getByText("Import from Jira needs an enabled connection that has passed Test connection.")).toBeInTheDocument();
+    unmount();
+    renderWithProviders(<JiraBindingsSection connection={{ ...CONNECTION, enabled: false }} />);
+    expect(await screen.findByRole("button", { name: "Import from Jira…" })).toBeDisabled();
+  });
 });

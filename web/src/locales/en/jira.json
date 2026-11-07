@@ -329,7 +329,8 @@
     "unlinkBody": "{{name}} will no longer be linked to {{key}}. Nothing changes in Jira, and both can be linked again.",
     "unlinkFailed": "Could not unlink",
     "unlinkForbidden": "Only the item's owners and administrators can unlink it.",
-    "unlinkGone": "This link no longer exists."
+    "unlinkGone": "This link no longer exists.",
+    "importDisabled": "Import from Jira needs an enabled connection that has passed Test connection."
   },
   "bind": {
     "title": "Link to Jira",
@@ -371,5 +372,148 @@
     },
     "pickConnection": "Choose a connection to link through.",
     "retry": "Retry"
+  },
+  "import": {
+    "title": "Import from Jira",
+    "entry": "Import from Jira…",
+    "step": "Step {{n}} of 3: {{name}}",
+    "stepName": {
+      "scope": "choose what to import",
+      "preview": "review the preview",
+      "outcome": "result"
+    },
+    "reading": "Reading Jira… a large scope can take up to 3 minutes. Nothing is changed yet.",
+    "stopReading": "Stop",
+    "back": "Back",
+    "previewAgain": "Preview again",
+    "scope": {
+      "intro": "Reads the connection's Jira projects and shows what importing them into one work stream would do. Nothing is changed until you confirm, existing plan items are never overwritten, and nothing is written to Jira.",
+      "planFailed": "Could not load the plan",
+      "workStream": "Work stream",
+      "workStreamHint": "Everything is created under this work stream.",
+      "pickWorkStream": "Pick a work stream",
+      "closedName": "{{name}} (closed)",
+      "noWorkStreams": "No matching work streams",
+      "owner": "Owner of the new items",
+      "ownerHint": "Every program and project that is created gets this owner.",
+      "keys": "Jira projects",
+      "keysHint": "All are read. Narrow this when a scope has more than 2,000 issues.",
+      "keysRequired": "Pick at least one Jira project",
+      "copyDates": "Copy Jira's dates",
+      "copyDatesHint": "Dates are copied only to milestones whose team you manage; the others are created unscheduled.",
+      "team": "Default team",
+      "teamHint": "For milestones whose Jira team matches no team here. Without one, those milestones are skipped.",
+      "program": "Default program",
+      "programHint": "Where projects with no parent in Jira go. Optional.",
+      "project": "Default project",
+      "projectHint": "Where milestones with no parent in Jira go. Optional.",
+      "projectOption": "{{name}} · {{program}}",
+      "none": "None",
+      "clearProgram": "Clear the default program",
+      "clearProject": "Clear the default project",
+      "preview": "Preview"
+    },
+    "preview": {
+      "title": "What the import would do",
+      "totalsAria": "Totals",
+      "totalFound": "Jira items: {{n}}",
+      "totalCreate": "To create: {{n}}",
+      "totalBind": "To link: {{n}}",
+      "totalSkip": "Skipped: {{n}}",
+      "truncated": "More than 2,000 issues are in scope. Only the first 2,000 are shown and nothing can be imported. Go back and narrow the Jira projects, then preview again.",
+      "unscheduledRights": "{{n}} of {{of}} milestones with dates will be created unscheduled: you do not manage their teams.",
+      "unmatchedTeams": "Jira teams that match no team here: {{names}}. Their milestones use the default team, or are skipped without one.",
+      "selectAll": "Select all",
+      "selectNone": "Select none",
+      "selected": "{{ticked}} of {{total}} selected",
+      "selectAllAria": "Select all rows that can be imported",
+      "rowAria": "Import {{key}}",
+      "tableAria": "Import preview",
+      "empty": "Nothing in scope: the selected Jira projects have no issues at the mapped levels.",
+      "alsoTicked_one": "Ticked {{key}} and the item it is created under.",
+      "alsoTicked_other": "Ticked {{key}} and the {{count}} items it is created under.",
+      "alsoUnticked_one": "Unticked {{key}} and the {{count}} item created under it: it would be skipped.",
+      "alsoUnticked_other": "Unticked {{key}} and the {{count}} items created under it: they would be skipped.",
+      "applying": "Importing… keep this window open.",
+      "import": "Import ({{n}})",
+      "column": {
+        "item": "Jira item",
+        "plan": "Plan item",
+        "action": "Action",
+        "details": "Details"
+      }
+    },
+    "row": {
+      "linksTo": "Links to the existing {{name}}",
+      "underStream": "In the work stream",
+      "underNew": "Under new {{name}}",
+      "underDefault": "Under default {{name}}",
+      "underExisting": "Under {{name}}",
+      "dates": "{{start}} to {{end}}",
+      "noDates": "No dates",
+      "estimate": "{{n}} man-days",
+      "teamAria": "Team for {{key}}",
+      "teamMatched": "{{name}} (from Jira)",
+      "teamDefault": "{{name}} (default)",
+      "parentUnticked": "Its parent {{key}} is not ticked, so this is not imported.",
+      "typeAs": "{{type}} → {{level}}",
+      "datesOff": "Dates not copied (switched off)"
+    },
+    "action": {
+      "create": "Create",
+      "bind": "Link",
+      "skip": "Skip",
+      "notImported": "Not imported"
+    },
+    "reason": {
+      "alreadyBound": "Already linked to a plan item.",
+      "alreadyBoundTo": "Already linked to {{name}}.",
+      "noParent": "Nowhere to put it: its parent is not in the plan. Pick a default program or project, or import its parent.",
+      "nameTaken": "A plan item with this name already exists here and cannot be linked.",
+      "levelUnmapped": "Its Jira type is not mapped to a plan level.",
+      "noTeam": "No team: its Jira team matches none here and no default team is set.",
+      "parentSkipped": "Its parent is skipped, so it is skipped too.",
+      "changed": "Changed since the preview, in Jira or in the plan. Preview again."
+    },
+    "info": {
+      "nameTruncated": "Name cut to 100 characters",
+      "estimateNotConverted": "Estimate not converted (0 man-days)",
+      "datesNotManaged": "Dates not copied: you do not manage the team",
+      "datesInvalid": "Jira's dates are missing or invalid: created unscheduled",
+      "noWorkingDay": "Jira's dates hold no working day: created unscheduled"
+    },
+    "outcome": {
+      "title": "Import finished",
+      "created": "Created: {{n}}",
+      "bound": "Linked: {{n}}",
+      "scheduled": "Scheduled: {{n}}",
+      "skipped": "Skipped: {{n}}",
+      "wrote": "The plan has been updated. Nothing was written to Jira.",
+      "nothing": "Nothing was created or linked: every selected row was skipped.",
+      "changed_one": "{{count}} row changed since the preview and was skipped. Preview again to see the current state.",
+      "changed_other": "{{count}} rows changed since the preview and were skipped. Preview again to see the current state.",
+      "skippedTitle": "Skipped rows",
+      "skippedAria": "Skipped rows",
+      "unknownItem": "Item {{id}} (no longer in Jira)",
+      "column": {
+        "why": "Why it was skipped"
+      }
+    },
+    "error": {
+      "timeoutPreview": "Reading Jira took longer than 3 minutes and was stopped. Narrow the Jira projects and try again.",
+      "timeoutApply": "The import ended without a clear answer, so it may still have been applied. Close this dialog and check the \"Links to plan items\" list on this page, then preview again.",
+      "mappingChanged": "The connection's mapping or discovery changed while the import was read, so nothing was written.",
+      "mappingInvalid": "The connection's mapping no longer fits the Jira site. An administrator has to fix it on the connection page.",
+      "notDiscovered": "This connection has not been tested yet. Test it first.",
+      "tokenUnreadable": "The connection's token cannot be read. Enter it again by editing the connection.",
+      "invalid": "The import was refused:",
+      "forbidden": "You may not import here:",
+      "gone": "Something the import refers to no longer exists:",
+      "conflict": "The plan or the connection changed while importing. Nothing was written. Preview again to see the current state.",
+      "rateLimited": "Too many import requests: previews and imports share a limit of 5 a minute. Wait a minute and try again.",
+      "upstream": "Jira could not be reached or refused the request:",
+      "failedStatus": "The import failed ({{status}})",
+      "failed": "The import failed"
+    }
   }
 }

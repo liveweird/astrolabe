@@ -7,7 +7,7 @@ import { errorCodeText } from "./syncRuns";
 export type BindFailure = { message: string; detail?: string };
 
 /** "Jira did not answer (AUTHENTICATION_FAILED)": only the code is lifted out and put in words. */
-function upstreamCode(detail: string | undefined, t: TFunction): string | undefined {
+export function upstreamCode(detail: string | undefined, t: TFunction): string | undefined {
   const code = /\(([A-Z_]+)\)/.exec(detail ?? "")?.[1];
   return code === undefined ? undefined : errorCodeText(code, t);
 }

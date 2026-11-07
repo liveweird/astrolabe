@@ -23,6 +23,13 @@ export type JiraBindingPage = Schemas["JiraBindingPage"];
 export type JiraBinding = Schemas["JiraBinding"];
 export type JiraBindRequest = Schemas["JiraBindRequest"];
 export type JiraLevel = JiraBindRequest["level"];
+export type JiraImportScope = Schemas["JiraImportScope"];
+export type JiraImportPreview = Schemas["JiraImportPreview"];
+export type JiraImportItem = Schemas["JiraImportItem"];
+export type JiraImportApplyItem = Schemas["JiraImportApplyItem"];
+export type JiraImportApplyRequest = Schemas["JiraImportApplyRequest"];
+export type JiraImportResult = Schemas["JiraImportResult"];
+export type JiraImportSkipReason = JiraImportResult["skipped"][number]["reason"];
 export type JiraEstimateUnit = NonNullable<NonNullable<JiraMapping["estimate"]>["unit"]>;
 export type JiraAuthScheme = JiraConnection["authScheme"];
 
@@ -128,4 +135,20 @@ export async function createJiraBinding(body: JiraBindRequest): Promise<JiraBind
 /** Unlinks (a soft delete: both the node and the issue are free again). */
 export async function deleteJiraBinding(id: number): Promise<void> {
   await voidRequest(`/api/v1/integrations/jira/bindings/${id}`, { method: "DELETE" });
+}
+
+/**
+ * The client's deadline for the two import calls: a browse can take the server up to 170 s (its own deadline, a 502 `TIMEOUT`), so the
+ * transport's 30 s default is far too short. The caller owns the AbortController (it also cancels a preview) and aborts at this mark.
+ */
+export const IMPORT_TIMEOUT_MS = 180_000;
+
+/** What importing the scope would do, per Jira item (read-only: nothing stored, no lock). Browses Jira once; the per-user `jira-import` bucket is 5/min, shared with the apply. */
+export async function previewJiraImport(id: number, body: JiraImportScope, signal: AbortSignal): Promise<JiraImportPreview> {
+  return jsonRequest<JiraImportPreview>(`/api/v1/integrations/jira/connections/${id}/import-preview`, { method: "POST", body: JSON.stringify(body), signal });
+}
+
+/** Writes the ticked rows in ONE plan write (the one Jira call that moves the plan). The body is strict: `expected.parent` takes only `{kind, nodeId}`. */
+export async function applyJiraImport(id: number, body: JiraImportApplyRequest, signal: AbortSignal): Promise<JiraImportResult> {
+  return jsonRequest<JiraImportResult>(`/api/v1/integrations/jira/connections/${id}/import`, { method: "POST", body: JSON.stringify(body), signal });
 }
