@@ -12,8 +12,9 @@ import { randomUUID } from "node:crypto";
 import { type APIRequestContext, type Locator, type Page } from "@playwright/test";
 import { apiAsAdmin, axeViolations, deleteViaApi, expect, expectScheme, login, test, testJiraConnectionViaApi, uniqueText, type Scheme } from "./helpers";
 
-// One world, read by three tests in order (the third acknowledges what the second read): a serial group, and a failed test stops the rest.
-test.describe.configure({ mode: "serial" });
+// One world, read by three tests in order (the third acknowledges what the second read): a serial group, and a failed test stops the rest. Each test ends
+// in a light and a dark axe scan of a full timeline page, which takes most of a minute on a CI runner: 120 s each, as jira-import has.
+test.describe.configure({ mode: "serial", timeout: 120_000 });
 
 const CONNECTIONS = "/api/v1/integrations/jira/connections";
 
