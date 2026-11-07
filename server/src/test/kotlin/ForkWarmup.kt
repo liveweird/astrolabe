@@ -11,11 +11,11 @@ import kotlin.test.assertTrue
  * there: the `test` task (`server/build.gradle.kts`) pins `ForkWarmup<k>Test` first in fork k for k <= `-Pforks`, and
  * whichever class comes next finds a migrated database and a JVM that has already booted the app once.
  *
- * Why two classes (`ForkWarmup1Test`, `ForkWarmup2Test`, `-Pforks` is 1..2): Gradle deals one class FILE to one fork and
+ * Why three classes (`ForkWarmup1Test`..`ForkWarmup3Test`, `-Pforks` is 1..3): Gradle deals one class FILE to one fork and
  * collapses a repeated class name, so N forks need N distinct classes; `TestClassNamingTest` allows one concrete `*Test`
  * class per file and forbids an abstract `*Test` base, so each is a small file delegating here. A surplus class is kept out
- * of the run by the build's candidate rules (`.claude/docs/test-fixtures.md`). Flow carried eight (`-Pforks` up to 8) plus a
- * weight-balanced fork order; Astrolabe ships two and an alphabetical order until the suite is big enough to need more.
+ * of the run by the build's candidate rules (`.claude/docs/test-fixtures.md`). Flow carried eight (`-Pforks` up to 8); Astrolabe
+ * ships three (the third fork measured another 30 s at 1.4.0, `build-times.md`) and Flow's weight-balanced fork order.
  *
  * Must stay light: anything heavier than the migrate + one boot belongs to the classes that need it (a forks-wide fixture here would
  * cost every fork that fixture even when it draws no class that reads it).

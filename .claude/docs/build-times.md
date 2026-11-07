@@ -43,8 +43,8 @@ node scripts/timings/local-times.mjs record server-build -- ./gradlew cleanTest 
 node scripts/timings/local-times.mjs record web-gates -- sh -c 'cd web && npm run lint:api && npm run check:api && npm run lint && npm run knip && npm run test:coverage && npm run build'
 node scripts/timings/local-times.mjs report                       # latest / median 5 / previous 5 / flags
 node scripts/timings/local-times.mjs slow-tests                   # top classes + cases from server/build/test-results/test
-node scripts/timings/local-times.mjs slow-tests --forks 2         # + the fork-balance block (needs a weights file, see "Fork balancing" below)
-node scripts/timings/local-times.mjs test-weights                 # per-class weights of a full run -> server/test-weights.tsv (not committed in v0.1.0)
+node scripts/timings/local-times.mjs slow-tests --forks 2 --weights server/test-weights.tsv   # + the fork-balance block (span vs the ideal sum / N, weights drift)
+node scripts/timings/local-times.mjs test-weights                 # per-class weights of a full green run -> server/test-weights.tsv (committed)
 ```
 
 **The one entry point — `scripts/gates.sh [server|web|e2e|all]`** (default `all`) runs the gates the way CI does,
@@ -88,7 +88,7 @@ public-repo `ubuntu-24.04` (4 vCPU, 16 GB); local figures are for the dev machin
 | CI `images` (plain `docker compose build`, no layer cache, + Trivy) | 3.5 min | 5 min |
 | CI `k8s-static` | 20 s | 45 s |
 | CI `e2e` (nightly) and its five steps (`ci-steps`) | 8 min | 15 min |
-| local `server-build` (`cleanTest check :server:installDist -Pforks=1`) | 3 min | 6 min |
+| local `server-build` (`cleanTest check :server:installDist`, `-Pforks=2` by `gates.sh` since the fork balancing; the figure behind the target was measured at 1) | 3 min | 6 min |
 | local `server-test` | 3 min | 5 min |
 | local `web-gates` | 45 s | 1.5 min |
 | local `e2e-static` | 15 s | 30 s |
@@ -96,8 +96,15 @@ public-repo `ubuntu-24.04` (4 vCPU, 16 GB); local figures are for the dev machin
 
 The rule for changing one is below ("Review cadence").
 
-**Fork balancing (not ported).** The `-Pforks` default is 1 (`ASTROLABE_FORKS` in `gates.sh`, `-Pforks=1` in CI). Flow weight-balanced the class order across forks from a measured `server/test-weights.tsv` once two forks paid;
-the technique and the `slow-tests --forks N` block are described in `test-fixtures.md` "Fork balancing (not ported)". Port it when `server-tests` outgrows its budget (`BACKLOG.md`).
+**Fork balancing (ported after 1.4.0, measured 2026-11-07, Apple M5 Max, 18 cores, `scripts/gates.sh server`).** Flow's weight-balanced class order (`balancedCandidateOrder` in `server/build.gradle.kts`, `server/test-weights.tsv`, `local-times.mjs test-weights`; `test-fixtures.md` "Fork balancing" is the how) with `ForkWarmup3Test` added. The suite is flat (224 classes, the heaviest `RequestReadTimeoutTest` 12 s of 204 s), so the LPT deal is near-perfect: the span exceeded the ideal `sum / N` by 0.3 to 1.3 %. The whole `server-build` gate (1,760 tests, tests + Kover + detekt + `installDist`), two to three runs each, no other test JVM or gate on the machine (background load average 2 to 6 from idle agents):
+
+| `-Pforks` | `server-build` | test span | sum of class time | excess over ideal |
+|---|---|---|---|---|
+| 1 | 3m35s, 3m34s | 3m28s, 3m30s | 3m28s | 0.1 % |
+| 2 | 2m07s, 2m03s | 1m54s, 1m57s | 3m48s, 3m52s | 0.3 %, 0.6 % |
+| 3 | 1m38s, 1m37s | 1m31s, 1m30s | 4m29s, 4m26s | 1.3 %, 1.2 % |
+
+Two forks bring the gate under its 3 min target (a speed-up of 1.7x, the rest being the serial tail of detekt, Kover and `installDist` plus a second Postgres and boot per fork, 4 s + 2 s); the third buys another 30 s for a third Postgres container, a third JVM and 17 % more total CPU time (the sum grows with the forks: contention and the per-fork fixtures). **`gates.sh` defaults to 2** (`ASTROLABE_FORKS`); the Gradle property and **CI stay at 1**: a 4 vCPU runner was not measured, CI's `server` job has its own 6 min target, and two Postgres containers plus two JVMs on it is a trial to run on its own (set `TEST_FORKS` in `ci.yml` to 2, read the fork-balance block of the job summary, and keep it only if the job gets faster; the weights drift check already runs there). The balanced order also moved `BaselineCopyTest` after classes that soft-delete projects, which failed it in five of six multi-fork runs until its expected-rows query was restricted to the plan's active projects (`test-fixtures.md`). `SharedPauseTest` (a virtual-clock race) failed once in ten multi-fork runs while the machine was loaded; it is not order-dependent.
 
 ## Fixtures that add start-up cost
 
@@ -159,4 +166,4 @@ Local (`local-times.mjs report`): `server-build` last five median 2m05s (previou
 - A new gate or CI job gets a budget row before it lands.
 - The `slow-tests` output of the CI job summary is the first stop when the `server` job regresses:
   a new class or case near the top of the list is almost always the cause.
-- Once fork balancing is ported, refresh `server/test-weights.tsv` (after a full run: `node scripts/timings/local-times.mjs test-weights`) whenever the CI summary's fork-balance block warns and at every milestone check.
+- Refresh `server/test-weights.tsv` (after a full green run: `node scripts/timings/local-times.mjs test-weights`) whenever the fork-balance block of `slow-tests --forks N --weights server/test-weights.tsv` warns and at every milestone check; commit it with the run's date in its header.

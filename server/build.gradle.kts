@@ -238,14 +238,15 @@ tasks.withType<Test> {
     inputs.file(rootDir.resolve("web/src/changelog/version.ts")).withPropertyName("appVersion")
 }
 
-// The candidate rule of the `test` task (`include(TEST_CLASS_GLOB)`): ONE definition. `TestClassNamingTest` pins the naming rule itself.
+// The candidate rule of the `test` task (`include(TEST_CLASS_GLOB)`) and of `balancedCandidateOrder`: ONE definition, so the
+// planned order can never drift from the set Gradle runs. `TestClassNamingTest` pins the naming rule itself.
 val TEST_CLASS_SUFFIX = "Test.class"
 val TEST_CLASS_GLOB = "**/*$TEST_CLASS_SUFFIX"
 
-// The fork-level warm-up classes (`ForkWarmup1Test`, `ForkWarmup2Test`; `ForkWarmup.kt` explains why two): the `test` task
+// The fork-level warm-up classes (`ForkWarmup1Test` .. `ForkWarmup3Test`; `ForkWarmup.kt` explains why three): the `test` task
 // pins `ForkWarmup<k>Test` as the FIRST class of fork k for k <= -Pforks, so the one-time Postgres + Flyway + first-boot
 // cost lands in a `@BeforeClass` (untimed) instead of inside the first `testApplication` (hard 60 s limit). They are
-// removed from the plain ordering and re-added at the head by the `testClassesDirs` Callable; a surplus one (k > forks)
+// removed from every ordering below and re-added at the head by the `testClassesDirs` Callable; a surplus one (k > forks)
 // is never a candidate.
 val FORK_WARMUP_GLOB = "ch/nokillswit/ForkWarmup*$TEST_CLASS_SUFFIX"
 fun forkWarmupClassFile(slot: Int) = "ch/nokillswit/ForkWarmup$slot$TEST_CLASS_SUFFIX"
@@ -259,8 +260,42 @@ fun isForkWarmupClass(className: String) = isForkWarmup(className.replace('.', '
 // (every executor logs its own longest one when it finishes); re-measure here once the suite grows.
 val DEFAULT_TEST_STALL_MINUTES = 5
 
-// One ForkWarmup<k>Test class exists per fork slot (server/src/test/kotlin/ForkWarmup1Test.kt, ForkWarmup2Test.kt).
-val MAX_FORKS = 2
+// One ForkWarmup<k>Test class exists per fork slot (server/src/test/kotlin/ForkWarmup1Test.kt .. ForkWarmup3Test.kt).
+val MAX_FORKS = 3
+
+// The test classes in the order the `Test` task should see them when it runs several forks (`-Pforks=N`, N > 1). Flow's, ported.
+// Why: Gradle's MaxNParallelTestDefinitionProcessor deals candidate classes to the forks ROUND-ROBIN in visit order
+// (position p -> fork p % forks), all up front, with no work stealing; an alphabetical visit lets one fork draw most
+// of the heavy classes and run alone for the second half of the suite. So the order we emit IS the fork assignment:
+// classes sorted by weight (`test-weights.tsv`, seconds per class) are dealt greedily (LPT) to the least loaded fork that
+// still has a free slot, and each fork's queue is then laid out at the positions p % forks == fork. The per-fork slot
+// count is capped at its round-robin share, so the interleaving reproduces the plan exactly. Ties break by name, so the
+// order is the same on every machine; a class missing from the file weighs the average. Returns an EMPTY list when there
+// is nothing to plan yet (no candidate class files: the task graph is resolved before `compileTestKotlin` ran, and the
+// files are looked up again when the task executes) and null when the weights file is missing or unparseable; either way
+// the caller falls back to the plain, alphabetical tree, and only the null case is worth a warning.
+fun balancedCandidateOrder(classesDirs: Set<File>, weightsFile: File, forks: Int): List<Pair<File, String>>? {
+    val candidates = classesDirs.filter { it.isDirectory }.flatMap { dir ->
+        dir.walkTopDown().filter { it.isFile && it.name.endsWith(TEST_CLASS_SUFFIX) }
+            .map { dir to it.relativeTo(dir).invariantSeparatorsPath }.toList()
+    }.filterNot { isForkWarmup(it.second) }.sortedBy { it.second }
+    if (candidates.isEmpty()) return emptyList()
+    val weights = runCatching {
+        weightsFile.readLines().filter { it.isNotBlank() && !it.startsWith("#") }
+            .associate { it.substringBefore('\t') to it.substringAfter('\t').trim().toDouble() }
+    }.getOrNull()?.takeIf { it.isNotEmpty() } ?: return null
+    val average = weights.values.average()
+    fun weightOf(relativePath: String) = weights[relativePath.removeSuffix(".class").replace('/', '.')] ?: average
+    val slots = IntArray(forks) { fork -> (candidates.size - fork + forks - 1) / forks }
+    val queues = List(forks) { mutableListOf<Pair<File, String>>() }
+    val loads = DoubleArray(forks)
+    for (candidate in candidates.sortedWith(compareByDescending<Pair<File, String>> { weightOf(it.second) }.thenBy { it.second })) {
+        val fork = (0 until forks).filter { queues[it].size < slots[it] }.minBy { loads[it] }
+        queues[fork] += candidate
+        loads[fork] += weightOf(candidate.second)
+    }
+    return candidates.indices.map { position -> queues[position % forks][position / forks] }
+}
 
 val TEST_EXECUTOR_PREFIX = "Gradle Test Executor "
 
@@ -456,11 +491,11 @@ class ForkWarmupLedger : TestListener {
 tasks.test {
     // CdsClassListTest reads this file: declared so a regenerated class list reruns it instead of being served from the build cache.
     inputs.file("cds/classlist.txt").withPropertyName("cdsClassList")
-    // Parallel JVM forks (default 1 = the classic single fork; `-Pforks=2` at most). Every fork is its own JVM, so it
+    // Parallel JVM forks (default 1 = the classic single fork; `-Pforks=MAX_FORKS` at most). Every fork is its own JVM, so it
     // gets its OWN Testcontainers Postgres and its own `object` fixture singletons - all the shared-database
     // hazards (withSoloAdmins, restoreSeedAccounts) stay intra-fork.
     // `forkEvery` is deliberately NOT set (one JVM per fork for the whole run).
-    // `-Pforks` must be an integer 1..2 (the number of ForkWarmup<k>Test classes); anything else
+    // `-Pforks` must be an integer 1..MAX_FORKS (the number of ForkWarmup<k>Test classes); anything else
     // fails any build that configures the test task, instead of a NumberFormatException or an unbounded fan-out.
     val forks: Int = (findProperty("forks") as String?).let { raw ->
         if (raw == null) {
@@ -480,14 +515,21 @@ tasks.test {
     // collection is visited in declaration order and keeps package-relative paths). Layout, for EVERY `-Pforks`:
     //   head  `ForkWarmup1Test`..`ForkWarmup<forks>Test`, one file tree each: positions 0..forks-1, so Gradle's round-robin
     //         deal gives fork k its own warm-up as the first class it runs (`ForkWarmup.kt`, the ledger tripwire above);
-    //   body  the plain trees minus every warm-up class (`exclude(FORK_WARMUP_GLOB)`, alphabetical, no directory walk).
+    //   body  forks > 1 with a weights file: `balancedCandidateOrder` (warm-ups already removed), plus a per-dir catch-all
+    //         of everything that is not `**/*Test.class` (that `exclude(TEST_CLASS_GLOB)` is what keeps the surplus
+    //         ForkWarmup<forks+1..MAX_FORKS>Test out); forks == 1 or an unusable weights file: the plain trees minus every
+    //         warm-up class (`exclude(FORK_WARMUP_GLOB)`, alphabetical, no directory walk).
+    // Only the class files are task inputs; refreshing test-weights.tsv never invalidates a test run (a stale or partial
+    // file only skews the balance, it never changes which classes run).
     // The Callable reads project state at resolution time, which is fine while the configuration cache is off (revisit if it is ever
     // enabled). Before `compileTestKotlin` ran (the task graph is resolved first; the compiled tree may even be STALE,
     // built before the warm-up classes existed) it returns the plain dirs as today, and so it does whenever a needed
     // `ForkWarmup<k>Test.class` is missing - it NEVER throws, a throw here would break task-graph resolution (`--dry-run`).
     // It is evaluated again when the task executes, after the compile; the doFirst below then fails a run whose warm-up
-    // class is still missing.
+    // class is still missing. An unusable weights file warns once (no candidates yet does not) and keeps the alphabetical order.
     val plainDirs = testClassesDirs
+    val weightsFile = file("test-weights.tsv")
+    var warned = false
     testClassesDirs = files(
         Callable<Any> {
             val dirs = plainDirs.files
@@ -497,7 +539,17 @@ tasks.test {
                 val dir = dirs.firstOrNull { it.resolve(relativePath).isFile } ?: return@Callable plainDirs
                 objects.fileTree().from(dir).include(relativePath)
             }
-            head + dirs.map { dir -> objects.fileTree().from(dir).exclude(FORK_WARMUP_GLOB) }
+            val order = if (forks > 1) balancedCandidateOrder(dirs, weightsFile, forks) else emptyList()
+            if (forks > 1 && order == null && !warned) {
+                warned = true
+                logger.warn("test fork balancing skipped: ${weightsFile.name} missing or unparseable (run: node scripts/timings/local-times.mjs test-weights); classes run in alphabetical order")
+            }
+            if (order.isNullOrEmpty()) {
+                head + dirs.map { dir -> objects.fileTree().from(dir).exclude(FORK_WARMUP_GLOB) }
+            } else {
+                head + order.map { (dir, relativePath) -> objects.fileTree().from(dir).include(relativePath) } +
+                    dirs.map { dir -> objects.fileTree().from(dir).exclude(TEST_CLASS_GLOB) }
+            }
         },
     )
     // The stall watchdog (class above): `-PtestStallMinutes` is the longest an UNFINISHED test JVM may go without a

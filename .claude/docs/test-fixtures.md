@@ -82,13 +82,13 @@ unavailable, and leaves services and volumes intact. (Flow's shared read-only sy
 Ktor boot, and when it runs in `testApplication` that is inside the hard 60 s limit. `ForkWarmup.kt` moves it into a
 `@BeforeClass` (JUnit 4 does not time it): `ForkWarmup.warm()` migrates the container (`ensureMigrated()`), boots the app
 once via `TestApplication { configureApp() }` and throws it away (marker `app-boot`); `ForkWarmup.assertWarm()` is the
-one test of each `ForkWarmup<k>Test`. There are two such classes (`ForkWarmup1Test`, `ForkWarmup2Test`, one per
-`-Pforks` value 1..2) because Gradle deals one class FILE to one fork and collapses a repeated class name, while
-`TestClassNamingTest` allows one concrete `*Test` class per file and forbids an abstract `*Test` base. (Flow had eight, for `-Pforks` up to 8; re-add
-`ForkWarmup3Test`.. and raise `MAX_FORKS` together if the suite ever needs more forks.) The `testClassesDirs`
+one test of each `ForkWarmup<k>Test`. There are three such classes (`ForkWarmup1Test`..`ForkWarmup3Test`, one per
+`-Pforks` value 1..3, `MAX_FORKS`) because Gradle deals one class FILE to one fork and collapses a repeated class name, while
+`TestClassNamingTest` allows one concrete `*Test` class per file and forbids an abstract `*Test` base. (Flow had eight, for `-Pforks` up to 8; add
+`ForkWarmup4Test`.. and raise `MAX_FORKS` together if a runner ever pays for more forks.) The `testClassesDirs`
 Callable in `server/build.gradle.kts` puts `ForkWarmup1Test`..`ForkWarmup<forks>Test` at positions `0..forks-1` (one file tree each), so Gradle's round-robin
 deal (position `p` goes to fork `p % forks`, all up front, no work stealing) gives fork k its own `ForkWarmup<k>Test` as the first class it runs; the surplus
-warm-up classes stay out of the run through `exclude(FORK_WARMUP_GLOB)`. The Callable never throws: before `compileTestKotlin` ran, or while the compiled tree is stale
+warm-up classes stay out of the run through `exclude(FORK_WARMUP_GLOB)` (one fork) or the catch-all `exclude(TEST_CLASS_GLOB)` behind the balanced order (below). The Callable never throws: before `compileTestKotlin` ran, or while the compiled tree is stale
 and lacks a needed `ForkWarmup<k>Test.class`, it returns the plain dirs (so `--dry-run` works) and is evaluated again at execution; the test task's `doFirst`, after the
 compile, then fails a run whose class is still missing (naming the file; "run clean" if the source exists). Not covered: a `--tests` run drops every
 warm-up class (no test in it matches), and a failed-first rerun (`RunPreviousFailedFirst`) may open a fork with another
@@ -113,8 +113,16 @@ the `wiremock` version of `gradle/libs.versions.toml` against the stub image's `
 (determinism, the committed `sample-data/jira-stub` + `expected.json` equal to a fresh run, hierarchy, planted counts incl. `childrenDone`, the stories and the `COV` figures, the match regexes), run by `scripts/gates.sh` (which also generates twice into scratch directories and `diff`s) and CI's
 `e2e-static`. Start-up cost: `build-times.md` "Jira stub fixture".
 
-**Fork balancing (not ported).** Flow weight-balanced the class order from a measured `server/test-weights.tsv` (`balancedCandidateOrder`: classes sorted by weight, dealt greedily to the
-least loaded fork) once `-Pforks=2` paid. Astrolabe's suite is small and runs one fork by default; port the technique when `server-tests` outgrows its budget (`BACKLOG.md`).
+**Fork balancing (Flow's, ported after 1.4.0).** Gradle deals candidate classes to the forks ROUND-ROBIN in visit order (position `p` goes to fork `p % forks`, all up front, no work stealing), so an
+alphabetical visit lets one fork draw the heavy classes and run alone at the end. With `-Pforks>1` the `testClassesDirs` Callable (`server/build.gradle.kts`) therefore asks `balancedCandidateOrder`
+for the whole order: the candidates (the `**/*Test.class` files minus the warm-ups, so the rule is the `include` rule's) sorted by weight, descending, are dealt greedily (LPT) to the least loaded fork that still
+has a free slot (a fork's slot count is capped at its round-robin share), and each fork's queue is laid out at the positions `p % forks == fork`, after the `ForkWarmup1..forksTest` head. Ties break by name, so the order is the same on every machine.
+The weights are `server/test-weights.tsv` (`<fully.qualified.ClassName><TAB><seconds>`, committed, generated): `node scripts/timings/local-times.mjs test-weights` from the `server/build/test-results/test` of ONE full green run
+(fewer than 100 suites or a failed suite refuses without `--force`; the time is the suite's minus the `fixture-cost` seconds it printed). **A class missing from the file weighs the average; a file that is
+missing or unparseable warns once ("test fork balancing skipped") and keeps the alphabetical order; a stale file only skews the balance** - the set of classes that run never depends on it, and it is not a task input, so
+refreshing it never reruns the tests. `-Pforks=1` ignores the file. The check is `local-times.mjs slow-tests --forks N --weights server/test-weights.tsv` (the "fork balance" block: the span against the ideal `sum / N`, a warning past `forkBalance` in
+`budgets.json`, and the weights drift); refresh the file when that warns and at every milestone check (`build-times.md`). **The classes of a fork run in this order, so a test that only passes in alphabetical order is the bug**: the balanced order
+exposed `BaselineCopyTest` comparing every active milestone with the copy, which skips the ones whose project another class had soft-deleted (the live query is now restricted to the plan's active projects).
 
 **Coverage gates.** Backend Kover enforces line- and branch-coverage floors in
 `server/build.gradle.kts` (the `minBound` line/branch floors, wired into `check` via
@@ -147,7 +155,7 @@ migrations, so the V3 seed admin (`admin@astrolabe.local`) is present — tests 
 with unique prefixes/filters (`uniqueEmail("marker")`) rather than asserting absolute counts.
 
 **Parallel forks (`-Pforks=N`).** `server/build.gradle.kts` sets `maxParallelForks` from the `forks` Gradle
-property (an integer 1..2, anything else fails any build that runs the `test` task; default 1 = one JVM, which is also CI's setting; `forkEvery` is deliberately unset). Each fork is its own
+property (an integer 1..3, anything else fails any build that runs the `test` task; default 1 = one JVM, which is CI's setting, while `scripts/gates.sh` passes 2; `forkEvery` is deliberately unset). Each fork is its own
 JVM, so it starts its OWN Testcontainers Postgres (`PostgresTestSupport` is a per-JVM `object`) and holds its own
 fixture singletons — every "shared suite" rule in this doc
 (`withSoloAdmins`, `restoreSeedAccounts`, the seed admin) therefore holds per fork, never across forks; a test must never assume another class ran before it

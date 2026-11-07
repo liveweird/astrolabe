@@ -32,8 +32,8 @@ esac
 
 record=(node "$root/scripts/timings/local-times.mjs" record)
 
-# The fork count the server gate runs with (-Pforks; default 1 = CI's, a single test JVM; ASTROLABE_FORKS=N for more).
-server_forks="${ASTROLABE_FORKS:-1}"
+# The fork count the server gate runs with (-Pforks, 1..3; default 2: the weight-balanced two-fork run, build-times.md "Fork balancing"; ASTROLABE_FORKS=1 is CI's single test JVM).
+server_forks="${ASTROLABE_FORKS:-2}"
 
 server_build() {
   if [ -z "${JAVA_HOME:-}" ] && command -v mise > /dev/null 2>&1; then

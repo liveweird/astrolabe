@@ -328,7 +328,7 @@ function forkBalance(suites, { forks, span, wall, weightsFile, weightsExplicit }
   const limit = ideal * (1 + maxExcessRatio) + minExcessSeconds;
   const warn =
     span > limit
-      ? `fork balance: span ${fmtDur(span)} exceeds ideal ${fmtDur(ideal)} by ${fmtDur(excess)} (${pct(excess, ideal)}); limit ${fmtDur(limit)} (forkBalance in budgets.json, .claude/docs/build-times.md WHY 18)`
+      ? `fork balance: span ${fmtDur(span)} exceeds ideal ${fmtDur(ideal)} by ${fmtDur(excess)} (${pct(excess, ideal)}); limit ${fmtDur(limit)} (forkBalance in budgets.json; .claude/docs/test-fixtures.md "Fork balancing")`
       : undefined;
   return { lines, warn };
 }

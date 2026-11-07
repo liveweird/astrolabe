@@ -9,11 +9,11 @@ admin (`admin@astrolabe.local`) is present — tests scope their assertions with
 `sharedDatabaseForTests()`. The full reference (pool rationale, every helper, forks, watchdog, Kover, fixtures,
 conformance internals, Schemathesis, e2e scenarios): `.claude/docs/test-fixtures.md`.
 
-**Parallel forks (`-Pforks=N`).** `maxParallelForks` comes from the `forks` Gradle property (an integer 1..2 — the number of `ForkWarmup<k>Test` classes — anything
-else fails any build that runs the `test` task; default 1, which is also CI's setting; `forkEvery` is deliberately unset).
+**Parallel forks (`-Pforks=N`).** `maxParallelForks` comes from the `forks` Gradle property (an integer 1..3 — the number of `ForkWarmup<k>Test` classes — anything
+else fails any build that runs the `test` task; default 1, which is CI's setting (`scripts/gates.sh` runs 2); `forkEvery` is deliberately unset).
 Each fork is its own JVM with its OWN container and fixture singletons, so every "shared suite" rule in this doc holds
 per fork, never across forks: a test must never assume another class ran before it on the same JVM, or that a class
-ran at all in this one. Class order is not a contract (with `-Pforks>=2` the classes are dealt to forks in name order; weight-balancing from a measured `test-weights.tsv` is Flow's technique, to be ported when the suite outgrows its budget — `BACKLOG.md`).
+ran at all in this one. Class order is not a contract (with `-Pforks>=2` the classes are dealt to forks by the weight plan of `server/test-weights.tsv`, `test-fixtures.md`).
 `PostgresTestSupport` migrates the container itself on start, so a fixture or raw-JDBC helper never needs its own
 "has Flyway run yet?" guard. Test classes are selected by file name (`**/*Test.class`, `TestClassNamingTest`).
 **A hung fork is thread-dumped and killed, not waited for** (`-PtestStallMinutes`, 1..60, default 5; dumps in
@@ -66,7 +66,7 @@ file order is the bug, not the config.
 
 `locales/parity.test.ts` enforces EN↔PL key parity (and pins folders == `SUPPORTED_LANGUAGES`).
 
-**Fork warm-up.** `ForkWarmup<k>Test` (k = 1..`-Pforks`, at most 2) is pinned as the FIRST class of fork k, so the one-time Postgres + Flyway +
+**Fork warm-up.** `ForkWarmup<k>Test` (k = 1..`-Pforks`, at most 3) is pinned as the FIRST class of fork k, so the one-time Postgres + Flyway +
 first-boot cost lands outside `testApplication`'s hard 60 s limit and outside any real test; a full run fails if a warm-up did not run first in its own JVM
 (`test-fixtures.md` "Fork warm-up"). The only shared fixture is the Jira stub (`JiraStubFixture`, `test-fixtures.md`): a class that reads it warms it
 in a `@BeforeClass` (the WireMock start stays outside the 60 s limit) and `JiraStubWarmupGuardTest` fails a class that forgets (Flow's `SyncedStubFixture` pair is the donor shape).

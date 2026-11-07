@@ -172,4 +172,4 @@ indirectly through it. **Port, don't reinvent**: when Astrolabe needs a capabili
 | ~~Timeline prior art~~ (ported, v0.3) | `DeepDiveMatrix.tsx`, `utils/deepDiveCalendar.ts`, `hooks/useRovingGrid.ts` | ported into the `Timeline*` components, `utils/timelineScale.ts` and `useRovingGrid` (`timeline.md`) |
 | ~~Pure-kernel idiom~~ (ported, v0.5) | `CapacityKernels.kt` | the capacity and load kernels (`LoadKernels`, `planning/`) |
 | ~~Preview-then-apply batch~~ (ported, v0.8) | `TeamMembershipSeed*.kt`, `JiraSeedModal.tsx` | the batch accept's `{accepted, skipped}` with a per-item reason and the table of ticked rows (Flow's scheduler loop was ported later, in 1.3) |
-| Fork balancing | `balancedCandidateOrder`, `server/test-weights.tsv` | when `server-tests` outgrows its budget |
+| ~~Fork balancing~~ (ported after 1.4.0) | `balancedCandidateOrder`, `server/test-weights.tsv`, `local-times.mjs test-weights` | `server/build.gradle.kts` + `server/test-weights.tsv` (`test-fixtures.md` "Fork balancing"; the figures: `build-times.md`) |

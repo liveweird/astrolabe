@@ -102,9 +102,11 @@ class BaselineCopyTest {
                 assertNotNull(frozenProjects.singleOrNull { it[0] == second.toString() }, "the unranked second project is present")
                 assertNull(frozenProjects.single { it[0] == second.toString() }[6], "unranked = no rank position")
 
+                // Only the milestones of a project the plan still shows: the copy skips an active milestone whose project (or the
+                // program/work stream above it) another class soft-deleted, so the order of the classes in a fork must not matter.
                 val expectedMilestones = query(
                     "SELECT id, project_id, team_id, name, estimate_md, start_date, end_date FROM milestones " +
-                        "WHERE NOT marked_as_deleted ORDER BY id",
+                        "WHERE NOT marked_as_deleted AND project_id IN (${projects.joinToString { it.id.toString() }}) ORDER BY id",
                 )
                 val frozenMilestones = query(
                     "SELECT milestone_id, project_id, team_id, name, estimate_md, start_date, end_date FROM baseline_milestones " +

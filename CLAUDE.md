@@ -20,7 +20,7 @@ Brand: deep cyan (the `astrolabe` colour tuple in `web/src/theme.ts`, `primarySh
 ## Donors
 
 **Flow is the primary donor**: this repository started as an exact copy of Flow (`~/Sources/flow` @ `e9c3b726`, Flow 1.35.0), trimmed; Covenant, Lettuce and Toadie came in indirectly through it.
-**Port, don't reinvent**: when Astrolabe needs a capability a sibling already has, port its implementation. What each donated: `.claude/docs/product.md` "Donors". Ported for 1.1.0: `fetch/`, the Jira client slice, `EncryptedAtRest`/`Reencrypt`, the WireMock stub (port 8096). **Port later** (still in Flow): fork balancing — when `server-tests` outgrows its budget.
+**Port, don't reinvent**: when Astrolabe needs a capability a sibling already has, port its implementation. What each donated: `.claude/docs/product.md` "Donors". Ported for 1.1.0: `fetch/`, the Jira client slice, `EncryptedAtRest`/`Reencrypt`, the WireMock stub (port 8096); after 1.4.0: the weight-balanced test-fork order (`balancedCandidateOrder`, `server/test-weights.tsv`). Nothing is queued to port.
 
 ## Commands
 
@@ -29,7 +29,7 @@ Gradle wrapper: `./gradlew`. JDK 21 toolchain is required
 `temurin-21.0.13+9.0.LTS`, Node 24.22.1). Run `mise install` once, then `mise exec -- <command>`
 or activate mise in your shell. If `./gradlew` resolves the wrong JDK, point it explicitly: `JAVA_HOME=$(mise where java) ./gradlew build`.
 
-- All local gates, timed like CI: `scripts/gates.sh [server|web|e2e|all]` (stops at the first failure; `ASTROLABE_FORKS=N` for more test forks; `.claude/docs/build-times.md`)
+- All local gates, timed like CI: `scripts/gates.sh [server|web|e2e|all]` (stops at the first failure; `ASTROLABE_FORKS=N` test forks, default 2, CI runs 1; `.claude/docs/build-times.md`)
 - Build everything: `./gradlew build`; run the server (Ktor + Netty, port 8086): `./gradlew :server:run`; all tests: `./gradlew test`
 - Run server tests only: `./gradlew :server:test` (Docker for Testcontainers; OrbStack: testing.md)
 - Run a single test: `./gradlew :server:test --tests "ch.nokillswit.ServerTest.security headers are set on responses"`

@@ -7,6 +7,11 @@
     "minDeltaFromSeconds": 60
   },
   "historicTimeoutMinutes": [],
+  "forkBalance": {
+    "maxExcessRatio": 0.08,
+    "minExcessSeconds": 5,
+    "why": "Ported from Flow: slow-tests --forks N warns when the suite span exceeds sum/N x (1 + maxExcessRatio) + minExcessSeconds; an even deal leaves a few seconds of straggler (the last class of one fork), an idle or unbalanced fork leaves tens of percent"
+  },
   "budgets": {
     "ci": {
       "changes": {
@@ -17,7 +22,7 @@
       "server-tests": {
         "target": 180,
         "alarm": 480,
-        "why": "Measured 2026-11-05: 2m55s for 1,109 tests on 4 vCPU, single fork, at abed03f: just inside the target; a breach is the cue for fork balancing"
+        "why": "Measured 2026-11-05: 2m55s for 1,109 tests on 4 vCPU, single fork, at abed03f: just inside the target; a breach is the cue to try CI with two forks (the fork balancing is ported, build-times.md)"
       },
       "server": {
         "target": 360,
@@ -87,7 +92,7 @@
       "server-build": {
         "target": 180,
         "alarm": 360,
-        "why": "Measured 2026-11-05: Apple M5 Max, 93 runs, last five median 2m05s, previous five 2m29s, max 2m59s: cleanTest check :server:installDist -Pforks=1"
+        "why": "Measured 2026-11-05: Apple M5 Max, 93 runs, last five median 2m05s, previous five 2m29s, max 2m59s: cleanTest check :server:installDist -Pforks=1; since the fork-balancing port gates.sh runs -Pforks=2 by default (2m06s on 2026-11-07, build-times.md)"
       },
       "server-test": {
         "target": 180,

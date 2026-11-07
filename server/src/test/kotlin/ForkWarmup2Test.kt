@@ -3,7 +3,7 @@ package ch.nokillswit
 import org.junit.BeforeClass
 import kotlin.test.Test
 
-/** Slot 2 of 2 (`ForkWarmup.kt`): the `test` task pins it first in fork 2 for 2 <= `-Pforks`. */
+/** Slot 2 of 3 (`ForkWarmup.kt`): the `test` task pins it first in fork 2 for 2 <= `-Pforks`. */
 class ForkWarmup2Test {
     private companion object {
         @JvmStatic
