@@ -4580,6 +4580,11 @@ export interface components {
             projectKeys: string[];
             /** @default true */
             enabled: boolean;
+            /**
+             * Format: int32
+             * @description Minutes between scheduled runs. Omitted means 15 (a PUT is a full replace, so a PUT without the member resets it to 15); an explicit `null` means manual only (Refresh now still works).
+             */
+            pollIntervalMinutes?: number | null;
         };
         JiraConnection: {
             /** Format: int32 */
@@ -4593,6 +4598,11 @@ export interface components {
             authScheme: "BASIC" | "BEARER";
             projectKeys: string[];
             enabled: boolean;
+            /**
+             * Format: int32
+             * @description Minutes between scheduled runs; null means manual only.
+             */
+            pollIntervalMinutes: number | null;
             /** @description The site's cloud id, persisted by a passing connection test; null until then. */
             cloudId: string | null;
             /**

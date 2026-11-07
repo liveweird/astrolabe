@@ -121,7 +121,7 @@ test.beforeAll(async () => {
     await sweepStale(api);
     const name = uniqueText(`${MARK}connection`);
     const site = `https://e2eimport${randomUUID().replace(/-/g, "").slice(0, 12)}.atlassian.net`;
-    const body = { name, siteUrl: site, email: "e2e-import@astrolabe.local", apiToken: "e2e-import-token", authScheme: "BASIC", projectKeys: ["IMP"], enabled: true };
+    const body = { name, siteUrl: site, email: "e2e-import@astrolabe.local", apiToken: "e2e-import-token", authScheme: "BASIC", projectKeys: ["IMP"], enabled: true, pollIntervalMinutes: null };
     const response = await api.post("/api/v1/integrations/jira/connections", { data: body });
     expect(response.status(), await response.text()).toBe(201);
     connection = { id: ((await response.json()) as { id: number }).id, name };
@@ -449,7 +449,7 @@ async function seedScaleConnection(): Promise<{ id: number; name: string }> {
   try {
     const name = uniqueText(`${MARK}scale`);
     const site = `https://e2eimport${randomUUID().replace(/-/g, "").slice(0, 12)}.atlassian.net`;
-    const body = { name, siteUrl: site, email: "e2e-import@astrolabe.local", apiToken: "e2e-import-token", authScheme: "BASIC", projectKeys: SCALE_KEYS, enabled: true };
+    const body = { name, siteUrl: site, email: "e2e-import@astrolabe.local", apiToken: "e2e-import-token", authScheme: "BASIC", projectKeys: SCALE_KEYS, enabled: true, pollIntervalMinutes: null };
     const id = await create(api, "/api/v1/integrations/jira/connections", body, "/api/v1/integrations/jira/connections");
     let tested = await api.post(`/api/v1/integrations/jira/connections/${id}/test`);
     if (tested.status() === 429) {

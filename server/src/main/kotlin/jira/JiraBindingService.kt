@@ -86,6 +86,11 @@ class JiraBindingService(private val database: R2dbcDatabase) {
         val jiraIssueId = varchar("jira_issue_id", length = 20)
         val jiraIssueKey = varchar("jira_issue_key", length = 50)
         val createdByUserId = reference("created_by_user_id", UserService.Users).nullable()
+
+        /** The acknowledgement (V22): the deviation list's fingerprint, when and by whom; all null = not acknowledged. Read from C4 on. */
+        val ackFingerprint = varchar("ack_fingerprint", length = 64).nullable()
+        val ackAt = long("ack_at").nullable()
+        val ackByUserId = reference("ack_by_user_id", UserService.Users).nullable()
         val createdAt = long("created_at")
         val updatedAt = long("updated_at")
         override val markedAsDeleted = bool("marked_as_deleted").default(false)

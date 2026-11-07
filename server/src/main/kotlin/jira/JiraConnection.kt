@@ -22,6 +22,9 @@ const val MAX_JIRA_EMAIL_LENGTH = 254
 const val MAX_API_TOKEN_LENGTH = 1000
 const val MIN_PROJECT_KEYS = 1
 const val MAX_PROJECT_KEYS = 50
+const val MIN_POLL_INTERVAL_MINUTES = 5
+const val MAX_POLL_INTERVAL_MINUTES = 1440
+const val DEFAULT_POLL_INTERVAL_MINUTES = 15
 
 /** How much of a rejected project key a 400 quotes back (a pasted blob must not be echoed whole). */
 private const val MAX_KEY_ECHO = 20
@@ -43,11 +46,13 @@ data class JiraConnectionRequest(
     val authScheme: JiraAuthScheme = JiraAuthScheme.BASIC,
     val projectKeys: List<String>,
     val enabled: Boolean = true,
+    /** Minutes between scheduled runs (V22): omitted = [DEFAULT_POLL_INTERVAL_MINUTES], an explicit null = manual only (Refresh now). */
+    val pollIntervalMinutes: Int? = DEFAULT_POLL_INTERVAL_MINUTES,
 ) {
     /** A default data-class `toString()` would print the token in plain text into any log line. */
     override fun toString(): String =
         "JiraConnectionRequest(name=$name, siteUrl=$siteUrl, email=$email, apiToken=${maskedSecret(apiToken)}, " +
-            "authScheme=$authScheme, projectKeys=$projectKeys, enabled=$enabled)"
+            "authScheme=$authScheme, projectKeys=$projectKeys, enabled=$enabled, pollIntervalMinutes=$pollIntervalMinutes)"
 }
 
 @Serializable
@@ -61,6 +66,8 @@ data class JiraConnectionResponse(
     val authScheme: JiraAuthScheme,
     val projectKeys: List<String>,
     val enabled: Boolean,
+    /** Minutes between scheduled runs; null = manual only. */
+    val pollIntervalMinutes: Int?,
     /** The site's cloud id, persisted by a passing Test connection; null until then. */
     val cloudId: String?,
     /** Epoch millis of the last field/issue-type discovery; null until one ran. */
@@ -109,6 +116,7 @@ fun sanitizedJiraConnection(request: JiraConnectionRequest): JiraConnectionReque
     authScheme = request.authScheme,
     projectKeys = request.projectKeys.map { sanitizeSingleLine(it, "projectKeys") },
     enabled = request.enabled,
+    pollIntervalMinutes = request.pollIntervalMinutes,
 )
 
 /**
@@ -138,4 +146,9 @@ fun validateJiraConnection(request: JiraConnectionRequest, apiTokenRequired: Boo
         }
     }
     if (request.projectKeys.distinct().size != request.projectKeys.size) throw BadRequestException("projectKeys must be distinct")
+    if (request.pollIntervalMinutes != null && request.pollIntervalMinutes !in MIN_POLL_INTERVAL_MINUTES..MAX_POLL_INTERVAL_MINUTES) {
+        throw BadRequestException(
+            "Polling interval must be between $MIN_POLL_INTERVAL_MINUTES and $MAX_POLL_INTERVAL_MINUTES minutes, or null for manual only",
+        )
+    }
 }

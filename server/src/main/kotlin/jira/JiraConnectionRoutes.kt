@@ -77,6 +77,7 @@ fun Application.configureJiraRoutes() {
                     "connectionId" to id.toLong(),
                     "name" to request.name,
                     "host" to jiraHostOf(request.siteUrl),
+                    "pollIntervalMinutes" to request.pollIntervalMinutes,
                 )
                 call.response.header(HttpHeaders.Location, call.application.href(JiraConnectionsRoute.Id(id = id)))
                 call.respond(HttpStatusCode.Created, connections.read(id).orVanished("Jira connection", id))
@@ -99,6 +100,7 @@ fun Application.configureJiraRoutes() {
                     "name" to request.name,
                     "host" to outcome.host,
                     "tokenRotated" to outcome.tokenRotated,
+                    "pollIntervalMinutes" to request.pollIntervalMinutes,
                 )
                 call.respond(HttpStatusCode.NoContent)
             }

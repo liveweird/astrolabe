@@ -92,7 +92,7 @@ async function create(api: APIRequestContext, path: string, data: object, tear: 
 /** A connection through the API (the UI tests create their own): scoped to the stub's `E2E` project only, with a token the stub accepts. */
 async function seedConnection(api: APIRequestContext, label: string, track: string[] = teardown): Promise<Connection> {
   const name = uniqueText(`e2e-jira-${label}`);
-  const body = { name, siteUrl: uniqueSite(), email: "e2e-jira@astrolabe.local", apiToken: "e2e-jira-token", authScheme: "BASIC", projectKeys: ["E2E"], enabled: true };
+  const body = { name, siteUrl: uniqueSite(), email: "e2e-jira@astrolabe.local", apiToken: "e2e-jira-token", authScheme: "BASIC", projectKeys: ["E2E"], enabled: true, pollIntervalMinutes: null };
   const id = await create(api, "/api/v1/integrations/jira/connections", body, "/api/v1/integrations/jira/connections", track);
   return { id, name };
 }

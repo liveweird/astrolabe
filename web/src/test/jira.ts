@@ -11,6 +11,7 @@ export const CONNECTION: JiraConnection = {
   authScheme: "BASIC",
   projectKeys: ["E2E", "PF"],
   enabled: true,
+  pollIntervalMinutes: 15,
   cloudId: "8a1a2b3c-0000-4000-8000-000000000001",
   discoveredAt: Date.UTC(2026, 10, 6, 9, 30),
   lastTestedAt: Date.UTC(2026, 10, 6, 9, 30),

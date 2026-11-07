@@ -4,6 +4,7 @@ import ch.nokillswit.infra.crypto.DEV_DATA_ENCRYPTION_KEY
 import ch.nokillswit.infra.crypto.FieldCipher
 import ch.nokillswit.jira.JiraAuthScheme
 import ch.nokillswit.jira.JiraConnectionPageResponse
+import ch.nokillswit.jira.DEFAULT_POLL_INTERVAL_MINUTES
 import ch.nokillswit.jira.JiraConnectionRequest
 import ch.nokillswit.jira.JiraConnectionResponse
 import ch.nokillswit.plugins.ProblemDetail
@@ -53,7 +54,8 @@ class JiraConnectionTest {
         keys: List<String> = listOf("SP", "E2E"),
         scheme: JiraAuthScheme = JiraAuthScheme.BASIC,
         enabled: Boolean = true,
-    ) = JiraConnectionRequest(name, siteUrl, email, token, scheme, keys, enabled)
+        poll: Int? = DEFAULT_POLL_INTERVAL_MINUTES,
+    ) = JiraConnectionRequest(name, siteUrl, email, token, scheme, keys, enabled, poll)
 
     private suspend fun HttpResponse.connection(): JiraConnectionResponse = json.decodeFromString(bodyAsText())
 
@@ -106,6 +108,8 @@ class JiraConnectionTest {
         assertEquals(HttpStatusCode.Forbidden, user.get("$base/999999").status)
         assertEquals(HttpStatusCode.Forbidden, user.postJson(base, request()).status)
         assertEquals(HttpStatusCode.Forbidden, user.putJson("$base/$id", request()).status)
+        assertEquals(HttpStatusCode.Forbidden, user.postJson(base, request(poll = 4)).status, "the interval's 400 comes after the guard")
+        assertEquals(HttpStatusCode.Forbidden, user.putJson("$base/$id", request(poll = 1441)).status)
         assertEquals(HttpStatusCode.Forbidden, user.putJson("$base/999999", request()).status)
         assertEquals(HttpStatusCode.Forbidden, user.delete("$base/$id").status)
         assertEquals(HttpStatusCode.Forbidden, user.delete("$base/999999").status)
@@ -134,6 +138,7 @@ class JiraConnectionTest {
         assertTrue(body.enabled)
         assertEquals(listOf(null, null, null, null), listOf(body.cloudId, body.discoveredAt, body.lastTestedAt, body.lastTestOk))
         assertFalse(body.mappingSet)
+        assertEquals(DEFAULT_POLL_INTERVAL_MINUTES, body.pollIntervalMinutes, "an omitted interval is the default")
 
         assertEquals(body, admin.get("$base/${body.id}").connection())
         val page = admin.get("$base?pageSize=100&sort=-name").body<JiraConnectionPageResponse>()
@@ -246,7 +251,7 @@ class JiraConnectionTest {
             admin.putJson("$base/${created.id}", request(name = created.name, token = token))
             admin.delete("$base/${created.id}")
             val mentions = appLog.events.filter { event ->
-                token in event.formattedMessage || event.keyValuePairs.orEmpty().any { token in it.value.toString() } ||
+                token in event.formattedMessage || event.keyValuePairs.orEmpty().any { token in "${it.value}" } ||
                     event.throwableProxy?.message?.contains(token) == true
             }
             assertEquals(emptyList(), mentions.map { it.formattedMessage }, "the token reached a log line")
@@ -314,6 +319,10 @@ class JiraConnectionTest {
             "one-letter project key" to request(keys = listOf("S")),
             "overlong project key" to request(keys = listOf("ABCDEFGHIJK")),
             "duplicate project keys" to request(keys = listOf("SP", "SP")),
+            "interval under the floor" to request(poll = 4),
+            "interval of zero" to request(poll = 0),
+            "negative interval" to request(poll = -15),
+            "interval over a day" to request(poll = 1441),
         )
         for ((label, case) in cases) {
             assertEquals(HttpStatusCode.BadRequest, admin.postJson(base, case).status, "expected 400 for: $label")
@@ -337,6 +346,63 @@ class JiraConnectionTest {
         assertEquals(existing, admin.get("$base/${existing.id}").connection(), "a rejected update changes nothing")
         val page = admin.get("$base?pageSize=100").body<JiraConnectionPageResponse>()
         assertTrue(page.items.none { it.name == "x" || it.name.startsWith("tab") })
+    }
+
+    @Test
+    fun `the polling interval defaults to 15, null means manual only, the bounds hold, and a PUT is a full replace`() = testApplication {
+        usePostgresTestcontainer()
+        val admin = seededClient("jirapoll", UserRole.ADMIN)
+        fun body(name: String, interval: String?) =
+            """{"name":"$name","siteUrl":"https://sample.atlassian.net","email":"a@b.c","apiToken":"t","projectKeys":["SP"]""" +
+                (interval?.let { ""","pollIntervalMinutes":$it""" } ?: "") + "}"
+        fun storedInterval(id: UInt): Int? = PostgresTestSupport.connect().use { connection ->
+            connection.prepareStatement("SELECT poll_interval_minutes FROM jira_connections WHERE id = ?").use { st ->
+                st.setInt(1, id.toInt())
+                st.executeQuery().use { rs ->
+                    check(rs.next())
+                    rs.getInt(1).takeUnless { rs.wasNull() }
+                }
+            }
+        }
+
+        val omitted = admin.rawBody("POST", base, body(name("poll"), null))
+        assertEquals(HttpStatusCode.Created, omitted.status)
+        val defaulted = omitted.connection()
+        assertEquals(DEFAULT_POLL_INTERVAL_MINUTES, defaulted.pollIntervalMinutes, "omitted = 15")
+        assertEquals(DEFAULT_POLL_INTERVAL_MINUTES, storedInterval(defaulted.id))
+
+        val manual = admin.rawBody("POST", base, body(name("poll"), "null"))
+        assertEquals(HttpStatusCode.Created, manual.status)
+        val manualOnly = manual.connection()
+        assertNull(manualOnly.pollIntervalMinutes, "an explicit null = manual only")
+        assertNull(storedInterval(manualOnly.id))
+
+        val floor = admin.create(request(poll = 5))
+        val ceiling = admin.create(request(poll = 1440))
+        assertEquals(listOf(5, 1440), listOf(floor.pollIntervalMinutes, ceiling.pollIntervalMinutes), "both bounds are inclusive")
+        for (bad in listOf("4", "1441", "0", "-1", "15.5")) {
+            assertEquals(HttpStatusCode.BadRequest, admin.rawBody("POST", base, body(name("poll"), bad)).status, "interval $bad")
+        }
+
+        // Read and list show it.
+        assertEquals(5, admin.get("$base/${floor.id}").connection().pollIntervalMinutes)
+        val listed = admin.get("$base?pageSize=100").body<JiraConnectionPageResponse>().items.associateBy { it.id }
+        assertEquals(
+            listOf(15, null, 5, 1440),
+            listOf(defaulted.id, manualOnly.id, floor.id, ceiling.id).map { listed.getValue(it).pollIntervalMinutes },
+        )
+
+        // PUT is a FULL replace: a body without the member resets the interval to 15 - it never keeps the stored one.
+        val sixty = request(name = floor.name, token = null, poll = 60)
+        assertEquals(HttpStatusCode.NoContent, admin.putJson("$base/${floor.id}", sixty).status)
+        assertEquals(60, admin.get("$base/${floor.id}").connection().pollIntervalMinutes)
+        assertEquals(HttpStatusCode.NoContent, admin.rawBody("PUT", "$base/${floor.id}", body(floor.name, null)).status)
+        assertEquals(DEFAULT_POLL_INTERVAL_MINUTES, admin.get("$base/${floor.id}").connection().pollIntervalMinutes, "omitted resets to 15")
+        assertEquals(HttpStatusCode.NoContent, admin.rawBody("PUT", "$base/${floor.id}", body(floor.name, "null")).status)
+        assertNull(admin.get("$base/${floor.id}").connection().pollIntervalMinutes, "an explicit null switches polling off")
+        assertNull(storedInterval(floor.id))
+        assertEquals(HttpStatusCode.BadRequest, admin.rawBody("PUT", "$base/${floor.id}", body(floor.name, "4")).status)
+        assertNull(storedInterval(floor.id), "a rejected PUT changes nothing")
     }
 
     @Test
@@ -371,6 +437,7 @@ class JiraConnectionTest {
             assertTrue(createdEvent.hasKeyValue("byUserId", adminId.toLong()))
             assertTrue(createdEvent.hasKeyValue("name", n))
             assertTrue(createdEvent.hasKeyValue("host", "sample.atlassian.net"))
+            assertTrue(createdEvent.hasKeyValue("pollIntervalMinutes", DEFAULT_POLL_INTERVAL_MINUTES), "the cadence is audited")
 
             val renamed = name("audited2")
             admin.putJson("$base/${created.id}", request(name = renamed, token = null))
@@ -378,6 +445,15 @@ class JiraConnectionTest {
             assertNotNull(kept)
             assertTrue(kept.hasKeyValue("tokenRotated", false))
             assertTrue(kept.hasKeyValue("name", renamed))
+            assertTrue(kept.hasKeyValue("pollIntervalMinutes", DEFAULT_POLL_INTERVAL_MINUTES), "the reset to 15 is audited")
+            admin.putJson("$base/${created.id}", request(name = renamed, token = null, poll = null))
+            assertNotNull(
+                capture.awaitEvent {
+                    it.message == "jira.connection_updated" && it.hasKeyValue("connectionId", created.id.toLong()) &&
+                        it.hasKeyValue("pollIntervalMinutes", null)
+                },
+                "switching polling off audits a null interval",
+            )
             admin.putJson("$base/${created.id}", request(name = renamed, token = newToken()))
             assertNotNull(
                 capture.awaitEvent {
@@ -404,7 +480,7 @@ class JiraConnectionTest {
             assertTrue(
                 capture.events.none { event ->
                     token in event.formattedMessage ||
-                        event.keyValuePairs.orEmpty().any { token in it.value.toString() || it.key == "apiToken" }
+                        event.keyValuePairs.orEmpty().any { token in "${it.value}" || it.key == "apiToken" }
                 },
                 "no audit line carries the token",
             )

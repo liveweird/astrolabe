@@ -896,7 +896,7 @@ test.describe("the Jira pages", () => {
     const site = `https://e2eaxejira${uniqueText("s").replace(/[^a-z0-9]/g, "")}.atlassian.net`;
     connectionId = await create(
       "/api/v1/integrations/jira/connections",
-      { name: connectionName, siteUrl: site, email: "e2e-axe-jira@astrolabe.local", apiToken: "e2e-axe-jira-token", authScheme: "BASIC", projectKeys: ["E2E"], enabled: true },
+      { name: connectionName, siteUrl: site, email: "e2e-axe-jira@astrolabe.local", apiToken: "e2e-axe-jira-token", authScheme: "BASIC", projectKeys: ["E2E"], enabled: true, pollIntervalMinutes: null },
       "/api/v1/integrations/jira/connections",
     );
     const tested = await api.post(`/api/v1/integrations/jira/connections/${connectionId}/test`);

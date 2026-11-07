@@ -5681,9 +5681,20 @@ components:
           items: { type: string, pattern: '^[A-Z][A-Z0-9_]{1,9}$' }
           description: The Jira project keys in scope (1 to 50, distinct).
         enabled: { type: boolean, default: true }
+        pollIntervalMinutes:
+          type: integer
+          format: int32
+          nullable: true
+          minimum: 5
+          maximum: 1440
+          # No `default:` here on purpose: openapi-typescript would make the member REQUIRED in the web's request type (as it does for `enabled`),
+          # and the server's omitted-means-15 rule is stated in the description instead.
+          description: >-
+            Minutes between scheduled runs. Omitted means 15 (a PUT is a full replace, so a PUT without the member resets it to 15); an explicit `null`
+            means manual only (Refresh now still works).
     JiraConnection:
       type: object
-      required: [id, name, siteUrl, email, hasApiToken, authScheme, projectKeys, enabled, cloudId, discoveredAt, lastTestedAt, lastTestOk, mappingSet, lastRun, createdAt, updatedAt]
+      required: [id, name, siteUrl, email, hasApiToken, authScheme, projectKeys, enabled, pollIntervalMinutes, cloudId, discoveredAt, lastTestedAt, lastTestOk, mappingSet, lastRun, createdAt, updatedAt]
       properties:
         id: { type: integer, format: int32, minimum: 0 }
         name: { type: string }
@@ -5698,6 +5709,7 @@ components:
           maxItems: 50
           items: { type: string }
         enabled: { type: boolean }
+        pollIntervalMinutes: { type: integer, format: int32, nullable: true, description: Minutes between scheduled runs; null means manual only. }
         cloudId: { type: string, nullable: true, description: "The site's cloud id, persisted by a passing connection test; null until then." }
         discoveredAt: { type: integer, format: int64, nullable: true, description: Epoch millis of the last field discovery; null until one ran. }
         lastTestedAt: { type: integer, format: int64, nullable: true, description: Epoch millis of the last connection test. }

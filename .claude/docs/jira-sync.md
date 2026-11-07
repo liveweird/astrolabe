@@ -1,8 +1,8 @@
 ### The Jira sync (v1.2.0)
 
 Read before touching `jira/`, `sync/`, `infra/fetch/` or the Jira pages. **What it is:** Astrolabe reads Jira Cloud and compares it with the plan; **nothing is ever written to Jira**
-and corrections are made in Astrolabe. 1.1.0 is the connection, the mapping, 1:1 bindings, a manual Refresh and the Deviations page; 1.2.0 adds the import (preview, then apply). **It is proven against the built-in Jira stub and
-not yet tested against a real Jira site** (the walk-through below is the first real test). Not yet: polling and acknowledge (1.3), coverage (1.4), Flow (1.5).
+and corrections are made in Astrolabe. 1.1.0 is the connection, the mapping, 1:1 bindings, a manual Refresh and the Deviations page; 1.2.0 adds the import (preview, then apply); 1.3 (in progress) adds polling and acknowledge, and the connection already stores its `pollIntervalMinutes` (V22: default 15, 5..1440, `null` = manual only; no scheduler reads it yet). **It is proven against the built-in Jira stub and
+not yet tested against a real Jira site** (the walk-through below is the first real test). Not yet: the scheduler and acknowledge (1.3), coverage (1.4), Flow (1.5).
 Related: schema `persistence.md` "The Jira sync tables (V21)"; outbound guard `security.md` "Outbound HTTP calls"; audit events and the run log lines `observability.md`; per-route guards
 `authorization.md`; the web pages `web/CLAUDE.md` "Jira connections" and "Deviations"; the stub's dataset `sample-data/jira/README.md`.
 

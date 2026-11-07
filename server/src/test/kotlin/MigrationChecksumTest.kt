@@ -43,6 +43,7 @@ class MigrationChecksumTest {
         // Re-pinned twice in 1.1.0 (C6 `mapping_changed_at`; C10 the `api_token` envelope CHECK and the `sync_runs.requested_by_user_id`
         // FK): V21 had only been applied by throwaway test containers, never to real data. Immutable from the first real upgrade.
         "V21__jira_sync.sql" to -1791624565,
+        "V22__jira_polling_and_acknowledge.sql" to 1567303519,
     )
 
     @Test

@@ -81,6 +81,9 @@ class JiraConnectionService(
         val lastTestedAt = long("last_tested_at").nullable()
         val lastTestOk = bool("last_test_ok").nullable()
         val enabled = bool("enabled")
+
+        /** Minutes between scheduled runs (V22, CHECK 5..1440); null = manual only. Existing rows took the column DEFAULT, 15. */
+        val pollIntervalMinutes = integer("poll_interval_minutes").nullable()
         val createdAt = long("created_at")
         val updatedAt = long("updated_at")
         override val markedAsDeleted = bool("marked_as_deleted").default(false)
@@ -125,6 +128,7 @@ class JiraConnectionService(
             it[projectKeys] = stringArrayJson(request.projectKeys)
             it[mapping] = EMPTY_MAPPING
             it[enabled] = request.enabled
+            it[pollIntervalMinutes] = request.pollIntervalMinutes
             it[createdAt] = stamp
             it[updatedAt] = stamp
         }[Connections.id].value
@@ -133,7 +137,9 @@ class JiraConnectionService(
     /**
      * Full replace of everything but the site and the token's presence: an omitted/blank token keeps the stored one, a present one
      * rotates it. The site is the connection's identity (its cloud id, discovery, mapping and later its bindings all describe THAT site),
-     * so a different `siteUrl` is a 409 - create a new connection instead. `affected` 0 -> 404.
+     * so a different `siteUrl` is a 409 - create a new connection instead. `affected` 0 -> 404. The interval is part of the replace
+     * (an omitted member arrives as the default, 15); a PUT that changes ONLY the interval still bumps `updated_at`, which makes the next
+     * run a full read (the observer's rule, one extra read of the bound items - accepted).
      */
     suspend fun update(id: UInt, request: JiraConnectionRequest): JiraConnectionUpdateOutcome = suspendTransaction(database) {
         validateJiraConnection(request, apiTokenRequired = false)
@@ -161,6 +167,7 @@ class JiraConnectionService(
             it[authScheme] = request.authScheme.name
             it[projectKeys] = stringArrayJson(request.projectKeys)
             it[enabled] = request.enabled
+            it[pollIntervalMinutes] = request.pollIntervalMinutes // a full replace: a PUT without the member resets it to the default
             it[updatedAt] = nowMillis()
         }
         JiraConnectionUpdateOutcome(affected, tokenRotated = request.apiToken != null, host = jiraHostOf(request.siteUrl))
@@ -365,6 +372,7 @@ class JiraConnectionService(
         authScheme = JiraAuthScheme.valueOf(this[Connections.authScheme]),
         projectKeys = parseStringArray(this[Connections.projectKeys]),
         enabled = this[Connections.enabled],
+        pollIntervalMinutes = this[Connections.pollIntervalMinutes],
         cloudId = this[Connections.cloudId],
         discoveredAt = this[Connections.discoveredAt],
         lastTestedAt = this[Connections.lastTestedAt],
