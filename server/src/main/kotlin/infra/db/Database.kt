@@ -9,6 +9,8 @@ import ch.nokillswit.infra.config.requireConfigLong
 import ch.nokillswit.infra.crypto.FieldCipherKey
 import ch.nokillswit.jira.DeviationViewService
 import ch.nokillswit.jira.DeviationViewServiceKey
+import ch.nokillswit.jira.JiraAcknowledgeService
+import ch.nokillswit.jira.JiraAcknowledgeServiceKey
 import ch.nokillswit.jira.JiraBindingService
 import ch.nokillswit.jira.JiraBindingServiceKey
 import ch.nokillswit.jira.JiraConnectionService
@@ -317,7 +319,9 @@ suspend fun Application.configureDatabase() {
     attributes.put(JiraBindingServiceKey, jiraBindings)
     attributes.put(JiraImportServiceKey, JiraImportService(database, teamService, jiraBindings))
     // The empty connector registry the connectors' modules fill (`configureJira`).
-    attributes.put(DeviationViewServiceKey, DeviationViewService(database, syncRuns))
+    val deviationView = DeviationViewService(database, syncRuns)
+    attributes.put(DeviationViewServiceKey, deviationView)
+    attributes.put(JiraAcknowledgeServiceKey, JiraAcknowledgeService(database, deviationView))
     attributes.put(SyncConnectorsKey, SyncConnectors())
     attributes.put(
         TokenBlocklistServiceKey,

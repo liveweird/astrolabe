@@ -71,6 +71,21 @@ class JiraConnectionTest {
         }
     }
 
+    /**
+     * Every connection the registry lists, page after page (100 a page) in [sort] order: the suite shares one database, so a lookup of a
+     * test's own row must never assume it sits on the first page.
+     */
+    private suspend fun HttpClient.listAll(sort: String = "id"): List<JiraConnectionResponse> {
+        val all = mutableListOf<JiraConnectionResponse>()
+        var page = 1
+        while (true) {
+            val body = get("$base?pageSize=100&sort=$sort&page=$page").body<JiraConnectionPageResponse>()
+            all += body.items
+            if (body.items.isEmpty() || all.size >= body.total) return all
+            page++
+        }
+    }
+
     private suspend fun HttpClient.create(request: JiraConnectionRequest): JiraConnectionResponse {
         val response = postJson(base, request)
         assertEquals(HttpStatusCode.Created, response.status)
@@ -141,9 +156,7 @@ class JiraConnectionTest {
         assertEquals(DEFAULT_POLL_INTERVAL_MINUTES, body.pollIntervalMinutes, "an omitted interval is the default")
 
         assertEquals(body, admin.get("$base/${body.id}").connection())
-        val page = admin.get("$base?pageSize=100&sort=-name").body<JiraConnectionPageResponse>()
-        assertTrue(page.total >= 1)
-        assertEquals(body, page.items.single { it.id == body.id })
+        assertEquals(body, admin.listAll("-name").single { it.id == body.id })
 
         val renamed = name("renamed")
         val update = request(name = renamed, token = null, keys = listOf("OPS"), scheme = JiraAuthScheme.BEARER, enabled = false)
@@ -163,7 +176,7 @@ class JiraConnectionTest {
         assertEquals(HttpStatusCode.NotFound, admin.putJson("$base/999999", request()).status)
         assertEquals(HttpStatusCode.NotFound, admin.get("$base/999999").status)
         assertEquals(HttpStatusCode.NotFound, admin.delete("$base/999999").status)
-        assertFalse(admin.get("$base?pageSize=100").body<JiraConnectionPageResponse>().items.any { it.id == body.id })
+        assertFalse(admin.listAll().any { it.id == body.id })
         assertEquals(HttpStatusCode.BadRequest, admin.get("$base?sort=email").status, "only id, name and createdAt sort")
     }
 
@@ -176,10 +189,10 @@ class JiraConnectionTest {
         val ours = { items: List<JiraConnectionResponse> ->
             items.filter { it.name.startsWith(prefix) }.map { it.name.removePrefix("$prefix-") }
         }
-        assertEquals(listOf("c", "b", "a"), ours(admin.get("$base?pageSize=100&sort=-name").body<JiraConnectionPageResponse>().items))
-        assertEquals(listOf("a", "b", "c"), ours(admin.get("$base?pageSize=100&sort=name").body<JiraConnectionPageResponse>().items))
+        assertEquals(listOf("c", "b", "a"), ours(admin.listAll("-name")))
+        assertEquals(listOf("a", "b", "c"), ours(admin.listAll("name")))
         val createdIds = created.map { it.id }
-        val byId = admin.get("$base?pageSize=100&sort=id").body<JiraConnectionPageResponse>().items.map { it.id }
+        val byId = admin.listAll("id").map { it.id }
         assertEquals(createdIds, byId.filter { it in createdIds })
         val firstPage = admin.get("$base?pageSize=1&page=1").body<JiraConnectionPageResponse>()
         assertEquals(1, firstPage.items.size)
@@ -344,8 +357,8 @@ class JiraConnectionTest {
             assertEquals(HttpStatusCode.BadRequest, status, "expected 400 on update for: $label")
         }
         assertEquals(existing, admin.get("$base/${existing.id}").connection(), "a rejected update changes nothing")
-        val page = admin.get("$base?pageSize=100").body<JiraConnectionPageResponse>()
-        assertTrue(page.items.none { it.name == "x" || it.name.startsWith("tab") })
+        val page = admin.listAll()
+        assertTrue(page.none { it.name == "x" || it.name.startsWith("tab") })
     }
 
     @Test
@@ -386,7 +399,7 @@ class JiraConnectionTest {
 
         // Read and list show it.
         assertEquals(5, admin.get("$base/${floor.id}").connection().pollIntervalMinutes)
-        val listed = admin.get("$base?pageSize=100").body<JiraConnectionPageResponse>().items.associateBy { it.id }
+        val listed = admin.listAll("-id").associateBy { it.id }
         assertEquals(
             listOf(15, null, 5, 1440),
             listOf(defaulted.id, manualOnly.id, floor.id, ceiling.id).map { listed.getValue(it).pollIntervalMinutes },

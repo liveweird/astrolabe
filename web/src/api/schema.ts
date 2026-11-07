@@ -1350,12 +1350,24 @@ export interface paths {
          *     **Items.** Only bindings of an ACTIVE connection and of a LIVE node (it and every ancestor active) are listed; a binding of a
          *     deleted node or connection is hidden. A binding of a DISABLED connection is listed (it still blocks its node and its issue, so
          *     it must stay visible and unlinkable); how stale it is shows in `jira.observedAt` and the connection's `lastRun`. By default only
-         *     bindings WITH a deviation; `all=true` adds the others, and `projectId` or `teamId` make `all` default to true (explicit
-         *     `all=false` is respected). Order: bindings with a WARNING first, then work
+         *     OPEN bindings: those WITH a deviation that are not currently acknowledged; `all=true` adds the others (clean and acknowledged), and
+         *     `projectId` or `teamId` make `all` default to true (explicit `all=false` is respected). `acknowledged=true` lists only the
+         *     bindings whose acknowledgement is CURRENT, `acknowledged=false` the ones without a current one. Order: bindings with a WARNING
+         *     first, then work
          *     stream, program, project, level (program, project, milestone) and name (case-insensitive), then binding id. Capped at 2,000
-         *     items: `truncated` says rows were dropped, `totals` are computed over ALL the filtered bindings BEFORE the cap (`warnings` and
-         *     `infos` count the deviations the items list, `bindings` the filtered bindings - so only DEVIATING bindings unless `all` applies,
-         *     not the number of links -, `gone` those whose issue is gone).
+         *     items: `truncated` says rows were dropped, `totals` are computed BEFORE the cap. `bindings` is the number of bindings the LIST answers
+         *     (the filtered ones - so only OPEN ones unless `all`, `acknowledged` or a chip applies, not the number of links). The other four
+         *     share one basis, the bindings matching every filter but the acknowledgement state (`acknowledged` and the default that hides
+         *     acknowledged ones): `warnings`, `infos` and `gone` count the deviations and the gone issues of the OPEN ones among them, and
+         *     `acknowledged` the bindings with a CURRENT acknowledgement, so all four are known whichever state the list shows (on
+         *     `acknowledged=true` the open counts are what the Open list would show).
+         *
+         *     **Acknowledge (1.3).** Each item carries `fingerprint` (the SHA-256 of the binding's full deviation list, the same for every
+         *     filter and stable across reads while nothing changes), `acknowledgement` (null until someone acknowledges; `at`, `by` - the
+         *     acknowledging login's active person's name, else its display name, never the email, null once that login is deleted - and
+         *     `current`, false when the binding was acknowledged and its deviations CHANGED since, which makes it open again) and `can.acknowledge`
+         *     (the owner chain of the bound node, or ADMIN: the same arithmetic as the bind; false for everyone else). The writes are
+         *     `POST` and `DELETE /integrations/jira/bindings/{id}/acknowledge`.
          *
          *     **Deviations** (WARNING unless noted; `detail.days` is in WORKING days on the live calendar, POSITIVE = the plan is later):
          *     `GONE` (the issue is gone; it is raised ALONE - a gone issue's dates are stale); `LEVEL_MISMATCH` (the observed hierarchy level
@@ -2173,6 +2185,45 @@ export interface paths {
          *     bound again. Audited `jira.binding_deleted`.
          */
         delete: operations["deleteJiraBinding"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/integrations/jira/bindings/{id}/acknowledge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Acknowledge a binding's deviations until they change
+         * @description The owner chain of the bound node (the work stream's, the program's or the project's owner; a milestone has the project's chain)
+         *     or ADMIN, the bind's guard; a team manager as such, a roadmap editor, a person-less login and a stranger are `403`.
+         *     **Read-before-guard**: the binding is in the PATH, so its node's ACTIVE chain is read first and an unknown or unbound binding,
+         *     or one whose node or any ancestor was deleted, is `404` for EVERY caller; then the guard (`403`, whatever the body is); then the
+         *     body (`400`: `fingerprint` is 64 lower-case hexadecimal characters). The write runs in ONE short transaction: the binding row is
+         *     locked, the node's chain re-read and the guard run AGAIN against it (a request can be held open, so only this verdict
+         *     authorizes the write), and the binding's deviations are RECOMPUTED in that transaction: `409`
+         *     `urn:astrolabe:problem:stale-deviations` when the fingerprint is not the one of the deviations now (the plan or Jira moved since
+         *     the client read) or when the binding has none, otherwise the fingerprint, the time and the login are stored. Acknowledging again
+         *     restamps. An acknowledgement lasts while the deviation list is byte-identical: any change on either side that alters a deviation
+         *     makes the item open again (`acknowledgement.current` false in `GET /views/deviations`). Not plan state: no plan lock, no revision
+         *     bump, no rate bucket (nothing calls Jira). Audited `jira.deviation_acknowledged`.
+         */
+        post: operations["acknowledgeJiraDeviations"];
+        /**
+         * Withdraw a binding's acknowledgement
+         * @description The same audience and order as the acknowledge (`404` for every caller when the binding is unknown, unbound or its node is
+         *     gone, then `403`; the binding row is locked and the guard run again in the transaction). Clears the acknowledgement, current or
+         *     stale; `404` when none is stored (decided under the lock, after the guard). Audited `jira.deviation_unacknowledged`.
+         */
+        delete: operations["unacknowledgeJiraDeviations"];
         options?: never;
         head?: never;
         patch?: never;
@@ -3840,28 +3891,33 @@ export interface components {
             lastRun: components["schemas"]["SyncLastRun"] | null;
             status: components["schemas"]["SyncStatus"];
         };
-        /** @description Over the filtered bindings, BEFORE the 2,000-item cap. */
+        /** @description Before the 2,000-item cap. `bindings` counts what the list answers; `warnings`, `infos`, `gone` and `acknowledged` share one basis, the bindings matching every filter but the acknowledgement state. */
         DeviationTotals: {
             /**
              * Format: int32
-             * @description The WARNING deviations the items list.
+             * @description The WARNING deviations of the OPEN bindings (not currently acknowledged) matching every filter but the acknowledgement state.
              */
             warnings: number;
             /**
              * Format: int32
-             * @description The INFO deviations the items list.
+             * @description The INFO deviations of the OPEN bindings matching every filter but the acknowledgement state.
              */
             infos: number;
             /**
              * Format: int32
-             * @description The filtered bindings.
+             * @description The bindings the list answers (the open ones by default), before the cap.
              */
             bindings: number;
             /**
              * Format: int32
-             * @description The filtered bindings whose issue is gone.
+             * @description The OPEN bindings (matching every filter but the acknowledgement state) whose issue is gone.
              */
             gone: number;
+            /**
+             * Format: int32
+             * @description The bindings with a CURRENT acknowledgement among those matching every filter but `acknowledged` (and the default that hides them).
+             */
+            acknowledged: number;
         };
         /** @description The bound node and every level it sits under (its own level included); a program has no project and only a milestone has a team. */
         DeviationNode: {
@@ -3945,6 +4001,42 @@ export interface components {
             plan: components["schemas"]["DeviationPlan"];
             /** @description WARNING first, then by kind; empty for a binding with no deviation (only with `all`). */
             deviations: components["schemas"]["Deviation"][];
+            /** @description The SHA-256 (lower-case hex) of the canonical JSON of the binding's FULL deviation list (`ESTIMATE_NOT_COMPARABLE` included even where `deviations` hides it): what an acknowledgement is keyed on. Send it back to `POST .../acknowledge`. */
+            fingerprint: string;
+            acknowledgement: components["schemas"]["DeviationAcknowledgement"] | null;
+            can: components["schemas"]["DeviationCan"];
+        };
+        /** @description The binding's stored acknowledgement. */
+        DeviationAcknowledgement: {
+            /**
+             * Format: int64
+             * @description When it was acknowledged (epoch milliseconds).
+             */
+            at: number;
+            /** @description The acknowledging login's ACTIVE person's name, else its display name; never the email; null once that login is deleted. */
+            by: string | null;
+            /** @description True while the stored fingerprint equals the item's now. False = acknowledged, then changed since, so the item is open again. */
+            current: boolean;
+        };
+        DeviationCan: {
+            /** @description The caller may acknowledge and unacknowledge this binding: ADMIN, or the person owning the bound node or anything above it. */
+            acknowledge: boolean;
+        };
+        AcknowledgeRequest: {
+            /** @description The `fingerprint` of the item the client read. */
+            fingerprint: string;
+        };
+        Acknowledgement: {
+            /** Format: int32 */
+            bindingId: number;
+            fingerprint: string;
+            /**
+             * Format: int64
+             * @description Epoch milliseconds.
+             */
+            acknowledgedAt: number;
+            /** @description The acknowledging login's active person's name, else its display name; never the email. */
+            acknowledgedBy: string | null;
         };
         DeviationView: {
             /**
@@ -4326,7 +4418,7 @@ export interface components {
         /** @description RFC 7807 problem detail. Served as `application/problem+json`; instance is the request path without query parameters. */
         ProblemDetail: {
             /**
-             * @description A URI reference identifying the problem type; `about:blank` unless a problem names its own (`urn:astrolabe:problem:stale-revision` on a stale ranking, milestone-schedule or team-order PUT, or a batch schedule from a future revision, `urn:astrolabe:problem:stale-scope` on a batch accept whose team plan changed since its proposal, `urn:astrolabe:problem:dependency-cycle` on a dependency that would close a cycle).
+             * @description A URI reference identifying the problem type; `about:blank` unless a problem names its own (`urn:astrolabe:problem:stale-revision` on a stale ranking, milestone-schedule or team-order PUT, or a batch schedule from a future revision, `urn:astrolabe:problem:stale-scope` on a batch accept whose team plan changed since its proposal, `urn:astrolabe:problem:dependency-cycle` on a dependency that would close a cycle, `urn:astrolabe:problem:stale-deviations` on an acknowledge whose fingerprint is no longer the binding's or whose binding has no deviation).
              * @default about:blank
              */
             type: string;
@@ -7448,8 +7540,10 @@ export interface operations {
                 programId?: number;
                 projectId?: number;
                 teamId?: number;
-                /** @description Also list bindings with no deviation. Strictly `true` or `false`; defaults to true when `projectId` or `teamId` is given. */
+                /** @description Also list bindings with no deviation and acknowledged ones. Strictly `true` or `false`; defaults to true when `projectId` or `teamId` is given. */
                 all?: boolean;
+                /** @description `true` lists only the bindings whose acknowledgement is current, `false` those without a current one. Strictly `true` or `false`; absent, the default lists the open bindings. A repeated key is a `400`. */
+                acknowledged?: boolean;
             };
             header?: never;
             path?: never;
@@ -8491,6 +8585,67 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    acknowledgeJiraDeviations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AcknowledgeRequest"];
+            };
+        };
+        responses: {
+            /** @description Acknowledged */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Acknowledgement"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    unacknowledgeJiraDeviations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Withdrawn */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalServerError"];
         };
     };

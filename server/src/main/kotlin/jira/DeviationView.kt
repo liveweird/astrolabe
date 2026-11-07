@@ -49,9 +49,14 @@ data class DeviationConnection(
     val status: SyncStatus,
 )
 
-/** Across the filtered bindings, before the cap: the deviations by severity, the bindings and the bindings whose issue is gone. */
+/**
+ * Across the bindings matching every filter but the acknowledgement state (`acknowledged`, and the default that hides acknowledged
+ * ones), before the cap: [warnings], [infos] and [gone] count the OPEN ones (deviating and not currently acknowledged), and
+ * [acknowledged] the ones whose acknowledgement is CURRENT, so both are known whatever the list shows (on `acknowledged=true` the open
+ * counts are what the Open filter would list). [bindings] is the exception: the number of bindings the list actually answers.
+ */
 @Serializable
-data class DeviationTotals(val warnings: Int, val infos: Int, val bindings: Int, val gone: Int)
+data class DeviationTotals(val warnings: Int, val infos: Int, val bindings: Int, val gone: Int, val acknowledged: Int)
 
 /**
  * The bound node and where it sits: the id and name of every level from the work stream down to the node itself (a program has no
@@ -112,6 +117,12 @@ data class DeviationPlan(
     val spanEnd: String?,
 )
 
+/**
+ * One binding. [fingerprint] is the SHA-256 of the binding's FULL deviation list ([fingerprintOf]; it does not depend on the filters,
+ * so `ESTIMATE_NOT_COMPARABLE` counts even where [deviations] hides it): what an acknowledgement is keyed on. [acknowledgement] is
+ * null until someone acknowledges; its `current` is whether the stored fingerprint still equals [fingerprint] (false = acknowledged,
+ * then changed: the item is open again). [can] is the caller's right to acknowledge it.
+ */
 @Serializable
 data class DeviationItem(
     val bindingId: UInt,
@@ -121,13 +132,29 @@ data class DeviationItem(
     val jira: DeviationJira,
     val plan: DeviationPlan,
     val deviations: List<Deviation>,
+    val fingerprint: String,
+    val acknowledgement: DeviationAcknowledgement?,
+    val can: DeviationCan,
 )
+
+/**
+ * An acknowledgement as stored: [at] epoch millis, [by] the acknowledging login's active person's name else its display name (never
+ * the email; null once the login is deleted).
+ */
+@Serializable
+data class DeviationAcknowledgement(val at: Long, val by: String?, val current: Boolean)
+
+/** What the caller may do with the item: [acknowledge] is the node's owner chain or ADMIN (false for an anonymous computation). */
+@Serializable
+data class DeviationCan(val acknowledge: Boolean)
 
 /**
  * The query. [all] true lists bindings with no deviation too; absent it defaults to true when [projectId] or [teamId] is given (the
  * per-project and per-team chips ask "is it linked, and how"), else false. [kind] and [severity] keep the bindings that have such a
  * deviation, whatever [all] says. `ESTIMATE_NOT_COMPARABLE` is listed only on an EXPLICIT `all=true` or when [kind] names it: the
- * implied [all] of a chip does not switch the estimate noise on.
+ * implied [all] of a chip does not switch the estimate noise on. [acknowledged] true lists the bindings whose acknowledgement is
+ * CURRENT, false the ones without a current one; absent, the default lists OPEN bindings (deviating and not currently acknowledged),
+ * and an [includeAll] listing keeps every state.
  */
 data class DeviationFilter(
     val connectionId: UInt? = null,
@@ -139,7 +166,8 @@ data class DeviationFilter(
     val projectId: UInt? = null,
     val teamId: UInt? = null,
     val all: Boolean? = null,
+    val acknowledged: Boolean? = null,
 ) {
-    /** Whether bindings without a deviation are listed. */
+    /** Whether bindings without a deviation (and acknowledged ones) are listed. */
     val includeAll: Boolean get() = all ?: (projectId != null || teamId != null)
 }

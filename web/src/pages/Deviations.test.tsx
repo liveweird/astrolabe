@@ -352,7 +352,7 @@ describe("Deviations page - empty states", () => {
   });
 
   test("a project scope with nothing linked says 'nothing here is linked', not 'no items match'", async () => {
-    doc = view({ items: [], totals: { warnings: 0, infos: 0, bindings: 0, gone: 0 } });
+    doc = view({ items: [], totals: { warnings: 0, infos: 0, bindings: 0, gone: 0, acknowledged: 0 } });
     renderPage("/deviations?projectId=7");
     expect(await screen.findByText("Nothing here is linked to Jira yet.")).toBeInTheDocument();
     expect(screen.queryByText("No items match the filters.")).not.toBeInTheDocument();

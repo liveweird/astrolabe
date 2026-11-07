@@ -1,5 +1,6 @@
 package ch.nokillswit.jira
 
+import ch.nokillswit.authz.OwnerChain
 import ch.nokillswit.infra.db.active
 import ch.nokillswit.planning.DaySpan
 import ch.nokillswit.planning.MilestoneService
@@ -19,7 +20,8 @@ import java.time.LocalDate
 
 /*
  * The row loading of `GET /views/deviations`, split out of `DeviationViewService` to keep both small. Every function runs INSIDE the
- * view's read-only REPEATABLE READ transaction and nowhere else; none takes a lock. Every read of bindings filters
+ * caller's transaction - the view's read-only REPEATABLE READ one, or the acknowledge's write (for one binding) - and takes no lock of
+ * its own. Every read of bindings filters
  * `Bindings.active()` and joins the connection ACTIVE (a deleted connection's rows stay in the tables). A DISABLED connection's
  * bindings stay visible: they still block their node and their issue, so they must stay seen and unlinkable; their staleness shows
  * through the observation's `observedAt` and the connection's `lastRun`.
@@ -50,11 +52,11 @@ internal class ConnectionFacts(
 )
 
 /** Every ACTIVE connection, enabled or not, by id. The discovery blob is decoded here only to resolve the mapping, and never leaves. */
-internal suspend fun loadConnections(): List<ConnectionFacts> =
+internal suspend fun loadConnections(onlyId: UInt? = null): List<ConnectionFacts> =
     connections.select(
         connections.id, connections.name, connections.siteUrl, connections.enabled, connections.mapping, connections.discovery,
         connections.pollIntervalMinutes, connections.mappingChangedAt, connections.updatedAt, connections.discoveredAt,
-    ).where { connections.active() }.orderBy(connections.id).toList().map { row ->
+    ).where { connections.active() and (onlyId?.let { connections.id eq it } ?: Op.TRUE) }.orderBy(connections.id).toList().map { row ->
             val discovery = row[connections.discovery]?.let(::parseStoredDiscoveryOrNull)
             val state = JiraMappingState(parseStoredMapping(row[connections.mapping]), discovery)
             val usable = discovery?.let { resolveEffectiveMapping(state, it) } as? MappingResolution.Usable
@@ -79,6 +81,9 @@ internal class StoredObservation(
     val observedAt: Long,
 )
 
+/** The acknowledgement columns of a binding row (all null = never acknowledged; [byUserId] is also null once nobody is recorded). */
+internal class StoredAck(val fingerprint: String, val at: Long, val byUserId: UInt?)
+
 /** An ACTIVE binding of an active connection; [observation] is null for a binding no bind or run ever observed. */
 internal class BindingRow(
     val id: UInt,
@@ -87,27 +92,85 @@ internal class BindingRow(
     val issueId: String,
     val issueKey: String,
     val observation: StoredObservation?,
+    val ack: StoredAck? = null,
 )
 
-internal suspend fun loadBindings(): List<BindingRow> =
+/**
+ * Which ACTIVE bindings of an ACTIVE connection one computation reads. Every member narrows (null = no restriction on that axis);
+ * [programIds], [projectIds] and [milestoneIds] together name the nodes (a binding on ANY of the named ones matches). The acknowledge
+ * reads ONE [bindingId]; the timeline fold (1.3, C5) reads the nodes of the rows a view answers.
+ */
+internal class DeviationScope(
+    val connectionId: UInt? = null,
+    val programIds: Collection<UInt>? = null,
+    val projectIds: Collection<UInt>? = null,
+    val milestoneIds: Collection<UInt>? = null,
+    val bindingId: UInt? = null,
+) {
+    /** Whether the bindings read are a PART of a connection's bindings: a parent issue's own binding then needs its own lookup. */
+    val restrictsBindings: Boolean get() = bindingId != null || programIds != null || projectIds != null || milestoneIds != null
+}
+
+private fun DeviationScope.predicate(): Op<Boolean> {
+    var predicate: Op<Boolean> = bindings.active() and connections.active()
+    connectionId?.let { predicate = predicate and (bindings.connectionId eq it) }
+    bindingId?.let { predicate = predicate and (bindings.id eq it) }
+    val named = listOfNotNull<Op<Boolean>>(
+        programIds?.let { bindings.programId inList it },
+        projectIds?.let { bindings.projectId inList it },
+        milestoneIds?.let { bindings.milestoneId inList it },
+    )
+    if (named.isNotEmpty()) predicate = predicate and named.reduce { a, b -> a or b }
+    return predicate
+}
+
+internal suspend fun loadBindings(scope: DeviationScope = DeviationScope()): List<BindingRow> =
     bindings.innerJoin(connections, { bindings.connectionId }, { connections.id })
         .leftJoin(observations, { bindings.id }, { observations.bindingId })
         .select(
             bindings.id, bindings.connectionId, bindings.level, bindings.programId, bindings.projectId, bindings.milestoneId,
-            bindings.jiraIssueId, bindings.jiraIssueKey,
+            bindings.jiraIssueId, bindings.jiraIssueKey, bindings.ackFingerprint, bindings.ackAt, bindings.ackByUserId,
             observations.observedAt, observations.summary, observations.typeName, observations.hierarchyLevel, observations.statusName,
             observations.statusCategory, observations.parentIssueId, observations.parentIssueKey, observations.startDate,
             observations.endDate, observations.estimate, observations.estimateUnit, observations.teamName, observations.gone,
             observations.goneReason,
         )
-        .where { bindings.active() and connections.active() }.orderBy(bindings.id).toList().map { row ->
-            val level = JiraLevel.valueOf(row[bindings.level])
-            val nodeId = checkNotNull(nodeIdOf(row)) { "ck_jira_bindings_node: exactly one node column is set" }
+        .where { scope.predicate() }.orderBy(bindings.id).toList().map { row ->
+            val fingerprint = row[bindings.ackFingerprint]
             BindingRow(
-                row[bindings.id].value, row[bindings.connectionId].value, PlanRef(level, nodeId),
+                row[bindings.id].value, row[bindings.connectionId].value, row.planRef(),
                 row[bindings.jiraIssueId], row[bindings.jiraIssueKey], row.storedObservation(),
+                ack = fingerprint?.let {
+                    StoredAck(it, checkNotNull(row[bindings.ackAt]) { "ck_jira_bindings_ack" }, row[bindings.ackByUserId]?.value)
+                },
             )
         }
+
+private fun ResultRow.planRef(): PlanRef {
+    val level = JiraLevel.valueOf(this[bindings.level])
+    return PlanRef(level, checkNotNull(nodeIdOf(this)) { "ck_jira_bindings_node: exactly one node column is set" })
+}
+
+/**
+ * The plan node each LIVE binding's issue is bound to, per (connection, issue id): where an observed PARENT issue's own binding
+ * points. For a computation over ALL of a connection's bindings that is just [live]; for a scoped one the parents' bindings are not
+ * among them, so they are looked up (ACTIVE binding of an ACTIVE connection, its node LIVE like every other binding's), which keeps
+ * `PARENT_MISMATCH` - and so the fingerprint - identical to the full view's.
+ */
+internal suspend fun loadBoundTo(scope: DeviationScope, live: List<BindingRow>): Map<Pair<UInt, String>, PlanRef> {
+    if (!scope.restrictsBindings) return live.associate { (it.connectionId to it.issueId) to it.ref }
+    val wanted = live.mapNotNull { row -> row.observation?.issue?.parentIssueId?.let { row.connectionId to it } }.distinct()
+    if (wanted.isEmpty()) return emptyMap()
+    val anyParent = wanted.groupBy({ it.first }) { it.second }.map { (connection, issueIds) ->
+        (bindings.connectionId eq connection) and (bindings.jiraIssueId inList issueIds)
+    }.reduce { a, b -> a or b }
+    val found = bindings.innerJoin(connections, { bindings.connectionId }, { connections.id })
+        .select(bindings.connectionId, bindings.level, bindings.programId, bindings.projectId, bindings.milestoneId, bindings.jiraIssueId)
+        .where { bindings.active() and connections.active() and anyParent }.toList()
+        .associate { (it[bindings.connectionId].value to it[bindings.jiraIssueId]) to it.planRef() }
+    val liveNodes = loadNodes(found.values)
+    return found.filterValues { it in liveNodes }
+}
 
 private fun ResultRow.storedObservation(): StoredObservation? {
     val observedAt = getOrNull(observations.observedAt) ?: return null
@@ -152,10 +215,18 @@ internal class NodeRow(
     val programName: String?,
     val projectId: UInt?,
     val projectName: String?,
-    val teamId: UInt? = null,
-    val teamName: String? = null,
+    /** The owners above and at the node (work stream first; a milestone has the project's): who may acknowledge its binding. */
+    val chain: OwnerChain,
+    /** The team a milestone is for (null above the milestone level). */
+    val team: NodeTeam? = null,
     val fields: NodeFields = NodeFields(),
-)
+) {
+    val teamId: UInt? get() = team?.id
+    val teamName: String? get() = team?.name
+}
+
+/** A milestone's team. */
+internal class NodeTeam(val id: UInt, val name: String)
 
 /**
  * The LIVE nodes among [refs], batched per level (three statements at most): a node whose own row or any ancestor is soft-deleted is
@@ -166,26 +237,28 @@ internal suspend fun loadNodes(refs: Collection<PlanRef>): Map<PlanRef, NodeRow>
     val nodes = HashMap<PlanRef, NodeRow>()
     ids(JiraLevel.PROGRAM).takeIf { it.isNotEmpty() }?.let { ids ->
         programs.innerJoin(streams, { programs.workStreamId }, { streams.id })
-            .select(programs.id, programs.name, streams.id, streams.name)
+            .select(programs.id, programs.name, programs.ownerPersonId, streams.id, streams.name, streams.ownerPersonId)
             .where { (programs.id inList ids) and programs.active() and streams.active() }.toList().forEach { row ->
                 val ref = PlanRef(JiraLevel.PROGRAM, row[programs.id].value)
                 nodes[ref] = NodeRow(
                     ref, row[programs.name], row[streams.id].value, row[streams.name],
                     programId = ref.id, programName = row[programs.name], projectId = null, projectName = null,
+                    chain = OwnerChain(listOf(row[streams.ownerPersonId].value, row[programs.ownerPersonId].value)),
                 )
             }
     }
     ids(JiraLevel.PROJECT).takeIf { it.isNotEmpty() }?.let { ids ->
         projects.innerJoin(programs, { projects.programId }, { programs.id }).innerJoin(streams, { programs.workStreamId }, { streams.id })
             .select(
-                projects.id, projects.name, projects.targetStart, projects.targetEnd, programs.id, programs.name, streams.id, streams.name,
+                projects.id, projects.name, projects.targetStart, projects.targetEnd, projects.ownerPersonId, programs.id, programs.name,
+                programs.ownerPersonId, streams.id, streams.name, streams.ownerPersonId,
             )
             .where { (projects.id inList ids) and projects.active() and programs.active() and streams.active() }.toList().forEach { row ->
                 val ref = PlanRef(JiraLevel.PROJECT, row[projects.id].value)
                 nodes[ref] = NodeRow(
                     ref, row[projects.name], row[streams.id].value, row[streams.name],
                     programId = row[programs.id].value, programName = row[programs.name],
-                    projectId = ref.id, projectName = row[projects.name],
+                    projectId = ref.id, projectName = row[projects.name], chain = projectChainOf(row),
                     fields = NodeFields(targetStart = row[projects.targetStart], targetEnd = row[projects.targetEnd]),
                 )
             }
@@ -196,12 +269,17 @@ internal suspend fun loadNodes(refs: Collection<PlanRef>): Map<PlanRef, NodeRow>
     return nodes
 }
 
+/** The chain of a project, and of a milestone under it (no owner of its own): the stream's, the program's and the project's owner. */
+private fun projectChainOf(row: ResultRow) =
+    OwnerChain(listOf(row[streams.ownerPersonId].value, row[programs.ownerPersonId].value, row[projects.ownerPersonId].value))
+
 private suspend fun loadMilestoneNodes(ids: List<UInt>): Map<PlanRef, NodeRow> =
     milestones.innerJoin(projects, { milestones.projectId }, { projects.id }).innerJoin(programs, { projects.programId }, { programs.id })
         .innerJoin(streams, { programs.workStreamId }, { streams.id }).innerJoin(teams, { milestones.teamId }, { teams.id })
         .select(
             milestones.id, milestones.name, milestones.startDate, milestones.endDate, milestones.estimateMd, milestones.teamId, teams.name,
-            projects.id, projects.name, programs.id, programs.name, streams.id, streams.name,
+            projects.id, projects.name, projects.ownerPersonId, programs.id, programs.name, programs.ownerPersonId, streams.id,
+            streams.name, streams.ownerPersonId,
         )
         .where {
             (milestones.id inList ids) and milestones.active() and projects.active() and programs.active() and streams.active()
@@ -210,8 +288,8 @@ private suspend fun loadMilestoneNodes(ids: List<UInt>): Map<PlanRef, NodeRow> =
             ref to NodeRow(
                 ref, row[milestones.name], row[streams.id].value, row[streams.name],
                 programId = row[programs.id].value, programName = row[programs.name],
-                projectId = row[projects.id].value, projectName = row[projects.name],
-                teamId = row[milestones.teamId].value, teamName = row[teams.name],
+                projectId = row[projects.id].value, projectName = row[projects.name], chain = projectChainOf(row),
+                team = NodeTeam(row[milestones.teamId].value, row[teams.name]),
                 fields = NodeFields(
                     start = row[milestones.startDate], end = row[milestones.endDate], estimateMd = row[milestones.estimateMd],
                 ),

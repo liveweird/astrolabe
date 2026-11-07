@@ -38,7 +38,7 @@ private const val MAX_BIND_WAIT_MILLIS = 60_000L
 
 /**
  * The Jira sync's routes, ONE module function for the whole `jira/` package (`conventions.md`: one routes file per concern - connections
- * here; mapping and Peek register from here, bindings and deviations as they land). The registry is ADMIN only, reads included (a
+ * here; mapping, Peek, bindings, the import and the acknowledge register from here). The registry is ADMIN only, reads included (a
  * connection names a credential-bearing site): `requireAdmin` runs FIRST on every route, before the id lookup and before the body
  * decodes, so a non-admin gets a uniform 403 whether or not the id exists and whatever the body is (guard-before-read, the `teams/`
  * rule).
@@ -49,6 +49,7 @@ fun Application.configureJiraRoutes() {
     val bindings = attributes[JiraBindingServiceKey]
     val people = attributes[PersonServiceKey]
     val imports = attributes[JiraImportServiceKey]
+    val acknowledgements = attributes[JiraAcknowledgeServiceKey]
     val bindWaitKey = "jira.bindPermitWaitMillis"
     val bindPermitWaitMillis = requireConfigLong(environment.config, bindWaitKey, MIN_BIND_WAIT_MILLIS, MAX_BIND_WAIT_MILLIS)
 
@@ -58,6 +59,7 @@ fun Application.configureJiraRoutes() {
             jiraMappingRoutes(connections, connector)
             jiraBindingRoutes(connections, bindings, people, connector, bindPermitWaitMillis)
             jiraImportRoutes(connections, imports, people, connector)
+            jiraAcknowledgeRoutes(acknowledgements, people)
             get<JiraConnectionsRoute> {
                 requireAdmin(call.caller())
                 val paging = call.parsePaging(sortable = JIRA_CONNECTION_SORT_FIELDS)

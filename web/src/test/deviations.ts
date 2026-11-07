@@ -67,6 +67,9 @@ export function item(over: Partial<DeviationItem> = {}): DeviationItem {
     },
     plan: { start: "2044-03-01", end: "2044-03-07", estimateMd: 5, targetStart: null, targetEnd: null, spanStart: null, spanEnd: null },
     deviations: [endLater(3)],
+    fingerprint: "a".repeat(64),
+    acknowledgement: null,
+    can: { acknowledge: false },
     ...over,
   };
 }
@@ -83,6 +86,7 @@ export function view(over: Partial<DeviationView> = {}): DeviationView {
       infos: deviations.filter((d) => d.severity === "INFO").length,
       bindings: items.length,
       gone: items.filter((i) => i.jira.gone).length,
+      acknowledged: items.filter((i) => i.acknowledgement?.current).length,
     },
     items,
     truncated: false,
