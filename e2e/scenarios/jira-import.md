@@ -4,7 +4,7 @@
 - **Actors**: a throwaway administrator per test (seeded through the API; the preview and the apply share a 5-a-minute bucket PER USER, so every test has its own
   login), who works in the browser; the seed administrator only seeds and tears down through the API
 - **Owns** (exclusive server-side state): one Jira connection (`e2e-import-connection-*`, scoped to the stub's `IMP` project ONLY, on a unique throwaway site, tested once
-  in the beforeAll through the API: Test connection shares a 10-a-minute bucket per IP with the other Jira specs; a 429 there waits the bucket out once) and, per test, a person, a team, a work stream (unique
+  in the beforeAll through the API: Test connection shares a per-IP bucket (10 a minute by default, 30 on the e2e stacks) with the other Jira specs; a 429 there waits the bucket out once) and, per test, a person, a team, a work stream (unique
   `e2e-import-*` names), the login, and what the import creates under that work stream with **the stub's own names** ("IMP Program", "IMP Initiative Alpha",
   "IMP Initiative Beta", "IMP Epic One" ...): program names are global, so this is the only spec that may import `IMP` (it holds the Playwright lock `jira-import-stub`).
   Every date is the stub's, in **2045** (IMP-4 ends on 2045-01-06, Polish Epiphany: harmless while no spec loads 2045 holidays). Nothing ever applies into an existing
@@ -66,7 +66,7 @@ here: every milestone takes the default team.
 ## Scenario: a preview of about 1,100 rows (the virtualised table) has no WCAG A/AA violations, at the top and mid-scroll, light and dark
 
 1. A second connection, scoped to the stub's five work-stream projects (`CE`, `PF`, `CG`, `DI`, `OE`) on its own throwaway site, is created and tested through the API (one more
-   call of the 10-a-minute Test bucket; a 429 waits the minute out once); the administrator opens its import modal, picks the throwaway work stream, the owner and the default team, and presses
+   call of the shared Test bucket (10 a minute by default, 30 on the e2e stacks); a 429 waits the minute out once); the administrator opens its import modal, picks the throwaway work stream, the owner and the default team, and presses
    **Preview**. Nothing is imported.
    - *Expected*: the table's `aria-rowcount` is above 1,000, the first mounted row is row 2 and fewer than 200 rows are in the DOM (the virtual path); axe reports zero violations in the dialog.
 2. The preview's scroller is scrolled to the middle.

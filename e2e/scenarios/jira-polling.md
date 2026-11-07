@@ -6,7 +6,7 @@
   site `https://e2epoll<random>.atlassian.net`): `e2e-poll-scheduled-*` (polling every 5 minutes, tested once) and `e2e-poll-manual-*` (manual only, never tested). It binds
   nothing, creates no plan node and dates nothing - so no year, no holiday, and a run of its connections calls Jira for nothing - and never flips the stub. Both are created
   through the API in the beforeAll and deleted in the afterAll. The file runs serially (`mode: "serial"`: the second scenario edits the polled connection, the third lists it).
-  The beforeAll spends ONE Test connection call (10 a minute per IP across the suite) per worker start of the file, and waits a 429 out once.
+  The beforeAll spends ONE Test connection call (a shared per-IP bucket (10 a minute by default, 30 on the e2e stacks) across the suite) per worker start of the file, and waits a 429 out once.
 - **Needs**: the stack under test runs the scheduler (the compose default: a tick every 60 s, the first 10 s after start). A tested connection with no run is due at once, so
   the first scheduled run comes within a tick or two; the file waits at most two minutes for it (`test.setTimeout(180_000)`, a bounded `expect.poll` on the runs API, never a fixed sleep).
 
@@ -50,7 +50,7 @@
 
 - A failing run, the back-off and the failure streak: the server's scheduler and policy tests (the stub offers no failing site for the `E2E` project beyond the wrong token,
   and a wrong-token connection cannot be tested, so the scheduler never polls it).
-- A TESTED manual-only connection staying unpolled: it would cost a second Test connection call of the shared bucket (9 of 10 are spent by a clean run of the Jira files already,
+- A TESTED manual-only connection staying unpolled: it would cost a second Test connection call of the shared bucket (10 of the 30 a minute are spent by a clean run of the Jira files already,
   and a retry of `jira-sync`'s group spends five more); the server's scheduler tests (`SchedulePolicyTest`, `SyncSchedulerTest`) pin that rule. The first scenario therefore
   claims only that an UNTESTED manual-only connection has no run.
 - An axe scan of these pages: `accessibility.spec.ts` scans the connection page's status facts, the editor's Polling controls and the Sync section in the Jira world.

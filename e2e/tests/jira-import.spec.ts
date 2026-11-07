@@ -109,7 +109,7 @@ async function sweepStale(api: APIRequestContext): Promise<void> {
   }
 }
 
-// The one Test connection call (10 a minute per IP across the suite) is spent once per WORKER START of this file, not once per run: a failed test
+// The one Test connection call (a shared per-IP bucket (10 a minute by default, 30 on the e2e stacks) across the suite) is spent once per WORKER START of this file, not once per run: a failed test
 // restarts the worker and runs this again. A 429 waits the bucket out once.
 test.beforeAll(async () => {
   test.setTimeout(180_000);

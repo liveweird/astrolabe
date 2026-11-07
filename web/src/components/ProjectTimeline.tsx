@@ -43,7 +43,7 @@ export type MilestoneActions = {
 };
 
 /** The Flags column grows to `FLAGS_WITH_ROLLUP_WIDTH` while a scheduled row shows a Jira roll-up ("5/12 · 34 pt"). */
-const FLAGS_WITH_ROLLUP_WIDTH = 190;
+const FLAGS_WITH_ROLLUP_WIDTH = 210;
 const COLUMN_WIDTHS = { name: 220, team: 130, estimate: 120, flags: 130, slack: 130, actions: 56 } as const;
 
 /** The estimate with its unit ("12.25 man-days"). */

@@ -13,7 +13,7 @@
   bindings). **It alone flips the stub's `jira-day2` WireMock scenario** (`PUT $E2E_JIRA_STUB_URL/__admin/scenarios/jira-day2/state`, default
   `http://localhost:8096`; the stub is one process with one scenario state): the beforeAll starts it at `Started` and the afterAll puts it back to `Started`
   even after a failure. The file runs serially (`mode: "serial"`) and the parallel pool never runs two copies of it. Test connection and Peek share a
-  10-a-minute bucket per IP, so the file spends five calls: the first scenario's connection (created in the UI, tested once, and kept for the third scenario to map
+  per-IP bucket (10 a minute by default, 30 on the e2e stacks), so the file spends five calls: the first scenario's connection (created in the UI, tested once, and kept for the third scenario to map
   and peek through; run alone, the third seeds and tests its own), the second's ad-hoc probe, the one connection the linking scenarios share (tested once, in the
   beforeAll, and given 0.5 man-days per story point through the API), and the third scenario's two peeks. Under `retries` (CI: 2) a retried serial group starts again
   from the first scenario and spends the bucket again. The three scenarios that show a result table also scan it with axe (WCAG A/AA), at no extra call.

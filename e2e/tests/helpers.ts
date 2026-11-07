@@ -218,7 +218,7 @@ const retryAfterMs = (retryAfter: string | undefined): number => (retryAfter !==
 
 /**
  * The stored Test connection of a Jira connection through the API (it records the verdict and the discovery that polling, the mapping and the bind need) and
- * asserts every probe green. Test connection and Peek share a 10-a-minute bucket per IP across the whole suite (`e2e/README.md`): a 429 waits the bucket out ONCE and
+ * asserts every probe green. Test connection and Peek share a per-IP bucket (10 a minute by default, 30 on the e2e stacks) across the whole suite (`e2e/README.md`): a 429 waits the bucket out ONCE and
  * tries again, so a caller that runs in a beforeAll must raise its timeout past the minute (`test.setTimeout(180_000)`).
  */
 export async function testJiraConnectionViaApi(api: APIRequestContext, connectionId: number): Promise<void> {

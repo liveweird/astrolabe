@@ -48,7 +48,7 @@ It also scans the Plan page's "Move to…" modal (the grouped program select) sc
 ## Scenario: /integrations/jira has no WCAG A/AA violations
 
 The Jira pages (v1.1) are one describe of their own with their own world: a connection scoped to the stub's `E2E` project (tested once in the beforeAll through the API - no
-scan presses Test connection or Peek, which share the 10-a-minute per-IP bucket with `jira-sync.spec.ts` - so the two result tables are axe-scanned by `jira-sync.spec.ts` instead, at no extra call), one
+scan presses Test connection or Peek, which share the per-IP bucket (10 a minute by default, 30 on the e2e stacks) with `jira-sync.spec.ts` - so the two result tables are axe-scanned by `jira-sync.spec.ts` instead, at no extra call), one
 milestone (2044-01-04..2044-01-13, a plan, a team and a person of its own, `e2e-axe-jira-*`) linked to the stub's `E2E-4`, which exists in both of the stub's scenario
 states, so nothing here depends on `jira-sync.spec.ts`'s flips or rows. Each test runs in the light scheme and again in the dark one.
 

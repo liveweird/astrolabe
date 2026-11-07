@@ -862,7 +862,7 @@ test.describe("a baseline on the plan", () => {
 // The Jira sync's pages (v1.1), in 2044: the connections registry with a row, a connection's page with every section filled (the facts and the runs
 // table, the discovery report, the mapping form and Peek, the Links table with a row), the Deviations page with a deviating row, the connection editor
 // modal (new and edit) and the bind dialog. One world of its own: a connection scoped to the stub's `E2E` project (tested once, in the beforeAll: Test
-// connection and Peek share a 10-a-minute bucket per IP with the Jira spec, so no scan calls either) and a milestone linked to the stub's E2E-4 (which
+// connection and Peek share a per-IP bucket (10 a minute by default, 30 on the e2e stacks) with the Jira spec, so no scan calls either) and a milestone linked to the stub's E2E-4 (which
 // exists in both of the stub's scenario states, so nothing here depends on `jira-sync.spec.ts`'s flips or rows) that ends three working days after
 // Jira's end: the orange warning row. The scans never press Test connection or Peek; `jira-sync.spec.ts` axe-scans the result tables.
 // Owns: that connection (a unique throwaway site), its binding, and a person, a team, a work stream, a program, a project and one milestone (unique
