@@ -1,5 +1,6 @@
 package ch.nokillswit.telemetry
 
+import ch.nokillswit.infra.FailureLog
 import ch.nokillswit.infra.catchingFailures
 import ch.nokillswit.infra.db.PoolSnapshot
 import kotlinx.coroutines.CancellationException
@@ -11,14 +12,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import org.jetbrains.exposed.v1.r2dbc.R2dbcTransaction
 import org.slf4j.LoggerFactory
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeoutException
 import kotlin.time.TimeSource
 
 /** The first tick lands this long after start, so a fresh process shows up on the panel at once instead of after up to an interval. */
 internal const val FIRST_TICK_DELAY_MILLIS = 5_000L
-
-private const val MAX_FAILURE_TEXT = 300
 
 /** One savepoint at a time (collectors run in sequence): one fixed identifier, since a collector's name may not be a valid one. */
 private const val SAVEPOINT_NAME = "telemetry_collector"
@@ -32,27 +30,6 @@ class ProcessCollector(val name: String, val collect: suspend () -> List<Reading
  * that process. A failure rolls back only this collector's statements (a savepoint) and the others still run.
  */
 class ClusterCollector(val name: String, val collect: suspend R2dbcTransaction.(now: Long) -> List<Reading>)
-
-/**
- * One failure line per collector, not one per tick: the first failure is a WARN (the exception's `toString`, never a stack),
- * further failures DEBUG, and the first success after a failure an INFO "recovered".
- */
-internal class FailureLog(private val log: org.slf4j.Logger) {
-    private val failing = ConcurrentHashMap.newKeySet<String>()
-
-    fun failed(name: String, e: Throwable) {
-        val text = e.toString().take(MAX_FAILURE_TEXT)
-        if (failing.add(name)) {
-            log.warn("Telemetry collector {} failed: {}", name, text)
-        } else {
-            log.debug("Telemetry collector {} failed again: {}", name, text)
-        }
-    }
-
-    fun ok(name: String) {
-        if (failing.remove(name)) log.info("Telemetry collector {} recovered", name)
-    }
-}
 
 /**
  * The per-process sampler (`.claude/docs/observability.md` "Telemetry"): every [TelemetryConfig.sampleIntervalSeconds] it writes
@@ -77,7 +54,7 @@ class TelemetrySampler internal constructor(
     private val firstTickDelayMillis: Long = FIRST_TICK_DELAY_MILLIS,
 ) {
     private val log = LoggerFactory.getLogger(TelemetrySampler::class.java)
-    private val failures = FailureLog(log)
+    private val failures = FailureLog(log, "Telemetry collector")
     private val timeSource = TimeSource.Monotonic
 
     @Volatile

@@ -4,6 +4,21 @@ import io.ktor.util.AttributeKey
 import java.util.concurrent.ConcurrentHashMap
 
 /**
+ * What the scheduler may know of one connection of a connector - the poll row, never a credential or the upstream's snapshot.
+ * [pollIntervalMinutes] is null for a manual-only connection; [ready] is false until the connection has been tested (a poll of an
+ * untested connection could only fail); [changedAt] is the latest instant its reading inputs changed (an edit, a mapping change, a
+ * discovery), which makes it due at once whatever a failure back-off says ([decide]).
+ */
+data class ConnectorConnection(
+    val id: UInt,
+    val name: String,
+    val enabled: Boolean,
+    val pollIntervalMinutes: Int?,
+    val ready: Boolean,
+    val changedAt: Long,
+)
+
+/**
  * One kind of upstream the registry runs (Flow's `ingest/Connector.kt`, trimmed to what two connectors need). A connector knows its own
  * connection table, credentials and fetch code; the registry knows only rows of `sync_runs`.
  */
@@ -15,6 +30,12 @@ interface Connector {
      * manual route asks BEFORE claiming, so a refused request leaves no row behind.
      */
     suspend fun requireRunnable(connectionId: UInt)
+
+    /**
+     * The connector's ACTIVE (not deleted) connections as the scheduler needs them, in id order: disabled and manual-only ones included
+     * (the status reads them too), each as a [ConnectorConnection]. One cheap read; it must never carry a token or the upstream's snapshot.
+     */
+    suspend fun connections(): List<ConnectorConnection>
 
     /**
      * The whole run for the claimed row: reads the upstream, writes the connector's own tables and answers how it ended. A problem of the

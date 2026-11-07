@@ -182,6 +182,7 @@ above any legitimate statement (a lock wait behind another transaction) and belo
   the telemetry tests (`TelemetrySamplerTest`, `TelemetryStoreTest`) build the sampler directly over `TelemetryFixtures.kt`'s helpers and empty `ops`
   before each test (`wipeTelemetry`; nothing else writes there); a test that wants the real sampler opts in with `"telemetry.enabled" to "true"` plus
   `TelemetryOverridesKey` (a fixed identity, an immediate first tick).
+  It likewise sets `sync.scheduler.enabled` to `false` (a live scheduler would start SCHEDULED runs for every tested connection other tests left in the shared database); `SyncSchedulerTest` builds `SyncScheduler` over the real `SyncRunService`, a fake `Connector` and an injected clock and drives `tick()` by hand, `JiraRunTest` builds one over the real observer narrowed to its own connection, and `SyncBootTest` is the one class that boots an app with `"sync.scheduler.enabled" to "true"`. The tests that boot the real engine with `-P:` arguments pass `-P:sync.scheduler.enabled=false` beside `-P:telemetry.enabled=false`.
 - `ForkWarmup.warm()` / `ForkWarmup.assertWarm()` (`ForkWarmup.kt`): the fork's untimed Postgres + first-boot warm-up, called only by the `ForkWarmup<k>Test` classes; no other test calls it.
 - Password-reset fixtures: `newPasswordResetService(ttlMillis, clock)` builds a `PasswordResetService` over the shared database (an
   injected clock for expiry), `issueToken(userId, revision, email)` unwraps its `IssueOutcome` to the emailed token (null when stale

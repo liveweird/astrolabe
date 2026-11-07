@@ -10,6 +10,7 @@ import ch.nokillswit.infra.fetch.RATE_LIMITED_KEY
 import ch.nokillswit.infra.fetch.TENANT_PAUSED_MS_KEY
 import ch.nokillswit.sync.ClaimedRun
 import ch.nokillswit.sync.Connector
+import ch.nokillswit.sync.ConnectorConnection
 import ch.nokillswit.sync.SyncCounts
 import ch.nokillswit.sync.SyncKind
 import ch.nokillswit.sync.SyncResult
@@ -88,6 +89,9 @@ class JiraObserver internal constructor(
     override suspend fun requireRunnable(connectionId: UInt) {
         if (!connections.isRunnable(connectionId)) throw BadRequestException(UNKNOWN_CONNECTION)
     }
+
+    /** The scheduler's poll rows (no token, no discovery): `JiraConnectionService.pollRows`. */
+    override suspend fun connections(): List<ConnectorConnection> = connections.pollRows()
 
     override suspend fun run(run: ClaimedRun): SyncResult {
         val tally = CallTally()

@@ -128,6 +128,7 @@ class ProductionHttpTest {
                 "-P:postgres.password=${PostgresTestSupport.password}",
                 "-P:security.csrf.enabled=false",
                 "-P:telemetry.enabled=false",
+                "-P:sync.scheduler.enabled=false",
                 "-P:bootstrap.adminInitialPassword=rotated-${UUID.randomUUID()}",
                 "-P:jwt.secret=${strongJwtSecret()}",
                 "-P:security.encryption.key=${strongEncryptionKey()}",

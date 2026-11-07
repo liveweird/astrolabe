@@ -2,12 +2,18 @@ package ch.nokillswit
 
 import ch.nokillswit.jira.JiraBindingResponse
 import ch.nokillswit.jira.JiraLevel
+import ch.nokillswit.jira.JiraObserverKey
+import ch.nokillswit.sync.Connector
+import ch.nokillswit.sync.SyncConnectors
 import ch.nokillswit.sync.SyncKind
 import ch.nokillswit.sync.SyncOutcome
 import ch.nokillswit.sync.SyncRunList
 import ch.nokillswit.sync.SyncRunRequest
 import ch.nokillswit.sync.SyncRunResponse
+import ch.nokillswit.sync.SyncRunServiceKey
 import ch.nokillswit.sync.SyncRunnerKey
+import ch.nokillswit.sync.SyncScheduler
+import ch.nokillswit.sync.SyncTrigger
 import io.ktor.client.HttpClient
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
@@ -139,6 +145,45 @@ class JiraRunTest {
         }
         assertEquals(listOf(3, 2, 1, 1, 1), bound.map { seen.getValue(it.issueKey)?.hierarchyLevel })
         assertNull(seen.getValue("E2E-9")?.startDate, "undated in Jira")
+    }
+
+    /** The real observer, but listing only [connectionId]: the shared database holds other tests' tested connections, not to be polled. */
+    private class OnlyConnection(private val inner: Connector, private val connectionId: UInt) : Connector by inner {
+        override suspend fun connections() = inner.connections().filter { it.id == connectionId }
+    }
+
+    @Test
+    fun `a scheduled run observes the bound issues like a refresh, carries no user and audits no sync_requested`() = testApplication {
+        val f = fixture("jrsched")
+        val bound = listOf(f.bind(JiraLevel.PROJECT, f.w.projectId, "E2E-2"), f.bind(JiraLevel.MILESTONE, f.milestone(), "E2E-5"))
+        bound.forEach { staleObservation(it.id) }
+        val connectors = SyncConnectors().also { it.register(OnlyConnection(application.attributes[JiraObserverKey], f.connectionId)) }
+        val runner = application.attributes[SyncRunnerKey]
+        val runs = application.attributes[SyncRunServiceKey]
+        val scheduler = SyncScheduler(runs, runner, connectors, tickMillis = 60_000, firstTickDelayMillis = 0)
+        suspend fun listed() = jbJson.decodeFromString<SyncRunList>(
+            f.w.admin.client.get("$SYNC_RUNS?kind=JIRA&connectionId=${f.connectionId}").bodyAsText(),
+        ).items
+        val polled = withAuditCapture { audit ->
+            scheduler.tick()
+            val started = listed().single()
+            withTimeout(45_000) { runner.await(started.id) }
+            assertTrue(audit.events.none { it.message == "jira.sync_requested" }, "a scheduled run is not a requested one")
+            listed().single { it.id == started.id }
+        }
+
+        assertEquals(SyncTrigger.SCHEDULED, polled.trigger)
+        assertNull(polled.requestedByUserId)
+        assertEquals(SyncOutcome.SUCCEEDED, polled.outcome, polled.errorDetail)
+        assertEquals(listOf(2, 0), listOf(polled.observedCount, polled.goneCount))
+        for (binding in bound) {
+            val observed = assertNotNull(f.w.admin.client.binding(binding.id).observation, binding.issueKey)
+            assertTrue(observed.observedAt > 1, "${binding.issueKey} was refreshed (it was stale)")
+            assertEquals(e2eIssue(binding.issueKey).getValue("summary").jsonPrimitive.content, observed.summary)
+        }
+        // Not due again: the run just finished, so the next poll is an interval away.
+        scheduler.tick()
+        assertEquals(1, listed().size)
     }
 
     @Test

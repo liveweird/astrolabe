@@ -247,6 +247,13 @@ sync:
   # outlives it is ABANDONED by the next claim of its connection (a process that died); the run's own deadline is one minute shorter
   # (never under 30 s), so a live run never loses its claim. The same for every connector.
   maxRunMinutes: "$SYNC_MAX_RUN_MINUTES:10"
+  # How often the in-process scheduler looks for connections that are due for a poll (`sync/SyncScheduler.kt`, `.claude/docs/observability.md`
+  # "Sync runs"), whole seconds 15..600, validated on every boot. A connection's own `pollIntervalMinutes` (5..1440) decides WHEN it is due;
+  # this only bounds how late: a poll starts at most one tick after its due time. Every replica ticks; the claim lets exactly one run.
+  tickSeconds: "$SYNC_TICK_SECONDS:60"
+  scheduler:
+    # false = no scheduler loop (runs start only from "Refresh now"). The test harness turns it off, as it does the telemetry sampler.
+    enabled: "$SYNC_SCHEDULER_ENABLED:true"
 
 web:
   # When set, the server serves the built React SPA from this directory (static

@@ -2,6 +2,7 @@ package ch.nokillswit
 
 import ch.nokillswit.sync.ClaimedRun
 import ch.nokillswit.sync.Connector
+import ch.nokillswit.sync.ConnectorConnection
 import ch.nokillswit.sync.SyncCounts
 import ch.nokillswit.sync.SyncKind
 import ch.nokillswit.sync.SyncOutcome
@@ -57,6 +58,7 @@ class SyncRunnerTest {
     private fun connector(body: suspend (ClaimedRun) -> SyncResult) = object : Connector {
         override val kind = SyncKind.JIRA
         override suspend fun requireRunnable(connectionId: UInt) = Unit
+        override suspend fun connections() = emptyList<ConnectorConnection>()
         override suspend fun run(run: ClaimedRun) = body(run)
     }
 

@@ -192,6 +192,7 @@ class RequestReadTimeoutTest {
             "-P:postgres.password=${PostgresTestSupport.password}",
             "-P:mail.appUrl=https://localhost:8086",
             "-P:telemetry.enabled=false",
+            "-P:sync.scheduler.enabled=false",
         )
         val server = EngineMain.createServer(args)
         server.start(wait = false)

@@ -59,6 +59,12 @@ class SyncRunner(
         job.invokeOnCompletion { jobs.remove(run.id) }
     }
 
+    /**
+     * Launches [block] on the runner's own scope: the scheduler's loop lives here, so [shutdown] ends it together with the runs it started
+     * (one scope, one bounded join, before the pool is disposed) and no second shutdown hook exists.
+     */
+    fun launch(block: suspend CoroutineScope.() -> Unit): Job = scope.launch(block = block)
+
     /** Suspends until run [runId] has ended (its row is written); returns at once for a run that is not in flight here. */
     suspend fun await(runId: UInt) {
         jobs[runId]?.join()

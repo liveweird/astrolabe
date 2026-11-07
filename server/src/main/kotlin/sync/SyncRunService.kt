@@ -23,10 +23,11 @@ private const val MAX_ERROR_CODE = 40
 /**
  * The run registry (V21 `sync_runs`): who is running what, and how each run ended. It writes ONLY its own table and reads no other. A
  * run is claimed by INSERTing its unfinished row - the partial unique index `uq_sync_runs_running` admits one per (kind, connection), so
- * of any number of replicas that tick together exactly one INSERT lands and the others get a `409` (manual) or a silent skip (the 1.3
- * scheduler). There is no lock beyond that index and no timer: a process that died with a run unfinished is cleaned up by the NEXT
- * claim, which finishes any unfinished row older than [maxRunMinutes] as `ABANDONED` (the run's own deadline is shorter, so a live run
- * is never abandoned under itself). The rows are operational history, pruned to the last [MAX_LISTED_RUNS] per connection at claim time.
+ * of any number of replicas that tick together exactly one INSERT lands and the others get a `409` (manual) or the scheduler's
+ * INFO "claimed elsewhere" line. There is no lock beyond that index and no timer: a process that died with a run unfinished is cleaned
+ * up by the NEXT claim, which finishes any unfinished row older than [maxRunMinutes] as `ABANDONED` (the run's own deadline is shorter,
+ * so a live run is never abandoned under itself). The rows are operational history, pruned to the last [MAX_LISTED_RUNS] per connection
+ * at claim time.
  */
 class SyncRunService(
     private val database: R2dbcDatabase,
@@ -167,6 +168,26 @@ class SyncRunService(
                 .orderBy(Runs.startedAt to SortOrder.DESC, Runs.id to SortOrder.DESC).limit(1).toList().singleOrNull()
                 ?.let { id to it.toResponse() }
         }.toMap()
+
+    /**
+     * The policy's view of each connection's runs, newest first (by start, then id), at most [limit] per connection, read INSIDE the
+     * caller's open transaction - it opens none. One indexed `LIMIT` query per connection (`idx_sync_runs_connection`); a connection
+     * with no run maps to an empty list. [RunFact] carries the three columns the due rule reads and nothing else (no error text).
+     */
+    suspend fun recentRunsInTransaction(
+        kind: SyncKind,
+        connectionIds: Collection<UInt>,
+        limit: Int = MAX_LISTED_RUNS,
+    ): Map<UInt, List<RunFact>> = connectionIds.associateWith { id ->
+        Runs.select(Runs.startedAt, Runs.finishedAt, Runs.outcome)
+            .where { (Runs.kind eq kind.name) and (Runs.connectionId eq id.toInt()) }
+            .orderBy(Runs.startedAt to SortOrder.DESC, Runs.id to SortOrder.DESC).limit(limit).toList()
+            .map { RunFact(it[Runs.startedAt], it[Runs.finishedAt], it[Runs.outcome]?.let(SyncOutcome::valueOf)) }
+    }
+
+    /** [recentRunsInTransaction] in a transaction of its own: one snapshot for the whole batch of connections. */
+    suspend fun recentRuns(kind: SyncKind, connectionIds: Collection<UInt>, limit: Int = MAX_LISTED_RUNS): Map<UInt, List<RunFact>> =
+        suspendTransaction(database) { recentRunsInTransaction(kind, connectionIds, limit) }
 
     /**
      * THE rule for "running" (the run list, the connection's `lastRun` and the Deviations view all read it): the row is unfinished and was

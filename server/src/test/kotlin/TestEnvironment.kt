@@ -46,7 +46,7 @@ import java.time.Duration
  * `startApplication()` themselves. Later duplicate keys win in [MapApplicationConfig], so
  * [overrides] may replace the defaults listed first.
  *
- * [overrides] replace the defaults; the telemetry sampler is off by default (see the key below).
+ * [overrides] replace the defaults; the telemetry sampler and the sync scheduler are off by default (see the keys below).
  */
 fun TestApplicationBuilder.configureApp(vararg overrides: Pair<String, String>) {
     environment {
@@ -63,6 +63,9 @@ fun TestApplicationBuilder.configureApp(vararg overrides: Pair<String, String>) 
                 // The telemetry sampler is off for the suite (it would write a process row and samples into the shared database from
                 // every booted app); its tests build the sampler directly or opt in with "telemetry.enabled" to "true".
                 "telemetry.enabled" to "false",
+                // The sync scheduler is off for the same reason: it would start SCHEDULED runs for every tested connection other tests
+                // left in the shared database. Its tests build `SyncScheduler` directly or opt in with "sync.scheduler.enabled" to "true".
+                "sync.scheduler.enabled" to "false",
                 *overrides,
             )
         )

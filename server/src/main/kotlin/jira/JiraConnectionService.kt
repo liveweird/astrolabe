@@ -14,6 +14,7 @@ import ch.nokillswit.infra.json.sha256Hex
 import ch.nokillswit.infra.json.stringArrayJson
 import ch.nokillswit.infra.paging.PageRequest
 import ch.nokillswit.infra.paging.applyPaging
+import ch.nokillswit.sync.ConnectorConnection
 import ch.nokillswit.sync.SyncKind
 import ch.nokillswit.sync.SyncRunResponse
 import ch.nokillswit.sync.SyncRunService
@@ -202,6 +203,9 @@ class JiraConnectionService(
         Connections.selectAll().where { (Connections.id eq id) and Connections.active() }.toList().singleOrNull()
             ?.let { JiraBindContext(targetOf(it), it.toMappingState(), it[Connections.enabled], it[Connections.mappingChangedAt]) }
     }
+
+    /** The scheduler's rows (`JiraConnectionPolling.kt`): the active connections' poll facts, never the token or the discovery. */
+    suspend fun pollRows(): List<ConnectorConnection> = pollRowsOf(database)
 
     /** Whether the connection is active and enabled: what a run needs before it claims (no token is read). */
     suspend fun isRunnable(id: UInt): Boolean = suspendTransaction(database) {

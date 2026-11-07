@@ -40,6 +40,7 @@ class RawForwardedForLinesTest {
                 "-P:security.csrf.enabled=false",
                 // Without this a live telemetry sampler would run against the SHARED container (TestEnvironment.configureApp sets it too).
                 "-P:telemetry.enabled=false",
+                "-P:sync.scheduler.enabled=false",
                 "-P:http.behindProxy=true",
                 "-P:security.rateLimit.loginPerMinute=10",
             ),
