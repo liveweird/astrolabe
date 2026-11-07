@@ -30,7 +30,8 @@ val DeviationViewServiceKey = AttributeKey<DeviationViewService>("DeviationViewS
  * AFTER the bindings are computed (they only feed the connections' `status`). It takes no lock, writes nothing and moves no revision
  * (observations are not plan state). Reads `jira_connections`, `jira_bindings`, `jira_observations`, `sync_runs`, the plan's tree
  * (names, the owner columns of the stream, program and project for `can.acknowledge`) and `milestones` ⋈ `teams`, `users` and `people`
- * (`creatorsOf`: who acknowledged) and `public_holidays` (`persistence.md`).
+ * (`creatorsOf`: who acknowledged), `public_holidays` and - for the 1.4 coverage inputs ([loadCoverage]) - `jira_issues`, the plan's
+ * `projects`/`milestones` children and the bindings again (`persistence.md`).
  *
  * [clock] is the view's "today" (`asOf`, a UTC date) and the age of the newest run; [maxItems] the cap (a test lowers it). The
  * computation itself ([computeInTransaction]) runs in whatever transaction the caller holds, which is how the acknowledge (1.3)
@@ -97,8 +98,9 @@ class DeviationViewService(
         val nodes = loadNodes(bindings.map { it.ref })
         val live = bindings.filter { it.ref in nodes }
         val creators = creatorsOf(live.mapNotNull { it.ack?.byUserId })
+        val facts = connections.associateBy { it.id }
         val world = World(
-            connections.associateBy { it.id }, nodes, loadDerivedSpans(nodes.values), loadBoundTo(scope, live),
+            facts, nodes, loadDerivedSpans(nodes.values), loadBoundTo(scope, live), loadCoverage(live, facts),
             calendar, asOf, actor, creators,
         )
         return Computed(connections, live.mapNotNull { world.candidate(it, listNotComparable) })

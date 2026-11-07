@@ -105,9 +105,14 @@ class TimelineJiraFlagsTest {
                 val link = assertNotNull(row.jira)
                 assertEquals(listOf(b.projectBinding, b.c), listOf(link.bindingId, link.connectionId))
                 assertNull(link.start, "no dates observed on the project")
-                assertEquals(listOf(rollUp.kind, FlagKind.JIRA_DEVIATION), row.flags.map { it.kind }, "WARNING first")
+                val kinds = listOf(rollUp.kind, FlagKind.JIRA_DEVIATION, FlagKind.JIRA_DEVIATION)
+                assertEquals(kinds, row.flags.map { it.kind }, "WARNING first")
                 assertEquals(rollUp, row.flags.first(), "ONE roll-up, never a flag per milestone: 3 of 5 milestones raise")
-                assertEquals(listOf(DeviationKind.RENAMED to FlagSeverity.INFO), row.flags.drop(1).shape())
+                assertEquals(
+                    listOf(DeviationKind.RENAMED to FlagSeverity.INFO, DeviationKind.UNLINKED_IN_PLAN to FlagSeverity.INFO),
+                    row.flags.drop(1).shape(),
+                    "its own RENAMED and the 1.4 coverage of the unbound milestone",
+                )
             }
             val unbound = b.client.roadmap().row(b.otherProject)
             assertNull(unbound.jira)
@@ -123,9 +128,9 @@ class TimelineJiraFlagsTest {
         val b = world("tjf2")
         val view = b.client.programs()
         val program = view.workStreams.flatMap { it.programs }.single { p -> p.projects.any { it.id == b.w.projectId } }
-        assertEquals(2, program.projects.single { it.id == b.w.projectId }.flags.size)
+        assertEquals(3, program.projects.single { it.id == b.w.projectId }.flags.size)
         assertEquals(1, program.flags.warnings, "the roll-up's WARNING")
-        assertEquals(1, program.flags.infos, "the project's own RENAMED")
+        assertEquals(2, program.flags.infos, "the project's own RENAMED and UNLINKED_IN_PLAN (its unbound milestone)")
         val stream = view.workStreams.single { s -> s.programs.any { it.id == program.id } }
         assertEquals(program.flags, stream.flags)
     }
@@ -188,11 +193,11 @@ class TimelineJiraFlagsTest {
         val flagged = b.client.rawJson("/api/v1/views/roadmap").jsonObject.getValue("unranked").jsonArray
             .map { it.jsonObject }.single { it.getValue("id").toString() == b.w.projectId.toString() }
         val flags = flagged.getValue("flags").jsonArray.map { it.jsonObject }
-        fun ofKind(kind: String) = flags.single { it.getValue("kind").toString() == "\"$kind\"" }
-        val flag = ofKind("JIRA_MILESTONES")
+        fun ofKind(kind: String) = flags.filter { it.getValue("kind").toString() == "\"$kind\"" }
+        val flag = ofKind("JIRA_MILESTONES").single()
         assertEquals(JsonNull, flag.getValue("deviation"))
         assertEquals("3", flag.getValue("count").toString())
-        val deviation = ofKind("JIRA_DEVIATION")
+        val deviation = ofKind("JIRA_DEVIATION").first() // several are legitimate: RENAMED and the 1.4 UNLINKED_IN_PLAN
         assertEquals(JsonNull, deviation.getValue("count"))
         assertTrue(deviation.getValue("deviation") is JsonObject)
     }

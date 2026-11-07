@@ -1414,7 +1414,10 @@ export interface paths {
          *     binding covers on this or another active connection of the same site; `jira` lists their keys); `UNLINKED_IN_PLAN` (INFO,
          *     programs and projects: the node's direct plan children that have no binding; `plan` lists their names); `CHILDREN_DONE` (INFO,
          *     milestones: the bound epic has children, all of them done, while the epic itself is not DONE and the plan's end is after `asOf`;
-         *     `jira` = `done/children`, `plan` = the end date). Each kind sorts after the older ones within its severity.
+         *     `jira` = `done/children`, `plan` = the end date). Each kind sorts after the older ones within its severity. A milestone
+         *     item also carries the roll-up itself as `jira.rollup` (`JiraRollup`: children, done, story points, newest observation), null
+         *     while the epic has no mirrored child. The Jira KEYS of unbound items (never a summary) are therefore visible to every reader of
+         *     this view, like the plan names beside them.
          *
          *     Filters, all equality, a repeated key or a malformed value a `400`: `connectionId`, `level`, `workStreamId`, `programId`
          *     (the program, its projects and milestones), `projectId` (the project and its milestones), `teamId` (milestones), `severity` and
@@ -3991,7 +3994,30 @@ export interface components {
             teamId: number | null;
             teamName: string | null;
         };
-        /** @description Jira's side as last observed; everything after `url` is null for a binding never observed. */
+        /** @description An epic's children as the last census holds them (1.4): the non-sub-task Jira issues at the child level (the milestone mapping's hierarchy level minus one, never below 0) whose parent is the bound issue. Read from the mirror the sync run keeps, never from Jira at request time; absent (null where it is a member) while the issue has no mirrored child. */
+        JiraRollup: {
+            /**
+             * Format: int32
+             * @description The children counted.
+             */
+            children: number;
+            /**
+             * Format: int32
+             * @description How many of them are in a `done` status category (at most `children`).
+             */
+            done: number;
+            /**
+             * Format: double
+             * @description The sum of the children's story points (the discovery's story-points field, unit points, never converted to man-days); null when no child carries a value.
+             */
+            points: number | null;
+            /**
+             * Format: int64
+             * @description Epoch millis of the newest observation of any counted child.
+             */
+            observedAt: number;
+        };
+        /** @description Jira's side as last observed; everything after `url` is null for a binding never observed (`rollup` also for a binding that is not a milestone or whose issue has no mirrored child). */
         DeviationJira: {
             issueId: string;
             key: string;
@@ -4020,6 +4046,7 @@ export interface components {
             /** Format: int64 */
             observedAt: number | null;
             gone: boolean;
+            rollup: components["schemas"]["JiraRollup"] | null;
         };
         /** @description The plan's side. `start`/`end` are the dates compared: a milestone's stored dates, a project's or program's derived span (then equal to `spanStart`/`spanEnd`, which are null for a milestone). */
         DeviationPlan: {

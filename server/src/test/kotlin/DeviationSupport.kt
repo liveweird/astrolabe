@@ -1,5 +1,6 @@
 package ch.nokillswit
 
+import ch.nokillswit.jira.CensusIssue
 import ch.nokillswit.jira.DeviationItem
 import ch.nokillswit.jira.DeviationView
 import ch.nokillswit.jira.DiscoveredIssueType
@@ -12,7 +13,9 @@ import ch.nokillswit.jira.JiraEstimateUnit
 import ch.nokillswit.jira.JiraLevel
 import ch.nokillswit.jira.JiraLevelMapping
 import ch.nokillswit.jira.JiraMapping
+import ch.nokillswit.jira.JiraIssueStore
 import ch.nokillswit.jira.JiraMappingLevels
+import ch.nokillswit.jira.JiraStatusCategory
 import ch.nokillswit.jira.toStoredJson
 import ch.nokillswit.planning.DeviationKind
 import io.ktor.client.HttpClient
@@ -155,3 +158,20 @@ fun DeviationView.byBinding(): Map<UInt, DeviationItem> = items.associateBy { it
 
 /** The kinds an item lists, as a set. */
 fun DeviationItem.kindSet(): Set<DeviationKind> = deviations.map { it.kind }.toSet()
+
+/**
+ * One census mirror row of [connectionId] (the run's `jira_issues`, written through the store the run uses): issue [id] with key `COV-[id]`
+ * at hierarchy [level] under [parent], in a [status] category, with [points] (a plain decimal) or none.
+ */
+suspend fun dvMirror(
+    connectionId: UInt,
+    id: String,
+    level: Int,
+    parent: String?,
+    status: JiraStatusCategory = JiraStatusCategory.TODO,
+    points: String? = null,
+    observedAt: Long = 5_000L,
+) {
+    val row = CensusIssue(id, "COV-$id", "10004", level, parent, "Summary of $id", status, points?.let(::BigDecimal), null, observedAt)
+    assertEquals(1, JiraIssueStore(sharedDatabaseForTests()).upsert(connectionId, listOf(row)))
+}

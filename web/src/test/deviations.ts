@@ -64,6 +64,7 @@ export function item(over: Partial<DeviationItem> = {}): DeviationItem {
       teamName: null,
       observedAt: OBSERVED_AT,
       gone: false,
+      rollup: null,
     },
     plan: { start: "2044-03-01", end: "2044-03-07", estimateMd: 5, targetStart: null, targetEnd: null, spanStart: null, spanEnd: null },
     deviations: [endLater(3)],

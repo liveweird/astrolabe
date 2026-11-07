@@ -110,7 +110,7 @@ read "2"). The stub's own figure for its E2E data (`endLaterWorkingDays: 3`) is 
 The sixth scenario of the serial group, and the second user of the `jira-day2` flip. Its world (the usual per-test one, dated 2044): one milestone scheduled Sun
 2044-02-14 to **Tue 2044-02-23** and linked (through the API, as the setup) to `E2E-6` (Sun 02-14 to Thu 02-18: three working days later, Fri 19, Mon 22, Tue 23), and its project linked
 to `E2E-2` "E2E Initiative Alpha" (2044-01-04 to 02-18, `E2E-6`'s own parent in Jira, so there is no parent mismatch), whose dates the project's derived span misses at both ends.
-It spends no Test connection call (the shared `linking` connection is already tested).
+It spends no Test connection call (the shared `linking` connection is already tested). Since 1.4 the `E2E-2` project binding also raises an `UNLINKED_IN_JIRA` warning (the open epics `E2E-4` and `E2E-5` under it that no milestone is linked to).
 
 1. The project owner (no administrator right) opens the project page.
    - *Expected*: a **Flags** column; the milestone row's key link "E2E-6 (opens in Jira)" and its flag icon, whose label reads "Jira E2E-6: Ends 3 working days later than

@@ -119,12 +119,12 @@ class DeviationViewTest {
         assertEquals(setOf(DeviationKind.ESTIMATE_DIFFERS), kinds(estimate))
         assertEquals(setOf(DeviationKind.PROGRESS_MISMATCH), kinds(progress))
         assertEquals(
-            setOf(DeviationKind.START_DIFFERS, DeviationKind.TARGET_DIFFERS), kinds(projectBinding),
-            "a project: derived span and target window",
+            setOf(DeviationKind.START_DIFFERS, DeviationKind.TARGET_DIFFERS, DeviationKind.UNLINKED_IN_PLAN), kinds(projectBinding),
+            "a project: derived span and target window, and its unbound milestone (1.4)",
         )
         assertEquals(
-            setOf(DeviationKind.START_DIFFERS, DeviationKind.END_DIFFERS), kinds(programBinding),
-            "a program: the derived span of its projects",
+            setOf(DeviationKind.START_DIFFERS, DeviationKind.END_DIFFERS, DeviationKind.UNLINKED_IN_PLAN), kinds(programBinding),
+            "a program: the derived span of its projects, and its unbound project (1.4)",
         )
         listOf(notComparable, clean, scoped).forEach { assertTrue(it !in items, "not listed by default") }
 
@@ -150,8 +150,9 @@ class DeviationViewTest {
         assertEquals(n.team, items.getValue(dates).node.teamId)
         assertEquals(w.projectId, items.getValue(dates).node.projectId)
 
-        // Totals count the filtered bindings' deviations: 7 warnings, 7 infos over 11 bindings, 1 gone.
-        assertEquals(listOf(7, 7, 11, 1), view.totals.let { listOf(it.warnings, it.infos, it.bindings, it.gone) })
+        // Totals count the filtered bindings' deviations: 7 warnings, 9 infos (two are the 1.4 UNLINKED_IN_PLAN of the project and the
+        // program) over 11 bindings, 1 gone.
+        assertEquals(listOf(7, 9, 11, 1), view.totals.let { listOf(it.warnings, it.infos, it.bindings, it.gone) })
         assertTrue(!view.truncated)
 
         // `all=true` adds the clean bindings and ESTIMATE_NOT_COMPARABLE; `kind=` naming it lists it without `all`.

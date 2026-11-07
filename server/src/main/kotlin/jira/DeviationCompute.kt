@@ -48,6 +48,8 @@ internal class Candidate(
     val all: List<Deviation>,
     val shown: List<Deviation>,
     val currentAck: Boolean,
+    /** The epic's census roll-up (milestone bindings; null = none): what the timeline fold carries onto the link. */
+    val rollup: ChildRollup?,
 ) {
     val open: Boolean get() = shown.isNotEmpty() && !currentAck
 
@@ -95,6 +97,7 @@ internal class World(
     val nodes: Map<PlanRef, NodeRow>,
     val spans: Map<PlanRef, DaySpan>,
     private val boundTo: Map<Pair<UInt, String>, PlanRef>,
+    private val coverage: Coverage,
     val calendar: WorkingCalendar,
     val asOf: LocalDate,
     private val actor: PlanActor?,
@@ -107,6 +110,8 @@ internal class World(
         val plan = planSide(node, span, connection.levels?.keys)
         val stored = row.observation
         val parentIssueId = stored?.issue?.parentIssueId
+        // A gone issue raises GONE alone and its children are stale with it: no roll-up beside it.
+        val rollup = coverage.rollups[row.id]?.takeUnless { stored?.issue?.gone == true }
         val all = JiraDeviationKernels.deviations(
             level = row.ref.level,
             issue = stored?.issue,
@@ -115,6 +120,8 @@ internal class World(
             parentBoundTo = parentIssueId?.let { boundTo[row.connectionId to it] },
             calendar = calendar,
             asOf = asOf,
+            rollup = rollup,
+            unlinked = coverage.unlinked[row.id],
         )
         val shown = if (listNotComparable) all else all.filter { it.kind != DeviationKind.ESTIMATE_NOT_COMPARABLE }
         val fingerprint = fingerprintOf(all)
@@ -124,7 +131,7 @@ internal class World(
             connectionId = row.connectionId,
             level = row.ref.level,
             node = node.toWire(),
-            jira = row.toJira(connection.siteUrl),
+            jira = row.toJira(connection.siteUrl, rollup),
             plan = DeviationPlan(
                 start = plan.start?.toString(),
                 end = plan.end?.toString(),
@@ -139,7 +146,7 @@ internal class World(
             acknowledgement = ack,
             can = DeviationCan(acknowledge = actor?.let { PlanPermissions.canManage(it, node.chain) } == true),
         )
-        return Candidate(item, node, row.id, all, shown, currentAck = ack?.current == true)
+        return Candidate(item, node, row.id, all, shown, currentAck = ack?.current == true, rollup = rollup)
     }
 
     /**
@@ -189,7 +196,7 @@ private fun NodeRow.toWire() = DeviationNode(
     teamName = teamName,
 )
 
-private fun BindingRow.toJira(siteUrl: String): DeviationJira {
+private fun BindingRow.toJira(siteUrl: String, rollup: ChildRollup?): DeviationJira {
     val seen = observation
     val issue = seen?.issue
     return DeviationJira(
@@ -209,5 +216,6 @@ private fun BindingRow.toJira(siteUrl: String): DeviationJira {
         teamName = seen?.teamName,
         observedAt = seen?.observedAt,
         gone = issue?.gone == true,
+        rollup = rollup?.toWire(),
     )
 }

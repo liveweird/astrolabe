@@ -275,4 +275,28 @@ class JiraAcknowledgeTest {
         f.w.admin.client.unack(binding)
         assertEquals(revision, TestPlan.revision(), "an acknowledgement is not plan state")
     }
+
+    @Test
+    fun `a coverage deviation is acknowledged and reopens when a new unbound epic appears in the census`() = testApplication {
+        val f = fixture("ack10")
+        val admin = f.w.admin.client
+        val project = TestPlan.project(f.w.programId, f.w.projectOwner.personId!!)
+        val name = TestPlan.scalar("SELECT name FROM projects WHERE id = $project") { it.getString(1) }
+        val binding = dvBind(f.connectionId, JiraLevel.PROJECT, project, "80001", "ACK-80001", DvObs(name, 2))
+        assertTrue(admin.ackItem(f.connectionId, binding).deviations.isEmpty(), "a clean project, nothing under it")
+        dvMirror(f.connectionId, "80002", level = 1, parent = "80001")
+
+        val item = admin.ackItem(f.connectionId, binding)
+        assertEquals(setOf(ch.nokillswit.planning.DeviationKind.UNLINKED_IN_JIRA), item.kindSet())
+        assertEquals(binding, admin.ack(binding, item.fingerprint).acknowledgement().bindingId, "the write recomputes the very same list")
+        assertTrue(assertNotNull(admin.ackItem(f.connectionId, binding).acknowledgement).current)
+        assertTrue(admin.dvView("connectionId=${f.connectionId}").items.none { it.bindingId == binding }, "acknowledged: not open")
+
+        dvMirror(f.connectionId, "80003", level = 1, parent = "80001")
+        val reopened = admin.ackItem(f.connectionId, binding)
+        assertEquals(false, assertNotNull(reopened.acknowledgement).current, "a new unplanned epic changes the list")
+        assertTrue(reopened.fingerprint != item.fingerprint)
+        assertTrue(admin.dvView("connectionId=${f.connectionId}").items.any { it.bindingId == binding }, "and the item is open again")
+        assertEquals(HttpStatusCode.Conflict, admin.ack(binding, item.fingerprint).status, "the old fingerprint is stale now")
+    }
 }

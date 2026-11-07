@@ -50,11 +50,15 @@ class ConnectionLedger {
 
     fun track(id: UInt): UInt = id.also { ids += it }
 
-    /** The connection delete's effect (D2: no active binding on a deleted connection): bindings unbound, runs gone, then the connection. */
+    /**
+     * The connection delete's effect (D2: no active binding on a deleted connection): bindings unbound, runs and census mirror gone, then
+     * the connection.
+     */
     fun drop() {
         ids.forEach { id ->
             jbSql("UPDATE jira_bindings SET marked_as_deleted = TRUE WHERE connection_id = ?", id.toInt())
             jbSql("DELETE FROM sync_runs WHERE connection_id = ?", id.toInt())
+            jbSql("DELETE FROM jira_issues WHERE connection_id = ?", id.toInt())
             jbSql("UPDATE jira_connections SET marked_as_deleted = TRUE WHERE id = ?", id.toInt())
         }
         ids.clear()

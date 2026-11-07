@@ -82,7 +82,8 @@ data class DeviationNode(
 
 /**
  * Jira's side as last observed. Everything after [url] is null for a binding never observed (none exists normally: the bind writes the
- * first observation). Dates are ISO; [estimate] is in [estimateUnit]; [observedAt] is epoch millis.
+ * first observation). Dates are ISO; [estimate] is in [estimateUnit]; [observedAt] is epoch millis. [rollup] is always present, null =
+ * none.
  */
 @Serializable
 data class DeviationJira(
@@ -102,7 +103,16 @@ data class DeviationJira(
     val teamName: String?,
     val observedAt: Long?,
     val gone: Boolean,
+    val rollup: DeviationRollup?,
 )
+
+/**
+ * An epic's children as the census holds them (1.4): the non-sub-task issues at the child level under the bound issue. [points] is the
+ * discovery's story-points sum, never converted (null when no child carries a value); [observedAt] the newest observation of any child.
+ * Null on [DeviationJira] while the issue has no mirrored child, and for every non-milestone binding.
+ */
+@Serializable
+data class DeviationRollup(val children: Int, val done: Int, val points: Double?, val observedAt: Long)
 
 /**
  * The plan's side. [start] and [end] are the dates the deviations compared: a milestone's stored dates, a project's or program's derived
