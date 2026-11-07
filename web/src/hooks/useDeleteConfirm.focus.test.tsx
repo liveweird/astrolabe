@@ -137,6 +137,18 @@ describe("useDeleteConfirm focus after a successful delete", () => {
       expect(els.heading).not.toHaveFocus();
     });
 
+    test("the end of the exit is reported while the focus is still in the leaving dialog: the kebab takes it once the dialog is gone", async () => {
+      const els = scaffold();
+      const hook = mount("heading", () => Promise.resolve());
+      cancelFromMenu(hook, els);
+      // Mantine reports the end first; the dialog leaves the DOM later, in a commit of its own that renders nothing of the page.
+      act(() => hook.current.onExited());
+      await new Promise((resolve) => setTimeout(resolve, 60));
+      expect(els.inside).toHaveFocus();
+      els.inside.remove();
+      await waitFor(() => expect(els.kebab).toHaveFocus());
+    });
+
     test("the kebab is gone (its row left): the heading takes it", async () => {
       const els = scaffold();
       const hook = mount("heading", () => Promise.resolve());

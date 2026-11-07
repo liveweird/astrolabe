@@ -4,6 +4,10 @@ import { useMutation, type UseMutationResult } from "@tanstack/react-query";
 import { takeMenuTrigger } from "../utils/menuOpener";
 import { showSuccessToast } from "../utils/toast";
 
+/** How long `onExited` keeps waiting for the closed dialog to leave the DOM: 20 looks, 25 ms apart (half a second). */
+const EXIT_RETRIES = 20;
+const EXIT_RETRY_MS = 25;
+
 export type DeleteConfirm<T> = {
   target: T | null;
   opened: boolean;
@@ -25,7 +29,7 @@ export type DeleteConfirm<T> = {
  * top of the document). So the focus goes to `focusAfterDelete` (the page's heading, or the section's), or - pass `null` - nowhere because the
  * page navigates away and `useFocusMainOnNavigation` owns the focus (the hook is unmounted with the page, so the two never fight; navigation wins).
  * The order of the three events (the modal closing, Mantine returning the focus to the kebab 10 ms later, the refetch removing the row) is
- * not fixed, so the target is tried at every render and once more when the modal has finished closing (`onExited`), by one rule:
+ * not fixed, so the target is tried at every render and again when the modal has finished closing (`onExited`, which keeps looking every 25 ms for up to half a second while the leaving dialog still holds the focus, then drops the move), by one rule:
  * the active element is `body` -> focus the target; it is inside a dialog (the modal is still fading) -> wait; anywhere else (the user, or
  * Mantine, put it somewhere real) -> leave it. A failed delete never arms this: the modal stays open with its error and the focus in it.
  *
@@ -52,22 +56,26 @@ export function useDeleteConfirm<T>({
   const pending = useRef<"deleted" | "cancelled" | null>(null);
   const opener = useRef<HTMLElement | null>(null);
 
-  const settleFocus = () => {
+  /** Settles the pending focus move; true while it still waits for the focus to leave a dialog. */
+  const settleFocus = (): boolean => {
     const reason = pending.current;
-    if (reason === null) return;
+    if (reason === null) return false;
     const active = document.activeElement;
-    if (active !== null && active !== document.body && active.closest('[role="dialog"]') !== null) return;
+    if (active !== null && active !== document.body && active.closest('[role="dialog"]') !== null) return true;
     pending.current = null;
-    if (active !== null && active !== document.body) return;
+    if (active !== null && active !== document.body) return false;
     if (reason === "cancelled" && opener.current?.isConnected) {
       opener.current.focus();
-      return;
+      return false;
     }
     // The heading is at the top of the page: after a delete far down a long list the viewer's place must not jump there.
     focusAfterDelete?.current?.focus({ preventScroll: true });
+    return false;
   };
   // Every render, after the DOM is committed (the useRowMenuFocus idiom): the refetch that removes the row is such a render.
-  useEffect(settleFocus);
+  useEffect(() => {
+    settleFocus();
+  });
 
   const mutation = useMutation({
     mutationFn,
@@ -98,9 +106,18 @@ export function useDeleteConfirm<T>({
     if (target) mutation.mutate(target);
   }
 
-  // Mantine reports the end of the exit transition just before the dialog leaves the DOM: look after the commit.
+  // Mantine reports the end of the exit transition just before the dialog leaves the DOM, and that removal is a commit of Mantine's own
+  // component, not of the page, so no render of ours follows it. Look after it, and keep looking for a moment while the focus is still in
+  // the leaving dialog: under load the removal can come later than one macrotask, and the focus would otherwise be left on body.
   function onExited() {
-    window.setTimeout(settleFocus, 0);
+    let tries = 0;
+    const attempt = () => {
+      if (!settleFocus()) return;
+      if (++tries < EXIT_RETRIES) window.setTimeout(attempt, EXIT_RETRY_MS);
+      // The dialog never let go of the focus: drop the move, so a much later render cannot take a focus the user has put on body by then.
+      else pending.current = null;
+    };
+    window.setTimeout(attempt, 0);
   }
 
   return { target, opened, requestDelete, cancelDelete, confirmDelete, onExited, mutation };

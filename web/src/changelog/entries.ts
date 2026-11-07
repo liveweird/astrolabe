@@ -17,6 +17,18 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.2.1",
+    date: "2026-11-07",
+    en: `**Astrolabe 1.2.1: a keyboard fix.**
+
+- Closing a delete dialog with Escape (or Cancel) now reliably gives the focus back to the row's menu button that opened it. Before, on a busy computer the focus could occasionally end at the top of the page instead.
+- Under the hood: Java 21.0.13 and updated libraries, among them a Netty release with security fixes.`,
+    pl: `**Astrolabe 1.2.1: poprawka obsługi klawiatury.**
+
+- Zamknięcie okna usuwania klawiszem Escape (lub przyciskiem Anuluj) niezawodnie oddaje teraz fokus przyciskowi menu wiersza, który je otworzył. Wcześniej na obciążonym komputerze fokus czasem trafiał zamiast tego na początek strony.
+- Pod spodem: Java 21.0.13 i zaktualizowane biblioteki, w tym wydanie Netty z poprawkami bezpieczeństwa.`,
+  },
+  {
     version: "1.2.0",
     date: "2026-11-07",
     en: `**Astrolabe 1.2.0: import from Jira.**
