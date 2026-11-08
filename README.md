@@ -35,7 +35,7 @@ Astrolabe's repository started as an exact copy of [Flow](https://github.com/liv
 ## Roadmap
 
 0.1.0 the foundation · 0.2.0 plan structure · 0.3.0 the timeline and the project view · 0.4.0 dependencies · 0.5.0 the team view
-and capacity (shipped) · 0.6.0 roadmap and programs timelines (shipped) · 0.7.0 calendar and critical path (shipped) · 0.8.0 auto-proposal (shipped) · 0.9.0 baselines (shipped) · 1.0.0 checkup (shipped) · 1.1.0 Jira connection, bindings and deviations (shipped) · 1.2.0 import from Jira (shipped) · 1.3.0 polling, status, acknowledge and markers (shipped) · 1.4.0 coverage and roll-ups (shipped) · 1.5.0 Flow teams, capacity and roster (built, not yet released). The scope of each version and the decisions
+and capacity (shipped) · 0.6.0 roadmap and programs timelines (shipped) · 0.7.0 calendar and critical path (shipped) · 0.8.0 auto-proposal (shipped) · 0.9.0 baselines (shipped) · 1.0.0 checkup (shipped) · 1.1.0 Jira connection, bindings and deviations (shipped) · 1.2.0 import from Jira (shipped) · 1.3.0 polling, status, acknowledge and markers (shipped) · 1.4.0 coverage and roll-ups (shipped) · 1.5.0 Flow teams, capacity and roster (shipped). The scope of each version and the decisions
 behind it: `.claude/docs/product.md`; open items: `BACKLOG.md`. `CLAUDE.md`'s "Product" and "Donors" sections say which sibling project each capability ports from.
 
 ## The stack
