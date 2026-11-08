@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
-import { Alert, Badge, Button, Group, Loader, Stack, Text, Title, VisuallyHidden } from "@mantine/core";
-import { IconCalendarStats, IconPencil, IconRestore, IconWand } from "@tabler/icons-react";
+import { Alert, Badge, Button, Group, Stack, Text } from "@mantine/core";
+import { IconCalendarStats, IconRestore, IconWand } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "../api/http";
 import type { TeamMilestone, TeamView } from "../api/teams";
@@ -10,14 +10,17 @@ import { useAdmin } from "../auth";
 import BaselineMovement from "../components/BaselineMovement";
 import { PickedLoadState } from "../components/BaselineParts";
 import BaselinePicker from "../components/BaselinePicker";
-import ConfirmActionModal from "../components/ConfirmActionModal";
 import EmptyState from "../components/EmptyState";
 import ErrorAlert from "../components/ErrorAlert";
 import FormErrorAlert from "../components/FormErrorAlert";
 import MilestoneScheduleModal from "../components/MilestoneScheduleModal";
-import PageHeader from "../components/PageHeader";
 import TeamCapacity from "../components/TeamCapacity";
 import TeamEditorModal from "../components/TeamEditorModal";
+import TeamPageHeader from "../components/TeamPageHeader";
+import TeamResetConfirm from "../components/TeamResetConfirm";
+import TeamViewNotices from "../components/TeamViewNotices";
+import TimelineTitle from "../components/TimelineTitle";
+import UnscheduledTraySection from "../components/UnscheduledTraySection";
 import TeamFlowSection from "../components/TeamFlowSection";
 import TeamProposal from "../components/TeamProposal";
 import JiraBarsToggle from "../components/JiraBarsToggle";
@@ -42,6 +45,7 @@ import { conflictCountOf } from "../utils/dependencyArrows";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { loadErrorMessage } from "../utils/saveError";
 import { outcomeSentence, proposalDays } from "../utils/scheduleProposal";
+import { growSeenRange, type SeenRange } from "../utils/seenRange";
 import { teamsPath } from "../utils/teamLinks";
 import { dropOutcome } from "../utils/timelineDrag";
 import { defaultRange, makeScale, MILESTONE_ZOOMS, toEpochDay, type Zoom } from "../utils/timelineScale";
@@ -251,7 +255,7 @@ function TeamPage({ id }: { id: number }) {
   useDialogFocus(scheduling !== null);
   const [confirmReset, setConfirmReset] = useState(false);
   // The earliest and latest day this page has shown: the range only ever grows, so a drag never shifts the bars under the pointer.
-  const [seen, setSeen] = useState<{ min: string; max: string } | null>(null);
+  const [seen, setSeen] = useState<SeenRange | null>(null);
   // "Today" is the viewer's own calendar day (their local date), not UTC: the today line and the Schedule button agree with their wall calendar.
   const today = localIsoDate();
 
@@ -281,11 +285,8 @@ function TeamPage({ id }: { id: number }) {
   );
   // The Jira window (the plan's own dates padded by a year) bounds the shadow bars and what they add to the range: a mistyped Jira date cannot stretch the page.
   const { window: jiraWindowNow, dates } = jiraPageRange(jiraBars.shown, planDates, view.scheduled, today);
-  if (dates.length > 0) {
-    const min = dates.reduce((a, b) => (b < a ? b : a));
-    const max = dates.reduce((a, b) => (b > a ? b : a));
-    if (seen === null || min < seen.min || max > seen.max) setSeen({ min: seen !== null && seen.min < min ? seen.min : min, max: seen !== null && seen.max > max ? seen.max : max });
-  }
+  const grown = growSeenRange(seen, dates);
+  if (grown !== null) setSeen(grown);
   const scale = makeScale(zoom, defaultRange(seen === null ? [] : [seen.min, seen.max], today, zoom));
 
   // The schedule and the order are read-only while locked: every entry point (menu, tray, dialog, drag, Reset) refuses out loud instead.
@@ -319,61 +320,12 @@ function TeamPage({ id }: { id: number }) {
 
   return (
     <Stack gap="md">
-      <PageHeader
-        title={team.name}
-        description={
-          <>
-            {team.description && (
-              <Text span display="block">
-                {team.description}
-              </Text>
-            )}
-            <Text span display="block">
-              {team.managerName ? t("teams.managerLine", { name: team.managerName }) : t("teams.noManager")}
-            </Text>
-          </>
-        }
-        backTo={{ to: teamsPath, label: t("teams.backToTeams") }}
-        actions={
-          admin && (
-            <Button variant="default" leftSection={<IconPencil size={16} />} onClick={() => setEditing(true)}>
-              {t("common.action.edit")}
-            </Button>
-          )
-        }
-      />
+      <TeamPageHeader team={team} admin={admin} onEdit={() => setEditing(true)} />
       <TeamFacts view={view} />
       <TeamJiraChip teamId={id} marks={teamMarks(view)} />
 
       {query.isError && <ErrorAlert error={query.error} title={t("teams.view.loadFailed")} />}
-      {/* The notices below are visible only: the status region below says them (an Alert's implicit role="alert" would read each twice). */}
-      {(schedule.refused || order.refused || proposal.refused) && (
-        <Alert color="orange" variant="light" role="note">
-          {t("project.busy")}
-        </Alert>
-      )}
-      {lock.refused && (
-        <Alert color="orange" variant="light" role="note">
-          {open !== null ? t("teams.proposal.readOnly") : t("project.busy")}
-        </Alert>
-      )}
-      {schedule.gone && (
-        <Alert color="orange" variant="light" role="note">
-          {t("project.milestoneGone")}
-        </Alert>
-      )}
-      {order.stale && (
-        <Alert color="orange" variant="light" role="note">
-          {t("teams.view.orderStale")}
-        </Alert>
-      )}
-      {schedule.stale && <FormErrorAlert>{t("project.stale")}</FormErrorAlert>}
-      {schedule.error && <FormErrorAlert>{schedule.error}</FormErrorAlert>}
-      {order.error && <FormErrorAlert>{order.error}</FormErrorAlert>}
-      {/* Button- and dialog-driven changes (schedule, order) are announced here (a drag is announced by dnd-kit's own live region). */}
-      <VisuallyHidden role="status" aria-live="polite">
-        {schedule.announcement}
-      </VisuallyHidden>
+      <TeamViewNotices schedule={schedule} order={order} proposal={proposal} lock={lock} />
 
       {milestoneCount === 0 ? (
         <EmptyState icon={IconCalendarStats} label={t("teams.view.noMilestones")} hint={t("teams.view.noMilestonesHint")} />
@@ -385,19 +337,7 @@ function TeamPage({ id }: { id: number }) {
         >
           <Stack gap="xs">
             <Group gap="sm" align="center" justify="space-between">
-              <Group gap="sm" align="center">
-                <Title order={3} size="h4">
-                  {t("teams.view.timelineTitle")}
-                </Title>
-                {writing && (
-                  <Group gap={6} role="status">
-                    <Loader size="xs" />
-                    <Text size="sm" c="dimmed">
-                      {t("project.saving")}
-                    </Text>
-                  </Group>
-                )}
-              </Group>
+              <TimelineTitle title={t("teams.view.timelineTitle")} saving={writing} />
               <TimelineButtons view={view} proposal={proposal} busy={busy} proposeRef={proposeRef} onReset={() => setConfirmReset(true)} />
             </Group>
             <ProposalNotes proposal={proposal} />
@@ -434,17 +374,9 @@ function TeamPage({ id }: { id: number }) {
               error={proposal.error}
             />
           )}
-          <Stack gap="xs">
-            <Title order={3} size="h4">
-              {t("project.unscheduledTitle")}
-            </Title>
-            {view.unscheduled.length > 0 && (
-              <Text size="sm" c="dimmed">
-                {team.can.schedule ? t("project.trayIntro") : t("project.trayIntroReadOnly")}
-              </Text>
-            )}
+          <UnscheduledTraySection hasItems={view.unscheduled.length > 0} canSchedule={team.can.schedule}>
             <TeamTray view={view} actions={actions} label={t("teams.view.trayAria")} previewing={open !== null} />
-          </Stack>
+          </UnscheduledTraySection>
         </TimelineDndContext>
       )}
 
@@ -474,25 +406,7 @@ function TeamPage({ id }: { id: number }) {
           onClose={() => setScheduling(null)}
         />
       )}
-      <ConfirmActionModal
-        opened={confirmReset && !locked}
-        onClose={() => setConfirmReset(false)}
-        title={t("teams.view.resetTitle")}
-        message={
-          <>
-            {t("teams.view.resetBody")}
-            {order.refused && (
-              <Text span display="block" mt="xs" role="alert">
-                {t("project.busy")}
-              </Text>
-            )}
-          </>
-        }
-        cancelLabel={t("common.action.cancel")}
-        confirmLabel={t("teams.view.action.resetConfirm")}
-        onConfirm={resetOrder}
-        confirmColor="astrolabe"
-      />
+      <TeamResetConfirm opened={confirmReset && !locked} refused={order.refused} onClose={() => setConfirmReset(false)} onConfirm={resetOrder} />
     </Stack>
   );
 }

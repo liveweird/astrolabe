@@ -1,11 +1,10 @@
 import { useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Alert, Badge, Button, Group, Loader, Stack, Text, Title, VisuallyHidden } from "@mantine/core";
-import { IconCalendarStats, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
+import { Badge, Button, Group, Stack, Text } from "@mantine/core";
+import { IconCalendarStats } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
-import type { EndpointRef, ProjectDependency } from "../api/dependencies";
 import { ApiError } from "../api/http";
 import { deleteMilestone, type ProjectMilestone, type ProjectView as ProjectViewDocument } from "../api/milestones";
 import { deleteProject } from "../api/plan";
@@ -14,22 +13,21 @@ import { PickedLoadState } from "../components/BaselineParts";
 import BaselinePicker from "../components/BaselinePicker";
 import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
 import EmptyState from "../components/EmptyState";
-import DependencyEditorModal from "../components/DependencyEditorModal";
 import ErrorAlert from "../components/ErrorAlert";
-import FormErrorAlert from "../components/FormErrorAlert";
-import MilestoneEditorModal from "../components/MilestoneEditorModal";
 import MilestoneScheduleModal from "../components/MilestoneScheduleModal";
-import PageHeader from "../components/PageHeader";
+import ProjectPageHeader from "../components/ProjectPageHeader";
+import ProjectViewNotices from "../components/ProjectViewNotices";
 import CriticalChain from "../components/CriticalChain";
 import IdleGaps from "../components/IdleGaps";
 import JiraBarsToggle from "../components/JiraBarsToggle";
-import JiraBindDialog, { type BindTarget } from "../components/JiraBindDialog";
-import { ProjectJiraButton, ProjectJiraChip } from "../components/JiraChips";
+import { ProjectJiraChip } from "../components/JiraChips";
 import JiraUnlinkModal from "../components/JiraUnlinkModal";
 import ProjectDependencies from "../components/ProjectDependencies";
-import ProjectEditorModal from "../components/ProjectEditorModal";
+import ProjectEditors from "../components/ProjectEditors";
 import ProjectTimeline, { ProjectTray, type MilestoneActions } from "../components/ProjectTimeline";
 import TimelineDndContext from "../components/TimelineDndContext";
+import TimelineTitle from "../components/TimelineTitle";
+import UnscheduledTraySection from "../components/UnscheduledTraySection";
 import { useDeleteConfirm } from "../hooks/useDeleteConfirm";
 import { useBaselinePick, useDropUnknownPick } from "../hooks/useBaselinePick";
 import { useDialogFocus } from "../hooks/useDialogFocus";
@@ -43,6 +41,8 @@ import { localIsoDate } from "../utils/isoDate";
 import { jiraPageRange } from "../utils/jiraBars";
 import { markKey, projectMarks, type JiraMark, type JiraMarks } from "../utils/jiraMarks";
 import { planPath } from "../utils/planLinks";
+import { isJiraEditor, type Editor } from "../utils/projectEditor";
+import { growSeenRange, type SeenRange } from "../utils/seenRange";
 import { conflictCount, linksOfMilestone } from "../utils/projectDependencies";
 import { refreshJiraAndTimelines, refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { loadErrorMessage, saveErrorMessage } from "../utils/saveError";
@@ -51,21 +51,6 @@ import { defaultRange, makeScale, MILESTONE_ZOOMS, toEpochDay, type Zoom } from 
 
 /** The schedule dialog remembers the plan revision of the view it was opened on: its save must stale-409 if THIS milestone moved since. */
 type Scheduling = { milestone: ProjectMilestone; revision: number };
-
-/**
- * `dependency` is the Add dependency dialog; `successor` prefills it (the row menu's shortcut), null = the project itself.
- * `editDependency` is the same dialog on an existing link (type and lag only).
- */
-type Editor =
-  | { kind: "create" }
-  | { kind: "edit"; milestone: ProjectMilestone }
-  | { kind: "project" }
-  | { kind: "dependency"; successor: EndpointRef | null }
-  | { kind: "editDependency"; dependency: ProjectDependency }
-  | { kind: "jira"; target: BindTarget };
-
-/** The bind dialog is open (the connections it offers are asked for only then). */
-const isJiraEditor = (editor: Editor | null): editor is Extract<Editor, { kind: "jira" }> => editor?.kind === "jira";
 
 /** One badge per non-zero drift figure: orange when the project runs LATER than its target (a warning), gray when it is ahead. */
 function driftBadges(drift: NonNullable<ProjectViewDocument["drift"]>, t: TFunction): { key: string; label: string; late: boolean }[] {
@@ -153,7 +138,7 @@ function ProjectPage({ id }: { id: number }) {
   useDialogFocus(editor !== null);
   useDialogFocus(scheduling !== null);
   // The earliest and latest day this page has shown: the range only ever grows, so a drag never shifts the bars under the pointer.
-  const [seen, setSeen] = useState<{ min: string; max: string } | null>(null);
+  const [seen, setSeen] = useState<SeenRange | null>(null);
   // "Today" is the viewer's own calendar day (their local date), not UTC: the today line and the Schedule button agree with their wall calendar.
   const today = localIsoDate();
 
@@ -211,11 +196,8 @@ function ProjectPage({ id }: { id: number }) {
   );
   // The Jira window (the plan's own dates padded by a year) bounds the shadow bars and what they add to the range: a mistyped Jira date cannot stretch the page.
   const { window: jiraWindowNow, dates } = jiraPageRange(jiraBars.shown, planDates, view.scheduled, today);
-  if (dates.length > 0) {
-    const min = dates.reduce((a, b) => (b < a ? b : a));
-    const max = dates.reduce((a, b) => (b > a ? b : a));
-    if (seen === null || min < seen.min || max > seen.max) setSeen({ min: seen !== null && seen.min < min ? seen.min : min, max: seen !== null && seen.max > max ? seen.max : max });
-  }
+  const grown = growSeenRange(seen, dates);
+  if (grown !== null) setSeen(grown);
   const scale = makeScale(zoom, defaultRange(seen === null ? [] : [seen.min, seen.max], today, zoom));
 
   /** The Schedule button: one calendar week from the later of today and the project's target start (the tray's pointer drop uses the same week). */
@@ -272,6 +254,11 @@ function ProjectPage({ id }: { id: number }) {
     closeEditor();
     await refreshQueriesAfterMutation(queryClient, ["plan"], ["roadmap"]);
   };
+  const bound = async () => {
+    closeEditor();
+    // A link is not plan state, but the views carry its flags and bar: the Jira queries and the timeline views are re-read.
+    await refreshJiraAndTimelines(queryClient);
+  };
   const deleteErrors = (error: unknown) =>
     saveErrorMessage(error, t, {
       forbidden: "project.saveForbidden",
@@ -282,87 +269,27 @@ function ProjectPage({ id }: { id: number }) {
 
   return (
     <Stack gap="md">
-      <PageHeader
+      <ProjectPageHeader
         titleRef={titleRef}
-        title={project.name}
-        description={
-          <>
-            {project.description && (
-              <Text span display="block">
-                {project.description}
-              </Text>
-            )}
-            <Text span display="block">
-              {t("project.metaLine", { program: project.programName, workStream: project.workStreamName, owner: project.ownerName })}
-            </Text>
-          </>
-        }
-        backTo={{ to: planPath, label: t("project.backToPlan") }}
-        actions={
-          <>
-            {project.can.createMilestone && (
-              <Button leftSection={<IconPlus size={16} />} onClick={() => setEditor({ kind: "create" })}>
-                {t("project.newMilestone")}
-              </Button>
-            )}
-            {(project.can.edit || project.can.editTargetWindow) && (
-              <Button variant="default" leftSection={<IconPencil size={16} />} onClick={() => setEditor({ kind: "project" })}>
-                {t("common.action.edit")}
-              </Button>
-            )}
-            <ProjectJiraButton
-              project={project}
-              marks={marks}
-              onLink={() => setEditor({ kind: "jira", target: { level: "PROJECT", id: project.id, name: project.name } })}
-              onUnlink={(mark) => requestUnlink(mark, project.name)}
-            />
-            {project.can.delete && (
-              <Button color="red" variant="light" leftSection={<IconTrash size={16} />} onClick={() => removeProject.requestDelete({ id: project.id, name: project.name, milestones: milestoneCount, links: view.dependencies.length })}>
-                {t("common.action.delete")}
-              </Button>
-            )}
-          </>
-        }
+        project={project}
+        marks={marks}
+        onNewMilestone={() => setEditor({ kind: "create" })}
+        onEdit={() => setEditor({ kind: "project" })}
+        onLinkJira={() => setEditor({ kind: "jira", target: { level: "PROJECT", id: project.id, name: project.name } })}
+        onUnlinkJira={(mark) => requestUnlink(mark, project.name)}
+        onDelete={() => removeProject.requestDelete({ id: project.id, name: project.name, milestones: milestoneCount, links: view.dependencies.length })}
       />
       <ProjectFacts view={view} marks={marks} />
 
       {query.isError && <ErrorAlert error={query.error} title={t("project.loadFailed")} />}
-      {/* The two notices below are visible only: the status region below says them (an Alert's implicit role="alert" would read each twice). */}
-      {schedule.refused && (
-        <Alert color="orange" variant="light" role="note">
-          {t("project.busy")}
-        </Alert>
-      )}
-      {schedule.gone && (
-        <Alert color="orange" variant="light" role="note">
-          {t("project.milestoneGone")}
-        </Alert>
-      )}
-      {schedule.stale && <FormErrorAlert>{t("project.stale")}</FormErrorAlert>}
-      {schedule.error && <FormErrorAlert>{schedule.error}</FormErrorAlert>}
-      {/* Button- and dialog-driven schedule changes are announced here (a drag is announced by dnd-kit's own live region). */}
-      <VisuallyHidden role="status" aria-live="polite">
-        {schedule.announcement}
-      </VisuallyHidden>
+      <ProjectViewNotices schedule={schedule} />
 
       {milestoneCount === 0 ? (
         <EmptyState icon={IconCalendarStats} label={t("project.noMilestones")} hint={project.can.createMilestone ? t("project.noMilestonesHint") : t("project.noMilestonesHintReadOnly")} />
       ) : (
         <TimelineDndContext scale={scale} onSchedule={(barId, start, end) => schedule.commit(Number(barId), start, end)}>
           <Stack gap="xs">
-            <Group gap="sm" align="center">
-              <Title order={3} size="h4">
-                {t("project.timelineTitle")}
-              </Title>
-              {schedule.pending && (
-                <Group gap={6} role="status">
-                  <Loader size="xs" />
-                  <Text size="sm" c="dimmed">
-                    {t("project.saving")}
-                  </Text>
-                </Group>
-              )}
-            </Group>
+            <TimelineTitle title={t("project.timelineTitle")} saving={schedule.pending} />
             <ProjectTimeline
               view={view}
               scale={scale}
@@ -376,17 +303,9 @@ function ProjectPage({ id }: { id: number }) {
               jira={jiraWindowNow}
             />
           </Stack>
-          <Stack gap="xs">
-            <Title order={3} size="h4">
-              {t("project.unscheduledTitle")}
-            </Title>
-            {view.unscheduled.length > 0 && (
-              <Text size="sm" c="dimmed">
-                {canTrayEdit ? t("project.trayIntro") : t("project.trayIntroReadOnly")}
-              </Text>
-            )}
+          <UnscheduledTraySection hasItems={view.unscheduled.length > 0} canSchedule={canTrayEdit}>
             <ProjectTray view={view} actions={actions} label={t("project.trayAria")} />
-          </Stack>
+          </UnscheduledTraySection>
         </TimelineDndContext>
       )}
       {/* After the tray, not between: the tray's pointer drop needs it close to the timeline (and in view with it). */}
@@ -398,33 +317,7 @@ function ProjectPage({ id }: { id: number }) {
       {/* v0.9: the accessible surface of the shadow bars, present while a baseline is picked. */}
       {view.baseline !== undefined && <BaselineMovement baseline={view.baseline} live={[...view.scheduled, ...view.unscheduled]} scope="project" />}
 
-      {editor?.kind === "create" && <MilestoneEditorModal project={project} target={null} onClose={closeEditor} onSaved={saved} />}
-      {editor?.kind === "edit" && <MilestoneEditorModal project={project} target={editor.milestone} onClose={closeEditor} onSaved={saved} />}
-      {editor?.kind === "project" && (
-        <ProjectEditorModal program={{ id: project.programId, name: project.programName }} target={project} onClose={closeEditor} onSaved={saved} />
-      )}
-      {(editor?.kind === "dependency" || editor?.kind === "editDependency") && (
-        <DependencyEditorModal
-          project={project}
-          milestones={[...view.scheduled, ...view.unscheduled]}
-          successor={editor.kind === "dependency" ? editor.successor : null}
-          target={editor.kind === "editDependency" ? editor.dependency : null}
-          onClose={closeEditor}
-          onSaved={saved}
-        />
-      )}
-      {isJiraEditor(editor) && (
-        <JiraBindDialog
-          source={links}
-          target={editor.target}
-          onClose={closeEditor}
-          onBound={async () => {
-            closeEditor();
-            // A link is not plan state, but the views carry its flags and bar: the Jira queries and the timeline views are re-read.
-            await refreshJiraAndTimelines(queryClient);
-          }}
-        />
-      )}
+      <ProjectEditors editor={editor} view={view} links={links} onClose={closeEditor} onSaved={saved} onBound={bound} />
       {scheduling !== null && (
         <MilestoneScheduleModal
           milestone={scheduling.milestone}

@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Badge, Button, Group, Stack, Table, Text, Title } from "@mantine/core";
 import { IconDownload, IconLink, IconLinkOff } from "@tabler/icons-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { deleteFlowTeamBinding, getTeamFlow, type FlowPanelBinding } from "../api/flow";
+import { deleteFlowTeamBinding, getTeamFlow, type FlowPanelBinding, type FlowTeamPanel } from "../api/flow";
 import { staleFlowConnection } from "../utils/capacityDeviations";
 import { useCapacityDeviations } from "../hooks/useCapacityDeviations";
 import { useDeleteConfirm } from "../hooks/useDeleteConfirm";
@@ -23,6 +23,104 @@ import FlowRosterPanel from "./FlowRosterPanel";
 import FlowTeamLinkDialog from "./FlowTeamLinkDialog";
 import LoadingBlock from "./LoadingBlock";
 import SyncStatusBadge from "./SyncStatusBadge";
+
+/** An unlinked team: the state in words, and the Link button only for whoever `can.link`. */
+function FlowNotLinked({ canLink, onLink }: { canLink: boolean; onLink: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <Stack gap="xs" align="flex-start">
+      <Text size="sm" fw={500}>
+        {t("flow.panel.notLinked")}
+      </Text>
+      <Text size="sm" c="dimmed">
+        {t(canLink ? "flow.panel.notLinkedHint" : "flow.panel.notLinkedReadOnly")}
+      </Text>
+      {canLink && (
+        <Button variant="default" size="compact-md" leftSection={<IconLink size={16} />} onClick={onLink}>
+          {t("flow.panel.link")}
+        </Button>
+      )}
+    </Stack>
+  );
+}
+
+/** A linked team: the facts, the capacity comparison, the notes, Import capacity… / Unlink (by the panel's `can`) and the roster. */
+function FlowLinked({
+  data,
+  binding,
+  comparison,
+  now,
+  importBlocked,
+  onImport,
+  onUnlink,
+}: {
+  data: FlowTeamPanel;
+  binding: FlowPanelBinding;
+  comparison: CapacityComparison;
+  now: number;
+  importBlocked: boolean;
+  onImport: () => void;
+  onUnlink: () => void;
+}) {
+  const { t } = useTranslation();
+  const can = data.can;
+  return (
+    <Stack gap="sm">
+      <Table aria-label={t("flow.panel.factsAria")}>
+        <Table.Tbody>
+          <Fact label={t("flow.panel.fact.flowTeam")}>
+            <Group gap="xs" wrap="wrap">
+              <Text size="sm">{binding.flowTeamName}</Text>
+              {binding.gone && (
+                <Badge color="orange" variant="light" tt="none">
+                  {t("flow.panel.gone")}
+                </Badge>
+              )}
+            </Group>
+          </Fact>
+          <Fact label={t("flow.panel.fact.connection")}>{binding.connectionName}</Fact>
+          <Fact label={t("flow.panel.fact.status")}>
+            <SyncStatusBadge status={binding.status} now={now} />
+          </Fact>
+          <Fact label={t("flow.panel.fact.observedAt")}>{binding.observedAt === null ? "—" : formatDateTime(binding.observedAt)}</Fact>
+          {!binding.gone && <CapacityFact comparison={comparison} />}
+        </Table.Tbody>
+      </Table>
+      {!binding.gone && <CapacityDetails comparison={comparison} canImport={can.importCapacity === true && !importBlocked} />}
+      {binding.gone && (
+        <Text size="sm" role="note">
+          {t("flow.panel.goneNote")}
+        </Text>
+      )}
+      {!binding.connectionEnabled && (
+        <Text size="sm" c="dimmed" role="note">
+          {t("flow.panel.disabledNote")}
+        </Text>
+      )}
+      {data.sprints !== null && (
+        <Text size="sm">{data.sprints.nextStart === null ? t("flow.panel.sprints", { n: data.sprints.count }) : t("flow.panel.sprintsNext", { n: data.sprints.count, date: data.sprints.nextStart })}</Text>
+      )}
+      {importBlocked && can.importCapacity && (
+        <Text size="sm" c="dimmed" role="note">
+          {t("flow.panel.importBlocked")}
+        </Text>
+      )}
+      <Group gap="sm">
+        {can.importCapacity && (
+          <Button variant="default" size="compact-md" leftSection={<IconDownload size={16} />} disabled={binding.gone || importBlocked} onClick={onImport}>
+            {t("flow.panel.importCapacity")}
+          </Button>
+        )}
+        {can.unlink && (
+          <Button variant="subtle" size="compact-md" leftSection={<IconLinkOff size={16} />} onClick={onUnlink}>
+            {t("flow.panel.unlink")}
+          </Button>
+        )}
+      </Group>
+      <FlowRosterPanel roster={data.roster} observedAt={binding.observedAt} />
+    </Stack>
+  );
+}
 
 /**
  * The team page's **Flow** section (`GET /teams/{id}/flow` under `["flow","team",id]`, its own read - not a member of the team view): not linked
@@ -80,74 +178,17 @@ export default function TeamFlowSection({ teamId, importBlocked = false }: { tea
       {data === undefined ? (
         panel.isError ? <ErrorAlert error={panel.error} title={t("flow.panel.loadFailed")} /> : <LoadingBlock />
       ) : binding === null ? (
-        <Stack gap="xs" align="flex-start">
-          <Text size="sm" fw={500}>
-            {t("flow.panel.notLinked")}
-          </Text>
-          <Text size="sm" c="dimmed">
-            {t(can?.link ? "flow.panel.notLinkedHint" : "flow.panel.notLinkedReadOnly")}
-          </Text>
-          {can?.link && (
-            <Button variant="default" size="compact-md" leftSection={<IconLink size={16} />} onClick={() => setLinking(true)}>
-              {t("flow.panel.link")}
-            </Button>
-          )}
-        </Stack>
+        <FlowNotLinked canLink={can?.link === true} onLink={() => setLinking(true)} />
       ) : (
-        <Stack gap="sm">
-          <Table aria-label={t("flow.panel.factsAria")}>
-            <Table.Tbody>
-              <Fact label={t("flow.panel.fact.flowTeam")}>
-                <Group gap="xs" wrap="wrap">
-                  <Text size="sm">{binding.flowTeamName}</Text>
-                  {binding.gone && (
-                    <Badge color="orange" variant="light" tt="none">
-                      {t("flow.panel.gone")}
-                    </Badge>
-                  )}
-                </Group>
-              </Fact>
-              <Fact label={t("flow.panel.fact.connection")}>{binding.connectionName}</Fact>
-              <Fact label={t("flow.panel.fact.status")}>
-                <SyncStatusBadge status={binding.status} now={now} />
-              </Fact>
-              <Fact label={t("flow.panel.fact.observedAt")}>{binding.observedAt === null ? "—" : formatDateTime(binding.observedAt)}</Fact>
-              {!binding.gone && <CapacityFact comparison={comparison} />}
-            </Table.Tbody>
-          </Table>
-          {!binding.gone && <CapacityDetails comparison={comparison} canImport={can?.importCapacity === true && !importBlocked} />}
-          {binding.gone && (
-            <Text size="sm" role="note">
-              {t("flow.panel.goneNote")}
-            </Text>
-          )}
-          {!binding.connectionEnabled && (
-            <Text size="sm" c="dimmed" role="note">
-              {t("flow.panel.disabledNote")}
-            </Text>
-          )}
-          {data.sprints !== null && (
-            <Text size="sm">{data.sprints.nextStart === null ? t("flow.panel.sprints", { n: data.sprints.count }) : t("flow.panel.sprintsNext", { n: data.sprints.count, date: data.sprints.nextStart })}</Text>
-          )}
-          {importBlocked && can?.importCapacity && (
-            <Text size="sm" c="dimmed" role="note">
-              {t("flow.panel.importBlocked")}
-            </Text>
-          )}
-          <Group gap="sm">
-            {can?.importCapacity && (
-              <Button variant="default" size="compact-md" leftSection={<IconDownload size={16} />} disabled={binding.gone || importBlocked} onClick={() => setImporting(true)}>
-                {t("flow.panel.importCapacity")}
-              </Button>
-            )}
-            {can?.unlink && (
-              <Button variant="subtle" size="compact-md" leftSection={<IconLinkOff size={16} />} onClick={() => unlink.requestDelete(binding)}>
-                {t("flow.panel.unlink")}
-              </Button>
-            )}
-          </Group>
-          <FlowRosterPanel roster={data.roster} observedAt={binding.observedAt} />
-        </Stack>
+        <FlowLinked
+          data={data}
+          binding={binding}
+          comparison={comparison}
+          now={now}
+          importBlocked={importBlocked}
+          onImport={() => setImporting(true)}
+          onUnlink={() => unlink.requestDelete(binding)}
+        />
       )}
 
       {linking && data !== undefined && (

@@ -52,10 +52,11 @@ export default defineConfig([
       // http:// literals are dev/test fixtures only — production is single-origin behind
       // the Ktor server (HSTS + HTTPS redirect there).
       'sonarjs/no-clear-text-protocols': 'off',
-      // Core size/complexity backstops — generous by design (React components are single
-      // functions; these only catch future monsters, today's max: 360 lines (twelve test describe blocks sit at 300-360; the largest
-      // production component is DataSourceDetails at 305, re-measured 2026-10-23) / cc 45 (2026-09-30).
-      complexity: ['error', 50],
+      // Core size/complexity backstops (React components are single functions; complexity sits a few points above today's
+      // max so the next large branchy page splits instead of growing). Re-measured 2026-11-08, after TeamPage/ProjectPage/TeamFlowSection were split into
+      // child components: cc max 32 (Plan.tsx; the next are the ProjectView.test.tsx and TeamDetails.test.tsx fixtures at 29 and 27, then
+      // TeamPage at 26) and 261 lines per function (production: Users.tsx; Timeline.tsx 254; seven test describe blocks sit at 313-355).
+      complexity: ['error', 35],
       'max-lines-per-function': ['error', { max: 360, skipBlankLines: true, skipComments: true }],
       'max-depth': ['error', 5],
       // The drill-down link builders (userXxxLink + DrillDownOpts tail params) carry 6.
