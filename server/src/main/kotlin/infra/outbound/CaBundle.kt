@@ -19,7 +19,7 @@ class TlsTrust(val sslSocketFactory: SSLSocketFactory, val trustManager: X509Tru
 private const val MAX_BUNDLE_BYTES = 1L * 1024 * 1024
 
 /**
- * Builds the GitLab client's trust (`gitlab.caBundle`, `.claude/docs/security.md` "Outbound HTTP calls"): the JVM's default
+ * Builds the Flow client's trust (`flow.caBundle` / `FLOW_CA_BUNDLE`, `.claude/docs/security.md` "The Flow consumer"): the JVM's default
  * trusted CAs PLUS every certificate in the PEM bundle at [path] — an internal CA is added, never substituted, so a host
  * with a public certificate keeps working. The default trust manager is built the way the JVM builds it (honouring a
  * `javax.net.ssl.trustStore` override), its anchors are copied into a fresh in-memory KeyStore with the bundle's, and a

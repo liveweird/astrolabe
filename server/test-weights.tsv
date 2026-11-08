@@ -11,6 +11,7 @@ ch.nokillswit.BaselineTest	2.4
 ch.nokillswit.BaselineViewTest	0.8
 ch.nokillswit.BlocklistOutageTest	0.2
 ch.nokillswit.BootstrapTest	2.5
+ch.nokillswit.CaBundleTest	0.2
 ch.nokillswit.CallTallyTest	0.0
 ch.nokillswit.CanonicalJsonTest	0.0
 ch.nokillswit.CapacityDeviationKernelsTest	0.3
