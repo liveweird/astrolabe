@@ -1,6 +1,7 @@
 import type { TFunction } from "i18next";
 import type { Deviation, DeviationConnection, DeviationItem, DeviationKind } from "../api/deviations";
 import type { JiraLink } from "../api/roadmap";
+import { hasStaleSource as hasStaleConnection, verifiedAt as verifiedConnectionsAt } from "./staleness";
 import { runState } from "./syncRuns";
 
 /** The part of an item the phrasing needs besides the deviation itself (the estimate's unit is on Jira's side of the item). */
@@ -208,7 +209,7 @@ export function staleConnection(connection: DeviationConnection): boolean {
 
 /** True when an ENABLED connection is stale (a disabled one has its own note): the list may be out of date. */
 export function hasStaleSource(connections: readonly DeviationConnection[]): boolean {
-  return connections.some((connection) => connection.enabled && staleConnection(connection));
+  return hasStaleConnection(connections, staleConnection);
 }
 
 /**
@@ -218,8 +219,7 @@ export function hasStaleSource(connections: readonly DeviationConnection[]): boo
  * manual-only one re-reads when an administrator asks), so the claim is dated, never in the present tense.
  */
 export function verifiedAt(connections: readonly DeviationConnection[]): number | null {
-  if (connections.length === 0 || connections.some((connection) => staleConnection(connection) || connection.lastRun?.outcome !== "SUCCEEDED")) return null;
-  return Math.min(...connections.map((connection) => connection.lastRun?.finishedAt ?? connection.lastRun?.startedAt ?? 0));
+  return verifiedConnectionsAt(connections, staleConnection, ({ lastRun }) => (lastRun?.outcome === "SUCCEEDED" ? (lastRun.finishedAt ?? lastRun.startedAt ?? 0) : null));
 }
 
 /** What the row may offer: Acknowledge for an item with something to acknowledge that is not currently acknowledged, Unacknowledge for a current one - both only with `can.acknowledge`. */

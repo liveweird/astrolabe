@@ -867,7 +867,7 @@ its newest run as the C8 helpers read it (`utils/syncRuns.ts` `runState`: the se
 notes that qualify the figures - never refreshed ("as they were when each item was linked"), the last refresh FAILED (with `errorCodeText`, the code kept
 visible), abandoned/interrupted, the connection DISABLED (its items are listed and unlinkable but stale), and **`mappingOk: false`** ("levels and estimates are
 not compared for its items"). An orange `role="note"` above the list says it may be out of date when any ENABLED connection's newest run is missing, failed,
-abandoned or interrupted, or its mapping does not fit (`hasStaleSource`/`staleConnection`, `utils/deviations.ts`). The column is "Last run", not "last refresh"
+abandoned or interrupted, or its mapping does not fit (`hasStaleSource`/`staleConnection`, `utils/deviations.ts`; the any-enabled-stale and oldest-success folds are the generic `hasStaleSource`/`verifiedAt` of `utils/staleness.ts`, which Flow's twins in `utils/capacityDeviations.ts` share, each connector passing its own stale rule and success accessor). The column is "Last run", not "last refresh"
 (a failed run is a run). **Refresh now is ADMIN-only** (per connection, `POST /integrations/sync/runs`; a `409 run-in-progress` is a normal state: no error and
 no note of its own, the page re-reads and its status line says a refresh is running). Each row's last column is "Data as of": `jira.observedAt` aged ("5 minutes
 ago", the exact UTC time in its `title`) - it is when Astrolabe last CAPTURED that item (the bind, or a run in which Jira reported it changed), NOT when it was
@@ -899,7 +899,7 @@ linked to Jira: Rollout", `detail.plan` = the names) and `CHILDREN_DONE` ("All 2
 the children, `detail.plan` = the plan's end); **the "+N more" rule**: the server lists at most 10 keys/names and `detail.count` is the full figure, so the
 sentence appends "and {N} more" (PL "i jeszcze {N}") when `count` exceeds 10 - the listed figure is `min(count, 10)`, never a split of the joined text (a plan
 name may contain ", "); a missing list, count or date degrades to the plain kind label. The roadmap panel phrases these through the same function. Severity is
-spelled in a visually hidden word before each kind badge. `ageText`/`countDeviations` are in the same file; the table is `components/DeviationsTable.tsx` (plan
+spelled in a visually hidden word before each kind badge (`components/SeverityBadge.tsx`: orange warning / gray info; the Deviations table, the Flow capacity lines and the team page's fact use it, the roadmap flag panel with `hiddenPrefix={false}`). `ageText`/`countDeviations` are in the same file; the table is `components/DeviationsTable.tsx` (plan
 item with its link into `/projects/:id` - a milestone's through its project -, the Jira key through `JiraKeyLink`, both sides' dates, the sentences, the age)
 with an Acknowledgement column, in a `ScrollRegion` (1,180 px minimum: a phone scrolls it). Tests: `Deviations.test.tsx`,
 `utils/deviations|deviationFilters|jiraMarks|jiraBind.test.ts`, `hooks/useDeviations.test.tsx`, `api/deviations.test.ts`.
@@ -1310,7 +1310,7 @@ server to 15; pinned in `jiraForm.test.ts` and the editor's rename round trip)**
 and sends `null`; unticking brings the number back. The modal's "Test connection" needs the name too (the server's probe body requires it) and probes with the
 form's values (an ad-hoc call with the token in the body) unless editing with a blank token, which probes the STORED connection and refreshes `["jira"]`;
 **while the form's account, scheme or keys differ from the saved ones, a note says the stored probe tests the SAVED settings** (`probeSettingsDiffer`, the
-server's own last-test invalidation set). A saved edit that cleared the verdict says "Not tested since the connection was last changed" (`untestedKey`), and the
+server's own last-test invalidation set). A saved edit that cleared the verdict says "Not tested since the connection was last changed" (`untestedKey`; the verdict cell of the facts table and of this list is `components/ConnectionTestBadge.tsx`, shared with Flow: `layout="fact"` date then badge, `layout="row"` badge then date), and the
 toast asks for a new test. A 400 on save shows the server's sentence under the fixed lead. **Delete** goes through `useDeleteConfirm` + `ConfirmDeleteModal`
 (never `window.confirm`); its body (`DeleteBody`) says the connection's links between plan items and Jira items are unlinked (the server does it in the same
 transaction), with the count of LIVE-node links from `GET /integrations/jira/bindings?connectionId=&pageSize=1` (`total`; that list hides dead-node bindings, so
@@ -1381,7 +1381,7 @@ and the runs). Tests: `JiraConnections.test.tsx`, `JiraConnectionDetails.test.ts
 queries `enabled: isAdmin()`) is the registry of the Flow instances Astrolabe READS team capacity and rosters from (nothing is written to Flow),
 `GET /integrations/flow/connections` under `["flow","list",…]` through `api/flow.ts`: the Jira registry's twin (`usePagedSort` + `RegistryListTable`; columns
 name, base URL, time zone, last test, **Status** (`SyncStatusBadge`, `ready` = `flowReady`: a passing test or a mirrored document, the server's sticky rule),
-last run, kebab) with the same slow re-read (`IDLE_REFRESH_MS`) and bounded poll while a run runs. `/integrations/flow/:id` has two h3 sections: **Connection**
+last run, kebab; the test cell is the shared `ConnectionTestBadge`) with the same slow re-read (`IDLE_REFRESH_MS`) and bounded poll while a run runs. `/integrations/flow/:id` has two h3 sections: **Connection**
 (`components/FlowConnectionSection.tsx`: facts via the shared `SyncFacts`, Test connection on the STORED token, Refresh now =
 `POST /integrations/sync/runs {kind: "FLOW"}`, `SyncRunsTable kind="FLOW"`; a test writes NO mirror - the run does - so the Teams section follows a run's end,
 not a test) and **Teams** (`components/FlowTeamsSection.tsx`, below). The shared pieces are kind-aware, never forked: `ConnectionTestResults kind="FLOW"` words

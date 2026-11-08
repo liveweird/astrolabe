@@ -1,5 +1,6 @@
 import type { TFunction } from "i18next";
 import type { CapacityDeviation, CapacityDeviationConnection, CapacityDeviationKind } from "../api/capacityDeviations";
+import { hasStaleSource, verifiedAt } from "./staleness";
 
 type Detail = CapacityDeviation["detail"];
 
@@ -108,7 +109,7 @@ export function staleFlowConnection(connection: Pick<CapacityDeviationConnection
 
 /** True when an ENABLED connection is stale (a disabled one has its own note): the section may be out of date. */
 export function hasStaleFlowSource(connections: readonly CapacityDeviationConnection[]): boolean {
-  return connections.some((connection) => connection.enabled && staleFlowConnection(connection));
+  return hasStaleSource(connections, staleFlowConnection);
 }
 
 /**
@@ -117,6 +118,5 @@ export function hasStaleFlowSource(connections: readonly CapacityDeviationConnec
  * never in the present tense.
  */
 export function verifiedFlowAt(connections: readonly CapacityDeviationConnection[]): number | null {
-  if (connections.length === 0 || connections.some((connection) => staleFlowConnection(connection) || connection.status.lastSucceededAt === null)) return null;
-  return Math.min(...connections.map((connection) => connection.status.lastSucceededAt ?? 0));
+  return verifiedAt(connections, staleFlowConnection, (connection) => connection.status.lastSucceededAt);
 }

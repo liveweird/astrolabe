@@ -1,6 +1,6 @@
 import { Link as RouterLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Anchor, Badge, Stack, Table, Text, VisuallyHidden } from "@mantine/core";
+import { Anchor, Badge, Stack, Table, Text } from "@mantine/core";
 import type { DeviationConnection, DeviationItem } from "../api/deviations";
 import type { Acknowledge } from "../hooks/useAcknowledge";
 import { ageText, deviationKindLabel, deviationSentence } from "../utils/deviations";
@@ -10,6 +10,7 @@ import DeviationAckCell from "./DeviationAckCell";
 import JiraKeyLink from "./JiraKeyLink";
 import JiraRollupText from "./JiraRollupText";
 import ScrollRegion from "./ScrollRegion";
+import SeverityBadge from "./SeverityBadge";
 
 const levelWord = (kind: DeviationItem["level"]) => `jira.mapping.level.${kind.toLowerCase() as "program" | "project" | "milestone"}` as const;
 
@@ -129,10 +130,9 @@ function DeviationsCell({ item }: { item: DeviationItem }) {
     <Stack gap={6}>
       {item.deviations.map((deviation) => (
         <div key={deviation.kind}>
-          <Badge color={deviation.severity === "WARNING" ? "orange" : "gray"} variant="light" tt="none" mr={6}>
-            <VisuallyHidden component="span">{t(`deviations.severity.${deviation.severity}`)}: </VisuallyHidden>
+          <SeverityBadge severity={deviation.severity} mr={6}>
             {deviationKindLabel(deviation.kind, t)}
-          </Badge>
+          </SeverityBadge>
           <Text span size="sm">
             {deviationSentence(deviation, item, t)}
           </Text>

@@ -1,23 +1,13 @@
 import { useTranslation } from "react-i18next";
-import { Badge, Box, Stack, Table, Text, VisuallyHidden } from "@mantine/core";
+import { Box, Stack, Table, Text } from "@mantine/core";
 import type { CapacityDeviation } from "../api/capacityDeviations";
 import { capacityDeviationSentence, capacityEntries, capacityKindLabel, formatMd, type CapacityEntry } from "../utils/capacityDeviations";
 import ScrollRegion from "./ScrollRegion";
+import SeverityBadge from "./SeverityBadge";
 import TableDisclosure from "./TableDisclosure";
 
 /** How many lines of one team's list show before the rest goes behind a disclosure. */
 const VISIBLE_ENTRIES = 5;
-
-/** The severity in words (never colour alone) before the kind badge: orange for a warning, gray for an info. */
-function SeverityBadge({ severity, label }: { severity: CapacityDeviation["severity"]; label: string }) {
-  const { t } = useTranslation();
-  return (
-    <Badge color={severity === "WARNING" ? "orange" : "gray"} variant="light" tt="none" mr={6}>
-      <VisuallyHidden component="span">{t(`deviations.severity.${severity}`)}: </VisuallyHidden>
-      {label}
-    </Badge>
-  );
-}
 
 /** The sprints without capacity, one table row each: the sprint, its dates and Flow's figure. */
 function MissingTable({ rows }: { rows: readonly CapacityDeviation[] }) {
@@ -53,7 +43,9 @@ function Entry({ entry }: { entry: CapacityEntry }) {
     const deviation = entry.type === "row" ? entry.deviation : entry.rows[0];
     return (
       <div>
-        <SeverityBadge severity={deviation.severity} label={capacityKindLabel(deviation.kind, t)} />
+        <SeverityBadge severity={deviation.severity} mr={6}>
+          {capacityKindLabel(deviation.kind, t)}
+        </SeverityBadge>
         <Text span size="sm">
           {capacityDeviationSentence(deviation, t)}
         </Text>
@@ -65,7 +57,9 @@ function Entry({ entry }: { entry: CapacityEntry }) {
   return (
     <Stack gap={4} align="flex-start">
       <div>
-        <SeverityBadge severity="INFO" label={capacityKindLabel("CAPACITY_MISSING", t)} />
+        <SeverityBadge severity="INFO" mr={6}>
+          {capacityKindLabel("CAPACITY_MISSING", t)}
+        </SeverityBadge>
         <Text span size="sm">
           {entry.from === null ? t("deviations.capacity.missingSummaryNoDate", { count }) : t("deviations.capacity.missingSummary", { count, date: entry.from })}
         </Text>

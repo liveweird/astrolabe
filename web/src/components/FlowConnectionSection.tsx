@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Alert, Anchor, Badge, Button, Group, Stack, Table, Text, Title } from "@mantine/core";
+import { Alert, Anchor, Button, Group, Stack, Table, Text, Title } from "@mantine/core";
 import { IconPlayerPlay, IconPlugConnected } from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { testFlowConnection, type FlowConnection, type FlowTestResult } from "../api/flow";
@@ -13,6 +13,7 @@ import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { saveErrorMessage } from "../utils/saveError";
 import { IDLE_REFRESH_MS } from "../utils/syncRuns";
 import { showSuccessToast } from "../utils/toast";
+import ConnectionTestBadge from "./ConnectionTestBadge";
 import ConnectionTestResults from "./ConnectionTestResults";
 import ConnectionTestStatus from "./ConnectionTestStatus";
 import FormErrorAlert from "./FormErrorAlert";
@@ -40,16 +41,7 @@ function ConnectionFacts({ connection, readAt }: { connection: FlowConnection; r
         <Fact label={t("flow.column.enabled")}>{connection.enabled ? t("flow.yes") : t("flow.no")}</Fact>
         <SyncFacts status={connection.status} pollIntervalMinutes={connection.pollIntervalMinutes} ready={flowReady(connection)} readAt={readAt} />
         <Fact label={t("flow.details.lastTest")}>
-          {connection.lastTestedAt === null ? (
-            t(untestedKey(connection))
-          ) : (
-            <Group gap="xs" wrap="wrap">
-              <Text size="sm">{formatDateTime(connection.lastTestedAt)}</Text>
-              <Badge color={connection.lastTestOk ? "green" : "red"} variant="light" tt="none">
-                {connection.lastTestOk ? t("jira.test.passed") : t("jira.test.notPassed")}
-              </Badge>
-            </Group>
-          )}
+          <ConnectionTestBadge lastTestOk={connection.lastTestOk} lastTestedAt={connection.lastTestedAt} untestedKey={untestedKey(connection)} layout="fact" />
         </Fact>
         <Fact label={t("flow.details.teamsAt")}>{connection.teamsAt === null ? "—" : formatDateTime(connection.teamsAt)}</Fact>
       </Table.Tbody>

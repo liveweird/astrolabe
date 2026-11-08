@@ -1,9 +1,10 @@
 import { useTranslation } from "react-i18next";
-import { Badge, Group, Stack, Text, VisuallyHidden } from "@mantine/core";
+import { Group, Stack, Text } from "@mantine/core";
 import type { CapacityDeviation } from "../api/capacityDeviations";
 import { countCapacityDeviations } from "../utils/capacityDeviations";
 import CapacityDeviationList from "./CapacityDeviationList";
 import ErrorAlert from "./ErrorAlert";
+import SeverityBadge from "./SeverityBadge";
 import { Fact } from "./SyncFacts";
 
 /**
@@ -51,16 +52,10 @@ export function CapacityFact({ comparison }: { comparison: CapacityComparison })
       ) : (
         <Group gap="xs" wrap="wrap">
           {differs > 0 && (
-            <Badge color={warnings > 0 ? "orange" : "gray"} variant="light" tt="none">
-              <VisuallyHidden component="span">{t(`deviations.severity.${warnings > 0 ? "WARNING" : "INFO"}`)}: </VisuallyHidden>
-              {t("flow.panel.capacity.differs", { count: differs })}
-            </Badge>
+            <SeverityBadge severity={warnings > 0 ? "WARNING" : "INFO"}>{t("flow.panel.capacity.differs", { count: differs })}</SeverityBadge>
           )}
           {missing > 0 && (
-            <Badge color="gray" variant="light" tt="none">
-              <VisuallyHidden component="span">{t("deviations.severity.INFO")}: </VisuallyHidden>
-              {t("flow.panel.capacity.missing", { count: missing })}
-            </Badge>
+            <SeverityBadge severity="INFO">{t("flow.panel.capacity.missing", { count: missing })}</SeverityBadge>
           )}
         </Group>
       )}

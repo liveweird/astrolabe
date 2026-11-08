@@ -7,6 +7,7 @@ import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-quer
 import { useAdmin } from "../auth";
 import { deleteJiraConnection, listJiraBindings, listJiraConnections, type JiraConnection } from "../api/jira";
 import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
+import ConnectionTestBadge from "../components/ConnectionTestBadge";
 import DestructiveMenuItem from "../components/DestructiveMenuItem";
 import JiraConnectionEditorModal from "../components/JiraConnectionEditorModal";
 import JiraStubBadge from "../components/JiraStubBadge";
@@ -176,18 +177,7 @@ export default function JiraConnections() {
               </Text>
             </Table.Td>
             <Table.Td>
-              {connection.lastTestedAt === null ? (
-                <Text size="sm" c="dimmed">
-                  {t(untestedKey(connection))}
-                </Text>
-              ) : (
-                <Group gap="xs" wrap="nowrap">
-                  <Badge color={connection.lastTestOk ? "green" : "red"} variant="light" tt="none">
-                    {connection.lastTestOk ? t("jira.test.passed") : t("jira.test.notPassed")}
-                  </Badge>
-                  <Text size="sm">{formatDateTime(connection.lastTestedAt)}</Text>
-                </Group>
-              )}
+              <ConnectionTestBadge lastTestOk={connection.lastTestOk} lastTestedAt={connection.lastTestedAt} untestedKey={untestedKey(connection)} layout="row" />
             </Table.Td>
             <Table.Td>
               <SyncStatusBadge status={connection.status} now={now} ready={connection.discoveredAt !== null} pollIntervalMinutes={connection.pollIntervalMinutes} />

@@ -1,4 +1,4 @@
-import { Anchor, Badge, Button, Stack, Table, Text, Title } from "@mantine/core";
+import { Anchor, Button, Stack, Table, Text, Title } from "@mantine/core";
 import { IconTarget } from "@tabler/icons-react";
 import { Link as RouterLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -9,6 +9,7 @@ import { projectPath } from "../utils/planLinks";
 import type { FlagEntry } from "../utils/roadmapRows";
 import JiraKeyLink from "./JiraKeyLink";
 import ScrollRegion from "./ScrollRegion";
+import SeverityBadge from "./SeverityBadge";
 import TableDisclosure from "./TableDisclosure";
 
 const TABLE_MAX_HEIGHT = 420;
@@ -59,9 +60,9 @@ export default function RoadmapFlagPanel({
                   // A project can carry the same kind twice (two teams, two other projects): the position in the sorted list is the stable key.
                   <Table.Tr key={`${project.id}:${index}`}>
                     <Table.Td>
-                      <Badge color={flag.severity === "WARNING" ? "orange" : "gray"} variant="light" tt="none">
+                      <SeverityBadge severity={flag.severity} hiddenPrefix={false}>
                         {t(`roadmap.flags.${flag.severity}`)}
-                      </Badge>
+                      </SeverityBadge>
                     </Table.Td>
                     <Table.Td>
                       <Anchor component={RouterLink} to={projectPath(project.id)} size="sm" aria-label={t("roadmap.openProjectAria", { name: project.name })}>
