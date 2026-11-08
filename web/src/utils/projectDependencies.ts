@@ -1,6 +1,6 @@
 import type { DependencyEndpoint, EndpointKind, ProjectDependency } from "../api/dependencies";
 import type { ProjectView, UpstreamEntity } from "../api/milestones";
-import { arrowSpecsFor, conflictCountOf, conflictsByBarFor } from "./dependencyArrows";
+import { arrowSpecsFor, conflictCountOf, conflictsByBarFor, markCriticalArrows } from "./dependencyArrows";
 import type { BarId, TimelineArrowData } from "./timelineModel";
 
 /**
@@ -69,9 +69,7 @@ function barOf(endpoint: DependencyEndpoint, view: ProjectView): BarId {
  */
 export function arrowSpecs(view: ProjectView, critical = false): TimelineArrowData[] {
   const specs = arrowSpecsFor(view.dependencies, (endpoint) => barOf(endpoint, view));
-  if (!critical) return specs;
-  const criticalIds = new Set(view.dependencies.filter((dependency) => dependency.critical).map((dependency) => dependency.id));
-  return specs.map((spec) => (criticalIds.has(spec.id as number) ? { ...spec, critical: true } : spec));
+  return critical ? markCriticalArrows(specs, view.dependencies) : specs;
 }
 
 // ---- the critical path (v0.7): what `view.criticalPath.upstream` means for the rows and the Critical chain list ----

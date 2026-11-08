@@ -812,3 +812,58 @@ describe("Team view page: capacity", () => {
     expect(screen.getByRole("button", { name: "Add period" })).toBeInTheDocument();
   });
 });
+
+describe("Team view page: the critical path (1.7)", () => {
+  const KEY = "astrolabe.viewSettings.timeline.criticalPath";
+  const CRITICAL_LINK: ProjectDependency = { ...LINK, check: { status: "OK", shortfallDays: null, slackDays: 0, requiredDate: "2027-02-05", actualDate: "2027-02-05" }, critical: true };
+  const criticalView = () =>
+    viewOf({ scheduled: [{ ...TV_A, slackDays: 0, critical: true }, { ...TV_B, slackDays: 4, critical: false }, { ...TV_C, slackDays: 0, critical: true }], dependencies: [CRITICAL_LINK] });
+  const toggle = () => screen.getByRole("button", { name: "Critical path" });
+
+  test("off by default: the toggle is not pressed and nothing is critical - no column, no emphasis, no note", async () => {
+    view = criticalView();
+    renderPage();
+    await screen.findByRole("grid", { name: "Team milestone timeline" });
+    expect(toggle()).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByRole("columnheader", { name: "Slack" })).toBeNull();
+    expect(document.querySelector("[data-critical]")).toBeNull();
+    expect(screen.queryByText(/measured toward each milestone/)).toBeNull();
+  });
+
+  test("on: the toggle sits after the baseline picker, the Slack column and the emphasis appear, and the choice is remembered under the project page's key", async () => {
+    const user = userEvent.setup();
+    view = criticalView();
+    const first = renderPage();
+    await screen.findByRole("grid", { name: "Team milestone timeline" });
+    const picker = screen.getByRole("combobox", { name: "Baseline" });
+    expect(picker.compareDocumentPosition(toggle()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await user.click(toggle());
+    expect(toggle()).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("columnheader", { name: "Slack" })).toBeInTheDocument();
+    expect(barOf("tv-a")).toHaveAttribute("data-critical", "true");
+    expect(barOf("tv-a")).toHaveAccessibleName("tv-a, Invoices, 2027-02-01 to 2027-02-05, 10 man-days, on the critical path");
+    expect(barOf("tv-b")).not.toHaveAttribute("data-critical");
+    expect(document.querySelector("[data-arrow]")).toHaveAttribute("data-critical", "true");
+    expect(screen.getByText(/measured toward each milestone's own project's end/)).toBeInTheDocument();
+    expect(localStorage.getItem(KEY)).toBe("true");
+
+    // remembered across visits, and off again takes everything away
+    first.unmount();
+    renderPage();
+    await screen.findByRole("grid", { name: "Team milestone timeline" });
+    expect(toggle()).toHaveAttribute("aria-pressed", "true");
+    await user.click(toggle());
+    expect(document.querySelector("[data-critical]")).toBeNull();
+    expect(screen.queryByRole("columnheader", { name: "Slack" })).toBeNull();
+    expect(localStorage.getItem(KEY)).toBe("false");
+  });
+
+  test("the choice the project page stored opens the team page with the highlight on", async () => {
+    localStorage.setItem(KEY, "true");
+    view = criticalView();
+    renderPage();
+    await screen.findByRole("grid", { name: "Team milestone timeline" });
+    expect(toggle()).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("columnheader", { name: "Slack" })).toBeInTheDocument();
+  });
+});

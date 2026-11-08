@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Badge, Button, Group, Stack, Text } from "@mantine/core";
+import { Badge, Group, Stack, Text } from "@mantine/core";
 import { IconCalendarStats } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { TFunction } from "i18next";
@@ -18,6 +18,7 @@ import MilestoneScheduleModal from "../components/MilestoneScheduleModal";
 import ProjectPageHeader from "../components/ProjectPageHeader";
 import ProjectViewNotices from "../components/ProjectViewNotices";
 import CriticalChain from "../components/CriticalChain";
+import CriticalPathToggle from "../components/CriticalPathToggle";
 import IdleGaps from "../components/IdleGaps";
 import JiraBarsToggle from "../components/JiraBarsToggle";
 import { ProjectJiraChip } from "../components/JiraChips";
@@ -31,12 +32,13 @@ import TimelineTitle from "../components/TimelineTitle";
 import UnscheduledTraySection from "../components/UnscheduledTraySection";
 import { useDeleteConfirm } from "../hooks/useDeleteConfirm";
 import { useBaselinePick, useDropUnknownPick } from "../hooks/useBaselinePick";
+import { useCriticalPathPick } from "../hooks/useCriticalPathPick";
 import { useDialogFocus } from "../hooks/useDialogFocus";
 import { useJiraLinks } from "../hooks/useDeviations";
 import { useJiraBarsPick } from "../hooks/useJiraBarsPick";
 import { useJiraUnlink } from "../hooks/useJiraUnlink";
 import { useMilestoneSchedule } from "../hooks/useMilestoneSchedule";
-import { isBoolean, isOneOf, useStoredState } from "../hooks/useStoredState";
+import { isOneOf, useStoredState } from "../hooks/useStoredState";
 import { baselineDays, spanBadges } from "../utils/baselineOverlay";
 import { localIsoDate } from "../utils/isoDate";
 import { jiraPageRange } from "../utils/jiraBars";
@@ -131,7 +133,7 @@ function ProjectPage({ id }: { id: number }) {
   const jiraBars = useJiraBarsPick();
   const [zoom, setZoom] = useStoredState<Zoom>("timeline.zoom", "week", isOneOf(MILESTONE_ZOOMS));
   // The critical-path highlight (v0.7), remembered like the zoom: the Slack column, the bar and arrow emphasis, the badges and the Critical chain section.
-  const [criticalPath, setCriticalPath] = useStoredState("timeline.criticalPath", false, isBoolean);
+  const { shown: criticalPath, setShown: setCriticalPath } = useCriticalPathPick();
   const [editor, setEditor] = useState<Editor | null>(null);
   // What is linked comes from the view itself; the bind dialog alone needs the connections to offer, asked while it is open.
   const links = useJiraLinks(id, isJiraEditor(editor));
@@ -239,15 +241,10 @@ function ProjectPage({ id }: { id: number }) {
       showCritical={criticalPath}
     />
   );
-  const criticalToggle = (
-    <Button size="compact-sm" variant={criticalPath ? "filled" : "default"} aria-pressed={criticalPath} onClick={() => setCriticalPath(!criticalPath)}>
-      {t("timeline.criticalToggle")}
-    </Button>
-  );
   const toolbar = (
     <>
       <BaselinePicker pick={pick} onPick={setPick} current={view.baseline} disabled={schedule.pending} />
-      {criticalToggle}
+      <CriticalPathToggle shown={criticalPath} onChange={setCriticalPath} />
       {view.jiraSites.length > 0 && <JiraBarsToggle shown={jiraBars.shown} onChange={jiraBars.setShown} />}
     </>
   );

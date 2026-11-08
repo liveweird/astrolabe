@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { screen, within } from "@testing-library/react";
 import TeamTimeline, { TeamTray, type TeamActions } from "./TeamTimeline";
 import TimelineDndContext from "./TimelineDndContext";
+import type { DependencyEndpoint, ProjectDependency } from "../api/dependencies";
 import type { ScheduleProposalMove, TeamMilestone, TeamView, WeekLoad } from "../api/teams";
 import { jsonResponse } from "../test/http";
 import { renderWithProviders } from "../test/render";
@@ -87,11 +88,11 @@ const PROPOSAL = {
 
 const ACTIONS: TeamActions = { editSchedule: vi.fn(), unschedule: vi.fn(), schedule: vi.fn(), move: vi.fn(), moveTo: vi.fn() };
 
-function renderTimeline(view: TeamView, proposal?: typeof PROPOSAL) {
+function renderTimeline(view: TeamView, proposal?: typeof PROPOSAL, criticalPath?: boolean) {
   const scale = makeScale("week", { from: toEpochDay("2042-01-05"), to: toEpochDay("2042-02-22") });
   return renderWithProviders(
     <TimelineDndContext scale={scale} onSchedule={vi.fn(() => true)} onReorder={vi.fn(() => true)}>
-      <TeamTimeline view={view} scale={scale} onZoomChange={vi.fn()} today="2042-01-06" busy={false} actions={ACTIONS} label="Team milestone timeline" proposal={proposal} />
+      <TeamTimeline view={view} scale={scale} onZoomChange={vi.fn()} today="2042-01-06" busy={false} actions={ACTIONS} label="Team milestone timeline" proposal={proposal} criticalPath={criticalPath} />
       <TeamTray view={view} actions={ACTIONS} label="Unscheduled milestones of the team" previewing={proposal !== undefined} />
     </TimelineDndContext>,
   );
@@ -224,5 +225,77 @@ describe("TeamTimeline with a baseline (v0.9)", () => {
     expect(within(a).getAllByRole("img").map((bar) => bar.getAttribute("data-tone"))).toEqual([null, "baseline"]);
     expect(proposalBars()).toHaveLength(3);
     expect(shadows()).toHaveLength(3);
+  });
+});
+
+describe("TeamTimeline with the critical path (1.7)", () => {
+  const endOf = (m: TeamMilestone): DependencyEndpoint => ({
+    kind: "MILESTONE",
+    id: m.id,
+    name: m.name,
+    projectId: m.projectId,
+    projectName: m.projectName,
+    teamId: 1,
+    teamName: "Payments",
+    startDate: m.startDate,
+    endDate: m.endDate,
+  });
+  const linkOf = (id: number, from: TeamMilestone, to: TeamMilestone, over: Partial<ProjectDependency> = {}): ProjectDependency => ({
+    id,
+    predecessor: endOf(from),
+    successor: endOf(to),
+    type: "FS",
+    lagDays: 0,
+    check: { status: "OK", shortfallDays: null, slackDays: 0, requiredDate: "2042-02-09", actualDate: "2042-02-09" },
+    critical: false,
+    can: { edit: false, delete: false },
+    ...over,
+  });
+  // tp-a drives its project's end (slack 0, critical) and tp-b has 3 working days; the link a -> b is critical, the one b -> a (a cycle in a fixture is fine: it is only drawn) is not.
+  const CA = { ...A, slackDays: 0, critical: true };
+  const CB = { ...B, slackDays: 3, critical: false };
+  const critical = () => viewOf({ scheduled: [CA, CB], dependencies: [linkOf(41, CA, CB, { critical: true }), linkOf(42, CB, CA)] });
+  const dom = (container: HTMLElement) => container.innerHTML.replace(/<style[\s\S]*?<\/style>/g, "").replace(/mantine-[a-z0-9]{9}(?![a-z0-9])|DndDescribedBy-\d+|DndLiveRegion-\d+|:r[0-9a-z]+:|_r_[0-9a-z]+_/g, "ID");
+
+  test("off: no Slack column, no emphasis, no critical arrow, the bar names as before - and the DOM equals the one without any critical data", () => {
+    const stripped = () => viewOf({ scheduled: [A, B], dependencies: [linkOf(41, CA, CB), linkOf(42, CB, CA)] });
+    const plain = renderTimeline(stripped());
+    const before = dom(plain.container);
+    plain.unmount();
+    const { container } = renderTimeline(critical());
+    expect(within(grid()).queryByRole("columnheader", { name: "Slack" })).toBeNull();
+    expect(document.querySelector("[data-critical]")).toBeNull();
+    expect(screen.getByRole("button", { name: /^tp-a, Invoices/ })).not.toHaveAccessibleName(/critical/);
+    expect(dom(container)).toBe(before);
+  });
+
+  test("on: a Slack column before Operations; a critical row reads 0 plus the hidden words, the other its working days", () => {
+    renderTimeline(critical(), undefined, true);
+    expect(within(grid()).getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["Milestone", "Project", "Estimate", "Slack", "Operations"]);
+    // the name is the row header: project, estimate, slack, operations
+    expect(within(rowOf("tp-a")).getAllByRole("gridcell")[2].textContent).toBe("0 critical path");
+    expect(within(rowOf("tp-b")).getAllByRole("gridcell")[2].textContent).toBe("3 working days");
+  });
+
+  test("on: only the critical milestone's bar is emphasised and its accessible name says so, after any conflict count", () => {
+    renderTimeline(critical(), undefined, true);
+    const a = screen.getByRole("button", { name: /^tp-a, Invoices/ });
+    expect(a).toHaveAttribute("data-critical", "true");
+    expect(a).toHaveAccessibleName("tp-a, Invoices, 2042-02-02 to 2042-02-06, 4 man-days, on the critical path");
+    expect(screen.getByRole("button", { name: /^tp-b, Invoices/ })).not.toHaveAttribute("data-critical");
+  });
+
+  test("on: only the arrow of the critical link is flagged", () => {
+    renderTimeline(critical(), undefined, true);
+    expect([...document.querySelectorAll("[data-arrow]")].map((arrow) => [arrow.getAttribute("data-arrow"), arrow.getAttribute("data-critical")])).toEqual([
+      ["41", "true"],
+      ["42", null],
+    ]);
+  });
+
+  test("on: a tray milestone a preview appends has an empty Slack cell, in line with the other rows", () => {
+    renderTimeline(critical(), PROPOSAL, true);
+    expect(within(rowOf("tp-x")).getAllByRole("gridcell")[2].textContent).toBe("");
+    expect(within(rowOf("tp-x")).getAllByRole("gridcell")).toHaveLength(within(rowOf("tp-a")).getAllByRole("gridcell").length);
   });
 });

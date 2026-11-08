@@ -6,7 +6,7 @@ import type { TFunction } from "i18next";
 import type { TeamMilestone, TeamView } from "../api/teams";
 import { useHolidays } from "../hooks/useHolidays";
 import { barList, baselineBars, newSince, removedRows } from "../utils/baselineOverlay";
-import { arrowSpecsFor, conflictsByBarFor } from "../utils/dependencyArrows";
+import { arrowSpecsFor, conflictsByBarFor, markCriticalArrows } from "../utils/dependencyArrows";
 import { idleBands } from "../utils/idleGaps";
 import { projectPath } from "../utils/planLinks";
 import { proposalBars, proposalRows, type TeamProposalView } from "../utils/scheduleProposal";
@@ -16,6 +16,7 @@ import { jiraTrayNote } from "../utils/flagSentences";
 import { jiraBar, siteUrls, type JiraWindow } from "../utils/jiraBars";
 import { BaselineRowName } from "./BaselineParts";
 import { MilestoneFlags, NameWithFlags } from "./MilestoneFlags";
+import SlackCell from "./SlackCell";
 import MilestoneMenu, { OpenProjectMenu, type TeamActions } from "./TeamTimelineMenu";
 import Timeline from "./Timeline";
 import TimelineArrows from "./TimelineArrows";
@@ -27,7 +28,7 @@ export type { TeamActions } from "./TeamTimelineMenu";
 
 /** The Flags column grows to `FLAGS_WITH_ROLLUP_WIDTH` while a scheduled row shows a Jira roll-up ("5/12 · 34 pt"). */
 const FLAGS_WITH_ROLLUP_WIDTH = 210;
-const COLUMN_WIDTHS = { name: 220, project: 150, estimate: 120, flags: 130, actions: 56 } as const;
+const COLUMN_WIDTHS = { name: 220, project: 150, estimate: 120, flags: 130, slack: 130, actions: 56 } as const;
 
 /** The estimate with its unit ("12.25 man-days"). */
 const estimateText = (t: TFunction, milestone: TeamMilestone) => t("project.estimateUnit", { count: milestone.estimateMd });
@@ -85,6 +86,9 @@ function RowNameCell({ milestone, placement, sinceBaseline }: { milestone: TeamM
 /** The accessible name of a bar, with the ", N conflicts" suffix when violated links end on it (so a screen-reader user on the bar hears it). */
 const withConflicts = (t: TFunction, describe: string, count: number) => (count > 0 ? `${describe}, ${t("project.barConflicts", { count })}` : describe);
 
+/** The ", on the critical path" suffix of a critical bar's accessible name (after any ", N conflicts"; the Timeline adds ", read-only" last). */
+const withCritical = (t: TFunction, describe: string, critical: boolean) => (critical ? `${describe}, ${t("timeline.bar.critical")}` : describe);
+
 /** The milestone's proposal bar as a list of zero or one bars (to spread into a row). */
 const proposalBarOf = (proposed: ReadonlyMap<number, TimelineBarData>, milestone: TeamMilestone): TimelineBarData[] => {
   const bar = proposed.get(milestone.id);
@@ -110,6 +114,10 @@ const proposalBarOf = (proposed: ReadonlyMap<number, TimelineBarData>, milestone
  * Jira (1.3, all from the view): while some scheduled milestone is linked there is a Flags column (the row's Jira key and its open Jira flags as the roadmap's
  * icons, the sentences as the accessible label), and with `jira` (the page's window, the "Jira dates" toggle on) each linked row gets a dashed shadow bar of the
  * dates Jira holds, beside the baseline's.
+ *
+ * With `criticalPath` (1.7, the page's toggle; the server's `slackDays`/`critical` per milestone toward ITS OWN project's end and the links' `critical`) a Slack
+ * column appears after Flags (the project page's cell), a critical milestone's bar is emphasised (and its accessible name says so) and the critical links' arrows
+ * are drawn heavier. Off, none of it is in the DOM.
  */
 export default function TeamTimeline({
   view,
@@ -122,6 +130,7 @@ export default function TeamTimeline({
   proposal,
   toolbar,
   jira,
+  criticalPath = false,
 }: {
   view: TeamView;
   scale: TimelineScale;
@@ -135,6 +144,8 @@ export default function TeamTimeline({
   toolbar?: ReactNode;
   /** The page's Jira window while the "Jira dates" toggle is on (each linked row's shadow bar), else absent. */
   jira?: JiraWindow | null;
+  /** The page's critical-path toggle (1.7): the Slack column, the critical bars' emphasis and the critical arrows. */
+  criticalPath?: boolean;
 }) {
   const { t } = useTranslation();
   const { holidays, failed: holidaysFailed } = useHolidays();
@@ -143,11 +154,15 @@ export default function TeamTimeline({
   const flagsColumn = view.scheduled.some((milestone) => milestone.jira !== null);
   const flagsWidth = view.scheduled.some((milestone) => milestone.jira?.rollup != null) ? FLAGS_WITH_ROLLUP_WIDTH : COLUMN_WIDTHS.flags;
   const sites = siteUrls(view.jiraSites);
-  /** The Flags cell goes just before the operations cell, and only while the column exists; `milestone` null = a row with no flags of its own (an empty cell). */
-  const withFlags = (cells: TimelineRowData["cells"], milestone: TeamMilestone | null): TimelineRowData["cells"] => {
-    if (!flagsColumn) return cells;
-    const cell = milestone === null ? "" : <MilestoneFlags key="flags" flags={milestone.flags} link={milestone.jira} sites={sites} />;
-    return [...cells.slice(0, -1), cell, ...cells.slice(-1)];
+  /**
+   * The optional cells go just before the operations cell, Flags then Slack, each only while its column exists; `milestone` null = a row with nothing of
+   * its own (empty cells). A tray milestone a preview appends has no slack (the cell renders nothing).
+   */
+  const withOptional = (cells: TimelineRowData["cells"], milestone: TeamMilestone | null): TimelineRowData["cells"] => {
+    if (!flagsColumn && !criticalPath) return cells;
+    const flags = milestone === null ? "" : <MilestoneFlags key="flags" flags={milestone.flags} link={milestone.jira} sites={sites} />;
+    const slack = milestone === null ? "" : <SlackCell key="slack" slackDays={milestone.slackDays} critical={milestone.critical} />;
+    return [...cells.slice(0, -1), ...(flagsColumn ? [flags] : []), ...(criticalPath ? [slack] : []), ...cells.slice(-1)];
   };
   const proposed = proposalBars(proposal?.moves ?? [], t);
   const columns: TimelineColumn[] = [
@@ -155,6 +170,7 @@ export default function TeamTimeline({
     { id: "project", header: t("teams.view.column.project"), width: COLUMN_WIDTHS.project },
     { id: "estimate", header: t("teams.view.column.estimate"), width: COLUMN_WIDTHS.estimate },
     ...(flagsColumn ? [{ id: "flags", header: t("roadmap.column.flags"), width: flagsWidth }] : []),
+    ...(criticalPath ? [{ id: "slack", header: t("project.column.slack"), width: COLUMN_WIDTHS.slack }] : []),
     { id: "actions", header: t("common.table.operations"), width: COLUMN_WIDTHS.actions },
   ];
   const rowIds = new Set<BarId>(view.scheduled.map((milestone) => milestone.id));
@@ -166,7 +182,7 @@ export default function TeamTimeline({
   const fresh = overlay === undefined ? null : newSince(overlay, view.scheduled);
   const rows: TimelineRowData[] = view.scheduled.map((milestone, index) => ({
     id: milestone.id,
-    cells: withFlags([
+    cells: withOptional([
       <RowNameCell key="name" milestone={milestone} placement={view.team.can.editOrder && !previewing ? { index, count } : null} sinceBaseline={fresh?.has(milestone.id) === true} />,
       (stop: RovingTarget) => (
         <Anchor component={RouterLink} to={projectPath(milestone.projectId)} size="sm" truncate title={milestone.projectName} aria-label={t("teams.view.openProjectAria", { name: milestone.projectName })} {...stop}>
@@ -184,17 +200,22 @@ export default function TeamTimeline({
               start: milestone.startDate,
               end: milestone.endDate,
               label: milestone.name,
-              describe: withConflicts(
+              describe: withCritical(
                 t,
-                t("teams.view.barAria", {
-                  name: milestone.name,
-                  project: milestone.projectName,
-                  start: milestone.startDate,
-                  end: milestone.endDate,
-                  estimate: estimateText(t, milestone),
-                }),
-                conflicts.get(milestone.id) ?? 0,
+                withConflicts(
+                  t,
+                  t("teams.view.barAria", {
+                    name: milestone.name,
+                    project: milestone.projectName,
+                    start: milestone.startDate,
+                    end: milestone.endDate,
+                    estimate: estimateText(t, milestone),
+                  }),
+                  conflicts.get(milestone.id) ?? 0,
+                ),
+                criticalPath && milestone.critical,
               ),
+              ...(criticalPath && milestone.critical ? { emphasis: "critical" as const } : {}),
               editable: view.team.can.schedule && !previewing,
             },
           ]
@@ -208,7 +229,7 @@ export default function TeamTimeline({
   for (const row of overlay === undefined ? [] : removedRows(overlay, view.unscheduled, t)) {
     rows.push({
       id: row.id,
-      cells: withFlags([
+      cells: withOptional([
         <BaselineRowName key="name" row={row} />,
         row.projectName === null ? (
           ""
@@ -229,7 +250,7 @@ export default function TeamTimeline({
   for (const milestone of proposalRows(view, proposal?.moves ?? [])) {
     rows.push({
       id: milestone.id,
-      cells: withFlags([
+      cells: withOptional([
         <NameCell key="name" milestone={milestone} isNew />,
         (stop: RovingTarget) => (
           <Anchor component={RouterLink} to={projectPath(milestone.projectId)} size="sm" truncate title={milestone.projectName} aria-label={t("teams.view.openProjectAria", { name: milestone.projectName })} {...stop}>
@@ -242,7 +263,8 @@ export default function TeamTimeline({
       bars: proposalBarOf(proposed, milestone),
     });
   }
-  const arrows = arrowSpecsFor(view.dependencies, barOf);
+  const drawn = arrowSpecsFor(view.dependencies, barOf);
+  const arrows = criticalPath ? markCriticalArrows(drawn, view.dependencies) : drawn;
   return (
     <Timeline
       label={label}

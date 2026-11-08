@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { DependencyEndpoint, ProjectDependency } from "../api/dependencies";
-import { arrowSpecsFor, conflictCountOf, conflictsByBarFor } from "./dependencyArrows";
+import { arrowSpecsFor, conflictCountOf, conflictsByBarFor, markCriticalArrows } from "./dependencyArrows";
 
 const endpoint = (id: number, over: Partial<DependencyEndpoint> = {}): DependencyEndpoint => ({
   kind: "MILESTONE",
@@ -74,5 +74,25 @@ describe("conflicts", () => {
       [3, 1],
     ]);
     expect([...conflictsByBarFor([link(1, endpoint(1), endpoint(9), { check: violated })], rowOf)]).toEqual([[1, 1]]);
+  });
+});
+
+describe("markCriticalArrows", () => {
+  const links = [link(1, endpoint(1), endpoint(2), { critical: true }), link(2, endpoint(2), endpoint(3))];
+
+  test("flags the arrows of the links the server marked critical and leaves every other arrow as it came", () => {
+    const specs = arrowSpecsFor(links, rowOf);
+    const marked = markCriticalArrows(specs, links);
+    expect(marked.map((spec) => [spec.id, spec.critical])).toEqual([
+      [1, true],
+      [2, undefined],
+    ]);
+    expect(marked[1]).toBe(specs[1]);
+  });
+
+  test("is a no-op when no link is critical, and ignores a critical link that has no arrow", () => {
+    const plain = [link(1, endpoint(1), endpoint(2)), link(2, endpoint(2), endpoint(3))];
+    expect(markCriticalArrows(arrowSpecsFor(plain, rowOf), plain).some((spec) => spec.critical !== undefined)).toBe(false);
+    expect(markCriticalArrows(arrowSpecsFor(plain, rowOf), [link(9, endpoint(1), endpoint(2), { critical: true })]).some((spec) => spec.critical !== undefined)).toBe(false);
   });
 });

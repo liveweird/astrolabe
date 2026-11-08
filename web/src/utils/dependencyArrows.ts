@@ -56,3 +56,12 @@ export function arrowSpecsFor(dependencies: readonly ProjectDependency[], rowOf:
   }
   return specs;
 }
+
+/**
+ * The critical-path flag (v0.7, the team page since 1.7): `specs` with `critical: true` on every arrow whose link the server marked `critical`; any other arrow
+ * is returned as it came. A page calls it only while its critical-path toggle is on, so off no arrow carries the flag.
+ */
+export function markCriticalArrows(specs: readonly TimelineArrowData[], dependencies: readonly ProjectDependency[]): TimelineArrowData[] {
+  const criticalIds = new Set(dependencies.filter((dependency) => dependency.critical).map((dependency) => dependency.id));
+  return specs.map((spec) => (criticalIds.has(spec.id as number) ? { ...spec, critical: true } : spec));
+}

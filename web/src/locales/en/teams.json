@@ -51,6 +51,7 @@
     "timelineTitle": "Timeline",
     "timelineAria": "Team milestone timeline",
     "trayAria": "Unscheduled milestones of the team",
+    "criticalNote": "Slack and the critical path are measured toward each milestone's own project's end. A dependency is marked only when it lies on the chain of a project this team works on.",
     "stripLabel": "Weekly load",
     "barAria": "{{name}}, {{project}}, {{start}} to {{end}}, {{estimate}}",
     "openProjectAria": "Open project {{name}}",

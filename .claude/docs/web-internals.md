@@ -534,8 +534,8 @@ section** (`components/IdleGaps.tsx`, h3 after the Dependencies section: a `Tabl
 more working days.") and count in a gray "N idle gaps" badge of the facts line (absent at zero; neutral information, never a warning). The optimistic step keeps
 them (above): dropping them would flash a false "no idle gaps" for a round trip. Strings: `timeline.idle.*`.
 
-**Critical path (v0.7.0).** `ProjectPage` holds `useStoredState("timeline.criticalPath", false, isBoolean)` (before the early return: hooks stay unconditional),
-passes `criticalPath` and the toggle `Button` (as `toolbar`) to `ProjectTimeline`, `showCritical` to `ProjectDependencies` and mounts `<CriticalChain view />`
+**Critical path (v0.7.0).** `ProjectPage` holds `useCriticalPathPick()` (the one `timeline.criticalPath` key, shared with the team page, 1.7; before the early return: hooks stay unconditional),
+passes `criticalPath` and `<CriticalPathToggle>` (as `toolbar`) to `ProjectTimeline`, `showCritical` to `ProjectDependencies` (1.7: with it a **Slack** column of each link's own `check.slackDays`, "—" while an end is unscheduled, a critical link "0" + the hidden "critical path") and mounts `<CriticalChain view />`
 right after `{dependencies}` (before `IdleGaps`) while the toggle is on and the project has milestones (so the h3 order is Timeline, Unscheduled, Dependencies,
 Critical chain, Idle gaps). `ProjectTimeline` (rows in `ProjectTimelineRows.tsx`, cell in `SlackCell.tsx`) adds the `slack` column (`withOptional` inserts the cell before the actions cell, so a bar's roving columns shift by
 one with it) and applies `emphasized(t, critical, describe)` to the bar fields; `arrowSpecs(view, criticalPath)` flags the arrows. The ghost rows' slack and
@@ -1044,6 +1044,13 @@ The timeline (`components/TeamTimeline.tsx`, on the shared `Timeline*` with the 
 **the project rank is only the DEFAULT order; a manager's override is the execution order and is never reshuffled by a rank change** — with the project as a
 link, the estimate and the row menu; arrows are drawn only between this timeline's rows (no ghost rows, no Dependencies table; a bar's name gains ", N
 conflicts"); the Unscheduled tray is the project page's.
+
+**Critical path (1.7).** The team page holds the project page's `useCriticalPathPick()` (the same remembered `timeline.criticalPath`; `<CriticalPathToggle>` in the
+timeline's `toolbar` after the baseline picker) and passes `criticalPath` to `TeamTimeline`: a **Slack** column (`SlackCell`, after Flags, before Operations; a
+critical row "0" + the hidden "critical path", else "N working days") from the view's `slackDays`/`critical`, `emphasis: "critical"` and ", on the critical path" on a
+critical bar, `markCriticalArrows(specs, view.dependencies)` (`utils/dependencyArrows.ts`, shared with `arrowSpecs`) for the critical links, and a dimmed
+`teams.view.criticalNote` under the timeline title saying the figures are toward each milestone's OWN project's end and a link is marked only on the chain of
+a project the team works on. Read, never recomputed; off, the DOM is the one it was (pinned, `TeamTimeline.test.tsx`).
 
 - **Query keys.** The view is `["plan","team",id]` (`teamViewKey`), under the `["plan"]` prefix like the project view, so every plan mutation, a schedule write
   and a capacity write refresh a mounted team page. The team editor's save refreshes `["teams"]` and `["plan"]`.
@@ -1607,7 +1614,7 @@ When a feature needs one of these, port the sibling's `web/` implementation and 
   `astrolabe.chunkReloadedAt` (the one-shot reload after a failed lazy chunk, `main.tsx`). **Web Lock:** `astrolabe.auth.refresh`. **CSS variables:**
   `--astrolabe-*`. None of Flow's `flow.*` keys exist; there are no legacy redirects.
 - **Timeline view settings** (`astrolabe.viewSettings.timeline.*`, shared by the pages that show them, each a `useStoredState` with its own validator): `zoom`
-  (project, team), `planZoom` (roadmap, programs), `criticalPath` (project, default false), `baseline` (all four, an id or none), **`jiraBars`** (1.3, all four
+  (project, team), `planZoom` (roadmap, programs), `criticalPath` (project and team, default false; `hooks/useCriticalPathPick.ts`), `baseline` (all four, an id or none), **`jiraBars`** (1.3, all four
   pages; a boolean, **default true**: the "Jira dates" toggle of the Jira shadow bar, `hooks/useJiraBarsPick.ts`; a stored non-boolean reads as the default).
   The team page's `teams.jiraColumn.<id>` (1.1/1.2: the remembered answer of whether the Jira column exists) is gone in 1.3 - the view's own `jira` blocks say
   whether a row is linked, so the Flags column needs no stored guess; a value an old browser still holds is never read or cleaned.

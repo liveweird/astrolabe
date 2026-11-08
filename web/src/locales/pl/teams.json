@@ -57,6 +57,7 @@
     "timelineTitle": "Oś czasu",
     "timelineAria": "Oś czasu kamieni milowych zespołu",
     "trayAria": "Niezaplanowane kamienie milowe zespołu",
+    "criticalNote": "Luz i ścieżka krytyczna są liczone względem końca projektu, do którego należy dany kamień milowy. Zależność jest oznaczona tylko wtedy, gdy leży na łańcuchu projektu, nad którym pracuje ten zespół.",
     "stripLabel": "Obciążenie tygodniowe",
     "barAria": "{{name}}, {{project}}, od {{start}} do {{end}}, {{estimate}}",
     "openProjectAria": "Otwórz projekt {{name}}",

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
-import { Group, Stack } from "@mantine/core";
+import { Group, Stack, Text } from "@mantine/core";
 import { IconCalendarStats } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "../api/http";
@@ -10,6 +10,7 @@ import { useAdmin } from "../auth";
 import BaselineMovement from "../components/BaselineMovement";
 import { PickedLoadState } from "../components/BaselineParts";
 import BaselinePicker from "../components/BaselinePicker";
+import CriticalPathToggle from "../components/CriticalPathToggle";
 import EmptyState from "../components/EmptyState";
 import ErrorAlert from "../components/ErrorAlert";
 import MilestoneScheduleModal from "../components/MilestoneScheduleModal";
@@ -32,6 +33,7 @@ import IdleGaps from "../components/IdleGaps";
 import TeamWeeklyLoad from "../components/TeamWeeklyLoad";
 import TimelineDndContext from "../components/TimelineDndContext";
 import { useBaselinePick, useDropUnknownPick } from "../hooks/useBaselinePick";
+import { useCriticalPathPick } from "../hooks/useCriticalPathPick";
 import { useDialogFocus } from "../hooks/useDialogFocus";
 import { isOneOf, useStoredState } from "../hooks/useStoredState";
 import { useProposalFocus } from "../hooks/useProposalFocus";
@@ -79,6 +81,8 @@ function TeamPage({ id }: { id: number }) {
   const { view, query } = schedule;
   // The "Jira dates" toggle (1.3, remembered, on by default; offered only where the view links a Jira site).
   const jiraBars = useJiraBarsPick();
+  // The critical-path toggle (1.7): the project page's remembered choice, one for both pages. Off, the page renders what it always did.
+  const { shown: criticalPath, setShown: setCriticalPath } = useCriticalPathPick();
   const dropping = useDropUnknownPick(query.error, pick, setPick);
   const order = useTeamOrder(id, view, schedule.announce, pick, schedule.placeholder);
   const proposal = useScheduleProposal(id, schedule.announce, schedule.placeholder);
@@ -181,6 +185,11 @@ function TeamPage({ id }: { id: number }) {
               <TeamTimelineButtons view={view} proposal={proposal} busy={busy} proposeRef={proposeRef} onReset={() => setConfirmReset(true)} />
             </Group>
             <TeamProposalNotes proposal={proposal} />
+            {criticalPath && (
+              <Text size="sm" c="dimmed">
+                {t("teams.view.criticalNote")}
+              </Text>
+            )}
             <TeamTimeline
               view={view}
               scale={scale}
@@ -191,9 +200,11 @@ function TeamPage({ id }: { id: number }) {
               label={t("teams.view.timelineAria")}
               proposal={open ?? undefined}
               jira={jiraWindowNow}
+              criticalPath={criticalPath}
               toolbar={
                 <>
                   <BaselinePicker pick={pick} onPick={setPick} current={view.baseline} disabled={busy || locked} />
+                  <CriticalPathToggle shown={criticalPath} onChange={setCriticalPath} />
                   {view.jiraSites.length > 0 && <JiraBarsToggle shown={jiraBars.shown} onChange={jiraBars.setShown} />}
                 </>
               }

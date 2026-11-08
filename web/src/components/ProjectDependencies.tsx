@@ -15,6 +15,7 @@ import DestructiveMenuItem from "./DestructiveMenuItem";
 import EmptyState from "./EmptyState";
 import RowActionsMenu from "./RowActionsMenu";
 import ScrollRegion from "./ScrollRegion";
+import SlackCell from "./SlackCell";
 
 const NO_WRAP = { whiteSpace: "nowrap" } as const;
 
@@ -50,7 +51,7 @@ function DependencyRow({
 }: {
   dependency: ProjectDependency;
   ownProjectId: number;
-  /** The critical-path toggle is on (v0.7): a critical link carries a gray "Critical path" badge. */
+  /** The critical-path toggle is on (v0.7): a critical link carries a gray "Critical path" badge, and (1.7) every row a Slack cell. */
   showCritical: boolean;
   onEdit: (dependency: ProjectDependency) => void;
   onDelete: (dependency: ProjectDependency) => void;
@@ -76,6 +77,10 @@ function DependencyRow({
       <Table.Td style={NO_WRAP}>
         {check.requiredDate !== null && check.actualDate !== null ? t("project.dependency.dates", { required: check.requiredDate, actual: check.actualDate }) : "–"}
       </Table.Td>
+      {showCritical && (
+        // The link's own slack in working days (the server's `check.slackDays`: 0 or more when kept, minus the shortfall when violated); "—" while an end is unscheduled.
+        <Table.Td style={NO_WRAP}>{check.slackDays === null ? t("project.critical.slackNone") : <SlackCell slackDays={check.slackDays} critical={dependency.critical} />}</Table.Td>
+      )}
       <Table.Td style={{ width: 1 }} ta="right">
         {(dependency.can.edit || dependency.can.delete) && (
           <RowActionsMenu label={t("common.table.operationsAria", { name })}>
@@ -102,7 +107,7 @@ function DependencyRow({
  * needs and what it has. Edit… (`can.edit`) asks the page to open the editor on that link (`onEdit`); Delete (the successor's chain,
  * `can.delete`) confirms through `useDeleteConfirm`; "Add dependency" asks the page to open the editor (`onAdd`), which also serves the
  * milestone row menu's shortcut. `showCritical` (the page's critical-path toggle,
- * v0.7) adds a gray "Critical path" badge to the links the server marked `critical`.
+ * v0.7) adds a gray "Critical path" badge to the links the server marked `critical` and (1.7) a Slack column: each link's own slack from `check.slackDays`.
  */
 export default function ProjectDependencies({
   view,
@@ -154,6 +159,7 @@ export default function ProjectDependencies({
                   <Table.Th>{t("project.dependency.column.lag")}</Table.Th>
                   <Table.Th>{t("project.dependency.column.successor")}</Table.Th>
                   <Table.Th>{t("project.dependency.column.dates")}</Table.Th>
+                  {showCritical && <Table.Th>{t("project.column.slack")}</Table.Th>}
                   <Table.Th aria-label={t("common.table.operations")} style={{ width: 1 }} />
                 </Table.Tr>
               </Table.Thead>
