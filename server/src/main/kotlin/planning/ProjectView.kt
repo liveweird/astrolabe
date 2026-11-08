@@ -123,7 +123,10 @@ data class ProjectDependency(
     val type: DependencyType,
     val lagDays: Int,
     val check: DependencyCheck,
-    /** A zero-slack link on the viewed project's critical chain; always false on the team view (no per-project path is computed there). */
+    /**
+     * A zero-slack link on the viewed project's critical chain. On the team view (1.7): on the chain of a project one of the team's
+     * milestones belongs to (a link driving only a project none of them belongs to is not marked).
+     */
     val critical: Boolean,
     val can: ProjectDependencyCan,
 )

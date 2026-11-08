@@ -24,6 +24,8 @@ const unscheduledInPlan: Deviation = { kind: "UNSCHEDULED_IN_PLAN", severity: "I
 const milestone = (id: number, name: string, over: Partial<TeamMilestone> = {}): TeamMilestone => ({
   jira: null,
   flags: [],
+  slackDays: null,
+  critical: false,
   id,
   projectId: 7,
   name,

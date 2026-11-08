@@ -18,6 +18,15 @@ import java.math.BigDecimal
 internal class TeamMilestoneRow(val view: TeamMilestone, val span: DaySpan?, val estimate: BigDecimal, val key: OrderKey) {
     /** The row as the baseline comparison sees it (the unrounded estimate). */
     fun live() = LiveMilestone(view.id, view.projectId, view.teamId, view.name, estimate, span)
+
+    /** The row with its slack and critical flag from its OWN project's [path] (null = the project has nothing scheduled). */
+    fun withCriticalPath(path: CriticalPathResult?) = TeamMilestoneRow(
+        view = view.copy(
+            slackDays = path?.slackByMilestone?.get(view.id)?.let { Math.toIntExact(it) },
+            critical = path != null && view.id in path.criticalMilestones,
+        ),
+        span = span, estimate = estimate, key = key,
+    )
 }
 
 /**
@@ -73,6 +82,8 @@ internal suspend fun teamMilestoneRows(teamId: UInt, teamName: String, positions
                     programName = row[programs.name],
                     workStreamName = row[streams.name],
                     rankPosition = rank,
+                    slackDays = null,
+                    critical = false,
                 ),
             )
         }

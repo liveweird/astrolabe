@@ -340,7 +340,7 @@ function (`deleteCapacityPeriodsOf`, `removeFromRanking`, …) counts as the cal
   dictionary, one unfiltered `SELECT` of `holiday_date, name` — through `loadWorkingCalendar()` (`PublicHolidayService.kt`), a plain suspend function that runs
   INSIDE the caller's own transaction: right after `readPlanRevision()` in the views' REPEATABLE READ snapshot (so the revision, the rows and the calendar are
   one snapshot), and under the plan lock in the schedule write. A read, no lock; never from a route, never cached across requests (the calendar is a per-request
-  parameter of the pure kernels). The critical path: `ProjectViewService` READS EVERY active milestone (`MilestoneService.Milestones` joined to
+  parameter of the pure kernels). The critical path: `ProjectViewService` and (1.7) `TeamViewService` (`loadCriticalPaths`, one load for every project of the team) READ EVERY active milestone (`MilestoneService.Milestones` joined to
   `TeamService.Teams`, with its name), every active link (`DependencyService.Dependencies`) and every active project's id and name (`ProjectService.Projects`)
   through the roadmap's shared loaders (`RoadmapViewRows.kt` `milestoneFacts`/`linkFacts`, now `internal`, plus `activeProjectNames`) in the view's REPEATABLE
   READ snapshot, for the whole-chain critical path (`loadCriticalPath`, `CriticalPathView.kt`). A read, no lock; about 1,000 narrow milestone rows, 300 links

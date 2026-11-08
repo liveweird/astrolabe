@@ -12,8 +12,10 @@ import ch.nokillswit.planning.IdleGapView
 import ch.nokillswit.planning.MilestoneResponse
 import ch.nokillswit.planning.MilestoneScheduleRequest
 import ch.nokillswit.planning.MilestoneUpdateRequest
+import ch.nokillswit.planning.ProjectView
 import ch.nokillswit.planning.RankingUpdateRequest
 import ch.nokillswit.planning.ScheduleProposalRequest
+import ch.nokillswit.planning.TeamMilestone
 import ch.nokillswit.planning.TeamScheduleBatchItem
 import ch.nokillswit.planning.TeamScheduleBatchRequest
 import ch.nokillswit.planning.TeamView
@@ -25,6 +27,7 @@ import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
+import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -562,11 +565,94 @@ class TeamViewTest {
         assertEquals(second.projectId, link.predecessor.projectId)
         assertTrue(link.predecessor.projectName.isNotBlank())
         assertEquals(DependencyStatus.OK, view.dependencies.last().check.status)
-        assertTrue(view.dependencies.none { it.critical }, "no per-project path is computed on the team view")
+        // The critical path (1.7): a violated link is never critical; mine -> sibling is tight and sibling ends the project.
+        assertEquals(listOf(false, true), view.dependencies.map { it.critical })
         // can.delete follows the SUCCESSOR's project chain: the world's project owner owns both successors' project.
         assertTrue(w.projectOwner.view(t.teamId).dependencies.all { it.can.delete })
         assertFalse(w.stranger.view(t.teamId).dependencies.any { it.can.delete })
         assertTrue(w.view(t.teamId).dependencies.all { it.can.delete })
+    }
+
+    // --- the critical path (1.7) ----------------------------------------------------------------------------------------------
+
+    private fun TeamView.row(id: UInt): TeamMilestone = (scheduled + unscheduled).single { it.id == id }
+
+    /**
+     * The chain world: x1 (team X, project X) -> y1 (team X, project Y) -> p1 (team P, project P); p2 and the tray milestone are P's
+     * other work, q1 (team P) shares project Q with q2 (team X), which ends later. 2027-02-01 is a Monday.
+     */
+    private class ChainWorld(
+        val w: PlanWorld, val teamP: UInt, val teamX: UInt, val projects: List<UInt>,
+        val x1: UInt, val y1: UInt, val p1: UInt, val p2: UInt, val tray: UInt, val q1: UInt, val q2: UInt,
+        val xy: UInt, val yp: UInt,
+    )
+
+    private suspend fun ApplicationTestBuilder.chainWorld(prefix: String): ChainWorld {
+        val w = planWorld(prefix, teams = true)
+        val t = w.requireTeams()
+        val x = secondProject(w, "$prefix-x")
+        val y = secondProject(w, "$prefix-y")
+        val q = secondProject(w, "$prefix-q")
+        val x1 = TestPlan.milestone(x.projectId, t.otherTeamId, "x1").also { TestPlan.schedule(it, "2027-02-01", "2027-02-05") }
+        val y1 = TestPlan.milestone(y.projectId, t.otherTeamId, "y1").also { TestPlan.schedule(it, "2027-02-08", "2027-02-12") }
+        val p1 = TestPlan.milestone(w.projectId, t.teamId, "p1").also { TestPlan.schedule(it, "2027-02-15", "2027-02-19") }
+        val p2 = TestPlan.milestone(w.projectId, t.teamId, "p2").also { TestPlan.schedule(it, "2027-02-15", "2027-02-17") }
+        val tray = TestPlan.milestone(w.projectId, t.teamId, "tray")
+        val q1 = TestPlan.milestone(q.projectId, t.teamId, "q1").also { TestPlan.schedule(it, "2027-02-01", "2027-02-05") }
+        val q2 = TestPlan.milestone(q.projectId, t.otherTeamId, "q2").also { TestPlan.schedule(it, "2027-02-08", "2027-02-19") }
+        val xy = TestPlan.dependency(milestoneRef(x1), milestoneRef(y1))
+        val yp = TestPlan.dependency(milestoneRef(y1), milestoneRef(p1))
+        return ChainWorld(w, t.teamId, t.otherTeamId, listOf(x.projectId, y.projectId, q.projectId), x1, y1, p1, p2, tray, q1, q2, xy, yp)
+    }
+
+    @Test
+    fun `a team with milestones on two projects reads each one's slack toward its own project's end, and the chain of its projects`() =
+        testApplication {
+            usePostgresTestcontainer()
+            val c = chainWorld("tvc")
+            val view = c.w.view(c.teamP)
+
+            // p1 ends P's project; p2 ends two working days earlier; q1 is clear of Q's end by ten working days; the tray has no figures.
+            assertEquals(0 to true, view.row(c.p1).slackDays to view.row(c.p1).critical)
+            assertEquals(2 to false, view.row(c.p2).slackDays to view.row(c.p2).critical)
+            assertEquals(10 to false, view.row(c.q1).slackDays to view.row(c.q1).critical)
+            assertEquals(null to false, view.row(c.tray).slackDays to view.row(c.tray).critical)
+
+            // y1 -> p1 is on P's chain; x1 -> y1 does not touch the team's milestones and is not listed.
+            assertEquals(listOf(c.yp), view.dependencies.map { it.id })
+            assertTrue(view.dependencies.single().critical)
+            assertEquals(0, view.dependencies.single().check.slackDays)
+        }
+
+    @Test
+    fun `a link driving only a project none of the team's milestones belongs to is not marked`() = testApplication {
+        usePostgresTestcontainer()
+        val c = chainWorld("tvx")
+        val view = c.w.view(c.teamX)
+
+        // x1 and y1 are the only milestones of X and of Y: critical toward their own project's end. q2 ends Q.
+        for (id in listOf(c.x1, c.y1, c.q2)) assertEquals(0 to true, view.row(id).slackDays to view.row(id).critical, "milestone $id")
+        val critical = view.dependencies.associate { it.id to it.critical }
+        // x1 -> y1 is on Y's chain; y1 -> p1 drives only P, which team X has no milestone in.
+        assertEquals(mapOf(c.xy to true, c.yp to false), critical)
+    }
+
+    @Test
+    fun `the team page and the project page agree on every milestone's slack and critical flag`() = testApplication {
+        usePostgresTestcontainer()
+        val c = chainWorld("tva")
+        for (team in listOf(c.teamP, c.teamX)) {
+            for (row in c.w.view(team).let { it.scheduled + it.unscheduled }) {
+                val project: ProjectView = c.w.admin.client.get("/api/v1/views/project/${row.projectId}").body()
+                val same = (project.scheduled + project.unscheduled).single { it.id == row.id }
+                assertEquals(same.slackDays to same.critical, row.slackDays to row.critical, "milestone ${row.name}")
+            }
+        }
+        // Rescheduling moves the figures with the next read (nothing is cached): p2 now ends the project and p1 has slack.
+        TestPlan.schedule(c.p2, "2027-02-22", "2027-02-26")
+        val moved = c.w.view(c.teamP)
+        assertEquals(5 to false, moved.row(c.p1).slackDays to moved.row(c.p1).critical)
+        assertEquals(0 to true, moved.row(c.p2).slackDays to moved.row(c.p2).critical)
     }
 
     // --- the flags ----------------------------------------------------------------------------------------------------------

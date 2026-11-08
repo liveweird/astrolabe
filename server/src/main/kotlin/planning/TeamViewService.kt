@@ -16,7 +16,9 @@ val TeamViewServiceKey = AttributeKey<TeamViewService>("TeamViewService")
  * view's protocol) that takes the revision FIRST and the rows after, then runs the pure kernels - [effectiveOrder] over the team's
  * ACTIVE milestones (the team's own positions, read from those milestones, never by iterating the order table), [weeklyLoad] over the
  * scheduled ones for the window of [loadWindow] against the stored capacity periods, and [DependencyKernels.check] per link
- * ([viewDependencies]). The team must be active (null = the route's 404). Reads `Teams`, `People`, the plan tables, `RoadmapEntries`,
+ * ([viewDependencies]), and reads the critical path of each project the team works on ([loadCriticalPaths], 1.7: slack toward the
+ * milestone's OWN project's end; a link is critical when it lies on the chain of one of those projects). The team must be active
+ * (null = the route's 404). Reads `Teams`, `People`, the plan tables, `RoadmapEntries`,
  * the order tables, `CapacityPeriods`, `Dependencies` and `PublicHolidays` (the working calendar, [loadWorkingCalendar], read right
  * after the revision) and writes nothing (`persistence.md`). The milestones' Jira links and flags (1.3) come from [external] inside
  * the same snapshot, after the calendar.
@@ -37,7 +39,11 @@ class TeamViewService(private val database: R2dbcDatabase, private val external:
         val managerName = managerId?.let { activePersonName(it) }
 
         val positions = positionsOf(teamId)
-        val rows = teamMilestoneRows(teamId, team[teams.name], positions)
+        val rawRows = teamMilestoneRows(teamId, team[teams.name], positions)
+        // The critical path (1.7): each milestone's slack toward its OWN project's end, one graph build for every project of the team.
+        val paths = loadCriticalPaths(rawRows.map { it.view.projectId }.distinct(), calendar)
+        val rows = rawRows.map { it.withCriticalPath(paths[it.view.projectId]) }
+        val criticalLinks = paths.values.flatMapTo(HashSet()) { it.criticalDependencies }
         // Inside the snapshot, after the calendar: each milestone's Jira link and flags (1.3); no project rows here.
         val outside = external.flagsInTransaction(
             ExternalFlagRequest(projectIds = emptyList(), milestoneIds = rows.map { it.view.id }, calendar = calendar),
@@ -71,7 +77,8 @@ class TeamViewService(private val database: R2dbcDatabase, private val external:
             weeksTruncated = window?.truncated ?: false,
             scheduled = scheduled.map { it.view.withExternal(outside.milestone(it.view.id)) },
             unscheduled = unscheduled.map { it.view.withExternal(outside.milestone(it.view.id)) },
-            dependencies = viewDependencies(rows.map { it.view.id }, emptyList(), emptyMap(), actor, calendar),
+            dependencies = viewDependencies(rows.map { it.view.id }, emptyList(), emptyMap(), actor, calendar)
+                .map { it.copy(critical = it.id in criticalLinks) },
             idleGaps = idleGapViewsOf(items.map { it.span }, calendar),
             jiraSites = outside.sites,
             baseline = baseline?.let {

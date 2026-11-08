@@ -11,6 +11,8 @@ import { makeScale, toEpochDay } from "../utils/timelineScale";
 const milestone = (id: number, name: string, over: Partial<TeamMilestone> = {}): TeamMilestone => ({
   jira: null,
   flags: [],
+  slackDays: null,
+  critical: false,
   id,
   projectId: 7,
   name,

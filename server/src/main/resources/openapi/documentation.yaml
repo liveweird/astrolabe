@@ -1842,6 +1842,11 @@ paths:
         and checked on the working-day index, violated first; a link's other end may lie in another team or project and is not listed
         as a row of its own. `idleGaps` lists the runs of 3 or more working days with none of the team's milestones in progress.
 
+        The critical path (1.7): each milestone (`scheduled` and `unscheduled`) carries `slackDays` and `critical` toward ITS OWN project's
+        end, with the meaning and the figures `GET /views/project/{id}` gives the same milestone (`slackDays` null while unscheduled). A
+        link's `critical` is true when it lies on the critical chain of a project one of the team's milestones belongs to; a link that
+        drives only a project none of the team's milestones belongs to is not marked (that project's own page marks it).
+
         Jira (1.3): every milestone (`scheduled` and `unscheduled`) bound to a Jira item carries `jira` and, through an ENABLED connection,
         one `JIRA_DEVIATION` flag per OPEN deviation, as `GET /views/roadmap` describes; `jiraSites` lists the connections the rows link
         to. An unbound milestone answers `jira: null` and `flags: []`; one on a disabled connection keeps its `jira` (dates null) and `flags: []`.
@@ -5277,7 +5282,7 @@ components:
         type: { $ref: '#/components/schemas/DependencyType' }
         lagDays: { type: integer, format: int32, minimum: -365, maximum: 365, description: Working days; negative = a lead. }
         check: { $ref: '#/components/schemas/DependencyCheck' }
-        critical: { type: boolean, description: 'On the project view: a zero-slack link on the viewed project''s critical chain. On the team view always false - no per-project path is computed there.' }
+        critical: { type: boolean, description: 'A zero-slack link on the viewed project''s critical chain. On the team view (1.7): on the chain of a project one of the team''s milestones belongs to.' }
         can:
           type: object
           required: [edit, delete]
@@ -5561,7 +5566,7 @@ components:
         wipExceeded: { type: boolean, description: Some working day's in-progress count exceeds the WIP limit in force that day. }
     TeamMilestone:
       type: object
-      required: [id, projectId, name, description, teamId, teamName, estimateMd, startDate, endDate, createdAt, updatedAt, projectName, programName, workStreamName, rankPosition, jira, flags]
+      required: [id, projectId, name, description, teamId, teamName, estimateMd, startDate, endDate, createdAt, updatedAt, projectName, programName, workStreamName, rankPosition, slackDays, critical, jira, flags]
       description: A milestone as the team view shows it - the `MilestoneResponse` fields plus the names of its project chain and its project's rank. Both dates are null in `unscheduled`.
       properties:
         id: { type: integer, format: int32, minimum: 0 }
@@ -5579,6 +5584,8 @@ components:
         programName: { type: string }
         workStreamName: { type: string }
         rankPosition: { type: integer, format: int32, minimum: 1, nullable: true, description: The project's position in the global project rank; null = unranked. }
+        slackDays: { type: integer, format: int32, minimum: 0, nullable: true, description: 'Working days this milestone could slip before ITS OWN project''s end moves (the project view''s figure); null = unscheduled.' }
+        critical: { type: boolean, description: 'Zero slack: on the critical path toward its own project''s end.' }
         jira:
           nullable: true
           description: The node's Jira item (1.3); null when it is unbound. Through a disabled connection it is kept with null dates.

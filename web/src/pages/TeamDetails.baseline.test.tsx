@@ -35,6 +35,8 @@ const UNKNOWN = { type: "urn:astrolabe:problem:unknown-baseline", title: "Bad Re
 const milestone = (id: number, name: string, over: Partial<TeamMilestone> = {}): TeamMilestone => ({
   jira: null,
   flags: [],
+  slackDays: null,
+  critical: false,
   id,
   projectId: 7,
   name,

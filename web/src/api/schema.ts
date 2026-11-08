@@ -1237,6 +1237,11 @@ export interface paths {
          *     and checked on the working-day index, violated first; a link's other end may lie in another team or project and is not listed
          *     as a row of its own. `idleGaps` lists the runs of 3 or more working days with none of the team's milestones in progress.
          *
+         *     The critical path (1.7): each milestone (`scheduled` and `unscheduled`) carries `slackDays` and `critical` toward ITS OWN project's
+         *     end, with the meaning and the figures `GET /views/project/{id}` gives the same milestone (`slackDays` null while unscheduled). A
+         *     link's `critical` is true when it lies on the critical chain of a project one of the team's milestones belongs to; a link that
+         *     drives only a project none of the team's milestones belongs to is not marked (that project's own page marks it).
+         *
          *     Jira (1.3): every milestone (`scheduled` and `unscheduled`) bound to a Jira item carries `jira` and, through an ENABLED connection,
          *     one `JIRA_DEVIATION` flag per OPEN deviation, as `GET /views/roadmap` describes; `jiraSites` lists the connections the rows link
          *     to. An unbound milestone answers `jira: null` and `flags: []`; one on a disabled connection keeps its `jira` (dates null) and `flags: []`.
@@ -3995,7 +4000,7 @@ export interface components {
              */
             lagDays: number;
             check: components["schemas"]["DependencyCheck"];
-            /** @description On the project view: a zero-slack link on the viewed project's critical chain. On the team view always false - no per-project path is computed there. */
+            /** @description A zero-slack link on the viewed project's critical chain. On the team view (1.7): on the chain of a project one of the team's milestones belongs to. */
             critical: boolean;
             can: {
                 /** @description The caller may change the link's type and lag (`PUT /dependencies/{id}`): an owner on the SUCCESSOR's project chain, or ADMIN. */
@@ -4311,6 +4316,13 @@ export interface components {
              * @description The project's position in the global project rank; null = unranked.
              */
             rankPosition: number | null;
+            /**
+             * Format: int32
+             * @description Working days this milestone could slip before ITS OWN project's end moves (the project view's figure); null = unscheduled.
+             */
+            slackDays: number | null;
+            /** @description Zero slack: on the critical path toward its own project's end. */
+            critical: boolean;
             /** @description The node's Jira item (1.3); null when it is unbound. Through a disabled connection it is kept with null dates. */
             jira: components["schemas"]["JiraLink"] | null;
             /** @description The open Jira flags of the milestone (`JIRA_DEVIATION`, one per deviation, WARNING first); empty when it is unbound, clean, acknowledged or on a disabled connection. */

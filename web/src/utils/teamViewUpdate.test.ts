@@ -5,6 +5,8 @@ import { applyTeamOrder, applyTeamSchedule } from "./teamViewUpdate";
 const milestone = (id: number, name: string, over: Partial<TeamMilestone> = {}): TeamMilestone => ({
   jira: null,
   flags: [],
+  slackDays: null,
+  critical: false,
   id,
   projectId: 7,
   name,

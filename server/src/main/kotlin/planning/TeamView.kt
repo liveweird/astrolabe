@@ -103,6 +103,10 @@ data class TeamMilestone(
     val workStreamName: String,
     /** The project's position in the global project rank (1-based); null = unranked. */
     val rankPosition: Int?,
+    /** Working days this milestone could slip before ITS OWN project's end moves (the project view's figure, 1.7); null = unscheduled. */
+    val slackDays: Int?,
+    /** On the critical path toward its own project's end: zero [slackDays] (the project view says the same about the same milestone). */
+    val critical: Boolean,
     val jira: JiraLink? = null,
     val flags: List<PlanFlag> = emptyList(),
 )

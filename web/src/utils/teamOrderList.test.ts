@@ -5,6 +5,8 @@ import { fullOrderList, placeScheduled } from "./teamOrderList";
 const milestone = (id: number, scheduled = true): TeamMilestone => ({
   jira: null,
   flags: [],
+  slackDays: null,
+  critical: false,
   id,
   projectId: 7,
   name: `m${id}`,
