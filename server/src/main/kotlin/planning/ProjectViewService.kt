@@ -141,6 +141,7 @@ class ProjectViewService(private val database: R2dbcDatabase, private val extern
                         updatedAt = row[milestones.updatedAt],
                         slackDays = critical.slackByMilestone[id]?.let { Math.toIntExact(it) },
                         critical = id in critical.criticalMilestones,
+                        pinned = row[milestones.pinned],
                         can = ProjectMilestoneCan(edit = manage, delete = manage, schedule = PlanPermissions.canSchedule(actor, teamId)),
                     ),
                 )

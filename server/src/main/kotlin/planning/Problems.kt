@@ -17,6 +17,12 @@ const val DEPENDENCY_CYCLE_PROBLEM = "urn:astrolabe:problem:dependency-cycle"
 const val STALE_SCOPE_PROBLEM = "urn:astrolabe:problem:stale-scope"
 
 /**
+ * The `type` of the 409 a pin of an UNSCHEDULED milestone answers (RFC 7807): a pin needs dates (`ck_milestones_pinned_scheduled`), so
+ * the SPA tells the manager to schedule the milestone first instead of sniffing the `detail`.
+ */
+const val MILESTONE_UNSCHEDULED_PROBLEM = "urn:astrolabe:problem:milestone-unscheduled"
+
+/**
  * The `type` of the 409 a baseline create answers at the cap of [MAX_ACTIVE_BASELINES] active baselines (RFC 7807): delete one first.
  * A name clash is the plain unique-violation 409, not this problem.
  */

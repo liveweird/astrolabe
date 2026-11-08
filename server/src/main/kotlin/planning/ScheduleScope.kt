@@ -15,10 +15,11 @@ import java.time.LocalDate
  * ([scheduleScope]); a difference is a 409 `stale-scope`, nothing written.
  *
  * What is in and what is out, input by input:
- *  - IN: the team's milestone set with each one's project and estimate; the team's effective ORDER with the milestones' own dates taken
- *    out of its tiebreak (the stored positions, the projects' global rank and the names still count); the team's capacity periods; every
- *    link that touches the team (an end is one of its milestones, or a project holding one) with, per end, the span of what is NOT the
- *    team's; the Monday-Friday holidays.
+ *  - IN: the team's milestone set with each one's project, estimate and PIN (V25: the kernel treats a pinned milestone as fixed, so a pin
+ *    flipped after the proposal is a `stale-scope`, never an accept against a premise the preview did not see); the team's effective
+ *    ORDER with the milestones' own dates taken out of its tiebreak (the stored positions, the projects' global rank and the names
+ *    still count); the team's capacity periods; every link that touches the team (an end is one of its milestones, or a project
+ *    holding one) with, per end, the span of what is NOT the team's; the Monday-Friday holidays.
  *  - OUT, covered elsewhere: the team's OWN milestones' spans - `schedule_revision` (a batch item is skipped STALE, any other team
  *    milestone is the batch's sweep). Hashing them would make a colleague's drag of a batch item refuse the whole batch instead of
  *    skipping that item, and the team's own accepted moves would stale every later accept.
@@ -26,7 +27,7 @@ import java.time.LocalDate
  */
 
 @Serializable
-data class ScopeMilestone(val id: UInt, val projectId: UInt, val estimateMd: String)
+data class ScopeMilestone(val id: UInt, val projectId: UInt, val estimateMd: String, val pinned: Boolean)
 
 @Serializable
 data class ScopePeriod(val effectiveFrom: String, val mdPerWeek: String, val wipLimit: Int?)
@@ -83,7 +84,7 @@ fun scheduleScope(
 
     return ScheduleScope(
         teamId = teamId,
-        milestones = team.sortedBy { it.id }.map { ScopeMilestone(it.id, it.projectId, it.estimateMd.plain()) },
+        milestones = team.sortedBy { it.id }.map { ScopeMilestone(it.id, it.projectId, it.estimateMd.plain(), it.pinned) },
         order = effectiveOrder(team) { it.key.copy(start = null, end = null) }.map { it.id },
         periods = periods.sortedWith(compareBy({ it.effectiveFrom }, { it.mdPerWeek }, { it.wipLimit ?: Int.MAX_VALUE }))
             .map { ScopePeriod(it.effectiveFrom.toString(), it.mdPerWeek.plain(), it.wipLimit) },

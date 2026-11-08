@@ -107,6 +107,8 @@ data class TeamMilestone(
     val slackDays: Int?,
     /** On the critical path toward its own project's end: zero [slackDays] (the project view says the same about the same milestone). */
     val critical: Boolean,
+    /** The auto-proposal keeps these dates (V25); the manager or ADMIN pins through `can.schedule`. Only true while scheduled. */
+    val pinned: Boolean,
     val jira: JiraLink? = null,
     val flags: List<PlanFlag> = emptyList(),
 )

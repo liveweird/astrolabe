@@ -15,8 +15,18 @@ import java.time.LocalDate
  * sits on a day without capacity, is what makes the second level necessary: the daily test alone would let such a week overflow.
  */
 
-/** One of the team's milestones as the scheduler sees it: [span] null = unscheduled; [key] is its place in the team's effective order. */
-data class TeamScheduleItem(val id: UInt, val projectId: UInt, val span: DaySpan?, val estimateMd: BigDecimal, val key: OrderKey)
+/**
+ * One of the team's milestones as the scheduler sees it: [span] null = unscheduled; [key] is its place in the team's effective order;
+ * [pinned] (V25) makes a dated milestone FIXED whatever its start (the manager's "keep this one").
+ */
+data class TeamScheduleItem(
+    val id: UInt,
+    val projectId: UInt,
+    val span: DaySpan?,
+    val estimateMd: BigDecimal,
+    val key: OrderKey,
+    val pinned: Boolean = false,
+)
 
 /**
  * Everything a run reads. [asOf] is the viewer's calendar day: a team milestone is MOVABLE when unscheduled or when its start is after
@@ -151,8 +161,12 @@ private class Pass(private val inputs: ScheduleInputs, private val team: List<Te
     private val placed = HashMap<UInt, Placement>()
     val unplaced = HashMap<UInt, UnplacedReason>()
 
-    /** Fixed = started on or before `asOf`, or pinned by an earlier pass (stored dates stand). */
-    private fun isFixed(item: TeamScheduleItem) = item.span != null && (item.span.start <= inputs.asOf || item.id in pinned)
+    /**
+     * Fixed = started on or before `asOf`, PINNED by its manager (V25: [TeamScheduleItem.pinned]), or held by an earlier pass (the
+     * fixpoint's own set `pinned` above: a scheduled milestone that found no room keeps its stored dates). The ONE predicate a pin touches.
+     */
+    private fun isFixed(item: TeamScheduleItem) =
+        item.span != null && (item.span.start <= inputs.asOf || item.pinned || item.id in pinned)
 
     fun execute() {
         val (fixed, movable) = team.partition(::isFixed)

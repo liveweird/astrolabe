@@ -143,6 +143,7 @@ ch.nokillswit.MfaChallengesTest	0.0
 ch.nokillswit.MfaLoginTest	0.9
 ch.nokillswit.MigrationChecksumTest	0.0
 ch.nokillswit.MilestoneListTest	0.8
+ch.nokillswit.MilestonePinTest	2.5
 ch.nokillswit.MilestoneScheduleTest	3.6
 ch.nokillswit.MilestoneTest	2.1
 ch.nokillswit.MonitoringReporterConfigTest	0.1

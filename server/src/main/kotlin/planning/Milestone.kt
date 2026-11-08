@@ -50,6 +50,14 @@ data class MilestoneScheduleRequest(
     val endDate: String? = null,
 )
 
+/**
+ * The pin write (`PUT /milestones/{id}/pin`): [pinned] true keeps the milestone's dates fixed for the auto-proposal, false releases it.
+ * Idempotent and carrying no revision: the pin is advice to the planner, and an accept that raced a flipped pin is refused by the
+ * proposal's `scopeHash` (`stale-scope`).
+ */
+@Serializable
+data class MilestonePinRequest(val pinned: Boolean)
+
 /** The plan revision after a schedule write — the client's next `expectedRevision` for any milestone it still holds. */
 @Serializable
 data class ScheduleResponse(val revision: Long)
@@ -65,6 +73,8 @@ data class MilestoneResponse(
     val estimateMd: Double,
     val startDate: String?,
     val endDate: String?,
+    /** The auto-proposal keeps the dates (V25); only ever true while scheduled. */
+    val pinned: Boolean,
     val createdAt: Long,
     val updatedAt: Long,
 )
@@ -85,6 +95,8 @@ data class MilestoneListItem(
     val estimateMd: Double,
     val startDate: String?,
     val endDate: String?,
+    /** The auto-proposal keeps the dates (V25); only ever true while scheduled. */
+    val pinned: Boolean,
     val createdAt: Long,
     val updatedAt: Long,
 )
@@ -102,8 +114,14 @@ data class MilestoneSpan(val start: LocalDate, val end: LocalDate)
 /** What a plan-field update replaced, for the audit delta: the STORED team before the write. */
 data class MilestoneUpdateOutcome(val teamFrom: UInt)
 
-/** What a schedule write replaced: the STORED span before it (null = unscheduled), the team it was checked against and the new revision. */
-data class ScheduleOutcome(val from: MilestoneSpan?, val teamId: UInt, val revision: Long)
+/**
+ * What a schedule write replaced: the STORED span before it (null = unscheduled), the team it was checked against, the new revision and
+ * whether the write CLEARED a pin ([pinCleared]: an unschedule of a pinned milestone, audited as `milestone.unpinned`).
+ */
+data class ScheduleOutcome(val from: MilestoneSpan?, val teamId: UInt, val revision: Long, val pinCleared: Boolean = false)
+
+/** What a pin write found: the STORED pin [before], the team the guard checked and the plan revision the write left behind. */
+data class PinOutcome(val before: Boolean, val teamId: UInt, val revision: Long)
 
 // `estimateMd + 0.0` normalises a negative zero (which passes `>= 0`) to 0.0, so the audit never logs `-0.0`.
 fun MilestoneCreateRequest.sanitized(): MilestoneCreateRequest =

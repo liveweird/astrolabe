@@ -55,6 +55,7 @@ const proposalOf = (over: Partial<ScheduleProposal> = {}): ScheduleProposal => (
   moves: [A, B, C],
   unchanged: [9],
   unplaced: [],
+  pinned: [],
   weeks: [],
   weeksTruncated: false,
   dependencies: [],

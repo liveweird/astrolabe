@@ -1029,9 +1029,42 @@ export interface paths {
          *     (the `revision` of a plan view document, or of its previous schedule answer); the write is `409` with `type`
          *     `urn:astrolabe:problem:stale-revision` only when THIS milestone's schedule was written at a later revision (or the value is
          *     above the current plan revision) - unrelated plan writes never stale it. A negative value is `400`. The answer carries the new plan revision. Every accepted PUT bumps the plan revision; it is audited as
-         *     `milestone.scheduled` when the dates actually change.
+         *     `milestone.scheduled` when the dates actually change. Unscheduling (both dates null) also clears the milestone's pin
+         *     (`PUT /milestones/{id}/pin`) in the same write and audits `milestone.unpinned`; rescheduling keeps it.
          */
         put: operations["scheduleMilestone"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/milestones/{id}/pin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Pin or unpin a milestone's dates for the auto-proposal
+         * @description A pinned milestone is FIXED for the team's schedule proposal: its dates stand, its load is booked and its dates bound its
+         *     successors (`POST /teams/{id}/schedule-proposal`; the answer lists the pinned ids). The pin is advice to the planner, not a lock:
+         *     a drag or the schedule dialog still moves the milestone and keeps the pin, and an unschedule clears it. Only a SCHEDULED
+         *     milestone can be pinned. Who may pin is who may set the dates (the `can.schedule` of the views): ADMIN or the ACTIVE manager of
+         *     the milestone's team - the project's owner is NOT enough (`403`). Read-before-guard (404, then 403, then the body); the guard
+         *     is re-run under the plan lock against the milestone's stored team, so a manager revoked meanwhile is a `403`. Pinning an
+         *     unscheduled milestone is `409` with `type` `urn:astrolabe:problem:milestone-unscheduled` (nothing is written); unpinning one
+         *     is a no-op. The write is idempotent and takes no `expectedRevision`; it does not touch the milestone's schedule revision (so it
+         *     never stales a drag), but every accepted PUT bumps the plan revision, a no-op one included. Audited as `milestone.pinned` /
+         *     `milestone.unpinned`, only when the flag actually changes. A proposal read before a pin flipped is refused by its `scopeHash`
+         *     (`409` `stale-scope`) when accepted.
+         */
+        put: operations["pinMilestone"];
         post?: never;
         delete?: never;
         options?: never;
@@ -1636,7 +1669,7 @@ export interface paths {
          *     `urn:astrolabe:problem:stale-revision` for the WHOLE batch.
          *
          *     `scopeHash` (optional, the proposal's) turns the call into the accept of THAT proposal: after the revision check, under the lock,
-         *     the team's scope is fingerprinted again from the same rows (its milestones, their estimates, projects and effective order, its
+         *     the team's scope is fingerprinted again from the same rows (its milestones, their estimates, projects, pins and effective order, its
          *     capacity periods, the links touching it with the dates of their foreign ends, the Monday-Friday holidays) and any other milestone
          *     of the team that was scheduled after `expectedRevision` and is not in the batch is looked for. A different fingerprint or such a
          *     milestone is `409` with `type` `urn:astrolabe:problem:stale-scope` for the WHOLE batch: nothing is written and the revision is not
@@ -1649,7 +1682,9 @@ export interface paths {
          *     written after `expectedRevision`, per-milestone as in the single PUT - unrelated plan writes never stale an item). A written item
          *     has its `schedule_revision` stamped with the new plan revision. The batch bumps the plan revision by ONE, whatever was skipped (an
          *     all-skipped batch included), and the answer's `revision` is that new revision: send it as the next `expectedRevision`.
-         *     Audited as `milestone.scheduled` per written item whose dates actually changed and ONE `team.schedule_batch_applied`.
+         *     An item that unschedules a PINNED milestone clears its pin in the same statement (a dated item keeps it).
+         *     Audited as `milestone.scheduled` per written item whose dates actually changed (plus `milestone.unpinned` per cleared pin) and ONE
+         *     `team.schedule_batch_applied`.
          */
         post: operations["scheduleTeamMilestones"];
         delete?: never;
@@ -1678,7 +1713,10 @@ export interface paths {
          *     `POST /teams/{id}/milestone-schedules` with this document's `revision` as `expectedRevision`.
          *
          *     `asOf` is the VIEWER's calendar day (the server reads no clock): a milestone of the team is MOVABLE when it is unscheduled or its
-         *     start is after `asOf`; one that started on or before it (in progress or past) is fixed and so is every other team's milestone.
+         *     start is after `asOf`; one that started on or before it (in progress or past) is fixed and so is every other team's milestone. A
+         *     PINNED milestone (`PUT /milestones/{id}/pin`) is fixed too, whatever its start: its dates stand, its load is booked and its dates
+         *     bound its successors; `pinned` lists those the proposal keeps only because of the pin, and a pin flipped after the proposal turns
+         *     the accept's `scopeHash` stale.
          *     Movable milestones are placed greedily in the team's milestone order (the custom order, else the project rank), after their
          *     dependencies, on the earliest working days that fit: the duration is the estimate over the capacity share (capacity over the WIP
          *     limit, the whole capacity when there is none), every day within capacity and the WIP limit, on the public-holiday calendar. Days
@@ -3664,6 +3702,8 @@ export interface components {
             startDate: string | null;
             /** Format: date */
             endDate: string | null;
+            /** @description The auto-proposal keeps this milestone on its dates (V25); only ever true while it is scheduled. Set by the milestone team's manager or ADMIN (`PUT /milestones/{id}/pin`), cleared by an unschedule. */
+            pinned: boolean;
             /**
              * Format: int64
              * @description Epoch millis
@@ -3728,6 +3768,10 @@ export interface components {
              */
             endDate?: string | null;
         };
+        MilestonePinRequest: {
+            /** @description True keeps the milestone on its dates for the auto-proposal; false releases it. Idempotent. */
+            pinned: boolean;
+        };
         ScheduleResponse: {
             /**
              * Format: int64
@@ -3757,6 +3801,8 @@ export interface components {
             startDate: string | null;
             /** Format: date */
             endDate: string | null;
+            /** @description The auto-proposal keeps this milestone on its dates (V25); only ever true while it is scheduled. Set by the milestone team's manager or ADMIN (`PUT /milestones/{id}/pin`), cleared by an unschedule. */
+            pinned: boolean;
             /**
              * Format: int64
              * @description Epoch millis
@@ -4139,6 +4185,8 @@ export interface components {
             startDate: string | null;
             /** Format: date */
             endDate: string | null;
+            /** @description The auto-proposal keeps this milestone on its dates (V25); only ever true while it is scheduled. Set by the milestone team's manager or ADMIN (`PUT /milestones/{id}/pin`), cleared by an unschedule. */
+            pinned: boolean;
             /**
              * Format: int64
              * @description Epoch millis
@@ -4314,6 +4362,8 @@ export interface components {
             startDate: string | null;
             /** Format: date */
             endDate: string | null;
+            /** @description The auto-proposal keeps this milestone on its dates (V25); only ever true while it is scheduled. Set by the milestone team's manager or ADMIN (`PUT /milestones/{id}/pin`), cleared by an unschedule. */
+            pinned: boolean;
             /**
              * Format: int64
              * @description Epoch millis
@@ -4985,6 +5035,8 @@ export interface components {
             unchanged: number[];
             /** @description The movable milestones that got no dates, in the team's effective order. */
             unplaced: components["schemas"]["ScheduleProposalUnplaced"][];
+            /** @description The team's milestones the proposal keeps on their dates only because they are pinned (a pinned, scheduled milestone starting after `asOf`; one already in progress is fixed anyway), in the team's effective order. They are in neither `moves` nor `unchanged`. Empty without pins. */
+            pinned: number[];
             /** @description The team's weekly load AFTER accepting every move, in the team view's row shape (at most 520); empty while nothing would be scheduled. */
             weeks: components["schemas"]["WeekLoad"][];
             /** @description True when `weeks` stops at 520 weeks. */
@@ -5056,7 +5108,7 @@ export interface components {
         /** @description RFC 7807 problem detail. Served as `application/problem+json`; instance is the request path without query parameters. */
         ProblemDetail: {
             /**
-             * @description A URI reference identifying the problem type; `about:blank` unless a problem names its own (`urn:astrolabe:problem:stale-revision` on a stale ranking, milestone-schedule or team-order PUT, or a batch schedule from a future revision, `urn:astrolabe:problem:stale-scope` on a batch accept whose team plan changed since its proposal, `urn:astrolabe:problem:dependency-cycle` on a dependency that would close a cycle, `urn:astrolabe:problem:stale-deviations` on an acknowledge whose fingerprint is no longer the binding's or whose binding has no deviation).
+             * @description A URI reference identifying the problem type; `about:blank` unless a problem names its own (`urn:astrolabe:problem:stale-revision` on a stale ranking, milestone-schedule or team-order PUT, or a batch schedule from a future revision, `urn:astrolabe:problem:stale-scope` on a batch accept whose team plan changed since its proposal (a pin flipped meanwhile included), `urn:astrolabe:problem:milestone-unscheduled` on a pin of an unscheduled milestone, `urn:astrolabe:problem:dependency-cycle` on a dependency that would close a cycle, `urn:astrolabe:problem:stale-deviations` on an acknowledge whose fingerprint is no longer the binding's or whose binding has no deviation).
              * @default about:blank
              */
             type: string;
@@ -8468,6 +8520,48 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             /** @description `expectedRevision` is stale for THIS milestone (`type` is `urn:astrolabe:problem:stale-revision`) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    pinMilestone: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MilestonePinRequest"];
+            };
+        };
+        responses: {
+            /** @description The pin was written; the body carries the new plan revision */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduleResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description The milestone is unscheduled and cannot be pinned (`type` is `urn:astrolabe:problem:milestone-unscheduled`) */
             409: {
                 headers: {
                     [name: string]: unknown;

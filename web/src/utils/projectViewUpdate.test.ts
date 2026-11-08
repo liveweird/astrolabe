@@ -18,6 +18,7 @@ const milestone = (id: number, name: string, startDate: string | null = null, en
   updatedAt: 2,
   slackDays: null,
   critical: false,
+  pinned: false,
   can: { edit: true, delete: true, schedule: true },
 });
 

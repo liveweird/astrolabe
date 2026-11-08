@@ -47,6 +47,7 @@ const milestone = (id: number, name: string, over: Partial<ProjectMilestone> = {
   updatedAt: 2,
   slackDays: null,
   critical: false,
+  pinned: false,
   can: { edit: true, delete: true, schedule: true },
   ...over,
 });

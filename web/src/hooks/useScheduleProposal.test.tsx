@@ -35,6 +35,7 @@ const PROPOSAL: ScheduleProposal = {
   moves: [move(1, "2042-01-07", "2042-01-09"), move(2, "2042-01-07", "2042-01-08"), move(3, "2042-01-13", "2042-01-15")],
   unchanged: [4],
   unplaced: [],
+  pinned: [],
   weeks: [],
   weeksTruncated: false,
   dependencies: [],

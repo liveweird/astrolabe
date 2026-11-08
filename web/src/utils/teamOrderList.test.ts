@@ -7,6 +7,7 @@ const milestone = (id: number, scheduled = true): TeamMilestone => ({
   flags: [],
   slackDays: null,
   critical: false,
+  pinned: false,
   id,
   projectId: 7,
   name: `m${id}`,

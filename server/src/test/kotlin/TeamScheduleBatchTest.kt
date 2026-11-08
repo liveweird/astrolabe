@@ -168,6 +168,27 @@ class TeamScheduleBatchTest {
     }
 
     @Test
+    fun `an unscheduling item clears a pin, a dated item keeps it, and a skipped item changes nothing (V25)`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("tsbpin", teams = true)
+        val t = w.requireTeams()
+        val (cleared, kept, skipped) = w.milestones(t.teamId, 3)
+        for (id in listOf(cleared, kept, skipped)) {
+            TestPlan.schedule(id, "2027-03-01", "2027-03-05")
+            TestPlan.pin(id)
+        }
+        fun pinnedNow(id: UInt) = TestPlan.scalar("SELECT pinned FROM milestones WHERE id = $id") { it.getBoolean(1) }
+        val view = TestPlan.revision()
+        TestPlan.schedule(skipped, "2027-03-08", "2027-03-12") // after the view: its batch item is STALE
+        val answered = t.manager.client.batch(t.teamId, view, item(cleared, null, null), week1(kept), item(skipped, null, null)).result()
+        assertEquals(listOf(cleared, kept), answered.accepted)
+        assertEquals(listOf(SkippedSchedule(skipped, STALE)), answered.skipped)
+        assertTrue(!pinnedNow(cleared) && datesOf(cleared) == (null to null))
+        assertTrue(pinnedNow(kept) && datesOf(kept) == ("2027-02-01" to "2027-02-05"))
+        assertTrue(pinnedNow(skipped) && datesOf(skipped) == ("2027-03-08" to "2027-03-12"))
+    }
+
+    @Test
     fun `an expectedRevision above the plan revision is a 409 for the whole batch - nothing written, no bump`() = testApplication {
         usePostgresTestcontainer()
         val w = planWorld("tsb409", teams = true)

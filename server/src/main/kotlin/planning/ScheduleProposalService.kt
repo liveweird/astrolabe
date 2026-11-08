@@ -31,7 +31,7 @@ class ScheduleProposalService(private val database: R2dbcDatabase) {
         val inputs = snapshot.inputs(teamId, asOf)
         val result = ScheduleKernels.propose(inputs)
         val check = ScheduleKernels.postCheck(inputs, result)
-        val lists = proposalLists(snapshot.rows, result, snapshot.calendar)
+        val lists = proposalLists(snapshot.rows, result, snapshot.calendar, asOf)
         ScheduleProposal(
             revision = revision,
             asOf = asOf.toString(),
@@ -42,6 +42,7 @@ class ScheduleProposalService(private val database: R2dbcDatabase) {
             weeks = check.weeks.map { it.toView() },
             weeksTruncated = check.weeksTruncated,
             dependencies = proposalLinks(inputs, check),
+            pinned = lists.pinned,
             scopeHash = snapshot.scopeHash(teamId),
         )
     }

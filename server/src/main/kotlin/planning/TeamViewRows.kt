@@ -84,6 +84,7 @@ internal suspend fun teamMilestoneRows(teamId: UInt, teamName: String, positions
                     rankPosition = rank,
                     slackDays = null,
                     critical = false,
+                    pinned = row[milestones.pinned],
                 ),
             )
         }

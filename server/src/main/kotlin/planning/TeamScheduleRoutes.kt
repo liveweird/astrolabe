@@ -51,8 +51,8 @@ private fun Route.proposalRoute(d: PlanRouteDeps, proposals: ScheduleProposalSer
 /**
  * `POST /teams/{id}/milestone-schedules`: the batch accept. A `POST` (not a replace: unlisted milestones keep their dates); answers 200
  * `{revision, accepted, skipped}`. Audit: `milestone.scheduled` per accepted item whose dates actually changed (the single PUT's fields,
- * so the trail reads the same however a bar moved) and ONE `team.schedule_batch_applied` per accepted request, an all-skipped one
- * included; a 4xx emits nothing of its own.
+ * so the trail reads the same however a bar moved), `milestone.unpinned` (reason `UNSCHEDULED`) per accepted item that unscheduled a pinned
+ * milestone, and ONE `team.schedule_batch_applied` per accepted request, an all-skipped one included; a 4xx emits nothing of its own.
  */
 private fun Route.batchScheduleRoute(d: PlanRouteDeps, schedules: TeamScheduleService) {
     post<TeamMilestoneSchedulesRoute> { route ->
@@ -73,6 +73,10 @@ private fun Route.batchScheduleRoute(d: PlanRouteDeps, schedules: TeamScheduleSe
                 "endTo" to item.to?.end?.toString(),
                 "revisionTo" to outcome.revision,
             )
+            // An unscheduling item released a pin in the same statement (`writeSchedules`): its own line, as the single PUT writes it.
+            if (item.pinCleared) {
+                auditPin("milestone.unpinned", caller.userId, item.milestoneId, route.id, outcome.revision, PIN_CLEARED_BY_UNSCHEDULE)
+            }
         }
         audit(
             "team.schedule_batch_applied",

@@ -12,8 +12,8 @@ import org.jetbrains.exposed.v1.r2dbc.select
 
 val TeamScheduleServiceKey = AttributeKey<TeamScheduleService>("TeamScheduleService")
 
-/** The milestone columns the batch decides on, as stored at the lock. */
-private class StoredSchedule(val teamId: UInt, val span: MilestoneSpan?, val scheduleRevision: Long)
+/** The milestone columns the batch decides on (and audits a cleared pin from), as stored at the lock. */
+private class StoredSchedule(val teamId: UInt, val span: MilestoneSpan?, val scheduleRevision: Long, val pinned: Boolean)
 
 /**
  * The team-scoped schedule write (v0.8.0): the batch accept of an auto-proposal, "N schedule PUTs in ONE plan write under the TEAM's
@@ -59,7 +59,8 @@ class TeamScheduleService(private val database: R2dbcDatabase) {
                     reason != null -> skipped += SkippedSchedule(item.milestoneId, reason)
                     // A null reason means a stored row (the GONE verdict is the only one without it).
                     row != null -> {
-                        accepted += AcceptedSchedule(item.milestoneId, row.span, item.span)
+                        // An unscheduling item clears a pin in the same statement (`writeSchedules`); the route audits it.
+                        accepted += AcceptedSchedule(item.milestoneId, row.span, item.span, pinCleared = row.pinned && item.span == null)
                         toWrite += item
                     }
                 }
@@ -143,7 +144,9 @@ class TeamScheduleService(private val database: R2dbcDatabase) {
         return milestones.innerJoin(projects, { milestones.projectId }, { projects.id })
             .innerJoin(programs, { projects.programId }, { programs.id })
             .innerJoin(streams, { programs.workStreamId }, { streams.id })
-            .select(milestones.id, milestones.teamId, milestones.startDate, milestones.endDate, milestones.scheduleRevision)
+            .select(
+                milestones.id, milestones.teamId, milestones.startDate, milestones.endDate, milestones.scheduleRevision, milestones.pinned,
+            )
             .where {
                 (milestones.id inList ids) and milestones.active() and projects.active() and programs.active() and streams.active()
             }
@@ -155,6 +158,7 @@ class TeamScheduleService(private val database: R2dbcDatabase) {
                     teamId = row[milestones.teamId].value,
                     span = if (start != null && end != null) MilestoneSpan(start, end) else null,
                     scheduleRevision = row[milestones.scheduleRevision],
+                    pinned = row[milestones.pinned],
                 )
             }
     }

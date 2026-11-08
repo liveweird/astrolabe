@@ -5,6 +5,7 @@ import ch.nokillswit.planning.BaselineResponse
 import ch.nokillswit.planning.BaselineUpdateRequest
 import ch.nokillswit.planning.DependencyResponse
 import ch.nokillswit.planning.MilestoneCreateRequest
+import ch.nokillswit.planning.MilestonePinRequest
 import ch.nokillswit.planning.MilestoneResponse
 import ch.nokillswit.planning.MilestoneScheduleRequest
 import ch.nokillswit.planning.MilestoneUpdateRequest
@@ -142,6 +143,22 @@ class PlanStateTest {
             t.manager.client.putJson("/api/v1/milestones/$id/schedule", MilestoneScheduleRequest(TestPlan.revision(), "2026-11-02",
                 "2026-11-06")).status
         }, HttpStatusCode.OK)
+
+        bumps(1, "a pin", {
+            t.manager.client.putJson("/api/v1/milestones/$id/pin", MilestonePinRequest(true)).status
+        }, HttpStatusCode.OK)
+        bumps(1, "a no-op pin", {
+            t.manager.client.putJson("/api/v1/milestones/$id/pin", MilestonePinRequest(true)).status
+        }, HttpStatusCode.OK)
+        bumps(0, "403 for the project owner pinning", {
+            w.projectOwner.client.putJson("/api/v1/milestones/$id/pin", MilestonePinRequest(false)).status
+        }, HttpStatusCode.Forbidden)
+        bumps(1, "an unschedule that also clears the pin (one bump, not two)", {
+            t.manager.client.putJson("/api/v1/milestones/$id/schedule", MilestoneScheduleRequest(TestPlan.revision(), null, null)).status
+        }, HttpStatusCode.OK)
+        bumps(0, "409 pinning an unscheduled milestone", {
+            t.manager.client.putJson("/api/v1/milestones/$id/pin", MilestonePinRequest(true)).status
+        }, HttpStatusCode.Conflict)
 
         bumps(0, "409 on a name clash", {
             admin.postJson("/api/v1/projects/${w.projectId}/milestones", MilestoneCreateRequest(name, null, t.teamId, 1.0)).status

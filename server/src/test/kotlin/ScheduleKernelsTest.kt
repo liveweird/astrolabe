@@ -54,12 +54,14 @@ class ScheduleKernelsTest {
         end: String? = start,
         project: UInt = 1u,
         pos: Int? = null,
+        pinned: Boolean = false,
     ) = TeamScheduleItem(
         id,
         project,
         start?.let { span(it, checkNotNull(end)) },
         BigDecimal(md),
         OrderKey(pos, null, "P$project", project, start?.let(::d), end?.let(::d), "m%03d".format(id.toInt()), id),
+        pinned,
     )
 
     private fun fact(id: UInt, project: UInt, teamId: UInt, start: String? = null, end: String? = start) =
@@ -133,6 +135,31 @@ class ScheduleKernelsTest {
         assertTrue(1u in result.spansAfter && result.placements.none { it.milestoneId == 1u })
         // The same milestones with asOf Sunday 01-31 are ALL movable: F is no longer fixed.
         assertEquals(setOf(1u, 2u, 3u), run(items, periods(wip = 2)).spans().keys)
+    }
+
+    @Test
+    fun `a pinned future milestone is fixed - its dates stand, its load is booked and an unpinned twin moves`() {
+        // Q (4 MD, first in order) and P (4 MD, stored 02-01..02-02 = the days d1-d2 at the full 2/day) with asOf Sunday 01-31: both start
+        // AFTER asOf, so both are movable until P is pinned. Unpinned: Q re-plans first onto d1-d2 and P moves behind it.
+        val unpinned = run(listOf(item(1u, "4", pos = 1), item(2u, "4", "2027-02-01", "2027-02-02", pos = 2)))
+        assertEquals(mapOf(1u to "02-01..02-02", 2u to "02-03..02-04"), unpinned.spans())
+        assertTrue(unpinned.placements.single { it.milestoneId == 2u }.to != unpinned.placements.single { it.milestoneId == 2u }.from)
+        // Pinned: P is fixed on d1-d2 (booked at 2/day, the days are full), so Q takes d3-d4 and P is no placement at all.
+        val pinned = run(listOf(item(1u, "4", pos = 1), item(2u, "4", "2027-02-01", "2027-02-02", pos = 2, pinned = true)))
+        assertEquals(mapOf(1u to "02-03..02-04"), pinned.spans())
+        assertEquals(span("2027-02-01", "2027-02-02"), pinned.spansAfter.getValue(2u), "the pinned dates stand in the result")
+        assertTrue(pinned.unplaced.isEmpty())
+    }
+
+    @Test
+    fun `a pinned predecessor's stored dates bound an FS successor like another team's milestone`() {
+        // P pinned far ahead (02-15..02-16), S waits for it (FS): S starts the working day after P ends, d(02-17), not at the first day.
+        val items = listOf(item(1u, "4", "2027-02-15", "2027-02-16", pinned = true), item(2u, "2"))
+        val result = run(items, links = listOf(link(1u, ms(1u), ms(2u))))
+        assertEquals(mapOf(2u to "02-17..02-17"), result.spans())
+        // Without the pin the predecessor is re-planned to the first free days and the successor follows it there.
+        val free = run(listOf(item(1u, "4", "2027-02-15", "2027-02-16"), item(2u, "2")), links = listOf(link(1u, ms(1u), ms(2u))))
+        assertEquals(mapOf(1u to "02-01..02-02", 2u to "02-03..02-03"), free.spans())
     }
 
     @Test

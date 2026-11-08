@@ -16,7 +16,7 @@ internal class ScheduleSnapshot(
     val plan: List<PlanMilestoneFact>,
     val links: List<PlanLinkFact>,
 ) {
-    private val team = rows.map { TeamScheduleItem(it.view.id, it.view.projectId, it.span, it.estimate, it.key) }
+    private val team = rows.map { TeamScheduleItem(it.view.id, it.view.projectId, it.span, it.estimate, it.key, it.view.pinned) }
 
     /** The kernel's input for [teamId] as of [asOf]. */
     fun inputs(teamId: UInt, asOf: LocalDate) = ScheduleInputs(

@@ -69,6 +69,23 @@ class MilestoneScheduleTest {
     }
 
     @Test
+    fun `an unschedule clears the milestone's pin and a reschedule keeps it (V25)`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("pinclr", teams = true)
+        val t = w.requireTeams()
+        val id = TestPlan.milestone(w.projectId, t.teamId)
+        val path = "/api/v1/milestones/$id"
+        fun pinnedNow() = TestPlan.scalar("SELECT pinned FROM milestones WHERE id = $id") { it.getBoolean(1) }
+        TestPlan.schedule(id, "2026-11-02", "2026-11-06")
+        TestPlan.pin(id)
+        assertEquals(HttpStatusCode.OK, t.manager.client.put(path, TestPlan.revision(), "2026-11-09", "2026-11-13").status)
+        assertTrue(pinnedNow(), "a reschedule keeps the pin")
+        assertEquals(HttpStatusCode.OK, t.manager.client.put(path, TestPlan.revision(), null, null).status)
+        assertTrue(!pinnedNow(), "the unschedule cleared it in the same write")
+        assertTrue(!w.admin.client.read(path).pinned)
+    }
+
+    @Test
     fun `the project owner cannot schedule - dates belong to the team's manager, whatever the caller owns`() = testApplication {
         usePostgresTestcontainer()
         val w = planWorld("own", teams = true)

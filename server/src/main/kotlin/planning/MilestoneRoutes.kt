@@ -26,6 +26,10 @@ class MilestonesRoute {
         @Serializable
         @Resource("schedule")
         class Schedule(val parent: Id)
+
+        @Serializable
+        @Resource("pin")
+        class Pin(val parent: Id)
     }
 }
 
@@ -38,9 +42,11 @@ private const val MILESTONE = "Milestone"
  * project's own owner included — or ADMIN; the DATES (`PUT .../schedule`) need the milestone's TEAM manager or ADMIN, and a project owner
  * who is not that manager gets a 403 (the product rule of v0.3.0). All read-before-guard (404, 403, then the body); the write re-runs the
  * guard under the plan lock against a re-read chain (the owner guard, and the manager guard with the manager's person and team row
- * locked `FOR SHARE`), so only the inner verdict authorizes it.
+ * locked `FOR SHARE`), so only the inner verdict authorizes it. The PIN (`PUT .../pin`, V25) is the dates' audience exactly: the same
+ * guard, the same order, no new flag (`can.schedule` governs it).
  */
 internal fun Route.milestoneRoutes(d: PlanRouteDeps) {
+    pinRoute(d)
     get<MilestonesRoute> {
         call.caller()
         val paging = call.parsePaging(sortable = MILESTONE_SORT_FIELDS)
@@ -86,6 +92,10 @@ internal fun Route.milestoneRoutes(d: PlanRouteDeps) {
                 "revisionTo" to outcome.revision,
             )
         }
+        // The unschedule released the pin in the same statement: its own trail line, after the dates' (`reason` says it was not a pin PUT).
+        if (outcome.pinCleared) {
+            auditPin("milestone.unpinned", caller.userId, id, outcome.teamId, outcome.revision, PIN_CLEARED_BY_UNSCHEDULE)
+        }
         call.respond(HttpStatusCode.OK, ScheduleResponse(outcome.revision))
     }
     delete<MilestonesRoute.Id> { route ->
@@ -102,4 +112,38 @@ internal fun Route.milestoneRoutes(d: PlanRouteDeps) {
         )
         call.respond(HttpStatusCode.NoContent)
     }
+}
+
+/** The `reason` of a `milestone.unpinned` line: a pin PUT asked for it, or (the internal constant) an unschedule released the pin. */
+private const val PIN_REQUESTED = "REQUESTED"
+internal const val PIN_CLEARED_BY_UNSCHEDULE = "UNSCHEDULED"
+
+/**
+ * `PUT /milestones/{id}/pin` `{pinned}` -> `200 {revision}`: the dates' audience (the milestone's STORED team's manager or ADMIN, never the
+ * project's owner), read-before-guard exactly like the schedule PUT (404, 403, then the body), the guard re-run under the plan lock.
+ * `milestone.pinned` / `milestone.unpinned` only on an actual change - a no-op PUT bumps the revision like any plan write but audits
+ * nothing.
+ */
+private fun Route.pinRoute(d: PlanRouteDeps) {
+    put<MilestonesRoute.Id.Pin> { route ->
+        val caller = call.caller()
+        val id = route.parent.id
+        d.requireManager(caller, d.milestones.chain(id))
+        val request = call.receive<MilestonePinRequest>()
+        val outcome = d.milestones.pin(id, request.pinned, d.managerGuard(caller))
+        if (outcome.before != request.pinned) {
+            val event = if (request.pinned) "milestone.pinned" else "milestone.unpinned"
+            val reason = if (request.pinned) null else PIN_REQUESTED
+            auditPin(event, caller.userId, id, outcome.teamId, outcome.revision, reason)
+        }
+        call.respond(HttpStatusCode.OK, ScheduleResponse(outcome.revision))
+    }
+}
+
+/** One pin trail line (`milestone.pinned` has no reason; `milestone.unpinned` names why the pin went). */
+internal fun auditPin(event: String, userId: UInt, milestoneId: UInt, teamId: UInt, revision: Long, reason: String?) {
+    val base = arrayOf(
+        "byUserId" to userId.toLong(), "milestoneId" to milestoneId.toLong(), "teamId" to teamId.toLong(), "revisionTo" to revision,
+    )
+    if (reason == null) audit(event, *base) else audit(event, *base, "reason" to reason)
 }

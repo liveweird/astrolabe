@@ -177,6 +177,9 @@ object TestPlan {
     suspend fun schedule(milestoneId: UInt, start: String?, end: String?): Long =
         milestones.schedule(milestoneId, MilestoneScheduleRequest(revision(), start, end)) { }.revision
 
+    /** Pins (or unpins) a SCHEDULED milestone past the guard; the answer is the plan revision it left behind. */
+    suspend fun pin(milestoneId: UInt, pinned: Boolean = true): Long = milestones.pin(milestoneId, pinned) { }.revision
+
     /**
      * A dependency [predecessor] -> [successor] past the guard (the service: the plan lock, the cycle check and the revision bump apply).
      * The path project is derived from the successor, as the route's authorization does.

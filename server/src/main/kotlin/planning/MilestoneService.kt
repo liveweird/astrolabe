@@ -58,6 +58,12 @@ class MilestoneService(private val database: R2dbcDatabase) {
         val startDate = localDate("start_date").nullable()
         val endDate = localDate("end_date").nullable()
 
+        /**
+         * The auto-proposal keeps the dates (V25, `ck_milestones_pinned_scheduled`: a pin needs dates). Cleared by every unscheduling
+         * write ([MilestoneService.schedule], [writeSchedules]); kept by a reschedule.
+         */
+        val pinned = bool("pinned").default(false)
+
         /** The plan revision at which the schedule was last written (internal, never on the wire): the per-milestone staleness check. */
         val scheduleRevision = long("schedule_revision")
         val createdAt = long("created_at")
@@ -99,6 +105,7 @@ class MilestoneService(private val database: R2dbcDatabase) {
                     estimateMd = row[Milestones.estimateMd].toDouble(),
                     startDate = row[Milestones.startDate]?.toString(),
                     endDate = row[Milestones.endDate]?.toString(),
+                    pinned = row[Milestones.pinned],
                     createdAt = row[Milestones.createdAt],
                     updatedAt = row[Milestones.updatedAt],
                 )
@@ -126,6 +133,7 @@ class MilestoneService(private val database: R2dbcDatabase) {
             estimateMd = row[Milestones.estimateMd].toDouble(),
             startDate = row[Milestones.startDate]?.toString(),
             endDate = row[Milestones.endDate]?.toString(),
+            pinned = row[Milestones.pinned],
             createdAt = row[Milestones.createdAt],
             updatedAt = row[Milestones.updatedAt],
         )
@@ -189,7 +197,7 @@ class MilestoneService(private val database: R2dbcDatabase) {
             if (span != null && !loadWorkingCalendar().containsWorkingDay(span.start, span.end)) {
                 throw BadRequestException(NO_WORKING_DAY_MESSAGE)
             }
-            val before = Milestones.select(Milestones.startDate, Milestones.endDate, Milestones.scheduleRevision)
+            val before = Milestones.select(Milestones.startDate, Milestones.endDate, Milestones.scheduleRevision, Milestones.pinned)
                 .where { (Milestones.id eq id) and Milestones.active() }
                 .toList().singleOrNull() ?: throw NotFoundException(MILESTONE_NOT_FOUND)
             // Stale in BOTH directions: a revision below this milestone's own means it moved since the client's view; one above the
@@ -204,6 +212,9 @@ class MilestoneService(private val database: R2dbcDatabase) {
             Milestones.update({ (Milestones.id eq id) and Milestones.active() }) {
                 it[startDate] = span?.start
                 it[endDate] = span?.end
+                // An unschedule clears the pin in the same statement (the CHECK would refuse a pinned row without dates); a
+                // reschedule keeps it - the pin is advice to the proposal, not a lock on the dates.
+                if (span == null) it[pinned] = false
                 it[scheduleRevision] = revision + 1
                 it[updatedAt] = nowMillis()
             }
@@ -213,7 +224,39 @@ class MilestoneService(private val database: R2dbcDatabase) {
                 from = if (start != null && end != null) MilestoneSpan(start, end) else null,
                 teamId = chain.teamId,
                 revision = 0,
+                pinCleared = span == null && before[Milestones.pinned],
             )
+        }
+        return write.value.copy(revision = write.revision)
+    }
+
+    /**
+     * The pin write under the plan lock, in this order: the chain is re-read (missing = 404, nothing written) -> [guard] against it
+     * (the STORED team's manager as of the lock: the schedule write's audience, a manager revoked meanwhile is a 403) -> pinning an
+     * UNSCHEDULED milestone is a 409 `urn:astrolabe:problem:milestone-unscheduled` (nothing written, no bump) -> `pinned` and
+     * `updated_at` are written. `schedule_revision` is NOT touched (the pin is not the dates, and a pin must never stale a drag), the
+     * plan revision bumps like any plan write, a no-op included (the conservative rule). The outcome carries the STORED pin for the audit
+     * (which emits only on a change). No `expectedRevision`: the flag is idempotent, and the proposal's `scopeHash` is what refuses an
+     * accept that raced a flipped pin.
+     */
+    suspend fun pin(id: UInt, pinned: Boolean, guard: ScheduleGuard): PinOutcome {
+        val write = database.withPlanWrite {
+            val chain = milestoneChain(id) ?: throw NotFoundException(MILESTONE_NOT_FOUND)
+            guard(chain)
+            val before = Milestones.select(Milestones.startDate, Milestones.pinned)
+                .where { (Milestones.id eq id) and Milestones.active() }
+                .toList().singleOrNull() ?: throw NotFoundException(MILESTONE_NOT_FOUND)
+            if (pinned && before[Milestones.startDate] == null) {
+                throw ConflictException(
+                    "An unscheduled milestone cannot be pinned: schedule it first",
+                    problemType = MILESTONE_UNSCHEDULED_PROBLEM,
+                )
+            }
+            Milestones.update({ (Milestones.id eq id) and Milestones.active() }) {
+                it[Milestones.pinned] = pinned
+                it[updatedAt] = nowMillis()
+            }
+            PinOutcome(before = before[Milestones.pinned], teamId = chain.teamId, revision = 0)
         }
         return write.value.copy(revision = write.revision)
     }

@@ -73,6 +73,38 @@ class ScheduleProposalTest {
         }
 
     @Test
+    fun `a pinned milestone keeps its dates - it is listed in pinned, in no other list, and its load is booked`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("spp", teams = true)
+        val t = w.requireTeams()
+        TestPlan.capacityPeriod(t.teamId, "2027-01-04", 10.0) // no WIP limit: 2 MD a day, the whole capacity
+        val free = TestPlan.milestone(w.projectId, t.teamId, planName("free"), 4.0)
+        // Pinned, starting after asOf: held on Mon 02-01..Tue 02-02, which books both days at the full 2 MD.
+        val kept = TestPlan.milestone(w.projectId, t.teamId, planName("kept"), 4.0)
+        TestPlan.schedule(kept, "2027-02-01", "2027-02-02")
+        TestPlan.pin(kept)
+        // Pinned but already in progress at asOf: fixed anyway, so the pin is redundant and the list does not name it.
+        val started = TestPlan.milestone(w.projectId, t.teamId, planName("started"), 2.0)
+        TestPlan.schedule(started, "2027-01-25", "2027-01-29")
+        TestPlan.pin(started)
+
+        val proposal = t.manager.client.proposal(t.teamId)
+        assertEquals(listOf(kept), proposal.pinned)
+        assertEquals(listOf(free), proposal.moves.map { it.milestoneId }, "only the unpinned one is re-planned")
+        assertEquals("2027-02-03..2027-02-04", proposal.move(free).span(), "the pinned dates are booked: the free one takes the next days")
+        assertTrue(kept !in proposal.unchanged && proposal.unplaced.none { it.milestoneId == kept })
+        assertEquals(setOf(free), proposal.moves.map { it.milestoneId }.toSet())
+        assertEquals("2027-02-01" to "2027-02-02", datesOf(kept), "a proposal stores nothing")
+
+        // Unpinned, the same milestone is re-planned like its twin and `pinned` is empty.
+        TestPlan.pin(kept, pinned = false)
+        val released = t.manager.client.proposal(t.teamId)
+        assertEquals(emptyList(), released.pinned)
+        assertTrue(released.moves.any { it.milestoneId == kept } || kept in released.unchanged)
+        assertTrue(released.scopeHash != proposal.scopeHash, "the pin is part of the scope fingerprint")
+    }
+
+    @Test
     fun `an unknown or deleted team is 404 for every caller, a malformed id is 400 and a forbidden caller's malformed body stays 403`() =
         testApplication {
             usePostgresTestcontainer()

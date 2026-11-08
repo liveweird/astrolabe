@@ -62,8 +62,11 @@ data class TeamScheduleBatchResponse(
     val skipped: List<SkippedSchedule>,
 )
 
-/** An item whose dates were written: the STORED span before and the span after (null = unscheduled), for the per-item audit. */
-data class AcceptedSchedule(val milestoneId: UInt, val from: MilestoneSpan?, val to: MilestoneSpan?)
+/**
+ * An item whose dates were written: the STORED span before and the span after (null = unscheduled), for the per-item audit.
+ * [pinCleared]: the item unscheduled a PINNED milestone, so the same statement released the pin (audited as `milestone.unpinned`).
+ */
+data class AcceptedSchedule(val milestoneId: UInt, val from: MilestoneSpan?, val to: MilestoneSpan?, val pinCleared: Boolean = false)
 
 /** What a batch write did, for the route's answer and audit trail: [revision] is the plan revision it left behind. */
 data class TeamBatchOutcome(val revision: Long, val accepted: List<AcceptedSchedule>, val skipped: List<SkippedSchedule>)
@@ -168,8 +171,9 @@ data class ScheduleProposalLink(
  * team's milestones, at most [MAX_LOAD_WEEKS] weeks and the links touching the team whose verdict is or was violated). A computation:
  * nothing is stored. [revision] is the plan revision of the snapshot it was computed from - the batch accept's `expectedRevision`.
  * [moves] and [unplaced] are in the team's effective order; [unchanged] are the movable milestones that stay on their dates; [weeks]
- * is the team's load AFTER accepting every move (the team view's row shape); [dependencies] are violated-after first; [scopeHash] is the
- * fingerprint of the team's plan the proposal read (`ScheduleScope.kt`), which the batch accept sends back to be checked.
+ * is the team's load AFTER accepting every move (the team view's row shape); [dependencies] are violated-after first; [pinned] names the
+ * milestones kept on their dates only by the manager's pin (V25); [scopeHash] is the fingerprint of the team's plan the proposal read
+ * (`ScheduleScope.kt`, the pins included), which the batch accept sends back to be checked.
  */
 @Serializable
 data class ScheduleProposal(
@@ -182,6 +186,11 @@ data class ScheduleProposal(
     val weeks: List<WeekLoadView>,
     val weeksTruncated: Boolean,
     val dependencies: List<ScheduleProposalLink>,
+    /**
+     * The team's milestones the PROPOSAL keeps on their dates only because they are pinned (V25: pinned and starting after `asOf`; a pinned
+     * one already in progress is fixed anyway and not listed), in the team's effective order. Empty without pins. The page counts them.
+     */
+    val pinned: List<UInt>,
     val scopeHash: String,
 )
 

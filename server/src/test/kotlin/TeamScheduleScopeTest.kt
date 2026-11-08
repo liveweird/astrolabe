@@ -142,6 +142,7 @@ class TeamScheduleScopeTest {
                 val away = MilestoneUpdateRequest("scope-c", null, s.t.otherTeamId, 2.0)
                 assertEquals(HttpStatusCode.NoContent, admin.putJson("/api/v1/milestones/${s.x3}", away).status)
             },
+            "an in-progress milestone of the team is pinned" to { TestPlan.pin(s.p) },
             "an in-progress milestone of the team, not in the batch, is dragged" to { TestPlan.schedule(s.p, "2027-01-26", "2027-01-30") },
         )
         for ((label, change) in changes) {
@@ -157,6 +158,39 @@ class TeamScheduleScopeTest {
         // The first proposal after the last change is accepted.
         val fresh = manager.proposal(s.t.teamId)
         assertEquals(HttpStatusCode.OK, manager.accept(s.t.teamId, fresh).status)
+    }
+
+    @Test
+    fun `a pin flipped after the proposal refuses the batch, and a proposal read with the pin in force is accepted`() = testApplication {
+        val s = scopeWorld("tss8")
+        val manager = s.t.manager.client
+        val keep = TestPlan.milestone(s.w.projectId, s.t.teamId, "scope-keep", 2.0)
+        TestPlan.schedule(keep, "2027-03-22", "2027-03-23")
+        val kept = datesOf(keep)
+
+        // Pinned AFTER the proposal: the kernel read an unpinned `keep` (it moves), so the accept is a stale-scope.
+        val unpinned = manager.proposal(s.t.teamId)
+        assertTrue(unpinned.moves.any { it.milestoneId == keep }, "unpinned, the proposal re-plans it")
+        TestPlan.pin(keep)
+        val revision = TestPlan.revision()
+        manager.accept(s.t.teamId, unpinned).assertStaleScope()
+        assertEquals(revision, TestPlan.revision())
+        assertEquals(kept, datesOf(keep))
+
+        // Proposed with the pin in force: `keep` is held, in `pinned`, in no other list - and the accept goes through.
+        val pinned = manager.proposal(s.t.teamId)
+        assertEquals(listOf(keep), pinned.pinned)
+        assertTrue(pinned.moves.none { it.milestoneId == keep } && keep !in pinned.unchanged)
+        assertTrue(pinned.unplaced.none { it.milestoneId == keep })
+        assertEquals(HttpStatusCode.OK, manager.accept(s.t.teamId, pinned).status)
+        assertEquals(kept, datesOf(keep), "the pinned dates stood")
+
+        // Unpinned AFTER a proposal: stale again (a fresh unscheduled milestone keeps something to accept).
+        TestPlan.milestone(s.w.projectId, s.t.teamId, "scope-late", 2.0)
+        val again = manager.proposal(s.t.teamId)
+        assertTrue(again.moves.isNotEmpty())
+        TestPlan.pin(keep, pinned = false)
+        manager.accept(s.t.teamId, again).assertStaleScope()
     }
 
     @Test
