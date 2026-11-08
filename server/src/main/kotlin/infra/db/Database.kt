@@ -32,6 +32,10 @@ import ch.nokillswit.jira.JiraConnectionServiceKey
 import ch.nokillswit.jira.JiraFlagSource
 import ch.nokillswit.jira.JiraImportService
 import ch.nokillswit.jira.JiraImportServiceKey
+import ch.nokillswit.jira.JiraMappingStore
+import ch.nokillswit.jira.JiraMappingStoreKey
+import ch.nokillswit.jira.JiraTestRecorder
+import ch.nokillswit.jira.JiraTestRecorderKey
 import ch.nokillswit.people.PersonService
 import ch.nokillswit.people.PersonServiceKey
 import ch.nokillswit.planning.BaselineService
@@ -327,6 +331,9 @@ suspend fun Application.configureDatabase() {
     val syncRuns = SyncRunService(database, maxRunMinutes)
     attributes.put(SyncRunServiceKey, syncRuns)
     attributes.put(JiraConnectionServiceKey, JiraConnectionService(database, attributes[FieldCipherKey], syncRuns))
+    // The two stores split out of the registry service: neither is given the cipher, neither selects `api_token`.
+    attributes.put(JiraTestRecorderKey, JiraTestRecorder(database))
+    attributes.put(JiraMappingStoreKey, JiraMappingStore(database))
     // The Flow registry (V24) is the second encrypted-at-rest service; its mirror and bindings come with it. A registry write is judged by
     // the operator's origin rule (`FlowOrigins.baseUrlVerdict`), which `configureFlow` builds from `flow.*` AFTER this module: the lookup
     // is per call, and an absent rule refuses (fail closed), so a connection can never name an origin the transport would refuse.

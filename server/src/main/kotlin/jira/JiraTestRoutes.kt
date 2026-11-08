@@ -41,7 +41,7 @@ class JiraDiscoveryRoute(val parent: JiraConnectionsRoute.Id)
  * upstream failure and a stored token that cannot be decrypted are all ROWS in a `200`. Nothing holds a database transaction across the
  * calls: the stored target is read first, the outcome recorded after.
  */
-internal fun Route.jiraTestRoutes(connections: JiraConnectionService, connector: JiraConnector) {
+internal fun Route.jiraTestRoutes(connections: JiraConnectionService, recorder: JiraTestRecorder, connector: JiraConnector) {
     rateLimit(RateLimitName(RateLimits.JIRA_TEST)) {
         post<JiraAdHocTestRoute> {
             val caller = call.caller()
@@ -61,7 +61,7 @@ internal fun Route.jiraTestRoutes(connections: JiraConnectionService, connector:
             val outcome = connector.testConnection(target)
             val passed = outcome.result.passed
             // The snapshot is kept whenever `field` and `issuetype` both answered, whatever else failed; the verdict is the real one.
-            val recording = connections.recordTest(
+            val recording = recorder.recordTest(
                 id, checkNotNull(target.expectedUpdatedAt), outcome.result.cloudId, passed, outcome.discovery, System.currentTimeMillis(),
             )
             val answered = outcome.result.copy(discoveredAt = recording.discoveredAt, recorded = recording.recorded)
@@ -71,7 +71,7 @@ internal fun Route.jiraTestRoutes(connections: JiraConnectionService, connector:
     }
     get<JiraDiscoveryRoute> { route ->
         requireAdmin(call.caller())
-        val stored = connections.readDiscovery(route.parent.id).orNotFound("Jira connection")
+        val stored = recorder.readDiscovery(route.parent.id).orNotFound("Jira connection")
         if (stored == NO_DISCOVERY) {
             throw ConflictException("Test the connection first - no discovery has been stored yet", JIRA_NOT_DISCOVERED_PROBLEM)
         }

@@ -17,8 +17,10 @@ import ch.nokillswit.jira.JiraMapping
 import ch.nokillswit.jira.JiraMappingDefaults
 import ch.nokillswit.jira.JiraMappingLevels
 import ch.nokillswit.jira.JiraMappingResponse
+import ch.nokillswit.jira.JiraMappingStoreKey
 import ch.nokillswit.jira.JiraPeekResponse
 import ch.nokillswit.jira.JiraStatusCategory
+import ch.nokillswit.jira.JiraTestRecorderKey
 import ch.nokillswit.jira.StoredMapping
 import ch.nokillswit.jira.parseStoredMapping
 import ch.nokillswit.jira.sha256
@@ -406,14 +408,14 @@ class JiraMappingTest {
         val admin = seededClient("jmapsvc", UserRole.ADMIN)
         val undiscovered = admin.create()
         val discovered = admin.discovered()
-        val service = application.attributes[JiraConnectionServiceKey]
-        assertFailsWith<ConflictException> { runBlocking { service.writeMapping(undiscovered.id, mapping()) } }
+        val store = application.attributes[JiraMappingStoreKey]
+        assertFailsWith<ConflictException> { runBlocking { store.writeMapping(undiscovered.id, mapping()) } }
         assertFailsWith<BadRequestException> {
             val onDatetime = mapping(milestone = JiraLevelMapping(1, fields(start = "customfield_10030")))
-            runBlocking { service.writeMapping(discovered.id, onDatetime) }
+            runBlocking { store.writeMapping(discovered.id, onDatetime) }
         }
-        assertFailsWith<BadRequestException> { runBlocking { service.writeMapping(discovered.id, mapping(project = JiraLevelMapping(1))) } }
-        assertNull(runBlocking { service.writeMapping(999_999u, mapping()) })
+        assertFailsWith<BadRequestException> { runBlocking { store.writeMapping(discovered.id, mapping(project = JiraLevelMapping(1))) } }
+        assertNull(runBlocking { store.writeMapping(999_999u, mapping()) })
         assertEquals(false, admin.connection(discovered.id).mappingSet)
     }
 
@@ -648,7 +650,8 @@ class JiraMappingTest {
         val target = assertNotNull(service.readForTest(created.id))
         val sent = mapping()
         assertEquals(HttpStatusCode.NoContent, admin.putJson("$base/${created.id}/mapping", sent).status)
-        val recording = service.recordTest(created.id, checkNotNull(target.expectedUpdatedAt), JiraStubServer.CLOUD_ID, true, null, 1L)
+        val recorder = application.attributes[JiraTestRecorderKey]
+        val recording = recorder.recordTest(created.id, checkNotNull(target.expectedUpdatedAt), JiraStubServer.CLOUD_ID, true, null, 1L)
         assertEquals(true, recording.recorded)
         assertEquals(sent, admin.mapping(created.id).mapping, "the mapping is intact")
         assertEquals(1L, admin.connection(created.id).lastTestedAt)

@@ -7,6 +7,7 @@ import ch.nokillswit.jira.JiraConnectionRequest
 import ch.nokillswit.jira.JiraConnectionResponse
 import ch.nokillswit.jira.JiraConnectionServiceKey
 import ch.nokillswit.jira.JiraDiscovery
+import ch.nokillswit.jira.JiraTestRecorderKey
 import ch.nokillswit.jira.JiraTestResult
 import ch.nokillswit.jira.TestRecording
 import ch.nokillswit.plugins.ProblemDetail
@@ -463,7 +464,8 @@ class JiraTestConnectionTest {
         val service = application.attributes[JiraConnectionServiceKey]
         val target = assertNotNull(service.readForTest(created.id))
         admin.putJson("$base/${created.id}", request(token = newToken()).copy(name = created.name))
-        val recording = service.recordTest(created.id, checkNotNull(target.expectedUpdatedAt), JiraStubServer.CLOUD_ID, true, null, 1L)
+        val recorder = application.attributes[JiraTestRecorderKey]
+        val recording = recorder.recordTest(created.id, checkNotNull(target.expectedUpdatedAt), JiraStubServer.CLOUD_ID, true, null, 1L)
         assertEquals(TestRecording(false, null), recording)
         assertEquals(listOf(null, null), admin.connection(created.id).let { listOf(it.lastTestOk, it.cloudId) })
     }

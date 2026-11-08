@@ -38,10 +38,10 @@ class JiraPeekRoute(val parent: JiraConnectionsRoute.Id)
  * reads. Peek makes two outbound calls with the stored token (the unauthenticated `tenant_info`, then the issue), so it rides the per-IP
  * `jira-test` bucket; it holds no database transaction across them, stores nothing and audits nothing (a read).
  */
-internal fun Route.jiraMappingRoutes(connections: JiraConnectionService, connector: JiraConnector) {
+internal fun Route.jiraMappingRoutes(connections: JiraConnectionService, mappings: JiraMappingStore, connector: JiraConnector) {
     get<JiraMappingRoute> { route ->
         requireAdmin(call.caller())
-        val state = connections.readMapping(route.parent.id).orNotFound("Jira connection")
+        val state = mappings.readMapping(route.parent.id).orNotFound("Jira connection")
         val defaults = state.discovery?.let(JiraMappingDefaults::resolve)
         val stored = state.mapping
         val discovery = state.discovery
@@ -60,7 +60,7 @@ internal fun Route.jiraMappingRoutes(connections: JiraConnectionService, connect
         requireAdmin(caller)
         val document = call.receive<JiraMapping>()
         validateMappingShape(document)
-        val outcome = connections.writeMapping(route.parent.id, document).orNotFound("Jira connection")
+        val outcome = mappings.writeMapping(route.parent.id, document).orNotFound("Jira connection")
         // The canonical document's digests, never the document: the digest is all an audit needs.
         audit(
             "jira.mapping_changed",

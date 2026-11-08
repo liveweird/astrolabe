@@ -8,9 +8,7 @@ import ch.nokillswit.infra.db.SoftDeletable
 import ch.nokillswit.infra.db.active
 import ch.nokillswit.infra.db.jsonb
 import ch.nokillswit.infra.db.nowMillis
-import ch.nokillswit.infra.json.canonicalJson
 import ch.nokillswit.infra.json.parseStringArray
-import ch.nokillswit.infra.json.sha256Hex
 import ch.nokillswit.infra.json.stringArrayJson
 import ch.nokillswit.infra.paging.PageRequest
 import ch.nokillswit.infra.paging.applyPaging
@@ -41,17 +39,12 @@ val JIRA_CONNECTION_SORT_FIELDS: Set<String> = SORTABLE_COLUMNS.keys
 
 private val log = LoggerFactory.getLogger(JiraConnectionService::class.java)
 
-/** What [JiraConnectionService.recordTest] did: whether the result was stored, and the `discovered_at` now on the row. */
-data class TestRecording(val recorded: Boolean, val discoveredAt: Long?)
-
-/** [JiraConnectionService.readDiscovery]'s answer for a connection no passing Test connection has discovered yet. */
-const val NO_DISCOVERY = ""
-
 /**
  * The Jira connection registry (V21), the `teams/` template with the application's first stored credential: `api_token` holds a
  * [FieldCipher] envelope, written here and NEVER decrypted on a read path (no response, audit line or log ever carries it; the connector
  * that calls Jira with it is [readForTest]'s and [readForPeek]'s). The service owns the encrypted column, so it registers with the
- * boot backfill ([EncryptedAtRest], `infra/db/Bootstrap.kt`).
+ * boot backfill ([EncryptedAtRest], `infra/db/Bootstrap.kt`). The Test result and the mapping document are stored by [JiraTestRecorder]
+ * and [JiraMappingStore], which never select the token.
  */
 class JiraConnectionService(
     private val database: R2dbcDatabase,
@@ -73,7 +66,7 @@ class JiraConnectionService(
         val cloudId = varchar("cloud_id", length = 36).nullable()
         val mapping = jsonb("mapping")
 
-        /** The last field/issue-type snapshot (canonical JSON, up to ~300 KB): read only by [JiraConnectionService.readDiscovery]. */
+        /** The last field/issue-type snapshot (canonical JSON, up to ~300 KB): never in a registry list or summary read. */
         val discovery = jsonb("discovery").nullable()
         val discoveredAt = long("discovered_at").nullable()
 
@@ -269,44 +262,6 @@ class JiraConnectionService(
         return null
     }
 
-    /**
-     * Records a stored-token Test connection: `last_tested_at`/`last_test_ok` always (the real verdict), `cloud_id` when the test resolved
-     * one, and - when [discovery] is given (both `field` and `issuetype` answered, whatever the other probes said) - the snapshot and
-     * `discovered_at`. Skipped (`recorded` false) if the row vanished or was edited since [JiraTestTarget.expectedUpdatedAt] was read (a
-     * rotated token, say: the result judged the old one). Does not bump `updated_at`. [TestRecording.discoveredAt] is the instant of the
-     * snapshot now stored (this one, or the earlier one a test without a snapshot leaves in place).
-     */
-    suspend fun recordTest(
-        id: UInt,
-        expectedUpdatedAt: Long,
-        cloudId: String?,
-        ok: Boolean,
-        discovery: JiraDiscovery?,
-        at: Long,
-    ): TestRecording =
-        suspendTransaction(database) {
-            val row = summary().where { (Connections.id eq id) and Connections.active() }
-                .forUpdate(ForUpdateOption.PostgreSQL.ForNoKeyUpdate).toList().singleOrNull()
-            if (row == null || row[Connections.updatedAt] != expectedUpdatedAt) return@suspendTransaction TestRecording(false, null)
-            Connections.update({ (Connections.id eq id) and Connections.active() }) {
-                it[lastTestedAt] = at
-                it[lastTestOk] = ok
-                cloudId?.let { resolved -> it[Connections.cloudId] = resolved }
-                if (discovery != null) {
-                    it[Connections.discovery] = discovery.toStoredJson()
-                    it[discoveredAt] = discovery.discoveredAt
-                }
-            }
-            TestRecording(true, discovery?.discoveredAt ?: row[Connections.discoveredAt])
-        }
-
-    /** The stored snapshot: null when the connection is missing, [NO_DISCOVERY] when no passing test stored one yet. */
-    suspend fun readDiscovery(id: UInt): String? = suspendTransaction(database) {
-        val row = Connections.select(Connections.discovery).where { (Connections.id eq id) and Connections.active() }
-            .toList().singleOrNull() ?: return@suspendTransaction null
-        row[Connections.discovery] ?: NO_DISCOVERY
-    }
-
     /** Soft delete: frees the name, `affected` 0 = missing/deleted (404). The census rows removed are logged after the commit. */
     suspend fun delete(id: UInt): JiraConnectionDeleteOutcome = deleteInTransaction(id).also {
         if (it.censusDeleted > 0) log.info("Jira connection {} deleted: {} census rows removed", id, it.censusDeleted)
@@ -341,41 +296,6 @@ class JiraConnectionService(
         val host = jiraHostOf(row[Connections.siteUrl])
         JiraConnectionDeleteOutcome(affected, row[Connections.name], host, unbound, runsDeleted, censusDeleted)
     }
-
-    /** The stored mapping document and the discovery snapshot; null when the connection is missing or deleted. */
-    suspend fun readMapping(id: UInt): JiraMappingState? = suspendTransaction(database) {
-        Connections.select(Connections.mapping, Connections.discovery).where { (Connections.id eq id) and Connections.active() }
-            .toList().singleOrNull()?.toMappingState()
-    }
-
-    /**
-     * Stores the mapping canonical. Under the row lock (`FOR NO KEY UPDATE`, serialized with a Test connection that replaces the snapshot)
-     * the rules are checked AGAINST THE SNAPSHOT JUST READ: a connection no test has discovered yet is a 409
-     * (`urn:astrolabe:problem:jira-not-discovered`), a violation a 400. Nothing else is rewritten (bindings and observations keep what
-     * they hold; the next run re-reads the mapped fields). Null when the connection is missing or deleted (404).
-     */
-    suspend fun writeMapping(id: UInt, document: JiraMapping): JiraMappingWriteOutcome? = suspendTransaction(database) {
-        validateMappingShape(document)
-        val row = Connections.select(Connections.mapping, Connections.discovery).where { (Connections.id eq id) and Connections.active() }
-            .forUpdate(ForUpdateOption.PostgreSQL.ForNoKeyUpdate).toList().singleOrNull()
-            ?: return@suspendTransaction null
-        val discovery = row[Connections.discovery]?.let(::parseStoredDiscoveryOrNull)
-            ?: throw ConflictException("Test the connection first - no discovery has been stored yet", JIRA_NOT_DISCOVERED_PROBLEM)
-        validateMapping(document, discovery)
-        val stored = canonicalJson(row[Connections.mapping])
-        val canonical = document.toStoredJson()
-        val changed = stored != canonical
-        Connections.update({ (Connections.id eq id) and Connections.active() }) {
-            // No `updated_at`: a mapping is not an input of a Test connection, so a PUT landing mid-test must not make recordTest drop it.
-            it[mapping] = canonical
-            // Only a document that really changed: an identical PUT must not make the next run a full read.
-            if (changed) it[mappingChangedAt] = nowMillis()
-        }
-        JiraMappingWriteOutcome(sha256Hex(stored).takeIf { stored != EMPTY_MAPPING }, sha256Hex(canonical))
-    }
-
-    private fun ResultRow.toMappingState() =
-        JiraMappingState(parseStoredMapping(this[Connections.mapping]), this[Connections.discovery]?.let(::parseStoredDiscoveryOrNull))
 
     private fun ResultRow.toResponse(status: SyncStatus): JiraConnectionResponse = JiraConnectionResponse(
         id = this[Connections.id].value,

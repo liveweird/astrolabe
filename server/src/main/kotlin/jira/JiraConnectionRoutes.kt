@@ -46,6 +46,8 @@ private const val MAX_BIND_WAIT_MILLIS = 60_000L
 fun Application.configureJiraRoutes() {
     val connections = attributes[JiraConnectionServiceKey]
     val connector = attributes[JiraConnectorKey]
+    val recorder = attributes[JiraTestRecorderKey]
+    val mappings = attributes[JiraMappingStoreKey]
     val routing = attributes[JiraStubRoutingKey]
     val bindings = attributes[JiraBindingServiceKey]
     val people = attributes[PersonServiceKey]
@@ -56,8 +58,8 @@ fun Application.configureJiraRoutes() {
 
     routing {
         authenticate {
-            jiraTestRoutes(connections, connector)
-            jiraMappingRoutes(connections, connector)
+            jiraTestRoutes(connections, recorder, connector)
+            jiraMappingRoutes(connections, mappings, connector)
             jiraBindingRoutes(connections, bindings, people, connector, bindPermitWaitMillis)
             jiraImportRoutes(connections, imports, people, connector)
             jiraAcknowledgeRoutes(acknowledgements, people)
