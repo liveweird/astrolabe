@@ -2597,7 +2597,8 @@ export interface paths {
          *     ones, dates in the connection's time zone, a half-open `[validFrom, validTo)` interval) and the sprint summary. `binding`, `roster` and
          *     `sprints` are null for an unlinked team; `roster` and `sprints` are also null when the Flow team is gone from the mirror
          *     (`binding.gone`). `can` says whether the CALLER may link, unlink and import (ADMIN or the team's manager). The panel is its own read,
-         *     not a member of the team view, and calls Flow never. No account id, email, token or base URL is ever returned.
+         *     not a member of the team view, and calls Flow never. `connections` lists every active connection (id, name, enabled; at most 100) for
+         *     the link dialog. No account id, email, token or base URL is ever returned.
          */
         get: operations["getTeamFlow"];
         put?: never;
@@ -6254,12 +6255,27 @@ export interface components {
              */
             nextStart: string | null;
         };
+        /** @description One ACTIVE Flow connection, as much as the link dialog needs and no more - never a base URL, token, time zone, poll interval or test detail (the registry is ADMIN-only). */
+        FlowPanelConnection: {
+            /** Format: int32 */
+            id: number;
+            name: string;
+            /** @description A disabled connection is listed too; linking through it is a `400`. */
+            enabled: boolean;
+        };
         FlowTeamPanel: {
             team: components["schemas"]["FlowPanelTeam"];
             can: components["schemas"]["FlowPanelCan"];
             binding: components["schemas"]["FlowPanelBinding"] | null;
             roster: components["schemas"]["FlowRoster"] | null;
             sprints: components["schemas"]["FlowSprintSummary"] | null;
+            /**
+             * @description Always present, whoever asks: every ACTIVE (not deleted) Flow connection, enabled or not, by name then id, so a team's manager, who may
+             *     not read the ADMIN-only connection registry, can pick the connection to link the team through. The registry has no row cap of its own,
+             *     so the list is cut at 100 (the first 100 by name); a deployment has a handful. The `id` and `name` are already shown to every login
+             *     (`binding.connectionName`, the teams list's `connectionId`).
+             */
+            connections: components["schemas"]["FlowPanelConnection"][];
         };
         SyncRunRequest: {
             /** @enum {string} */

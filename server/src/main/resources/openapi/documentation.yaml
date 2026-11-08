@@ -3644,7 +3644,8 @@ paths:
         ones, dates in the connection's time zone, a half-open `[validFrom, validTo)` interval) and the sprint summary. `binding`, `roster` and
         `sprints` are null for an unlinked team; `roster` and `sprints` are also null when the Flow team is gone from the mirror
         (`binding.gone`). `can` says whether the CALLER may link, unlink and import (ADMIN or the team's manager). The panel is its own read,
-        not a member of the team view, and calls Flow never. No account id, email, token or base URL is ever returned.
+        not a member of the team view, and calls Flow never. `connections` lists every active connection (id, name, enabled; at most 100) for
+        the link dialog. No account id, email, token or base URL is ever returned.
       responses:
         '200':
           description: The panel
@@ -7405,9 +7406,17 @@ components:
       properties:
         count: { type: integer, format: int32, minimum: 0 }
         nextStart: { type: string, format: date, nullable: true, description: "The first mirrored sprint start that is today or later, in the connection's time zone; null when none." }
+    FlowPanelConnection:
+      type: object
+      description: One ACTIVE Flow connection, as much as the link dialog needs and no more - never a base URL, token, time zone, poll interval or test detail (the registry is ADMIN-only).
+      required: [id, name, enabled]
+      properties:
+        id: { type: integer, format: int32, minimum: 0 }
+        name: { type: string }
+        enabled: { type: boolean, description: "A disabled connection is listed too; linking through it is a `400`." }
     FlowTeamPanel:
       type: object
-      required: [team, can, binding, roster, sprints]
+      required: [team, can, binding, roster, sprints, connections]
       properties:
         team: { $ref: '#/components/schemas/FlowPanelTeam' }
         can: { $ref: '#/components/schemas/FlowPanelCan' }
@@ -7423,6 +7432,16 @@ components:
           allOf:
             - $ref: '#/components/schemas/FlowSprintSummary'
           nullable: true
+        connections:
+          type: array
+          maxItems: 100
+          description: |
+            Always present, whoever asks: every ACTIVE (not deleted) Flow connection, enabled or not, by name then id, so a team's manager, who may
+            not read the ADMIN-only connection registry, can pick the connection to link the team through. The registry has no row cap of its own,
+            so the list is cut at 100 (the first 100 by name); a deployment has a handful. The `id` and `name` are already shown to every login
+            (`binding.connectionName`, the teams list's `connectionId`).
+          items:
+            $ref: '#/components/schemas/FlowPanelConnection'
     SyncRunRequest:
       type: object
       required: [kind, connectionId]

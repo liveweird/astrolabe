@@ -17,8 +17,9 @@ private val ROSTER_AUDIENCE = RosterAudience.EVERY_LOGIN
 
 /**
  * The reads of the Flow team binding: `GET /integrations/flow/teams` (a connection's mirrored teams with their binding and suggestion) and
- * `GET /teams/{id}/flow` (the team page's panel). READ-ONLY and made of the mirror, the bindings, the connection registry and `teams`
- * (active names); it calls Flow never. Each read is one transaction. Nothing here returns an account id, an email, a token or a base URL.
+ * `GET /teams/{id}/flow` (the team page's panel, with the active connections' id, name and enabled flag). READ-ONLY and made of the
+ * mirror, the bindings, the connection registry and `teams` (active names); it calls Flow never. Each read is one transaction. Nothing
+ * here returns an account id, an email, a token or a base URL.
  * [now] defaults to the wall clock (the composition root passes none); `FlowTeamPanelTest` injects a fixed one to pin the roster's
  * half-open intervals and the next sprint through [panel].
  */
@@ -80,11 +81,15 @@ class FlowTeamService(
             ?: return@suspendTransaction null
         val panelTeam = FlowPanelTeam(teamId, team[teams.name])
         val can = FlowPanelCan(link = manages, unlink = manages, importCapacity = manages)
+        val registry = FlowConnectionService.Connections
+        val offered = registry.select(registry.id, registry.name, registry.enabled).where { registry.active() }
+            .orderBy(registry.name to SortOrder.ASC, registry.id to SortOrder.ASC).limit(MAX_PANEL_CONNECTIONS).toList()
+            .map { FlowPanelConnection(it[registry.id].value, it[registry.name], it[registry.enabled]) }
         val bindings = FlowTeamBindingService.Bindings
         val stored = bindings.select(bindings.connectionId, bindings.flowTeamId, bindings.flowTeamName, bindings.id)
             .where { (bindings.teamId eq teamId) and bindings.active() }.toList().singleOrNull()
         val connection = stored?.let { connections.read(it[bindings.connectionId].value) }
-        if (stored == null || connection == null) return@suspendTransaction FlowTeamPanel(panelTeam, can, null, null, null)
+        if (stored == null || connection == null) return@suspendTransaction FlowTeamPanel(panelTeam, can, null, null, null, offered)
         val connectionId = connection.id
         val flowTeamId = stored[bindings.flowTeamId]
         val observed = FlowTeams.select(FlowTeams.observedAt)
@@ -103,12 +108,13 @@ class FlowTeamService(
             observedAt = observed ?: connection.teamsAt,
             gone = gone,
         )
-        if (observed == null) return@suspendTransaction FlowTeamPanel(panelTeam, can, binding, null, null)
+        if (observed == null) return@suspendTransaction FlowTeamPanel(panelTeam, can, binding, null, null, offered)
         val zone = zoneOrUtc(connection.timeZone)
         val at = now()
         val sprints = mirror.sprintsOf(connectionId, flowTeamId)
         val roster = if (rosterVisibleTo(ROSTER_AUDIENCE, manages)) rosterOf(mirror.membersOf(connectionId, flowTeamId), zone, at) else null
         val today = Instant.ofEpochMilli(at).atZone(zone).toLocalDate()
-        FlowTeamPanel(panelTeam, can, binding, roster, FlowSprintSummary(sprints.size, nextSprintStart(sprints, zone, today)?.toString()))
+        val summary = FlowSprintSummary(sprints.size, nextSprintStart(sprints, zone, today)?.toString())
+        FlowTeamPanel(panelTeam, can, binding, roster, summary, offered)
     }
 }

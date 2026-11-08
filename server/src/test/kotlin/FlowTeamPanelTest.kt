@@ -1,6 +1,7 @@
 package ch.nokillswit
 
 import ch.nokillswit.flow.FlowMirrorMember
+import ch.nokillswit.flow.MAX_PANEL_CONNECTIONS
 import ch.nokillswit.flow.FlowMirrorSprint
 import ch.nokillswit.flow.FlowRoster
 import ch.nokillswit.flow.FlowSprintSummary
@@ -37,7 +38,7 @@ import kotlin.test.assertTrue
 /**
  * `GET /teams/{id}/flow`: the team page's Flow panel - unbound, bound and gone; the roster (current vs former, the half-open interval in
  * the connection's zone); `can` per caller; and Q2a pinned: every signed-in user sees the roster, nobody sees an account id, an email, a
- * token or a base URL.
+ * token or a base URL; and the panel's `connections` (every active connection for the link dialog, any caller).
  */
 class FlowTeamPanelTest {
     private companion object {
@@ -154,6 +155,63 @@ class FlowTeamPanelTest {
             assertEquals("4", sprints.text("count"))
             assertEquals(date(now + 5 * DAY), sprints.text("nextStart"))
         }
+    }
+
+    private fun JsonObject.connections(): List<JsonObject> = getValue("connections").jsonArray.map { it.jsonObject }
+
+    @Test
+    fun `the panel lists every active connection, enabled or not, to any caller - id, name and enabled only`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("fbpanelc1", teams = true)
+        val teams = w.requireTeams()
+        val m = ScriptedFlowMirror(PREFIX)
+        val enabledId = m.harness.connect("$PREFIX-b", FLOW_TEST_ORIGIN)
+        val disabledId = m.harness.connect("$PREFIX-a", FLOW_TEST_ORIGIN, enabled = false)
+        val untestedId = m.harness.connect("$PREFIX-c", FLOW_TEST_ORIGIN, tested = false)
+        val names = listOf(enabledId, disabledId, untestedId).associateWith { id -> checkNotNull(m.harness.connections.read(id)).name }
+        val expected = listOf(disabledId to false, enabledId to true, untestedId to true) // by name: -a, -b, -c
+
+        for (caller in listOf(w.admin, teams.manager, teams.otherManager, w.projectOwner, w.editor, w.stranger, w.personless)) {
+            val response = caller.client.get(panelPath(teams.teamId))
+            assertEquals(HttpStatusCode.OK, response.status)
+            val text = response.bodyAsText()
+            listOf("flow.test", "apiToken", "baseUrl", "timeZone", "pollInterval", "hasApiToken", "lastTest", "flow_int_", "@").forEach {
+                assertFalse(it in text, "no '$it' in $text")
+            }
+            val mine = text.fbObject().connections().filter { it.text("name").startsWith(PREFIX) }
+            mine.forEach { assertEquals(setOf("id", "name", "enabled"), it.keys, "only id, name and enabled") }
+            assertEquals(
+                expected.map { (id, enabled) -> Triple(id.toString(), names.getValue(id), enabled.toString()) },
+                mine.map { Triple(it.text("id"), it.text("name"), it.text("enabled")) },
+                "every active connection, by name",
+            )
+        }
+    }
+
+    @Test
+    fun `a deleted connection is absent from the panel's connections and the list is always there`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("fbpanelc2", teams = true)
+        val teams = w.requireTeams()
+        val m = ScriptedFlowMirror(PREFIX).connect()
+        val goneId = m.harness.connect(PREFIX, FLOW_TEST_ORIGIN)
+        val before = w.stranger.client.get(panelPath(teams.teamId)).bodyAsText().fbObject().connections().map { it.text("id") }
+        assertTrue(m.connectionId.toString() in before && goneId.toString() in before, "both are listed first")
+        m.harness.connections.delete(goneId)
+        val after = w.stranger.client.get(panelPath(teams.teamId)).bodyAsText().fbObject().connections().map { it.text("id") }
+        assertTrue(m.connectionId.toString() in after)
+        assertFalse(goneId.toString() in after, "a soft-deleted connection is not offered")
+    }
+
+    @Test
+    fun `the connections list is cut at 100`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("fbpanelc3", teams = true)
+        val teams = w.requireTeams()
+        val m = ScriptedFlowMirror(PREFIX)
+        repeat(MAX_PANEL_CONNECTIONS + 1) { m.harness.connect(PREFIX, FLOW_TEST_ORIGIN, tested = false) }
+        val listed = w.admin.client.get(panelPath(teams.teamId)).bodyAsText().fbObject().connections()
+        assertEquals(MAX_PANEL_CONNECTIONS, listed.size)
     }
 
     @Test

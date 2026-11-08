@@ -54,7 +54,22 @@ data class FlowRoster(val current: List<FlowRosterCurrent>, val former: List<Flo
 @Serializable
 data class FlowSprintSummary(val count: Int, val nextStart: String?)
 
-/** `roster`, `sprints` are null for an unbound team and for a bound team that is [FlowPanelBinding.gone]. No account id, email or token. */
+/** The most connections the panel lists (the registry has no cap of its own; the spec's `maxItems`). */
+const val MAX_PANEL_CONNECTIONS = 100
+
+/**
+ * One ACTIVE Flow connection as the team page's link dialog needs it: the id the dialog hands to `GET /integrations/flow/teams` and the
+ * binding, the name and whether it is enabled. Nothing else of the registry (no base URL, token, zone, interval or test detail): the
+ * registry itself is ADMIN-only, and the id and name are already shown to every login by [FlowPanelBinding].
+ */
+@Serializable
+data class FlowPanelConnection(val id: UInt, val name: String, val enabled: Boolean)
+
+/**
+ * `roster`, `sprints` are null for an unbound team and for a bound team that is [FlowPanelBinding.gone]. No account id, email or token.
+ * [connections] is always present: every ACTIVE connection by name then id, at most [MAX_PANEL_CONNECTIONS], whoever asks - the way a
+ * manager (who may not read the ADMIN-only registry) finds a connection to link the team through.
+ */
 @Serializable
 data class FlowTeamPanel(
     val team: FlowPanelTeam,
@@ -62,6 +77,7 @@ data class FlowTeamPanel(
     val binding: FlowPanelBinding?,
     val roster: FlowRoster?,
     val sprints: FlowSprintSummary?,
+    val connections: List<FlowPanelConnection>,
 )
 
 /** Who sees the roster's names. Q2a (decided 2026-11-08): [EVERY_LOGIN]; [MANAGER_OR_ADMIN] is the one-line flip to Q2b. */
