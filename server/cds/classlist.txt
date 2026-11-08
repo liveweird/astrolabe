@@ -158,7 +158,9 @@ ch/nokillswit/flow/CapacityImportItem
 ch/nokillswit/flow/CapacityImportItem$$serializer
 ch/nokillswit/flow/CapacityImportItem$Companion
 ch/nokillswit/flow/CapacityImportKernels
+ch/nokillswit/flow/CapacityImportKernels$longClaims$$inlined$sortedBy$1
 ch/nokillswit/flow/CapacityImportKernels$removalsOf$$inlined$sortedBy$1
+ch/nokillswit/flow/CapacityImportKernelsKt
 ch/nokillswit/flow/CapacityImportKt
 ch/nokillswit/flow/CapacityImportOutcome
 ch/nokillswit/flow/CapacityImportRemoval$$serializer
@@ -216,6 +218,7 @@ ch/nokillswit/flow/FlowClient
 ch/nokillswit/flow/FlowClientFactory
 ch/nokillswit/flow/FlowConnectionDeleteOutcome
 ch/nokillswit/flow/FlowConnectionKt
+ch/nokillswit/flow/FlowConnectionKt$WhenMappings
 ch/nokillswit/flow/FlowConnectionPollingKt
 ch/nokillswit/flow/FlowConnectionPollingKt$pollRowsOf$2
 ch/nokillswit/flow/FlowConnectionPollingKt$statusesInTransaction$1
@@ -228,16 +231,19 @@ ch/nokillswit/flow/FlowConnectionResponse$Companion
 ch/nokillswit/flow/FlowConnectionRoutesKt
 ch/nokillswit/flow/FlowConnectionRoutesKt$configureFlowRoutes$1$1$1
 ch/nokillswit/flow/FlowConnectionRoutesKt$configureFlowRoutes$1$1$2
-ch/nokillswit/flow/FlowConnectionRoutesKt$configureFlowRoutes$1$1$2$1
 ch/nokillswit/flow/FlowConnectionRoutesKt$configureFlowRoutes$1$1$3
+ch/nokillswit/flow/FlowConnectionRoutesKt$configureFlowRoutes$1$1$3$1
 ch/nokillswit/flow/FlowConnectionRoutesKt$configureFlowRoutes$1$1$4
 ch/nokillswit/flow/FlowConnectionRoutesKt$configureFlowRoutes$1$1$5
+ch/nokillswit/flow/FlowConnectionRoutesKt$configureFlowRoutes$1$1$6
 ch/nokillswit/flow/FlowConnectionRoutesKt$configureFlowRoutes$lambda$0$0$$inlined$delete$1
 ch/nokillswit/flow/FlowConnectionRoutesKt$configureFlowRoutes$lambda$0$0$$inlined$delete$1$1
 ch/nokillswit/flow/FlowConnectionRoutesKt$configureFlowRoutes$lambda$0$0$$inlined$get$1
 ch/nokillswit/flow/FlowConnectionRoutesKt$configureFlowRoutes$lambda$0$0$$inlined$get$1$1
 ch/nokillswit/flow/FlowConnectionRoutesKt$configureFlowRoutes$lambda$0$0$$inlined$get$2
 ch/nokillswit/flow/FlowConnectionRoutesKt$configureFlowRoutes$lambda$0$0$$inlined$get$2$1
+ch/nokillswit/flow/FlowConnectionRoutesKt$configureFlowRoutes$lambda$0$0$$inlined$get$3
+ch/nokillswit/flow/FlowConnectionRoutesKt$configureFlowRoutes$lambda$0$0$$inlined$get$3$1
 ch/nokillswit/flow/FlowConnectionRoutesKt$configureFlowRoutes$lambda$0$0$$inlined$post$1
 ch/nokillswit/flow/FlowConnectionRoutesKt$configureFlowRoutes$lambda$0$0$$inlined$post$1$1
 ch/nokillswit/flow/FlowConnectionRoutesKt$configureFlowRoutes$lambda$0$0$$inlined$put$1
@@ -304,6 +310,9 @@ ch/nokillswit/flow/FlowObserver$execute$1
 ch/nokillswit/flow/FlowObserver$requireRunnable$1
 ch/nokillswit/flow/FlowObserver$run$3
 ch/nokillswit/flow/FlowObserverKt
+ch/nokillswit/flow/FlowOriginsRoute
+ch/nokillswit/flow/FlowOriginsRoute$$serializer
+ch/nokillswit/flow/FlowOriginsRoute$Companion
 ch/nokillswit/flow/FlowPanelBinding
 ch/nokillswit/flow/FlowPanelBinding$$serializer
 ch/nokillswit/flow/FlowPanelBinding$Companion
@@ -531,6 +540,7 @@ ch/nokillswit/infra/mail/SmtpMailer$send$2
 ch/nokillswit/infra/outbound/AtlassianSitesKt
 ch/nokillswit/infra/outbound/BlockedHostException
 ch/nokillswit/infra/outbound/DirectSocketFactory
+ch/nokillswit/infra/outbound/FlowBaseUrlVerdict
 ch/nokillswit/infra/outbound/FlowOrigins
 ch/nokillswit/infra/outbound/FlowOrigins$Companion
 ch/nokillswit/infra/outbound/FlowOriginsKt
@@ -785,7 +795,7 @@ ch/nokillswit/jira/JiraConnectionsRoute$Id$$serializer
 ch/nokillswit/jira/JiraConnectionsRoute$Id$$serializer$annotationImpl$io_ktor_resources_Resource$0
 ch/nokillswit/jira/JiraConnectionsRoute$Id$Companion
 ch/nokillswit/jira/JiraConnector
-ch/nokillswit/jira/JiraConnector$1
+ch/nokillswit/jira/JiraConnector$2
 ch/nokillswit/jira/JiraConnector$Companion
 ch/nokillswit/jira/JiraConnector$Probed
 ch/nokillswit/jira/JiraConnector$probe$1
@@ -845,6 +855,7 @@ ch/nokillswit/jira/JiraIssueStore$upsert$2
 ch/nokillswit/jira/JiraIssues
 ch/nokillswit/jira/JiraJql
 ch/nokillswit/jira/JiraKt
+ch/nokillswit/jira/JiraKt$configureJira$connector$1
 ch/nokillswit/jira/JiraLevel
 ch/nokillswit/jira/JiraLevelFields
 ch/nokillswit/jira/JiraLevelFields$Companion
@@ -922,6 +933,8 @@ ch/nokillswit/jira/JiraStatusCategory
 ch/nokillswit/jira/JiraStoredTestRoute
 ch/nokillswit/jira/JiraStoredTestRoute$$serializer
 ch/nokillswit/jira/JiraStoredTestRoute$Companion
+ch/nokillswit/jira/JiraStubRouting
+ch/nokillswit/jira/JiraStubRoutingKt
 ch/nokillswit/jira/JiraTestOutcome
 ch/nokillswit/jira/JiraTestResult
 ch/nokillswit/jira/JiraTestResult$$serializer
@@ -12578,7 +12591,7 @@ sun/util/spi/CalendarProvider
 @lambda-proxy ch/nokillswit/flow/HttpFlowClient invoke ()Lkotlin/jvm/functions/Function1; (Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic ch/nokillswit/flow/HttpFlowClient teams$lambda$0 (Lkotlinx/serialization/json/JsonElement;)Lch/nokillswit/flow/FlowTeamsDocument; (Lkotlinx/serialization/json/JsonElement;)Lch/nokillswit/flow/FlowTeamsDocument;
 @lambda-proxy ch/nokillswit/flow/RunProgress invoke ()Lkotlin/jvm/functions/Function0; ()Ljava/lang/Object; REF_invokeStatic ch/nokillswit/flow/RunProgress onChange$lambda$0 ()Lkotlin/Unit; ()Lkotlin/Unit;
 @lambda-proxy ch/nokillswit/infra/crypto/ReencryptKt invoke (ZLorg/jetbrains/exposed/v1/core/Op;Lorg/jetbrains/exposed/v1/core/Op;)Lkotlin/jvm/functions/Function0; ()Ljava/lang/Object; REF_invokeStatic ch/nokillswit/infra/crypto/ReencryptKt reencryptRows$lambda$5 (ZLorg/jetbrains/exposed/v1/core/Op;Lorg/jetbrains/exposed/v1/core/Op;)Lorg/jetbrains/exposed/v1/core/Op; ()Lorg/jetbrains/exposed/v1/core/Op;
-@lambda-proxy ch/nokillswit/infra/db/DatabaseKt invoke (Lio/ktor/server/application/Application;)Lkotlin/jvm/functions/Function1; (Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic ch/nokillswit/infra/db/DatabaseKt configureDatabase$lambda$0 (Lio/ktor/server/application/Application;Ljava/lang/String;)Z (Ljava/lang/String;)Ljava/lang/Boolean;
+@lambda-proxy ch/nokillswit/infra/db/DatabaseKt invoke (Lio/ktor/server/application/Application;)Lkotlin/jvm/functions/Function1; (Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic ch/nokillswit/infra/db/DatabaseKt configureDatabase$lambda$0 (Lio/ktor/server/application/Application;Ljava/lang/String;)Lch/nokillswit/infra/outbound/FlowBaseUrlVerdict; (Ljava/lang/String;)Lch/nokillswit/infra/outbound/FlowBaseUrlVerdict;
 @lambda-proxy ch/nokillswit/infra/db/DatabaseKt invoke (Lio/r2dbc/pool/ConnectionPool;)Lkotlin/jvm/functions/Function0; ()Ljava/lang/Object; REF_invokeStatic ch/nokillswit/infra/db/DatabaseKt connectPooled$lambda$1 (Lio/r2dbc/pool/ConnectionPool;)Lch/nokillswit/infra/db/PoolSnapshot; ()Lch/nokillswit/infra/db/PoolSnapshot;
 @lambda-proxy ch/nokillswit/infra/db/DatabaseKt invoke (Lio/r2dbc/pool/ConnectionPool;)Lkotlin/jvm/functions/Function1; (Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic ch/nokillswit/infra/db/DatabaseKt connectPooled$lambda$0 (Lio/r2dbc/pool/ConnectionPool;Lio/ktor/server/application/Application;)Lkotlin/Unit; (Lio/ktor/server/application/Application;)Lkotlin/Unit;
 @lambda-proxy ch/nokillswit/infra/db/LeakedSocketClosingConnection accept (Lch/nokillswit/infra/db/LeakedSocketClosingConnection;)Ljava/util/function/Consumer; (Ljava/lang/Object;)V REF_invokeStatic ch/nokillswit/infra/db/LeakedSocketClosingConnection close$lambda$0 (Lch/nokillswit/infra/db/LeakedSocketClosingConnection;Lreactor/core/publisher/SignalType;)V (Lreactor/core/publisher/SignalType;)V
@@ -12704,8 +12717,8 @@ sun/util/spi/CalendarProvider
 @lambda-proxy ch/nokillswit/jira/JiraConnectionRequest invoke ()Lkotlin/jvm/functions/Function0; ()Ljava/lang/Object; REF_invokeStatic ch/nokillswit/jira/JiraConnectionRequest _childSerializers$_anonymous_$0 ()Lkotlinx/serialization/KSerializer; ()Lkotlinx/serialization/KSerializer;
 @lambda-proxy ch/nokillswit/jira/JiraConnectionResponse invoke ()Lkotlin/jvm/functions/Function0; ()Ljava/lang/Object; REF_invokeStatic ch/nokillswit/jira/JiraConnectionResponse _childSerializers$_anonymous_ ()Lkotlinx/serialization/KSerializer; ()Lkotlinx/serialization/KSerializer;
 @lambda-proxy ch/nokillswit/jira/JiraConnectionResponse invoke ()Lkotlin/jvm/functions/Function0; ()Ljava/lang/Object; REF_invokeStatic ch/nokillswit/jira/JiraConnectionResponse _childSerializers$_anonymous_$0 ()Lkotlinx/serialization/KSerializer; ()Lkotlinx/serialization/KSerializer;
-@lambda-proxy ch/nokillswit/jira/JiraConnectionRoutesKt invoke (Lch/nokillswit/jira/JiraConnectionService;Lch/nokillswit/jira/JiraConnector;Lch/nokillswit/jira/JiraBindingService;Lch/nokillswit/people/PersonService;JLch/nokillswit/jira/JiraImportService;Lch/nokillswit/jira/JiraAcknowledgeService;)Lkotlin/jvm/functions/Function1; (Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic ch/nokillswit/jira/JiraConnectionRoutesKt configureJiraRoutes$lambda$0 (Lch/nokillswit/jira/JiraConnectionService;Lch/nokillswit/jira/JiraConnector;Lch/nokillswit/jira/JiraBindingService;Lch/nokillswit/people/PersonService;JLch/nokillswit/jira/JiraImportService;Lch/nokillswit/jira/JiraAcknowledgeService;Lio/ktor/server/routing/Routing;)Lkotlin/Unit; (Lio/ktor/server/routing/Routing;)Lkotlin/Unit;
-@lambda-proxy ch/nokillswit/jira/JiraConnectionRoutesKt invoke (Lch/nokillswit/jira/JiraConnectionService;Lch/nokillswit/jira/JiraConnector;Lch/nokillswit/jira/JiraBindingService;Lch/nokillswit/people/PersonService;JLch/nokillswit/jira/JiraImportService;Lch/nokillswit/jira/JiraAcknowledgeService;)Lkotlin/jvm/functions/Function1; (Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic ch/nokillswit/jira/JiraConnectionRoutesKt configureJiraRoutes$lambda$0$0 (Lch/nokillswit/jira/JiraConnectionService;Lch/nokillswit/jira/JiraConnector;Lch/nokillswit/jira/JiraBindingService;Lch/nokillswit/people/PersonService;JLch/nokillswit/jira/JiraImportService;Lch/nokillswit/jira/JiraAcknowledgeService;Lio/ktor/server/routing/Route;)Lkotlin/Unit; (Lio/ktor/server/routing/Route;)Lkotlin/Unit;
+@lambda-proxy ch/nokillswit/jira/JiraConnectionRoutesKt invoke (Lch/nokillswit/jira/JiraConnectionService;Lch/nokillswit/jira/JiraConnector;Lch/nokillswit/jira/JiraBindingService;Lch/nokillswit/people/PersonService;JLch/nokillswit/jira/JiraImportService;Lch/nokillswit/jira/JiraAcknowledgeService;Lch/nokillswit/jira/JiraStubRouting;)Lkotlin/jvm/functions/Function1; (Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic ch/nokillswit/jira/JiraConnectionRoutesKt configureJiraRoutes$lambda$0 (Lch/nokillswit/jira/JiraConnectionService;Lch/nokillswit/jira/JiraConnector;Lch/nokillswit/jira/JiraBindingService;Lch/nokillswit/people/PersonService;JLch/nokillswit/jira/JiraImportService;Lch/nokillswit/jira/JiraAcknowledgeService;Lch/nokillswit/jira/JiraStubRouting;Lio/ktor/server/routing/Routing;)Lkotlin/Unit; (Lio/ktor/server/routing/Routing;)Lkotlin/Unit;
+@lambda-proxy ch/nokillswit/jira/JiraConnectionRoutesKt invoke (Lch/nokillswit/jira/JiraConnectionService;Lch/nokillswit/jira/JiraConnector;Lch/nokillswit/jira/JiraBindingService;Lch/nokillswit/people/PersonService;JLch/nokillswit/jira/JiraImportService;Lch/nokillswit/jira/JiraAcknowledgeService;Lch/nokillswit/jira/JiraStubRouting;)Lkotlin/jvm/functions/Function1; (Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic ch/nokillswit/jira/JiraConnectionRoutesKt configureJiraRoutes$lambda$0$0 (Lch/nokillswit/jira/JiraConnectionService;Lch/nokillswit/jira/JiraConnector;Lch/nokillswit/jira/JiraBindingService;Lch/nokillswit/people/PersonService;JLch/nokillswit/jira/JiraImportService;Lch/nokillswit/jira/JiraAcknowledgeService;Lch/nokillswit/jira/JiraStubRouting;Lio/ktor/server/routing/Route;)Lkotlin/Unit; (Lio/ktor/server/routing/Route;)Lkotlin/Unit;
 @lambda-proxy ch/nokillswit/jira/JiraConnectionService$create$2 invoke (Lch/nokillswit/jira/JiraConnectionRequest;Lch/nokillswit/jira/JiraConnectionService;Ljava/lang/String;J)Lkotlin/jvm/functions/Function2; (Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic ch/nokillswit/jira/JiraConnectionService$create$2 invokeSuspend$lambda$1 (Lch/nokillswit/jira/JiraConnectionRequest;Lch/nokillswit/jira/JiraConnectionService;Ljava/lang/String;JLch/nokillswit/jira/JiraConnectionService$Connections;Lorg/jetbrains/exposed/v1/core/statements/InsertStatement;)Lkotlin/Unit; (Lch/nokillswit/jira/JiraConnectionService$Connections;Lorg/jetbrains/exposed/v1/core/statements/InsertStatement;)Lkotlin/Unit;
 @lambda-proxy ch/nokillswit/jira/JiraConnectionService$deleteInTransaction$2 invoke (I)Lkotlin/jvm/functions/Function0; ()Ljava/lang/Object; REF_invokeStatic ch/nokillswit/jira/JiraConnectionService$deleteInTransaction$2 invokeSuspend$lambda$0 (I)Lorg/jetbrains/exposed/v1/core/Op; ()Lorg/jetbrains/exposed/v1/core/Op;
 @lambda-proxy ch/nokillswit/jira/JiraConnectionService$deleteInTransaction$2 invoke (I)Lkotlin/jvm/functions/Function0; ()Ljava/lang/Object; REF_invokeStatic ch/nokillswit/jira/JiraConnectionService$deleteInTransaction$2 invokeSuspend$lambda$1 (I)Lorg/jetbrains/exposed/v1/core/Op; ()Lorg/jetbrains/exposed/v1/core/Op;
@@ -12740,12 +12753,11 @@ sun/util/spi/CalendarProvider
 @lambda-proxy ch/nokillswit/jira/JiraIssueStore$upsert$2 invoke (Lch/nokillswit/jira/JiraIssueStore;I)Lkotlin/jvm/functions/Function0; ()Ljava/lang/Object; REF_invokeStatic ch/nokillswit/jira/JiraIssueStore$upsert$2 invokeSuspend$lambda$0 (Lch/nokillswit/jira/JiraIssueStore;I)Lorg/jetbrains/exposed/v1/core/Op; ()Lorg/jetbrains/exposed/v1/core/Op;
 @lambda-proxy ch/nokillswit/jira/JiraJql invoke ()Lkotlin/jvm/functions/Function1; (Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic ch/nokillswit/jira/JiraJql scope$lambda$0 (Ljava/lang/String;)Ljava/lang/CharSequence; (Ljava/lang/String;)Ljava/lang/CharSequence;
 @lambda-proxy ch/nokillswit/jira/JiraKt invoke ()Lkotlin/jvm/functions/Function1; (Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic ch/nokillswit/jira/JiraKt buildGuardedJiraHttpClient$lambda$0 (Ljava/lang/String;)Ljava/util/List; (Ljava/lang/String;)Ljava/util/List;
-@lambda-proxy ch/nokillswit/jira/JiraKt invoke (Lch/nokillswit/infra/fetch/SourceHttp;Ljava/lang/String;)Lkotlin/jvm/functions/Function4; (Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic ch/nokillswit/jira/JiraKt configureJira$lambda$7 (Lch/nokillswit/infra/fetch/SourceHttp;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lch/nokillswit/jira/JiraAuthScheme;)Lch/nokillswit/jira/JiraClient; (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lch/nokillswit/jira/JiraAuthScheme;)Lch/nokillswit/jira/JiraClient;
-@lambda-proxy ch/nokillswit/jira/JiraKt invoke (Lch/nokillswit/infra/outbound/Origin;Lio/ktor/server/application/Application;)Lkotlin/jvm/functions/Function3; (Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic ch/nokillswit/jira/JiraKt configureJira$lambda$4 (Lch/nokillswit/infra/outbound/Origin;Lio/ktor/server/application/Application;Ljava/lang/String;Ljava/lang/String;I)Z (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;)Ljava/lang/Boolean;
-@lambda-proxy ch/nokillswit/jira/JiraKt invoke (Lio/ktor/client/HttpClient;)Lkotlin/jvm/functions/Function1; (Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic ch/nokillswit/jira/JiraKt configureJira$lambda$5 (Lio/ktor/client/HttpClient;Lio/ktor/server/application/Application;)Lkotlin/Unit; (Lio/ktor/server/application/Application;)Lkotlin/Unit;
-@lambda-proxy ch/nokillswit/jira/JiraKt invoke (Lio/ktor/server/application/Application;Lch/nokillswit/infra/outbound/Origin;Ljava/lang/String;)Lkotlin/jvm/functions/Function1; (Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic ch/nokillswit/jira/JiraKt configureJira$lambda$3 (Lio/ktor/server/application/Application;Lch/nokillswit/infra/outbound/Origin;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String; (Ljava/lang/String;)Ljava/lang/String;
-@lambda-proxy ch/nokillswit/jira/JiraKt invoke (Lio/ktor/server/application/Application;Ljava/lang/String;)Lkotlin/jvm/functions/Function2; (Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic ch/nokillswit/jira/JiraKt configureJira$lambda$2 (Lio/ktor/server/application/Application;Ljava/lang/String;Ljava/lang/String;Ljava/net/InetAddress;)Z (Ljava/lang/String;Ljava/net/InetAddress;)Ljava/lang/Boolean;
+@lambda-proxy ch/nokillswit/jira/JiraKt invoke (Lch/nokillswit/infra/outbound/Origin;Lio/ktor/server/application/Application;)Lkotlin/jvm/functions/Function3; (Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic ch/nokillswit/jira/JiraKt configureJira$lambda$3 (Lch/nokillswit/infra/outbound/Origin;Lio/ktor/server/application/Application;Ljava/lang/String;Ljava/lang/String;I)Z (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;)Ljava/lang/Boolean;
+@lambda-proxy ch/nokillswit/jira/JiraKt invoke (Lio/ktor/client/HttpClient;)Lkotlin/jvm/functions/Function1; (Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic ch/nokillswit/jira/JiraKt configureJira$lambda$4 (Lio/ktor/client/HttpClient;Lio/ktor/server/application/Application;)Lkotlin/Unit; (Lio/ktor/server/application/Application;)Lkotlin/Unit;
+@lambda-proxy ch/nokillswit/jira/JiraKt invoke (Lio/ktor/server/application/Application;Lch/nokillswit/infra/outbound/Origin;Ljava/lang/String;)Lkotlin/jvm/functions/Function1; (Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic ch/nokillswit/jira/JiraKt configureJira$lambda$2 (Lio/ktor/server/application/Application;Lch/nokillswit/infra/outbound/Origin;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String; (Ljava/lang/String;)Ljava/lang/String;
 @lambda-proxy ch/nokillswit/jira/JiraKt invoke (Ljava/lang/String;Lio/ktor/server/application/Application;)Lkotlin/jvm/functions/Function1; (Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic ch/nokillswit/jira/JiraKt configureJira$lambda$1 (Ljava/lang/String;Lio/ktor/server/application/Application;Ljava/lang/String;)Z (Ljava/lang/String;)Ljava/lang/Boolean;
+@lambda-proxy ch/nokillswit/jira/JiraKt invoke (ZLjava/lang/String;)Lkotlin/jvm/functions/Function2; (Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic ch/nokillswit/jira/JiraKt jiraAddressRule$lambda$0 (ZLjava/lang/String;Ljava/lang/String;Ljava/net/InetAddress;)Z (Ljava/lang/String;Ljava/net/InetAddress;)Ljava/lang/Boolean;
 @lambda-proxy ch/nokillswit/jira/JiraMappingKt invoke ()Lkotlin/jvm/functions/Function1; (Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic ch/nokillswit/jira/JiraMappingKt MAPPING_JSON$lambda$0 (Lkotlinx/serialization/json/JsonBuilder;)Lkotlin/Unit; (Lkotlinx/serialization/json/JsonBuilder;)Lkotlin/Unit;
 @lambda-proxy ch/nokillswit/jira/JiraMappingRoutesKt invoke (Lch/nokillswit/jira/JiraConnectionService;Lch/nokillswit/jira/JiraConnector;)Lkotlin/jvm/functions/Function1; (Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic ch/nokillswit/jira/JiraMappingRoutesKt jiraMappingRoutes$lambda$0 (Lch/nokillswit/jira/JiraConnectionService;Lch/nokillswit/jira/JiraConnector;Lio/ktor/server/routing/Route;)Lkotlin/Unit; (Lio/ktor/server/routing/Route;)Lkotlin/Unit;
 @lambda-proxy ch/nokillswit/jira/JiraObservationResponse invoke ()Lkotlin/jvm/functions/Function0; ()Ljava/lang/Object; REF_invokeStatic ch/nokillswit/jira/JiraObservationResponse _childSerializers$_anonymous_ ()Lkotlinx/serialization/KSerializer; ()Lkotlinx/serialization/KSerializer;
@@ -12761,6 +12773,7 @@ sun/util/spi/CalendarProvider
 @lambda-proxy ch/nokillswit/jira/JiraRunStore$snapshot$2 invoke (Lch/nokillswit/jira/JiraRunStore;)Lkotlin/jvm/functions/Function1; (Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic ch/nokillswit/jira/JiraRunStore$snapshot$2 invokeSuspend$lambda$0 (Lch/nokillswit/jira/JiraRunStore;Lch/nokillswit/jira/JiraBindingService$Bindings;)Lorg/jetbrains/exposed/v1/core/Expression; (Lch/nokillswit/jira/JiraBindingService$Bindings;)Lorg/jetbrains/exposed/v1/core/Expression;
 @lambda-proxy ch/nokillswit/jira/JiraRunStore$snapshot$2 invoke (Lch/nokillswit/jira/JiraRunStore;I)Lkotlin/jvm/functions/Function0; ()Ljava/lang/Object; REF_invokeStatic ch/nokillswit/jira/JiraRunStore$snapshot$2 invokeSuspend$lambda$2 (Lch/nokillswit/jira/JiraRunStore;I)Lorg/jetbrains/exposed/v1/core/Op; ()Lorg/jetbrains/exposed/v1/core/Op;
 @lambda-proxy ch/nokillswit/jira/JiraRunStore$writeObservations$2 invoke ()Lkotlin/jvm/functions/Function2; (Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic ch/nokillswit/jira/JiraRunStore$writeObservations$2 invokeSuspend$lambda$4 (Lch/nokillswit/infra/db/InsertRow;Lkotlin/Pair;)Lkotlin/Unit; (Lch/nokillswit/infra/db/InsertRow;Lkotlin/Pair;)Lkotlin/Unit;
+@lambda-proxy ch/nokillswit/jira/JiraStubRoutingKt invoke (Lch/nokillswit/jira/JiraStubRouting;Lch/nokillswit/infra/fetch/SourceHttp;)Lkotlin/jvm/functions/Function4; (Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic ch/nokillswit/jira/JiraStubRoutingKt jiraClientFactory$lambda$0 (Lch/nokillswit/jira/JiraStubRouting;Lch/nokillswit/infra/fetch/SourceHttp;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lch/nokillswit/jira/JiraAuthScheme;)Lch/nokillswit/jira/JiraClient; (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lch/nokillswit/jira/JiraAuthScheme;)Lch/nokillswit/jira/JiraClient;
 @lambda-proxy ch/nokillswit/jira/JiraTestResult invoke ()Lkotlin/jvm/functions/Function0; ()Ljava/lang/Object; REF_invokeStatic ch/nokillswit/jira/JiraTestResult _childSerializers$_anonymous_ ()Lkotlinx/serialization/KSerializer; ()Lkotlinx/serialization/KSerializer;
 @lambda-proxy ch/nokillswit/jira/JiraTestRoutesKt invoke (Lch/nokillswit/jira/JiraConnector;Lch/nokillswit/jira/JiraConnectionService;)Lkotlin/jvm/functions/Function1; (Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic ch/nokillswit/jira/JiraTestRoutesKt jiraTestRoutes$lambda$0 (Lch/nokillswit/jira/JiraConnector;Lch/nokillswit/jira/JiraConnectionService;Lio/ktor/server/routing/Route;)Lkotlin/Unit; (Lio/ktor/server/routing/Route;)Lkotlin/Unit;
 @lambda-proxy ch/nokillswit/jira/RunProgress invoke ()Lkotlin/jvm/functions/Function0; ()Ljava/lang/Object; REF_invokeStatic ch/nokillswit/jira/RunProgress onChange$lambda$0 ()Lkotlin/Unit; ()Lkotlin/Unit;
@@ -14357,7 +14370,7 @@ sun/util/spi/CalendarProvider
 @lambda-form-invoker [LF_RESOLVE] java.lang.invoke.DirectMethodHandle$Holder invokeSpecial L5_L
 @lambda-form-invoker [LF_RESOLVE] java.lang.invoke.DirectMethodHandle$Holder invokeSpecial L5_V
 @lambda-form-invoker [LF_RESOLVE] java.lang.invoke.DirectMethodHandle$Holder invokeSpecial L6I_L
-@lambda-form-invoker [LF_RESOLVE] java.lang.invoke.DirectMethodHandle$Holder invokeSpecial L6JLL_L
+@lambda-form-invoker [LF_RESOLVE] java.lang.invoke.DirectMethodHandle$Holder invokeSpecial L6JL3_L
 @lambda-form-invoker [LF_RESOLVE] java.lang.invoke.DirectMethodHandle$Holder invokeSpecial L6_J
 @lambda-form-invoker [LF_RESOLVE] java.lang.invoke.DirectMethodHandle$Holder invokeSpecial L6_L
 @lambda-form-invoker [LF_RESOLVE] java.lang.invoke.DirectMethodHandle$Holder invokeSpecial L6_V
@@ -14457,7 +14470,7 @@ sun/util/spi/CalendarProvider
 @lambda-form-invoker [LF_RESOLVE] java.lang.invoke.DirectMethodHandle$Holder invokeStatic L4_L
 @lambda-form-invoker [LF_RESOLVE] java.lang.invoke.DirectMethodHandle$Holder invokeStatic L4_V
 @lambda-form-invoker [LF_RESOLVE] java.lang.invoke.DirectMethodHandle$Holder invokeStatic L5I_I
-@lambda-form-invoker [LF_RESOLVE] java.lang.invoke.DirectMethodHandle$Holder invokeStatic L5JL3_L
+@lambda-form-invoker [LF_RESOLVE] java.lang.invoke.DirectMethodHandle$Holder invokeStatic L5JL4_L
 @lambda-form-invoker [LF_RESOLVE] java.lang.invoke.DirectMethodHandle$Holder invokeStatic L5J_L
 @lambda-form-invoker [LF_RESOLVE] java.lang.invoke.DirectMethodHandle$Holder invokeStatic L5_I
 @lambda-form-invoker [LF_RESOLVE] java.lang.invoke.DirectMethodHandle$Holder invokeStatic L5_L
@@ -14579,7 +14592,7 @@ sun/util/spi/CalendarProvider
 @lambda-form-invoker [LF_RESOLVE] java.lang.invoke.DirectMethodHandle$Holder newInvokeSpecial L4J_L
 @lambda-form-invoker [LF_RESOLVE] java.lang.invoke.DirectMethodHandle$Holder newInvokeSpecial L4_L
 @lambda-form-invoker [LF_RESOLVE] java.lang.invoke.DirectMethodHandle$Holder newInvokeSpecial L5I_L
-@lambda-form-invoker [LF_RESOLVE] java.lang.invoke.DirectMethodHandle$Holder newInvokeSpecial L5JLL_L
+@lambda-form-invoker [LF_RESOLVE] java.lang.invoke.DirectMethodHandle$Holder newInvokeSpecial L5JL3_L
 @lambda-form-invoker [LF_RESOLVE] java.lang.invoke.DirectMethodHandle$Holder newInvokeSpecial L5_L
 @lambda-form-invoker [LF_RESOLVE] java.lang.invoke.DirectMethodHandle$Holder newInvokeSpecial L6IL_L
 @lambda-form-invoker [LF_RESOLVE] java.lang.invoke.DirectMethodHandle$Holder newInvokeSpecial L6_L
@@ -14656,7 +14669,7 @@ sun/util/spi/CalendarProvider
 @lambda-form-invoker [LF_RESOLVE] java.lang.invoke.Invokers$Holder linkToTargetMethod L3JL_L
 @lambda-form-invoker [LF_RESOLVE] java.lang.invoke.Invokers$Holder linkToTargetMethod L3_L
 @lambda-form-invoker [LF_RESOLVE] java.lang.invoke.Invokers$Holder linkToTargetMethod L4IL_L
-@lambda-form-invoker [LF_RESOLVE] java.lang.invoke.Invokers$Holder linkToTargetMethod L4JL3_L
+@lambda-form-invoker [LF_RESOLVE] java.lang.invoke.Invokers$Holder linkToTargetMethod L4JL4_L
 @lambda-form-invoker [LF_RESOLVE] java.lang.invoke.Invokers$Holder linkToTargetMethod L4_L
 @lambda-form-invoker [LF_RESOLVE] java.lang.invoke.Invokers$Holder linkToTargetMethod L5ILL_L
 @lambda-form-invoker [LF_RESOLVE] java.lang.invoke.Invokers$Holder linkToTargetMethod L5_L
