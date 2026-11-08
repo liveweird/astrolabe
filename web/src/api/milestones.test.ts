@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { jsonResponse } from "../test/http";
-import { createMilestone, deleteMilestone, getProjectView, listMilestones, scheduleMilestone, updateMilestone } from "./milestones";
+import { createMilestone, deleteMilestone, getProjectView, listMilestones, pinMilestone, scheduleMilestone, updateMilestone } from "./milestones";
 
 type FetchMock = ReturnType<typeof vi.fn>;
 
@@ -71,5 +71,16 @@ describe("milestones API wrappers", () => {
     expect(JSON.parse(init.body as string)).toEqual({ expectedRevision: 11, startDate: "2027-01-04", endDate: "2027-01-10" });
     await scheduleMilestone(5, { expectedRevision: 12, startDate: null, endDate: null });
     expect(JSON.parse(lastCall()[1].body as string)).toEqual({ expectedRevision: 12, startDate: null, endDate: null });
+  });
+
+  test("pinMilestone PUTs the flag only (no expected revision) and answers the new plan revision", async () => {
+    mockFetch.mockImplementation(() => Promise.resolve(jsonResponse(200, { revision: 13 })));
+    expect(await pinMilestone(5, true)).toEqual({ revision: 13 });
+    const [url, init] = lastCall();
+    expect(url).toBe("/api/v1/milestones/5/pin");
+    expect(init.method).toBe("PUT");
+    expect(JSON.parse(init.body as string)).toEqual({ pinned: true });
+    await pinMilestone(5, false);
+    expect(JSON.parse(lastCall()[1].body as string)).toEqual({ pinned: false });
   });
 });

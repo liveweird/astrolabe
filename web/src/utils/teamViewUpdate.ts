@@ -34,7 +34,8 @@ function byDefaultOrder(a: TeamMilestone, b: TeamMilestone): number {
 export function applyTeamSchedule(view: TeamView, id: number, start: string | null, end: string | null): TeamView {
   const target = [...view.scheduled, ...view.unscheduled].find((milestone) => milestone.id === id);
   if (target === undefined) return view;
-  const moved: TeamMilestone = { ...target, startDate: start, endDate: end };
+  // Unscheduling clears the pin (the server does it in the same write): only a scheduled milestone can be pinned.
+  const moved: TeamMilestone = { ...target, startDate: start, endDate: end, pinned: start !== null && target.pinned };
   const scheduled = view.scheduled.filter((milestone) => milestone.id !== id);
   const unscheduled = view.unscheduled.filter((milestone) => milestone.id !== id);
   if (start === null) return { ...view, scheduled, unscheduled: [...unscheduled, moved].sort(byDefaultOrder) };

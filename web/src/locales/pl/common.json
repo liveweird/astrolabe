@@ -9,6 +9,10 @@
     "closeNotification": "Zamknij powiadomienie",
     "editAria": "Edytuj {{name}}",
     "deleteAria": "Usuń {{name}}",
+    "pin": "Przypnij terminy",
+    "pinAria": "Przypnij terminy: {{name}}",
+    "unpin": "Odepnij terminy",
+    "unpinAria": "Odepnij terminy: {{name}}",
     "showPassword": "Pokaż hasło",
     "hidePassword": "Ukryj hasło"
   },

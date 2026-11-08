@@ -87,7 +87,7 @@ const PROPOSAL = {
   weeks: PROPOSED_WEEKS,
 };
 
-const ACTIONS: TeamActions = { editSchedule: vi.fn(), unschedule: vi.fn(), schedule: vi.fn(), move: vi.fn(), moveTo: vi.fn() };
+const ACTIONS: TeamActions = { editSchedule: vi.fn(), unschedule: vi.fn(), pin: vi.fn(), schedule: vi.fn(), move: vi.fn(), moveTo: vi.fn() };
 
 function renderTimeline(view: TeamView, proposal?: typeof PROPOSAL, criticalPath?: boolean) {
   const scale = makeScale("week", { from: toEpochDay("2042-01-05"), to: toEpochDay("2042-02-22") });

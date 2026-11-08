@@ -14,6 +14,7 @@
   "holidaysInViewMany": "{{count}} public holidays shown; the next ones: {{list}}",
   "holidaysUnavailable": "Public holidays could not be loaded; days off are not marked.",
   "criticalToggle": "Critical path",
+  "pinned": "pinned",
   "jiraToggle": "Jira dates",
   "jiraTrayNote": "Jira: {{start}} to {{end}}",
   "idle": {
@@ -82,6 +83,7 @@
     "readOnly": "{{label}}, read-only",
     "ghost": "{{label}}, from project {{project}}",
     "critical": "on the critical path",
+    "pinned": "pinned",
     "summary": "{{name}}, the project's span {{start}} to {{end}}",
     "window": "{{name}}, target window {{start}} to {{end}}",
     "proposal": "Proposed: {{name}}, {{start}} to {{end}}",

@@ -152,6 +152,7 @@ function TeamPage({ id }: { id: number }) {
   const actions: TeamActions = {
     editSchedule: lock.guarded((milestone: TeamMilestone) => setScheduling({ milestone, revision: view.revision })),
     unschedule: lock.guarded((milestone: TeamMilestone) => schedule.commit(milestone.id, null, null, { announce: true })),
+    pin: lock.guarded((milestone: TeamMilestone, pinned: boolean) => schedule.pin(milestone.id, pinned)),
     schedule: lock.guarded(scheduleByButton),
     move: lock.guarded((milestone: TeamMilestone, delta: -1 | 1) => order.move(milestone.id, delta)),
     moveTo: lock.guarded((milestone: TeamMilestone, edge: "top" | "bottom") => order.moveTo(milestone.id, edge)),

@@ -9,6 +9,7 @@ import { barList, baselineBars, newSince, removedRows } from "../utils/baselineO
 import { arrowSpecsFor, conflictsByBarFor, markCriticalArrows } from "../utils/dependencyArrows";
 import { idleBands } from "../utils/idleGaps";
 import { projectPath } from "../utils/planLinks";
+import { withPinned } from "../utils/pinText";
 import { proposalBars, proposalRows, type TeamProposalView } from "../utils/scheduleProposal";
 import type { BarId, RovingTarget, TimelineBarData, TimelineColumn, TimelineRowData } from "../utils/timelineModel";
 import type { TimelineScale, Zoom } from "../utils/timelineScale";
@@ -16,6 +17,7 @@ import { jiraTrayNote } from "../utils/flagSentences";
 import { jiraBar, siteUrls, type JiraWindow } from "../utils/jiraBars";
 import { BaselineRowName } from "./BaselineParts";
 import { MilestoneFlags, NameWithFlags } from "./MilestoneFlags";
+import PinMark from "./PinMark";
 import SlackCell from "./SlackCell";
 import MilestoneMenu, { OpenProjectMenu, type TeamActions } from "./TeamTimelineMenu";
 import Timeline from "./Timeline";
@@ -44,6 +46,7 @@ function NameCell({ milestone, isNew = false, sinceBaseline = false, note }: { m
       <Text span fw={500}>
         {milestone.name}
       </Text>
+      {milestone.pinned && <PinMark />}
       {isNew && (
         <Text span c="dimmed">
           {" "}
@@ -204,13 +207,17 @@ export default function TeamTimeline({
                 t,
                 withConflicts(
                   t,
-                  t("teams.view.barAria", {
-                    name: milestone.name,
-                    project: milestone.projectName,
-                    start: milestone.startDate,
-                    end: milestone.endDate,
-                    estimate: estimateText(t, milestone),
-                  }),
+                  withPinned(
+                    t,
+                    t("teams.view.barAria", {
+                      name: milestone.name,
+                      project: milestone.projectName,
+                      start: milestone.startDate,
+                      end: milestone.endDate,
+                      estimate: estimateText(t, milestone),
+                    }),
+                    milestone.pinned,
+                  ),
                   conflicts.get(milestone.id) ?? 0,
                 ),
                 criticalPath && milestone.critical,

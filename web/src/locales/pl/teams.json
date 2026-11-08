@@ -171,7 +171,15 @@
       "newly_one": "nowo zaplanowane: {{count}}",
       "newly_few": "nowo zaplanowane: {{count}}",
       "newly_many": "nowo zaplanowane: {{count}}",
-      "newly_other": "nowo zaplanowane: {{count}}"
+      "newly_other": "nowo zaplanowane: {{count}}",
+      "pinnedCount_one": "przypięte: {{count}}",
+      "pinnedCount_few": "przypięte: {{count}}",
+      "pinnedCount_many": "przypięte: {{count}}",
+      "pinnedCount_other": "przypięte: {{count}}",
+      "pinned_one": "{{count}} kamień milowy zachowuje terminy, bo ma je przypięte",
+      "pinned_few": "{{count}} kamienie milowe zachowują terminy, bo mają je przypięte",
+      "pinned_many": "{{count}} kamieni milowych zachowuje terminy, bo mają je przypięte",
+      "pinned_other": "{{count}} kamienia milowego zachowuje terminy, bo mają je przypięte"
     },
     "newMark": "(nowy)",
     "operationsAria": "Operacje dla {{name}} (wiersz propozycji)",

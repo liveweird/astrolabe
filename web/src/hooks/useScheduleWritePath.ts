@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { keepPreviousData, useIsMutating, useMutation, useQuery, useQueryClient, type QueryKey } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { scheduleMilestone } from "../api/milestones";
+import { pinMilestone, scheduleMilestone } from "../api/milestones";
 import { isStaleRevision } from "../api/roadmap";
 import { withoutStaleOverlay } from "./useBaselinePick";
 import { useRefusal } from "./useRefusal";
+import { applyPin } from "../utils/pinUpdate";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { saveErrorMessage } from "../utils/saveError";
 
@@ -19,15 +20,25 @@ const SAVE_ERROR_KEYS = {
   failed: "common.error.saveFailedNetwork",
 } as const;
 
+/** The pin write's failures (the schedule PUT's guard): a 409 is the one "unscheduled" refusal, the milestone lost its dates meanwhile. */
+const PIN_ERROR_KEYS = {
+  forbidden: "project.scheduleForbidden",
+  notFound: "project.saveGone",
+  conflict: "project.pinUnscheduled",
+  failedStatus: "common.error.saveFailedStatus",
+  failed: "common.error.saveFailedNetwork",
+} as const;
+
 /** What the write path needs of a timeline page's view: the plan revision and the two milestone lists. */
 export type ScheduleView = {
   revision: number;
-  scheduled: { id: number; name: string }[];
+  scheduled: { id: number; name: string; pinned: boolean }[];
   unscheduled: { id: number; name: string }[];
 };
 
 /** `key` is the cache entry the change was made on (the pick it was made under): its rollback goes back there, whatever the page shows by then. */
 type SaveVariables<V> = { id: number; start: string | null; end: string | null; expectedRevision: number; before: V; key: QueryKey };
+type PinVariables<V> = { id: number; pinned: boolean; before: V; key: QueryKey };
 
 /**
  * The ONE schedule write path of a timeline page (the `useRoadmapRanking` shape), generic over the page's view document — the project
@@ -46,6 +57,9 @@ type SaveVariables<V> = { id: number; start: string | null; end: string | null; 
  * movement). A change is REFUSED out loud while the shown copy is only the previous pick's placeholder (`placeholder`): its revision and rows are
  * not this pick's entry.
  * `announcement` is the live-region sentence for the last non-drag change (a drag is announced by dnd-kit itself).
+ * `pin(id, pinned)` (1.7) is the page's SECOND write on the same cached view and key: a pin or unpin of a scheduled milestone (`PUT /milestones/{id}/pin`,
+ * no `expectedRevision`). It follows the same rules (optimistic flip, the answered revision stored into every pick's entry, a failure rolls back and
+ * awaits the refetch; refused out loud while any write of `writeKey` runs) and says the change in the live region; it is never a toast.
  */
 export function useScheduleWritePath<V extends ScheduleView & { baseline?: unknown }>({
   queryKey,
@@ -91,8 +105,20 @@ export function useScheduleWritePath<V extends ScheduleView & { baseline?: unkno
       await refreshQueriesAfterMutation(queryClient, ["plan"]);
     },
   });
+  const pinSave = useMutation({
+    mutationKey: writeKey,
+    mutationFn: ({ id, pinned }: PinVariables<V>) => pinMilestone(id, pinned),
+    onSuccess: ({ revision }) => {
+      queryClient.setQueriesData<V>({ queryKey: entriesKey }, (current) => current && { ...current, revision });
+      void refreshQueriesAfterMutation(queryClient, ["plan"]);
+    },
+    onError: async (_err, { before, key }) => {
+      queryClient.setQueryData<V>(key, before);
+      await refreshQueriesAfterMutation(queryClient, ["plan"]);
+    },
+  });
   const writing = useIsMutating({ mutationKey: writeKey }) > 0;
-  const busy = save.isPending || writing;
+  const busy = save.isPending || pinSave.isPending || writing;
   // The shown copy belongs to the previous pick while the new one loads: nothing is written from it either.
   const placeholder = query.isPlaceholderData;
   // A change refused because a save was still running (or the pick is loading): shown (and announced) until THAT is over.
@@ -128,6 +154,8 @@ export function useScheduleWritePath<V extends ScheduleView & { baseline?: unkno
       return false;
     }
     setGone(false);
+    // A taken schedule change clears the pin's old failure (the pin clears the schedule's): `error` never shows a failure of an earlier write.
+    pinSave.reset();
     // Every `["plan"]` fetch, not just this view: the optimistic write must not be overwritten by a read that began before it.
     void queryClient.cancelQueries({ queryKey: ["plan"] });
     queryClient.setQueryData<V>(queryKey, apply(view, id, start, end));
@@ -139,6 +167,31 @@ export function useScheduleWritePath<V extends ScheduleView & { baseline?: unkno
     return true;
   };
 
+  const scheduleError = save.isError && !isStaleRevision(save.error) ? saveErrorMessage(save.error, t, SAVE_ERROR_KEYS) : null;
+  const pinError = pinSave.isError ? saveErrorMessage(pinSave.error, t, PIN_ERROR_KEYS) : null;
+
+  /** Pin or unpin a scheduled milestone; answers whether the change was taken (the same refusals as `commit`). */
+  const pin = (id: number, pinned: boolean): boolean => {
+    if (!view) return false;
+    if (!has(id)) {
+      setGone(true);
+      announce(t("project.milestoneGone"));
+      return false;
+    }
+    if (busy || placeholder) {
+      setRefused(true);
+      announce(t("project.busy"));
+      return false;
+    }
+    setGone(false);
+    save.reset();
+    void queryClient.cancelQueries({ queryKey: ["plan"] });
+    queryClient.setQueryData<V>(queryKey, applyPin(view, id, pinned));
+    announce(t(pinned ? "project.announce.pinned" : "project.announce.unpinned", { name: nameOf(id) }));
+    pinSave.mutate({ id, pinned, before: view, key: queryKey });
+    return true;
+  };
+
   return {
     view,
     query,
@@ -146,7 +199,7 @@ export function useScheduleWritePath<V extends ScheduleView & { baseline?: unkno
     /** The shown view is the previous pick's copy while the new pick loads: every write is refused until it arrives. */
     placeholder,
     stale: isStaleRevision(save.error),
-    error: save.isError && !isStaleRevision(save.error) ? saveErrorMessage(save.error, t, SAVE_ERROR_KEYS) : null,
+    error: scheduleError ?? pinError,
     announcement,
     /** Say a sentence in the page's live region (the order path shares it, so the page has ONE announcer). */
     announce,
@@ -157,5 +210,6 @@ export function useScheduleWritePath<V extends ScheduleView & { baseline?: unkno
     /** Whether the milestone is in the view now (a dialog opened on it closes when it is not). */
     has,
     commit,
+    pin,
   };
 }

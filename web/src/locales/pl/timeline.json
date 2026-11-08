@@ -14,6 +14,7 @@
   "holidaysInViewMany": "Widoczne święta państwowe: {{count}}; najbliższe: {{list}}",
   "holidaysUnavailable": "Nie udało się wczytać świąt państwowych; dni wolne nie są zaznaczone.",
   "criticalToggle": "Ścieżka krytyczna",
+  "pinned": "terminy przypięte",
   "jiraToggle": "Daty z Jiry",
   "jiraTrayNote": "Jira: od {{start}} do {{end}}",
   "idle": {
@@ -94,6 +95,7 @@
     "readOnly": "{{label}}, tylko do odczytu",
     "ghost": "{{label}}, z projektu {{project}}",
     "critical": "na ścieżce krytycznej",
+    "pinned": "terminy przypięte",
     "summary": "{{name}}, zakres projektu od {{start}} do {{end}}",
     "window": "{{name}}, okno docelowe od {{start}} do {{end}}",
     "proposal": "Propozycja: {{name}}, od {{start}} do {{end}}",

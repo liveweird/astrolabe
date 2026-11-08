@@ -73,6 +73,12 @@ describe("applySchedule", () => {
     expect(applySchedule(VIEW, 1, null, null).idleGaps).toBe(VIEW.idleGaps);
   });
 
+  test("unscheduling clears the pin; a reschedule keeps it (the server's clear rule, mirrored)", () => {
+    const view = { ...VIEW, scheduled: [{ ...milestone(1, "Build", "2027-01-11", "2027-01-15"), pinned: true }, VIEW.scheduled[1]] } as ProjectView;
+    expect(applySchedule(view, 1, null, null).unscheduled.find((m) => m.id === 1)?.pinned).toBe(false);
+    expect(applySchedule(view, 1, "2027-02-01", "2027-02-05").scheduled.find((m) => m.id === 1)?.pinned).toBe(true);
+  });
+
   test("an unknown id answers the view unchanged", () => {
     expect(applySchedule(VIEW, 99, "2027-01-04", "2027-01-10")).toBe(VIEW);
   });

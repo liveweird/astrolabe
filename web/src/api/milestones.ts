@@ -47,3 +47,12 @@ export async function deleteMilestone(id: number): Promise<void> {
 export async function scheduleMilestone(id: number, body: ScheduleBody): Promise<Schemas["ScheduleResponse"]> {
   return jsonRequest<Schemas["ScheduleResponse"]>(`/api/v1/milestones/${id}/schedule`, { method: "PUT", body: JSON.stringify(body) });
 }
+
+/**
+ * Pin or unpin a SCHEDULED milestone's dates for the auto-proposal (team manager / ADMIN, the schedule PUT's guard): a pinned milestone is fixed in a
+ * proposal. Idempotent, no `expectedRevision`; answers the plan revision after the write. Pinning an unscheduled milestone is a 409
+ *, unpinning one is a no-op.
+ */
+export async function pinMilestone(id: number, pinned: boolean): Promise<Schemas["ScheduleResponse"]> {
+  return jsonRequest<Schemas["ScheduleResponse"]>(`/api/v1/milestones/${id}/pin`, { method: "PUT", body: JSON.stringify({ pinned }) });
+}

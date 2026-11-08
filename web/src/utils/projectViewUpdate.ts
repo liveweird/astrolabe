@@ -26,7 +26,8 @@ export function applySchedule(view: ProjectView, id: number, start: string | nul
   const all = [...view.scheduled, ...view.unscheduled];
   const target = all.find((milestone) => milestone.id === id);
   if (target === undefined) return view;
-  const moved: ProjectMilestone = { ...target, startDate: start, endDate: end };
+  // Unscheduling clears the pin (the server does it in the same write): only a scheduled milestone can be pinned.
+  const moved: ProjectMilestone = { ...target, startDate: start, endDate: end, pinned: start !== null && target.pinned };
   const rest = all.filter((milestone) => milestone.id !== id);
   const scheduled = [...rest.filter((m) => m.startDate !== null), ...(start === null ? [] : [moved])].sort(byStart);
   const unscheduled = [...rest.filter((m) => m.startDate === null), ...(start === null ? [moved] : [])].sort(byName);

@@ -9,6 +9,10 @@
     "closeNotification": "Close notification",
     "editAria": "Edit {{name}}",
     "deleteAria": "Delete {{name}}",
+    "pin": "Pin dates",
+    "pinAria": "Pin dates of {{name}}",
+    "unpin": "Unpin dates",
+    "unpinAria": "Unpin dates of {{name}}",
     "showPassword": "Show password",
     "hidePassword": "Hide password"
   },

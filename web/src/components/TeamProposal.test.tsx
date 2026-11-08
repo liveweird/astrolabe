@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { describe, expect, test, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
-import { screen, within } from "@testing-library/react";
+import { cleanup, screen, within } from "@testing-library/react";
 import TeamProposal from "./TeamProposal";
 import type { ScheduleProposal, ScheduleProposalEnd, ScheduleProposalLink, ScheduleProposalMove } from "../api/teams";
 import { renderWithProviders } from "../test/render";
@@ -113,6 +113,19 @@ describe("TeamProposal", () => {
     expect(within(b).getByText("Unscheduled")).toBeInTheDocument();
     expect(within(b).getByText("Unscheduled → 2042-01-07 to 2042-01-10, 4 working days")).toBeInTheDocument();
     expect(within(rowOf("tp-c")).getByRole("link", { name: "Open project Checkout" })).toHaveAttribute("href", "/projects/8");
+  });
+
+  test("pinned milestones the proposal keeps are counted in the figures and explained in a dimmed sentence; none = neither", () => {
+    const { unmount } = renderWithProviders(<Harness proposal={proposalOf({ pinned: [8, 9] })} spies={spies()} />);
+    expect(screen.getByText("3 moves · 2 newly scheduled · 1 stays · 0 could not be placed · 2 pinned")).toBeInTheDocument();
+    expect(screen.getByText("2 milestones keep their dates because they are pinned")).toBeInTheDocument();
+    unmount();
+    renderWithProviders(<Harness proposal={proposalOf({ pinned: [8] })} spies={spies()} />);
+    expect(screen.getByText("1 milestone keeps its dates because it is pinned")).toBeInTheDocument();
+    cleanup();
+    renderWithProviders(<Harness proposal={proposalOf()} spies={spies()} />);
+    expect(screen.queryByText(/because (it is|they are) pinned/)).toBeNull();
+    expect(screen.queryByText(/ pinned/)).toBeNull();
   });
 
   test("the table takes the theme's hover rule: body rows carry the hover mark, no per-table opt-out", () => {

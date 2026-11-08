@@ -9,6 +9,7 @@ import { idleBands } from "../utils/idleGaps";
 import { addDays } from "../utils/isoDate";
 import { jiraBar, siteUrls, type JiraWindow } from "../utils/jiraBars";
 import { projectPath } from "../utils/planLinks";
+import { withPinned } from "../utils/pinText";
 import { ghostRowId, projectRowId, summaryCritical, upstreamOf } from "../utils/projectDependencies";
 import type { BarId, RovingTarget, TimelineBandData, TimelineBarData, TimelineRowData } from "../utils/timelineModel";
 import { BaselineRowName } from "./BaselineParts";
@@ -199,13 +200,17 @@ export function milestoneRows(
                 criticalPath && milestone.critical,
                 withConflicts(
                   t,
-                  t("project.barAria", {
-                    name: milestone.name,
-                    team: milestone.teamName,
-                    start: milestone.startDate,
-                    end: milestone.endDate,
-                    estimate: estimateText(t, milestone),
-                  }),
+                  withPinned(
+                    t,
+                    t("project.barAria", {
+                      name: milestone.name,
+                      team: milestone.teamName,
+                      start: milestone.startDate,
+                      end: milestone.endDate,
+                      estimate: estimateText(t, milestone),
+                    }),
+                    milestone.pinned,
+                  ),
                   conflicts.get(milestone.id) ?? 0,
                 ),
               ),

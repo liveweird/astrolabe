@@ -223,6 +223,7 @@ function ProjectPage({ id }: { id: number }) {
     edit: (milestone) => setEditor({ kind: "edit", milestone }),
     editSchedule: (milestone) => setScheduling({ milestone, revision: view.revision }),
     unschedule: (milestone) => schedule.commit(milestone.id, null, null, { announce: true }),
+    pin: (milestone, pinned) => schedule.pin(milestone.id, pinned),
     remove: (milestone) => removeMilestone.requestDelete({ milestone, links: linksOfMilestone(view, milestone.id) }),
     schedule: scheduleByButton,
     addDependency: (milestone) => setEditor({ kind: "dependency", successor: { kind: "MILESTONE", id: milestone.id } }),

@@ -542,6 +542,11 @@ one with it) and applies `emphasized(t, critical, describe)` to the bar fields; 
 emphasis come from `upstreamIndex(view)` by kind + id. `applySchedule` leaves `slackDays`/`critical`/`criticalPath` as cached (the refetch brings the server's).
 Reference: `timeline.md` "The critical-path highlight".
 
+**The pin (1.7, project page).** A scheduled milestone's row menu offers "Pin dates" / "Unpin dates" (`common.action.pin*`, `IconPin`/`IconPinnedOff`) by the ROW's `can.schedule` (the team's manager or an ADMIN;
+the project's owner sees the glyph and no item) and never on a tray row: `MilestoneActions.pin` -> `schedule.pin(id, pinned)` of the page's write path (the team page's section has the mechanics). A pinned row
+carries `PinMark` after its name (`IconPin` `aria-hidden` + a `VisuallyHidden` "pinned", `timeline.pinned`) and its bar's accessible name gains ", pinned" right after the base sentence (`withPinned`,
+`utils/pinText.ts`, before ", N conflicts" and ", on the critical path"). Tests: `ProjectView.pin.test.tsx`.
+
 **The critical path (v0.7).** A "Critical path" toggle button in the timeline's new `toolbar` slot (after Today; `aria-pressed`, filled cyan while on;
 `useStoredState("timeline.criticalPath", false, isBoolean)`) shows the server's critical path, read and never recomputed (`milestone.slackDays`/`critical`,
 `dependency.critical`, `criticalPath{upstream, upstreamTruncated}`). While on: a **Slack** column (own rows "0" + a hidden "critical path" or "N working days";
@@ -1057,6 +1062,19 @@ critical row "0" + the hidden "critical path", else "N working days") from the v
 critical bar, `markCriticalArrows(specs, view.dependencies)` (`utils/dependencyArrows.ts`, shared with `arrowSpecs`) for the critical links, and a dimmed
 `teams.view.criticalNote` under the timeline title saying the figures are toward each milestone's OWN project's end and a link is marked only on the chain of
 a project the team works on. Read, never recomputed; off, the DOM is the one it was (pinned, `TeamTimeline.test.tsx`).
+
+**The pin (1.7).** `PUT /milestones/{id}/pin {pinned}` (`api/milestones.ts` `pinMilestone`, answers `{revision}`; no `expectedRevision`: an idempotent flag) is a SECOND write of `useScheduleWritePath`
+(`pin(id, pinned)`, so both timeline pages have it): its own mutation on the SAME write key (`teamWriteKey`; the project page's `["plan","project-write",id]`), so a drag, a pin and an order save see each other in
+flight and a change made meanwhile is refused out loud like any other (`refused`, `project.busy`). The step is optimistic (`utils/pinUpdate.ts` `applyPin`, pure, generic over both views), success stores the
+answered plan revision into every pick's entry and refreshes `["plan"]` (the views carry `pinned`), a failure rolls back and awaits the refetch; the quiet confirmation is the live region ("{{name}} pinned" /
+"unpinned", `project.announce.pinned|unpinned`) and there is NO toast (a pin is a state, not an event). A 403 reads the schedule's forbidden sentence, a 404 the gone one, and the one 409
+(`milestone-unscheduled`: it lost its dates meanwhile) `project.pinUnscheduled`, inline through the page's `error`; a taken schedule change and a taken pin each clear the other's old failure.
+The server clears the pin on an unschedule, so `applySchedule` / `applyTeamSchedule` set `pinned` false on a null pair (a reschedule keeps it). The row menu (`TeamTimelineMenu.tsx`) offers Pin / Unpin dates
+for a SCHEDULED row under `team.can.schedule` (the schedule PUT's rule), hidden while a proposal previews or requests (`lock.guarded`) and never on a tray row; the pinned row shows `PinMark` after its name
+and ", pinned" in its bar's name (as on the project page); a baseline's appended rows and the Jira bars are untouched. **In the proposal**, the Proposed schedule `Summary` appends "N pinned" to the figures
+line and, when `proposal.pinned` is not empty, a dimmed sentence "N milestones keep their dates because they are pinned" (`teams.proposal.summary.pinnedCount|pinned`; `pinned` lists the dated milestones the
+proposal keeps ONLY because of the pin). A pin flipped after a proposal was read turns its accept into the `stale-scope` re-proposal that keeps the ticks. Tests: `TeamDetails.pin.test.tsx`,
+`TeamTimelineMenu.test.tsx`, `TeamProposal.test.tsx`, `pinUpdate.test.ts`, `teamViewUpdate.test.ts`.
 
 - **Query keys.** The view is `["plan","team",id]` (`teamViewKey`), under the `["plan"]` prefix like the project view, so every plan mutation, a schedule write
   and a capacity write refresh a mounted team page. The team editor's save refreshes `["teams"]` and `["plan"]`.

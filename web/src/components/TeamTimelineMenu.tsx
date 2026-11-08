@@ -1,5 +1,5 @@
 import { Menu } from "@mantine/core";
-import { IconArrowBarDown, IconArrowBarUp, IconArrowDown, IconArrowUp, IconCalendarEvent, IconCalendarOff, IconExternalLink } from "@tabler/icons-react";
+import { IconArrowBarDown, IconArrowBarUp, IconArrowDown, IconArrowUp, IconCalendarEvent, IconCalendarOff, IconExternalLink, IconPin, IconPinnedOff } from "@tabler/icons-react";
 import { Link as RouterLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import type { TeamMilestone, TeamView } from "../api/teams";
@@ -12,6 +12,8 @@ import RowActionsMenu from "./RowActionsMenu";
 export type TeamActions = {
   editSchedule: (milestone: TeamMilestone) => void;
   unschedule: (milestone: TeamMilestone) => void;
+  /** "Pin dates" / "Unpin dates" of a scheduled row: a pinned milestone is fixed in the auto-proposal. */
+  pin: (milestone: TeamMilestone, pinned: boolean) => void;
   /** The tray's Schedule button: the page chooses the dates (one calendar week from today). */
   schedule: (milestone: TeamMilestone) => void;
   /** Move one place up (-1) or down (+1) in the team's order. */
@@ -61,6 +63,15 @@ export default function MilestoneMenu({
       {scheduling && milestone.startDate !== null && (
         <Menu.Item leftSection={<IconCalendarOff size={14} />} onClick={() => actions.unschedule(milestone)} aria-label={t("project.action.unscheduleAria", { name })}>
           {t("project.action.unschedule")}
+        </Menu.Item>
+      )}
+      {scheduling && milestone.startDate !== null && (
+        <Menu.Item
+          leftSection={milestone.pinned ? <IconPinnedOff size={14} /> : <IconPin size={14} />}
+          onClick={() => actions.pin(milestone, !milestone.pinned)}
+          aria-label={t(milestone.pinned ? "common.action.unpinAria" : "common.action.pinAria", { name })}
+        >
+          {t(milestone.pinned ? "common.action.unpin" : "common.action.pin")}
         </Menu.Item>
       )}
       {ordering && (

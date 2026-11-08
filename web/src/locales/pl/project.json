@@ -59,6 +59,7 @@
   "saveForbidden": "Nie masz uprawnień do tej zmiany",
   "saveInvalid": "Co najmniej jedno pole jest nieprawidłowe — sprawdź zespół i szacunek",
   "saveGone": "To już nie istnieje — przeładuj stronę",
+  "pinUnscheduled": "Ten kamień milowy nie ma już terminów, więc nie można ich przypiąć — odświeżyliśmy widok",
   "scheduleForbidden": "Ten kamień milowy może zaplanować tylko kierownik/czka zespołu albo administrator/ka",
   "scheduleInvalid": "Serwer odrzucił te terminy: koniec nie może być przed początkiem, a kamień milowy musi obejmować co najmniej jeden dzień roboczy (od poniedziałku do piątku, poza świętami państwowymi).",
   "saving": "Zapisujemy…",
@@ -66,7 +67,9 @@
   "milestoneGone": "Ten kamień milowy już nie istnieje — został w międzyczasie usunięty.",
   "announce": {
     "scheduled": "{{name}} ma termin od {{start}} do {{end}}",
-    "unscheduled": "{{name}} wraca do niezaplanowanych"
+    "unscheduled": "{{name}} wraca do niezaplanowanych",
+    "pinned": "{{name}} ma przypięte terminy",
+    "unpinned": "{{name}} nie ma już przypiętych terminów"
   },
   "action": {
     "editSchedule": "Edytuj termin…",

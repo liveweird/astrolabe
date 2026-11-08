@@ -155,7 +155,11 @@
       "unplaced_one": "{{count}} could not be placed",
       "unplaced_other": "{{count}} could not be placed",
       "newly_one": "{{count}} newly scheduled",
-      "newly_other": "{{count}} newly scheduled"
+      "newly_other": "{{count}} newly scheduled",
+      "pinnedCount_one": "{{count}} pinned",
+      "pinnedCount_other": "{{count}} pinned",
+      "pinned_one": "{{count}} milestone keeps its dates because it is pinned",
+      "pinned_other": "{{count}} milestones keep their dates because they are pinned"
     },
     "newMark": "(new)",
     "operationsAria": "Operations for {{name}} (proposed row)",

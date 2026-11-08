@@ -47,6 +47,7 @@
   "saveForbidden": "You are not allowed to change this",
   "saveInvalid": "One or more fields are invalid — check the team and the estimate",
   "saveGone": "This no longer exists — reload the page",
+  "pinUnscheduled": "This milestone has no dates any more, so its dates cannot be pinned — the view was refreshed",
   "scheduleForbidden": "Only the team's manager or an administrator can schedule this milestone",
   "scheduleInvalid": "These dates cannot be saved: the end must not be before the start, and a milestone must cover at least one working day (Monday to Friday, not a public holiday).",
   "saving": "Saving…",
@@ -54,7 +55,9 @@
   "milestoneGone": "This milestone no longer exists — it was removed in the meantime.",
   "announce": {
     "scheduled": "{{name}} scheduled: {{start}} to {{end}}",
-    "unscheduled": "{{name}} moved back to Unscheduled"
+    "unscheduled": "{{name}} moved back to Unscheduled",
+    "pinned": "{{name}} pinned",
+    "unpinned": "{{name}} unpinned"
   },
   "action": {
     "editSchedule": "Edit schedule…",

@@ -1,5 +1,6 @@
 import { Text } from "@mantine/core";
 import type { ProjectMilestone } from "../api/milestones";
+import PinMark from "./PinMark";
 
 /**
  * The name with the description as dimmed text after it; one line (rows are a fixed height), the cell clips the rest. `mark` (a milestone new since the
@@ -11,6 +12,7 @@ export default function NameCell({ milestone, mark, note }: { milestone: Project
       <Text span fw={500}>
         {milestone.name}
       </Text>
+      {milestone.pinned && <PinMark />}
       {mark !== undefined && (
         <Text span c="dimmed">
           {" "}

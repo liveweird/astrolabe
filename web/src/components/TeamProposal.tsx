@@ -23,21 +23,30 @@ function Summary({ proposal }: { proposal: ScheduleProposal }) {
     t("teams.proposal.summary.newly", { count: newlyScheduledCount(proposal.moves) }),
     t("teams.proposal.summary.stay", { count: proposal.unchanged.length }),
     t("teams.proposal.summary.unplaced", { count: proposal.unplaced.length }),
+    // 1.7: the pinned milestones the proposal keeps on their dates (they are in neither the moves nor the stays).
+    ...(proposal.pinned.length > 0 ? [t("teams.proposal.summary.pinnedCount", { count: proposal.pinned.length })] : []),
   ].join(" · ");
   return (
-    <Group gap="sm" align="center">
-      <Text size="sm">{figures}</Text>
-      {newlyViolated > 0 && (
-        <Badge color="red" variant="light" tt="none" miw="max-content">
-          {t("teams.proposal.badge.violated", { count: newlyViolated })}
-        </Badge>
+    <Stack gap={4}>
+      <Group gap="sm" align="center">
+        <Text size="sm">{figures}</Text>
+        {newlyViolated > 0 && (
+          <Badge color="red" variant="light" tt="none" miw="max-content">
+            {t("teams.proposal.badge.violated", { count: newlyViolated })}
+          </Badge>
+        )}
+        {stillViolated > 0 && (
+          <Badge color="gray" variant="light" tt="none" miw="max-content">
+            {t("teams.proposal.badge.stillViolated", { count: stillViolated })}
+          </Badge>
+        )}
+      </Group>
+      {proposal.pinned.length > 0 && (
+        <Text size="sm" c="dimmed">
+          {t("teams.proposal.summary.pinned", { count: proposal.pinned.length })}
+        </Text>
       )}
-      {stillViolated > 0 && (
-        <Badge color="gray" variant="light" tt="none" miw="max-content">
-          {t("teams.proposal.badge.stillViolated", { count: stillViolated })}
-        </Badge>
-      )}
-    </Group>
+    </Stack>
   );
 }
 

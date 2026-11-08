@@ -89,6 +89,12 @@ describe("applyTeamSchedule", () => {
     expect(next.unscheduled[1]).toMatchObject({ startDate: null, endDate: null });
   });
 
+  test("unscheduling clears the pin; a reschedule keeps it (the server's clear rule, mirrored)", () => {
+    const view = viewOf([milestone(1, "A", { pinned: true }), milestone(2, "B")]);
+    expect(applyTeamSchedule(view, 1, null, null).unscheduled[0]).toMatchObject({ id: 1, pinned: false });
+    expect(applyTeamSchedule(view, 1, "2027-05-03", "2027-05-07").scheduled[0]).toMatchObject({ id: 1, pinned: true });
+  });
+
   test("an unknown id changes nothing", () => {
     const view = viewOf([milestone(1, "A")]);
     expect(applyTeamSchedule(view, 99, null, null)).toBe(view);
