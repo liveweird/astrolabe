@@ -2486,7 +2486,7 @@ export interface paths {
          *     `max(startAt, thatInstant - 1 ms)`, so an end at local midnight adds no day. **Consecutive sprints share a day** - the one on which
          *     one ends and the next starts; that day belongs to the EARLIER sprint, and the later one holds from `effectiveFrom =
          *     max(start, previous end + 1 day)`. Only a start BEFORE the previous sprint's end is a genuine overlap. A sprint is skipped
-         *     (`action` `SKIP`) with a `reason`, in this order: `NO_DATES` (no start, or no end or completion), `NO_CAPACITY` (Flow has no
+         *     (`action` `SKIP`) with a `reason`, in this order: `NO_DATES` (no start, no end or completion, or an end before the start), `NO_CAPACITY` (Flow has no
          *     figure), `OVERLAPS` (it starts before the end of the previous sprint that was not skipped, or nothing is left of it after the
          *     shared day: the earlier start wins), `NO_WORKING_DAY` (none from `effectiveFrom` to `end`), `OUT_OF_RANGE` (the figure is beyond
          *     a period's man-day bounds). Otherwise, against the team's ACTIVE periods: none starts on `effectiveFrom` - `CREATE`; a Flow-sourced
