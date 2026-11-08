@@ -48,7 +48,6 @@
     "movedMark": "(przeniesiony do zespołu: {{team}})",
     "movedTo": "Przeniesiony do zespołu: {{team}}",
     "totals": "W porównaniu z bazą odniesienia {{name}}:",
-    "factsAria": "Przesunięcia względem bazy odniesienia",
     "projectNew": "Projekt jest nowy od utworzenia bazy odniesienia",
     "projectSentence": "Projekt: {{sentence}}",
     "endsLater_one": "Koniec o {{count}} dzień roboczy później niż w bazie odniesienia",

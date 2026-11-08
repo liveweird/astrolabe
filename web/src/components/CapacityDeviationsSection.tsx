@@ -197,7 +197,7 @@ export default function CapacityDeviationsSection({ filter, admin }: { filter: D
         </Text>
       )}
       <Stack gap="xs">
-        <Title order={4}>{t("deviations.flowSection.list.title")}</Title>
+        <Title order={4} size="h5">{t("deviations.flowSection.list.title")}</Title>
         <Totals view={data} />
       </Stack>
       {isPlaceholderData ? (

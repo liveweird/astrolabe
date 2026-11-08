@@ -69,7 +69,7 @@ export default function CapacityDeviationsSources({ connections, admin, readAt }
 
   return (
     <Stack gap="xs">
-      <Title order={4}>{t("deviations.flowSection.sources.title")}</Title>
+      <Title order={4} size="h5">{t("deviations.flowSection.sources.title")}</Title>
       <ScrollRegion label={label} minWidth={820}>
         <Table aria-label={label}>
           <Table.Thead>

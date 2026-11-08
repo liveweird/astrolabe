@@ -44,7 +44,6 @@
     "movedMark": "(moved to {{team}})",
     "movedTo": "Moved to {{team}}",
     "totals": "vs baseline {{name}}:",
-    "factsAria": "Movement against the baseline",
     "projectNew": "Project is new since the baseline",
     "projectSentence": "Project {{sentence}}",
     "endsLater_one": "Ends {{count}} working day later than the baseline",

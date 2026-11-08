@@ -229,7 +229,6 @@
     "title": "Import capacity from Flow",
     "intro": "Flow's man-days per sprint become man-days per week over each sprint's working days, one period per sprint start. Tick the rows to import. A hand-entered period is never changed or removed. Nothing is changed in Flow.",
     "includeClosed": "Include closed sprints",
-    "loading": "Reading the plan…",
     "loadFailed": "Could not load the import preview",
     "empty": "Nothing to import: Flow lists no sprints for this team in this range.",
     "previewAria": "Capacity import preview",

@@ -55,10 +55,9 @@ describe("theme motion", () => {
 });
 
 describe("theme colour tokens (WCAG AA)", () => {
-  it("light text tokens clear 4.5:1 on white, the canvas, and the surface tint", () => {
-    // The surface tint is the FilterPanelBody ground — dimmed labels sit on it.
-    const surfaces = [WHITE, LIGHT_TOKENS.canvas, LIGHT_TOKENS.surfaceTint];
-    for (const ink of [LIGHT_TOKENS.text, LIGHT_TOKENS.dimmed, LIGHT_TOKENS.error, LIGHT_TOKENS.inkWarning, LIGHT_TOKENS.inkError]) {
+  it("light text tokens clear 4.5:1 on white and the canvas", () => {
+    const surfaces = [WHITE, LIGHT_TOKENS.canvas];
+    for (const ink of [LIGHT_TOKENS.text, LIGHT_TOKENS.dimmed, LIGHT_TOKENS.error, LIGHT_TOKENS.inkError]) {
       for (const surface of surfaces) {
         expect(contrast(ink, surface), `${ink} on ${surface}`).toBeGreaterThanOrEqual(AA);
       }
@@ -85,9 +84,9 @@ describe("theme colour tokens (WCAG AA)", () => {
   });
 
   it("dark text tokens clear 4.5:1 on the dark surfaces", () => {
-    // dark-7 = body, dark-6 = table heads, the canvas, and the surface tint (FilterPanelBody).
-    const surfaces = [DEFAULT_THEME.colors.dark[7], DEFAULT_THEME.colors.dark[6], DARK_TOKENS.canvas, DARK_TOKENS.surfaceTint];
-    for (const ink of [DARK_TOKENS.text, DARK_TOKENS.dimmed, DARK_TOKENS.error, DARK_TOKENS.inkWarning, DARK_TOKENS.inkError]) {
+    // dark-7 = body, dark-6 = table heads, and the canvas.
+    const surfaces = [DEFAULT_THEME.colors.dark[7], DEFAULT_THEME.colors.dark[6], DARK_TOKENS.canvas];
+    for (const ink of [DARK_TOKENS.text, DARK_TOKENS.dimmed, DARK_TOKENS.error, DARK_TOKENS.inkError]) {
       for (const surface of surfaces) {
         expect(contrast(ink, surface), `${ink} on ${surface}`).toBeGreaterThanOrEqual(AA);
       }
@@ -108,7 +107,6 @@ describe("theme colour tokens (WCAG AA)", () => {
           text: LIGHT_TOKENS.text,
           dimmed: LIGHT_TOKENS.dimmed,
           error: LIGHT_TOKENS.error,
-          inkWarning: LIGHT_TOKENS.inkWarning,
           inkError: LIGHT_TOKENS.inkError,
           accentInk: LIGHT_TOKENS.accentInk,
           redInk: LIGHT_VARIANT_INKS.red,
@@ -126,7 +124,6 @@ describe("theme colour tokens (WCAG AA)", () => {
           text: DARK_TOKENS.text,
           dimmed: DARK_TOKENS.dimmed,
           error: DARK_TOKENS.error,
-          inkWarning: DARK_TOKENS.inkWarning,
           inkError: DARK_TOKENS.inkError,
           accentInk: DARK_TOKENS.accentInk,
           redInk: darkScale("red"),
@@ -218,7 +215,7 @@ describe("theme colour tokens (WCAG AA)", () => {
     expect(contrast(brand[9], WHITE)).toBeGreaterThanOrEqual(AA);
     expect(contrast(brand[9], WHITE)).toBeCloseTo(7.62, 2);
     expect(DARK_TOKENS.accentInk).toBe(brand[4]);
-    for (const surface of [DEFAULT_THEME.colors.dark[7], DEFAULT_THEME.colors.dark[6], DARK_TOKENS.canvas, DARK_TOKENS.surfaceTint]) {
+    for (const surface of [DEFAULT_THEME.colors.dark[7], DEFAULT_THEME.colors.dark[6], DARK_TOKENS.canvas]) {
       expect(contrast(brand[4], surface), `accent ink on ${surface}`).toBeGreaterThanOrEqual(AA);
     }
     // The light-variant ink of the brand is its 9-shade, like every hue's.

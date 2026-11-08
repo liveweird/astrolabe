@@ -14,7 +14,8 @@ function shade(color: string): string {
 }
 
 const LIGHT_SURFACES = ["#ffffff", LIGHT_TOKENS.canvas];
-const DARK_SURFACES = [DARK_TOKENS.surfaceTint, DARK_TOKENS.canvas];
+// dark-6 is the surface chart cards and table heads sit on in the dark scheme.
+const DARK_SURFACES = [DEFAULT_THEME.colors.dark[6], DARK_TOKENS.canvas];
 
 describe("the categorical chart palette", () => {
   test.each(CATEGORY_PALETTE.map((color) => [color]))("%s clears WCAG 1.4.11 (3:1) on every chart surface in both schemes", (color) => {

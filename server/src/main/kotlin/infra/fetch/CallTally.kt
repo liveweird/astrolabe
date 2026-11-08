@@ -50,9 +50,6 @@ class CallTally(carried: Map<String, Long> = emptyMap()) : AbstractCoroutineCont
     }.filterValues { it > 0L }
 }
 
-/** The four tally keys, which a retried attempt carries over (a connector may add its own marker). */
-internal val CALL_TALLY_KEYS = setOf(RATE_LIMITED_KEY, BACKOFF_MS_KEY, TENANT_PAUSED_MS_KEY, NEAR_LIMIT_PAUSES_KEY)
-
 /**
  * The progress keys of [CallTally.snapshot] (Flow persisted them in `sync_jobs.progress`; the values keep their `jira` prefix, the one
  * connector so far).

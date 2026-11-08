@@ -203,7 +203,7 @@ skips a level going down. A page whose real title needs loaded data passes a sta
 ### Colour tokens
 
 - **Colour tokens are AA-tested** (`themeVariables.ts`, ported from Lettuce): `LIGHT_TOKENS`/
-  `DARK_TOKENS` (text, dimmed, canvas, surface tint, borders, error inks) and
+  `DARK_TOKENS` (text, dimmed, canvas, border, table hover, error inks) and
   `LIGHT_VARIANT_INKS` (the per-hue ink over a `variant="light"` surface — Mantine's stock light-
   scheme ink fails 4.5:1 for several hues) go in through `cssVariablesResolver` in `main.tsx`.
   Never hand a shade-suffixed colour (`"orange.8"`) to a light Badge/Alert — the tint comes from

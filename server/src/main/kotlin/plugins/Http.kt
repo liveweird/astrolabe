@@ -66,9 +66,10 @@ fun Application.configureHttp() {
                 // API answers (JSON and RFC 7807 problem+json) carry per-user, bearer-authorized data:
                 // `no-store` keeps them out of browser/proxy caches (a shared machine's back button, an
                 // intermediary replaying one user's list to another). Scoped to /api/ so a static JSON
-                // asset the SPA ships (if one ever appears) is not swept up. The one exception is a report GET's
-                // revalidated `200` (ETag + its own single `no-store`, written by `ResponseValidators` —
-                // `.claude/docs/security.md` "Caching"; the exemption only avoids a duplicate header);
+                // asset the SPA ships (if one ever appears) is not swept up. The one exemption is a revalidated `200`
+                // (ETag + its own single `no-store`, written by `ResponseValidators` — `.claude/docs/security.md`
+                // "Caching"; it only avoids a duplicate header). It is a seam: no route offers a validator yet, so
+                // `isRevalidated()` is false for every answer today;
                 // `problem+json` is ALWAYS `no-store`, whatever a route offered before it failed.
                 ContentType.Application.Json ->
                     if (call.request.path().startsWith("/api/") && !call.isRevalidated()) {

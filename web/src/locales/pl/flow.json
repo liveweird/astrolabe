@@ -233,7 +233,6 @@
     "title": "Importuj przepustowość z Flow",
     "intro": "Osobodni sprintu z Flow stają się osobodniami na tydzień w dniach roboczych każdego sprintu, jeden okres na początek sprintu. Zaznacz wiersze do zaimportowania. Okres wpisany ręcznie nigdy nie jest zmieniany ani usuwany. W Flow nic się nie zmieni.",
     "includeClosed": "Uwzględnij zamknięte sprinty",
-    "loading": "Odczytywanie planu…",
     "loadFailed": "Nie udało się wczytać podglądu importu",
     "empty": "Nie ma czego importować: Flow nie podaje dla tego zespołu żadnych sprintów w tym zakresie.",
     "previewAria": "Podgląd importu przepustowości",
