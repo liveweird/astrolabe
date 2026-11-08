@@ -5,6 +5,7 @@ import { QueryClient } from "@tanstack/react-query";
 import { Route, Routes } from "react-router-dom";
 import TeamDetails from "./TeamDetails";
 import type { ScheduleProposal, ScheduleProposalMove, TeamMilestone, TeamView, WeekLoad } from "../api/teams";
+import { READ_ONLY_PANEL } from "../test/flow";
 import { headingOutline } from "../test/headings";
 import { jsonResponse } from "../test/http";
 import { renderWithProviders } from "../test/render";
@@ -122,6 +123,7 @@ function serve() {
   mockFetch.mockImplementation((url: string, init?: RequestInit) => {
     const method = init?.method ?? "GET";
     if (method === "GET" && url === "/api/v1/views/team/1") return Promise.resolve(jsonResponse(200, view));
+    if (method === "GET" && url === "/api/v1/teams/1/flow") return Promise.resolve(jsonResponse(200, READ_ONLY_PANEL));
     if (method === "GET" && url === "/api/v1/public-holidays") return Promise.resolve(jsonResponse(200, { items: [] }));
     if (method === "POST" && url === "/api/v1/teams/1/schedule-proposal") return Promise.resolve(typeof proposalAnswer === "function" ? proposalAnswer() : proposalAnswer.clone());
     if (method === "POST" && url === "/api/v1/teams/1/milestone-schedules") return Promise.resolve(typeof batchAnswer === "function" ? batchAnswer() : batchAnswer.clone());
@@ -502,6 +504,7 @@ describe("the Proposed schedule section", () => {
       [3, "Proposed schedule"],
       [3, "Unscheduled"],
       [3, "Capacity"],
+      [3, "Flow"],
       [3, "Weekly load"],
       [3, "Idle gaps"],
     ]);

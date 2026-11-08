@@ -18,6 +18,7 @@ import MilestoneScheduleModal from "../components/MilestoneScheduleModal";
 import PageHeader from "../components/PageHeader";
 import TeamCapacity from "../components/TeamCapacity";
 import TeamEditorModal from "../components/TeamEditorModal";
+import TeamFlowSection from "../components/TeamFlowSection";
 import TeamProposal from "../components/TeamProposal";
 import JiraBarsToggle from "../components/JiraBarsToggle";
 import { TeamJiraChip } from "../components/JiraChips";
@@ -448,6 +449,7 @@ function TeamPage({ id }: { id: number }) {
       )}
 
       <TeamCapacity view={view} readOnly={locked} />
+      <TeamFlowSection teamId={id} importBlocked={locked} />
       <TeamWeeklyLoad weeks={view.weeks} truncated={view.weeksTruncated} />
       {view.scheduled.length > 0 && <IdleGaps gaps={view.idleGaps} scope="team" />}
       {/* v0.9: the accessible surface of the shadow bars, present while a baseline is picked. */}

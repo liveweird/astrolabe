@@ -125,6 +125,7 @@
       "wipLimit": "Limit WIP",
       "wipLimitHint": "Największa liczba kamieni milowych w toku w jednym dniu roboczym, od 1 do 99. Zostaw puste, aby nie ustawiać limitu.",
       "dateTaken": "Inny okres zaczyna się w tym dniu",
+      "sourceFlow": "Flow",
       "deleteTitle": "Usunąć okres przepustowości?",
       "deleteBody": "Usuniemy okres od {{date}}; tygodnie, które obejmował, przejmują przepustowość poprzedniego okresu.",
       "deleteFailed": "Nie udało się usunąć"

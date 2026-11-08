@@ -7,6 +7,7 @@ import { Route, Routes } from "react-router-dom";
 import TeamDetails from "./TeamDetails";
 import type { DependencyEndpoint, ProjectDependency } from "../api/dependencies";
 import type { CapacityPeriod, TeamMilestone, TeamView } from "../api/teams";
+import { READ_ONLY_PANEL } from "../test/flow";
 import { headingOutline } from "../test/headings";
 import { jsonResponse } from "../test/http";
 import { renderWithProviders } from "../test/render";
@@ -153,6 +154,7 @@ function serve(mockFetch: FetchMock) {
   mockFetch.mockImplementation((url: string, init?: RequestInit) => {
     const method = init?.method ?? "GET";
     if (method === "GET" && url === "/api/v1/views/team/1") return Promise.resolve(jsonResponse(200, view));
+    if (method === "GET" && url === "/api/v1/teams/1/flow") return Promise.resolve(jsonResponse(200, READ_ONLY_PANEL));
     if (method === "GET" && url === "/api/v1/public-holidays") return Promise.resolve(jsonResponse(200, { items: [{ id: 1, date: "2027-02-03", name: "Founders' Day" }] }));
     if (method === "PUT" && url === "/api/v1/teams/1/milestone-order") {
       if (orderPut.status !== 200) return Promise.resolve(jsonResponse(orderPut.status, orderPut.body ?? { title: "x", status: orderPut.status }));
@@ -244,6 +246,7 @@ describe("Team view page", () => {
       [3, "Timeline"],
       [3, "Unscheduled"],
       [3, "Capacity"],
+      [3, "Flow"],
       [3, "Weekly load"],
       [3, "Idle gaps"],
     ]);

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Modal, NumberInput, Stack } from "@mantine/core";
+import { Alert, Modal, NumberInput, Stack } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { useTranslation } from "react-i18next";
 import { ApiError } from "../api/http";
@@ -70,6 +70,11 @@ export default function CapacityPeriodModal({
     >
       <form onSubmit={form.onSubmit(save)} noValidate>
         <Stack>
+          {target?.source === "FLOW" && (
+            <Alert color="gray" variant="light" role="note">
+              {target.flowSprintName ? t("flow.capacity.manualOnEdit", { sprint: target.flowSprintName }) : t("flow.capacity.manualOnEditNoSprint")}
+            </Alert>
+          )}
           <PlanDateInput
             label={t("teams.view.period.effectiveFrom")}
             description={t("teams.view.period.effectiveFromHint")}

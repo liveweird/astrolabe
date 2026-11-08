@@ -17,6 +17,16 @@ export type FlowTeamListItem = Schemas["FlowTeamListItem"];
 export type FlowTeamBinding = Schemas["FlowTeamBinding"];
 export type FlowTeamBindRequest = Schemas["FlowTeamBindRequest"];
 export type FlowTeamMatch = Schemas["FlowTeamMatch"];
+export type FlowTeamPanel = Schemas["FlowTeamPanel"];
+export type FlowPanelBinding = Schemas["FlowPanelBinding"];
+export type FlowPanelConnection = Schemas["FlowPanelConnection"];
+export type FlowRoster = Schemas["FlowRoster"];
+export type CapacityPreview = Schemas["CapacityPreview"];
+export type CapacityPreviewItem = Schemas["CapacityImportItem"];
+export type CapacityPreviewRequest = Schemas["CapacityPreviewRequest"];
+export type CapacityApplyItem = Schemas["CapacityApplyItem"];
+export type CapacityApplyRequest = Schemas["CapacityApplyRequest"];
+export type CapacityApplyResponse = Schemas["CapacityApplyResponse"];
 
 /** The RFC 7807 `type` of the 409 when the team or the Flow team is already linked (1:1 both ways): its `detail` names the other side. */
 const ALREADY_BOUND_TYPE = "urn:astrolabe:problem:already-bound";
@@ -80,4 +90,19 @@ export async function deleteFlowTeamBinding(id: number): Promise<void> {
 /** "Link all suggested": ADMIN only; links every Flow team whose name matches exactly one unbound team, in one transaction. */
 export async function matchFlowTeams(connectionId: number): Promise<FlowTeamMatch> {
   return jsonRequest<FlowTeamMatch>(`/api/v1/integrations/flow/connections/${connectionId}/team-bindings/match`, { method: "POST" });
+}
+
+/** The team page's Flow panel (any signed-in user): the link, its connection's status, the observed roster and `can` for the caller. Its own read, calls Flow never. */
+export async function getTeamFlow(teamId: number): Promise<FlowTeamPanel> {
+  return jsonRequest<FlowTeamPanel>(`/api/v1/teams/${teamId}/flow`);
+}
+
+/** The capacity import's plan for a link (the team's manager or ADMIN): a POST that stores nothing and calls Flow never. An empty body is today with closed sprints left out. */
+export async function previewCapacityImport(bindingId: number, body: CapacityPreviewRequest): Promise<CapacityPreview> {
+  return jsonRequest<CapacityPreview>(`/api/v1/integrations/flow/team-bindings/${bindingId}/capacity-preview`, { method: "POST", body: JSON.stringify(body) });
+}
+
+/** Applies the ticked rows: the server re-runs the plan under the team lock and skips (`CHANGED`) any row that no longer says what `expected` does. */
+export async function applyCapacityImport(bindingId: number, body: CapacityApplyRequest): Promise<CapacityApplyResponse> {
+  return jsonRequest<CapacityApplyResponse>(`/api/v1/integrations/flow/team-bindings/${bindingId}/capacity-import`, { method: "POST", body: JSON.stringify(body) });
 }

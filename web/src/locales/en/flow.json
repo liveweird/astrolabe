@@ -143,5 +143,138 @@
     "linkFailed": "Could not link the team",
     "matchResult": "{{linked}} linked, {{noMatch}} without a unique match, {{already}} linked already.",
     "matchFailed": "Could not link the suggested teams"
+  },
+  "panel": {
+    "title": "Flow",
+    "loadFailed": "Could not load the Flow link",
+    "notLinked": "Not linked to a Flow team",
+    "notLinkedHint": "Link the team to its Flow team to import its capacity and to see Flow's roster. Astrolabe only reads from Flow.",
+    "notLinkedReadOnly": "The team's manager or an administrator can link it to its Flow team.",
+    "link": "Link to Flow team…",
+    "unlink": "Unlink",
+    "importCapacity": "Import capacity…",
+    "factsAria": "Link to Flow",
+    "fact": {
+      "flowTeam": "Flow team",
+      "connection": "Connection",
+      "status": "Status",
+      "observedAt": "Observed (UTC)"
+    },
+    "gone": "No longer in Flow",
+    "goneNote": "The connection has read Flow and this team is not in it any more. The link stays until it is removed; capacity already imported stays. Importing capacity is unavailable.",
+    "disabledNote": "The connection is disabled: Flow is not read again until an administrator enables it. The last data read stays.",
+    "stale": "Could not refresh the Flow link; the last data read is shown.",
+    "importBlocked": "Capacity cannot be imported while a schedule proposal is open.",
+    "sprints": "Sprints read from Flow: {{n}}",
+    "sprintsNext": "Sprints read from Flow: {{n}} · the next starts {{date}}",
+    "unlinkTitle": "Unlink the Flow team?",
+    "unlinkBody": "This team will no longer be linked to Flow team “{{flowTeam}}” (connection “{{connection}}”). Capacity already imported stays. Nothing is changed in Flow.",
+    "unlinkFailed": "Could not unlink the team"
+  },
+  "link": {
+    "title": "Link to a Flow team",
+    "intro": "Choose the Flow team that stands for “{{team}}”. Astrolabe only reads from Flow.",
+    "connection": "Flow connection",
+    "flowTeam": "Flow team",
+    "flowTeamPlaceholder": "Choose a Flow team",
+    "suggestionHint": "The team of the same name is preselected.",
+    "noSuggestion": "No Flow team has this team's name; choose the one that stands for it.",
+    "suggestedMark": "{{name}} (suggested)",
+    "nothingFound": "No Flow team of this name",
+    "allLinked": "Every Flow team of this connection is linked already.",
+    "loading": "Loading the Flow teams…",
+    "notRead": "This connection has not read Flow yet. An administrator refreshes it on the connection page first.",
+    "noConnection": "No Flow connection exists yet. An administrator adds one under Administration, Flow.",
+    "noEnabledConnection": "Every Flow connection is disabled. An administrator enables one under Administration, Flow.",
+    "submit": "Link"
+  },
+  "roster": {
+    "title": "Roster",
+    "currentAria": "Current members of the Flow team",
+    "formerAria": "Former members of the Flow team",
+    "noCurrent": "Flow lists no current members for this team.",
+    "unavailable": "The roster is not available: the Flow team is gone from the last read.",
+    "showFormer_one": "{{count}} former member",
+    "showFormer_other": "{{count}} former members",
+    "hideFormer_one": "Hide {{count}} former member",
+    "hideFormer_other": "Hide {{count}} former members",
+    "observedAt": "Observed (UTC)",
+    "column": {
+      "name": "Name",
+      "since": "Member since",
+      "from": "From",
+      "to": "To"
+    }
+  },
+  "capacity": {
+    "manualOnEdit": "This period was imported from Flow sprint “{{sprint}}”. Saving a change makes it a hand-entered period: later imports will never touch it.",
+    "manualOnEditNoSprint": "This period was imported from Flow. Saving a change makes it a hand-entered period: later imports will never touch it."
+  },
+  "import": {
+    "title": "Import capacity from Flow",
+    "intro": "Flow's man-days per sprint become man-days per week over each sprint's working days, one period per sprint start. Tick the rows to import. A hand-entered period is never changed or removed. Nothing is changed in Flow.",
+    "includeClosed": "Include closed sprints",
+    "loading": "Reading the plan…",
+    "loadFailed": "Could not load the import preview",
+    "empty": "Nothing to import: Flow lists no sprints for this team in this range.",
+    "previewAria": "Capacity import preview",
+    "removalsTitle": "Periods that would be removed",
+    "removalsIntro": "Flow periods imported earlier that no sprint reuses now. Nothing is removed unless you tick it.",
+    "removalsAria": "Flow periods that would be removed",
+    "selectRow": "Import {{name}}",
+    "selectRemoval": "Remove the period from {{date}}",
+    "column": {
+      "select": "Import",
+      "sprint": "Sprint",
+      "dates": "Dates",
+      "workingDays": "Working days",
+      "flowMd": "Sprint total in Flow (man-days)",
+      "mdPerWeek": "Man-days per week",
+      "action": "Action",
+      "note": "Note",
+      "effectiveFrom": "Effective from",
+      "flowSprint": "Flow sprint"
+    },
+    "state": {
+      "closed": "closed",
+      "active": "active",
+      "future": "future"
+    },
+    "effectiveFromNote": "takes effect {{date}}",
+    "action": {
+      "CREATE": "Create",
+      "UPDATE": "Update",
+      "UNCHANGED": "Unchanged",
+      "MANUAL_PERIOD": "Kept",
+      "SKIP": "Skipped"
+    },
+    "was": "was {{md}}",
+    "reason": {
+      "NO_DATES": "Flow has no usable dates for this sprint.",
+      "NO_CAPACITY": "Flow has no capacity figure for this sprint.",
+      "NO_WORKING_DAY": "The sprint has no working day.",
+      "OVERLAPS": "It overlaps the previous sprint; the earlier one wins.",
+      "OUT_OF_RANGE": "The figure is outside what a period can hold.",
+      "MANUAL_PERIOD": "A hand-entered period starts on this date and is never changed.",
+      "UNCHANGED": "Already imported."
+    },
+    "info": {
+      "MANUAL_PERIOD_INSIDE": "A hand-entered period starts on {{date}}, inside the sprint: the sprint's figure will not hold from then.",
+      "ZERO_CAPACITY": "Flow's figure is 0 man-days: not selected by default."
+    },
+    "closedNote": "Ended before {{from}}: not selected by default.",
+    "summary": "Selected: {{total}} · to create: {{create}} · to update: {{update}} · to remove: {{remove}}",
+    "footer": "Each imported period holds until the next one starts, so after the last imported sprint its figure stays in force until you import again.",
+    "submit": "Import",
+    "outcome": {
+      "created": "{{n}} created",
+      "updated": "{{n}} updated",
+      "removed": "{{n}} removed",
+      "skipped": "{{n}} skipped: changed in the meantime",
+      "nothing": "Nothing was imported"
+    },
+    "forbidden": "Only the team's manager or an administrator can import capacity",
+    "gone": "This link or team no longer exists — reload the page",
+    "invalid": "The import was refused"
   }
 }

@@ -1,6 +1,6 @@
 {
   "title": "Połączenia z Flow",
-  "intro": "Instancje Flow, z których Astrolabe czyta moce przerobowe i składy zespołów. Astrolabe tylko czyta z Flow; niczego tam nie zapisuje. Połączeniami zarządzają administratorzy/rki.",
+  "intro": "Instancje Flow, z których Astrolabe czyta przepustowość i składy zespołów. Astrolabe tylko czyta z Flow; niczego tam nie zapisuje. Połączeniami zarządzają administratorzy/rki.",
   "newConnection": "Nowe połączenie",
   "createTitle": "Nowe połączenie z Flow",
   "editTitle": "Edycja połączenia z Flow",
@@ -48,12 +48,12 @@
   "saveInvalid": "Jedno lub więcej pól jest nieprawidłowe",
   "saveGone": "To połączenie już nie istnieje — odśwież stronę",
   "deleteTitle": "Usunąć połączenie?",
-  "deleteBody": "Usuniemy połączenie „{{name}}” razem z historią przebiegów i kopią zespołów, sprintów i członków z Flow oraz odepniemy wszystkie powiązania zespołów Astrolabe z zespołami Flow, które przez nie powstały. Zaimportowane moce przerobowe zostaną. W Flow nic się nie zmieni.",
+  "deleteBody": "Usuniemy połączenie „{{name}}” razem z historią przebiegów i kopią zespołów, sprintów i członków z Flow oraz odepniemy wszystkie powiązania zespołów Astrolabe z zespołami Flow, które przez nie powstały. Zaimportowane okresy przepustowości zostaną. W Flow nic się nie zmieni.",
   "deleteBodyNoLinks": "Usuniemy połączenie „{{name}}” razem z historią przebiegów i kopią zespołów, sprintów i członków z Flow. W jego ostatnim odczycie żaden zespół nie był powiązany. W Flow nic się nie zmieni.",
-  "deleteBodyLinks_one": "Usuniemy połączenie „{{name}}” razem z historią przebiegów i kopią danych z Flow oraz odepniemy jego {{count}} powiązanie zespołu. Zaimportowane moce przerobowe zostaną. W Flow nic się nie zmieni.",
-  "deleteBodyLinks_few": "Usuniemy połączenie „{{name}}” razem z historią przebiegów i kopią danych z Flow oraz odepniemy jego {{count}} powiązania zespołów. Zaimportowane moce przerobowe zostaną. W Flow nic się nie zmieni.",
-  "deleteBodyLinks_many": "Usuniemy połączenie „{{name}}” razem z historią przebiegów i kopią danych z Flow oraz odepniemy jego {{count}} powiązań zespołów. Zaimportowane moce przerobowe zostaną. W Flow nic się nie zmieni.",
-  "deleteBodyLinks_other": "Usuniemy połączenie „{{name}}” razem z historią przebiegów i kopią danych z Flow oraz odepniemy jego {{count}} powiązania zespołów. Zaimportowane moce przerobowe zostaną. W Flow nic się nie zmieni.",
+  "deleteBodyLinks_one": "Usuniemy połączenie „{{name}}” razem z historią przebiegów i kopią danych z Flow oraz odepniemy jego {{count}} powiązanie zespołu. Zaimportowane okresy przepustowości zostaną. W Flow nic się nie zmieni.",
+  "deleteBodyLinks_few": "Usuniemy połączenie „{{name}}” razem z historią przebiegów i kopią danych z Flow oraz odepniemy jego {{count}} powiązania zespołów. Zaimportowane okresy przepustowości zostaną. W Flow nic się nie zmieni.",
+  "deleteBodyLinks_many": "Usuniemy połączenie „{{name}}” razem z historią przebiegów i kopią danych z Flow oraz odepniemy jego {{count}} powiązań zespołów. Zaimportowane okresy przepustowości zostaną. W Flow nic się nie zmieni.",
+  "deleteBodyLinks_other": "Usuniemy połączenie „{{name}}” razem z historią przebiegów i kopią danych z Flow oraz odepniemy jego {{count}} powiązania zespołów. Zaimportowane okresy przepustowości zostaną. W Flow nic się nie zmieni.",
   "deleteFailed": "Nie udało się usunąć połączenia",
   "toast": {
     "created": "Utworzono połączenie",
@@ -112,7 +112,7 @@
   },
   "teams": {
     "title": "Zespoły",
-    "intro": "Zespoły Flow, które to połączenie odczytało ostatnim razem. Powiąż każdy z zespołem Astrolabe, który reprezentuje: powiązany zespół może zaimportować moc przerobową z Flow i pokazuje skład z Flow.",
+    "intro": "Zespoły Flow, które to połączenie odczytało ostatnim razem. Powiąż każdy z zespołem Astrolabe, który reprezentuje: powiązany zespół może zaimportować przepustowość z Flow i pokazuje skład z Flow.",
     "tableAria": "Zespoły Flow",
     "loadFailed": "Nie udało się wczytać zespołów Flow",
     "empty": "Najpierw odśwież połączenie",
@@ -135,7 +135,7 @@
     "unlink": "Odepnij",
     "unlinkAria": "Odepnij {{flowTeam}}",
     "unlinkTitle": "Odpiąć zespół?",
-    "unlinkBody": "Zespół Astrolabe „{{team}}” przestanie być powiązany z zespołem Flow „{{flowTeam}}”. Zaimportowane moce przerobowe zostaną. W Flow nic się nie zmieni.",
+    "unlinkBody": "Zespół Astrolabe „{{team}}” przestanie być powiązany z zespołem Flow „{{flowTeam}}”. Zaimportowane okresy przepustowości zostaną. W Flow nic się nie zmieni.",
     "unlinkFailed": "Nie udało się odpiąć zespołu",
     "unlinkForbidden": "Tylko administratorzy/rki albo kierownik/czka zespołu mogą go odpiąć",
     "unlinkGone": "To powiązanie już nie istnieje — zostało usunięte",
@@ -145,5 +145,136 @@
     "linkFailed": "Nie udało się powiązać zespołu",
     "matchResult": "Powiązano: {{linked}}, bez jednoznacznego dopasowania: {{noMatch}}, już powiązanych: {{already}}.",
     "matchFailed": "Nie udało się powiązać proponowanych zespołów"
+  },
+  "panel": {
+    "title": "Flow",
+    "loadFailed": "Nie udało się wczytać powiązania z Flow",
+    "notLinked": "Zespół nie jest powiązany z zespołem Flow",
+    "notLinkedHint": "Powiąż zespół z jego zespołem we Flow, aby zaimportować przepustowość i zobaczyć skład z Flow. Astrolabe tylko czyta z Flow.",
+    "notLinkedReadOnly": "Kierownik/czka zespołu albo administrator/ka może powiązać go z zespołem Flow.",
+    "link": "Powiąż z zespołem Flow…",
+    "unlink": "Odepnij",
+    "importCapacity": "Importuj przepustowość…",
+    "factsAria": "Powiązanie z Flow",
+    "fact": {
+      "flowTeam": "Zespół Flow",
+      "connection": "Połączenie",
+      "status": "Stan",
+      "observedAt": "Odczytano (UTC)"
+    },
+    "gone": "Już go nie ma we Flow",
+    "goneNote": "Połączenie odczytało Flow, a tego zespołu już w nim nie ma. Powiązanie zostaje, dopóki go nie usuniesz; zaimportowane okresy przepustowości zostają. Import przepustowości jest niedostępny.",
+    "disabledNote": "Połączenie jest wyłączone: Flow nie jest odczytywany, dopóki administrator/ka go nie włączy. Ostatnio odczytane dane zostają.",
+    "stale": "Nie udało się odświeżyć powiązania z Flow; widać ostatnio wczytane dane.",
+    "importBlocked": "Nie można importować przepustowości, gdy otwarta jest propozycja harmonogramu.",
+    "sprints": "Sprinty odczytane z Flow: {{n}}",
+    "sprintsNext": "Sprinty odczytane z Flow: {{n}} · następny zaczyna się {{date}}",
+    "unlinkTitle": "Odpiąć zespół Flow?",
+    "unlinkBody": "Ten zespół przestanie być powiązany z zespołem Flow „{{flowTeam}}” (połączenie „{{connection}}”). Zaimportowane okresy przepustowości zostają. W Flow nic się nie zmieni.",
+    "unlinkFailed": "Nie udało się odpiąć zespołu"
+  },
+  "link": {
+    "title": "Powiąż z zespołem Flow",
+    "intro": "Wybierz zespół Flow, który odpowiada zespołowi „{{team}}”. Astrolabe tylko czyta z Flow.",
+    "connection": "Połączenie z Flow",
+    "flowTeam": "Zespół Flow",
+    "flowTeamPlaceholder": "Wybierz zespół Flow",
+    "suggestionHint": "Zespół o tej samej nazwie jest wybrany z góry.",
+    "noSuggestion": "Żaden zespół Flow nie ma nazwy tego zespołu; wybierz ten, który mu odpowiada.",
+    "suggestedMark": "{{name}} (propozycja)",
+    "nothingFound": "Brak zespołu Flow o tej nazwie",
+    "allLinked": "Wszystkie zespoły Flow z tego połączenia są już powiązane.",
+    "loading": "Wczytywanie zespołów Flow…",
+    "notRead": "To połączenie nie odczytało jeszcze Flow. Administrator/ka najpierw odświeża je na stronie połączenia.",
+    "noConnection": "Nie ma jeszcze żadnego połączenia z Flow. Administrator/ka dodaje je w sekcji Administracja, Flow.",
+    "noEnabledConnection": "Wszystkie połączenia z Flow są wyłączone. Administrator/ka włącza jedno w sekcji Administracja, Flow.",
+    "submit": "Powiąż"
+  },
+  "roster": {
+    "title": "Skład",
+    "currentAria": "Obecni członkowie zespołu Flow",
+    "formerAria": "Byli członkowie zespołu Flow",
+    "noCurrent": "Flow nie podaje obecnych członków tego zespołu.",
+    "unavailable": "Skład jest niedostępny: zespołu Flow nie ma w ostatnim odczycie.",
+    "showFormer": "Byli członkowie: {{count}}",
+    "hideFormer": "Ukryj byłych członków: {{count}}",
+    "observedAt": "Odczytano (UTC)",
+    "column": {
+      "name": "Imię i nazwisko",
+      "since": "Członek od",
+      "from": "Od",
+      "to": "Do"
+    }
+  },
+  "capacity": {
+    "manualOnEdit": "Ten okres zaimportowano ze sprintu Flow „{{sprint}}”. Zapisanie zmiany zamieni go w okres wpisany ręcznie: kolejne importy nigdy go nie ruszą.",
+    "manualOnEditNoSprint": "Ten okres zaimportowano z Flow. Zapisanie zmiany zamieni go w okres wpisany ręcznie: kolejne importy nigdy go nie ruszą."
+  },
+  "import": {
+    "title": "Importuj przepustowość z Flow",
+    "intro": "Osobodni sprintu z Flow stają się osobodniami na tydzień w dniach roboczych każdego sprintu, jeden okres na początek sprintu. Zaznacz wiersze do zaimportowania. Okres wpisany ręcznie nigdy nie jest zmieniany ani usuwany. W Flow nic się nie zmieni.",
+    "includeClosed": "Uwzględnij zamknięte sprinty",
+    "loading": "Odczytywanie planu…",
+    "loadFailed": "Nie udało się wczytać podglądu importu",
+    "empty": "Nie ma czego importować: Flow nie podaje dla tego zespołu żadnych sprintów w tym zakresie.",
+    "previewAria": "Podgląd importu przepustowości",
+    "removalsTitle": "Okresy, które zostałyby usunięte",
+    "removalsIntro": "Okresy z Flow zaimportowane wcześniej, których żaden sprint już nie wykorzystuje. Nic nie zostanie usunięte, jeśli tego nie zaznaczysz.",
+    "removalsAria": "Okresy z Flow, które zostałyby usunięte",
+    "selectRow": "Importuj {{name}}",
+    "selectRemoval": "Usuń okres od {{date}}",
+    "column": {
+      "select": "Import",
+      "sprint": "Sprint",
+      "dates": "Daty",
+      "workingDays": "Dni robocze",
+      "flowMd": "Suma sprintu z Flow (osobodni)",
+      "mdPerWeek": "Osobodni na tydzień",
+      "action": "Działanie",
+      "note": "Uwaga",
+      "effectiveFrom": "Obowiązuje od",
+      "flowSprint": "Sprint Flow"
+    },
+    "state": {
+      "closed": "zamknięty",
+      "active": "aktywny",
+      "future": "przyszły"
+    },
+    "effectiveFromNote": "obowiązuje od {{date}}",
+    "action": {
+      "CREATE": "Utwórz",
+      "UPDATE": "Zaktualizuj",
+      "UNCHANGED": "Bez zmian",
+      "MANUAL_PERIOD": "Zachowany",
+      "SKIP": "Pominięty"
+    },
+    "was": "było {{md}}",
+    "reason": {
+      "NO_DATES": "Flow nie podaje użytecznych dat tego sprintu.",
+      "NO_CAPACITY": "Flow nie podaje przepustowości tego sprintu.",
+      "NO_WORKING_DAY": "W sprincie nie ma dnia roboczego.",
+      "OVERLAPS": "Nakłada się na poprzedni sprint; wygrywa wcześniejszy.",
+      "OUT_OF_RANGE": "Wartość jest poza tym, co może zawierać okres.",
+      "MANUAL_PERIOD": "W tym dniu zaczyna się okres wpisany ręcznie i nigdy nie jest zmieniany.",
+      "UNCHANGED": "Już zaimportowany."
+    },
+    "info": {
+      "MANUAL_PERIOD_INSIDE": "Okres wpisany ręcznie zaczyna się {{date}}, w środku sprintu: wartość sprintu nie obowiązuje od tego dnia.",
+      "ZERO_CAPACITY": "Flow podaje 0 osobodni: domyślnie niezaznaczony."
+    },
+    "closedNote": "Zakończył się przed {{from}}: domyślnie niezaznaczony.",
+    "summary": "Zaznaczono: {{total}} · do utworzenia: {{create}} · do zaktualizowania: {{update}} · do usunięcia: {{remove}}",
+    "footer": "Każdy zaimportowany okres obowiązuje do początku następnego, więc po ostatnim zaimportowanym sprincie jego wartość obowiązuje do kolejnego importu.",
+    "submit": "Importuj",
+    "outcome": {
+      "created": "utworzono: {{n}}",
+      "updated": "zaktualizowano: {{n}}",
+      "removed": "usunięto: {{n}}",
+      "skipped": "pominięto: {{n}} (zmiana w międzyczasie)",
+      "nothing": "Nic nie zaimportowano"
+    },
+    "forbidden": "Tylko kierownik/czka zespołu albo administrator/ka może importować przepustowość",
+    "gone": "To powiązanie lub zespół już nie istnieje — odśwież stronę",
+    "invalid": "Import odrzucono"
   }
 }

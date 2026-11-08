@@ -9,6 +9,7 @@ import type { TeamMilestone, TeamView } from "../api/teams";
 import { detail, endLater } from "../test/deviations";
 import { headingOutline } from "../test/headings";
 import { jsonResponse } from "../test/http";
+import { READ_ONLY_PANEL } from "../test/flow";
 import { renderWithProviders } from "../test/render";
 
 // The Jira markers of the team page (1.3), all read from the team VIEW: the chip, the Flags column, the tray rows' icon and note, the shadow bars and
@@ -68,6 +69,7 @@ describe("the team page's Jira markers", () => {
   beforeEach(() => {
     mockFetch = vi.fn((url: string) => {
       if (url === "/api/v1/views/team/1") return Promise.resolve(jsonResponse(200, teamView));
+      if (url === "/api/v1/teams/1/flow") return Promise.resolve(jsonResponse(200, READ_ONLY_PANEL));
       if (url === "/api/v1/public-holidays") return Promise.resolve(jsonResponse(200, { items: [] }));
       return Promise.resolve(jsonResponse(404, { title: "Not Found", status: 404 }));
     });

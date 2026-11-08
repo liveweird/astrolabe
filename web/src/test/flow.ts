@@ -1,5 +1,5 @@
-// Shared fixtures for the Flow pages' tests: a connection, a passing and a failing probe set, the mirrored teams and a run.
-import type { FlowConnection, FlowTeamList, FlowTeamListItem, FlowTestResult } from "../api/flow";
+// Shared fixtures for the Flow pages' tests: a connection, a passing and a failing probe set, the mirrored teams, a run, the team page's panel and the capacity import's preview.
+import type { CapacityApplyResponse, CapacityPreview, CapacityPreviewItem, FlowConnection, FlowPanelBinding, FlowTeamList, FlowTeamListItem, FlowTeamPanel, FlowTestResult } from "../api/flow";
 import type { SyncRun } from "../api/sync";
 
 export const CONNECTION: FlowConnection = {
@@ -90,3 +90,101 @@ export function run(overrides: Partial<SyncRun> = {}): SyncRun {
     ...overrides,
   };
 }
+
+/** The team page's panel for an UNLINKED team: the caller may link and (once linked) import. */
+export const UNLINKED_PANEL: FlowTeamPanel = {
+  team: { id: 1, name: "Payments" },
+  can: { link: true, unlink: true, importCapacity: true },
+  binding: null,
+  roster: null,
+  sprints: null,
+  connections: [{ id: 1, name: "Acme Flow", enabled: true }],
+};
+
+/** An unlinked team for a viewer who may do nothing about it: what the other team-page tests serve so the Flow section stays a quiet text. */
+export const READ_ONLY_PANEL: FlowTeamPanel = { ...UNLINKED_PANEL, can: { link: false, unlink: false, importCapacity: false } };
+
+export function panelBinding(overrides: Partial<FlowPanelBinding> = {}): FlowPanelBinding {
+  return {
+    id: 5,
+    connectionId: 1,
+    connectionName: "Acme Flow",
+    flowTeamId: 12,
+    flowTeamName: "Payments Flow",
+    connectionEnabled: true,
+    status: { state: "CURRENT", lastRun: null, lastSucceededAt: Date.UTC(2026, 10, 8, 9, 40), consecutiveFailures: 0, nextPollAt: null },
+    observedAt: Date.UTC(2026, 10, 8, 9, 40),
+    gone: false,
+    ...overrides,
+  };
+}
+
+/** A linked team: two current members, one former, 33 sprints, the next on 2026-11-09. */
+export function linkedPanel(overrides: Partial<FlowTeamPanel> = {}): FlowTeamPanel {
+  return {
+    ...UNLINKED_PANEL,
+    binding: panelBinding(),
+    roster: {
+      current: [
+        { displayName: "Ada Lovelace", since: "2026-01-05" },
+        { displayName: "Unknown account", since: "2026-03-02" },
+      ],
+      former: [{ displayName: "Grace Hopper", from: "2025-02-03", to: "2026-04-01" }],
+    },
+    sprints: { count: 33, nextStart: "2026-11-09" },
+    ...overrides,
+  };
+}
+
+export function previewItem(overrides: Partial<CapacityPreviewItem> = {}): CapacityPreviewItem {
+  return {
+    sprintId: 101,
+    name: "Sprint 101",
+    state: "future",
+    start: "2026-11-09",
+    end: "2026-11-20",
+    effectiveFrom: "2026-11-09",
+    workingDays: 10,
+    flowMd: 40,
+    mdPerWeek: 20,
+    action: "CREATE",
+    reason: null,
+    infos: [],
+    ticked: true,
+    existing: null,
+    ...overrides,
+  };
+}
+
+/** One of every row kind: a CREATE and an UPDATE (ticked), a ZERO_CAPACITY CREATE (unticked), a MANUAL_PERIOD, a SKIP, an UNCHANGED; plus one removal. */
+export const PREVIEW: CapacityPreview = {
+  bindingId: 5,
+  teamId: 1,
+  observedAt: Date.UTC(2026, 10, 8, 9, 40),
+  zone: "Europe/Warsaw",
+  from: "2026-11-08",
+  includeClosed: false,
+  totals: { create: 2, update: 1, unchanged: 1, skip: 2, removals: 1 },
+  items: [
+    previewItem({ sprintId: 101, name: "Sprint 101" }),
+    previewItem({
+      sprintId: 102,
+      name: "Sprint 102",
+      start: "2026-11-23",
+      end: "2026-12-04",
+      effectiveFrom: "2026-11-23",
+      flowMd: 36,
+      mdPerWeek: 18,
+      action: "UPDATE",
+      infos: [{ code: "MANUAL_PERIOD_INSIDE", date: "2026-11-30" }],
+      existing: { periodId: 31, mdPerWeek: 16, source: "FLOW" },
+    }),
+    previewItem({ sprintId: 103, name: "Sprint 103", start: "2026-12-07", end: "2026-12-18", effectiveFrom: "2026-12-07", flowMd: 0, mdPerWeek: 0, infos: [{ code: "ZERO_CAPACITY", date: null }], ticked: false }),
+    previewItem({ sprintId: 104, name: "Sprint 104", start: "2027-01-04", end: "2027-01-15", effectiveFrom: "2027-01-04", action: "MANUAL_PERIOD", ticked: false, existing: { periodId: 32, mdPerWeek: 12, source: "MANUAL" } }),
+    previewItem({ sprintId: 105, name: "Sprint 105", start: null, end: null, effectiveFrom: null, workingDays: null, flowMd: null, mdPerWeek: null, action: "SKIP", reason: "NO_DATES", ticked: false }),
+    previewItem({ sprintId: 106, name: "Sprint 106", start: "2027-01-18", end: "2027-01-29", effectiveFrom: "2027-01-18", action: "UNCHANGED", ticked: false, existing: { periodId: 33, mdPerWeek: 20, source: "FLOW" } }),
+  ],
+  removals: [{ periodId: 34, effectiveFrom: "2026-10-12", mdPerWeek: 15, flowSprintId: 90, flowSprintName: "Sprint 90" }],
+};
+
+export const APPLIED: CapacityApplyResponse = { created: [{ periodId: 40, sprintId: 101 }], updated: [{ periodId: 31, sprintId: 102 }], deleted: [], skipped: [] };

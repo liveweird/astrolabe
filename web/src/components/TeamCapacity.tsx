@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Button, Group, Menu, Stack, Table, Text, Title } from "@mantine/core";
+import { Badge, Button, Group, Menu, Stack, Table, Text, Title } from "@mantine/core";
 import { IconGauge, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -78,7 +78,16 @@ export default function TeamCapacity({ view, readOnly = false }: { view: TeamVie
               <Table.Tbody>
                 {periods.map((period) => (
                   <Table.Tr key={period.id}>
-                    <Table.Td>{period.effectiveFrom}</Table.Td>
+                    <Table.Td>
+                      <Group gap="xs" wrap="nowrap">
+                        {period.effectiveFrom}
+                        {period.source === "FLOW" && (
+                          <Badge color="gray" variant="light" tt="none" title={period.flowSprintName ?? undefined}>
+                            {t("teams.view.period.sourceFlow")}
+                          </Badge>
+                        )}
+                      </Group>
+                    </Table.Td>
                     <Table.Td>{period.mdPerWeek}</Table.Td>
                     <Table.Td>{period.wipLimit ?? "—"}</Table.Td>
                     <Table.Td style={{ width: 1 }} ta="right">

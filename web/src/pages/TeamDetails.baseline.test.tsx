@@ -8,6 +8,7 @@ import TeamDetails from "./TeamDetails";
 import type { Movement } from "../api/baselines";
 import type { TeamMilestone, TeamView } from "../api/teams";
 import { jsonResponse } from "../test/http";
+import { READ_ONLY_PANEL } from "../test/flow";
 import { renderWithProviders } from "../test/render";
 import { applyTeamSchedule } from "../utils/teamViewUpdate";
 
@@ -114,6 +115,7 @@ function serve() {
     }
     if (method === "GET" && url === "/api/v1/baselines") return Promise.resolve(jsonResponse(200, BASELINES));
     if (method === "GET" && url === "/api/v1/public-holidays") return Promise.resolve(jsonResponse(200, { items: [] }));
+    if (method === "GET" && url === "/api/v1/teams/1/flow") return Promise.resolve(jsonResponse(200, READ_ONLY_PANEL));
     const schedule = /^\/api\/v1\/milestones\/(\d+)\/schedule$/.exec(url);
     if (method === "PUT" && schedule) {
       const body = JSON.parse(init?.body as string) as { startDate: string | null; endDate: string | null };

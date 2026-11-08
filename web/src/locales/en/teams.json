@@ -119,6 +119,7 @@
       "wipLimit": "WIP limit",
       "wipLimitHint": "The most milestones in progress on one working day, 1 to 99. Leave empty for no limit.",
       "dateTaken": "Another period starts on this date",
+      "sourceFlow": "Flow",
       "deleteTitle": "Delete the capacity period?",
       "deleteBody": "The period from {{date}} will be deleted; the weeks it covered take the capacity of the period before it.",
       "deleteFailed": "Could not delete"
