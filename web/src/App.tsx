@@ -24,6 +24,8 @@ const TelemetryPanel = lazy(() => import("./components/TelemetryPanel"));
 const Login = lazy(() => import("./pages/Login"));
 const Home = lazy(() => import("./pages/Home"));
 const People = lazy(() => import("./pages/People"));
+const FlowConnectionDetails = lazy(() => import("./pages/FlowConnectionDetails"));
+const FlowConnections = lazy(() => import("./pages/FlowConnections"));
 const JiraConnectionDetails = lazy(() => import("./pages/JiraConnectionDetails"));
 const JiraConnections = lazy(() => import("./pages/JiraConnections"));
 const PublicHolidays = lazy(() => import("./pages/PublicHolidays"));
@@ -264,6 +266,8 @@ export default function App() {
               <Route path="feature-flags" element={<FeatureFlags />} />
               <Route path="integrations/jira" element={<JiraConnections />} />
               <Route path="integrations/jira/:id" element={<JiraConnectionDetails />} />
+              <Route path="integrations/flow" element={<FlowConnections />} />
+              <Route path="integrations/flow/:id" element={<FlowConnectionDetails />} />
             </Route>
             <Route path="change-password" element={<ChangePassword />} />
             <Route path="changelog" element={<Changelog />} />

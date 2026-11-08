@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { Button, Checkbox, Fieldset, Modal, NumberInput, PasswordInput, Select, Stack, Switch, TagsInput, Text, TextInput } from "@mantine/core";
+import { Button, Modal, PasswordInput, Select, Stack, Switch, TagsInput, Text, TextInput } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { ApiError } from "../api/http";
 import {
@@ -21,9 +21,7 @@ import {
   jiraTestErrorMessage,
   MAX_API_TOKEN_LENGTH,
   MAX_JIRA_CONNECTION_NAME_LENGTH,
-  MAX_POLL_INTERVAL_MINUTES,
   MAX_PROJECT_KEYS,
-  MIN_POLL_INTERVAL_MINUTES,
   probeSettingsDiffer,
   toJiraConnectionRequest,
   type JiraFormValues,
@@ -32,6 +30,7 @@ import { showSuccessToast } from "../utils/toast";
 import ConnectionTestResults from "./ConnectionTestResults";
 import ConnectionTestStatus from "./ConnectionTestStatus";
 import FormErrorAlert from "./FormErrorAlert";
+import PollingFields from "./PollingFields";
 import RegistryEditorActions from "./RegistryEditorActions";
 
 /** The fields the server requires of a probe's body (`validateJiraConnection` checks the name too); the rest of the form may be incomplete. */
@@ -183,33 +182,7 @@ export default function JiraConnectionEditorModal({
             {...form.getInputProps("authScheme")}
           />
           <Switch label={t("jira.field.enabled")} {...form.getInputProps("enabled", { type: "checkbox" })} />
-          <Fieldset legend={t("jira.field.polling")}>
-            <Stack gap="sm">
-              <NumberInput
-                label={t("jira.field.pollInterval")}
-                description={t("jira.field.pollIntervalHint")}
-                min={MIN_POLL_INTERVAL_MINUTES}
-                max={MAX_POLL_INTERVAL_MINUTES}
-                step={5}
-                // A typed 3 or 2000 stays as typed and is refused with the rule's sentence, never silently clamped on blur.
-                clampBehavior="none"
-                allowDecimal={false}
-                allowNegative={false}
-                disabled={form.values.manualOnly}
-                {...form.getInputProps("pollIntervalMinutes")}
-              />
-              <Checkbox
-                label={t("jira.field.manualOnly")}
-                {...form.getInputProps("manualOnly", { type: "checkbox" })}
-                onChange={(event) => {
-                  const manualOnly = event.currentTarget.checked;
-                  form.setFieldValue("manualOnly", manualOnly);
-                  // The number is not looked at any more: its refusal must not stay under the disabled input.
-                  if (manualOnly) form.clearFieldError("pollIntervalMinutes");
-                }}
-              />
-            </Stack>
-          </Fieldset>
+          <PollingFields form={form} hint={t("jira.field.pollIntervalHint")} />
 
           <Button type="button" variant="default" loading={testing} onClick={() => void runTest()}>
             {t("jira.testConnection")}

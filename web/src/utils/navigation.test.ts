@@ -9,11 +9,19 @@ describe("visibleSections", () => {
     expect(paths).toEqual(["/", "/plan", "/roadmap", "/programs", "/baselines", "/deviations", "/teams", "/people", "/public-holidays"]);
   });
 
-  test("an admin session gets Teams, People, Public holidays, Users, Feature flags and Jira in the Administration section", () => {
+  test("an admin session gets Teams, People, Public holidays, Users, Feature flags, Jira and Flow in the Administration section", () => {
     const admin = visibleSections(true).find((s) => s.label === "appShell.section.administration");
-    expect(admin?.items.map((l) => l.to)).toEqual(["/teams", "/people", "/public-holidays", "/users", "/feature-flags", "/integrations/jira"]);
-    // The Jira leaf is ADMIN only: a regular session never sees it (the route sits under RequireAdmin too).
-    expect(visibleSections(false).flatMap((s) => s.items.map((l) => l.to))).not.toContain("/integrations/jira");
+    expect(admin?.items.map((l) => l.to)).toEqual(["/teams", "/people", "/public-holidays", "/users", "/feature-flags", "/integrations/jira", "/integrations/flow"]);
+    // The Jira and Flow leaves are ADMIN only: a regular session never sees them (the routes sit under RequireAdmin too).
+    const regular = visibleSections(false).flatMap((s) => s.items.map((l) => l.to));
+    expect(regular).not.toContain("/integrations/jira");
+    expect(regular).not.toContain("/integrations/flow");
+  });
+
+  test("the Flow leaf is findable in the palette by what it is for: flow, capacity, roster", () => {
+    const flow = visibleSections(true).flatMap((s) => s.items).find((l) => l.to === "/integrations/flow");
+    expect(flow?.label).toBe("appShell.nav.flow");
+    expect(flow?.keywords).toEqual(["flow", "capacity", "roster"]);
   });
 
   test("Planning sits above Administration and holds the Plan, Roadmap, Programs, Baselines and Deviations leaves for everyone", () => {
@@ -38,6 +46,7 @@ describe("activeNavPath", () => {
   test("resolves the longest matching prefix", () => {
     expect(activeNavPath("/users/new", leaves)).toBe("/users");
     expect(activeNavPath("/integrations/jira/3", leaves)).toBe("/integrations/jira");
+    expect(activeNavPath("/integrations/flow/3", leaves)).toBe("/integrations/flow");
     expect(activeNavPath("/users/3/edit", leaves)).toBe("/users");
     expect(activeNavPath("/feature-flags", leaves)).toBe("/feature-flags");
     expect(activeNavPath("/teams/3", leaves)).toBe("/teams");

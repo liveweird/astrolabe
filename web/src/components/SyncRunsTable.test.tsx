@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { renderWithProviders, screen, within } from "../test/render";
 import { run } from "../test/jira";
+import { run as flowRun } from "../test/flow";
 import { ApiError } from "../api/http";
 import SyncRunsTable from "./SyncRunsTable";
 
@@ -66,5 +67,14 @@ describe("SyncRunsTable", () => {
   test("a failed load renders the alert above the table", () => {
     renderRuns(undefined, { isError: true, error: new ApiError(500, null) });
     expect(screen.getByRole("alert")).toHaveTextContent("Could not load the runs");
+  });
+
+  test("a Flow run words its counts as teams and its failure in Flow's words", () => {
+    renderRuns([flowRun({ outcome: "FAILED", errorCode: "AUTHENTICATION_FAILED", observedCount: 0, goneCount: 0, callCount: 1 })], { kind: "FLOW" });
+    const table = screen.getByRole("table", { name: "Recent runs" });
+    expect(within(table).getByRole("columnheader", { name: "Teams" })).toBeInTheDocument();
+    expect(within(table).getByRole("columnheader", { name: "Linked teams gone" })).toBeInTheDocument();
+    expect(within(table).queryByRole("columnheader", { name: "Observed" })).not.toBeInTheDocument();
+    expect(within(table).getByText(/Flow rejected the token: it was revoked or expired - issue a new one in Flow and update the connection \(AUTHENTICATION_FAILED\)/)).toBeInTheDocument();
   });
 });

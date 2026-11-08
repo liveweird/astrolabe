@@ -1,6 +1,7 @@
 import type { ParseKeys, TFunction } from "i18next";
 import type { JiraAuthScheme, JiraConnection, JiraConnectionRequest } from "../api/jira";
 import { nameRule } from "./formRules";
+import { pollIntervalRule, validPollInterval, type PollingValues } from "./pollingForm";
 import { saveErrorMessage } from "./saveError";
 
 // Server limits (jira/JiraConnection.kt) mirrored client-side.
@@ -10,9 +11,7 @@ const MAX_JIRA_EMAIL_LENGTH = 254;
 export const MAX_API_TOKEN_LENGTH = 1000;
 const MIN_PROJECT_KEYS = 1;
 export const MAX_PROJECT_KEYS = 50;
-/** The polling interval's bounds and default, in minutes (`MIN/MAX/DEFAULT_POLL_INTERVAL_MINUTES` in `JiraConnection.kt`). */
-export const MIN_POLL_INTERVAL_MINUTES = 5;
-export const MAX_POLL_INTERVAL_MINUTES = 1440;
+/** The polling interval's default, in minutes (`DEFAULT_POLL_INTERVAL_MINUTES` in `JiraConnection.kt`; the bounds are `pollingForm.ts`'s). */
 export const DEFAULT_POLL_INTERVAL_MINUTES = 15;
 
 /** The Jira Cloud project-key shape: one uppercase letter, then 1-9 uppercase letters/digits/underscores. */
@@ -42,11 +41,7 @@ export type JiraFormValues = {
   authScheme: JiraAuthScheme;
   projectKeys: string[];
   enabled: boolean;
-  /** Minutes between scheduled runs. A NumberInput hands back a string while it holds no number (cleared, or half typed). Ignored while {@link manualOnly}. */
-  pollIntervalMinutes: number | string;
-  /** No polling: the wire carries an explicit `null`. */
-  manualOnly: boolean;
-};
+} & PollingValues;
 
 export const EMPTY_JIRA_FORM: JiraFormValues = {
   name: "",
@@ -74,13 +69,6 @@ export function fromJiraConnection(connection: JiraConnection): JiraFormValues {
     pollIntervalMinutes: connection.pollIntervalMinutes ?? DEFAULT_POLL_INTERVAL_MINUTES,
     manualOnly: connection.pollIntervalMinutes === null,
   };
-}
-
-/** The interval a NumberInput value stands for: a whole number of minutes inside the server's bounds, else null. */
-function validPollInterval(value: number | string): number | null {
-  if (typeof value === "string" && value.trim() === "") return null;
-  const minutes = Number(value);
-  return Number.isInteger(minutes) && minutes >= MIN_POLL_INTERVAL_MINUTES && minutes <= MAX_POLL_INTERVAL_MINUTES ? minutes : null;
 }
 
 /**
@@ -113,8 +101,7 @@ export function jiraFormValidation(t: TFunction, isEdit: boolean) {
       return new Set(value).size === value.length ? null : t("jira.validation.projectKeysDistinct");
     },
     // The server's rule: 5..1440 minutes, or null for manual only (then the number is not looked at).
-    pollIntervalMinutes: (value: number | string, values: JiraFormValues) =>
-      values.manualOnly || validPollInterval(value) !== null ? null : t("jira.validation.pollInterval"),
+    pollIntervalMinutes: pollIntervalRule(t),
   };
 }
 

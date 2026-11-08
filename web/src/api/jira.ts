@@ -12,7 +12,6 @@ export type JiraConnectionPage = Schemas["JiraConnectionPage"];
 export type JiraConnection = Schemas["JiraConnection"];
 export type JiraConnectionRequest = Schemas["JiraConnectionRequest"];
 export type JiraTestResult = Schemas["JiraTestResult"];
-export type JiraTestRow = Schemas["JiraTestRow"];
 export type JiraDiscovery = Schemas["JiraDiscovery"];
 export type JiraDiscoveredField = Schemas["JiraDiscoveredField"];
 export type JiraMapping = Schemas["JiraMapping"];

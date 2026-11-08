@@ -1,5 +1,5 @@
 import type { ParseKeys, TFunction } from "i18next";
-import type { SyncOutcome } from "../api/sync";
+import type { SyncKind, SyncOutcome } from "../api/sync";
 
 /** The poll period while a run is running. */
 export const RUN_POLL_MS = 3_000;
@@ -79,11 +79,39 @@ const ERROR_CODE_KEYS = {
   ABANDONED: "jira.errorCode.ABANDONED",
 } as const satisfies Record<string, ParseKeys>;
 
+/**
+ * The codes a Flow run or probe row words differently from Jira's (Flow's token is a service token, its one 401 is uniform, the origin list is
+ * the operator's); every other code a Flow run can carry (`CONNECTION_GONE`, `CONNECTION_DISABLED`, `TOKEN_UNREADABLE`, `RUN_DEADLINE`,
+ * `SHUTDOWN`, `INTERNAL`, `ABANDONED`) reads as the shared sentence above.
+ */
+const FLOW_ERROR_CODE_KEYS = {
+  AUTHENTICATION_FAILED: "flow.errorCode.AUTHENTICATION_FAILED",
+  NOT_FOUND: "flow.errorCode.NOT_FOUND",
+  RATE_LIMITED: "flow.errorCode.RATE_LIMITED",
+  UPSTREAM_UNAVAILABLE: "flow.errorCode.UPSTREAM_UNAVAILABLE",
+  TIMEOUT: "flow.errorCode.TIMEOUT",
+  BUSY: "flow.errorCode.BUSY",
+  INVALID_RESPONSE: "flow.errorCode.INVALID_RESPONSE",
+  LIMIT_EXCEEDED: "flow.errorCode.LIMIT_EXCEEDED",
+  BLOCKED_HOST: "flow.errorCode.BLOCKED_HOST",
+  REDIRECT: "flow.errorCode.REDIRECT",
+  TIME_ZONE_INVALID: "flow.errorCode.TIME_ZONE_INVALID",
+} as const satisfies Record<string, ParseKeys>;
+
 function isKnownErrorCode(code: string): code is keyof typeof ERROR_CODE_KEYS {
   return Object.hasOwn(ERROR_CODE_KEYS, code);
 }
 
-/** "Jira refused the credentials (AUTHENTICATION_FAILED)": the human sentence with the code kept visible; an unknown code reads as itself. */
-export function errorCodeText(code: string, t: TFunction): string {
+function isFlowErrorCode(code: string): code is keyof typeof FLOW_ERROR_CODE_KEYS {
+  return Object.hasOwn(FLOW_ERROR_CODE_KEYS, code);
+}
+
+/**
+ * "Jira refused the credentials (AUTHENTICATION_FAILED)": the human sentence with the code kept visible; an unknown code reads as itself.
+ * `kind` picks the connector's wording (`FLOW` for a Flow run or probe row; Jira's by default, unchanged); a code the Flow table does not
+ * word reads as the shared sentence.
+ */
+export function errorCodeText(code: string, t: TFunction, kind: SyncKind = "JIRA"): string {
+  if (kind === "FLOW" && isFlowErrorCode(code)) return `${t(FLOW_ERROR_CODE_KEYS[code])} (${code})`;
   return isKnownErrorCode(code) ? `${t(ERROR_CODE_KEYS[code])} (${code})` : code;
 }

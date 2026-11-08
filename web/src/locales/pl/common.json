@@ -90,5 +90,11 @@
   "permissionHint": {
     "ROADMAP_EDITOR": "Może ustalać ranking projektów na roadmapie i ustawiać okno docelowe dowolnego projektu."
   },
-  "loading": "Ładowanie…"
+  "loading": "Ładowanie…",
+  "polling": {
+    "legend": "Odpytywanie",
+    "interval": "Odstęp odpytywania (minuty)",
+    "manualOnly": "Tylko ręcznie (bez odpytywania)",
+    "invalid": "Odstęp odpytywania musi być całkowitą liczbą minut od 5 do 1440"
+  }
 }

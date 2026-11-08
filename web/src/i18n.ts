@@ -16,6 +16,7 @@ import enChangelog from "./locales/en/changelog.json";
 import enDeviations from "./locales/en/deviations.json";
 import enUsers from "./locales/en/users.json";
 import enHome from "./locales/en/home.json";
+import enFlow from "./locales/en/flow.json";
 import enJira from "./locales/en/jira.json";
 import enPeople from "./locales/en/people.json";
 import enPlan from "./locales/en/plan.json";
@@ -70,6 +71,7 @@ export const en = {
   deviations: enDeviations,
   users: enUsers,
   home: enHome,
+  flow: enFlow,
   jira: enJira,
   people: enPeople,
   plan: enPlan,

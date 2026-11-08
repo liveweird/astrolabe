@@ -1,0 +1,147 @@
+{
+  "title": "Flow connections",
+  "intro": "The Flow instances Astrolabe reads team capacity and rosters from. Astrolabe only reads from Flow; nothing is ever written back. Administrators manage the connections.",
+  "newConnection": "New connection",
+  "createTitle": "New Flow connection",
+  "editTitle": "Edit Flow connection",
+  "empty": "No Flow connections yet",
+  "loadFailed": "Could not load the Flow connections",
+  "notFound": "This Flow connection does not exist (or was deleted).",
+  "backToConnections": "Back to Flow connections",
+  "openAria": "Open connection {{name}}",
+  "open": "Open",
+  "disabled": "Disabled",
+  "yes": "Yes",
+  "no": "No",
+  "testConnection": "Test connection",
+  "refreshNow": "Refresh now",
+  "column": {
+    "baseUrl": "Base URL",
+    "timeZone": "Time zone",
+    "lastTest": "Last test (UTC)",
+    "status": "Status",
+    "lastRun": "Last run (UTC)",
+    "enabled": "Enabled"
+  },
+  "field": {
+    "baseUrl": "Base URL",
+    "baseUrlHint": "Flow's address exactly as the operator listed it, for example https://flow.example.com. A capital letter, a default port or a trailing slash is corrected for you.",
+    "baseUrlFixed": "The address is the connection's identity and cannot change. Create a new connection for another Flow.",
+    "timeZone": "Time zone",
+    "timeZoneHint": "The IANA zone (Europe/Warsaw) that turns Flow's sprint and membership instants into dates; use the zone Flow's metrics run in.",
+    "apiToken": "Service token",
+    "apiTokenHint": "A Flow service token (flow_int_ followed by 43 characters), issued in Flow under Administration. It is stored encrypted and never shown again.",
+    "apiTokenKeep": "A token is stored. Leave blank to keep the current token, or enter a new one to replace it.",
+    "apiTokenMissing": "No token is stored. Enter one.",
+    "enabled": "Enabled",
+    "pollIntervalHint": "How often Astrolabe reads Flow on its own: every 5 minutes up to once a day (1440); a sprint calendar changes a few times a week, so the default is hourly. A connection that is disabled or not yet tested is not polled."
+  },
+  "validation": {
+    "nameLength": "Name must be 1–100 characters",
+    "baseUrlInvalid": "Enter Flow's address as an origin only: http:// or https://, the host and an optional port, with no path, query or credentials",
+    "timeZoneInvalid": "Enter an IANA time zone such as Europe/Warsaw (a bare offset such as +02:00 is not one)",
+    "apiTokenRequired": "The service token is required",
+    "apiTokenInvalid": "A Flow service token is flow_int_ followed by 43 characters"
+  },
+  "saveForbidden": "Only administrators can manage Flow connections",
+  "saveConflict": "A connection with this name already exists",
+  "saveInvalid": "One or more fields are invalid",
+  "saveGone": "This connection no longer exists — reload the page",
+  "deleteTitle": "Delete connection?",
+  "deleteBody": "“{{name}}” will be deleted with its run history and its copy of Flow's teams, sprints and members, and every link between an Astrolabe team and a Flow team made through it will be unlinked. Capacity already imported stays. Nothing is changed in Flow.",
+  "deleteBodyNoLinks": "“{{name}}” will be deleted with its run history and its copy of Flow's teams, sprints and members. No team was linked in its last read. Nothing is changed in Flow.",
+  "deleteBodyLinks_one": "“{{name}}” will be deleted with its run history and its copy of Flow's data, and its {{count}} team link will be unlinked. Capacity already imported stays. Nothing is changed in Flow.",
+  "deleteBodyLinks_other": "“{{name}}” will be deleted with its run history and its copy of Flow's data, and its {{count}} team links will be unlinked. Capacity already imported stays. Nothing is changed in Flow.",
+  "deleteFailed": "Could not delete the connection",
+  "toast": {
+    "created": "Connection created",
+    "saved": "Connection saved",
+    "savedRetest": "Connection saved. Test it again, the settings changed",
+    "deleted": "Connection deleted",
+    "refreshStarted": "Refresh started",
+    "linked": "Team linked",
+    "unlinked": "Team unlinked"
+  },
+  "probe": {
+    "me": "Service token",
+    "teams": "Teams document",
+    "stored_token": "Stored token"
+  },
+  "test": {
+    "document": "Flow's document · teams: {{teams}} · sprints: {{sprints}}",
+    "truncated": "Flow cut its document at its limits (1,000 teams, 2,000 sprints). A run keeps what arrived and logs a warning.",
+    "rateLimited": "Too many tests in a minute. Wait a moment and try again.",
+    "failedGeneric": "The test could not run. Check your connection and try again."
+  },
+  "errorCode": {
+    "AUTHENTICATION_FAILED": "Flow rejected the token: it was revoked or expired - issue a new one in Flow and update the connection",
+    "NOT_FOUND": "Flow does not serve this endpoint; it needs Flow 1.57.0 or later",
+    "RATE_LIMITED": "Flow is rate limiting this token; try again later",
+    "UPSTREAM_UNAVAILABLE": "Flow is unavailable",
+    "TIMEOUT": "Flow did not answer in time",
+    "BUSY": "Too many Flow calls are in flight; try again in a moment",
+    "INVALID_RESPONSE": "Flow sent an answer that could not be read",
+    "LIMIT_EXCEEDED": "Flow's answer passed a safety limit",
+    "BLOCKED_HOST": "Flow's address is not on the operator's list of allowed origins",
+    "REDIRECT": "Flow answered with a redirect, which is refused",
+    "TIME_ZONE_INVALID": "The connection's time zone is not known to this server; correct it"
+  },
+  "runs": {
+    "column": {
+      "observed": "Teams",
+      "gone": "Linked teams gone"
+    }
+  },
+  "details": {
+    "factsAria": "Connection facts",
+    "connection": "Connection",
+    "tokenStored": "A token is stored",
+    "tokenMissing": "No token is stored",
+    "lastTest": "Last test (UTC)",
+    "neverTested": "Never tested",
+    "testedBefore": "Not tested since the connection was last changed",
+    "teamsAt": "Teams observed (UTC)"
+  },
+  "refresh": {
+    "invalid": "This connection cannot be refreshed (it is disabled or gone)",
+    "disabled": "The connection is disabled.",
+    "alreadyRunning": "A refresh is already running for this connection. Its progress shows in the table below.",
+    "running": "A refresh is running. The table below updates by itself."
+  },
+  "teams": {
+    "title": "Teams",
+    "intro": "The Flow teams this connection last read. Link each to the Astrolabe team it stands for: a linked team can import its capacity from Flow and shows Flow's roster.",
+    "tableAria": "Flow teams",
+    "loadFailed": "Could not load the Flow teams",
+    "empty": "Refresh the connection first",
+    "emptyHint": "No Flow data has been read yet. Use Refresh now above (test the connection first if it has not been tested).",
+    "observedAt": "Observed (UTC)",
+    "summary": "Flow teams: {{teams}} · linked: {{linked}} · with a suggestion: {{suggested}}",
+    "column": {
+      "name": "Flow team",
+      "members": "Memberships",
+      "sprints": "Sprints",
+      "linked": "Astrolabe team",
+      "actions": "Actions"
+    },
+    "suggested": "Suggested: {{name}}",
+    "noMatch": "No team of this name",
+    "link": "Link",
+    "linkAria": "Link {{flowTeam}} to {{team}}",
+    "linkAll": "Link all suggested",
+    "disabledNote": "The connection is disabled: teams cannot be linked until it is enabled.",
+    "unlink": "Unlink",
+    "unlinkAria": "Unlink {{flowTeam}}",
+    "unlinkTitle": "Unlink team?",
+    "unlinkBody": "Astrolabe team “{{team}}” will no longer be linked to Flow team “{{flowTeam}}”. Capacity already imported stays. Nothing is changed in Flow.",
+    "unlinkFailed": "Could not unlink the team",
+    "unlinkForbidden": "Only administrators or the team's manager can unlink it",
+    "unlinkGone": "This link no longer exists — it was already removed",
+    "linkForbidden": "Only administrators or the team's manager can link it",
+    "linkConflict": "The link conflicts with an existing one",
+    "linkInvalid": "The link was refused: refresh the connection and try again",
+    "linkFailed": "Could not link the team",
+    "matchResult": "{{linked}} linked, {{noMatch}} without a unique match, {{already}} linked already.",
+    "matchFailed": "Could not link the suggested teams"
+  }
+}

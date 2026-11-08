@@ -2,8 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { listSyncRuns, type SyncKind, type SyncRun } from "../api/sync";
 import { useBoundedPoll } from "./useBoundedPoll";
 
-/** The query key of one connection's runs: under the `["jira"]` prefix the connection page's mutations refresh. */
-export const syncRunsKey = (kind: SyncKind, connectionId: number) => ["jira", "runs", kind, connectionId] as const;
+/** The query key of one connection's runs: under the connector's own prefix (`["jira"]`, `["flow"]`) the connection page's mutations refresh. */
+export const syncRunsKey = (kind: SyncKind, connectionId: number) => [kind === "FLOW" ? "flow" : "jira", "runs", kind, connectionId] as const;
 
 /** The id of the newest run that is running (the list is newest first), or null: what the poll's safety latch is keyed on. */
 function newestLiveRunId(runs: readonly SyncRun[] | undefined): string | null {

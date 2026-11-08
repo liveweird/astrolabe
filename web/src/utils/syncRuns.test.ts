@@ -62,5 +62,32 @@ describe("errorCodeText", () => {
 
   test("an unknown code reads as itself", () => {
     expect(errorCodeText("SOMETHING_NEW", t)).toBe("SOMETHING_NEW");
+    expect(errorCodeText("SOMETHING_NEW", t, "FLOW")).toBe("SOMETHING_NEW");
   });
+
+  test("a Flow run words the codes the Flow way; Jira's wording is unchanged", () => {
+    expect(errorCodeText("AUTHENTICATION_FAILED", t, "FLOW")).toBe(
+      "Flow rejected the token: it was revoked or expired - issue a new one in Flow and update the connection (AUTHENTICATION_FAILED)",
+    );
+    expect(errorCodeText("AUTHENTICATION_FAILED", t)).toBe("Jira refused the credentials (AUTHENTICATION_FAILED)");
+    expect(errorCodeText("AUTHENTICATION_FAILED", t, "JIRA")).toBe("Jira refused the credentials (AUTHENTICATION_FAILED)");
+  });
+
+  test.each(["AUTHENTICATION_FAILED", "NOT_FOUND", "RATE_LIMITED", "UPSTREAM_UNAVAILABLE", "TIMEOUT", "BUSY", "INVALID_RESPONSE", "LIMIT_EXCEEDED", "BLOCKED_HOST", "REDIRECT", "TIME_ZONE_INVALID"])(
+    "Flow's %s has its own sentence, with the code kept visible and no mention of Jira",
+    (code) => {
+      const text = errorCodeText(code, t, "FLOW");
+      expect(text.endsWith(`(${code})`)).toBe(true);
+      expect(text).not.toMatch(/Jira/);
+    },
+  );
+
+  test.each(["TOKEN_UNREADABLE", "CONNECTION_GONE", "CONNECTION_DISABLED", "RUN_DEADLINE", "SHUTDOWN", "INTERNAL", "ABANDONED"])(
+    "%s on a Flow run reads as the shared sentence",
+    (code) => {
+      expect(errorCodeText(code, t, "FLOW")).toBe(errorCodeText(code, t));
+      // No code a Flow run can carry may name Jira.
+      expect(errorCodeText(code, t, "FLOW")).not.toMatch(/Jira/);
+    },
+  );
 });

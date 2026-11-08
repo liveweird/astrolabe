@@ -1,0 +1,149 @@
+{
+  "title": "Połączenia z Flow",
+  "intro": "Instancje Flow, z których Astrolabe czyta moce przerobowe i składy zespołów. Astrolabe tylko czyta z Flow; niczego tam nie zapisuje. Połączeniami zarządzają administratorzy/rki.",
+  "newConnection": "Nowe połączenie",
+  "createTitle": "Nowe połączenie z Flow",
+  "editTitle": "Edycja połączenia z Flow",
+  "empty": "Nie ma jeszcze połączeń z Flow",
+  "loadFailed": "Nie udało się wczytać połączeń z Flow",
+  "notFound": "To połączenie z Flow nie istnieje (albo ktoś je usunął).",
+  "backToConnections": "Wróć do połączeń z Flow",
+  "openAria": "Otwórz połączenie {{name}}",
+  "open": "Otwórz",
+  "disabled": "Wyłączone",
+  "yes": "Tak",
+  "no": "Nie",
+  "testConnection": "Testuj połączenie",
+  "refreshNow": "Odśwież teraz",
+  "column": {
+    "baseUrl": "Adres bazowy",
+    "timeZone": "Strefa czasowa",
+    "lastTest": "Ostatni test (UTC)",
+    "status": "Stan",
+    "lastRun": "Ostatni przebieg (UTC)",
+    "enabled": "Włączone"
+  },
+  "field": {
+    "baseUrl": "Adres bazowy",
+    "baseUrlHint": "Adres Flow dokładnie taki, jaki wpisał operator na liście, na przykład https://flow.example.com. Wielką literę, domyślny port i ukośnik na końcu poprawimy za Ciebie.",
+    "baseUrlFixed": "Adres jest tożsamością połączenia i nie można go zmienić. Dla innego Flow utwórz nowe połączenie.",
+    "timeZone": "Strefa czasowa",
+    "timeZoneHint": "Strefa IANA (Europe/Warsaw), która zamienia momenty sprintów i członkostw z Flow na daty; użyj strefy, w której działają metryki Flow.",
+    "apiToken": "Token usługi",
+    "apiTokenHint": "Token usługi Flow (flow_int_ i 43 znaki), wystawiony w Flow w sekcji Administracja. Zapisujemy go zaszyfrowany i nigdy więcej nie pokazujemy.",
+    "apiTokenKeep": "Token jest zapisany. Zostaw pole puste, żeby zachować obecny token, albo wpisz nowy, żeby go zastąpić.",
+    "apiTokenMissing": "Nie zapisano tokenu. Wpisz go.",
+    "enabled": "Włączone",
+    "pollIntervalHint": "Jak często Astrolabe sam odczytuje Flow: od 5 minut do doby (1440); kalendarz sprintów zmienia się kilka razy w tygodniu, więc domyślnie odczyt jest co godzinę. Połączenie wyłączone albo jeszcze nie przetestowane nie jest odpytywane."
+  },
+  "validation": {
+    "nameLength": "Nazwa musi mieć od 1 do 100 znaków",
+    "baseUrlInvalid": "Wpisz sam adres Flow jako źródło: http:// lub https://, host i opcjonalnie port, bez ścieżki, zapytania i danych logowania",
+    "timeZoneInvalid": "Wpisz strefę czasową IANA, na przykład Europe/Warsaw (samo przesunięcie, jak +02:00, nią nie jest)",
+    "apiTokenRequired": "Token usługi jest wymagany",
+    "apiTokenInvalid": "Token usługi Flow to flow_int_ i 43 znaki"
+  },
+  "saveForbidden": "Tylko administratorzy/rki mogą zarządzać połączeniami z Flow",
+  "saveConflict": "Połączenie o tej nazwie już istnieje",
+  "saveInvalid": "Jedno lub więcej pól jest nieprawidłowe",
+  "saveGone": "To połączenie już nie istnieje — odśwież stronę",
+  "deleteTitle": "Usunąć połączenie?",
+  "deleteBody": "Usuniemy połączenie „{{name}}” razem z historią przebiegów i kopią zespołów, sprintów i członków z Flow oraz odepniemy wszystkie powiązania zespołów Astrolabe z zespołami Flow, które przez nie powstały. Zaimportowane moce przerobowe zostaną. W Flow nic się nie zmieni.",
+  "deleteBodyNoLinks": "Usuniemy połączenie „{{name}}” razem z historią przebiegów i kopią zespołów, sprintów i członków z Flow. W jego ostatnim odczycie żaden zespół nie był powiązany. W Flow nic się nie zmieni.",
+  "deleteBodyLinks_one": "Usuniemy połączenie „{{name}}” razem z historią przebiegów i kopią danych z Flow oraz odepniemy jego {{count}} powiązanie zespołu. Zaimportowane moce przerobowe zostaną. W Flow nic się nie zmieni.",
+  "deleteBodyLinks_few": "Usuniemy połączenie „{{name}}” razem z historią przebiegów i kopią danych z Flow oraz odepniemy jego {{count}} powiązania zespołów. Zaimportowane moce przerobowe zostaną. W Flow nic się nie zmieni.",
+  "deleteBodyLinks_many": "Usuniemy połączenie „{{name}}” razem z historią przebiegów i kopią danych z Flow oraz odepniemy jego {{count}} powiązań zespołów. Zaimportowane moce przerobowe zostaną. W Flow nic się nie zmieni.",
+  "deleteBodyLinks_other": "Usuniemy połączenie „{{name}}” razem z historią przebiegów i kopią danych z Flow oraz odepniemy jego {{count}} powiązania zespołów. Zaimportowane moce przerobowe zostaną. W Flow nic się nie zmieni.",
+  "deleteFailed": "Nie udało się usunąć połączenia",
+  "toast": {
+    "created": "Utworzono połączenie",
+    "saved": "Zapisano połączenie",
+    "savedRetest": "Zapisano połączenie. Przetestuj je ponownie, bo ustawienia się zmieniły",
+    "deleted": "Usunięto połączenie",
+    "refreshStarted": "Rozpoczęto odświeżanie",
+    "linked": "Powiązano zespół",
+    "unlinked": "Odpięto zespół"
+  },
+  "probe": {
+    "me": "Token usługi",
+    "teams": "Dokument zespołów",
+    "stored_token": "Zapisany token"
+  },
+  "test": {
+    "document": "Dokument z Flow · zespoły: {{teams}} · sprinty: {{sprints}}",
+    "truncated": "Flow obciął swój dokument na limitach (1000 zespołów, 2000 sprintów). Przebieg zachowuje to, co dotarło, i zapisuje ostrzeżenie w dzienniku.",
+    "rateLimited": "Za dużo testów w ciągu minuty. Poczekaj chwilę i spróbuj ponownie.",
+    "failedGeneric": "Nie udało się uruchomić testu. Sprawdź połączenie i spróbuj ponownie."
+  },
+  "errorCode": {
+    "AUTHENTICATION_FAILED": "Flow odrzucił token: został unieważniony albo wygasł - wystaw nowy w Flow i zaktualizuj połączenie",
+    "NOT_FOUND": "Flow nie udostępnia tego punktu końcowego; potrzebny jest Flow 1.57.0 lub nowszy",
+    "RATE_LIMITED": "Flow ogranicza ten token; spróbuj później",
+    "UPSTREAM_UNAVAILABLE": "Flow jest niedostępny",
+    "TIMEOUT": "Flow nie odpowiedział na czas",
+    "BUSY": "Zbyt wiele wywołań Flow naraz; spróbuj za chwilę",
+    "INVALID_RESPONSE": "Flow przysłał odpowiedź, której nie dało się odczytać",
+    "LIMIT_EXCEEDED": "Odpowiedź z Flow przekroczyła limit bezpieczeństwa",
+    "BLOCKED_HOST": "Adresu Flow nie ma na liście dozwolonych źródeł operatora",
+    "REDIRECT": "Flow odpowiedział przekierowaniem, którego nie przyjmujemy",
+    "TIME_ZONE_INVALID": "Serwer nie zna strefy czasowej tego połączenia; popraw ją"
+  },
+  "runs": {
+    "column": {
+      "observed": "Zespoły",
+      "gone": "Powiązane zespoły, które zniknęły"
+    }
+  },
+  "details": {
+    "factsAria": "Dane połączenia",
+    "connection": "Połączenie",
+    "tokenStored": "Token jest zapisany",
+    "tokenMissing": "Nie zapisano tokenu",
+    "lastTest": "Ostatni test (UTC)",
+    "neverTested": "Nie testowano",
+    "testedBefore": "Nie testowano od ostatniej zmiany połączenia",
+    "teamsAt": "Zespoły odczytano (UTC)"
+  },
+  "refresh": {
+    "invalid": "Tego połączenia nie można odświeżyć (jest wyłączone albo go nie ma)",
+    "disabled": "Połączenie jest wyłączone.",
+    "alreadyRunning": "Odświeżanie tego połączenia już trwa. Jego postęp widać w tabeli poniżej.",
+    "running": "Trwa odświeżanie. Tabela poniżej aktualizuje się sama."
+  },
+  "teams": {
+    "title": "Zespoły",
+    "intro": "Zespoły Flow, które to połączenie odczytało ostatnim razem. Powiąż każdy z zespołem Astrolabe, który reprezentuje: powiązany zespół może zaimportować moc przerobową z Flow i pokazuje skład z Flow.",
+    "tableAria": "Zespoły Flow",
+    "loadFailed": "Nie udało się wczytać zespołów Flow",
+    "empty": "Najpierw odśwież połączenie",
+    "emptyHint": "Nie odczytano jeszcze żadnych danych z Flow. Użyj „Odśwież teraz” powyżej (jeśli połączenie nie było testowane, najpierw je przetestuj).",
+    "observedAt": "Odczytano (UTC)",
+    "summary": "Zespoły Flow: {{teams}} · powiązane: {{linked}} · z propozycją: {{suggested}}",
+    "column": {
+      "name": "Zespół Flow",
+      "members": "Członkostwa",
+      "sprints": "Sprinty",
+      "linked": "Zespół Astrolabe",
+      "actions": "Akcje"
+    },
+    "suggested": "Propozycja: {{name}}",
+    "noMatch": "Brak zespołu o tej nazwie",
+    "link": "Powiąż",
+    "linkAria": "Powiąż {{flowTeam}} z {{team}}",
+    "linkAll": "Powiąż wszystkie proponowane",
+    "disabledNote": "Połączenie jest wyłączone: zespołów nie można powiązać, dopóki go nie włączysz.",
+    "unlink": "Odepnij",
+    "unlinkAria": "Odepnij {{flowTeam}}",
+    "unlinkTitle": "Odpiąć zespół?",
+    "unlinkBody": "Zespół Astrolabe „{{team}}” przestanie być powiązany z zespołem Flow „{{flowTeam}}”. Zaimportowane moce przerobowe zostaną. W Flow nic się nie zmieni.",
+    "unlinkFailed": "Nie udało się odpiąć zespołu",
+    "unlinkForbidden": "Tylko administratorzy/rki albo kierownik/czka zespołu mogą go odpiąć",
+    "unlinkGone": "To powiązanie już nie istnieje — zostało usunięte",
+    "linkForbidden": "Tylko administratorzy/rki albo kierownik/czka zespołu mogą go powiązać",
+    "linkConflict": "Powiązanie koliduje z już istniejącym",
+    "linkInvalid": "Powiązanie odrzucono: odśwież połączenie i spróbuj ponownie",
+    "linkFailed": "Nie udało się powiązać zespołu",
+    "matchResult": "Powiązano: {{linked}}, bez jednoznacznego dopasowania: {{noMatch}}, już powiązanych: {{already}}.",
+    "matchFailed": "Nie udało się powiązać proponowanych zespołów"
+  }
+}

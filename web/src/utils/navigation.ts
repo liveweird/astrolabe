@@ -1,8 +1,9 @@
 import type { ParseKeys } from "i18next";
-import { IconAddressBook, IconCalendarOff, IconCamera, IconGitCompare, IconHistory, IconHome2, IconKey, IconListNumbers, IconListTree, IconPlugConnected, IconSitemap, IconToggleLeft, IconUsers, IconUsersGroup, type Icon } from "@tabler/icons-react";
+import { IconActivity, IconAddressBook, IconCalendarOff, IconCamera, IconGitCompare, IconHistory, IconHome2, IconKey, IconListNumbers, IconListTree, IconPlugConnected, IconSitemap, IconToggleLeft, IconUsers, IconUsersGroup, type Icon } from "@tabler/icons-react";
 import { baselinesPath } from "./baselineLinks";
 import { deviationsPath } from "./deviationLinks";
 import { publicHolidaysPath } from "./calendarLinks";
+import { flowConnectionsPath } from "./flowLinks";
 import { jiraConnectionsPath } from "./jiraLinks";
 import { peoplePath } from "./peopleLinks";
 import { planPath, programsPath, roadmapPath } from "./planLinks";
@@ -40,7 +41,7 @@ export const homePath = "/";
  * deep links address the links directly, and a static label costs less vertical space than a
  * toggle. Home, Plan, Roadmap, Programs, Baselines and Deviations (the Planning section, readable by everyone) are visible to everyone; the Administration section holds Teams, People and Public holidays (everyone reads
  * the flat teams list, the people directory and the holiday dictionary; only their create/edit/delete are ADMIN) alongside the ADMIN-only Users,
- * Feature flags and Jira (the connections registry) leaves — a non-admin session sees just Teams, People and Public holidays there.
+ * Feature flags, Jira and Flow (the connections registries) leaves — a non-admin session sees just Teams, People and Public holidays there.
  */
 const NAV_SECTIONS: ReadonlyArray<NavSection> = [
   {
@@ -66,6 +67,7 @@ const NAV_SECTIONS: ReadonlyArray<NavSection> = [
       { to: usersPath, label: "appShell.nav.users", icon: IconUsers, adminOnly: true },
       { to: "/feature-flags", label: "appShell.nav.featureFlags", icon: IconToggleLeft, adminOnly: true },
       { to: jiraConnectionsPath, label: "appShell.nav.jira", icon: IconPlugConnected, adminOnly: true },
+      { to: flowConnectionsPath, label: "appShell.nav.flow", icon: IconActivity, adminOnly: true, keywords: ["flow", "capacity", "roster"] },
     ],
   },
 ];

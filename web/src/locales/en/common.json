@@ -90,5 +90,11 @@
   "permissionHint": {
     "ROADMAP_EDITOR": "May rank the projects on the roadmap and set the target window of any project."
   },
-  "loading": "Loading…"
+  "loading": "Loading…",
+  "polling": {
+    "legend": "Polling",
+    "interval": "Polling interval (minutes)",
+    "manualOnly": "Manual only (no polling)",
+    "invalid": "The polling interval must be a whole number of minutes from 5 to 1440"
+  }
 }

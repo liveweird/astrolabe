@@ -1,7 +1,7 @@
 import { Badge, Table, Text } from "@mantine/core";
 import { IconListDetails } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
-import type { SyncRun } from "../api/sync";
+import type { SyncKind, SyncRun } from "../api/sync";
 import { formatDateTime } from "../utils/formatDate";
 import { errorCodeText, RUN_STATE_COLOR, runState } from "../utils/syncRuns";
 import EmptyState from "./EmptyState";
@@ -22,11 +22,14 @@ export default function SyncRunsTable({
   isLoading,
   isError,
   error,
+  kind = "JIRA",
 }: {
   runs: readonly SyncRun[] | undefined;
   isLoading: boolean;
   isError: boolean;
   error: unknown;
+  /** The connector: words the two count columns (a Flow run observes teams, not issues) and the error codes. */
+  kind?: SyncKind;
 }) {
   const { t } = useTranslation();
   const label = t("jira.runs.tableAria");
@@ -41,8 +44,8 @@ export default function SyncRunsTable({
               <Table.Th>{t("jira.runs.column.finished")}</Table.Th>
               <Table.Th>{t("jira.runs.column.trigger")}</Table.Th>
               <Table.Th>{t("jira.runs.column.outcome")}</Table.Th>
-              <Table.Th ta="right">{t("jira.runs.column.observed")}</Table.Th>
-              <Table.Th ta="right">{t("jira.runs.column.gone")}</Table.Th>
+              <Table.Th ta="right">{t(kind === "FLOW" ? "flow.runs.column.observed" : "jira.runs.column.observed")}</Table.Th>
+              <Table.Th ta="right">{t(kind === "FLOW" ? "flow.runs.column.gone" : "jira.runs.column.gone")}</Table.Th>
               <Table.Th ta="right">{t("jira.runs.column.calls")}</Table.Th>
               <Table.Th>{t("jira.runs.column.error")}</Table.Th>
             </Table.Tr>
@@ -88,7 +91,7 @@ export default function SyncRunsTable({
                     </Table.Td>
                     <Table.Td>
                       {run.errorCode ? (
-                        <Text size="sm">{errorCodeText(run.errorCode, t)}</Text>
+                        <Text size="sm">{errorCodeText(run.errorCode, t, kind)}</Text>
                       ) : (
                         <Text size="sm" c="dimmed">
                           —

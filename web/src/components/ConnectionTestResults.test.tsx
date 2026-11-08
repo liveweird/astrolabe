@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { renderWithProviders, screen, within } from "../test/render";
 import { FAILING_TEST, PASSING_TEST } from "../test/jira";
+import { PASSING_TEST as FLOW_PASSING, REVOKED_TEST } from "../test/flow";
 import ConnectionTestResults from "./ConnectionTestResults";
 
 describe("ConnectionTestResults", () => {
@@ -56,5 +57,49 @@ describe("ConnectionTestResults", () => {
     expect(within(screen.getByText("tenant_info").closest("tr")!).getByText("Failed")).toBeInTheDocument();
     expect(screen.getAllByText("Failed")).toHaveLength(1);
     expect(screen.getAllByText("Skipped")).toHaveLength(2);
+  });
+
+  describe("a Flow result", () => {
+    test("the probes are worded, the document's size is told, and there is no Jira scope note or cloud id", () => {
+      renderWithProviders(<ConnectionTestResults result={FLOW_PASSING} kind="FLOW" />);
+      const table = screen.getByRole("table", { name: "Connection test results" });
+      expect(within(table).getByText("Service token")).toBeInTheDocument();
+      expect(within(table).getByText("Teams document")).toBeInTheDocument();
+      expect(within(table).getByText("/api/v1/integration/me")).toBeInTheDocument();
+      expect(within(table).getAllByText("OK")).toHaveLength(2);
+      expect(screen.getByText("Flow's document · teams: 18 · sprints: 640")).toBeInTheDocument();
+      expect(screen.queryByRole("note")).not.toBeInTheDocument();
+      expect(screen.queryByText(/Cloud id/)).not.toBeInTheDocument();
+    });
+
+    test("a revoked token reads in Flow's words next to a Skipped teams row, and a 401 never says 'missing scope'", () => {
+      renderWithProviders(<ConnectionTestResults result={REVOKED_TEST} kind="FLOW" />);
+      const me = screen.getByText("Service token").closest("tr")!;
+      expect(within(me).getByText("Failed")).toBeInTheDocument();
+      expect(
+        within(me).getByText("401 · Flow rejected the token: it was revoked or expired - issue a new one in Flow and update the connection (AUTHENTICATION_FAILED)"),
+      ).toBeInTheDocument();
+      // The version hint belongs to a 404 alone, and is that sentence's own words: a Flow row never repeats it as a hint.
+      expect(within(me).queryByText(/1\.57/)).not.toBeInTheDocument();
+      const teams = screen.getByText("Teams document").closest("tr")!;
+      expect(within(teams).getByText("Skipped")).toBeInTheDocument();
+      expect(within(teams).getByText("Not run: an earlier probe failed")).toBeInTheDocument();
+      expect(screen.queryByRole("note")).not.toBeInTheDocument();
+      expect(screen.queryByText(/Flow's document:/)).not.toBeInTheDocument();
+    });
+
+    test("a 404 says Flow 1.57.0 once, in the code's sentence, not again as a hint", () => {
+      const rows = [{ name: "me", path: "/api/v1/integration/me", required: true, ok: false, status: 404, code: "NOT_FOUND", scopeHint: "Flow 1.57.0 or later" }];
+      renderWithProviders(<ConnectionTestResults result={{ ...FLOW_PASSING, rows }} kind="FLOW" />);
+      const text = screen.getByText(/^404 · /).textContent!;
+      expect(text).toBe("404 · Flow does not serve this endpoint; it needs Flow 1.57.0 or later (NOT_FOUND)");
+    });
+
+    test("a truncated document is an orange note; an unknown probe name reads as itself", () => {
+      const rows = [...FLOW_PASSING.rows, { name: "extra", path: "/x", required: false, ok: true }];
+      renderWithProviders(<ConnectionTestResults result={{ ...FLOW_PASSING, rows, truncated: true }} kind="FLOW" />);
+      expect(screen.getByRole("note")).toHaveTextContent(/Flow cut its document at its limits/);
+      expect(screen.getByText("extra")).toBeInTheDocument();
+    });
   });
 });

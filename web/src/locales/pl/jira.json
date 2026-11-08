@@ -36,10 +36,7 @@
     "projectKeysHint": "Projekty Jiry w zakresie (od 1 do 50). Wpisz klucz i naciśnij Enter.",
     "authScheme": "Uwierzytelnianie",
     "enabled": "Włączone",
-    "polling": "Odpytywanie",
-    "pollInterval": "Odstęp odpytywania (minuty)",
-    "pollIntervalHint": "Jak często Astrolabe sam odczytuje Jirę: od 5 minut do doby (1440). Połączenie wyłączone albo jeszcze nie przetestowane nie jest odpytywane.",
-    "manualOnly": "Tylko ręcznie (bez odpytywania)"
+    "pollIntervalHint": "Jak często Astrolabe sam odczytuje Jirę: od 5 minut do doby (1440). Połączenie wyłączone albo jeszcze nie przetestowane nie jest odpytywane."
   },
   "authScheme": {
     "BASIC": "E-mail konta + token API (Basic)",
@@ -54,8 +51,7 @@
     "apiTokenTooLong": "Token API może mieć najwyżej 1000 znaków",
     "projectKeysCount": "Wpisz od 1 do 50 kluczy projektów",
     "projectKeysInvalid": "„{{key}}” nie jest kluczem projektu Jiry (wielkie litery, cyfry i podkreślenia, od 2 do 10 znaków, zaczyna się literą)",
-    "projectKeysDistinct": "Każdy klucz projektu można podać tylko raz",
-    "pollInterval": "Odstęp odpytywania musi być całkowitą liczbą minut od 5 do 1440"
+    "projectKeysDistinct": "Każdy klucz projektu można podać tylko raz"
   },
   "saveForbidden": "Tylko administratorzy/rki mogą zarządzać połączeniami z Jirą",
   "saveConflict": "Połączenie o tej nazwie już istnieje",

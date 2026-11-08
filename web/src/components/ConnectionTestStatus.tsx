@@ -1,14 +1,13 @@
 import { Text } from "@mantine/core";
 import { useTranslation } from "react-i18next";
-import type { JiraTestResult } from "../api/jira";
-import { isSkipped } from "../utils/connectionTestRows";
+import { isSkipped, type TestRow } from "../utils/connectionTestRows";
 
 /**
  * The polite status region that SAYS what a Test connection came to ("Test passed. OK: 8 of 8."), so a screen reader hears the verdict
  * when the result table appears under it. The region is always mounted (a live region announces changes to what it already holds); it is
  * empty while no result is shown. A test passes when no REQUIRED probe failed; failed optional probes are counted on top.
  */
-export default function ConnectionTestStatus({ result }: { result: JiraTestResult | null }) {
+export default function ConnectionTestStatus<R extends { rows: readonly TestRow[] }>({ result }: { result: R | null }) {
   const { t } = useTranslation();
   let text: string | null = null;
   if (result) {

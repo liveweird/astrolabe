@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { jsonResponse } from "../test/http";
 import { run } from "../test/jira";
 import { IDLE_REFRESH_MS, RUN_POLL_MAX_MS, RUN_POLL_MS } from "../utils/syncRuns";
-import { useSyncRuns } from "./useSyncRuns";
+import { syncRunsKey, useSyncRuns } from "./useSyncRuns";
 
 /** Advances the fake clock inside `act`, so the hook's state updates are flushed like in the browser. */
 const advance = (ms: number) => act(async () => { await vi.advanceTimersByTimeAsync(ms); });
@@ -143,5 +143,15 @@ describe("useSyncRuns polling", () => {
     await advance(RUN_POLL_MS * 3);
     expect(calls()).toBeGreaterThanOrEqual(afterClaim + 3);
     expect(result.current.runs?.[0].id).toBe(8);
+  });
+
+  test("a Flow connection's runs are read with kind=FLOW and cached under the Flow prefix, so a Flow write never refreshes Jira's runs", async () => {
+    mockFetch.mockImplementation(() => Promise.resolve(jsonResponse(200, { items: [run({ kind: "FLOW" })] })));
+    const { result } = renderHook(() => useSyncRuns("FLOW", 3, true), { wrapper });
+    await advance(0);
+    expect(mockFetch.mock.calls.some(([url]) => url === "/api/v1/integrations/sync/runs?kind=FLOW&connectionId=3")).toBe(true);
+    expect(result.current.runs).toHaveLength(1);
+    expect(syncRunsKey("FLOW", 3)).toEqual(["flow", "runs", "FLOW", 3]);
+    expect(syncRunsKey("JIRA", 3)).toEqual(["jira", "runs", "JIRA", 3]);
   });
 });

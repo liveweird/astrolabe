@@ -1,79 +1,23 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert, Anchor, Badge, Button, Group, Stack, Table, Text, Title } from "@mantine/core";
 import { IconPlayerPlay, IconPlugConnected } from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { testJiraConnection, type JiraConnection, type JiraTestResult } from "../api/jira";
 import { isRunInProgress, requestSyncRun } from "../api/sync";
-import { useNow } from "../hooks/useNow";
 import { useSyncRuns, syncRunsKey } from "../hooks/useSyncRuns";
-import { ageText } from "../utils/deviations";
 import { formatDateTime } from "../utils/formatDate";
 import { jiraTestErrorMessage, untestedKey } from "../utils/jiraForm";
 import { jiraSiteUrl } from "../utils/jiraLinks";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { saveErrorMessage } from "../utils/saveError";
 import { IDLE_REFRESH_MS } from "../utils/syncRuns";
-import { isDue, nextPollText, pollingText } from "../utils/syncStatus";
 import { showSuccessToast } from "../utils/toast";
 import ConnectionTestResults from "./ConnectionTestResults";
 import ConnectionTestStatus from "./ConnectionTestStatus";
 import FormErrorAlert from "./FormErrorAlert";
 import SyncRunsTable from "./SyncRunsTable";
-import SyncStatusBadge from "./SyncStatusBadge";
-
-function Fact({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <Table.Tr>
-      <Table.Th scope="row" w="30%">
-        {label}
-      </Table.Th>
-      <Table.Td style={{ overflowWrap: "anywhere" }}>{children}</Table.Td>
-    </Table.Tr>
-  );
-}
-
-/** The sync facts: the derived state, the last success (when the data is as of), when the next poll is and the interval itself. */
-function SyncFacts({ connection, readAt }: { connection: JiraConnection; readAt: number }) {
-  const { t } = useTranslation();
-  const now = useNow(60_000, readAt);
-  const { status } = connection;
-  const context = { status, now, ready: connection.discoveredAt !== null, pollIntervalMinutes: connection.pollIntervalMinutes };
-  const nextText = nextPollText(context, t);
-  return (
-    <>
-      <Fact label={t("jira.details.status")}>
-        <SyncStatusBadge {...context} />
-      </Fact>
-      <Fact label={t("jira.details.lastSuccess")}>
-        {status.lastSucceededAt === null ? (
-          "—"
-        ) : (
-          <>
-            <Text size="sm">{formatDateTime(status.lastSucceededAt)}</Text>
-            <Text size="xs" c="dimmed">
-              {ageText(status.lastSucceededAt, now, t)}
-            </Text>
-          </>
-        )}
-      </Fact>
-      <Fact label={t("jira.details.nextPoll")}>
-        {status.nextPollAt === null || isDue(status, now) ? (
-          // Nothing to date: not polled, or due this moment ("due now" alone; the past instant it was due since would only mislead).
-          (nextText ?? "—")
-        ) : (
-          <>
-            <Text size="sm">{formatDateTime(status.nextPollAt)}</Text>
-            <Text size="xs" c="dimmed">
-              {nextText}
-            </Text>
-          </>
-        )}
-      </Fact>
-      <Fact label={t("jira.details.polling")}>{pollingText(connection.pollIntervalMinutes, t)}</Fact>
-    </>
-  );
-}
+import SyncFacts, { Fact } from "./SyncFacts";
 
 /** The connection's own facts (never the token: only whether one is stored). */
 function ConnectionFacts({ connection, readAt }: { connection: JiraConnection; readAt: number }) {
@@ -96,7 +40,7 @@ function ConnectionFacts({ connection, readAt }: { connection: JiraConnection; r
         <Fact label={t("jira.field.authScheme")}>{t(`jira.authScheme.${connection.authScheme}`)}</Fact>
         <Fact label={t("jira.field.projectKeys")}>{connection.projectKeys.join(", ")}</Fact>
         <Fact label={t("jira.column.enabled")}>{connection.enabled ? t("jira.yes") : t("jira.no")}</Fact>
-        <SyncFacts connection={connection} readAt={readAt} />
+        <SyncFacts status={connection.status} pollIntervalMinutes={connection.pollIntervalMinutes} ready={connection.discoveredAt !== null} readAt={readAt} />
         <Fact label={t("jira.details.lastTest")}>
           {connection.lastTestedAt === null ? (
             t(untestedKey(connection))

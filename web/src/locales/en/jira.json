@@ -36,10 +36,7 @@
     "projectKeysHint": "The Jira projects in scope (1 to 50). Type a key and press Enter.",
     "authScheme": "Authentication",
     "enabled": "Enabled",
-    "polling": "Polling",
-    "pollInterval": "Polling interval (minutes)",
-    "pollIntervalHint": "How often Astrolabe reads Jira on its own: every 5 minutes up to once a day (1440). A connection that is disabled or not yet tested is not polled.",
-    "manualOnly": "Manual only (no polling)"
+    "pollIntervalHint": "How often Astrolabe reads Jira on its own: every 5 minutes up to once a day (1440). A connection that is disabled or not yet tested is not polled."
   },
   "authScheme": {
     "BASIC": "Account email + API token (Basic)",
@@ -54,8 +51,7 @@
     "apiTokenTooLong": "The API token must be at most 1,000 characters",
     "projectKeysCount": "Enter 1 to 50 project keys",
     "projectKeysInvalid": "“{{key}}” is not a Jira project key (capital letters, digits and underscores, 2 to 10 characters, starting with a letter)",
-    "projectKeysDistinct": "Each project key can be listed once",
-    "pollInterval": "The polling interval must be a whole number of minutes from 5 to 1440"
+    "projectKeysDistinct": "Each project key can be listed once"
   },
   "saveForbidden": "Only administrators can manage Jira connections",
   "saveConflict": "A connection with this name already exists",
