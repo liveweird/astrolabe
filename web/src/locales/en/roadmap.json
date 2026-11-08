@@ -37,7 +37,11 @@
     "editWindow": "Edit target window…",
     "editWindowAria": "Edit target window of {{name}}",
     "clearWindow": "Clear target window",
-    "clearWindowAria": "Clear target window of {{name}}"
+    "clearWindowAria": "Clear target window of {{name}}",
+    "showCritical": "Show critical path to this project",
+    "showCriticalAria": "Show critical path to this project: {{name}}",
+    "hideCritical": "Hide critical path",
+    "hideCriticalAria": "Hide critical path: {{name}}"
   },
   "rank": {
     "was": "(was {{rank}})",
@@ -111,6 +115,24 @@
     "ranked": "{{name}} ranked at position {{position}} of {{count}}",
     "unranked": "{{name}} removed from the ranking",
     "windowSet": "{{name}}: target window {{start}} to {{end}}",
-    "windowCleared": "{{name}}: target window cleared"
+    "windowCleared": "{{name}}: target window cleared",
+    "criticalShown": "Showing the critical path to {{name}}",
+    "criticalCleared": "Critical path hidden"
+  },
+  "critical": {
+    "pickerLabel": "Critical path to…",
+    "none": "None",
+    "unknown": "The project chosen for the critical path is no longer in the plan, so the choice was cleared.",
+    "title": "Critical path to {{name}}",
+    "intro": "The projects upstream of {{name}}, from the plan's dates; those with no slack drive its end. Projects hidden by the filters are listed too.",
+    "target": "Target: {{name}}, {{start}} to {{end}}.",
+    "nothingScheduled": "Nothing is scheduled in {{name}}, so no chain drives its end.",
+    "noUpstream": "No other project is upstream of {{name}}.",
+    "count": "Projects upstream: {{total}}, on the chain: {{critical}}.",
+    "tableAria": "Projects upstream of {{name}}",
+    "notShown": "(not shown)",
+    "column": {
+      "program": "Program"
+    }
   }
 }

@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { Alert, Badge, Group, Loader, Stack, Text, Title, VisuallyHidden } from "@mantine/core";
 import { IconFilterOff, IconListNumbers } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
-import { roadmapViewKey, type RoadmapView } from "../api/roadmap";
+import { roadmapViewKey, type RoadmapProject, type RoadmapView } from "../api/roadmap";
 import BaselinePicker from "../components/BaselinePicker";
 import BaselineTotals from "../components/BaselineTotals";
 import { ShowWithoutBaseline } from "../components/BaselineParts";
@@ -13,6 +13,8 @@ import FormErrorAlert from "../components/FormErrorAlert";
 import JiraBarsToggle from "../components/JiraBarsToggle";
 import LoadingBlock from "../components/LoadingBlock";
 import PageHeader from "../components/PageHeader";
+import RoadmapCriticalChain from "../components/RoadmapCriticalChain";
+import RoadmapCriticalPicker from "../components/RoadmapCriticalPicker";
 import RoadmapFilterFields from "../components/RoadmapFilters";
 import RoadmapFlagPanel from "../components/RoadmapFlagPanel";
 import RoadmapTimeline, { type RoadmapActions } from "../components/RoadmapTimeline";
@@ -20,6 +22,7 @@ import TargetWindowModal from "../components/TargetWindowModal";
 import type { TimelineHandle } from "../components/Timeline";
 import TimelineDndContext from "../components/TimelineDndContext";
 import { useBaselinePick, useDropUnknownPick } from "../hooks/useBaselinePick";
+import { isRejectedTarget, useCriticalTarget } from "../hooks/useCriticalTarget";
 import { useJiraBarsPick } from "../hooks/useJiraBarsPick";
 import { usePlanScale } from "../hooks/usePlanScale";
 import { useProgramPick } from "../hooks/useProgramPick";
@@ -80,13 +83,17 @@ export default function Roadmap() {
   // v0.9: the baseline pick (one for every timeline page) keys the view's query - the ranking's and the window write path's optimistic steps too; the
   // typed 400 "unknown baseline" clears it.
   const { pick, setPick } = useBaselinePick();
-  const ranking = useRoadmapRanking(pick);
+  // 1.7: the project the critical path is shown toward (page-local, not stored): a key part of the view's query, like the pick. A 400 for it (the
+  // project is gone) clears it and the page says so; the key change fetches the plain view.
+  const critical = useCriticalTarget();
+  const ranking = useRoadmapRanking(pick, critical.target);
   const { view, query } = ranking;
   const dropping = useDropUnknownPick(query.error, pick, setPick);
+  if (critical.target !== null && isRejectedTarget(query.error)) critical.reject();
   // The target window's write path: the other write on this page's cached view (one mutation key with the ranking: never two at once).
   const windowWrite = useTargetWindow({
     view,
-    queryKey: roadmapViewKey(pick),
+    queryKey: roadmapViewKey(pick, critical.target),
     apply: applyRoadmapWindow,
     nameOf: (current, id) => allProjects(current).find((project) => project.id === id)?.name,
     announce: ranking.announce,
@@ -112,6 +119,7 @@ export default function Roadmap() {
           {t("roadmap.window.gone")}
         </Alert>
       )}
+      {critical.rejected && <FormErrorAlert>{t("roadmap.critical.unknown")}</FormErrorAlert>}
       {ranking.stale && <FormErrorAlert>{t("roadmap.stale")}</FormErrorAlert>}
       {ranking.error && <FormErrorAlert>{ranking.error}</FormErrorAlert>}
       {windowWrite.error && <FormErrorAlert>{windowWrite.error}</FormErrorAlert>}
@@ -122,7 +130,7 @@ export default function Roadmap() {
 
       {(query.isLoading || dropping) && <LoadingBlock />}
       {empty && <EmptyState icon={IconListNumbers} label={t("roadmap.empty")} hint={t("roadmap.emptyHint")} />}
-      {view && !empty && <RoadmapBody view={view} ranking={ranking} windowWrite={windowWrite} pick={pick} onPick={setPick} />}
+      {view && !empty && <RoadmapBody view={view} ranking={ranking} windowWrite={windowWrite} pick={pick} onPick={setPick} target={critical.target} onTarget={critical.set} />}
     </Stack>
   );
 }
@@ -134,12 +142,17 @@ function RoadmapBody({
   windowWrite,
   pick: baselinePick,
   onPick,
+  target,
+  onTarget,
 }: {
   view: RoadmapView;
   ranking: ReturnType<typeof useRoadmapRanking>;
   windowWrite: ReturnType<typeof useTargetWindow>;
   pick: number | null;
   onPick: (id: number | null) => void;
+  /** The critical-path target (1.7) and its setter. */
+  target: number | null;
+  onTarget: (id: number | null) => void;
 }) {
   const { t } = useTranslation();
   const { filters: storedFilters, set: setFilters } = useRoadmapFilters();
@@ -171,6 +184,12 @@ function RoadmapBody({
     setEditingId(null);
     focus.restore(id);
   };
+  // The critical path toward `project` (or none): said in the live region, since the change is a bar outline and a panel.
+  const showCriticalTo = (project: RoadmapProject | null) => {
+    onTarget(project?.id ?? null);
+    ranking.announce(project === null ? t("roadmap.announce.criticalCleared") : t("roadmap.announce.criticalShown", { name: project.name }));
+  };
+  const pickCriticalTarget = (id: number | null) => showCriticalTo(allProjects(view).find((project) => project.id === id) ?? null);
   const actions: RoadmapActions = {
     menuClosed: (project) => focus.menuClosed(project.id),
     move: (project, delta) => focus.keep(project.id, ranking.move(project.id, delta, visibleRankedIds)),
@@ -181,6 +200,7 @@ function RoadmapBody({
       edit: (project) => setEditingId(project.id),
       clear: (project) => focus.keep(project.id, windowWrite.commit(project.id, null, null, { announce: true })),
     },
+    critical: { target, disabled: ranking.pending, toggle: (project) => showCriticalTo(project.id === target ? null : project) },
   };
 
   const projects = new Map(allProjects(view).map((project) => [project.id, project.name]));
@@ -235,6 +255,7 @@ function RoadmapBody({
               toolbar={
                 <>
                   <BaselinePicker pick={baselinePick} onPick={onPick} current={view.baseline} disabled={ranking.pending} />
+                  <RoadmapCriticalPicker view={view} target={target} onPick={pickCriticalTarget} disabled={ranking.pending} />
                   {view.jiraSites.length > 0 && <JiraBarsToggle shown={jiraBars.shown} onChange={jiraBars.setShown} />}
                 </>
               }
@@ -244,6 +265,8 @@ function RoadmapBody({
       )}
 
       <RoadmapFlagPanel entries={flagEntries(visible)} names={names} jiraSites={view.jiraSites} onShow={(projectId) => timelineRef.current?.focusRow(projectId)} />
+
+      <RoadmapCriticalChain view={view} shown={new Set([...visible.ranked.map((entry) => entry.project.id), ...visible.unranked.map((project) => project.id)])} />
 
       {editing !== undefined && (
         <TargetWindowModal

@@ -35,9 +35,21 @@ describe("roadmap API wrappers", () => {
     expect(lastCall()[0]).toBe("/api/v1/views/roadmap");
   });
 
-  test("the cached view's key carries the pick, under the roadmap prefix", () => {
-    expect(roadmapViewKey(null)).toEqual(["roadmap", "view", { baseline: null }]);
+  test("getRoadmapView asks for the critical path toward a project with ?criticalPath=, beside ?baseline= (1.7)", async () => {
+    mockFetch.mockImplementation(() => Promise.resolve(jsonResponse(200, { revision: 4, can: { editRank: true }, ranked: [], unranked: [] })));
+    await getRoadmapView(null, 7);
+    expect(lastCall()[0]).toBe("/api/v1/views/roadmap?criticalPath=7");
+    await getRoadmapView(5, 7);
+    expect(lastCall()[0]).toBe("/api/v1/views/roadmap?baseline=5&criticalPath=7");
+    await getRoadmapView(5, null);
+    expect(lastCall()[0]).toBe("/api/v1/views/roadmap?baseline=5");
+  });
+
+  test("the cached view's key carries the pick and the critical-path target, under the roadmap prefix", () => {
+    expect(roadmapViewKey(null)).toEqual(["roadmap", "view", { baseline: null, criticalPath: null }]);
     expect(roadmapViewKey(5)).not.toEqual(roadmapViewKey(null));
+    expect(roadmapViewKey(5, 7)).toEqual(["roadmap", "view", { baseline: 5, criticalPath: 7 }]);
+    expect(roadmapViewKey(null, 7)).not.toEqual(roadmapViewKey(null, 8));
   });
 
   test("putRanking PUTs the complete list with the expected revision and answers the new revision", async () => {

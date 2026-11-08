@@ -12,7 +12,8 @@ import type { TeamView } from "../api/teams";
 import { jsonResponse } from "../test/http";
 
 // v0.9: the write paths with a baseline pick. The view's cache key carries the pick, so a write must (a) never start from the previous pick's
-// placeholder copy, (b) roll back into the entry it was made on, and (c) store its answered revision into EVERY cached pick entry of the view.
+// placeholder copy, (b) roll back into the entry it was made on, and (c) store its answered revision into the entry it was made on (the ranking: and
+// into no other - a sibling entry keeps its old order AND its old revision, `useRoadmapRanking.test.tsx`).
 
 vi.mock("../utils/toast", () => ({ showSuccessToast: vi.fn() }));
 
@@ -209,7 +210,7 @@ describe("the roadmap ranking with a baseline pick", () => {
   const roadmap = (): RoadmapView =>
     ({ revision: serverRevision, can: { editRank: true }, teams: [], links: [], ranked: [{ position: 1, project: project(1) }, { position: 2, project: project(2) }], unranked: [], baseline: { id: 5, name: "Q1", planRevision: 4, removedProjects: [] } }) as unknown as RoadmapView;
 
-  test("a success stores the ranking revision into every pick's entry; the placeholder copy has no overlay anywhere and takes no write", async () => {
+  test("a success stores the ranking revision into the entry the change was made on only; the placeholder copy has no overlay anywhere and takes no write", async () => {
     mockFetch.mockImplementation((url: string, init?: RequestInit) => {
       if (init?.method === "PUT") {
         puts.push({ url, body: JSON.parse(init.body as string) });
@@ -224,8 +225,9 @@ describe("the roadmap ranking with a baseline pick", () => {
     const { result, rerender } = renderHook(({ pick }: { pick: number | null }) => useRoadmapRanking(pick), { wrapper, initialProps: { pick: 5 as number | null } });
     await waitFor(() => expect(result.current.view?.baseline).toBeDefined());
     act(() => void result.current.move(2, -1, [1, 2]));
-    await waitFor(() => expect(client.getQueryData<RoadmapView>(roadmapViewKey(null))?.revision).toBe(8));
-    expect(client.getQueryData<RoadmapView>(roadmapViewKey(5))?.revision).toBe(8);
+    await waitFor(() => expect(client.getQueryData<RoadmapView>(roadmapViewKey(5))?.revision).toBe(8));
+    // the other pick's entry still holds the old order, so it keeps the old revision (a write from it is answered 409, never accepted)
+    expect(client.getQueryData<RoadmapView>(roadmapViewKey(null))?.revision).toBe(7);
     expect(puts).toEqual([{ url: "/api/v1/roadmap/ranking", body: { projectIds: [2, 1], expectedRevision: 7 } }]);
     await waitFor(() => expect(result.current.pending).toBe(false));
     // A -> B while B loads: no project row (nor the top-level block) still carries A's overlay, and a ranking change is refused
@@ -243,5 +245,39 @@ describe("the roadmap ranking with a baseline pick", () => {
       next.release(jsonResponse(200, roadmap()));
     });
     await waitFor(() => expect(result.current.placeholder).toBe(false));
+  });
+});
+
+describe("the roadmap ranking with a critical-path target (1.7)", () => {
+  const project = (id: number) => ({ id, name: `p${id}`, rankPosition: id, span: null });
+  const chain = { projectId: 2, projects: [{ projectId: 1, slackDays: 0, critical: true, hops: 1 }], pairs: [{ predecessorProjectId: 1, successorProjectId: 2 }] };
+  const roadmap = (): RoadmapView =>
+    ({ revision: 7, can: { editRank: true }, teams: [], links: [], ranked: [{ position: 1, project: project(1) }, { position: 2, project: project(2) }], unranked: [], criticalPath: chain }) as unknown as RoadmapView;
+
+  test("the optimistic step keeps the cached criticalPath block; the entry is the target's; the previous target's copy shows no chain and takes no write", async () => {
+    putGate = new Promise<Response>(() => undefined);
+    mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+      if (init?.method === "PUT") return putGate!;
+      const gate = [...held].find(([suffix]) => url.endsWith(suffix));
+      return gate ? gate[1].promise : Promise.resolve(jsonResponse(200, roadmap()));
+    });
+    const { result, rerender } = renderHook(({ target }: { target: number | null }) => useRoadmapRanking(null, target), { wrapper, initialProps: { target: 2 as number | null } });
+    await waitFor(() => expect(result.current.view?.criticalPath).toEqual(chain));
+    act(() => void result.current.move(2, -1, [1, 2]));
+    // the PUT is still running: the step wrote the new order into THIS target's entry and left the chain untouched
+    const step = client.getQueryData<RoadmapView>(roadmapViewKey(null, 2));
+    expect(step?.ranked.map((entry) => entry.project.id)).toEqual([2, 1]);
+    expect(step?.criticalPath).toEqual(chain);
+    expect(client.getQueryData<RoadmapView>(roadmapViewKey(null))).toBeUndefined();
+    // another target while it loads: the old chain belongs to the old target, so the copy shown carries none
+    const next = hold("?criticalPath=3");
+    rerender({ target: 3 });
+    await waitFor(() => expect(result.current.placeholder).toBe(true));
+    expect(result.current.view).toBeDefined();
+    expect(result.current.view).not.toHaveProperty("criticalPath");
+    await act(async () => {
+      next.release(jsonResponse(200, { ...roadmap(), criticalPath: { ...chain, projectId: 3 } }));
+    });
+    await waitFor(() => expect(result.current.view?.criticalPath?.projectId).toBe(3));
   });
 });

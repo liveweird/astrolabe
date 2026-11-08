@@ -140,7 +140,8 @@
       "kind": "Kind",
       "project": "Project",
       "dates": "Dates",
-      "slack": "Slack"
+      "slack": "Slack",
+      "chain": "Critical"
     }
   },
   "summaryTag": "(whole project)",

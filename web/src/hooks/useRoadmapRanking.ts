@@ -2,6 +2,7 @@ import { useState } from "react";
 import { keepPreviousData, useIsMutating, useMutation, useQuery, useQueryClient, type QueryKey } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { getRoadmapView, isStaleRevision, putRanking, roadmapViewKey, type RoadmapView } from "../api/roadmap";
+import { withoutCriticalPath } from "../utils/roadmapCritical";
 import { allProjects } from "../utils/roadmapRows";
 import { appendId, applyRanking, moveAmongVisible, rankingAfterDrop, removeId, sameIds } from "../utils/roadmapOrder";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
@@ -14,9 +15,6 @@ import { useRefusal } from "./useRefusal";
  * `useTargetWindow` - so two optimistic writes see each other in flight and the second is refused (out loud) instead of rolling the first back.
  */
 export const ROADMAP_WRITE_KEY = ["roadmap", "write"] as const;
-
-/** Every pick's entry of the roadmap view (the key without the baseline pick). */
-const ROADMAP_VIEW_ENTRIES = ["roadmap", "view"] as const;
 
 /** Zero-width space: toggled on the live-region text so the same sentence twice is announced twice. */
 const REREAD = "​";
@@ -43,15 +41,19 @@ type SaveVariables = { ids: number[]; expectedRevision: number; before: RoadmapV
  * Every entry point answers whether the change was TAKEN. The moves take the ids of the VISIBLE ranked rows (`visible`: a filter hides some of the
  * ranking) and put the row among them (`moveAmongVisible`); a change that leaves the list as it is (a drop beside the row itself) is taken
  * without a PUT. `announcement` is the live-region sentence for the last non-drag change (a drag is announced by dnd-kit itself, and only by it).
+ * The cached entry is keyed by the baseline pick and the critical-path target (1.7); the optimistic steps spread the view, so its `baseline` and
+ * `criticalPath` blocks are kept until the refetch brings the server's.
  */
-export function useRoadmapRanking(baseline: number | null) {
+export function useRoadmapRanking(baseline: number | null, criticalPath: number | null = null) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   // The key carries the baseline pick (v0.9): the ranking's optimistic step, its rollback and the window path all hit the entry the page shows.
   // `keepPreviousData` keeps the page mounted while another pick loads; the old pick's overlay is dropped from that copy.
-  const viewKey = roadmapViewKey(baseline);
-  const query = useQuery({ queryKey: viewKey, queryFn: () => getRoadmapView(baseline), placeholderData: keepPreviousData });
-  const view = withoutStaleOverlay(query.data, query.isPlaceholderData);
+  // 1.7: so does the critical-path target (a page-local question); its block, like the baseline's, belongs to the entry that fetched it.
+  const viewKey = roadmapViewKey(baseline, criticalPath);
+  const query = useQuery({ queryKey: viewKey, queryFn: () => getRoadmapView(baseline, criticalPath), placeholderData: keepPreviousData });
+  const overlaid = withoutStaleOverlay(query.data, query.isPlaceholderData);
+  const view = overlaid !== undefined && query.isPlaceholderData ? withoutCriticalPath(overlaid) : overlaid;
   const [announcement, setAnnouncement] = useState("");
   /** An identical sentence said twice would not be re-read: every announcement flips an invisible suffix. */
   const announce = (text: string) => setAnnouncement((previous) => (previous.endsWith(REREAD) ? text : text + REREAD));
@@ -59,9 +61,11 @@ export function useRoadmapRanking(baseline: number | null) {
   const save = useMutation({
     mutationKey: ROADMAP_WRITE_KEY,
     mutationFn: ({ ids, expectedRevision }: SaveVariables) => putRanking({ projectIds: ids, expectedRevision }),
-    onSuccess: ({ revision }) => {
-      // The ranking's revision into every pick's entry (the page may show another pick's by now): none keeps the old one for the next write.
-      queryClient.setQueriesData<RoadmapView>({ queryKey: ROADMAP_VIEW_ENTRIES }, (current) => current && { ...current, revision });
+    onSuccess: ({ revision }, { key }) => {
+      // The new revision into the entry the change was made on - the one holding the new order - and into no other: a sibling entry (another
+      // pick or target visited earlier) still holds the OLD order, so it keeps the old revision and a write made from it before its refetch lands
+      // is answered 409 by the server instead of reverting this one. (The page may have moved on to another pick by now; this entry is still right.)
+      queryClient.setQueryData<RoadmapView>(key, (current) => current && { ...current, revision });
       // Not awaited: the save is over, so the next change may go at once; its `commit` cancels this refetch.
       void refreshQueriesAfterMutation(queryClient, ["roadmap"]);
     },

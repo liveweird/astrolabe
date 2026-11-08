@@ -68,6 +68,27 @@ describe("projectTrack: what the viewer may do with the window", () => {
   });
 });
 
+describe("projectTrack: the critical path (1.7)", () => {
+  test("a critical project's span bar is emphasised and says so, after the conflicts and before nothing else", () => {
+    const track = projectTrack(project(), t, new Map([[7, 2]]), null, true);
+    const span = track.bars.find((bar) => bar.id === 7);
+    expect(span).toMatchObject({ emphasis: "critical", tone: "summary", editable: false, describe: "Invoices, 2026-03-02 to 2026-04-10, 2 conflicts, on the critical path" });
+    expect(track.bars.find((bar) => bar.id === "window:7")).not.toHaveProperty("emphasis");
+  });
+
+  test("not critical (the default): no emphasis key and the plain name, the track exactly as before", () => {
+    const plain = projectTrack(project(), t, none, null);
+    expect(plain).toEqual(projectTrack(project(), t, none, null, false));
+    const span = plain.bars.find((bar) => bar.id === 7);
+    expect(span).not.toHaveProperty("emphasis");
+    expect(span?.describe).toBe("Invoices, 2026-03-02 to 2026-04-10");
+  });
+
+  test("a critical project with no span has no bar to outline", () => {
+    expect(projectTrack(project({ span: null }), t, none, null, true).bars.map((bar) => bar.id)).toEqual(["window:7"]);
+  });
+});
+
 describe("projectTrack: the Jira shadow bar (1.3)", () => {
   const WINDOW: JiraWindow = { from: "2025-02-02", to: "2027-04-10" };
   const link = { bindingId: 3, connectionId: 2, issueKey: "E2E-6", start: "2026-03-09", end: "2026-04-03", rollup: null };

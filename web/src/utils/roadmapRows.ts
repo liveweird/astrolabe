@@ -175,19 +175,31 @@ export type ArrowLabels = {
   bundle: (link: RoadmapLink) => string;
 };
 
+/** The key of an ordered project pair in a set of critical pairs (1.7). */
+export const pairKey = (predecessorProjectId: number, successorProjectId: number) => `${predecessorProjectId}-${successorProjectId}`;
+
+const NO_PAIRS: ReadonlySet<string> = new Set();
+
 /**
  * The arrows of the rolled-up links. A pair's `direct` project-to-project link (unless its check is UNSCHEDULED: no dates, nothing to point at) is drawn
  * as its type says on the two span bars, red when VIOLATED; its milestone links are ONE bundle arrow per ordered pair (`bundle:<pred>-<succ>`,
  * end to start), red when any of them is violated. `rowOf` answers the row of a project that has a span bar on this timeline, else `null` and
- * the arrow is left out. The bar of a project's row is the span bar and has the project's id, like the row.
+ * the arrow is left out. The bar of a project's row is the span bar and has the project's id, like the row. `criticalPairs` (1.7, the pairs the server
+ * put on the chain toward the picked project, as `pairKey`s) marks BOTH arrows of such a pair `critical`; without it no spec carries the flag.
  */
-export function arrowSpecsForLinks(links: readonly RoadmapLink[], rowOf: (projectId: number) => number | null, labels: ArrowLabels): TimelineArrowData[] {
+export function arrowSpecsForLinks(
+  links: readonly RoadmapLink[],
+  rowOf: (projectId: number) => number | null,
+  labels: ArrowLabels,
+  criticalPairs: ReadonlySet<string> = NO_PAIRS,
+): TimelineArrowData[] {
   const specs: TimelineArrowData[] = [];
   for (const link of links) {
     const from = rowOf(link.predecessorProjectId);
     const to = rowOf(link.successorProjectId);
     if (from === null || to === null) continue;
     const { direct, milestoneLinks } = link;
+    const emphasis = criticalPairs.has(pairKey(link.predecessorProjectId, link.successorProjectId)) ? { critical: true } : {};
     if (direct !== null && direct.check.status !== "UNSCHEDULED") {
       const [fromKind, toKind] = EDGES[direct.type];
       specs.push({
@@ -196,6 +208,7 @@ export function arrowSpecsForLinks(links: readonly RoadmapLink[], rowOf: (projec
         to: { row: to, bar: to, kind: toKind },
         violated: direct.check.status === "VIOLATED",
         label: labels.direct(link),
+        ...emphasis,
       });
     }
     if (milestoneLinks.count > 0) {
@@ -205,6 +218,7 @@ export function arrowSpecsForLinks(links: readonly RoadmapLink[], rowOf: (projec
         to: { row: to, bar: to, kind: "START" },
         violated: milestoneLinks.violated > 0,
         label: labels.bundle(link),
+        ...emphasis,
       });
     }
   }

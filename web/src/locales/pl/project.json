@@ -162,7 +162,8 @@
       "kind": "Rodzaj",
       "project": "Projekt",
       "dates": "Terminy",
-      "slack": "Luz"
+      "slack": "Luz",
+      "chain": "Krytyczne"
     }
   },
   "summaryTag": "(cały projekt)",

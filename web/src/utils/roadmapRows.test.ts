@@ -15,6 +15,7 @@ import {
   knownFilters,
   knownPick,
   ownerOptions,
+  pairKey,
   pickAmong,
   programOptions,
   visibleProjects,
@@ -231,6 +232,30 @@ describe("arrowSpecsForLinks", () => {
     const both = link(1, 2, { direct: direct(31, "FS", "OK"), milestoneLinks: { count: 1, violated: 0, unscheduled: 0 } });
     expect(arrowSpecsForLinks([both], ALL, LABELS).map((s) => s.id)).toEqual([31, "bundle:1-2"]);
     expect(arrowSpecsForLinks([both], (id) => (id === 1 ? 1 : null), LABELS)).toEqual([]);
+  });
+});
+
+describe("arrowSpecsForLinks: the critical pairs (1.7)", () => {
+  const both = (pred: number, succ: number) => link(pred, succ, { direct: direct(30 + pred, "FS", "OK"), milestoneLinks: { count: 2, violated: 0, unscheduled: 0 } });
+
+  test("both arrows of a pair on the chain are critical, the other pairs' arrows carry no flag at all", () => {
+    const specs = arrowSpecsForLinks([both(1, 2), both(2, 3)], ALL, LABELS, new Set([pairKey(1, 2)]));
+    expect(specs.map((spec) => [spec.id, spec.critical])).toEqual([
+      [31, true],
+      ["bundle:1-2", true],
+      [32, undefined],
+      ["bundle:2-3", undefined],
+    ]);
+    expect(specs[2]).not.toHaveProperty("critical");
+  });
+
+  test("the pair is ordered: the reverse direction is not the chain's", () => {
+    const specs = arrowSpecsForLinks([both(2, 1)], ALL, LABELS, new Set([pairKey(1, 2)]));
+    expect(specs.some((spec) => spec.critical !== undefined)).toBe(false);
+  });
+
+  test("without pairs the specs are exactly the ones drawn before", () => {
+    expect(arrowSpecsForLinks([both(1, 2)], ALL, LABELS, new Set())).toEqual(arrowSpecsForLinks([both(1, 2)], ALL, LABELS));
   });
 });
 

@@ -1,11 +1,12 @@
 import type { ReactNode, Ref } from "react";
 import { Group, Menu, Text, VisuallyHidden } from "@mantine/core";
-import { IconArrowBarDown, IconArrowBarUp, IconArrowDown, IconArrowUp, IconListNumbers, IconX } from "@tabler/icons-react";
+import { IconArrowBarDown, IconArrowBarUp, IconArrowDown, IconArrowUp, IconListNumbers, IconRoute, IconX } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import type { RoadmapProject, RoadmapView } from "../api/roadmap";
 import { useHolidays } from "../hooks/useHolidays";
 import type { JiraWindow } from "../utils/jiraBars";
 import { projectTrack, planArrows } from "../utils/planTrack";
+import { criticalIndex } from "../utils/roadmapCritical";
 import { conflictsByProject, countFlags, displayRows, DIVIDER_ID, type DisplayRow, type VisibleProjects } from "../utils/roadmapRows";
 import type { RovingTarget, TimelineColumn, TimelineRowData } from "../utils/timelineModel";
 import { PLAN_ZOOMS, type TimelineScale, type Zoom } from "../utils/timelineScale";
@@ -26,6 +27,8 @@ export type RoadmapActions = {
   menuClosed: (project: RoadmapProject) => void;
   /** The target window's menu items (shown only for a project whose `can.editTargetWindow` is set): open the dialog / clear the window. */
   window: WindowActions;
+  /** The critical path toward a project (1.7): the menu's "Show critical path to this project" / "Hide critical path"; `target` is the project the page shows it toward. */
+  critical: { target: number | null; toggle: (project: RoadmapProject) => void; disabled: boolean };
 };
 
 /** The sticky left columns: 404 px in all, so the track keeps the width on a laptop (work stream and owner are filters, not columns). The rank column grows to hold "(was 12)" while a baseline is picked. */
@@ -63,7 +66,7 @@ function RankCell({ project, position }: { project: RoadmapProject; position: nu
 /**
  * The row menu of one project: the ranking moves by the view's `can.editRank` (a ranked row: Move up / down / to top / to bottom, disabled at the
  * ends of the VISIBLE ranked rows, and Unrank; an unranked row: Rank, which appends), the target window's items by the project's own
- * `can.editTargetWindow` (Edit target window…, Clear target window), and always a link to the project. This menu is the keyboard and
+ * `can.editTargetWindow` (Edit target window…, Clear target window), the critical path toward this project (1.7) and always a link to the project. This menu is the keyboard and
  * screen-reader path of the row drag and of the band's drag, and its button keeps focus through its own move.
  */
 function ProjectMenu({
@@ -116,6 +119,14 @@ function ProjectMenu({
           <Menu.Divider />
         </>
       )}
+      <Menu.Item
+        leftSection={<IconRoute size={14} />}
+        disabled={actions.critical.disabled}
+        onClick={() => actions.critical.toggle(project)}
+        aria-label={t(actions.critical.target === project.id ? "roadmap.action.hideCriticalAria" : "roadmap.action.showCriticalAria", { name })}
+      >
+        {t(actions.critical.target === project.id ? "roadmap.action.hideCritical" : "roadmap.action.showCritical")}
+      </Menu.Item>
       <TargetWindowItems project={project} actions={actions.window} />
       <OpenProjectItem project={project} />
     </RowActionsMenu>
@@ -182,6 +193,7 @@ export default function RoadmapTimeline({
   ];
   const display = displayRows(visible);
   const conflicts = conflictsByProject(view.links);
+  const chain = criticalIndex(view);
   const rankedCount = visible.ranked.length;
   function rowOf(entry: DisplayRow, index: number): TimelineRowData {
     if (entry.kind === "divider") {
@@ -209,7 +221,7 @@ export default function RoadmapTimeline({
         <FlagCountsCell key="flags" counts={countFlags(project.flags)} />,
         (stop: RovingTarget) => <ProjectMenu project={project} rankedIndex={rankedIndex} rankedCount={rankedCount} canRank={canRank} actions={actions} trigger={stop} />,
       ],
-      ...projectTrack(project, t, conflicts, jira),
+      ...projectTrack(project, t, conflicts, jira, chain.projects.has(project.id)),
     };
   }
 
@@ -217,7 +229,7 @@ export default function RoadmapTimeline({
 
   const withSpan = new Set(display.flatMap((entry) => (entry.kind === "project" && entry.project.span !== null ? [entry.project.id] : [])));
   const names = new Map(display.flatMap((entry) => (entry.kind === "project" ? [[entry.project.id, entry.project.name] as const] : [])));
-  const arrows = planArrows(t, view.links, names, withSpan);
+  const arrows = planArrows(t, view.links, names, withSpan, chain.pairs);
 
   return (
     <Timeline

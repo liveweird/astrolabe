@@ -39,7 +39,11 @@
     "editWindow": "Edytuj okno docelowe…",
     "editWindowAria": "Edytuj okno docelowe: {{name}}",
     "clearWindow": "Wyczyść okno docelowe",
-    "clearWindowAria": "Wyczyść okno docelowe: {{name}}"
+    "clearWindowAria": "Wyczyść okno docelowe: {{name}}",
+    "showCritical": "Pokaż ścieżkę krytyczną do tego projektu",
+    "showCriticalAria": "Pokaż ścieżkę krytyczną do tego projektu: {{name}}",
+    "hideCritical": "Ukryj ścieżkę krytyczną",
+    "hideCriticalAria": "Ukryj ścieżkę krytyczną: {{name}}"
   },
   "rank": {
     "was": "(było {{rank}})",
@@ -131,6 +135,24 @@
     "ranked": "{{name}} dodano do rankingu na pozycji {{position}} z {{count}}",
     "unranked": "{{name}} usunięto z rankingu",
     "windowSet": "{{name}}: okno docelowe od {{start}} do {{end}}",
-    "windowCleared": "{{name}}: okno docelowe wyczyszczono"
+    "windowCleared": "{{name}}: okno docelowe wyczyszczono",
+    "criticalShown": "Pokazano ścieżkę krytyczną do projektu {{name}}",
+    "criticalCleared": "Ukryto ścieżkę krytyczną"
+  },
+  "critical": {
+    "pickerLabel": "Ścieżka krytyczna do…",
+    "none": "Brak",
+    "unknown": "Projekt wybrany do ścieżki krytycznej nie istnieje już w planie, więc wybór wyczyszczono.",
+    "title": "Ścieżka krytyczna do projektu {{name}}",
+    "intro": "Projekty poprzedzające projekt {{name}}, według dat z planu; te bez luzu wyznaczają jego koniec. Projekty ukryte filtrami też są wypisane.",
+    "target": "Cel: {{name}}, od {{start}} do {{end}}.",
+    "nothingScheduled": "W projekcie {{name}} nic nie zaplanowano, więc żaden łańcuch nie wyznacza jego końca.",
+    "noUpstream": "Żaden inny projekt nie leży przed projektem {{name}}.",
+    "count": "Projekty wcześniej w łańcuchu: {{total}}, na łańcuchu krytycznym: {{critical}}.",
+    "tableAria": "Projekty przed projektem {{name}}",
+    "notShown": "(ukryty filtrami)",
+    "column": {
+      "program": "Program"
+    }
   }
 }

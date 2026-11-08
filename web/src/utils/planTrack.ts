@@ -27,7 +27,7 @@ const withConflicts = (t: TFunction, describe: string, count: number) => (count 
  * while a baseline is picked, the shadow bar of the span the baseline froze and, while the "Jira dates" toggle is on (`jira`, the page's window), the shadow bar of
  * the dates Jira holds (1.3; only for a project whose link carries both, cut at the window).
  */
-function barsOf(project: RoadmapProject, t: TFunction, conflicts: number, jira: JiraWindow | null): TimelineBarData[] {
+function barsOf(project: RoadmapProject, t: TFunction, conflicts: number, jira: JiraWindow | null, critical: boolean): TimelineBarData[] {
   const { id, name, targetStart, targetEnd, span } = project;
   const bars: TimelineBarData[] = [];
   if (targetStart !== null && targetEnd !== null) {
@@ -42,7 +42,13 @@ function barsOf(project: RoadmapProject, t: TFunction, conflicts: number, jira: 
     });
   }
   if (span !== null) {
-    bars.push({ id, start: span.start, end: span.end, label: name, describe: withConflicts(t, t("roadmap.barAria", { name, start: span.start, end: span.end }), conflicts), editable: false, tone: "summary" });
+    const describe = withConflicts(t, t("roadmap.barAria", { name, start: span.start, end: span.end }), conflicts);
+    // 1.7: the target of the picked critical path and every project on its chain: the span bar is outlined (and says so), like a critical milestone's.
+    bars.push(
+      critical
+        ? { id, start: span.start, end: span.end, label: name, describe: `${describe}, ${t("timeline.bar.critical")}`, editable: false, tone: "summary", emphasis: "critical" }
+        : { id, start: span.start, end: span.end, label: name, describe, editable: false, tone: "summary" },
+    );
   }
   // v0.9: with `?baseline=` a project the baseline also froze carries the span it had then - a thin shadow bar under the span bar, named with its dates and movement.
   const frozen = project.baseline;
@@ -61,15 +67,17 @@ function bandsOf(project: RoadmapProject, t: TFunction): TimelineBandData[] {
 /**
  * What a project's row draws on its track: the window and span bars, the drift band and, for a viewer who may set the window of a project that has
  * none, the draw surface (a drag across the empty row proposes `onSchedule(window:<id>, start, end)`, the same seam as moving the band).
- * `conflicts` = the violated links ending on each project (`conflictsByProject`); `jira` = the page's Jira window while the "Jira dates" toggle is on (`jiraWindow`), else `null`.
+ * `conflicts` = the violated links ending on each project (`conflictsByProject`); `jira` = the page's Jira window while the "Jira dates" toggle is on (`jiraWindow`), else `null`;
+ * `critical` (1.7, the roadmap's picked critical path) = the project is the target or on its chain: its span bar gets the critical emphasis.
  */
 export function projectTrack(
   project: RoadmapProject,
   t: TFunction,
   conflicts: ReadonlyMap<number, number>,
   jira: JiraWindow | null,
+  critical = false,
 ): { bars: TimelineBarData[]; bands: TimelineBandData[]; draw?: TimelineDrawData } {
-  const track = { bars: barsOf(project, t, conflicts.get(project.id) ?? 0, jira), bands: bandsOf(project, t) };
+  const track = { bars: barsOf(project, t, conflicts.get(project.id) ?? 0, jira, critical), bands: bandsOf(project, t) };
   const drawable = project.can.editTargetWindow && (project.targetStart === null || project.targetEnd === null);
   return drawable ? { ...track, draw: { barId: windowBarId(project.id), label: project.name } } : track;
 }
@@ -77,12 +85,20 @@ export function projectTrack(
 /**
  * The arrows between the projects of a page. `names` holds the projects that have a row on the page (their names are the arrows' titles); an
  * arrow is drawn only when both of its projects are in `withSpan` (a row AND a span: the span bar is what an arrow anchors on).
+ * `criticalPairs` (1.7, the roadmap's picked critical path) marks the arrows of those ordered project pairs (`pairKey`s) `critical`.
  */
-export function planArrows(t: TFunction, links: readonly RoadmapLink[], names: ReadonlyMap<number, string>, withSpan: ReadonlySet<number>): TimelineArrowData[] {
+export function planArrows(
+  t: TFunction,
+  links: readonly RoadmapLink[],
+  names: ReadonlyMap<number, string>,
+  withSpan: ReadonlySet<number>,
+  criticalPairs?: ReadonlySet<string>,
+): TimelineArrowData[] {
   const nameOf = (id: number) => names.get(id) ?? "";
-  return arrowSpecsForLinks(links, (projectId) => (withSpan.has(projectId) ? projectId : null), {
-    direct: (link) => `${nameOf(link.predecessorProjectId)} → ${nameOf(link.successorProjectId)}, ${link.direct?.type ?? ""}`,
-    bundle: (link) =>
+  const labels = {
+    direct: (link: RoadmapLink) => `${nameOf(link.predecessorProjectId)} → ${nameOf(link.successorProjectId)}, ${link.direct?.type ?? ""}`,
+    bundle: (link: RoadmapLink) =>
       t("roadmap.bundleLabel", { from: nameOf(link.predecessorProjectId), to: nameOf(link.successorProjectId), count: link.milestoneLinks.count, violated: link.milestoneLinks.violated }),
-  });
+  };
+  return arrowSpecsForLinks(links, (projectId) => (withSpan.has(projectId) ? projectId : null), labels, criticalPairs);
 }
