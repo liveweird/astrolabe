@@ -79,9 +79,30 @@ object CriticalPathKernels {
         milestones: Collection<PlanMilestoneFact>,
         links: Collection<PlanLinkFact>,
         calendar: WorkingCalendar,
-    ): CriticalPathResult {
+    ): CriticalPathResult = analyseAll(listOf(projectId), milestones, links, calendar).getValue(projectId)
+
+    /**
+     * [analyse] for every id of [projectIds] over ONE build of the values and the edges (the graph does not depend on the root; only
+     * the walk does): the answer of `analyseAll(ids, …)[id]` equals `analyse(id, …)`. Every requested id is a key, an id without
+     * scheduled work maps to [CriticalPathResult.EMPTY].
+     */
+    fun analyseAll(
+        projectIds: Collection<UInt>,
+        milestones: Collection<PlanMilestoneFact>,
+        links: Collection<PlanLinkFact>,
+        calendar: WorkingCalendar,
+    ): Map<UInt, CriticalPathResult> {
         val values = Values(milestones, calendar)
         val incoming = incomingEdges(values, milestones, links)
+        return projectIds.distinct().associateWith { analyseRoot(it, values, incoming, milestones) }
+    }
+
+    private fun analyseRoot(
+        projectId: UInt,
+        values: Values,
+        incoming: Map<TimePoint, List<Edge>>,
+        milestones: Collection<PlanMilestoneFact>,
+    ): CriticalPathResult {
         val root = TimePoint(EndpointRef(EndpointKind.PROJECT, projectId), TimeSide.END)
         if (values.of(root) == null) return CriticalPathResult.EMPTY
         val upstream = reaching(root, incoming)

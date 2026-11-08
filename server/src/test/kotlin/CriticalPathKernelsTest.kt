@@ -350,6 +350,63 @@ class CriticalPathKernelsTest {
         assertEquals("the active plan graph holds a cycle", failure.message)
     }
 
+    @Test
+    fun `analyseAll equals analyse per root - three roots on the three project chain, an empty root and a repeated id`() {
+        val milestones = listOf(
+            m(1u, x, "2027-02-01", "2027-02-05"),
+            m(2u, y, "2027-02-08", "2027-02-12"),
+            m(3u, p, "2027-02-15", "2027-02-19"),
+        )
+        val links = listOf(link(101u, milestoneRef(1u), milestoneRef(2u)), link(102u, milestoneRef(2u), milestoneRef(3u)))
+        val all = CriticalPathKernels.analyseAll(listOf(x, y, p, z, p), milestones, links, WorkingCalendar.MON_FRI)
+        assertEquals(setOf(x, y, p, z), all.keys, "every requested id is a key, once")
+        for (root in listOf(x, y, p, z)) {
+            assertEquals(CriticalPathKernels.analyse(root, milestones, links, WorkingCalendar.MON_FRI), all.getValue(root), "root $root")
+        }
+        // Counted by hand: each root's own milestone ends it, and the chain upstream of it is critical with its hops.
+        assertEquals(CriticalPathResult(mapOf(1u to 0L), setOf(1u), emptySet(), emptyList()), all.getValue(x))
+        assertEquals(
+            CriticalPathResult(mapOf(2u to 0L), setOf(2u), setOf(101u), listOf(UpstreamRef(milestoneRef(1u), 0, true, 1))),
+            all.getValue(y),
+        )
+        val chain = setOf(UpstreamRef(milestoneRef(2u), 0, true, 1), UpstreamRef(milestoneRef(1u), 0, true, 2))
+        assertEquals(chain, all.getValue(p).upstream.toSet())
+        assertEquals(setOf(101u, 102u), all.getValue(p).criticalDependencies)
+        assertEquals(CriticalPathResult.EMPTY, all.getValue(z), "nothing is scheduled in Z")
+        assertTrue(CriticalPathKernels.analyseAll(emptyList(), milestones, links, WorkingCalendar.MON_FRI).isEmpty())
+    }
+
+    @Test
+    fun `analyseAll walks each root on its own - slack toward one end does not leak into another`() {
+        // x1 feeds y1 (tight) and p1 (a 3 day gap): toward Y's end x1 is critical, toward P's end it has slack.
+        val milestones = listOf(
+            m(1u, x, "2027-02-01", "2027-02-05"),
+            m(2u, y, "2027-02-08", "2027-02-12"),
+            m(3u, p, "2027-02-11", "2027-02-19"),
+        )
+        val links = listOf(link(101u, milestoneRef(1u), milestoneRef(2u)), link(102u, milestoneRef(1u), milestoneRef(3u)))
+        val all = CriticalPathKernels.analyseAll(listOf(y, p), milestones, links, WorkingCalendar.MON_FRI)
+        assertEquals(UpstreamRef(milestoneRef(1u), 0, true, 1), all.getValue(y).upstream.single())
+        assertEquals(setOf(101u), all.getValue(y).criticalDependencies)
+        val toP = all.getValue(p).upstream.single()
+        assertEquals(UpstreamRef(milestoneRef(1u), 3, false, 1), toP, "S(p1) = k+8 against E(x1) = k+5")
+        assertTrue(all.getValue(p).criticalDependencies.isEmpty())
+        for (root in listOf(y, p)) {
+            assertEquals(CriticalPathKernels.analyse(root, milestones, links, WorkingCalendar.MON_FRI), all.getValue(root))
+        }
+    }
+
+    @Test
+    fun `analyseAll fails closed on a cycle like analyse`() {
+        val milestones = listOf(m(1u, p, "2027-02-01", "2027-02-05"), m(2u, p, "2027-02-01", "2027-02-05"))
+        val ss = DependencyType.SS
+        val cycle = listOf(link(101u, milestoneRef(1u), milestoneRef(2u), ss), link(102u, milestoneRef(2u), milestoneRef(1u), ss))
+        val failure = assertFailsWith<IllegalStateException> {
+            CriticalPathKernels.analyseAll(listOf(p), milestones, cycle, WorkingCalendar.MON_FRI)
+        }
+        assertEquals("the active plan graph holds a cycle", failure.message)
+    }
+
     // --- the wire order and the cap (orderUpstream) -------------------------------------------------------------------------
 
     private fun entity(id: UInt, name: String, start: String, slack: Int, kind: EndpointKind = EndpointKind.MILESTONE) =

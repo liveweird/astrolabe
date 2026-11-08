@@ -28,12 +28,22 @@ class DependencyKernelsTest {
         val successor: DaySpan?,
         val status: DependencyStatus,
         val shortfall: Int?,
+        val slack: Int?,
         val required: String?,
         val actual: String?,
     )
 
-    private fun ok(label: String, type: DependencyType, lag: Int, pred: DaySpan, succ: DaySpan, required: String, actual: String) =
-        Case(label, type, lag, pred, succ, DependencyStatus.OK, null, required, actual)
+    /** An OK case; [slack] is the hand-counted number of working days from [required] to [actual] (0 = the link is tight). */
+    private fun ok(
+        label: String,
+        type: DependencyType,
+        lag: Int,
+        pred: DaySpan,
+        succ: DaySpan,
+        required: String,
+        actual: String,
+        slack: Int = 0,
+    ) = Case(label, type, lag, pred, succ, DependencyStatus.OK, null, slack, required, actual)
 
     private fun violated(
         label: String,
@@ -44,7 +54,7 @@ class DependencyKernelsTest {
         shortfall: Int,
         required: String,
         actual: String,
-    ) = Case(label, type, lag, pred, succ, DependencyStatus.VIOLATED, shortfall, required, actual)
+    ) = Case(label, type, lag, pred, succ, DependencyStatus.VIOLATED, shortfall, -shortfall, required, actual)
 
     private val fs = DependencyType.FS
     private val ss = DependencyType.SS
@@ -98,6 +108,21 @@ class DependencyKernelsTest {
             "2027-03-01",
             "2027-03-01",
         ),
+        // Slack: the working days between what the type requires and where the successor is (Saturday and Sunday do not count).
+        ok("FS: two days of slack", fs, 0, weekA, span("2027-02-10", "2027-02-12"), "2027-02-08", "2027-02-10", 2),
+        ok("FS: a whole working week of slack", fs, 0, weekA, span("2027-02-15", "2027-02-19"), "2027-02-08", "2027-02-15", 5),
+        ok("FS: slack past a lag of two", fs, 2, weekA, span("2027-02-12", "2027-02-19"), "2027-02-10", "2027-02-12", 2),
+        ok("FS: slack past a lead of two", fs, -2, weekA, span("2027-02-08", "2027-02-12"), "2027-02-04", "2027-02-08", 2),
+        ok(
+            "FS: slack across the year boundary",
+            fs,
+            1,
+            span("2027-12-27", "2027-12-31"),
+            span("2028-01-06", "2028-01-07"),
+            "2028-01-04",
+            "2028-01-06",
+            2,
+        ),
         // Start-to-start: the successor starts no earlier than the predecessor's start, plus the lag.
         ok("SS: the same start", ss, 0, weekA, span("2027-02-01", "2027-02-12"), "2027-02-01", "2027-02-01"),
         violated("SS: starts the Friday before", ss, 0, weekA, span("2027-01-29", "2027-02-12"), 1, "2027-02-01", "2027-01-29"),
@@ -112,15 +137,19 @@ class DependencyKernelsTest {
             "2027-02-01",
         ),
         ok("SS: a lead of one day", ss, -1, weekA, span("2027-01-29", "2027-02-05"), "2027-01-29", "2027-01-29"),
+        ok("SS: two days of slack", ss, 0, weekA, span("2027-02-03", "2027-02-12"), "2027-02-01", "2027-02-03", 2),
+        ok("SS: slack past a lag of three", ss, 3, weekA, span("2027-02-08", "2027-02-12"), "2027-02-04", "2027-02-08", 2),
         // Finish-to-finish: the successor ends no earlier than the predecessor's end, plus the lag.
         ok("FF: the same end", ff, 0, weekA, span("2027-02-02", "2027-02-05"), "2027-02-05", "2027-02-05"),
         violated("FF: ends the day before", ff, 0, weekA, span("2027-02-02", "2027-02-04"), 1, "2027-02-05", "2027-02-04"),
         ok("FF: a Saturday-dated end is the Friday", ff, 0, weekA, span("2027-02-02", "2027-02-06"), "2027-02-05", "2027-02-05"),
         ok("FF: a lead of one day", ff, -1, weekA, span("2027-02-02", "2027-02-04"), "2027-02-04", "2027-02-04"),
+        ok("FF: a week of slack", ff, 0, weekA, span("2027-02-02", "2027-02-12"), "2027-02-05", "2027-02-12", 5),
         violated("FF: a lag of a week", ff, 5, weekA, span("2027-02-02", "2027-02-05"), 5, "2027-02-12", "2027-02-05"),
         // Start-to-finish: the successor ends no earlier than the working day before the predecessor's start, plus the lag
         // (the mirror of FS).
-        ok("SF: ends the day the predecessor starts", sf, 0, weekA, span("2027-01-25", "2027-02-01"), "2027-01-29", "2027-02-01"),
+        ok("SF: ends the day the predecessor starts", sf, 0, weekA, span("2027-01-25", "2027-02-01"), "2027-01-29", "2027-02-01", 1),
+        ok("SF: two weeks of slack", sf, 0, weekA, span("2027-01-25", "2027-02-12"), "2027-01-29", "2027-02-12", 10),
         ok("SF: ends the Friday before", sf, 0, weekA, span("2027-01-25", "2027-01-29"), "2027-01-29", "2027-01-29"),
         violated("SF: ends the Thursday before", sf, 0, weekA, span("2027-01-25", "2027-01-28"), 1, "2027-01-29", "2027-01-28"),
         ok("SF: a lag of a week, met", sf, 5, weekA, span("2027-02-01", "2027-02-05"), "2027-02-05", "2027-02-05"),
@@ -131,9 +160,9 @@ class DependencyKernelsTest {
         // An end without dates is not evaluated: no warning, no dates, whichever end and whichever type.
         *DependencyType.entries.flatMap { type ->
             listOf(
-                Case("$type: predecessor unscheduled", type, 0, null, weekA, DependencyStatus.UNSCHEDULED, null, null, null),
-                Case("$type: successor unscheduled", type, 3, weekA, null, DependencyStatus.UNSCHEDULED, null, null, null),
-                Case("$type: both unscheduled", type, -1, null, null, DependencyStatus.UNSCHEDULED, null, null, null),
+                Case("$type: predecessor unscheduled", type, 0, null, weekA, DependencyStatus.UNSCHEDULED, null, null, null, null),
+                Case("$type: successor unscheduled", type, 3, weekA, null, DependencyStatus.UNSCHEDULED, null, null, null, null),
+                Case("$type: both unscheduled", type, -1, null, null, DependencyStatus.UNSCHEDULED, null, null, null, null),
             )
         }.toTypedArray(),
     )
@@ -141,7 +170,7 @@ class DependencyKernelsTest {
     @Test
     fun `the check per type, lag, weekend and calendar edge`() {
         for (case in cases) {
-            val expected = DependencyCheck(case.status, case.shortfall, case.required, case.actual)
+            val expected = DependencyCheck(case.status, case.shortfall, case.slack, case.required, case.actual)
             val actual = DependencyKernels.check(case.type, case.lag, case.predecessor, case.successor, WorkingCalendar.MON_FRI)
             assertEquals(expected, actual, case.label)
         }
@@ -170,6 +199,29 @@ class DependencyKernelsTest {
     }
 
     @Test
+    fun `the link's slack is the negated shortfall, never negative when satisfied, and the working days from required to actual`() {
+        for (case in cases.filter { it.predecessor != null && it.successor != null }) {
+            val check = DependencyKernels.check(case.type, case.lag, case.predecessor, case.successor, WorkingCalendar.MON_FRI)
+            val slack = checkNotNull(check.slackDays) { case.label }
+            when (check.status) {
+                DependencyStatus.OK -> {
+                    assertEquals(true, slack >= 0, case.label)
+                    val days = generateSequence(LocalDate.parse(check.requiredDate)) { it.plusDays(1) }
+                        .takeWhile { it < LocalDate.parse(check.actualDate) }
+                        .count { it.dayOfWeek.value <= 5 }
+                    assertEquals(days, slack, "${case.label}: the working days from required to actual")
+                }
+                DependencyStatus.VIOLATED -> assertEquals(-checkNotNull(check.shortfallDays), slack, case.label)
+                DependencyStatus.UNSCHEDULED -> error("${case.label}: both ends are scheduled")
+            }
+        }
+        for (case in cases.filter { it.status == DependencyStatus.UNSCHEDULED }) {
+            val check = DependencyKernels.check(case.type, case.lag, case.predecessor, case.successor, WorkingCalendar.MON_FRI)
+            assertEquals(null, check.slackDays, case.label)
+        }
+    }
+
+    @Test
     fun `a holiday is not a working day - a lag of one working day is pushed past it`() {
         // 2027-01-06 (a Wednesday) is a holiday. FS with lag 1 after Mon 01-04..Tue 01-05 needs the second working day after the end:
         // Mon-Fri that is Thu 01-07; with the holiday it is Fri 01-08.
@@ -177,11 +229,15 @@ class DependencyKernelsTest {
         val predecessor = span("2027-01-04", "2027-01-05")
         val successor = span("2027-01-07", "2027-01-08")
         val plain = DependencyKernels.check(fs, 1, predecessor, successor, WorkingCalendar.MON_FRI)
-        assertEquals(DependencyCheck(DependencyStatus.OK, null, "2027-01-07", "2027-01-07"), plain)
+        assertEquals(DependencyCheck(DependencyStatus.OK, null, 0, "2027-01-07", "2027-01-07"), plain)
         val withHoliday = DependencyKernels.check(fs, 1, predecessor, successor, holiday)
-        assertEquals(DependencyCheck(DependencyStatus.VIOLATED, 1, "2027-01-08", "2027-01-07"), withHoliday)
+        assertEquals(DependencyCheck(DependencyStatus.VIOLATED, 1, -1, "2027-01-08", "2027-01-07"), withHoliday)
         // A successor starting ON the holiday starts on the next working day.
         val onHoliday = DependencyKernels.check(fs, 0, predecessor, span("2027-01-06", "2027-01-08"), holiday)
-        assertEquals(DependencyCheck(DependencyStatus.OK, null, "2027-01-07", "2027-01-07"), onHoliday)
+        assertEquals(DependencyCheck(DependencyStatus.OK, null, 0, "2027-01-07", "2027-01-07"), onHoliday)
+        // The holiday takes a working day out of the link's float: FS lag 0 after Mon 01-04..Tue 01-05, the successor on Fri 01-08.
+        val late = span("2027-01-08", "2027-01-08")
+        assertEquals(2, DependencyKernels.check(fs, 0, predecessor, late, WorkingCalendar.MON_FRI).slackDays, "Wed 01-06 and Thu 01-07")
+        assertEquals(1, DependencyKernels.check(fs, 0, predecessor, late, holiday).slackDays, "only Thu 01-07 is left")
     }
 }

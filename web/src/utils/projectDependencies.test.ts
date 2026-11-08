@@ -40,13 +40,13 @@ const link = (id: number, predecessor: DependencyEndpoint, successor: Dependency
   successor,
   type: "FS",
   lagDays: 0,
-  check: { status: "OK", shortfallDays: null, requiredDate: "2027-02-08", actualDate: "2027-02-08" },
+  check: { status: "OK", shortfallDays: null, slackDays: 0, requiredDate: "2027-02-08", actualDate: "2027-02-08" },
   critical: false,
   can: { edit: true, delete: true },
   ...over,
 });
 
-const violated = { status: "VIOLATED", shortfallDays: 3, requiredDate: "2027-02-08", actualDate: "2027-02-03" } as const;
+const violated = { status: "VIOLATED", shortfallDays: 3, slackDays: -3, requiredDate: "2027-02-08", actualDate: "2027-02-03" } as const;
 
 const viewWith = (dependencies: ProjectDependency[], upstream: UpstreamEntity[] = []) =>
   ({ project: { id: PROJECT_ID }, dependencies, criticalPath: { upstream, upstreamTruncated: false } }) as ProjectView;
@@ -106,7 +106,7 @@ describe("conflicts", () => {
     link(2, endpoint({ id: 1 }), endpoint({ id: 4 }), { check: violated }),
     link(3, foreign(2), ownProject, { check: violated }),
     link(4, foreign(3), endpoint({ id: 4 })),
-    link(5, foreign(3), endpoint({ id: 9 }), { check: { status: "UNSCHEDULED", shortfallDays: null, requiredDate: null, actualDate: null } }),
+    link(5, foreign(3), endpoint({ id: 9 }), { check: { status: "UNSCHEDULED", shortfallDays: null, slackDays: null, requiredDate: null, actualDate: null } }),
   ]);
 
   test("conflictCount counts the violated links only", () => {
@@ -159,7 +159,7 @@ describe("arrowSpecs", () => {
   });
 
   test("an UNSCHEDULED link has no arrow", () => {
-    const view = viewWith([link(1, foreign(2), endpoint({ id: 1 }), { check: { status: "UNSCHEDULED", shortfallDays: null, requiredDate: null, actualDate: null } })]);
+    const view = viewWith([link(1, foreign(2), endpoint({ id: 1 }), { check: { status: "UNSCHEDULED", shortfallDays: null, slackDays: null, requiredDate: null, actualDate: null } })]);
     expect(arrowSpecs(view)).toEqual([]);
   });
 });

@@ -40,7 +40,7 @@ const link = (
   type: "FS",
   lagDays: 0,
   before,
-  check: { status, shortfallDays: status === "VIOLATED" ? 2 : null, requiredDate: status === "UNSCHEDULED" ? null : "2042-02-26", actualDate: null },
+  check: { status, shortfallDays: status === "VIOLATED" ? 2 : null, slackDays: status === "VIOLATED" ? -2 : status === "OK" ? 0 : null, requiredDate: status === "UNSCHEDULED" ? null : "2042-02-26", actualDate: null },
 });
 
 const A = move(1, "tp-a", { from: { start: "2042-03-03", end: "2042-03-05" }, to: { start: "2042-02-03", end: "2042-02-05" }, workingDays: 3, shiftDays: -20 });

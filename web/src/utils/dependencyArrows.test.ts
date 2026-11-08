@@ -21,14 +21,14 @@ const link = (id: number, predecessor: DependencyEndpoint, successor: Dependency
   successor,
   type: "FS",
   lagDays: 0,
-  check: { status: "OK", shortfallDays: null, requiredDate: "2027-02-08", actualDate: "2027-02-08" },
+  check: { status: "OK", shortfallDays: null, slackDays: 0, requiredDate: "2027-02-08", actualDate: "2027-02-08" },
   critical: false,
   can: { edit: true, delete: true },
   ...over,
 });
 
-const violated = { status: "VIOLATED", shortfallDays: 2, requiredDate: "2027-02-08", actualDate: "2027-02-04" } as const;
-const unscheduled = { status: "UNSCHEDULED", shortfallDays: null, requiredDate: null, actualDate: null } as const;
+const violated = { status: "VIOLATED", shortfallDays: 2, slackDays: -2, requiredDate: "2027-02-08", actualDate: "2027-02-04" } as const;
+const unscheduled = { status: "UNSCHEDULED", shortfallDays: null, slackDays: null, requiredDate: null, actualDate: null } as const;
 
 /** A timeline whose rows are the milestones 1..3 only (the way a team page resolves an end). */
 const rowOf = (e: DependencyEndpoint) => (e.kind === "MILESTONE" && e.id <= 3 ? e.id : null);

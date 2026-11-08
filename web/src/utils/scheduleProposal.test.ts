@@ -168,7 +168,7 @@ const linkOf = (id: number, predecessor: ScheduleProposalEnd, successor: Schedul
   type: "FS",
   lagDays: 0,
   before,
-  check: { status: after, shortfallDays: null, requiredDate: null, actualDate: null },
+  check: { status: after, shortfallDays: null, slackDays: null, requiredDate: null, actualDate: null },
 });
 
 describe("newlyScheduledCount", () => {

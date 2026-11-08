@@ -87,3 +87,15 @@ internal suspend fun loadCriticalPath(projectId: UInt, calendar: WorkingCalendar
     }
     return ProjectCriticalPath(result, orderUpstream(entries))
 }
+
+/**
+ * The critical path of every project of [projectIds] over ONE load of the plan graph and ONE build of the kernel's edges
+ * ([CriticalPathKernels.analyseAll]), INSIDE the caller's snapshot: the same graph and the same figures as [loadCriticalPath] per
+ * project, without the upstream entries' names (a team view reads only the slack and the chain's ids).
+ */
+internal suspend fun loadCriticalPaths(projectIds: Collection<UInt>, calendar: WorkingCalendar): Map<UInt, CriticalPathResult> {
+    if (projectIds.isEmpty()) return emptyMap()
+    val projectNames = activeProjectNames()
+    val facts = milestoneFacts().map { it.fact }.filter { it.projectId in projectNames }
+    return CriticalPathKernels.analyseAll(projectIds, facts, linkFacts(), calendar)
+}

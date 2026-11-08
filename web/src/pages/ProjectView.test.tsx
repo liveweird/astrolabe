@@ -853,9 +853,9 @@ const WHOLE_PROJECT: DependencyEndpoint = {
   endDate: "2027-01-29",
 };
 
-const OK_CHECK = { status: "OK", shortfallDays: null, requiredDate: "2027-01-11", actualDate: "2027-01-11" } as const;
-const VIOLATED_CHECK = { status: "VIOLATED", shortfallDays: 2, requiredDate: "2027-01-11", actualDate: "2027-01-07" } as const;
-const NOT_YET_CHECK = { status: "UNSCHEDULED", shortfallDays: null, requiredDate: null, actualDate: null } as const;
+const OK_CHECK = { status: "OK", shortfallDays: null, slackDays: 0, requiredDate: "2027-01-11", actualDate: "2027-01-11" } as const;
+const VIOLATED_CHECK = { status: "VIOLATED", shortfallDays: 2, slackDays: -2, requiredDate: "2027-01-11", actualDate: "2027-01-07" } as const;
+const NOT_YET_CHECK = { status: "UNSCHEDULED", shortfallDays: null, slackDays: null, requiredDate: null, actualDate: null } as const;
 
 const dependencyOf = (id: number, predecessor: DependencyEndpoint, successor: DependencyEndpoint, over: Partial<ProjectDependency> = {}): ProjectDependency => ({
   id,

@@ -119,9 +119,9 @@ const viewOf = (over: Partial<RoadmapView> = {}): RoadmapView => ({
   ...over,
 });
 
-const okCheck = { status: "OK", shortfallDays: null, requiredDate: null, actualDate: null } as const;
+const okCheck = { status: "OK", shortfallDays: null, slackDays: 0, requiredDate: null, actualDate: null } as const;
 const LINKS: RoadmapLink[] = [
-  { predecessorProjectId: 1, successorProjectId: 2, direct: { id: 31, type: "FS", lagDays: 0, check: { ...okCheck, status: "VIOLATED", shortfallDays: 3 } }, milestoneLinks: { count: 0, violated: 0, unscheduled: 0 } },
+  { predecessorProjectId: 1, successorProjectId: 2, direct: { id: 31, type: "FS", lagDays: 0, check: { ...okCheck, status: "VIOLATED", shortfallDays: 3, slackDays: -3 } }, milestoneLinks: { count: 0, violated: 0, unscheduled: 0 } },
   { predecessorProjectId: 2, successorProjectId: 3, direct: null, milestoneLinks: { count: 2, violated: 1, unscheduled: 0 } },
 ];
 

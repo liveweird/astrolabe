@@ -5292,7 +5292,7 @@ components:
         without dates, a project with no scheduled milestone): not evaluated.
     DependencyCheck:
       type: object
-      required: [status, shortfallDays, requiredDate, actualDate]
+      required: [status, shortfallDays, slackDays, requiredDate, actualDate]
       description: >-
         The check of one link on the working-day index (Monday-Friday without the public holidays), with the effective start (the first working day on or after
         `start`) and end (the last working day on or before `end`) of each end. FS requires the successor's start on the working day after
@@ -5306,6 +5306,14 @@ components:
           minimum: 1
           nullable: true
           description: How many working days short the successor is; present (at least 1) only when `status` is `VIOLATED`.
+        slackDays:
+          type: integer
+          format: int32
+          nullable: true
+          description: >-
+            The link's own float in working days, `actual - required`: 0 or more when `OK` (how far the successor's constrained side could
+            slip before the link breaks), `-shortfallDays` when `VIOLATED`; null when `UNSCHEDULED`. Not the critical path's slack of a
+            milestone, which is measured toward a project's end.
         requiredDate:
           type: string
           format: date

@@ -4018,6 +4018,11 @@ export interface components {
              */
             shortfallDays: number | null;
             /**
+             * Format: int32
+             * @description The link's own float in working days, `actual - required`: 0 or more when `OK` (how far the successor's constrained side could slip before the link breaks), `-shortfallDays` when `VIOLATED`; null when `UNSCHEDULED`. Not the critical path's slack of a milestone, which is measured toward a project's end.
+             */
+            slackDays: number | null;
+            /**
              * Format: date
              * @description The working day the type requires for the successor's start or end; null when `UNSCHEDULED`.
              */

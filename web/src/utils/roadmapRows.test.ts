@@ -201,7 +201,7 @@ const direct = (id: number, type: "FS" | "SS" | "FF" | "SF", status: "OK" | "VIO
   id,
   type,
   lagDays: 0,
-  check: { status, shortfallDays: status === "VIOLATED" ? 2 : null, requiredDate: null, actualDate: null },
+  check: { status, shortfallDays: status === "VIOLATED" ? 2 : null, slackDays: status === "VIOLATED" ? -2 : status === "OK" ? 0 : null, requiredDate: null, actualDate: null },
 });
 const LABELS = { direct: () => "direct", bundle: (l: RoadmapLink) => `bundle ${l.milestoneLinks.count}` };
 const ALL = (id: number) => id;

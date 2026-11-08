@@ -13,11 +13,17 @@ enum class DependencyStatus { OK, VIOLATED, UNSCHEDULED }
  * [DependencyStatus.VIOLATED] (then at least 1): how many WORKING days short the successor is. [requiredDate] and [actualDate] (ISO
  * dates) are answered for OK and VIOLATED alike — the working day the type requires and the successor's effective start or end —
  * and are all null while [status] is [DependencyStatus.UNSCHEDULED].
+ *
+ * [slackDays] is the link's OWN float in working days, `actual - required` (`-shortfall`): 0 or more when [status] is
+ * [DependencyStatus.OK] (how far the successor's constrained side could slip before the link breaks), `-shortfallDays` when it is
+ * [DependencyStatus.VIOLATED], null while [status] is [DependencyStatus.UNSCHEDULED]. It is the link's float only, not the critical
+ * path's slack of a milestone, which is measured toward a project's end.
  */
 @Serializable
 data class DependencyCheck(
     val status: DependencyStatus,
     val shortfallDays: Int?,
+    val slackDays: Int?,
     val requiredDate: String?,
     val actualDate: String?,
 )
@@ -54,13 +60,14 @@ object DependencyKernels {
         successor: DaySpan?,
         calendar: WorkingCalendar,
     ): DependencyCheck {
-        if (predecessor == null || successor == null) return DependencyCheck(DependencyStatus.UNSCHEDULED, null, null, null)
+        if (predecessor == null || successor == null) return DependencyCheck(DependencyStatus.UNSCHEDULED, null, null, null, null)
         val required = requiredIndex(type, lagDays, predecessor, calendar)
         val actualDate = actualDate(type, successor, calendar)
         val shortfall = required - calendar.workingDayIndex(actualDate)
         return DependencyCheck(
             status = if (shortfall > 0) DependencyStatus.VIOLATED else DependencyStatus.OK,
             shortfallDays = if (shortfall > 0) shortfall.toInt() else null,
+            slackDays = Math.toIntExact(-shortfall),
             requiredDate = calendar.workingDayOfIndex(required).toString(),
             actualDate = actualDate.toString(),
         )

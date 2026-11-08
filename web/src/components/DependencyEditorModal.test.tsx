@@ -207,7 +207,7 @@ describe("DependencyEditorModal", () => {
       successor: { kind: "PROJECT", id: 7, name: "Invoices", projectId: 7, projectName: "Invoices", teamId: null, teamName: null, startDate: null, endDate: null },
       type: "FF",
       lagDays: 3,
-      check: { status: "UNSCHEDULED", shortfallDays: null, requiredDate: null, actualDate: null },
+      check: { status: "UNSCHEDULED", shortfallDays: null, slackDays: null, requiredDate: null, actualDate: null },
       critical: false,
       can: { edit: true, delete: true },
     };

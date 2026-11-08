@@ -109,7 +109,7 @@ const LINK: ProjectDependency = {
   successor: endpoint(TV_B),
   type: "FS",
   lagDays: 0,
-  check: { status: "VIOLATED", shortfallDays: 3, requiredDate: "2027-02-08", actualDate: "2027-02-04" },
+  check: { status: "VIOLATED", shortfallDays: 3, slackDays: -3, requiredDate: "2027-02-08", actualDate: "2027-02-04" },
   critical: false,
   can: { edit: false, delete: false },
 };

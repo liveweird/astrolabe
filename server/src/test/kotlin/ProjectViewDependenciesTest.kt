@@ -65,6 +65,7 @@ class ProjectViewDependenciesTest {
                 assertEquals("2027-02-08" to "2027-02-12", dep.successor.startDate to dep.successor.endDate)
                 assertEquals(DependencyStatus.OK, dep.check.status)
                 assertNull(dep.check.shortfallDays)
+                assertEquals(0, dep.check.slackDays, "a tight link: Friday end, Monday start")
                 assertEquals("2027-02-08" to "2027-02-08", dep.check.requiredDate to dep.check.actualDate)
             }
 
@@ -74,6 +75,7 @@ class ProjectViewDependenciesTest {
                 val check = w.stranger.view(projectId).link(link).check
                 assertEquals(DependencyStatus.VIOLATED, check.status)
                 assertEquals(10, check.shortfallDays)
+                assertEquals(-10, check.slackDays, "a violated link reads its negated shortfall")
                 assertEquals("2027-02-08" to "2027-01-25", check.requiredDate to check.actualDate)
             }
         }
@@ -263,6 +265,7 @@ class ProjectViewDependenciesTest {
                 val check = view.link(id).check
                 assertEquals(DependencyStatus.UNSCHEDULED, check.status)
                 assertNull(check.shortfallDays)
+                assertNull(check.slackDays)
                 assertNull(check.requiredDate)
                 assertNull(check.actualDate)
             }
