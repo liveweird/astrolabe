@@ -108,6 +108,8 @@ Two forks bring the gate under its 3 min target (a speed-up of 1.7x, the rest be
 
 ## Fixtures that add start-up cost
 
+**Flow stub (v1.5.0 C2, measured 2026-11-08, same machine).** `FlowStubFixture.warm()` starts a second in-JVM WireMock (9 mappings, 6 bodies, 0.26 MB; one `me` and one `teams` call): `fixture-cost flow-stub` was **0.93 s when it was the fork's first WireMock and 0.35 s (Jira's) when it came second** in a focused run, so the pair costs about 1 s per fork once; `FlowStubFixtureTest` runs in well under a second after that. The `flow-stub` image idles at ~115 MiB RSS (`ci.md`).
+
 **Jira stub (v1.1.0 C1, measured 2026-11-06, Apple M5 Max, Docker via OrbStack).** `JiraStubFixture.warm()` starts the in-JVM WireMock over `sample-data/jira-stub` (1,360 mappings, 1,334 bodies, about 7 MB when measured; 1.2.0 adds the `IMP` project and the single-key import scopes: 1,612 mappings, 1,567 bodies, 26.8 MB of file bytes, 36 MB by `du` on disk; the stub's RSS was re-measured at that size, about 146 MiB, but this start-up time was not re-timed) and makes its
 first two requests: **0.74 s per fork in the full `build`** (0.90 s in a focused run), printed as `fixture-cost jira-stub` and subtracted from the suite that paid it by `local-times.mjs`. It is paid once per fork by the first class that reads
 the stub (today `JiraStubFixtureTest`), in a `@BeforeClass`, never inside `testApplication`'s 60 s. The step's new server classes add 39 tests and about 8 s of class time, 5.8 s of it `OutboundTransportTest` (local sockets only: the negative control

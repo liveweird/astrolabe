@@ -9,7 +9,7 @@ import java.time.Duration
 /**
  * The warm-up of [JiraStubServer]: the first start loads ~1,600 mappings and ~1,570 bodies and the first request pays Jetty's and the
  * matcher's cold paths, a cost that must land in a `@BeforeClass` (JUnit 4 does not time it), never inside `testApplication`'s hard 60 s.
- * A test class that touches [JiraStubServer] calls [warm] there; `JiraStubWarmupGuardTest` fails a class that forgets (the pair is Flow's
+ * A test class that touches [JiraStubServer] calls [warm] there; `StubWarmupGuardTest` fails a class that forgets (the pair is Flow's
  * `SyncedStubFixture` / `StubFixtureWarmupGuardTest`, cut to what a stub without a synced database needs).
  */
 object JiraStubFixture {

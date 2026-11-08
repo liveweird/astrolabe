@@ -16,7 +16,7 @@ import kotlinx.serialization.json.Json
 import java.util.UUID
 import kotlin.test.assertEquals
 
-// Shared by the Jira binding test classes. NOTHING here touches the shared stub (JiraStubWarmupGuardTest): each test class starts its
+// Shared by the Jira binding test classes. NOTHING here touches the shared stub (StubWarmupGuardTest): each test class starts its
 // own app with `jira.stubBaseUrl` and warms the fixture in its @BeforeClass.
 
 const val JB_CONNECTIONS = "/api/v1/integrations/jira/connections"

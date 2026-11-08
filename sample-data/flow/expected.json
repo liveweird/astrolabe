@@ -1,0 +1,750 @@
+{
+  "contract": {
+    "paths": {
+      "me": "/api/v1/integration/me",
+      "teams": "/api/v1/integration/teams"
+    },
+    "sprintsSinceParameter": "sprintsSince",
+    "token": "flow_int_stub-stub-stub-stub-stub-stub-stub-stub-stu",
+    "authorization": "Bearer flow_int_stub-stub-stub-stub-stub-stub-stub-stub-stu",
+    "unauthorized": {
+      "type": "about:blank",
+      "title": "Unauthorized",
+      "status": 401,
+      "detail": "Missing or invalid service token"
+    },
+    "fields": {
+      "me": [
+        "tokenId",
+        "name",
+        "createdAt",
+        "expiresAt",
+        "lastUsedAt"
+      ],
+      "teams": [
+        "asOf",
+        "sprintsSince",
+        "sprintsTruncated",
+        "items"
+      ],
+      "team": [
+        "id",
+        "name",
+        "managerName",
+        "defaultCapacityMd",
+        "members",
+        "sprints"
+      ],
+      "member": [
+        "accountId",
+        "displayName",
+        "validFrom",
+        "validTo"
+      ],
+      "sprint": [
+        "sprintId",
+        "connectionId",
+        "name",
+        "state",
+        "startAt",
+        "endAt",
+        "completeAt",
+        "hasCalendar",
+        "capacityMd",
+        "capacitySource"
+      ]
+    },
+    "capacitySources": [
+      "CALENDAR",
+      "TEAM_DEFAULT",
+      "DEFAULT"
+    ],
+    "sprintStates": [
+      "closed",
+      "active",
+      "future"
+    ],
+    "sprintCap": 2000
+  },
+  "scenarios": {
+    "day2": "flow-day2",
+    "day2State": "day2",
+    "outage": "flow-outage",
+    "outageState": "down"
+  },
+  "me": {
+    "tokenId": 1,
+    "name": "astrolabe",
+    "createdAt": 1792000000000,
+    "expiresAt": null,
+    "lastUsedAt": null
+  },
+  "document": {
+    "asOf": 1793275200000,
+    "sprintsSince": "2025-10-27",
+    "anchor": "2026-10-26",
+    "sprintsTruncated": false,
+    "bytes": 132047
+  },
+  "totals": {
+    "teams": 19,
+    "sprints": 523,
+    "memberRows": 120
+  },
+  "teams": [
+    {
+      "id": 1,
+      "name": "Platform",
+      "managerName": "Stub Manager Alpha",
+      "defaultCapacityMd": 56,
+      "members": {
+        "rows": 9,
+        "open": 7,
+        "closed": 2
+      },
+      "sprints": {
+        "count": 33,
+        "closed": 26,
+        "active": 1,
+        "future": 6,
+        "noCapacity": 0,
+        "noDates": 0,
+        "teamDefault": 5
+      },
+      "suggestedAstrolabeTeam": "Platform"
+    },
+    {
+      "id": 2,
+      "name": "Payments",
+      "managerName": "Stub Manager Beta",
+      "defaultCapacityMd": 56,
+      "members": {
+        "rows": 9,
+        "open": 7,
+        "closed": 2
+      },
+      "sprints": {
+        "count": 33,
+        "closed": 26,
+        "active": 1,
+        "future": 6,
+        "noCapacity": 0,
+        "noDates": 0,
+        "teamDefault": 5
+      },
+      "suggestedAstrolabeTeam": "Payments"
+    },
+    {
+      "id": 3,
+      "name": "Mobile",
+      "managerName": "Stub Manager Gamma",
+      "defaultCapacityMd": 32,
+      "members": {
+        "rows": 6,
+        "open": 4,
+        "closed": 2
+      },
+      "sprints": {
+        "count": 33,
+        "closed": 26,
+        "active": 1,
+        "future": 6,
+        "noCapacity": 0,
+        "noDates": 0,
+        "teamDefault": 5
+      },
+      "suggestedAstrolabeTeam": "Mobile"
+    },
+    {
+      "id": 4,
+      "name": "Web Frontend",
+      "managerName": "Stub Manager Delta",
+      "defaultCapacityMd": 64,
+      "members": {
+        "rows": 9,
+        "open": 8,
+        "closed": 1
+      },
+      "sprints": {
+        "count": 33,
+        "closed": 26,
+        "active": 1,
+        "future": 6,
+        "noCapacity": 0,
+        "noDates": 0,
+        "teamDefault": 5
+      },
+      "suggestedAstrolabeTeam": "Web Frontend"
+    },
+    {
+      "id": 5,
+      "name": "Data Engineering",
+      "managerName": "Stub Manager Epsilon",
+      "defaultCapacityMd": 56,
+      "members": {
+        "rows": 8,
+        "open": 7,
+        "closed": 1
+      },
+      "sprints": {
+        "count": 33,
+        "closed": 26,
+        "active": 1,
+        "future": 6,
+        "noCapacity": 0,
+        "noDates": 0,
+        "teamDefault": 5
+      },
+      "suggestedAstrolabeTeam": "Data Engineering"
+    },
+    {
+      "id": 6,
+      "name": "Search",
+      "managerName": "Stub Manager Zeta",
+      "defaultCapacityMd": 32,
+      "members": {
+        "rows": 6,
+        "open": 4,
+        "closed": 2
+      },
+      "sprints": {
+        "count": 33,
+        "closed": 26,
+        "active": 1,
+        "future": 6,
+        "noCapacity": 0,
+        "noDates": 0,
+        "teamDefault": 5
+      },
+      "suggestedAstrolabeTeam": "Search"
+    },
+    {
+      "id": 7,
+      "name": "Identity",
+      "managerName": "Stub Manager Eta",
+      "defaultCapacityMd": 40,
+      "members": {
+        "rows": 6,
+        "open": 5,
+        "closed": 1
+      },
+      "sprints": {
+        "count": 33,
+        "closed": 26,
+        "active": 1,
+        "future": 6,
+        "noCapacity": 0,
+        "noDates": 0,
+        "teamDefault": 5
+      },
+      "suggestedAstrolabeTeam": "Identity"
+    },
+    {
+      "id": 8,
+      "name": "Infrastructure",
+      "managerName": "Stub Manager Theta",
+      "defaultCapacityMd": 64,
+      "members": {
+        "rows": 10,
+        "open": 8,
+        "closed": 2
+      },
+      "sprints": {
+        "count": 33,
+        "closed": 26,
+        "active": 1,
+        "future": 6,
+        "noCapacity": 0,
+        "noDates": 0,
+        "teamDefault": 5
+      },
+      "suggestedAstrolabeTeam": "Infrastructure"
+    },
+    {
+      "id": 9,
+      "name": "QA Automation",
+      "managerName": "Stub Manager Iota",
+      "defaultCapacityMd": 48,
+      "members": {
+        "rows": 7,
+        "open": 6,
+        "closed": 1
+      },
+      "sprints": {
+        "count": 33,
+        "closed": 26,
+        "active": 1,
+        "future": 6,
+        "noCapacity": 0,
+        "noDates": 0,
+        "teamDefault": 5
+      },
+      "suggestedAstrolabeTeam": "QA Automation"
+    },
+    {
+      "id": 10,
+      "name": "Design System",
+      "managerName": "Stub Manager Kappa",
+      "defaultCapacityMd": 40,
+      "members": {
+        "rows": 6,
+        "open": 5,
+        "closed": 1
+      },
+      "sprints": {
+        "count": 33,
+        "closed": 26,
+        "active": 1,
+        "future": 6,
+        "noCapacity": 0,
+        "noDates": 0,
+        "teamDefault": 5
+      },
+      "suggestedAstrolabeTeam": null
+    },
+    {
+      "id": 11,
+      "name": "Analytics",
+      "managerName": "Stub Manager Lambda",
+      "defaultCapacityMd": 56,
+      "members": {
+        "rows": 8,
+        "open": 7,
+        "closed": 1
+      },
+      "sprints": {
+        "count": 34,
+        "closed": 26,
+        "active": 1,
+        "future": 7,
+        "noCapacity": 0,
+        "noDates": 1,
+        "teamDefault": 6
+      },
+      "suggestedAstrolabeTeam": "Analytics"
+    },
+    {
+      "id": 12,
+      "name": "Integrations",
+      "managerName": "Stub Manager Mu",
+      "defaultCapacityMd": 32,
+      "members": {
+        "rows": 5,
+        "open": 4,
+        "closed": 1
+      },
+      "sprints": {
+        "count": 33,
+        "closed": 26,
+        "active": 1,
+        "future": 6,
+        "noCapacity": 0,
+        "noDates": 0,
+        "teamDefault": 5
+      },
+      "suggestedAstrolabeTeam": "Integrations"
+    },
+    {
+      "id": 13,
+      "name": "Security",
+      "managerName": "Stub Manager Nu",
+      "defaultCapacityMd": 32,
+      "members": {
+        "rows": 5,
+        "open": 4,
+        "closed": 1
+      },
+      "sprints": {
+        "count": 33,
+        "closed": 26,
+        "active": 1,
+        "future": 6,
+        "noCapacity": 0,
+        "noDates": 0,
+        "teamDefault": 5
+      },
+      "suggestedAstrolabeTeam": "Security"
+    },
+    {
+      "id": 14,
+      "name": "Billing",
+      "managerName": "Stub Manager Xi",
+      "defaultCapacityMd": 32,
+      "members": {
+        "rows": 5,
+        "open": 4,
+        "closed": 1
+      },
+      "sprints": {
+        "count": 33,
+        "closed": 26,
+        "active": 1,
+        "future": 6,
+        "noCapacity": 0,
+        "noDates": 0,
+        "teamDefault": 5
+      },
+      "suggestedAstrolabeTeam": "Billing"
+    },
+    {
+      "id": 15,
+      "name": "Support Tooling",
+      "managerName": "Stub Manager Omicron",
+      "defaultCapacityMd": 48,
+      "members": {
+        "rows": 7,
+        "open": 6,
+        "closed": 1
+      },
+      "sprints": {
+        "count": 34,
+        "closed": 26,
+        "active": 1,
+        "future": 7,
+        "noCapacity": 0,
+        "noDates": 0,
+        "teamDefault": 5
+      },
+      "suggestedAstrolabeTeam": "Support Tooling"
+    },
+    {
+      "id": 16,
+      "name": "Legacy Mainframe",
+      "managerName": null,
+      "defaultCapacityMd": null,
+      "members": {
+        "rows": 5,
+        "open": 5,
+        "closed": 0
+      },
+      "sprints": {
+        "count": 16,
+        "closed": 8,
+        "active": 1,
+        "future": 7,
+        "noCapacity": 16,
+        "noDates": 1,
+        "teamDefault": 0
+      },
+      "suggestedAstrolabeTeam": null
+    },
+    {
+      "id": 17,
+      "name": "E2E Flow Team",
+      "managerName": "Stub Manager Quebec",
+      "defaultCapacityMd": 40,
+      "members": {
+        "rows": 5,
+        "open": 4,
+        "closed": 1
+      },
+      "sprints": {
+        "count": 6,
+        "closed": 0,
+        "active": 0,
+        "future": 6,
+        "noCapacity": 0,
+        "noDates": 0,
+        "teamDefault": 0
+      },
+      "suggestedAstrolabeTeam": null
+    },
+    {
+      "id": 18,
+      "name": "Axe Flow Team",
+      "managerName": "Stub Manager Xray",
+      "defaultCapacityMd": 24,
+      "members": {
+        "rows": 4,
+        "open": 3,
+        "closed": 1
+      },
+      "sprints": {
+        "count": 4,
+        "closed": 1,
+        "active": 1,
+        "future": 2,
+        "noCapacity": 0,
+        "noDates": 0,
+        "teamDefault": 0
+      },
+      "suggestedAstrolabeTeam": null
+    },
+    {
+      "id": 19,
+      "name": "Empty Team",
+      "managerName": null,
+      "defaultCapacityMd": null,
+      "members": {
+        "rows": 0,
+        "open": 0,
+        "closed": 0
+      },
+      "sprints": {
+        "count": 0,
+        "closed": 0,
+        "active": 0,
+        "future": 0,
+        "noCapacity": 0,
+        "noDates": 0,
+        "teamDefault": 0
+      },
+      "suggestedAstrolabeTeam": null
+    }
+  ],
+  "suggestions": {
+    "count": 14,
+    "names": [
+      "Platform",
+      "Payments",
+      "Mobile",
+      "Web Frontend",
+      "Data Engineering",
+      "Search",
+      "Identity",
+      "Infrastructure",
+      "QA Automation",
+      "Analytics",
+      "Integrations",
+      "Security",
+      "Billing",
+      "Support Tooling"
+    ],
+    "none": [
+      "Design System",
+      "Legacy Mainframe",
+      "E2E Flow Team",
+      "Axe Flow Team",
+      "Empty Team"
+    ],
+    "renamedFrom": "Design Systems"
+  },
+  "planted": {
+    "overlap": {
+      "team": "Support Tooling",
+      "sprints": [
+        "Support Tooling Sprint 30",
+        "Support Tooling Sprint 30 (hotfix)"
+      ],
+      "winner": "Support Tooling Sprint 30"
+    },
+    "undated": {
+      "team": "Analytics",
+      "sprint": "Analytics Sprint 34 (undated)",
+      "capacitySource": "TEAM_DEFAULT",
+      "capacityMd": 56,
+      "note": "no dates; the team default's figure, as Flow derives it"
+    },
+    "undatedNoDefault": {
+      "team": "Legacy Mainframe",
+      "sprint": "Legacy Mainframe Sprint 35 (undated)",
+      "capacityMd": null,
+      "capacitySource": null,
+      "note": "no dates on a team without a default: null/null is reachable in Flow"
+    },
+    "emptyTeam": {
+      "team": "Empty Team",
+      "members": 0,
+      "sprints": 0
+    },
+    "defaultSource": {
+      "team": "Mobile",
+      "sprint": "Mobile Sprint 33",
+      "capacityMd": 40
+    },
+    "unnamedMember": {
+      "team": "Web Frontend",
+      "count": 1
+    },
+    "syntheticNoCapacity": {
+      "team": "Legacy Mainframe",
+      "datedSprints": 15,
+      "note": "SYNTHETIC: dated sprints with null capacity; Flow's DeriveSprintStep never emits that, the nullable wire type allows it"
+    }
+  },
+  "e2e": {
+    "team": "E2E Flow Team",
+    "year": 2047,
+    "firstMonday": "2047-01-07",
+    "roster": {
+      "current": [
+        "Stub Quebec One",
+        "Stub Quebec Two",
+        "Stub Quebec Three",
+        "Stub Quebec Four"
+      ],
+      "former": [
+        {
+          "displayName": "Stub Quebec Former",
+          "validFrom": 1736118000000,
+          "validTo": 1774908000000
+        }
+      ]
+    },
+    "preview": [
+      {
+        "sprintId": 90001,
+        "name": "E2E Flow Sprint 1",
+        "start": "2047-01-07",
+        "end": "2047-01-18",
+        "workingDays": 10,
+        "startAt": 2430460800000,
+        "endAt": 2431440000000,
+        "flowMd": 40,
+        "mdPerWeek": "20.00"
+      },
+      {
+        "sprintId": 90002,
+        "name": "E2E Flow Sprint 2",
+        "start": "2047-01-21",
+        "end": "2047-02-01",
+        "workingDays": 10,
+        "startAt": 2431670400000,
+        "endAt": 2432649600000,
+        "flowMd": 36,
+        "mdPerWeek": "18.00"
+      },
+      {
+        "sprintId": 90003,
+        "name": "E2E Flow Sprint 3",
+        "start": "2047-02-04",
+        "end": "2047-02-15",
+        "workingDays": 10,
+        "startAt": 2432880000000,
+        "endAt": 2433859200000,
+        "flowMd": 44,
+        "mdPerWeek": "22.00"
+      },
+      {
+        "sprintId": 90004,
+        "name": "E2E Flow Sprint 4",
+        "start": "2047-02-18",
+        "end": "2047-03-01",
+        "workingDays": 10,
+        "startAt": 2434089600000,
+        "endAt": 2435068800000,
+        "flowMd": 40,
+        "mdPerWeek": "20.00"
+      },
+      {
+        "sprintId": 90005,
+        "name": "E2E Flow Sprint 5",
+        "start": "2047-03-04",
+        "end": "2047-03-15",
+        "workingDays": 10,
+        "startAt": 2435299200000,
+        "endAt": 2436278400000,
+        "flowMd": 38,
+        "mdPerWeek": "19.00"
+      },
+      {
+        "sprintId": 90006,
+        "name": "E2E Flow Sprint 6",
+        "start": "2047-03-18",
+        "end": "2047-03-29",
+        "workingDays": 10,
+        "startAt": 2436508800000,
+        "endAt": 2437488000000,
+        "flowMd": 42,
+        "mdPerWeek": "21.00"
+      }
+    ]
+  },
+  "axe": {
+    "team": "Axe Flow Team",
+    "sprints": [
+      {
+        "name": "Axe Flow Sprint 1",
+        "state": "closed",
+        "capacityMd": 24
+      },
+      {
+        "name": "Axe Flow Sprint 2",
+        "state": "active",
+        "capacityMd": 24
+      },
+      {
+        "name": "Axe Flow Sprint 3",
+        "state": "future",
+        "capacityMd": 30
+      },
+      {
+        "name": "Axe Flow Sprint 4",
+        "state": "future",
+        "capacityMd": 24
+      }
+    ],
+    "roster": {
+      "current": [
+        "Stub Xray One",
+        "Stub Xray Two",
+        "Stub Xray Three"
+      ],
+      "former": [
+        {
+          "displayName": "Stub Xray Former",
+          "validFrom": 1748815200000,
+          "validTo": 1782770400000
+        }
+      ]
+    }
+  },
+  "day2": {
+    "asOf": 1793361600000,
+    "teams": 18,
+    "gone": [
+      "Billing"
+    ],
+    "capacityChanges": [
+      {
+        "team": "Platform",
+        "sprintId": 1028,
+        "name": "Platform Sprint 28",
+        "from": 56,
+        "to": 48
+      },
+      {
+        "team": "Platform",
+        "sprintId": 1029,
+        "name": "Platform Sprint 29",
+        "from": 61.5,
+        "to": 53.5
+      },
+      {
+        "team": "Platform",
+        "sprintId": 1031,
+        "name": "Platform Sprint 31",
+        "from": 59,
+        "to": 51
+      },
+      {
+        "team": "Platform",
+        "sprintId": 1032,
+        "name": "Platform Sprint 32",
+        "from": 61.5,
+        "to": 53.5
+      },
+      {
+        "team": "Platform",
+        "sprintId": 1033,
+        "name": "Platform Sprint 33",
+        "from": 47.5,
+        "to": 39.5
+      },
+      {
+        "team": "E2E Flow Team",
+        "sprintId": 90002,
+        "name": "E2E Flow Sprint 2",
+        "from": 36,
+        "to": 30
+      },
+      {
+        "team": "E2E Flow Team",
+        "sprintId": 90003,
+        "name": "E2E Flow Sprint 3",
+        "from": 44,
+        "to": 48
+      }
+    ]
+  }
+}

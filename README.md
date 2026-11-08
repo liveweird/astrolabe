@@ -69,7 +69,7 @@ email): <http://localhost:8029>.
 
 Ports are chosen to coexist with the sibling stacks on the same machine (the full table is in
 `.claude/docs/ci.md`): the app is on **8086**, Postgres is host-mapped to **5437**, the Vite dev server uses **5178**,
-Mailpit **8029**, the Jira stub **8096**. All host ports bind to 127.0.0.1.
+Mailpit **8029**, the Jira stub **8096**, the Flow stub **8097**. All host ports bind to 127.0.0.1.
 
 **The Jira stub.** The compose file also runs `jira-stub` (`astrolabe-jira-stub`, WireMock over the deterministic dataset in `sample-data/jira-stub`, built from its own directory)
 and points the app at it with `JIRA_STUB_BASE_URL=http://jira-stub:8080`, so the Jira sync works offline: sign in as the admin, Administration → Jira → New connection
@@ -77,6 +77,12 @@ and points the app at it with `JIRA_STUB_BASE_URL=http://jira-stub:8080`, so the
 of `wrong-token` makes every authenticated probe fail (`tenant_info` is unauthenticated and still passes). The app does not depend on the stub (it boots, and the rest of the product works, without it) and the stub holds no data
 of yours; flip its day-2 scenario with `curl -X PUT http://localhost:8096/__admin/scenarios/jira-day2/state -d '{"state":"day2"}'`. The stub exists in development mode only:
 production startup refuses `JIRA_STUB_BASE_URL` ("Configuration" below), and any real deployment leaves it unset.
+
+**The Flow stub.** Likewise `flow-stub` (`astrolabe-flow-stub`, host port **8097**; the same WireMock image over `sample-data/flow-stub`, generated from the contract in
+`sample-data/flow/contract.mjs`): Flow 1.57.0's read-only service-token surface (`GET /api/v1/integration/me` and `/teams`, 19 teams with sprints and members, one accepted
+fake token, `sample-data/flow/README.md`). The app is pointed at it by `FLOW_INSECURE_ORIGINS=http://flow-stub:8080` (development mode only; Flow connections arrive with v1.5.0 —
+until then the stub is only the test double of the server suite). Flip its day-2 scenario with `curl -X PUT http://localhost:8097/__admin/scenarios/flow-day2/state -d '{"state":"day2"}'`
+or simulate an outage with the `flow-outage` scenario (state `down`).
 
 On a cold start the app waits for Postgres rather than exiting: Flyway retries its boot connection
 (`POSTGRES_CONNECT_RETRIES`, default 10 — about a minute of backing-off attempts; see "Configuration"),
@@ -110,7 +116,8 @@ Two Deployments, each a single replica with `Recreate` updates (the old pod stop
 new one starts, so an upgrade briefly interrupts it): `postgres` and `app` (the HTTP API and the SPA; one process, no worker). The application pod migrates on boot and, under the local overlay below, runs in
 development mode (`KTOR_DEVELOPMENT=true`, no proxy), in the `astrolabe` namespace. The overlay adds a third, `jira-stub` (`k8s/local/jira-stub.yaml`: the same WireMock image as compose, a
 ClusterIP Service `jira-stub:8080`, and the NetworkPolicy pair app → jira-stub); `apply-local.sh` builds it as `astrolabe-jira-stub:<tag>` and the overlay ConfigMap gives the app
-`JIRA_STUB_BASE_URL=http://jira-stub:8080`. The production base `k8s/` has neither the stub nor the URL.
+`JIRA_STUB_BASE_URL=http://jira-stub:8080`. The production base `k8s/` has neither the stub nor the URL. A fourth, `flow-stub` (`k8s/local/flow-stub.yaml`, the same shape;
+`FLOW_INSECURE_ORIGINS=http://flow-stub:8080`), and `k8s/local/flow-egress.yaml` (app → a real Flow in the `flow` namespace, port 8084; harmless when absent) ride the same overlay.
 
 With a local cluster that shares the Docker image store (e.g. OrbStack):
 
@@ -131,7 +138,7 @@ is the production posture. An existing installation already has the namespace an
 The manifests are hardened: no ServiceAccount token in any pod, non-root/seccomp/`drop: [ALL]` on the
 app and postgres containers, and `k8s/network-policies.yaml` — default-deny plus only
 app → postgres:5432, DNS and public egress on 443 / 587, 465, 25 (SMTP), and 8086 into
-the app (the overlay adds app → jira-stub:8080, because the egress rule excludes every private range, the pod network included). NetworkPolicy is enforced only by a CNI that implements it (OrbStack's cluster does). Details
+the app (the overlay adds app → jira-stub:8080 and → flow-stub:8080 (plus → namespace `flow`:8084), because the egress rule excludes every private range, the pod network included). NetworkPolicy is enforced only by a CNI that implements it (OrbStack's cluster does). Details
 in `.claude/docs/security.md` ("Kubernetes pod and network hardening"). CI validates every manifest and
 the `apply-local.sh` render with `kubeconform` (`k8s-static` job).
 
@@ -198,6 +205,8 @@ class-data-sharing (AppCDS) archive, and setting it drops the archive. Build-tim
 | `READY_RATE_LIMIT_PER_MINUTE` | *(blank)* | Per-IP bucket on `GET /api/v1/ready` (blank = 60; the kubelet probes 12/min). |
 | `PASSWORD_RESET_RATE_LIMIT_PER_MINUTE` | *(blank)* | Per-IP reset bucket; blank follows the mode (5 prod / 100 dev). |
 | `JIRA_TEST_RATE_LIMIT_PER_MINUTE` | *(blank)* | Per-IP bucket on the Jira Test connection and Peek (blank = 10, a number 1..100 pins it; each Test makes up to ~10 outbound calls). `docker-compose.yaml` and the OrbStack overlay pin 30 for the e2e suite. |
+| `FLOW_TEST_RATE_LIMIT_PER_MINUTE` | *(blank)* | Per-IP bucket on the Flow Test connection (blank = 10, a number 1..100 pins it). Wired on compose and Kubernetes (30 for the e2e suite); read by the application from v1.5.0 (the Flow connection) on. |
+| `FLOW_INSECURE_ORIGINS` | *(blank)* | **Development only.** Comma-separated exact `http://host[:port]` origins a Flow connection may name (the compose/Kubernetes-overlay `flow-stub`, port 8097; `docker-compose.yaml` sets `http://flow-stub:8080`, the overlay ConfigMap the same; a real Flow on OrbStack is `http://host.docker.internal:8084` on compose, `http://app.flow.svc.cluster.local:8084` in the cluster). On compose a value in the HOST environment wins and an empty value disables the stub. Production startup will **refuse** a non-blank value. Read by the application from v1.5.0 on; a TLS Flow behind a private CA uses `FLOW_ALLOWED_HOSTS` / `FLOW_ALLOWED_CIDRS` / `FLOW_CA_BUNDLE` instead (v1.5.0). |
 | `REFRESH_REPLAY_GRACE_SECONDS` | `60` | How long a rotated refresh token may be replayed (a lost `/refresh` response, two racing tabs) before the replay is a 401; `0` = strict one-time use. In-memory, per instance (`.claude/docs/security.md` "Token storage"). |
 | `PASSWORD_RESET_MIN_INTERVAL_SECONDS` | `60` | One reset request per submitted email per interval. |
 | `PASSWORD_RESET_MAX_TRACKED` | `10000` | Maximum in-memory reset cooldowns; new identities receive 429 at capacity. |

@@ -1,0 +1,21 @@
+{
+  "priority": 5,
+  "request": {
+    "method": "GET",
+    "urlPath": "/api/v1/integration/teams",
+    "headers": {
+      "Authorization": {
+        "matches": "Bearer flow_int_[A-Za-z0-9_-]{43}"
+      }
+    }
+  },
+  "response": {
+    "status": 500,
+    "headers": {
+      "Content-Type": "application/problem+json"
+    },
+    "bodyFileName": "problem-500-d0e72e0353.json"
+  },
+  "scenarioName": "flow-outage",
+  "requiredScenarioState": "down"
+}

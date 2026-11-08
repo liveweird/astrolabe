@@ -59,6 +59,11 @@ cp "$script_dir/local/front-door.yaml" "$rendered_dir/00-front-door.yaml"
 # so each run rolls the stub too (which also resets its `jira-day2` scenario to the start).
 sed "s|image: astrolabe-jira-stub:local-build|image: astrolabe-jira-stub:$image_tag|" \
     "$script_dir/local/jira-stub.yaml" >"$rendered_dir/jira-stub.yaml"
+# The Flow stub (v1.5.0), the same way: built below from sample-data/flow-stub with the same unique tag, so each run rolls it and resets its
+# `flow-day2` and `flow-outage` scenarios. flow-egress.yaml (app -> a real Flow in the `flow` namespace) needs no image or substitution.
+sed "s|image: astrolabe-flow-stub:local-build|image: astrolabe-flow-stub:$image_tag|" \
+    "$script_dir/local/flow-stub.yaml" >"$rendered_dir/flow-stub.yaml"
+cp "$script_dir/local/flow-egress.yaml" "$rendered_dir/flow-egress.yaml"
 
 sed "s|image: astrolabe-app:local-build|image: astrolabe-app:$image_tag|" \
     "$script_dir/app-deployment.yaml" >"$rendered_dir/app-deployment.yaml"
@@ -69,5 +74,6 @@ kubectl --context "$kube_context" -n astrolabe get secret astrolabe-secrets >/de
 # apply to. CI sets ASTROLABE_SKIP_STUB_BUILD=1: it only validates the render and has no cluster to feed.
 if [ "${ASTROLABE_SKIP_STUB_BUILD:-}" != 1 ]; then
     docker build -q -t "astrolabe-jira-stub:$image_tag" "$script_dir/../sample-data/jira-stub" >/dev/null
+    docker build -q -t "astrolabe-flow-stub:$image_tag" "$script_dir/../sample-data/flow-stub" >/dev/null
 fi
 kubectl --context "$kube_context" apply -f "$rendered_dir"

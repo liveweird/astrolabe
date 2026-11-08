@@ -543,7 +543,7 @@ job — `kubeconform -strict` over the raw manifests (`k8s/*.yaml`, `k8s/local/*
   link-local (cloud metadata `169.254.169.254`) and CGNAT ranges excluded, so a compromised pod cannot
   reach other namespaces or cluster services. Things that need their own extra policy:
   an in-cluster/private SMTP relay, an OTLP collector (`OTEL_*_EXPORTER=otlp`; the default is console),
-  any private upstream (the OrbStack overlay's Jira stub is one: `k8s/local/jira-stub.yaml` adds `allow-app-egress-to-jira-stub` and `allow-jira-stub-from-app`, app → `jira-stub:8080` only; the base never has them). **Cluster assumptions:** DNS is
+  any private upstream (the OrbStack overlay's Jira stub is one: `k8s/local/jira-stub.yaml` adds `allow-app-egress-to-jira-stub` and `allow-jira-stub-from-app`, app → `jira-stub:8080` only; the Flow stub is another, `k8s/local/flow-stub.yaml` with the same pair for `flow-stub:8080`, and `k8s/local/flow-egress.yaml` adds `allow-app-egress-to-flow`, app → namespace `flow` TCP 8084 for a real in-cluster Flow; the base never has any of them). **Cluster assumptions:** DNS is
   matched as pods labelled `k8s-app: kube-dns` in the `kube-system` namespace (stock CoreDNS); a
   NodeLocal DNSCache (link-local resolver address) or OpenShift (`openshift-dns` namespace, different
   labels) needs the DNS rule adjusted, or every lookup times out; SMTP submission on port 2525 and any

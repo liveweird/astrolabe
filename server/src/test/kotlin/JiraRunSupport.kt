@@ -24,7 +24,7 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import io.ktor.server.application.Application
 
-// Shared by the Jira run test classes. NOTHING here touches the shared stub (JiraStubWarmupGuardTest): a class that needs it starts its own
+// Shared by the Jira run test classes. NOTHING here touches the shared stub (StubWarmupGuardTest): a class that needs it starts its own
 // app with `jira.stubBaseUrl` and warms the fixture in its @BeforeClass. The harness below drives a REAL `JiraObserver` (the real services,
 // the real `HttpJiraClient` and transport) over a scripted Ktor `MockEngine`, so a test sees the exact requests the client put on the wire.
 

@@ -1,0 +1,26 @@
+{
+  "priority": 10,
+  "request": {
+    "method": "GET",
+    "urlPath": "/api/v1/integration/teams",
+    "headers": {
+      "Authorization": {
+        "equalTo": "Bearer flow_int_stub-stub-stub-stub-stub-stub-stub-stub-stu"
+      }
+    },
+    "queryParameters": {
+      "sprintsSince": {
+        "absent": true
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "bodyFileName": "teams-started-e92de81502.json"
+  },
+  "scenarioName": "flow-day2",
+  "requiredScenarioState": "Started"
+}

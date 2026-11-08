@@ -1,0 +1,19 @@
+{
+  "priority": 10,
+  "request": {
+    "method": "GET",
+    "urlPath": "/api/v1/integration/me",
+    "headers": {
+      "Authorization": {
+        "equalTo": "Bearer flow_int_stub-stub-stub-stub-stub-stub-stub-stub-stu"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "bodyFileName": "me-3972e6f723.json"
+  }
+}

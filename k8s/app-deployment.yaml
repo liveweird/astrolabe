@@ -114,6 +114,22 @@ spec:
                   name: astrolabe-front-door
                   key: JIRA_TEST_RATE_LIMIT_PER_MINUTE
                   optional: true
+            # The Flow origins a connection may name (the stub's, in the OrbStack overlay), DEVELOPMENT ONLY: like JIRA_STUB_BASE_URL it exists in
+            # k8s/local/front-door.yaml and nowhere else, `optional: true` leaves it UNSET in production (the app refuses to boot in production mode
+            # with a non-blank value). Read by the application from v1.5.0 C3 on.
+            - name: FLOW_INSECURE_ORIGINS
+              valueFrom:
+                configMapKeyRef:
+                  name: astrolabe-front-door
+                  key: FLOW_INSECURE_ORIGINS
+                  optional: true
+            # The Flow Test connection per-IP bucket, raised to 30 in the OrbStack overlay only (e2e); `optional: true` keeps the default of 10 elsewhere. Read from v1.5.0 C4 on.
+            - name: FLOW_TEST_RATE_LIMIT_PER_MINUTE
+              valueFrom:
+                configMapKeyRef:
+                  name: astrolabe-front-door
+                  key: FLOW_TEST_RATE_LIMIT_PER_MINUTE
+                  optional: true
             # Password reset and email MFA need outbound mail. This deployment ships with
             # mail disabled — set "smtp" plus real SMTP_HOST/MAIL_FROM/MAIL_APP_URL to enable
             # those flows (production refuses the `log` transport). MAIL_APP_URL is the https origin

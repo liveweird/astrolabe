@@ -197,14 +197,14 @@ Dependencies kept for a future consumer (Ktor's OkHttp client engine with `infra
 only while a test or source file uses them; knip/dependency analysis flags an orphan, and a consumer-less one is deleted and re-added with the sync. `ktor-client-mock` was re-added with the sync's transport
 (`infra/fetch/SourceHttp`'s suites drive it through a `MockEngine`).
 
-## WireMock (the Jira stub; test-only)
+## WireMock (the Jira and Flow stubs; test-only)
 
-One engine, two carriers, **one version**: the in-JVM `JiraStubServer` (the `wiremock` entry of `gradle/libs.versions.toml`, test classpath only) and the `jira-stub` image (`sample-data/jira-stub/Dockerfile`:
+One engine, three carriers, **one version**: the in-JVM stub servers (`JiraStubServer`, `FlowStubServer`; the `wiremock` entry of `gradle/libs.versions.toml`, test classpath only) and the `jira-stub` and `flow-stub` images (`sample-data/jira-stub/Dockerfile`, `sample-data/flow-stub/Dockerfile`, the SAME tag and digest line:
 `FROM wiremock/wiremock:<tag>@sha256:<index digest>`, served on the compose and Kubernetes stacks) must run the same WireMock, so the mappings behave identically in the suite and on the stacks.
-Dependabot sees both (the Gradle catalog entry, and the `docker` ecosystem has `/sample-data/jira-stub` in its `directories`) but as separate PRs, like the Postgres pins: land ONE hand-assembled PR moving the catalog
-version, the Dockerfile tag and its digest (re-derive the multi-platform index digest with `docker buildx imagetools inspect wiremock/wiremock:<tag>`), and regenerate locks and verification metadata per
-`dependency-reproducibility.md`. `JiraStubFixtureTest` asserts the catalog version equals the Dockerfile tag (and that a digest is pinned), so a partial bump fails the build. The mapping/response format is the engine's:
-after a bump re-run `JiraStubFixtureTest` (it replays every request shape against the committed `sample-data/jira-stub`).
+Dependabot sees both (the Gradle catalog entry, and the `docker` ecosystem has `/sample-data/jira-stub` and `/sample-data/flow-stub` in its `directories`) but as separate PRs, like the Postgres pins: land ONE hand-assembled PR moving the catalog
+version, both Dockerfiles' tag and digest (re-derive the multi-platform index digest with `docker buildx imagetools inspect wiremock/wiremock:<tag>`), and regenerate locks and verification metadata per
+`dependency-reproducibility.md`. `JiraStubFixtureTest` asserts the catalog version equals the Dockerfile tag (and that a digest is pinned) and `FlowStubFixtureTest` that the Flow Dockerfile's `FROM` line equals the Jira one's, so a partial bump fails the build. The mapping/response format is the engine's:
+after a bump re-run `JiraStubFixtureTest` and `FlowStubFixtureTest` (they replay every request shape against the committed `sample-data/jira-stub` and `sample-data/flow-stub`).
 
 ## Web runtime dependencies with a pairing rule
 

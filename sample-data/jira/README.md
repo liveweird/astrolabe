@@ -113,6 +113,6 @@ Jira dates end 5 working days after their target window, 5 renamed; programs: 2 
 ## How it is served
 
 - **In the server suite**: `JiraStubServer` (test sources) starts WireMock in-JVM over this directory on a dynamic port with the request journal off; `JiraStubFixture.warm()`
-  warms it in a `@BeforeClass` (`JiraStubWarmupGuardTest` fails a class that forgets). `JiraStubFixtureTest` replays the contract above over HTTP against `expected.json`.
+  warms it in a `@BeforeClass` (`StubWarmupGuardTest` fails a class that forgets). `JiraStubFixtureTest` replays the contract above over HTTP against `expected.json`.
 - **On the stacks**: `jira-stub/Dockerfile` builds a `wiremock/wiremock` image (the same 3.13.2 pin as the test dependency) with these mappings; compose and the Kubernetes
   overlay run it on port 8096 (a later step wires them).

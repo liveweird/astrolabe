@@ -268,13 +268,15 @@ jobs:
       # reset matching, the preflight; against http stubs). Node built-ins only, no install. The test files are named (never globbed: a glob
       # that matches nothing exits 0) and run one per `node --test` call (with two named files node silently skips a missing one), so a
       # renamed or deleted test file fails this step instead of running nothing. The Jira stub generator's self-test is the third file (two runs
-      # byte-identical, the committed sample-data/jira-stub and expected.json equal to a fresh run, the planted counts, the match regexes).
+      # byte-identical, the committed sample-data/jira-stub and expected.json equal to a fresh run, the planted counts, the match regexes). The Flow
+      # stub generator's is the fourth (the same checks for sample-data/flow-stub, plus the contract's field names and the sprint cadence against Intl).
       - name: Sample plan generator and loader self-tests
         working-directory: ${{ github.workspace }}
         run: |
           node --test scripts/sample-plan/generate.test.mjs
           node --test scripts/sample-plan/load.test.mjs
           node --test sample-data/jira/generate.test.mjs
+          node --test sample-data/flow/generate.test.mjs
       # Last on purpose (see the web job): an overnight advisory must not hide the real gates. Everything
       # in e2e/ is a dev tool (Playwright and its lint stack), so the full tree is audited.
       - name: Audit dependencies (high+)
@@ -318,10 +320,14 @@ jobs:
           PATH="$RUNNER_TEMP/bin:$PATH" RENDER_OUT="$RUNNER_TEMP/rendered" ASTROLABE_SKIP_STUB_BUILD=1 sh k8s/apply-local.sh ci-check
           "$RUNNER_TEMP/kubeconform" -strict -summary -kubernetes-version 1.33.0 -schema-location "$KUBECONFORM_SCHEMAS" "$RUNNER_TEMP"/rendered/*.yaml
           test "$(grep -h 'image: astrolabe-app:ci-check' "$RUNNER_TEMP"/rendered/*.yaml | wc -l)" -eq 1
-          # The Jira stub is overlay-only: rendered once with the same tag, absent from the production base.
+          # The Jira and Flow stubs are overlay-only: each rendered once with the same tag, absent from the production base.
           test "$(grep -h 'image: astrolabe-jira-stub:ci-check' "$RUNNER_TEMP"/rendered/*.yaml | wc -l)" -eq 1
+          test "$(grep -h 'image: astrolabe-flow-stub:ci-check' "$RUNNER_TEMP"/rendered/*.yaml | wc -l)" -eq 1
+          # The Flow egress rule (app -> a real Flow's namespace) is overlay-only too: rendered once, never in the base.
+          test "$(grep -h 'name: allow-app-egress-to-flow$' "$RUNNER_TEMP"/rendered/*.yaml | wc -l)" -eq 1
+          test "$(grep -l 'allow-app-egress-to-flow' k8s/*.yaml | wc -l)" -eq 0
           # Neither a stub resource name nor a stub image may appear in the base manifests (a name, an image or a selector label).
-          test "$(grep -lE '^ *(- )?(name|image|io.kompose.service): .*jira-stub' k8s/*.yaml | wc -l)" -eq 0
+          test "$(grep -lE '^ *(- )?(name|image|io.kompose.service): .*(jira|flow)-stub' k8s/*.yaml | wc -l)" -eq 0
           if grep -q 'local-build' "$RUNNER_TEMP"/rendered/*.yaml; then echo "unrendered image placeholder" >&2; exit 1; fi
       # The front door (security.md): the base k8s/front-door.yaml stays the production posture, and what
       # apply-local.sh renders carries exactly ONE `astrolabe-front-door` ConfigMap, the OrbStack overlay.
@@ -334,16 +340,20 @@ jobs:
           grep -qE '^  KTOR_DEVELOPMENT: "false"$' k8s/front-door.yaml
           grep -qE '^  HTTP_BEHIND_PROXY: "true"$' k8s/front-door.yaml
           grep -qE '^  HTTP_PROXY_HOPS: "1"$' k8s/front-door.yaml
-          # The Deployment must READ the ConfigMap: exactly five refs (the three keys plus the overlay-only, OPTIONAL JIRA_STUB_BASE_URL and
-          # JIRA_TEST_RATE_LIMIT_PER_MINUTE),
+          # The Deployment must READ the ConfigMap: exactly seven refs (the three keys plus the overlay-only, OPTIONAL JIRA_STUB_BASE_URL,
+          # JIRA_TEST_RATE_LIMIT_PER_MINUTE, FLOW_INSECURE_ORIGINS and FLOW_TEST_RATE_LIMIT_PER_MINUTE),
           # and no inline value for any of them. The production ConfigMap carries no stub key (the app refuses a stub URL in production).
-          test "$(grep -cE '^ +name: astrolabe-front-door$' k8s/app-deployment.yaml)" -eq 5
+          test "$(grep -cE '^ +name: astrolabe-front-door$' k8s/app-deployment.yaml)" -eq 7
           if grep -q 'JIRA_STUB_BASE_URL' k8s/front-door.yaml; then echo "the production ConfigMap must not carry the Jira stub URL" >&2; exit 1; fi
           if grep -q 'JIRA_TEST_RATE_LIMIT_PER_MINUTE' k8s/front-door.yaml; then echo "the production ConfigMap keeps the default jira-test bucket" >&2; exit 1; fi
+          if grep -q 'FLOW_INSECURE_ORIGINS' k8s/front-door.yaml; then echo "the production ConfigMap must not carry the Flow insecure origins" >&2; exit 1; fi
+          if grep -q 'FLOW_TEST_RATE_LIMIT_PER_MINUTE' k8s/front-door.yaml; then echo "the production ConfigMap keeps the default flow-test bucket" >&2; exit 1; fi
           # `optional: true` must sit inside THAT env entry (from its `- name:` line to the next entry), not merely near it.
           awk '/^ +- name: /{on=($0 ~ /name: JIRA_STUB_BASE_URL$/)} on' k8s/app-deployment.yaml | grep -qE '^ +optional: true$'
           awk '/^ +- name: /{on=($0 ~ /name: JIRA_TEST_RATE_LIMIT_PER_MINUTE$/)} on' k8s/app-deployment.yaml | grep -qE '^ +optional: true$'
-          if grep -A1 -E 'name: (KTOR_DEVELOPMENT|HTTP_BEHIND_PROXY|HTTP_PROXY_HOPS|JIRA_STUB_BASE_URL|JIRA_TEST_RATE_LIMIT_PER_MINUTE)$' k8s/app-deployment.yaml | grep -qE '^ +value:'; then
+          awk '/^ +- name: /{on=($0 ~ /name: FLOW_INSECURE_ORIGINS$/)} on' k8s/app-deployment.yaml | grep -qE '^ +optional: true$'
+          awk '/^ +- name: /{on=($0 ~ /name: FLOW_TEST_RATE_LIMIT_PER_MINUTE$/)} on' k8s/app-deployment.yaml | grep -qE '^ +optional: true$'
+          if grep -A1 -E 'name: (KTOR_DEVELOPMENT|HTTP_BEHIND_PROXY|HTTP_PROXY_HOPS|JIRA_STUB_BASE_URL|JIRA_TEST_RATE_LIMIT_PER_MINUTE|FLOW_INSECURE_ORIGINS|FLOW_TEST_RATE_LIMIT_PER_MINUTE)$' k8s/app-deployment.yaml | grep -qE '^ +value:'; then
             echo "an inline value overrides the front-door ConfigMap" >&2; exit 1
           fi
           test "$(cat "$RUNNER_TEMP"/rendered/*.yaml | grep -cE '^kind: ConfigMap$')" -eq 1
@@ -352,6 +362,7 @@ jobs:
           grep -qE '^  KTOR_DEVELOPMENT: "true"$' "$rendered"
           grep -qE '^  HTTP_BEHIND_PROXY: "false"$' "$rendered"
           grep -qE '^  JIRA_STUB_BASE_URL: "http://jira-stub:8080"$' "$rendered"
+          grep -qE '^  FLOW_INSECURE_ORIGINS: "http://flow-stub:8080"$' "$rendered"
 
   images:
     # Dockerfile drift guard: the image must still build — and, built, must carry no fixable

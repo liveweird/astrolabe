@@ -31,3 +31,10 @@ data:
   # The per-IP Test connection / Peek bucket (`jira-test`): 30/min for the e2e suite on this local stack; the shipped production manifests keep the 10 default,
   # so the base k8s/front-door.yaml carries no such key (the Deployment reads it `optional`, like the stub URL).
   JIRA_TEST_RATE_LIMIT_PER_MINUTE: "30"
+  # The Flow stub (k8s/local/flow-stub.yaml, a ClusterIP Service in this namespace): the origin a Flow connection may name (a comma-separated list of exact
+  # http://host[:port] origins; read from v1.5.0 C3 on). Development mode ONLY: the application refuses to boot in production mode with a non-blank value, and
+  # the base k8s/front-door.yaml must never carry it. To reach a REAL Flow in the cluster add http://app.flow.svc.cluster.local:8084 here (k8s/local/flow-egress.yaml
+  # opens the network path); the pod takes the new value on its next start.
+  FLOW_INSECURE_ORIGINS: "http://flow-stub:8080"
+  # The per-IP Flow Test connection bucket (`flow-test`): 30/min for the e2e suite on this local stack; the base manifests keep the 10 default (optional ref, like jira-test).
+  FLOW_TEST_RATE_LIMIT_PER_MINUTE: "30"

@@ -1,0 +1,29 @@
+# Egress from the app to a REAL Flow running in the same cluster (namespace `flow`, Service `app` on port 8084: Flow's own k8s manifests,
+# plain http), for the OrbStack overlay only. DEVELOPMENT ONLY, like k8s/local/front-door.yaml: apply-local.sh applies this file, the base
+# k8s/*.yaml never carry it.
+#
+# k8s/network-policies.yaml is default-deny and its app egress rule excludes every private range, the pod network included, so without this
+# rule a Flow connection to http://app.flow.svc.cluster.local:8084 fails with a connect error while the same connection passes on compose
+# (host.docker.internal:8084). The application's own OutboundGuard is the first layer (the origin must be listed in FLOW_INSECURE_ORIGINS,
+# k8s/local/front-door.yaml; it is not by default); this policy is the second. Harmless when the namespace or Flow is absent: the rule
+# matches nothing. The Flow STUB (k8s/local/flow-stub.yaml) lives in this namespace and has its own rule pair.
+#
+# Selecting a namespace by its automatic `kubernetes.io/metadata.name` label (set by Kubernetes itself, not by a person); the port is Flow's.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-app-egress-to-flow
+  namespace: astrolabe
+spec:
+  podSelector:
+    matchLabels:
+      io.kompose.service: app
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: flow
+      ports:
+        - protocol: TCP
+          port: 8084

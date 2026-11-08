@@ -40,6 +40,7 @@ ch.nokillswit.EncryptedAtRestBootTest	0.3
 ch.nokillswit.FeatureFlagsTest	0.3
 ch.nokillswit.FieldCipherTest	0.0
 ch.nokillswit.FixtureTripwireTest	0.0
+ch.nokillswit.FlowStubFixtureTest	0.5
 ch.nokillswit.FlywayConnectRetriesTest	1.1
 ch.nokillswit.FlywayLogTest	0.0
 ch.nokillswit.ForkWarmup1Test	0.2
@@ -97,7 +98,6 @@ ch.nokillswit.JiraRunTest	2.1
 ch.nokillswit.JiraRunWireTest	1.4
 ch.nokillswit.JiraSchemaTest	0.4
 ch.nokillswit.JiraStubFixtureTest	0.7
-ch.nokillswit.JiraStubWarmupGuardTest	0.0
 ch.nokillswit.JiraTestConnectionTest	1.5
 ch.nokillswit.JiraTimeTest	0.0
 ch.nokillswit.JsonbColumnTest	0.0
@@ -193,6 +193,7 @@ ch.nokillswit.SqlHelpersTest	0.0
 ch.nokillswit.StaleAccessTokenTest	1.8
 ch.nokillswit.StatementTimeoutCacheTest	2.1
 ch.nokillswit.StorageReadingsTest	0.0
+ch.nokillswit.StubWarmupGuardTest	0.0
 ch.nokillswit.SyncBootTest	0.5
 ch.nokillswit.SyncRunRoutesTest	0.6
 ch.nokillswit.SyncRunServiceTest	0.1

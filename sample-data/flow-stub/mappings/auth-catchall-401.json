@@ -1,0 +1,13 @@
+{
+  "priority": 100,
+  "request": {
+    "urlPathPattern": "/api/v1/integration/.*"
+  },
+  "response": {
+    "status": 401,
+    "headers": {
+      "Content-Type": "application/problem+json"
+    },
+    "bodyFileName": "problem-401-5f3ea864c8.json"
+  }
+}

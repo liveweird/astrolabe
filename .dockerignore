@@ -16,10 +16,10 @@ e2e/test-results/
 # checkout: the context transfer fell from 3.84 GB to 17.7 MB. No Dockerfile stage reads .claude/.
 .claude/
 
-# The deterministic sample plan (loaded into a DEVELOPMENT stack through the API by scripts/sample-plan/load.mjs) and the Jira stub dataset
-# (sample-data/jira-stub, ~20 MB of WireMock mappings and bodies): test data, never part of the APP image. No Dockerfile stage copies them; excluding
-# them here keeps a future broad COPY from shipping them. The stub has its OWN image, built with sample-data/jira-stub itself as the
-# context (its Dockerfile COPYs mappings/ and __files/ from there), so this root ignore file does not apply to that build.
+# The deterministic sample plan (loaded into a DEVELOPMENT stack through the API by scripts/sample-plan/load.mjs) and the Jira and Flow stub datasets
+# (sample-data/jira-stub, ~20 MB of WireMock mappings and bodies; sample-data/flow-stub, ~0.3 MB): test data, never part of the APP image. No Dockerfile stage copies them; excluding
+# them here keeps a future broad COPY from shipping them. Each stub has its OWN image, built with its sample-data/<name>-stub itself as the
+# context (its Dockerfile COPYs mappings/ and __files/ from there), so this root ignore file does not apply to those builds.
 sample-data/
 
 # IDE / local cruft (.git stays IN the context — the SPA build stage reads the
