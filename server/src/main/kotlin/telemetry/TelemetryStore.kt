@@ -28,14 +28,14 @@ import org.jetbrains.exposed.v1.r2dbc.update
 const val HOURLY_RESOLUTION = 3600
 
 /**
- * Every `resolution` a raw row may hold: the divisors of 3600 from 60 up to (not including) [HOURLY_RESOLUTION] (the V36 CHECK). The
+ * Every `resolution` a raw row may hold: the divisors of 3600 from 60 up to (not including) [HOURLY_RESOLUTION] (the V9 CHECK). The
  * readers filter the raw tier with `resolution IN (these)` rather than `resolution < 3600`, so the primary key
  * `(resolution, metric, ts, ...)` gets EQUALITY prefixes instead of a range on its leading column. `TelemetryReadsTest` pins it.
  */
 internal val RAW_RESOLUTIONS: List<Int> =
     listOf(60, 72, 75, 80, 90, 100, 120, 144, 150, 180, 200, 225, 240, 300, 360, 400, 450, 600, 720, 900, 1200, 1800)
 
-/** Raw samples live 7 days, hourly rollups and silent processes 90 (`.claude/docs/persistence.md` "Telemetry (V36)"). */
+/** Raw samples live 7 days, hourly rollups and silent processes 90 (`.claude/docs/persistence.md` "Telemetry (V9)"). */
 internal const val RAW_RETENTION_MILLIS = 7 * MILLIS_PER_DAY
 internal const val HOURLY_RETENTION_MILLIS = 90 * MILLIS_PER_DAY
 internal const val PROCESS_RETENTION_MILLIS = 90 * MILLIS_PER_DAY
@@ -66,7 +66,7 @@ data class SampleRow(
 )
 
 /**
- * The `ops` schema's access (V36): the process registry, the sample inserts, the cluster lock and the hourly rollup / prune.
+ * The `ops` schema's access (V9): the process registry, the sample inserts, the cluster lock and the hourly rollup / prune.
  * Every statement runs in a transaction that carries [statementTimeoutSeconds] as its `queryTimeout` (the only way a statement
  * timeout may be set, `persistence.md` "Connection pool"). The tx-bound functions are extensions on [R2dbcTransaction] so the
  * sampler can compose them inside the one cluster transaction.
@@ -229,7 +229,7 @@ internal suspend fun R2dbcTransaction.rollupHourly(now: Long, settleMillis: Long
 }
 
 /**
- * The hard-delete prune (persistence.md "Telemetry (V36)"): raw samples older than 7 days, hourly rows older than 90, and
+ * The hard-delete prune (persistence.md "Telemetry (V9)"): raw samples older than 7 days, hourly rows older than 90, and
  * processes silent for 90 (their samples go with them, `ON DELETE CASCADE`). A row exactly at its cutoff stays.
  */
 internal suspend fun R2dbcTransaction.pruneTelemetry(now: Long) {
