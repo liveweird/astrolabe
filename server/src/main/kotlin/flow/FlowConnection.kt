@@ -78,9 +78,6 @@ data class FlowConnectionListResult(val items: List<FlowConnectionResponse>, val
 /** `affected` is the updated-row count (0 -> 404); `tokenRotated` whether the PUT carried a token; `host` the origin's host (audit). */
 data class FlowConnectionUpdateOutcome(val affected: Int, val tokenRotated: Boolean, val host: String)
 
-/** What a run in flight may still do with its connection ([FlowConnectionService.runnableState]). */
-enum class FlowRunnableState { RUNNABLE, GONE, DISABLED }
-
 /**
  * `affected` is the soft-deleted row count (0 -> 404); `name` and `host` are the row as STORED (the audit fields); `bindingsUnbound` the
  * connection's ACTIVE team bindings soft-deleted with it, `runsDeleted` its hard-deleted runs and `mirrorDeleted` its hard-deleted mirror

@@ -92,3 +92,13 @@ object SyncStatusKernels {
         )
     }
 }
+
+/**
+ * The status of each of [connections] of [kind] (`SyncStatusKernels.derive`): the connections' newest runs read INSIDE the caller's open
+ * transaction (it opens none), one indexed query per connection, judged against the registry's clock. Index-aligned with [connections].
+ */
+suspend fun SyncRunService.statusesInTransaction(kind: SyncKind, connections: List<ConnectorConnection>): List<SyncStatus> {
+    val now = now()
+    val recent = recentRunsInTransaction(kind, connections.map { it.id })
+    return connections.map { SyncStatusKernels.derive(it, recent.getValue(it.id), now, maxRunMinutes) }
+}

@@ -5,7 +5,9 @@ import ch.nokillswit.infra.db.nowMillis
 import ch.nokillswit.infra.time.WorkingCalendar
 import ch.nokillswit.planning.DeviationSeverity
 import ch.nokillswit.planning.loadWorkingCalendar
+import ch.nokillswit.sync.SyncKind
 import ch.nokillswit.sync.SyncRunService
+import ch.nokillswit.sync.statusesInTransaction
 import ch.nokillswit.teams.CapacityPeriodRow
 import ch.nokillswit.teams.TeamCapacityService
 import io.ktor.util.AttributeKey
@@ -127,7 +129,7 @@ class CapacityDeviationService(
         ).where { registry.active() and (connectionId?.let { registry.id eq it } ?: Op.TRUE) }
             .orderBy(registry.name.lowerCase() to SortOrder.ASC, registry.id to SortOrder.ASC)
             .limit(MAX_PANEL_CONNECTIONS).toList()
-        val statuses = runs.statusesInTransaction(rows.map { it.toConnectorConnection() })
+        val statuses = runs.statusesInTransaction(SyncKind.FLOW, rows.map { it.toConnectorConnection() })
         return rows.zip(statuses) { row, status ->
             ConnectionFacts(
                 CapacityDeviationConnection(

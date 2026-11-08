@@ -3,6 +3,7 @@ package ch.nokillswit.jira
 import ch.nokillswit.authz.ConflictException
 import ch.nokillswit.authz.NotFoundException
 import ch.nokillswit.infra.fetch.FetchException
+import ch.nokillswit.sync.RunnableState
 import io.ktor.server.plugins.BadRequestException
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonObject

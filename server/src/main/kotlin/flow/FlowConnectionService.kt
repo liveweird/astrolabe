@@ -4,16 +4,20 @@ import ch.nokillswit.authz.ConflictException
 import ch.nokillswit.infra.crypto.EncryptedAtRest
 import ch.nokillswit.infra.crypto.FieldCipher
 import ch.nokillswit.infra.crypto.reencryptRows
-import ch.nokillswit.infra.db.SoftDeletable
 import ch.nokillswit.infra.db.active
 import ch.nokillswit.infra.db.nowMillis
 import ch.nokillswit.infra.outbound.FlowBaseUrlVerdict
 import ch.nokillswit.infra.paging.PageRequest
 import ch.nokillswit.infra.paging.applyPaging
+import ch.nokillswit.sync.ConnectionColumns
 import ch.nokillswit.sync.ConnectorConnection
+import ch.nokillswit.sync.RunnableState
 import ch.nokillswit.sync.SyncKind
 import ch.nokillswit.sync.SyncRunService
 import ch.nokillswit.sync.SyncStatus
+import ch.nokillswit.sync.isRunnable
+import ch.nokillswit.sync.runnableStateOf
+import ch.nokillswit.sync.statusesInTransaction
 import io.ktor.util.AttributeKey
 import java.security.GeneralSecurityException
 import kotlinx.coroutines.flow.toList
@@ -51,9 +55,9 @@ class FlowConnectionService(
     /** The operator's origin rule (`FlowOrigins.baseUrlVerdict`): a registry write can never widen it. */
     private val baseUrlVerdict: (String) -> FlowBaseUrlVerdict,
 ) : EncryptedAtRest {
-    object Connections : UIntIdTable("flow_connections"), SoftDeletable {
+    object Connections : UIntIdTable("flow_connections"), ConnectionColumns {
         // Case-folded name uniqueness rides the partial unique index uq_flow_connections_name_active (V24, active rows only).
-        val name = varchar("name", length = MAX_FLOW_CONNECTION_NAME_LENGTH)
+        override val name = varchar("name", length = MAX_FLOW_CONNECTION_NAME_LENGTH)
 
         /** An exact origin the operator listed: the connection's identity, never changed by a PUT. */
         val baseUrl = varchar("base_url", length = MAX_FLOW_BASE_URL_LENGTH)
@@ -61,17 +65,17 @@ class FlowConnectionService(
 
         /** A `FieldCipher` envelope (`enc:v1:...`); write-only end to end. NULL only on a deleted row (V24 CHECKs). */
         val apiToken = text("api_token").nullable()
-        val enabled = bool("enabled")
+        override val enabled = bool("enabled")
 
         /** Minutes between scheduled runs (V24, CHECK 5..1440); null = manual only. */
-        val pollIntervalMinutes = integer("poll_interval_minutes").nullable()
+        override val pollIntervalMinutes = integer("poll_interval_minutes").nullable()
         val lastTestedAt = long("last_tested_at").nullable()
         val lastTestOk = bool("last_test_ok").nullable()
 
         /** When a run last replaced the mirror (null = never); [FlowMirrorStore] writes it. */
         val teamsAt = long("teams_at").nullable()
         val createdAt = long("created_at")
-        val updatedAt = long("updated_at")
+        override val updatedAt = long("updated_at")
         override val markedAsDeleted = bool("marked_as_deleted").default(false)
     }
 
@@ -87,14 +91,14 @@ class FlowConnectionService(
         val total = Connections.selectAll().where { predicate }.count()
         val rows = Connections.selectAll().where { predicate }.applyPaging(paging, SORTABLE_COLUMNS).toList()
         // One indexed LIMIT query per listed connection (a page holds at most 100), inside this transaction.
-        val statuses = runs.statusesInTransaction(rows.map { it.toConnectorConnection() })
+        val statuses = runs.statusesInTransaction(SyncKind.FLOW, rows.map { it.toConnectorConnection() })
         FlowConnectionListResult(rows.zip(statuses) { row, status -> row.toResponse(status) }, total)
     }
 
     /** The connection, or null when missing/deleted. */
     suspend fun read(id: UInt): FlowConnectionResponse? = suspendTransaction(database) {
         Connections.selectAll().where { (Connections.id eq id) and Connections.active() }.toList().singleOrNull()
-            ?.let { row -> row.toResponse(runs.statusesInTransaction(listOf(row.toConnectorConnection())).single()) }
+            ?.let { row -> row.toResponse(runs.statusesInTransaction(SyncKind.FLOW, listOf(row.toConnectorConnection())).single()) }
     }
 
     /** Creates the connection; the token is encrypted before it is bound. A name clash rides the V24 partial index into the central 409. */
@@ -186,26 +190,14 @@ class FlowConnectionService(
         true
     }
 
-    /** The scheduler's rows (no token): `pollRowsOf` in `FlowConnectionPolling.kt`. */
-    suspend fun pollRows(queryTimeoutSeconds: Int = 0): List<ConnectorConnection> = pollRowsOf(database, queryTimeoutSeconds)
+    /** The scheduler's rows (no token): `flowPollRows` in `FlowConnectionPolling.kt`. */
+    suspend fun pollRows(queryTimeoutSeconds: Int = 0): List<ConnectorConnection> = flowPollRows(database, queryTimeoutSeconds)
 
     /** Whether the connection is active and enabled: what a manual run needs before it claims (no token is read). */
-    suspend fun isRunnable(id: UInt): Boolean = runnableState(id) == FlowRunnableState.RUNNABLE
+    suspend fun isRunnable(id: UInt): Boolean = isRunnable(database, Connections, id)
 
-    /**
-     * Whether the connection is still there to run against, for a run in flight: `GONE` once it is deleted (its token is destroyed, so a
-     * copy held in memory must not authenticate one more read), `DISABLED` once an administrator switched it off. Its own short
-     * transaction.
-     */
-    suspend fun runnableState(id: UInt): FlowRunnableState = suspendTransaction(database) {
-        val enabled = Connections.select(Connections.enabled).where { (Connections.id eq id) and Connections.active() }
-            .toList().singleOrNull()?.get(Connections.enabled)
-        when (enabled) {
-            null -> FlowRunnableState.GONE
-            false -> FlowRunnableState.DISABLED
-            true -> FlowRunnableState.RUNNABLE
-        }
-    }
+    /** What a run in flight may still do with its connection (`sync/ConnectionRegistry.kt`). */
+    suspend fun runnableState(id: UInt): RunnableState = runnableStateOf(database, Connections, id)
 
     /**
      * Soft delete: frees the name, sets the token NULL, and - in the SAME transaction - soft-deletes the connection's ACTIVE team

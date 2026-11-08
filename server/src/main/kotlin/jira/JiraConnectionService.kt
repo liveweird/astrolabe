@@ -4,7 +4,6 @@ import ch.nokillswit.authz.ConflictException
 import ch.nokillswit.infra.crypto.EncryptedAtRest
 import ch.nokillswit.infra.crypto.FieldCipher
 import ch.nokillswit.infra.crypto.reencryptRows
-import ch.nokillswit.infra.db.SoftDeletable
 import ch.nokillswit.infra.db.active
 import ch.nokillswit.infra.db.jsonb
 import ch.nokillswit.infra.db.nowMillis
@@ -12,10 +11,15 @@ import ch.nokillswit.infra.json.parseStringArray
 import ch.nokillswit.infra.json.stringArrayJson
 import ch.nokillswit.infra.paging.PageRequest
 import ch.nokillswit.infra.paging.applyPaging
+import ch.nokillswit.sync.ConnectionColumns
 import ch.nokillswit.sync.ConnectorConnection
+import ch.nokillswit.sync.RunnableState
 import ch.nokillswit.sync.SyncKind
 import ch.nokillswit.sync.SyncRunService
 import ch.nokillswit.sync.SyncStatus
+import ch.nokillswit.sync.isRunnable
+import ch.nokillswit.sync.runnableStateOf
+import ch.nokillswit.sync.statusesInTransaction
 import io.ktor.util.AttributeKey
 import java.security.GeneralSecurityException
 import kotlinx.coroutines.flow.toList
@@ -52,9 +56,9 @@ class JiraConnectionService(
     /** Its newest run rides every response and its delete removes the runs; `sync/` knows nothing of `jira/` (the allowed direction). */
     private val runs: SyncRunService,
 ) : EncryptedAtRest {
-    object Connections : UIntIdTable("jira_connections"), SoftDeletable {
+    object Connections : UIntIdTable("jira_connections"), ConnectionColumns {
         // Case-folded name uniqueness rides the partial unique index uq_jira_connections_name_active (V21, active rows only).
-        val name = varchar("name", length = MAX_JIRA_CONNECTION_NAME_LENGTH)
+        override val name = varchar("name", length = MAX_JIRA_CONNECTION_NAME_LENGTH)
         val siteUrl = varchar("site_url", length = MAX_SITE_URL_LENGTH)
         val email = varchar("email", length = MAX_JIRA_EMAIL_LENGTH)
 
@@ -77,12 +81,12 @@ class JiraConnectionService(
         val censusAt = long("census_at").nullable()
         val lastTestedAt = long("last_tested_at").nullable()
         val lastTestOk = bool("last_test_ok").nullable()
-        val enabled = bool("enabled")
+        override val enabled = bool("enabled")
 
         /** Minutes between scheduled runs (V22, CHECK 5..1440); null = manual only. Existing rows took the column DEFAULT, 15. */
-        val pollIntervalMinutes = integer("poll_interval_minutes").nullable()
+        override val pollIntervalMinutes = integer("poll_interval_minutes").nullable()
         val createdAt = long("created_at")
-        val updatedAt = long("updated_at")
+        override val updatedAt = long("updated_at")
         override val markedAsDeleted = bool("marked_as_deleted").default(false)
     }
 
@@ -101,14 +105,14 @@ class JiraConnectionService(
         val total = Connections.selectAll().where { predicate }.count()
         val rows = summary().where { predicate }.applyPaging(paging, SORTABLE_COLUMNS).toList()
         // One indexed LIMIT query per listed connection (a page holds at most 100), inside this transaction.
-        val statuses = runs.statusesInTransaction(rows.map { it.toConnectorConnection() })
+        val statuses = runs.statusesInTransaction(SyncKind.JIRA, rows.map { it.toConnectorConnection() })
         JiraConnectionListResult(rows.zip(statuses) { row, status -> row.toResponse(status) }, total)
     }
 
     /** The connection, or null when missing/deleted. */
     suspend fun read(id: UInt): JiraConnectionResponse? = suspendTransaction(database) {
         summary().where { (Connections.id eq id) and Connections.active() }.toList().singleOrNull()
-            ?.let { row -> row.toResponse(runs.statusesInTransaction(listOf(row.toConnectorConnection())).single()) }
+            ?.let { row -> row.toResponse(runs.statusesInTransaction(SyncKind.JIRA, listOf(row.toConnectorConnection())).single()) }
     }
 
     /** Creates the connection; the token is encrypted before it is bound. A name clash rides the V21 partial index into the central 409. */
@@ -201,28 +205,13 @@ class JiraConnectionService(
     }
 
     /** The scheduler's rows (`JiraConnectionPolling.kt`): the active connections' poll facts, never the token or the discovery. */
-    suspend fun pollRows(queryTimeoutSeconds: Int = 0): List<ConnectorConnection> = pollRowsOf(database, queryTimeoutSeconds)
+    suspend fun pollRows(queryTimeoutSeconds: Int = 0): List<ConnectorConnection> = jiraPollRows(database, queryTimeoutSeconds)
 
     /** Whether the connection is active and enabled: what a run needs before it claims (no token is read). */
-    suspend fun isRunnable(id: UInt): Boolean = suspendTransaction(database) {
-        Connections.select(Connections.id).where { (Connections.id eq id) and Connections.active() and (Connections.enabled eq true) }
-            .toList().isNotEmpty()
-    }
+    suspend fun isRunnable(id: UInt): Boolean = isRunnable(database, Connections, id)
 
-    /**
-     * Whether the connection is still there to run against, for a run in flight (checked once per search page): `GONE` once it is
-     * deleted (its token is destroyed, so a copy held in memory must not authenticate one more read), `DISABLED` once an administrator
-     * switched it off. Its own short transaction.
-     */
-    suspend fun runnableState(id: UInt): RunnableState = suspendTransaction(database) {
-        val enabled = Connections.select(Connections.enabled).where { (Connections.id eq id) and Connections.active() }
-            .toList().singleOrNull()?.get(Connections.enabled)
-        when (enabled) {
-            null -> RunnableState.GONE
-            false -> RunnableState.DISABLED
-            true -> RunnableState.RUNNABLE
-        }
-    }
+    /** What a run in flight may still do with its connection, checked once per search page (`sync/ConnectionRegistry.kt`). */
+    suspend fun runnableState(id: UInt): RunnableState = runnableStateOf(database, Connections, id)
 
     /** Persists the cloud id a run resolved when none is stored yet (never overwrites; `updated_at` stays, so no Test result is staled). */
     suspend fun storeCloudId(id: UInt, resolved: String) {

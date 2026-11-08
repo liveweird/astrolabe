@@ -3,12 +3,12 @@ package ch.nokillswit
 import ch.nokillswit.authz.ConflictException
 import ch.nokillswit.flow.FLOW_CONNECTION_SORT_FIELDS
 import ch.nokillswit.flow.FlowConnectionService
-import ch.nokillswit.flow.FlowRunnableState
 import ch.nokillswit.infra.crypto.DEV_DATA_ENCRYPTION_KEY
 import ch.nokillswit.infra.crypto.FieldCipher
 import ch.nokillswit.infra.outbound.FlowBaseUrlVerdict
 import ch.nokillswit.infra.paging.PageRequest
 import ch.nokillswit.infra.paging.SortField
+import ch.nokillswit.sync.RunnableState
 import ch.nokillswit.sync.SyncRunService
 import io.ktor.server.plugins.BadRequestException
 import kotlinx.coroutines.runBlocking
@@ -226,14 +226,14 @@ class FlowConnectionServiceTest {
     fun `runnableState tells a run whether its connection is still there`() = runBlocking {
         PostgresTestSupport.ensureMigrated()
         val id = service.create(flowRequest(name = name()))
-        assertEquals(FlowRunnableState.RUNNABLE, service.runnableState(id))
+        assertEquals(RunnableState.RUNNABLE, service.runnableState(id))
         assertTrue(service.isRunnable(id))
         jbSql("UPDATE flow_connections SET enabled = FALSE WHERE id = ?", id.toInt())
-        assertEquals(FlowRunnableState.DISABLED, service.runnableState(id))
+        assertEquals(RunnableState.DISABLED, service.runnableState(id))
         assertFalse(service.isRunnable(id))
         service.delete(id)
-        assertEquals(FlowRunnableState.GONE, service.runnableState(id))
-        assertEquals(FlowRunnableState.GONE, service.runnableState(id + 1_000_000u))
+        assertEquals(RunnableState.GONE, service.runnableState(id))
+        assertEquals(RunnableState.GONE, service.runnableState(id + 1_000_000u))
     }
 
     @Test

@@ -2,8 +2,8 @@ package ch.nokillswit
 
 import ch.nokillswit.flow.FLOW_SPRINT_CAP
 import ch.nokillswit.flow.FLOW_TEAM_CAP
-import ch.nokillswit.flow.FlowRunnableState
 import ch.nokillswit.infra.crypto.FieldCipher
+import ch.nokillswit.sync.RunnableState
 import ch.nokillswit.sync.SyncOutcome
 import ch.nokillswit.sync.SyncRunResponse
 import ch.nokillswit.sync.SyncState
@@ -191,7 +191,7 @@ class FlowRunWireTest {
         val mirrored = harness.mirror.teamsOf(id).map { it.flowTeamId }.toSet()
         assertEquals(setOf(1, 2), mirrored, "the document of the disabled run was not written")
         assertEquals(before, harness.connections.read(id)!!.teamsAt)
-        assertEquals(FlowRunnableState.DISABLED, harness.connections.runnableState(id))
+        assertEquals(RunnableState.DISABLED, harness.connections.runnableState(id))
     }
 
     @Test
@@ -206,7 +206,7 @@ class FlowRunWireTest {
             assertEquals(0L, jbScalar("SELECT count(*) FROM $table WHERE connection_id = ?", id.toInt()) { it.getLong(1) }, table)
         }
         assertNull(flowStoredToken(id), "the deleted connection's token is destroyed")
-        assertEquals(FlowRunnableState.GONE, harness.connections.runnableState(id))
+        assertEquals(RunnableState.GONE, harness.connections.runnableState(id))
     }
 
     @Test

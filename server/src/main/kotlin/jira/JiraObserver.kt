@@ -11,6 +11,7 @@ import ch.nokillswit.infra.fetch.TENANT_PAUSED_MS_KEY
 import ch.nokillswit.sync.ClaimedRun
 import ch.nokillswit.sync.Connector
 import ch.nokillswit.sync.ConnectorConnection
+import ch.nokillswit.sync.RunnableState
 import ch.nokillswit.sync.SyncCounts
 import ch.nokillswit.sync.SyncKind
 import ch.nokillswit.sync.SyncResult
