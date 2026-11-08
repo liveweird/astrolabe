@@ -1316,7 +1316,7 @@ toast asks for a new test. A 400 on save shows the server's sentence under the f
 transaction), with the count of LIVE-node links from `GET /integrations/jira/bindings?connectionId=&pageSize=1` (`total`; that list hides dead-node bindings, so
 the sentences say "live plan items" and never claim there is nothing else; a count-less sentence while it loads or fails). A new connection lands on its page.
 
-`/integrations/jira/:id` has h3 sections inside `Box maw={CONTENT_MAX_WIDTH}`, each with a component of its own so the page stays a composition (the Bindings
+The page is a thin adapter over the shared shell `components/ConnectionDetailsPage.tsx` (route-id parse keyed by `:id`, load triage, header with Edit, sections column, editor modal; it takes `kind`, the list path, the read, a `sections` render slot and the `Editor`; the Flow page is its twin). `/integrations/jira/:id` has h3 sections inside `Box maw={CONTENT_MAX_WIDTH}`, each with a component of its own so the page stays a composition (the Bindings
 section is the third, `components/JiraBindingsSection.tsx`, below): **Connection** (`components/JiraConnectionSection.tsx`: the facts table - the token only as
 "stored / not stored" -, **Test connection** on the STORED token (the verdict is also said in a polite status region, `components/ConnectionTestStatus.tsx`, and
 an old result is cleared the moment a new attempt starts) with the result in `components/ConnectionTestResults.tsx` (Flow's, ported: one row per probe, a
@@ -1381,7 +1381,7 @@ and the runs). Tests: `JiraConnections.test.tsx`, `JiraConnectionDetails.test.ts
 queries `enabled: isAdmin()`) is the registry of the Flow instances Astrolabe READS team capacity and rosters from (nothing is written to Flow),
 `GET /integrations/flow/connections` under `["flow","list",…]` through `api/flow.ts`: the Jira registry's twin (`usePagedSort` + `RegistryListTable`; columns
 name, base URL, time zone, last test, **Status** (`SyncStatusBadge`, `ready` = `flowReady`: a passing test or a mirrored document, the server's sticky rule),
-last run, kebab; the test cell is the shared `ConnectionTestBadge`) with the same slow re-read (`IDLE_REFRESH_MS`) and bounded poll while a run runs. `/integrations/flow/:id` has two h3 sections: **Connection**
+last run, kebab; the test cell is the shared `ConnectionTestBadge`) with the same slow re-read (`IDLE_REFRESH_MS`) and bounded poll while a run runs. `/integrations/flow/:id` is a thin adapter over the same shell (`components/ConnectionDetailsPage.tsx`, see the Jira section) and has two h3 sections: **Connection**
 (`components/FlowConnectionSection.tsx`: facts via the shared `SyncFacts`, Test connection on the STORED token, Refresh now =
 `POST /integrations/sync/runs {kind: "FLOW"}`, `SyncRunsTable kind="FLOW"`; a test writes NO mirror - the run does - so the Teams section follows a run's end,
 not a test) and **Teams** (`components/FlowTeamsSection.tsx`, below). The shared pieces are kind-aware, never forked: `ConnectionTestResults kind="FLOW"` words
