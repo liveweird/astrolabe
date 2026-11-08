@@ -237,13 +237,13 @@ export async function testJiraConnectionViaApi(api: APIRequestContext, connectio
 
 /** Flow's address as the APP reaches the built-in Flow stub (the compose service on the compose network): the only origin its `FLOW_INSECURE_ORIGINS` lists. */
 export const FLOW_STUB_ORIGIN = process.env.E2E_FLOW_STUB_ORIGIN ?? "http://flow-stub:8080";
-/** The stub's own admin API as the SPEC reaches it (the host port compose publishes): read to prove the stub is on "day one", never written in 1.5. */
-const FLOW_STUB_URL = process.env.E2E_FLOW_STUB_URL ?? "http://localhost:8097";
+/** The stub's own admin API as the SPEC reaches it (the host port compose publishes): read to prove the stub is on "day one"; only `flow-capacity-deviation.spec.ts` writes it (the `flow-day2` flip, under the lock `flow-stub-scenario`). */
+export const FLOW_STUB_URL = process.env.E2E_FLOW_STUB_URL ?? "http://localhost:8097";
 
 /** The slice of `sample-data/flow/expected.json` (the generator's record of the Flow stub) the specs read. */
 interface FlowExpected {
   contract: { token: string };
-  scenarios: { day2: string; outage: string };
+  scenarios: { day2: string; day2State: string; outage: string };
   totals: { teams: number; sprints: number };
   teams: { name: string; members: { rows: number }; sprints: { count: number } }[];
   e2e: {
@@ -252,6 +252,8 @@ interface FlowExpected {
     preview: { sprintId: number; name: string; start: string; end: string; workingDays: number; flowMd: number; mdPerWeek: string }[];
   };
   axe: { team: string };
+  /** The day-two world (`flow-day2`): the team that vanishes and the sprints whose Flow figure changes (`from` -> `to`, man-days). */
+  day2: { gone: string[]; capacityChanges: { team: string; sprintId: number; name: string; from: number; to: number }[] };
 }
 
 let flowExpected: FlowExpected | undefined;
@@ -263,7 +265,7 @@ export function flowStub(): FlowExpected {
 
 /**
  * Fails fast, naming the cause, when the stub's `flow-day2` or `flow-outage` scenario is not at `Started` (a manual walk left it flipped): the figures the specs
- * assert are day one's. Reads only; 1.5's specs never flip a scenario.
+ * assert are day one's. Reads only; the one spec that flips `flow-day2` (`flow-capacity-deviation`) resets it itself.
  */
 export async function expectFlowStubOnDayOne(): Promise<void> {
   const stub = await playwrightRequest.newContext({ baseURL: FLOW_STUB_URL });

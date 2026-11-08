@@ -11,7 +11,7 @@
   with them - then the team, the person and the users) in the beforeAll/afterAll, the afterAll even after a failed beforeAll or test. The `flow-test` tally of the file is **2 per worker start** (the beforeAll's and the first scenario's), of the 30 a minute
   the e2e stacks allow (`FLOW_TEST_RATE_LIMIT_PER_MINUTE`); a 429 in the beforeAll waits the minute out once. The file runs serially: the third scenario reuses the link the second made (or makes its own through the API when it runs alone).
   It **never flips a scenario of the stub** (`flow-day2`, `flow-outage`): the beforeAll reads the stub's admin API (`E2E_FLOW_STUB_URL`, default `http://localhost:8097`) and fails fast, naming the scenario, if one is not at `Started`. It never presses "Link all
-  suggested" (that would link the demo plan's teams), needs no lock, and the connection polls nothing.
+  suggested" (that would link the demo plan's teams), holds the Playwright lock `flow-stub-scenario` (shared with `flow-capacity-deviation.spec.ts`, which flips `flow-day2`, so the two never run together), and the connection polls nothing.
 - **Needs**: the compose stack with its Flow stub (the 1.5.0 images: `flow-stub` on the compose network, `FLOW_INSECURE_ORIGINS=http://flow-stub:8080`, `FLOW_TEST_RATE_LIMIT_PER_MINUTE=30`) and `E2E_FLOW_STUB_URL` pointing at the stub of the same stack as
   `E2E_BASE_URL`. The stub's "E2E Flow Team" (`sample-data/flow/expected.json` `e2e`): sprints 90001..90006 "E2E Flow Sprint 1".."6" from Mon 2047-01-07, each ten working days, 40 / 36 / 44 / 40 / 38 / 42 man-days = 20.00 / 18.00 / 22.00 / 20.00 / 19.00 / 21.00 a
   week; four current members "Stub Quebec One".."Four" and the former "Stub Quebec Former" (a membership from 2025-01-06 to 2026-03-31 in Warsaw's zone); 5 membership rows, 6 sprints. The figures the spec asserts are read from that file, never copied.
@@ -58,6 +58,6 @@
 
 ## Not covered here (and why)
 
-- The stub's scenarios (`flow-day2`, `flow-outage`): nothing in 1.5 reads a changed document through the browser; the server suite (`FlowRunTest`) does. 1.6's deviation scenario is the first e2e flip.
+- The stub's scenarios (`flow-day2`, `flow-outage`): nothing in 1.5 reads a changed document through the browser; the server suite (`FlowRunTest`) does. `flow-capacity-deviation.spec.ts` (1.6) is the one e2e flip.
 - A revoked token, "Link all suggested" and a polled run: the first two are server-tested (`FlowRunWireTest`, `FlowTeamBindingTest`); "Link all suggested" would link the demo plan's teams.
 - A re-import after Flow's figures change, a hand-entered period beside an import and the removals list: the kernel and apply suites (`CapacityImportKernelsTest`, `CapacityImportApplyTest`) pin them.
