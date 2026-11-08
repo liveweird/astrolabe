@@ -1973,8 +1973,10 @@ paths:
           schema: { type: integer, format: int32, minimum: 0 }
           description: >-
             The id of an ACTIVE project to show the critical chain toward (the roadmap's pick). Absent: no `criticalPath` block, and the
-            document is byte-identical to the one without the parameter. A repeated key or a value that is not a non-negative integer is a
-            `400`, as is an id that is unknown or soft-deleted (a plain `400`: plan ids are no secret and the page clears its own pick).
+            document is byte-identical to the one without the parameter; a blank value (`?criticalPath=`) means absent. A repeated key or a
+            value that is not a non-negative integer is a `400`, as is an id that is unknown, soft-deleted or not on the roadmap (a plain
+            `400`: plan ids are no secret and the page clears its own pick). When `baseline` is also given, the baseline's own errors are
+            answered first (malformed: `400`; unknown or deleted: the typed `unknown-baseline` `400`), then the project id is checked.
       description: |
         Any authenticated user. One document (a deliberate exception to the paged envelope, bounded by the plan's scale of about 100
         projects, 1,000 milestones and 300 project pairs): `ranked` in position order (dense 1..n) and `unranked`, the active projects
@@ -2456,7 +2458,7 @@ paths:
         `asOf` is the VIEWER's calendar day (the server reads no clock): a milestone of the team is MOVABLE when it is unscheduled or its
         start is after `asOf`; one that started on or before it (in progress or past) is fixed and so is every other team's milestone. A
         PINNED milestone (`PUT /milestones/{id}/pin`) is fixed too, whatever its start: its dates stand, its load is booked and its dates
-        bound its successors; `pinned` lists those the proposal keeps only because of the pin, and a pin flipped after the proposal turns
+        bound its successors; `pinned` lists the pinned milestones that start after `asOf` (fixed by their pin), and a pin flipped after the proposal turns
         the accept's `scopeHash` stale.
         Movable milestones are placed greedily in the team's milestone order (the custom order, else the project rank), after their
         dependencies, on the earliest working days that fit: the duration is the estimate over the capacity share (capacity over the WIP

@@ -15,6 +15,7 @@ import ch.nokillswit.planning.TeamScheduleBatchResponse
 import ch.nokillswit.planning.TeamView
 import ch.nokillswit.planning.ValidatedBatchItem
 import ch.nokillswit.planning.withPlanWrite
+import ch.nokillswit.planning.writeSchedules
 import ch.nokillswit.plugins.ProblemDetail
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -365,7 +366,7 @@ class MilestonePinTest {
         val span = MilestoneSpan(LocalDate.parse("2026-11-16"), LocalDate.parse("2026-11-20"))
         // `writeSchedules` is what the Jira import's apply and the batch accept both call; the unschedule pair must clear in the statement.
         database.withPlanWrite { revision ->
-            ch.nokillswit.planning.writeSchedules(listOf(ValidatedBatchItem(cleared, null), ValidatedBatchItem(kept, span)), revision + 1)
+            writeSchedules(listOf(ValidatedBatchItem(cleared, null), ValidatedBatchItem(kept, span)), revision + 1)
         }
         assertFalse(pinnedOf(cleared))
         assertEquals(null to null, datesOf(cleared))

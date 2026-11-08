@@ -200,7 +200,7 @@ ch.nokillswit.RoadmapCriticalPathTest	0.0
 ch.nokillswit.RoadmapKernelsTest	0.0
 ch.nokillswit.RoadmapRankingTest	3.8
 ch.nokillswit.RoadmapViewBaselineTest	0.5
-ch.nokillswit.RoadmapViewTest	1.7
+ch.nokillswit.RoadmapViewTest	2.6
 ch.nokillswit.ScheduleKernelsScaleTest	1.3
 ch.nokillswit.ScheduleKernelsTest	0.1
 ch.nokillswit.SchedulePolicyTest	0.0

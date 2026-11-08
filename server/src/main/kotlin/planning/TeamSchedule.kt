@@ -172,8 +172,8 @@ data class ScheduleProposalLink(
  * nothing is stored. [revision] is the plan revision of the snapshot it was computed from - the batch accept's `expectedRevision`.
  * [moves] and [unplaced] are in the team's effective order; [unchanged] are the movable milestones that stay on their dates; [weeks]
  * is the team's load AFTER accepting every move (the team view's row shape); [dependencies] are violated-after first; [pinned] names the
- * milestones kept on their dates only by the manager's pin (V25); [scopeHash] is the fingerprint of the team's plan the proposal read
- * (`ScheduleScope.kt`, the pins included), which the batch accept sends back to be checked.
+ * pinned milestones that start after `asOf`: fixed by the manager's pin (V25); [scopeHash] is the fingerprint of the team's plan the
+ * proposal read (`ScheduleScope.kt`, the pins included), which the batch accept sends back to be checked.
  */
 @Serializable
 data class ScheduleProposal(
@@ -187,8 +187,9 @@ data class ScheduleProposal(
     val weeksTruncated: Boolean,
     val dependencies: List<ScheduleProposalLink>,
     /**
-     * The team's milestones the PROPOSAL keeps on their dates only because they are pinned (V25: pinned and starting after `asOf`; a pinned
-     * one already in progress is fixed anyway and not listed), in the team's effective order. Empty without pins. The page counts them.
+     * The team's pinned milestones that start after `asOf`: fixed by their pin (V25; a pinned one already in progress is fixed regardless
+     * and not listed, and some listed ones would have stayed anyway), in the team's effective order. Empty without pins. The page counts
+     * them.
      */
     val pinned: List<UInt>,
     val scopeHash: String,

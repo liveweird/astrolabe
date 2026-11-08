@@ -19,9 +19,9 @@ internal class ProposalLists(
 /**
  * [ScheduleProposalResult.placements] split into the milestones that MOVE and the ones that keep their dates ([Placement.to] ==
  * [Placement.from]), in the team's effective order, and [ScheduleProposalResult.unplaced] named. A scheduled milestone that could not
- * be placed is listed as unplaced only: it keeps its stored dates. [ProposalLists.pinned] names the team's milestones the run kept on
- * their dates ONLY because they are pinned (V25: a pinned, dated milestone starting after [asOf]; one already in progress is fixed
- * anyway), in the team's effective order.
+ * be placed is listed as unplaced only: it keeps its stored dates. [ProposalLists.pinned] names the team's pinned milestones that start
+ * after [asOf]: fixed by their pin (V25; some would have stayed anyway, e.g. for want of a place; one already in progress is fixed
+ * regardless and not listed), in the team's effective order.
  */
 internal fun proposalLists(
     rows: List<TeamMilestoneRow>,

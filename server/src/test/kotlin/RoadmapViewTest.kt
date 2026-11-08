@@ -13,6 +13,7 @@ import ch.nokillswit.planning.RoadmapLink
 import ch.nokillswit.planning.RoadmapProject
 import ch.nokillswit.planning.RoadmapView
 import ch.nokillswit.planning.TargetWindowRequest
+import ch.nokillswit.planning.UNKNOWN_BASELINE_PROBLEM
 import ch.nokillswit.plugins.ProblemDetail
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -374,6 +375,35 @@ class RoadmapViewTest {
         // A deleted project leaves the chain of the others: Z's link is gone with it.
         val toP = assertNotNull(client.get("$path?criticalPath=${c.p}").body<RoadmapView>().criticalPath)
         assertEquals(listOf(c.y, c.x), toP.projects.map { it.projectId })
+    }
+
+    @Test
+    fun `a blank criticalPath means absent - the plain document without the block`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("rv-cp-blank", teams = true)
+        w.chain()
+        val client = w.stranger.client
+        val blank = client.get("$path?criticalPath=")
+        assertEquals(HttpStatusCode.OK, blank.status)
+        assertNull(blank.body<RoadmapView>().criticalPath)
+        assertFalse((client.rawJson("$path?criticalPath=") as JsonObject).containsKey("criticalPath"))
+    }
+
+    @Test
+    fun `a bad baseline is answered before an unknown criticalPath - the typed unknown-baseline 400`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("rv-cp-prec", teams = true)
+        w.chain()
+        val client = w.stranger.client
+        val unknownBaseline = client.get("$path?baseline=999999&criticalPath=999999")
+        assertEquals(HttpStatusCode.BadRequest, unknownBaseline.status)
+        assertEquals(UNKNOWN_BASELINE_PROBLEM, unknownBaseline.body<ProblemDetail>().type)
+
+        val id = TestPlan.baseline()
+        TestPlan.deleteBaseline(id)
+        val deletedBaseline = client.get("$path?baseline=$id&criticalPath=999999")
+        assertEquals(HttpStatusCode.BadRequest, deletedBaseline.status)
+        assertEquals(UNKNOWN_BASELINE_PROBLEM, deletedBaseline.body<ProblemDetail>().type)
     }
 
     private fun warningOnGone(teamId: UInt, other: UInt) = flag(FlagKind.RANK_INVERSION, FlagSeverity.WARNING, 7, teamId, other)

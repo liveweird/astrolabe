@@ -91,7 +91,8 @@ class TeamScheduleService(private val database: R2dbcDatabase) {
         val changed = snapshot.scopeHash(teamId) != hash || reschedulesOutsideBatch(teamId, expectedRevision, items.map { it.milestoneId })
         if (changed) {
             throw ConflictException(
-                "The team's plan changed since the proposal (another milestone, a capacity period, a link or a holiday): propose again",
+                "The team's plan changed since the proposal (another milestone, a pin, a capacity period, a link or a holiday): " +
+                    "propose again",
                 problemType = STALE_SCOPE_PROBLEM,
             )
         }
