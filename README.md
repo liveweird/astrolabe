@@ -35,7 +35,7 @@ Astrolabe's repository started as an exact copy of [Flow](https://github.com/liv
 ## Roadmap
 
 0.1.0 the foundation · 0.2.0 plan structure · 0.3.0 the timeline and the project view · 0.4.0 dependencies · 0.5.0 the team view
-and capacity (shipped) · 0.6.0 roadmap and programs timelines (shipped) · 0.7.0 calendar and critical path (shipped) · 0.8.0 auto-proposal (shipped) · 0.9.0 baselines (shipped) · 1.0.0 checkup (shipped) · 1.1.0 Jira connection, bindings and deviations (shipped) · 1.2.0 import from Jira (shipped) · 1.3.0 polling, status, acknowledge and markers (shipped) · 1.4.0 coverage and roll-ups (shipped; next 1.5 Flow). The scope of each version and the decisions
+and capacity (shipped) · 0.6.0 roadmap and programs timelines (shipped) · 0.7.0 calendar and critical path (shipped) · 0.8.0 auto-proposal (shipped) · 0.9.0 baselines (shipped) · 1.0.0 checkup (shipped) · 1.1.0 Jira connection, bindings and deviations (shipped) · 1.2.0 import from Jira (shipped) · 1.3.0 polling, status, acknowledge and markers (shipped) · 1.4.0 coverage and roll-ups (shipped) · 1.5.0 Flow teams, capacity and roster (in progress). The scope of each version and the decisions
 behind it: `.claude/docs/product.md`; open items: `BACKLOG.md`. `CLAUDE.md`'s "Product" and "Donors" sections say which sibling project each capability ports from.
 
 ## The stack
@@ -80,8 +80,7 @@ production startup refuses `JIRA_STUB_BASE_URL` ("Configuration" below), and any
 
 **The Flow stub.** Likewise `flow-stub` (`astrolabe-flow-stub`, host port **8097**; the same WireMock image over `sample-data/flow-stub`, generated from the contract in
 `sample-data/flow/contract.mjs`): Flow 1.57.0's read-only service-token surface (`GET /api/v1/integration/me` and `/teams`, 19 teams with sprints and members, one accepted
-fake token, `sample-data/flow/README.md`). The app is pointed at it by `FLOW_INSECURE_ORIGINS=http://flow-stub:8080` (development mode only; Flow connections arrive with v1.5.0 —
-until then the stub is only the test double of the server suite). Flip its day-2 scenario with `curl -X PUT http://localhost:8097/__admin/scenarios/flow-day2/state -d '{"state":"day2"}'`
+fake token, `sample-data/flow/README.md`). The app is pointed at it by `FLOW_INSECURE_ORIGINS=http://flow-stub:8080` (development mode only; the Flow connection of v1.5.0, in progress, reads it, and the server suite uses it as its test double). Flip its day-2 scenario with `curl -X PUT http://localhost:8097/__admin/scenarios/flow-day2/state -d '{"state":"day2"}'`
 or simulate an outage with the `flow-outage` scenario (state `down`).
 
 On a cold start the app waits for Postgres rather than exiting: Flyway retries its boot connection
