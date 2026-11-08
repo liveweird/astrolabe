@@ -167,19 +167,19 @@ with `hasKeyValue` from `TestEnvironment.kt`). Emitted today:
 - `crypto.reencrypted` (rows/label/rotating — the boot-time encryption-at-rest backfill, `infra/db/Bootstrap.kt`: `rows` the rows wrapped or, with `rotating` true, re-encrypted under the current key, `label` the owning service's noun (`Jira API token`); emitted only when a pass touched rows, so an idempotent re-boot emits nothing; counts and a noun, never a value; `security.md` "Encryption at rest"),
 - `authz.denied` (every 403, from the `ForbiddenException` handler in `plugins/ErrorHandling.kt`,
   with method/path/byUserId/detail — `path` is the request path only, never the query string),
-- `rate_limit.exceeded` (bucket/method/path/suppressed, plus `byUserId` on the per-USER `telemetry` bucket — a token bucket (`plugins/RateLimits.kt`: per-IP login, refresh,
-  password-reset, password-reset-confirm, mfa, ready; per-user telemetry) rejected the request with a 429, emitted from the 429 status handler in
+- `rate_limit.exceeded` (bucket/method/path/suppressed, plus `byUserId` on the per-USER buckets `telemetry`, `jira-bind` and `jira-import` — a token bucket (`plugins/RateLimits.kt`: per-IP login, refresh,
+  password-reset, password-reset-confirm, mfa, ready, jira-test, flow-test; per-user telemetry, jira-bind, jira-import) rejected the request with a 429, emitted from the 429 status handler in
   `plugins/ErrorHandling.kt`; `bucket` is stamped by the bucket's own `requestKey`. **Coalesced**
   (`RateLimitAuditThrottle`): at most ONE event per bucket per 60 s, `suppressed` counting the rejections folded into it
   since the previous event (0 on the first), so an unauthenticated flood writes a line a minute per bucket instead of one
-  per request; keyed by bucket only (per-IP buckets), so memory is bounded whoever floods. The per-USER `telemetry` bucket is keyed by
-  `telemetry:<userId>` instead and carries `byUserId` -- the server-minted claim of a verified token, never client text; only a signed-in
+  per request; keyed by bucket only (per-IP buckets), so memory is bounded whoever floods. The per-USER buckets (`telemetry`, `jira-bind`, `jira-import`) are keyed by
+  `<bucket>:<userId>` instead and carry `byUserId` -- the server-minted claim of a verified token, never client text; only a signed-in
   account reaches that key, so the key space is the account count. The client address is deliberately NOT a field
   (it is `X-Forwarded-For`-derived behind a proxy, i.e. attacker-chosen text; the ingress log has it), and neither is the
   query string. The per-account lockout's 429s are their own `login.lockout`/`login.rejected_locked` events and do not
   emit this),
 - `outbound.blocked` (scheme/host ONLY — never the full URL) — a rejection by `infra/outbound/OutboundGuard.kt`'s host
-  allow-list or address-range check ONLY, emitted by `GuardedDns` and the origin interceptor on the guarded client's every outbound call (the Jira sync is the consumer; `security.md` "Outbound HTTP calls"). A DNS failure (the resolver throwing, or an empty answer, for an allow-listed host) is
+  allow-list or address-range check ONLY, emitted by `GuardedDns` and the origin interceptor on the guarded client's every outbound call (the Jira sync and the Flow sync, `flow/Flow.kt`, are the consumers; `security.md` "Outbound HTTP calls"). A DNS failure (the resolver throwing, or an empty answer, for an allow-listed host) is
   not a rejection and emits no audit event: `GuardedDns` logs a WARN per attempt, `DNS resolution failed for allow-listed outbound host
   <host>` (logger `ch.nokillswit.outbound`, host only) and the call is retried like any other IO failure.
 

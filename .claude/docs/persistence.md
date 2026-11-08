@@ -160,7 +160,7 @@ place:
   `FOR NO KEY UPDATE`: a delete racing a node write either commits first and the write is a 400, or waits and then sees the node and answers 409 — never an active node owned by a deleted person;
   `PlanStateTest` pins both halves). The services also read each other's tables inside one feature: a delete counts the ACTIVE children (`Programs` from the work stream delete, `Projects` from the program
   delete) and the chain lookups join all three. `work_streams`/`programs`/`projects` hold `owner_person_id → people(id)` with no `ON DELETE` rule: people are only ever soft-deleted and `PersonService.delete`
-  refuses (409) while an ACTIVE node names the person. `PlanViewService` reads the three tables (and `people` names) in ONE transaction, the revision first.
+  refuses (409) while an ACTIVE node names the person. `PlanViewService` reads the three tables (and `people` names) in one plain `suspendTransaction` (READ COMMITTED, no `SNAPSHOT`: a write between its selects can tear the tree; `BACKLOG.md`), the revision first.
 - `planning/` (V13): `RoadmapService` reads `ProjectService.Projects`, `ProgramService.Programs`, `WorkStreamService.WorkStreams` (the view's names, the active-id check of a ranking write) and `PersonService.People`
   (owner names, via `OwnerChains.kt`); it owns `roadmap_entries`, and `ProjectService.delete` WRITES it through `removeFromRanking` (same package, same locked transaction — no other feature touches the table).
 - `planning/` (V14): `MilestoneService` reads and joins `ProjectService.Projects`/`ProgramService.Programs`/`WorkStreamService.WorkStreams` (`milestoneChain`, beside the other chains in `OwnerChains.kt`) and reads/locks
@@ -374,7 +374,7 @@ Dates are `DATE` through `LocalDateColumn.kt` (`start_date`/`end_date`, `target_
 **Every write of these tables (and of `milestones`, V14 — the batch schedule of v0.8.0 included —, `dependencies`, V15, and `team_milestone_orders`/`team_order_state`, V17, `public_holidays`, V19, and the `baselines` registry with its frozen rows, V20) runs in `withPlanWrite`** (`planning/PlanState.kt`): `SELECT revision FROM plan_state WHERE id = 1 FOR UPDATE`, the block, `UPDATE … revision = revision + 1`. **This is the one deliberate PLAIN
 `FOR UPDATE` on a table the code treats as a lock row** — justified by the rule above: nothing references `plan_state` by a foreign key (no FK check can queue behind or in front of it) and its key never changes, so the
 `FOR NO KEY UPDATE` refinement buys nothing. Because all plan writers serialize there, the node services take no per-row locks; the plan lock is held across the whole block, which makes the delete's child count race-free
-and lets the ranking (V13) compare `expectedRevision` atomically — against `plan_state.ranking_revision` (V18), which `replaceRanking` and `removeFromRanking` stamp with the new plan revision (`revision + 1`). A block that throws rolls the bump back. Reads (`PlanViewService`, `RoadmapService.view`) read the revision first without the lock. `ProjectService.delete` calls
+and lets the ranking (V13) compare `expectedRevision` atomically — against `plan_state.ranking_revision` (V18), which `replaceRanking` and `removeFromRanking` stamp with the new plan revision (`revision + 1`). A block that throws rolls the bump back. Reads (`PlanViewService`, `RoadmapViewService.view`) read the revision first without the lock (`PlanViewService` in a plain READ COMMITTED transaction, so its three selects are not one snapshot; the roadmap view is `SNAPSHOT, readOnly`). `ProjectService.delete` calls
 `removeFromRanking`: the project's `roadmap_entries` row is hard-deleted and the positions above renumbered in the same locked transaction.
 
 ### The roadmap rank (V13)
@@ -455,7 +455,7 @@ Warsaw, Sao_Paulo); `greaterEq`/`orderBy` follow date order; and a `CHECK (other
 mappers names `BigDecimal`, so the binding rides the default mapper, and `DecimalColumnTest` (a scratch table by raw DDL, the `LocalDateColumnTest` shape) is the proof: insert/select/update and a WHERE parameter for `0`, `0.1`, `12.25`,
 `999999.99`, the stored `::text` over raw JDBC equal to the sent value at scale two (`0.1` is stored `0.10`), and `greaterEq`/`orderBy` in numeric (not text) order. Had it gone red the fallback was a repo-local column type binding the
 `BigDecimal` through its plain-text literal (the `JavaLocalDateColumnType` shape) with the same wire format. The wire is a JSON number (`estimateMd: Double`, `type: number, format: double`); the server validates it (finite,
-`0 <= x < 1_000_000`, and `BigDecimal(x.toString())` with at most two decimals — `validateEstimate`, `planning/Milestone.kt`) so the stored value is EXACTLY the sent one, never a silent rounding; `MilestoneTest` pins the same values over HTTP.
+`0 <= x < 1_000_000`, and `BigDecimal(x.toString())` with at most two decimals — `validateMilestoneFields` over `validateManDays`, `planning/Milestone.kt`) so the stored value is EXACTLY the sent one, never a silent rounding; `MilestoneTest` pins the same values over HTTP.
 
 ### `infra/db/Jsonb.kt` and canonical JSON
 

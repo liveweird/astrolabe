@@ -1,6 +1,6 @@
 ### Testing
 
-Backend tests live flat in `server/src/test/kotlin/` (kotlin.test + `testApplication`) against ONE Testcontainers
+Backend tests live flat in `server/src/test/kotlin/` (kotlin.test + `testApplication`; only `auth/` is a subfolder) against ONE Testcontainers
 Postgres per JVM fork (`PostgresTestSupport`, started lazily, image pinned by digest — `PostgresImagePinTest`).
 Running them requires a Docker daemon (OrbStack without `/var/run/docker.sock`: export
 `DOCKER_HOST=unix://$HOME/.orbstack/run/docker.sock`; `scripts/gates.sh` exports it itself when that socket exists). The container runs **all** Flyway migrations, so the V3 seed

@@ -4,7 +4,7 @@ import java.net.InetAddress
 import java.net.UnknownHostException
 
 /**
- * One operator-configured CIDR range (`gitlab.allowedCidrs`). Parsing is strict and never resolves a name: the address part
+ * One operator-configured CIDR range (`flow.allowedCidrs`). Parsing is strict and never resolves a name: the address part
  * is matched against a literal-only grammar BEFORE it reaches the JDK, because `InetAddress.getByName` on anything else is a
  * DNS lookup. [network] holds the address bytes (4 or 16) with no host bits set ([parseCidr] refuses an entry that has any).
  */

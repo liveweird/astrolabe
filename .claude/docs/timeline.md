@@ -1,4 +1,4 @@
-### The shared Timeline component (v0.3.0 — binding reference)
+### The shared Timeline component (binding reference; built v0.3.0, extended through 1.4.0)
 
 One component serves every Gantt-like page: the project view (v0.3, milestones of one project), the team view (v0.5, milestones against capacity), the roadmap and the programs view (v0.6). Pages differ in their rows and bar sources,
 not in the mechanics. **The component draws and proposes; it never writes and never decides** — the page adapts its view document to rows (`TimelineRowData[]`), reads the `can:{…}` flags for `editable`, and answers a proposed change with its own write path

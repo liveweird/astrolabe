@@ -267,7 +267,7 @@ path is throttled.
 - **The authz matrix** — covered by the server tests (`GuardsTest`, `AnonymousAccessTest`); E2E
   asserts only user-visible consequences.
 - **Dark-mode rendering** — the palette is theme-owned (`web/src/theme.ts`); `shell.spec.ts`
-  asserts the color-scheme attribute switches and persists, and the two accessibility specs scan the
+  asserts the color-scheme attribute switches and persists, and `accessibility.spec.ts` scans the
   page sets in the dark scheme (contrast), but no e2e asserts rendered colors, and there is no
   visual-regression suite.
 - **Responsive / cross-browser / visual automation** — the suite deliberately runs a single

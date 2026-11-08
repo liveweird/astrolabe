@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Product
 
 Astrolabe is a planning and roadmapping app (Jira-Plans-like, better UX, more opinionated, Gantt-centred) for a multi-stream / multi-program / multi-team environment, at a scale of about
-15 teams, 5 work streams, 20 programs, 100 projects and 1,000 milestones. It keeps its **own** plan data; it reads Jira (Flow later) to **detect deviations** and, on request, import its items (corrections are made
+15 teams, 5 work streams, 20 programs, 100 projects and 1,000 milestones. It keeps its **own** plan data; it reads Jira and Flow to **detect deviations** and, on request, import its items (corrections are made
 in Astrolabe, never written back).
 
 **Hierarchy (4 levels):** work stream (owner; end set only on close) → program (owner; span derived from its projects) → project (owner; optional target window; real span derived from its
@@ -49,7 +49,7 @@ or activate mise. If `./gradlew` resolves the wrong JDK, point it explicitly: `J
   fixture against `api-guidelines/`) and `npm run check:api` (in-memory spec → `schema.ts` diff).
 - E2E: `cd e2e && npm ci && npx playwright install chromium && npm test` (plus `lint`, `knip`, `typecheck`, `check:scenarios`, `test:setup`).
 - CI: `.github/workflows/ci.yml` re-runs every gate above on push/PR; the blackbox Playwright suite (`e2e.yml`) runs
-  nightly and on demand; Dependabot checks every workspace weekly. The job list, the Markdown-only skip, Trivy and
+  nightly and on demand. The job list, the Markdown-only skip, Trivy and
   grouping: `.claude/docs/ci.md` (dependency rules: `dependencies.md`, `dependency-reproducibility.md`).
 
 ## Running the full stack
@@ -107,11 +107,11 @@ Source files sit flat under `server/src/main/kotlin/<area>/` but declare `packag
 - `infra/validation/` — cross-feature input helpers (`sanitizeSingleLine`: trim + control-char 400; `Dates.kt`: `parseIsoDate`, `requireDateOrder`).
 - `infra/outbound/` — `OutboundGuard.kt`, the SSRF guard for EVERY server-initiated call (address check, `GuardedDns`, origin rule, no proxy/redirects); its consumers are `jira/` and `flow/`, binding guidance in `security.md` "Outbound HTTP calls".
 - `infra/json/` — `CanonicalJson.kt` (canonical JSON + sha256 for stored payloads), `JsonArrays.kt`.
-- `infra/time/` — `Millis.kt`, `MILLIS_PER_DAY` (24 h), `WorkingCalendar.kt` (the pure working-day calendar, Flow's `WorkingDayIndex` ported; kernels take it as a parameter, `MON_FRI` = no holidays; views load the V19 dictionary).
+- `infra/time/` — `Millis.kt` (`MILLIS_PER_DAY`), `WorkingCalendar.kt` (the pure working-day calendar, Flow's `WorkingDayIndex` ported; kernels take it as a parameter, `MON_FRI` = no holidays; views load the V19 dictionary).
 - `infra/config/` — `requireConfigInt`/`requireConfigLong`, boot-validated numeric config (Lettuce's).
 - `infra/Failures.kt` — `catchingFailures` (keeps the failure without swallowing cancellation).
 - `audit/` — the security audit trail: `audit(event, fields…)` → AUDIT-marked structured logs.
-- `authz/` — `CallerPrincipal`, the guards (`requireAdmin`, `requireSelfOrAdmin`, `requireTeamManagerOrAdmin` (the milestone schedule PUT), `requireRoadmapEditorOrAdmin`, the owner-chain pair) and the typed HTTP exceptions (401/403/404/409/429; `ConflictException.cycle` carries the dependency-cycle path).
+- `authz/` — `CallerPrincipal`, the guards (`requireAdmin`, `requireSelfOrAdmin`, `requireTeamManagerOrAdmin` (the milestone schedule PUT), `requireRoadmapEditorOrAdmin`, the owner-chain pair) and the typed HTTP exceptions (401/403/404/409/429).
 - `auth/` — login (+ the email-MFA second step), refresh, logout, self-service password reset, token minting, password hashing, the revoked-token blocklist; in-memory auth state is capacity-bounded with audited 429 saturation.
 - `users/` — the user domain (Astrolabe's own login accounts, REST `/api/v1/users`): ADMIN-only CRUD (self-delete 403, last-admin 409), per-user feature flags (`Feature` enum, the V5 disabled-set model; MFA is the inverted-default login-scoped flag), per-user permissions (`Permission`, the V11 grant set read per request, never a token claim), the ONE synced UI+email language (`Languages.kt`: the `SUPPORTED_LANGUAGES` whitelist).
 - `people/` — the people directory (V10; REST `/api/v1/people`): GET any authenticated (emails included), POST/PUT/DELETE ADMIN only; optional email and login link (`people.user_id`), the owners and managers of the plan.
@@ -119,7 +119,7 @@ Source files sit flat under `server/src/main/kotlin/<area>/` but declare `packag
 - `planning/` — work streams, programs, projects (V12), milestones (V14: dates only by the team's manager/ADMIN), dependencies (V15: the SUCCESSOR's chain writes, cycle-checked), `GET /views/plan`, `GET /views/project/{id}` (derived span + drift, `criticalPath` + slack: pure `CriticalPathKernels`), `GET /views/team/{id}` (weekly load vs capacity and WIP: pure `LoadKernels`); both views' `idleGaps` (pure `IdleGapKernels`), the global project rank (V13, `/roadmap/ranking`; `GET /views/roadmap` and `/views/programs`: pure `RoadmapKernels`), the team milestone order (V17, `PUT /teams/{id}/milestone-order`: the team's own execution order), the v0.8 auto-proposal (`POST /teams/{id}/schedule-proposal`: pure `ScheduleKernels`, nothing stored; `POST …/milestone-schedules`: the batch accept, per-milestone stale + scope checks, one revision bump), the public-holiday dictionary (V19, `/public-holidays`: ADMIN registry + Polish preset, read once per view into the `WorkingCalendar`), the baselines (V20, `/baselines` by ADMIN or `ROADMAP_EDITOR`: frozen rows; the views' `?baseline=` and `GET /views/baseline/{id}`: movement in working days, pure `BaselineKernels`): owner-scoped writes under the `plan_state` lock; pure `PlanPermissions` kernel.
 - `infra/fetch/` — the bounded outbound transport (Flow's, ported): retry/backoff, permits, size and page ceilings; `SourceHttp.kt` is at the 400-line cap.
 - `jira/` — the Jira sync (V21–V23, `/api/v1/integrations/jira`, `GET /views/deviations`): the ADMIN registry (token encrypted), probes, mapping, 1:1 bindings, observer, census, deviation kernel, import, acknowledge, flag source; a routes file per concern (`jira-sync.md`).
-- `flow/` — the Flow sync (V24, `/api/v1/integrations/flow`, `GET /teams/{id}/flow`; stub-proven): the ADMIN registry (token encrypted), probes, the run and its mirror, team bindings by name, the capacity import (preview, apply via `teams/`); `sync/`, `planning/`, `teams/` name nothing of it, nor it of `jira/` (`flow-sync.md`).
+- `flow/` — the Flow sync (V24, `/api/v1/integrations/flow`, `GET /teams/{id}/flow`, `GET /views/capacity-deviations`; stub-proven): the ADMIN registry (token encrypted), probes, the run and its mirror, team bindings by name, the capacity import (preview, apply via `teams/`), the capacity deviation kernel; `sync/`, `planning/`, `teams/` name nothing of it, nor it of `jira/` (`flow-sync.md`).
 - `sync/` — the connector-agnostic run registry (`sync_runs`, unique-index claim), its executor, the poll scheduler and the connection status.
 - `telemetry/` — per-process JVM/cgroup/request/storage samples in `ops.*` (V9), 90 days, hourly, ADMIN read API (`observability.md`).
 
