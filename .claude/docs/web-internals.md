@@ -1029,7 +1029,7 @@ Files: `api/teams.ts` (`getTeamView`, `createCapacityPeriod`, `updateCapacityPer
 scheduled permutation filled around the unscheduled listed ids, `planning-model.md` "The team milestone order"), `utils/teamViewUpdate.ts` (`applyTeamSchedule`,
 `applyTeamOrder` — both pure, incl. the server's default order for the reset), `utils/dependencyArrows.ts` (the view-independent halves of
 `projectDependencies.ts`: `arrowSpecsFor`, `conflictsByBarFor`, `conflictCountOf`), `utils/roadmapOrder.ts` `moveToEdge`/`moveToSlot`, `utils/capacityForm.ts`,
-`components/TeamTimeline.tsx` (rows, row menu, arrows, the strip; `TeamTray`), `TeamCapacity.tsx`, `CapacityPeriodModal.tsx`, `TeamWeeklyLoad.tsx`.
+`components/TeamTimeline.tsx` (rows, arrows, the strip; `TeamTray`) with its row menus in `TeamTimelineMenu.tsx`, `TeamCapacity.tsx`, `CapacityPeriodModal.tsx`, `TeamWeeklyLoad.tsx`.
 `TeamDetails` is `<TeamPage key={id}>`.
 
 `/teams/:id` (the Teams list's name link; any signed-in user reads it) renders `GET /views/team/{id}` under `["plan","team",id]` — under the `["plan"]` prefix
