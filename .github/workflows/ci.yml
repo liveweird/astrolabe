@@ -219,7 +219,7 @@ jobs:
       - run: npm run build
         env:
           # The runner's checkout is a detached HEAD; stamp the build from the event instead of
-          # the vite config's `git status` dirty check (see web/CLAUDE.md "Build version stamp").
+          # the vite config's `git status` dirty check (see .claude/docs/web-internals.md "Quality gates and the build stamp").
           GIT_SHA: ${{ github.sha }}
       # Last on purpose: an advisory published overnight must not hide a PR's real gate results
       # (lint, tests, build). Runtime dependencies only: a dev-tool advisory (eslint, vitest, ...) never

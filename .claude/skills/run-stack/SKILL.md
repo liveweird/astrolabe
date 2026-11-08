@@ -142,7 +142,7 @@ Testcontainers share PostgreSQL 18.6's reviewed digest; Mailpit is pinned to a r
 image digest. `.dockerignore` keeps build outputs, every `node_modules`, `.claude/` (in a primary
 checkout that includes each git worktree under `.claude/worktrees/`: the context is ~18 MB instead of ~3.8 GB),
 coverage/Playwright output and `.kotlin/` out of the build context; `.git` is **included** on purpose — the SPA build stage reads the commit sha/timestamp
-from it for the version stamp (see "Build version stamp" in `web/CLAUDE.md`). Note the volume
+from it for the version stamp (see "Quality gates and the build stamp" in `.claude/docs/web-internals.md`). Note the volume
 mount: postgres 18+ images keep data in a versioned subdir of `/var/lib/postgresql`, so the
 compose volume mounts that path (the pre-18 `/var/lib/postgresql/data` path makes the container
 unhealthy).

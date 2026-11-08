@@ -159,7 +159,7 @@ disagree, the doc wins. The always-loaded set (this file plus the two imports) s
 | `.claude/docs/planning-model.md` | the planning domain: plan structure, lock, guards; milestones … capacity (sketch) |
 | `.claude/docs/timeline.md` | the shared `Timeline*` component and Gantt-like pages: approach, measured figures |
 | `.claude/docs/test-fixtures.md` | any server test fixture, the harness, fork warm-up, OpenAPI conformance internals, e2e scenario files, Schemathesis |
-| `.claude/docs/web-internals.md` | the `web/` transport/session layer, user/feature-flag pages, language switcher, colour tokens/logo, changelog wiring |
+| `.claude/docs/web-internals.md` | any `web/` page's mechanics (per page, nav order), the transport/session layer, i18n, colour tokens/logo, changelog |
 | `.claude/docs/dependencies.md` | any dependency, image or runtime-pin change |
 | `.claude/docs/dependency-reproducibility.md` | lockfiles or `gradle/verification-metadata.xml` (the empty-`GRADLE_USER_HOME` rule) |
 | `.claude/docs/app-releases.md` | a version bump, changelog entry, tag or GitHub release |
