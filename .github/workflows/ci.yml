@@ -304,10 +304,12 @@ jobs:
         run: '"$RUNNER_TEMP/kubeconform" -strict -summary -kubernetes-version 1.33.0 -schema-location "$KUBECONFORM_SCHEMAS" k8s/*.yaml k8s/local/*.yaml'
       # The app keeps the login lockout, MFA challenges and reset throttles in memory, per instance
       # (security.md): a second replica would split them and multiply every limit. Pin it to one replica,
-      # with no autoscaler, until that state moves to a shared store.
-      - name: Pin the app deployment to one replica (per-instance auth state)
+      # with no autoscaler and no rolling surge (strategy Recreate), until that state moves to a shared store.
+      - name: Pin the app deployment to one replica, strategy Recreate (per-instance auth state)
         run: |
           test "$(grep -cE '^  replicas: 1$' k8s/app-deployment.yaml)" -eq 1
+          # Recreate, not RollingUpdate: a surge pod would run beside the old one for a while, with its own lockout/MFA state.
+          test "$(grep -cE '^    type: Recreate$' k8s/app-deployment.yaml)" -eq 1
           if grep -l 'kind: HorizontalPodAutoscaler' k8s/*.yaml; then echo "an autoscaler would scale the app" >&2; exit 1; fi
       - name: Validate what apply-local.sh renders
         run: |
