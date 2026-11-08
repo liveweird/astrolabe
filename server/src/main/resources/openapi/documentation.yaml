@@ -3278,7 +3278,6 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
-        '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalServerError' }
     delete:
       tags: [jira]
@@ -3295,7 +3294,6 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
-        '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
   /api/v1/integrations/flow/connections:
@@ -3835,6 +3833,11 @@ components:
       scheme: bearer
       bearerFormat: JWT
 
+  headers:
+    RetryAfter:
+      description: Whole seconds to wait before retrying. Sent by the rate-bucket 429s only, never by an account-lockout 429.
+      schema: { type: integer }
+
   parameters:
     ResourceId:
       name: id
@@ -3920,7 +3923,11 @@ components:
         Throttled — either the per-IP rate-limit bucket is exhausted (generic detail), on a telemetry read
         (`/api/v1/telemetry/**`) the per-USER telemetry bucket is exhausted (30/min), or, on /login, the
         per-account lockout is active (account-specific detail), or, on the self password change, the per-user
-        wrong-current-password lock is active. All carry a ProblemDetail body.
+        wrong-current-password lock is active. All carry a ProblemDetail body. Every rate-bucket 429 (the per-IP
+        buckets and the per-user telemetry bucket) carries `Retry-After`; the account-lockout and password-change-lock
+        429s do not (the wait is not a bucket window).
+      headers:
+        Retry-After: { $ref: '#/components/headers/RetryAfter' }
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/ProblemDetail' }

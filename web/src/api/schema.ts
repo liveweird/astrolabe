@@ -6627,9 +6627,10 @@ export interface components {
                 "application/problem+json": components["schemas"]["ProblemDetail"];
             };
         };
-        /** @description Throttled — either the per-IP rate-limit bucket is exhausted (generic detail), on a telemetry read (`/api/v1/telemetry/**`) the per-USER telemetry bucket is exhausted (30/min), or, on /login, the per-account lockout is active (account-specific detail), or, on the self password change, the per-user wrong-current-password lock is active. All carry a ProblemDetail body. */
+        /** @description Throttled — either the per-IP rate-limit bucket is exhausted (generic detail), on a telemetry read (`/api/v1/telemetry/**`) the per-USER telemetry bucket is exhausted (30/min), or, on /login, the per-account lockout is active (account-specific detail), or, on the self password change, the per-user wrong-current-password lock is active. All carry a ProblemDetail body. Every rate-bucket 429 (the per-IP buckets and the per-user telemetry bucket) carries `Retry-After`; the account-lockout and password-change-lock 429s do not (the wait is not a bucket window). */
         TooManyRequests: {
             headers: {
+                "Retry-After": components["headers"]["RetryAfter"];
                 [name: string]: unknown;
             };
             content: {
@@ -6692,7 +6693,10 @@ export interface components {
         Sort: string;
     };
     requestBodies: never;
-    headers: never;
+    headers: {
+        /** @description Whole seconds to wait before retrying. Sent by the rate-bucket 429s only, never by an account-lockout 429. */
+        RetryAfter: number;
+    };
     pathItems: never;
 }
 export type $defs = Record<string, never>;
@@ -9848,7 +9852,6 @@ export interface operations {
             409: components["responses"]["Conflict"];
             413: components["responses"]["PayloadTooLarge"];
             415: components["responses"]["UnsupportedMediaType"];
-            429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalServerError"];
         };
     };
@@ -9874,7 +9877,6 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
-            429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalServerError"];
         };
     };

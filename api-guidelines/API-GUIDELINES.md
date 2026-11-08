@@ -465,7 +465,8 @@ acceptable default at this scale.
 ### API-RATE-001 — Signal limits on `429` `[both]`
 **MUST** answer a throttled request with `429 Too Many Requests` and a problem body;
 **SHOULD** carry a `Retry-After` header and expose the budget via `RateLimit-Limit`,
-`RateLimit-Remaining`, `RateLimit-Reset`. *(Registered gap: headers not yet sent.)*
+`RateLimit-Remaining`, `RateLimit-Reset`. *(Registered gap: `Retry-After` is sent by the rate-bucket `429`s and
+declared on the shared `TooManyRequests` response, not by the account-lockout `429`s; the `RateLimit-*` headers are not sent.)*
 Per-account lockouts **MUST** be indistinguishable for existing and non-existing accounts
 (API-ERR-006).
 **Check (spectral):** a declared `429` declares a `Retry-After` header. **Check (review):**
@@ -649,7 +650,7 @@ gap"**, not as findings.
 - **API-CACHE-001..004** — ETag/304 *(registered gap)*; deliberate `Cache-Control`
   *(registered gap)*; a documented lost-update defense per concurrent write *(registered gap —
   see the register's inventory)*; push channel where polling would be wasteful?
-- **API-RATE-001/002** — `429` + problem body; `Retry-After`/`RateLimit-*` *(registered
+- **API-RATE-001/002** — `429` + problem body; `Retry-After` on the rate-bucket `429`s, not on lockouts, and `RateLimit-*` *(registered
   gap)*; uniform lockout behavior; limits documented?
 - **API-IDEM-001/002** — Idempotency keys or a documented domain-level equivalent
   *(registered gap)*; `PUT`/`DELETE` naturally repeatable?
@@ -674,7 +675,7 @@ prioritized. Reviewers cite these as "registered gap"; the Spectral ruleset carr
 |---|---|---|
 | API-ERR-004 | `X-Request-Id` is read but not echoed or generated | `CallId` config in `plugins/Monitoring.kt`: add `replyToHeader(HttpHeaders.XRequestId)` + `generate { ... }`; declare the header on responses in the spec |
 | API-ERR-007 | Duplicate-style `409`s identify only the failing request, not the conflicting resource | All problems carry an occurrence path in `instance`; add a conflicting-resource link where the service knows the row id and API-ERR-006 permits disclosure. The generic 23505 handler cannot safely infer it |
-| API-RATE-001 | No `Retry-After` / `RateLimit-*` headers on `429`s | Set `Retry-After` where the wait is known (login lockout knows its window); add headers to the shared `TooManyRequests` response |
+| API-RATE-001 | Rate-bucket `429`s send and declare `Retry-After` (`TooManyRequests`); the account-lockout and password-change-lock `429`s (`TooManyRequestsException`) send none; no `RateLimit-*` headers | Send `Retry-After` from `TooManyRequestsException` where the wait is known (login lockout knows its window); add `RateLimit-*` if clients need the budget |
 | API-CACHE-001/002 | No GET carries a validator; `Cache-Control` is CSS, `index.html` and `no-store` on `/api/` JSON | Extend the validator helper to a read whose answer has a cheap version stamp (a table `updated_at`/revision), the way Flow's report GETs used the derive stamp (`plugins/ResponseValidators.kt` is the seam) |
 | API-CACHE-003 | No `If-Match`/`ETag`/`412` conditional writes anywhere; unguarded full-document writes are last-write-wins (see the inventory below) | Add `ETag` + `If-Match` handling to the concurrency-sensitive `PUT`s if contention ever materializes; a `version` column + `409` is the R2DBC-friendly alternative |
 | API-IDEM-001 | No `Idempotency-Key` handling | Domain no-duplicate `409`s cover double-submits today; adopt the header if external/retrying clients appear |
