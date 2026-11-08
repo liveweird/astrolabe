@@ -3,6 +3,7 @@ package ch.nokillswit.jira
 import ch.nokillswit.authz.ConflictException
 import ch.nokillswit.infra.crypto.EncryptedAtRest
 import ch.nokillswit.infra.crypto.FieldCipher
+import ch.nokillswit.infra.crypto.decryptOrNull
 import ch.nokillswit.infra.crypto.reencryptRows
 import ch.nokillswit.infra.db.active
 import ch.nokillswit.infra.db.jsonb
@@ -21,7 +22,6 @@ import ch.nokillswit.sync.isRunnable
 import ch.nokillswit.sync.runnableStateOf
 import ch.nokillswit.sync.statusesInTransaction
 import io.ktor.util.AttributeKey
-import java.security.GeneralSecurityException
 import kotlinx.coroutines.flow.toList
 import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.core.dao.id.UIntIdTable
@@ -226,13 +226,7 @@ class JiraConnectionService(
         // The search probe narrows by the mapped milestone level; a mapping this build cannot read never fails a Test.
         val mapped = (parseStoredMapping(row[Connections.mapping]) as? StoredMapping.Valid)?.mapping
         val id = row[Connections.id].value
-        val token = try {
-            row[Connections.apiToken]?.let(cipher::decrypt) // null only if a CHECK was bypassed: read as unreadable
-        } catch (cause: GeneralSecurityException) {
-            logUnreadableToken(id, cause)
-        } catch (cause: IllegalArgumentException) {
-            logUnreadableToken(id, cause)
-        }
+        val token = cipher.decryptOrNull(row[Connections.apiToken], log, "API token of Jira", id)
         return JiraTestTarget(
             siteUrl = row[Connections.siteUrl],
             email = row[Connections.email],
@@ -242,13 +236,6 @@ class JiraConnectionService(
             expectedUpdatedAt = row[Connections.updatedAt],
             milestoneLevel = mapped?.levels?.milestone?.hierarchyLevel,
         )
-    }
-
-    private fun logUnreadableToken(id: UInt, cause: Exception): String? {
-        // The exception CLASS only: a decrypt failure's message can name the cipher's internals, never the value, but the rule is the same
-        // as for the other secret paths (`security.md` "Log hygiene").
-        log.warn("The stored API token of Jira connection {} cannot be decrypted ({})", id, cause.javaClass.simpleName)
-        return null
     }
 
     /** Soft delete: frees the name, `affected` 0 = missing/deleted (404). The census rows removed are logged after the commit. */

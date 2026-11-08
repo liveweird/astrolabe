@@ -3,6 +3,7 @@ package ch.nokillswit.flow
 import ch.nokillswit.authz.ConflictException
 import ch.nokillswit.infra.crypto.EncryptedAtRest
 import ch.nokillswit.infra.crypto.FieldCipher
+import ch.nokillswit.infra.crypto.decryptOrNull
 import ch.nokillswit.infra.crypto.reencryptRows
 import ch.nokillswit.infra.db.active
 import ch.nokillswit.infra.db.nowMillis
@@ -19,7 +20,6 @@ import ch.nokillswit.sync.isRunnable
 import ch.nokillswit.sync.runnableStateOf
 import ch.nokillswit.sync.statusesInTransaction
 import io.ktor.util.AttributeKey
-import java.security.GeneralSecurityException
 import kotlinx.coroutines.flow.toList
 import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.core.dao.id.UIntIdTable
@@ -238,13 +238,7 @@ class FlowConnectionService(
 
     private fun targetOf(row: ResultRow): FlowConnectionTarget {
         val id = row[Connections.id].value
-        val token = try {
-            row[Connections.apiToken]?.let(cipher::decrypt) // null only if a CHECK was bypassed: read as unreadable
-        } catch (cause: GeneralSecurityException) {
-            logUnreadableToken(id, cause)
-        } catch (cause: IllegalArgumentException) {
-            logUnreadableToken(id, cause)
-        }
+        val token = cipher.decryptOrNull(row[Connections.apiToken], log, "service token of Flow", id)
         return FlowConnectionTarget(
             id = id,
             name = row[Connections.name],
@@ -254,13 +248,6 @@ class FlowConnectionService(
             enabled = row[Connections.enabled],
             expectedUpdatedAt = row[Connections.updatedAt],
         )
-    }
-
-    private fun logUnreadableToken(id: UInt, cause: Exception): String? {
-        // The exception CLASS only: a decrypt failure's message can name the cipher's internals, never the value, but the rule is the same
-        // as for the other secret paths (`security.md` "Log hygiene").
-        log.warn("The stored service token of Flow connection {} cannot be decrypted ({})", id, cause.javaClass.simpleName)
-        return null
     }
 
     private fun ResultRow.toResponse(status: SyncStatus): FlowConnectionResponse = FlowConnectionResponse(

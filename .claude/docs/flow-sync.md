@@ -148,7 +148,7 @@ Response `200 {created[{periodId, sprintId}], updated[{periodId, sprintId}], del
 
 ## The token's life
 
-Encrypted at write (`FieldCipher`, `enc:v1:` envelope), write-only on the wire (`hasApiToken`), masked in every `toString` (`SecretToStringTest`), decrypted in memory by exactly two readers in `FlowConnectionService`: `readForTest` and `readForRun`. A `PUT` with a token rotates it; a changed token or zone clears `last_tested_at/ok`. Deleting a connection sets the column to NULL, soft-deletes its bindings and removes its runs and mirror in one transaction.
+Encrypted at write (`FieldCipher`, `enc:v1:` envelope), write-only on the wire (`hasApiToken`), masked in every `toString` (`SecretToStringTest`), decrypted in memory by exactly two readers in `FlowConnectionService`: `readForTest` and `readForRun` (the decrypt-or-null rule is `infra/crypto/UnreadableToken.kt`). A `PUT` with a token rotates it; a changed token or zone clears `last_tested_at/ok`. Deleting a connection sets the column to NULL, soft-deletes its bindings and removes its runs and mirror in one transaction.
 
 ## The Flow stub
 
