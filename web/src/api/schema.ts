@@ -1504,7 +1504,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * The comparison of one baseline with the plan now
+         * The comparison of one baseline with the plan now, or with a second baseline
          * @description Any authenticated user; `404` when the baseline is unknown or soft-deleted (it is the addressed resource - the views'
          *     `?baseline=` answers `400` instead, because there the id is a query value the client held). One document (a deliberate
          *     exception to the paged envelope, bounded by the plan's scale: about 100 project rows and at most about 1,000 milestone rows),
@@ -1523,6 +1523,11 @@ export interface paths {
          *     `startDays`/`endDays` are present only for a milestone dated on both sides; a Saturday-dated start moved to its Monday is no
          *     movement. `totals` counts every milestone row and every project row: `later`/`earlier` are the `MOVED` rows whose END is
          *     later/earlier (a start-only move is `moved`, neither).
+         *
+         *     With `?against=N` the "now" side is the frozen rows of baseline N instead of the live plan (the movement is still measured on
+         *     the CURRENT calendar): `against` carries N's header; in `projects` and `milestones` the fields named `live`, `rankNow` and
+         *     `span` read N's frozen rows, `ADDED` means "in N only" and `REMOVED` "in the path baseline only", and the names are N's when
+         *     the row is in N. `revision` stays the plan revision read first.
          */
         get: operations["getBaselineView"];
         put?: never;
@@ -3336,6 +3341,8 @@ export interface components {
              */
             revision: number;
             baseline: components["schemas"]["BaselineResponse"];
+            /** @description Present only for `?against=N`: the second baseline ("now"); the `baseline` above is "then". */
+            against?: components["schemas"]["BaselineResponse"];
             /** @description The movement counts over EVERY milestone row and every project row (changed or not). */
             totals: {
                 milestones: components["schemas"]["MovementTotals"];
@@ -8817,7 +8824,17 @@ export interface operations {
     };
     getBaselineView: {
         parameters: {
-            query?: never;
+            query?: {
+                /**
+                 * @description The id of a second ACTIVE baseline to compare the path baseline with INSTEAD OF the live plan: the path baseline is "then",
+                 *     this one "now". Absent: the comparison with the live plan, and the document carries no `against` key. Any order is allowed
+                 *     (an older baseline against a newer one reads as negative movement). A repeated key or a value that is not a non-negative
+                 *     integer is a `400`; the id of the path baseline itself is a `400` (a baseline cannot be compared with itself); an id that
+                 *     is unknown or soft-deleted is a `400` whose `type` is `urn:astrolabe:problem:unknown-baseline` (the caller held the id, e.g.
+                 *     a remembered pick: it drops the pick and asks again). All of these are answered AFTER the path baseline's own `404`.
+                 */
+                against?: number;
+            };
             header?: never;
             path: {
                 id: components["parameters"]["ResourceId"];

@@ -45,7 +45,9 @@ internal fun ApplicationCall.baselineParam(): UInt? = request.queryParameters.op
  * open to read); the caller's rights ride in the `can` flags. The team, roadmap, programs and baseline view services are passed beside
  * [PlanRouteDeps] in [PlanViewServices] (its constructor is at detekt's parameter ceiling). The project, team, programs (here) and
  * roadmap (`RoadmapRoutes.kt`) views take `?baseline=N`; `GET /views/baseline/{id}` is the comparison document (404 for an unknown or
- * deleted baseline: it is the addressed resource). Any authenticated user; a read: no audit event.
+ * deleted baseline: it is the addressed resource), with `?against=N` (1.7) comparing it with a second baseline instead of the live plan
+ * (a repeated or malformed value is a `400` here, an unknown or deleted id the view's typed `400` after the path id's `404`). Any
+ * authenticated user; a read: no audit event.
  */
 internal fun Route.planViewRoutes(d: PlanRouteDeps, views: PlanViewServices) {
     get<PlanViewRoute> {
@@ -69,6 +71,7 @@ internal fun Route.planViewRoutes(d: PlanRouteDeps, views: PlanViewServices) {
     }
     get<BaselineViewRoute> { route ->
         call.caller()
-        call.respond(HttpStatusCode.OK, views.baseline.view(route.id).orNotFound("Baseline"))
+        val against = call.request.queryParameters.optionalUInt("against")
+        call.respond(HttpStatusCode.OK, views.baseline.view(route.id, against).orNotFound("Baseline"))
     }
 }

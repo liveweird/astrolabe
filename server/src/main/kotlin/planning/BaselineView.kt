@@ -1,5 +1,9 @@
+@file:OptIn(ExperimentalSerializationApi::class)
+
 package ch.nokillswit.planning
 
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 
 /**
@@ -8,6 +12,10 @@ import kotlinx.serialization.Serializable
  * is the plan revision read FIRST; the baseline equals the plan at [BaselineResponse.planRevision], so a view at that revision shows
  * no movement. [projects] is the union of the baseline's and the live projects; [milestones] lists ONLY the rows that changed (any
  * kind but UNCHANGED, or a different estimate): the unchanged rows are in [totals] and the projects' `counts`.
+ *
+ * With `?against=N` (1.7) "now" is a second baseline instead of the live plan: [baseline] stays "then" (the path id), [against] is the
+ * "now" baseline's header, the `live`/`rankNow`/`span` fields read that baseline's frozen rows, and ADDED means "in [against] only",
+ * REMOVED "in [baseline] only". [against] is absent (not null) without the parameter, so the document is byte-identical to before.
  */
 @Serializable
 data class BaselineView(
@@ -16,6 +24,8 @@ data class BaselineView(
     val totals: BaselineViewTotals,
     val projects: List<BaselineViewProject>,
     val milestones: List<BaselineViewMilestone>,
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val against: BaselineResponse? = null,
 )
 
 /** The counts over EVERY milestone row (changed or not) and every project row of the comparison. */

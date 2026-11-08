@@ -351,7 +351,8 @@ function (`deleteCapacityPeriodsOf`, `removeFromRanking`, …) counts as the cal
   `MilestoneService.Milestones` ⋈ `Teams` for the team a removed row of the team view moved to (`liveTeamsOfMilestones`). `BaselineViewService`
   (`GET /views/baseline/{id}`) READS the three baseline tables, `UserService.Users`/`PersonService.People` for `createdBy`, the roadmap view's tables except
   `Dependencies` (`loadRoadmapSnapshot(withLinks = false)`: `Projects` ⋈ `Programs` ⋈ `WorkStreams`, `RoadmapEntries`, `Milestones` ⋈ `Teams`,
-  `PublicHolidays`), `MilestoneService.Milestones` again for the estimates (`baselineMilestoneFacts`) and `Teams`. All are reads in a read-only transaction: no
+  `PublicHolidays`), `MilestoneService.Milestones` again for the estimates (`baselineMilestoneFacts`) and `Teams`; with `?against=N` (1.7) it reads the second baseline's
+  header and frozen rows (`frozenProjects`/`frozenMilestones`) and the calendar INSTEAD of that live snapshot. All are reads in a read-only transaction: no
   lock, no write, nothing cached; a request without the parameter touches none of the baseline tables. External flags (1.3): `ProjectViewService`,
   `TeamViewService`, `RoadmapViewService` and `ProgramsViewService` (through `loadRoadmapSnapshot`; the baseline capture and comparison pass no source) READ
   `jira_bindings` ⋈ `jira_observations` ⋈ `jira_connections` (and, for the nodes, `DeviationViewService`'s own reads: the live bound nodes with their ancestors,

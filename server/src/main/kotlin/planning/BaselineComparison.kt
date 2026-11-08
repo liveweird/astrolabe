@@ -3,10 +3,32 @@ package ch.nokillswit.planning
 import ch.nokillswit.infra.time.WorkingCalendar
 
 /**
- * The comparison view's assembly as a pure function (no I/O, no clock), the [ProgramsTree] idiom: the frozen rows and the live rows
- * go through [BaselineKernels] once per milestone and once per project, and the answer keeps only the milestone rows that CHANGED
- * (every kind but UNCHANGED, or a different estimate - `planning-model.md` "Baselines") while the totals and each project's counts
- * cover every row.
+ * One project on the "now" side of a comparison, whichever side that is: the live plan ([RoadmapProject.toCompare]) or a second
+ * baseline's frozen row ([FrozenProjectRow.toCompare]). [rankPosition] is null while unranked; [span] its derived span (null = nothing
+ * scheduled).
+ */
+internal class CompareProject(
+    val id: UInt,
+    val name: String,
+    val programName: String,
+    val workStreamName: String,
+    val rankPosition: Int?,
+    val span: DaySpan?,
+)
+
+internal fun FrozenProjectRow.toCompare() = CompareProject(id, name, programName, workStreamName, rankPosition, span)
+
+internal fun RoadmapProject.toCompare(spans: Map<UInt, DaySpan>) =
+    CompareProject(id, name, programName, workStreamName, rankPosition, spans[id])
+
+/** A baseline's frozen milestone as the "now" side of a two-baseline comparison (the live plan's [MilestoneCapture] shape). */
+internal fun FrozenMilestoneRow.toCapture() = MilestoneCapture(id, projectId, teamId, name, estimateMd, span)
+
+/**
+ * The comparison view's assembly as a pure function (no I/O, no clock), the [ProgramsTree] idiom: the "then" rows (the path baseline's
+ * frozen ones) and the "now" rows (the live plan, or the `against` baseline's frozen ones, mapped side-neutrally) go through
+ * [BaselineKernels] once per milestone and once per project, and the answer keeps only the milestone rows that CHANGED (every kind
+ * but UNCHANGED, or a different estimate - `planning-model.md` "Baselines") while the totals and each project's counts cover every row.
  */
 internal object BaselineComparison {
     /** One milestone on either or both sides, with its movement and the project it belongs to (the live one when it exists). */
@@ -18,20 +40,20 @@ internal object BaselineComparison {
     fun assemble(
         revision: Long,
         baseline: BaselineResponse,
+        against: BaselineResponse?,
         frozenProjects: List<FrozenProjectRow>,
-        liveProjects: List<RoadmapProject>,
-        liveSpans: Map<UInt, DaySpan>,
+        nowProjects: List<CompareProject>,
         frozenMilestones: List<FrozenMilestoneRow>,
-        liveMilestones: List<MilestoneCapture>,
+        nowMilestones: List<MilestoneCapture>,
         teamNames: Map<UInt, String>,
         calendar: WorkingCalendar,
     ): BaselineView {
-        val rows = milestoneRows(frozenMilestones, liveMilestones, calendar)
+        val rows = milestoneRows(frozenMilestones, nowMilestones, calendar)
         val rowsByProject = rows.groupBy { it.projectId }
         val frozenById = frozenProjects.associateBy { it.id }
-        val liveById = liveProjects.associateBy { it.id }
-        val built = (frozenById.keys + liveById.keys).map { id ->
-            projectRow(id, frozenById[id], liveById[id], liveSpans[id], rowsByProject[id].orEmpty(), calendar)
+        val nowById = nowProjects.associateBy { it.id }
+        val built = (frozenById.keys + nowById.keys).map { id ->
+            projectRow(id, frozenById[id], nowById[id], rowsByProject[id].orEmpty(), calendar)
         }.sortedWith(
             compareBy(
                 { it.first.workStreamName.lowercase() }, { it.first.programName.lowercase() },
@@ -50,6 +72,7 @@ internal object BaselineComparison {
         return BaselineView(
             revision = revision,
             baseline = baseline,
+            against = against,
             totals = BaselineViewTotals(
                 milestones = BaselineKernels.totals(rows.map { it.movement }).toView(),
                 projects = BaselineKernels.totals(built.map { it.second }).toView(),
@@ -81,15 +104,14 @@ internal object BaselineComparison {
     private fun projectRow(
         id: UInt,
         then: FrozenProjectRow?,
-        now: RoadmapProject?,
-        liveSpan: DaySpan?,
+        now: CompareProject?,
         rows: List<Row>,
         calendar: WorkingCalendar,
     ): Pair<BaselineViewProject, Movement> {
         val movement = when {
             then == null -> Movement(MovementKind.ADDED, null, null, null)
             now == null -> Movement(MovementKind.REMOVED, null, null, null)
-            else -> BaselineKernels.spanMovement(then.span, liveSpan, calendar)
+            else -> BaselineKernels.spanMovement(then.span, now.span, calendar)
         }
         val view = BaselineViewProject(
             projectId = id,
@@ -99,7 +121,7 @@ internal object BaselineComparison {
             rankThen = then?.rankPosition,
             rankNow = now?.rankPosition,
             baselineSpan = then?.span?.toDateSpan(),
-            span = liveSpan?.toDateSpan(),
+            span = now?.span?.toDateSpan(),
             movement = movement.toView(),
             counts = BaselineKernels.totals(rows.map { it.movement }).toView(),
         )
