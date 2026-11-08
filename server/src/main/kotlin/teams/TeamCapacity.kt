@@ -26,6 +26,12 @@ data class CapacityPeriodRequest(
     val wipLimit: Int? = null,
 )
 
+/**
+ * Who wrote a capacity period (V24): [MANUAL] = a person (every period before 1.5.0 and every hand-entered one), [FLOW] = the
+ * capacity import for a Flow sprint. A manual edit of a [FLOW] period makes it [MANUAL]; the import never changes a [MANUAL] one.
+ */
+enum class CapacitySource { MANUAL, FLOW }
+
 @Serializable
 data class CapacityPeriodResponse(
     val id: UInt,
@@ -35,6 +41,10 @@ data class CapacityPeriodResponse(
     val wipLimit: Int?,
     val createdAt: Long,
     val updatedAt: Long,
+    /** Always present (no default): who wrote the period. */
+    val source: CapacitySource,
+    /** The Flow sprint a [CapacitySource.FLOW] period was imported for; null for a manual one. */
+    val flowSprintName: String?,
 )
 
 /** The bounded `{items}` wrapper (a handful of periods per team per year), in `effectiveFrom` order. */
@@ -44,11 +54,20 @@ data class CapacityPeriodList(val items: List<CapacityPeriodResponse>)
 /** A validated period: the date parsed and the figure as the exact stored decimal (`NUMERIC(8,2)`). */
 data class CapacityPeriodValues(val effectiveFrom: LocalDate, val mdPerWeek: BigDecimal, val wipLimit: Int?)
 
-/** What a period update replaced: the team it belongs to and the STORED values before and after (equal = a no-op PUT). */
-data class CapacityUpdateOutcome(val teamId: UInt, val before: CapacityPeriodValues, val after: CapacityPeriodValues) {
+/**
+ * What a period update replaced: the team it belongs to, the STORED values before and after, and the source the period had before (a PUT
+ * always leaves it [CapacitySource.MANUAL]). Equal values on a manual period = a no-op PUT; a PUT on a [CapacitySource.FLOW] period always
+ * counts as a change, because it takes the period over.
+ */
+data class CapacityUpdateOutcome(
+    val teamId: UInt,
+    val before: CapacityPeriodValues,
+    val after: CapacityPeriodValues,
+    val sourceBefore: CapacitySource,
+) {
     val changed: Boolean
         get() = before.effectiveFrom != after.effectiveFrom || before.mdPerWeek.compareTo(after.mdPerWeek) != 0 ||
-            before.wipLimit != after.wipLimit
+            before.wipLimit != after.wipLimit || sourceBefore != CapacitySource.MANUAL
 }
 
 /**

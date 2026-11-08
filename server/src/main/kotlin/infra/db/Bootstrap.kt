@@ -3,6 +3,7 @@ package ch.nokillswit.infra.db
 import ch.nokillswit.audit.audit
 import ch.nokillswit.auth.hashPassword
 import ch.nokillswit.auth.verifyPassword
+import ch.nokillswit.flow.FlowConnectionServiceKey
 import ch.nokillswit.infra.crypto.EncryptedAtRest
 import ch.nokillswit.jira.JiraConnectionServiceKey
 import ch.nokillswit.users.UserServiceKey
@@ -103,6 +104,8 @@ suspend fun Application.configureBootstrap() {
 
 /**
  * Every service owning encrypted-at-rest columns (see [EncryptedAtRest]). The Jira API token (`jira_connections.api_token`, V21) is the
- * first entry - never remove one once it lands. `EncryptedAtRestBootTest` pins that every implementation is listed.
+ * first entry, the Flow service token (`flow_connections.api_token`, V24) the second - never remove one once it lands.
+ * `EncryptedAtRestBootTest` pins that every implementation is listed.
  */
-private fun Application.encryptedAtRestServices(): List<EncryptedAtRest> = listOf(attributes[JiraConnectionServiceKey])
+private fun Application.encryptedAtRestServices(): List<EncryptedAtRest> =
+    listOf(attributes[JiraConnectionServiceKey], attributes[FlowConnectionServiceKey])

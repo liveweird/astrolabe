@@ -613,7 +613,9 @@ export interface paths {
          * Replace a capacity period
          * @description ADMIN or the period's team's ACTIVE manager, read-before-guard (`404`, then `403`, then the body). A full replace: an absent or null
          *     `wipLimit` CLEARS the limit. A start date another ACTIVE period of the team already holds is `409`. A PUT that changes nothing is
-         *     `204` and writes (and audits) nothing. Own transaction under the team row lock, the manager re-checked there; no plan revision bump.
+         *     `204` and writes (and audits) nothing, unless the period was imported from Flow: every PUT of a `FLOW` period takes it over (it becomes
+         *     `MANUAL` and its sprint is forgotten, so the capacity import no longer updates or removes it). Own transaction under the team row
+         *     lock, the manager re-checked there; no plan revision bump.
          */
         put: operations["updateCapacityPeriod"];
         post?: never;
@@ -2625,6 +2627,13 @@ export interface components {
              * @description Epoch millis
              */
             updatedAt: number;
+            /**
+             * @description Who wrote the period: `MANUAL` (every period before 1.5.0 and every hand-entered one) or `FLOW` (imported for a Flow sprint). A `PUT` of a `FLOW` period makes it `MANUAL`.
+             * @enum {string}
+             */
+            source: "MANUAL" | "FLOW";
+            /** @description The Flow sprint a `FLOW` period was imported for; null on a `MANUAL` one. */
+            flowSprintName: string | null;
         };
         /** @description A team's ACTIVE capacity periods in `effectiveFrom` order - a bounded list (a handful per team per year), not paged. */
         CapacityPeriodList: {

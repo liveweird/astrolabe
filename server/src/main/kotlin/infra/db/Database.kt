@@ -6,6 +6,12 @@ import ch.nokillswit.auth.TokenBlocklistService
 import ch.nokillswit.auth.TokenBlocklistServiceKey
 import ch.nokillswit.infra.config.requireConfigInt
 import ch.nokillswit.infra.config.requireConfigLong
+import ch.nokillswit.flow.FlowConnectionService
+import ch.nokillswit.flow.FlowConnectionServiceKey
+import ch.nokillswit.flow.FlowMirrorStore
+import ch.nokillswit.flow.FlowMirrorStoreKey
+import ch.nokillswit.flow.FlowTeamBindingService
+import ch.nokillswit.flow.FlowTeamBindingServiceKey
 import ch.nokillswit.infra.crypto.FieldCipherKey
 import ch.nokillswit.jira.DeviationViewService
 import ch.nokillswit.jira.DeviationViewServiceKey
@@ -312,6 +318,11 @@ suspend fun Application.configureDatabase() {
     val syncRuns = SyncRunService(database, maxRunMinutes)
     attributes.put(SyncRunServiceKey, syncRuns)
     attributes.put(JiraConnectionServiceKey, JiraConnectionService(database, attributes[FieldCipherKey], syncRuns))
+    // The Flow registry (V24) is the second encrypted-at-rest service; its mirror and bindings come with it. No origin is allowed until
+    // the outbound guard supplies `FlowOrigins.baseUrlAllowed` (the next step): a registry write is refused (fail closed).
+    attributes.put(FlowConnectionServiceKey, FlowConnectionService(database, attributes[FieldCipherKey], syncRuns) { false })
+    attributes.put(FlowMirrorStoreKey, FlowMirrorStore(database))
+    attributes.put(FlowTeamBindingServiceKey, FlowTeamBindingService(database))
     val jiraBindings = JiraBindingService(database)
     attributes.put(JiraBindingServiceKey, jiraBindings)
     attributes.put(JiraImportServiceKey, JiraImportService(database, teamService, jiraBindings))

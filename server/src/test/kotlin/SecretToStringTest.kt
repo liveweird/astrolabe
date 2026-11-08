@@ -9,6 +9,8 @@ import ch.nokillswit.auth.MfaChallenges
 import ch.nokillswit.auth.MfaVerifyRequest
 import ch.nokillswit.auth.PasswordResetConfirmRequest
 import ch.nokillswit.auth.RefreshRequest
+import ch.nokillswit.flow.FlowConnectionRequest
+import ch.nokillswit.flow.FlowConnectionTarget
 import ch.nokillswit.jira.JiraAuthScheme
 import ch.nokillswit.jira.JiraConnectionRequest
 import ch.nokillswit.jira.JiraTestTarget
@@ -112,5 +114,27 @@ class SecretToStringTest {
         assertTrue("apiToken=***" in target.toString() && "projectKeys=[SP]" in target.toString())
         val unreadable = JiraTestTarget("https://s.atlassian.net", "a@b.c", null, JiraAuthScheme.BEARER, listOf("SP"))
         assertTrue("apiToken=null" in unreadable.toString())
+    }
+
+    @Test
+    fun `a Flow connection request masks its service token and keeps the rest`() {
+        val request = FlowConnectionRequest(
+            name = "Main", baseUrl = "http://flow.test:8080", timeZone = "Europe/Warsaw", apiToken = secret, enabled = true,
+            pollIntervalMinutes = 60,
+        )
+        assertMasked(request.toString(), "flow.test:8080")
+        assertTrue("timeZone=Europe/Warsaw" in request.toString() && "pollIntervalMinutes=60" in request.toString())
+        assertTrue("apiToken=null" in request.copy(apiToken = null).toString(), "an absent token renders as null, not ***")
+        // A real-looking token, not just the marker: the rendering must not contain any part of it.
+        val real = flowToken('Q')
+        assertFalse("Q".repeat(10) in request.copy(apiToken = real).toString())
+    }
+
+    @Test
+    fun `a decrypted Flow connection target masks the token and keeps the rest`() {
+        val target = FlowConnectionTarget(7u, "Main", "http://flow.test:8080", "UTC", secret, enabled = true, expectedUpdatedAt = 9L)
+        assertMasked(target.toString(), "flow.test:8080")
+        assertTrue("apiToken=***" in target.toString() && "expectedUpdatedAt=9" in target.toString())
+        assertTrue("apiToken=null" in target.copy(apiToken = null).toString(), "an unreadable token renders as null")
     }
 }

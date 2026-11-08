@@ -4,6 +4,7 @@ import ch.nokillswit.plugins.ProblemDetail
 import ch.nokillswit.teams.CapacityPeriodList
 import ch.nokillswit.teams.CapacityPeriodRequest
 import ch.nokillswit.teams.CapacityPeriodResponse
+import ch.nokillswit.teams.CapacitySource
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.delete
@@ -84,7 +85,11 @@ class TeamCapacityTest {
         assertEquals(HttpStatusCode.OK, list.status)
         assertEquals(listOf(early, late), list.body<CapacityPeriodList>().items.map { it.id }, "ordered by effectiveFrom, this team's only")
         val one = w.personless.client.read(late)
-        assertEquals(CapacityPeriodResponse(late, t.teamId, "2027-06-07", 20.0, 4, one.createdAt, one.updatedAt), one)
+        assertEquals(
+            CapacityPeriodResponse(late, t.teamId, "2027-06-07", 20.0, 4, one.createdAt, one.updatedAt, CapacitySource.MANUAL, null),
+            one,
+            "every period carries its source: a hand-entered one is MANUAL with no sprint",
+        )
         assertNull(w.stranger.client.read(early).wipLimit)
         assertEquals(t.otherTeamId, w.stranger.client.read(otherTeam).teamId)
     }
@@ -121,6 +126,61 @@ class TeamCapacityTest {
             assertEquals(HttpStatusCode.BadRequest, t.manager.client.rawPost(collection(t.teamId), "{ not json").status,
                 "the manager's malformed body is a 400")
         }
+
+    @Test
+    fun `a PUT on a Flow-sourced period makes it manual - even with the same values - and audits the takeover once`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("capflow", teams = true)
+        val t = w.requireTeams()
+        val client = t.manager.client
+        val created = client.add(t.teamId, "2047-03-02", 20.0, 3).body<CapacityPeriodResponse>()
+        assertEquals(listOf(CapacitySource.MANUAL, null), listOf(created.source, created.flowSprintName), "a POST is always manual")
+        val id = created.id
+        // The import (a later step) writes these three columns; the API's job is what a PUT does to them.
+        jbSql(
+            "UPDATE team_capacity_periods SET source = 'FLOW', flow_sprint_id = 4711, flow_sprint_name = 'Sprint 12' WHERE id = ?",
+            id.toInt(),
+        )
+        val imported = client.read(id)
+        assertEquals(listOf(CapacitySource.FLOW, "Sprint 12"), listOf(imported.source, imported.flowSprintName))
+        val listed = w.stranger.client.get(collection(t.teamId)).body<CapacityPeriodList>().items.single { it.id == id }
+        assertEquals(CapacitySource.FLOW, listed.source, "the list carries the source too")
+
+        withAuditCapture { capture ->
+            // The manager saves the form unchanged: the figures are equal, the period is still taken over.
+            assertEquals(HttpStatusCode.NoContent, client.replace(id, "2047-03-02", 20.0, 3).status)
+            val taken = client.read(id)
+            assertEquals(listOf(CapacitySource.MANUAL, null), listOf(taken.source, taken.flowSprintName))
+            assertEquals(20.0, taken.mdPerWeek)
+            assertNull(TestPlan.scalar("SELECT flow_sprint_id FROM team_capacity_periods WHERE id = $id") { it.getObject(1) })
+            val event = capture.awaitEvent { it.message == "team.capacity_period_updated" && it.hasKeyValue("periodId", id.toLong()) }
+            assertNotNull(event, "the takeover is audited")
+            assertTrue(event.hasKeyValue("sourceFrom", "FLOW") && event.hasKeyValue("sourceTo", "MANUAL"))
+            assertTrue(event.hasKeyValue("mdPerWeekFrom", 20.0) && event.hasKeyValue("mdPerWeekTo", 20.0))
+
+            // Now it is manual: the same PUT again is the ordinary no-op (204, nothing written, nothing audited).
+            assertEquals(HttpStatusCode.NoContent, client.replace(id, "2047-03-02", 20.0, 3).status)
+            val updates = capture.events.count { it.message == "team.capacity_period_updated" && it.hasKeyValue("periodId", id.toLong()) }
+            assertEquals(1, updates)
+        }
+    }
+
+    @Test
+    fun `a PUT that changes a Flow-sourced period's figures also makes it manual, and a manual period stays manual`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("capflow2", teams = true)
+        val t = w.requireTeams()
+        val id = TestPlan.capacityPeriod(t.teamId, "2047-04-06", 18.0)
+        jbSql("UPDATE team_capacity_periods SET source = 'FLOW', flow_sprint_id = 1, flow_sprint_name = 'S' WHERE id = ?", id.toInt())
+        assertEquals(HttpStatusCode.NoContent, t.manager.client.replace(id, "2047-04-13", 19.0, null).status)
+        val moved = t.manager.client.read(id)
+        assertEquals(
+            listOf("2047-04-13", 19.0, CapacitySource.MANUAL, null),
+            listOf(moved.effectiveFrom, moved.mdPerWeek, moved.source, moved.flowSprintName),
+        )
+        assertEquals(HttpStatusCode.NoContent, t.manager.client.replace(id, "2047-04-20", 20.0, null).status)
+        assertEquals(CapacitySource.MANUAL, t.manager.client.read(id).source)
+    }
 
     @Test
     fun `any date is accepted - a Tuesday, a Saturday, a date in the past and the calendar's edges`() = testApplication {

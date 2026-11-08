@@ -2,6 +2,7 @@ package ch.nokillswit.planning
 
 import ch.nokillswit.infra.db.active
 import ch.nokillswit.teams.CapacityPeriodResponse
+import ch.nokillswit.teams.CapacitySource
 import ch.nokillswit.teams.TeamCapacityService
 import kotlinx.coroutines.flow.toList
 import org.jetbrains.exposed.v1.core.*
@@ -92,6 +93,8 @@ internal suspend fun teamCapacityRows(teamId: UInt): Pair<List<CapacityPeriodRes
             wipLimit = it[periods.wipLimit],
             createdAt = it[periods.createdAt],
             updatedAt = it[periods.updatedAt],
+            source = CapacitySource.valueOf(it[periods.capacitySource]),
+            flowSprintName = it[periods.flowSprintName],
         )
     }
     val kernel = rows.map { CapacityPeriod(it[periods.effectiveFrom], it[periods.mdPerWeek], it[periods.wipLimit]) }

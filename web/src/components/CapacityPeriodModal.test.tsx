@@ -8,7 +8,17 @@ import { renderWithProviders } from "../test/render";
 
 type FetchMock = ReturnType<typeof vi.fn>;
 
-const PERIOD: CapacityPeriod = { id: 11, teamId: 1, effectiveFrom: "2027-02-03", mdPerWeek: 8, wipLimit: 1, createdAt: 1, updatedAt: 2 };
+const PERIOD: CapacityPeriod = {
+  id: 11,
+  teamId: 1,
+  effectiveFrom: "2027-02-03",
+  mdPerWeek: 8,
+  wipLimit: 1,
+  createdAt: 1,
+  updatedAt: 2,
+  source: "MANUAL",
+  flowSprintName: null,
+};
 /** Text only the SERVER sends: it must never reach the screen (the dialog speaks its own, translated, fixed vocabulary). */
 const LEAK = "SERVER-DETAIL-MUST-NOT-SHOW";
 

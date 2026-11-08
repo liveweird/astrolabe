@@ -136,7 +136,15 @@ class SyncRunService(
      * keeps going until its next write: its [finish] then finds no row and answers false.
      */
     suspend fun deleteForConnectionInTransaction(kind: SyncKind, connectionId: UInt): Int =
-        Runs.deleteWhere { (Runs.kind eq kind.name) and (Runs.connectionId eq connectionId.toInt()) }
+        deleteForConnectionInTransaction(kind.name, connectionId)
+
+    /**
+     * [deleteForConnectionInTransaction] by the kind's stored NAME, for a connector whose [SyncKind] value has not landed yet: the V21
+     * CHECK already admits `'FLOW'`, and a connection delete must clear that connection's runs (none exist until the Flow run does). The
+     * typed overload replaces the one caller when `SyncKind.FLOW` is added.
+     */
+    suspend fun deleteForConnectionInTransaction(kindName: String, connectionId: UInt): Int =
+        Runs.deleteWhere { (Runs.kind eq kindName) and (Runs.connectionId eq connectionId.toInt()) }
 
     /** The `started_at` of the newest SUCCEEDED run of the (kind, connection): the incremental watermark; null before the first. */
     suspend fun lastSucceededStart(kind: SyncKind, connectionId: UInt): Long? = suspendTransaction(database) {

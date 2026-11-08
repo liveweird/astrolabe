@@ -78,7 +78,17 @@ const TV_B = milestone(2, "tv-b", { startDate: "2027-02-04", endDate: "2027-02-0
 const TV_C = milestone(3, "tv-c", { startDate: "2027-02-08", endDate: "2027-02-10", projectId: 8, projectName: "Payouts", rankPosition: 2 });
 const TRAYED = milestone(4, "tv-tray", { description: "Waiting" });
 
-const PERIOD: CapacityPeriod = { id: 11, teamId: 1, effectiveFrom: "2027-02-03", mdPerWeek: 8, wipLimit: 1, createdAt: 1, updatedAt: 2 };
+const PERIOD: CapacityPeriod = {
+  id: 11,
+  teamId: 1,
+  effectiveFrom: "2027-02-03",
+  mdPerWeek: 8,
+  wipLimit: 1,
+  createdAt: 1,
+  updatedAt: 2,
+  source: "MANUAL",
+  flowSprintName: null,
+};
 
 const endpoint = (m: TeamMilestone, over: Partial<DependencyEndpoint> = {}): DependencyEndpoint => ({
   kind: "MILESTONE",

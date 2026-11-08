@@ -51,6 +51,16 @@ class TeamCapacityService(private val database: R2dbcDatabase) {
 
         /** Null = no WIP limit while the period is in force; otherwise `1..99` (`ck_team_capacity_periods_wip`). */
         val wipLimit = integer("wip_limit").nullable()
+
+        /**
+         * V24: `MANUAL` or `FLOW` ([CapacitySource]); a PUT always writes `MANUAL`, the capacity import writes `FLOW`
+         * (`ck_team_capacity_periods_source`). Named `capacitySource`: Exposed's `Table.source` is taken.
+         */
+        val capacitySource = varchar("source", length = 10).default(CapacitySource.MANUAL.name)
+
+        /** V24: the Flow sprint a `FLOW` period was imported for (its id and name); both null on a manual period. */
+        val flowSprintId = long("flow_sprint_id").nullable()
+        val flowSprintName = varchar("flow_sprint_name", length = 255).nullable()
         val createdAt = long("created_at")
         val updatedAt = long("updated_at")
         override val markedAsDeleted = bool("marked_as_deleted").default(false)
@@ -99,6 +109,7 @@ class TeamCapacityService(private val database: R2dbcDatabase) {
             it[effectiveFrom] = values.effectiveFrom
             it[mdPerWeek] = values.mdPerWeek
             it[wipLimit] = values.wipLimit
+            it[capacitySource] = CapacitySource.MANUAL.name
             it[createdAt] = stamp
             it[updatedAt] = stamp
         }[CapacityPeriods.id].value
@@ -111,12 +122,16 @@ class TeamCapacityService(private val database: R2dbcDatabase) {
     suspend fun update(id: UInt, values: CapacityPeriodValues, guard: TeamGuard): CapacityUpdateOutcome = suspendTransaction(database) {
         requireValidCapacity(values)
         val locked = lockedPeriod(id, guard)
-        val outcome = CapacityUpdateOutcome(locked.teamId, locked.values, values)
+        val outcome = CapacityUpdateOutcome(locked.teamId, locked.values, values, locked.source)
         if (outcome.changed) {
             CapacityPeriods.update({ (CapacityPeriods.id eq id) and CapacityPeriods.active() }) {
                 it[effectiveFrom] = values.effectiveFrom
                 it[mdPerWeek] = values.mdPerWeek
                 it[wipLimit] = values.wipLimit
+                // A person's save takes the period over: it is no longer the import's to update or remove.
+                it[capacitySource] = CapacitySource.MANUAL.name
+                it[flowSprintId] = null
+                it[flowSprintName] = null
                 it[updatedAt] = nowMillis()
             }
         }
@@ -146,8 +161,8 @@ class TeamCapacityService(private val database: R2dbcDatabase) {
             .toList()
     }
 
-    /** A period re-read under its team's row lock: the team it belongs to and its STORED values. */
-    private class LockedPeriod(val teamId: UInt, val values: CapacityPeriodValues)
+    /** A period re-read under its team's row lock: the team it belongs to, its STORED values and its source. */
+    private class LockedPeriod(val teamId: UInt, val values: CapacityPeriodValues, val source: CapacitySource)
 
     /**
      * The shared head of [update] and [delete]: the period's team is read, LOCKED (gone = 404), the period re-read under that lock
@@ -159,12 +174,11 @@ class TeamCapacityService(private val database: R2dbcDatabase) {
             .toList().singleOrNull()?.get(CapacityPeriods.teamId)?.value
             ?: throw NotFoundException(PERIOD_NOT_FOUND)
         if (!TeamService.Teams.lockActiveForWrite(teamId)) throw NotFoundException(PERIOD_NOT_FOUND)
-        val values = CapacityPeriods.selectAll().where { (CapacityPeriods.id eq id) and CapacityPeriods.active() }
-            .toList().singleOrNull()
-            ?.let { CapacityPeriodValues(it[CapacityPeriods.effectiveFrom], it[CapacityPeriods.mdPerWeek], it[CapacityPeriods.wipLimit]) }
-            ?: throw NotFoundException(PERIOD_NOT_FOUND)
+        val row = CapacityPeriods.selectAll().where { (CapacityPeriods.id eq id) and CapacityPeriods.active() }
+            .toList().singleOrNull() ?: throw NotFoundException(PERIOD_NOT_FOUND)
         guard(teamId)
-        return LockedPeriod(teamId, values)
+        val values = CapacityPeriodValues(row[CapacityPeriods.effectiveFrom], row[CapacityPeriods.mdPerWeek], row[CapacityPeriods.wipLimit])
+        return LockedPeriod(teamId, values, CapacitySource.valueOf(row[CapacityPeriods.capacitySource]))
     }
 
     private fun ResultRow.toResponse() = CapacityPeriodResponse(
@@ -175,6 +189,8 @@ class TeamCapacityService(private val database: R2dbcDatabase) {
         wipLimit = this[CapacityPeriods.wipLimit],
         createdAt = this[CapacityPeriods.createdAt],
         updatedAt = this[CapacityPeriods.updatedAt],
+        source = CapacitySource.valueOf(this[CapacityPeriods.capacitySource]),
+        flowSprintName = this[CapacityPeriods.flowSprintName],
     )
 }
 

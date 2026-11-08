@@ -8,12 +8,12 @@ import kotlin.test.assertTrue
 /**
  * The one-way package layering (CLAUDE.md "Package layout", checkup D5): everything under `infra/` is the foundation every feature
  * builds on, so it never references a feature package (`teams`, `people`, `planning`, `users`, `auth`, `authz`, `telemetry`, `jira`,
- * `sync`).
+ * `sync`, `flow`).
  * `audit` (the cross-cutting audit trail) and `plugins` (Ktor wiring: `respondProblem`) are not features and stay open to `infra`.
  * The composition root is the one documented exception ([infraCompositionRoot]): the DB/bootstrap wiring MUST construct the
  * feature services it publishes on
- * `Application.attributes` (`Bootstrap.kt` also registers the `jira` service with the encryption-at-rest backfill), so exactly those two
- * files may name exactly those packages. `telemetry/` is the top layer (an observer of
+ * `Application.attributes` (`Bootstrap.kt` also registers the `jira` and `flow` services with the encryption-at-rest backfill), so
+ * exactly those two files may name exactly those packages. `telemetry/` is the top layer (an observer of
  * every lower one): nothing else names it. A plain source scan (no Docker, no classpath tricks): any non-comment line of a file in
  * the lower package that mentions an upper package by its qualified name (an import, a wildcard import or an inline reference) is a
  * violation.
@@ -36,12 +36,12 @@ class PackageBoundaryTest {
      * a listed package the file no longer uses fails the test (a stale exception is dead permission).
      */
     private val infraCompositionRoot: Map<String, Set<String>> = mapOf(
-        "Database.kt" to setOf("auth", "jira", "people", "planning", "sync", "teams", "users"),
-        "Bootstrap.kt" to setOf("auth", "jira", "users"),
+        "Database.kt" to setOf("auth", "flow", "jira", "people", "planning", "sync", "teams", "users"),
+        "Bootstrap.kt" to setOf("auth", "flow", "jira", "users"),
     )
 
     private val featurePackages = listOf(
-        "teams", "people", "planning", "users", "auth", "authz", "telemetry", "jira", "sync",
+        "teams", "people", "planning", "users", "auth", "authz", "telemetry", "jira", "flow", "sync",
     )
 
     private fun packageOf(text: String): String? =
@@ -83,6 +83,46 @@ class PackageBoundaryTest {
             val violations = own.flatMap { file -> forbiddenReferences(file.readText(), listOf("jira")).map { "${file.name} $it" } }
             assertEquals(emptyList(), violations, "$pkg must not reference jira")
         }
+    }
+
+    private fun sourcesOf(pkg: String): List<File> = mainSources.filter { packageOf(it.readText()) == "ch.nokillswit.$pkg" }
+
+    @Test
+    fun `sync, planning and teams name nothing of flow`() {
+        // flow/ is a connector like jira/: the run registry, the plan and the team registry never know it (flow/ registers itself in sync/
+        // through an attribute and writes team data only through the teams service's own methods).
+        for (pkg in listOf("sync", "planning", "teams")) {
+            val own = sourcesOf(pkg)
+            assertTrue(own.size > 3, "the scan saw only ${own.size} sources of $pkg")
+            val violations = own.flatMap { file -> forbiddenReferences(file.readText(), listOf("flow")).map { "${file.name} $it" } }
+            assertEquals(emptyList(), violations, "$pkg must not reference flow")
+        }
+    }
+
+    @Test
+    fun `jira and flow never name each other`() {
+        for ((pkg, other) in listOf("jira" to "flow", "flow" to "jira")) {
+            val own = sourcesOf(pkg)
+            assertTrue(own.size > 3, "the scan saw only ${own.size} sources of $pkg")
+            val violations = own.flatMap { file -> forbiddenReferences(file.readText(), listOf(other)).map { "${file.name} $it" } }
+            assertEquals(emptyList(), violations, "$pkg must not reference $other")
+        }
+    }
+
+    @Test
+    fun `flow reaches only teams, sync, authz, audit, plugins and infra - and two functions of planning`() {
+        val own = sourcesOf("flow")
+        assertTrue(own.size > 3, "the scan saw only ${own.size} sources of flow")
+        // users/people/auth are out (the team guard and the actor's managed teams come through `teams` and `authz`); jira is the sibling.
+        val violations = own.flatMap { file ->
+            forbiddenReferences(file.readText(), listOf("users", "people", "auth", "telemetry", "jira")).map { "${file.name} $it" }
+        }
+        assertEquals(emptyList(), violations)
+        val planning = Regex("""\bch\.nokillswit\.planning\.(\w+)""")
+        val used = own.flatMap { file ->
+            file.readLines().filterNot(::isComment).flatMap { line -> planning.findAll(line).map { it.groupValues[1] }.toList() }
+        }.toSet()
+        assertEquals(emptySet(), used - setOf("loadWorkingCalendar", "validateManDays"), "flow may import only these planning functions")
     }
 
     private fun infraSources(): List<Pair<File, String>> = mainSources.mapNotNull { file ->

@@ -967,7 +967,9 @@ paths:
       description: |
         ADMIN or the period's team's ACTIVE manager, read-before-guard (`404`, then `403`, then the body). A full replace: an absent or null
         `wipLimit` CLEARS the limit. A start date another ACTIVE period of the team already holds is `409`. A PUT that changes nothing is
-        `204` and writes (and audits) nothing. Own transaction under the team row lock, the manager re-checked there; no plan revision bump.
+        `204` and writes (and audits) nothing, unless the period was imported from Flow: every PUT of a `FLOW` period takes it over (it becomes
+        `MANUAL` and its sprint is forgotten, so the capacity import no longer updates or removes it). Own transaction under the team row
+        lock, the manager re-checked there; no plan revision bump.
       requestBody:
         required: true
         content:
@@ -3837,7 +3839,7 @@ components:
             no limit. On PUT (a full replace) absent = the limit is cleared.
     CapacityPeriodResponse:
       type: object
-      required: [id, teamId, effectiveFrom, mdPerWeek, wipLimit, createdAt, updatedAt]
+      required: [id, teamId, effectiveFrom, mdPerWeek, wipLimit, createdAt, updatedAt, source, flowSprintName]
       properties:
         id: { type: integer, format: int32, minimum: 0 }
         teamId: { type: integer, format: int32, minimum: 0 }
@@ -3846,6 +3848,17 @@ components:
         wipLimit: { type: integer, format: int32, minimum: 1, maximum: 99, nullable: true, description: Null = no WIP limit. }
         createdAt: { type: integer, format: int64, description: Epoch millis }
         updatedAt: { type: integer, format: int64, description: Epoch millis }
+        source:
+          type: string
+          enum: [MANUAL, FLOW]
+          description: >-
+            Who wrote the period: `MANUAL` (every period before 1.5.0 and every hand-entered one) or `FLOW` (imported for a Flow sprint). A
+            `PUT` of a `FLOW` period makes it `MANUAL`.
+        flowSprintName:
+          type: string
+          maxLength: 255
+          nullable: true
+          description: The Flow sprint a `FLOW` period was imported for; null on a `MANUAL` one.
     CapacityPeriodList:
       type: object
       required: [items]

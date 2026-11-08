@@ -59,7 +59,21 @@ const viewOf = (over: Partial<TeamView> = {}): TeamView => ({
     can: { schedule: true, editCapacity: true, editOrder: true },
   },
   order: { custom: true, revision: 4, milestoneIds: [1, 2] },
-  capacity: { periods: [{ id: 11, teamId: 1, effectiveFrom: "2027-02-03", mdPerWeek: 8, wipLimit: 1, createdAt: 1, updatedAt: 2 }] },
+  capacity: {
+    periods: [
+      {
+        id: 11,
+        teamId: 1,
+        effectiveFrom: "2027-02-03",
+        mdPerWeek: 8,
+        wipLimit: 1,
+        createdAt: 1,
+        updatedAt: 2,
+        source: "MANUAL",
+        flowSprintName: null,
+      },
+    ],
+  },
   weeks: [week("2027-02-01", 8.5)],
   weeksTruncated: false,
   scheduled: [PA, PB],

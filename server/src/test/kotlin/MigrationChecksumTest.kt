@@ -45,6 +45,7 @@ class MigrationChecksumTest {
         "V21__jira_sync.sql" to -1791624565,
         "V22__jira_polling_and_acknowledge.sql" to 1567303519,
         "V23__jira_census.sql" to -1388010118,
+        "V24__flow_sync.sql" to -852538185,
     )
 
     @Test

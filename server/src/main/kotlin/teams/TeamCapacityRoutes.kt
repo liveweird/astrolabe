@@ -99,6 +99,9 @@ internal fun Route.teamCapacityRoutes(teams: TeamService, capacity: TeamCapacity
                 "mdPerWeekTo" to outcome.after.mdPerWeek.toDouble(),
                 "wipLimitFrom" to (outcome.before.wipLimit ?: NO_LIMIT),
                 "wipLimitTo" to (outcome.after.wipLimit ?: NO_LIMIT),
+                // A PUT always leaves the period MANUAL; FLOW -> MANUAL is the manager taking over an imported period.
+                "sourceFrom" to outcome.sourceBefore.name,
+                "sourceTo" to CapacitySource.MANUAL.name,
             )
         }
         call.respond(HttpStatusCode.NoContent)
