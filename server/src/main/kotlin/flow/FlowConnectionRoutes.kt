@@ -7,6 +7,7 @@ import ch.nokillswit.authz.requireAdmin
 import ch.nokillswit.infra.db.orVanished
 import ch.nokillswit.infra.paging.parsePaging
 import ch.nokillswit.infra.paging.toPage
+import ch.nokillswit.teams.TeamServiceKey
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.resources.Resource
@@ -41,10 +42,14 @@ fun Application.configureFlowRoutes() {
     val connections = attributes[FlowConnectionServiceKey]
     val connector = attributes[FlowConnectorKey]
     val origins = attributes[FlowOriginsKey]
+    val bindings = attributes[FlowTeamBindingServiceKey]
+    val flowTeams = attributes[FlowTeamServiceKey]
+    val teams = attributes[TeamServiceKey]
 
     routing {
         authenticate {
             flowTestRoutes(connections, connector, origins)
+            flowTeamBindingRoutes(bindings, flowTeams, teams)
             get<FlowConnectionsRoute> {
                 requireAdmin(call.caller())
                 val paging = call.parsePaging(sortable = FLOW_CONNECTION_SORT_FIELDS)

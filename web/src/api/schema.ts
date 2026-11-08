@@ -2378,6 +2378,141 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/integrations/flow/teams": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the Flow teams a connection has mirrored
+         * @description Any authenticated user (the Deviations view's disclosure class): the Flow team names of an ACTIVE connection - enabled or not - with
+         *     their binding, the unique suggestion for an unbound one, and counts. Never a token, a base URL, an account id or a person's name.
+         *     It feeds the connection page's Teams section (ADMIN) and the team page's link dialog (the team's manager).
+         *
+         *     **Unpaged, by decision (`flow-sync.md` "Bindings"):** the document is the mirror of ONE Flow document, which Flow itself caps at 1,000
+         *     teams (the real figure is about 15-100), and the suggestion needs every unbound team at once, so it is a bounded document like the
+         *     view endpoints and not a `{items, page, total}` envelope. Teams come by name (case-insensitive), then id. `404` for an unknown or
+         *     deleted connection; `400` for a missing, repeated or malformed `connectionId`.
+         */
+        get: operations["listFlowTeams"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/integrations/flow/team-bindings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Link a team to a Flow team
+         * @description The team's ACTIVE manager or ADMIN, **read-before-guard**: the team is in the body, so the body is decoded first (a body that does not
+         *     decode is a `400` before any guard - no team was addressed); then the team (`404` for an unknown or deleted team, for every caller),
+         *     then the guard (`403`: another team's manager, a project owner and a stranger are refused; a forbidden caller's bad `flowTeamId` is
+         *     still `403`), then the rest: the connection (unknown, deleted or disabled: `400`) and the Flow team in its mirror (`400` "Unknown
+         *     Flow team: refresh the connection"). The write runs in one transaction with the guard re-run under the team row lock.
+         *
+         *     Links are 1:1 both ways: `409` `urn:astrolabe:problem:already-bound` when the team is already linked to a Flow team (on any
+         *     connection), or the Flow team is already linked to another team - unless that team was deleted, in which case its link is released
+         *     (soft-deleted, audited `flow.team_unbound` with reason `TEAM_GONE`) and the new one goes through. The link calls Flow never and is
+         *     not plan state. Audited `flow.team_bound`.
+         */
+        post: operations["createFlowTeamBinding"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/integrations/flow/team-bindings/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Unlink a team from its Flow team
+         * @description The binding's team's ACTIVE manager or ADMIN, read-before-guard: `404` for an unknown or already unlinked binding and for one whose
+         *     team was deleted (for every caller), then `403`. A soft delete: the row stays as history and both the team and the Flow team are free
+         *     to be linked again. The capacity periods the team imported from Flow stay (they are the manager's data now). Audited
+         *     `flow.team_unbound` with reason `UNLINKED`.
+         */
+        delete: operations["deleteFlowTeamBinding"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/integrations/flow/connections/{id}/team-bindings/match": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Link every Flow team whose name matches exactly one unbound team ("Link all suggested")
+         * @description ADMIN only, `requireAdmin` FIRST (a non-admin gets a uniform `403` whether or not the connection exists), then `404` for an unknown or
+         *     deleted connection and `400` for a disabled one. No request body. In ONE transaction every Flow team of the connection's mirror that
+         *     is not linked, and whose name - trimmed, whitespace collapsed, lowercased; accents count - equals the name of exactly ONE unbound
+         *     active team (and of no other unlinked Flow team), is linked to it. The rest is reported: `ALREADY_BOUND` (linked already) or
+         *     `NO_MATCH`. A call with nothing to link is a `200` with an empty `bound`. Audited `flow.teams_matched` (counts and binding ids) and
+         *     `flow.team_bound` per link.
+         */
+        post: operations["matchFlowTeams"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/teams/{id}/flow": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * A team's Flow panel
+         * @description Any authenticated user (the roster's display names included - decided, `flow-sync.md` "Bindings"); `404` for an unknown or deleted team.
+         *     The team's link to its Flow team with the connection's name and sync status, the roster read from the mirror (members now and former
+         *     ones, dates in the connection's time zone, a half-open `[validFrom, validTo)` interval) and the sprint summary. `binding`, `roster` and
+         *     `sprints` are null for an unlinked team; `roster` and `sprints` are also null when the Flow team is gone from the mirror
+         *     (`binding.gone`). `can` says whether the CALLER may link, unlink and import (ADMIN or the team's manager). The panel is its own read,
+         *     not a member of the team view, and calls Flow never. No account id, email, token or base URL is ever returned.
+         */
+        get: operations["getTeamFlow"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/integrations/sync/runs": {
         parameters: {
             query?: never;
@@ -5657,6 +5792,174 @@ export interface components {
             truncated: boolean;
             /** @description Whether the result was stored on the connection (false for an ad-hoc test, or when an edit raced the test). */
             recorded: boolean;
+        };
+        FlowTeamBindRequest: {
+            /**
+             * Format: int32
+             * @description The Flow connection (active and enabled).
+             */
+            connectionId: number;
+            /**
+             * Format: int32
+             * @description The Flow team's id, as `GET /integrations/flow/teams` lists it.
+             */
+            flowTeamId: number;
+            /**
+             * Format: int32
+             * @description The Astrolabe team to link.
+             */
+            teamId: number;
+        };
+        FlowTeamBinding: {
+            /** Format: int32 */
+            id: number;
+            /** Format: int32 */
+            connectionId: number;
+            /** Format: int32 */
+            teamId: number;
+            teamName: string;
+            /** Format: int32 */
+            flowTeamId: number;
+            /** @description The Flow team's name when it was linked; a rename in Flow does not change it (the link follows `flowTeamId`). */
+            flowTeamName: string;
+            /**
+             * Format: int64
+             * @description Epoch millis
+             */
+            createdAt: number;
+        };
+        FlowMatchBound: {
+            /** Format: int32 */
+            bindingId: number;
+            /** Format: int32 */
+            teamId: number;
+            /** Format: int32 */
+            flowTeamId: number;
+        };
+        FlowMatchSkipped: {
+            /** Format: int32 */
+            flowTeamId: number;
+            /** @enum {string} */
+            reason: "NO_MATCH" | "ALREADY_BOUND";
+        };
+        FlowTeamMatch: {
+            bound: components["schemas"]["FlowMatchBound"][];
+            skipped: components["schemas"]["FlowMatchSkipped"][];
+        };
+        FlowTeamListItem: {
+            /** Format: int32 */
+            flowTeamId: number;
+            name: string;
+            /**
+             * Format: int32
+             * @description The ACTIVE binding of an ACTIVE team to this Flow team; null when it is not linked.
+             */
+            bindingId: number | null;
+            /** Format: int32 */
+            boundTeamId: number | null;
+            boundTeamName: string | null;
+            /**
+             * Format: int32
+             * @description The one unbound active team whose name equals this Flow team's (trimmed, whitespace collapsed, lowercased; accents count), and only if no other unlinked Flow team folds to the same name. Null for a linked Flow team and when there is no unique match.
+             */
+            suggestedTeamId: number | null;
+            suggestedTeamName: string | null;
+            /**
+             * Format: int32
+             * @description The roster's membership intervals of the team (a person with two intervals counts twice).
+             */
+            members: number;
+            /**
+             * Format: int32
+             * @description Mirrored sprints.
+             */
+            sprints: number;
+            /**
+             * Format: int64
+             * @description Epoch millis of the run that last saw the team.
+             */
+            observedAt: number;
+        };
+        FlowTeamList: {
+            /** Format: int32 */
+            connectionId: number;
+            /**
+             * Format: int64
+             * @description Epoch millis of the run that last replaced the mirror; null until one ran (then `items` is empty).
+             */
+            teamsAt: number | null;
+            items: components["schemas"]["FlowTeamListItem"][];
+        };
+        FlowPanelTeam: {
+            /** Format: int32 */
+            id: number;
+            name: string;
+        };
+        /** @description The caller's rights on the team's Flow link - ADMIN or the team's ACTIVE manager; the three flags carry the same verdict today. */
+        FlowPanelCan: {
+            link: boolean;
+            unlink: boolean;
+            importCapacity: boolean;
+        };
+        FlowPanelBinding: {
+            /** Format: int32 */
+            id: number;
+            /** Format: int32 */
+            connectionId: number;
+            connectionName: string;
+            /** Format: int32 */
+            flowTeamId: number;
+            flowTeamName: string;
+            connectionEnabled: boolean;
+            status: components["schemas"]["SyncStatus"];
+            /**
+             * Format: int64
+             * @description Epoch millis the mirror last saw the Flow team; for a gone team, when the connection last replaced the mirror (null before any run).
+             */
+            observedAt: number | null;
+            /** @description The connection has mirrored a document and the linked Flow team is not in it. Derived at read time, never stored; the link stays until it is removed. */
+            gone: boolean;
+        };
+        FlowRosterCurrent: {
+            /** @description Flow's display name, or "Unknown account" when Flow sent none. */
+            displayName: string;
+            /**
+             * Format: date
+             * @description The start of the membership, in the connection's time zone.
+             */
+            since: string;
+        };
+        FlowRosterFormer: {
+            /** @description Flow's display name, or "Unknown account" when Flow sent none. */
+            displayName: string;
+            /** Format: date */
+            from: string;
+            /**
+             * Format: date
+             * @description The first day the person was no longer a member (the interval is half-open).
+             */
+            to: string;
+        };
+        /** @description Memberships by half-open instant interval `[validFrom, validTo)`: current when `validFrom <= now < validTo` (an open end never ends), former when `validTo <= now`; a membership that has not started is in neither list. A person with two intervals appears once per interval. `current` and `former` have no `maxItems`: the server does not cap them. They are bounded only by what the mirror holds for ONE team, i.e. by the single Flow document (at most 1 MiB, `flow.maxResponseBytes`, for every team together) - in practice a few dozen rows. */
+        FlowRoster: {
+            current: components["schemas"]["FlowRosterCurrent"][];
+            former: components["schemas"]["FlowRosterFormer"][];
+        };
+        FlowSprintSummary: {
+            /** Format: int32 */
+            count: number;
+            /**
+             * Format: date
+             * @description The first mirrored sprint start that is today or later, in the connection's time zone; null when none.
+             */
+            nextStart: string | null;
+        };
+        FlowTeamPanel: {
+            team: components["schemas"]["FlowPanelTeam"];
+            can: components["schemas"]["FlowPanelCan"];
+            binding: components["schemas"]["FlowPanelBinding"] | null;
+            roster: components["schemas"]["FlowRoster"] | null;
+            sprints: components["schemas"]["FlowSprintSummary"] | null;
         };
         SyncRunRequest: {
             /** @enum {string} */
@@ -9209,6 +9512,143 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    listFlowTeams: {
+        parameters: {
+            query: {
+                connectionId: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The connection's mirrored Flow teams */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FlowTeamList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    createFlowTeamBinding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FlowTeamBindRequest"];
+            };
+        };
+        responses: {
+            /** @description Linked; `Location` points at the new binding */
+            201: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FlowTeamBinding"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    deleteFlowTeamBinding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Unlinked */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    matchFlowTeams: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description What was linked and what was left */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FlowTeamMatch"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    getTeamFlow: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The panel */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FlowTeamPanel"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
             500: components["responses"]["InternalServerError"];
         };
     };

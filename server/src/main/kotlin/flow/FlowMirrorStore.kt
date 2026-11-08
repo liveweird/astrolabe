@@ -77,8 +77,10 @@ class FlowMirrorStore(private val database: R2dbcDatabase) {
      * sprints and members (so a bound team never reads as gone because of a cap). Without it the mirror is exactly [teams].
      *
      * The row lock is `FOR NO KEY UPDATE` from the start (never upgraded from `FOR SHARE`): concurrent replaces of one connection, the
-     * delete and an edit all queue on it, so there is no lock cycle whatever the run claim allows. It does not conflict with the
-     * `FOR KEY SHARE` of an FK check (a binding insert), so a link is never stalled by a replace.
+     * delete and an edit all queue on it, so there is no lock cycle whatever the run claim allows. A team link or "Link all suggested"
+     * takes the connection row `FOR SHARE`, which DOES conflict with it: a link waits for a replace in flight (briefly, one document's
+     * rows) and then reads the new mirror. No cycle: a replace holds the connection row and touches only the three mirror tables, and a
+     * link holds nothing a replace waits for. The `FOR KEY SHARE` of an FK check (a binding insert) does not conflict with it.
      */
     suspend fun replace(connectionId: UInt, teams: List<FlowMirrorTeam>, at: Long, keepAbsentTeams: Boolean = false): FlowMirrorWrite {
         val rows = teams.distinctBy { it.flowTeamId }.map { it.fitted() }

@@ -13,21 +13,21 @@ milestones) → milestone (start/end, man-day estimate, exactly one team, no own
 (its milestones against capacity), the **roadmap** (projects by one global rank, and in time) and the **programs** view. **Planning flow:** build the hierarchy and rank the projects; the
 team manager schedules milestones (manual drag/resize, or accept a server proposal); dependencies (FS/SS/FF/SF + lag) and capacity overload only ever **warn**, never move anything.
 
-**Roadmap:** 0.1.0 foundation · 0.2.0 plan structure · 0.3.0 timeline + project view · 0.4.0 dependencies · 0.5.0 team view + capacity · 0.6.0 roadmap + programs timelines · 0.7.0 calendar + critical path · 0.8.0 auto-proposal · 0.9.0 baselines · 1.0.0 checkup · 1.1.0 Jira sync · 1.2.0 import · 1.3.0 polling · **1.4.0 (current)** coverage + roll-ups (stub-proven) · next 1.5. Per-version scope, domain decisions, assumptions: `.claude/docs/product.md` (the other domain docs are in the table below). Open items: `BACKLOG.md`.
+**Roadmap:** 0.1.0 foundation · 0.2.0 plan structure · 0.3.0 timeline + project view · 0.4.0 dependencies · 0.5.0 team view + capacity · 0.6.0 roadmap + programs timelines · 0.7.0 calendar + critical path · 0.8.0 auto-proposal · 0.9.0 baselines · 1.0.0 checkup · 1.1.0 Jira sync · 1.2.0 import · 1.3.0 polling · **1.4.0 (current)** coverage + roll-ups (stub-proven) · next 1.5. Per-version scope, domain decisions, assumptions: `.claude/docs/product.md`. Open items: `BACKLOG.md`.
 
-Brand: deep cyan (the `astrolabe` colour tuple in `web/src/theme.ts`, `primaryShade: { light: 8, dark: 9 }`); the logo is a stylised astrolabe (limb ring with ticks, rete star pointers, alidade).
+Brand: deep cyan (the `astrolabe` colour tuple in `web/src/theme.ts`, `primaryShade: { light: 8, dark: 9 }`); the logo is a stylised astrolabe.
 
 ## Donors
 
-**Flow is the primary donor**: this repository started as an exact copy of Flow (`~/Sources/flow` @ `e9c3b726`, Flow 1.35.0), trimmed; Covenant, Lettuce and Toadie came in indirectly through it.
-**Port, don't reinvent**: when Astrolabe needs a capability a sibling already has, port its implementation. What each donated: `.claude/docs/product.md` "Donors". Ported for 1.1.0: `fetch/`, the Jira client slice, `EncryptedAtRest`/`Reencrypt`, the WireMock stub (port 8096); after 1.4.0: the weight-balanced test-fork order (`balancedCandidateOrder`, `server/test-weights.tsv`). Nothing is queued to port.
+**Flow is the primary donor**: this repository started as a trimmed exact copy of Flow (`~/Sources/flow` @ `e9c3b726`, Flow 1.35.0); Covenant, Lettuce and Toadie came in through it.
+**Port, don't reinvent**: when a sibling already has a capability Astrolabe needs, port it. What each donated: `.claude/docs/product.md` "Donors". Ported for 1.1.0: `fetch/`, the Jira client slice, `EncryptedAtRest`/`Reencrypt`, the WireMock stub (port 8096); after 1.4.0: the weight-balanced test-fork order (`balancedCandidateOrder`, `server/test-weights.tsv`). Nothing is queued to port.
 
 ## Commands
 
 Gradle wrapper: `./gradlew`. JDK 21 toolchain is required
 (auto-provisioned via foojay-resolver; the local dev JDK is pinned in `mise.toml` —
 `temurin-21.0.13+9.0.LTS`, Node 24.22.1). Run `mise install` once, then `mise exec -- <command>`
-or activate mise in your shell. If `./gradlew` resolves the wrong JDK, point it explicitly: `JAVA_HOME=$(mise where java) ./gradlew build`.
+or activate mise. If `./gradlew` resolves the wrong JDK, point it explicitly: `JAVA_HOME=$(mise where java) ./gradlew build`.
 
 - All local gates, timed like CI: `scripts/gates.sh [server|web|e2e|all]` (stops at the first failure; `ASTROLABE_FORKS=N` test forks, default 2, CI runs 1; `.claude/docs/build-times.md`)
 - Build everything: `./gradlew build`; run the server (Ktor + Netty, port 8086): `./gradlew :server:run`; all tests: `./gradlew test`
@@ -63,7 +63,7 @@ namespace: `.claude/docs/ci.md` "Running the full stack".
 
 ## Architecture
 
-Astrolabe is Flow's generic foundation under the planning domain. The foundation: **JWT auth**
+Astrolabe is Flow's generic foundation under the planning domain: **JWT auth**
 with a sliding refresh pair and a server-side revocation blocklist, opt-in **email MFA**, self-service password reset,
 per-account lockout and per-IP rate limits, **ADMIN-managed users** (`/api/v1/users`, `UserRole`) with per-user **feature flags**
 and a synced UI/email **language** (EN/PL), the **people** directory (the owners and managers of the plan, optionally linked to a login), flat **teams** (the unit milestones belong to) with an optional manager (a person), the ADMIN **telemetry** panel, and the React
@@ -72,13 +72,13 @@ shell (nav model, palette, theme, changelog). Every feature follows the feature 
 Multi-module Gradle build (Kotlin DSL) defined in `settings.gradle.kts` with two Kotlin modules
 plus two standalone npm workspaces (Gradle never touches them):
 
-- **`core`** — Kotlin Multiplatform (JVM target only currently). Shared code consumed by `server`.
+- **`core`** — Kotlin Multiplatform (JVM target only). Shared code for `server`.
   Holds the OpenTelemetry SDK bootstrap (`getOpenTelemetry(serviceName)`).
-- **`server`** — Kotlin/JVM. The Ktor application. Depends on `core`. One process: there is no worker and no role switch.
-- **`web/`** — Vite + React + TypeScript SPA that consumes the server's HTTP API.
+- **`server`** — Kotlin/JVM. The Ktor application. Depends on `core`. One process, no worker.
+- **`web/`** — Vite + React + TypeScript SPA over the server's HTTP API.
 - **`e2e/`** — Playwright blackbox suite against the compose stack.
 
-Group is `ch.nokillswit`, version `1.0.0-SNAPSHOT` (inherited from the donor scaffold; renaming is out of scope). Dependency
+Group `ch.nokillswit`, version `1.0.0-SNAPSHOT` (the donor scaffold's; renaming is out of scope). Dependency
 versions are centralized in `gradle/libs.versions.toml` (every pin carries its rationale; Ktor comes from the separate `ktorLibs`
 catalog). Resolved Gradle dependencies use strict locking and SHA-256 verification; intentional updates follow
 `.claude/docs/dependency-reproducibility.md`.
@@ -93,13 +93,12 @@ application is wired declaratively in `server/src/main/resources/application.yam
 infra (Mail → Crypto → Flyway → Database → Bootstrap → Health) → Telemetry (the sampler) → feature route modules (users, people, teams, planning, `configureJira` → `configureSync` → the Jira and deviation routes, auth, password reset, telemetry reads) →
 `RoutingKt.configureRouting` strictly last (the SPA catch-all). `configureDatabase` publishes the services into `Application.attributes` via `AttributeKey`s. To add a cross-cutting concern,
 create a `configureXxx()` extension under `plugins/` and register it in `application.yaml`; do not call it from `main.kt`. There is no DI framework — services travel via `attributes`.
-There is no role switch (Flow's `FLOW_ROLE` web/worker/all split is deliberately not ported; `.claude/docs/product.md` "Donors").
+There is no role switch (Flow's `FLOW_ROLE` split is not ported; `product.md` "Donors").
 
 ### Package layout
 
 Source files sit flat under `server/src/main/kotlin/<area>/` but declare `package ch.nokillswit.<area>`
-(no `ch/nokillswit` directory nesting — deliberate, the `InvalidPackageDeclaration` detekt
-override). One line per package; `ls` gives the files. **Layering is one-way (`PackageBoundaryTest`):** `infra/` imports no feature package except the composition root (`infra/db/Database.kt`, `Bootstrap.kt`); `telemetry/` is imported by nothing; `sync/` imports no connector (`jira/` registers itself); `planning/` reads nothing of `jira/`.
+(no `ch/nokillswit` directory nesting — the deliberate `InvalidPackageDeclaration` detekt override). One line per package; `ls` gives the files. **Layering is one-way (`PackageBoundaryTest`):** `infra/` imports no feature package except the composition root (`infra/db/Database.kt`, `Bootstrap.kt`); `telemetry/` is imported by nothing; `sync/` imports no connector (`jira/` registers itself); `planning/` reads nothing of `jira/`.
 
 - `plugins/` — cross-cutting Ktor wiring (`configureXxx` that only `install` plugins; Security = JWT, ErrorHandling = RFC 7807). `Routing` (the SPA catch-all) is registered strictly last; `Health` (`/api/v1/health`, `/api/v1/ready`) is registered after Database; `RateLimits` holds every per-IP bucket (and the per-user `telemetry` one); `ResponseValidators` is the `ETag` seam for future view GETs.
 - `infra/mail/` — outbound email (Lettuce's, ported): `MAIL_TRANSPORT` log/smtp/disabled; the `log` transport is refused in production (fail-closed); a null mailer = email features answer 503.
@@ -133,16 +132,16 @@ the same commit. The server suite validates every test-client `/api/` interactio
 `-Dopenapi.conformance=fail`); the frontend derives its types from it (`npm run gen:api` → committed `web/src/api/schema.ts`,
 regenerated in the same commit). The file says `openapi: 3.1.0` but must use only 3.0-compatible constructs
 (`OpenApiSpecTest`). `AnonymousAccessTest` sweeps every operation without `security: []` for a 401 — the "401 sweep" — so a new
-route is covered the moment its spec entry lands. `info.version` equals `APP_VERSION` (`app-releases.md`).
+route is covered once its spec entry lands. `info.version` equals `APP_VERSION` (`app-releases.md`).
 
 ### Cross-cutting conventions
 
-Two docs apply to nearly every change and are always loaded:
+Two docs apply to nearly every change, always loaded:
 
 @.claude/docs/testing.md
 @.claude/docs/list-endpoints.md
 
-Every other convention doc is **read on demand, not imported** (together they exceed the instruction-size budget) but binding:
+Every other convention doc is **read on demand, not imported** (together they exceed the size budget) but binding:
 **before touching an area, read its doc in full** (and name it in any implementer/reviewer brief). When a doc and this file
 disagree, the doc wins. The always-loaded set (this file plus the two imports) stays under 36,000 bytes (`AlwaysLoadedDocsBudgetTest`).
 
@@ -156,9 +155,9 @@ disagree, the doc wins. The always-loaded set (this file plus the two imports) s
 | `.claude/docs/jira-sync.md` | the Jira sync: gateway/auth, probes, mapping, bindings, the run, deviations, the stub, the first real-site walk-through, the assumptions ledger |
 | `.claude/docs/flow-sync.md` | the Flow sync (`flow/`): transport, probes, the run, status, ledger |
 | `.claude/docs/ci.md` | a CI job (ids and list), Dependabot rule or static-analysis config; the full-stack/Kubernetes notes and the sibling port table |
-| `.claude/docs/product.md` | the per-version roadmap, the user's domain decisions, assumptions; what each donor repo contributed and what to port later |
+| `.claude/docs/product.md` | the per-version roadmap, the user's domain decisions, assumptions; what each donor contributed, what to port later |
 | `.claude/docs/planning-model.md` | the planning domain: plan structure, lock, guards; milestones … capacity (sketch) |
-| `.claude/docs/timeline.md` | the shared `Timeline*` component and the Gantt-like pages: the approach and measured figures |
+| `.claude/docs/timeline.md` | the shared `Timeline*` component and Gantt-like pages: approach, measured figures |
 | `.claude/docs/test-fixtures.md` | any server test fixture, the harness, fork warm-up, OpenAPI conformance internals, e2e scenario files, Schemathesis |
 | `.claude/docs/web-internals.md` | the `web/` transport/session layer, user/feature-flag pages, language switcher, colour tokens/logo, changelog wiring |
 | `.claude/docs/dependencies.md` | any dependency, image or runtime-pin change |

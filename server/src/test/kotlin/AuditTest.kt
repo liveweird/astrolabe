@@ -172,4 +172,62 @@ class AuditTest {
             removeFlowFixtureRows("flow-audit")
         }
     }
+
+    @Test
+    fun `the Flow team binding events carry ids and a reason - never a team name or the token`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("flowbaudit", teams = true)
+        val teams = w.requireTeams()
+        val unique = planName("fa")
+        val boundFlowName = "Bound-$unique"
+        val mirror = ScriptedFlowMirror("flow-audit-bind").connect()
+            .refresh(flowTeamJson(1, boundFlowName), flowTeamJson(2, "Match-$unique"))
+        val matchTeam = TestTeams.seed("match-$unique")
+        try {
+            withAuditCapture { capture ->
+                val admin = w.admin.client
+                val binding = admin.fbBind(mirror.connectionId, 1, teams.teamId).fbBinding()
+                val bound = assertNotNull(capture.awaitEvent { it.message == "flow.team_bound" && it.hasKeyValue("via", "link") })
+                assertTrue(
+                    listOf(
+                        "byUserId" to w.admin.userId.toLong(), "bindingId" to binding.id.toLong(),
+                        "connectionId" to mirror.connectionId.toLong(),
+                        "teamId" to teams.teamId.toLong(), "flowTeamId" to 1L,
+                    ).all { (key, value) -> bound.hasKeyValue(key, value) },
+                    "${bound.keyValuePairs}",
+                )
+                assertEquals(HttpStatusCode.NoContent, teams.manager.client.delete("$FB_BINDINGS/${binding.id}").status)
+                val unbound = assertNotNull(capture.awaitEvent { it.message == "flow.team_unbound" })
+                assertTrue(
+                    unbound.hasKeyValue("byUserId", teams.manager.userId.toLong()) &&
+                        unbound.hasKeyValue("bindingId", binding.id.toLong()) &&
+                        unbound.hasKeyValue("reason", "UNLINKED") && unbound.hasKeyValue("teamId", teams.teamId.toLong()),
+                    "${unbound.keyValuePairs}",
+                )
+                val matched = admin.post("$FB_CONNECTIONS/${mirror.connectionId}/team-bindings/match")
+                assertEquals(HttpStatusCode.OK, matched.status)
+                val summary = assertNotNull(capture.awaitEvent { it.message == "flow.teams_matched" })
+                assertTrue(
+                    listOf("byUserId" to w.admin.userId.toLong(), "connectionId" to mirror.connectionId.toLong(), "boundCount" to 1)
+                        .all { (key, value) -> summary.hasKeyValue(key, value) },
+                    "${summary.keyValuePairs}",
+                )
+                val viaMatch = assertNotNull(capture.awaitEvent { it.message == "flow.team_bound" && it.hasKeyValue("via", "match") })
+                assertTrue(
+                    viaMatch.hasKeyValue("teamId", matchTeam.toLong()) && viaMatch.hasKeyValue("flowTeamId", 2L),
+                    "${viaMatch.keyValuePairs}",
+                )
+                assertTrue(
+                    capture.events.none { event ->
+                        listOf(boundFlowName, "Match-$unique", "flow_int_").any { secret ->
+                            secret in event.formattedMessage || event.keyValuePairs.any { secret in "${it.value}" }
+                        }
+                    },
+                    "no event carries a team name or a token",
+                )
+            }
+        } finally {
+            removeFlowFixtureRows("flow-audit-bind")
+        }
+    }
 }

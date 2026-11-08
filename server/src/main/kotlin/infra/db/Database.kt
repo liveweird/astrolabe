@@ -13,6 +13,8 @@ import ch.nokillswit.flow.FlowMirrorStoreKey
 import ch.nokillswit.flow.FlowOriginsKey
 import ch.nokillswit.flow.FlowTeamBindingService
 import ch.nokillswit.flow.FlowTeamBindingServiceKey
+import ch.nokillswit.flow.FlowTeamService
+import ch.nokillswit.flow.FlowTeamServiceKey
 import ch.nokillswit.infra.crypto.FieldCipherKey
 import ch.nokillswit.jira.DeviationViewService
 import ch.nokillswit.jira.DeviationViewServiceKey
@@ -324,8 +326,11 @@ suspend fun Application.configureDatabase() {
     // is per call, and an absent rule refuses (fail closed), so a connection can never name an origin the transport would refuse.
     val flowBaseUrlAllowed = { url: String -> attributes.getOrNull(FlowOriginsKey)?.baseUrlAllowed(url) ?: false }
     attributes.put(FlowConnectionServiceKey, FlowConnectionService(database, attributes[FieldCipherKey], syncRuns, flowBaseUrlAllowed))
-    attributes.put(FlowMirrorStoreKey, FlowMirrorStore(database))
+    val flowConnections = attributes[FlowConnectionServiceKey]
+    val flowMirror = FlowMirrorStore(database)
+    attributes.put(FlowMirrorStoreKey, flowMirror)
     attributes.put(FlowTeamBindingServiceKey, FlowTeamBindingService(database))
+    attributes.put(FlowTeamServiceKey, FlowTeamService(database, flowConnections, flowMirror))
     val jiraBindings = JiraBindingService(database)
     attributes.put(JiraBindingServiceKey, jiraBindings)
     attributes.put(JiraImportServiceKey, JiraImportService(database, teamService, jiraBindings))
