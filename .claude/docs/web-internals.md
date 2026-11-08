@@ -413,7 +413,7 @@ mappers: `utils/planForm.ts`.
 
 The first Timeline page (lazy). Files: `api/milestones.ts` (`getProjectView`, `createMilestone`, `updateMilestone`, `deleteMilestone`, `scheduleMilestone`),
 `hooks/useMilestoneSchedule.ts` (the query under `["plan","project",id]` and the ONE schedule write path), `utils/projectViewUpdate.ts` (`applySchedule`),
-`utils/milestoneForm.ts`, `components/ProjectTimeline.tsx` (the view → `TimelineRowData[]` adapter, the row menu, the target-window and drift bands;
+`utils/milestoneForm.ts`, `components/ProjectTimeline.tsx` (the view → `TimelineRowData[]` adapter: it composes `ProjectTimelineRows.tsx`'s row and band builders and `MilestoneMenu.tsx`'s row menu;
 `ProjectTray` for the Unscheduled tray), `MilestoneEditorModal`, `MilestoneScheduleModal`, `TeamSelect` (a `SearchPicker` over `GET /teams`). `ProjectView` is
 `<ProjectPage key={id}>` so another project starts with its own range and editors. `ProjectPage` composes child components (1.6 split, `complexity` 35):
 `ProjectPageHeader` (name, meta lines, the `can`-gated actions), `ProjectViewNotices` (notes, inline write failures, the polite status region), `ProjectEditors`
@@ -475,7 +475,7 @@ row is a roving stop of the grid (`RowActionsMenu`'s `trigger` prop spreads the 
 `utils/dependencyForm.ts` (form values, the self-link and lag rules, `toDependencyBody`, `cyclePathText`, `dependencySaveErrorMessage`; the edit's
 `editDependencyForm`, `dependencyEditValidation` (the lag only), `toDependencyUpdateBody`, `dependencyUpdateErrorMessage` and the shared
 `dependencyEndpointText`), `components/ProjectDependencies.tsx` (the h3 section: table, Delete, empty state), `DependencyEditorModal.tsx`,
-`MilestoneSelect.tsx`, `ProjectSelect.tsx`, and in `ProjectTimeline.tsx` the summary row, the ghost rows, the overlay and the "Add dependency…" menu item.
+`MilestoneSelect.tsx`, `ProjectSelect.tsx`, and in `ProjectTimelineRows.tsx` the summary row and the ghost rows, in `ProjectTimeline.tsx` the overlay, in `MilestoneMenu.tsx` the "Add dependency…" menu item.
 - **Row and bar ids.** Own milestones keep their numeric ids; the synthetic rows are strings that cannot collide: `project:<id>` (the summary row, one hollow
   bar of the derived span — none while nothing is scheduled), `ghost:m:<id>` / `ghost:p:<id>` (one per DISTINCT external endpoint WITH dates, sorted by start,
   end, name). A row's bar id equals its row id for the synthetic rows. An arrow end resolves to: the own project → the summary row, an own milestone → its row
@@ -537,7 +537,7 @@ them (above): dropping them would flash a false "no idle gaps" for a round trip.
 **Critical path (v0.7.0).** `ProjectPage` holds `useStoredState("timeline.criticalPath", false, isBoolean)` (before the early return: hooks stay unconditional),
 passes `criticalPath` and the toggle `Button` (as `toolbar`) to `ProjectTimeline`, `showCritical` to `ProjectDependencies` and mounts `<CriticalChain view />`
 right after `{dependencies}` (before `IdleGaps`) while the toggle is on and the project has milestones (so the h3 order is Timeline, Unscheduled, Dependencies,
-Critical chain, Idle gaps). `ProjectTimeline` adds the `slack` column (`withSlack` inserts the cell before the actions cell, so a bar's roving columns shift by
+Critical chain, Idle gaps). `ProjectTimeline` (rows in `ProjectTimelineRows.tsx`, cell in `SlackCell.tsx`) adds the `slack` column (`withOptional` inserts the cell before the actions cell, so a bar's roving columns shift by
 one with it) and applies `emphasized(t, critical, describe)` to the bar fields; `arrowSpecs(view, criticalPath)` flags the arrows. The ghost rows' slack and
 emphasis come from `upstreamIndex(view)` by kind + id. `applySchedule` leaves `slackDays`/`critical`/`criticalPath` as cached (the refetch brings the server's).
 Reference: `timeline.md` "The critical-path highlight".
@@ -1195,9 +1195,8 @@ once that plan is read (the plan replaces the table the Import button sat in); a
 (team capacity and weekly load are in the team view) and `["flow","deviations"]`. **Capacity table:** a `source === "FLOW"` row gets a gray "Flow" badge titled
 with the sprint; the period editor says a saved edit makes the period hand-entered. Tests:
 `TeamFlowSection|CapacityImportModal|FlowTeamLinkDialog|FlowRosterPanel|TeamCapacity.test.tsx`, `pages/TeamDetails.flow.test.tsx` (the other `TeamDetails.*`
-tests serve `READ_ONLY_PANEL`), `utils/capacityImport.test.ts`; fixtures in `test/flow.ts`. `pages/TeamDetails.tsx` is at 412 lines after the 2026-11-08 split
-(`TeamPageHeader`, `TeamViewNotices`, `TeamResetConfirm`, and the `TimelineTitle`/`UnscheduledTraySection` the project page shares; the web size-gate backlog
-item).
+tests serve `READ_ONLY_PANEL`), `utils/capacityImport.test.ts`; fixtures in `test/flow.ts`. `pages/TeamDetails.tsx` is at 252 lines after the 2026-11-08 splits
+(`TeamPageHeader`, `TeamViewNotices`, `TeamResetConfirm`, `TeamFacts`, `TeamProposalNotes`, `TeamTimelineButtons`, `hooks/useProposalFocus.ts` (Discard/Propose focus hand-over), and the `TimelineTitle`/`UnscheduledTraySection` the project page shares).
 
 ## People (`pages/People.tsx`, `pages/PersonDetails.tsx`)
 

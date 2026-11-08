@@ -1,339 +1,23 @@
 import type { ReactNode } from "react";
-import { Anchor, Menu, Text, VisuallyHidden } from "@mantine/core";
-import { IconBrandJira, IconCalendarEvent, IconCalendarOff, IconLink, IconLinkOff, IconPencil, IconTrash } from "@tabler/icons-react";
-import { Link as RouterLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import type { TFunction } from "i18next";
-import type { DependencyEndpoint } from "../api/dependencies";
-import type { ProjectMilestone, ProjectView, UpstreamEntity } from "../api/milestones";
+import type { ProjectView } from "../api/milestones";
 import { useHolidays } from "../hooks/useHolidays";
-import { barList, baselineBars, newSince, removedRows } from "../utils/baselineOverlay";
-import { idleBands } from "../utils/idleGaps";
 import { jiraTrayNote } from "../utils/flagSentences";
-import { addDays } from "../utils/isoDate";
-import { jiraBar, siteUrls, type JiraWindow } from "../utils/jiraBars";
-import { projectPath } from "../utils/planLinks";
-import { arrowSpecs, conflictsByBar, ghostEndpoints, ghostRowId, projectRowId, summaryCritical, summaryRowNeeded, upstreamIndex, upstreamOf } from "../utils/projectDependencies";
-import type { BarId, RovingTarget, TimelineBandData, TimelineBarData, TimelineColumn, TimelineRowData } from "../utils/timelineModel";
+import { siteUrls, type JiraWindow } from "../utils/jiraBars";
+import { arrowSpecs, conflictsByBar, ghostEndpoints, summaryRowNeeded, upstreamIndex } from "../utils/projectDependencies";
+import type { TimelineColumn } from "../utils/timelineModel";
 import type { TimelineScale, Zoom } from "../utils/timelineScale";
-import { BaselineRowName } from "./BaselineParts";
-import DestructiveMenuItem from "./DestructiveMenuItem";
-import { MilestoneFlags, NameWithFlags } from "./MilestoneFlags";
-import RowActionsMenu from "./RowActionsMenu";
+import { NameWithFlags } from "./MilestoneFlags";
+import MilestoneMenu, { type MilestoneActions } from "./MilestoneMenu";
+import NameCell from "./MilestoneNameCell";
+import { bandsOf, baselineRows, estimateText, ghostRow, hasMenu, milestoneRows, summaryRow } from "./ProjectTimelineRows";
 import Timeline from "./Timeline";
 import TimelineArrows from "./TimelineArrows";
 import TimelineUnscheduledTray, { type TrayItem } from "./TimelineUnscheduledTray";
 
-/** What a milestone row can ask the page to do — the page owns the editors, the delete confirmation and the schedule write path. */
-export type MilestoneActions = {
-  edit: (milestone: ProjectMilestone) => void;
-  editSchedule: (milestone: ProjectMilestone) => void;
-  unschedule: (milestone: ProjectMilestone) => void;
-  remove: (milestone: ProjectMilestone) => void;
-  /** The tray's Schedule button: the page chooses the dates (one calendar week from the later of today and the target start). */
-  schedule: (milestone: ProjectMilestone) => void;
-  /** "Add dependency…": open the editor with this milestone as the successor (offered only with the project's `can.createDependency`). */
-  addDependency: (milestone: ProjectMilestone) => void;
-  /** "Link to Jira…" (offered with the milestone's own `can.edit` - the bind's guard is the owner chain, the same arithmetic). Absent = the page offers no Jira link. */
-  linkJira?: (milestone: ProjectMilestone) => void;
-  /** The milestone's Jira key when it is linked (the view's own `jira` block): the menu then says so instead of offering the link. */
-  jiraKeyOf?: (milestone: ProjectMilestone) => string | undefined;
-  /** "Unlink from Jira: KEY" for a linked milestone (with its own `can.edit`): the page confirms and deletes the binding. */
-  unlinkJira?: (milestone: ProjectMilestone) => void;
-};
-
 /** The Flags column grows to `FLAGS_WITH_ROLLUP_WIDTH` while a scheduled row shows a Jira roll-up ("5/12 · 34 pt"). */
 const FLAGS_WITH_ROLLUP_WIDTH = 210;
 const COLUMN_WIDTHS = { name: 220, team: 130, estimate: 120, flags: 130, slack: 130, actions: 56 } as const;
-
-/** The estimate with its unit ("12.25 man-days"). */
-const estimateText = (t: TFunction, milestone: ProjectMilestone) => t("project.estimateUnit", { count: milestone.estimateMd });
-
-/**
- * The name with the description as dimmed text after it; one line (rows are a fixed height), the cell clips the rest. `mark` (a milestone new since the
- * baseline) goes right after the name, then `note` (a tray row's "Jira: start to end").
- */
-function NameCell({ milestone, mark, note }: { milestone: ProjectMilestone; mark?: string; note?: string }) {
-  return (
-    <Text component="span" size="sm" truncate>
-      <Text span fw={500}>
-        {milestone.name}
-      </Text>
-      {mark !== undefined && (
-        <Text span c="dimmed">
-          {" "}
-          {mark}
-        </Text>
-      )}
-      {note !== undefined && (
-        <Text span c="dimmed">
-          {" "}
-          {note}
-        </Text>
-      )}
-      {milestone.description && (
-        <Text span c="dimmed">
-          {" "}
-          {milestone.description}
-        </Text>
-      )}
-    </Text>
-  );
-}
-
-/**
- * The milestone's Jira item in its row menu, by what the page knows (the view's own `jira` blocks) and the milestone's own `can.edit` (the bind's guard):
- * "Link to Jira…" when it is not linked, "Unlink from Jira: KEY" (the red destructive item, confirmed by the page) when it is, and for a viewer who may
- * not edit only the key as a disabled line - links are 1:1, so a linked milestone is never offered the link.
- */
-function JiraLinkItem({ milestone, actions, linkJira }: { milestone: ProjectMilestone; actions: MilestoneActions; linkJira: (milestone: ProjectMilestone) => void }) {
-  const { t } = useTranslation();
-  const key = actions.jiraKeyOf?.(milestone);
-  const { name } = milestone;
-  if (key === undefined) {
-    return milestone.can.edit ? (
-      <Menu.Item leftSection={<IconBrandJira size={14} />} onClick={() => linkJira(milestone)} aria-label={t("deviations.link.actionAria", { name })}>
-        {t("deviations.link.action")}
-      </Menu.Item>
-    ) : null;
-  }
-  if (!milestone.can.edit || actions.unlinkJira === undefined) {
-    return (
-      <Menu.Item leftSection={<IconBrandJira size={14} />} disabled aria-label={t("deviations.link.linkedAria", { key, name })}>
-        {t("deviations.link.linked", { key })}
-      </Menu.Item>
-    );
-  }
-  const unlink = actions.unlinkJira;
-  return (
-    <DestructiveMenuItem leftSection={<IconLinkOff size={14} />} onClick={() => unlink(milestone)} aria-label={t("deviations.link.unlinkKeyAria", { key, name })}>
-      {t("deviations.link.unlinkKey", { key })}
-    </DestructiveMenuItem>
-  );
-}
-
-/** Does the caller have any row action on this milestone? Without one there is no menu (and, in the grid, a plain static cell stays the stop). */
-const hasMenu = ({ can }: ProjectMilestone, canLink: boolean) => can.edit || can.schedule || can.delete || canLink;
-
-/**
- * The row menu of one milestone, each item gated by its own flag: Edit and Delete by the owner chain's `can.edit`/`can.delete`,
- * the schedule items by `can.schedule` (the team's manager or an ADMIN). `trigger` makes the kebab a stop of the timeline's grid.
- */
-function MilestoneMenu({
-  milestone,
-  actions,
-  canLink,
-  trigger,
-}: {
-  milestone: ProjectMilestone;
-  actions: MilestoneActions;
-  /** The project's `can.createDependency`: a milestone is linked as a SUCCESSOR through the project's chain, not its own flags. */
-  canLink: boolean;
-  trigger?: RovingTarget;
-}) {
-  const { t } = useTranslation();
-  const { can } = milestone;
-  const scheduled = milestone.startDate !== null;
-  return (
-    <RowActionsMenu label={t("common.table.operationsAria", { name: milestone.name })} trigger={trigger}>
-      {can.edit && (
-        <Menu.Item leftSection={<IconPencil size={14} />} onClick={() => actions.edit(milestone)} aria-label={t("common.action.editAria", { name: milestone.name })}>
-          {t("common.action.edit")}
-        </Menu.Item>
-      )}
-      {actions.linkJira !== undefined && <JiraLinkItem milestone={milestone} actions={actions} linkJira={actions.linkJira} />}
-      {can.schedule && (
-        <Menu.Item
-          leftSection={<IconCalendarEvent size={14} />}
-          onClick={() => actions.editSchedule(milestone)}
-          aria-label={t("project.action.editScheduleAria", { name: milestone.name })}
-        >
-          {t("project.action.editSchedule")}
-        </Menu.Item>
-      )}
-      {can.schedule && scheduled && (
-        <Menu.Item
-          leftSection={<IconCalendarOff size={14} />}
-          onClick={() => actions.unschedule(milestone)}
-          aria-label={t("project.action.unscheduleAria", { name: milestone.name })}
-        >
-          {t("project.action.unschedule")}
-        </Menu.Item>
-      )}
-      {canLink && (
-        <Menu.Item
-          leftSection={<IconLink size={14} />}
-          onClick={() => actions.addDependency(milestone)}
-          aria-label={t("project.action.addDependencyAria", { name: milestone.name })}
-        >
-          {t("project.action.addDependency")}
-        </Menu.Item>
-      )}
-      {can.delete && (can.edit || can.schedule || canLink) && <Menu.Divider />}
-      {can.delete && (
-        <DestructiveMenuItem
-          leftSection={<IconTrash size={14} />}
-          onClick={() => actions.remove(milestone)}
-          aria-label={t("common.action.deleteAria", { name: milestone.name })}
-        >
-          {t("common.action.delete")}
-        </DestructiveMenuItem>
-      )}
-    </RowActionsMenu>
-  );
-}
-
-/**
- * The target window as a band across every row, and — when the derived span ends after the target — the overrun in the drift tone;
- * then (v0.7) one hatched `idle` band per idle gap the server lists, after them so the hatch is painted over the window's tint.
- */
-function bandsOf(view: ProjectView, t: TFunction): TimelineBandData[] {
-  const { targetStart, targetEnd } = view.project;
-  const bands: TimelineBandData[] = [];
-  if (targetStart !== null && targetEnd !== null) {
-    bands.push({ id: "window", start: targetStart, end: targetEnd, label: t("project.windowBand", { start: targetStart, end: targetEnd }), tone: "window" });
-    if (view.span !== null && view.drift !== null && view.drift.endDays > 0) {
-      bands.push({ id: "drift", start: addDays(targetEnd, 1), end: view.span.end, label: t("project.driftBand", { count: view.drift.endDays }), tone: "drift" });
-    }
-  }
-  return [...bands, ...idleBands(view.idleGaps, t)];
-}
-
-/**
- * The critical-path emphasis of one bar (v0.7), applied only while the page's toggle is on AND the entity is critical: the bar's `emphasis`
- * and the ", on the critical path" suffix of its accessible name. Anything else keeps its name and carries no `emphasis` at all.
- */
-const emphasized = (t: TFunction, critical: boolean, describe: string): Pick<TimelineBarData, "describe" | "emphasis"> =>
-  critical ? { describe: `${describe}, ${t("timeline.bar.critical")}`, emphasis: "critical" } : { describe };
-
-/**
- * The Slack column's cell (v0.7, present only while the toggle is on): "0" plus a visually hidden "critical path" for a zero-slack entity,
- * else its working days; "" when an own milestone has no slack (unscheduled rows never get here), "—" for a ghost row the server's
- * upstream list does not name (downstream-only or unconnected).
- */
-function SlackCell({ slackDays, critical, absent }: { slackDays: number | null; critical: boolean; absent?: boolean }) {
-  const { t } = useTranslation();
-  if (absent === true) {
-    return (
-      <span>
-        <span aria-hidden="true">{t("project.critical.slackNone")}</span>
-        <VisuallyHidden component="span">{t("project.critical.notUpstream")}</VisuallyHidden>
-      </span>
-    );
-  }
-  if (slackDays === null) return null;
-  if (!critical) return <span>{t("project.critical.slackDays", { count: slackDays })}</span>;
-  return (
-    <span>
-      {slackDays}
-      <VisuallyHidden component="span"> {t("project.critical.slackCritical")}</VisuallyHidden>
-    </span>
-  );
-}
-
-/**
- * The cells of a row with the optional Flags cell (1.3, while some scheduled milestone is linked to Jira) and then the Slack cell (while the toggle is on)
- * before the actions cell (the last one): `null` = that column is not shown, `""` = shown and empty.
- */
-const withOptional = (cells: TimelineRowData["cells"], flags: ReactNode | null, slack: ReactNode | null): TimelineRowData["cells"] => [
-  ...cells.slice(0, -1),
-  ...(flags === null ? [] : [flags]),
-  ...(slack === null ? [] : [slack]),
-  ...cells.slice(-1),
-];
-
-/** The accessible name of an own bar, with the ", N conflicts" suffix when violated links end on it (so a screen-reader user on the bar hears it). */
-const withConflicts = (t: TFunction, describe: string, count: number) => (count > 0 ? `${describe}, ${t("project.barConflicts", { count })}` : describe);
-
-/**
- * The summary row: the project itself as a dependency endpoint (its name, its derived span as a hollow bar; no bar while nothing is
- * scheduled). Present only while some link ends on the whole project.
- */
-function summaryRow(view: ProjectView, t: TFunction, conflicts: ReadonlyMap<BarId, number>, criticalPath: boolean, flagsColumn: boolean): TimelineRowData {
-  const id = projectRowId(view.project.id);
-  const { name } = view.project;
-  return {
-    id,
-    cells: withOptional(
-      [
-        <Text key="name" component="span" size="sm" truncate>
-          <Text span fw={500}>
-            {name}
-          </Text>
-          <Text span c="dimmed">
-            {" "}
-            {t("project.summaryTag")}
-          </Text>
-        </Text>,
-        "",
-        "",
-        null,
-      ],
-      flagsColumn ? "" : null,
-      criticalPath ? "" : null,
-    ),
-    bars:
-      view.span === null
-        ? []
-        : [
-            {
-              id,
-              start: view.span.start,
-              end: view.span.end,
-              label: name,
-              ...emphasized(t, criticalPath && summaryCritical(view), withConflicts(t, t("timeline.bar.summary", { name, start: view.span.start, end: view.span.end }), conflicts.get(id) ?? 0)),
-              editable: false,
-              tone: "summary",
-            },
-          ],
-  };
-}
-
-/**
- * A ghost row: another project's milestone (or another project's span) that a link of this project ends on. Read-only and dimmed;
- * its name is the way to that project's page (a function cell, so the link is the row's one stop). With the critical-path toggle on
- * (`upstream` is then the server's lookup by kind + id) it shows the neighbour's slack and is emphasised when that entity is critical.
- */
-function ghostRow(endpoint: DependencyEndpoint, t: TFunction, upstream: ReadonlyMap<string, UpstreamEntity> | null, flagsColumn: boolean): TimelineRowData {
-  const id = ghostRowId(endpoint);
-  const start = endpoint.startDate ?? "";
-  const end = endpoint.endDate ?? "";
-  const text = endpoint.kind === "MILESTONE" ? t("project.ghostName", { project: endpoint.projectName, name: endpoint.name }) : endpoint.name;
-  const entry = upstream === null ? undefined : upstreamOf(upstream, endpoint);
-  return {
-    id,
-    cells: withOptional(
-      [
-        (stop: RovingTarget) => (
-          <Anchor component={RouterLink} to={projectPath(endpoint.projectId)} size="sm" c="dimmed" truncate aria-label={t("project.ghostLinkAria", { text, project: endpoint.projectName })} {...stop}>
-            {text}
-          </Anchor>
-        ),
-        // dimmed like the name: a ghost row is another project's, read-only
-        endpoint.teamName === null ? "" : <Text key="team" component="span" size="sm" c="dimmed">{endpoint.teamName}</Text>,
-        "",
-        null,
-      ],
-      flagsColumn ? "" : null,
-      upstream === null ? null : <SlackCell key="slack" slackDays={entry?.slackDays ?? null} critical={entry?.critical === true} absent={entry === undefined} />,
-    ),
-    bars: [
-      {
-        id,
-        start,
-        end,
-        label: endpoint.name,
-        ...emphasized(
-          t,
-          entry?.critical === true,
-          t("timeline.bar.ghost", { label: t("project.ghostSpan", { name: endpoint.name, start, end }), project: endpoint.projectName }),
-        ),
-        editable: false,
-        tone: "ghost",
-      },
-    ],
-  };
-}
 
 /**
  * The project's timeline rows: the summary row (only while the project itself is a link endpoint), one row per scheduled milestone
@@ -373,12 +57,10 @@ export default function ProjectTimeline({
 }) {
   const { t } = useTranslation();
   const { holidays, failed: holidaysFailed } = useHolidays();
-  const canLink = view.project.can.createDependency;
   const conflicts = conflictsByBar(view);
   // The Flags column exists while some scheduled milestone is linked to Jira (the view says so: no stored answer, no second request).
   const flagsColumn = view.scheduled.some((milestone) => milestone.jira !== null);
   const flagsWidth = view.scheduled.some((milestone) => milestone.jira?.rollup != null) ? FLAGS_WITH_ROLLUP_WIDTH : COLUMN_WIDTHS.flags;
-  const sites = siteUrls(view.jiraSites);
   const columns: TimelineColumn[] = [
     { id: "name", header: t("project.column.milestone"), width: COLUMN_WIDTHS.name },
     { id: "team", header: t("project.column.team"), width: COLUMN_WIDTHS.team },
@@ -387,81 +69,11 @@ export default function ProjectTimeline({
     ...(criticalPath ? [{ id: "slack", header: t("project.column.slack"), width: COLUMN_WIDTHS.slack }] : []),
     { id: "actions", header: t("common.table.operations"), width: COLUMN_WIDTHS.actions },
   ];
-  // v0.9: with `?baseline=` the view carries the overlay - a shadow bar per row the baseline had scheduled, a dimmed "(new …)" mark on a milestone it did not know.
-  const overlay = view.baseline;
-  const shadows = overlay === undefined ? null : baselineBars(overlay, view.scheduled, t);
-  const fresh = overlay === undefined ? null : newSince(overlay, view.scheduled);
-  const milestoneRows: TimelineRowData[] = view.scheduled.map((milestone) => ({
-    id: milestone.id,
-    cells: withOptional(
-      [
-        <NameCell key="name" milestone={milestone} mark={fresh?.has(milestone.id) === true ? t("timeline.baseline.newMark") : undefined} />,
-        milestone.teamName,
-        estimateText(t, milestone),
-        // A function cell holds its own focusable; with no menu the cell stays a static stop, so the tab stop never lands on a missing element.
-        hasMenu(milestone, canLink) ? (stop: RovingTarget) => <MilestoneMenu milestone={milestone} actions={actions} canLink={canLink} trigger={stop} /> : null,
-      ],
-      flagsColumn ? <MilestoneFlags key="flags" flags={milestone.flags} link={milestone.jira} sites={sites} /> : null,
-      criticalPath ? <SlackCell key="slack" slackDays={milestone.slackDays} critical={milestone.critical} /> : null,
-    ),
-    bars: [
-      ...(milestone.startDate !== null && milestone.endDate !== null
-        ? [
-            {
-              id: milestone.id,
-              start: milestone.startDate,
-              end: milestone.endDate,
-              label: milestone.name,
-              ...emphasized(
-                t,
-                criticalPath && milestone.critical,
-                withConflicts(
-                  t,
-                  t("project.barAria", {
-                    name: milestone.name,
-                    team: milestone.teamName,
-                    start: milestone.startDate,
-                    end: milestone.endDate,
-                    estimate: estimateText(t, milestone),
-                  }),
-                  conflicts.get(milestone.id) ?? 0,
-                ),
-              ),
-              editable: milestone.can.schedule,
-            },
-          ]
-        : []),
-      ...barList(shadows?.get(milestone.id)),
-      ...barList(jira === null ? undefined : jiraBar(milestone.id, milestone.name, milestone.jira, milestone.flags, jira, t)),
-    ],
-  }));
-  // The baseline's milestones that are gone, and the ones now in the tray that it had scheduled: dimmed rows appended after the current ones, the shadow bar only.
-  const baselineRows: TimelineRowData[] =
-    overlay === undefined
-      ? []
-      : removedRows(overlay, view.unscheduled, t).map((row) => ({
-          id: row.id,
-          cells: withOptional(
-            [
-              <BaselineRowName key="name" row={row} />,
-              <Text key="team" component="span" size="sm" c="dimmed">
-                {row.teamName}
-              </Text>,
-              <Text key="estimate" component="span" size="sm" c="dimmed">
-                {t("project.estimateUnit", { count: row.estimateMd })}
-              </Text>,
-              null,
-            ],
-            flagsColumn ? "" : null,
-            criticalPath ? "" : null,
-          ),
-          bars: [row.bar],
-        }));
   const upstream = criticalPath ? upstreamIndex(view) : null;
   const rows = [
     ...(summaryRowNeeded(view) ? [summaryRow(view, t, conflicts, criticalPath, flagsColumn)] : []),
-    ...milestoneRows,
-    ...baselineRows,
+    ...milestoneRows(view, t, { actions, jira, conflicts, criticalPath, flagsColumn }),
+    ...baselineRows(view, t, { criticalPath, flagsColumn }),
     ...ghostEndpoints(view).map((endpoint) => ghostRow(endpoint, t, upstream, flagsColumn)),
   ];
   const arrows = arrowSpecs(view, criticalPath);

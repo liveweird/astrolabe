@@ -1,23 +1,25 @@
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
-import { Alert, Badge, Button, Group, Stack, Text } from "@mantine/core";
-import { IconCalendarStats, IconRestore, IconWand } from "@tabler/icons-react";
+import { Group, Stack } from "@mantine/core";
+import { IconCalendarStats } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "../api/http";
-import type { TeamMilestone, TeamView } from "../api/teams";
+import type { TeamMilestone } from "../api/teams";
 import { useAdmin } from "../auth";
 import BaselineMovement from "../components/BaselineMovement";
 import { PickedLoadState } from "../components/BaselineParts";
 import BaselinePicker from "../components/BaselinePicker";
 import EmptyState from "../components/EmptyState";
 import ErrorAlert from "../components/ErrorAlert";
-import FormErrorAlert from "../components/FormErrorAlert";
 import MilestoneScheduleModal from "../components/MilestoneScheduleModal";
 import TeamCapacity from "../components/TeamCapacity";
 import TeamEditorModal from "../components/TeamEditorModal";
+import TeamFacts from "../components/TeamFacts";
 import TeamPageHeader from "../components/TeamPageHeader";
+import TeamProposalNotes from "../components/TeamProposalNotes";
 import TeamResetConfirm from "../components/TeamResetConfirm";
+import TeamTimelineButtons from "../components/TeamTimelineButtons";
 import TeamViewNotices from "../components/TeamViewNotices";
 import TimelineTitle from "../components/TimelineTitle";
 import UnscheduledTraySection from "../components/UnscheduledTraySection";
@@ -32,6 +34,7 @@ import TimelineDndContext from "../components/TimelineDndContext";
 import { useBaselinePick, useDropUnknownPick } from "../hooks/useBaselinePick";
 import { useDialogFocus } from "../hooks/useDialogFocus";
 import { isOneOf, useStoredState } from "../hooks/useStoredState";
+import { useProposalFocus } from "../hooks/useProposalFocus";
 import { useProposalLock } from "../hooks/useProposalLock";
 import { useScheduleProposal } from "../hooks/useScheduleProposal";
 import { useTeamOrder } from "../hooks/useTeamOrder";
@@ -41,10 +44,9 @@ import { baselineDays } from "../utils/baselineOverlay";
 import { localIsoDate } from "../utils/isoDate";
 import { jiraPageRange } from "../utils/jiraBars";
 import { teamMarks } from "../utils/jiraMarks";
-import { conflictCountOf } from "../utils/dependencyArrows";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { loadErrorMessage } from "../utils/saveError";
-import { outcomeSentence, proposalDays } from "../utils/scheduleProposal";
+import { proposalDays } from "../utils/scheduleProposal";
 import { growSeenRange, type SeenRange } from "../utils/seenRange";
 import { teamsPath } from "../utils/teamLinks";
 import { dropOutcome } from "../utils/timelineDrag";
@@ -52,135 +54,6 @@ import { defaultRange, makeScale, MILESTONE_ZOOMS, toEpochDay, type Zoom } from 
 
 /** The schedule dialog remembers the plan revision of the view it was opened on: its save must stale-409 if THIS milestone moved since. */
 type Scheduling = { milestone: TeamMilestone; revision: number };
-
-/**
- * The facts line under the title: how many milestones the team has and how many are scheduled, then the warnings — ORANGE badges for
- * the overloaded weeks and the weeks over the WIP limit (warnings, nothing moves), the RED badge for the violated dependencies (as on
- * the project page) and a gray one while the team's own order is in force.
- */
-function TeamFacts({ view }: { view: TeamView }) {
-  const { t } = useTranslation();
-  const overloaded = view.weeks.filter((week) => week.overloaded).length;
-  const wip = view.weeks.filter((week) => week.wipExceeded).length;
-  const conflicts = conflictCountOf(view.dependencies);
-  return (
-    <Group gap="md" role="group" aria-label={t("teams.view.factsAria")}>
-      <Text size="sm">{t("teams.view.milestones", { count: view.scheduled.length + view.unscheduled.length })}</Text>
-      <Text size="sm">{t("teams.view.scheduledCount", { count: view.scheduled.length })}</Text>
-      {overloaded > 0 && (
-        <Badge color="orange" variant="light" tt="none">
-          {t("teams.view.overloadedWeeks", { count: overloaded })}
-        </Badge>
-      )}
-      {wip > 0 && (
-        <Badge color="orange" variant="light" tt="none">
-          {t("teams.view.wipWeeks", { count: wip })}
-        </Badge>
-      )}
-      {conflicts > 0 && (
-        <Badge color="red" variant="light" tt="none">
-          {t("project.conflicts", { count: conflicts })}
-        </Badge>
-      )}
-      {view.idleGaps.length > 0 && (
-        <Badge color="gray" variant="light" tt="none">
-          {t("timeline.idle.badge", { count: view.idleGaps.length })}
-        </Badge>
-      )}
-      {view.order.custom && (
-        <Badge color="gray" variant="light" tt="none">
-          {t("teams.view.customOrder")}
-        </Badge>
-      )}
-    </Group>
-  );
-}
-
-type Proposal = ReturnType<typeof useScheduleProposal>;
-
-/**
- * What the proposal flow says outside the section, as dismissible notes that last until the next action: a proposal that opened nothing
- * ("nothing to propose" gray, "no capacity: add a capacity period first" orange), what an accept came to (green; orange when something
- * was skipped, with the server's reasons), the whole-batch stale notice and the re-proposed-after-a-scope-change notice (orange), and the inline failure of a propose or an accept.
- * Visible only (`role="note"`): the page's status region says each, so an Alert's implicit `role="alert"` would read it twice.
- */
-function ProposalNotes({ proposal }: { proposal: Proposal }) {
-  const { t } = useTranslation();
-  const { note, outcome, stale, rescoped } = proposal;
-  const open = proposal.proposal;
-  const dismissible = { variant: "light", role: "note", withCloseButton: true, closeButtonLabel: t("common.action.close"), onClose: proposal.dismiss } as const;
-  return (
-    <>
-      {note !== null && (
-        <Alert color={note === "noCapacity" ? "orange" : "gray"} {...dismissible}>
-          {note === "noCapacity" ? t("teams.proposal.noCapacity", { date: proposal.noteDate }) : t("teams.proposal.nothing")}
-        </Alert>
-      )}
-      {outcome !== null && (
-        <Alert color={outcome.skipped.length > 0 ? "orange" : "green"} {...dismissible}>
-          {outcomeSentence(outcome, t)}
-        </Alert>
-      )}
-      {stale && (
-        <Alert color="orange" {...dismissible}>
-          {t("teams.proposal.stale")}
-        </Alert>
-      )}
-      {rescoped && (
-        <Alert color="orange" {...dismissible}>
-          {t("teams.proposal.rescoped")}
-        </Alert>
-      )}
-      {/* An accept's failure sits inside the open section; this is a propose's, shown while no preview is open. */}
-      {open === null && proposal.error && <FormErrorAlert>{proposal.error}</FormErrorAlert>}
-    </>
-  );
-}
-
-/**
- * The timeline header's buttons: Propose schedule (only with `team.can.schedule`; disabled while a proposal is open or a write runs,
- * `loading` while it is requested) and Reset order (`team.can.editOrder`, hidden while a proposal is open). Discard lives in the
- * Proposed schedule section.
- */
-function TimelineButtons({
-  view,
-  proposal,
-  busy,
-  proposeRef,
-  onReset,
-}: {
-  view: TeamView;
-  proposal: Proposal;
-  busy: boolean;
-  proposeRef: RefObject<HTMLButtonElement | null>;
-  onReset: () => void;
-}) {
-  const { t } = useTranslation();
-  const { can } = view.team;
-  const open = proposal.proposal;
-  return (
-    <Group gap="sm" align="center">
-      {can.schedule && (
-        <Button
-          ref={proposeRef}
-          variant="default"
-          size="compact-md"
-          leftSection={<IconWand size={16} />}
-          loading={proposal.requesting}
-          disabled={open !== null || busy}
-          onClick={proposal.propose}
-        >
-          {t("teams.proposal.propose")}
-        </Button>
-      )}
-      {can.editOrder && open === null && (
-        <Button variant="default" size="compact-md" leftSection={<IconRestore size={16} />} disabled={!view.order.custom || busy} onClick={onReset}>
-          {t("teams.view.action.resetOrder")}
-        </Button>
-      )}
-    </Group>
-  );
-}
 
 /**
  * The team view (`/teams/:id`): the team's facts, its scheduled milestones on the shared timeline under the weekly load strip, the
@@ -213,41 +86,8 @@ function TeamPage({ id }: { id: number }) {
   const { open, locked } = lock;
   const writing = schedule.pending || order.pending;
   const busy = writing || proposal.requesting;
-  // Focus follows the preview: Discard (in the section) takes it when a proposal opens, Propose gets it back once the preview is closed
-  // (discarded, accepted or voided by a stale refusal) and no write is running any more, since a button that is still disabled cannot take it.
-  const proposeRef = useRef<HTMLButtonElement>(null);
-  const discardRef = useRef<HTMLButtonElement>(null);
-  const wasOpen = useRef(false);
-  const isOpen = open !== null;
-  // Discard takes the focus when a preview opens, but only once the accept is no longer running (a disabled button cannot take it): a
-  // preview that opens while `applying` (a fresh proposal after a stale-scope refusal) waits for it. A failed accept never re-arms this,
-  // so its inline alert keeps the focus it was given.
-  const focusDiscard = useRef(false);
-  const applying = proposal.applying;
-  useEffect(() => {
-    if (isOpen) {
-      wasOpen.current = true;
-      focusDiscard.current = true;
-    }
-  }, [isOpen]);
-  // The fresh preview of a stale-scope refusal may replace the voided one within one render batch (`isOpen` stays true): its note
-  // appearing arms the hand-over as well.
-  const rescoped = proposal.rescoped;
-  useEffect(() => {
-    if (rescoped) focusDiscard.current = true;
-  }, [rescoped]);
-  useEffect(() => {
-    if (isOpen && !applying && focusDiscard.current) {
-      focusDiscard.current = false;
-      discardRef.current?.focus();
-    }
-  }, [isOpen, applying, rescoped]);
-  useEffect(() => {
-    if (!isOpen && wasOpen.current && !busy) {
-      wasOpen.current = false;
-      proposeRef.current?.focus();
-    }
-  }, [isOpen, busy]);
+  // Focus follows the preview (Discard takes it when a proposal opens, Propose gets it back once the preview is closed): `useProposalFocus`.
+  const { proposeRef, discardRef } = useProposalFocus(proposal, open, busy);
   const [zoom, setZoom] = useStoredState<Zoom>("timeline.zoom", "week", isOneOf(MILESTONE_ZOOMS));
   const [editing, setEditing] = useState(false);
   useDialogFocus(editing);
@@ -338,9 +178,9 @@ function TeamPage({ id }: { id: number }) {
           <Stack gap="xs">
             <Group gap="sm" align="center" justify="space-between">
               <TimelineTitle title={t("teams.view.timelineTitle")} saving={writing} />
-              <TimelineButtons view={view} proposal={proposal} busy={busy} proposeRef={proposeRef} onReset={() => setConfirmReset(true)} />
+              <TeamTimelineButtons view={view} proposal={proposal} busy={busy} proposeRef={proposeRef} onReset={() => setConfirmReset(true)} />
             </Group>
-            <ProposalNotes proposal={proposal} />
+            <TeamProposalNotes proposal={proposal} />
             <TeamTimeline
               view={view}
               scale={scale}

@@ -28,11 +28,7 @@ const MIN_FILES = 100;
 const NEWLINE = 0x0a;
 
 /** Path under `web/src` -> its line count when the guard was added (a ceiling, never a target). */
-const OVERSIZED: Readonly<Record<string, number>> = {
-  "components/ProjectTimeline.tsx": 517,
-  "pages/TeamDetails.tsx": 412,
-  "components/TimelineDndContext.tsx": 401,
-};
+const OVERSIZED: Readonly<Record<string, number>> = {};
 
 const SRC_ROOT = dirname(fileURLToPath(import.meta.url));
 const EXCLUDED_FILES = new Set(["api/schema.ts", "changelog/entries.ts"]);
