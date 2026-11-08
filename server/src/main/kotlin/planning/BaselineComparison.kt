@@ -31,7 +31,7 @@ internal fun FrozenMilestoneRow.toCapture() = MilestoneCapture(id, projectId, te
  * but UNCHANGED, or a different estimate - `planning-model.md` "Baselines") while the totals and each project's counts cover every row.
  */
 internal object BaselineComparison {
-    /** One milestone on either or both sides, with its movement and the project it belongs to (the live one when it exists). */
+    /** One milestone on either or both sides, with its movement and the project it belongs to (the "now" side's when it exists). */
     private class Row(val frozen: FrozenMilestoneRow?, val live: MilestoneCapture?, val movement: Movement) {
         val projectId: UInt = checkNotNull(live?.projectId ?: frozen?.projectId)
         val span: DaySpan? get() = live?.span ?: frozen?.span

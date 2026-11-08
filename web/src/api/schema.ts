@@ -8831,7 +8831,7 @@ export interface operations {
                  *     (an older baseline against a newer one reads as negative movement). A repeated key or a value that is not a non-negative
                  *     integer is a `400`; the id of the path baseline itself is a `400` (a baseline cannot be compared with itself); an id that
                  *     is unknown or soft-deleted is a `400` whose `type` is `urn:astrolabe:problem:unknown-baseline` (the caller held the id, e.g.
-                 *     a remembered pick: it drops the pick and asks again). All of these are answered AFTER the path baseline's own `404`.
+                 *     a remembered pick: it drops the pick and asks again). A malformed or repeated value is rejected first (a plain `400`); the self, unknown and deleted cases are answered AFTER the path baseline's own `404`.
                  */
                 against?: number;
             };
