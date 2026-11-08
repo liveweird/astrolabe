@@ -10,6 +10,7 @@ import ch.nokillswit.flow.FlowConnectionService
 import ch.nokillswit.flow.FlowConnectionServiceKey
 import ch.nokillswit.flow.FlowMirrorStore
 import ch.nokillswit.flow.FlowMirrorStoreKey
+import ch.nokillswit.flow.FlowOriginsKey
 import ch.nokillswit.flow.FlowTeamBindingService
 import ch.nokillswit.flow.FlowTeamBindingServiceKey
 import ch.nokillswit.infra.crypto.FieldCipherKey
@@ -318,9 +319,11 @@ suspend fun Application.configureDatabase() {
     val syncRuns = SyncRunService(database, maxRunMinutes)
     attributes.put(SyncRunServiceKey, syncRuns)
     attributes.put(JiraConnectionServiceKey, JiraConnectionService(database, attributes[FieldCipherKey], syncRuns))
-    // The Flow registry (V24) is the second encrypted-at-rest service; its mirror and bindings come with it. No origin is allowed until
-    // the outbound guard supplies `FlowOrigins.baseUrlAllowed` (the next step): a registry write is refused (fail closed).
-    attributes.put(FlowConnectionServiceKey, FlowConnectionService(database, attributes[FieldCipherKey], syncRuns) { false })
+    // The Flow registry (V24) is the second encrypted-at-rest service; its mirror and bindings come with it. A registry write is judged by
+    // the operator's origin rule (`FlowOrigins.baseUrlAllowed`), which `configureFlow` builds from `flow.*` AFTER this module: the lookup
+    // is per call, and an absent rule refuses (fail closed), so a connection can never name an origin the transport would refuse.
+    val flowBaseUrlAllowed = { url: String -> attributes.getOrNull(FlowOriginsKey)?.baseUrlAllowed(url) ?: false }
+    attributes.put(FlowConnectionServiceKey, FlowConnectionService(database, attributes[FieldCipherKey], syncRuns, flowBaseUrlAllowed))
     attributes.put(FlowMirrorStoreKey, FlowMirrorStore(database))
     attributes.put(FlowTeamBindingServiceKey, FlowTeamBindingService(database))
     val jiraBindings = JiraBindingService(database)

@@ -13,7 +13,7 @@ import ch.nokillswit.sync.SyncRunService
 import java.math.BigDecimal
 import java.util.UUID
 
-/** The one origin the service-level Flow tests allow (the real predicate, `FlowOrigins.baseUrlAllowed`, arrives with the guard). */
+/** The one origin the service-level Flow tests allow (the real predicate, `FlowOrigins.baseUrlAllowed`, is pinned by `FlowOriginsTest`). */
 const val FLOW_TEST_ORIGIN = "http://flow.test:8080"
 
 /** A syntactically valid Flow service token (`flow_int_` + 43 base64url characters); [fill] makes two tokens differ. */

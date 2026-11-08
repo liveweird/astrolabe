@@ -46,7 +46,7 @@ export const OUTAGE = problem(500, "Internal Server Error", "The service is unav
 /** Every field name of the documents, in wire order (the self-test and FlowStubFixtureTest compare the served keys with these). */
 export const FIELDS = {
   me: ["tokenId", "name", "createdAt", "expiresAt", "lastUsedAt"],
-  teams: ["asOf", "sprintsSince", "sprintsTruncated", "items"],
+  teams: ["asOf", "sprintsSince", "teamsTruncated", "sprintsTruncated", "items"],
   team: ["id", "name", "managerName", "defaultCapacityMd", "members", "sprints"],
   member: ["accountId", "displayName", "validFrom", "validTo"],
   sprint: ["sprintId", "connectionId", "name", "state", "startAt", "endAt", "completeAt", "hasCalendar", "capacityMd", "capacitySource"],
@@ -54,6 +54,8 @@ export const FIELDS = {
 /** The values `capacitySource` takes (null = the sprint has no capacity at all), and the sprint states the stub uses (Jira's). */
 export const CAPACITY_SOURCES = ["CALENDAR", "TEAM_DEFAULT", "DEFAULT"];
 export const SPRINT_STATES = ["closed", "active", "future"];
+/** The team cap of the real server (1,000 active teams): past it the document carries `teamsTruncated: true`. */
+export const TEAM_CAP = 1000;
 /** The sprint cap of the real server: past it the document carries `sprintsTruncated: true`. */
 export const SPRINT_CAP = 2000;
 
@@ -84,6 +86,6 @@ export const teamItem = (team) => ({
 });
 
 /** GET /integration/teams: one document, every team (active, at most 100) with its members and sprints. */
-export function teamsDocument(teams, { asOf, sprintsSince, sprintsTruncated = false }) {
-  return { asOf, sprintsSince, sprintsTruncated, items: teams.map(teamItem) };
+export function teamsDocument(teams, { asOf, sprintsSince, teamsTruncated = false, sprintsTruncated = false }) {
+  return { asOf, sprintsSince, teamsTruncated, sprintsTruncated, items: teams.map(teamItem) };
 }

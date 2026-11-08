@@ -5,8 +5,8 @@ import java.net.InetAddress
 
 /**
  * The operator-only allowance for a self-managed host that lives on a private address (`.claude/docs/security.md` "Outbound HTTP
- * calls"): `gitlab.allowedHosts` (exact DNS names, optionally `host:port`) and
- * `gitlab.allowedCidrs` (the private ranges those hosts may resolve to). Nothing a user or an admin types can widen either list.
+ * calls"): `flow.allowedHosts` (exact DNS names, optionally `host:port`) and
+ * `flow.allowedCidrs` (the private ranges those hosts may resolve to). Nothing a user or an admin types can widen either list.
  *
  * What the rule is, in one place ([addressAllowed]):
  *  - an address that is NOT blocked today ([isBlockedAddress]) is allowed for every host, listed or not;
@@ -68,7 +68,7 @@ private val PORT_DIGITS = Regex("[0-9]{1,5}")
  * the JDK flags only `0.0.0.0`), the deprecated IPv6 `::/96` family (`::`, `::1`, IPv4-compatible `::a.b.c.d`) and the tunnelling
  * prefixes 6to4 `2002::/16` and Teredo `2001:0::/32`.
  */
-private fun InetAddress.isNeverAllowed(): Boolean {
+internal fun InetAddress.isNeverAllowed(): Boolean {
     if (isLoopbackAddress || isLinkLocalAddress || isAnyLocalAddress || isMulticastAddress) return true
     if (isSixToFourOrTeredo()) return true
     return if (this is Inet4Address) address[0] == 0.toByte() else address.take(IPV6_ZERO_PREFIX_BYTES).all { it == 0.toByte() }
@@ -90,7 +90,7 @@ private fun splitList(raw: String, key: String): List<String> {
     }
 }
 
-private fun parseHostEntry(entry: String, index: Int, key: String): SelfManagedHosts.HostEntry {
+internal fun parseHostEntry(entry: String, index: Int, key: String): SelfManagedHosts.HostEntry {
     fun refuse(why: String): Nothing = error("Config \"$key\": ${describe(index, entry, HOST_SHAPED)} $why")
     if (entry.contains("://")) refuse("must be a host name, not a URL (no scheme)")
     if ('@' in entry) refuse("must not carry credentials")
@@ -128,7 +128,7 @@ private fun isDnsName(host: String): Boolean {
 }
 
 /**
- * Parses and validates the raw comma-separated host list ([hostsKey], e.g. `gitlab.allowedHosts`) and CIDR list ([cidrsKey]).
+ * Parses and validates the raw comma-separated host list ([hostsKey], e.g. `flow.allowedHosts`) and CIDR list ([cidrsKey]).
  * Throws [IllegalStateException] (startup refuses) naming the key and the offending entry when anything is malformed; an entry
  * that is not plainly host- or CIDR-shaped is named by position only, so a credential in it never reaches an error.
  */

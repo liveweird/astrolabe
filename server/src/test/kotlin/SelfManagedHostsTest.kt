@@ -183,6 +183,8 @@ class SelfManagedHostsTest {
             "::ffff:10.0.0.0/104" to "IPv4-mapped range",
             "::ffff:0:0/96" to "IPv4-mapped /96",
             "64:ff9b::/96" to "NAT64",
+            "64:ff9b:1::/48" to "NAT64",
+            "64:ff9b:1:ab::/64" to "NAT64",
         )
         for ((entry, why) in bad) {
             val message = refusal(hosts = "gitlab.example.com", cidrs = entry)

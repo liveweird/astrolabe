@@ -72,7 +72,7 @@ export function buildExpected(world, counts, planTeams) {
     },
     scenarios: { day2: DAY2_SCENARIO, day2State: "day2", outage: OUTAGE_SCENARIO, outageState: "down" },
     me: meDocument(),
-    document: { asOf: world.asOf, sprintsSince: world.sprintsSince, anchor: ANCHOR, sprintsTruncated: false, bytes: counts.teamsStartedBytes },
+    document: { asOf: world.asOf, sprintsSince: world.sprintsSince, anchor: ANCHOR, teamsTruncated: false, sprintsTruncated: false, bytes: counts.teamsStartedBytes },
     totals: {
       teams: all.length,
       sprints: all.reduce((n, t) => n + t.sprints.length, 0),

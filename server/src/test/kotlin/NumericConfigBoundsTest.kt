@@ -10,7 +10,7 @@ import kotlin.test.Test
  * a malformed or out-of-range override refuses startup, naming the key — the `DurationConfigBoundsTest`
  * pattern, for `jwt.*ExpiresInSeconds` (`plugins/Security.kt`), the three `maxTracked` capacities and
  * `mfa.codeTtlSeconds` (`auth/AuthRoutes.kt`), `mail.smtp.port` (`infra/mail/Mail.kt`) and the per-IP
- * `security.rateLimit.*PerMinute` overrides (`plugins/RateLimits.kt`).
+ * `security.rateLimit.*PerMinute` overrides (`plugins/RateLimits.kt`) and the `flow.*` client bounds (`flow/Flow.kt`).
  */
 class NumericConfigBoundsTest {
 
@@ -87,6 +87,22 @@ class NumericConfigBoundsTest {
             "security.mfa.maxLivePerAccount" to "100",
             "security.rateLimit.loginPerMinute" to "1000000",
             "security.rateLimit.jiraTestPerMinute" to "100",
+            // The Flow client's bounds (`FlowBootTest` refuses each side; here the inclusive ends boot).
+            "flow.requestTimeoutSeconds" to "120",
+            "flow.requestDeadlineSeconds" to "600",
+            "flow.maxResponseBytes" to (1024 * 1024).toString(),
+            "flow.maxConcurrentRequests" to "2",
+            "flow.maxRetries" to "8",
+            "flow.sprintsSinceDays" to "1095",
+        )
+        startApplication() // must not throw
+    }
+
+    @Test
+    fun `the Flow client's floors still boot`() = testApplication {
+        configureApp(
+            "flow.requestTimeoutSeconds" to "5", "flow.requestDeadlineSeconds" to "10", "flow.maxResponseBytes" to "65536",
+            "flow.maxConcurrentRequests" to "1", "flow.maxRetries" to "0", "flow.sprintsSinceDays" to "30",
         )
         startApplication() // must not throw
     }

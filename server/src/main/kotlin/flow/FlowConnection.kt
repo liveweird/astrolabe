@@ -124,13 +124,16 @@ fun sanitizedFlowConnection(request: FlowConnectionRequest): FlowConnectionReque
 /**
  * The connection rules - enforced by the route AND re-checked by the service, both on an already-sanitized request. No message ever
  * quotes the token or the rejected origin. [apiTokenRequired] is true on create; an update may omit the token to keep the stored one.
- * [baseUrlAllowed] is the operator's origin allow-list (`FlowOrigins.baseUrlAllowed`, arrives with the outbound guard): the registry
+ * [baseUrlAllowed] is the operator's origin allow-list (`FlowOrigins.baseUrlAllowed`): the registry
  * can never widen it, so an unlisted origin is a 400 here.
  */
 fun validateFlowConnection(request: FlowConnectionRequest, apiTokenRequired: Boolean, baseUrlAllowed: (String) -> Boolean) {
     requireNameAndDescription(request.name, null, MAX_FLOW_CONNECTION_NAME_LENGTH, 0)
     if (request.baseUrl.length > MAX_FLOW_BASE_URL_LENGTH || !baseUrlAllowed(request.baseUrl)) {
-        throw BadRequestException("baseUrl must be exactly one of the Flow origins this server is configured to allow")
+        throw BadRequestException(
+            "baseUrl must be exactly one of the Flow origins this server is configured to allow, written as the lowercase origin " +
+                "without the default port (https://host, not HTTPS://HOST:443)",
+        )
     }
     if (request.timeZone.length > MAX_FLOW_TIME_ZONE_LENGTH || !isRegionZone(request.timeZone)) {
         throw BadRequestException("timeZone must be an IANA time zone id such as Europe/Warsaw")

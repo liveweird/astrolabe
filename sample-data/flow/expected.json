@@ -24,6 +24,7 @@
       "teams": [
         "asOf",
         "sprintsSince",
+        "teamsTruncated",
         "sprintsTruncated",
         "items"
       ],
@@ -83,8 +84,9 @@
     "asOf": 1793275200000,
     "sprintsSince": "2025-10-27",
     "anchor": "2026-10-26",
+    "teamsTruncated": false,
     "sprintsTruncated": false,
-    "bytes": 132047
+    "bytes": 132070
   },
   "totals": {
     "teams": 19,

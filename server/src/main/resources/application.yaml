@@ -56,6 +56,9 @@ ktor:
       - ch.nokillswit.planning.PlanningRoutesKt.configurePlanningRoutes
       # The Jira sync's outbound wiring (the guarded client and the connector): after Crypto and Database, before the routes that use it.
       - ch.nokillswit.jira.JiraKt.configureJira
+      # The Flow sync's outbound wiring (the guarded client over the operator's origin list): after Crypto and Database, before the sync
+      # registry (the Flow run registers its connector there) and the Flow routes.
+      - ch.nokillswit.flow.FlowKt.configureFlow
       # The sync run registry's executor and routes (`sync/`): after configureJira (which registers the Jira connector), before the
       # routing catch-all. A run starts only from the manual route in 1.1; the scheduler is 1.3.
       - ch.nokillswit.sync.SyncKt.configureSync
@@ -249,6 +252,37 @@ jira:
   # Hours between a run's id-only re-listing of the child level (the stories whose roll-ups the census keeps, `jira/JiraCensus.kt`), 1..168. A
   # full read lists the children in full anyway; between sweeps a story deleted or moved out of scope stays in a roll-up for up to this long.
   censusHours: "$JIRA_CENSUS_HOURS:24"
+
+flow:
+  # The Flow sync's outbound client (flow/Flow.kt, `.claude/docs/security.md` "The Flow consumer"). Every key is boot-validated; a
+  # malformed or out-of-range value refuses startup naming the key. OPERATOR configuration only: a connection's base URL must be one of
+  # the origins listed here (an admin can never widen the list), and nothing is reachable until one is listed.
+  # A TLS Flow on a private address: exact DNS names (`host` or `host:port`, https only), comma-separated, and the private ranges those
+  # hosts may resolve to (CIDRs; boot refuses /0, IPv4 wider than /8, loopback, link-local and metadata space). A listed host with a
+  # public address needs no CIDR.
+  allowedHosts: "$FLOW_ALLOWED_HOSTS:"
+  allowedCidrs: "$FLOW_ALLOWED_CIDRS:"
+  # A PEM file of extra CA certificates trusted ALONGSIDE the JVM defaults (a Flow behind a private CA). There is no skip-TLS switch.
+  caBundle: "$FLOW_CA_BUNDLE:"
+  # DEVELOPMENT ONLY: exact `http://host[:port]` origins (comma-separated) of a plain-http Flow - the Flow stub (compose/k8s `flow-stub`, the
+  # in-JVM WireMock of the tests) or a Flow on OrbStack. Such a host may resolve to a loopback, private or docker-network address, but never
+  # to a link-local (metadata), any-local, multicast, 0.0.0.0/8, ::/96, 6to4 or Teredo one. Production startup REFUSES a non-blank value
+  # (fail-closed).
+  insecureOrigins: "$FLOW_INSECURE_ORIGINS:"
+  # One attempt's deadline (HttpTimeout and the OkHttp timeouts), seconds 5..120.
+  requestTimeoutSeconds: "$FLOW_REQUEST_TIMEOUT_SECONDS:30"
+  # The TOTAL time one logical call may spend across every attempt plus backoff, seconds 10..600.
+  requestDeadlineSeconds: "$FLOW_REQUEST_DEADLINE_SECONDS:60"
+  # The most bytes one response may carry before it is refused (LIMIT_EXCEEDED), 65536..1048576 (1 MiB: the ceiling keeps Flow's parsed trees
+  # inside the heap reserve, security.md "The Flow consumer"). The whole teams document is ONE response (about 150 KB for 15 teams and a
+  # year of sprints; Flow's own caps are 1,000 teams and 2,000 sprints). Also sizes the node ceiling.
+  maxResponseBytes: "$FLOW_MAX_RESPONSE_BYTES:1048576"
+  # In-flight Flow calls across every connection (the permit pool), 1..2. A parsed tree is at most 14 MiB at the 1 MiB cap.
+  maxConcurrentRequests: "$FLOW_MAX_CONCURRENT_REQUESTS:1"
+  # Retries of a 429/5xx/IOException per call (exponential backoff with jitter), 0..8.
+  maxRetries: "$FLOW_MAX_RETRIES:2"
+  # A run asks Flow for sprints that ended no earlier than this many days ago (`sprintsSince` = today - N), 30..1095.
+  sprintsSinceDays: "$FLOW_SPRINTS_SINCE_DAYS:365"
 
 sync:
   # How long a claimed run stays valid, minutes 1..60 (`sync/SyncRunService.kt`, `.claude/docs/observability.md` "Sync runs"). A run that

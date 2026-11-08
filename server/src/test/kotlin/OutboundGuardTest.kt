@@ -1,9 +1,15 @@
 package ch.nokillswit
 
+import ch.nokillswit.flow.buildGuardedFlowHttpClient
+import ch.nokillswit.flow.createFlowHttp
 import ch.nokillswit.infra.fetch.FetchException
 import ch.nokillswit.infra.outbound.BlockedHostException
+import ch.nokillswit.infra.outbound.FlowOrigins
 import ch.nokillswit.infra.outbound.GuardedDns
+import ch.nokillswit.infra.outbound.Origin
+import ch.nokillswit.infra.outbound.SelfManagedHosts
 import ch.nokillswit.infra.outbound.isAllowedJiraHost
+import ch.nokillswit.infra.outbound.parseSelfManagedHosts
 import ch.nokillswit.jira.buildGuardedJiraHttpClient
 import ch.nokillswit.jira.createJiraHttp
 import com.github.tomakehurst.wiremock.client.WireMock.aResponse
@@ -11,6 +17,7 @@ import com.github.tomakehurst.wiremock.client.WireMock.get
 import com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo
 import io.ktor.http.HttpMethod
 import java.net.InetAddress
+import java.net.URI
 import java.net.UnknownHostException
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
@@ -378,11 +385,130 @@ class OutboundGuardTest {
         }
     }
 
+    // --- the Flow consumer: the SAME guard over the operator's FlowOrigins, against the loopback FlowStubServer ---
+
+    private fun flowHttp(client: io.ktor.client.HttpClient, maxRetries: Int = 0) =
+        createFlowHttp(client, maxRetries = maxRetries, maxResponseBytes = 1_000_000, maxConcurrentRequests = 1, sleeper = {})
+
+    /** The origin rule of a development stack that lists the in-JVM stub (`http://localhost:<port>`), exactly. */
+    private fun stubOrigins(): FlowOrigins {
+        val port = URI(FlowStubServer.baseUrl).port
+        return FlowOrigins(SelfManagedHosts.NONE, setOf(Origin("http", "localhost", port)), developmentMode = true)
+    }
+
+    @Test
+    fun `Flow wiring - the listed stub origin answers, the same host on another port or scheme is BLOCKED_HOST`() = runBlocking {
+        val port = URI(FlowStubServer.baseUrl).port
+        val client = buildGuardedFlowHttpClient(stubOrigins(), requestTimeoutSeconds = 5)
+        try {
+            val flow = flowHttp(client)
+            val answer = flow.request(
+                HttpMethod.Get, "${FlowStubServer.baseUrl}${FlowStubServer.mePath}", authHeader = FlowStubServer.authorization,
+            )
+            assertTrue(answer.toString().contains("astrolabe"), "the stub's me document: $answer")
+            withAuditCapture { audit ->
+                for (url in listOf("http://localhost:${port + 1}/x", "https://localhost:$port/x", "http://127.0.0.1:$port/x")) {
+                    assertEquals("BLOCKED_HOST", assertFailsWith<FetchException>(url) { flow.request(HttpMethod.Get, url) }.code, url)
+                }
+                assertEquals(3, audit.events.count { it.message == "outbound.blocked" }, "one audit per refusal, no retry")
+            }
+        } finally {
+            client.close()
+        }
+    }
+
+    @Test
+    fun `Flow wiring - nothing listed means nothing is resolved, and the loopback stub is refused in production`() = runBlocking {
+        var resolveCalls = 0
+        val unlisted = buildGuardedFlowHttpClient(
+            FlowOrigins.NONE, resolver = { resolveCalls++; listOf(InetAddress.getByName("203.0.113.10")) }, requestTimeoutSeconds = 5,
+        )
+        val production = buildGuardedFlowHttpClient(
+            FlowOrigins(SelfManagedHosts.NONE, setOf(Origin("http", "localhost", URI(FlowStubServer.baseUrl).port)), false),
+            requestTimeoutSeconds = 5,
+        )
+        try {
+            withAuditCapture { audit ->
+                val error = assertFailsWith<FetchException> {
+                    flowHttp(unlisted, maxRetries = 2).request(HttpMethod.Get, "https://flow.corp.example/x")
+                }
+                assertEquals("BLOCKED_HOST", error.code)
+                assertEquals(1, audit.events.count { it.message == "outbound.blocked" }, "one audit although two retries were allowed")
+            }
+            assertEquals(0, resolveCalls, "a host that is not listed never reaches the resolver")
+            val loopback = assertFailsWith<FetchException> {
+                flowHttp(production, maxRetries = 2).request(HttpMethod.Get, "${FlowStubServer.baseUrl}${FlowStubServer.mePath}")
+            }
+            assertEquals("BLOCKED_HOST", loopback.code, "production never honours an insecure origin")
+        } finally {
+            unlisted.close()
+            production.close()
+        }
+    }
+
+    @Test
+    fun `Flow wiring - a stored base URL delisted by a config change is BLOCKED_HOST, never resolved, audited once`() = runBlocking {
+        var resolveCalls = 0
+        val storedUnderListA = "http://flow-delisted.test:8080"
+        val listB = FlowOrigins(SelfManagedHosts.NONE, setOf(Origin("http", "flow-other.test", 8080)), developmentMode = true)
+        val client = buildGuardedFlowHttpClient(
+            listB, resolver = { resolveCalls++; listOf(InetAddress.getByName("127.0.0.1")) }, requestTimeoutSeconds = 5,
+        )
+        try {
+            withAuditCapture { audit ->
+                val error = assertFailsWith<FetchException> {
+                    flowHttp(client, maxRetries = 3).request(HttpMethod.Get, "$storedUnderListA${FlowStubServer.mePath}")
+                }
+                assertEquals("BLOCKED_HOST", error.code)
+                assertEquals(1, audit.events.count { it.message == "outbound.blocked" })
+            }
+            assertEquals(0, resolveCalls, "the host check comes before the resolver")
+        } finally {
+            client.close()
+        }
+    }
+
+    @Test
+    fun `Flow wiring - a 3xx from the real OkHttp engine is REDIRECT, never followed`() = runBlocking {
+        val redirectPath = "/probe-redirect-${UUID.randomUUID()}"
+        val override = FlowStubServer.addOverride(
+            get(urlPathEqualTo(redirectPath)).willReturn(aResponse().withStatus(302).withHeader("Location", "https://evil.example/")),
+        )
+        val client = buildGuardedFlowHttpClient(stubOrigins(), requestTimeoutSeconds = 5)
+        try {
+            val error = assertFailsWith<FetchException> {
+                flowHttp(client).request(
+                    HttpMethod.Get, "${FlowStubServer.baseUrl}$redirectPath", authHeader = FlowStubServer.authorization,
+                )
+            }
+            assertEquals("REDIRECT", error.code)
+        } finally {
+            FlowStubServer.removeOverride(override)
+            client.close()
+        }
+    }
+
+    @Test
+    fun `Flow wiring - a listed TLS host may resolve to a private address inside a listed CIDR only, never to loopback`() {
+        val hosts = parseSelfManagedHosts("flow.corp.example", "10.20.0.0/16", "flow.allowedHosts", "flow.allowedCidrs")
+        val origins = FlowOrigins(hosts, emptySet(), developmentMode = false)
+        fun lookup(host: String, address: String) =
+            GuardedDns(
+                origins::hostAllowed, { listOf(InetAddress.getByName(address)) }, origins::addressAllowed, origins::schemeFor,
+            ).lookup(host)
+        assertEquals(listOf(InetAddress.getByName("10.20.1.5")), lookup("flow.corp.example", "10.20.1.5"))
+        for (address in listOf("10.30.0.1", "127.0.0.1", "169.254.169.254", "192.168.0.10")) {
+            assertFailsWith<BlockedHostException>(address) { lookup("flow.corp.example", address) }
+        }
+        assertFailsWith<BlockedHostException>("an unlisted host, even at a CIDR address") { lookup("other.corp.example", "10.20.1.5") }
+    }
+
     companion object {
         @JvmStatic
         @BeforeClass
         fun warmStub() {
             JiraStubFixture.warm()
+            FlowStubFixture.warm()
         }
     }
 }

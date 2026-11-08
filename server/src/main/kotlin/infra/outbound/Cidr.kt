@@ -35,6 +35,7 @@ internal class Cidr(private val network: ByteArray, private val prefix: Int) {
             "IPv6 multicast ff00::/8" to Cidr(ipv6(0xff00), 8),
             "IPv4-mapped IPv6 ::ffff:0:0/96 (list the IPv4 range instead)" to Cidr(ipv6(0, 0, 0, 0, 0, 0xffff), 96),
             "NAT64 64:ff9b::/96 (NAT64 addresses are never admitted)" to Cidr(ipv6(0x64, 0xff9b), 96),
+            "NAT64 local-use 64:ff9b:1::/48 (NAT64 addresses are never admitted)" to Cidr(ipv6(0x64, 0xff9b, 1), 48),
             "6to4 2002::/16 (tunnelling addresses are never admitted)" to Cidr(ipv6(0x2002), 16),
             "Teredo 2001:0::/32 (tunnelling addresses are never admitted)" to Cidr(ipv6(0x2001, 0), 32),
         )

@@ -85,6 +85,7 @@ test("the served documents carry exactly the contract's field names, in order", 
     for (const member of team.members) assert.deepEqual(Object.keys(member), FIELDS.member, team.name);
     for (const sprint of team.sprints) assert.deepEqual(Object.keys(sprint), FIELDS.sprint, team.name);
   }
+  assert.equal(doc.teamsTruncated, false);
   assert.equal(doc.sprintsTruncated, false);
   assert.deepEqual(expected.contract.fields, FIELDS);
 });
@@ -224,7 +225,7 @@ test("day 2: Billing vanishes, Platform's calendar-sourced future sprints and th
   assert.deepEqual(bodyOf("teams-day2").items.map((t) => t.name), world.day2.teams.map((t) => t.name));
 });
 
-test("the document is about 130 KB and stays under the 4 MiB the client accepts, far below the 2,000-sprint cap", () => {
+test("the document is about 130 KB and stays under the 1 MiB the client accepts, far below the 2,000-sprint cap", () => {
   assert.ok(expected.document.bytes > 100_000 && expected.document.bytes < 400_000, `${expected.document.bytes} bytes`);
   assert.ok(expected.totals.sprints < 2000);
 });

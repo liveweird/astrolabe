@@ -243,7 +243,7 @@ internal object DirectSocketFactory : SocketFactory() {
  * is a test seam (`OutboundGuardTest`'s connection-pool-leak test — LOW-3); production never sets
  * one.
  *
- * [sslSocketFactory] and [trustManager] (both or neither) replace the JVM default trust: the GitLab client adds an operator
+ * [sslSocketFactory] and [trustManager] (both or neither) replace the JVM default trust: the Flow client adds an operator
  * CA bundle ALONGSIDE the default CAs this way. There is no option to skip certificate or hostname verification.
  * [originAllowed] (scheme, host, port) is checked on every request before it is sent, so a `host:port` allow-list entry
  * means that port only (DNS sees a hostname, never a port) and an IP-literal URL, which OkHttp never hands to DNS, is judged too; a

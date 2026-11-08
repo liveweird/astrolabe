@@ -37,7 +37,7 @@ Anything else under `/api/v1/integration/` (no header, another scheme, another t
 | Request | Matched by | Answer |
 |---|---|---|
 | `GET /api/v1/integration/me` | path + `Authorization: Bearer <stub token>`, priority 10 | `{tokenId, name, createdAt, expiresAt, lastUsedAt}` (the token "astrolabe", no expiry) |
-| `GET /api/v1/integration/teams[?sprintsSince=YYYY-MM-DD]` | path + the header + a well-formed value or none, priority 10, scenario `flow-day2` | the day's document `{asOf, sprintsSince, sprintsTruncated, items[]}`; the value is **ignored** (the window is the world's fixed `sprintsSince` 2025-10-27, not an echo) |
+| `GET /api/v1/integration/teams[?sprintsSince=YYYY-MM-DD]` | path + the header + a well-formed value or none, priority 10, scenario `flow-day2` | the day's document `{asOf, sprintsSince, teamsTruncated, sprintsTruncated, items[]}`; the value is **ignored** (the window is the world's fixed `sprintsSince` 2025-10-27, not an echo) |
 | the same with a present, malformed `sprintsSince` | the header + a value that is not a calendar-shaped date, priority 9 | `400` problem |
 | anything else under `/api/v1/integration/` | `urlPathPattern`, priority 100 | the uniform `401` |
 | both endpoints while `flow-outage` is in the state `down` | the header is a WELL-FORMED bearer (`Bearer flow_int_` + 43 base64url characters, whatever the token), scenario, priority 5 | `500` problem "The service is unavailable": Flow checks the shape before the database, so a well-formed unknown token costs a lookup that throws (Flow plan section 7: an outage is a 500, never a 401). Only a missing or MALFORMED header still gets the 401 |
@@ -46,7 +46,7 @@ Other paths (Flow's JWT routes, `/__admin`) are not stubbed; WireMock answers it
 
 ## The world (`expected.json` has every figure)
 
-19 teams, 523 sprints, 120 membership rows, one document of about 132 KB (the real server's cap is 2,000 sprints and Astrolabe reads up to 4 MiB). `asOf` is Thursday
+19 teams, 523 sprints, 120 membership rows, one document of about 132 KB (the real server's cap is 2,000 sprints and Astrolabe reads up to 1 MiB). `asOf` is Thursday
 2026-10-29 12:00 UTC; every sprint is two weeks, **Monday 09:00 to the second Friday 17:00 on Europe/Warsaw's clock**; instants are epoch milliseconds; a membership
 interval starts/ends at a Warsaw midnight and is **half-open, as in Flow**: a member over `[validFrom, validTo)`, so `validTo` is the first instant that is NOT a member
 (Flow's "End membership" sets it to the start of today); `validTo: null` = still a member.

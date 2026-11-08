@@ -45,7 +45,9 @@ internal class Retry(
 /**
  * A coroutine-context element: an INTERACTIVE caller (a plain user's bind) will not queue for a permit longer than [millis]. A call that
  * would wait longer fails fast with `BUSY` instead, so a burst of binds cannot hold an administrator's Test connection behind them. The
- * permit pool stays the one process-wide pool `JiraHeapFit` sized the heap on; nothing here adds a permit.
+ * permit pool stays Jira's one process-wide pool, the one `JiraHeapFit` sized the heap on; nothing here adds a permit. (The process has a
+ * second, separate pool and big-parse lock for Flow, kept inside the heap reserve by its own tight bounds: `.claude/docs/security.md`
+ * "The Flow consumer".)
  */
 class PermitWait(val millis: Long) : AbstractCoroutineContextElement(Key) {
     companion object Key : CoroutineContext.Key<PermitWait>
