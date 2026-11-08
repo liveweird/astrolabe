@@ -189,7 +189,7 @@ export default function JiraConnectionEditorModal({
           </Button>
           {storedProbeDiffers && (
             <Text size="sm" c="dimmed" role="note">
-              {t("jira.test.savedSettingsNote")}
+              {t("sync.test.savedSettingsNote")}
             </Text>
           )}
           <ConnectionTestStatus result={testResult} />

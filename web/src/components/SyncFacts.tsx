@@ -41,10 +41,10 @@ export default function SyncFacts({
   const nextText = nextPollText(context, t);
   return (
     <>
-      <Fact label={t("jira.details.status")}>
+      <Fact label={t("sync.details.status")}>
         <SyncStatusBadge {...context} />
       </Fact>
-      <Fact label={t("jira.details.lastSuccess")}>
+      <Fact label={t("sync.details.lastSuccess")}>
         {status.lastSucceededAt === null ? (
           "—"
         ) : (
@@ -56,7 +56,7 @@ export default function SyncFacts({
           </>
         )}
       </Fact>
-      <Fact label={t("jira.details.nextPoll")}>
+      <Fact label={t("sync.details.nextPoll")}>
         {status.nextPollAt === null || isDue(status, now) ? (
           // Nothing to date: not polled, or due this moment ("due now" alone; the past instant it was due since would only mislead).
           (nextText ?? "—")
@@ -69,7 +69,7 @@ export default function SyncFacts({
           </>
         )}
       </Fact>
-      <Fact label={t("jira.details.polling")}>{pollingText(pollIntervalMinutes, t)}</Fact>
+      <Fact label={t("sync.details.polling")}>{pollingText(pollIntervalMinutes, t)}</Fact>
     </>
   );
 }

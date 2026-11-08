@@ -23,6 +23,7 @@ import enPlan from "./locales/en/plan.json";
 import enPrograms from "./locales/en/programs.json";
 import enProject from "./locales/en/project.json";
 import enRoadmap from "./locales/en/roadmap.json";
+import enSync from "./locales/en/sync.json";
 import enTeams from "./locales/en/teams.json";
 import enTelemetry from "./locales/en/telemetry.json";
 import enTimeline from "./locales/en/timeline.json";
@@ -78,6 +79,7 @@ export const en = {
   programs: enPrograms,
   project: enProject,
   roadmap: enRoadmap,
+  sync: enSync,
   teams: enTeams,
   telemetry: enTelemetry,
   timeline: enTimeline,

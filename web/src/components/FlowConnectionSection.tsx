@@ -134,11 +134,11 @@ export default function FlowConnectionSection({ connection, readAt }: { connecti
       {testResult && (
         <Stack gap="xs">
           <Title order={4} size="h5">
-            {t("jira.test.resultTitle")}
+            {t("sync.test.resultTitle")}
           </Title>
           {!testResult.recorded && (
             <Alert color="orange" variant="light" role="note">
-              {t("jira.test.notRecorded")}
+              {t("sync.test.notRecorded")}
             </Alert>
           )}
           <ConnectionTestResults result={testResult} kind="FLOW" />
@@ -156,7 +156,7 @@ export default function FlowConnectionSection({ connection, readAt }: { connecti
 
       <Stack gap="xs">
         <Title order={4} size="h5">
-          {t("jira.runs.title")}
+          {t("sync.runs.title")}
         </Title>
         <SyncRunsTable runs={runs} isLoading={isLoading} isError={isError} error={error} kind="FLOW" />
       </Stack>

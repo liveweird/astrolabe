@@ -58,7 +58,7 @@ function LastRun({ run }: { run: FlowConnection["lastRun"] }) {
   return (
     <Group gap="xs" wrap="nowrap">
       <Badge color={RUN_STATE_COLOR[state]} variant="light" tt="none">
-        {t(`jira.runs.state.${state}`)}
+        {t(`sync.runs.state.${state}`)}
       </Badge>
       <Text size="sm">{formatDateTime(run.startedAt)}</Text>
     </Group>

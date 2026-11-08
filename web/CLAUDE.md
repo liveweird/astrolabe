@@ -183,6 +183,7 @@ through `const { t } = useTranslation()` / `<Trans>` — **no hardcoded UI text*
 - **Keys are typed** (`src/i18next.d.ts` over `typeof en`): fields holding a key are typed `ParseKeys`, never `string` (the `NavLeaf` `label` pattern);
   functions taking a translator take `TFunction`, never a hand-written `(key: string) => string`.
 - **`common.*` is the shared source** (actions, field labels, shared vocabulary): reuse it instead of duplicating; build Mantine `Select` option labels from `t()` at render.
+- **`sync.*` holds the generic connector strings** (test result table and verdicts, runs table, status, facts, error codes): both connectors use it; connector-specific strings stay in `jira.*` / `flow.*`.
 - **Keep key parity vs EN for every shipped language** — a shipped bundle is all-or-nothing (plural variants aside), enforced by `locales/parity.test.ts`. Use
   interpolation (`{{name}}`) and plural keys, never string concatenation.
 - **Adding a language** = a complete `locales/<lang>/` folder + one code in `SUPPORTED_LANGUAGES` + one `NATIVE_LANGUAGE_NAMES` line (server steps: web-internals "Internationalization").

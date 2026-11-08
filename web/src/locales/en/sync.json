@@ -1,0 +1,107 @@
+{
+  "test": {
+    "tableAria": "Connection test results",
+    "column": {
+      "endpoint": "Endpoint",
+      "required": "Required",
+      "result": "Result",
+      "detail": "Detail"
+    },
+    "required": "Required",
+    "optional": "Optional",
+    "ok": "OK",
+    "failed": "Failed",
+    "skipped": "Skipped",
+    "skippedDetail": "Not run: an earlier probe failed",
+    "passed": "Passed",
+    "notPassed": "Failed",
+    "rateLimited": "Too many tests in a minute. Wait a moment and try again.",
+    "failedGeneric": "The test could not run. Check your connection and try again.",
+    "resultTitle": "Test result",
+    "notRecorded": "The connection was edited while the test ran, so this result was not recorded. Test again.",
+    "summaryPassed": "Test passed. OK: {{ok}} of {{total}}.",
+    "summaryPassedOptional": "Test passed. OK: {{ok}} of {{total}}; optional probes that failed: {{optional}}.",
+    "summaryFailed": "Test failed. Required probes that failed: {{failed}} of {{total}}.",
+    "savedSettingsNote": "With the token field empty, this tests the saved settings, not the changes made here. Enter the token to test these changes."
+  },
+  "runs": {
+    "title": "Recent runs",
+    "tableAria": "Recent runs",
+    "loadFailed": "Could not load the runs",
+    "empty": "No runs yet. Use Refresh now to start one.",
+    "column": {
+      "started": "Started (UTC)",
+      "finished": "Finished (UTC)",
+      "trigger": "Trigger",
+      "outcome": "Outcome",
+      "observed": "Observed",
+      "gone": "Gone",
+      "calls": "Calls",
+      "error": "Error"
+    },
+    "trigger": {
+      "MANUAL": "Manual",
+      "SCHEDULED": "Scheduled"
+    },
+    "state": {
+      "running": "Running",
+      "succeeded": "Succeeded",
+      "failed": "Failed",
+      "abandoned": "Abandoned",
+      "interrupted": "Interrupted"
+    },
+    "rateLimited_one": "{{count}} rate-limited",
+    "rateLimited_other": "{{count}} rate-limited",
+    "interruptedHint": "No result was recorded and nothing is running it now."
+  },
+  "status": {
+    "CURRENT": "Current",
+    "FAILED": "Failed",
+    "STALE": "Stale",
+    "NEVER_SYNCED": "Never synced",
+    "DISABLED": "Disabled",
+    "dueNow": "due now",
+    "nextPollIn_one": "next poll in {{count}} min",
+    "nextPollIn_other": "next poll in {{count}} min",
+    "nextPollInHours_one": "next poll in {{count}} h",
+    "nextPollInHours_other": "next poll in {{count}} h",
+    "manualOnly": "manual only",
+    "manualOnlyTitle": "Manual only",
+    "every": "every {{count}} min",
+    "failuresInARow_one": "{{count}} failure in a row",
+    "failuresInARow_other": "{{count}} failures in a row",
+    "testFirst": "not polled: test the connection first",
+    "refreshing": "refreshing now"
+  },
+  "details": {
+    "status": "Status",
+    "lastSuccess": "Last success (UTC)",
+    "nextPoll": "Next poll (UTC)",
+    "polling": "Polling"
+  },
+  "errorCode": {
+    "AUTHENTICATION_FAILED": "Jira refused the credentials",
+    "FORBIDDEN_SCOPE": "The token lacks a scope this needs",
+    "NOT_FOUND": "Jira does not know this resource",
+    "RATE_LIMITED": "Jira is rate limiting this site; try again later",
+    "UPSTREAM_UNAVAILABLE": "Jira is unavailable",
+    "TIMEOUT": "Jira did not answer in time",
+    "BUSY": "Too many Jira calls are in flight; try again in a moment",
+    "INVALID_RESPONSE": "Jira sent an answer that could not be read",
+    "LIMIT_EXCEEDED": "The answer or the number of pages passed a safety limit",
+    "BLOCKED_HOST": "The address is not allowed for outbound calls",
+    "REDIRECT": "Jira answered with a redirect, which is refused",
+    "CURSOR_EXPIRED": "Jira's paging cursor expired during the run",
+    "PROJECT_NOT_VISIBLE": "The token cannot see this project",
+    "TOKEN_UNREADABLE": "The stored token cannot be decrypted; enter it again",
+    "NOT_DISCOVERED": "No discovery yet; test the connection first",
+    "MAPPING_INVALID": "The saved mapping no longer fits the site; correct and save it",
+    "MAPPING_UNREADABLE": "The saved mapping cannot be read by this version; save it again",
+    "CONNECTION_GONE": "The connection was deleted",
+    "CONNECTION_DISABLED": "The connection is disabled",
+    "RUN_DEADLINE": "The run reached its time limit",
+    "SHUTDOWN": "The server shut down during the run",
+    "INTERNAL": "An internal error; see the server log",
+    "ABANDONED": "The run never finished and a later one took over"
+  }
+}

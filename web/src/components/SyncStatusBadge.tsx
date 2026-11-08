@@ -13,7 +13,7 @@ export default function SyncStatusBadge({ detail = true, ...context }: SyncStatu
   return (
     <Stack gap={2} align="flex-start">
       <Badge color={SYNC_STATE_COLOR[context.status.state]} variant="light" tt="none">
-        {t(`jira.status.${context.status.state}`)}
+        {t(`sync.status.${context.status.state}`)}
       </Badge>
       {line && (
         <Text size="xs" c="dimmed">

@@ -18,9 +18,9 @@ export default function ConnectionTestStatus<R extends { rows: readonly TestRow[
     const failedOptional = result.rows.filter((row) => !row.ok && !row.required && !isSkipped(row)).length;
     // Defensive: whatever the codes say, a required row that is not ok never reads as a pass (a skipped-only payload counts its skips).
     const notOkRequired = result.rows.filter((row) => !row.ok && row.required).length;
-    if (notOkRequired > 0) text = t("jira.test.summaryFailed", { failed: failedRequired || notOkRequired, total });
-    else if (failedOptional > 0) text = t("jira.test.summaryPassedOptional", { ok, total, optional: failedOptional });
-    else text = t("jira.test.summaryPassed", { ok, total });
+    if (notOkRequired > 0) text = t("sync.test.summaryFailed", { failed: failedRequired || notOkRequired, total });
+    else if (failedOptional > 0) text = t("sync.test.summaryPassedOptional", { ok, total, optional: failedOptional });
+    else text = t("sync.test.summaryPassed", { ok, total });
   }
   return (
     <div role="status" aria-live="polite">

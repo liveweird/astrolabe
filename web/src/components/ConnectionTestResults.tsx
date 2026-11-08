@@ -11,7 +11,7 @@ import ScrollRegion from "./ScrollRegion";
 /** The detail cell of a failed row: the upstream status, the failure in words (code kept visible) and the scope the probe needs. */
 function rowDetail(row: TestRow, t: TFunction, kind: SyncKind): string {
   if (row.ok) return "—";
-  if (isSkipped(row)) return t("jira.test.skippedDetail");
+  if (isSkipped(row)) return t("sync.test.skippedDetail");
   const parts = [
     row.status != null ? String(row.status) : null,
     row.code ? errorCodeText(row.code, t, kind) : null,
@@ -79,14 +79,14 @@ export default function ConnectionTestResults(props: { result: JiraTestResult; k
   const kind: SyncKind = props.kind ?? "JIRA";
   return (
     <Stack gap="xs">
-      <ScrollRegion label={t("jira.test.tableAria")} minWidth={640}>
-        <Table aria-label={t("jira.test.tableAria")}>
+      <ScrollRegion label={t("sync.test.tableAria")} minWidth={640}>
+        <Table aria-label={t("sync.test.tableAria")}>
           <Table.Thead>
             <Table.Tr>
-              <Table.Th>{t("jira.test.column.endpoint")}</Table.Th>
-              <Table.Th>{t("jira.test.column.required")}</Table.Th>
-              <Table.Th>{t("jira.test.column.result")}</Table.Th>
-              <Table.Th>{t("jira.test.column.detail")}</Table.Th>
+              <Table.Th>{t("sync.test.column.endpoint")}</Table.Th>
+              <Table.Th>{t("sync.test.column.required")}</Table.Th>
+              <Table.Th>{t("sync.test.column.result")}</Table.Th>
+              <Table.Th>{t("sync.test.column.detail")}</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
@@ -101,11 +101,11 @@ export default function ConnectionTestResults(props: { result: JiraTestResult; k
                   </Text>
                 </Table.Td>
                 <Table.Td>
-                  <Text size="sm">{row.required ? t("jira.test.required") : t("jira.test.optional")}</Text>
+                  <Text size="sm">{row.required ? t("sync.test.required") : t("sync.test.optional")}</Text>
                 </Table.Td>
                 <Table.Td style={{ whiteSpace: "nowrap" }}>
                   <Badge color={rowColor(row)} variant="light" tt="none">
-                    {row.ok ? t("jira.test.ok") : isSkipped(row) ? t("jira.test.skipped") : t("jira.test.failed")}
+                    {row.ok ? t("sync.test.ok") : isSkipped(row) ? t("sync.test.skipped") : t("sync.test.failed")}
                   </Badge>
                 </Table.Td>
                 <Table.Td>

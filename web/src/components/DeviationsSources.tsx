@@ -117,7 +117,7 @@ export default function DeviationsSources({ connections, admin, readAt }: { conn
                     ) : (
                       <>
                         <Badge color={RUN_STATE_COLOR[state]} variant="light" tt="none">
-                          {t(`jira.runs.state.${state}`)}
+                          {t(`sync.runs.state.${state}`)}
                         </Badge>
                         <Text size="xs" c="dimmed">
                           {formatDateTime(connection.lastRun.finishedAt ?? connection.lastRun.startedAt)}

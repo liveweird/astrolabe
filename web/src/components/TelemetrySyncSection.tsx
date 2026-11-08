@@ -49,7 +49,7 @@ function Failures({ connection }: { connection: TelemetrySyncConnection }) {
   return (
     <>
       <Badge color="red" variant="light" tt="none">
-        {t("jira.status.failuresInARow", { count: status.consecutiveFailures })}
+        {t("sync.status.failuresInARow", { count: status.consecutiveFailures })}
       </Badge>
       {code && (
         <Text size="xs" c="dimmed">

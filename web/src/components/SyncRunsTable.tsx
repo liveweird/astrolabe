@@ -32,22 +32,22 @@ export default function SyncRunsTable({
   kind?: SyncKind;
 }) {
   const { t } = useTranslation();
-  const label = t("jira.runs.tableAria");
+  const label = t("sync.runs.tableAria");
   return (
     <>
-      {isError && <ErrorAlert error={error} title={t("jira.runs.loadFailed")} />}
+      {isError && <ErrorAlert error={error} title={t("sync.runs.loadFailed")} />}
       <ScrollRegion label={label} minWidth={760}>
         <Table aria-label={label}>
           <Table.Thead>
             <Table.Tr>
-              <Table.Th>{t("jira.runs.column.started")}</Table.Th>
-              <Table.Th>{t("jira.runs.column.finished")}</Table.Th>
-              <Table.Th>{t("jira.runs.column.trigger")}</Table.Th>
-              <Table.Th>{t("jira.runs.column.outcome")}</Table.Th>
-              <Table.Th ta="right">{t(kind === "FLOW" ? "flow.runs.column.observed" : "jira.runs.column.observed")}</Table.Th>
-              <Table.Th ta="right">{t(kind === "FLOW" ? "flow.runs.column.gone" : "jira.runs.column.gone")}</Table.Th>
-              <Table.Th ta="right">{t("jira.runs.column.calls")}</Table.Th>
-              <Table.Th>{t("jira.runs.column.error")}</Table.Th>
+              <Table.Th>{t("sync.runs.column.started")}</Table.Th>
+              <Table.Th>{t("sync.runs.column.finished")}</Table.Th>
+              <Table.Th>{t("sync.runs.column.trigger")}</Table.Th>
+              <Table.Th>{t("sync.runs.column.outcome")}</Table.Th>
+              <Table.Th ta="right">{t(kind === "FLOW" ? "flow.runs.column.observed" : "sync.runs.column.observed")}</Table.Th>
+              <Table.Th ta="right">{t(kind === "FLOW" ? "flow.runs.column.gone" : "sync.runs.column.gone")}</Table.Th>
+              <Table.Th ta="right">{t("sync.runs.column.calls")}</Table.Th>
+              <Table.Th>{t("sync.runs.column.error")}</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
@@ -67,15 +67,15 @@ export default function SyncRunsTable({
                       </Text>
                     </Table.Td>
                     <Table.Td>
-                      <Text size="sm">{t(`jira.runs.trigger.${run.trigger}`)}</Text>
+                      <Text size="sm">{t(`sync.runs.trigger.${run.trigger}`)}</Text>
                     </Table.Td>
                     <Table.Td>
                       <Badge color={RUN_STATE_COLOR[state]} variant="light" tt="none">
-                        {t(`jira.runs.state.${state}`)}
+                        {t(`sync.runs.state.${state}`)}
                       </Badge>
                       {state === "interrupted" && (
                         <Text size="xs" c="dimmed">
-                          {t("jira.runs.interruptedHint")}
+                          {t("sync.runs.interruptedHint")}
                         </Text>
                       )}
                     </Table.Td>
@@ -85,7 +85,7 @@ export default function SyncRunsTable({
                       <Text size="sm">{run.callCount}</Text>
                       {run.rateLimitedCount > 0 && (
                         <Text size="xs" c="dimmed">
-                          {t("jira.runs.rateLimited", { count: run.rateLimitedCount })}
+                          {t("sync.runs.rateLimited", { count: run.rateLimitedCount })}
                         </Text>
                       )}
                     </Table.Td>
@@ -109,7 +109,7 @@ export default function SyncRunsTable({
             ) : !isError ? (
               <Table.Tr>
                 <Table.Td colSpan={COLUMN_COUNT}>
-                  <EmptyState icon={IconListDetails} label={t("jira.runs.empty")} />
+                  <EmptyState icon={IconListDetails} label={t("sync.runs.empty")} />
                 </Table.Td>
               </Table.Tr>
             ) : null}

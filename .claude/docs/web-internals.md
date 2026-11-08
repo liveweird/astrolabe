@@ -1290,7 +1290,7 @@ has no switch for (a newer server), so a save can never silently revoke it.
 `["jira","list",…]` through `api/jira.ts`: the Teams shape (`usePagedSort` + `RegistryListTable`, no name filter - the endpoint has none; columns name (the
 link, a gray "Disabled" badge), site (an external link, `rel="noopener noreferrer"`), project keys, last test, **Status**, last run, kebab Open / Edit /
 Delete). **Status** is `components/SyncStatusBadge.tsx` over the connection's server-derived `status` (`SyncStatus`: nothing is stored; CURRENT green, FAILED
-red, STALE orange, NEVER_SYNCED / DISABLED gray, label `jira.status.<STATE>`) with a secondary line from `utils/syncStatus.ts`: the failure streak while there
+red, STALE orange, NEVER_SYNCED / DISABLED gray, label `sync.status.<STATE>`) with a secondary line from `utils/syncStatus.ts`: the failure streak while there
 is one ("3 failures in a row · TOKEN_UNREADABLE", plural forms EN/PL), else "not polled: test the connection first" (`discoveredAt == null`), "manual only",
 "due now" or "next poll in 7 min" (minutes rounded UP, hours from 2 h); `now` is `hooks/useNow.ts`'s minute-ticking client clock (the telemetry section passes
 the server's `generatedAt`), a wording only: no decision rests on it. **Last run** is the connection's own `lastRun`
@@ -1387,8 +1387,8 @@ last run, kebab; the test cell is the shared `ConnectionTestBadge`) with the sam
 not a test) and **Teams** (`components/FlowTeamsSection.tsx`, below). The shared pieces are kind-aware, never forked: `ConnectionTestResults kind="FLOW"` words
 the probes (`flow.probe.*`), adds the document's size and the truncation note and has no Jira scope note; `errorCodeText(code, t, kind)` (`utils/syncRuns.ts`)
 has the Flow table (`flow.errorCode.*`, the revoked-token sentence tells to issue a new token in Flow) and falls back to the shared sentences;
-`useSyncRuns`/`syncRunsKey` cache Flow's runs under `["flow"]`, Jira's under `["jira"]`. The generic connector vocabulary (`jira.status.*`, `jira.runs.*`,
-`jira.test.*`, `jira.details.status…`) is shared as is; the Polling labels and rule live in `common.polling.*` (`components/PollingFields.tsx`,
+`useSyncRuns`/`syncRunsKey` cache Flow's runs under `["flow"]`, Jira's under `["jira"]`. The generic connector vocabulary lives in `sync.*` (`sync.status.*`, `sync.runs.*`,
+`sync.test.*`, `sync.details.status…`, `sync.errorCode.*`; `jira.test.scopeHint/scopeNote/stubNote/cloudId` stay Jira-only) and is shared as is; the Polling labels and rule live in `common.polling.*` (`components/PollingFields.tsx`,
 `utils/pollingForm.ts`, used by both editors).
 
 `components/FlowConnectionEditorModal.tsx` (rules in `utils/flowForm.ts`, mirrored from `FlowConnection.kt`): **the base URL is the connection's identity**
@@ -1483,7 +1483,7 @@ The SPA is **N-language by architecture** via react-i18next (`src/i18n.ts`); the
 All user-facing strings go through `const { t } = useTranslation()` / `<Trans>` — **no hardcoded UI text**. Conventions:
 
 - **Resources** live in `src/locales/{en,pl}/<area>.json`, one file per area (`appShell`, `auth`, `baselines`, `calendar`, `changelog`, `common`, `deviations`,
-  `flow`, `home`, `jira`, `people`, `plan`, `programs`, `project`, `roadmap`, `teams`, `telemetry`, `timeline`, `users`); `i18n.ts` merges them into a single
+  `flow`, `home`, `jira`, `people`, `plan`, `programs`, `project`, `roadmap`, `sync`, `teams`, `telemetry`, `timeline`, `users`); `i18n.ts` merges them into a single
   `translation` namespace, so keys read `area.key` (e.g. `t("auth.signIn")`). Only EN is statically imported — its typed `en` tree is the key canon AND the
   runtime fallback; every other language is auto-discovered from `locales/<lang>/` via `import.meta.glob`. Bundles are eager on purpose; move non-EN to lazy
   loading when a 3rd language ships or a bundle grows large.

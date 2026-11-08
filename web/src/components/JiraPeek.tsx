@@ -28,7 +28,7 @@ function peekFailure(err: unknown, t: TFunction): { message: string; detail?: st
   if (err instanceof ApiError) {
     if (err.status === 400) return { message: t("jira.peek.invalid"), detail: err.detail };
     if (err.status === 404) return { message: t("jira.peek.notFound") };
-    if (err.status === 429) return { message: t("jira.test.rateLimited") };
+    if (err.status === 429) return { message: t("sync.test.rateLimited") };
     if (err.status === 502) {
       // The detail is "Jira did not answer (AUTHENTICATION_FAILED)": only the code is lifted out and put in words.
       const code = /\(([A-Z_]+)\)/.exec(err.detail ?? "")?.[1];

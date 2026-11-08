@@ -33,10 +33,10 @@ export function isDue(status: SyncStatus, now: number): boolean {
 /** "due now" when the moment has passed, else "next poll in 7 min" / "next poll in 6 h". Pure: `now` is passed. */
 function dueText(nextPollAt: number, now: number, t: TFunction): string {
   const remaining = nextPollAt - now;
-  if (remaining <= 0) return t("jira.status.dueNow");
+  if (remaining <= 0) return t("sync.status.dueNow");
   const minutes = Math.ceil(remaining / MINUTE_MS);
   // Hours are the NEAREST hour (2 h 01 min reads "2 h", never "3 h").
-  return minutes < MINUTES_LIMIT ? t("jira.status.nextPollIn", { count: minutes }) : t("jira.status.nextPollInHours", { count: Math.round(minutes / 60) });
+  return minutes < MINUTES_LIMIT ? t("sync.status.nextPollIn", { count: minutes }) : t("sync.status.nextPollInHours", { count: Math.round(minutes / 60) });
 }
 
 /**
@@ -45,15 +45,15 @@ function dueText(nextPollAt: number, now: number, t: TFunction): string {
  */
 export function nextPollText({ status, now, ready, pollIntervalMinutes }: SyncStatusContext, t: TFunction): string | null {
   if (status.state === "DISABLED") return null;
-  if (ready === false) return t("jira.status.testFirst");
-  if (pollIntervalMinutes === null) return t("jira.status.manualOnly");
+  if (ready === false) return t("sync.status.testFirst");
+  if (pollIntervalMinutes === null) return t("sync.status.manualOnly");
   if (status.nextPollAt !== null) return dueText(status.nextPollAt, now, t);
-  return status.lastRun?.running ? t("jira.status.refreshing") : null;
+  return status.lastRun?.running ? t("sync.status.refreshing") : null;
 }
 
 /** "3 failures in a row · TOKEN_UNREADABLE": the streak and the newest run's typed code (kept as the code, language-neutral). */
 function failuresText(status: SyncStatus, t: TFunction): string {
-  const streak = t("jira.status.failuresInARow", { count: status.consecutiveFailures });
+  const streak = t("sync.status.failuresInARow", { count: status.consecutiveFailures });
   const code = status.lastRun?.errorCode;
   return code ? `${streak} · ${code}` : streak;
 }
@@ -67,5 +67,5 @@ export function syncStatusDetail(context: SyncStatusContext, t: TFunction): stri
 
 /** The interval as a fact: "every 15 min" or "Manual only". */
 export function pollingText(pollIntervalMinutes: number | null, t: TFunction): string {
-  return pollIntervalMinutes === null ? t("jira.status.manualOnlyTitle") : t("jira.status.every", { count: pollIntervalMinutes });
+  return pollIntervalMinutes === null ? t("sync.status.manualOnlyTitle") : t("sync.status.every", { count: pollIntervalMinutes });
 }

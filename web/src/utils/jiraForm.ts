@@ -142,10 +142,10 @@ export function jiraTestErrorMessage(err: unknown, t: TFunction): string {
   return saveErrorMessage(err, t, {
     forbidden: "jira.saveForbidden",
     notFound: "jira.saveGone",
-    tooManyRequests: "jira.test.rateLimited",
+    tooManyRequests: "sync.test.rateLimited",
     invalid: "jira.saveInvalid",
     failedStatus: "common.error.actionFailedStatus",
-    failed: "jira.test.failedGeneric",
+    failed: "sync.test.failedGeneric",
   });
 }
 
