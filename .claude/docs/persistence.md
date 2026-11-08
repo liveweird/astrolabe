@@ -332,7 +332,7 @@ function (`deleteCapacityPeriodsOf`, `removeFromRanking`, …) counts as the cal
   `ProjectService.Projects` ⋈ `ProgramService.Programs` ⋈ `WorkStreamService.WorkStreams` (the three owner ids of the chain, all three `active()`) and
   `PersonService.People` via `ownerNames`, `RoadmapService.RoadmapEntries`, `MilestoneService.Milestones` ⋈ `TeamService.Teams` (every ACTIVE milestone and its
   team's name, no `active()` filter on the team or the project: an active milestone's are active) and `DependencyService.Dependencies` (every ACTIVE link,
-  resolved to projects in memory by the pure `RoadmapKernels`). The programs view: `ProgramsViewService` (`GET /views/programs`, the PLAN revision first) READS
+  resolved to projects in memory by the pure `RoadmapKernels`; with `?criticalPath=` (1.7) the SAME rows feed `CriticalPathKernels`, no further statement). The programs view: `ProgramsViewService` (`GET /views/programs`, the PLAN revision first) READS
   everything the roadmap view reads through the shared `loadRoadmapSnapshot` (above, EXCEPT the revision it takes: the plan's, not the ranking's) and, apart
   from the projects' joins so empty ones are not lost, `WorkStreamService.WorkStreams` and `ProgramService.Programs` (every row with `active()`) with
   `PersonService.People` via `ownerNames` for their owners' names. The working calendar (V19): `ProjectViewService`, `TeamViewService`,

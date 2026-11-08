@@ -1,5 +1,6 @@
 package ch.nokillswit.planning
 
+import io.ktor.server.plugins.BadRequestException
 import io.ktor.util.AttributeKey
 import org.jetbrains.exposed.v1.r2dbc.R2dbcDatabase
 import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
@@ -13,24 +14,33 @@ val RoadmapViewServiceKey = AttributeKey<RoadmapViewService>("RoadmapViewService
  * (case-insensitive, then id). The snapshot keeps the revision and the rows consistent: a write that commits after the
  * transaction began is invisible to every statement of it. Reads `Projects ⋈ Programs ⋈ WorkStreams ⋈ People`,
  * `Milestones ⋈ Teams`, `Dependencies`, `RoadmapEntries` and `PublicHolidays`, and (1.3) the Jira links and flags through [external]
- * (`ExternalFlags.kt`; the Jira tables inside the same snapshot), and writes nothing (`persistence.md`).
+ * (`ExternalFlags.kt`; the Jira tables inside the same snapshot), and writes nothing (`persistence.md`). With `?criticalPath=N` (1.7)
+ * the critical-path kernel runs on the snapshot's own milestone and link rows ([RoadmapCriticalPathKernels]): no further statement.
  */
 class RoadmapViewService(private val database: R2dbcDatabase, private val external: ExternalFlagSource = NoExternalFlags) {
-    suspend fun view(actor: PlanActor, baselineId: UInt? = null): RoadmapView = suspendTransaction(database, SNAPSHOT, readOnly = true) {
-        val revision = readRankingRevision()
-        val header = baselineId?.let { requireActiveBaseline(it) }
-        val snapshot = loadRoadmapSnapshot(actor, external = external)
-        val overlay = header?.let { overlayRoadmap(it, snapshot.projects, snapshot.spans, snapshot.calendar) }
-        val (ranked, unranked) = (overlay?.projects ?: snapshot.projects).partition { it.rankPosition != null }
-        RoadmapView(
-            revision = revision,
-            can = RoadmapViewCan(PlanPermissions.canEditRank(actor)),
-            teams = snapshot.teams,
-            ranked = ranked.sortedBy { it.rankPosition }.map { RoadmapRankedProject(checkNotNull(it.rankPosition), it) },
-            unranked = unranked.sortedWith(compareBy({ it.name.lowercase() }, { it.id })),
-            links = snapshot.links,
-            jiraSites = snapshot.jiraSites,
-            baseline = header?.let { RoadmapBaseline(it.id, it.name, it.planRevision, checkNotNull(overlay).removed) },
-        )
-    }
+    suspend fun view(actor: PlanActor, baselineId: UInt? = null, criticalPathFor: UInt? = null): RoadmapView =
+        suspendTransaction(database, SNAPSHOT, readOnly = true) {
+            val revision = readRankingRevision()
+            val header = baselineId?.let { requireActiveBaseline(it) }
+            val snapshot = loadRoadmapSnapshot(actor, external = external)
+            // A plain 400 (no typed problem): the id is a query value, plan ids are no secret and the page clears its own selection.
+            val criticalPath = criticalPathFor?.let { root ->
+                if (snapshot.projects.none { it.id == root }) throw BadRequestException("Unknown or deleted project id: $root")
+                val result = CriticalPathKernels.analyse(root, snapshot.facts, snapshot.linkFacts, snapshot.calendar)
+                RoadmapCriticalPathKernels.rollUp(root, result, snapshot.facts, snapshot.linkFacts)
+            }
+            val overlay = header?.let { overlayRoadmap(it, snapshot.projects, snapshot.spans, snapshot.calendar) }
+            val (ranked, unranked) = (overlay?.projects ?: snapshot.projects).partition { it.rankPosition != null }
+            RoadmapView(
+                revision = revision,
+                can = RoadmapViewCan(PlanPermissions.canEditRank(actor)),
+                teams = snapshot.teams,
+                ranked = ranked.sortedBy { it.rankPosition }.map { RoadmapRankedProject(checkNotNull(it.rankPosition), it) },
+                unranked = unranked.sortedWith(compareBy({ it.name.lowercase() }, { it.id })),
+                links = snapshot.links,
+                jiraSites = snapshot.jiraSites,
+                baseline = header?.let { RoadmapBaseline(it.id, it.name, it.planRevision, checkNotNull(overlay).removed) },
+                criticalPath = criticalPath,
+            )
+        }
 }

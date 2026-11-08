@@ -7,18 +7,24 @@ import ch.nokillswit.planning.FlagSeverity
 import ch.nokillswit.planning.PlanFlag
 import ch.nokillswit.planning.RankingResponse
 import ch.nokillswit.planning.RankingUpdateRequest
+import ch.nokillswit.planning.RoadmapCriticalPair
+import ch.nokillswit.planning.RoadmapCriticalProject
 import ch.nokillswit.planning.RoadmapLink
 import ch.nokillswit.planning.RoadmapProject
 import ch.nokillswit.planning.RoadmapView
 import ch.nokillswit.planning.TargetWindowRequest
+import ch.nokillswit.plugins.ProblemDetail
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.testing.testApplication
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -248,6 +254,127 @@ class RoadmapViewTest {
             assertEquals(DependencyStatus.OK, restored.direct?.check?.status)
             assertEquals(0, restored.milestoneLinks.violated)
         }
+
+    // --- the critical path toward a picked project (1.7) --------------------------------------------------------------------------
+
+    /**
+     * The chain world: x1 -> y1 -> p1 (projects X, Y, P; 2027-02-01 is a Monday, one week each) and z1, a week ahead of p1's start, which
+     * is five working days of slack for the link z1 -> p1. [empty] is a project with nothing scheduled.
+     */
+    private class Chain(val x: UInt, val y: UInt, val p: UInt, val z: UInt, val empty: UInt)
+
+    private suspend fun PlanWorld.chain(): Chain {
+        val t = requireTeams()
+        val owner = projectOwner.personId!!
+        val ids = List(5) { TestPlan.project(programId, owner, planName("cp$it")) }
+        val (x, y, p) = ids
+        val (z, empty) = ids.drop(3)
+        suspend fun at(project: UInt, start: String, end: String): UInt =
+            TestPlan.milestone(project, t.teamId).also { TestPlan.schedule(it, start, end) }
+        val x1 = at(x, "2027-02-01", "2027-02-05")
+        val y1 = at(y, "2027-02-08", "2027-02-12")
+        val p1 = at(p, "2027-02-15", "2027-02-19")
+        val z1 = at(z, "2027-02-01", "2027-02-05")
+        TestPlan.milestone(empty, t.teamId)
+        TestPlan.dependency(milestoneRef(x1), milestoneRef(y1))
+        TestPlan.dependency(milestoneRef(y1), milestoneRef(p1))
+        TestPlan.dependency(milestoneRef(z1), milestoneRef(p1))
+        return Chain(x, y, p, z, empty)
+    }
+
+    private fun JsonElement.withoutCriticalPath(): JsonElement = JsonObject((this as JsonObject).filterKeys { it != "criticalPath" })
+
+    @Test
+    fun `criticalPath answers the chain toward the picked project - projects by hops and slack, the critical pairs`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("rv-cp", teams = true)
+        val c = w.chain()
+        val block = assertNotNull(w.stranger.client.get("$path?criticalPath=${c.p}").body<RoadmapView>().criticalPath)
+
+        assertEquals(c.p, block.projectId)
+        assertEquals(
+            listOf(
+                RoadmapCriticalProject(c.y, 0, true, 1),
+                RoadmapCriticalProject(c.z, 5, false, 1),
+                RoadmapCriticalProject(c.x, 0, true, 2),
+            ),
+            block.projects,
+            "the target is implied; Z has slack and is off the chain",
+        )
+        assertEquals(
+            listOf(RoadmapCriticalPair(c.x, c.y), RoadmapCriticalPair(c.y, c.p))
+                .sortedWith(compareBy({ it.predecessorProjectId }, { it.successorProjectId })),
+            block.pairs,
+        )
+        // Another target of the same plan: Y's chain is X alone; the same document otherwise.
+        val toY = assertNotNull(w.stranger.client.get("$path?criticalPath=${c.y}").body<RoadmapView>().criticalPath)
+        assertEquals(listOf(RoadmapCriticalProject(c.x, 0, true, 1)), toY.projects)
+        assertEquals(listOf(RoadmapCriticalPair(c.x, c.y)), toY.pairs)
+    }
+
+    @Test
+    fun `a target with nothing scheduled answers empty lists, and a target upstream of nothing has no chain`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("rv-cp-empty", teams = true)
+        val c = w.chain()
+        val empty = assertNotNull(w.stranger.client.get("$path?criticalPath=${c.empty}").body<RoadmapView>().criticalPath)
+        assertEquals(c.empty, empty.projectId)
+        assertTrue(empty.projects.isEmpty() && empty.pairs.isEmpty())
+        val first = assertNotNull(w.stranger.client.get("$path?criticalPath=${c.x}").body<RoadmapView>().criticalPath)
+        assertTrue(first.projects.isEmpty() && first.pairs.isEmpty(), "nothing is upstream of the first project")
+    }
+
+    @Test
+    fun `without the parameter there is no criticalPath key, with it the plain document plus that key - baseline combines`() =
+        testApplication {
+            usePostgresTestcontainer()
+            val w = planWorld("rv-cp-add", teams = true)
+            val c = w.chain()
+            val client = w.stranger.client
+            val plain = client.rawJson(path)
+            assertFalse((plain as JsonObject).containsKey("criticalPath"), "the plain document is exactly what it was")
+            val picked = client.rawJson("$path?criticalPath=${c.p}")
+            assertEquals(plain, picked.withoutCriticalPath(), "the parameter only adds the block")
+            assertTrue((picked as JsonObject).containsKey("criticalPath"))
+
+            val id = TestPlan.baseline()
+            try {
+                val both = client.get("$path?baseline=$id&criticalPath=${c.p}").body<RoadmapView>()
+                assertNotNull(both.baseline, "the baseline block")
+                assertEquals(c.p, assertNotNull(both.criticalPath, "and the chain").projectId)
+                assertEquals(
+                    client.get("$path?baseline=$id").body<RoadmapView>().copy(criticalPath = null),
+                    both.copy(criticalPath = null),
+                    "independent blocks",
+                )
+            } finally {
+                TestPlan.deleteBaseline(id)
+            }
+        }
+
+    @Test
+    fun `criticalPath is refused with 400 - malformed, repeated, unknown, deleted`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("rv-cp-400", teams = true)
+        val c = w.chain()
+        val client = w.stranger.client
+        for (malformed in listOf("abc", "-1", "1.5", "99999999999", "${c.p}&criticalPath=${c.x}")) {
+            val response = client.get("$path?criticalPath=$malformed")
+            assertEquals(HttpStatusCode.BadRequest, response.status, "?criticalPath=$malformed")
+            assertEquals("about:blank", response.body<ProblemDetail>().type, "?criticalPath=$malformed is a plain 400")
+        }
+        val unknown = client.get("$path?criticalPath=999999")
+        assertEquals(HttpStatusCode.BadRequest, unknown.status)
+        assertEquals("Unknown or deleted project id: 999999", unknown.body<ProblemDetail>().detail)
+
+        assertEquals(HttpStatusCode.NoContent, w.admin.client.delete("/api/v1/projects/${c.z}").status)
+        val gone = client.get("$path?criticalPath=${c.z}")
+        assertEquals(HttpStatusCode.BadRequest, gone.status, "a soft-deleted project")
+        assertEquals("Unknown or deleted project id: ${c.z}", gone.body<ProblemDetail>().detail)
+        // A deleted project leaves the chain of the others: Z's link is gone with it.
+        val toP = assertNotNull(client.get("$path?criticalPath=${c.p}").body<RoadmapView>().criticalPath)
+        assertEquals(listOf(c.y, c.x), toP.projects.map { it.projectId })
+    }
 
     private fun warningOnGone(teamId: UInt, other: UInt) = flag(FlagKind.RANK_INVERSION, FlagSeverity.WARNING, 7, teamId, other)
 

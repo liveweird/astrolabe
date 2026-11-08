@@ -1922,6 +1922,14 @@ paths:
       summary: The global project ranking with spans, flags and rolled-up links
       parameters:
         - $ref: '#/components/parameters/BaselineQuery'
+        - name: criticalPath
+          in: query
+          required: false
+          schema: { type: integer, format: int32, minimum: 0 }
+          description: >-
+            The id of an ACTIVE project to show the critical chain toward (the roadmap's pick). Absent: no `criticalPath` block, and the
+            document is byte-identical to the one without the parameter. A repeated key or a value that is not a non-negative integer is a
+            `400`, as is an id that is unknown or soft-deleted (a plain `400`: plan ids are no secret and the page clears its own pick).
       description: |
         Any authenticated user. One document (a deliberate exception to the paged envelope, bounded by the plan's scale of about 100
         projects, 1,000 milestones and 300 project pairs): `ranked` in position order (dense 1..n) and `unranked`, the active projects
@@ -1953,6 +1961,15 @@ paths:
         With `?baseline=N` the document gains `baseline` (the baseline's identity and the projects it froze that are gone) and every
         project the baseline also froze gains a `baseline` block: the derived span, rank position and target window it had and the
         span's movement in working days on the CURRENT calendar (a project row without the block is newer than the baseline).
+
+        With `?criticalPath=N` (1.7) the document gains `criticalPath`: the critical chain toward project N's end, over the whole plan
+        graph on the planned dates (the project view's rule, `GET /views/project/{id}`), rolled up to this view's grain, in the same
+        snapshot. `projects` lists the OTHER projects upstream of N's end (N itself is implied: critical, slack 0) with the least
+        `slackDays` among their upstream milestones, `critical` when any is on the chain and the fewest `hops` (links) to N, by hops,
+        slack, id; `pairs` are the ordered project pairs holding at least one link on the chain (a pair with one direct link and several
+        milestone links is critical when ANY of them is: the per-link truth is the project page's). A project with nothing scheduled
+        answers both lists empty; a target filtered out of the page's view stays the target. The parameter combines with `baseline`
+        (independent blocks), and the rest of the document is unchanged.
       responses:
         '200':
           description: The ranking
@@ -1962,8 +1979,9 @@ paths:
                 $ref: '#/components/schemas/RoadmapView'
         '400':
           description: >-
-            Malformed request (`baseline` that is not a non-negative integer, or repeated), or `baseline` names an unknown or deleted
-            baseline (`type` `urn:astrolabe:problem:unknown-baseline`).
+            Malformed request (`baseline` or `criticalPath` that is not a non-negative integer, or repeated), `baseline` names an
+            unknown or deleted baseline (`type` `urn:astrolabe:problem:unknown-baseline`), or `criticalPath` names an unknown or deleted
+            project.
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/ProblemDetail' }
@@ -5881,6 +5899,42 @@ components:
             $ref: '#/components/schemas/JiraSite'
         baseline:
           $ref: '#/components/schemas/RoadmapBaseline'
+        criticalPath:
+          $ref: '#/components/schemas/RoadmapCriticalPath'
+    RoadmapCriticalPath:
+      type: object
+      required: [projectId, projects, pairs]
+      description: >-
+        Present only with `?criticalPath=N`: the critical chain toward project N's end, rolled up to projects and project pairs.
+      properties:
+        projectId: { type: integer, format: int32, minimum: 0, description: The target project (N). }
+        projects:
+          type: array
+          description: >-
+            The OTHER projects upstream of the target's end, by hops, slack and id (the target is implied); empty while nothing is
+            scheduled in it.
+          items:
+            $ref: '#/components/schemas/RoadmapCriticalProject'
+        pairs:
+          type: array
+          description: The ordered project pairs holding at least one link on the chain, by (predecessor, successor) project id.
+          items:
+            $ref: '#/components/schemas/RoadmapCriticalPair'
+    RoadmapCriticalProject:
+      type: object
+      required: [projectId, slackDays, critical, hops]
+      properties:
+        projectId: { type: integer, format: int32, minimum: 0 }
+        slackDays: { type: integer, format: int32, minimum: 0, description: "The least slack, in working days, among the project's upstream milestones (itself, when a link names it)." }
+        critical: { type: boolean, description: Any of them is on the chain (zero slack). }
+        hops: { type: integer, format: int32, minimum: 1, description: The fewest links between any of them and the target. }
+    RoadmapCriticalPair:
+      type: object
+      required: [predecessorProjectId, successorProjectId]
+      description: An ordered project pair with a link on the chain; marks the pair's direct and bundle arrows.
+      properties:
+        predecessorProjectId: { type: integer, format: int32, minimum: 0 }
+        successorProjectId: { type: integer, format: int32, minimum: 0 }
     RoadmapTeam:
       type: object
       required: [id, name]

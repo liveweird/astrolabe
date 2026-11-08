@@ -30,6 +30,9 @@ data class RoadmapView(
     /** Present only for `?baseline=N`: which baseline the projects' `baseline` blocks compare to, and the projects it had that are gone. */
     @EncodeDefault(EncodeDefault.Mode.NEVER)
     val baseline: RoadmapBaseline? = null,
+    /** Present only for `?criticalPath=N`: the chain toward that project, rolled up to projects and pairs ([RoadmapCriticalPath]). */
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val criticalPath: RoadmapCriticalPath? = null,
 )
 
 /** [editRank]: the caller may `PUT /roadmap/ranking` (ADMIN or a `ROADMAP_EDITOR`, as `requireRoadmapEditorOrAdmin`). */

@@ -3,6 +3,7 @@ package ch.nokillswit.planning
 import ch.nokillswit.audit.audit
 import ch.nokillswit.authz.caller
 import ch.nokillswit.authz.requireRoadmapEditorOrAdmin
+import ch.nokillswit.infra.paging.optionalUInt
 import io.ktor.http.HttpStatusCode
 import io.ktor.resources.Resource
 import io.ktor.server.application.*
@@ -22,6 +23,12 @@ class RoadmapViewRoute
 class RoadmapRankingRoute
 
 /**
+ * The optional `?criticalPath=N` of the roadmap view (1.7): absent/blank = no block, a repeated key or a value that is not a
+ * non-negative integer is a plain `400` (`optionalUInt`, as `?baseline=`). Whether N names an ACTIVE project is the service's question.
+ */
+private fun ApplicationCall.criticalPathParam(): UInt? = request.queryParameters.optionalUInt("criticalPath")
+
+/**
  * The global project rank. `GET /views/roadmap`: any authenticated user reads it; `can.editRank` and each project's
  * `can.editTargetWindow` carry the caller's rights (the view service travels beside [PlanRouteDeps], see [PlanViewServices]).
  * `PUT /roadmap/ranking`: ADMIN or a `ROADMAP_EDITOR`, GUARD-BEFORE-READ (the route addresses no node: the guard runs before the
@@ -31,7 +38,7 @@ class RoadmapRankingRoute
 internal fun Route.roadmapRoutes(d: PlanRouteDeps, views: PlanViewServices) {
     get<RoadmapViewRoute> {
         val caller = call.caller()
-        call.respond(HttpStatusCode.OK, views.roadmap.view(d.actor(caller), call.baselineParam()))
+        call.respond(HttpStatusCode.OK, views.roadmap.view(d.actor(caller), call.baselineParam(), call.criticalPathParam()))
     }
     put<RoadmapRankingRoute> {
         val caller = call.caller()

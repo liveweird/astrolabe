@@ -23,6 +23,10 @@ internal class RoadmapSnapshot(
     val spans: Map<UInt, DaySpan>,
     /** The working calendar the snapshot read (the baseline overlay measures movement on it). */
     val calendar: WorkingCalendar,
+    /** The active milestones of the projects in scope, as the kernels read them (the critical path runs on these rows, no second read). */
+    val facts: List<PlanMilestoneFact>,
+    /** Every active link ([emptyList] when the snapshot skipped the links: [loadRoadmapSnapshot]'s `withLinks`). */
+    val linkFacts: List<PlanLinkFact>,
     /** The external-tracker connections the bindings in scope link to ([ExternalFlags.sites]; empty without a source or a binding). */
     val jiraSites: List<JiraSite> = emptyList(),
 )
@@ -79,8 +83,9 @@ internal suspend fun loadRoadmapSnapshot(
     val teams = milestones.filter { it.fact.projectId in known }.associate { it.fact.teamId to it.teamName }
         .map { (id, name) -> RoadmapTeam(id, name) }
         .sortedWith(compareBy({ it.name.lowercase() }, { it.id }))
-    val links = if (withLinks) RoadmapKernels.linkAggregates(linkFacts(), projectFacts, facts, spans, calendar) else emptyList()
-    return RoadmapSnapshot(projects, teams, links, spans, calendar, outside.sites)
+    val linkRows = if (withLinks) linkFacts() else emptyList()
+    val links = if (withLinks) RoadmapKernels.linkAggregates(linkRows, projectFacts, facts, spans, calendar) else emptyList()
+    return RoadmapSnapshot(projects, teams, links, spans, calendar, facts, linkRows, outside.sites)
 }
 
 /**

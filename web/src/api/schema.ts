@@ -1337,6 +1337,15 @@ export interface paths {
          *     With `?baseline=N` the document gains `baseline` (the baseline's identity and the projects it froze that are gone) and every
          *     project the baseline also froze gains a `baseline` block: the derived span, rank position and target window it had and the
          *     span's movement in working days on the CURRENT calendar (a project row without the block is newer than the baseline).
+         *
+         *     With `?criticalPath=N` (1.7) the document gains `criticalPath`: the critical chain toward project N's end, over the whole plan
+         *     graph on the planned dates (the project view's rule, `GET /views/project/{id}`), rolled up to this view's grain, in the same
+         *     snapshot. `projects` lists the OTHER projects upstream of N's end (N itself is implied: critical, slack 0) with the least
+         *     `slackDays` among their upstream milestones, `critical` when any is on the chain and the fewest `hops` (links) to N, by hops,
+         *     slack, id; `pairs` are the ordered project pairs holding at least one link on the chain (a pair with one direct link and several
+         *     milestone links is critical when ANY of them is: the per-link truth is the project page's). A project with nothing scheduled
+         *     answers both lists empty; a target filtered out of the page's view stays the target. The parameter combines with `baseline`
+         *     (independent blocks), and the rest of the document is unchanged.
          */
         get: operations["getRoadmapView"];
         put?: never;
@@ -4627,6 +4636,42 @@ export interface components {
             /** @description The Jira connections, enabled or not, that a binding in this document's scope links to (a roadmap or programs document also lists a connection that only has milestone bindings), by connection id, once per document; the client builds a row's browse URL as `siteUrl + "/browse/" + jira.issueKey`. Empty when nothing is linked. */
             jiraSites: components["schemas"]["JiraSite"][];
             baseline?: components["schemas"]["RoadmapBaseline"];
+            criticalPath?: components["schemas"]["RoadmapCriticalPath"];
+        };
+        /** @description Present only with `?criticalPath=N`: the critical chain toward project N's end, rolled up to projects and project pairs. */
+        RoadmapCriticalPath: {
+            /**
+             * Format: int32
+             * @description The target project (N).
+             */
+            projectId: number;
+            /** @description The OTHER projects upstream of the target's end, by hops, slack and id (the target is implied); empty while nothing is scheduled in it. */
+            projects: components["schemas"]["RoadmapCriticalProject"][];
+            /** @description The ordered project pairs holding at least one link on the chain, by (predecessor, successor) project id. */
+            pairs: components["schemas"]["RoadmapCriticalPair"][];
+        };
+        RoadmapCriticalProject: {
+            /** Format: int32 */
+            projectId: number;
+            /**
+             * Format: int32
+             * @description The least slack, in working days, among the project's upstream milestones (itself, when a link names it).
+             */
+            slackDays: number;
+            /** @description Any of them is on the chain (zero slack). */
+            critical: boolean;
+            /**
+             * Format: int32
+             * @description The fewest links between any of them and the target.
+             */
+            hops: number;
+        };
+        /** @description An ordered project pair with a link on the chain; marks the pair's direct and bundle arrows. */
+        RoadmapCriticalPair: {
+            /** Format: int32 */
+            predecessorProjectId: number;
+            /** Format: int32 */
+            successorProjectId: number;
         };
         RoadmapTeam: {
             /** Format: int32 */
@@ -8729,6 +8774,8 @@ export interface operations {
                  *     still `404`. The comparison is computed in the same snapshot as the view, so its figures are consistent with the rows.
                  */
                 baseline?: components["parameters"]["BaselineQuery"];
+                /** @description The id of an ACTIVE project to show the critical chain toward (the roadmap's pick). Absent: no `criticalPath` block, and the document is byte-identical to the one without the parameter. A repeated key or a value that is not a non-negative integer is a `400`, as is an id that is unknown or soft-deleted (a plain `400`: plan ids are no secret and the page clears its own pick). */
+                criticalPath?: number;
             };
             header?: never;
             path?: never;
@@ -8745,7 +8792,7 @@ export interface operations {
                     "application/json": components["schemas"]["RoadmapView"];
                 };
             };
-            /** @description Malformed request (`baseline` that is not a non-negative integer, or repeated), or `baseline` names an unknown or deleted baseline (`type` `urn:astrolabe:problem:unknown-baseline`). */
+            /** @description Malformed request (`baseline` or `criticalPath` that is not a non-negative integer, or repeated), `baseline` names an unknown or deleted baseline (`type` `urn:astrolabe:problem:unknown-baseline`), or `criticalPath` names an unknown or deleted project. */
             400: {
                 headers: {
                     [name: string]: unknown;
