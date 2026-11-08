@@ -117,11 +117,17 @@ class SharedPauseTest {
     @Test
     fun `a call started inside another caller's Retry-After gets its full deadline after the pause, not what the pause left`() =
         runBlocking<Unit> {
+            val aRequests = AtomicInteger()
             val bRequests = AtomicInteger()
             val retryAfter120 = headersOf(HttpHeaders.RetryAfter, "120")
             val engine = MockEngine { request ->
                 when {
-                    request.url.encodedPath == "/a" -> respond("{}", HttpStatusCode.TooManyRequests, retryAfter120)
+                    // /a is limited once and answered on its retry: a SECOND 429 from /a would record a further 120 s pause on the shared
+                    // clock, and whether that lands before /b's deadline check depends on which of the two resumed callers runs first
+                    // (the next test pins that ordering). Here neither order can change the outcome.
+                    request.url.encodedPath == "/a" ->
+                        if (aRequests.incrementAndGet() == 1) respond("{}", HttpStatusCode.TooManyRequests, retryAfter120)
+                        else respond("{}", HttpStatusCode.OK, JSON_HEADERS)
                     bRequests.incrementAndGet() == 1 -> respond("{}", HttpStatusCode.TooManyRequests, retryAfter120)
                     else -> respond("{}", HttpStatusCode.OK, JSON_HEADERS)
                 }
@@ -133,7 +139,7 @@ class SharedPauseTest {
                 gate.await()
                 clock.updateAndGet { maxOf(it, begin + ms) }
             }
-            val a = async(Dispatchers.Default, start = CoroutineStart.UNDISPATCHED) { runCatching { http.get("/a") } }
+            val a = async(Dispatchers.Default, start = CoroutineStart.UNDISPATCHED) { http.get("/a") }
             waitUntil { sleeps.size == 1 } // /a got its 429, recorded the 120 s pause and sleeps its backoff
             val b = async(Dispatchers.Default, start = CoroutineStart.UNDISPATCHED) { http.get("/b") }
             waitUntil { sleeps.size == 2 } // /b started INSIDE the pause and waits it out, holding no permit
@@ -143,6 +149,55 @@ class SharedPauseTest {
             withTimeout(TIMEOUT_MILLIS) { b.await() }
             assertEquals(2, bRequests.get(), "/b was retried once and then answered")
             withTimeout(TIMEOUT_MILLIS) { a.await() }
+            assertEquals(2, aRequests.get(), "/a was retried once and then answered")
+        }
+
+    @Test
+    fun `a sibling's later Retry-After that extends the pause past a call's running deadline refuses that call's retry`() =
+        runBlocking<Unit> {
+            val bRequests = AtomicInteger()
+            val aRequests = AtomicInteger()
+            val bBackedOff = CompletableDeferred<Unit>()
+            val aSettled = CompletableDeferred<Unit>()
+            val retryAfter120 = headersOf(HttpHeaders.RetryAfter, "120")
+            val engine = MockEngine { request ->
+                if (request.url.encodedPath == "/a") {
+                    // /a's RETRY is held back until /b has served its own backoff, so it is limited again - and records a second 120 s
+                    // pause - after /b's 150 s deadline began, the ordering that made the previous test flaky when /a ran late.
+                    if (aRequests.incrementAndGet() == 2) bBackedOff.await()
+                    respond("{}", HttpStatusCode.TooManyRequests, retryAfter120)
+                } else if (bRequests.incrementAndGet() == 1) {
+                    respond("{}", HttpStatusCode.TooManyRequests, retryAfter120)
+                } else {
+                    respond("{}", HttpStatusCode.OK, JSON_HEADERS)
+                }
+            }
+            val gate = CompletableDeferred<Unit>()
+            val http = http(engine, limit = 2, maxRetries = 1, deadlineMillis = 150_000) { ms ->
+                val begin = clock.get()
+                gate.await()
+                clock.updateAndGet { maxOf(it, begin + ms) }
+                // The third sleep is /b's backoff: once it is served, release /a's retry and wait until /a has recorded its pause.
+                if (sleeps.size == 3) {
+                    bBackedOff.complete(Unit)
+                    aSettled.await()
+                }
+            }
+            val a = async(Dispatchers.Default, start = CoroutineStart.UNDISPATCHED) {
+                runCatching { http.get("/a") }.also { aSettled.complete(Unit) }
+            }
+            waitUntil { sleeps.size == 1 }
+            val b = async(Dispatchers.Default, start = CoroutineStart.UNDISPATCHED) { runCatching { http.get("/b") } }
+            waitUntil { sleeps.size == 2 }
+
+            gate.complete(Unit)
+            val aFailure = withTimeout(TIMEOUT_MILLIS) { a.await() }.exceptionOrNull()
+            assertIs<FetchException>(aFailure)
+            assertEquals("RATE_LIMITED", aFailure.code, "/a's retry was limited again and it has no retries left")
+            val bFailure = withTimeout(TIMEOUT_MILLIS) { b.await() }.exceptionOrNull()
+            assertIs<FetchException>(bFailure)
+            assertEquals("RATE_LIMITED", bFailure.code, "the pause /a's retry recorded outlasts /b's deadline, so /b's retry is not sent")
+            assertEquals(1, bRequests.get(), "/b's retry was never sent")
         }
 
     @Test
