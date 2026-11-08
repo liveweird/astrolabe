@@ -11,13 +11,14 @@ import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
 val PlanViewServiceKey = AttributeKey<PlanViewService>("PlanViewService")
 
 /**
- * The plan tree (`GET /views/plan`): ONE read transaction that takes the revision FIRST and the rows after (no isolation upgrade —
- * a row newer than the revision only makes a later PUT carrying that revision answer a conservative 409), then folds the three levels
- * together in memory (bounded by the plan's scale) with the caller's `can` flags from [PlanPermissions]. Order: open work streams
- * before closed ones, every level by name (case-insensitive, then id).
+ * The plan tree (`GET /views/plan`): ONE read-only REPEATABLE READ transaction ([SNAPSHOT], the timeline views' protocol) that takes
+ * the revision FIRST and the rows after, takes no lock and writes nothing, so the revision, the three levels and the owners' names are
+ * one snapshot and a write committing between the selects cannot tear the tree. They are folded together in memory (bounded by the
+ * plan's scale) with the caller's `can` flags from [PlanPermissions]. Order: open work streams before closed ones, every level by
+ * name (case-insensitive, then id).
  */
 class PlanViewService(private val database: R2dbcDatabase) {
-    suspend fun view(actor: PlanActor): PlanView = suspendTransaction(database) {
+    suspend fun view(actor: PlanActor): PlanView = suspendTransaction(database, SNAPSHOT, readOnly = true) {
         val revision = readPlanRevision()
         val streams = WorkStreamService.WorkStreams
         val programs = ProgramService.Programs

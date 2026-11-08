@@ -249,8 +249,8 @@ function (`deleteCapacityPeriodsOf`, `removeFromRanking`, …) counts as the cal
   services also read each other's tables inside one feature: a delete counts the ACTIVE children (`Programs` from the work stream delete, `Projects` from the
   program delete) and the chain lookups join all three. `work_streams`/`programs`/`projects` hold `owner_person_id → people(id)` with no `ON DELETE` rule:
   people are only ever soft-deleted and `PersonService.delete` refuses (409) while an ACTIVE node names the person. `PlanViewService` reads the three tables
-  (and `people` names) in one plain `suspendTransaction` (READ COMMITTED, no `SNAPSHOT`: a write between its selects can tear the tree; `BACKLOG.md`), the
-  revision first.
+  (and `people` names) in one `SNAPSHOT` read-only transaction (below), the revision first; `PlanViewSnapshotTest` pins that a write committing between its
+  selects cannot tear the tree.
 - `planning/` (V13): `RoadmapService` reads `ProjectService.Projects`, `ProgramService.Programs`, `WorkStreamService.WorkStreams` (the view's names, the
   active-id check of a ranking write) and `PersonService.People` (owner names, via `OwnerChains.kt`); it owns `roadmap_entries`, and `ProjectService.delete`
   WRITES it through `removeFromRanking` (same package, same locked transaction — no other feature touches the table).
@@ -313,7 +313,7 @@ function (`deleteCapacityPeriodsOf`, `removeFromRanking`, …) counts as the cal
 - **The timeline views read …** the plan's tables under one shared protocol: each view is ONE READ ONLY REPEATABLE READ snapshot
   (`suspendTransaction(database, IsolationLevel.REPEATABLE_READ, readOnly = true)`, `io.r2dbc.spi.IsolationLevel`; the `SNAPSHOT` constant) that reads the
   revision FIRST (`readPlanRevision()`; the roadmap: the ranking revision), takes no lock and writes nothing, so the revision, the milestones, the links, the external ends, the chains and the
-  calendar are one snapshot; every other read in this layer (the lists, `PlanViewService`) stays at the default READ COMMITTED. The project view:
+  calendar are one snapshot (`PlanViewService` included); the lists in this layer stay at the default READ COMMITTED. The project view:
   `ProjectViewService` (`GET /views/project/{id}`) reads the project through `projectChainRow` (`OwnerChains.kt`: the ONE project-chain join + active predicate,
   which `projectChain` also uses; it joins `PersonService.People` for the owner name) and also reads `ProjectService.Projects`, `ProgramService.Programs`,
   `WorkStreamService.WorkStreams`, `MilestoneService.Milestones` and `TeamService.Teams` (the milestones ⋈ teams join for `teamName`, no `active()` filter on
@@ -734,7 +734,7 @@ Dates are `DATE` through `LocalDateColumn.kt` (`start_date`/`end_date`, `target_
 **Every write of these tables (and of `milestones`, V14 — the batch schedule of v0.8.0 included —, `dependencies`, V15, and `team_milestone_orders`/`team_order_state`, V17, `public_holidays`, V19, and the `baselines` registry with its frozen rows, V20) runs in `withPlanWrite`** (`planning/PlanState.kt`): `SELECT revision FROM plan_state WHERE id = 1 FOR UPDATE`, the block, `UPDATE … revision = revision + 1`. **This is the one deliberate PLAIN
 `FOR UPDATE` on a table the code treats as a lock row** — justified by the rule above: nothing references `plan_state` by a foreign key (no FK check can queue behind or in front of it) and its key never changes, so the
 `FOR NO KEY UPDATE` refinement buys nothing. Because all plan writers serialize there, the node services take no per-row locks; the plan lock is held across the whole block, which makes the delete's child count race-free
-and lets the ranking (V13) compare `expectedRevision` atomically — against `plan_state.ranking_revision` (V18), which `replaceRanking` and `removeFromRanking` stamp with the new plan revision (`revision + 1`). A block that throws rolls the bump back. Reads (`PlanViewService`, `RoadmapViewService.view`) read the revision first without the lock (`PlanViewService` in a plain READ COMMITTED transaction, so its three selects are not one snapshot; the roadmap view is `SNAPSHOT, readOnly`). `ProjectService.delete` calls
+and lets the ranking (V13) compare `expectedRevision` atomically — against `plan_state.ranking_revision` (V18), which `replaceRanking` and `removeFromRanking` stamp with the new plan revision (`revision + 1`). A block that throws rolls the bump back. Reads (`PlanViewService`, `RoadmapViewService.view`) read the revision first without the lock (both views are `SNAPSHOT, readOnly`). `ProjectService.delete` calls
 `removeFromRanking`: the project's `roadmap_entries` row is hard-deleted and the positions above renumbered in the same locked transaction.
 
 ### The roadmap rank (V13)

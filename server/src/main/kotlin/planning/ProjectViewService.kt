@@ -16,7 +16,7 @@ internal val SNAPSHOT = IsolationLevel.REPEATABLE_READ
 
 /**
  * One project, its milestones and its dependencies (`GET /views/project/{id}`): ONE read transaction that takes the revision FIRST and
- * the rows after (the plan view's protocol — a row newer than the revision only makes a later schedule PUT carrying it answer a
+ * the rows after (the timeline views' protocol — a row newer than the revision only makes a later schedule PUT carrying it answer a
  * conservative 409), then the working calendar ([loadWorkingCalendar], the holiday dictionary, same snapshot), then the critical path
  * over the WHOLE active plan graph ([loadCriticalPath], `CriticalPathKernels`), then derives the span
  * and the drift with [SpanKernels], checks the links ([projectDependencies], the pure [DependencyKernels]) and computes the caller's
