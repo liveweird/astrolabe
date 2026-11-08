@@ -17,7 +17,8 @@ Read the page's section before changing the page; a new how-it-works paragraph g
   contract**: `npm run lint:api` Spectral-lints the spec and `api-guidelines/examples/conformant.yaml` through `web/spectral.astrolabe.yaml` (a finding is fixed
   in the spec; the shared `api-guidelines/api-guidelines.spectral.yaml` is never edited; a new local `off` needs an inapplicability comment);
   `npm run check:api` diffs the in-memory regeneration against `src/api/schema.ts` and must never overwrite it, so `gen:api` stays the one command that updates
-  it. Cache, ignore lists and the version stamp: web-internals "Quality gates and the build stamp".
+  it. **Size gate**: no `web/src` `.ts`/`.tsx` file passes 400 lines (`wc -l`) — `src/sourceFileSize.test.ts`, twin of the server's `SourceFileSizeTest`, with an exact ratchet
+  for the grandfathered `OVERSIZED` list (generated `schema.ts`, `entries.ts`, tests excluded); split by concern first. Cache, ignore lists and the version stamp: web-internals "Quality gates and the build stamp".
 
 ## Layout conventions
 
