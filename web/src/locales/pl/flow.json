@@ -219,7 +219,7 @@
     "empty": "Nie ma czego importować: Flow nie podaje dla tego zespołu żadnych sprintów w tym zakresie.",
     "previewAria": "Podgląd importu przepustowości",
     "removalsTitle": "Okresy, które zostałyby usunięte",
-    "removalsIntro": "Okresy z Flow zaimportowane wcześniej, których żaden sprint już nie wykorzystuje. Nic nie zostanie usunięte, jeśli tego nie zaznaczysz.",
+    "removalsIntro": "Okresy z Flow zaimportowane wcześniej, których żaden sprint już nie wykorzystuje. Nic nie zostanie usunięte, jeśli tego nie zaznaczysz. Usunięcie okresu bez zaimportowania nowego wiersza jego sprintu pozostawia w tych dniach wartość wcześniejszego sprintu.",
     "removalsAria": "Okresy z Flow, które zostałyby usunięte",
     "selectRow": "Importuj {{name}}",
     "selectRemoval": "Usuń okres od {{date}}",
@@ -253,14 +253,16 @@
       "NO_DATES": "Flow nie podaje użytecznych dat tego sprintu.",
       "NO_CAPACITY": "Flow nie podaje przepustowości tego sprintu.",
       "NO_WORKING_DAY": "W sprincie nie ma dnia roboczego.",
-      "OVERLAPS": "Nakłada się na poprzedni sprint; wygrywa wcześniejszy.",
+      "OVERLAPS": "Mieści się w całości we wcześniejszym sprincie: Flow nie liczy mu żadnego dnia.",
       "OUT_OF_RANGE": "Wartość jest poza tym, co może zawierać okres.",
       "MANUAL_PERIOD": "W tym dniu zaczyna się okres wpisany ręcznie i nigdy nie jest zmieniany.",
       "UNCHANGED": "Już zaimportowany."
     },
     "info": {
       "MANUAL_PERIOD_INSIDE": "Okres wpisany ręcznie zaczyna się {{date}}, w środku sprintu: wartość sprintu nie obowiązuje od tego dnia.",
-      "ZERO_CAPACITY": "Flow podaje 0 osobodni: domyślnie niezaznaczony."
+      "ZERO_CAPACITY": "Flow podaje 0 osobodni: domyślnie niezaznaczony.",
+      "LONG_WINDOW": "Ten sprint przekracza 60-dniowy limit kalendarza sprintu we Flow (liczba dni kalendarzowych: {{days}}): sprawdź jego daty w Jirze przed importem; sprinty w jego środku nie liczą żadnego dnia. Domyślnie niezaznaczony.",
+      "FIXED_FIGURE": "Wartość z Flow to stała suma na cały sprint, więc rozkładamy ją na cały sprint (liczba dni roboczych sprintu: {{days}}); część jego dni należy do wcześniejszego sprintu."
     },
     "closedNote": "Zakończył się przed {{from}}: domyślnie niezaznaczony.",
     "summary": "Zaznaczono: {{total}} · do utworzenia: {{create}} · do zaktualizowania: {{update}} · do usunięcia: {{remove}}",

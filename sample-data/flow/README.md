@@ -57,7 +57,7 @@ interval starts/ends at a Warsaw midnight and is **half-open, as in Flow**: a me
 | `Legacy Mainframe` | planted: no Astrolabe counterpart, no manager, `defaultCapacityMd: null`. Its 15 DATED sprints carry `capacityMd: null` / `capacitySource: null` (each imports as `NO_CAPACITY`): **SYNTHETIC**, a robustness case for the nullable wire type, because Flow's `DeriveSprintStep` never emits null for a dated sprint of a team (it falls back to `TEAM_DEFAULT` or `DEFAULT` = members x days, possibly 0.0). Plus one UNDATED sprint (no dates, null/null), which IS reachable in Flow: a team without a default has nothing to derive from |
 | `Empty Team` | planted: no members and no sprints, no manager, no default (no suggestion) |
 | `Identity` | planted: "Identity Sprint 31" ends on the Monday (10:00) "Identity Sprint 32" starts on (Flow's shared day, `metrics.md` A42): the capacity import gives the Monday to sprint 31 (11 working days) and sprint 32 holds from Tuesday (9) |
-| `Support Tooling` | planted: a one-week "Support Tooling Sprint 30 (hotfix)" wholly inside "Support Tooling Sprint 30" (`OVERLAPS`: the earlier start wins) |
+| `Support Tooling` | planted: a one-week "Support Tooling Sprint 30 (hotfix)" wholly inside "Support Tooling Sprint 30" (`OVERLAPS`: wholly inside, so Flow counts no day for it) |
 | `Analytics` | planted: "Analytics Sprint 34 (undated)", a future sprint with no dates (`NO_DATES`) on a team WITH a default: `capacitySource: "TEAM_DEFAULT"`, `hasCalendar: false`, the default's figure, as Flow derives it |
 | `Mobile` | planted: the last future sprint's capacity comes from `capacitySource: "DEFAULT"` (40 MD) |
 | `Web Frontend` | planted: one membership with `displayName: null` |

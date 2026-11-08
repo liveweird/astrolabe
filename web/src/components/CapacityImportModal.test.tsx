@@ -82,6 +82,48 @@ describe("CapacityImportModal", () => {
     expect(screen.getByText(/Each imported period holds until the next one starts/)).toBeInTheDocument();
   });
 
+  test("a sprint over Flow's 60-day cap says how many days it spans and starts unticked; a sprint wholly inside another says Flow counts no day for it", async () => {
+    const long = previewItem({
+      sprintId: 201,
+      name: "Sprint 201",
+      start: "2025-11-01",
+      end: "2027-09-08",
+      effectiveFrom: "2025-11-01",
+      workingDays: 483,
+      flowMd: 2790,
+      mdPerWeek: 28.88,
+      infos: [{ code: "LONG_WINDOW", date: null }],
+      ticked: false,
+    });
+    const fixed = previewItem({ sprintId: 203, name: "Sprint 203", workingDays: 5, mdPerWeek: 20, infos: [{ code: "FIXED_FIGURE", date: null, days: 10 }], ticked: false });
+    const inside = previewItem({ sprintId: 202, name: "Sprint 202", start: "2026-01-05", end: "2026-01-16", effectiveFrom: null, workingDays: null, mdPerWeek: null, action: "SKIP", reason: "OVERLAPS", ticked: false });
+    serve(mockFetch, { previews: [{ ...PREVIEW, items: [long, inside, fixed], removals: [], totals: { create: 1, update: 0, unchanged: 0, skip: 1, removals: 0 } }] });
+    renderModal();
+    const grid = await table();
+    expect(within(grid).getByRole("checkbox", { name: "Import Sprint 201" })).toBeInTheDocument();
+    expect(within(grid).getByRole("checkbox", { name: "Import Sprint 201" })).not.toBeChecked();
+    expect(within(grid).getByRole("row", { name: /Sprint 201/ })).toHaveTextContent(
+      "This sprint spans 677 calendar days, more than Flow's 60-day cap for a sprint calendar: check its dates in Jira before importing it; the sprints inside it count no day. Not selected by default.",
+    );
+    expect(within(grid).getByRole("row", { name: /Sprint 202/ })).toHaveTextContent("It lies wholly inside an earlier sprint: Flow counts no day for it.");
+    expect(within(grid).queryByRole("checkbox", { name: "Import Sprint 202" })).not.toBeInTheDocument();
+    expect(within(grid).getByRole("row", { name: /Sprint 203/ })).toHaveTextContent(
+      "Flow's figure is a fixed total for the whole sprint, so it is spread over the sprint's 10 working days; some of its days belong to an earlier sprint.",
+    );
+    expect(screen.getByText("Selected: 0 · to create: 0 · to update: 0 · to remove: 0")).toBeInTheDocument();
+    // The person may still tick it on purpose: the apply body then carries the row with the figure the preview showed.
+    await userEvent.click(within(grid).getByRole("checkbox", { name: "Import Sprint 201" }));
+    expect(screen.getByText("Selected: 1 · to create: 1 · to update: 0 · to remove: 0")).toBeInTheDocument();
+    await userEvent.click(importButton());
+    await waitFor(() => expect(posts(mockFetch, IMPORT_URL)).toHaveLength(1));
+    expect(posts(mockFetch, IMPORT_URL)[0]).toEqual({
+      from: "2026-11-08",
+      includeClosed: false,
+      items: [{ sprintId: 201, expected: { action: "CREATE", effectiveFrom: "2025-11-01", mdPerWeek: 28.88 } }],
+      removals: [],
+    });
+  });
+
   test("a closed sprint is listed unticked with its own note, and the toggle asks for the closed ones", async () => {
     const closed = { ...PREVIEW, includeClosed: true, items: [previewItem({ sprintId: 90, name: "Sprint 90", start: "2026-10-12", end: "2026-10-23", effectiveFrom: "2026-10-12", state: "closed", ticked: false })], removals: [] };
     serve(mockFetch, { previews: [PREVIEW, closed] });

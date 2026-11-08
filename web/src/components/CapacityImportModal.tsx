@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Alert, Button, Checkbox, Group, Modal, Stack, Switch, Table, Text, Title } from "@mantine/core";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { applyCapacityImport, previewCapacityImport, type CapacityApplyResponse, type CapacityPreview, type CapacityPreviewItem } from "../api/flow";
-import { applyRequest, defaultTicks, importFailure, isClosed, isImportable, outcomeSentence } from "../utils/capacityImport";
+import { applyRequest, defaultTicks, importFailure, infoSentence, isClosed, isImportable, outcomeSentence } from "../utils/capacityImport";
 import FormErrorAlert from "./FormErrorAlert";
 import LoadingBlock from "./LoadingBlock";
 import ScrollRegion from "./ScrollRegion";
@@ -24,14 +24,14 @@ function FailureAlert({ failure, title }: { failure: { message: string; detail?:
 
 const STATES = new Set(["closed", "active", "future"]);
 
-/** The note column of one row: why it is left alone, then the infos (a hand-entered period inside the sprint, a zero figure) and the closed hint. */
+/** The note column of one row: why it is left alone, then the infos (a hand-entered period inside the sprint, a zero figure, a window over Flow's 60-day cap) and the closed hint. */
 function RowNotes({ item, from }: { item: CapacityPreviewItem; from: string }) {
   const { t } = useTranslation();
   const notes: string[] = [];
   if (item.action === "SKIP" && item.reason !== null) notes.push(t(`flow.import.reason.${item.reason}`));
   if (item.action === "MANUAL_PERIOD") notes.push(t("flow.import.reason.MANUAL_PERIOD"));
   if (item.action === "UNCHANGED") notes.push(t("flow.import.reason.UNCHANGED"));
-  for (const info of item.infos) notes.push(info.code === "MANUAL_PERIOD_INSIDE" ? t("flow.import.info.MANUAL_PERIOD_INSIDE", { date: info.date }) : t("flow.import.info.ZERO_CAPACITY"));
+  for (const info of item.infos) notes.push(infoSentence(info, item, t));
   if (isImportable(item) && isClosed(item, from)) notes.push(t("flow.import.closedNote", { from }));
   return (
     <Stack gap={2}>
@@ -191,7 +191,7 @@ function PreviewBody({ preview, busy, onImport }: { preview: CapacityPreview; bu
 
 /**
  * The capacity import for a linked Flow team: "Include closed sprints", the PREVIEW (`POST …/capacity-preview`, nothing stored) as a table with a
- * tick per CREATE / UPDATE row - the server's `ticked` is the default (closed and zero-capacity sprints start unticked), UNCHANGED, MANUAL_PERIOD and
+ * tick per CREATE / UPDATE row - the server's `ticked` is the default (closed, zero-capacity and long-window sprints start unticked), UNCHANGED, MANUAL_PERIOD and
  * SKIP rows have no tick - and the REMOVALS list (Flow periods no sprint reuses), never preselected. Import (`POST …/capacity-import`) sends exactly the
  * ticked rows with their `expected` and the `from` / `includeClosed` the preview echoed; the server re-runs the plan under the team lock, so a row
  * that moved meanwhile comes back skipped (`CHANGED`, data in a 200). The outcome (a polite status region that stays mounted; the focus moves to it once the fresh plan is read, because the plan replaces the table the Import button sat in) stays above a fresh preview. Team data: `onImported` refreshes the

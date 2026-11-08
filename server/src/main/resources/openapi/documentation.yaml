@@ -3514,14 +3514,18 @@ paths:
         `mdPerWeek = round2(5 x flowMd / workingDays)` (half up) and the weekly capacity Astrolabe then computes over the sprint adds up to
         Flow's figure within rounding. One period per sprint, starting on its `effectiveFrom`; the dates are the sprint's instants in the
         connection's time zone (`zone`). The sprint's span is Flow's own (`metrics.md` A42, `DeriveSprintStep`): it ends at
-        `min(endAt, completeAt)` when both exist (a sprint completed early ends then), else at whichever exists, and `end` is the day of
-        `max(startAt, thatInstant - 1 ms)`, so an end at local midnight adds no day. **Consecutive sprints share a day** - the one on which
-        one ends and the next starts; that day belongs to the EARLIER sprint, and the later one holds from `effectiveFrom =
-        max(start, previous end + 1 day)`. Only a start BEFORE the previous sprint's end is a genuine overlap. A sprint is skipped
+        `endAt` (the PLANNED end first, even when the sprint was completed earlier), a completion standing in only for a missing `endAt`,
+        and `end` is the day of `max(startAt, thatInstant - 1 ms)`, so an end at local midnight adds no day. **A day belongs to the first
+        sprint holding it** (Flow's rule; consecutive sprints usually share the day one ends and the next starts): every sprint with a
+        start holds at least its start day and one with a usable end holds `[start, end]`, whatever its figure (a sprint with a start but
+        no usable end - none, or one before the start - is `NO_DATES` yet still holds its start day), and a later sprint takes the days no earlier sprint holds, from
+        `effectiveFrom = max(start, the last day an earlier sprint holds + 1 day)`. A sprint is skipped
         (`action` `SKIP`) with a `reason`, in this order: `NO_DATES` (no start, no end or completion, or an end before the start), `NO_CAPACITY` (Flow has no
-        figure), `OVERLAPS` (it starts before the end of the previous sprint that was not skipped, or nothing is left of it after the
-        shared day: the earlier start wins), `NO_WORKING_DAY` (none from `effectiveFrom` to `end`), `OUT_OF_RANGE` (the figure is beyond
-        a period's man-day bounds). Otherwise, against the team's ACTIVE periods: none starts on `effectiveFrom` - `CREATE`; a Flow-sourced
+        figure), `OVERLAPS` (it lies wholly inside earlier sprints: Flow counts no day for it), `NO_WORKING_DAY` (none from `effectiveFrom` to `end`), `OUT_OF_RANGE` (the figure is beyond
+        a period's man-day bounds). **A sprint whose `capacitySource` is `TEAM_DEFAULT` (or the legacy `CONFIGURED`)** carries a fixed per-sprint figure in Flow that claims
+        do not reduce, so its `mdPerWeek` spreads `flowMd` over the working days of its OWN window `[start, end]`, while `workingDays` still
+        counts the days from `effectiveFrom` (the days it holds); the row then carries the info `FIXED_FIGURE` with the window's working days. A sprint spanning more than 60 calendar days (Flow's calendar cap) is listed with the info `LONG_WINDOW`
+        and is never ticked; it still holds its days, so the sprints inside it are `OVERLAPS`. A sprint that is not skipped is planned against the team's ACTIVE periods: none starts on `effectiveFrom` - `CREATE`; a Flow-sourced
         one does - `UPDATE` when its figure, its sprint or its name differ (its WIP limit is kept) else `UNCHANGED`; a hand-entered one
         does - `MANUAL_PERIOD`: **a hand-entered period is never changed**, the sprint is left alone. A hand-entered period that starts
         inside a sprint (after `effectiveFrom`, up to its `end`) adds the info `MANUAL_PERIOD_INSIDE` with its date: the sprint's figure
@@ -3530,11 +3534,11 @@ paths:
 
         **Closed sprints.** `from` (default: today in the connection's time zone; the resolved date and `includeClosed` are echoed in the
         response so the apply can re-run the same plan) is the first day the import is about; a sprint whose `end` is before it is closed
-        and is listed only when `includeClosed` is true, never ticked. `ticked` is the default selection: not closed, not zero-capacity, and a
-        `CREATE` or an `UPDATE`. `removals` are the team's Flow-sourced periods that no listed sprint reuses and that belong to a sprint
+        and is listed only when `includeClosed` is true, never ticked. `ticked` is the default selection: not closed, not zero-capacity, not a long window,
+        and a `CREATE` or an `UPDATE`. `removals` are the team's Flow-sourced periods that no listed sprint reuses and that belong to a sprint
         missing from Flow's document (dated `from` or later, or any date with `includeClosed`), start inside a sprint the import covers
-        (not closed; `CREATE`, `UPDATE` or `UNCHANGED`), or belong to such a sprint without being the period it reuses (a sprint moved
-        later). **A removal is never preselected**: a client lists it and the person ticks it. A Flow team that is not in the mirror answers
+        (not closed, not a long window; `CREATE`, `UPDATE` or `UNCHANGED`), or belong to a listed sprint (closed or not, whatever its action
+        or skip reason) without being the period it reuses (a sprint moved later, or one that now holds no day); a sprint that is skipped but still holds days (`NO_CAPACITY`, `OUT_OF_RANGE`, `NO_WORKING_DAY`, `NO_DATES`) keeps the Flow period at its own `effectiveFrom` as the last good figure. **A removal is never preselected**: a client lists it and the person ticks it. A Flow team that is not in the mirror answers
         an empty plan with `observedAt` null. A disabled connection still previews (it reads the mirror).
       requestBody:
         required: true
@@ -7121,9 +7125,10 @@ components:
       properties:
         code:
           type: string
-          enum: [MANUAL_PERIOD_INSIDE, ZERO_CAPACITY]
-          description: "`MANUAL_PERIOD_INSIDE`: a hand-entered period starts inside the sprint; its figure will not hold from `date`. `ZERO_CAPACITY`: Flow's figure is 0."
+          enum: [MANUAL_PERIOD_INSIDE, ZERO_CAPACITY, LONG_WINDOW, FIXED_FIGURE]
+          description: "`MANUAL_PERIOD_INSIDE`: a hand-entered period starts inside the sprint; its figure will not hold from `date`. `ZERO_CAPACITY`: Flow's figure is 0. `LONG_WINDOW`: the sprint spans more than Flow's 60 calendar days (check its dates in Jira); it still holds its days and is never ticked. `FIXED_FIGURE`: Flow's figure is a fixed per-sprint total (the team's default), spread over the working days of the sprint's own window (`days`), more than the days the row holds."
         date: { type: string, format: date, nullable: true, description: Set for `MANUAL_PERIOD_INSIDE` only. }
+        days: { type: integer, format: int32, minimum: 1, nullable: true, description: "Set for `FIXED_FIGURE` only (null otherwise): the working days of the sprint's own window the figure is spread over." }
     CapacityExisting:
       type: object
       description: The ACTIVE period that already starts on the sprint's start date.
@@ -7140,11 +7145,11 @@ components:
         name: { type: string, maxLength: 255 }
         state: { type: string, maxLength: 10, description: "Flow's sprint state as sent (`closed`, `active`, `future`; an unknown one is kept)." }
         start: { type: string, format: date, nullable: true, description: "The sprint's start in the connection's time zone; null when Flow sent none." }
-        end: { type: string, format: date, nullable: true, description: "The sprint's last day in the connection's time zone: the day of `max(startAt, min(endAt, completeAt) - 1 ms)`; null without a start or an end." }
-        effectiveFrom: { type: string, format: date, nullable: true, description: "The day the sprint's period starts: `max(start, previous sprint's end + 1 day)`; null when the sprint has no dates or overlaps the previous one." }
-        workingDays: { type: integer, format: int32, minimum: 0, nullable: true, description: "Working days from `effectiveFrom` to `end`, both counted, on Astrolabe's calendar; null without usable dates or when the sprint overlaps." }
+        end: { type: string, format: date, nullable: true, description: "The sprint's last day in the connection's time zone: the day of `max(startAt, (endAt ?: completeAt) - 1 ms)` - the planned end first; null without a start or an end." }
+        effectiveFrom: { type: string, format: date, nullable: true, description: "The day the sprint's period starts: `max(start, the last day an earlier sprint holds + 1 day)`; null when the sprint has no dates or lies wholly inside earlier sprints." }
+        workingDays: { type: integer, format: int32, minimum: 0, nullable: true, description: "Working days from `effectiveFrom` to `end`, both counted, on Astrolabe's calendar; null without usable dates or when the sprint lies wholly inside an earlier sprint." }
         flowMd: { type: number, format: double, minimum: 0, nullable: true, description: "Flow's man-days for the whole sprint; null when Flow has none." }
-        mdPerWeek: { type: number, format: double, minimum: 0, nullable: true, description: "`round2(5 x flowMd / workingDays)`; null when the sprint is skipped before a figure exists or the figure is out of range." }
+        mdPerWeek: { type: number, format: double, minimum: 0, nullable: true, description: "`round2(5 x flowMd / workingDays)`, except for a `TEAM_DEFAULT` (or legacy `CONFIGURED`) sprint (a fixed per-sprint figure in Flow), which divides by the working days of its own window `[start, end]`; null when the sprint is skipped before a figure exists or the figure is out of range." }
         action:
           type: string
           enum: [CREATE, UPDATE, UNCHANGED, MANUAL_PERIOD, SKIP]
@@ -7159,7 +7164,7 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/CapacityInfo'
-        ticked: { type: boolean, description: "The default selection: the sprint is not closed and is a `CREATE` or an `UPDATE`." }
+        ticked: { type: boolean, description: "The default selection: the sprint is not closed, not `ZERO_CAPACITY`, not `LONG_WINDOW`, and is a `CREATE` or an `UPDATE`." }
         existing:
           nullable: true
           allOf:

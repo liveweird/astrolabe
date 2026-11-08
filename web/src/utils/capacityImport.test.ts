@@ -2,11 +2,32 @@ import { describe, expect, test } from "vitest";
 import i18n from "../i18n";
 import { ApiError } from "../api/http";
 import { APPLIED, PREVIEW, previewItem } from "../test/flow";
-import { applyRequest, defaultTicks, importFailure, isClosed, isImportable, outcomeSentence } from "./capacityImport";
+import { applyRequest, calendarDays, defaultTicks, importFailure, infoSentence, isClosed, isImportable, outcomeSentence } from "./capacityImport";
 
 const t = i18n.t.bind(i18n);
 
 describe("capacity import helpers", () => {
+  test("the calendar days count both ends, across a month, a year and a leap day", () => {
+    expect(calendarDays("2026-11-02", "2026-11-02")).toBe(1);
+    expect(calendarDays("2026-11-02", "2026-11-13")).toBe(12);
+    expect(calendarDays("2026-11-02", "2026-12-31")).toBe(60);
+    expect(calendarDays("2026-11-02", "2027-01-01")).toBe(61);
+    expect(calendarDays("2025-11-01", "2027-09-08")).toBe(677);
+    expect(calendarDays("2028-02-28", "2028-03-01")).toBe(3);
+  });
+
+  test("each info reads as its sentence; the long window names the row's own calendar days", () => {
+    const item = previewItem({ start: "2025-11-01", end: "2027-09-08" });
+    expect(infoSentence({ code: "MANUAL_PERIOD_INSIDE", date: "2026-11-30" }, item, t)).toBe(
+      "A hand-entered period starts on 2026-11-30, inside the sprint: the sprint's figure will not hold from then.",
+    );
+    expect(infoSentence({ code: "ZERO_CAPACITY", date: null }, item, t)).toBe("Flow's figure is 0 man-days: not selected by default.");
+    expect(infoSentence({ code: "LONG_WINDOW", date: null }, item, t)).toContain("This sprint spans 677 calendar days, more than Flow's 60-day cap");
+    expect(infoSentence({ code: "FIXED_FIGURE", date: null, days: 10 }, item, t)).toBe(
+      "Flow's figure is a fixed total for the whole sprint, so it is spread over the sprint's 10 working days; some of its days belong to an earlier sprint.",
+    );
+  });
+
   test("only a CREATE or an UPDATE with its dates and figure is importable", () => {
     expect(PREVIEW.items.map((item) => [item.sprintId, isImportable(item)])).toEqual([[101, true], [102, true], [103, true], [104, false], [105, false], [106, false]]);
     expect(isImportable(previewItem({ effectiveFrom: null }))).toBe(false);

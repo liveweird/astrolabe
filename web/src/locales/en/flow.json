@@ -219,7 +219,7 @@
     "empty": "Nothing to import: Flow lists no sprints for this team in this range.",
     "previewAria": "Capacity import preview",
     "removalsTitle": "Periods that would be removed",
-    "removalsIntro": "Flow periods imported earlier that no sprint reuses now. Nothing is removed unless you tick it.",
+    "removalsIntro": "Flow periods imported earlier that no sprint reuses now. Nothing is removed unless you tick it. Removing a period without importing its sprint's new row leaves the earlier sprint's figure in force over those days.",
     "removalsAria": "Flow periods that would be removed",
     "selectRow": "Import {{name}}",
     "selectRemoval": "Remove the period from {{date}}",
@@ -253,14 +253,16 @@
       "NO_DATES": "Flow has no usable dates for this sprint.",
       "NO_CAPACITY": "Flow has no capacity figure for this sprint.",
       "NO_WORKING_DAY": "The sprint has no working day.",
-      "OVERLAPS": "It overlaps the previous sprint; the earlier one wins.",
+      "OVERLAPS": "It lies wholly inside an earlier sprint: Flow counts no day for it.",
       "OUT_OF_RANGE": "The figure is outside what a period can hold.",
       "MANUAL_PERIOD": "A hand-entered period starts on this date and is never changed.",
       "UNCHANGED": "Already imported."
     },
     "info": {
       "MANUAL_PERIOD_INSIDE": "A hand-entered period starts on {{date}}, inside the sprint: the sprint's figure will not hold from then.",
-      "ZERO_CAPACITY": "Flow's figure is 0 man-days: not selected by default."
+      "ZERO_CAPACITY": "Flow's figure is 0 man-days: not selected by default.",
+      "LONG_WINDOW": "This sprint spans {{days}} calendar days, more than Flow's 60-day cap for a sprint calendar: check its dates in Jira before importing it; the sprints inside it count no day. Not selected by default.",
+      "FIXED_FIGURE": "Flow's figure is a fixed total for the whole sprint, so it is spread over the sprint's {{days}} working days; some of its days belong to an earlier sprint."
     },
     "closedNote": "Ended before {{from}}: not selected by default.",
     "summary": "Selected: {{total}} · to create: {{create}} · to update: {{update}} · to remove: {{remove}}",

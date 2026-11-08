@@ -33,13 +33,17 @@ enum class CapacitySkipReason { NO_DATES, NO_CAPACITY, NO_WORKING_DAY, OVERLAPS,
 /**
  * `MANUAL_PERIOD_INSIDE`: a hand-entered period starts on [CapacityInfo.date], inside the sprint - the figure will not hold from then.
  * `ZERO_CAPACITY`: Flow's figure is 0 (its DEFAULT for a team without members), so the row is never preselected.
+ * `LONG_WINDOW`: the sprint spans more calendar days than Flow's 60-day calendar cap (check its dates in Jira); it still holds its days,
+ * so the sprints inside it count no day, and the row is never preselected.
+ * `FIXED_FIGURE`: Flow's figure is a fixed per-sprint total (the team's default), spread over the sprint's own window of [CapacityInfo.days]
+ * working days, more than the days the row holds (some of its days belong to an earlier sprint).
  */
 @Serializable
-enum class CapacityInfoCode { MANUAL_PERIOD_INSIDE, ZERO_CAPACITY }
+enum class CapacityInfoCode { MANUAL_PERIOD_INSIDE, ZERO_CAPACITY, LONG_WINDOW, FIXED_FIGURE }
 
-/** [date] is set for `MANUAL_PERIOD_INSIDE` only. */
+/** [date] is set for `MANUAL_PERIOD_INSIDE` only, [days] for `FIXED_FIGURE` only. */
 @Serializable
-data class CapacityInfo(val code: CapacityInfoCode, val date: String?)
+data class CapacityInfo(val code: CapacityInfoCode, val date: String?, val days: Int? = null)
 
 /** The ACTIVE period that already starts on the sprint's start date. */
 @Serializable
@@ -47,10 +51,12 @@ data class CapacityExisting(val periodId: UInt, val mdPerWeek: Double, val sourc
 
 /**
  * One sprint of the preview. [start]/[end] are the sprint's first and last day in the connection's zone (null when Flow sent none; the
- * end is `dayOf(max(start, min(endAt, completeAt) - 1 ms))`); [effectiveFrom] is the day its period starts, `max(start, previous sprint's
- * end + 1 day)` (null when the sprint has no dates or overlaps); [workingDays] counts `effectiveFrom..end` on Astrolabe's calendar;
- * [flowMd] is Flow's total for the sprint; [mdPerWeek] is `round2(5 x flowMd / workingDays)`, null when no figure exists or it is out of
- * range. [ticked] is the default selection: not closed, not zero-capacity, and a CREATE or an UPDATE.
+ * end is `dayOf(max(start, (endAt ?: completeAt) - 1 ms))`, the planned end first); [effectiveFrom] is the day its period starts,
+ * `max(start, the last day an earlier sprint holds + 1 day)` (null when the sprint has no dates or lies wholly inside earlier ones);
+ * [workingDays] counts `effectiveFrom..end` on Astrolabe's calendar;
+ * [flowMd] is Flow's total for the sprint; [mdPerWeek] is `round2(5 x flowMd / workingDays)` (a `TEAM_DEFAULT` sprint divides by the
+ * working days of its own window instead: Flow's figure for it is fixed per sprint), null when no figure exists or it is out of
+ * range. [ticked] is the default selection: not closed, not zero-capacity, not a long window, and a CREATE or an UPDATE.
  */
 @Serializable
 data class CapacityImportItem(
@@ -72,7 +78,7 @@ data class CapacityImportItem(
 
 /**
  * A Flow-sourced period the import would remove: its sprint left Flow's document, it lies inside a sprint the import covers, or it
- * belongs to a covered sprint that now reuses another period. Removals are never preselected by a client.
+ * belongs to a listed sprint that now reuses another period or holds no day. Removals are never preselected by a client.
  */
 @Serializable
 data class CapacityImportRemoval(

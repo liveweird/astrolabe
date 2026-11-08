@@ -8,7 +8,7 @@ type Importable = CapacityPreviewItem & { action: "CREATE" | "UPDATE"; effective
 
 /**
  * Whether the row has a tick at all. Only a CREATE or an UPDATE does: UNCHANGED has nothing to write, a MANUAL_PERIOD is the person's own
- * figure (never changed by any request) and a SKIP has no figure. A zero-capacity or a closed sprint is tickable but starts unticked (the server's `ticked`).
+ * figure (never changed by any request) and a SKIP has no figure. A zero-capacity, a long-window or a closed sprint is tickable but starts unticked (the server's `ticked`).
  */
 export function isImportable(item: CapacityPreviewItem): item is Importable {
   return (item.action === "CREATE" || item.action === "UPDATE") && item.effectiveFrom !== null && item.mdPerWeek !== null;
@@ -38,6 +38,27 @@ export function applyRequest(preview: CapacityPreview, ticked: ReadonlySet<numbe
 /** A sprint that ended before the import's `from` date (listed only with "Include closed sprints"; never ticked by default). */
 export function isClosed(item: CapacityPreviewItem, from: string): boolean {
   return item.end !== null && item.end < from;
+}
+
+const MS_PER_DAY = 86_400_000;
+
+/** The calendar days from `start` to `end` (`YYYY-MM-DD`), both counted: 2026-11-02..2026-11-13 is 12. */
+export function calendarDays(start: string, end: string): number {
+  return Math.round((Date.parse(`${end}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / MS_PER_DAY) + 1;
+}
+
+/** One info of a row in words. `FIXED_FIGURE` states the working days the server counted in `days`. `LONG_WINDOW` states the row's own calendar days (the server's info carries no number); a row without dates names none. */
+export function infoSentence(info: CapacityPreviewItem["infos"][number], item: CapacityPreviewItem, t: TFunction): string {
+  switch (info.code) {
+    case "MANUAL_PERIOD_INSIDE":
+      return t("flow.import.info.MANUAL_PERIOD_INSIDE", { date: info.date });
+    case "LONG_WINDOW":
+      return t("flow.import.info.LONG_WINDOW", { days: item.start !== null && item.end !== null ? calendarDays(item.start, item.end) : "" });
+    case "FIXED_FIGURE":
+      return t("flow.import.info.FIXED_FIGURE", { days: info.days ?? "" });
+    case "ZERO_CAPACITY":
+      return t("flow.import.info.ZERO_CAPACITY");
+  }
 }
 
 /**

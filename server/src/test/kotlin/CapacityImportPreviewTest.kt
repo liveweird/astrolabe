@@ -172,7 +172,8 @@ class CapacityImportPreviewTest {
                 sprintJson(4, "No capacity", at("2049-04-12"), at("2049-04-23", "17:00"), null),
                 sprintJson(5, "Manual inside", at("2049-04-26"), at("2049-05-07", "17:00"), "30"),
                 sprintJson(6, "No dates", null, null, "10"),
-                sprintJson(7, "Overlaps", at("2049-05-03"), at("2049-05-14", "17:00"), "10"),
+                // Wholly inside "Manual inside" (Flow counts no day for it): the only OVERLAPS.
+                sprintJson(7, "Overlaps", at("2049-05-04"), at("2049-05-06", "17:00"), "10"),
             ),
         )
         val binding = w.admin.client.fbBind(m.connectionId, 1, teams.teamId).fbBinding()
