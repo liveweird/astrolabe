@@ -66,14 +66,15 @@ private class Dated(val sprint: FlowMirrorSprint, val start: LocalDate?, val end
      */
     val holdsUntil: LocalDate? get() = if (hasSpan) end else start
 
-    /** Whether the span is longer than Flow's calendar cap ([FLOW_MAX_CALENDAR_DAYS]). */
+    /** Whether the span is longer than Flow's calendar cap ([FLOW_MAX_CALENDAR_DAYS]): the sprint claims after all others. */
     val longWindow: Boolean
         get() = hasSpan && ChronoUnit.DAYS.between(checkNotNull(start), checkNotNull(end)) + 1 > FLOW_MAX_CALENDAR_DAYS
 }
 
 /**
  * What the sprint may claim: [effectiveFrom] is the first day its figure holds (its start, or the day after the last day an earlier
- * sprint holds), [workingDays] the working days from there to its end; [skip] is the first rule that refuses it.
+ * sprint holds; for a long window the first day no other sprint holds), [workingDays] the working days from there to its end (for a
+ * long window, those of the days left); [skip] is the first rule that refuses it.
  * [figureDays] is the divisor of the weekly figure: [workingDays], except for a `TEAM_DEFAULT`/`CONFIGURED` sprint (a fixed figure in
  * Flow, not reduced by claims), which spreads over the working days of its OWN window `[start, end]`.
  */
@@ -110,12 +111,14 @@ private class Figure(val mdPerWeek: BigDecimal, val inRange: Boolean)
  * start) holds `[start, end]`, whatever its capacity or skip reason (a start-only or inverted sprint stays NO_DATES but holds its start
  * day, as in Flow); a later sprint takes the days no earlier sprint holds, `effectiveFrom = max(start, claimedEnd + 1 day)`, where
  * `claimedEnd` is the latest day an earlier sprint holds. Sprints are walked in start order, so the days earlier sprints hold inside a
- * sprint's
- * `[start, end]` are always a PREFIX of it and `[effectiveFrom, end]` IS the set of days no earlier sprint holds. Only a sprint WHOLLY
- * inside earlier ones (`effectiveFrom > end`) counts no day: `OVERLAPS`, and it advances nothing (its end is not past `claimedEnd`). A
- * sprint over [FLOW_MAX_CALENDAR_DAYS] calendar days still holds its days (Flow gives it no calendar but claims for it), is listed with
- * the info `LONG_WINDOW` and never ticked; if Flow decides an over-cap sprint claims no days, the one-line change is a
- * `&& !row.longWindow` on the `claimedEnd` advance in [plan].
+ * sprint's `[start, end]` are always a PREFIX of it and `[effectiveFrom, end]` IS the set of days no earlier sprint holds. Only a sprint
+ * WHOLLY inside earlier ones (`effectiveFrom > end`) counts no day: `OVERLAPS`, and it advances nothing (its end is not past `claimedEnd`).
+ * **A sprint over [FLOW_MAX_CALENDAR_DAYS] calendar days claims LAST** (Flow 1.57.1, PR #469; F11): it gets no calendar, is listed with the
+ * info `LONG_WINDOW` and never ticked, and never advances `claimedEnd`, so every sprint within the cap is planned as if it were absent.
+ * Its own claim is the days of `[start, end]` that no in-cap sprint holds and no earlier long-window sprint (start, then id) took
+ * ([longClaims]): not necessarily a prefix, so they are computed as gaps between the held intervals; `effectiveFrom` is the first such
+ * day and `workingDays` their working days. No leftover day is `OVERLAPS`, no leftover working day `NO_WORKING_DAY`. The figure is
+ * partial: it spreads Flow's total over all the leftover runs, but the row is one period that holds only until the next starts.
  *
  * Per sprint, in start order (undated last, then by id), the first rule that fires: no start, no end, or an end before the start -
  * [CapacitySkipReason.NO_DATES]; no capacity - `NO_CAPACITY`; `effectiveFrom > end` - `OVERLAPS`; no working day from
@@ -159,12 +162,20 @@ object CapacityImportKernels {
         val byDate = existingPeriods.associateBy { it.effectiveFrom }
         val manual = existingPeriods.filter { it.source == CapacitySource.MANUAL }
         var claimedEnd: LocalDate? = null
-        val classified = dated.map { row ->
+        // Pass 1: every sprint within the cap, in start order; a long window is planned as if absent and never advances claimedEnd.
+        val inCap = dated.map { row ->
+            if (row.longWindow) return@map null
             val claim = claimOf(row, claimedEnd, calendar)
             // Flow claims by window alone: advance for every sprint with a start, whatever its capacity or skip reason (a sprint wholly
             // inside an earlier one has an end not past claimedEnd, so it advances nothing by construction).
             row.holdsUntil?.let { held -> claimedEnd = maxOf(claimedEnd ?: held, held) }
-            Classified(row, claim, itemOf(row, claim, claim.effectiveFrom?.let(byDate::get), manual))
+            claim
+        }
+        // Pass 2: the long windows claim last, from what the others left.
+        val longs = longClaims(dated, calendar)
+        val classified = dated.zip(inCap) { row, claim ->
+            val own = claim ?: longs.getValue(row)
+            Classified(row, own, itemOf(row, own, own.effectiveFrom?.let(byDate::get), manual))
         }
         val listed = classified.filter { includeClosed || !it.dated.closed }
         return CapacityPlan(listed.map { it.item }, removalsOf(listed, sprints, existingPeriods, window, includeClosed))
@@ -188,17 +199,58 @@ object CapacityImportKernels {
         val end = row.end
         if (!row.hasSpan || start == null || end == null) return Claim(null, null, CapacitySkipReason.NO_DATES)
         val effectiveFrom = if (claimedEnd == null) start else maxOf(start, claimedEnd.plusDays(1))
-        val overlapped = effectiveFrom > end
-        val days = if (overlapped) null else calendar.workingDaysBetween(effectiveFrom, end)
+        if (effectiveFrom > end) return claimFrom(row, null, null, calendar)
+        return claimFrom(row, effectiveFrom, calendar.workingDaysBetween(effectiveFrom, end), calendar)
+    }
+
+    /**
+     * The claims of the long-window rows (Flow 1.57.1: an over-cap sprint claims LAST), by row. Each takes the days of its `[start, end]`
+     * that no sprint within the cap holds and no earlier long window (start, then id) took; those days are the gaps between the held
+     * intervals, so a window of any length costs one pass over the intervals plus one calendar lookup per gap.
+     */
+    private fun longClaims(dated: List<Dated>, calendar: WorkingCalendar): Map<Dated, Claim> {
+        val held = dated.filter { !it.longWindow }.mapNotNull { row -> row.start?.let { it to checkNotNull(row.holdsUntil) } }
+            .sortedBy { it.first }.toMutableList()
+        return dated.filter { it.longWindow }.associateWith { row ->
+            val start = checkNotNull(row.start)
+            val end = checkNotNull(row.end)
+            val gaps = gapsOf(held, start, end)
+            held.add(start to end)
+            held.sortBy { it.first }
+            val days = gaps.takeIf { it.isNotEmpty() }?.sumOf { (from, to) -> calendar.workingDaysBetween(from, to) }
+            claimFrom(row, gaps.firstOrNull()?.first, days, calendar)
+        }
+    }
+
+    /** The maximal runs of `[start, end]` that no interval of [held] (sorted by start) covers, in date order. */
+    private fun gapsOf(held: List<Pair<LocalDate, LocalDate>>, start: LocalDate, end: LocalDate): List<Pair<LocalDate, LocalDate>> {
+        val gaps = mutableListOf<Pair<LocalDate, LocalDate>>()
+        var cursor = start
+        for ((from, to) in held) {
+            if (from > end) break
+            if (to < cursor) continue
+            if (from > cursor) gaps.add(cursor to from.minusDays(1))
+            cursor = maxOf(cursor, to.plusDays(1))
+        }
+        if (cursor <= end) gaps.add(cursor to end)
+        return gaps
+    }
+
+    /** The claim of a row with a usable span: [effectiveFrom] and [days] null = no day left (OVERLAPS), else the working days it holds. */
+    private fun claimFrom(row: Dated, effectiveFrom: LocalDate?, days: Long?, calendar: WorkingCalendar): Claim {
         val skip = when {
             row.sprint.capacityMd == null -> CapacitySkipReason.NO_CAPACITY
-            overlapped -> CapacitySkipReason.OVERLAPS
+            effectiveFrom == null -> CapacitySkipReason.OVERLAPS
             days == 0L -> CapacitySkipReason.NO_WORKING_DAY
             else -> null
         }
         // TEAM_DEFAULT is fixed per sprint in Flow, not reduced by what earlier sprints hold: its OWN window is the divisor.
-        val figureDays = if (row.sprint.capacitySource in FIXED_FIGURE_SOURCES) calendar.workingDaysBetween(start, end) else days
-        return Claim(effectiveFrom.takeUnless { overlapped }, days, skip, figureDays)
+        val figureDays = if (row.sprint.capacitySource in FIXED_FIGURE_SOURCES) {
+            calendar.workingDaysBetween(checkNotNull(row.start), checkNotNull(row.end))
+        } else {
+            days
+        }
+        return Claim(effectiveFrom, days, skip, figureDays)
     }
 
     private fun figureOf(sprint: FlowMirrorSprint, workingDays: Long): Figure {

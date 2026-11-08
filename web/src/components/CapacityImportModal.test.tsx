@@ -103,7 +103,7 @@ describe("CapacityImportModal", () => {
     expect(within(grid).getByRole("checkbox", { name: "Import Sprint 201" })).toBeInTheDocument();
     expect(within(grid).getByRole("checkbox", { name: "Import Sprint 201" })).not.toBeChecked();
     expect(within(grid).getByRole("row", { name: /Sprint 201/ })).toHaveTextContent(
-      "This sprint spans 677 calendar days, more than Flow's 60-day cap for a sprint calendar: check its dates in Jira before importing it; the sprints inside it count no day. Not selected by default.",
+      "This sprint spans 677 calendar days, more than Flow's 60-day cap for a sprint calendar: check its dates in Jira before importing it. Flow lets every sprint within the 60-day cap claim its days first, so this one counts only the days left, and its figure holds only until the next sprint's period. Not selected by default.",
     );
     expect(within(grid).getByRole("row", { name: /Sprint 202/ })).toHaveTextContent("It lies wholly inside an earlier sprint: Flow counts no day for it.");
     expect(within(grid).queryByRole("checkbox", { name: "Import Sprint 202" })).not.toBeInTheDocument();

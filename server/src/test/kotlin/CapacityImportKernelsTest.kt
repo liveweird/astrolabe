@@ -399,26 +399,32 @@ class CapacityImportKernelsTest {
     }
 
     @Test
-    fun `a sprint over Flow's 60-day cap carries LONG_WINDOW, is unticked, keeps its figure and holds its days`() {
+    fun `a sprint over Flow's 60-day cap carries LONG_WINDOW, is unticked, and claims last - the days no other sprint holds`() {
         // The shape of the user's real "planned to end 2027-09-08" sprint: 677 calendar days, 483 working days, 2,790 MD.
         val long = sprint(1, at("2025-11-01"), at("2027-09-08", "17:00"), "2790")
         val inside = span(2, "2025-12-01", "2025-12-12", "30")
         val result = plan(listOf(long, inside), today = LocalDate.of(2025, 10, 1))
 
+        // The sprint inside it holds its own days (12-01..12-12: 10 working days), so the long one keeps 483 - 10 = 473 of them.
         val item = result.items[0]
         val days = WorkingCalendar.MON_FRI.workingDaysBetween(LocalDate.of(2025, 11, 1), LocalDate.of(2027, 9, 8))
         assertEquals(483L, days)
-        assertEquals(days.toInt(), item.workingDays)
-        val exact = BigDecimal("5").multiply(BigDecimal("2790")).divide(BigDecimal(days), 2, RoundingMode.HALF_UP)
+        assertEquals(473, item.workingDays)
+        assertEquals("2025-11-01", item.effectiveFrom, "the first day no other sprint holds (a Saturday: a period may start on any date)")
+        val exact = BigDecimal("5").multiply(BigDecimal("2790")).divide(BigDecimal(473), 2, RoundingMode.HALF_UP)
         assertEquals(exact.toDouble(), item.mdPerWeek)
-        assertEquals(28.88, item.mdPerWeek)
+        assertEquals(29.49, item.mdPerWeek)
         assertEquals(CapacityAction.CREATE, item.action)
         assertEquals(listOf(CapacityInfoCode.LONG_WINDOW), item.infos.map { it.code })
         assertNull(item.infos.single().date)
         assertFalse(item.ticked, "a long window is listed but never preselected")
-        // It holds its days: the sprint inside it counts none.
-        assertEquals(CapacitySkipReason.OVERLAPS, result.items[1].reason)
+        // It claims LAST: the sprint inside it keeps all its days and its own figure, as if the long one were absent.
+        assertNull(result.items[1].reason)
+        assertEquals("2025-12-01", result.items[1].effectiveFrom)
+        assertEquals(10, result.items[1].workingDays)
+        assertEquals(15.0, result.items[1].mdPerWeek)
         assertTrue(result.items[1].infos.isEmpty())
+        assertTrue(result.items[1].ticked)
 
         // The cap is 60 calendar days, inclusive: 11-02..12-31 is exactly 60 (no info, ticked), 11-02..2027-01-01 is 61.
         assertEquals(60, FLOW_MAX_CALENDAR_DAYS)
@@ -437,6 +443,88 @@ class CapacityImportKernelsTest {
         val update = plan(listOf(span(4, "2026-11-02", "2027-01-01", "40")), listOf(flowPeriod)).only()
         assertEquals(CapacityAction.UPDATE, update.action)
         assertFalse(update.ticked)
+    }
+
+    @Test
+    fun `the user's real case - a mistyped 2027 end claims last, so the two-week sprints inside it keep their days`() {
+        // Sprint 5173 (DEFAULT, 1,332 MD, Tue 2025-10-28..Wed 2027-09-08) is followed by two-week DEFAULT sprints; Flow 1.57.1 lets them
+        // claim first. The calendar has 11-11 in both years (2025-11-11, 2026-11-11), nothing else.
+        val calendar = WorkingCalendar(
+            mapOf(LocalDate.of(2025, 11, 11) to "Independence Day", LocalDate.of(2026, 11, 11) to "Independence Day"),
+        )
+        val long = sprint(5173, at("2025-10-28"), at("2027-09-08", "17:00"), "1332", source = "DEFAULT")
+        val first = sprint(5174, at("2025-11-13"), at("2025-12-03", "17:00"), "75", source = "DEFAULT")
+        val active = sprint(16613, at("2026-11-05"), at("2026-11-18", "17:00"), "54", source = "DEFAULT")
+        val result = plan(listOf(active, first, long), calendar = calendar, today = LocalDate.of(2025, 10, 1))
+
+        assertEquals(listOf(5173L, 5174L, 16613L), result.items.map { it.sprintId })
+        val (l, a, b) = result.items
+        // 5174: Thu 11-13..Wed 12-03 is 15 working days, 5 x 75 / 15 = 25.00.
+        assertEquals(listOf("2025-11-13", 15, 25.0, null), listOf(a.effectiveFrom, a.workingDays, a.mdPerWeek, a.reason))
+        // 16613: Thu 11-05..Wed 11-18 is 9 working days (11-11 is a holiday), 5 x 54 / 9 = 30.00.
+        assertEquals(listOf("2026-11-05", 9, 30.0, null), listOf(b.effectiveFrom, b.workingDays, b.mdPerWeek, b.reason))
+        assertTrue(a.ticked && b.ticked && a.infos.isEmpty() && b.infos.isEmpty())
+        // 5173: 485 working days in its window (2 holidays), less the 15 and 9 the others hold: 461; 5 x 1,332 / 461 = 14.45. That figure
+        // is SYNTHETIC: only two of the real team's 24 later sprints are in this vector, so the real one is lower.
+        assertEquals(485L, calendar.workingDaysBetween(LocalDate.of(2025, 10, 28), LocalDate.of(2027, 9, 8)))
+        assertEquals(listOf("2025-10-28", 461, 14.45, null), listOf(l.effectiveFrom, l.workingDays, l.mdPerWeek, l.reason))
+        assertEquals(listOf(CapacityInfoCode.LONG_WINDOW), l.infos.map { it.code })
+        assertEquals(CapacityAction.CREATE, l.action)
+        assertFalse(l.ticked)
+        assertEquals(listOf(3, 0, 0, 0, 0), result.totals().let { listOf(it.create, it.update, it.unchanged, it.skip, it.removals) })
+    }
+
+    @Test
+    fun `a long window wholly covered by sprints within the cap is OVERLAPS - nothing left to claim`() {
+        val a = span(1, "2025-11-03", "2025-12-31", "40")
+        val b = span(2, "2025-12-15", "2026-01-30", "30")
+        val long = span(9, "2025-11-03", "2026-01-30", "90")
+        val result = plan(listOf(a, b, long), today = LocalDate.of(2025, 10, 1))
+
+        assertEquals(listOf(1L, 9L, 2L), result.items.map { it.sprintId })
+        // B still starts after A's end (the long one advances nothing): 2026-01-01..01-30 is 22 working days.
+        assertEquals("2026-01-01", result.items[2].effectiveFrom)
+        assertEquals(22, result.items[2].workingDays)
+        val item = result.items[1]
+        assertEquals(CapacitySkipReason.OVERLAPS, item.reason)
+        assertEquals(CapacityAction.SKIP, item.action)
+        assertNull(item.effectiveFrom)
+        assertNull(item.workingDays)
+        assertNull(item.mdPerWeek)
+        assertEquals(listOf(CapacityInfoCode.LONG_WINDOW), item.infos.map { it.code })
+        assertFalse(item.ticked)
+    }
+
+    @Test
+    fun `two overlapping long windows - the earlier by start claims first, the later keeps the rest`() {
+        val first = span(2, "2025-11-03", "2026-02-27", "100")
+        val second = span(1, "2025-12-01", "2026-04-30", "88")
+        val result = plan(listOf(second, first), today = LocalDate.of(2025, 10, 1))
+
+        assertEquals(listOf(2L, 1L), result.items.map { it.sprintId })
+        val (a, b) = result.items
+        // The first holds its whole window: 11-03..02-27 is 85 working days. The second keeps Sat 02-28..04-30: 44 working days.
+        assertEquals(listOf("2025-11-03", 85, 5.88), listOf(a.effectiveFrom, a.workingDays, a.mdPerWeek))
+        assertEquals(listOf("2026-02-28", 44, 10.0), listOf(b.effectiveFrom, b.workingDays, b.mdPerWeek))
+        assertTrue(a.infos.any { it.code == CapacityInfoCode.LONG_WINDOW } && b.infos.any { it.code == CapacityInfoCode.LONG_WINDOW })
+        assertFalse(a.ticked || b.ticked)
+    }
+
+    @Test
+    fun `an in-cap sprint that starts before a long window and one inside it - the long one gets only the rest, in two runs`() {
+        val before = span(1, "2025-10-20", "2025-11-14", "40")
+        val long = span(2, "2025-11-03", "2026-02-27", "130")
+        val inside = span(3, "2026-01-05", "2026-01-16", "20")
+        val result = plan(listOf(inside, long, before), today = LocalDate.of(2025, 10, 1))
+
+        assertEquals(listOf(1L, 2L, 3L), result.items.map { it.sprintId })
+        val (b, l, i) = result.items
+        assertEquals(listOf("2025-10-20", 20, null), listOf(b.effectiveFrom, b.workingDays, b.reason))
+        // The sprint inside the long one keeps its own days.
+        assertEquals(listOf("2026-01-05", 10, 10.0, null), listOf(i.effectiveFrom, i.workingDays, i.mdPerWeek, i.reason))
+        // The long one: from Sat 11-15, the runs 11-15..01-04 (35 working days) and 01-17..02-27 (30) = 65; 5 x 130 / 65 = 10.00.
+        assertEquals(listOf("2025-11-15", 65, 10.0, null), listOf(l.effectiveFrom, l.workingDays, l.mdPerWeek, l.reason))
+        assertFalse(l.ticked)
     }
 
     @Test
@@ -729,14 +817,79 @@ class CapacityImportKernelsTest {
     }
 
     @Test
+    fun `a refused long window loses its start day to an in-cap sprint - it reuses the old period, the new first day keeps its own`() {
+        // L (id 1, no capacity, 11-03..02-27) is refused; S (id 2, same start, 11-03..11-14) claims first, despite its higher id, and holds
+        // the start day, so L's first day left is Sat 11-15. L's old FLOW period at 11-03 is S's to reuse (an UPDATE: another sprint id);
+        // the FLOW period at 11-15 is the refused row's own, kept as the last good figure.
+        val long = span(1, "2025-11-03", "2026-02-27", null)
+        val short = span(2, "2025-11-03", "2025-11-14", "40")
+        val result = plan(
+            listOf(short, long),
+            listOf(
+                period(1, "2025-11-03", "20.00", CapacitySource.FLOW, 1, "Sprint 1"),
+                period(2, "2025-11-15", "5", CapacitySource.FLOW, 1, "Sprint 1"),
+            ),
+            today = LocalDate.of(2025, 10, 1),
+        )
+
+        assertEquals(listOf(1L, 2L), result.items.map { it.sprintId })
+        val (l, s) = result.items
+        assertEquals(listOf(CapacitySkipReason.NO_CAPACITY, "2025-11-15"), listOf(l.reason, l.effectiveFrom))
+        assertEquals(listOf(CapacityAction.UPDATE, "2025-11-03", 1u), listOf(s.action, s.effectiveFrom, s.existing?.periodId))
+        assertEquals(emptyList(), result.removals)
+    }
+
+    @Test
+    fun `a long window whose only leftover is a weekend is NO_WORKING_DAY, from the Saturday`() {
+        // A (11-02..12-31, exactly 60 days) and B (2027-01-01..01-29) hold everything but Sat 01-30 and Sun 01-31 of the long window.
+        val first = span(1, "2026-11-02", "2026-12-31", "40")
+        val second = span(2, "2027-01-01", "2027-01-29", "40")
+        val long = sprint(9, at("2026-11-02"), at("2027-01-31", "17:00"), "50")
+        val result = plan(listOf(long, second, first))
+
+        assertEquals(listOf(1L, 9L, 2L), result.items.map { it.sprintId })
+        val item = result.items[1]
+        assertEquals(CapacitySkipReason.NO_WORKING_DAY, item.reason)
+        assertEquals("2027-01-30", item.effectiveFrom)
+        assertEquals(0, item.workingDays)
+        assertNull(item.mdPerWeek)
+        assertEquals(listOf(CapacityInfoCode.LONG_WINDOW), item.infos.map { it.code })
+        assertFalse(item.ticked)
+    }
+
+    @Test
+    fun `two long windows with the same start - the lower id claims first`() {
+        val low = span(3, "2025-11-03", "2026-02-27", "100")
+        val high = span(7, "2025-11-03", "2026-04-30", "88")
+        val result = plan(listOf(high, low), today = LocalDate.of(2025, 10, 1))
+
+        assertEquals(listOf(3L, 7L), result.items.map { it.sprintId })
+        val (a, b) = result.items
+        assertEquals(listOf("2025-11-03", 85, 5.88), listOf(a.effectiveFrom, a.workingDays, a.mdPerWeek))
+        // The higher id keeps only what the lower one left: Sat 02-28..04-30, 44 working days.
+        assertEquals(listOf("2026-02-28", 44, 10.0), listOf(b.effectiveFrom, b.workingDays, b.mdPerWeek))
+    }
+
+    @Test
+    fun `a start-only sprint inside a long window holds its start day and splits the leftover by exactly that day`() {
+        val long = span(1, "2025-11-03", "2026-02-27", "130")
+        val startOnly = sprint(2, at("2026-01-14"), null, "40")
+        val result = plan(listOf(long, startOnly), today = LocalDate.of(2025, 10, 1))
+
+        assertEquals(CapacitySkipReason.NO_DATES, result.items[1].reason)
+        // 85 working days in the window less Wed 01-14: 84 (11-03..01-13 and 01-15..02-27); 5 x 130 / 84 = 7.74.
+        assertEquals(listOf("2025-11-03", 84, 7.74), result.items[0].let { listOf(it.effectiveFrom, it.workingDays, it.mdPerWeek) })
+    }
+
+    @Test
     fun `the old Flow period of a sprint that now holds no day is offered for removal - a hand-entered one never`() {
-        // Sprint 2 (with capacity) lies wholly inside the 677-day sprint 1, which is a long window and so covers nothing (rule (b) is
-        // out): only sprint 2's ownership of its old period (rule (c)) can offer it. 1.5.0 had imported it at 2025-12-01; a person
-        // entered 2025-12-02.
-        val long = sprint(1, at("2025-11-01"), at("2027-09-08", "17:00"), "2790")
+        // Sprint 2 (with capacity) lies wholly inside sprint 1: it holds no day, and its ownership of its old period (rule (c)) offers
+        // it. Sprint 1 has no capacity, so it is refused and covers nothing: rule (b) cannot offer the period, only (c) can.
+        // 1.5.0 had imported sprint 2 at 2025-12-01; a person entered 2025-12-02.
+        val outer = span(1, "2025-11-03", "2025-12-26", null)
         val inner = span(2, "2025-12-01", "2025-12-12", "30")
         val result = plan(
-            listOf(long, inner),
+            listOf(outer, inner),
             listOf(
                 period(1, "2025-12-01", "14.29", CapacitySource.FLOW, 2, "Sprint 2"),
                 period(2, "2025-12-02", "9", CapacitySource.MANUAL),
@@ -749,13 +902,15 @@ class CapacityImportKernelsTest {
     }
 
     @Test
-    fun `every listed sprint owns its old Flow periods - a weekend sprint in a long window, a moved sprint on a manual period`() {
-        // L (long window, Sat 2025-11-01..Fri 2027-09-10) covers nothing. X (Sat 09-04..Sun 09-12) holds only 09-11..09-12: NO_WORKING_DAY.
-        val long = sprint(1, at("2025-11-01"), at("2027-09-10", "17:00"), "2790")
-        val weekend = sprint(2, at("2027-09-04"), at("2027-09-12", "17:00"), "5")
-        val atStart = listOf(period(1, "2027-09-04", "5", CapacitySource.FLOW, 2, "Sprint 2"))
-        val noDay = plan(listOf(long, weekend), atStart, today = LocalDate.of(2025, 10, 1))
-        assertEquals(CapacitySkipReason.NO_WORKING_DAY, noDay.items[1].reason)
+    fun `every listed sprint owns its old Flow periods - a weekend sprint after a long window, a moved sprint on a manual period`() {
+        // L (long window, Sat 2025-11-01..Fri 2027-08-27) claims last and covers nothing. P (Mon 08-23..Fri 09-03, no capacity) is refused,
+        // so it covers nothing either. X (Thu 09-02..Sun 09-05) holds only 09-04..09-05: NO_WORKING_DAY; its period at 09-02 is stale.
+        val long = sprint(1, at("2025-11-01"), at("2027-08-27", "17:00"), "2790")
+        val earlier = span(3, "2027-08-23", "2027-09-03", null)
+        val weekend = sprint(2, at("2027-09-02"), at("2027-09-05", "17:00"), "5")
+        val atStart = listOf(period(1, "2027-09-02", "5", CapacitySource.FLOW, 2, "Sprint 2"))
+        val noDay = plan(listOf(long, earlier, weekend), atStart, today = LocalDate.of(2025, 10, 1))
+        assertEquals(CapacitySkipReason.NO_WORKING_DAY, noDay.items[2].reason)
         assertEquals(listOf(1u), noDay.removals.map { it.periodId })
 
         // A closed and listed (11-23, includeClosed): B moved from 11-07 to 11-14, where a MANUAL period sits, so B is MANUAL_PERIOD.
@@ -773,11 +928,12 @@ class CapacityImportKernelsTest {
 
     @Test
     fun `a long window does not cover its span - a hidden sprint's Flow period inside it is not offered for removal`() {
-        // Sprint 2 (2025-12-01..12-12) is closed and hidden (today 12-20); its FLOW period lies inside the 677-day sprint 1: rule (b)
-        // does not apply to a long window, and a hidden sprint owns nothing. Listed (includeClosed), it owns its period.
+        // Sprint 2 (2025-12-01..12-12) is closed and hidden (today 12-20); its FLOW period (12-02, not its own first day, so no refused
+        // row keeps it) lies inside the 677-day sprint 1: rule (b) does not apply to a long window, and a hidden sprint owns nothing.
+        // Listed (includeClosed), it owns its period.
         val long = sprint(1, at("2025-11-01"), at("2027-09-08", "17:00"), "2790")
         val inner = span(2, "2025-12-01", "2025-12-12", null)
-        val inside = listOf(period(1, "2025-12-01", "5", CapacitySource.FLOW, 2, "Sprint 2"))
+        val inside = listOf(period(1, "2025-12-02", "5", CapacitySource.FLOW, 2, "Sprint 2"))
         val today = LocalDate.of(2025, 12, 20)
         assertEquals(emptyList(), plan(listOf(long, inner), inside, today = today).removals)
         assertEquals(listOf(1u), plan(listOf(long, inner), inside, today = today, includeClosed = true).removals.map { it.periodId })
@@ -814,9 +970,9 @@ class CapacityImportKernelsTest {
         val noDates = plan(listOf(sprint(1, at("2026-11-16"), null, "40")), old)
         assertEquals(CapacitySkipReason.NO_DATES, noDates.only().reason)
         assertEquals(listOf(1u), noDates.removals.map { it.periodId })
-        // OVERLAPS holds no day and keeps nothing.
+        // OVERLAPS holds no day and keeps nothing; the outer sprint has no capacity and covers nothing, so only rule (c) offers it.
         val inside = plan(
-            listOf(span(1, "2026-11-02", "2026-11-27", "40"), span(2, "2026-11-16", "2026-11-20", "10")),
+            listOf(span(1, "2026-11-02", "2026-11-27", null), span(2, "2026-11-16", "2026-11-20", "10")),
             listOf(period(1, "2026-11-16", "5", CapacitySource.FLOW, 2, "Sprint 2")),
         )
         assertEquals(CapacitySkipReason.OVERLAPS, inside.items[1].reason)

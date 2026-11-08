@@ -263,7 +263,7 @@
     "info": {
       "MANUAL_PERIOD_INSIDE": "A hand-entered period starts on {{date}}, inside the sprint: the sprint's figure will not hold from then.",
       "ZERO_CAPACITY": "Flow's figure is 0 man-days: not selected by default.",
-      "LONG_WINDOW": "This sprint spans {{days}} calendar days, more than Flow's 60-day cap for a sprint calendar: check its dates in Jira before importing it; the sprints inside it count no day. Not selected by default.",
+      "LONG_WINDOW": "This sprint spans {{days}} calendar days, more than Flow's 60-day cap for a sprint calendar: check its dates in Jira before importing it. Flow lets every sprint within the 60-day cap claim its days first, so this one counts only the days left, and its figure holds only until the next sprint's period. Not selected by default.",
       "FIXED_FIGURE": "Flow's figure is a fixed total for the whole sprint, so it is spread over the sprint's {{days}} working days; some of its days belong to an earlier sprint."
     },
     "closedNote": "Ended before {{from}}: not selected by default.",

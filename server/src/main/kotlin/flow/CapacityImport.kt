@@ -33,8 +33,9 @@ enum class CapacitySkipReason { NO_DATES, NO_CAPACITY, NO_WORKING_DAY, OVERLAPS,
 /**
  * `MANUAL_PERIOD_INSIDE`: a hand-entered period starts on [CapacityInfo.date], inside the sprint - the figure will not hold from then.
  * `ZERO_CAPACITY`: Flow's figure is 0 (its DEFAULT for a team without members), so the row is never preselected.
- * `LONG_WINDOW`: the sprint spans more calendar days than Flow's 60-day calendar cap (check its dates in Jira); it still holds its days,
- * so the sprints inside it count no day, and the row is never preselected.
+ * `LONG_WINDOW`: the sprint spans more calendar days than Flow's 60-day calendar cap (check its dates in Jira); Flow lets every sprint
+ * within the 60-day cap claim first, so it counts only the days no other sprint holds (its one period holds only until the next period
+ * starts), and the row is never preselected.
  * `FIXED_FIGURE`: Flow's figure is a fixed per-sprint total (the team's default), spread over the sprint's own window of [CapacityInfo.days]
  * working days, more than the days the row holds (some of its days belong to an earlier sprint).
  */

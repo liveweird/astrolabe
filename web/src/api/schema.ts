@@ -2521,7 +2521,7 @@ export interface paths {
          *     a period's man-day bounds). **A sprint whose `capacitySource` is `TEAM_DEFAULT` (or the legacy `CONFIGURED`)** carries a fixed per-sprint figure in Flow that claims
          *     do not reduce, so its `mdPerWeek` spreads `flowMd` over the working days of its OWN window `[start, end]`, while `workingDays` still
          *     counts the days from `effectiveFrom` (the days it holds); the row then carries the info `FIXED_FIGURE` with the window's working days. A sprint spanning more than 60 calendar days (Flow's calendar cap) is listed with the info `LONG_WINDOW`
-         *     and is never ticked; it still holds its days, so the sprints inside it are `OVERLAPS`. A sprint that is not skipped is planned against the team's ACTIVE periods: none starts on `effectiveFrom` - `CREATE`; a Flow-sourced
+         *     and is never ticked; every sprint within the 60-day cap claims first (Flow 1.57.1), so it holds only the days no other sprint holds and the sprints inside it keep theirs (a long sprint with no day left is `OVERLAPS`); its figure spreads Flow's total over those days but its one period holds only until the next period starts. A sprint that is not skipped is planned against the team's ACTIVE periods: none starts on `effectiveFrom` - `CREATE`; a Flow-sourced
          *     one does - `UPDATE` when its figure, its sprint or its name differ (its WIP limit is kept) else `UNCHANGED`; a hand-entered one
          *     does - `MANUAL_PERIOD`: **a hand-entered period is never changed**, the sprint is left alone. A hand-entered period that starts
          *     inside a sprint (after `effectiveFrom`, up to its `end`) adds the info `MANUAL_PERIOD_INSIDE` with its date: the sprint's figure
@@ -5961,7 +5961,7 @@ export interface components {
         };
         CapacityInfo: {
             /**
-             * @description `MANUAL_PERIOD_INSIDE`: a hand-entered period starts inside the sprint; its figure will not hold from `date`. `ZERO_CAPACITY`: Flow's figure is 0. `LONG_WINDOW`: the sprint spans more than Flow's 60 calendar days (check its dates in Jira); it still holds its days and is never ticked. `FIXED_FIGURE`: Flow's figure is a fixed per-sprint total (the team's default), spread over the working days of the sprint's own window (`days`), more than the days the row holds.
+             * @description `MANUAL_PERIOD_INSIDE`: a hand-entered period starts inside the sprint; its figure will not hold from `date`. `ZERO_CAPACITY`: Flow's figure is 0. `LONG_WINDOW`: the sprint spans more than Flow's 60 calendar days (check its dates in Jira); every sprint within the 60-day cap claims first, so it counts only the days no other sprint holds (its figure holds only until the next period) and it is never ticked. `FIXED_FIGURE`: Flow's figure is a fixed per-sprint total (the team's default), spread over the working days of the sprint's own window (`days`), more than the days the row holds.
              * @enum {string}
              */
             code: "MANUAL_PERIOD_INSIDE" | "ZERO_CAPACITY" | "LONG_WINDOW" | "FIXED_FIGURE";

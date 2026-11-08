@@ -263,7 +263,7 @@
     "info": {
       "MANUAL_PERIOD_INSIDE": "Okres wpisany ręcznie zaczyna się {{date}}, w środku sprintu: wartość sprintu nie obowiązuje od tego dnia.",
       "ZERO_CAPACITY": "Flow podaje 0 osobodni: domyślnie niezaznaczony.",
-      "LONG_WINDOW": "Ten sprint przekracza 60-dniowy limit kalendarza sprintu we Flow (liczba dni kalendarzowych: {{days}}): sprawdź jego daty w Jirze przed importem; sprinty w jego środku nie liczą żadnego dnia. Domyślnie niezaznaczony.",
+      "LONG_WINDOW": "Ten sprint przekracza 60-dniowy limit kalendarza sprintu we Flow (liczba dni kalendarzowych: {{days}}): sprawdź jego daty w Jirze przed importem. Flow pozwala każdemu sprintowi mieszczącemu się w limicie 60 dni zająć swoje dni jako pierwszemu, więc ten liczy tylko dni, które zostały, a jego wartość obowiązuje tylko do okresu następnego sprintu. Domyślnie niezaznaczony.",
       "FIXED_FIGURE": "Wartość z Flow to stała suma na cały sprint, więc rozkładamy ją na cały sprint (liczba dni roboczych sprintu: {{days}}); część jego dni należy do wcześniejszego sprintu."
     },
     "closedNote": "Zakończył się przed {{from}}: domyślnie niezaznaczony.",
