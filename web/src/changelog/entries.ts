@@ -17,6 +17,28 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.6.0",
+    date: "2026-11-08",
+    en: `**Astrolabe 1.6.0: capacity compared with Flow.**
+
+- Deviations, Capacity from Flow: for every team linked to a Flow team, Astrolabe compares the plan's capacity with Flow's, sprint by sprint, for the current and future sprints. The plan having 0.5 man-days or more above Flow is a warning, below Flow an info. Sprints with no capacity in the plan are listed too, folded into one line per team, and a linked Flow team that is no longer in Flow is a warning.
+- The comparison counts the same days and figures as Import capacity…, so after an import a team reads "In line with Flow". The team page's Flow section shows the same comparison under "Capacity vs Flow".
+- Import capacity… shows what an import would change. It never changes a hand-entered period, and a sprint where Flow has 0 must be ticked by hand.
+- A team imported with 1.5.0 may show differences until it is imported again; the preview offers the update.
+- Closed sprints and sprints longer than 60 days are not compared. When a Flow connection is disabled or its last read failed, its lines are marked stale and "in line" is not claimed.
+- Nothing is stored and nothing is written to Flow. Every signed-in user can read the comparison, including Flow's per-sprint figures.
+- Proven against the built-in Flow stub, and checked on a copy of a real Flow 1.57.1's data: every difference listed matched the import preview, and no import was applied. The Jira sync, import and deviations are still proven against the built-in stub only.`,
+    pl: `**Astrolabe 1.6.0: przepustowość porównana z Flow.**
+
+- Odchylenia, „Przepustowość z Flow”: dla każdego zespołu powiązanego z zespołem Flow Astrolabe porównuje przepustowość z planu z przepustowością z Flow, sprint po sprincie, dla sprintów bieżących i przyszłych. Jeśli w planie jest o 0,5 osobodnia lub więcej niż we Flow, to ostrzeżenie; jeśli mniej niż we Flow, to informacja. Sprinty bez przepustowości w planie też są wymienione, zwinięte w jeden wiersz na zespół, a powiązany zespół Flow, którego nie ma już we Flow, to ostrzeżenie.
+- Porównanie liczy te same dni i wartości co „Importuj przepustowość…”, więc po imporcie zespół pokazuje „Zgodnie z Flow”. Sekcja Flow na stronie zespołu pokazuje to samo porównanie pod nazwą „Przepustowość a Flow”.
+- „Importuj przepustowość…” pokazuje, co zmieniłby import. Nigdy nie zmienia okresu wpisanego ręcznie, a sprint, w którym Flow podaje 0, trzeba zaznaczyć ręcznie.
+- Zespół zaimportowany w wersji 1.5.0 może pokazywać różnice do czasu ponownego importu; podgląd proponuje aktualizację.
+- Sprintów zamkniętych i dłuższych niż 60 dni nie porównujemy. Gdy połączenie z Flow jest wyłączone albo jego ostatni odczyt się nie powiódł, jego wiersze są oznaczone jako nieaktualne i nie twierdzimy, że plan jest zgodny.
+- Niczego nie przechowujemy i niczego nie zapisujemy we Flow. Każda zalogowana osoba może zobaczyć porównanie, także wartości Flow dla poszczególnych sprintów.
+- Sprawdzone na wbudowanej atrapie Flow oraz na kopii danych prawdziwego Flow 1.57.1: każda wymieniona różnica zgadzała się z podglądem importu, a żadnego importu nie zastosowaliśmy. Synchronizacja, import i odchylenia z Jiry są nadal sprawdzone wyłącznie na wbudowanej atrapie.`,
+  },
+  {
     version: "1.5.1",
     date: "2026-11-08",
     en: `**Astrolabe 1.5.1: fixes from the first real Jira and Flow connections.**
