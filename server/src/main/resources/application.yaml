@@ -237,8 +237,8 @@ telemetry:
 jira:
   # The Jira sync's outbound client (jira/Jira.kt, `.claude/docs/security.md` "Outbound HTTP calls"). Every key is boot-validated; a
   # malformed or out-of-range value refuses startup naming the key.
-  # DEVELOPMENT ONLY: reroutes BOTH the tenant_info host and the Atlassian gateway host to a Jira stub (compose/k8s `jira-stub`, the
-  # in-JVM WireMock of the tests), as `http(s)://host[:port]`. Production startup REFUSES a non-blank value (fail-closed).
+  # DEVELOPMENT ONLY: reroutes BOTH the tenant_info host and the Atlassian gateway host of a `stub-` site (tenant label prefix, `jira/JiraStubRouting.kt`; no
+  # other site) to a Jira stub (compose/k8s `jira-stub`, the in-JVM WireMock of the tests), as `http(s)://host[:port]`. Production startup REFUSES a non-blank value (fail-closed).
   stubBaseUrl: "$JIRA_STUB_BASE_URL:"
   # One attempt's deadline (HttpTimeout and the OkHttp timeouts), seconds 5..120.
   requestTimeoutSeconds: "$JIRA_REQUEST_TIMEOUT_SECONDS:30"

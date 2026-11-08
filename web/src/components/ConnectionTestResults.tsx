@@ -123,6 +123,11 @@ export default function ConnectionTestResults(props: { result: JiraTestResult; k
           {t("jira.test.scopeNote")}
         </Alert>
       )}
+      {props.kind !== "FLOW" && props.result.stub && (
+        <Alert color="gray" variant="light" role="note">
+          {t("jira.test.stubNote")}
+        </Alert>
+      )}
       {props.kind === "FLOW" ? (
         <FlowDocumentFacts result={props.result} />
       ) : (

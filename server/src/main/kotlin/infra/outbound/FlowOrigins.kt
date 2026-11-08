@@ -19,7 +19,8 @@ private const val HTTP_PREFIX = "http://"
  *  - [insecure] (`FLOW_INSECURE_ORIGINS`): exact `http://host[:port]` origins - the Flow stub and a plain-http Flow on OrbStack - honoured
  *    in [developmentMode] ONLY (`configureFlow` refuses a non-blank list at boot otherwise; this class ignores it as defence in depth).
  *    Such a host may resolve to a loopback, private or docker-network address ("a local fixture by construction"), but never to a
- *    link-local (the cloud metadata address), any-local, multicast, `0.0.0.0/8`, `::/96`, 6to4 or Teredo one ([insecureAddressAllowed]);
+ *    link-local (the cloud metadata address), any-local, multicast, `0.0.0.0/8`, `::/96`, NAT64, 6to4 or Teredo one
+ *    ([insecureAddressAllowed]);
  *    the host check still applies unconditionally, so this never widens WHICH hosts are reachable. A host that is ALSO a listed TLS host
  *    follows the listed-host rule only.
  *
@@ -39,16 +40,7 @@ class FlowOrigins(
 
     /** The address rule, asked of EVERY address a lookup resolved to. */
     fun addressAllowed(host: String, address: InetAddress): Boolean =
-        hosts.addressAllowed(host, address) || (insecureHost(host) && !hosts.hostListed(host) && insecureAddressAllowed(address))
-
-    /**
-     * Loopback (the in-JVM stub), or any address outside the never-admitted classes: link-local (the metadata address), any-local,
-     * multicast, `0.0.0.0/8`, `::/96`, 6to4 and Teredo.
-     */
-    private fun insecureAddressAllowed(address: InetAddress): Boolean {
-        val unwrapped = address.withoutIpv4Mapping()
-        return unwrapped.isLoopbackAddress || !unwrapped.isNeverAllowed()
-    }
+        hosts.addressAllowed(host, address) || (insecureHost(host) && !hosts.hostListed(host) && address.isDevelopmentFixtureAddress())
 
     /** The scheme actually used to reach [host], for the `outbound.blocked` audit: a listed TLS host wins over an insecure alias. */
     fun schemeFor(host: String): String = if (insecureHost(host) && !hosts.hostListed(host)) "http" else "https"

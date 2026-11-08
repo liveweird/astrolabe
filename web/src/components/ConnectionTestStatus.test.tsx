@@ -9,7 +9,7 @@ describe("ConnectionTestStatus", () => {
       { name: "myself", path: "/rest/api/3/myself", required: true, ok: false, code: "SKIPPED" },
       { name: "issuetype", path: "/rest/api/3/issuetype", required: true, ok: false, code: "SKIPPED" },
     ];
-    renderWithProviders(<ConnectionTestStatus result={{ rows, recorded: true }} />);
+    renderWithProviders(<ConnectionTestStatus result={{ rows, recorded: true, stub: false }} />);
     expect(screen.getByRole("status")).toHaveTextContent("Test failed. Required probes that failed: 1 of 3.");
   });
 
@@ -18,7 +18,7 @@ describe("ConnectionTestStatus", () => {
       { name: "myself", path: "/rest/api/3/myself", required: true, ok: false, code: "SKIPPED" },
       { name: "field", path: "/rest/api/3/field", required: true, ok: false, code: "SKIPPED" },
     ];
-    renderWithProviders(<ConnectionTestStatus result={{ rows, recorded: true }} />);
+    renderWithProviders(<ConnectionTestStatus result={{ rows, recorded: true, stub: false }} />);
     expect(screen.getByRole("status")).toHaveTextContent("Test failed. Required probes that failed: 2 of 2.");
     expect(screen.getByRole("status")).not.toHaveTextContent("Test passed");
   });

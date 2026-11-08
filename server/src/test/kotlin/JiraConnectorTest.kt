@@ -7,6 +7,7 @@ import ch.nokillswit.jira.JiraClient
 import ch.nokillswit.jira.JiraConnector
 import ch.nokillswit.jira.JiraSearchPage
 import ch.nokillswit.jira.JiraStartAtPage
+import ch.nokillswit.jira.JiraTestResult
 import ch.nokillswit.jira.JiraTestTarget
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
@@ -14,6 +15,7 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
@@ -46,6 +48,27 @@ class JiraConnectorTest {
     private fun probe(client: Scripted, keys: List<String>) = runBlocking {
         val connector = JiraConnector({ _, _, _, _ -> client }, pageSize = 100, incrementalOverlapMinutes = 10)
         connector.testConnection(JiraTestTarget("https://sample.atlassian.net", "a@b.test", "tok", JiraAuthScheme.BASIC, keys)).result
+    }
+
+    @Test
+    fun `testConnection says stub only when the probes ran - a refused host or an unreadable token reads false`() = runBlocking {
+        val stubSite = "https://stub-sample.atlassian.net"
+        suspend fun result(routed: Boolean, site: String, token: String?): JiraTestResult {
+            val connector = JiraConnector(
+                { _, _, _, _ -> Scripted { page("E2E", total = 1) } }, pageSize = 100, incrementalOverlapMinutes = 10,
+                routedToStub = { routed }, // true for EVERY site: only the code path may decide
+            )
+            return connector.testConnection(JiraTestTarget(site, "a@b.test", token, JiraAuthScheme.BASIC, listOf("E2E"))).result
+        }
+        assertTrue(result(true, stubSite, "tok").stub, "a probed, routed site")
+        assertFalse(result(false, stubSite, "tok").stub, "a probed site the predicate does not route")
+        val unreadable = result(true, stubSite, null)
+        assertEquals(listOf("stored_token"), unreadable.rows.map { it.name })
+        assertFalse(unreadable.stub, "no call was made, so the stub answered nothing")
+        val refused = result(true, "$stubSite/x", "tok")
+        assertEquals(listOf("BLOCKED_HOST"), refused.rows.map { it.code })
+        assertFalse(refused.stub, "no call was made, so the stub answered nothing")
+        assertFalse(probe(Scripted { page("E2E", total = 1) }, listOf("E2E")).stub, "no predicate = never a stub")
     }
 
     @Test

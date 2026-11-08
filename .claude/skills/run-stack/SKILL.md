@@ -67,7 +67,7 @@ side on one machine; host ports bind to 127.0.0.1:
   server, starts PostgreSQL, runs Flyway on boot, and serves everything at
   `http://localhost:8086` (Swagger at `/openapi`; sign in as `admin@astrolabe.local` / `changeme`;
   Mailpit at `http://localhost:8029`; the Jira stub at `http://localhost:8096`, `app` reaching it as `http://jira-stub:8080` through
-  `JIRA_STUB_BASE_URL`: Administration → Jira → New connection with site `https://sample.atlassian.net`, any email/token and keys
+  `JIRA_STUB_BASE_URL`: Administration → Jira → New connection with site `https://stub-sample.atlassian.net` (only `stub-` sites are served by the stub; any other site reaches Atlassian), any email/token and keys
   `CE,PF,CG,DI,OE` (not `SP`; the stub's projects are in `sample-data/jira/README.md`) → Test connection is green; the app does not depend on the
   stub, so `docker compose up postgres mailpit` + `./gradlew :server:run` needs none). Tear down with `docker compose down` (add `-v` to drop the
   DB volume).

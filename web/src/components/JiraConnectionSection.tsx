@@ -16,6 +16,7 @@ import { showSuccessToast } from "../utils/toast";
 import ConnectionTestResults from "./ConnectionTestResults";
 import ConnectionTestStatus from "./ConnectionTestStatus";
 import FormErrorAlert from "./FormErrorAlert";
+import JiraStubBadge from "./JiraStubBadge";
 import SyncRunsTable from "./SyncRunsTable";
 import SyncFacts, { Fact } from "./SyncFacts";
 
@@ -27,13 +28,16 @@ function ConnectionFacts({ connection, readAt }: { connection: JiraConnection; r
     <Table aria-label={t("jira.details.factsAria")}>
       <Table.Tbody>
         <Fact label={t("jira.field.siteUrl")}>
-          {site ? (
-            <Anchor href={site} target="_blank" rel="noopener noreferrer" size="sm">
-              {connection.siteUrl}
-            </Anchor>
-          ) : (
-            connection.siteUrl
-          )}
+          <Group gap="xs" wrap="wrap">
+            {site ? (
+              <Anchor href={site} target="_blank" rel="noopener noreferrer" size="sm">
+                {connection.siteUrl}
+              </Anchor>
+            ) : (
+              <Text size="sm">{connection.siteUrl}</Text>
+            )}
+            {connection.stub && <JiraStubBadge />}
+          </Group>
         </Fact>
         <Fact label={t("jira.field.email")}>{connection.email}</Fact>
         <Fact label={t("jira.field.apiToken")}>{connection.hasApiToken ? t("jira.details.tokenStored") : t("jira.details.tokenMissing")}</Fact>

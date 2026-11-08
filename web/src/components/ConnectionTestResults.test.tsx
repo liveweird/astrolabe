@@ -16,6 +16,17 @@ describe("ConnectionTestResults", () => {
     expect(screen.queryByRole("note")).not.toBeInTheDocument();
   });
 
+  test("a stub-answered Jira result says so in a gray note; a genuine one and a Flow result do not", () => {
+    const { unmount } = renderWithProviders(<ConnectionTestResults result={{ ...PASSING_TEST, stub: true }} />);
+    expect(screen.getByRole("note")).toHaveTextContent(/answered by the built-in development Jira stub, not by Atlassian/);
+    unmount();
+    const genuine = renderWithProviders(<ConnectionTestResults result={PASSING_TEST} />);
+    expect(screen.queryByRole("note")).not.toBeInTheDocument();
+    genuine.unmount();
+    renderWithProviders(<ConnectionTestResults result={FLOW_PASSING} kind="FLOW" />);
+    expect(screen.queryByText(/development Jira stub/)).not.toBeInTheDocument();
+  });
+
   test("a failed row shows the status, the failure in words with its code, and the scope the probe needs", () => {
     renderWithProviders(<ConnectionTestResults result={FAILING_TEST} />);
     const search = screen.getByText("search").closest("tr")!;
@@ -39,7 +50,7 @@ describe("ConnectionTestResults", () => {
 
   test("a stored token that cannot be decrypted reads in words", () => {
     const rows = [{ name: "stored_token", path: "stored API token", required: true, ok: false, code: "TOKEN_UNREADABLE" }];
-    renderWithProviders(<ConnectionTestResults result={{ rows, recorded: true }} />);
+    renderWithProviders(<ConnectionTestResults result={{ rows, recorded: true, stub: false }} />);
     expect(screen.getByText("The stored token cannot be decrypted; enter it again (TOKEN_UNREADABLE)")).toBeInTheDocument();
   });
 
@@ -49,7 +60,7 @@ describe("ConnectionTestResults", () => {
       { name: "myself", path: "/rest/api/3/myself", required: true, ok: false, code: "SKIPPED" },
       { name: "field", path: "/rest/api/3/field", required: true, ok: false, code: "SKIPPED" },
     ];
-    renderWithProviders(<ConnectionTestResults result={{ rows, recorded: true }} />);
+    renderWithProviders(<ConnectionTestResults result={{ rows, recorded: true, stub: false }} />);
     const myself = screen.getByText("myself").closest("tr")!;
     expect(within(myself).getByText("Skipped")).toBeInTheDocument();
     expect(within(myself).queryByText("Failed")).not.toBeInTheDocument();

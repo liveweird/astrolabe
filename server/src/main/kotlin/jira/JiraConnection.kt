@@ -84,7 +84,14 @@ data class JiraConnectionResponse(
     val status: SyncStatus,
     val createdAt: Long,
     val updatedAt: Long,
+    /**
+     * Whether this connection's calls go to the development Jira stub rather than Atlassian: derived per request from the site and the
+     * server's stub configuration ([JiraStubRouting]), never stored, never true in production.
+     */
+    val stub: Boolean = false,
 )
+
+fun JiraConnectionResponse.withStubRouting(routing: JiraStubRouting): JiraConnectionResponse = copy(stub = routing.routes(siteUrl))
 
 typealias JiraConnectionPageResponse = PageResponse<JiraConnectionResponse>
 

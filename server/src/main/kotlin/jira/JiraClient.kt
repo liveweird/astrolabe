@@ -100,10 +100,12 @@ internal val ISSUE_ID_PATTERN = Regex("^[0-9]{1,20}$")
 val ISSUE_KEY_PATTERN: Regex = Regex("^[A-Z][A-Z0-9_]{1,9}-[0-9]{1,10}$")
 
 /**
- * [tenantInfoBaseUrl] is the connection's own site (or, in development, the stub host). [stubBaseUrl] non-null means development mode:
- * the gateway HOST becomes the same stub instance - but the gateway PATH SHAPE (`/ex/jira/{cloudId}/...`) is unchanged either way, only
- * the host is substituted. In production [stubBaseUrl] is null and the gateway host is `https://api.atlassian.com`: a stored site URL can
- * therefore never redirect the authenticated traffic anywhere but there (the site is only asked for its unauthenticated `tenant_info`).
+ * [tenantInfoBaseUrl] is the connection's own site (or, in development, the stub host for a `stub-` site). [stubBaseUrl] non-null means
+ * this connection is a `stub-` site in development mode ([JiraStubRouting]): the gateway HOST becomes the same stub instance - the
+ * factory passes null for every other site, which therefore reaches Atlassian - but the gateway PATH SHAPE (`/ex/jira/{cloudId}/...`) is
+ * unchanged either way, only the host is substituted. In production [stubBaseUrl] is null and the gateway host is
+ * `https://api.atlassian.com`: a stored site URL can therefore never redirect the authenticated traffic anywhere but there (the site is
+ * only asked for its unauthenticated `tenant_info`).
  * The `cloudId` path segment comes from [resolveCloudId], which must run before any other call. [email] and [apiToken] only build the
  * `Authorization` header (`jiraAuthHeader`) and are never kept anywhere else.
  */

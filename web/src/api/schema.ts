@@ -5261,6 +5261,8 @@ export interface components {
              * @description Epoch millis
              */
             updatedAt: number;
+            /** @description True when this connection's calls go to the development Jira stub rather than Atlassian (development mode, JIRA_STUB_BASE_URL set, and a site label starting with stub-). Derived per request, never stored. */
+            stub: boolean;
         };
         JiraConnectionPage: {
             items: components["schemas"]["JiraConnection"][];
@@ -5298,6 +5300,8 @@ export interface components {
             discoveredAt?: number | null;
             /** @description Whether the result was stored on the connection (false for an ad-hoc test, or when an edit raced the test). */
             recorded: boolean;
+            /** @description True when the probes were answered by the development Jira stub (development mode, JIRA_STUB_BASE_URL set, and a site label starting with stub-), not by Atlassian. */
+            stub: boolean;
         };
         JiraDiscoveredField: {
             id: string;

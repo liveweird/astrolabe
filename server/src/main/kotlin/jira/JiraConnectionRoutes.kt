@@ -46,6 +46,7 @@ private const val MAX_BIND_WAIT_MILLIS = 60_000L
 fun Application.configureJiraRoutes() {
     val connections = attributes[JiraConnectionServiceKey]
     val connector = attributes[JiraConnectorKey]
+    val routing = attributes[JiraStubRoutingKey]
     val bindings = attributes[JiraBindingServiceKey]
     val people = attributes[PersonServiceKey]
     val imports = attributes[JiraImportServiceKey]
@@ -64,7 +65,7 @@ fun Application.configureJiraRoutes() {
                 requireAdmin(call.caller())
                 val paging = call.parsePaging(sortable = JIRA_CONNECTION_SORT_FIELDS)
                 val result = connections.list(paging)
-                call.respond(HttpStatusCode.OK, paging.toPage(result.items, result.total))
+                call.respond(HttpStatusCode.OK, paging.toPage(result.items.map { it.withStubRouting(routing) }, result.total))
             }
             post<JiraConnectionsRoute> {
                 val caller = call.caller()
@@ -82,11 +83,11 @@ fun Application.configureJiraRoutes() {
                     "pollIntervalMinutes" to request.pollIntervalMinutes,
                 )
                 call.response.header(HttpHeaders.Location, call.application.href(JiraConnectionsRoute.Id(id = id)))
-                call.respond(HttpStatusCode.Created, connections.read(id).orVanished("Jira connection", id))
+                call.respond(HttpStatusCode.Created, connections.read(id).orVanished("Jira connection", id).withStubRouting(routing))
             }
             get<JiraConnectionsRoute.Id> { route ->
                 requireAdmin(call.caller())
-                call.respond(HttpStatusCode.OK, connections.read(route.id).orNotFound("Jira connection"))
+                call.respond(HttpStatusCode.OK, connections.read(route.id).orNotFound("Jira connection").withStubRouting(routing))
             }
             put<JiraConnectionsRoute.Id> { route ->
                 val caller = call.caller()

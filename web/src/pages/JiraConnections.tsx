@@ -9,6 +9,7 @@ import { deleteJiraConnection, listJiraBindings, listJiraConnections, type JiraC
 import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
 import DestructiveMenuItem from "../components/DestructiveMenuItem";
 import JiraConnectionEditorModal from "../components/JiraConnectionEditorModal";
+import JiraStubBadge from "../components/JiraStubBadge";
 import PageHeader from "../components/PageHeader";
 import RegistryListTable from "../components/RegistryListTable";
 import RowActionsMenu from "../components/RowActionsMenu";
@@ -157,14 +158,17 @@ export default function JiraConnections() {
               </Group>
             </Table.Td>
             <Table.Td>
-              {jiraSiteUrl(connection.siteUrl) ? (
-                <Anchor href={jiraSiteUrl(connection.siteUrl)} target="_blank" rel="noopener noreferrer" size="sm">
-                  {connection.siteUrl.replace(/^https:\/\//, "")}
-                  <IconExternalLink size="0.85em" aria-hidden style={{ marginInlineStart: "0.25em", verticalAlign: "-0.1em" }} />
-                </Anchor>
-              ) : (
-                <Text size="sm">{connection.siteUrl}</Text>
-              )}
+              <Group gap="xs">
+                {jiraSiteUrl(connection.siteUrl) ? (
+                  <Anchor href={jiraSiteUrl(connection.siteUrl)} target="_blank" rel="noopener noreferrer" size="sm">
+                    {connection.siteUrl.replace(/^https:\/\//, "")}
+                    <IconExternalLink size="0.85em" aria-hidden style={{ marginInlineStart: "0.25em", verticalAlign: "-0.1em" }} />
+                  </Anchor>
+                ) : (
+                  <Text size="sm">{connection.siteUrl}</Text>
+                )}
+                {connection.stub && <JiraStubBadge />}
+              </Group>
             </Table.Td>
             <Table.Td>
               <Text size="sm" lineClamp={2} maw={220} title={connection.projectKeys.join(", ")}>

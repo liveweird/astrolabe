@@ -2,9 +2,13 @@ package ch.nokillswit
 
 import ch.nokillswit.infra.fetch.FetchException
 import ch.nokillswit.infra.fetch.SourceHttp
+import ch.nokillswit.infra.outbound.Origin
 import ch.nokillswit.jira.HttpJiraClient
 import ch.nokillswit.jira.JiraAuthScheme
+import ch.nokillswit.jira.JiraStubRouting
 import ch.nokillswit.jira.createJiraHttp
+import ch.nokillswit.jira.isJiraStubSite
+import ch.nokillswit.jira.jiraClientFactory
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.MockRequestHandleScope
@@ -199,6 +203,73 @@ class JiraClientTest {
             listOf("http://jira-stub:8096/_edge/tenant_info", "http://jira-stub:8096/ex/jira/$CLOUD_ID/rest/api/3/field"),
             seen.toList(),
         )
+    }
+
+    /** The (host, path) of every request a factory-built client makes for [site]: resolve the cloud id, then one gateway call. */
+    private suspend fun hostsFor(routing: JiraStubRouting, site: String): List<Pair<String, String>> {
+        val seen = CopyOnWriteArrayList<Pair<String, String>>()
+        val engine = MockEngine { request ->
+            seen += request.url.host to request.url.encodedPath
+            respond(if (request.url.encodedPath.endsWith("/tenant_info")) TENANT_INFO else "{}", HttpStatusCode.OK, JSON_HEADERS)
+        }
+        val factory = jiraClientFactory(jiraHttp(engine, maxRetries = 0), routing)
+        factory(site, "svc@example.com", "tok", JiraAuthScheme.BASIC).apply { resolveCloudId(); myself() }
+        return seen.toList()
+    }
+
+    @Test
+    fun `the factory sends a stub- site to the stub and a genuine site to its own host and the gateway`() =
+        runBlocking {
+            val routing = JiraStubRouting(Origin("http", "jira-stub", 8096), developmentMode = true)
+            assertEquals(
+                listOf("jira-stub" to "/_edge/tenant_info", "jira-stub" to "/ex/jira/$CLOUD_ID/rest/api/3/myself"),
+                hostsFor(routing, "https://stub-sample.atlassian.net"),
+            )
+            // Genuine sites reach Atlassian even though a stub is configured - including the near-misses of the prefix.
+            val lookalikes = listOf("https://sample.atlassian.net", "https://stubsample.atlassian.net", "https://acme-stub-x.atlassian.net")
+            for (genuine in lookalikes) {
+                val host = genuine.removePrefix("https://")
+                assertEquals(
+                    listOf(host to "/_edge/tenant_info", "api.atlassian.com" to "/ex/jira/$CLOUD_ID/rest/api/3/myself"),
+                    hostsFor(routing, genuine),
+                    "$genuine is no stub site",
+                )
+            }
+        }
+
+    @Test
+    fun `without a stub configured a stub- site goes to Atlassian`() = runBlocking {
+        assertEquals(
+            listOf(
+                "stub-sample.atlassian.net" to "/_edge/tenant_info",
+                "api.atlassian.com" to "/ex/jira/$CLOUD_ID/rest/api/3/myself",
+            ),
+            hostsFor(JiraStubRouting(null, developmentMode = true), "https://stub-sample.atlassian.net"),
+        )
+    }
+
+    @Test
+    fun `production mode never routes to a stub, even with one configured`() {
+        val routing = JiraStubRouting(Origin("http", "jira-stub", 8096), developmentMode = false)
+        assertFalse(routing.routes("https://stub-sample.atlassian.net"))
+        assertNull(routing.stubUrlFor("https://stub-sample.atlassian.net"))
+        val development = JiraStubRouting(Origin("http", "jira-stub", 8096), developmentMode = true)
+        assertTrue(development.routes("https://stub-sample.atlassian.net"))
+        assertEquals("http://jira-stub:8096", development.stubUrlFor("https://stub-sample.atlassian.net"))
+        assertFalse(development.routes("https://sample.atlassian.net"))
+    }
+
+    @Test
+    fun `the stub site rule is the tenant label prefix and nothing else`() {
+        assertTrue(isJiraStubSite("https://stub-x.atlassian.net"))
+        assertTrue(isJiraStubSite("https://stub-e2ejira3f9a.atlassian.net"))
+        for (not in listOf(
+            "https://sample.atlassian.net", "https://stubsample.atlassian.net", "https://STUB-X.atlassian.net",
+            "https://x-stub-.atlassian.net", "https://stub-x.atlassian.net/", "https://stub-x.atlassian.net/jira",
+            "https://stub-x.atlassian.net:8443", "http://stub-x.atlassian.net", "https://stub-x.example.com", "stub-x.atlassian.net", "",
+        )) {
+            assertFalse(isJiraStubSite(not), "$not")
+        }
     }
 
     @Test

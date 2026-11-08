@@ -9,10 +9,20 @@ import ch.nokillswit.infra.outbound.GuardedDns
 import ch.nokillswit.infra.outbound.Origin
 import ch.nokillswit.infra.outbound.SelfManagedHosts
 import ch.nokillswit.infra.outbound.isAllowedJiraHost
+import ch.nokillswit.infra.outbound.isAllowedJiraOrigin
 import ch.nokillswit.infra.outbound.parseSelfManagedHosts
+import ch.nokillswit.jira.JiraAuthScheme
+import ch.nokillswit.jira.JiraConnector
+import ch.nokillswit.jira.JiraStubRouting
+import ch.nokillswit.jira.JiraTestTarget
 import ch.nokillswit.jira.buildGuardedJiraHttpClient
 import ch.nokillswit.jira.createJiraHttp
+import ch.nokillswit.jira.jiraAddressRule
+import ch.nokillswit.jira.jiraClientFactory
+import ch.nokillswit.jira.validatedStubOrigin
 import com.github.tomakehurst.wiremock.client.WireMock.aResponse
+import com.github.tomakehurst.wiremock.client.WireMock.anyRequestedFor
+import com.github.tomakehurst.wiremock.client.WireMock.anyUrl
 import com.github.tomakehurst.wiremock.client.WireMock.get
 import com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo
 import io.ktor.http.HttpMethod
@@ -31,6 +41,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -202,6 +213,40 @@ class OutboundGuardTest {
     }
 
     @Test
+    fun `the stub host may resolve to a loopback or docker address and never to a link-local, 0-8 or multicast one`() {
+        val rule = jiraAddressRule(developmentMode = true, stubHost = "jira-stub")
+        fun lookup(host: String, address: InetAddress, addressRule: (String, InetAddress) -> Boolean = rule) =
+            GuardedDns(allowedHost = { true }, resolver = { listOf(address) }, addressAllowed = addressRule).lookup(host)
+        val fixtureAddresses = listOf(
+            ipv4(127, 0, 0, 1), ipv4(172, 18, 0, 3), ipv4(10, 96, 4, 7), ipv4(192, 168, 65, 2),
+            ipv6(0, 0, 0, 0, 0, 0, 0, 1), ipv6(0xfd00, 0, 0, 0, 0, 0, 0, 5),
+            ipv6(0x0064, 0xff9b, 0, 0, 0, 0, 0x0a60, 0x0407), // NAT64 embedding a private IPv4
+        )
+        for (ok in fixtureAddresses) assertEquals(1, lookup("jira-stub", ok).size, "${ok.hostAddress} is a development fixture address")
+        val never = listOf(
+            "link-local (the metadata address)" to ipv4(169, 254, 169, 254),
+            "any-local" to ipv4(0, 0, 0, 0),
+            "0.0.0.0/8 (OrbStack's host.docker.internal)" to ipv4(0, 250, 250, 254),
+            "multicast" to ipv4(224, 0, 0, 1),
+            "IPv6 link-local" to ipv6(0xfe80, 0, 0, 0, 0, 0, 0, 1),
+            "IPv6 multicast" to ipv6(0xff02, 0, 0, 0, 0, 0, 0, 1),
+            "::/96" to ipv6(0, 0, 0, 0, 0, 0, 0x0a00, 0x0001),
+            "6to4" to ipv6(0x2002, 0xcb00, 0x710a, 0, 0, 0, 0, 1),
+            "Teredo" to ipv6(0x2001, 0, 0x4136, 0xe378, 0x8000, 0x63bf, 0x3fff, 0xfdd2),
+            "IPv4-mapped link-local" to rawMapped(169, 254, 169, 254),
+            "IPv4-mapped any-local" to rawMapped(0, 0, 0, 0),
+            "IPv4-mapped 0.0.0.0/8" to rawMapped(0, 250, 250, 254),
+            "IPv4-mapped multicast" to rawMapped(224, 0, 0, 1),
+            "NAT64 64:ff9b::/96 embedding the metadata address" to ipv6(0x0064, 0xff9b, 0, 0, 0, 0, 0xa9fe, 0xa9fe),
+            "NAT64 local-use 64:ff9b:1::/48" to ipv6(0x0064, 0xff9b, 0x0001, 0, 0, 0, 0, 5),
+        )
+        never.forEach { (label, address) -> assertFailsWith<BlockedHostException>(label) { lookup("jira-stub", address) } }
+        // Any OTHER host keeps the public-only rule, and production has no stub host at all.
+        assertFailsWith<BlockedHostException> { lookup("acme.atlassian.net", ipv4(127, 0, 0, 1)) }
+        assertFailsWith<BlockedHostException> { lookup("jira-stub", ipv4(127, 0, 0, 1), jiraAddressRule(false, "jira-stub")) }
+    }
+
+    @Test
     fun `GuardedDns accepts a genuinely public address`() {
         val dns = GuardedDns(allowedHost = { true }, resolver = { listOf(ipv4(203, 0, 113, 10)) })
         assertEquals(1, dns.lookup("api.atlassian.com").size)
@@ -294,6 +339,47 @@ class OutboundGuardTest {
         }
         assertEquals("BLOCKED_HOST", error.code)
         assertEquals(0, resolveCalls, "an already-disallowed host must never reach the resolver")
+    }
+
+    /**
+     * The seam is `buildGuardedJiraHttpClient(resolver = ...)`: the connector below is built from the SAME functions `configureJira` uses
+     * (allow-list, address rule, origin rule, `JiraStubRouting`, `jiraClientFactory`), with a resolver that answers only the stub's host,
+     * so a genuine `*.atlassian.net` name fails locally and the suite never touches the network.
+     */
+    @Test
+    fun `production wiring - with the stub configured, a genuine site never reaches the stub and a stub- site does`() = runBlocking {
+        val stubUrl = JiraStubServer.start()
+        val stub = validatedStubOrigin(stubUrl)
+        val resolved = mutableListOf<String>()
+        val httpClient = buildGuardedJiraHttpClient(
+            allowedHost = { host -> isAllowedJiraHost(host, stub.host, developmentMode = true) },
+            resolver = { host ->
+                resolved += host
+                if (host.equals(stub.host, ignoreCase = true)) InetAddress.getAllByName(host).toList() else throw UnknownHostException(host)
+            },
+            addressAllowed = jiraAddressRule(developmentMode = true, stubHost = stub.host),
+            originAllowed = { scheme, host, port -> isAllowedJiraOrigin(scheme, host, port, stub, developmentMode = true) },
+            requestTimeoutSeconds = 5,
+        )
+        val routing = JiraStubRouting(stub, developmentMode = true)
+        val connector = JiraConnector(
+            jiraClientFactory(jiraHttp(httpClient, maxRetries = 0), routing), pageSize = 100, incrementalOverlapMinutes = 10,
+            routedToStub = routing::routes,
+        )
+        fun target(site: String) = JiraTestTarget(site, "a@b.test", "tok", JiraAuthScheme.BASIC, listOf("E2E"))
+
+        JiraStubServer.resetRequests()
+        val genuineSite = "https://acme${UUID.randomUUID().toString().replace("-", "").take(12)}.atlassian.net"
+        val genuine = connector.testConnection(target(genuineSite)).result
+        assertFalse(genuine.stub, "a genuine site is not answered by the stub")
+        assertNull(genuine.cloudId, "the stub's cloud id is never taken for a genuine site")
+        assertEquals("UPSTREAM_UNAVAILABLE", genuine.rows.first().code, "the genuine host failed locally: ${genuine.rows}")
+        assertTrue(resolved.single().endsWith(".atlassian.net"), "only the genuine host was resolved: $resolved")
+        assertEquals(0, JiraStubServer.countRequests(anyRequestedFor(anyUrl())), "the stub received no request for a genuine site")
+
+        val stubbed = connector.testConnection(target("https://stub-sample.atlassian.net")).result
+        assertTrue(stubbed.stub && stubbed.passed, "${stubbed.rows}")
+        assertTrue(JiraStubServer.countRequests(anyRequestedFor(anyUrl())) > 0, "the journal does see a stub- site's calls")
     }
 
     @Test

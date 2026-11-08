@@ -11,6 +11,10 @@
   "openAria": "Open connection {{name}}",
   "open": "Open",
   "disabled": "Disabled",
+  "stub": {
+    "badge": "Development stub",
+    "title": "This connection's calls go to the built-in development Jira stub, not to Atlassian"
+  },
   "yes": "Yes",
   "no": "No",
   "testConnection": "Test connection",
@@ -91,6 +95,7 @@
     "notPassed": "Failed",
     "scopeHint": "needs scope: {{scope}}",
     "scopeNote": "A 401 on one probe while “myself” passes means the token is missing that probe's scope, not that the credentials are wrong. Add the scope shown on the failed row to the token.",
+    "stubNote": "This test was answered by the built-in development Jira stub, not by Atlassian: while JIRA_STUB_BASE_URL is set, a site whose address starts with https://stub- is routed to the stub.",
     "cloudId": "Cloud id: {{cloudId}}",
     "rateLimited": "Too many tests in a minute. Wait a moment and try again.",
     "failedGeneric": "The test could not run. Check your connection and try again.",

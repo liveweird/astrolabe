@@ -9,6 +9,7 @@ import ch.nokillswit.infra.outbound.guardedKtorClient
 import ch.nokillswit.infra.outbound.guardedOkHttpClient
 import ch.nokillswit.infra.outbound.isAllowedJiraHost
 import ch.nokillswit.infra.outbound.isAllowedJiraOrigin
+import ch.nokillswit.infra.outbound.isDevelopmentFixtureAddress
 import ch.nokillswit.infra.outbound.publicAddressesOnly
 import ch.nokillswit.sync.SyncConnectorsKey
 import ch.nokillswit.sync.SyncRunServiceKey
@@ -32,7 +33,8 @@ val JiraHttpClientKey = AttributeKey<HttpClient>("JiraHttpClient")
  * Wires the Jira HTTP stack (Flow's `jira/Jira.kt`, trimmed): ONE guarded `HttpClient(OkHttp)` shared by every connection - the allow-list
  * ([isAllowedJiraHost]) checks the GENERAL tenant-host shape (`infra/outbound/AtlassianSites.kt`, one source of truth with the write-time
  * validation), not a single stored site, so a single long-lived client safely serves every connection row. `jira.stubBaseUrl` reroutes BOTH
- * the tenant_info host and the gateway host to the Jira stub - development mode ONLY; production refuses a non-blank value at boot
+ * hosts (tenant_info and gateway) of a `stub-` site ([JiraStubRouting]) to the Jira stub, and of NO other site - development mode ONLY;
+ * production refuses a non-blank value at boot
  * (fail-closed, the shape of `infra/crypto/Crypto.kt`'s and `infra/mail/Mail.kt`'s checks). Registered in `application.yaml` after the
  * database and the plan routes, before the Jira routes.
  */
@@ -56,11 +58,7 @@ fun Application.configureJira() {
 
     val httpClient = buildGuardedJiraHttpClient(
         allowedHost = { host -> isAllowedJiraHost(host, stubHost, developmentMode) },
-        // The stub is a local compose/in-JVM fixture BY DESIGN (see GuardedDns's kdoc) - its address is expected to be loopback/private,
-        // unlike a genuine Jira Cloud host. Every other host: public addresses only.
-        addressAllowed = { host, address ->
-            (developmentMode && stubHost != null && host.equals(stubHost, ignoreCase = true)) || publicAddressesOnly(host, address)
-        },
+        addressAllowed = jiraAddressRule(developmentMode, stubHost),
         // The stub may be plain http:// (the compose demo) - audit its real scheme rather than the https constant that is correct for
         // every genuine Jira Cloud host.
         schemeFor = { host ->
@@ -80,14 +78,14 @@ fun Application.configureJira() {
         httpClient, maxRetries, maxResponseBytes, maxConcurrentRequests,
         requestDeadlineMillis = requestDeadlineSeconds * MILLIS_PER_SECOND, permits = permits,
     )
-    val stubUrl = stub?.let { "${it.scheme}://${it.host}:${it.port}" }
+    val routing = JiraStubRouting(stub, developmentMode)
+    attributes.put(JiraStubRoutingKey, routing)
     val connector = JiraConnector(
-        newClient = { siteUrl, email, apiToken, authScheme ->
-            HttpJiraClient(jiraHttp, stubUrl ?: siteUrl, stubUrl, email, apiToken, authScheme)
-        },
+        newClient = jiraClientFactory(jiraHttp, routing),
         pageSize = pageSize,
         incrementalOverlapMinutes = overlapMinutes,
         censusHours = censusHours,
+        routedToStub = routing::routes,
     )
     attributes.put(JiraConnectorKey, connector)
     // The run: the Jira connector of the sync registry (`sync/`), registered here and started by `configureSync`'s routes. The services it
@@ -100,6 +98,21 @@ fun Application.configureJira() {
     attributes[SyncConnectorsKey].register(observer)
     // The host only, never the URL.
     log.info("Jira outbound wired (gateway {}{})", "api.atlassian.com", stubHost?.let { ", development stub host $it" }.orEmpty())
+}
+
+/**
+ * The address rule of the Jira client. The stub is a local compose/in-JVM fixture BY DESIGN (see GuardedDns's kdoc) - its address is
+ * expected to be loopback/private, unlike a genuine Jira Cloud host - but never link-local, any-local, multicast, `0.0.0.0/8`, a
+ * NAT64 prefix embedding a refused address or another tunnelling prefix ([isDevelopmentFixtureAddress], Flow's rule for its insecure
+ * origins). The stub host is judged by that rule ALONE (the public-only rule would pass `::a.b.c.d`). Every other host: public
+ * addresses only.
+ */
+internal fun jiraAddressRule(developmentMode: Boolean, stubHost: String?): (String, InetAddress) -> Boolean = { host, address ->
+    if (developmentMode && stubHost != null && host.equals(stubHost, ignoreCase = true)) {
+        address.isDevelopmentFixtureAddress()
+    } else {
+        publicAddressesOnly(host, address)
+    }
 }
 
 /**
@@ -119,7 +132,28 @@ internal fun validatedStubOrigin(value: String): Origin {
     check(valid) { "Config \"jira.stubBaseUrl\" must be an http(s) origin without path, query, fragment or credentials" }
     checkNotNull(uri)
     checkNotNull(scheme)
-    return Origin(scheme, uri.host.lowercase(), if (uri.port != -1) uri.port else if (scheme == "https") HTTPS_PORT else HTTP_PORT)
+    val host = uri.host.lowercase()
+    checkStubLiteral(host)
+    return Origin(scheme, host, if (uri.port != -1) uri.port else if (scheme == "https") HTTPS_PORT else HTTP_PORT)
+}
+
+/**
+ * OkHttp never hands an IP-literal host to DNS (any host of digits and dots, or with a colon, is dialled as a literal), so the address
+ * rule would never see it: a literal is judged here, once. An IPv6 literal is refused outright (the per-request origin check compares
+ * the bracketless host OkHttp sees, so it could never be reached); a numeric host must be a canonical dotted quad (the JDK also reads
+ * `2852039166` or `0169.254.169.254` as 169.254.169.254) of a class [isDevelopmentFixtureAddress] admits (never link-local,
+ * any-local, multicast, `0.0.0.0/8` or a NAT64/tunnelling prefix). Every failure names the key, never the value.
+ */
+private fun checkStubLiteral(host: String) {
+    if (host.startsWith("[") || ':' in host) {
+        error("Config \"jira.stubBaseUrl\" must name its host or an IPv4 address; an IPv6 literal is not supported")
+    }
+    if (host.all { it.isDigit() || it == '.' }) {
+        val address = runCatching { InetAddress.getByName(host) }.getOrNull()
+        check(address != null && address.hostAddress == host && address.isDevelopmentFixtureAddress()) {
+            "Config \"jira.stubBaseUrl\" must not be an IP literal of a never-admitted class (link-local, any-local, multicast, 0/8, ...)"
+        }
+    }
 }
 
 /**

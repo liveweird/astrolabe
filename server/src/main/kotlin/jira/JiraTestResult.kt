@@ -14,6 +14,8 @@ data class JiraTestResult(
     val discoveredAt: Long? = null,
     /** Whether the result was stored on the connection: false for an ad-hoc test, or when an edit of the connection raced the test. */
     val recorded: Boolean = false,
+    /** Answered by the development Jira stub, not Atlassian (a `stub-` site in development mode: [JiraStubRouting]). */
+    val stub: Boolean = false,
 ) {
     /** What the UI calls a pass: every REQUIRED row is ok. */
     val passed: Boolean get() = rows.none { it.required && !it.ok }

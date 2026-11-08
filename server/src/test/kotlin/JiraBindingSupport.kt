@@ -26,9 +26,10 @@ val jbJson = Json { ignoreUnknownKeys = true }
 
 /**
  * A site no other test uses. Bindings are 1:1 per SITE across connections (D1) and the suite shares one database, so a test that binds
- * stub issues on a private site can never meet another test's bindings; the stub answers every tenant host alike.
+ * stub issues on a private site can never meet another test's bindings. The server routes every `stub-` site to the stub (and no other),
+ * so the label carries the prefix.
  */
-fun jbSite() = "https://jb${UUID.randomUUID().toString().replace("-", "").take(12)}.atlassian.net"
+fun jbSite() = "https://stub-jb${UUID.randomUUID().toString().replace("-", "").take(12)}.atlassian.net"
 
 fun jbRequest(
     site: String = jbSite(),

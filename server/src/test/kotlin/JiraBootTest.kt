@@ -64,6 +64,32 @@ class JiraBootTest {
     }
 
     @Test
+    fun `an IPv6, non-canonical or never-admitted IP-literal stubBaseUrl refuses to start, a loopback or private quad boots`() {
+        val never = listOf(
+            "http://169.254.169.254:80", "http://0.0.0.0:8096", "http://0.250.250.254:8096", "http://224.0.0.1:8096",
+            "http://[fe80::1]:8096", "http://[::1]:8096", "http://[fe80::1%25eth0]:8096",
+            // Numeric forms the JDK and OkHttp both dial as 169.254.169.254 / 10.0.0.1: only a canonical dotted quad is judged.
+            "http://2852039166:8096", "http://0169.254.169.254:8096", "http://010.0.0.1:8096",
+        )
+        for (bad in never) {
+            testApplication {
+                configureApp("jira.stubBaseUrl" to bad)
+                val failure = runCatching { startApplication() }.exceptionOrNull()
+                assertNotNull(failure, "must refuse: $bad")
+                val messages = generateSequence(failure) { it.cause }.mapNotNull { it.message }.joinToString(" | ")
+                assertTrue("jira.stubBaseUrl" in messages, "the key is named: $messages")
+            }
+        }
+        for (good in listOf("http://127.0.0.1:8096", "http://172.18.0.3:8080", "http://10.0.0.1:8096")) {
+            testApplication {
+                configureApp("jira.stubBaseUrl" to good)
+                startApplication()
+                assertNotNull(application.attributes[JiraConnectorKey], "boots with $good")
+            }
+        }
+    }
+
+    @Test
     fun `every setting is bound - an out-of-range or non-numeric value refuses to start naming its key`() {
         val bad = listOf(
             "jira.requestTimeoutSeconds" to "4",

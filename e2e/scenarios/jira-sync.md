@@ -5,8 +5,8 @@
   browser of its own); one throwaway project-owner login per linking test, seeded through the API (a regular user with no administrator right, linked to
   the person who owns the project)
 - **Owns** (exclusive server-side state): its Jira connections (unique `e2e-jira-*` names, each scoped to the stub's `E2E` project ONLY - any scope the stub does not list
-  falls through to the stub's 401 catch-all - and each given a unique throwaway site `https://e2ejira<random>.atlassian.net`, which the stub answers for like
-  any tenant, so no binding of another spec or of the user's own connections ever meets one of these: a Jira item is bound once per site), their bindings,
+  falls through to the stub's 401 catch-all - and each given a unique throwaway site `https://stub-e2ejira<random>.atlassian.net`, which the server routes to the stub (the `stub-` prefix is
+  the rule: any other site would reach Atlassian), so no binding of another spec or of the user's own connections ever meets one of these: a Jira item is bound once per site), their bindings,
   and a throwaway world per linking test (the owner login, people, a team, a work stream, a program, a project and milestones, unique `e2e-jira-*` names,
   every date in **2044**, which nothing writes a holiday in: 2044-01-04 is a Monday, so the working-day figures below hold). Everything is removed by the
   spec through the API (a test's own rows in its afterEach, the connections the first scenario created and the linking tests share, in the afterAll; a connection's delete unlinks its
@@ -30,7 +30,8 @@ token is `wrong-token`. A run takes seconds and the page's Refresh now starts it
      and read "Never tested".
 2. They press **Test connection**.
    - *Expected*: the status line reads "Test passed. OK: n of n." with n the same twice; the result table has an "OK" badge on `tenant_info`, `myself`,
-     `issuetype`, `search`, `field`, `projects` and `project:E2E` and no "Failed" badge; the cloud id is shown and the facts' last test reads "Passed".
+     `issuetype`, `search`, `field`, `projects` and `project:E2E` and no "Failed" badge; the cloud id is shown, a gray note says the test was answered by the built-in development Jira stub, not by
+     Atlassian, and the facts' site wears the "Development stub" badge and the last test reads "Passed".
 3. They wait for the "Connection created" toast to go.
    - *Expected*: an axe scan of the whole page, with the green result table, reports zero violations.
 

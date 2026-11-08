@@ -2,6 +2,7 @@ package ch.nokillswit
 
 import ch.nokillswit.infra.crypto.FieldCipher
 import ch.nokillswit.jira.JiraAuthScheme
+import ch.nokillswit.jira.JiraConnectionPageResponse
 import ch.nokillswit.jira.JiraConnectionRequest
 import ch.nokillswit.jira.JiraConnectionResponse
 import ch.nokillswit.jira.JiraConnectionServiceKey
@@ -60,7 +61,7 @@ class JiraTestConnectionTest {
         token: String? = newToken(),
         keys: List<String> = listOf("E2E"),
         scheme: JiraAuthScheme = JiraAuthScheme.BASIC,
-        site: String = "https://sample.atlassian.net",
+        site: String = "https://stub-sample.atlassian.net",
     ) = JiraConnectionRequest(name("conn"), site, "jira.user@example.test", token, scheme, keys, true)
 
     /** The app against the in-JVM stub; [retries] 0 so a deliberately failing probe does not sleep through real backoff. */
@@ -110,6 +111,7 @@ class JiraTestConnectionTest {
         assertTrue(result.passed)
         assertNull(result.discoveredAt, "an ad-hoc test stores nothing, so no discovery")
         assertFalse(result.recorded)
+        assertTrue(result.stub, "a stub- site is answered by the development stub, and the result says so")
         val hints = result.rows.associate { it.name to it.scopeHint }
         assertEquals(
             mapOf(
@@ -118,6 +120,22 @@ class JiraTestConnectionTest {
                 "issue" to "read:issue-details:jira",
             ),
             hints,
+        )
+    }
+
+    @Test
+    fun `a connection to a genuine site answers stub false on create, read and list - nothing is probed`() = testApplication {
+        start()
+        val admin = seededClient("jteststub", UserRole.ADMIN)
+        val genuine = admin.create(request(site = "https://acme${UUID.randomUUID().toString().replace("-", "").take(12)}.atlassian.net"))
+        assertFalse(genuine.stub)
+        assertFalse(admin.connection(genuine.id).stub)
+        val stubbed = admin.create(request())
+        assertTrue(stubbed.stub)
+        val page = admin.get("$base?pageSize=100&sort=-id").body<JiraConnectionPageResponse>()
+        assertEquals(
+            mapOf(genuine.id to false, stubbed.id to true),
+            page.items.filter { it.id == genuine.id || it.id == stubbed.id }.associate { it.id to it.stub },
         )
     }
 
@@ -310,7 +328,9 @@ class JiraTestConnectionTest {
         assertTrue(result.passed, "${result.rows}")
         assertNotNull(result.discoveredAt)
         assertTrue(result.recorded)
+        assertTrue(result.stub)
         val stored = admin.connection(created.id)
+        assertTrue(created.stub && stored.stub, "the connection response says its calls go to the stub")
         assertEquals(JiraStubServer.CLOUD_ID, stored.cloudId)
         assertEquals(true, stored.lastTestOk)
         assertTrue(stored.lastTestedAt!! >= before)
@@ -527,8 +547,9 @@ class JiraTestConnectionTest {
                 admin.postJson("$base/test", request(token = token))
                 val adHoc = audit.awaitEvent { it.message == "jira.connection_tested" && it.hasKeyValue("ok", true) }
                 assertNotNull(adHoc, "an ad-hoc test audits")
-                assertTrue(adHoc.hasKeyValue("byUserId", adminId.toLong()) && adHoc.hasKeyValue("host", "sample.atlassian.net"))
+                assertTrue(adHoc.hasKeyValue("byUserId", adminId.toLong()) && adHoc.hasKeyValue("host", "stub-sample.atlassian.net"))
                 assertTrue(adHoc.hasKeyValue("connectionId", null) && adHoc.hasKeyValue("failedProbes", emptyList<String>()))
+                assertTrue(adHoc.hasKeyValue("stub", true), "the audit line says the stub answered")
 
                 val created = admin.create(request(token = token))
                 withOverride(get(path("field")).atPriority(1).willReturn(aResponse().withStatus(401))) {

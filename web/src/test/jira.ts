@@ -21,6 +21,7 @@ export const CONNECTION: JiraConnection = {
   status: { state: "NEVER_SYNCED", lastRun: null, lastSucceededAt: null, consecutiveFailures: 0, nextPollAt: null },
   createdAt: 1,
   updatedAt: 2,
+  stub: false,
 };
 
 const START = { id: "customfield_10020", name: "Target start", type: "date", custom: "com.atlassian.jpo:jpo-custom-field-baseline-start" };
@@ -86,6 +87,7 @@ export const PASSING_TEST: JiraTestResult = {
   cloudId: "8a1a2b3c-0000-4000-8000-000000000001",
   discoveredAt: DISCOVERY.discoveredAt,
   recorded: true,
+  stub: false,
 };
 
 export const FAILING_TEST: JiraTestResult = {
@@ -97,6 +99,7 @@ export const FAILING_TEST: JiraTestResult = {
   ],
   cloudId: null,
   recorded: true,
+  stub: false,
 };
 
 export function run(overrides: Partial<SyncRun> = {}): SyncRun {

@@ -95,12 +95,20 @@ class FlowOriginsTest {
     fun `an insecure host is refused the address classes no host may have, and still allowed the local ones`() {
         val dev = origins()
         val never = listOf(
-            "169.254.169.254", "169.254.1.1", "0.0.0.0", "0.1.2.3", "224.0.0.1", "ff02::1", "::", "2002::1", "2001:0::1", "fe80::1",
+            "169.254.169.254", "169.254.1.1", "0.0.0.0", "0.1.2.3", "224.0.0.1", "ff02::1", "::", "2002::1", "2001:0::1",
+            "fe80::1",
+            "64:ff9b::a9fe:a9fe", // NAT64 embedding the metadata address
+            "64:ff9b::7f00:1", // NAT64 embedding loopback
+            "64:ff9b:1::5", // NAT64 local-use /48, refused whole
         )
         for (address in never) {
             assertFalse(dev.addressAllowed("flow-stub", ip(address)), "$address for the insecure host in development")
         }
-        for (address in listOf("127.0.0.1", "::1", "172.18.0.5", "198.19.0.1", "10.43.1.7", "192.168.65.254", "93.184.216.34")) {
+        val local = listOf(
+            "127.0.0.1", "::1", "172.18.0.5", "198.19.0.1", "10.43.1.7", "192.168.65.254", "93.184.216.34",
+            "64:ff9b::a2b:107", // NAT64 embedding a private IPv4
+        )
+        for (address in local) {
             assertTrue(dev.addressAllowed("flow-stub", ip(address)), address)
         }
     }

@@ -81,8 +81,8 @@ interface World {
   teamId: number;
 }
 
-/** A unique throwaway Jira site: the stub answers for any tenant, and a site of its own keeps one test's bindings out of another's. */
-const uniqueSite = () => `https://e2ejira${randomUUID().replace(/-/g, "").slice(0, 12)}.atlassian.net`;
+/** A unique throwaway Jira site: the server routes every `stub-` site to the stub, and a site of its own keeps one test's bindings out of another's. */
+const uniqueSite = () => `https://stub-e2ejira${randomUUID().replace(/-/g, "").slice(0, 12)}.atlassian.net`;
 
 async function create(api: APIRequestContext, path: string, data: object, tear: string, track: string[] = teardown): Promise<number> {
   const response = await api.post(path, { data });
@@ -234,6 +234,9 @@ test("admin creates a Jira connection, tests it and sees every probe green", asy
   }
   await expect(results.getByText("Failed", { exact: true })).toHaveCount(0);
   await expect(page.getByText(/^Cloud id: /)).toBeVisible();
+  // The result says the development stub answered it (a `stub-` site), and the connection's facts wear the badge.
+  await expect(page.getByRole("note").filter({ hasText: "development Jira stub" })).toBeVisible();
+  await expect(facts).toContainText("Development stub");
   await expect(facts).toContainText("Passed");
   // The green result table is scanned as it stands (the "Connection created" toast has gone, so it does not sit over the page).
   await expect(page.locator(".mantine-Notification-root")).toHaveCount(0);

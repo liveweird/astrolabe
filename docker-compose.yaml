@@ -74,8 +74,8 @@ services:
       MAIL_FROM: astrolabe@localhost
       # The password-reset link's origin; the isolated e2e stack points it at its own port.
       MAIL_APP_URL: ${MAIL_APP_URL:-http://localhost:8086}
-      # The Jira stub (below) stands in for BOTH the Jira site's tenant_info host and the Atlassian gateway, so a connection to
-      # `https://sample.atlassian.net` tests green offline. Development mode ONLY: production startup refuses a non-blank value
+      # The Jira stub (below) stands in for BOTH the tenant_info host and the Atlassian gateway of a `stub-` site, so a connection to
+      # `https://stub-sample.atlassian.net` tests green offline (any other site reaches Atlassian). Development mode ONLY: production startup refuses a non-blank value
       # (KTOR_DEVELOPMENT above is "true" for exactly this demo). There is deliberately NO depends_on the stub: the app boots without it.
       # Careful: this reads the HOST's JIRA_STUB_BASE_URL first. A value exported for `./gradlew :server:run` (say http://localhost:8096) is passed into
       # THIS container, where `localhost` is the container itself, not the stub, and Test connection then fails; unset it for compose. An EMPTY value

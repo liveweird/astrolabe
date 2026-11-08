@@ -3,7 +3,7 @@
 - **Spec**: [tests/jira-polling.spec.ts](../tests/jira-polling.spec.ts)
 - **Actors**: the seed administrator (creates the connections through the API, reads the connection page, edits in the editor, opens the telemetry panel)
 - **Owns** (exclusive server-side state): two Jira connections (unique `e2e-poll-*` names, each scoped to the stub's `E2E` project ONLY and given a unique throwaway
-  site `https://e2epoll<random>.atlassian.net`): `e2e-poll-scheduled-*` (polling every 5 minutes, tested once) and `e2e-poll-manual-*` (manual only, never tested). It binds
+  site `https://stub-e2epoll<random>.atlassian.net`): `e2e-poll-scheduled-*` (polling every 5 minutes, tested once) and `e2e-poll-manual-*` (manual only, never tested). It binds
   nothing, creates no plan node and dates nothing - so no year, no holiday, and a run of its connections calls Jira for nothing - and never flips the stub. Both are created
   through the API in the beforeAll and deleted in the afterAll. The file runs serially (`mode: "serial"`: the second scenario edits the polled connection, the third lists it).
   The beforeAll spends ONE Test connection call (a shared per-IP bucket (10 a minute by default, 30 on the e2e stacks) across the suite) per worker start of the file, and waits a 429 out once.

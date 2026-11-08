@@ -11,6 +11,10 @@
   "openAria": "Otwórz połączenie {{name}}",
   "open": "Otwórz",
   "disabled": "Wyłączone",
+  "stub": {
+    "badge": "Atrapa deweloperska",
+    "title": "Wywołania tego połączenia trafiają do wbudowanej deweloperskiej atrapy Jiry, a nie do Atlassian"
+  },
   "yes": "Tak",
   "no": "Nie",
   "testConnection": "Przetestuj połączenie",
@@ -93,6 +97,7 @@
     "notPassed": "Niezaliczony",
     "scopeHint": "wymaga zakresu: {{scope}}",
     "scopeNote": "Błąd 401 w jednej sondzie, gdy „myself” przechodzi, oznacza, że tokenowi brakuje zakresu tej sondy, a nie że dane logowania są złe. Dodaj do tokenu zakres podany przy sondzie z niepowodzeniem.",
+    "stubNote": "Ten test obsłużyła wbudowana deweloperska atrapa Jiry, a nie Atlassian: gdy ustawiono JIRA_STUB_BASE_URL, witryna, której adres zaczyna się od https://stub-, jest kierowana do atrapy.",
     "cloudId": "Identyfikator chmury: {{cloudId}}",
     "rateLimited": "Za dużo testów w ciągu minuty. Poczekaj chwilę i spróbuj ponownie.",
     "failedGeneric": "Nie udało się uruchomić testu. Sprawdź połączenie i spróbuj ponownie.",

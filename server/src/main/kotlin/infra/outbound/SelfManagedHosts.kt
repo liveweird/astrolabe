@@ -10,8 +10,9 @@ import java.net.InetAddress
  *
  * What the rule is, in one place ([addressAllowed]):
  *  - an address that is NOT blocked today ([isBlockedAddress]) is allowed for every host, listed or not;
- *  - loopback, link-local (incl. the cloud metadata address), any-local, multicast, `0.0.0.0/8`, `::/96`, 6to4 and Teredo are
- *    refused for every host, whatever the CIDRs say (and the CIDRs may not overlap them: [parseSelfManagedHosts] refuses at boot);
+ *  - loopback, link-local (incl. the cloud metadata address), any-local, multicast, `0.0.0.0/8`, `::/96`, NAT64 to a refused address
+ *    or in `64:ff9b:1::/48`, 6to4 and Teredo are refused for every host, whatever the CIDRs say (and the CIDRs may not overlap
+ *    them: [parseSelfManagedHosts] refuses at boot);
  *  - any other blocked address (private, unique-local, CGNAT, ...) is allowed only for a LISTED host and only inside a CIDR.
  *
  * An IPv4-mapped IPv6 address is unwrapped to IPv4 before any matching, so `::ffff:10.0.0.5` is judged as `10.0.0.5`.
@@ -66,15 +67,31 @@ private val PORT_DIGITS = Regex("[0-9]{1,5}")
 /**
  * Always refused, for every host: loopback, link-local, any-local, multicast, the whole of `0.0.0.0/8` ("this network", of which
  * the JDK flags only `0.0.0.0`), the deprecated IPv6 `::/96` family (`::`, `::1`, IPv4-compatible `::a.b.c.d`) and the tunnelling
- * prefixes 6to4 `2002::/16` and Teredo `2001:0::/32`.
+ * prefixes 6to4 `2002::/16` and Teredo `2001:0::/32`, and NAT64 (`64:ff9b::/96` embedding a never-allowed IPv4, `64:ff9b:1::/48`).
  */
 internal fun InetAddress.isNeverAllowed(): Boolean {
     if (isLoopbackAddress || isLinkLocalAddress || isAnyLocalAddress || isMulticastAddress) return true
-    if (isSixToFourOrTeredo()) return true
+    if (isSixToFourOrTeredo() || isNeverAllowedNat64()) return true
     return if (this is Inet4Address) address[0] == 0.toByte() else address.take(IPV6_ZERO_PREFIX_BYTES).all { it == 0.toByte() }
 }
 
 private const val IPV6_ZERO_PREFIX_BYTES = 12
+
+/**
+ * NAT64, matching `isBlockedAddress`'s `isNat64`: `64:ff9b::/96` (RFC 6052) is refused when its embedded IPv4 address is itself
+ * never-allowed; `64:ff9b:1::/48` (RFC 8215, local-use) is refused whole.
+ */
+private fun InetAddress.isNeverAllowedNat64(): Boolean {
+    val bytes = address
+    if (bytes.size != IPV6_BYTES_LEN || !bytes.copyOfRange(0, NAT64_PREFIX.size).contentEquals(NAT64_PREFIX)) return false
+    if (bytes[NAT64_PREFIX.size] == 0.toByte() && bytes[NAT64_PREFIX.size + 1] == 1.toByte()) return true // 64:ff9b:1::/48
+    val wellKnown = (NAT64_PREFIX.size until IPV6_ZERO_PREFIX_BYTES).all { bytes[it] == 0.toByte() }
+    val embedded = InetAddress.getByAddress(bytes.copyOfRange(IPV6_ZERO_PREFIX_BYTES, IPV6_BYTES_LEN))
+    return wellKnown && embedded.isNeverAllowed()
+}
+
+private const val IPV6_BYTES_LEN = 16
+private val NAT64_PREFIX = byteArrayOf(0x00, 0x64, 0xFF.toByte(), 0x9B.toByte())
 
 /**
  * An entry for an error message: echoed when it is plainly a host or CIDR, otherwise only its position. An entry that carries

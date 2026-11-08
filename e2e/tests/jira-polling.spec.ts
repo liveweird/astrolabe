@@ -25,8 +25,8 @@ let scheduled: Connection;
 let manual: Connection;
 const teardown: string[] = [];
 
-/** A unique throwaway Jira site: the stub answers for any tenant, and a site of its own keeps this file's connections apart from every other spec's. */
-const uniqueSite = () => `https://e2epoll${randomUUID().replace(/-/g, "").slice(0, 12)}.atlassian.net`;
+/** A unique throwaway Jira site: the server routes every `stub-` site to the stub, and a site of its own keeps this file's connections apart from every other spec's. */
+const uniqueSite = () => `https://stub-e2epoll${randomUUID().replace(/-/g, "").slice(0, 12)}.atlassian.net`;
 
 async function seedConnection(api: APIRequestContext, label: string, pollIntervalMinutes: number | null): Promise<Connection> {
   const name = uniqueText(`e2e-poll-${label}`);

@@ -95,6 +95,21 @@ describe("Jira connections page", () => {
     expect(headingOutline()).toEqual([[2, "Jira connections"]]);
   });
 
+  test("only a stub-served connection wears the Development stub badge in the site cell", async () => {
+    const items = [
+      { ...CONNECTION, siteUrl: "https://stub-sample.atlassian.net", stub: true },
+      { ...CONNECTION, id: 2, name: "Beta Jira", siteUrl: "https://beta.atlassian.net" },
+    ];
+    mockFetch.mockImplementation((url: string) =>
+      Promise.resolve(url.startsWith("/api/v1/integrations/jira/connections?") ? jsonResponse(200, { items, page: 1, pageSize: 20, total: items.length }) : jsonResponse(404, { title: "x", status: 404 })),
+    );
+    renderPage();
+    const stubbed = (await screen.findByRole("link", { name: "Open connection Acme Jira" })).closest("tr")!;
+    expect(within(stubbed).getByText("Development stub")).toBeInTheDocument();
+    const genuine = screen.getByRole("link", { name: "Open connection Beta Jira" }).closest("tr")!;
+    expect(within(genuine).queryByText("Development stub")).not.toBeInTheDocument();
+  });
+
   test("the Status column tells each connection's derived state with its secondary line", async () => {
     const NOW = Date.UTC(2026, 10, 6, 11, 0);
     vi.useFakeTimers({ toFake: ["Date"] });

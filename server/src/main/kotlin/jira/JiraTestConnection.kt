@@ -10,7 +10,10 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
 
-/** Builds the per-test client: the connection's site, account and token (the dev stub substituted for both hosts, `jira/Jira.kt`). */
+/**
+ * Builds the per-test client: the connection's site, account and token (a `stub-` site's two hosts replaced by the dev stub,
+ * `jira/JiraStubRouting.kt`).
+ */
 typealias JiraClientFactory = (siteUrl: String, email: String, apiToken: String, authScheme: JiraAuthScheme) -> JiraClient
 
 /**
@@ -50,6 +53,8 @@ class JiraConnector(
     val incrementalOverlapMinutes: Long,
     /** `jira.censusHours` (how often a run re-lists the child level as an id sweep; `JiraCensus`). */
     val censusHours: Int = DEFAULT_CENSUS_HOURS,
+    /** Whether a site is served by the development stub ([JiraStubRouting.routes]); stamps [JiraTestResult.stub] when calls were made. */
+    private val routedToStub: (String) -> Boolean = { false },
     private val now: () -> Long = System::currentTimeMillis,
 ) {
     suspend fun testConnection(target: JiraTestTarget): JiraTestOutcome {
@@ -63,7 +68,8 @@ class JiraConnector(
             run.fail("tenant_info", "/_edge/tenant_info", required = true, code = BLOCKED_HOST_CODE)
             return JiraTestOutcome(JiraTestResult(run.rows), null)
         }
-        return probe(newClient(target.siteUrl, target.email, token, target.authScheme), target, run)
+        // `stub` says who ANSWERED: only the probe path makes calls, so the two refusals above (no call made) never claim the stub.
+        return probe(newClient(target.siteUrl, target.email, token, target.authScheme), target, run, routedToStub(target.siteUrl))
     }
 
     /**
@@ -93,7 +99,7 @@ class JiraConnector(
     }
 
     @Suppress("LongMethod") // one probe per endpoint, in the order the rows are shown; each is two lines
-    private suspend fun probe(client: JiraClient, target: JiraTestTarget, run: ProbeRun): JiraTestOutcome {
+    private suspend fun probe(client: JiraClient, target: JiraTestTarget, run: ProbeRun, stub: Boolean): JiraTestOutcome {
         val projectKeys = target.projectKeys
         val seen = Probed()
         run.probe("tenant_info", "/_edge/tenant_info", required = true) { seen.cloudId = client.resolveCloudId() }
@@ -145,7 +151,7 @@ class JiraConnector(
         val fields = seen.fields
         val types = seen.issueTypes
         val discovery = if (fields != null && types != null) buildDiscovery(fields, types, now()) else null
-        return JiraTestOutcome(JiraTestResult(run.rows, seen.cloudId), discovery)
+        return JiraTestOutcome(JiraTestResult(run.rows, seen.cloudId, stub = stub), discovery)
     }
 
     /**

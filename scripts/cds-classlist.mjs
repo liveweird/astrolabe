@@ -137,7 +137,7 @@ try {
 
   log("workload: the Jira path (connection, Test connection, discovery, a binding, a sync run, the deviations view)");
   const connection = must(
-    await call("POST", "/api/v1/integrations/jira/connections", { name: "cds-training", siteUrl: "https://sample.atlassian.net", email: "cds@astrolabe.local", apiToken: "cds-training-token", projectKeys: ["CE", "PF", "CG", "DI", "OE"] }),
+    await call("POST", "/api/v1/integrations/jira/connections", { name: "cds-training", siteUrl: "https://stub-sample.atlassian.net", email: "cds@astrolabe.local", apiToken: "cds-training-token", projectKeys: ["CE", "PF", "CG", "DI", "OE"] }),
     "creating the Jira connection",
   ).id;
   const probes = must(await call("POST", `/api/v1/integrations/jira/connections/${connection}/test`), "testing the Jira connection");

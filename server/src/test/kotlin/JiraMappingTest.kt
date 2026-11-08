@@ -76,7 +76,7 @@ class JiraMappingTest {
 
     private fun request(token: String = "JTOK-${UUID.randomUUID()}", keys: List<String> = listOf("E2E")) =
         JiraConnectionRequest(
-            name("conn"), "https://sample.atlassian.net", "jira.user@example.test", token, JiraAuthScheme.BASIC, keys, true,
+            name("conn"), "https://stub-sample.atlassian.net", "jira.user@example.test", token, JiraAuthScheme.BASIC, keys, true,
         )
 
     private suspend fun ApplicationTestBuilder.start() {

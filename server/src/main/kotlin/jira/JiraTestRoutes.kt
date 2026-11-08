@@ -92,5 +92,6 @@ private fun auditTest(byUserId: UInt, connectionId: UInt?, siteUrl: String, resu
         "ok" to result.passed,
         "failedProbes" to result.rows.filter { !it.ok && it.code != SKIPPED_CODE }.map { it.name },
         "recorded" to result.recorded,
+        "stub" to result.stub,
     )
 }

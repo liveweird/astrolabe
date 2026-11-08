@@ -1,8 +1,8 @@
 ### The Jira sync (v1.4.0)
 
 Read before touching `jira/`, `sync/`, `infra/fetch/` or the Jira pages. **What it is:** Astrolabe reads Jira Cloud and compares it with the plan; **nothing is ever written to Jira**
-and corrections are made in Astrolabe. 1.1.0 is the connection, the mapping, 1:1 bindings, a manual Refresh and the Deviations page; 1.2.0 adds the import (preview, then apply); 1.3.0 adds polling, the connection status, acknowledge and the timeline markers; 1.4.0 adds coverage and roll-ups from a census mirror (V23); the connection stores its `pollIntervalMinutes` (V22: default 15, 5..1440, `null` = manual only), which the in-process scheduler reads ("Polling (1.3)", "Status (1.3)", "Acknowledge (1.3)" below). **It is proven against the built-in Jira stub and
-not yet tested against a real Jira site** (the walk-through below is the first real test). Not yet: Flow (1.5). Coverage and roll-ups (1.4, V23: the mirror `jira_issues` and `jira_connections.census_at`): "Coverage and roll-ups (1.4)" below and `persistence.md` "The Jira census (V23)".
+and corrections are made in Astrolabe. 1.1.0 is the connection, the mapping, 1:1 bindings, a manual Refresh and the Deviations page; 1.2.0 adds the import (preview, then apply); 1.3.0 adds polling, the connection status, acknowledge and the timeline markers; 1.4.0 adds coverage and roll-ups from a census mirror (V23); the connection stores its `pollIntervalMinutes` (V22: default 15, 5..1440, `null` = manual only), which the in-process scheduler reads ("Polling (1.3)", "Status (1.3)", "Acknowledge (1.3)" below). **It is proven against the built-in Jira stub; Astrolabe's own
+probes are still untested against a real Jira site** (the walk-through below is the first real test; ledger rows A3 and A8 were settled by hand with direct GETs on a real site on 2026-11-08). Not yet: Flow (1.5). Coverage and roll-ups (1.4, V23: the mirror `jira_issues` and `jira_connections.census_at`): "Coverage and roll-ups (1.4)" below and `persistence.md` "The Jira census (V23)".
 Related: schema `persistence.md` "The Jira sync tables (V21)"; outbound guard `security.md` "Outbound HTTP calls"; audit events and the run log lines `observability.md`; per-route guards
 `authorization.md`; the web pages `web/CLAUDE.md` "Jira connections" and "Deviations"; the stub's dataset `sample-data/jira/README.md`.
 
@@ -34,7 +34,7 @@ Rate buckets: `jira-test` 10/min per IP by default, `JIRA_TEST_RATE_LIMIT_PER_MI
   node ceiling (`LIMIT_EXCEEDED`), a page ceiling. Failure codes: `AUTHENTICATION_FAILED FORBIDDEN_SCOPE NOT_FOUND RATE_LIMITED UPSTREAM_UNAVAILABLE TIMEOUT INVALID_RESPONSE LIMIT_EXCEEDED
   BLOCKED_HOST REDIRECT CURSOR_EXPIRED BUSY`. `SourceHttp.kt` is at the 400-line cap: the next edit splits it.
 - `search/jql` returns only `id` unless `fields` is named; the run names every field it reads. Timestamps are `yyyy-MM-dd'T'HH:mm:ss.SSS+0000` (`JiraTime`).
-- **Development only:** `jira.stubBaseUrl` (`JIRA_STUB_BASE_URL`) reroutes BOTH hosts to the stub; a non-blank value outside development mode refuses boot naming the key.
+- **Development only:** `jira.stubBaseUrl` (`JIRA_STUB_BASE_URL`) reroutes BOTH hosts of a `stub-` site (and no other site: `JiraStubRouting`, `jira/JiraStubRouting.kt`) to the stub; a non-blank value outside development mode refuses boot naming the key.
 
 ## Test connection and the probes
 
@@ -50,7 +50,7 @@ Other typed row codes: `SKIPPED` (not run: `tenant_info` failed), `TOKEN_UNREADA
 
 `POST …/connections/test` is ad hoc (carries the token, stores nothing); `POST …/{id}/test` uses the stored token, records `last_tested_at/ok`, `cloud_id` and **the discovery whenever both `field`
 and `issuetype` answered, even if another probe failed (D3)** so a failing first test still leaves the report that diagnoses it. A result is recorded only if the row was not edited meanwhile
-(`recorded`). Audited `jira.connection_tested` (host, ok, failed probe names, never the token).
+(`recorded`). Audited `jira.connection_tested` (host, ok, failed probe names, `recorded`, `stub`; never the token).
 
 ## Discovery
 
@@ -285,8 +285,11 @@ row may be unreadable: that is `TOKEN_UNREADABLE`, never a 500. **Deleting a con
 
 One WireMock image (`sample-data/jira-stub`, `FROM wiremock/wiremock:3.13.2`, 2,278 mappings) serves compose (`127.0.0.1:8096`, `JIRA_STUB_BASE_URL=http://jira-stub:8080` on `app`) and the OrbStack
 overlay (`k8s/local/jira-stub.yaml`, Service `jira-stub:8080`, a NetworkPolicy pair); the server suite starts the same files in-JVM (`JiraStubServer`, warmed in a `@BeforeClass`). Production has neither the
-service nor the variable. **Cloud id** `b3f1a2c4-5d6e-4f7a-8b9c-0d1e2f3a4b5c`; connect with site `https://sample.atlassian.net`, any email, any token except `wrong-token` (that one gets `401` everywhere:
-`auth-wrong-token-401`).
+service nor the variable. **Cloud id** `b3f1a2c4-5d6e-4f7a-8b9c-0d1e2f3a4b5c`; connect with site `https://stub-sample.atlassian.net`, any email, any token except `wrong-token` (that one gets `401` everywhere:
+`auth-wrong-token-401`). **Which sites the stub serves (1.5.1):** only a site whose tenant label starts with `stub-` (`isJiraStubSite`, the ONE rule; `stub-x` yes, `sample`, `stubsample`, `STUB-X` no), and only when the stub is configured
+(development). Every other site reaches Atlassian even with `JIRA_STUB_BASE_URL` set, so a real tenant can be connected on a development stack; before 1.5.1 the stub answered EVERY connection. A connection or test that is stub-served says so: the `stub` member of the connection
+and of the test result (derived per response, never stored; the audit line `jira.connection_tested` carries `stub`), a gray "Development stub" badge on the page and in the list, and a gray note under the test result. The connection's site cannot be edited (409): a development
+connection made for the stub under another label (`sample.atlassian.net`) is deleted and recreated as `stub-sample`. The stub host's address rule is Flow's (`isDevelopmentFixtureAddress`: loopback or any address outside the never-admitted classes).
 
 - **Projects** (`expected.json`): `CE PF CG DI OE` (the five work streams: 20 Programs, 100 Initiatives, 1,000 Epics, parents following the plan), `E2E` (10 issues in 2044, only the e2e spec binds it),
   `IMP` (the import's project, 9 issues in 2045, untouched by day 2; only the import e2e spec imports it), `COV` (1.4: the coverage project, 12 issues in 2046, untouched by day 2; only the coverage e2e spec binds it) and `OUT` (no issues; where day 2 moves five epics). **Working scopes** are exactly: `E2E`; `CE PF CG DI OE`; those five plus `E2E`; `IMP`; `COV` (any key order, quoted or not);
@@ -310,7 +313,7 @@ Do this when a real site and token arrive. Use an account and a scoped or classi
    keys (≤ 50). **Test connection** and read the rows top to bottom; the FIRST failed row is the cause.
    - `tenant_info` failed (everything after reads `SKIPPED`): the site URL is wrong, or `BLOCKED_HOST` (not a tenant host), or a network/DNS block (`outbound.blocked` audit event).
    - `myself` 401: the token or the auth scheme. `myself` ok but another row 401: a missing scope; the row's hint names it (a missing scope is a 401, not a 403).
-   - `search` 400 or `INVALID_RESPONSE`: **A3** (issue-type ids in JQL); `projects` 400: **A8** (50 `keys`). These two are the likeliest surprises; both are one-line client changes.
+   - `search` 400 or `INVALID_RESPONSE`: **A3** (issue-type ids in JQL); `projects` 400: **A8** (50 `keys`). Both were confirmed by hand on a real site (2026-11-08; not yet through Astrolabe's probes); the likeliest remaining surprise is a scoped token (unverified).
    - `project:<KEY>` `PROJECT_NOT_VISIBLE`: the token cannot see that project. No `issue` row: the search returned nothing.
 2. **Read the discovery report** (the Mapping section; it exists only once a Test connection has been RECORDED, so a stored-connection test comes first, and mapping, Peek and bind all answer `409` until then): the counts, which field matched "Target start"/"Target end" and with what `schema.custom` (**A1**), whether a legacy Parent Link exists (**A2**), the
    Team and Story-points fields (**A7** if `fieldsTruncated`). Every "not found" is a decision for the mapping.
@@ -340,12 +343,12 @@ Do this when a real site and token arrive. Use an account and a scoped or classi
 |---|---|---|---|
 | A1 | Jira Plans names its date fields exactly "Target start"/"Target end" (customs `jpo-custom-field-baseline-start/-end`) | stub-only; Flow knows only the "target start" fragment. The name match is case-insensitive with a `schema.custom` fallback | discovery report, mapping defaults |
 | A2 | Plans' legacy Parent Link is folded into the `parent` field on current sites; the sync reads `parent` only | stub-only | the report lists a legacy Parent Link if present |
-| A3 | JQL accepts issue-type ids in `issuetype in (10001,10002)` | stub-only; Atlassian documents "name or ID", Flow never used it | the `search` probe sends exactly that clause |
+| A3 | JQL accepts issue-type ids in `issuetype in (10001,10002)` | verified on a real site 2026-11-08 by direct GETs (bluemedia, CARDS: by id, by name, ids of other projects' types); not yet through Astrolabe | the `search` probe sends exactly that clause |
 | A4 | `search/jql` with `fields=id` could allow a bigger page (up to 5,000) | not exercised: 100 a page is Flow's verified figure | backlog (raise it after measuring) |
 | A5 | Mapped date fields are `schema.type == date`; a datetime is refused | design rule; time-zone edges unverified | mapping validation, Peek |
 | A6 | `fields.status.statusCategory.key` is `new|indeterminate|done` | the object form on issues is Flow-verified; the key values are stub-only here | observations, `PROGRESS_MISMATCH` |
 | A7 | The site's usable fields (≤ 2,000) and issue types (≤ 500) fit the snapshot | stub-only (Flow's tenant had 1,344 fields before the date/number/custom filter) | `fieldsTruncated` |
-| A8 | `project/search` accepts up to 50 repeated `keys` | **from memory of Atlassian's docs, not verified anywhere** | the `projects` probe |
+| A8 | `project/search` accepts up to 50 repeated `keys` | verified on a real site 2026-11-08 by direct GETs (bluemedia: `project/search?keys=CARDS`, and the unfiltered list); not yet through Astrolabe | the `projects` probe |
 | A9 | The Team field's value is an object with a `name`, or plain text on some sites (`teamNameOf`) | stub-only; Atlassian Team is the object form, the plain-text form is defensive | Peek `teamName`, `raw` |
 | A10 | A `search/jql` entry carries its direct parent's `fields.issuetype` (the import needs it only for a parent outside the browsed set; absent = the parent's level is unknown = the item is an orphan) | stub-only; the stub's parent type object even omits `hierarchyLevel` for some ids, which the planner resolves through the discovery by type id | import preview: items read `NO_PARENT` that have a parent in Jira |
 | A11 | The level-0 volume under the mapped projects fits one typed read's 200-page ceiling (20,000 issues at `jira.pageSize` 100; 100,000 at 500) | stub-only (the stub has 538 stories) | the WARN `children census truncated`; roll-ups are incomplete past it (a chunked `parent in (...)` read is the backlog fix) |
@@ -353,7 +356,7 @@ Do this when a real site and token arrive. Use an account and a scoped or classi
 | A13 | A finished story's `statusCategory.key` is `done` | stub-only (A6's values on level 0) | the done count of a roll-up, `CHILDREN_DONE`, the exclusion of done children from `UNLINKED_IN_JIRA` |
 | A14 | Story points on level-0 issues sit in the discovery's `storyPoints` marker field ("Story Points" or "Story point estimate", both match "story point") | stub-only; which one a site fills is unknown | `rollup.points` is null when the marker is empty |
 
-Also unverified until a real site: the gateway with a scoped token and which auth scheme it needs, `hierarchyLevel` on issue documents (the client falls back to the `/issuetype` index), this tenant's
+Also unverified until a real site: the first real test through Astrolabe recorded the STUB's cloud id (before 1.5.1 every connection went to the stub), so an admin moving a connection off the stub re-tests it until `tenant_info` passes: `recordTest` overwrites `cloud_id` only when the test resolved one, so a failed `tenant_info` leaves the old (stub) id in place (the run resolves it live anyway); the gateway with a scoped token and which auth scheme it needs, `hierarchyLevel` on issue documents (the client falls back to the `/issuetype` index), this tenant's
 page sizes and rate-limit behaviour.
 
 ## Decisions on the overnight defaults

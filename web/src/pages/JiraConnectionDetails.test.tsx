@@ -103,6 +103,26 @@ describe("Jira connection page", () => {
     expect(screen.getByRole("button", { name: "Peek" })).toBeInTheDocument();
   });
 
+  test("a stub-served connection wears the Development stub badge in its facts; a genuine one does not", async () => {
+    serve(mockFetch, { connection: { ...CONNECTION, siteUrl: "https://stub-sample.atlassian.net", stub: true } });
+    const { unmount } = renderPage();
+    const facts = await screen.findByRole("table", { name: "Connection facts" });
+    expect(within(facts).getByText("Development stub")).toBeInTheDocument();
+    unmount();
+    serve(mockFetch);
+    renderPage();
+    const genuine = await screen.findByRole("table", { name: "Connection facts" });
+    expect(within(genuine).queryByText("Development stub")).not.toBeInTheDocument();
+  });
+
+  test("a stub-answered Test connection shows the note under the result", async () => {
+    serve(mockFetch, { test: () => jsonResponse(200, { ...PASSING_TEST, stub: true }) });
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Test connection" }));
+    expect(await screen.findByText(/answered by the built-in development Jira stub/)).toBeInTheDocument();
+  });
+
   test("before any test has stored a discovery the Mapping section says to test first, with no empty form", async () => {
     serve(mockFetch, { connection: { ...CONNECTION, discoveredAt: null, lastTestedAt: null, lastTestOk: null, cloudId: null } });
     renderPage();

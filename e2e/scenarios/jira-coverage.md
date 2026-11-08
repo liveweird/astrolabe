@@ -4,7 +4,7 @@
 - **Actors**: the seed administrator (seeds and tears down through the API, binds, refreshes, and works in the browser). No new guard exists to prove, so no
   second actor.
 - **Owns** (exclusive server-side state): ONE Jira connection (`e2e-cov-connection-*`, scoped to the stub's `COV` project ONLY on a unique throwaway site
-  `https://e2ecov<random>.atlassian.net`, manual only - `pollIntervalMinutes: null`, so the scheduler never touches it - and given 0.5 man-days per story point through
+  `https://stub-e2ecov<random>.atlassian.net`, manual only - `pollIntervalMinutes: null`, so the scheduler never touches it - and given 0.5 man-days per story point through
   the API), tested ONCE per worker start of the file through the API in the beforeAll (**one call** of the per-IP Test connection bucket, shared with the other Jira
   specs; a 429 there waits the minute out once), its three bindings (the project to `COV-2`, the milestones to `COV-3` and `COV-4`; `COV-5` and `COV-10` are never bound),
   its runs (one in the beforeAll, one more in the third scenario, both through the API), and a throwaway world - a person, a team, a work stream, a program, a project

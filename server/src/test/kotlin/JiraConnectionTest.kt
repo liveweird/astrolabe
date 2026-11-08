@@ -135,6 +135,19 @@ class JiraConnectionTest {
     }
 
     @Test
+    fun `without a configured stub even a stub- site answers stub false - the flag is derived, never stored`() = testApplication {
+        usePostgresTestcontainer()
+        val admin = seededClient("jiracrudstub", UserRole.ADMIN)
+        val site = "https://stub-${UUID.randomUUID().toString().replace("-", "").take(12)}.atlassian.net"
+        val created = admin.postJson(base, request(siteUrl = site))
+        assertEquals(HttpStatusCode.Created, created.status)
+        val body = created.connection()
+        assertFalse(body.stub)
+        assertFalse(admin.get("$base/${body.id}").connection().stub)
+        assertFalse(admin.listAll().single { it.id == body.id }.stub)
+    }
+
+    @Test
     fun `admin CRUD round-trips - create, read, list, update, delete`() = testApplication {
         usePostgresTestcontainer()
         val admin = seededClient("jiracrud", UserRole.ADMIN)
@@ -148,6 +161,7 @@ class JiraConnectionTest {
         assertEquals("jira.user@example.test", body.email, "the account email is folded")
         assertEquals(listOf("SP", "E2E"), body.projectKeys)
         assertEquals("https://sample.atlassian.net", body.siteUrl)
+        assertFalse(body.stub, "no stub is configured here")
         assertTrue(body.hasApiToken)
         assertEquals(JiraAuthScheme.BASIC, body.authScheme)
         assertTrue(body.enabled)

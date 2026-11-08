@@ -114,6 +114,17 @@ private const val IPV4_BYTES = 4
 private const val IPV6_BYTES = 16
 private const val IPV4_MAPPED_ZERO_BYTES = 10
 
+/**
+ * The address rule of a development-only fixture host (the Jira stub's host, a Flow insecure origin): loopback (the in-JVM stub), or any
+ * address outside the never-admitted classes ([isNeverAllowed]: link-local - the metadata address -, any-local, multicast, `0.0.0.0/8`,
+ * `::/96`, NAT64 to a refused address or in `64:ff9b:1::/48`, 6to4 and Teredo). A docker or private address is fine; one DNS answer
+ * must not steer a dev stack's authenticated calls anywhere else.
+ */
+internal fun InetAddress.isDevelopmentFixtureAddress(): Boolean {
+    val unwrapped = withoutIpv4Mapping()
+    return unwrapped.isLoopbackAddress || !unwrapped.isNeverAllowed()
+}
+
 /** The address rule of every client that is not a self-managed host: public addresses only ([isBlockedAddress]). */
 val publicAddressesOnly: (String, InetAddress) -> Boolean = { _, address -> !address.isBlockedAddress() }
 
@@ -176,11 +187,11 @@ class GuardedDns(
     private val resolver: (String) -> List<InetAddress> = { InetAddress.getAllByName(it).toList() },
     /**
      * The address rule, asked of EVERY address a lookup resolved to (all-or-nothing: one refused address fails the whole
-     * lookup, audited). The default is [publicAddressesOnly]. The development stub host (`jira.stubBaseUrl`,
-     * `gitlab.stubBaseUrl`) answers `true` for its own host only: it is, by construction, a local compose/in-JVM fixture
-     * (loopback or a docker-network private address). A self-managed GitLab host answers through
-     * `SelfManagedHosts.addressAllowed` (`.claude/docs/security.md` "Outbound HTTP calls"). The allow-list check above
-     * still applies unconditionally — this never widens which HOSTS are reachable.
+     * lookup, audited). The default is [publicAddressesOnly]. The development stub host (`jira.stubBaseUrl`) is judged by
+     * [isDevelopmentFixtureAddress] for its own host only (loopback, private or docker addresses pass; link-local, any-local,
+     * multicast, `0.0.0.0/8`, `::/96`, NAT64 to a refused address, 6to4 and Teredo never do), see `jira/Jira.kt`'s `jiraAddressRule`.
+     * A self-managed host answers through `SelfManagedHosts.addressAllowed` (`.claude/docs/security.md` "Outbound HTTP
+     * calls"). The allow-list check above still applies unconditionally — this never widens which HOSTS are reachable.
      */
     private val addressAllowed: (String, InetAddress) -> Boolean = publicAddressesOnly,
     /**
