@@ -18,14 +18,19 @@ import type { APIRequestContext, Locator, Page } from "@playwright/test";
 import {
   apiAsAdmin,
   axeViolations,
+  bindFlowTeamViaApi,
   deleteViaApi,
   expect,
   expectScheme,
+  flowStub,
   login,
   openFilters,
+  refreshFlowConnectionViaApi,
   rowOperation,
+  seedFlowConnection,
   type Scheme,
   test,
+  testFlowConnectionViaApi,
   testJiraConnectionViaApi,
   uniqueText,
   updateRankingViaApi,
@@ -1059,7 +1064,8 @@ test.describe("the Jira pages", () => {
       const row = page.getByRole("table", { name: "Differences between the plan and Jira" }).getByRole("row").filter({ hasText: milestoneName });
       await expect(row.getByRole("button", { name: "Acknowledge E2E-4" })).toBeVisible();
       // The run-state badge of "Data from Jira" (the one manual run succeeded) and the totals badges.
-      await expect(page.getByRole("table", { name: "Data from Jira" }).getByText("Succeeded", { exact: true })).toBeVisible();
+      // Scoped to the fixture connection's row: the table lists EVERY Jira connection, and parallel specs' connections carry "Succeeded" badges too.
+      await expect(page.getByRole("table", { name: "Data from Jira" }).getByRole("row").filter({ hasText: connectionName }).getByText("Succeeded", { exact: true })).toBeVisible();
       await openFilters(page);
       await expect(page.getByRole("combobox", { name: "Status" })).toHaveValue("Open");
       await expectScheme(page, scheme);
@@ -1106,5 +1112,95 @@ test.describe("the Jira pages", () => {
   test.describe("dark scheme", () => {
     test.use({ colorScheme: "dark" });
     registerJiraScans("dark");
+  });
+});
+
+// The Flow pages (v1.5): a team linked to the stub's "Axe Flow Team" (2026 dates; three current members and one former) through a Flow connection of its own, so the registry, the connection
+// page with the Teams section filled and the team page's Flow section (the link facts and the roster, the former members opened) are scanned with real rows. No scan presses Test connection;
+// `flow-sync.spec.ts` axe-scans the result table and the capacity import modal. The connection is manual-only and read once through the API in the beforeAll.
+// Owns: that connection (`e2e-axe-flow-connection-*`), the team (`e2e-axe-flow-team-*`) and its link, created and deleted via the API (the connection first: its link goes with it).
+test.describe("the Flow pages", () => {
+  let api: APIRequestContext;
+  let connectionId: number;
+  let connectionName: string;
+  let teamId: number;
+  let teamName: string;
+  const paths: string[] = []; // delete paths in creation order (the connection last); the afterAll deletes them in reverse
+  const axeTeam = flowStub().axe.team;
+
+  test.beforeAll(async () => {
+    test.setTimeout(180_000); // the Test connection call may wait a 429 out (one minute)
+    ({ api } = await apiAsAdmin());
+    teamName = uniqueText("e2e-axe-flow-team");
+    const created = await api.post("/api/v1/teams", { data: { name: teamName } });
+    expect(created.status(), await created.text()).toBe(201);
+    teamId = ((await created.json()) as { id: number }).id;
+    paths.push(`/api/v1/teams/${teamId}`);
+    connectionName = uniqueText("e2e-axe-flow-connection");
+    connectionId = await seedFlowConnection(api, connectionName, paths);
+    await testFlowConnectionViaApi(api, connectionId);
+    await refreshFlowConnectionViaApi(api, connectionId);
+    await bindFlowTeamViaApi(api, connectionId, teamId, axeTeam);
+  });
+  test.afterAll(async () => {
+    try {
+      await deleteViaApi(paths.splice(0).reverse());
+    } finally {
+      await api?.dispose();
+    }
+  });
+
+  function registerFlowScans(scheme: Scheme): void {
+    const suffix = scheme === "dark" ? " in the dark scheme" : "";
+
+    test(`/integrations/flow has no WCAG A/AA violations${suffix}`, async ({ page }) => {
+      await login(page);
+      await page.goto("/integrations/flow");
+      await expect(page.getByRole("heading", { level: 2, name: "Flow connections" })).toBeVisible();
+      const row = page.getByRole("table", { name: "Flow connections" }).getByRole("row").filter({ hasText: connectionName });
+      await expect(row).toContainText("Passed");
+      await expect(row).toContainText("Europe/Warsaw");
+      await expectScheme(page, scheme);
+      await scan(page);
+    });
+
+    test(`/integrations/flow/:id has no WCAG A/AA violations${suffix}`, async ({ page }) => {
+      await login(page);
+      await page.goto(`/integrations/flow/${connectionId}`);
+      await expect(page.getByRole("heading", { level: 2, name: connectionName })).toBeVisible();
+      // Both sections, filled: the facts and the one run, and the Teams section with the stub's teams and the linked one.
+      await expect(page.getByRole("heading", { level: 3, name: "Connection" })).toBeVisible();
+      await expect(page.getByRole("table", { name: "Recent runs" }).getByText("Succeeded", { exact: true })).toBeVisible();
+      await expect(page.getByRole("table", { name: "Connection facts" }).getByText("Current", { exact: true })).toBeVisible();
+      await expect(page.getByRole("heading", { level: 3, name: "Teams" })).toBeVisible();
+      const teams = page.getByRole("table", { name: "Flow teams" });
+      const linked = teams.getByRole("row").filter({ has: page.getByText(axeTeam, { exact: true }) });
+      await expect(linked.getByRole("link", { name: teamName })).toBeVisible();
+      await expect(linked.getByRole("button", { name: `Unlink ${axeTeam}` })).toBeVisible();
+      await expectScheme(page, scheme);
+      await scan(page);
+    });
+
+    test(`/teams/:id with the Flow section has no WCAG A/AA violations${suffix}`, async ({ page }) => {
+      await login(page);
+      await page.goto(`/teams/${teamId}`);
+      await expect(page.getByRole("heading", { level: 2, name: teamName })).toBeVisible();
+      await expect(page.getByRole("heading", { level: 3, name: "Flow" })).toBeVisible();
+      const facts = page.getByRole("table", { name: "Link to Flow" });
+      await expect(facts).toContainText(axeTeam);
+      await expect(facts).toContainText(connectionName);
+      await expect(page.getByRole("button", { name: "Import capacity…" })).toBeVisible();
+      await expect(page.getByRole("table", { name: "Current members of the Flow team" })).toBeVisible();
+      // The former members' table sits behind its disclosure: open, so it is scanned too.
+      await page.getByRole("button", { name: "1 former member" }).click();
+      await expect(page.getByRole("table", { name: "Former members of the Flow team" })).toBeVisible();
+      await expectScheme(page, scheme);
+      await scan(page);
+    });
+  }
+  registerFlowScans("light");
+  test.describe("dark scheme", () => {
+    test.use({ colorScheme: "dark" });
+    registerFlowScans("dark");
   });
 });

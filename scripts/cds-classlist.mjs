@@ -2,19 +2,20 @@
 // (build-times.md WHY 27). The list is what a REAL run of the image loads: this script boots the image against a throwaway
 // compose project (own containers, volume and ports), drives a representative workload
 // through the API (login, MFA-free admin lists, users and teams, feature flags, telemetry, password reset mail, and the Jira path: a connection
-// against the stub, Test connection (all rows green or the run is refused), discovery, a binding, a sync run, the deviations view — the OkHttp/Ktor-client/Jackson classes only that path loads),
+// against the stub, Test connection (all rows green or the run is refused), discovery, a binding, a sync run, the deviations view — the OkHttp/Ktor-client/Jackson classes only that path loads;
+// and the Flow path (1.5): a connection against the Flow stub, Test connection (all rows green), a run, the teams list, a team link, the team panel, a capacity preview and import),
 // stops the app gracefully and keeps the JVM's `-XX:DumpLoadedClassList` output in canonical form (sorted, deduplicated, no ids).
 // Classes missing from the list are simply loaded from the jars at runtime, so a stale list only costs startup time and
 // ~metaspace, never correctness; regenerate when CdsClassListTest warns, before a release, or after a big dependency/code move.
 //
-//   node scripts/cds-classlist.mjs [--image <tag>] [--stub-image <tag>] [--keep]
+//   node scripts/cds-classlist.mjs [--image <tag>] [--stub-image <tag>] [--flow-stub-image <tag>] [--keep]
 //
 // By default it BUILDS the image itself from the working tree under its own project (`docker compose -p astrolabe-cds-train build app`, the
 // image `astrolabe-cds-train-app`, removed again with the project), so the list can never be trained on a stale image. The build needs a
 // plain checkout: `COPY .git` fails in a git worktree (its .git is a file), where you pass `--image <tag>` of an image built from a
-// scratch copy instead (`--stub-image` likewise names a prebuilt Jira stub image; without it compose builds `astrolabe-jira-stub` from `sample-data/jira-stub`). `--keep` leaves the project up for inspection. The list is only written when the run looks healthy (see
+// scratch copy instead (`--stub-image` and `--flow-stub-image` likewise name prebuilt Jira and Flow stub images; without them compose builds `astrolabe-jira-stub` and `astrolabe-flow-stub` from `sample-data/`, tags the app's own stack uses too: pass your own images when another stack of this checkout is up). `--keep` leaves the project up for inspection. The list is only written when the run looks healthy (see
 // `validate`): a truncated or unhealthy run never overwrites the committed file.
-// Needs Docker, Node >= 24 and free loopback ports 8590 (app) / 5941 (postgres) / 8534 (mailpit) / 8600 (the Jira stub). Never touches another compose project.
+// Needs Docker, Node >= 24 and free loopback ports 8590 (app) / 5941 (postgres) / 8534 (mailpit) / 8600 (the Jira stub) / 8601 (the Flow stub). Never touches another compose project.
 import { execFileSync } from "node:child_process";
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -27,6 +28,7 @@ const flag = (name) => args.includes(name);
 const option = (name, fallback) => (args.includes(name) ? args[args.indexOf(name) + 1] : fallback);
 const image = option("--image", null);
 const stubImage = option("--stub-image", null); // default: compose builds the stub from sample-data/jira-stub, tagged astrolabe-jira-stub
+const flowStubImage = option("--flow-stub-image", null); // default: compose builds the stub from sample-data/flow-stub, tagged astrolabe-flow-stub
 const project = "astrolabe-cds-train";
 const base = "http://127.0.0.1:8590";
 const work = mkdtempSync(join(tmpdir(), "astrolabe-cds-"));
@@ -50,6 +52,10 @@ writeFileSync(
     container_name: ${project}-jira-stub
     ports: !override
       - "127.0.0.1:8600:8080"
+  flow-stub:${flowStubImage ? `\n    image: ${flowStubImage}\n    pull_policy: never` : ""}
+    container_name: ${project}-flow-stub
+    ports: !override
+      - "127.0.0.1:8601:8080"
   app:${image ? `\n    image: ${image}\n    pull_policy: never` : ""}
     container_name: ${project}-app
     ports: !override
@@ -106,10 +112,11 @@ try {
     log(`building the app image under project ${project} (a git worktree needs --image, see the header)`);
     compose("build", "app");
   }
-  compose("up", "-d", "postgres", "mailpit", "jira-stub");
+  compose("up", "-d", "postgres", "mailpit", "jira-stub", "flow-stub");
   compose("up", "-d", "--no-deps", "app");
   await until("the app to answer /health", async () => (await fetch(`${base}/api/v1/health`).catch(() => null))?.ok, 90);
   await until("the Jira stub to answer", async () => (await fetch("http://127.0.0.1:8600/__admin/health").catch(() => null))?.ok, 90);
+  await until("the Flow stub to answer", async () => (await fetch("http://127.0.0.1:8601/__admin/health").catch(() => null))?.ok, 90);
 
   log("workload: auth");
   await call("POST", "/api/v1/login", { email: "admin@astrolabe.local", password: "wrong-password-0" }); // the failure path
@@ -148,6 +155,42 @@ try {
   must(await call("GET", "/api/v1/views/deviations"), "reading the deviations");
   must(await call("GET", "/api/v1/integrations/jira/bindings"), "listing the bindings");
   await call("DELETE", `/api/v1/integrations/jira/connections/${connection}`);
+
+  log("workload: the Flow path (connection, Test connection, a run, the teams list, a link, the team panel, a capacity preview and import)");
+  // The app reaches the stub as flow-stub:8080 (the compose default of FLOW_INSECURE_ORIGINS); the token is the stub's one public service token.
+  const flowToken = JSON.parse(readFileSync(join(root, "sample-data", "flow", "expected.json"), "utf8")).contract.token;
+  const flowConnection = must(
+    await call("POST", "/api/v1/integrations/flow/connections", { name: "cds-training-flow", baseUrl: "http://flow-stub:8080", timeZone: "Europe/Warsaw", apiToken: flowToken, enabled: true, pollIntervalMinutes: null }),
+    "creating the Flow connection",
+  ).id;
+  const flowProbes = must(await call("POST", `/api/v1/integrations/flow/connections/${flowConnection}/test`), "testing the Flow connection");
+  const flowRed = (flowProbes.rows ?? []).filter((r) => !r.ok).map((r) => r.name);
+  if ((flowProbes.rows ?? []).length === 0 || flowRed.length > 0) fail(`Test connection against the Flow stub is not all green (${flowRed.join(", ") || "no rows"})`);
+  must(await call("POST", "/api/v1/integrations/sync/runs", { kind: "FLOW", connectionId: flowConnection }), "starting a Flow run");
+  const flowOutcome = await until("the Flow run to finish", async () => (await call("GET", `/api/v1/integrations/sync/runs?kind=FLOW&connectionId=${flowConnection}`)).json?.items?.[0]?.outcome, 60);
+  if (flowOutcome !== "SUCCEEDED") fail(`the Flow run ended ${flowOutcome}, not SUCCEEDED`);
+  // "E2E Flow Team" (dated 2047) previews as six CREATE rows: link the training team to it, read the panel, preview and apply, so the whole capacity path is loaded.
+  const flowTeams = must(await call("GET", `/api/v1/integrations/flow/teams?connectionId=${flowConnection}`), "listing the Flow teams");
+  const flowTeam = flowTeams.items?.find((t) => t.name === "E2E Flow Team");
+  if (!flowTeam) fail("the Flow stub's teams do not list E2E Flow Team");
+  const binding = must(await call("POST", "/api/v1/integrations/flow/team-bindings", { connectionId: flowConnection, flowTeamId: flowTeam.flowTeamId, teamId: team }), "linking the team to its Flow team").id;
+  must(await call("GET", `/api/v1/teams/${team}/flow`), "reading the team's Flow panel");
+  const plan = must(await call("POST", `/api/v1/integrations/flow/team-bindings/${binding}/capacity-preview`, {}), "previewing the capacity import");
+  const ticked = (plan.items ?? []).filter((i) => i.ticked && (i.action === "CREATE" || i.action === "UPDATE"));
+  if (ticked.length === 0) fail("the capacity preview of E2E Flow Team offers nothing to import");
+  const applied = must(
+    await call("POST", `/api/v1/integrations/flow/team-bindings/${binding}/capacity-import`, {
+      from: plan.from,
+      includeClosed: plan.includeClosed,
+      items: ticked.map((i) => ({ sprintId: i.sprintId, expected: { action: i.action, effectiveFrom: i.effectiveFrom, mdPerWeek: i.mdPerWeek } })),
+      removals: [],
+    }),
+    "importing the capacity",
+  );
+  if ((applied.created ?? []).length !== ticked.length) fail(`the capacity import created ${(applied.created ?? []).length} of ${ticked.length} periods`);
+  must(await call("GET", `/api/v1/teams/${team}/capacity`), "listing the capacity periods");
+  await call("DELETE", `/api/v1/integrations/flow/team-bindings/${binding}`);
+  await call("DELETE", `/api/v1/integrations/flow/connections/${flowConnection}`);
 
   log("workload: reads");
   const paths = [

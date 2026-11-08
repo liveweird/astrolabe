@@ -1,6 +1,8 @@
 import AxeBuilder from "@axe-core/playwright";
 import { type APIRequestContext, expect, type Page, request as playwrightRequest, test } from "@playwright/test";
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { BASE_URL } from "../playwright.config";
 
 export { expect, test };
@@ -231,6 +233,109 @@ export async function testJiraConnectionViaApi(api: APIRequestContext, connectio
   expect(tested.status(), await tested.text()).toBe(200);
   const result = (await tested.json()) as { rows: { name: string; ok: boolean }[] };
   expect(result.rows.filter((row) => !row.ok)).toEqual([]);
+}
+
+/** Flow's address as the APP reaches the built-in Flow stub (the compose service on the compose network): the only origin its `FLOW_INSECURE_ORIGINS` lists. */
+export const FLOW_STUB_ORIGIN = process.env.E2E_FLOW_STUB_ORIGIN ?? "http://flow-stub:8080";
+/** The stub's own admin API as the SPEC reaches it (the host port compose publishes): read to prove the stub is on "day one", never written in 1.5. */
+const FLOW_STUB_URL = process.env.E2E_FLOW_STUB_URL ?? "http://localhost:8097";
+
+/** The slice of `sample-data/flow/expected.json` (the generator's record of the Flow stub) the specs read. */
+interface FlowExpected {
+  contract: { token: string };
+  scenarios: { day2: string; outage: string };
+  totals: { teams: number; sprints: number };
+  teams: { name: string; members: { rows: number }; sprints: { count: number } }[];
+  e2e: {
+    team: string;
+    roster: { current: string[]; former: { displayName: string; validFrom: number; validTo: number }[] };
+    preview: { sprintId: number; name: string; start: string; end: string; workingDays: number; flowMd: number; mdPerWeek: string }[];
+  };
+  axe: { team: string };
+}
+
+let flowExpected: FlowExpected | undefined;
+/** The Flow stub's record of itself, read from the repository's committed `expected.json` (the token, the totals, "E2E Flow Team"'s sprints and roster): never copied into a spec. */
+export function flowStub(): FlowExpected {
+  flowExpected ??= JSON.parse(readFileSync(fileURLToPath(new URL("../../sample-data/flow/expected.json", import.meta.url)), "utf8")) as FlowExpected;
+  return flowExpected;
+}
+
+/**
+ * Fails fast, naming the cause, when the stub's `flow-day2` or `flow-outage` scenario is not at `Started` (a manual walk left it flipped): the figures the specs
+ * assert are day one's. Reads only; 1.5's specs never flip a scenario.
+ */
+export async function expectFlowStubOnDayOne(): Promise<void> {
+  const stub = await playwrightRequest.newContext({ baseURL: FLOW_STUB_URL });
+  try {
+    const response = await stub.get("/__admin/scenarios");
+    expect(response.ok(), `the Flow stub's admin API answered ${response.status()} (E2E_FLOW_STUB_URL)`).toBeTruthy();
+    const { scenarios } = (await response.json()) as { scenarios: { name: string; state: string }[] };
+    const { day2, outage } = flowStub().scenarios;
+    for (const name of [day2, outage]) {
+      expect(scenarios.find((scenario) => scenario.name === name)?.state, `the Flow stub's ${name} scenario must be at Started`).toBe("Started");
+    }
+  } finally {
+    await stub.dispose();
+  }
+}
+
+/** A Flow connection through the API to the stub (manual only: the scheduler never touches it), its delete path registered on `track` at once; answers its id. */
+export async function seedFlowConnection(api: APIRequestContext, name: string, track: string[]): Promise<number> {
+  const body = { name, baseUrl: FLOW_STUB_ORIGIN, timeZone: "Europe/Warsaw", apiToken: flowStub().contract.token, enabled: true, pollIntervalMinutes: null };
+  const created = await api.post("/api/v1/integrations/flow/connections", { data: body });
+  expect(created.status(), await created.text()).toBe(201);
+  const id = ((await created.json()) as { id: number }).id;
+  track.push(`/api/v1/integrations/flow/connections/${id}`);
+  return id;
+}
+
+/**
+ * The stored Test connection of a Flow connection through the API, both probes asserted green (it records the verdict a run's polling needs). Flow's bucket (`flow-test`,
+ * 30 a minute on the e2e stacks) is its own, apart from Jira's: a 429 waits it out ONCE, so a caller in a beforeAll raises its timeout past the minute.
+ */
+export async function testFlowConnectionViaApi(api: APIRequestContext, connectionId: number): Promise<void> {
+  const path = `/api/v1/integrations/flow/connections/${connectionId}/test`;
+  let tested = await api.post(path);
+  if (tested.status() === 429) {
+    await new Promise((resolve) => setTimeout(resolve, retryAfterMs(tested.headers()["retry-after"])));
+    tested = await api.post(path);
+  }
+  expect(tested.status(), await tested.text()).toBe(200);
+  const result = (await tested.json()) as { rows: { name: string; ok: boolean }[] };
+  expect(result.rows.filter((row) => !row.ok)).toEqual([]);
+}
+
+/** One manual run of a Flow connection, awaited by a bounded poll on the runs API (never a fixed sleep): a NEW run exists and ends SUCCEEDED, the mirror then holds the stub's document. */
+export async function refreshFlowConnectionViaApi(api: APIRequestContext, connectionId: number): Promise<void> {
+  const runsPath = `/api/v1/integrations/sync/runs?kind=FLOW&connectionId=${connectionId}`;
+  const runs = async () => ((await (await api.get(runsPath)).json()) as { items: { outcome: string | null }[] }).items;
+  const before = (await runs()).length;
+  const requested = await api.post("/api/v1/integrations/sync/runs", { data: { kind: "FLOW", connectionId } });
+  expect(requested.status(), await requested.text()).toBe(202);
+  let outcome = "not started";
+  await expect
+    .poll(
+      async () => {
+        const items = await runs();
+        outcome = items.length > before ? (items[0]?.outcome ?? "running") : "not started";
+        return outcome === "not started" || outcome === "running";
+      },
+      { message: "the Flow connection's manual run to finish", timeout: 60_000 },
+    )
+    .toBe(false);
+  expect(outcome, "the Flow connection's manual run ended").toBe("SUCCEEDED");
+}
+
+/** Links a team to the stub's Flow team of that name on a refreshed connection, as the administrator; answers the binding's id (it goes with the connection, or the caller deletes it). */
+export async function bindFlowTeamViaApi(api: APIRequestContext, connectionId: number, teamId: number, flowTeamName: string): Promise<number> {
+  const teams = await api.get(`/api/v1/integrations/flow/teams?connectionId=${connectionId}`);
+  expect(teams.status(), await teams.text()).toBe(200);
+  const flowTeam = ((await teams.json()) as { items: { flowTeamId: number; name: string }[] }).items.find((item) => item.name === flowTeamName);
+  expect(flowTeam, `the mirror lists the Flow team ${flowTeamName}`).toBeDefined();
+  const bound = await api.post("/api/v1/integrations/flow/team-bindings", { data: { connectionId, flowTeamId: flowTeam?.flowTeamId, teamId } });
+  expect(bound.status(), await bound.text()).toBe(201);
+  return ((await bound.json()) as { id: number }).id;
 }
 
 /**

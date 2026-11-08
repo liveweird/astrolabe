@@ -17,6 +17,28 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.5.0",
+    date: "2026-11-08",
+    en: `**Astrolabe 1.5.0: teams and capacity from Flow.**
+
+- Flow connections: under Administration, Flow, administrators add a connection to a Flow instance with a Flow service token. The token is stored encrypted and never shown again. Test connection checks the token and the data, Refresh now reads Flow, and the connection is then read on its own every hour (5 minutes to once a day, or manual only). Astrolabe only reads from Flow; nothing is ever written to it.
+- Linking teams: the team's manager or an administrator links an Astrolabe team to its Flow team from the team page. The Flow team with the same name is suggested, and on the connection page administrators can link every suggested team at once.
+- Roster: a linked team's page shows who is in the Flow team now and who was before, with the dates. It is information only: Astrolabe has no roster of its own yet.
+- Importing capacity: "Import capacity…" on a linked team's page previews Flow's sprints first. A sprint's man-days are spread over its working days (weekends and public holidays excluded), so the weekly capacity adds up to what Flow says. You tick the sprints to import, and each one becomes a capacity period marked "Flow". Importing again updates those periods when Flow changed, and offers to remove those whose sprint is gone, only if you tick them.
+- A hand-entered period is never changed or removed by an import. A sprint that starts on the date of a hand-entered period is left out and says so, and editing an imported period yourself makes it hand-entered for good.
+- If Flow revokes the token or it expires, the connection's runs fail with "Flow rejected the token: it was revoked or expired - issue a new one in Flow and update the connection". Saving the new token makes a polling connection read Flow again at once.
+- Proven against a built-in Flow stub only; not yet tested against a real Flow.`,
+    pl: `**Astrolabe 1.5.0: zespoły i przepustowość z Flow.**
+
+- Połączenia z Flow: w sekcji Administracja, na stronie Flow, administratorzy/rki dodają połączenie z instancją Flow za pomocą tokenu usługi Flow. Token zapisujemy zaszyfrowany i nigdy więcej go nie pokazujemy. „Przetestuj połączenie” sprawdza token i dane, „Odśwież teraz” czyta Flow, a potem połączenie jest odczytywane samo co godzinę (od 5 minut do doby albo tylko ręcznie). Astrolabe tylko czyta z Flow; niczego tam nie zapisuje.
+- Powiązanie zespołów: kierownik/czka zespołu lub administrator/ka wiąże zespół Astrolabe z jego zespołem we Flow na stronie zespołu. Proponowany jest zespół Flow o tej samej nazwie, a na stronie połączenia administratorzy/rki mogą powiązać wszystkie proponowane zespoły naraz.
+- Skład: strona powiązanego zespołu pokazuje, kto jest teraz w zespole Flow, a kto był wcześniej, wraz z datami. To tylko informacja: Astrolabe nie ma jeszcze własnego składu zespołu.
+- Import przepustowości: „Importuj przepustowość…” na stronie powiązanego zespołu najpierw pokazuje podgląd sprintów z Flow. Osobodni sprintu rozkładamy na jego dni robocze (bez weekendów i świąt państwowych), więc przepustowość tygodniowa sumuje się do wartości z Flow. Zaznaczasz sprinty do zaimportowania, a każdy staje się okresem przepustowości z oznaczeniem „Flow”. Ponowny import aktualizuje te okresy, gdy Flow się zmieni, i proponuje usunięcie tych, których sprintu już nie ma, ale tylko jeśli je zaznaczysz.
+- Okres wpisany ręcznie nigdy nie jest zmieniany ani usuwany przez import. Sprint zaczynający się w dniu okresu wpisanego ręcznie jest pomijany z wyjaśnieniem, a własna edycja zaimportowanego okresu na stałe czyni go okresem wpisanym ręcznie.
+- Jeśli Flow unieważni token albo token wygaśnie, przebiegi połączenia kończą się błędem „Flow odrzucił token: został unieważniony albo wygasł - wystaw nowy w Flow i zaktualizuj połączenie”. Zapisanie nowego tokenu sprawia, że połączenie odpytywane automatycznie od razu znów czyta Flow.
+- Sprawdzone wyłącznie na wbudowanej atrapie Flow; jeszcze nie przetestowane na prawdziwym Flow.`,
+  },
+  {
     version: "1.4.1",
     date: "2026-11-07",
     en: `**Astrolabe 1.4.1: clearer connection tests and spread-out retries.**

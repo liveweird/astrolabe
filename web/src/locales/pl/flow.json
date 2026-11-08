@@ -13,7 +13,7 @@
   "disabled": "Wyłączone",
   "yes": "Tak",
   "no": "Nie",
-  "testConnection": "Testuj połączenie",
+  "testConnection": "Przetestuj połączenie",
   "refreshNow": "Odśwież teraz",
   "column": {
     "baseUrl": "Adres bazowy",
