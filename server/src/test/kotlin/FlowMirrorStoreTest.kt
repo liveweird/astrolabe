@@ -72,6 +72,14 @@ class FlowMirrorStoreTest {
         assertEquals(listOf(2L, 5L, 9L), store.membersOf(id, 1).map { it.validFrom }, "by start")
         assertNull(store.membersOf(id, 1).first().displayName)
         assertEquals(emptyList(), store.sprintsOf(id, 99), "an unknown team has no sprints")
+
+        // One statement decides both: the team's instant with its sprints in the same order, an empty list for a team without sprints,
+        // null for a team that is not in the mirror.
+        val together = assertNotNull(store.teamSprintsOf(id, 1))
+        assertEquals(777L, together.observedAt)
+        assertEquals(read, together.sprints)
+        assertEquals(emptyList(), assertNotNull(store.teamSprintsOf(id, 2)).sprints, "present, no sprints")
+        assertNull(store.teamSprintsOf(id, 99), "absent")
         assertEquals(emptyList(), store.membersOf(id + 1_000_000u, 1))
     }
 

@@ -2474,8 +2474,8 @@ export interface paths {
          * Preview importing a bound Flow team's sprint capacity
          * @description The binding's team's ACTIVE manager or ADMIN, **read-before-guard**: the binding is resolved first (`404` for an unknown or unlinked
          *     binding and for one whose team was deleted, for every caller), then the guard (`403`: another team's manager, a project owner, an editor
-         *     and a stranger are refused), then the body (`400`: an undecodable body, a malformed or out-of-range `from`). The import itself is a later
-         *     step; this is a COMPUTATION over the mirror: nothing is stored, locked or audited, Flow is never called, and the document is one
+         *     and a stranger are refused), then the body (`400`: an undecodable body, a malformed or out-of-range `from`). The import itself is
+         *     `POST …/capacity-import`; this is a COMPUTATION over the mirror: nothing is stored, locked or audited, Flow is never called, and the document is one
          *     `READ ONLY REPEATABLE READ` snapshot of the holiday calendar, the Flow team's mirrored sprints and the team's ACTIVE capacity periods.
          *
          *     **The rule.** A sprint's man-days are spread over the sprint's WORKING days on Astrolabe's calendar (public holidays off), so
@@ -2506,6 +2506,48 @@ export interface paths {
          *     an empty plan with `observedAt` null. A disabled connection still previews (it reads the mirror).
          */
         post: operations["previewFlowCapacityImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/integrations/flow/team-bindings/{id}/capacity-import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply the ticked rows of a capacity-import preview
+         * @description The binding's team's ACTIVE manager or ADMIN, **read-before-guard** exactly like the preview: the binding is resolved first (`404` for
+         *     an unknown or unlinked binding and for one whose team was deleted, for every caller), then the guard (`403`), then the body (`400`).
+         *     **Team data, not plan state**: no plan lock, no plan revision; Flow is never called.
+         *
+         *     The body is what the person ticked in the preview: `items` (each `sprintId` with the `expected` `action` - `CREATE` or `UPDATE` -,
+         *     `effectiveFrom` and `mdPerWeek` the preview showed), `removals` (the ticked period ids), and the `from` and `includeClosed` the preview
+         *     echoed. At most 2,000 rows each; a sprint or a period named twice is a `400`.
+         *
+         *     **One transaction.** The team row is locked (`404` if the team was deleted meanwhile), the manager guard is re-run against the locked
+         *     state (`403` if the manager was cleared while the request waited; nothing is written), the team's ACTIVE periods are re-read under the
+         *     lock, and the plan is RE-COMPUTED from the mirror as it is now with the echoed `from` and `includeClosed`. A requested row is written
+         *     only when that plan still says what `expected` says; otherwise it is `skipped` with the reason `CHANGED` (the sprint's start date was
+         *     taken over by a hand-entered period meanwhile, the figure or the dates moved, the sprint left Flow, or the row was never in the plan).
+         *     A removal is applied only when its period is a Flow-sourced removal of the re-computed plan now; otherwise it is `skipped` `CHANGED`
+         *     (a hand-entered period, a deleted one and an unknown id included). **A hand-entered (`MANUAL`) period is never changed or removed by
+         *     any row of this request.** Order of the writes: removals first, then the updates, then the creates (a freed date can be taken again).
+         *     A `CREATE` writes a `FLOW` period on `effectiveFrom`; an `UPDATE` sets the figure, the sprint id and the sprint name of the sprint's
+         *     existing Flow period and KEEPS its WIP limit; a removal is a soft delete.
+         *
+         *     Audited after the commit: `team.capacity_period_created/updated/deleted` per period (with `sourceTo`/`sourceFrom` `FLOW`) and ONE
+         *     `team.capacity_imported` summary (also when every row was skipped).
+         */
+        post: operations["applyFlowCapacityImport"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6000,6 +6042,73 @@ export interface components {
             items: components["schemas"]["CapacityImportItem"][];
             /** @description The team's Flow-sourced periods the import would remove, by date. Bounded by the team's own periods. */
             removals: components["schemas"]["CapacityImportRemoval"][];
+        };
+        /** @description What the preview showed for a ticked row; the apply imports the row only while its re-computed plan says the same. */
+        CapacityApplyExpected: {
+            /**
+             * @description Only a `CREATE` or an `UPDATE` can be imported (`400` otherwise).
+             * @enum {string}
+             */
+            action: "CREATE" | "UPDATE";
+            /**
+             * Format: date
+             * @description The item's `effectiveFrom`.
+             */
+            effectiveFrom: string;
+            /**
+             * Format: double
+             * @description The item's `mdPerWeek` (at most two decimals, below 1,000,000).
+             */
+            mdPerWeek: number;
+        };
+        CapacityApplyItem: {
+            /** Format: int64 */
+            sprintId: number;
+            expected: components["schemas"]["CapacityApplyExpected"];
+        };
+        CapacityApplyRequest: {
+            /**
+             * Format: date
+             * @description The preview's echoed `from` (the apply re-runs the plan with it). Absent = today in the connection's time zone.
+             */
+            from?: string;
+            /**
+             * @description The preview's echoed `includeClosed`.
+             * @default false
+             */
+            includeClosed: boolean;
+            /** @description The ticked sprints; each sprint at most once. */
+            items: components["schemas"]["CapacityApplyItem"][];
+            /** @description The ticked removals (period ids); each at most once. */
+            removals: number[];
+        };
+        CapacityAppliedPeriod: {
+            /** Format: int32 */
+            periodId: number;
+            /**
+             * Format: int64
+             * @description The Flow sprint the period is for.
+             */
+            sprintId: number;
+        };
+        /** @description A row the apply left alone. `sprintId` is set for an item, `periodId` for a removal (the other is null). */
+        CapacityApplySkipped: {
+            /** Format: int64 */
+            sprintId: number | null;
+            /** Format: int32 */
+            periodId: number | null;
+            /**
+             * @description The plan, re-computed under the team lock, no longer says what the preview did (or the row was never in it).
+             * @enum {string}
+             */
+            reason: "CHANGED";
+        };
+        CapacityApplyResponse: {
+            created: components["schemas"]["CapacityAppliedPeriod"][];
+            updated: components["schemas"]["CapacityAppliedPeriod"][];
+            /** @description The soft-deleted period ids. */
+            deleted: number[];
+            skipped: components["schemas"]["CapacityApplySkipped"][];
         };
         FlowTeamBinding: {
             /** Format: int32 */
@@ -9812,6 +9921,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CapacityPreview"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    applyFlowCapacityImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CapacityApplyRequest"];
+            };
+        };
+        responses: {
+            /** @description What was written and what was left alone; a skipped row is data, not an error */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CapacityApplyResponse"];
                 };
             };
             400: components["responses"]["BadRequest"];

@@ -1,5 +1,12 @@
 package ch.nokillswit
 
+import ch.nokillswit.flow.FlowClientFactory
+import ch.nokillswit.flow.HttpFlowClient
+import ch.nokillswit.flow.buildGuardedFlowHttpClient
+import ch.nokillswit.flow.createFlowHttp
+import ch.nokillswit.infra.outbound.FlowOrigins
+import ch.nokillswit.infra.outbound.Origin
+import ch.nokillswit.infra.outbound.SelfManagedHosts
 import ch.nokillswit.planning.DependencyStatus
 import ch.nokillswit.planning.IdleGapView
 import ch.nokillswit.planning.MilestoneResponse
@@ -10,12 +17,21 @@ import ch.nokillswit.planning.ScheduleProposalRequest
 import ch.nokillswit.planning.TeamScheduleBatchItem
 import ch.nokillswit.planning.TeamScheduleBatchRequest
 import ch.nokillswit.planning.TeamView
+import ch.nokillswit.sync.SyncOutcome
 import ch.nokillswit.teams.CapacityPeriodRequest
+import ch.nokillswit.teams.CapacitySource
 import io.ktor.client.call.body
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.testing.testApplication
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import org.junit.AfterClass
+import org.junit.BeforeClass
+import java.net.URI
+import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -29,6 +45,44 @@ import kotlin.test.assertTrue
  * is checked through the wire. 2027-02-01 is a Monday.
  */
 class TeamViewTest {
+    private companion object {
+        const val FLOW_PREFIX = "tvflow"
+
+        // The Flow stub is read by one test (the import feeds the weeks); a class that reads it warms it (StubWarmupGuardTest).
+        private val guardedClient = lazy {
+            val origins = FlowOrigins(SelfManagedHosts.NONE, setOf(Origin("http", "localhost", URI(FlowStubServer.baseUrl).port)), true)
+            buildGuardedFlowHttpClient(origins, requestTimeoutSeconds = 30)
+        }
+
+        @JvmStatic
+        @BeforeClass
+        fun warmStub() {
+            FlowStubFixture.warm()
+        }
+
+        @JvmStatic
+        @AfterClass
+        fun closeFlowClient() {
+            if (guardedClient.isInitialized()) guardedClient.value.close()
+        }
+    }
+
+    private val flowHarnessHolder = lazy {
+        FlowRunHarness(
+            FlowClientFactory { url, token -> HttpFlowClient(createFlowHttp(guardedClient.value, 0, 4L * 1024 * 1024, 1), url, token) },
+        )
+    }
+
+    private val flowHarness get() = flowHarnessHolder.value
+
+    @AfterTest
+    fun cleanUpFlow() {
+        if (flowHarnessHolder.isInitialized()) {
+            flowHarness.cleanUp(FLOW_PREFIX)
+            removeFlowFixtureRows(FLOW_PREFIX)
+        }
+    }
+
     private fun path(teamId: UInt) = "/api/v1/views/team/$teamId"
 
     private suspend fun PlanCaller.view(teamId: UInt): TeamView = client.get(path(teamId)).body()
@@ -269,6 +323,41 @@ class TeamViewTest {
         TestPlan.capacityPeriod(weekend, "2027-02-06", 20.0)
         w.milestone(weekend, "2027-02-01", "2027-02-08", 6.0)
         assertEquals(listOf(10.0, 20.0), w.view(weekend).weeks.map { it.capacity }, "Saturday's 20 first counts on Monday")
+    }
+
+    @Test
+    fun `imported periods feed the weekly capacity - the stub's E2E Flow Team, 20, 18, 22, 20, 19, 21 MD a week`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("tvf", teams = true)
+        val t = w.requireTeams()
+        val connectionId = flowHarness.connect(FLOW_PREFIX, FlowStubServer.baseUrl, FlowStubServer.token)
+        assertEquals(SyncOutcome.SUCCEEDED, flowHarness.run(connectionId).outcome)
+        val e2e = FlowStubServer.expected.getValue("e2e").jsonObject
+        val teamName = e2e.getValue("team").jsonPrimitive.content
+        val flowTeamId = flowHarness.mirror.teamsOf(connectionId).single { it.name == teamName }.flowTeamId
+        val binding = w.admin.client.fbBind(connectionId, flowTeamId, t.teamId).fbBinding()
+        // A milestone across the six sprints (2047-01-07 .. 2047-03-29) is what makes the view list those twelve weeks.
+        w.milestone(t.teamId, "2047-01-07", "2047-03-29", 1.0)
+        assertTrue(w.view(t.teamId).weeks.all { it.capacity == null }, "before the import the team has no capacity")
+
+        val preview = t.manager.client.ciPreviewOf(binding.id)
+        val applied = t.manager.client.ciApply(binding.id, ciBodyOf(preview))
+
+        assertEquals(HttpStatusCode.OK, applied.status)
+        assertEquals(6, applied.bodyAsText().fbObject().ciRows("created").size)
+        val view = w.view(t.teamId)
+        assertEquals(
+            listOf(20.0, 20.0, 18.0, 18.0, 22.0, 22.0, 20.0, 20.0, 19.0, 19.0, 21.0, 21.0), view.weeks.map { it.capacity },
+            "each sprint's two weeks carry its MD a week",
+        )
+        assertEquals(
+            listOf(40.0, 36.0, 44.0, 40.0, 38.0, 42.0), view.weeks.map { it.capacity!! }.chunked(2).map { it.sum() },
+            "and add up to the sprint's man-days",
+        )
+        assertEquals(
+            listOf(CapacitySource.FLOW), view.capacity.periods.map { it.source }.distinct(), "the view's periods say where they came from",
+        )
+        assertEquals(6, view.capacity.periods.size)
     }
 
     @Test

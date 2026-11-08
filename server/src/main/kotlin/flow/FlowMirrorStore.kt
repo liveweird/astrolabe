@@ -150,21 +150,39 @@ class FlowMirrorStore(private val database: R2dbcDatabase) {
     /** A team's sprints by start (undated last, then by id) - the capacity import's input; empty for an unknown team. */
     suspend fun sprintsOf(connectionId: UInt, flowTeamId: Int): List<FlowMirrorSprint> = suspendTransaction(database) {
         FlowSprints.selectAll().where { (FlowSprints.connectionId eq connectionId) and (FlowSprints.flowTeamId eq flowTeamId) }
-            .orderBy(FlowSprints.startAt to SortOrder.ASC_NULLS_LAST, FlowSprints.sprintId to SortOrder.ASC).toList().map {
-                FlowMirrorSprint(
-                    sprintId = it[FlowSprints.sprintId],
-                    sourceConnectionId = it[FlowSprints.sourceConnectionId],
-                    name = it[FlowSprints.name],
-                    state = it[FlowSprints.state],
-                    startAt = it[FlowSprints.startAt],
-                    endAt = it[FlowSprints.endAt],
-                    completeAt = it[FlowSprints.completeAt],
-                    hasCalendar = it[FlowSprints.hasCalendar],
-                    capacityMd = it[FlowSprints.capacityMd],
-                    capacitySource = it[FlowSprints.capacitySource],
-                )
-            }
+            .orderBy(FlowSprints.startAt to SortOrder.ASC_NULLS_LAST, FlowSprints.sprintId to SortOrder.ASC).toList()
+            .map { it.toSprint() }
     }
+
+    /**
+     * A Flow team and its sprints from ONE statement (the team LEFT JOINed to its sprints, same order as [sprintsOf]), or null when the
+     * team is not in the mirror: "absent" and "its sprints" are decided by the same snapshot, so a concurrent refresh cannot make a
+     * present team read as one without sprints. The capacity apply's read (READ COMMITTED, no snapshot of its own).
+     */
+    suspend fun teamSprintsOf(connectionId: UInt, flowTeamId: Int): FlowMirrorTeamSprints? = suspendTransaction(database) {
+        val sprints = FlowSprints
+        val rows = FlowTeams.join(
+            sprints, JoinType.LEFT,
+            additionalConstraint = { (FlowTeams.connectionId eq sprints.connectionId) and (FlowTeams.flowTeamId eq sprints.flowTeamId) },
+        ).selectAll().where { (FlowTeams.connectionId eq connectionId) and (FlowTeams.flowTeamId eq flowTeamId) }
+            .orderBy(sprints.startAt to SortOrder.ASC_NULLS_LAST, sprints.sprintId to SortOrder.ASC).toList()
+        rows.firstOrNull()?.let { first ->
+            FlowMirrorTeamSprints(first[FlowTeams.observedAt], rows.filter { it.getOrNull(sprints.sprintId) != null }.map { it.toSprint() })
+        }
+    }
+
+    private fun ResultRow.toSprint() = FlowMirrorSprint(
+        sprintId = this[FlowSprints.sprintId],
+        sourceConnectionId = this[FlowSprints.sourceConnectionId],
+        name = this[FlowSprints.name],
+        state = this[FlowSprints.state],
+        startAt = this[FlowSprints.startAt],
+        endAt = this[FlowSprints.endAt],
+        completeAt = this[FlowSprints.completeAt],
+        hasCalendar = this[FlowSprints.hasCalendar],
+        capacityMd = this[FlowSprints.capacityMd],
+        capacitySource = this[FlowSprints.capacitySource],
+    )
 
     /** A team's membership intervals by start, then account id - the roster's input (the account id stays server-side). */
     suspend fun membersOf(connectionId: UInt, flowTeamId: Int): List<FlowMirrorMember> = suspendTransaction(database) {

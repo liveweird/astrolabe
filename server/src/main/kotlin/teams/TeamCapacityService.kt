@@ -4,9 +4,12 @@ import ch.nokillswit.authz.NotFoundException
 import ch.nokillswit.infra.db.SoftDeletable
 import ch.nokillswit.infra.db.active
 import ch.nokillswit.infra.db.existsActive
+import ch.nokillswit.infra.db.insertRows
 import ch.nokillswit.infra.db.localDate
 import ch.nokillswit.infra.db.lockActiveForWrite
 import ch.nokillswit.infra.db.nowMillis
+import ch.nokillswit.planning.validateManDays
+import io.ktor.server.plugins.BadRequestException
 import io.ktor.util.AttributeKey
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
@@ -15,12 +18,14 @@ import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.dao.id.UIntIdTable
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.r2dbc.R2dbcDatabase
 import org.jetbrains.exposed.v1.r2dbc.insert
 import org.jetbrains.exposed.v1.r2dbc.select
 import org.jetbrains.exposed.v1.r2dbc.selectAll
 import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
 import org.jetbrains.exposed.v1.r2dbc.update
+import java.math.BigDecimal
 
 val TeamCapacityServiceKey = AttributeKey<TeamCapacityService>("TeamCapacityService")
 
@@ -183,6 +188,89 @@ class TeamCapacityService(private val database: R2dbcDatabase) {
             .toList()
     }
 
+    /**
+     * The capacity import's batch write (`flow/CapacityImportService.apply`): ONE transaction that locks the team row (gone = 404), re-runs
+     * [guard] against the locked state (403), reads the team's ACTIVE periods UNDER that lock and hands them to [decide], which returns the
+     * writes (plus whatever [S] the caller wants back). [decide] runs inside the transaction, so what it reads (the Flow mirror) and the
+     * periods it is shown are one consistent view for the writes; it throws (404, 403...) to abandon the batch before anything is written.
+     * **A MANUAL period is never written, whatever [decide] returns**: every update and delete is checked against the locked rows (FLOW,
+     * ACTIVE, this team) and again in its own `WHERE`, and a violation aborts the whole transaction (an invariant bug, a 500, nothing
+     * written). Order: deletes, then updates, then the creates (`insertRows`, one multi-row statement per chunk), so a freed date can be
+     * taken again under `uq_team_capacity_periods_team_from_active`. Updates set the figure and the sprint and KEEP the WIP limit.
+     */
+    suspend fun <S> applyImport(
+        teamId: UInt,
+        guard: TeamGuard,
+        decide: suspend (periods: List<CapacityPeriodRow>) -> Pair<CapacityImportWrites, S>,
+    ): CapacityImportApplied<S> = suspendTransaction(database) {
+        if (!TeamService.Teams.lockActiveForWrite(teamId)) throw NotFoundException(TEAM_NOT_FOUND)
+        guard(teamId)
+        val locked = importRowsOf(teamId)
+        val (writes, extra) = decide(locked)
+        requireOnlyFlowPeriodsChanged(locked, writes)
+        val stamp = nowMillis()
+        deleteImported(teamId, writes.deletes, stamp)
+        val updated = writes.updates.map { updateImported(teamId, locked.single { row -> row.id == it.periodId }, it, stamp) }
+        val created = createImported(teamId, writes.creates, stamp)
+        CapacityImportApplied(created, updated, writes.deletes, extra)
+    }
+
+    private suspend fun deleteImported(teamId: UInt, ids: List<UInt>, stamp: Long) {
+        if (ids.isEmpty()) return
+        val count = CapacityPeriods.update({ importable(teamId) and (CapacityPeriods.id inList ids) }) {
+            it[markedAsDeleted] = true
+            it[updatedAt] = stamp
+        }
+        check(count == ids.size) { "capacity import: $count of ${ids.size} periods were removable" }
+    }
+
+    private suspend fun updateImported(
+        teamId: UInt,
+        before: CapacityPeriodRow,
+        update: CapacityImportUpdate,
+        stamp: Long,
+    ): CapacityImportUpdated {
+        val count = CapacityPeriods.update({ importable(teamId) and (CapacityPeriods.id eq update.periodId) }) {
+            it[mdPerWeek] = update.mdPerWeek
+            it[flowSprintId] = update.flowSprintId
+            it[flowSprintName] = update.flowSprintName
+            it[updatedAt] = stamp
+        }
+        check(count == 1) { "capacity import: period ${update.periodId} was not updatable" }
+        val values = CapacityPeriodValues(before.effectiveFrom, before.mdPerWeek, before.wipLimit)
+        return CapacityImportUpdated(
+            update.periodId, values, before.flowSprintId, before.flowSprintName,
+            update.mdPerWeek, update.flowSprintId, update.flowSprintName,
+        )
+    }
+
+    private suspend fun createImported(teamId: UInt, creates: List<CapacityImportCreate>, stamp: Long): List<CapacityImportCreated> {
+        if (creates.isEmpty()) return emptyList()
+        CapacityPeriods.insertRows(creates) { c ->
+            this[CapacityPeriods.teamId] = teamId
+            this[CapacityPeriods.effectiveFrom] = c.effectiveFrom
+            this[CapacityPeriods.mdPerWeek] = c.mdPerWeek
+            this[CapacityPeriods.wipLimit] = null
+            this[CapacityPeriods.capacitySource] = CapacitySource.FLOW.name
+            this[CapacityPeriods.flowSprintId] = c.flowSprintId
+            this[CapacityPeriods.flowSprintName] = c.flowSprintName
+            this[CapacityPeriods.createdAt] = stamp
+            this[CapacityPeriods.updatedAt] = stamp
+        }
+        // The multi-row insert returns no ids: the new rows are found by their (team, date) key, which is unique among ACTIVE periods.
+        val ids = CapacityPeriods.select(CapacityPeriods.id, CapacityPeriods.effectiveFrom)
+            .where {
+                (CapacityPeriods.teamId eq teamId) and CapacityPeriods.active() and
+                    (CapacityPeriods.effectiveFrom inList creates.map { it.effectiveFrom })
+            }
+            .toList().associate { it[CapacityPeriods.effectiveFrom] to it[CapacityPeriods.id].value }
+        return creates.map { CapacityImportCreated(checkNotNull(ids[it.effectiveFrom]), it.effectiveFrom, it.mdPerWeek, it.flowSprintId) }
+    }
+
+    /** The only rows the import may change: this team's ACTIVE periods the import itself wrote. */
+    private fun importable(teamId: UInt) =
+        (CapacityPeriods.teamId eq teamId) and CapacityPeriods.active() and (CapacityPeriods.capacitySource eq CapacitySource.FLOW.name)
+
     /** A period re-read under its team's row lock: the team it belongs to, its STORED values and its source. */
     private class LockedPeriod(val teamId: UInt, val values: CapacityPeriodValues, val source: CapacitySource)
 
@@ -226,4 +314,28 @@ internal suspend fun deleteCapacityPeriodsOf(teamId: UInt): Int {
         it[markedAsDeleted] = true
         it[updatedAt] = nowMillis()
     }
+}
+
+/**
+ * The import's invariants over the rows read under the team lock, checked before anything is written (a violation is a bug in the caller,
+ * `IllegalStateException`, and aborts the transaction): only FLOW periods are updated or removed, no period twice, each new date is free
+ * among the periods that remain (a removed period's date is free again) and distinct, and every figure is a valid man-day figure.
+ */
+private fun requireOnlyFlowPeriodsChanged(locked: List<CapacityPeriodRow>, writes: CapacityImportWrites) {
+    val flow = locked.filter { it.source == CapacitySource.FLOW }.mapTo(HashSet()) { it.id }
+    val touched = writes.updates.map { it.periodId } + writes.deletes
+    check(touched.all { it in flow }) { "capacity import: only FLOW periods may be updated or removed" }
+    check(touched.toSet().size == touched.size) { "capacity import: a period is written once" }
+    val taken = locked.filter { it.id !in writes.deletes }.mapTo(HashSet()) { it.effectiveFrom }
+    check(writes.creates.all { taken.add(it.effectiveFrom) }) { "capacity import: a new period needs a free date" }
+    val figures = writes.creates.map { it.mdPerWeek } + writes.updates.map { it.mdPerWeek }
+    check(figures.all { manDaysValid(it) }) { "capacity import: a figure is outside the man-day bounds" }
+}
+
+/** Whether [figure] passes the capacity period's man-day rule ([validateManDays]), as a boolean for an invariant check. */
+private fun manDaysValid(figure: BigDecimal): Boolean = try {
+    validateManDays(figure.toDouble(), "mdPerWeek")
+    true
+} catch (_: BadRequestException) {
+    false
 }

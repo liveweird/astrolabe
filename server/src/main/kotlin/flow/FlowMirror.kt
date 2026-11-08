@@ -31,6 +31,9 @@ data class FlowMirrorTeam(
     val members: List<FlowMirrorMember>,
 )
 
+/** A Flow team's last-observed instant and its sprints, read together ([FlowMirrorStore.teamSprintsOf]). */
+data class FlowMirrorTeamSprints(val observedAt: Long, val sprints: List<FlowMirrorSprint>)
+
 /** A sprint of a Flow team. [capacityMd] is a TOTAL for the sprint whatever its [capacitySource]; null = no capacity at all. */
 data class FlowMirrorSprint(
     val sprintId: Long,

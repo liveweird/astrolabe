@@ -1,8 +1,11 @@
 package ch.nokillswit.flow
 
 import ch.nokillswit.infra.validation.parseIsoDate
+import ch.nokillswit.planning.validateManDays
 import ch.nokillswit.teams.CapacitySource
+import io.ktor.server.plugins.BadRequestException
 import kotlinx.serialization.Serializable
+import java.math.BigDecimal
 import java.time.LocalDate
 
 /**
@@ -100,4 +103,83 @@ data class CapacityPreview(
     val totals: CapacityImportTotals,
     val items: List<CapacityImportItem>,
     val removals: List<CapacityImportRemoval>,
+)
+
+/** The most rows an apply may name in `items` (one per sprint of the document: Flow's own cap) and in `removals`. */
+const val MAX_CAPACITY_APPLY_ROWS = 2_000
+
+/** What the preview showed for a row the person ticked; the apply imports it only while the plan it re-runs still says the same. */
+@Serializable
+data class CapacityApplyExpected(val action: CapacityAction, val effectiveFrom: String, val mdPerWeek: Double)
+
+@Serializable
+data class CapacityApplyItem(val sprintId: Long, val expected: CapacityApplyExpected)
+
+/**
+ * `POST /integrations/flow/team-bindings/{id}/capacity-import`: the ticked rows of a preview, with the [from] and [includeClosed] the
+ * preview echoed (the apply re-runs the kernel with them) and the [removals] (period ids) the person ticked.
+ */
+@Serializable
+data class CapacityApplyRequest(
+    val from: String? = null,
+    val includeClosed: Boolean = false,
+    val items: List<CapacityApplyItem>,
+    val removals: List<UInt>,
+)
+
+/** A ticked row, validated: only a `CREATE` or an `UPDATE` can be imported. */
+data class CapacityApplyRow(val sprintId: Long, val action: CapacityAction, val effectiveFrom: LocalDate, val mdPerWeek: BigDecimal)
+
+/** The validated request. */
+data class CapacityApplyCommand(
+    val from: LocalDate?,
+    val includeClosed: Boolean,
+    val items: List<CapacityApplyRow>,
+    val removals: List<UInt>,
+)
+
+/**
+ * The apply's body rules (`400`): the lists within [MAX_CAPACITY_APPLY_ROWS], no sprint or period named twice, `from` a valid date, each
+ * row an expected `CREATE` or `UPDATE` with a valid date and a man-day figure ([validateManDays]). Whether a row is still true is decided
+ * under the lock, not here.
+ */
+fun validateCapacityApply(request: CapacityApplyRequest): CapacityApplyCommand {
+    if (request.items.size > MAX_CAPACITY_APPLY_ROWS) throw BadRequestException("items must have at most $MAX_CAPACITY_APPLY_ROWS rows")
+    if (request.removals.size > MAX_CAPACITY_APPLY_ROWS) {
+        throw BadRequestException("removals must have at most $MAX_CAPACITY_APPLY_ROWS rows")
+    }
+    if (request.items.map { it.sprintId }.toSet().size != request.items.size) throw BadRequestException("items must name each sprint once")
+    if (request.removals.toSet().size != request.removals.size) throw BadRequestException("removals must name each period once")
+    val rows = request.items.map {
+        val expected = it.expected
+        if (expected.action != CapacityAction.CREATE && expected.action != CapacityAction.UPDATE) {
+            throw BadRequestException("expected.action must be CREATE or UPDATE")
+        }
+        CapacityApplyRow(
+            it.sprintId, expected.action, parseIsoDate(expected.effectiveFrom, "expected.effectiveFrom"),
+            validateManDays(expected.mdPerWeek, "expected.mdPerWeek"),
+        )
+    }
+    return CapacityApplyCommand(request.from?.let { parseIsoDate(it, "from") }, request.includeClosed, rows, request.removals)
+}
+
+/** Why the apply left a row alone: the plan, re-run under the team lock, no longer says what the preview did. */
+@Serializable
+enum class CapacityApplySkipReason { CHANGED }
+
+/** A skipped row: [sprintId] for an item, [periodId] for a removal (the other is null). */
+@Serializable
+data class CapacityApplySkipped(val sprintId: Long?, val periodId: UInt?, val reason: CapacityApplySkipReason)
+
+/** A period the apply wrote and the Flow sprint it is for. */
+@Serializable
+data class CapacityAppliedPeriod(val periodId: UInt, val sprintId: Long)
+
+/** `created`/`updated` are the periods written, `deleted` the soft-deleted period ids, `skipped` what was left alone. */
+@Serializable
+data class CapacityApplyResponse(
+    val created: List<CapacityAppliedPeriod>,
+    val updated: List<CapacityAppliedPeriod>,
+    val deleted: List<UInt>,
+    val skipped: List<CapacityApplySkipped>,
 )
