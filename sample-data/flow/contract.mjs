@@ -51,8 +51,11 @@ export const FIELDS = {
   member: ["accountId", "displayName", "validFrom", "validTo"],
   sprint: ["sprintId", "connectionId", "name", "state", "startAt", "endAt", "completeAt", "hasCalendar", "capacityMd", "capacitySource"],
 };
-/** The values `capacitySource` takes (null = the sprint has no capacity at all), and the sprint states the stub uses (Jira's). */
-export const CAPACITY_SOURCES = ["CALENDAR", "TEAM_DEFAULT", "DEFAULT"];
+/**
+ * The values `capacitySource` takes (null = the sprint has no capacity at all), as Flow 1.57.0's spec enumerates them: `CONFIGURED` is a
+ * pre-V24 stored value an old Flow sprint row can still carry (the stub never emits it); and the sprint states the stub uses (Jira's).
+ */
+export const CAPACITY_SOURCES = ["CALENDAR", "TEAM_DEFAULT", "DEFAULT", "CONFIGURED"];
 export const SPRINT_STATES = ["closed", "active", "future"];
 /** The team cap of the real server (1,000 active teams): past it the document carries `teamsTruncated: true`. */
 export const TEAM_CAP = 1000;

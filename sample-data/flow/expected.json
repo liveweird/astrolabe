@@ -58,7 +58,8 @@
     "capacitySources": [
       "CALENDAR",
       "TEAM_DEFAULT",
-      "DEFAULT"
+      "DEFAULT",
+      "CONFIGURED"
     ],
     "sprintStates": [
       "closed",

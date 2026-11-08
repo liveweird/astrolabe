@@ -82,8 +82,8 @@ data class FlowMember(
 )
 
 /**
- * One sprint row. [capacityMd] is a TOTAL for the sprint whatever its [capacitySource] (`CALENDAR`, `TEAM_DEFAULT`, `DEFAULT`; kept as
- * text, an unknown value is not an error); null = Flow derived no capacity at all. Instants are epoch millis.
+ * One sprint row. [capacityMd] is a TOTAL for the sprint whatever its [capacitySource] (`CALENDAR`, `TEAM_DEFAULT`, `DEFAULT`, the
+ * pre-V24 `CONFIGURED`; kept as text, an unknown value is not an error); null = Flow derived no capacity at all. Instants are epoch millis.
  */
 @Serializable
 data class FlowSprint(
