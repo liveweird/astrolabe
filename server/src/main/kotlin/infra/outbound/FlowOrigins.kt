@@ -73,6 +73,10 @@ class FlowOrigins(
         if (host == null || !uri.isBareAuthority() || (scheme != "http" && scheme != "https")) return false
         val defaultPort = if (scheme == "https") HTTPS_PORT else HTTP_PORT
         if (uri.port == defaultPort) return false
+        // One spelling of the port too: the authority is the host alone or `host:port` with the port's canonical digits (no leading
+        // zeros, no sign), so `:08443` and `:0443` are refused although `URI` parses them as 8443 and 443.
+        val authority = uri.rawAuthority
+        if (authority != host && authority != "$host:${uri.port}") return false
         return originAllowed(scheme, host, if (uri.port != -1) uri.port else defaultPort)
     }
 

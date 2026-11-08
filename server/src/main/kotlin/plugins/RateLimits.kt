@@ -76,6 +76,13 @@ object RateLimits {
      * makes up to ~10 outbound requests with the stored token, so the bound is for a runaway client.
      */
     const val JIRA_TEST = "jira-test"
+    /**
+     * Both Test-connection routes of the Flow sync (`POST /api/v1/integrations/flow/connections/test` and `…/{id}/test`), per IP, its own
+     * bucket (a Flow test never spends a Jira one): 10/min by default in every mode, pinnable within 1..100 via
+     * `security.rateLimit.flowTestPerMinute` (the e2e stacks set 30). Each call makes two outbound requests with the token, so the
+     * bound is for a runaway client.
+     */
+    const val FLOW_TEST = "flow-test"
     /** `GET /api/v1/ready` — the one anonymous route that takes a pooled DB connection per call (checkup D7-2, A16). */
     const val READY = "ready"
     /**
@@ -114,6 +121,8 @@ object RateLimits {
     private const val PASSWORD_RESET_CONFIRM_PER_MINUTE = 10
     private const val JIRA_TEST_PER_MINUTE = 10
     private const val JIRA_TEST_MAX_PER_MINUTE = 100
+    private const val FLOW_TEST_PER_MINUTE = 10
+    private const val FLOW_TEST_MAX_PER_MINUTE = 100
     private const val LOGIN_PER_MINUTE_PRODUCTION = 10
     private const val LOGIN_PER_MINUTE_DEVELOPMENT = 1000
     private const val RESET_PER_MINUTE_PRODUCTION = 5
@@ -146,6 +155,10 @@ object RateLimits {
     /** The shipped manifests keep 10; the e2e stacks (compose, the OrbStack overlay) pin 30. Capped at 100: each call fans out to Jira. */
     internal fun Application.jiraTestLimit() =
         configuredLimit("security.rateLimit.jiraTestPerMinute", JIRA_TEST_PER_MINUTE, max = JIRA_TEST_MAX_PER_MINUTE)
+
+    /** The `jiraTestLimit` idiom for Flow: the shipped manifests keep 10, the e2e stacks pin 30; capped at 100. */
+    internal fun Application.flowTestLimit() =
+        configuredLimit("security.rateLimit.flowTestPerMinute", FLOW_TEST_PER_MINUTE, max = FLOW_TEST_MAX_PER_MINUTE)
 }
 
 /**
@@ -164,6 +177,7 @@ fun Application.configureRateLimits() {
             MFA to mfaLimit(),
             PASSWORD_RESET_CONFIRM to passwordResetConfirmLimit(),
             JIRA_TEST to jiraTestLimit(),
+            FLOW_TEST to flowTestLimit(),
             READY to readyLimit(),
         )
     }

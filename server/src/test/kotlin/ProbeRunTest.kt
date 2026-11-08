@@ -1,9 +1,9 @@
 package ch.nokillswit
 
 import ch.nokillswit.infra.fetch.FetchException
+import ch.nokillswit.infra.fetch.ProbeFailure
+import ch.nokillswit.infra.fetch.ProbeRun
 import ch.nokillswit.jira.JIRA_SOURCE
-import ch.nokillswit.jira.ProbeFailure
-import ch.nokillswit.jira.ProbeRun
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking

@@ -64,6 +64,9 @@ ktor:
       - ch.nokillswit.sync.SyncKt.configureSync
       # The Jira sync's routes (V21): the ADMIN connection registry and Test connection; after the plan routes (later steps' bindings read the plan).
       - ch.nokillswit.jira.JiraConnectionRoutesKt.configureJiraRoutes
+      # The Flow sync's routes (V24): the ADMIN connection registry and Test connection; after configureFlow (the origin rule and the client)
+      # and configureSync.
+      - ch.nokillswit.flow.FlowConnectionRoutesKt.configureFlowRoutes
       # `GET /views/deviations` (any authenticated, read-only): after the Jira routes, before the routing catch-all.
       - ch.nokillswit.jira.DeviationRoutesKt.configureDeviationRoutes
       - ch.nokillswit.auth.AuthRoutesKt.configureAuthRoutes
@@ -105,6 +108,10 @@ security:
     # keep the default; only the e2e stacks (docker-compose.yaml, the OrbStack overlay k8s/local/front-door.yaml) pin 30
     # so a retried Jira spec group does not exhaust it.
     jiraTestPerMinute: "$JIRA_TEST_RATE_LIMIT_PER_MINUTE:"
+    # Per-IP bucket on the Flow Test connection (`flow-test`, its own: a Flow test never spends a Jira one; each Test makes two outbound
+    # calls with the stored token). Blank keeps the default 10/min (both modes); a number 1..100 pins it. The shipped production
+    # manifests keep the default; only the e2e stacks (docker-compose.yaml, the OrbStack overlay k8s/local/front-door.yaml) pin 30.
+    flowTestPerMinute: "$FLOW_TEST_RATE_LIMIT_PER_MINUTE:"
   # Not configurable, stated for the operator: the per-request access-token check
   # (auth/TokenBlocklistService.accessVerdict, plugins/Security.kt) is ONE uncached database
   # statement (revocation, account liveness, credential revision, roles), so a logout, a delete,

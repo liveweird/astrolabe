@@ -75,6 +75,7 @@ class NumericConfigBoundsTest {
         assertRefused("security.rateLimit.readyPerMinute", "0", "abc")
         assertRefused("security.rateLimit.passwordResetPerMinute", "-5", "abc")
         assertRefused("security.rateLimit.jiraTestPerMinute", "0", "-1", "abc", "101")
+        assertRefused("security.rateLimit.flowTestPerMinute", "0", "-1", "abc", "101")
     }
 
     @Test
@@ -87,6 +88,7 @@ class NumericConfigBoundsTest {
             "security.mfa.maxLivePerAccount" to "100",
             "security.rateLimit.loginPerMinute" to "1000000",
             "security.rateLimit.jiraTestPerMinute" to "100",
+            "security.rateLimit.flowTestPerMinute" to "100",
             // The Flow client's bounds (`FlowBootTest` refuses each side; here the inclusive ends boot).
             "flow.requestTimeoutSeconds" to "120",
             "flow.requestDeadlineSeconds" to "600",

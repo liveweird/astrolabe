@@ -1,10 +1,14 @@
-package ch.nokillswit.jira
+package ch.nokillswit.infra.fetch
 
-import ch.nokillswit.infra.fetch.FetchException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.Serializable
+
+/**
+ * The Test-connection probe harness every connector shares (`jira/`, `flow/`): the row, [ProbeRun] and the two verdict codes. It lives
+ * under `infra/` because the two connectors never name each other (`PackageBoundaryTest`).
+ */
 
 /** One probed endpoint's outcome. Never carries the token, a URL or a query string. */
 @Serializable
@@ -17,22 +21,6 @@ data class ConnectionTestRow(
     val code: String? = null,
     val scopeHint: String? = null,
 )
-
-/**
- * The Test-connection answer: the rows, the cloud id once `tenant_info` succeeded, and - on the stored-token variant - the instant of the
- * field/issue-type snapshot now stored on the connection (this test's, or an earlier one's).
- */
-@Serializable
-data class JiraTestResult(
-    val rows: List<ConnectionTestRow>,
-    val cloudId: String? = null,
-    val discoveredAt: Long? = null,
-    /** Whether the result was stored on the connection: false for an ad-hoc test, or when an edit of the connection raced the test. */
-    val recorded: Boolean = false,
-) {
-    /** What the UI calls a pass: every REQUIRED row is ok. */
-    val passed: Boolean get() = rows.none { it.required && !it.ok }
-}
 
 /** The row code of a probe that never ran because an earlier probe failed (`ok: false`, so a skipped REQUIRED row still fails the test). */
 const val SKIPPED_CODE = "SKIPPED"

@@ -164,6 +164,9 @@ class FlowOriginsTest {
         for (url in listOf(
             "HTTPS://flow.corp.example", "https://FLOW.corp.example", "https://flow.corp.example:443", "HTTPS://FLOW.corp.example:443",
             "http://flow-stub:8080".uppercase(), "http://Flow-Stub:8080", "http://plain.test:80", "HTTP://plain.test",
+            // The port has one spelling too: leading zeros parse to the same number but are another string.
+            "https://flow2.corp.example:08443", "https://flow.corp.example:0443",
+            "https://flow.corp.example:00443", "http://flow-stub:08080", "http://flow-stub:+8080", "http://plain.test:080",
         )) {
             assertFalse(o.baseUrlAllowed(url), "must refuse the non-canonical form: \"$url\"")
         }

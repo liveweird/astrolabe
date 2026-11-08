@@ -5,6 +5,7 @@ import ch.nokillswit.authz.ConflictException
 import ch.nokillswit.authz.caller
 import ch.nokillswit.authz.orNotFound
 import ch.nokillswit.authz.requireAdmin
+import ch.nokillswit.infra.fetch.SKIPPED_CODE
 import ch.nokillswit.plugins.RateLimits
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode

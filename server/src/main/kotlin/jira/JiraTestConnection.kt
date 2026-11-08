@@ -1,6 +1,9 @@
 package ch.nokillswit.jira
 
+import ch.nokillswit.infra.fetch.ConnectionTestRow
 import ch.nokillswit.infra.fetch.FetchException
+import ch.nokillswit.infra.fetch.ProbeFailure
+import ch.nokillswit.infra.fetch.ProbeRun
 import ch.nokillswit.infra.maskedSecret
 import ch.nokillswit.infra.outbound.isAllowedTenantHost
 import kotlinx.serialization.json.JsonObject

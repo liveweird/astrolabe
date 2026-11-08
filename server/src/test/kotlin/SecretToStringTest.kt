@@ -11,6 +11,7 @@ import ch.nokillswit.auth.PasswordResetConfirmRequest
 import ch.nokillswit.auth.RefreshRequest
 import ch.nokillswit.flow.FlowConnectionRequest
 import ch.nokillswit.flow.FlowConnectionTarget
+import ch.nokillswit.flow.FlowTestTarget
 import ch.nokillswit.jira.JiraAuthScheme
 import ch.nokillswit.jira.JiraConnectionRequest
 import ch.nokillswit.jira.JiraTestTarget
@@ -136,5 +137,15 @@ class SecretToStringTest {
         assertMasked(target.toString(), "flow.test:8080")
         assertTrue("apiToken=***" in target.toString() && "expectedUpdatedAt=9" in target.toString())
         assertTrue("apiToken=null" in target.copy(apiToken = null).toString(), "an unreadable token renders as null")
+    }
+
+    @Test
+    fun `a Flow test target masks the token and keeps the rest`() {
+        val target = FlowTestTarget("http://flow.test:8080", "Europe/Warsaw", secret, expectedUpdatedAt = 7L)
+        assertMasked(target.toString(), "flow.test:8080")
+        assertTrue("apiToken=***" in target.toString() && "timeZone=Europe/Warsaw" in target.toString())
+        assertFalse("Q".repeat(10) in FlowTestTarget("http://flow.test:8080", "UTC", flowToken('Q')).toString())
+        val unreadable = FlowTestTarget("http://flow.test:8080", "UTC", null)
+        assertTrue("apiToken=null" in unreadable.toString(), "an unreadable stored token renders as null, not ***")
     }
 }

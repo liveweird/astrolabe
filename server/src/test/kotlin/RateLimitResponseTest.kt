@@ -59,6 +59,25 @@ class RateLimitResponseTest {
     }
 
     @Test
+    fun `a blank Flow Test connection bucket keeps the code default of 10, and a configured one is its own`() = testApplication {
+        configureApp("security.rateLimit.flowTestPerMinute" to "")
+        startApplication()
+        assertEquals(10, with(RateLimits) { application.flowTestLimit() })
+    }
+
+    @Test
+    fun `a configured Flow Test connection bucket is the one enforced and the Jira one is not spent`() = testApplication {
+        configureApp("security.rateLimit.flowTestPerMinute" to "2", "security.rateLimit.jiraTestPerMinute" to "2")
+        startApplication()
+        assertEquals(2, with(RateLimits) { application.flowTestLimit() })
+        val admin = seededClient("ftbucket", UserRole.ADMIN)
+        val stored = "/api/v1/integrations/flow/connections/999999/test"
+        repeat(2) { assertEquals(HttpStatusCode.NotFound, admin.post(stored).status) }
+        assertEquals(HttpStatusCode.TooManyRequests, admin.post(stored).status)
+        assertEquals(HttpStatusCode.NotFound, admin.post("/api/v1/integrations/jira/connections/999999/test").status)
+    }
+
+    @Test
     fun `a per-IP rejection is audited with the bucket and the path only, coalesced to one event per window`() = testApplication {
         configureApp("security.rateLimit.loginPerMinute" to "3")
         startApplication()

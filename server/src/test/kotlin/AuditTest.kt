@@ -4,6 +4,7 @@ import ch.nokillswit.auth.LoginRequest
 import io.ktor.client.call.body
 import ch.nokillswit.users.UserRole
 import io.ktor.client.request.delete
+import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.request.put
 import io.ktor.client.request.setBody
@@ -128,6 +129,47 @@ class AuditTest {
             val event = capture.awaitEvent { it.message == "authz.denied" && it.hasKeyValue("path", "/api/v1/teams") }
             assertNotNull(event, "authz.denied carries the bare path (observability.md promises `path`)")
             assertTrue(event.keyValuePairs.none { "must-not-be-audited" in it.value.toString() })
+        }
+    }
+
+    @Test
+    fun `the Flow connection events carry the name and host but never the token, and a denial carries the bare path`() = testApplication {
+        configureApp("flow.insecureOrigins" to FLOW_TEST_ORIGIN)
+        startApplication()
+        val adminEmail = uniqueEmail("flowaudit")
+        val adminId = TestUsers.seed(email = adminEmail, password = "pw")
+        val admin = authedClient(adminEmail, "pw")
+        val user = seededClient("flowaudit-user")
+        val token = flowToken('u')
+        val flowName = flowUnique("flow-audit")
+        try {
+            withAuditCapture { capture ->
+                val base = "/api/v1/integrations/flow/connections"
+                val created = admin.postJson(base, flowRequest(name = flowName, token = token))
+                    .body<ch.nokillswit.flow.FlowConnectionResponse>()
+                val createdEvent = assertNotNull(capture.awaitEvent { it.message == "flow.connection_created" })
+                val host = FLOW_TEST_ORIGIN.substringAfter("://")
+                assertTrue(
+                    listOf("byUserId" to adminId.toLong(), "connectionId" to created.id.toLong(), "name" to flowName, "host" to host)
+                        .all { (key, value) -> createdEvent.hasKeyValue(key, value) },
+                    "${createdEvent.keyValuePairs}",
+                )
+                admin.putJson("$base/${created.id}", flowRequest(name = flowName, token = null))
+                assertNotNull(capture.awaitEvent { it.message == "flow.connection_updated" && it.hasKeyValue("tokenRotated", false) })
+                assertEquals(HttpStatusCode.Forbidden, user.get("$base/${created.id}?leak=must-not-be-audited").status)
+                val denied = capture.awaitEvent { it.message == "authz.denied" && it.hasKeyValue("path", "$base/${created.id}") }
+                assertNotNull(denied, "the denial carries the bare path")
+                assertEquals(HttpStatusCode.NoContent, admin.delete("$base/${created.id}").status)
+                val deleted = assertNotNull(capture.awaitEvent { it.message == "flow.connection_deleted" })
+                assertTrue(deleted.hasKeyValue("bindingsUnbound", 0) && deleted.hasKeyValue("runsDeleted", 0))
+                assertTrue(
+                    capture.events.none { event -> token in event.formattedMessage || event.keyValuePairs.any { token in "${it.value}" } },
+                    "no event carries the token",
+                )
+                assertTrue(capture.events.none { event -> event.keyValuePairs.any { "must-not-be-audited" in "${it.value}" } })
+            }
+        } finally {
+            removeFlowFixtureRows("flow-audit")
         }
     }
 }

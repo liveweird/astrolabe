@@ -2262,6 +2262,122 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/integrations/flow/connections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Flow connections
+         * @description ADMIN only (guarded before anything is read).
+         *
+         *     - Sortable fields: `id`, `name`, `createdAt`. Default `id` ascending.
+         *     - Filters: none.
+         *     - The service token is never returned; each row carries `hasApiToken`.
+         */
+        get: operations["listFlowConnections"];
+        put?: never;
+        /**
+         * Create a Flow connection
+         * @description ADMIN only (guarded before the body decodes - a non-admin's malformed body is still `403`). The `apiToken` is required and must be a
+         *     Flow service token (`flow_int_` followed by 43 characters); it is encrypted before it is stored and never returned or logged.
+         *     `baseUrl` must be exactly one of the origins the OPERATOR configured for this server (`FLOW_ALLOWED_HOSTS`, and in development
+         *     `FLOW_INSECURE_ORIGINS`) in its canonical form - an admin can never widen that list. `timeZone` is an IANA region id. A
+         *     case-insensitive name clash with an active connection is `409`.
+         */
+        post: operations["createFlowConnection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/integrations/flow/connections/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Get a Flow connection
+         * @description ADMIN only, guard before the id lookup (a non-admin gets a uniform `403`). The service token is never returned.
+         */
+        get: operations["getFlowConnection"];
+        /**
+         * Update a Flow connection
+         * @description ADMIN only, guard before the id lookup. A full replace of the name, time zone, `enabled` and the polling interval; an omitted or
+         *     blank `apiToken` keeps the stored token, a present one rotates it. The origin is the connection's identity: a different `baseUrl`
+         *     is `409` (create a new connection), and an unchanged origin the operator has since delisted does not stop an update. A changed
+         *     token or time zone clears the last test verdict. A case-insensitive name clash with another active connection is `409` too.
+         */
+        put: operations["updateFlowConnection"];
+        post?: never;
+        /**
+         * Delete a Flow connection (soft)
+         * @description ADMIN only, guard before the id lookup. Soft delete - the name is freed for reuse, the stored token is destroyed, and the
+         *     connection's runs, its mirror of Flow's teams, sprints and members and its team bindings go with it in the same transaction.
+         */
+        delete: operations["deleteFlowConnection"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/integrations/flow/connections/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test a Flow connection that is not (yet) stored
+         * @description ADMIN only (guarded before the body decodes), rate limited per IP (`flow-test`, 10 a minute by default, its own bucket). Probes Flow with
+         *     the credentials in the body - the same shape as a create (`apiToken` required, `baseUrl` one of the operator's origins) - and answers one
+         *     row per endpoint probed (`me`, then `teams`). Never `502`: a failed probe, an upstream failure and a timeout are rows in a `200`.
+         *     Nothing is stored. The token travels only in the body and is never logged, audited or echoed.
+         */
+        post: operations["testFlowConnectionAdHoc"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/integrations/flow/connections/{id}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test a stored Flow connection
+         * @description ADMIN only (guard before the id lookup), rate limited per IP (`flow-test`, 10 a minute by default, its own bucket). Probes Flow with the
+         *     STORED token (decrypted in memory for the call only) and answers one row per endpoint probed. Never `502`; a stored token that cannot
+         *     be decrypted (a changed `DATA_ENCRYPTION_KEY`) is one failed `stored_token` row with code `TOKEN_UNREADABLE` - re-enter the token. The
+         *     verdict is recorded on the connection (`lastTestedAt`, `lastTestOk` - the real one); a passing test is what makes the connection
+         *     pollable. `recorded` is false when an edit of the connection raced the test and the result was dropped. The test writes nothing of
+         *     Flow's data: the run is the only writer of the mirror.
+         */
+        post: operations["testFlowConnection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/integrations/sync/runs": {
         parameters: {
             query?: never;
@@ -5436,6 +5552,104 @@ export interface components {
             pageSize: number;
             /** Format: int64 */
             total: number;
+        };
+        FlowConnectionRequest: {
+            name: string;
+            /** @description Flow's origin, exactly one the operator listed (`FLOW_ALLOWED_HOSTS`, in development `FLOW_INSECURE_ORIGINS`), in canonical form: lowercase scheme and host, the scheme's default port omitted, no path (a trailing slash included), query, fragment or credentials. An origin that is not listed is a `400`; the registry can never widen the list. */
+            baseUrl: string;
+            /** @description An IANA region id (`Europe/Warsaw`, Flow's own metrics zone by default): Flow's sprint and membership instants become dates in it. A bare offset such as `+02:00` is refused. */
+            timeZone: string;
+            /**
+             * Format: password
+             * @description Flow's read-only service token (`flow_int_` followed by 43 base64url characters). Required on create (non-blank). On update an omitted, empty or blank token keeps the stored one and a present one rotates it. Encrypted at rest; never returned, logged or audited.
+             */
+            apiToken?: string | null;
+            /** @default true */
+            enabled: boolean;
+            /**
+             * Format: int32
+             * @description Minutes between scheduled runs. Omitted means 60 (a PUT is a full replace, so a PUT without the member resets it to 60); an explicit `null` means manual only (Refresh now still works).
+             */
+            pollIntervalMinutes?: number | null;
+        };
+        FlowConnection: {
+            /** Format: int32 */
+            id: number;
+            name: string;
+            baseUrl: string;
+            timeZone: string;
+            /** @description Whether a token is stored. The token itself is write-only and appears in no response. */
+            hasApiToken: boolean;
+            enabled: boolean;
+            /**
+             * Format: int32
+             * @description Minutes between scheduled runs; null means manual only.
+             */
+            pollIntervalMinutes: number | null;
+            /**
+             * Format: int64
+             * @description Epoch millis of the last connection test.
+             */
+            lastTestedAt: number | null;
+            /** @description Whether the last connection test passed; null until one ran, and again after a changed token or time zone. */
+            lastTestOk: boolean | null;
+            /**
+             * Format: int64
+             * @description Epoch millis of the run that last replaced the mirror of Flow's teams; null until one ran.
+             */
+            teamsAt: number | null;
+            /**
+             * Format: int64
+             * @description Epoch millis
+             */
+            createdAt: number;
+            /**
+             * Format: int64
+             * @description Epoch millis
+             */
+            updatedAt: number;
+        };
+        FlowConnectionPage: {
+            items: components["schemas"]["FlowConnection"][];
+            page: number;
+            pageSize: number;
+            /** Format: int64 */
+            total: number;
+        };
+        FlowTestRow: {
+            /** @description The probe: `me` (the token is live), `teams` (the document decodes) or `stored_token` (the stored token cannot be decrypted). */
+            name: string;
+            /** @description The endpoint probed (no query string). */
+            path: string;
+            /** @description Whether a failure fails the test. */
+            required: boolean;
+            ok: boolean;
+            /**
+             * Format: int32
+             * @description The upstream HTTP status when one answered.
+             */
+            status?: number | null;
+            /** @description The failure code: `AUTHENTICATION_FAILED` (Flow's one uniform 401: the token is revoked, expired or wrong), `NOT_FOUND` (a Flow older than 1.57.0), `RATE_LIMITED`, `UPSTREAM_UNAVAILABLE` (a Flow outage, 5xx), `TIMEOUT`, `INVALID_RESPONSE`, `LIMIT_EXCEEDED`, `BLOCKED_HOST` (the origin is no longer on the operator's list), `REDIRECT`, `TOKEN_UNREADABLE` (the stored token cannot be decrypted) or `SKIPPED` (the probe did not run because `me` failed: `ok` is false, with no `status` and no `scopeHint`; read the first failed row). */
+            code?: string | null;
+            /** @description What the probe needs of Flow (`Flow 1.57.0 or later`); absent on a row that never ran. */
+            scopeHint?: string | null;
+        };
+        FlowTestResult: {
+            rows: components["schemas"]["FlowTestRow"][];
+            /**
+             * Format: int32
+             * @description Teams in the decoded document; null unless the `teams` probe passed.
+             */
+            teamCount?: number | null;
+            /**
+             * Format: int32
+             * @description Sprints across those teams; null unless the `teams` probe passed.
+             */
+            sprintCount?: number | null;
+            /** @description Whether Flow cut the document at its caps (1,000 teams, 2,000 sprints); the run keeps what it got and warns. */
+            truncated: boolean;
+            /** @description Whether the result was stored on the connection (false for an ad-hoc test, or when an edit raced the test). */
+            recorded: boolean;
         };
         SyncRunRequest: {
             /** @enum {string} */
@@ -8771,6 +8985,217 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    listFlowConnections: {
+        parameters: {
+            query?: {
+                /** @description 1-based page index. Defaults to 1. */
+                page?: components["parameters"]["Page"];
+                /** @description Rows per page. Defaults to 20, maximum 100. */
+                pageSize?: components["parameters"]["PageSize"];
+                /**
+                 * @description Sort spec. Format: `field` (ascending) or `-field` (descending). Multiple fields are
+                 *     comma-separated, leftmost wins: `sort=-updatedAt,name`. The endpoint declares its
+                 *     sortable-field whitelist; unknown fields are rejected with `400`. `id` ascending is
+                 *     always appended as a deterministic tiebreaker.
+                 */
+                sort?: components["parameters"]["Sort"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of Flow connections */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FlowConnectionPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    createFlowConnection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FlowConnectionRequest"];
+            };
+        };
+        responses: {
+            /** @description Created; `Location` points at the new connection */
+            201: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FlowConnection"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    getFlowConnection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The connection */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FlowConnection"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    updateFlowConnection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FlowConnectionRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    deleteFlowConnection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    testFlowConnectionAdHoc: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FlowConnectionRequest"];
+            };
+        };
+        responses: {
+            /** @description The probe rows (and the size of the teams document once `teams` passed) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FlowTestResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    testFlowConnection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The probe rows (and the size of the teams document once `teams` passed) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FlowTestResult"];
+                };
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
