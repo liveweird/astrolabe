@@ -138,7 +138,10 @@
     "PROGRESS_MISMATCH": "Progress",
     "UNLINKED_IN_JIRA": "Not in plan",
     "UNLINKED_IN_PLAN": "Not in Jira",
-    "CHILDREN_DONE": "Children done"
+    "CHILDREN_DONE": "Children done",
+    "CAPACITY_DIFFERS": "Capacity",
+    "CAPACITY_MISSING": "No capacity",
+    "TEAM_GONE": "Gone from Flow"
   },
   "phrase": {
     "goneOutOfScope": "No longer readable in Jira: deleted, moved out of the connection's projects, or no longer visible to its account",
@@ -244,6 +247,80 @@
     "toast": {
       "acknowledged": "Acknowledged",
       "withdrawn": "Acknowledgement withdrawn"
+    }
+  },
+  "capacity": {
+    "differsMore": "{{sprint}}: the plan has {{plan}} man-days, Flow {{flow}} — {{gap}} more in the plan",
+    "differsLess": "{{sprint}}: the plan has {{plan}} man-days, Flow {{flow}} — {{gap}} less in the plan",
+    "fixedFigure": "Flow plans {{total}} man-days for the whole sprint; {{flow}} fall on the days it holds here.",
+    "missing": "{{sprint}}: no capacity in the plan, Flow has {{flow}} man-days",
+    "missingBare": "{{sprint}}: no capacity in the plan",
+    "gone": "The Flow team is no longer in Flow's document",
+    "unnamedSprint": "Sprint",
+    "sprintId": "Sprint {{id}}",
+    "missingSummary_one": "{{count}} sprint without capacity in the plan (from {{date}})",
+    "missingSummary_other": "{{count}} sprints without capacity in the plan (from {{date}})",
+    "missingSummaryNoDate_one": "{{count}} sprint without capacity in the plan",
+    "missingSummaryNoDate_other": "{{count}} sprints without capacity in the plan",
+    "missingShow": "Show the sprints",
+    "missingHide": "Hide the sprints",
+    "missingTableAria": "Sprints without capacity in the plan",
+    "column": {
+      "sprint": "Sprint",
+      "dates": "Dates",
+      "flow": "Flow (man-days)"
+    },
+    "moreShow": "Show {{n}} more",
+    "moreHide": "Hide {{n}} more"
+  },
+  "flowSection": {
+    "title": "Capacity from Flow",
+    "intro": "Where a linked team's capacity in the plan differs from what Flow says for its current and future sprints. Astrolabe only reads from Flow: nothing is written back. Import capacity… on the team's page shows what an import would change; hand-entered periods are left as they are.",
+    "loadFailed": "Could not load the capacity comparison with Flow",
+    "filtersNote": "The Status, plan item type, work stream, project, kind and connection filters do not apply to this section; the team and severity filters do.",
+    "staleBanner": "At least one Flow connection has no current refresh behind it, so the list below may be out of date. See Data from Flow.",
+    "sources": {
+      "title": "Data from Flow",
+      "tableAria": "Data from Flow",
+      "column": {
+        "connection": "Connection",
+        "status": "Status",
+        "readAt": "Flow read (UTC)",
+        "notes": "Notes"
+      },
+      "neverRead": "Not read yet",
+      "noteNever": "No refresh has finished yet: Flow has not been read, so there is nothing to compare with.",
+      "noteStale": "The last successful refresh is older than expected: the figures may be out of date.",
+      "noteDisabled": "The connection is disabled: Flow is not read again and its teams show what was last read."
+    },
+    "totals": {
+      "shown_one": "{{count}} team shown",
+      "shown_other": "{{count}} teams shown",
+      "truncated": "Only the first {{count}} teams are listed. The warning and info counts cover every match; narrow the filters to see the rest.",
+      "gone_one": "of which {{count}} team gone from Flow",
+      "gone_other": "of which {{count}} teams gone from Flow",
+      "shownOf": "{{n}} of {{total}} teams shown"
+    },
+    "list": {
+      "title": "Differences from Flow",
+      "tableAria": "Capacity differences between the plan and Flow",
+      "column": {
+        "team": "Team",
+        "flowTeam": "Flow team",
+        "differences": "Differences",
+        "observed": "Data as of"
+      },
+      "openTeamAria": "Open team {{name}}"
+    },
+    "empty": {
+      "noneLinked": "No team is linked to Flow yet.",
+      "noneLinkedHint": "Link a team from its page (Link to Flow team…).",
+      "inLineSince": "In line with Flow in the data read at {{time}} (UTC).",
+      "inLineSinceHint": "Nothing has been checked since: refresh to read Flow again.",
+      "inLineSoFar": "In line with Flow in the data read so far.",
+      "inLineSoFarHint": "Not every connection has a current refresh behind it, so this may change.",
+      "noMatch": "No capacity difference matches the filters.",
+      "countFailed": "Could not check whether any team is linked to Flow"
     }
   }
 }

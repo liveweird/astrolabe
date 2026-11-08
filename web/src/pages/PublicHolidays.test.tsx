@@ -5,6 +5,7 @@ import { notifications } from "@mantine/notifications";
 import PublicHolidays from "./PublicHolidays";
 import { headingOutline } from "../test/headings";
 import { jsonResponse } from "../test/http";
+import { QueryClient } from "@tanstack/react-query";
 import { renderWithProviders } from "../test/render";
 import { localYear } from "../utils/publicHolidays";
 
@@ -206,6 +207,22 @@ describe("PublicHolidays page", () => {
     expect(writes(mockFetch)[0][0]).toBe(`/api/v1/public-holidays/${EPIPHANY.id}`);
     await waitFor(() => expect(screen.queryByText("Epiphany")).not.toBeInTheDocument());
     expect(toast).toHaveBeenCalledWith(expect.objectContaining({ message: "Public holiday deleted" }));
+  });
+
+  test("a holiday write re-reads the capacity deviations too: a holiday moves every sprint's working days", async () => {
+    signIn("ADMIN");
+    const rows: Row[] = [NEW_YEAR, EPIPHANY];
+    serve(mockFetch, rows);
+    const user = userEvent.setup();
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    queryClient.setQueryData(["flow", "deviations", "view", {}], { stale: false });
+    renderWithProviders(<PublicHolidays />, { queryClient });
+    await user.click(await screen.findByRole("button", { name: "Delete the holiday Epiphany" }));
+    mockFetch.mockImplementation((_url: string, init?: RequestInit) =>
+      Promise.resolve(init?.method === "DELETE" ? new Response(null, { status: 204 }) : jsonResponse(200, { items: rows })),
+    );
+    await user.click(within(await screen.findByRole("dialog", { name: "Delete this holiday?" })).getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(queryClient.getQueryState(["flow", "deviations", "view", {}])?.isInvalidated).toBe(true));
   });
 
   test("a failed delete says the delete failed (not a save), with the status", async () => {

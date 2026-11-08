@@ -51,7 +51,7 @@ export default function PublicHolidays() {
   const [presetResult, setPresetResult] = useState<PresetResult | null>(null);
 
   const holidays = useQuery({ queryKey: HOLIDAYS_QUERY_KEY, queryFn: listPublicHolidays });
-  const refresh = () => refreshQueriesAfterMutation(queryClient, ["calendar"], ["plan"], ["roadmap"]);
+  const refresh = () => refreshQueriesAfterMutation(queryClient, ["calendar"], ["plan"], ["roadmap"], ["flow", "deviations"]);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const deleteConfirm = useDeleteConfirm<PublicHoliday>({
     mutationFn: async (row) => {

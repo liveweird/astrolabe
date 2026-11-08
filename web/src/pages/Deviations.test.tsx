@@ -5,6 +5,8 @@ import { renderWithProviders, screen, waitFor, within } from "../test/render";
 import { headingOutline } from "../test/headings";
 import { jsonResponse } from "../test/http";
 import { DEV_CONNECTION, detail, item, NOW, view } from "../test/deviations";
+import { NO_FLOW_VIEW, capacityItem, capacityView, differsRow, missingRow } from "../test/flow";
+import type { CapacityDeviationView } from "../api/capacityDeviations";
 import type { DeviationView } from "../api/deviations";
 import Deviations from "./Deviations";
 
@@ -20,11 +22,19 @@ const TEAMS = { items: [{ id: 3, name: "Backend" }], page: 1, pageSize: 100, tot
 let doc: DeviationView;
 let bindingsTotal: number;
 let claim: Response;
+// The capacity deviations document (the page's second section): a Jira-only stack unless a test says otherwise.
+let capDoc: CapacityDeviationView;
+let capStatus: number;
+beforeEach(() => {
+  capDoc = NO_FLOW_VIEW;
+  capStatus = 200;
+});
 
 function serve(mockFetch: FetchMock) {
   mockFetch.mockImplementation((url: string, init?: RequestInit) => {
     const method = init?.method ?? "GET";
     if (url.startsWith("/api/v1/views/deviations")) return Promise.resolve(jsonResponse(200, doc));
+    if (url.startsWith("/api/v1/views/capacity-deviations")) return Promise.resolve(capStatus === 200 ? jsonResponse(200, capDoc) : jsonResponse(capStatus, { title: "x", status: capStatus }));
     if (url === "/api/v1/views/plan") return Promise.resolve(jsonResponse(200, PLAN));
     if (url.startsWith("/api/v1/teams?")) return Promise.resolve(jsonResponse(200, TEAMS));
     if (url.startsWith("/api/v1/integrations/jira/bindings?")) return Promise.resolve(jsonResponse(200, { items: [], page: 1, pageSize: 1, total: bindingsTotal }));
@@ -473,5 +483,104 @@ describe("Deviations page - empty states", () => {
     expect(await screen.findByText("No items match the filters.")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Clear the filters" }));
     await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent(/^\/deviations$/));
+  });
+});
+
+describe("Deviations page - Capacity from Flow (the second section)", () => {
+  let mockFetch: FetchMock;
+  const capCalls = () => mockFetch.mock.calls.map(([url]) => url as string).filter((url) => url.startsWith("/api/v1/views/capacity-deviations"));
+  beforeEach(() => {
+    mockFetch = vi.fn();
+    vi.stubGlobal("fetch", mockFetch);
+    vi.spyOn(Date, "now").mockReturnValue(NOW);
+    localStorage.setItem("astrolabe.auth.token", "fake-token");
+    localStorage.setItem(ROLES_KEY, JSON.stringify(["USER"]));
+    doc = view();
+    bindingsTotal = 1;
+    claim = jsonResponse(202, {});
+    serve(mockFetch);
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    localStorage.clear();
+  });
+
+  test("a stack without a Flow connection shows the page exactly as before: still asks, draws nothing", async () => {
+    renderPage();
+    await screen.findByRole("table", { name: "Differences between the plan and Jira" });
+    await waitFor(() => expect(capCalls()).toHaveLength(1));
+    expect(headingOutline()).toEqual([
+      [2, "Deviations"],
+      [3, "Data from Jira"],
+      [3, "Differences"],
+    ]);
+    expect(screen.queryByText("Capacity from Flow")).not.toBeInTheDocument();
+  });
+
+  test("with a Flow connection the section comes after the Jira list, as another h3, with its own sources and teams", async () => {
+    capDoc = capacityView();
+    renderPage();
+    const teams = await screen.findByRole("table", { name: "Capacity differences between the plan and Flow" });
+    expect(headingOutline()).toEqual([
+      [2, "Deviations"],
+      [3, "Data from Jira"],
+      [3, "Differences"],
+      [3, "Capacity from Flow"],
+      [4, "Data from Flow"],
+      [4, "Differences from Flow"],
+    ]);
+    const jira = screen.getByRole("table", { name: "Differences between the plan and Jira" });
+    // Document order: the Jira list first, the Flow section after it.
+    expect(jira.compareDocumentPosition(teams) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(teams).getByRole("link", { name: "Open team Payments" })).toBeInTheDocument();
+    // The Jira totals are still the Jira ones.
+    expect(screen.getAllByText("1 warning")).toHaveLength(2);
+  });
+
+  test("the team and severity of the URL go to the Flow document; the Jira-only filters do not, and the section says so", async () => {
+    capDoc = capacityView();
+    renderPage("/deviations?teamId=1&severity=WARNING&projectId=7");
+    await screen.findByRole("table", { name: "Capacity differences between the plan and Flow" });
+    expect(capCalls()).toEqual(["/api/v1/views/capacity-deviations?teamId=1&severity=WARNING"]);
+    expect(screen.getByText(/filters do not apply to this section/)).toBeInTheDocument();
+  });
+
+  test("a Flow section that fails leaves the Jira list alone, and a Jira list that fails leaves the Flow section alone", async () => {
+    capDoc = capacityView();
+    capStatus = 500;
+    const failed = renderPage();
+    await screen.findByRole("table", { name: "Differences between the plan and Jira" });
+    expect(await screen.findByText("Could not load the capacity comparison with Flow")).toBeInTheDocument();
+    failed.unmount();
+
+    capStatus = 200;
+    mockFetch.mockImplementation((url: string) => {
+      if (url.startsWith("/api/v1/views/capacity-deviations")) return Promise.resolve(jsonResponse(200, capDoc));
+      return Promise.resolve(jsonResponse(500, { title: "x", status: 500 }));
+    });
+    renderPage();
+    expect(await screen.findByText("Could not load the deviations")).toBeInTheDocument();
+    expect(await screen.findByRole("table", { name: "Capacity differences between the plan and Flow" })).toBeInTheDocument();
+  });
+
+  test("the sprints without capacity fold into one line on the page too", async () => {
+    capDoc = capacityView({ items: [capacityItem({ deviations: [0, 1, 2].map((n) => missingRow(90001 + n, `2047-0${n + 1}-07`, `2047-0${n + 1}-18`)) })] });
+    renderPage();
+    const teams = await screen.findByRole("table", { name: "Capacity differences between the plan and Flow" });
+    expect(teams).toHaveTextContent("3 sprints without capacity in the plan (from 2047-01-07)");
+    expect(within(teams).getAllByRole("row")).toHaveLength(2);
+    expect(screen.getByRole("group", { name: "Differences from Flow" })).toHaveTextContent("3 infos");
+  });
+
+  test("a warning row is orange and an info row gray, with the severity in words", async () => {
+    capDoc = capacityView({ items: [capacityItem({ deviations: [differsRow(), differsRow({ sprintId: 90003, sprintName: "E2E Flow Sprint 3", planMd: 20 })] })] });
+    renderPage();
+    const teams = await screen.findByRole("table", { name: "Capacity differences between the plan and Flow" });
+    const [warning, info] = within(teams).getAllByRole("listitem");
+    expect(within(warning).getByText("Warning:", { exact: false })).toBeInTheDocument();
+    expect(within(info).getByText("Info:", { exact: false })).toBeInTheDocument();
+    expect(warning.querySelector(".mantine-Badge-root")?.getAttribute("style")).toContain("orange");
+    expect(info.querySelector(".mantine-Badge-root")?.getAttribute("style")).toContain("gray");
   });
 });

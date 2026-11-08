@@ -1,4 +1,6 @@
-// Shared fixtures for the Flow pages' tests: a connection, a passing and a failing probe set, the mirrored teams, a run, the team page's panel and the capacity import's preview.
+// Shared fixtures for the Flow pages' tests: a connection, a passing and a failing probe set, the mirrored teams, a run, the team page's panel, the capacity import's preview
+// and the capacity deviations document (rows, a team's item, a connection, the view).
+import type { CapacityDeviation, CapacityDeviationConnection, CapacityDeviationItem, CapacityDeviationView } from "../api/capacityDeviations";
 import type { CapacityApplyResponse, CapacityPreview, CapacityPreviewItem, FlowConnection, FlowPanelBinding, FlowTeamList, FlowTeamListItem, FlowTeamPanel, FlowTestResult } from "../api/flow";
 import type { SyncRun } from "../api/sync";
 
@@ -188,3 +190,59 @@ export const PREVIEW: CapacityPreview = {
 };
 
 export const APPLIED: CapacityApplyResponse = { created: [{ periodId: 40, sprintId: 101 }], updated: [{ periodId: 31, sprintId: 102 }], deleted: [], skipped: [] };
+
+const READ_AT = Date.UTC(2026, 10, 8, 9, 40);
+
+/** A Flow connection as the capacity deviations document lists it: enabled, CURRENT, read at 2026-11-08 09:40 UTC. */
+export const CAPACITY_CONNECTION: CapacityDeviationConnection = {
+  id: 1,
+  name: "Acme Flow",
+  enabled: true,
+  teamsAt: READ_AT,
+  status: {
+    state: "CURRENT",
+    lastRun: { id: 7, startedAt: READ_AT, finishedAt: READ_AT + 60_000, outcome: "SUCCEEDED", errorCode: null, trigger: "MANUAL", running: false },
+    lastSucceededAt: READ_AT,
+    consecutiveFailures: 0,
+    nextPollAt: READ_AT + 60 * 60_000,
+  },
+};
+
+type DeviationDetail = CapacityDeviation["detail"];
+const NO_DETAIL: DeviationDetail = { sprintId: null, sprintName: null, start: null, end: null, effectiveFrom: null, workingDays: null, flowMd: null, flowTotalMd: null, planMd: null, gapMd: null };
+
+/** `CAPACITY_DIFFERS` for the e2e world's second sprint: the plan has 36.00, Flow 30.00 (a WARNING, +6.00); pass `planMd`/`flowMd` to move the figures (the gap and the severity follow). */
+export function differsRow(over: Partial<DeviationDetail> = {}): CapacityDeviation {
+  const detail: DeviationDetail = { ...NO_DETAIL, sprintId: 90002, sprintName: "E2E Flow Sprint 2", start: "2047-01-21", end: "2047-02-01", effectiveFrom: "2047-01-21", workingDays: 10, flowMd: 30, flowTotalMd: 30, planMd: 36, ...over };
+  const gapMd = over.gapMd ?? Math.round(((detail.planMd ?? 0) - (detail.flowMd ?? 0)) * 100) / 100;
+  return { kind: "CAPACITY_DIFFERS", severity: gapMd > 0 ? "WARNING" : "INFO", detail: { ...detail, gapMd } };
+}
+
+/** `CAPACITY_MISSING` (an INFO): no capacity in the plan for the sprint that starts on `start` (a two-week sprint), Flow says 40.00. */
+export function missingRow(sprintId: number, start: string, end: string, over: Partial<DeviationDetail> = {}): CapacityDeviation {
+  return { kind: "CAPACITY_MISSING", severity: "INFO", detail: { ...NO_DETAIL, sprintId, sprintName: `E2E Flow Sprint ${sprintId - 90000}`, start, end, effectiveFrom: start, workingDays: 10, flowMd: 40, flowTotalMd: 40, ...over } };
+}
+
+export const GONE_ROW: CapacityDeviation = { kind: "TEAM_GONE", severity: "WARNING", detail: NO_DETAIL };
+
+/** Payments, linked to "Payments Flow" on connection 1, with one WARNING sprint unless told otherwise. */
+export function capacityItem(over: Partial<CapacityDeviationItem> = {}): CapacityDeviationItem {
+  return { bindingId: 5, connectionId: 1, team: { id: 1, name: "Payments" }, flowTeam: { id: 12, name: "Payments Flow" }, observedAt: READ_AT, zone: "Europe/Warsaw", deviations: [differsRow()], ...over };
+}
+
+/** The document: totals are counted from the items unless given (as the server counts them, before any cap). */
+export function capacityView(over: Partial<CapacityDeviationView> = {}): CapacityDeviationView {
+  const items = over.items ?? [capacityItem()];
+  const rows = items.flatMap((item) => item.deviations);
+  return {
+    asOf: "2026-11-08",
+    connections: [CAPACITY_CONNECTION],
+    totals: { warnings: rows.filter((row) => row.severity === "WARNING").length, infos: rows.filter((row) => row.severity === "INFO").length, gone: rows.filter((row) => row.kind === "TEAM_GONE").length, teams: items.length },
+    items,
+    truncated: false,
+    ...over,
+  };
+}
+
+/** What a Jira-only stack answers: no Flow connection, so the Deviations page shows no Flow section. */
+export const NO_FLOW_VIEW: CapacityDeviationView = capacityView({ connections: [], items: [] });

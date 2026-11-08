@@ -6,6 +6,7 @@ import { Route, Routes, useLocation } from "react-router-dom";
 import { renderWithProviders } from "./render";
 import { jsonResponse } from "./http";
 import { item, view } from "./deviations";
+import { NO_FLOW_VIEW } from "./flow";
 import type { DeviationItem, DeviationView } from "../api/deviations";
 import Deviations from "../pages/Deviations";
 
@@ -76,6 +77,7 @@ export function ackHarness() {
       const write = /\/bindings\/(\d+)\/acknowledge$/.exec(url);
       if (write) return Promise.resolve(h.onWrite(init?.method ?? "GET", Number(write[1]), init?.body ? JSON.parse(init.body as string) : undefined));
       if (url.startsWith("/api/v1/views/deviations")) return Promise.resolve(jsonResponse(200, h.doc));
+      if (url.startsWith("/api/v1/views/capacity-deviations")) return Promise.resolve(jsonResponse(200, NO_FLOW_VIEW));
       if (url === "/api/v1/views/plan") return Promise.resolve(jsonResponse(200, PLAN));
       if (url.startsWith("/api/v1/teams?")) return Promise.resolve(jsonResponse(200, TEAMS));
       if (url.startsWith("/api/v1/integrations/jira/bindings?")) return Promise.resolve(jsonResponse(200, { items: [], page: 1, pageSize: 1, total: 1 }));

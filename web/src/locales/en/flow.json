@@ -160,7 +160,8 @@
       "flowTeam": "Flow team",
       "connection": "Connection",
       "status": "Status",
-      "observedAt": "Observed (UTC)"
+      "observedAt": "Observed (UTC)",
+      "capacity": "Capacity vs Flow"
     },
     "gone": "No longer in Flow",
     "goneNote": "The connection has read Flow and this team is not in it any more. The link stays until it is removed; capacity already imported stays. Importing capacity is unavailable.",
@@ -171,7 +172,19 @@
     "sprintsNext": "Sprints read from Flow: {{n}} · the next starts {{date}}",
     "unlinkTitle": "Unlink the Flow team?",
     "unlinkBody": "This team will no longer be linked to Flow team “{{flowTeam}}” (connection “{{connection}}”). Capacity already imported stays. Nothing is changed in Flow.",
-    "unlinkFailed": "Could not unlink the team"
+    "unlinkFailed": "Could not unlink the team",
+    "capacity": {
+      "inLine": "In line with Flow",
+      "differs_one": "Differs from Flow for {{count}} sprint",
+      "differs_other": "Differs from Flow for {{count}} sprints",
+      "missing_one": "No capacity in the plan for {{count}} sprint",
+      "missing_other": "No capacity in the plan for {{count}} sprints",
+      "loading": "Comparing with Flow…",
+      "loadFailed": "Could not compare the capacity with Flow",
+      "listAria": "Capacity differences from Flow",
+      "fix": "Import capacity… shows what an import would change. Hand-entered periods are left as they are, and a sprint where Flow has 0 must be ticked by hand.",
+      "noneSoFar": "No difference in the data read so far"
+    }
   },
   "link": {
     "title": "Link to a Flow team",

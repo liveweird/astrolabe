@@ -158,7 +158,10 @@
     "PROGRESS_MISMATCH": "Postęp",
     "UNLINKED_IN_JIRA": "Brak w planie",
     "UNLINKED_IN_PLAN": "Brak w Jirze",
-    "CHILDREN_DONE": "Dzieci ukończone"
+    "CHILDREN_DONE": "Dzieci ukończone",
+    "CAPACITY_DIFFERS": "Przepustowość",
+    "CAPACITY_MISSING": "Brak przepustowości",
+    "TEAM_GONE": "Nie ma we Flow"
   },
   "phrase": {
     "goneOutOfScope": "Nie da się już odczytać z Jiry: usunięto go, przeniesiono poza projekty połączenia albo konto połączenia już go nie widzi",
@@ -286,6 +289,88 @@
     "toast": {
       "acknowledged": "Potwierdzono",
       "withdrawn": "Cofnięto potwierdzenie"
+    }
+  },
+  "capacity": {
+    "differsMore": "{{sprint}}: w planie jest {{plan}} osobodni, we Flow {{flow}} — o {{gap}} osobodni więcej w planie",
+    "differsLess": "{{sprint}}: w planie jest {{plan}} osobodni, we Flow {{flow}} — o {{gap}} osobodni mniej w planie",
+    "fixedFigure": "Flow planuje {{total}} osobodni na cały sprint; na dni, które sprint zajmuje w planie, przypada {{flow}}.",
+    "missing": "{{sprint}}: brak przepustowości w planie, Flow podaje {{flow}} osobodni",
+    "missingBare": "{{sprint}}: brak przepustowości w planie",
+    "gone": "Zespołu Flow nie ma już w danych Flow",
+    "unnamedSprint": "Sprint",
+    "sprintId": "Sprint {{id}}",
+    "missingSummary_one": "{{count}} sprint bez przepustowości w planie (od {{date}})",
+    "missingSummary_few": "{{count}} sprinty bez przepustowości w planie (od {{date}})",
+    "missingSummary_many": "{{count}} sprintów bez przepustowości w planie (od {{date}})",
+    "missingSummary_other": "{{count}} sprintu bez przepustowości w planie (od {{date}})",
+    "missingSummaryNoDate_one": "{{count}} sprint bez przepustowości w planie",
+    "missingSummaryNoDate_few": "{{count}} sprinty bez przepustowości w planie",
+    "missingSummaryNoDate_many": "{{count}} sprintów bez przepustowości w planie",
+    "missingSummaryNoDate_other": "{{count}} sprintu bez przepustowości w planie",
+    "missingShow": "Pokaż sprinty",
+    "missingHide": "Ukryj sprinty",
+    "missingTableAria": "Sprinty bez przepustowości w planie",
+    "column": {
+      "sprint": "Sprint",
+      "dates": "Daty",
+      "flow": "Flow (osobodni)"
+    },
+    "moreShow": "Pokaż pozostałe: {{n}}",
+    "moreHide": "Ukryj pozostałe: {{n}}"
+  },
+  "flowSection": {
+    "title": "Przepustowość z Flow",
+    "intro": "Gdzie przepustowość powiązanego zespołu w planie różni się od tego, co podaje Flow dla jego bieżących i przyszłych sprintów. Astrolabe tylko czyta z Flow: nic się tam nie zapisuje. Przycisk Importuj przepustowość… na stronie zespołu pokazuje, co zmieniłby import; okresy wpisane ręcznie zostają bez zmian.",
+    "loadFailed": "Nie udało się wczytać porównania przepustowości z Flow",
+    "filtersNote": "Filtry Stan, rodzaj elementu planu, strumień pracy, projekt, rodzaj odchylenia i połączenie nie dotyczą tej sekcji; stosują się do niej tylko filtry zespołu i ważności.",
+    "staleBanner": "Co najmniej jedno połączenie z Flow nie ma za sobą aktualnego odświeżenia, więc lista poniżej może być nieaktualna. Zobacz sekcję Dane z Flow.",
+    "sources": {
+      "title": "Dane z Flow",
+      "tableAria": "Dane z Flow",
+      "column": {
+        "connection": "Połączenie",
+        "status": "Stan",
+        "readAt": "Odczytano z Flow (UTC)",
+        "notes": "Uwagi"
+      },
+      "neverRead": "Jeszcze nie odczytano",
+      "noteNever": "Żadne odświeżanie jeszcze się nie zakończyło: Flow nie został odczytany, więc nie ma z czym porównywać.",
+      "noteStale": "Ostatnie udane odświeżanie jest starsze, niż powinno: liczby mogą być nieaktualne.",
+      "noteDisabled": "Połączenie jest wyłączone: Flow nie jest odczytywany ponownie, a zespoły pokazują to, co odczytano ostatnio."
+    },
+    "totals": {
+      "gone_one": "w tym {{count}} zespół zniknął z Flow",
+      "gone_few": "w tym {{count}} zespoły zniknęły z Flow",
+      "gone_many": "w tym {{count}} zespołów zniknęło z Flow",
+      "gone_other": "w tym {{count}} zespołu zniknęło z Flow",
+      "shown_one": "Pokazano {{count}} zespół",
+      "shown_few": "Pokazano {{count}} zespoły",
+      "shown_many": "Pokazano {{count}} zespołów",
+      "shown_other": "Pokazano {{count}} zespołu",
+      "truncated": "Wymieniono tylko pierwsze {{count}} zespołów. Liczby ostrzeżeń i informacji obejmują wszystkie pasujące; zawęź filtry, żeby zobaczyć resztę.",
+      "shownOf": "Pokazano {{n}} z {{total}} zespołów"
+    },
+    "list": {
+      "title": "Różnice względem Flow",
+      "tableAria": "Różnice przepustowości między planem a Flow",
+      "column": {
+        "team": "Zespół",
+        "flowTeam": "Zespół Flow",
+        "differences": "Różnice",
+        "observed": "Dane z"
+      },
+      "openTeamAria": "Otwórz zespół {{name}}"
+    },
+    "empty": {
+      "noneLinked": "Żaden zespół nie jest jeszcze powiązany z Flow.",
+      "noneLinkedHint": "Powiąż zespół na jego stronie (Powiąż z zespołem Flow…).",
+      "inLineSince": "Plan jest zgodny z Flow w danych odczytanych {{time}} (UTC).",
+      "inLineSinceHint": "Od tego czasu niczego nie sprawdzano: odśwież, żeby ponownie odczytać Flow.",
+      "inLineSoFar": "Plan jest zgodny z Flow w dotychczas odczytanych danych.",
+      "inLineSoFarHint": "Nie każde połączenie ma za sobą aktualne odświeżenie, więc to może się zmienić.",
+      "noMatch": "Żadna różnica przepustowości nie pasuje do filtrów.",
+      "countFailed": "Nie udało się sprawdzić, czy jakiś zespół jest powiązany z Flow"
     }
   }
 }

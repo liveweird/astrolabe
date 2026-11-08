@@ -4,6 +4,8 @@ import { Badge, Button, Group, Stack, Table, Text, Title } from "@mantine/core";
 import { IconDownload, IconLink, IconLinkOff } from "@tabler/icons-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { deleteFlowTeamBinding, getTeamFlow, type FlowPanelBinding } from "../api/flow";
+import { staleFlowConnection } from "../utils/capacityDeviations";
+import { useCapacityDeviations } from "../hooks/useCapacityDeviations";
 import { useDeleteConfirm } from "../hooks/useDeleteConfirm";
 import { useDialogFocus } from "../hooks/useDialogFocus";
 import { useNow } from "../hooks/useNow";
@@ -13,6 +15,7 @@ import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { saveErrorMessage } from "../utils/saveError";
 import { IDLE_REFRESH_MS } from "../utils/syncRuns";
 import CapacityImportModal from "./CapacityImportModal";
+import { CapacityDetails, CapacityFact, type CapacityComparison } from "./TeamFlowCapacity";
 import ConfirmDeleteModal from "./ConfirmDeleteModal";
 import ErrorAlert from "./ErrorAlert";
 import { Fact } from "./SyncFacts";
@@ -25,7 +28,7 @@ import SyncStatusBadge from "./SyncStatusBadge";
  * The team page's **Flow** section (`GET /teams/{id}/flow` under `["flow","team",id]`, its own read - not a member of the team view): not linked
  * ("Link to Flow team…"), or linked - the Flow team, its connection with the sync status, when the mirror last saw it (an orange "No longer in
  * Flow" when it left the document, a note while the connection is disabled), **Import capacity…**, **Unlink** (an in-page confirm) and the
- * observed roster. What each control offers is the panel's `can`, never the session's roles. `importBlocked` (a schedule proposal is open) keeps
+ * observed roster, and its **Capacity vs Flow** row and lines (`TeamFlowCapacity`, from the Deviations document asked for this team). What each control offers is the panel's `can`, never the session's roles. `importBlocked` (a schedule proposal is open) keeps
  * the capacity import closed: a capacity change would void the proposal's premise. Nothing here calls Flow.
  */
 export default function TeamFlowSection({ teamId, importBlocked = false }: { teamId: number; importBlocked?: boolean }) {
@@ -45,6 +48,17 @@ export default function TeamFlowSection({ teamId, importBlocked = false }: { tea
     successMessage: t("flow.toast.unlinked"),
     focusAfterDelete: headingRef,
   });
+
+  // The plan's capacity against Flow's, for this team alone (the Deviations page's document); only a linked team has anything to compare.
+  const linked = panel.data?.binding ?? null;
+  const deviations = useCapacityDeviations({ teamId }, { enabled: linked !== null, idleRefresh: true });
+  const comparison: CapacityComparison = {
+    rows: deviations.data === undefined ? undefined : (deviations.data.items.find((item) => item.team.id === teamId)?.deviations ?? []),
+    failed: deviations.isError,
+    error: deviations.error,
+    // Agreement is only claimed for a connection that is enabled and CURRENT; a team whose Flow was never mirrored has neither.
+    current: linked !== null && !staleFlowConnection({ enabled: linked.connectionEnabled, status: linked.status }),
+  };
 
   // An open proposal (or one being requested) closes the import and does not let it come back on its own.
   if (importBlocked && importing) setImporting(false);
@@ -98,8 +112,10 @@ export default function TeamFlowSection({ teamId, importBlocked = false }: { tea
                 <SyncStatusBadge status={binding.status} now={now} />
               </Fact>
               <Fact label={t("flow.panel.fact.observedAt")}>{binding.observedAt === null ? "—" : formatDateTime(binding.observedAt)}</Fact>
+              {!binding.gone && <CapacityFact comparison={comparison} />}
             </Table.Tbody>
           </Table>
+          {!binding.gone && <CapacityDetails comparison={comparison} canImport={can?.importCapacity === true && !importBlocked} />}
           {binding.gone && (
             <Text size="sm" role="note">
               {t("flow.panel.goneNote")}
@@ -147,7 +163,7 @@ export default function TeamFlowSection({ teamId, importBlocked = false }: { tea
         />
       )}
       {importing && binding !== null && !importBlocked && (
-        <CapacityImportModal binding={binding} onClose={() => setImporting(false)} onImported={() => refreshQueriesAfterMutation(queryClient, ["plan"])} />
+        <CapacityImportModal binding={binding} onClose={() => setImporting(false)} onImported={() => refreshQueriesAfterMutation(queryClient, ["plan"], ["flow", "deviations"])} />
       )}
       <ConfirmDeleteModal
         confirm={unlink}

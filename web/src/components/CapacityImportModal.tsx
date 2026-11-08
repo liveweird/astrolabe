@@ -195,7 +195,7 @@ function PreviewBody({ preview, busy, onImport }: { preview: CapacityPreview; bu
  * SKIP rows have no tick - and the REMOVALS list (Flow periods no sprint reuses), never preselected. Import (`POST …/capacity-import`) sends exactly the
  * ticked rows with their `expected` and the `from` / `includeClosed` the preview echoed; the server re-runs the plan under the team lock, so a row
  * that moved meanwhile comes back skipped (`CHANGED`, data in a 200). The outcome (a polite status region that stays mounted; the focus moves to it once the fresh plan is read, because the plan replaces the table the Import button sat in) stays above a fresh preview. Team data: `onImported` refreshes the
- * capacity and the weekly load, nothing else.
+ * capacity and the weekly load (`["plan"]`) and the capacity deviations (`["flow","deviations"]`), nothing else.
  */
 export default function CapacityImportModal({ binding, onClose, onImported }: { binding: { id: number; flowTeamName: string }; onClose: () => void; onImported: () => Promise<void> }) {
   const { t } = useTranslation();

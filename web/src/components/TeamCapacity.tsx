@@ -32,7 +32,7 @@ export default function TeamCapacity({ view, readOnly = false }: { view: TeamVie
   useDialogFocus(editor !== null);
   const { periods } = view.capacity;
   const canEdit = view.team.can.editCapacity;
-  const refresh = () => refreshQueriesAfterMutation(queryClient, ["plan"]);
+  const refresh = () => refreshQueriesAfterMutation(queryClient, ["plan"], ["flow", "deviations"]);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const removal = useDeleteConfirm<CapacityPeriod>({
     mutationFn: (period) => deleteCapacityPeriod(period.id),

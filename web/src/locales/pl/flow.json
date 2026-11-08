@@ -162,7 +162,8 @@
       "flowTeam": "Zespół Flow",
       "connection": "Połączenie",
       "status": "Stan",
-      "observedAt": "Odczytano (UTC)"
+      "observedAt": "Odczytano (UTC)",
+      "capacity": "Przepustowość a Flow"
     },
     "gone": "Już go nie ma we Flow",
     "goneNote": "Połączenie odczytało Flow, a tego zespołu już w nim nie ma. Powiązanie zostaje, dopóki go nie usuniesz; zaimportowane okresy przepustowości zostają. Import przepustowości jest niedostępny.",
@@ -173,7 +174,23 @@
     "sprintsNext": "Sprinty odczytane z Flow: {{n}} · następny zaczyna się {{date}}",
     "unlinkTitle": "Odpiąć zespół Flow?",
     "unlinkBody": "Ten zespół przestanie być powiązany z zespołem Flow „{{flowTeam}}” (połączenie „{{connection}}”). Zaimportowane okresy przepustowości zostają. W Flow nic się nie zmieni.",
-    "unlinkFailed": "Nie udało się odpiąć zespołu"
+    "unlinkFailed": "Nie udało się odpiąć zespołu",
+    "capacity": {
+      "inLine": "Zgodnie z Flow",
+      "differs_one": "Różni się od Flow dla {{count}} sprintu",
+      "differs_few": "Różni się od Flow dla {{count}} sprintów",
+      "differs_many": "Różni się od Flow dla {{count}} sprintów",
+      "differs_other": "Różni się od Flow dla {{count}} sprintu",
+      "missing_one": "Brak przepustowości w planie dla {{count}} sprintu",
+      "missing_few": "Brak przepustowości w planie dla {{count}} sprintów",
+      "missing_many": "Brak przepustowości w planie dla {{count}} sprintów",
+      "missing_other": "Brak przepustowości w planie dla {{count}} sprintu",
+      "loading": "Porównywanie z Flow…",
+      "loadFailed": "Nie udało się porównać przepustowości z Flow",
+      "listAria": "Różnice przepustowości względem Flow",
+      "fix": "Przycisk Importuj przepustowość… pokazuje, co zmieniłby import. Okresy wpisane ręcznie zostają bez zmian, a sprint, w którym Flow podaje 0, trzeba zaznaczyć ręcznie.",
+      "noneSoFar": "Brak różnic w dotychczas odczytanych danych"
+    }
   },
   "link": {
     "title": "Powiąż z zespołem Flow",
