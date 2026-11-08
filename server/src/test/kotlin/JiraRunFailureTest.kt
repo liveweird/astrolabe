@@ -11,6 +11,7 @@ import ch.nokillswit.jira.JiraRunStore
 import ch.nokillswit.sync.SyncKind
 import ch.nokillswit.sync.SyncOutcome
 import ch.nokillswit.sync.SyncResult
+import ch.nokillswit.sync.SyncRunList
 import ch.nokillswit.sync.SyncRunServiceKey
 import ch.nokillswit.sync.SyncTrigger
 import com.github.tomakehurst.wiremock.client.WireMock.aResponse
@@ -19,6 +20,8 @@ import com.github.tomakehurst.wiremock.client.WireMock.get
 import com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo
 import com.github.tomakehurst.wiremock.stubbing.Scenario
 import com.github.tomakehurst.wiremock.stubbing.StubMapping
+import io.ktor.client.request.get
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
@@ -27,6 +30,7 @@ import org.junit.BeforeClass
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 
 /**
@@ -121,6 +125,28 @@ class JiraRunFailureTest {
         assertEquals(SyncOutcome.SUCCEEDED, recovered.outcome, recovered.errorDetail)
         assertEquals(3, recovered.counts.observed)
         assertNotEquals("stale", summaryOf(bound[2].id))
+    }
+
+    @Test
+    fun `a failed run's detail, as every signed-in user reads it from the runs list, names the code and no URL`() = testApplication {
+        val f = fixture("jrdetail")
+        f.bind("CE-25")
+        val override = failPage(page = 3, status = 503, once = false)
+        try {
+            val failed = run(chunkSize = 2, connectionId = f.connectionId)
+            assertEquals("UPSTREAM_UNAVAILABLE", failed.errorCode)
+            // Read as the plain login the list is open to: the stored text is the code and the status, never the endpoint or a host.
+            val listed = f.w.stranger.client.get("$SYNC_RUNS?kind=JIRA&connectionId=${f.connectionId}")
+            assertEquals(HttpStatusCode.OK, listed.status)
+            val row = jbJson.decodeFromString<SyncRunList>(listed.bodyAsText()).items.single()
+            assertEquals(SyncOutcome.FAILED, row.outcome)
+            assertEquals("Jira fetch failed: UPSTREAM_UNAVAILABLE (503)", row.errorDetail)
+            val text = "${row.errorCode} ${row.errorDetail}"
+            assertFalse("http" in text || "/rest/" in text || "search/jql" in text || "api.atlassian.com" in text, text)
+        } finally {
+            JiraStubServer.removeOverride(override)
+            JiraStubServer.resetScenarios()
+        }
     }
 
     @Test

@@ -14,8 +14,8 @@ Related: schema `persistence.md` "The Jira sync tables (V21)"; outbound guard `s
 | `POST /integrations/sync/runs {kind, connectionId}` (Refresh now) | ADMIN; `202` with the unfinished run |
 | `POST /integrations/jira/bindings`, `DELETE …/bindings/{id}` | the node's owner chain or ADMIN (`requireOwnerOrAdmin`), read-before-guard; a link writes no dates, so the team-manager rule does not apply |
 | `POST`/`DELETE …/bindings/{id}/acknowledge` (1.3) | the node's owner chain or ADMIN, like the bind; the binding's live chain read first (404), the guard again under the binding's row lock; no rate bucket (`## Acknowledge (1.3)`) |
-| `POST …/connections/{id}/import-preview` (1.2) | ADMIN, or an owner of every target (`requireOwnerOrAdmin` on the named defaults before the browse, on the resolved targets after it); read-before-guard, a read |
-| `POST …/connections/{id}/import` (1.2) | ADMIN, or an owner of EVERY ticked CREATE/BIND row's target, re-run under the plan lock; not the preview's rule (an owner may apply rows on their own targets where a full preview would be a 403); the one Jira write that moves the plan (`### The apply`) |
+| `POST …/connections/{id}/import-preview` (1.2) | ADMIN, or an owner of every target (`requireOwnerOrAdmin` on the named defaults before the browse, on the resolved targets after it); read-before-guard, a read; the token is decrypted after the up-front `403`s (no plan node owned, a named default not owned), before the resolved-target `403` |
+| `POST …/connections/{id}/import` (1.2) | ADMIN, or an owner of EVERY ticked CREATE/BIND row's target, re-run under the plan lock; not the preview's rule (an owner may apply rows on their own targets where a full preview would be a 403); the one Jira write that moves the plan (`### The apply`); the token is decrypted after the up-front `403`s, before the under-the-lock `403` |
 | `GET …/bindings`, `GET …/sync/runs`, `GET /views/deviations` | any authenticated user |
 
 Rate buckets: `jira-test` 10/min per IP by default, `JIRA_TEST_RATE_LIMIT_PER_MINUTE` (1..100; the e2e stacks pin 30) (Test connection, ad hoc or stored, and Peek); `jira-bind` 30/min per user (spent before the guard, so a 403 costs a token too); `jira-import` 5/min per user, shared by the import preview and apply (each browses the whole scope; spent before the guard).
@@ -276,7 +276,7 @@ The four timeline views (roadmap, programs, project, team) carry the Jira links 
 ## The token's life
 
 Encrypted at write (`FieldCipher`, `enc:v1:` envelope, a fresh nonce), write-only on the wire (`hasApiToken`), masked in every `toString` (`SecretToStringTest`) and absent from audit lines, logs and run
-rows (`error_detail` is clamped and URL-stripped). It is decrypted in memory only by four readers in `JiraConnectionService` (Test connection, Peek, the bind and the run, the last two through `readForBind`). A `PUT` with a
+rows (`error_detail` is built URL-free - `Jira fetch failed: {code} ({status})`, as Flow's - and `clampErrorDetail` clamps it as the backstop). It is decrypted in memory only by four readers in `JiraConnectionService` (Test connection, Peek, the bind, the two import routes and the run - the bind, the imports and the run through `readForBind`). A `PUT` with a
 token rotates it, and a changed token, email, auth scheme or project-key set clears `last_tested_at/ok` (the last test judged the old ones); a blank token keeps the stored one; the site cannot be changed (`409`). At boot `EncryptedAtRest` wraps any legacy plaintext, and with
 `DATA_ENCRYPTION_KEY_PREVIOUS` set re-encrypts every row (soft-deleted ones too; NULLs skipped), audited `crypto.reencrypted`. `docker compose up` and `:server:run` use different keys over one Postgres, so a
 row may be unreadable: that is `TOKEN_UNREADABLE`, never a 500. **Deleting a connection sets the column to NULL** (the V21 CHECK allows that on a deleted row only).

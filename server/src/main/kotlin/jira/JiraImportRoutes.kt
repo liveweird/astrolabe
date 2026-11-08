@@ -4,6 +4,7 @@ import ch.nokillswit.audit.audit
 import ch.nokillswit.authz.CallerPrincipal
 import ch.nokillswit.authz.ConflictException
 import ch.nokillswit.authz.ForbiddenException
+import ch.nokillswit.authz.NotFoundException
 import ch.nokillswit.authz.OwnerChain
 import ch.nokillswit.authz.caller
 import ch.nokillswit.authz.isAdmin
@@ -39,14 +40,16 @@ class JiraImportApplyRoute(val parent: JiraConnectionsRoute.Id)
 /**
  * The Jira import's routes (1.2). **The preview** is open to ADMIN or an owner of every target, in the order the plan fixed: the
  * per-USER `jira-import` bucket (spent BEFORE everything below, so a refused caller learns nothing and a `429` wins over any other
- * answer) -> the connection (`404`; its existence is public through `GET /views/deviations`) -> the body (`400`) -> the NAMED targets'
+ * answer) -> the connection's existence (`404`; public through `GET /views/deviations`) -> the body (`400`) -> the NAMED targets'
  * chains (`404`: the work stream, `defaults.programId`, `defaults.projectId`) -> `403` for a login that owns no plan node at all, then
- * the guard on each named DEFAULT (`403`) -> the shape (`400`) -> the connection enabled (`400`), its token (`409`), discovery (`409`) and
- * mapping (`409`) -> ONE paged browse of the scope, outside any transaction (`502`) -> ONE read-only snapshot -> the pure kernel -> the
- * guard on the RESOLVED targets (`403`, naming the first one the caller does not own) -> `200`. The picked work stream is a target only
- * when a program would be created (a program owner may import under their program), so it is guarded there, not up front; a caller who
- * owns neither it, any target nor any node of its tree is refused too. It stores nothing and audits nothing (a read; a `403` is the
- * central `authz.denied`).
+ * the guard on each named DEFAULT (`403`) -> THE TOKEN'S DECRYPT (`readForBind`: a caller refused by the checks above never reaches
+ * it; the resolved-target `403` below still follows it and the browse; the `404` above reads the connection's state and touches no
+ * token) -> the shape (`400`) -> the connection enabled (`400`), its token (`409`),
+ * discovery (`409`) and mapping (`409`) -> ONE paged browse of the scope, outside any transaction (`502`) -> ONE read-only snapshot ->
+ * the pure kernel -> the guard on the RESOLVED targets (`403`, naming the first one the caller does not own) -> `200`. The picked work
+ * stream is a target only when a program would be created (a program owner may import under their program), so it is guarded there,
+ * not up front; a caller who owns neither it, any target nor any node of its tree is refused too. It stores nothing and audits
+ * nothing (a read; a `403` is the central `authz.denied`).
  * The caller's team-schedule rights decide `canSchedule`, never a refusal.
  *
  * **The apply** runs the SAME steps through the browse (same codes; the items' shape and every `overrides.teamId` join the `400`s, and a
@@ -70,9 +73,10 @@ internal fun Route.jiraImportRoutes(
     rateLimit(RateLimitName(RateLimits.JIRA_IMPORT)) {
         post<JiraImportPreviewRoute> { route ->
             val caller = call.caller()
-            val context = connections.readForBind(route.parent.id).orNotFound("Jira connection")
+            requireConnection(connections, route.parent.id)
             val scope = call.receive<JiraImportScope>()
-            val admitted = admit(caller, personOf(caller), context, scope, null, imports)
+            val admitted = admit(caller, personOf(caller), connections, route.parent.id, scope, null, imports)
+            val context = admitted.context
             val now = nowMillis()
             val browse = browseOrBadGateway(connections, connector, route.parent.id, context, admitted, now) ?: return@post
             val issueIds = issueIdsOf(browse)
@@ -100,9 +104,10 @@ internal fun Route.jiraImportRoutes(
         }
         post<JiraImportApplyRoute> { route ->
             val caller = call.caller()
-            val context = connections.readForBind(route.parent.id).orNotFound("Jira connection")
+            requireConnection(connections, route.parent.id)
             val request = call.receive<JiraImportApplyRequest>()
-            val admitted = admit(caller, personOf(caller), context, request.scope(), request.items, imports)
+            val admitted = admit(caller, personOf(caller), connections, route.parent.id, request.scope(), request.items, imports)
+            val context = admitted.context
             val now = nowMillis()
             val browse = browseOrBadGateway(connections, connector, route.parent.id, context, admitted, now) ?: return@post
             val applied = ApplyContext(
@@ -117,18 +122,35 @@ internal fun Route.jiraImportRoutes(
 }
 
 /** What both routes know once the request passed the checks before the browse. */
-private class Admitted(val personId: UInt?, val named: List<OwnerChain>, val keys: List<String>, val ready: ImportPreflight)
+private class Admitted(
+    val context: JiraBindContext,
+    val personId: UInt?,
+    val named: List<OwnerChain>,
+    val keys: List<String>,
+    val ready: ImportPreflight,
+)
+
+/**
+ * The connection's existence (`404`, for every caller) WITHOUT reading its token: the run's own state reader answers "gone" for a
+ * missing or deleted row and never touches the encrypted column. The decrypting read comes only after [admit]'s `403`s.
+ */
+private suspend fun requireConnection(connections: JiraConnectionService, connectionId: UInt) {
+    if (connections.runnableState(connectionId) == RunnableState.GONE) throw NotFoundException("Jira connection not found")
+}
 
 /**
  * The checks of both routes before the browse, in order: the NAMED targets' chains (`404`), `403` for a login that owns no plan node
- * (the bind's rule), the guard on each named default (`403`), the apply items' shape ([items]; `400`), the project keys, the shape that
- * needs rows (the owner, the default team and every override team active, the defaults under the stream: `400`), then the connection's
- * state (`400`/`409`). Plain reads, no lock: the apply repeats what matters under its own.
+ * (the bind's rule), the guard on each named default (`403`) - and ONLY THEN the decrypting read of the connection
+ * ([JiraConnectionService.readForBind]; `404` if it vanished meanwhile), so a refused caller never makes the server decrypt the
+ * stored token - the apply items' shape ([items]; `400`), the project keys, the shape that needs rows (the owner, the default team and
+ * every override team active, the defaults under the stream: `400`), then the connection's state (`400`/`409`). Plain reads, no lock:
+ * the apply repeats what matters under its own.
  */
 private suspend fun admit(
     caller: CallerPrincipal,
     personId: UInt?,
-    context: JiraBindContext,
+    connections: JiraConnectionService,
+    connectionId: UInt,
     scope: JiraImportScope,
     items: List<JiraImportApplyItem>?,
     imports: JiraImportService,
@@ -139,10 +161,11 @@ private suspend fun admit(
         throw ForbiddenException("Owner or admin role required")
     }
     named.forEach { requireOwnerOrAdmin(caller, personId, it) }
+    val context = connections.readForBind(connectionId).orNotFound("Jira connection")
     items?.let(::validateApplyItems)
     val keys = validateImportScope(scope, context.target.projectKeys)
     imports.requireShape(scope, items.orEmpty().mapNotNull { it.overrides?.teamId })
-    return Admitted(personId, named, keys, importPreflight(context))
+    return Admitted(context, personId, named, keys, importPreflight(context))
 }
 
 /** The ONE paged browse, outside any transaction; null after answering `502` (the failure code only, never the upstream's text). */

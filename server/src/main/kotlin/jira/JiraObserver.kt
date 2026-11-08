@@ -119,10 +119,14 @@ class JiraObserver internal constructor(
             } catch (problem: RunProblem) {
                 SyncResult.failed(problem.code, problem.detail, counts())
             } catch (failure: FetchException) {
-                SyncResult.failed(failure.code, failure.message, counts())
+                SyncResult.failed(failure.code, fetchDetail(failure), counts())
             }
         }
     }
+
+    /** The failure text of a run: the typed code and the status, never the endpoint the exception's own message quotes. */
+    private fun fetchDetail(failure: FetchException): String =
+        "${JIRA_SOURCE.label} fetch failed: ${failure.code}" + (failure.status?.let { " ($it)" } ?: "")
 
     private suspend fun execute(run: ClaimedRun, progress: RunProgress) {
         val context = connections.readForBind(run.connectionId)

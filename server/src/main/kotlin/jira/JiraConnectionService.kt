@@ -197,8 +197,8 @@ class JiraConnectionService(
     }
 
     /**
-     * The bind's reader of its connection (the third reader of the stored token, with [readForTest] and [readForPeek]; the run is a
-     * fourth caller of THIS reader, not a new decrypt site): the
+     * The bind's reader of its connection (the third reader of the stored token, with [readForTest] and [readForPeek]; the run and the
+     * two import routes are further callers of THIS reader, not new decrypt sites): the
      * target (token decrypted in memory, null when it cannot be), the mapping state and whether the connection is enabled, in ONE short
      * transaction before the Jira call. Null when the connection is missing or deleted.
      */
