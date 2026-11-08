@@ -87,7 +87,29 @@
       "end": "End",
       "workingDays": "(working days)",
       "estimate": "Estimate (MD)",
-      "status": "Status"
+      "status": "Status",
+      "then": "Then: {{then}}",
+      "now": "Now: {{now}}"
+    },
+    "sideThen": "Then: {{name}}",
+    "sideNow": "Now: {{name}}",
+    "sameRevision": "The two baselines are at the same plan revision: nothing moved.",
+    "changesIntroAgainst": "Only rows that changed between the two baselines are listed. Start and end are in working days on the current calendar; a positive figure means later in \"{{now}}\" than in \"{{then}}\".",
+    "tableAriaAgainst": "Changes between the two baselines",
+    "emptyAgainst": "No changes between these baselines",
+    "against": {
+      "label": "Compare against",
+      "description": "This baseline is the \"then\" side",
+      "live": "The live plan",
+      "option": "{{name}} (plan revision {{revision}})",
+      "fallback": "Baseline {{id}}",
+      "unavailable": "The list of baselines could not be loaded; only the live plan is available.",
+      "dropped": "The baseline you compared against no longer exists; showing the comparison with the live plan instead."
+    },
+    "rank": {
+      "changed": "Rank {{then}} → {{now}}",
+      "fromUnranked": "Unranked → rank {{now}}",
+      "toUnranked": "Rank {{then}} → unranked"
     }
   },
   "status": {
@@ -133,6 +155,10 @@
     "scheduled": "{{count}} newly scheduled",
     "unscheduled": "{{count}} unscheduled",
     "estimateOnly": "{{count}} re-estimated",
-    "none": "No schedule changes"
+    "none": "No schedule changes",
+    "rankUp": "{{count}} moved up in rank",
+    "rankDown": "{{count}} moved down in rank",
+    "rankAdded": "{{count}} newly ranked",
+    "rankRemoved": "{{count}} no longer ranked"
   }
 }

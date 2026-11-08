@@ -1,10 +1,12 @@
-import { useState } from "react";
-import { useNavigate, useParams, Link as RouterLink } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useLocation, useNavigate, useParams, useSearchParams, Link as RouterLink } from "react-router-dom";
 import { Anchor, Button, Group, Select, Stack, Switch, Table, Text, Title, VisuallyHidden } from "@mantine/core";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { getBaselineView, type BaselineView } from "../api/baselines";
+import type { TFunction } from "i18next";
+import { baselineViewKey, getBaselineView, isUnknownBaseline, type Baseline, type BaselineView } from "../api/baselines";
 import { ApiError } from "../api/http";
+import BaselineCompareControls from "../components/BaselineCompareControls";
 import { DateRange, Figures, StatusBadge, TotalsBadges } from "../components/BaselineParts";
 import ClearableTextInput from "../components/ClearableTextInput";
 import EditPageLoadState from "../components/EditPageLoadState";
@@ -12,7 +14,7 @@ import PageHeader from "../components/PageHeader";
 import ScrollRegion from "../components/ScrollRegion";
 import { useBaselinePick } from "../hooks/useBaselinePick";
 import { baselinesPath } from "../utils/baselineLinks";
-import { compareGroups, compareTeams, estimateText, type CompareFilters } from "../utils/baselineCompare";
+import { compareGroups, compareTeams, estimateText, rankSentence, type CompareFilters } from "../utils/baselineCompare";
 import { movementSentence, movementStatus, movementTotalsParts, signedDays } from "../utils/baselineOverlay";
 import { formatDateTime } from "../utils/formatDate";
 import { projectPath, roadmapPath } from "../utils/planLinks";
@@ -30,21 +32,35 @@ function Span({ span }: { span: { start: string; end: string } | null }) {
   return span === null ? <>—</> : <DateRange start={span.start} end={span.end} />;
 }
 
+/** One baseline's facts as the line reads: when, by whom, its plan revision, its counts; `side` ("Then: X" / "Now: X") leads it in the two-baseline mode. */
+function factsLine(baseline: Baseline, t: TFunction, side?: string): string {
+  const when = formatDateTime(baseline.createdAt);
+  return [
+    ...(side === undefined ? [] : [side]),
+    baseline.createdBy ? t("baselines.compare.taken", { when, name: baseline.createdBy.name }) : t("baselines.compare.takenAnonymous", { when }),
+    t("baselines.compare.revision", { revision: baseline.planRevision }),
+    t("baselines.compare.milestones", { count: baseline.milestoneCount }),
+    t("baselines.compare.projects", { count: baseline.projectCount }),
+  ].join(" · ");
+}
+
+/**
+ * The facts: against the live plan, the baseline's one line (as before); against another baseline, one line per SIDE, "Then: <this baseline>" and
+ * "Now: <the other>", and the sentence for two baselines taken at the same plan revision.
+ */
 function Facts({ view }: { view: BaselineView }) {
   const { t } = useTranslation();
-  const { baseline } = view;
-  const when = formatDateTime(baseline.createdAt);
+  const { baseline, against } = view;
   return (
     <Stack gap={2} role="group" aria-label={t("baselines.compare.factsAria")}>
-      <Text size="sm">
-        {[
-          baseline.createdBy ? t("baselines.compare.taken", { when, name: baseline.createdBy.name }) : t("baselines.compare.takenAnonymous", { when }),
-          t("baselines.compare.revision", { revision: baseline.planRevision }),
-          t("baselines.compare.milestones", { count: baseline.milestoneCount }),
-          t("baselines.compare.projects", { count: baseline.projectCount }),
-        ].join(" · ")}
-      </Text>
-      {view.revision === baseline.planRevision && (
+      <Text size="sm">{factsLine(baseline, t, against && t("baselines.compare.sideThen", { name: baseline.name }))}</Text>
+      {against && <Text size="sm">{factsLine(against, t, t("baselines.compare.sideNow", { name: against.name }))}</Text>}
+      {against && against.planRevision === baseline.planRevision && (
+        <Text size="sm" c="dimmed">
+          {t("baselines.compare.sameRevision")}
+        </Text>
+      )}
+      {!against && view.revision === baseline.planRevision && (
         <Text size="sm" c="dimmed">
           {t("baselines.compare.samePlan")}
         </Text>
@@ -59,6 +75,9 @@ function Facts({ view }: { view: BaselineView }) {
  * later), then ONE plain table grouped by project: a project row with its own span movement and the counts of its milestones, then its
  * CHANGED milestone rows (the document lists only those; an estimate-only change is one). ≤ 1,000 rows, so no virtualisation — a
  * `ScrollRegion`. Filters (team, project name, "changed projects only") are client-side and not persisted.
+ * 1.7: "Compare against" (the URL's `?against=`, shareable) swaps "now" from the live plan for another baseline - the page's baseline stays "then",
+ * the two sides are named in the facts line and the column headers, and the "Show on …" buttons are gone (the timelines' overlay is one baseline
+ * against the live plan).
  */
 export default function BaselineCompare() {
   const { t } = useTranslation();
@@ -82,11 +101,28 @@ function NotFound({ message }: { message: string }) {
   return <EditPageLoadState isLoading={false} message={message} backTo={baselinesPath} backLabel={t("baselines.compare.backToList")} title={t("baselines.compare.title")} />;
 }
 
+/** The `?against=` value: a well-formed baseline id other than the page's own (a baseline cannot be compared with itself), else the live plan. */
+function parseAgainst(raw: string | null, id: number): number | null {
+  const against = raw === null ? null : parseBaselineId(raw);
+  return against === id ? null : against;
+}
+
+function withAgainst(current: URLSearchParams, against: number | null): URLSearchParams {
+  const updated = new URLSearchParams(current);
+  if (against === null) updated.delete("against");
+  else updated.set("against", String(against));
+  return updated;
+}
+
 function Comparison({ id }: { id: number }) {
   const { t } = useTranslation();
+  const [params, setParams] = useSearchParams();
+  const against = parseAgainst(params.get("against"), id);
+  const droppedNote = (useLocation().state as { againstDropped?: boolean } | null)?.againstDropped === true && against === null;
   const [teamId, setTeamId] = useState<number | null>(null);
   const [text, setText] = useState("");
   const [changedOnly, setChangedOnly] = useState(true);
+  const setAgainst = (next: number | null) => setParams((current) => withAgainst(current, next), { replace: true });
   // "Show on timeline": remember this baseline as the pick of every timeline page (one browser-wide pick), then open the page.
   const { setPick } = useBaselinePick();
   const navigate = useNavigate();
@@ -95,10 +131,16 @@ function Comparison({ id }: { id: number }) {
     navigate(to);
   };
 
-  const { data, isLoading, error } = useQuery({ queryKey: ["baselines", "view", id], queryFn: () => getBaselineView(id) });
+  // keepPreviousData: the picker (and its focus) stays mounted while another "now" loads.
+  const { data, isLoading, isPlaceholderData, error } = useQuery({ queryKey: baselineViewKey(id, against), queryFn: () => getBaselineView(id, against), placeholderData: keepPreviousData });
+  // The "now" baseline was deleted meanwhile (the typed 400): drop the parameter, fall back to the live plan and say so; the view's key carries it, so no loop.
+  const dropping = against !== null && isUnknownBaseline(error);
+  useEffect(() => {
+    if (dropping) setParams((current) => withAgainst(current, null), { replace: true, state: { againstDropped: true } });
+  }, [dropping, setParams]);
 
   if (!data) {
-    if (isLoading) return <EditPageLoadState isLoading message="" backTo={baselinesPath} backLabel={t("baselines.compare.backToList")} title={t("baselines.compare.title")} />;
+    if (isLoading || dropping) return <EditPageLoadState isLoading message="" backTo={baselinesPath} backLabel={t("baselines.compare.backToList")} title={t("baselines.compare.title")} />;
     const gone = error instanceof ApiError && error.status === 404;
     return <NotFound message={gone ? t("baselines.compare.notFound") : error ? loadErrorMessage(error, t) : t("baselines.compare.loadFailed")} />;
   }
@@ -108,19 +150,25 @@ function Comparison({ id }: { id: number }) {
   const rowCount = groups.reduce((sum, group) => sum + group.milestones.length, 0);
   const teams = compareTeams(data);
   const filtered = teamId !== null || text.trim() !== "";
+  // The document's own mode (a placeholder copy of the previous "now" keeps its sides until the new one arrives).
+  const tableLabel = t(data.against === undefined ? "baselines.compare.tableAria" : "baselines.compare.tableAriaAgainst");
+  const sides = data.against === undefined ? null : { then: data.baseline.name, now: data.against.name };
 
   return (
-    <Stack gap="md">
+    <Stack gap="md" aria-busy={isPlaceholderData}>
       <PageHeader
         title={data.baseline.name}
         description={data.baseline.description ?? undefined}
         backTo={{ to: baselinesPath, label: t("baselines.compare.backToList") }}
         actions={
-          <Button variant="default" onClick={() => showOn(roadmapPath)}>
-            {t("baselines.compare.showOnRoadmap")}
-          </Button>
+          sides === null ? (
+            <Button variant="default" onClick={() => showOn(roadmapPath)}>
+              {t("baselines.compare.showOnRoadmap")}
+            </Button>
+          ) : undefined
         }
       />
+      <BaselineCompareControls id={id} against={against} onChange={setAgainst} dropped={droppedNote} />
       <Facts view={data} />
 
       <Stack gap="xs">
@@ -136,7 +184,7 @@ function Comparison({ id }: { id: number }) {
           {t("baselines.compare.changesTitle")}
         </Title>
         <Text size="sm" c="dimmed">
-          {t("baselines.compare.changesIntro")}
+          {sides === null ? t("baselines.compare.changesIntro") : t("baselines.compare.changesIntroAgainst", sides)}
         </Text>
         <Group align="flex-end" gap="md" wrap="wrap">
           <Select
@@ -156,14 +204,14 @@ function Comparison({ id }: { id: number }) {
           {t("baselines.compare.shown", { projects: groups.length, milestones: rowCount })}
         </Text>
 
-        <ScrollRegion label={t("baselines.compare.tableAria")} minWidth={1100} maxHeight={TABLE_MAX_HEIGHT}>
-          <Table aria-label={t("baselines.compare.tableAria")} stickyHeader>
+        <ScrollRegion label={tableLabel} minWidth={1100} maxHeight={TABLE_MAX_HEIGHT}>
+          <Table aria-label={tableLabel} stickyHeader>
             <Table.Thead>
               <Table.Tr>
                 <Table.Th style={NAME_COLUMN}>{t("baselines.compare.column.name")}</Table.Th>
                 <Table.Th style={NO_WRAP}>{t("baselines.compare.column.team")}</Table.Th>
-                <Table.Th>{t("baselines.compare.column.baseline")}</Table.Th>
-                <Table.Th>{t("baselines.compare.column.current")}</Table.Th>
+                <Table.Th>{sides === null ? t("baselines.compare.column.baseline") : t("baselines.compare.column.then", sides)}</Table.Th>
+                <Table.Th>{sides === null ? t("baselines.compare.column.current") : t("baselines.compare.column.now", sides)}</Table.Th>
                 <Table.Th ta="right">
                   {t("baselines.compare.column.start")}
                   <VisuallyHidden> {t("baselines.compare.column.workingDays")}</VisuallyHidden>
@@ -181,7 +229,7 @@ function Comparison({ id }: { id: number }) {
                 <Table.Tr>
                   <Table.Td colSpan={8}>
                     <Text c="dimmed" size="sm">
-                      {t(filtered ? "baselines.compare.emptyFiltered" : "baselines.compare.empty")}
+                      {t(filtered ? "baselines.compare.emptyFiltered" : sides === null ? "baselines.compare.empty" : "baselines.compare.emptyAgainst")}
                     </Text>
                   </Table.Td>
                 </Table.Tr>
@@ -190,6 +238,7 @@ function Comparison({ id }: { id: number }) {
               // One rowgroup per project: the project row is the row header of the milestone rows under it.
               groups.map(({ project, milestones }) => {
                 const counts = movementTotalsParts(project.counts, t);
+                const rank = rankSentence(project, t);
                 return (
                   <Table.Tbody key={project.projectId}>
                     <Table.Tr>
@@ -205,14 +254,21 @@ function Comparison({ id }: { id: number }) {
                             {movementSentence(project.movement, t)}
                           </Text>
                         )}
+                        {rank !== null && (
+                          <Text size="xs" c="dimmed" fw={400}>
+                            {rank}
+                          </Text>
+                        )}
                         {counts.length > 0 && (
                           <Text size="xs" c="dimmed" fw={400}>
                             {t("baselines.compare.projectCounts", { counts: counts.map((part) => part.label).join(", ") })}
                           </Text>
                         )}
-                        <Button variant="subtle" size="compact-xs" fw={500} aria-label={t("baselines.compare.showOnTimelineAria", { name: project.name })} onClick={() => showOn(projectPath(project.projectId))}>
-                          {t("baselines.compare.showOnTimeline")}
-                        </Button>
+                        {sides === null && (
+                          <Button variant="subtle" size="compact-xs" fw={500} aria-label={t("baselines.compare.showOnTimelineAria", { name: project.name })} onClick={() => showOn(projectPath(project.projectId))}>
+                            {t("baselines.compare.showOnTimeline")}
+                          </Button>
+                        )}
                       </Table.Th>
                       <Table.Td />
                       <Table.Td><Span span={project.baselineSpan} /></Table.Td>

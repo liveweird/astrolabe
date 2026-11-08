@@ -176,6 +176,49 @@ describe("Roadmap page with a baseline", () => {
     else await waitFor(() => expect(shadows()).toHaveLength(3));
   });
 
+  test("the rank cell says what the rank was (a smaller number is better), the totals line counts the rank movement", async () => {
+    localStorage.setItem(PICK_KEY, "5");
+    // Invoices 1 (was 3: up), Taxes 2 (was 2: unchanged), Audit 3 (was unranked: newly ranked), Fresh unranked (was 4: no longer ranked)
+    const ranked = withBaseline(view);
+    const rank = (rankPosition: number | null, entry: RoadmapProject) => ({ ...entry, baseline: { ...(entry.baseline ?? ({} as NonNullable<RoadmapProject["baseline"]>)), rankPosition } });
+    const [invoices, taxes, audit] = ranked.ranked;
+    view = {
+      ...ranked,
+      ranked: [
+        { ...invoices, project: rank(3, invoices.project) },
+        { ...taxes, project: rank(2, taxes.project) },
+        { ...audit, project: rank(null, audit.project) },
+      ],
+      unranked: [rank(4, { ...project(4, "Fresh", { span: { start: "2026-07-06", end: "2026-07-10" } }), baseline: ranked.ranked[0].project.baseline })],
+    };
+    mockFetch.mockImplementation((url: string) =>
+      Promise.resolve(url.startsWith("/api/v1/views/roadmap") ? jsonResponse(200, view) : url === "/api/v1/baselines" ? jsonResponse(200, BASELINES) : url === "/api/v1/public-holidays" ? jsonResponse(200, { items: [] }) : jsonResponse(404, { title: "x", status: 404 })),
+    );
+    renderPage();
+    await waitForGrid();
+    const cellOf = (name: string) => screen.getByRole("link", { name: new RegExp(name) }).closest('[role="row"]')!.querySelector('[role="gridcell"], [role="rowheader"]')!;
+    await waitFor(() => expect(screen.getAllByText(/^\(was /)).toHaveLength(3));
+    expect(screen.getByText("(was 3)")).toBeInTheDocument();
+    expect(screen.getByText("(was unranked)")).toBeInTheDocument();
+    expect(screen.getByText("(was 4)")).toBeInTheDocument();
+    // one sentence per changed row for assistive technology; the unchanged row and the plain number add nothing
+    expect(screen.getByText("Rank 1, was rank 3 in the baseline")).toBeInTheDocument();
+    expect(screen.getByText("Rank 3, was unranked in the baseline")).toBeInTheDocument();
+    expect(screen.getByText("Unranked, was rank 4 in the baseline")).toBeInTheDocument();
+    expect(screen.queryByText(/Rank 2/)).toBeNull();
+    expect(cellOf("Taxes")).toHaveTextContent(/^2$/);
+    const note = screen.getByRole("note");
+    expect(within(note).getAllByText(/./).map((node) => node.textContent)).toEqual(expect.arrayContaining(["1 moved up in rank", "1 newly ranked", "1 no longer ranked"]));
+    expect(within(note).queryByText(/moved down in rank/)).toBeNull();
+  });
+
+  test("without a baseline the rank cell is the plain position and the totals line is absent", async () => {
+    renderPage();
+    await waitForGrid();
+    expect(screen.queryByText(/\(was /)).toBeNull();
+    expect(screen.queryByRole("note")).toBeNull();
+  });
+
   test("the typed 400 clears a pick that is gone and fetches the plain view once", async () => {
     localStorage.setItem(PICK_KEY, "99");
     renderPage();

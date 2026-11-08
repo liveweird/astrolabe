@@ -70,7 +70,17 @@ export async function deleteBaseline(id: number): Promise<void> {
   await voidRequest(`/api/v1/baselines/${id}`, { method: "DELETE" });
 }
 
-/** The comparison document: the totals, the union of projects and ONLY the changed milestone rows (≤ 1,000), one snapshot. */
-export async function getBaselineView(id: number): Promise<BaselineView> {
-  return jsonRequest<BaselineView>(`/api/v1/views/baseline/${id}`);
+/** The comparison view's query key, under the `["baselines"]` prefix a baseline write refreshes; `against` (null = the live plan) is part of it. */
+export function baselineViewKey(id: number, against: number | null) {
+  return ["baselines", "view", id, { against }] as const;
+}
+
+/**
+ * The comparison document: the totals, the union of projects and ONLY the changed milestone rows (≤ 1,000), one snapshot. Without `against` it is
+ * the baseline (then) against the live plan (now); with it, `id` is "then" and `against` another baseline, "now" (no parameter is sent for null,
+ * so the document is exactly the live comparison).
+ */
+export async function getBaselineView(id: number, against?: number | null): Promise<BaselineView> {
+  const query = buildQuery({ against });
+  return jsonRequest<BaselineView>(`/api/v1/views/baseline/${id}${query === "" ? "" : `?${query}`}`);
 }

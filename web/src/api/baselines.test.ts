@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { jsonResponse } from "../test/http";
 import { ApiError } from "./http";
-import { BASELINE_CAP, baselineSuffix, createBaseline, deleteBaseline, getBaseline, getBaselineView, isBaselineLimit, isUnknownBaseline, listBaselines, updateBaseline } from "./baselines";
+import { BASELINE_CAP, baselineSuffix, baselineViewKey, createBaseline, deleteBaseline, getBaseline, getBaselineView, isBaselineLimit, isUnknownBaseline, listBaselines, updateBaseline } from "./baselines";
 
 type FetchMock = ReturnType<typeof vi.fn>;
 
@@ -36,6 +36,16 @@ describe("baseline API wrappers", () => {
     mockFetch.mockResolvedValue(jsonResponse(200, { revision: 9 }));
     expect((await getBaselineView(3)).revision).toBe(9);
     expect(lastCall()[0]).toBe("/api/v1/views/baseline/3");
+  });
+
+  test("getBaselineView sends ?against= only for a baseline (null or absent = the plain live comparison), and the key carries it", async () => {
+    mockFetch.mockImplementation(() => Promise.resolve(jsonResponse(200, { revision: 9 })));
+    await getBaselineView(3, 8);
+    expect(lastCall()[0]).toBe("/api/v1/views/baseline/3?against=8");
+    await getBaselineView(3, null);
+    expect(lastCall()[0]).toBe("/api/v1/views/baseline/3");
+    expect(baselineViewKey(3, null)).not.toEqual(baselineViewKey(3, 8));
+    expect(baselineViewKey(3, 8)).toEqual(["baselines", "view", 3, { against: 8 }]);
   });
 
   test("createBaseline POSTs the name and description and answers the baseline", async () => {

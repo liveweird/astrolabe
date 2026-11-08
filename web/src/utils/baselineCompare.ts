@@ -1,3 +1,4 @@
+import type { TFunction } from "i18next";
 import type { BaselineView, BaselineViewMilestone, BaselineViewProject } from "../api/baselines";
 import { formatMd } from "./timelineLoad";
 import { foldDiacritics } from "./text";
@@ -58,4 +59,16 @@ export function estimateText(row: Pick<BaselineViewMilestone, "frozen" | "live">
   if (then === undefined && now === undefined) return "—";
   if (then === undefined || now === undefined) return formatMd((then ?? now) as number);
   return then === now ? formatMd(now) : `${formatMd(then)} → ${formatMd(now)}`;
+}
+
+/**
+ * The rank sentence of a comparison page's project row: "Rank 3 → 5", "Unranked → rank 5", "Rank 3 → unranked"; null when the rank did not change.
+ * A project that is new on one side has no rank to compare on it (`rankThen`/`rankNow` null for "newer"/"gone" too), so ADDED and REMOVED rows say nothing.
+ */
+export function rankSentence(project: Pick<BaselineViewProject, "rankThen" | "rankNow" | "movement">, t: TFunction): string | null {
+  const { rankThen: then, rankNow: now, movement } = project;
+  if (then === now || movement.kind === "ADDED" || movement.kind === "REMOVED") return null;
+  if (then === null) return t("baselines.compare.rank.fromUnranked", { now });
+  if (now === null) return t("baselines.compare.rank.toUnranked", { then });
+  return t("baselines.compare.rank.changed", { then, now });
 }

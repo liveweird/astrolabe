@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { BaselineView, BaselineViewMilestone, BaselineViewProject, MovementTotals } from "../api/baselines";
-import { compareGroups, compareTeams, estimateText } from "./baselineCompare";
+import i18n from "../i18n";
+import { compareGroups, compareTeams, estimateText, rankSentence } from "./baselineCompare";
 
 const NONE: MovementTotals = { unchanged: 0, moved: 0, later: 0, earlier: 0, scheduled: 0, unscheduled: 0, added: 0, removed: 0 };
 const UNCHANGED = { kind: "UNCHANGED" as const, startDays: 0, endDays: 0, estimateDelta: 0 };
@@ -98,5 +99,26 @@ describe("estimateText", () => {
     expect(estimateText(row(null, 4))).toBe("4");
     expect(estimateText(row(2.25, null))).toBe("2.25");
     expect(estimateText(row(null, null))).toBe("—");
+  });
+});
+
+describe("rankSentence", () => {
+  const t = i18n.getFixedT("en");
+  const pl = i18n.getFixedT("pl");
+  const ranks = (rankThen: number | null, rankNow: number | null, kind: BaselineViewProject["movement"]["kind"] = "UNCHANGED") => ({ rankThen, rankNow, movement: { ...UNCHANGED, kind } });
+
+  test("says where the rank went, in either direction, from or to unranked; nothing when it did not change", () => {
+    expect(rankSentence(ranks(3, 5), t)).toBe("Rank 3 → 5");
+    expect(rankSentence(ranks(5, 3), t)).toBe("Rank 5 → 3");
+    expect(rankSentence(ranks(null, 5), t)).toBe("Unranked → rank 5");
+    expect(rankSentence(ranks(3, null), t)).toBe("Rank 3 → unranked");
+    expect(rankSentence(ranks(3, 3), t)).toBeNull();
+    expect(rankSentence(ranks(null, null), t)).toBeNull();
+    expect(rankSentence(ranks(3, 5), pl)).toBe("Pozycja w rankingu: 3 → 5");
+  });
+
+  test("a project that is new or gone on one side has no rank to compare", () => {
+    expect(rankSentence(ranks(null, 2, "ADDED"), t)).toBeNull();
+    expect(rankSentence(ranks(2, null, "REMOVED"), t)).toBeNull();
   });
 });

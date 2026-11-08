@@ -617,7 +617,7 @@ plan (a filter never shifts it). Rows virtualise above 80 (the sample plan's ~10
 **The baseline overlay (v0.9):** with a baseline picked (`useRoadmapRanking(pick)`, the picker in the timeline toolbar) a project the baseline froze gets a
 shadow bar `baseline:<id>` under its span bar (`projectTrack`; named with the frozen dates and the movement), `components/BaselineTotals.tsx` prints one
 `role="note"` line under the facts ("vs baseline X: 14 end later, 3 end earlier, 2 new, 1 removed" - the removed ones are `view.baseline.removedProjects`,
-listed on the comparison page only) and the range grows over the frozen spans; the flag panel and the filters are untouched. Tests: `Roadmap.baseline.test.tsx`.
+listed on the comparison page only) and the range grows over the frozen spans; the flag panel and the filters are untouched. **Rank movement (1.7):** the rank cell reads "5 (was 3)" / "(was unranked)" from the frozen `baseline.rankPosition` (a `VisuallyHidden` sentence carries it for assistive technology; the column widens while a baseline is picked) and the totals note appends `rankTotals` ("N moved up in rank", "M down", newly ranked / no longer ranked). Tests: `Roadmap.baseline.test.tsx`.
 
 **The Jira markers (1.3):** the toolbar's "Jira dates" toggle (`components/JiraBarsToggle.tsx`, after the baseline picker; ONE remembered boolean
 `timeline.jiraBars` through `hooks/useJiraBarsPick.ts`, **on by default**, shared by all four timeline pages; rendered only when the view lists a Jira site)
@@ -793,7 +793,7 @@ the dialog's alert, any other 409 is a name clash and marks the name field. At 1
 bumps the plan revision**, so a take, rename or delete refreshes `["baselines"]` AND `["plan"]` + `["roadmap"]`; a delete of a baseline already deleted
 elsewhere (404) says so and reloads the list.
 
-`/baselines/:id` renders `GET /views/baseline/{id}` under `["baselines","view",id]` (read, never recomputed - the server counts the working days on the CURRENT
+`/baselines/:id` renders `GET /views/baseline/{id}` under `["baselines","view",id,{against}]` (read, never recomputed - the server counts the working days on the CURRENT
 calendar): the facts line (taken, by whom, the plan revision, the counts; "The plan has not changed since this baseline." when the view's `revision` equals the
 baseline's `planRevision`), the **totals** of milestones and of projects as badges (`utils/baselineOverlay.ts` `movementTotalsParts`: an ORANGE "N end later",
 gray for the rest, "No schedule changes" at zero), and the **Changes** table - ONE plain table in a `ScrollRegion` (`maxHeight` 70vh, <= 1,000 rows, no
@@ -807,7 +807,11 @@ projects only" (on by default; a project stays when it changed itself, its count
 not-found alert (`EditPageLoadState`, under the page's h2) and a malformed one never asks the server. Strings: `baselines.*` (`movement.*` and `totals.*` are
 the shared sentences; PL has the full `_one/_few/_many/_other` set). The picker, the shadow bars and the Movement section on the timeline pages reuse
 `movementSentence`, `movementStatus` and `movementTotalsParts` (see "Timeline mechanics"); here each project row has a "Show on timeline" button and the header
-a "Show on the roadmap" one - both set the browser-wide pick (`useBaselinePick`) before they navigate. Tests: `Baselines.test.tsx`, `BaselineCompare.test.tsx`,
+a "Show on the roadmap" one - both set the browser-wide pick (`useBaselinePick`) before they navigate. **Two baselines (1.7):** `components/BaselineCompareControls.tsx` is the
+"Compare against" `Select` (the live plan, the default, or any OTHER baseline newest first with its plan revision; the URL's `?against=N` is the state, so a comparison is a link; a
+malformed or own id is ignored, the typed 400 `unknown-baseline` drops the parameter with an inline note); this baseline stays "then", the facts line and the Then/Now column headers name
+both sides, a project row gains the rank sentence ("Rank 3 -> 5", `utils/baselineCompare.ts` `rankSentence`, none for a new or gone project) and both "Show on ..." buttons are hidden (the overlay is one
+baseline against the live plan). Tests: `Baselines.test.tsx`, `BaselineCompare.test.tsx`, `BaselineCompare.against.test.tsx`,
 `baselines.test.ts`, `useBaselines.test.tsx`, `baselineOverlay.test.ts`, `baselineCompare.test.ts`.
 
 ### The baseline pick on the timeline pages

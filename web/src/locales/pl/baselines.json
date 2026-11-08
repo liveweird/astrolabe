@@ -91,7 +91,29 @@
       "end": "Koniec",
       "workingDays": "(dni robocze)",
       "estimate": "Estymata (osobodni)",
-      "status": "Status"
+      "status": "Status",
+      "then": "Wtedy: {{then}}",
+      "now": "Teraz: {{now}}"
+    },
+    "sideThen": "Wtedy: {{name}}",
+    "sideNow": "Teraz: {{name}}",
+    "sameRevision": "Obie bazy odniesienia mają tę samą wersję planu: nic się nie przesunęło.",
+    "changesIntroAgainst": "Wyświetlamy tylko wiersze, które zmieniły się między tymi dwiema bazami odniesienia. Początek i koniec podajemy w dniach roboczych według bieżącego kalendarza; wartość dodatnia oznacza później w „{{now}}” niż w „{{then}}”.",
+    "tableAriaAgainst": "Zmiany między dwiema bazami odniesienia",
+    "emptyAgainst": "Brak zmian między tymi bazami odniesienia",
+    "against": {
+      "label": "Porównaj z",
+      "description": "Ta baza odniesienia jest stroną „wtedy”",
+      "live": "Aktualny plan",
+      "option": "{{name}} (wersja planu: {{revision}})",
+      "fallback": "Baza odniesienia {{id}}",
+      "unavailable": "Nie udało się wczytać listy baz odniesienia; dostępny jest tylko aktualny plan.",
+      "dropped": "Baza odniesienia, z którą porównujesz, już nie istnieje; zamiast niej pokazujemy porównanie z aktualnym planem."
+    },
+    "rank": {
+      "changed": "Pozycja w rankingu: {{then}} → {{now}}",
+      "fromUnranked": "Bez rankingu → pozycja {{now}}",
+      "toUnranked": "Pozycja {{then}} → bez rankingu"
     }
   },
   "status": {
@@ -149,6 +171,10 @@
     "scheduled": "Nowo zaplanowane: {{count}}",
     "unscheduled": "Wycofane z harmonogramu: {{count}}",
     "estimateOnly": "Zmieniona estymata: {{count}}",
-    "none": "Brak zmian w harmonogramie"
+    "none": "Brak zmian w harmonogramie",
+    "rankUp": "Wyżej w rankingu: {{count}}",
+    "rankDown": "Niżej w rankingu: {{count}}",
+    "rankAdded": "Nowo w rankingu: {{count}}",
+    "rankRemoved": "Usunięte z rankingu: {{count}}"
   }
 }

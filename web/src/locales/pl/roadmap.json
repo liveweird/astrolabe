@@ -41,6 +41,13 @@
     "clearWindow": "Wyczyść okno docelowe",
     "clearWindowAria": "Wyczyść okno docelowe: {{name}}"
   },
+  "rank": {
+    "was": "(było {{rank}})",
+    "wasUnranked": "(było bez rankingu)",
+    "sentence": "Pozycja {{rank}}, w bazie odniesienia była {{was}}",
+    "sentenceFromUnranked": "Pozycja {{rank}}, w bazie odniesienia bez rankingu",
+    "sentenceToUnranked": "Bez rankingu, w bazie odniesienia pozycja {{was}}"
+  },
   "window": {
     "title": "Okno docelowe: {{name}}",
     "hint": "Obie daty są włącznie. Wyczyść usuwa okno docelowe. Możesz też przeciągnąć zacieniowany pas albo narysować go w pustym wierszu.",

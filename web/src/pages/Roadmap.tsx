@@ -27,7 +27,7 @@ import { useRoadmapFilters } from "../hooks/useRoadmapFilters";
 import { useRoadmapRanking } from "../hooks/useRoadmapRanking";
 import { useRowMenuFocus } from "../hooks/useRowMenuFocus";
 import { useTargetWindow } from "../hooks/useTargetWindow";
-import { projectTotals } from "../utils/baselineOverlay";
+import { projectTotals, rankTotals } from "../utils/baselineOverlay";
 import { localIsoDate } from "../utils/isoDate";
 import { jiraWindow } from "../utils/jiraBars";
 import { projectOfWindowBar } from "../utils/planTrack";
@@ -190,7 +190,7 @@ function RoadmapBody({
   return (
     <>
       <RoadmapFacts ranked={visible.ranked.length} unranked={visible.unranked.length} flags={flagTotals(visible)} />
-      {view.baseline !== undefined && <BaselineTotals name={view.baseline.name} totals={projectTotals(allProjects(view), view.baseline.removedProjects.length)} />}
+      {view.baseline !== undefined && <BaselineTotals name={view.baseline.name} totals={projectTotals(allProjects(view), view.baseline.removedProjects.length)} ranks={rankTotals(allProjects(view))} />}
       <FilterPanel activeFilterCount={activeFilterCount(filters, pick)} storageKey="roadmap">
         <RoadmapFilterFields view={view} filters={filters} onFilters={setFilters} pick={[...(pick ?? [])]} onPick={setPick} />
       </FilterPanel>

@@ -12,6 +12,8 @@ import {
   movementTotalsSentence,
   newSince,
   projectTotals,
+  rankTotals,
+  rankTotalsParts,
   removedRows,
   rowChanged,
   rowSuffix,
@@ -221,5 +223,25 @@ describe("the overlay derivations", () => {
     expect(spanBadges({ span: null, movement: plain("SCHEDULED") }, pl)[0].label).toBe("Projekt: zaplanowany od utworzenia bazy odniesienia");
     expect(spanBadges({ span: null, movement: plain("UNSCHEDULED") }, pl)[0].label).toBe("Projekt: wycofany z harmonogramu od utworzenia bazy odniesienia");
     expect(spanBadges({ span: null, movement: moved(0, 2) }, pl)[0].label).toBe("Koniec o 2 dni robocze później niż w bazie odniesienia");
+  });
+});
+
+describe("rankTotals", () => {
+  const row = (rankPosition: number | null, was: number | null | "new") => (was === "new" ? { rankPosition } : { rankPosition, baseline: { rankPosition: was } });
+
+  test("counts up (a smaller position), down, newly ranked and no longer ranked; an unchanged rank and a project newer than the baseline add nothing", () => {
+    const projects = [row(1, 3), row(2, 5), row(6, 4), row(4, 4), row(null, null), row(3, null), row(null, 2), row(1, "new"), row(null, "new")];
+    expect(rankTotals(projects)).toEqual({ up: 2, down: 1, ranked: 1, unranked: 1 });
+    expect(rankTotals([])).toEqual({ up: 0, down: 0, ranked: 0, unranked: 0 });
+  });
+
+  test("the labels name only the non-zero figures, in reading order, in both languages", () => {
+    expect(rankTotalsParts({ up: 2, down: 1, ranked: 0, unranked: 3 }, t)).toEqual([
+      { key: "up", label: "2 moved up in rank" },
+      { key: "down", label: "1 moved down in rank" },
+      { key: "unranked", label: "3 no longer ranked" },
+    ]);
+    expect(rankTotalsParts({ up: 0, down: 0, ranked: 0, unranked: 0 }, t)).toEqual([]);
+    expect(rankTotalsParts({ up: 1, down: 0, ranked: 2, unranked: 0 }, pl).map((part) => part.label)).toEqual(["Wyżej w rankingu: 1", "Nowo w rankingu: 2"]);
   });
 });

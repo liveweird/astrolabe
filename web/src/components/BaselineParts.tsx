@@ -36,7 +36,20 @@ export function Figures({ figures }: { figures: BaselineFigures | null }) {
  * Movement section's) adds a gray "N re-estimated" badge - a re-estimated row is not a schedule change but the table lists it, so the line never
  * says "No schedule changes" above it.
  */
-export function TotalsBadges({ label, totals, role, estimateOnly = 0 }: { label?: string; totals: MovementTotals; role?: "note"; estimateOnly?: number }) {
+export function TotalsBadges({
+  label,
+  totals,
+  role,
+  estimateOnly = 0,
+  extra = [],
+}: {
+  label?: string;
+  totals: MovementTotals;
+  role?: "note";
+  estimateOnly?: number;
+  /** More gray badges after the movement ones (the roadmap's rank movement), in the same group. */
+  extra?: readonly { key: string; label: string }[];
+}) {
   const { t } = useTranslation();
   const parts = movementTotalsParts(totals, t);
   return (
@@ -64,6 +77,11 @@ export function TotalsBadges({ label, totals, role, estimateOnly = 0 }: { label?
           )}
         </>
       )}
+      {extra.map((part) => (
+        <Badge key={part.key} color="gray" variant="light">
+          {part.label}
+        </Badge>
+      ))}
     </Group>
   );
 }

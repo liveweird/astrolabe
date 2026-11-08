@@ -1,5 +1,5 @@
 import type { ReactNode, Ref } from "react";
-import { Group, Menu, Text } from "@mantine/core";
+import { Group, Menu, Text, VisuallyHidden } from "@mantine/core";
 import { IconArrowBarDown, IconArrowBarUp, IconArrowDown, IconArrowUp, IconListNumbers, IconX } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import type { RoadmapProject, RoadmapView } from "../api/roadmap";
@@ -28,8 +28,37 @@ export type RoadmapActions = {
   window: WindowActions;
 };
 
-/** The sticky left columns: 404 px in all, so the track keeps the width on a laptop (work stream and owner are filters, not columns). */
-const COLUMN_WIDTHS = { rank: 44, project: 240, flags: 64, actions: 56 } as const;
+/** The sticky left columns: 404 px in all, so the track keeps the width on a laptop (work stream and owner are filters, not columns). The rank column grows to hold "(was 12)" while a baseline is picked. */
+const COLUMN_WIDTHS = { rank: 44, rankWithBaseline: 96, project: 240, flags: 64, actions: 56 } as const;
+
+/**
+ * The rank cell: the position ("—" unranked), and while a baseline is picked a dimmed "(was 3)" / "(was unranked)" when the frozen rank differs
+ * (nothing extra for an unchanged rank or a project newer than the baseline, which has no `baseline` block). The visible pair is `aria-hidden`
+ * behind one sentence, so a screen reader hears "Rank 5, was rank 3 in the baseline" once.
+ */
+function RankCell({ project, position }: { project: RoadmapProject; position: number | null }) {
+  const { t } = useTranslation();
+  const frozen = project.baseline;
+  if (frozen === undefined || frozen.rankPosition === position) return <>{position === null ? "—" : position}</>;
+  const was = frozen.rankPosition;
+  const sentence =
+    was === null
+      ? t("roadmap.rank.sentenceFromUnranked", { rank: position })
+      : position === null
+        ? t("roadmap.rank.sentenceToUnranked", { was })
+        : t("roadmap.rank.sentence", { rank: position, was });
+  return (
+    <>
+      <span aria-hidden="true">
+        {position === null ? "—" : position}{" "}
+        <Text span size="xs" c="dimmed">
+          {was === null ? t("roadmap.rank.wasUnranked") : t("roadmap.rank.was", { rank: was })}
+        </Text>
+      </span>
+      <VisuallyHidden>{sentence}</VisuallyHidden>
+    </>
+  );
+}
 
 /**
  * The row menu of one project: the ranking moves by the view's `can.editRank` (a ranked row: Move up / down / to top / to bottom, disabled at the
@@ -146,7 +175,7 @@ export default function RoadmapTimeline({
   const { holidays, failed: holidaysFailed } = useHolidays();
   const canRank = view.can.editRank;
   const columns: TimelineColumn[] = [
-    { id: "rank", header: t("roadmap.column.rank"), width: COLUMN_WIDTHS.rank },
+    { id: "rank", header: t("roadmap.column.rank"), width: view.baseline === undefined ? COLUMN_WIDTHS.rank : COLUMN_WIDTHS.rankWithBaseline },
     { id: "project", header: t("roadmap.column.project"), width: COLUMN_WIDTHS.project },
     { id: "flags", header: t("roadmap.column.flags"), width: COLUMN_WIDTHS.flags },
     { id: "actions", header: t("common.table.operations"), width: COLUMN_WIDTHS.actions },
@@ -175,7 +204,7 @@ export default function RoadmapTimeline({
     return {
       id: project.id,
       cells: [
-        position === null ? "—" : position,
+        <RankCell key="rank" project={project} position={position} />,
         (stop: RovingTarget) => <ProjectCell project={project} placement={canRank ? { index, count: display.length } : null} stop={stop} />,
         <FlagCountsCell key="flags" counts={countFlags(project.flags)} />,
         (stop: RovingTarget) => <ProjectMenu project={project} rankedIndex={rankedIndex} rankedCount={rankedCount} canRank={canRank} actions={actions} trigger={stop} />,

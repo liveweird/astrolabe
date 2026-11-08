@@ -39,6 +39,13 @@
     "clearWindow": "Clear target window",
     "clearWindowAria": "Clear target window of {{name}}"
   },
+  "rank": {
+    "was": "(was {{rank}})",
+    "wasUnranked": "(was unranked)",
+    "sentence": "Rank {{rank}}, was rank {{was}} in the baseline",
+    "sentenceFromUnranked": "Rank {{rank}}, was unranked in the baseline",
+    "sentenceToUnranked": "Unranked, was rank {{was}} in the baseline"
+  },
   "window": {
     "title": "Target window of {{name}}",
     "hint": "Both dates are inclusive. Clear removes the target window. You can also drag the shaded band, or draw one across an empty row.",

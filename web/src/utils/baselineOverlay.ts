@@ -328,3 +328,34 @@ export function projectTotals(projects: readonly { baseline?: { movement: Moveme
   const totals = movementTotalsOf(projects.map((project) => project.baseline?.movement ?? added));
   return { ...totals, removed: totals.removed + removed };
 }
+
+/** How the ranks of the plan pages' projects moved since a baseline (v0.9 Q8): `up`/`down` = ranked on both sides at a better/worse position; `ranked` = unranked then, ranked now; `unranked` = the reverse. */
+export type RankTotals = { up: number; down: number; ranked: number; unranked: number };
+
+/**
+ * The rank movement over the roadmap's projects, from the frozen `rankPosition` already on the wire (smaller = better): a project without a
+ * `baseline` block is new since the baseline and has no movement to count, one whose rank did not change adds nothing.
+ */
+export function rankTotals(projects: readonly { rankPosition: number | null; baseline?: { rankPosition: number | null } }[]): RankTotals {
+  const totals: RankTotals = { up: 0, down: 0, ranked: 0, unranked: 0 };
+  for (const { rankPosition: now, baseline } of projects) {
+    if (baseline === undefined || baseline.rankPosition === now) continue;
+    const then = baseline.rankPosition;
+    if (then === null) totals.ranked += 1;
+    else if (now === null) totals.unranked += 1;
+    else if (now < then) totals.up += 1;
+    else totals.down += 1;
+  }
+  return totals;
+}
+
+/** The non-zero figures of {@link rankTotals} as labels, in reading order ("2 moved up in rank", "1 moved down in rank", …). */
+export function rankTotalsParts(totals: RankTotals, t: TFunction): { key: string; label: string }[] {
+  const figures = [
+    { key: "up", count: totals.up, label: "baselines.totals.rankUp" },
+    { key: "down", count: totals.down, label: "baselines.totals.rankDown" },
+    { key: "ranked", count: totals.ranked, label: "baselines.totals.rankAdded" },
+    { key: "unranked", count: totals.unranked, label: "baselines.totals.rankRemoved" },
+  ] as const;
+  return figures.filter((figure) => figure.count > 0).map((figure) => ({ key: figure.key, label: t(figure.label, { count: figure.count }) }));
+}
