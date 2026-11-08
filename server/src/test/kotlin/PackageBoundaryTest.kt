@@ -110,7 +110,7 @@ class PackageBoundaryTest {
     }
 
     @Test
-    fun `flow reaches only teams, sync, authz, audit, plugins and infra - and two functions of planning`() {
+    fun `flow reaches only teams, sync, authz, audit, plugins, infra - and the plan's capacity rule and severity vocabulary`() {
         val own = sourcesOf("flow")
         assertTrue(own.size > 3, "the scan saw only ${own.size} sources of flow")
         // users/people/auth are out (the team guard and the actor's managed teams come through `teams` and `authz`); jira is the sibling.
@@ -122,7 +122,12 @@ class PackageBoundaryTest {
         val used = own.flatMap { file ->
             file.readLines().filterNot(::isComment).flatMap { line -> planning.findAll(line).map { it.groupValues[1] }.toList() }
         }.toSet()
-        assertEquals(emptySet(), used - setOf("loadWorkingCalendar", "validateManDays"), "flow may import only these planning functions")
+        // The first two are the import's inputs (the holiday dictionary, the man-day bounds). The capacity deviation (1.6.0) adds exactly
+        // three pure symbols: `CapacityPeriod` and `capacityOn` (the team view's capacity-in-force rule - the deviation must compare what
+        // the team view shows, never a second copy that could drift) and `DeviationSeverity` (the WARNING/INFO scale the web already
+        // types). No plan node, no `readPlanRevision`, nothing of `jira`: a capacity deviation is a team x sprint row, not a plan binding.
+        val allowed = setOf("loadWorkingCalendar", "validateManDays", "CapacityPeriod", "capacityOn", "DeviationSeverity")
+        assertEquals(emptySet(), used - allowed, "flow may import only these planning symbols")
     }
 
     private fun infraSources(): List<Pair<File, String>> = mainSources.mapNotNull { file ->

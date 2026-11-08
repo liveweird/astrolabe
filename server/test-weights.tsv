@@ -13,6 +13,7 @@ ch.nokillswit.BlocklistOutageTest	0.2
 ch.nokillswit.BootstrapTest	2.5
 ch.nokillswit.CallTallyTest	0.0
 ch.nokillswit.CanonicalJsonTest	0.0
+ch.nokillswit.CapacityDeviationKernelsTest	0.3
 ch.nokillswit.CatchingFailuresTest	0.0
 ch.nokillswit.CdsClassListTest	0.1
 ch.nokillswit.CgroupProbeTest	0.0
