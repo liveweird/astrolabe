@@ -2,6 +2,7 @@ package ch.nokillswit.flow
 
 import ch.nokillswit.sync.SyncStatus
 import kotlinx.serialization.Serializable
+import java.time.DateTimeException
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -92,3 +93,10 @@ internal fun rosterOf(members: List<FlowMirrorMember>, zone: ZoneId, now: Long):
 internal fun nextSprintStart(sprints: List<FlowMirrorSprint>, zone: ZoneId, today: LocalDate): LocalDate? =
     sprints.mapNotNull { sprint -> sprint.startAt?.let { Instant.ofEpochMilli(it).atZone(zone).toLocalDate() } }
         .filter { it >= today }.minOrNull()
+
+/** The connection's zone; a zone this JVM no longer knows reads as UTC rather than failing a read (the run reports it). */
+internal fun zoneOrUtc(id: String): ZoneId = try {
+    ZoneId.of(id)
+} catch (_: DateTimeException) {
+    ZoneId.of("UTC")
+}

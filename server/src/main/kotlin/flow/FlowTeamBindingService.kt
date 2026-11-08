@@ -148,13 +148,24 @@ class FlowTeamBindingService(private val database: R2dbcDatabase) {
         release(binding, reason = "UNLINKED")
     }
 
-    /** The Astrolabe team of an ACTIVE binding of an ACTIVE team (the unlink's read-before-guard lookup); null = `404` for every caller. */
-    suspend fun teamIdOf(id: UInt): UInt? = suspendTransaction(database) {
+    /** An ACTIVE binding of an ACTIVE team by id (the capacity import's lookup, inside its snapshot); null = gone, a `404`. */
+    suspend fun bindingOf(id: UInt): FlowTeamBindingRow? = suspendTransaction(database) {
         val teams = TeamService.Teams
-        Bindings.innerJoin(teams).select(Bindings.teamId)
-            .where { (Bindings.id eq id) and Bindings.active() and teams.active() }
-            .toList().singleOrNull()?.get(Bindings.teamId)?.value
+        Bindings.innerJoin(teams).selectAll().where { (Bindings.id eq id) and Bindings.active() and teams.active() }.toList()
+            .singleOrNull()?.let {
+                FlowTeamBindingRow(
+                    id = id,
+                    connectionId = it[Bindings.connectionId].value,
+                    teamId = it[Bindings.teamId].value,
+                    flowTeamId = it[Bindings.flowTeamId],
+                    flowTeamName = it[Bindings.flowTeamName],
+                    createdAt = it[Bindings.createdAt],
+                )
+            }
     }
+
+    /** The Astrolabe team of an ACTIVE binding of an ACTIVE team (the unlink's read-before-guard lookup); null = `404` for every caller. */
+    suspend fun teamIdOf(id: UInt): UInt? = bindingOf(id)?.teamId
 
     /**
      * "Link all suggested" (ADMIN, the route guards): in ONE transaction the connection is locked (deleted: `404`, disabled: `400`),

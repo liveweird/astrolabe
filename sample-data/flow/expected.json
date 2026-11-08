@@ -549,6 +549,15 @@
       "members": 0,
       "sprints": 0
     },
+    "boundary": {
+      "team": "Identity",
+      "sprints": [
+        "Identity Sprint 31",
+        "Identity Sprint 32"
+      ],
+      "sharedDay": "2027-01-04",
+      "note": "the first sprint ends on the Monday (10:00 Warsaw) the second starts on; the import gives that day to the first (11 working days) and the second holds from Tuesday (9)"
+    },
     "defaultSource": {
       "team": "Mobile",
       "sprint": "Mobile Sprint 33",

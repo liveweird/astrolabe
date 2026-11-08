@@ -8,9 +8,7 @@ import kotlinx.coroutines.flow.toList
 import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.r2dbc.*
 import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
-import java.time.DateTimeException
 import java.time.Instant
-import java.time.ZoneId
 
 val FlowTeamServiceKey = AttributeKey<FlowTeamService>("FlowTeamService")
 
@@ -106,18 +104,11 @@ class FlowTeamService(
             gone = gone,
         )
         if (observed == null) return@suspendTransaction FlowTeamPanel(panelTeam, can, binding, null, null)
-        val zone = zoneOf(connection.timeZone)
+        val zone = zoneOrUtc(connection.timeZone)
         val at = now()
         val sprints = mirror.sprintsOf(connectionId, flowTeamId)
         val roster = if (rosterVisibleTo(ROSTER_AUDIENCE, manages)) rosterOf(mirror.membersOf(connectionId, flowTeamId), zone, at) else null
         val today = Instant.ofEpochMilli(at).atZone(zone).toLocalDate()
         FlowTeamPanel(panelTeam, can, binding, roster, FlowSprintSummary(sprints.size, nextSprintStart(sprints, zone, today)?.toString()))
-    }
-
-    /** The connection's zone; a zone this JVM no longer knows reads as UTC rather than failing the team page (the run reports it). */
-    private fun zoneOf(id: String): ZoneId = try {
-        ZoneId.of(id)
-    } catch (_: DateTimeException) {
-        ZoneId.of("UTC")
     }
 }

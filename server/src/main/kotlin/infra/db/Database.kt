@@ -6,6 +6,8 @@ import ch.nokillswit.auth.TokenBlocklistService
 import ch.nokillswit.auth.TokenBlocklistServiceKey
 import ch.nokillswit.infra.config.requireConfigInt
 import ch.nokillswit.infra.config.requireConfigLong
+import ch.nokillswit.flow.CapacityImportService
+import ch.nokillswit.flow.CapacityImportServiceKey
 import ch.nokillswit.flow.FlowConnectionService
 import ch.nokillswit.flow.FlowConnectionServiceKey
 import ch.nokillswit.flow.FlowMirrorStore
@@ -301,7 +303,8 @@ suspend fun Application.configureDatabase() {
     attributes.put(PersonServiceKey, PersonService(database))
     val teamService = TeamService(database)
     attributes.put(TeamServiceKey, teamService)
-    attributes.put(TeamCapacityServiceKey, TeamCapacityService(database))
+    val teamCapacity = TeamCapacityService(database)
+    attributes.put(TeamCapacityServiceKey, teamCapacity)
     attributes.put(WorkStreamServiceKey, WorkStreamService(database))
     attributes.put(ProgramServiceKey, ProgramService(database))
     attributes.put(ProjectServiceKey, ProjectService(database))
@@ -329,8 +332,10 @@ suspend fun Application.configureDatabase() {
     val flowConnections = attributes[FlowConnectionServiceKey]
     val flowMirror = FlowMirrorStore(database)
     attributes.put(FlowMirrorStoreKey, flowMirror)
-    attributes.put(FlowTeamBindingServiceKey, FlowTeamBindingService(database))
+    val flowBindings = FlowTeamBindingService(database)
+    attributes.put(FlowTeamBindingServiceKey, flowBindings)
     attributes.put(FlowTeamServiceKey, FlowTeamService(database, flowConnections, flowMirror))
+    attributes.put(CapacityImportServiceKey, CapacityImportService(database, flowBindings, flowMirror, teamCapacity))
     val jiraBindings = JiraBindingService(database)
     attributes.put(JiraBindingServiceKey, jiraBindings)
     attributes.put(JiraImportServiceKey, JiraImportService(database, teamService, jiraBindings))

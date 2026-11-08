@@ -39,6 +39,7 @@ export const PLANTED = {
   syntheticNoCapacityTeam: LEGACY_TEAM, // SYNTHETIC: its DATED sprints carry null capacity; Flow never derives that (see legacyTeam), the wire type allows it
   defaultSourceTeam: "Mobile", // the last future sprint's capacityMd comes from the global DEFAULT
   unnamedMemberTeam: "Web Frontend", // one membership with a null displayName
+  boundaryTeam: "Identity", // sprints 31 and 32: the first ends on the Monday the second starts on (Flow's shared day, metrics.md A42)
   goneOnDay2: "Billing",
 };
 
@@ -202,6 +203,11 @@ function plant(teams) {
     startAt: warsawInstant(hotfixStart, 9), endAt: warsawInstant(isoDateAt(hotfixStart, 4), 17), completeAt: null,
     hasCalendar: true, capacityMd: 4, capacitySource: "CALENDAR",
   });
+  // Jira's usual cadence: a sprint ends on the day the next one starts. Sprint 31 (n = 4) is stretched from its Friday to the Monday 10:00
+  // that sprint 32 (n = 5) starts on; the capacity import gives the shared Monday to sprint 31 (W = 11) and sprint 32 holds from Tuesday (W = 9).
+  const identity = byName.get(PLANTED.boundaryTeam);
+  const earlier = identity.sprints.find((s) => s.name === `${PLANTED.boundaryTeam} Sprint 31`);
+  earlier.endAt = warsawInstant(isoDateAt(ANCHOR, 5 * SPRINT_DAYS), 10);
   const analytics = byName.get(PLANTED.undatedTeam);
   analytics.sprints.push(undatedSprint(analytics.id, 34, "Analytics Sprint 34 (undated)", analytics.defaultCapacityMd, "TEAM_DEFAULT"));
   const mobile = byName.get(PLANTED.defaultSourceTeam);

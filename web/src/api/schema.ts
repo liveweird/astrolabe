@@ -2459,6 +2459,59 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/integrations/flow/team-bindings/{id}/capacity-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview importing a bound Flow team's sprint capacity
+         * @description The binding's team's ACTIVE manager or ADMIN, **read-before-guard**: the binding is resolved first (`404` for an unknown or unlinked
+         *     binding and for one whose team was deleted, for every caller), then the guard (`403`: another team's manager, a project owner, an editor
+         *     and a stranger are refused), then the body (`400`: an undecodable body, a malformed or out-of-range `from`). The import itself is a later
+         *     step; this is a COMPUTATION over the mirror: nothing is stored, locked or audited, Flow is never called, and the document is one
+         *     `READ ONLY REPEATABLE READ` snapshot of the holiday calendar, the Flow team's mirrored sprints and the team's ACTIVE capacity periods.
+         *
+         *     **The rule.** A sprint's man-days are spread over the sprint's WORKING days on Astrolabe's calendar (public holidays off), so
+         *     `mdPerWeek = round2(5 x flowMd / workingDays)` (half up) and the weekly capacity Astrolabe then computes over the sprint adds up to
+         *     Flow's figure within rounding. One period per sprint, starting on its `effectiveFrom`; the dates are the sprint's instants in the
+         *     connection's time zone (`zone`). The sprint's span is Flow's own (`metrics.md` A42, `DeriveSprintStep`): it ends at
+         *     `min(endAt, completeAt)` when both exist (a sprint completed early ends then), else at whichever exists, and `end` is the day of
+         *     `max(startAt, thatInstant - 1 ms)`, so an end at local midnight adds no day. **Consecutive sprints share a day** - the one on which
+         *     one ends and the next starts; that day belongs to the EARLIER sprint, and the later one holds from `effectiveFrom =
+         *     max(start, previous end + 1 day)`. Only a start BEFORE the previous sprint's end is a genuine overlap. A sprint is skipped
+         *     (`action` `SKIP`) with a `reason`, in this order: `NO_DATES` (no start, or no end or completion), `NO_CAPACITY` (Flow has no
+         *     figure), `OVERLAPS` (it starts before the end of the previous sprint that was not skipped, or nothing is left of it after the
+         *     shared day: the earlier start wins), `NO_WORKING_DAY` (none from `effectiveFrom` to `end`), `OUT_OF_RANGE` (the figure is beyond
+         *     a period's man-day bounds). Otherwise, against the team's ACTIVE periods: none starts on `effectiveFrom` - `CREATE`; a Flow-sourced
+         *     one does - `UPDATE` when its figure, its sprint or its name differ (its WIP limit is kept) else `UNCHANGED`; a hand-entered one
+         *     does - `MANUAL_PERIOD`: **a hand-entered period is never changed**, the sprint is left alone. A hand-entered period that starts
+         *     inside a sprint (after `effectiveFrom`, up to its `end`) adds the info `MANUAL_PERIOD_INSIDE` with its date: the sprint's figure
+         *     will not hold from then. A sprint whose Flow figure is 0 (Flow's default for a team without members) is listed as a `CREATE` or
+         *     `UPDATE` with the info `ZERO_CAPACITY` and is never ticked.
+         *
+         *     **Closed sprints.** `from` (default: today in the connection's time zone; the resolved date and `includeClosed` are echoed in the
+         *     response so the apply can re-run the same plan) is the first day the import is about; a sprint whose `end` is before it is closed
+         *     and is listed only when `includeClosed` is true, never ticked. `ticked` is the default selection: not closed, not zero-capacity, and a
+         *     `CREATE` or an `UPDATE`. `removals` are the team's Flow-sourced periods that no listed sprint reuses and that belong to a sprint
+         *     missing from Flow's document (dated `from` or later, or any date with `includeClosed`), start inside a sprint the import covers
+         *     (not closed; `CREATE`, `UPDATE` or `UNCHANGED`), or belong to such a sprint without being the period it reuses (a sprint moved
+         *     later). **A removal is never preselected**: a client lists it and the person ticks it. A Flow team that is not in the mirror answers
+         *     an empty plan with `observedAt` null. A disabled connection still previews (it reads the mirror).
+         */
+        post: operations["previewFlowCapacityImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/integrations/flow/connections/{id}/team-bindings/match": {
         parameters: {
             query?: never;
@@ -5809,6 +5862,144 @@ export interface components {
              * @description The Astrolabe team to link.
              */
             teamId: number;
+        };
+        /** @description An empty object is a valid request (today, closed sprints left out). */
+        CapacityPreviewRequest: {
+            /**
+             * Format: date
+             * @description The first day the import is about (`YYYY-MM-DD`, years 1900-2999); a sprint that ended before it is closed. Absent = today in the connection's time zone.
+             */
+            from?: string;
+            /**
+             * @description Also list the closed sprints (unticked).
+             * @default false
+             */
+            includeClosed: boolean;
+        };
+        CapacityInfo: {
+            /**
+             * @description `MANUAL_PERIOD_INSIDE`: a hand-entered period starts inside the sprint; its figure will not hold from `date`. `ZERO_CAPACITY`: Flow's figure is 0.
+             * @enum {string}
+             */
+            code: "MANUAL_PERIOD_INSIDE" | "ZERO_CAPACITY";
+            /**
+             * Format: date
+             * @description Set for `MANUAL_PERIOD_INSIDE` only.
+             */
+            date: string | null;
+        };
+        /** @description The ACTIVE period that already starts on the sprint's start date. */
+        CapacityExisting: {
+            /** Format: int32 */
+            periodId: number;
+            /** Format: double */
+            mdPerWeek: number;
+            /** @enum {string} */
+            source: "MANUAL" | "FLOW";
+        };
+        CapacityImportItem: {
+            /** Format: int64 */
+            sprintId: number;
+            name: string;
+            /** @description Flow's sprint state as sent (`closed`, `active`, `future`; an unknown one is kept). */
+            state: string;
+            /**
+             * Format: date
+             * @description The sprint's start in the connection's time zone; null when Flow sent none.
+             */
+            start: string | null;
+            /**
+             * Format: date
+             * @description The sprint's last day in the connection's time zone: the day of `max(startAt, min(endAt, completeAt) - 1 ms)`; null without a start or an end.
+             */
+            end: string | null;
+            /**
+             * Format: date
+             * @description The day the sprint's period starts: `max(start, previous sprint's end + 1 day)`; null when the sprint has no dates or overlaps the previous one.
+             */
+            effectiveFrom: string | null;
+            /**
+             * Format: int32
+             * @description Working days from `effectiveFrom` to `end`, both counted, on Astrolabe's calendar; null without usable dates or when the sprint overlaps.
+             */
+            workingDays: number | null;
+            /**
+             * Format: double
+             * @description Flow's man-days for the whole sprint; null when Flow has none.
+             */
+            flowMd: number | null;
+            /**
+             * Format: double
+             * @description `round2(5 x flowMd / workingDays)`; null when the sprint is skipped before a figure exists or the figure is out of range.
+             */
+            mdPerWeek: number | null;
+            /**
+             * @description What the import would do. `MANUAL_PERIOD` means a hand-entered period starts on `start` and is never changed.
+             * @enum {string}
+             */
+            action: "CREATE" | "UPDATE" | "UNCHANGED" | "MANUAL_PERIOD" | "SKIP";
+            /**
+             * @description Why the sprint is skipped; set exactly when `action` is `SKIP`.
+             * @enum {string|null}
+             */
+            reason: "NO_DATES" | "NO_CAPACITY" | "NO_WORKING_DAY" | "OVERLAPS" | "OUT_OF_RANGE" | null;
+            infos: components["schemas"]["CapacityInfo"][];
+            /** @description The default selection: the sprint is not closed and is a `CREATE` or an `UPDATE`. */
+            ticked: boolean;
+            existing: components["schemas"]["CapacityExisting"] | null;
+        };
+        /** @description A Flow-sourced period the import would remove. Never preselected by a client. */
+        CapacityImportRemoval: {
+            /** Format: int32 */
+            periodId: number;
+            /** Format: date */
+            effectiveFrom: string;
+            /** Format: double */
+            mdPerWeek: number;
+            /**
+             * Format: int64
+             * @description The Flow sprint the period was imported for.
+             */
+            flowSprintId: number | null;
+            flowSprintName: string | null;
+        };
+        /** @description `skip` counts the `SKIP` and the `MANUAL_PERIOD` rows: the sprints the import leaves alone. */
+        CapacityImportTotals: {
+            /** Format: int32 */
+            create: number;
+            /** Format: int32 */
+            update: number;
+            /** Format: int32 */
+            unchanged: number;
+            /** Format: int32 */
+            skip: number;
+            /** Format: int32 */
+            removals: number;
+        };
+        CapacityPreview: {
+            /** Format: int32 */
+            bindingId: number;
+            /** Format: int32 */
+            teamId: number;
+            /**
+             * Format: int64
+             * @description Epoch millis the mirror last saw the Flow team; null when the team is not in the mirror (then `items` and `removals` are empty).
+             */
+            observedAt: number | null;
+            /** @description The connection's IANA time zone id every date is in. */
+            zone: string;
+            /**
+             * Format: date
+             * @description The resolved `from` the plan was computed with: the request's, else today in `zone`.
+             */
+            from: string;
+            /** @description Echo of the request; with `from`, what the apply sends back to re-run the same plan. */
+            includeClosed: boolean;
+            totals: components["schemas"]["CapacityImportTotals"];
+            /** @description The listed sprints in start order (undated last); at most Flow's own cap of 2,000 sprints per document. */
+            items: components["schemas"]["CapacityImportItem"][];
+            /** @description The team's Flow-sourced periods the import would remove, by date. Bounded by the team's own periods. */
+            removals: components["schemas"]["CapacityImportRemoval"][];
         };
         FlowTeamBinding: {
             /** Format: int32 */
@@ -9596,6 +9787,39 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    previewFlowCapacityImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CapacityPreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description The plan; nothing was stored */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CapacityPreview"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
             500: components["responses"]["InternalServerError"];
         };
     };

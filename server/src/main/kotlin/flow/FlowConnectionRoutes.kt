@@ -44,12 +44,14 @@ fun Application.configureFlowRoutes() {
     val origins = attributes[FlowOriginsKey]
     val bindings = attributes[FlowTeamBindingServiceKey]
     val flowTeams = attributes[FlowTeamServiceKey]
+    val capacityImport = attributes[CapacityImportServiceKey]
     val teams = attributes[TeamServiceKey]
 
     routing {
         authenticate {
             flowTestRoutes(connections, connector, origins)
             flowTeamBindingRoutes(bindings, flowTeams, teams)
+            capacityImportRoutes(capacityImport, bindings, teams)
             get<FlowConnectionsRoute> {
                 requireAdmin(call.caller())
                 val paging = call.parsePaging(sortable = FLOW_CONNECTION_SORT_FIELDS)

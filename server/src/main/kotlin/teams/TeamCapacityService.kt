@@ -161,6 +161,28 @@ class TeamCapacityService(private val database: R2dbcDatabase) {
             .toList()
     }
 
+    /**
+     * The ACTIVE periods of [teamId] by `effectiveFrom` with their provenance ([CapacityPeriodRow]) - the capacity import's input
+     * (`flow/`), read-only and nesting into the caller's transaction like [periodsOf].
+     */
+    suspend fun importRowsOf(teamId: UInt): List<CapacityPeriodRow> = suspendTransaction(database) {
+        CapacityPeriods.selectAll()
+            .where { (CapacityPeriods.teamId eq teamId) and CapacityPeriods.active() }
+            .orderBy(CapacityPeriods.effectiveFrom to SortOrder.ASC, CapacityPeriods.id to SortOrder.ASC)
+            .map {
+                CapacityPeriodRow(
+                    id = it[CapacityPeriods.id].value,
+                    effectiveFrom = it[CapacityPeriods.effectiveFrom],
+                    mdPerWeek = it[CapacityPeriods.mdPerWeek],
+                    wipLimit = it[CapacityPeriods.wipLimit],
+                    source = CapacitySource.valueOf(it[CapacityPeriods.capacitySource]),
+                    flowSprintId = it[CapacityPeriods.flowSprintId],
+                    flowSprintName = it[CapacityPeriods.flowSprintName],
+                )
+            }
+            .toList()
+    }
+
     /** A period re-read under its team's row lock: the team it belongs to, its STORED values and its source. */
     private class LockedPeriod(val teamId: UInt, val values: CapacityPeriodValues, val source: CapacitySource)
 

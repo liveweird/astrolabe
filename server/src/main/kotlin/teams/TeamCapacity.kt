@@ -47,6 +47,20 @@ data class CapacityPeriodResponse(
     val flowSprintName: String?,
 )
 
+/**
+ * A stored ACTIVE period with the provenance the capacity import reads ([TeamCapacityService.importRowsOf]): the wire response carries
+ * the sprint's name only, the import also needs the sprint id to tell a period whose sprint left Flow's document from a live one.
+ */
+data class CapacityPeriodRow(
+    val id: UInt,
+    val effectiveFrom: LocalDate,
+    val mdPerWeek: BigDecimal,
+    val wipLimit: Int?,
+    val source: CapacitySource,
+    val flowSprintId: Long?,
+    val flowSprintName: String?,
+)
+
 /** The bounded `{items}` wrapper (a handful of periods per team per year), in `effectiveFrom` order. */
 @Serializable
 data class CapacityPeriodList(val items: List<CapacityPeriodResponse>)

@@ -1,7 +1,7 @@
 // expected.json: the figures a test or the manual walk-through compares the stub's documents with, derived from the same world as the
 // mappings (so they cannot drift): the token, the contract's field lists, per-team counts, the planted cases, the e2e team's exact
 // preview rows and the day-2 changes. Rendered as pretty JSON.
-import { parseIsoDate } from "../../scripts/sample-plan/days.mjs";
+import { isoDateAt, parseIsoDate } from "../../scripts/sample-plan/days.mjs";
 import {
   AUTH_HEADER, CAPACITY_SOURCES, FIELDS, PATHS, SPRINTS_SINCE, SPRINT_CAP, SPRINT_STATES, STUB_TOKEN, UNAUTHORIZED, meDocument,
 } from "./contract.mjs";
@@ -91,6 +91,12 @@ export function buildExpected(world, counts, planTeams) {
         note: "no dates on a team without a default: null/null is reachable in Flow",
       },
       emptyTeam: { team: EMPTY_TEAM, members: 0, sprints: 0 },
+      boundary: {
+        team: PLANTED.boundaryTeam,
+        sprints: [`${PLANTED.boundaryTeam} Sprint 31`, `${PLANTED.boundaryTeam} Sprint 32`],
+        sharedDay: isoDateAt(ANCHOR, 5 * 14),
+        note: "the first sprint ends on the Monday (10:00 Warsaw) the second starts on; the import gives that day to the first (11 working days) and the second holds from Tuesday (9)",
+      },
       defaultSource: { team: PLANTED.defaultSourceTeam, sprint: named(PLANTED.defaultSourceTeam).sprints.at(-1).name, capacityMd: 40 },
       unnamedMember: { team: PLANTED.unnamedMemberTeam, count: named(PLANTED.unnamedMemberTeam).members.filter((m) => m.displayName === null).length },
       syntheticNoCapacity: {

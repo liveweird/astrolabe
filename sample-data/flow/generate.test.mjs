@@ -136,7 +136,11 @@ test("the cadence is Monday 09:00 to the second Friday 17:00 on Europe/Warsaw's 
     for (const s of team.sprints) {
       if (s.startAt === null) continue;
       assert.deepEqual([parts(s.startAt).weekday, parts(s.startAt).hour, parts(s.startAt).minute], ["Mon", "09", "00"], s.name);
-      assert.deepEqual([parts(s.endAt).weekday, parts(s.endAt).hour, parts(s.endAt).minute], ["Fri", "17", "00"], s.name);
+      // The one planted exception: Identity's sprint 31 ends on the Monday 10:00 that sprint 32 starts on (Flow's shared day).
+      const planted = s.name === `${PLANTED.boundaryTeam} Sprint 31`;
+      assert.deepEqual(
+        [parts(s.endAt).weekday, parts(s.endAt).hour, parts(s.endAt).minute], planted ? ["Mon", "10", "00"] : ["Fri", "17", "00"], s.name,
+      );
       checked++;
     }
     for (const m of team.members) {
@@ -182,6 +186,15 @@ test("the planted cases: no capacity (synthetic), the undated sprints, the empty
   assert.deepEqual([dflt.capacitySource, dflt.hasCalendar, dflt.capacityMd], ["DEFAULT", false, 40]);
   assert.equal(byName(PLANTED.unnamedMemberTeam).members.filter((m) => m.displayName === null).length, 1);
   assert.equal(expected.planted.unnamedMember.count, 1);
+});
+
+test("the planted boundary: Identity's sprint 31 ends on the Monday sprint 32 starts on (Flow's shared day)", () => {
+  const identity = byName(PLANTED.boundaryTeam);
+  const [first, second] = expected.planted.boundary.sprints.map((name) => identity.sprints.find((s) => s.name === name));
+  const day = (ms) => new Date(ms + 3_600_000).toISOString().slice(0, 10); // Warsaw winter time (+1): the dates sit in January
+  assert.equal(day(first.endAt), expected.planted.boundary.sharedDay);
+  assert.equal(day(second.startAt), expected.planted.boundary.sharedDay);
+  assert.ok(first.endAt > second.startAt, "the ends overlap the next start by the day's first hour: the shared day, not a gap");
 });
 
 test("the e2e team: six future two-week sprints in 2047, 20.00 / 18.00 / 22.00 ... MD a week on Monday-Friday", () => {
