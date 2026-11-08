@@ -1434,6 +1434,61 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/views/capacity-deviations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Where a linked team's capacity in the plan differs from what Flow would make it carry
+         * @description Any authenticated user. The team and Flow team names and the connection's name and status are already in the team page's Flow
+         *     panel, and `planMd` is already readable through `GET /teams/{id}/capacity`; Flow's per-sprint `flowMd` and `flowTotalMd` and the
+         *     connection's `zone` are a NEW, accepted disclosure to every login (the capacity preview that shows them is the team manager's).
+         *     Never a base URL, a token or an account id. One
+         *     document (a view endpoint's deliberate exception to the paged envelope) taken from ONE read-only `REPEATABLE READ` snapshot,
+         *     in this order: the working calendar (public holidays included), the ACTIVE Flow connections, the links of ACTIVE teams, their
+         *     capacity periods, then each linked Flow team with its sprints from the mirror. It takes no lock, writes nothing to Astrolabe or
+         *     to Flow and is not audited. **There is no `revision`**: capacity periods are team data and no plan revision moves with them.
+         *
+         *     **What is compared.** Per linked team and per CURRENT or FUTURE sprint (its last day is today or later, in the connection's
+         *     time zone `zone`; a closed sprint never appears), over the days the sprint holds (`effectiveFrom` to `end`, working days on the
+         *     live calendar: the days the capacity import would claim for it), the plan's capacity (`planMd`, what the team view shows over
+         *     those days) against what the import would make the plan carry (`flowMd`, Flow's figure spread over those days, rounded to
+         *     two decimals). `flowTotalMd` is Flow's own total for the whole sprint; it differs from `flowMd` for a fixed per-sprint figure
+         *     that shares days with an earlier sprint. The two figures are rounded before they are compared, and `gapMd = planMd - flowMd`
+         *     is POSITIVE when the plan has more. Sprints the import skips (no dates, no capacity, overlapped, no working day, out of range)
+         *     and sprints over 60 calendar days have no comparable figure and are never listed.
+         *
+         *     **Deviations.** `CAPACITY_DIFFERS`: `abs(gapMd) >= 0.5` - WARNING when the plan has MORE capacity than Flow, INFO when less
+         *     (a day before the team's first period counts 0). `CAPACITY_MISSING` (INFO): no capacity period is in force on any working day
+         *     of the sprint (`planMd` and `gapMd` are null). `TEAM_GONE` (WARNING): the connection has mirrored a document and the linked
+         *     Flow team is not in it; it is the team's ONLY row and every `detail` member is null (a truncated document keeps absent teams,
+         *     so it never raises one). A team whose connection has never mirrored a document is not listed. The remedy is the team page's
+         *     Import capacity; there is no acknowledgement.
+         *
+         *     **Items.** Only linked teams with at least one deviation (after the filters) are listed. A DISABLED, FAILED or STALE
+         *     connection's teams are listed from its last mirrored document; the connection's `status` (derived in the same snapshot)
+         *     qualifies them. `connections` lists EVERY ACTIVE Flow connection (at most 100, by name then id), enabled or not, with the
+         *     sync `status` and `teamsAt`, when it last mirrored a document. Order: teams with a WARNING first, then team name
+         *     (case-insensitive), then link id; a team's rows are ordered by the sprint's first held day, then sprint id. Capped at 1,000 teams
+         *     (Flow's own team cap): `truncated` says teams were dropped; `totals` are computed over every team matched BEFORE the cap
+         *     (`warnings` and `infos` count rows, `gone` the `TEAM_GONE` ones, `teams` the teams matched). `asOf` is the UTC date of the read.
+         *
+         *     Filters, all equality, a repeated key or a malformed value a `400`: `connectionId`, `teamId`, `severity` and `kind`.
+         *     **`severity` and `kind` narrow the rows of each team as well as the teams** (the unit here is a sprint: "warnings only" lists
+         *     only the warning sprints), unlike the Jira view, where the binding is the unit.
+         */
+        get: operations["getCapacityDeviationsView"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/views/baseline/{id}": {
         parameters: {
             query?: never;
@@ -6322,6 +6377,136 @@ export interface components {
              */
             connections: components["schemas"]["FlowPanelConnection"][];
         };
+        /**
+         * @description `CAPACITY_DIFFERS` (the plan's and Flow's capacity over a sprint differ by 0.5 man-days or more), `CAPACITY_MISSING` (no capacity in the plan for the sprint), `TEAM_GONE` (the linked Flow team left Flow's document).
+         * @enum {string}
+         */
+        CapacityDeviationKind: "CAPACITY_DIFFERS" | "CAPACITY_MISSING" | "TEAM_GONE";
+        /** @description The evidence of one deviation. Every member is null for `TEAM_GONE`; `planMd` and `gapMd` are null for `CAPACITY_MISSING`. Man-days are decimal numbers rounded to two decimals. */
+        CapacityDeviationDetail: {
+            /** Format: int64 */
+            sprintId: number | null;
+            sprintName: string | null;
+            /**
+             * Format: date
+             * @description The sprint's first day in the connection's time zone.
+             */
+            start: string | null;
+            /**
+             * Format: date
+             * @description The sprint's last day in the connection's time zone.
+             */
+            end: string | null;
+            /**
+             * Format: date
+             * @description The first day the sprint holds (the capacity import's claim: a day an earlier sprint holds is not here).
+             */
+            effectiveFrom: string | null;
+            /**
+             * Format: int32
+             * @description Working days from `effectiveFrom` to `end`.
+             */
+            workingDays: number | null;
+            /**
+             * Format: double
+             * @description What the capacity import would make the plan carry over those days.
+             */
+            flowMd: number | null;
+            /**
+             * Format: double
+             * @description Flow's own total for the whole sprint.
+             */
+            flowTotalMd: number | null;
+            /**
+             * Format: double
+             * @description The plan's capacity over those days (the team view's arithmetic); null when no capacity period is in force on any of them.
+             */
+            planMd: number | null;
+            /**
+             * Format: double
+             * @description `planMd - flowMd`: POSITIVE = the plan has more than Flow.
+             */
+            gapMd: number | null;
+        };
+        CapacityDeviation: {
+            kind: components["schemas"]["CapacityDeviationKind"];
+            /** @enum {string} */
+            severity: "WARNING" | "INFO";
+            detail: components["schemas"]["CapacityDeviationDetail"];
+        };
+        /** @description An ACTIVE Flow connection, enabled or not - never a base URL, token or time zone. */
+        CapacityDeviationConnection: {
+            /** Format: int32 */
+            id: number;
+            name: string;
+            enabled: boolean;
+            status: components["schemas"]["SyncStatus"];
+            /**
+             * Format: int64
+             * @description Epoch millis the connection last replaced its mirror; null before any run.
+             */
+            teamsAt: number | null;
+        };
+        CapacityDeviationTeam: {
+            /** Format: int32 */
+            id: number;
+            name: string;
+        };
+        CapacityDeviationFlowTeam: {
+            /** Format: int32 */
+            id: number;
+            /** @description The Flow team's name when it was linked. */
+            name: string;
+        };
+        /** @description One linked team with its deviations (never empty in a listed item; the filters narrow it). */
+        CapacityDeviationItem: {
+            /** Format: int32 */
+            bindingId: number;
+            /** Format: int32 */
+            connectionId: number;
+            team: components["schemas"]["CapacityDeviationTeam"];
+            flowTeam: components["schemas"]["CapacityDeviationFlowTeam"];
+            /**
+             * Format: int64
+             * @description Epoch millis the mirror last saw the Flow team; null when it is gone.
+             */
+            observedAt: number | null;
+            /** @description The connection's IANA time zone id, the zone of the sprint dates. */
+            zone: string;
+            deviations: components["schemas"]["CapacityDeviation"][];
+        };
+        /** @description Over the teams MATCHED (every team that passes the filters), before the cap - `teams` can exceed the length of `items`. */
+        CapacityDeviationTotals: {
+            /**
+             * Format: int32
+             * @description WARNING rows, `TEAM_GONE` included.
+             */
+            warnings: number;
+            /** Format: int32 */
+            infos: number;
+            /**
+             * Format: int32
+             * @description `TEAM_GONE` rows.
+             */
+            gone: number;
+            /**
+             * Format: int32
+             * @description Teams matched, before the cap; `items` holds at most the first 1,000.
+             */
+            teams: number;
+        };
+        CapacityDeviationView: {
+            /**
+             * Format: date
+             * @description The UTC date of the read.
+             */
+            asOf: string;
+            connections: components["schemas"]["CapacityDeviationConnection"][];
+            totals: components["schemas"]["CapacityDeviationTotals"];
+            items: components["schemas"]["CapacityDeviationItem"][];
+            /** @description More than 1,000 teams matched and the rest were dropped. */
+            truncated: boolean;
+        };
         SyncRunRequest: {
             /** @enum {string} */
             kind: "JIRA" | "FLOW";
@@ -8574,6 +8759,34 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DeviationView"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    getCapacityDeviationsView: {
+        parameters: {
+            query?: {
+                connectionId?: number;
+                teamId?: number;
+                severity?: "WARNING" | "INFO";
+                kind?: components["schemas"]["CapacityDeviationKind"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The capacity deviations */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CapacityDeviationView"];
                 };
             };
             400: components["responses"]["BadRequest"];

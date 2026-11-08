@@ -46,6 +46,13 @@ class ScriptedFlowMirror(private val prefix: String) {
         return this
     }
 
+    /** Like [refresh], but the document says `teamsTruncated`: the mirror keeps the teams it already had that [teams] omit. */
+    suspend fun refreshTruncated(vararg teams: String): ScriptedFlowMirror {
+        document = flowDocument(*teams, teamsTruncated = true)
+        check(harness.run(connectionId).outcome == SyncOutcome.SUCCEEDED) { "the scripted run must succeed" }
+        return this
+    }
+
     fun cleanUp() = harness.cleanUp(prefix)
 }
 

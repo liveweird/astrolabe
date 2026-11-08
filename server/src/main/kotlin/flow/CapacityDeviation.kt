@@ -73,7 +73,10 @@ data class CapacityDeviationItem(
     val deviations: List<CapacityDeviation>,
 )
 
-/** Over the LISTED rows, before the cap: [warnings] and [infos] count deviations, [gone] the `TEAM_GONE` ones, [teams] the items listed. */
+/**
+ * Over the teams MATCHED (all that pass the filters), before the cap: [warnings] and [infos] count their rows, [gone] the `TEAM_GONE`
+ * ones, [teams] the teams (it can exceed the items listed).
+ */
 @Serializable
 data class CapacityDeviationTotals(val warnings: Int, val infos: Int, val gone: Int, val teams: Int)
 

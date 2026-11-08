@@ -30,6 +30,9 @@ data class FlowTeamBindingRow(
     val createdAt: Long,
 )
 
+/** A [FlowTeamBindingRow] with its ACTIVE Astrolabe team's name. */
+data class FlowTeamBindingWithTeam(val binding: FlowTeamBindingRow, val teamName: String)
+
 /**
  * The key of the transaction-scoped advisory lock every link and every "Link all suggested" takes first (the ASCII bytes of "AstroFBT").
  * Both are human clicks, a few milliseconds each, so ONE global lock serializes them: the two uniqueness checks below are then exact
@@ -102,6 +105,35 @@ class FlowTeamBindingService(private val database: R2dbcDatabase) {
                     createdAt = it[Bindings.createdAt],
                 )
             }
+    }
+
+    /**
+     * The ACTIVE bindings of ACTIVE teams on any of [connectionIds] (narrowed to [teamId] when given) with the team's name, in binding id
+     * order - [bindingsOf]'s predicate in ONE statement for many connections (the capacity deviation view's read, inside its snapshot).
+     */
+    suspend fun activeBindingsWithTeams(connectionIds: Collection<UInt>, teamId: UInt?): List<FlowTeamBindingWithTeam> {
+        if (connectionIds.isEmpty()) return emptyList()
+        return suspendTransaction(database) {
+            val teams = TeamService.Teams
+            Bindings.innerJoin(teams).selectAll()
+                .where {
+                    (Bindings.connectionId inList connectionIds) and Bindings.active() and teams.active() and
+                        (teamId?.let { Bindings.teamId eq it } ?: Op.TRUE)
+                }
+                .orderBy(Bindings.id to SortOrder.ASC).toList().map {
+                    FlowTeamBindingWithTeam(
+                        FlowTeamBindingRow(
+                            id = it[Bindings.id].value,
+                            connectionId = it[Bindings.connectionId].value,
+                            teamId = it[Bindings.teamId].value,
+                            flowTeamId = it[Bindings.flowTeamId],
+                            flowTeamName = it[Bindings.flowTeamName],
+                            createdAt = it[Bindings.createdAt],
+                        ),
+                        teamName = it[teams.name],
+                    )
+                }
+        }
     }
 
     /**

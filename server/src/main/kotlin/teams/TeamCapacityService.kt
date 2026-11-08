@@ -174,19 +174,35 @@ class TeamCapacityService(private val database: R2dbcDatabase) {
         CapacityPeriods.selectAll()
             .where { (CapacityPeriods.teamId eq teamId) and CapacityPeriods.active() }
             .orderBy(CapacityPeriods.effectiveFrom to SortOrder.ASC, CapacityPeriods.id to SortOrder.ASC)
-            .map {
-                CapacityPeriodRow(
-                    id = it[CapacityPeriods.id].value,
-                    effectiveFrom = it[CapacityPeriods.effectiveFrom],
-                    mdPerWeek = it[CapacityPeriods.mdPerWeek],
-                    wipLimit = it[CapacityPeriods.wipLimit],
-                    source = CapacitySource.valueOf(it[CapacityPeriods.capacitySource]),
-                    flowSprintId = it[CapacityPeriods.flowSprintId],
-                    flowSprintName = it[CapacityPeriods.flowSprintName],
-                )
-            }
+            .map { it.toImportRow() }
             .toList()
     }
+
+    /**
+     * [importRowsOf] for many teams in ONE statement (the capacity deviation view's batch read, `flow/`): the same predicate and order,
+     * grouped by team; a team without a period has no entry. Read-only, nesting into the caller's transaction like [importRowsOf].
+     */
+    suspend fun importRowsOfTeams(teamIds: Collection<UInt>): Map<UInt, List<CapacityPeriodRow>> {
+        if (teamIds.isEmpty()) return emptyMap()
+        return suspendTransaction(database) {
+            CapacityPeriods.selectAll()
+                .where { (CapacityPeriods.teamId inList teamIds) and CapacityPeriods.active() }
+                .orderBy(CapacityPeriods.effectiveFrom to SortOrder.ASC, CapacityPeriods.id to SortOrder.ASC)
+                .map { it[CapacityPeriods.teamId].value to it.toImportRow() }
+                .toList()
+                .groupBy({ it.first }, { it.second })
+        }
+    }
+
+    private fun ResultRow.toImportRow() = CapacityPeriodRow(
+        id = this[CapacityPeriods.id].value,
+        effectiveFrom = this[CapacityPeriods.effectiveFrom],
+        mdPerWeek = this[CapacityPeriods.mdPerWeek],
+        wipLimit = this[CapacityPeriods.wipLimit],
+        source = CapacitySource.valueOf(this[CapacityPeriods.capacitySource]),
+        flowSprintId = this[CapacityPeriods.flowSprintId],
+        flowSprintName = this[CapacityPeriods.flowSprintName],
+    )
 
     /**
      * The capacity import's batch write (`flow/CapacityImportService.apply`): ONE transaction that locks the team row (gone = 404), re-runs
