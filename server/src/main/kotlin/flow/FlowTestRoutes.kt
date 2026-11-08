@@ -39,7 +39,7 @@ internal fun Route.flowTestRoutes(connections: FlowConnectionService, connector:
             val caller = call.caller()
             requireAdmin(caller)
             val request = sanitizedFlowConnection(call.receive())
-            validateFlowConnection(request, apiTokenRequired = true, origins::baseUrlAllowed)
+            validateFlowConnection(request, apiTokenRequired = true, origins::baseUrlVerdict)
             val result = connector.testConnection(FlowTestTarget(request.baseUrl, request.timeZone, request.apiToken))
             auditTest(caller.userId, null, request.baseUrl, result)
             call.respond(HttpStatusCode.OK, result)

@@ -193,3 +193,9 @@ export function untestedKey(connection: Pick<FlowConnection, "teamsAt">): ParseK
 export function flowReady(connection: Pick<FlowConnection, "lastTestOk" | "teamsAt">): boolean {
   return connection.lastTestOk === true || connection.teamsAt !== null;
 }
+
+/** The plain hint followed by what this server allows (or that nothing is configured); the plain hint alone until the list is known. */
+export function allowedOriginsHint(hint: string, items: string[] | undefined, t: TFunction): string {
+  if (items === undefined) return hint;
+  return `${hint} ${items.length > 0 ? t("flow.field.baseUrlAllowed", { origins: items.join(", ") }) : t("flow.field.baseUrlNoneAllowed")}`;
+}

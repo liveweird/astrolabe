@@ -25,7 +25,9 @@
   },
   "field": {
     "baseUrl": "Base URL",
-    "baseUrlHint": "Flow's address exactly as the operator listed it, for example https://flow.example.com. A capital letter, a default port or a trailing slash is corrected for you.",
+    "baseUrlHint": "Flow's address, exactly one of the origins the operator listed for this server. A capital letter, a default port or a trailing slash is corrected for you; any other port is fine as listed.",
+    "baseUrlAllowed": "Allowed on this server: {{origins}}",
+    "baseUrlNoneAllowed": "No Flow origin is configured on this server yet: the operator lists one in FLOW_ALLOWED_HOSTS, or FLOW_INSECURE_ORIGINS in development.",
     "baseUrlFixed": "The address is the connection's identity and cannot change. Create a new connection for another Flow.",
     "timeZone": "Time zone",
     "timeZoneHint": "The IANA zone (Europe/Warsaw) that turns Flow's sprint and membership instants into dates; use the zone Flow's metrics run in.",
@@ -38,7 +40,7 @@
   },
   "validation": {
     "nameLength": "Name must be 1–100 characters",
-    "baseUrlInvalid": "Enter Flow's address as an origin only: http:// or https://, the host and an optional port, with no path, query or credentials",
+    "baseUrlInvalid": "Enter Flow's address as an origin only: http:// or https://, the host and an optional port (any port), with no path, query or credentials",
     "timeZoneInvalid": "Enter an IANA time zone such as Europe/Warsaw (a bare offset such as +02:00 is not one)",
     "apiTokenRequired": "The service token is required",
     "apiTokenInvalid": "A Flow service token is flow_int_ followed by 43 characters"

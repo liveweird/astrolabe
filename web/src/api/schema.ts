@@ -2284,7 +2284,10 @@ export interface paths {
          * @description ADMIN only (guarded before the body decodes - a non-admin's malformed body is still `403`). The `apiToken` is required and must be a
          *     Flow service token (`flow_int_` followed by 43 characters); it is encrypted before it is stored and never returned or logged.
          *     `baseUrl` must be exactly one of the origins the OPERATOR configured for this server (`FLOW_ALLOWED_HOSTS`, and in development
-         *     `FLOW_INSECURE_ORIGINS`) in its canonical form - an admin can never widen that list. `timeZone` is an IANA region id. A
+         *     `FLOW_INSECURE_ORIGINS`) in its canonical form - an admin can never widen that list. A refused `baseUrl` is a `400` that says
+         *     which rule refused it: not the canonical spelling of an origin (lowercase, no default port, path, trailing slash, query or
+         *     credentials), or a well-formed origin that is not on the list (`GET /integrations/flow/origins`); a port is never the reason, and the
+         *     value is never quoted. `timeZone` is an IANA region id. A
          *     case-insensitive name clash with an active connection is `409`.
          */
         post: operations["createFlowConnection"];
@@ -2372,6 +2375,31 @@ export interface paths {
          *     Flow's data: the run is the only writer of the mirror.
          */
         post: operations["testFlowConnection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/integrations/flow/origins": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The Flow origins a connection may name
+         * @description ADMIN only (guarded first). The OPERATOR's list a Flow connection's `baseUrl` must be one of, so the connection form can show it
+         *     before a save is refused: `FLOW_ALLOWED_HOSTS` as `https://host[:port]` (443 omitted) and, in development mode only,
+         *     `FLOW_INSECURE_ORIGINS` as `http://host[:port]` (80 omitted), distinct and sorted. Operator configuration validated host-shaped at
+         *     boot (no credential, no path); disclosed to ADMIN, the role that already reads every connection URL, and it widens nothing: the
+         *     transport judges every call. A small operator-curated set (a handful of entries in practice), so the plain `{items}` wrapper and no paging. An empty list means no
+         *     Flow origin is configured (every Flow connection would be refused).
+         */
+        get: operations["listFlowOrigins"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -5861,6 +5889,10 @@ export interface components {
             pageSize: number;
             /** Format: int64 */
             total: number;
+        };
+        /** @description The Flow origins the operator allows a connection to name - a small operator-curated set (not paged). */
+        FlowOriginList: {
+            items: string[];
         };
         FlowTestRow: {
             /** @description The probe: `me` (the token is live), `teams` (the document decodes) or `stored_token` (the stored token cannot be decrypted). */
@@ -9841,6 +9873,29 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    listFlowOrigins: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The allowed Flow origins */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FlowOriginList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             500: components["responses"]["InternalServerError"];
         };
     };

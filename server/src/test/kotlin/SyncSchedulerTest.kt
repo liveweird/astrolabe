@@ -181,7 +181,7 @@ class SyncSchedulerTest {
     @Test
     fun `a tested Flow connection is polled through the real Flow connector, an untested or failing one is not`() = runBlocking {
         val database = sharedDatabaseForTests()
-        val connections = FlowConnectionService(database, flowTestCipher, runs) { true }
+        val connections = FlowConnectionService(database, flowTestCipher, runs, anyFlowOrigin)
         val asked = AtomicInteger()
         val client = object : FlowClient {
             override suspend fun me(): FlowMe = error("a run never calls me")

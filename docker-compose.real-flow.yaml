@@ -1,0 +1,35 @@
+# Development only: reach a REAL Flow (its own compose stack, Flow 1.57.0 or later) from this stack's `app`. Use it as an override:
+#
+#   docker compose -f docker-compose.yaml -f docker-compose.real-flow.yaml up --build
+#
+# then create a Flow connection with the base URL http://flow-app:8084 (New connection lists it under "Allowed on this server").
+#
+# Start Flow's compose stack FIRST: the external network `flow_default` below is the one Flow's compose project creates, and `up` fails
+# when it does not exist. On it the app is `flow-app` (Flow's container name, port 8084, plain http).
+#
+# Why not `http://host.docker.internal:8084` or `http://localhost:8084`? Inside this container `localhost` is the container itself, and
+# on OrbStack `host.docker.internal` resolves to 0.250.250.254, which lies in 0.0.0.0/8: a never-allowed address class for an insecure
+# development host (infra/outbound/FlowOrigins.kt, security.md "The Flow consumer"). That rule is kept on purpose; do not look for a
+# way around it.
+#
+# Name collision: on `flow_default` the bare names `postgres`, `mailpit`, `jira-stub` and `app` also belong to Flow's containers, so which one a bare
+# name resolves to is undefined. The override therefore addresses Astrolabe's own dependencies by their unique container names (astrolabe-*).
+# Reachability is two-way: Flow's containers can reach `astrolabe-app:8086` on that network.
+#
+# This REPLACES the base file's FLOW_INSECURE_ORIGINS (and any value exported on the host), so the built-in Flow stub stays listed here.
+# Development mode only: production refuses a non-blank list at boot. CI does not exercise this file.
+services:
+  app:
+    environment:
+      FLOW_INSECURE_ORIGINS: http://flow-stub:8080,http://flow-app:8084
+      POSTGRES_JDBC_URL: jdbc:postgresql://astrolabe-postgres:5432/astrolabe
+      POSTGRES_R2DBC_URL: r2dbc:postgresql://astrolabe-postgres:5432/astrolabe
+      SMTP_HOST: astrolabe-mailpit
+      # The base file's semantics: unset gets the stub, an EMPTY value disables it.
+      JIRA_STUB_BASE_URL: ${JIRA_STUB_BASE_URL-http://astrolabe-jira-stub:8080}
+    networks: [default, flow]
+
+networks:
+  flow:
+    name: flow_default
+    external: true

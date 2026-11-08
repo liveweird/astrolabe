@@ -3263,7 +3263,10 @@ paths:
         ADMIN only (guarded before the body decodes - a non-admin's malformed body is still `403`). The `apiToken` is required and must be a
         Flow service token (`flow_int_` followed by 43 characters); it is encrypted before it is stored and never returned or logged.
         `baseUrl` must be exactly one of the origins the OPERATOR configured for this server (`FLOW_ALLOWED_HOSTS`, and in development
-        `FLOW_INSECURE_ORIGINS`) in its canonical form - an admin can never widen that list. `timeZone` is an IANA region id. A
+        `FLOW_INSECURE_ORIGINS`) in its canonical form - an admin can never widen that list. A refused `baseUrl` is a `400` that says
+        which rule refused it: not the canonical spelling of an origin (lowercase, no default port, path, trailing slash, query or
+        credentials), or a well-formed origin that is not on the list (`GET /integrations/flow/origins`); a port is never the reason, and the
+        value is never quoted. `timeZone` is an IANA region id. A
         case-insensitive name clash with an active connection is `409`.
       requestBody:
         required: true
@@ -3405,6 +3408,28 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/integrations/flow/origins:
+    get:
+      tags: [flow]
+      operationId: listFlowOrigins
+      summary: The Flow origins a connection may name
+      description: |
+        ADMIN only (guarded first). The OPERATOR's list a Flow connection's `baseUrl` must be one of, so the connection form can show it
+        before a save is refused: `FLOW_ALLOWED_HOSTS` as `https://host[:port]` (443 omitted) and, in development mode only,
+        `FLOW_INSECURE_ORIGINS` as `http://host[:port]` (80 omitted), distinct and sorted. Operator configuration validated host-shaped at
+        boot (no credential, no path); disclosed to ADMIN, the role that already reads every connection URL, and it widens nothing: the
+        transport judges every call. A small operator-curated set (a handful of entries in practice), so the plain `{items}` wrapper and no paging. An empty list means no
+        Flow origin is configured (every Flow connection would be refused).
+      responses:
+        '200':
+          description: The allowed Flow origins
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FlowOriginList'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '500': { $ref: '#/components/responses/InternalServerError' }
   /api/v1/integrations/flow/teams:
     get:
@@ -7071,6 +7096,17 @@ components:
           type: integer
           format: int64
           minimum: 0
+    FlowOriginList:
+      type: object
+      required: [items]
+      description: The Flow origins the operator allows a connection to name - a small operator-curated set (not paged).
+      properties:
+        items:
+          type: array
+          items:
+            type: string
+            description: An origin, `https://` or `http://` + a host of at most 253 characters + `:65535` at most, hence the length bound; the list has no count cap.
+            maxLength: 267
     FlowTestRow:
       type: object
       required: [name, path, required, ok]

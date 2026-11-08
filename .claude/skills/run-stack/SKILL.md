@@ -108,6 +108,7 @@ side on one machine; host ports bind to 127.0.0.1:
   egress rule excludes the pod network); `kubectl -n astrolabe exec deploy/app -- curl -s http://jira-stub:8080/__admin/health` is the direct probe.
   The Flow stub (v1.5.0) rides the same overlay: `k8s/local/flow-stub.yaml` (`flow-stub:8080`, `allow-app-egress-to-flow-stub`), `k8s/local/flow-egress.yaml` (app → a real Flow in namespace `flow`, port 8084) and the overlay ConfigMap's `FLOW_INSECURE_ORIGINS`;
   on compose it is host port 8097 (`curl -X PUT http://localhost:8097/__admin/scenarios/flow-day2/state -d '{"state":"day2"}'`, or `flow-outage` / `down`).
+  A real Flow on compose (Flow's own compose stack running): `docker compose -f docker-compose.yaml -f docker-compose.real-flow.yaml up --build` (joins `flow_default`, lists `http://flow-app:8084`, uses `astrolabe-*` container names for its own dependencies; not `host.docker.internal`, which OrbStack resolves into the banned `0.0.0.0/8`).
   **k8s smoke routine** (after a rebuild; never print the password):
   1. `TAG="dev-$(git rev-parse --short=12 HEAD)-$(date +%s)"; docker build -t "astrolabe-app:$TAG" .`
   2. `./k8s/apply-local.sh "$TAG"` then `kubectl -n astrolabe rollout status deploy/app --timeout=180s`.

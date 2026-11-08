@@ -7,6 +7,7 @@ import ch.nokillswit.infra.crypto.reencryptRows
 import ch.nokillswit.infra.db.SoftDeletable
 import ch.nokillswit.infra.db.active
 import ch.nokillswit.infra.db.nowMillis
+import ch.nokillswit.infra.outbound.FlowBaseUrlVerdict
 import ch.nokillswit.infra.paging.PageRequest
 import ch.nokillswit.infra.paging.applyPaging
 import ch.nokillswit.sync.ConnectorConnection
@@ -47,8 +48,8 @@ class FlowConnectionService(
     private val cipher: FieldCipher,
     /** Its delete removes the connection's runs; `sync/` knows nothing of `flow/` (the allowed direction). */
     private val runs: SyncRunService,
-    /** The operator's origin allow-list (`FlowOrigins.baseUrlAllowed`): a registry write can never widen it. */
-    private val baseUrlAllowed: (String) -> Boolean,
+    /** The operator's origin rule (`FlowOrigins.baseUrlVerdict`): a registry write can never widen it. */
+    private val baseUrlVerdict: (String) -> FlowBaseUrlVerdict,
 ) : EncryptedAtRest {
     object Connections : UIntIdTable("flow_connections"), SoftDeletable {
         // Case-folded name uniqueness rides the partial unique index uq_flow_connections_name_active (V24, active rows only).
@@ -98,7 +99,7 @@ class FlowConnectionService(
 
     /** Creates the connection; the token is encrypted before it is bound. A name clash rides the V24 partial index into the central 409. */
     suspend fun create(request: FlowConnectionRequest): UInt = suspendTransaction(database) {
-        validateFlowConnection(request, apiTokenRequired = true, baseUrlAllowed) // re-checked service-side so direct callers stay guarded
+        validateFlowConnection(request, apiTokenRequired = true, baseUrlVerdict) // re-checked service-side so direct callers stay guarded
         val token = checkNotNull(request.apiToken) { "apiToken is validated as required on create" }
         val stamp = nowMillis()
         Connections.insert {
@@ -122,7 +123,7 @@ class FlowConnectionService(
     suspend fun update(id: UInt, request: FlowConnectionRequest): FlowConnectionUpdateOutcome = suspendTransaction(database) {
         // The origin allow-list is NOT asked here: the origin is the identity and cannot change (a different one is the 409 below), so an
         // unchanged origin an operator has since delisted must not stop an admin from disabling, renaming or re-tokening the connection.
-        validateFlowConnection(request, apiTokenRequired = false) { true }
+        validateFlowConnection(request, apiTokenRequired = false) { FlowBaseUrlVerdict.ALLOWED }
         // NO KEY UPDATE: serializes with other registry writers but not with FK-checking inserts that reference the row (persistence.md
         // "Row locks vs. FK locks").
         val before = Connections.selectAll().where { (Connections.id eq id) and Connections.active() }

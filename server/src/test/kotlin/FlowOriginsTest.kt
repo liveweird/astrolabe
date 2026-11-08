@@ -1,5 +1,6 @@
 package ch.nokillswit
 
+import ch.nokillswit.infra.outbound.FlowBaseUrlVerdict
 import ch.nokillswit.infra.outbound.FlowOrigins
 import ch.nokillswit.infra.outbound.Origin
 import ch.nokillswit.infra.outbound.SelfManagedHosts
@@ -193,6 +194,57 @@ class FlowOriginsTest {
             "http://127.0.0.1:8080", "https://flow.corp.example\n",
         )) {
             assertFalse(o.baseUrlAllowed(url), "must refuse: \"$url\"")
+        }
+    }
+
+    @Test
+    fun `the verdict says why a base URL is refused - the spelling or the list, never a port`() {
+        val o = origins()
+        for (url in listOf(
+            "https://flow.corp.example", "https://flow2.corp.example:8443", "http://flow-stub:8080", "http://host.docker.internal:8084",
+        )) {
+            assertEquals(FlowBaseUrlVerdict.ALLOWED, o.baseUrlVerdict(url), url)
+        }
+        for (url in listOf(
+            "HTTPS://flow.corp.example", "https://FLOW.corp.example", "https://flow.corp.example:443", "http://Flow-Stub:8080",
+            "https://flow.corp.example/", "https://flow.corp.example/api", "https://flow.corp.example?x=1", "https://flow.corp.example#f",
+            "https://user:pw@flow.corp.example", "https://flow.corp.example:", "ftp://flow-stub:8080", "flow-stub:8080", "//flow-stub:8080",
+            "", " ", "not a url", "http:///x", "https://flow2.corp.example:08443", "http://flow-stub:08080", "https://flow.corp.example\n",
+        )) {
+            assertEquals(FlowBaseUrlVerdict.NOT_CANONICAL, o.baseUrlVerdict(url), "malformed or not canonical: \"$url\"")
+        }
+        for (url in listOf(
+            "https://evil.example", "http://flow-stub:8081", "http://unlisted.test:8080", "https://flow-stub:8080", "http://flow-stub",
+            "http://flow.corp.example", "https://flow.corp.example:8443", "http://10.0.0.5:8080", "http://[::1]:8080",
+            "http://127.0.0.1:8080", "http://localhost:8084",
+        )) {
+            assertEquals(FlowBaseUrlVerdict.NOT_LISTED, o.baseUrlVerdict(url), "well-formed but not listed: \"$url\"")
+        }
+        val production = origins(dev = false)
+        assertEquals(FlowBaseUrlVerdict.NOT_LISTED, production.baseUrlVerdict("http://flow-stub:8080"), "production lists no http origin")
+        assertEquals(FlowBaseUrlVerdict.NOT_LISTED, FlowOrigins.NONE.baseUrlVerdict("https://flow.corp.example"))
+    }
+
+    @Test
+    fun `the allowed origins are the listed TLS hosts and, in development only, the insecure ones - canonical, distinct and sorted`() {
+        assertEquals(
+            listOf(
+                "http://flow-stub:8080", "http://host.docker.internal:8084", "https://flow.corp.example", "https://flow2.corp.example:8443",
+            ),
+            origins().allowedOrigins(),
+            "443 and 80 are omitted, a port otherwise kept",
+        )
+        assertEquals(listOf("https://flow.corp.example", "https://flow2.corp.example:8443"), origins(dev = false).allowedOrigins())
+        assertEquals(emptyList(), FlowOrigins.NONE.allowedOrigins())
+        val insecureOnly = origins(dev = false, withListed = false)
+        assertEquals(emptyList(), insecureOnly.allowedOrigins(), "an insecure list alone shows nothing in production")
+        val plain = FlowOrigins(listed, parseFlowInsecureOrigins("http://plain.test, http://flow-stub:80", "flow.insecureOrigins"), true)
+        assertEquals(
+            listOf("http://flow-stub", "http://plain.test", "https://flow.corp.example", "https://flow2.corp.example:8443"),
+            plain.allowedOrigins(),
+        )
+        for (origin in origins().allowedOrigins()) {
+            assertEquals(FlowBaseUrlVerdict.ALLOWED, origins().baseUrlVerdict(origin), "every shown origin is one a connection may name")
         }
     }
 

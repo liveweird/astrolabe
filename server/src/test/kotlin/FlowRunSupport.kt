@@ -77,7 +77,7 @@ class MockFlow(handler: suspend MockRequestHandleScope.(HttpRequestData) -> Http
 class FlowRunHarness(clients: FlowClientFactory, sprintsSinceDays: Int = 365, now: () -> Long = System::currentTimeMillis) {
     private val database = sharedDatabaseForTests()
     val runs = SyncRunService(database, maxRunMinutes = 10)
-    val connections = FlowConnectionService(database, flowTestCipher, runs) { true }
+    val connections = FlowConnectionService(database, flowTestCipher, runs, anyFlowOrigin)
     val mirror = FlowMirrorStore(database)
     val bindings = FlowTeamBindingService(database)
     val observer = FlowObserver(FlowConnector(clients, sprintsSinceDays), connections, mirror, bindings, now)

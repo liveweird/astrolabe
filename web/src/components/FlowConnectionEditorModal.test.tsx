@@ -8,6 +8,7 @@ import FlowConnectionEditorModal from "./FlowConnectionEditorModal";
 
 const TOKEN_KEY = "astrolabe.auth.token";
 const LIST = "/api/v1/integrations/flow/connections";
+const ORIGINS = "/api/v1/integrations/flow/origins";
 const TOKEN = `flow_int_${"b".repeat(43)}`;
 type FetchMock = ReturnType<typeof vi.fn>;
 
@@ -22,10 +23,15 @@ describe("FlowConnectionEditorModal", () => {
   let mockFetch: FetchMock;
   const onClose = vi.fn();
   const onSaved = vi.fn(() => Promise.resolve());
+  // The create form asks for the operator's origins once; it is answered apart from `mockFetch`, so each test's own stubbing and its
+  // "nothing was requested" assertions stay about the registry calls.
+  let originsReply: () => Promise<Response>;
 
   beforeEach(() => {
     mockFetch = vi.fn();
-    vi.stubGlobal("fetch", mockFetch);
+    originsReply = () => Promise.resolve(jsonResponse(200, { items: ["http://flow-stub:8080", "https://flow.acme.example"] }));
+    const registry = mockFetch as unknown as typeof fetch;
+    vi.stubGlobal("fetch", (url: string, init?: RequestInit) => (url === ORIGINS ? originsReply() : registry(url, init)));
     localStorage.setItem(TOKEN_KEY, "fake-token");
     onSaved.mockClear();
   });
@@ -52,6 +58,39 @@ describe("FlowConnectionEditorModal", () => {
     expect(within(dialog).getByLabelText("Manual only (no polling)")).not.toBeChecked();
     expect(within(dialog).getByLabelText("Name")).toHaveValue("");
     expect(within(dialog).getByLabelText("Base URL")).toHaveValue("");
+  });
+
+  test("the address hint lists the origins this server allows", async () => {
+    const { dialog } = open(null);
+    expect(await within(dialog).findByText(/Allowed on this server: http:\/\/flow-stub:8080, https:\/\/flow\.acme\.example/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/any other port is fine as listed/)).toBeInTheDocument();
+  });
+
+  test("an empty list says that no Flow origin is configured yet", async () => {
+    originsReply = () => Promise.resolve(jsonResponse(200, { items: [] }));
+    const { dialog } = open(null);
+    expect(await within(dialog).findByText(/No Flow origin is configured on this server yet/)).toBeInTheDocument();
+    expect(within(dialog).queryByText(/Allowed on this server/)).not.toBeInTheDocument();
+  });
+
+  test("while the list loads, or when it fails, the plain hint stays and the form still works", async () => {
+    let release!: (reply: Response) => void;
+    originsReply = () => new Promise<Response>((resolve) => (release = resolve));
+    const { dialog } = open(null);
+    expect(within(dialog).getByText(/exactly one of the origins the operator listed/)).toBeInTheDocument();
+    expect(within(dialog).queryByText(/Allowed on this server/)).not.toBeInTheDocument();
+    release(jsonResponse(403, { title: "Forbidden", status: 403 }));
+    await waitFor(() => expect(within(dialog).getByLabelText("Base URL")).toBeInTheDocument());
+    expect(within(dialog).queryByText(/Allowed on this server|No Flow origin is configured/)).not.toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Create" })).toBeEnabled();
+  });
+
+  test("editing never asks for the list: the address is fixed", async () => {
+    const asked = vi.fn(() => Promise.resolve(jsonResponse(200, { items: ["http://x:1"] })));
+    originsReply = asked;
+    const { dialog } = open(CONNECTION);
+    expect(within(dialog).getByText(/cannot change/)).toBeInTheDocument();
+    expect(asked).not.toHaveBeenCalled();
   });
 
   test("create validates like the server: name, origin, zone, token", async () => {
@@ -116,14 +155,14 @@ describe("FlowConnectionEditorModal", () => {
 
   test("an origin the operator did not list (400) shows the server's own sentence under the fixed lead", async () => {
     mockFetch.mockResolvedValue(
-      jsonResponse(400, { title: "Bad Request", status: 400, detail: "baseUrl must be exactly one of the Flow origins this server is configured to allow" }),
+      jsonResponse(400, { title: "Bad Request", status: 400, detail: "baseUrl is not one of the Flow origins this server is configured to allow (GET /api/v1/integrations/flow/origins lists them)" }),
     );
     const { user, dialog } = open(null);
     await fillCreate(user, dialog);
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
     const alert = await within(dialog).findByRole("alert");
     expect(alert).toHaveTextContent("One or more fields are invalid");
-    expect(alert).toHaveTextContent("baseUrl must be exactly one of the Flow origins this server is configured to allow");
+    expect(alert).toHaveTextContent("baseUrl is not one of the Flow origins this server is configured to allow (GET /api/v1/integrations/flow/origins lists them)");
   });
 
   test("the zone is written canonically when the field is left and sent that way", async () => {
@@ -236,13 +275,13 @@ describe("FlowConnectionEditorModal", () => {
   });
 
   test("a 400 on the ad-hoc test shows the server's own sentence under the fixed lead, like a save", async () => {
-    mockFetch.mockResolvedValue(jsonResponse(400, { title: "Bad Request", status: 400, detail: "baseUrl must be exactly one of the Flow origins this server is configured to allow" }));
+    mockFetch.mockResolvedValue(jsonResponse(400, { title: "Bad Request", status: 400, detail: "baseUrl is not one of the Flow origins this server is configured to allow (GET /api/v1/integrations/flow/origins lists them)" }));
     const { user, dialog } = open(null);
     await fillCreate(user, dialog);
     await user.click(within(dialog).getByRole("button", { name: "Test connection" }));
     const alert = await within(dialog).findByRole("alert");
     expect(alert).toHaveTextContent("One or more fields are invalid");
-    expect(alert).toHaveTextContent("baseUrl must be exactly one of the Flow origins this server is configured to allow");
+    expect(alert).toHaveTextContent("baseUrl is not one of the Flow origins this server is configured to allow (GET /api/v1/integrations/flow/origins lists them)");
     expect(within(dialog).queryByRole("table", { name: "Connection test results" })).not.toBeInTheDocument();
   });
 

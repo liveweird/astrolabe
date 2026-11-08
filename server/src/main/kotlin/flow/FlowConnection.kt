@@ -1,6 +1,7 @@
 package ch.nokillswit.flow
 
 import ch.nokillswit.infra.maskedSecret
+import ch.nokillswit.infra.outbound.FlowBaseUrlVerdict
 import ch.nokillswit.infra.paging.PageResponse
 import ch.nokillswit.infra.validation.requireNameAndDescription
 import ch.nokillswit.infra.validation.sanitizeSingleLine
@@ -117,6 +118,18 @@ data class FlowConnectionTarget(
 /** The audit/host form of a Flow origin: the host (and port) only, never the scheme. */
 fun flowHostOf(baseUrl: String): String = baseUrl.substringAfter("://")
 
+/** The two `baseUrl` refusals, worded apart because the fixes differ; neither quotes the value. */
+private const val BASE_URL_NOT_CANONICAL =
+    "baseUrl must be the origin alone, in lowercase and without the default port, path, trailing slash, query or credentials " +
+        "(http://host:8084 is fine; HTTP://HOST:8084/ is not)"
+private const val BASE_URL_NOT_LISTED =
+    "baseUrl is not one of the Flow origins this server is configured to allow (GET /api/v1/integrations/flow/origins lists them; " +
+        "the operator sets FLOW_ALLOWED_HOSTS, or FLOW_INSECURE_ORIGINS in development)"
+
+/** `GET /api/v1/integrations/flow/origins`: the origins a connection may name (operator configuration, shown to ADMIN only). */
+@Serializable
+data class FlowOriginList(val items: List<String>)
+
 /** Trims the scalars (the sanitizer convention - control characters are a 400); a blank token is absent. */
 fun sanitizedFlowConnection(request: FlowConnectionRequest): FlowConnectionRequest = FlowConnectionRequest(
     name = sanitizeSingleLine(request.name, "Name"),
@@ -130,17 +143,12 @@ fun sanitizedFlowConnection(request: FlowConnectionRequest): FlowConnectionReque
 /**
  * The connection rules - enforced by the route AND re-checked by the service, both on an already-sanitized request. No message ever
  * quotes the token or the rejected origin. [apiTokenRequired] is true on create; an update may omit the token to keep the stored one.
- * [baseUrlAllowed] is the operator's origin allow-list (`FlowOrigins.baseUrlAllowed`): the registry
- * can never widen it, so an unlisted origin is a 400 here.
+ * [baseUrlVerdict] is the operator's origin rule (`FlowOrigins.baseUrlVerdict`): the registry can never widen it, so an unlisted origin
+ * is a 400 - and the 400 says WHICH rule refused (a spelling that is not the canonical origin, or an origin the operator did not list).
  */
-fun validateFlowConnection(request: FlowConnectionRequest, apiTokenRequired: Boolean, baseUrlAllowed: (String) -> Boolean) {
+fun validateFlowConnection(request: FlowConnectionRequest, apiTokenRequired: Boolean, baseUrlVerdict: (String) -> FlowBaseUrlVerdict) {
     requireNameAndDescription(request.name, null, MAX_FLOW_CONNECTION_NAME_LENGTH, 0)
-    if (request.baseUrl.length > MAX_FLOW_BASE_URL_LENGTH || !baseUrlAllowed(request.baseUrl)) {
-        throw BadRequestException(
-            "baseUrl must be exactly one of the Flow origins this server is configured to allow, written as the lowercase origin " +
-                "without the default port (https://host, not HTTPS://HOST:443)",
-        )
-    }
+    requireBaseUrl(request.baseUrl, baseUrlVerdict)
     if (request.timeZone.length > MAX_FLOW_TIME_ZONE_LENGTH || !isRegionZone(request.timeZone)) {
         throw BadRequestException("timeZone must be an IANA time zone id such as Europe/Warsaw")
     }
@@ -155,6 +163,15 @@ fun validateFlowConnection(request: FlowConnectionRequest, apiTokenRequired: Boo
             "Polling interval must be between $MIN_FLOW_POLL_INTERVAL_MINUTES and $MAX_FLOW_POLL_INTERVAL_MINUTES minutes, " +
                 "or null for manual only",
         )
+    }
+}
+
+private fun requireBaseUrl(baseUrl: String, baseUrlVerdict: (String) -> FlowBaseUrlVerdict) {
+    val verdict = if (baseUrl.length > MAX_FLOW_BASE_URL_LENGTH) FlowBaseUrlVerdict.NOT_CANONICAL else baseUrlVerdict(baseUrl)
+    when (verdict) {
+        FlowBaseUrlVerdict.ALLOWED -> Unit
+        FlowBaseUrlVerdict.NOT_CANONICAL -> throw BadRequestException(BASE_URL_NOT_CANONICAL)
+        FlowBaseUrlVerdict.NOT_LISTED -> throw BadRequestException(BASE_URL_NOT_LISTED)
     }
 }
 

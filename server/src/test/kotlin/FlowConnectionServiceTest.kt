@@ -6,6 +6,7 @@ import ch.nokillswit.flow.FlowConnectionService
 import ch.nokillswit.flow.FlowRunnableState
 import ch.nokillswit.infra.crypto.DEV_DATA_ENCRYPTION_KEY
 import ch.nokillswit.infra.crypto.FieldCipher
+import ch.nokillswit.infra.outbound.FlowBaseUrlVerdict
 import ch.nokillswit.infra.paging.PageRequest
 import ch.nokillswit.infra.paging.SortField
 import ch.nokillswit.sync.SyncRunService
@@ -68,7 +69,7 @@ class FlowConnectionServiceTest {
         val id = service.create(flowRequest(name = name()))
         val otherKey = FlowConnectionService(
             sharedDatabaseForTests(), FieldCipher(strongEncryptionKey()), SyncRunService(sharedDatabaseForTests(), 10),
-        ) { true }
+        ) { FlowBaseUrlVerdict.ALLOWED }
         assertNull(assertNotNull(otherKey.readForRun(id)).apiToken, "a wrong key (GCM tag mismatch) is an unreadable token")
         assertNull(assertNotNull(otherKey.readForTest(id)).apiToken)
         jbSql("UPDATE flow_connections SET api_token = 'enc:v1:AAAA' WHERE id = ?", id.toInt())
@@ -151,7 +152,8 @@ class FlowConnectionServiceTest {
             PostgresTestSupport.ensureMigrated()
             val id = service.create(flowRequest(name = name()))
             val database = sharedDatabaseForTests()
-            val delisted = FlowConnectionService(database, flowTestCipher, SyncRunService(database, maxRunMinutes = 10)) { false }
+            val runs = SyncRunService(database, maxRunMinutes = 10)
+            val delisted = FlowConnectionService(database, flowTestCipher, runs) { FlowBaseUrlVerdict.NOT_LISTED }
             val renamed = name()
             assertEquals(1, delisted.update(id, flowRequest(name = renamed, token = null, enabled = false)).affected)
             assertEquals(listOf(renamed, false), assertNotNull(service.read(id)).let { listOf(it.name, it.enabled) })
@@ -317,8 +319,8 @@ class FlowConnectionServiceTest {
         val newKey = strongEncryptionKey()
         val database = sharedDatabaseForTests()
         val runs = SyncRunService(database, 10)
-        val rotating = FlowConnectionService(database, FieldCipher(newKey, DEV_DATA_ENCRYPTION_KEY), runs) { true }
-        val restoring = FlowConnectionService(database, FieldCipher(DEV_DATA_ENCRYPTION_KEY, newKey), runs) { true }
+        val rotating = FlowConnectionService(database, FieldCipher(newKey, DEV_DATA_ENCRYPTION_KEY), runs, anyFlowOrigin)
+        val restoring = FlowConnectionService(database, FieldCipher(DEV_DATA_ENCRYPTION_KEY, newKey), runs, anyFlowOrigin)
         try {
             assertEquals(0, service.encryptLegacyRows(reencryptAll = false), "nothing is plaintext: the plain backfill touches no row")
             assertTrue(rotating.encryptLegacyRows(reencryptAll = true) >= 1)

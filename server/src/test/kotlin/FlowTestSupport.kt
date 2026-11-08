@@ -9,11 +9,12 @@ import ch.nokillswit.flow.FlowMirrorTeam
 import ch.nokillswit.flow.FlowTeamBindingService
 import ch.nokillswit.infra.crypto.DEV_DATA_ENCRYPTION_KEY
 import ch.nokillswit.infra.crypto.FieldCipher
+import ch.nokillswit.infra.outbound.FlowBaseUrlVerdict
 import ch.nokillswit.sync.SyncRunService
 import java.math.BigDecimal
 import java.util.UUID
 
-/** The one origin the service-level Flow tests allow (the real predicate, `FlowOrigins.baseUrlAllowed`, is pinned by `FlowOriginsTest`). */
+/** The one origin the service-level Flow tests allow (the real predicate, `FlowOrigins.baseUrlVerdict`, is pinned by `FlowOriginsTest`). */
 const val FLOW_TEST_ORIGIN = "http://flow.test:8080"
 
 /** A syntactically valid Flow service token (`flow_int_` + 43 base64url characters); [fill] makes two tokens differ. */
@@ -28,9 +29,12 @@ val flowTestCipher = FieldCipher(DEV_DATA_ENCRYPTION_KEY)
 fun newFlowConnectionService(extraOrigins: Set<String> = emptySet()): FlowConnectionService {
     val database = sharedDatabaseForTests()
     return FlowConnectionService(database, flowTestCipher, SyncRunService(database, maxRunMinutes = 10)) {
-        it == FLOW_TEST_ORIGIN || it in extraOrigins
+        if (it == FLOW_TEST_ORIGIN || it in extraOrigins) FlowBaseUrlVerdict.ALLOWED else FlowBaseUrlVerdict.NOT_LISTED
     }
 }
+
+/** The origin rule of a service test that is not about origins: every base URL is allowed. */
+val anyFlowOrigin: (String) -> FlowBaseUrlVerdict = { FlowBaseUrlVerdict.ALLOWED }
 
 fun newFlowMirrorStore() = FlowMirrorStore(sharedDatabaseForTests())
 

@@ -87,8 +87,9 @@ services:
       # The Flow stub (below), the origin a Flow connection may name: a comma-separated list of exact `http://host[:port]` origins, development mode
       # ONLY (production startup refuses a non-blank value). Read from v1.5.0 C3 on; until then the app ignores it. Like the Jira stub there is
       # NO depends_on, and the same host-environment caveat applies: an exported FLOW_INSECURE_ORIGINS reaches this container, and an EMPTY value
-      # (FLOW_INSECURE_ORIGINS= docker compose up) disables the stub; only an UNSET variable gets the default below. To point the app at a real
-      # Flow on the host (OrbStack, plain http) set FLOW_INSECURE_ORIGINS=http://host.docker.internal:8084.
+      # (FLOW_INSECURE_ORIGINS= docker compose up) disables the stub; only an UNSET variable gets the default below. For a real
+      # Flow running as its own compose stack use the committed override (docker-compose.real-flow.yaml: it joins Flow's network and lists
+      # http://flow-app:8084); `host.docker.internal` is NOT usable on OrbStack (0.250.250.254 is in the never-allowed 0.0.0.0/8).
       FLOW_INSECURE_ORIGINS: ${FLOW_INSECURE_ORIGINS-http://flow-stub:8080}
       # The per-IP Flow Test connection bucket (`flow-test`, read from v1.5.0 C4 on): 30/min here for the e2e suite, as for `jira-test`; the production default is 10.
       FLOW_TEST_RATE_LIMIT_PER_MINUTE: "30"

@@ -5,6 +5,7 @@ import ch.nokillswit.flow.FlowConnectionPageResponse
 import ch.nokillswit.flow.FlowConnectionRequest
 import ch.nokillswit.flow.FlowConnectionResponse
 import ch.nokillswit.flow.FlowConnectionServiceKey
+import ch.nokillswit.flow.FlowOriginList
 import ch.nokillswit.infra.crypto.FieldCipher
 import ch.nokillswit.plugins.ProblemDetail
 import ch.nokillswit.users.UserRole
@@ -42,6 +43,7 @@ class FlowConnectionTest {
     private companion object {
         const val PREFIX = "flow-reg"
         const val BASE = "/api/v1/integrations/flow/connections"
+        const val ORIGINS = "/api/v1/integrations/flow/origins"
     }
 
     private val json = Json { ignoreUnknownKeys = true }
@@ -387,6 +389,50 @@ class FlowConnectionTest {
         }
         assertEquals(existing, admin.get("$BASE/${existing.id}").connection(), "a rejected update changes nothing")
         assertTrue(admin.listAll().none { it.name == "x" || it.name.startsWith("tab") })
+    }
+
+    @Test
+    fun `an unlisted origin and a non-canonical spelling are told apart in the 400, and neither quotes the value`() = testApplication {
+        start()
+        val admin = seededClient("flowwhy", UserRole.ADMIN)
+        val unlisted = admin.postJson(BASE, request(baseUrl = "http://unlisted.test:8080"))
+        val spelled = admin.postJson(BASE, request(baseUrl = "HTTP://FLOW.TEST:8080/"))
+        assertEquals(listOf(HttpStatusCode.BadRequest, HttpStatusCode.BadRequest), listOf(unlisted.status, spelled.status))
+        val unlistedDetail = unlisted.body<ProblemDetail>().detail!!
+        val spelledDetail = spelled.body<ProblemDetail>().detail!!
+        assertTrue("not one of the Flow origins" in unlistedDetail && "/api/v1/integrations/flow/origins" in unlistedDetail, unlistedDetail)
+        assertTrue("origin alone" in spelledDetail && "lowercase" in spelledDetail, spelledDetail)
+        assertFalse("port" in unlistedDetail.lowercase(), "an unlisted origin is never blamed on its port")
+        for (detail in listOf(unlistedDetail, spelledDetail)) {
+            assertFalse("unlisted.test" in detail || "FLOW.TEST" in detail, "the value is never quoted")
+        }
+        // The same bad spelling is judged the same way by the ad-hoc test route (one validator).
+        val adHoc = admin.postJson("$BASE/test", request(baseUrl = "http://unlisted.test:8080"))
+        assertEquals(HttpStatusCode.BadRequest, adHoc.status)
+        assertEquals(unlistedDetail, adHoc.body<ProblemDetail>().detail)
+    }
+
+    @Test
+    fun `an overlong base URL is refused with the canonical-origin sentence, never as unlisted`() = testApplication {
+        start()
+        val admin = seededClient("flowlong", UserRole.ADMIN)
+        val response = admin.postJson(BASE, request(baseUrl = "http://${"a".repeat(260)}.test"))
+        assertEquals(HttpStatusCode.BadRequest, response.status)
+        val detail = response.body<ProblemDetail>().detail!!
+        assertTrue("origin alone" in detail && "lowercase" in detail, detail)
+        assertFalse("not one of the Flow origins" in detail, detail)
+    }
+
+    @Test
+    fun `the allowed origins are an ADMIN read of the operator's list - a user is 403`() = testApplication {
+        start()
+        val admin = seededClient("floworig-admin", UserRole.ADMIN)
+        val user = seededClient("floworig-user", UserRole.USER)
+        assertEquals(HttpStatusCode.Forbidden, user.get(ORIGINS).status)
+        val ok = admin.get(ORIGINS)
+        assertEquals(HttpStatusCode.OK, ok.status)
+        assertEquals(FlowOriginList(listOf(FLOW_TEST_ORIGIN)), json.decodeFromString<FlowOriginList>(ok.bodyAsText()))
+        assertEquals(HttpStatusCode.Unauthorized, jsonClient().get(ORIGINS).status)
     }
 
     @Test

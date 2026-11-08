@@ -1,11 +1,12 @@
 import { useState, type ReactNode } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Button, Modal, PasswordInput, Stack, Switch, Text, TextInput } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { ApiError } from "../api/http";
 import {
   createFlowConnection,
+  getFlowOrigins,
   testFlowConnection,
   testFlowConnectionAdHoc,
   updateFlowConnection,
@@ -13,6 +14,7 @@ import {
   type FlowTestResult,
 } from "../api/flow";
 import {
+  allowedOriginsHint,
   canonicalTimeZone,
   clearsVerdict,
   EMPTY_FLOW_FORM,
@@ -65,6 +67,9 @@ export default function FlowConnectionEditorModal({
   const isEdit = target !== null;
   // `hasApiToken` is all the server ever says about the token: "leave blank to keep" only when one is stored.
   const tokenHint = !isEdit ? t("flow.field.apiTokenHint") : target.hasApiToken ? t("flow.field.apiTokenKeep") : t("flow.field.apiTokenMissing");
+  // The operator's list, asked on create only (an existing connection's address is fixed); a failed or pending read shows the plain hint.
+  const origins = useQuery({ queryKey: ["flow", "origins"], queryFn: getFlowOrigins, enabled: !isEdit });
+  const baseUrlHint = isEdit ? t("flow.field.baseUrlFixed") : allowedOriginsHint(t("flow.field.baseUrlHint"), origins.data?.items, t);
   const form = useForm<FlowFormValues>({
     initialValues: target ? fromFlowConnection(target) : EMPTY_FLOW_FORM,
     validate: flowFormValidation(t, isEdit),
@@ -166,7 +171,7 @@ export default function FlowConnectionEditorModal({
           <TextInput label={t("common.field.name")} maxLength={MAX_FLOW_CONNECTION_NAME_LENGTH} data-autofocus {...form.getInputProps("name")} />
           <TextInput
             label={t("flow.field.baseUrl")}
-            description={isEdit ? t("flow.field.baseUrlFixed") : t("flow.field.baseUrlHint")}
+            description={baseUrlHint}
             placeholder="https://flow.example.com"
             readOnly={isEdit}
             autoComplete="off"

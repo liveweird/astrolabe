@@ -5,6 +5,7 @@ import ch.nokillswit.authz.caller
 import ch.nokillswit.authz.orNotFound
 import ch.nokillswit.authz.requireAdmin
 import ch.nokillswit.infra.db.orVanished
+import ch.nokillswit.infra.outbound.FlowBaseUrlVerdict
 import ch.nokillswit.infra.paging.parsePaging
 import ch.nokillswit.infra.paging.toPage
 import ch.nokillswit.teams.TeamServiceKey
@@ -32,6 +33,11 @@ class FlowConnectionsRoute {
     class Id(val parent: FlowConnectionsRoute = FlowConnectionsRoute(), val id: UInt)
 }
 
+/** `GET /api/v1/integrations/flow/origins`: the operator's list a connection's base URL must be one of (ADMIN only, a read: no audit). */
+@Serializable
+@Resource("/api/v1/integrations/flow/origins")
+class FlowOriginsRoute
+
 /**
  * The Flow sync's routes, ONE module function for the whole `flow/` package (`conventions.md`: one routes file per concern - the
  * connections here, Test connection beside it). The registry is ADMIN only, reads included (a connection names a credential-bearing
@@ -52,6 +58,10 @@ fun Application.configureFlowRoutes() {
             flowTestRoutes(connections, connector, origins)
             flowTeamBindingRoutes(bindings, flowTeams, teams)
             capacityImportRoutes(capacityImport, bindings, teams)
+            get<FlowOriginsRoute> {
+                requireAdmin(call.caller())
+                call.respond(HttpStatusCode.OK, FlowOriginList(origins.allowedOrigins()))
+            }
             get<FlowConnectionsRoute> {
                 requireAdmin(call.caller())
                 val paging = call.parsePaging(sortable = FLOW_CONNECTION_SORT_FIELDS)
@@ -62,7 +72,7 @@ fun Application.configureFlowRoutes() {
                 val caller = call.caller()
                 requireAdmin(caller)
                 val request = sanitizedFlowConnection(call.receive())
-                validateFlowConnection(request, apiTokenRequired = true, origins::baseUrlAllowed)
+                validateFlowConnection(request, apiTokenRequired = true, origins::baseUrlVerdict)
                 val id = connections.create(request)
                 // Name and host only: the token never reaches the trail.
                 audit(
@@ -86,7 +96,7 @@ fun Application.configureFlowRoutes() {
                 val request = sanitizedFlowConnection(call.receive())
                 // The origin is the connection's identity and cannot change (a different one is the service's 409), so an unchanged origin
                 // the operator has since delisted must not stop an admin from disabling or re-tokening the connection: not asked here.
-                validateFlowConnection(request, apiTokenRequired = false) { true }
+                validateFlowConnection(request, apiTokenRequired = false) { FlowBaseUrlVerdict.ALLOWED }
                 val outcome = connections.update(route.id, request)
                 outcome.affected.orNotFound("Flow connection")
                 audit(

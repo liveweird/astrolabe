@@ -4,7 +4,7 @@
 #
 # k8s/network-policies.yaml is default-deny and its app egress rule excludes every private range, the pod network included, so without this
 # rule a Flow connection to http://app.flow.svc.cluster.local:8084 fails with a connect error while the same connection passes on compose
-# (host.docker.internal:8084). The application's own OutboundGuard is the first layer (the origin must be listed in FLOW_INSECURE_ORIGINS,
+# (the docker-compose.real-flow.yaml override, http://flow-app:8084 on Flow's network). The application's own OutboundGuard is the first layer (the origin must be listed in FLOW_INSECURE_ORIGINS,
 # k8s/local/front-door.yaml; it is not by default); this policy is the second. Harmless when the namespace or Flow is absent: the rule
 # matches nothing. The Flow STUB (k8s/local/flow-stub.yaml) lives in this namespace and has its own rule pair.
 #

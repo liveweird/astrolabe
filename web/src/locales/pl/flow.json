@@ -25,7 +25,9 @@
   },
   "field": {
     "baseUrl": "Adres bazowy",
-    "baseUrlHint": "Adres Flow dokładnie taki, jaki wpisał operator na liście, na przykład https://flow.example.com. Wielką literę, domyślny port i ukośnik na końcu poprawimy za Ciebie.",
+    "baseUrlHint": "Adres Flow, dokładnie jedno ze źródeł, które operator wpisał na listę tego serwera. Wielką literę, domyślny port i ukośnik na końcu poprawimy za Ciebie; każdy inny port jest dobry, jeśli jest na liście.",
+    "baseUrlAllowed": "Dozwolone na tym serwerze: {{origins}}",
+    "baseUrlNoneAllowed": "Na tym serwerze nie skonfigurowano jeszcze żadnego źródła Flow: operator wpisuje je w FLOW_ALLOWED_HOSTS, a w trybie deweloperskim w FLOW_INSECURE_ORIGINS.",
     "baseUrlFixed": "Adres jest tożsamością połączenia i nie można go zmienić. Dla innego Flow utwórz nowe połączenie.",
     "timeZone": "Strefa czasowa",
     "timeZoneHint": "Strefa IANA (Europe/Warsaw), która zamienia momenty sprintów i członkostw z Flow na daty; użyj strefy, w której działają metryki Flow.",
@@ -38,7 +40,7 @@
   },
   "validation": {
     "nameLength": "Nazwa musi mieć od 1 do 100 znaków",
-    "baseUrlInvalid": "Wpisz sam adres Flow jako źródło: http:// lub https://, host i opcjonalnie port, bez ścieżki, zapytania i danych logowania",
+    "baseUrlInvalid": "Wpisz sam adres Flow jako źródło: http:// lub https://, host i opcjonalnie port (dowolny), bez ścieżki, zapytania i danych logowania",
     "timeZoneInvalid": "Wpisz strefę czasową IANA, na przykład Europe/Warsaw (samo przesunięcie, jak +02:00, nią nie jest)",
     "apiTokenRequired": "Token usługi jest wymagany",
     "apiTokenInvalid": "Token usługi Flow to flow_int_ i 43 znaki"

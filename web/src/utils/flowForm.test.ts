@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import i18n from "../i18n";
 import { CONNECTION } from "../test/flow";
 import {
+  allowedOriginsHint,
   clearsVerdict,
   DEFAULT_FLOW_POLL_INTERVAL_MINUTES,
   EMPTY_FLOW_FORM,
@@ -23,7 +24,7 @@ describe("normaliseBaseUrl", () => {
     ["https://flow.example.com/", "https://flow.example.com"],
     ["https://flow.example.com:443", "https://flow.example.com"],
     ["http://flow-stub:80/", "http://flow-stub"],
-    ["  http://host.docker.internal:8084  ", "http://host.docker.internal:8084"],
+    ["  http://flow-app:8084  ", "http://flow-app:8084"],
     ["http://flow-stub:8080", "http://flow-stub:8080"],
   ])("%s is written the canonical way", (typed, canonical) => {
     expect(normaliseBaseUrl(typed)).toBe(canonical);
@@ -151,5 +152,21 @@ describe("what a connection says about its test", () => {
     expect(flowReady({ lastTestOk: false, teamsAt: null })).toBe(false);
     expect(flowReady({ lastTestOk: true, teamsAt: null })).toBe(true);
     expect(flowReady({ lastTestOk: null, teamsAt: 1 })).toBe(true);
+  });
+});
+
+describe("allowedOriginsHint", () => {
+  test("the plain hint alone until the list is known", () => {
+    expect(allowedOriginsHint("Hint.", undefined, t)).toBe("Hint.");
+  });
+
+  test("the hint, then the allowed origins joined", () => {
+    expect(allowedOriginsHint("Hint.", ["http://flow-stub:8080", "http://flow-app:8084"], t)).toBe(
+      "Hint. Allowed on this server: http://flow-stub:8080, http://flow-app:8084",
+    );
+  });
+
+  test("an empty list says nothing is configured", () => {
+    expect(allowedOriginsHint("Hint.", [], t)).toMatch(/^Hint\. No Flow origin is configured on this server yet/);
   });
 });

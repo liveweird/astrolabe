@@ -11,6 +11,7 @@ type Schemas = components["schemas"];
 export type FlowConnectionPage = Schemas["FlowConnectionPage"];
 export type FlowConnection = Schemas["FlowConnection"];
 export type FlowConnectionRequest = Schemas["FlowConnectionRequest"];
+export type FlowOriginList = Schemas["FlowOriginList"];
 export type FlowTestResult = Schemas["FlowTestResult"];
 export type FlowTeamList = Schemas["FlowTeamList"];
 export type FlowTeamListItem = Schemas["FlowTeamListItem"];
@@ -41,6 +42,11 @@ type FlowConnectionListQuery = { page: number; pageSize: number; sort?: string }
 export async function listFlowConnections(q: FlowConnectionListQuery): Promise<FlowConnectionPage> {
   const params = buildQuery({ page: q.page, pageSize: q.pageSize, sort: q.sort });
   return jsonRequest<FlowConnectionPage>(`/api/v1/integrations/flow/connections?${params}`);
+}
+
+/** The origins the operator allows a connection to name (ADMIN only); the create form prints them beside the Base URL field. */
+export async function getFlowOrigins(): Promise<FlowOriginList> {
+  return jsonRequest<FlowOriginList>("/api/v1/integrations/flow/origins");
 }
 
 export async function getFlowConnection(id: number): Promise<FlowConnection> {

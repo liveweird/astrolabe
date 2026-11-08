@@ -215,7 +215,11 @@ class FlowBootTest {
         val canonical = assertFailsWith<BadRequestException> {
             service.create(flowRequest(name = flowUnique(PREFIX)).copy(baseUrl = "HTTPS://FLOW.corp.example:443"))
         }
-        assertTrue("lowercase origin without the default port" in canonical.message.orEmpty(), canonical.message)
+        assertTrue("origin alone, in lowercase" in canonical.message.orEmpty(), canonical.message)
+        val unlisted = assertFailsWith<BadRequestException> {
+            service.create(flowRequest(name = flowUnique(PREFIX)).copy(baseUrl = "http://flow-wired.test:8081"))
+        }
+        assertTrue("not one of the Flow origins" in unlisted.message.orEmpty(), unlisted.message)
     }
 
     @Test

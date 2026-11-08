@@ -8,6 +8,9 @@ private const val HTTP_PORT = 80
 private const val HTTPS_PORT = 443
 private const val HTTP_PREFIX = "http://"
 
+/** Why a registry `baseUrl` was refused (or not): the ADMIN is told which, so "not listed" never reads as "this port is not allowed". */
+enum class FlowBaseUrlVerdict { ALLOWED, NOT_CANONICAL, NOT_LISTED }
+
 /**
  * Which Flow origins the server may call (`.claude/docs/security.md` "The Flow consumer"): ONE rule set for the guarded client's host,
  * address, scheme and per-request origin checks AND for the registry's `baseUrl` validation, so a connection can never name an origin
@@ -50,27 +53,48 @@ class FlowOrigins(
         hosts.originListed(scheme, host, port) || (developmentMode && Origin(scheme.lowercase(), host.lowercase(), port) in insecure)
 
     /**
+     * The origins an ADMIN may name, as the editor's hint shows them: the listed TLS hosts as `https://host[:port]` (443 omitted) and, in
+     * [developmentMode] only, the insecure ones as `http://host[:port]` (80 omitted), distinct and sorted. OPERATOR configuration already
+     * validated host-shaped at boot, so it carries no credential; this widens nothing (the guard still judges every call).
+     */
+    fun allowedOrigins(): List<String> {
+        val plain = if (developmentMode) insecure.map { it.httpSpelling() } else emptyList()
+        return (hosts.origins() + plain).distinct().sorted()
+    }
+
+    /** [baseUrlVerdict] reduced to a yes/no. */
+    fun baseUrlAllowed(url: String): Boolean = baseUrlVerdict(url) == FlowBaseUrlVerdict.ALLOWED
+
+    /**
      * The connection validation: [url] is EXACTLY a listed origin in its CANONICAL form - lowercase scheme and host, the scheme's default
      * port omitted - `scheme://host[:port]`, no path (a trailing slash included), query, fragment or credentials. The stored value is what
-     * the client later appends the API paths to, and the identity of the connection, so there is one spelling of each origin.
+     * the client later appends the API paths to, and the identity of the connection, so there is one spelling of each origin. The verdict
+     * says WHICH rule refused it: a spelling problem ([FlowBaseUrlVerdict.NOT_CANONICAL]) or a well-formed origin nobody listed
+     * ([FlowBaseUrlVerdict.NOT_LISTED]) - a port is never the reason.
      */
-    fun baseUrlAllowed(url: String): Boolean {
+    fun baseUrlVerdict(url: String): FlowBaseUrlVerdict {
         val uri = try {
             URI(url)
         } catch (_: URISyntaxException) {
-            return false
+            return FlowBaseUrlVerdict.NOT_CANONICAL
         }
         val scheme = uri.scheme
         val host = uri.host?.takeIf { it.isNotBlank() && it == it.lowercase() }
-        if (host == null || !uri.isBareAuthority() || (scheme != "http" && scheme != "https")) return false
+        if (host == null || !uri.isBareAuthority() || (scheme != "http" && scheme != "https")) return FlowBaseUrlVerdict.NOT_CANONICAL
         val defaultPort = if (scheme == "https") HTTPS_PORT else HTTP_PORT
-        if (uri.port == defaultPort) return false
+        if (uri.port == defaultPort) return FlowBaseUrlVerdict.NOT_CANONICAL
         // One spelling of the port too: the authority is the host alone or `host:port` with the port's canonical digits (no leading
         // zeros, no sign), so `:08443` and `:0443` are refused although `URI` parses them as 8443 and 443.
         val authority = uri.rawAuthority
-        if (authority != host && authority != "$host:${uri.port}") return false
-        return originAllowed(scheme, host, if (uri.port != -1) uri.port else defaultPort)
+        if (authority != host && authority != "$host:${uri.port}") return FlowBaseUrlVerdict.NOT_CANONICAL
+        return if (originAllowed(scheme, host, if (uri.port != -1) uri.port else defaultPort)) {
+            FlowBaseUrlVerdict.ALLOWED
+        } else {
+            FlowBaseUrlVerdict.NOT_LISTED
+        }
     }
+
+    private fun Origin.httpSpelling(): String = if (port == HTTP_PORT) "http://$host" else "http://$host:$port"
 
     /** Only an authority: no credentials, path, query or fragment, and no empty port (`host:`). */
     private fun URI.isBareAuthority(): Boolean =
