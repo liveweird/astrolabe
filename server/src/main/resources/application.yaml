@@ -59,7 +59,7 @@ ktor:
       # The Flow sync's outbound wiring (the guarded client over the operator's origin list): after Crypto and Database, before the sync
       # registry (the Flow run registers its connector there) and the Flow routes.
       - ch.nokillswit.flow.FlowKt.configureFlow
-      # The sync run registry's executor and routes (`sync/`): after configureJira (which registers the Jira connector), before the
+      # The sync run registry's executor and routes (`sync/`): after configureJira and configureFlow (which register their connectors), before the
       # routing catch-all. A run starts only from the manual route in 1.1; the scheduler is 1.3.
       - ch.nokillswit.sync.SyncKt.configureSync
       # The Jira sync's routes (V21): the ADMIN connection registry and Test connection; after the plan routes (later steps' bindings read the plan).

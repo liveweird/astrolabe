@@ -1,5 +1,13 @@
 package ch.nokillswit
 
+import ch.nokillswit.flow.FlowClient
+import ch.nokillswit.flow.FlowConnectionService
+import ch.nokillswit.flow.FlowConnector
+import ch.nokillswit.flow.FlowMe
+import ch.nokillswit.flow.FlowMirrorStore
+import ch.nokillswit.flow.FlowObserver
+import ch.nokillswit.flow.FlowTeamBindingService
+import ch.nokillswit.flow.FlowTeamsDocument
 import ch.nokillswit.sync.ClaimedRun
 import ch.nokillswit.sync.Connector
 import ch.nokillswit.sync.ConnectorConnection
@@ -14,6 +22,7 @@ import ch.nokillswit.sync.SyncRunResponse
 import ch.nokillswit.sync.SyncRunService
 import ch.nokillswit.sync.SyncRunner
 import ch.nokillswit.sync.SyncScheduler
+import ch.nokillswit.sync.SyncState
 import ch.nokillswit.sync.SyncStatusKernels
 import ch.nokillswit.sync.SyncTrigger
 import ch.nokillswit.sync.failureJitterFraction
@@ -47,6 +56,10 @@ import kotlin.test.assertTrue
  * reaches a log line. Ticks are driven by hand (`tick()`); only the loop and shutdown tests start the real loop.
  */
 class SyncSchedulerTest {
+    private companion object {
+        const val FLOW_PREFIX = "schedflow"
+    }
+
     private val minute = 60_000L
     private val t0 = 1_700_000_000_000L
     private val now = AtomicLong(t0)
@@ -64,6 +77,7 @@ class SyncSchedulerTest {
         captures.forEach { it.detach() }
         scopes.forEach { it.cancel() }
         ids.forEach { jbSql("DELETE FROM sync_runs WHERE connection_id = ?", it.toInt()) }
+        removeFlowFixtureRows(FLOW_PREFIX)
     }
 
     private class FakeConnector : Connector {
@@ -163,6 +177,56 @@ class SyncSchedulerTest {
             assertEquals(2, rows(id).size)
             assertEquals(2, fake.runCalls.get())
         }
+
+    @Test
+    fun `a tested Flow connection is polled through the real Flow connector, an untested or failing one is not`() = runBlocking {
+        val database = sharedDatabaseForTests()
+        val connections = FlowConnectionService(database, flowTestCipher, runs) { true }
+        val asked = AtomicInteger()
+        val client = object : FlowClient {
+            override suspend fun me(): FlowMe = error("a run never calls me")
+
+            override suspend fun teams(sprintsSince: java.time.LocalDate): FlowTeamsDocument {
+                asked.incrementAndGet()
+                return FlowTeamsDocument(1L, sprintsSince.toString(), teamsTruncated = false, sprintsTruncated = false, items = emptyList())
+            }
+        }
+        val observer = FlowObserver(
+            FlowConnector({ _, _ -> client }, sprintsSinceDays = 365), connections, FlowMirrorStore(database),
+            FlowTeamBindingService(database),
+        )
+        suspend fun connection(testOk: Boolean?): UInt {
+            val id = connections.create(flowRequest(name = flowUnique(FLOW_PREFIX)))
+            if (testOk != null) {
+                val target = checkNotNull(connections.readForTest(id))
+                assertTrue(connections.recordTest(id, target.expectedUpdatedAt, testOk, at = System.currentTimeMillis()))
+            }
+            return id
+        }
+        val tested = connection(true)
+        val untested = connection(null)
+        val failing = connection(false)
+        // The shared database holds other tests' Flow connections: the scheduler sees only this test's three, so it claims (and counts
+        // calls for) nothing else.
+        val mine = setOf(tested, untested, failing)
+        val scoped = object : Connector by observer {
+            override suspend fun connections(): List<ConnectorConnection> = observer.connections().filter { it.id in mine }
+
+            override suspend fun connections(queryTimeoutSeconds: Int): List<ConnectorConnection> = connections()
+        }
+        val scheduler = scheduler(scoped)
+
+        scheduler.tick()
+        withTimeout(30_000) { runs.list(SyncKind.FLOW, tested).forEach { runner.await(it.id) } }
+
+        val polled = runs.list(SyncKind.FLOW, tested).single()
+        assertEquals(Pair(SyncTrigger.SCHEDULED, SyncOutcome.SUCCEEDED), Pair(polled.trigger, polled.outcome))
+        assertEquals(1, asked.get(), "one call for the one pollable connection")
+        val unpolled = runs.list(SyncKind.FLOW, untested) + runs.list(SyncKind.FLOW, failing)
+        assertEquals(emptyList(), unpolled, "never tested, or the test failed")
+        assertEquals(SyncState.CURRENT, connections.read(tested)!!.status.state)
+        assertEquals(SyncState.NEVER_SYNCED, connections.read(untested)!!.status.state)
+    }
 
     @Test
     fun `a disabled, untested or manual-only connection is never claimed`() = runBlocking {

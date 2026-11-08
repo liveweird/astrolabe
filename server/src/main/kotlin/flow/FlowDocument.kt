@@ -31,8 +31,8 @@ const val FLOW_TEAM_CAP = 1_000
  * drift, never as "empty" or "false". Only the scalars that may be `null` default to `null`: Flow encodes without defaults, so it OMITS
  * a null (`expiresAt`, `lastUsedAt`, `validTo`, a missing capacity...), and an omitted null decodes the same as a sent one.
  *
- * `teamsTruncated` (the 1,000-team cap, [FLOW_TEAM_CAP]) and `sprintsTruncated` are carried for the run (C5): it WARNs when either is set
- * and must not treat a team absent from a truncated document as gone (`TEAM_GONE`). Nothing here acts on them.
+ * `teamsTruncated` (the 1,000-team cap, [FLOW_TEAM_CAP]) and `sprintsTruncated` are read by the run (`FlowObserver`): it WARNs when
+ * either is set and never treats a team absent from a truncated document as gone. Nothing here acts on them.
  */
 private val FLOW_JSON = Json { ignoreUnknownKeys = true }
 

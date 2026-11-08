@@ -103,3 +103,25 @@ internal fun FlowMirrorTeam.fitted(): FlowMirrorTeam = FlowMirrorTeam(
         )
     }.distinctBy { it.accountId to it.validFrom },
 )
+
+/** The mirror's input from the decoded document (the run's mapping; [FlowMirrorStore.replace] fits it to the columns). */
+internal fun FlowTeam.toMirrorTeam(): FlowMirrorTeam = FlowMirrorTeam(
+    flowTeamId = id,
+    name = name,
+    defaultCapacityMd = defaultCapacityMd?.let(BigDecimal::valueOf),
+    sprints = sprints.map {
+        FlowMirrorSprint(
+            sprintId = it.sprintId,
+            sourceConnectionId = it.connectionId,
+            name = it.name,
+            state = it.state,
+            startAt = it.startAt,
+            endAt = it.endAt,
+            completeAt = it.completeAt,
+            hasCalendar = it.hasCalendar,
+            capacityMd = it.capacityMd?.let(BigDecimal::valueOf),
+            capacitySource = it.capacitySource,
+        )
+    },
+    members = members.map { FlowMirrorMember(it.accountId, it.displayName, it.validFrom, it.validTo) },
+)

@@ -82,7 +82,8 @@
     "tableAria": "Sync status per connection",
     "none": "No connection is set up for syncing yet.",
     "kind": {
-      "JIRA": "Jira"
+      "JIRA": "Jira",
+      "FLOW": "Flow"
     },
     "schedulerOn": "The scheduler looks for connections that are due every {{seconds}} s.",
     "schedulerOff": "The scheduler is switched off on the process that answered, so it starts no scheduled runs.",

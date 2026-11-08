@@ -2391,12 +2391,15 @@ export interface paths {
          *     `{items}` list of at most 50 (the registry keeps the last 50 finished runs per connection and kind; with no `connectionId` the
          *     50 newest over all of them). A run still in flight has no `finishedAt` or `outcome`.
          *
-         *     - Filters: `kind` (equality, by name) and `connectionId` (equality). A repeated key is a `400`.
-         *     - `errorCode` is the run's failure code: a Jira fetch code (`AUTHENTICATION_FAILED`, `FORBIDDEN_SCOPE`, `NOT_FOUND`, `RATE_LIMITED`,
-         *       `UPSTREAM_UNAVAILABLE`, `TIMEOUT`, `INVALID_RESPONSE`, `LIMIT_EXCEEDED`, `BLOCKED_HOST`, `REDIRECT`, `CURSOR_EXPIRED`) or the run's
-         *       own (`TOKEN_UNREADABLE`, `NOT_DISCOVERED`, `MAPPING_INVALID`, `MAPPING_UNREADABLE`, `CONNECTION_GONE`, `CONNECTION_DISABLED`,
-         *       `RUN_DEADLINE`, `SHUTDOWN`, `INTERNAL`, `ABANDONED`). `errorDetail` is a short hint of at most 500 characters and never holds a
-         *       URL, a query string or a credential.
+         *     - Filters: `kind` (equality, by name: `JIRA` or `FLOW`) and `connectionId` (equality; an id belongs to one kind's registry, so pair
+         *       it with `kind`). A repeated key is a `400`.
+         *     - `errorCode` is the run's failure code: an upstream fetch code (`AUTHENTICATION_FAILED`, `FORBIDDEN_SCOPE` (Jira only), `NOT_FOUND`,
+         *       `RATE_LIMITED`, `UPSTREAM_UNAVAILABLE`, `TIMEOUT`, `INVALID_RESPONSE`, `LIMIT_EXCEEDED`, `BLOCKED_HOST`, `REDIRECT`,
+         *       `CURSOR_EXPIRED` (Jira only)) or the run's own (`TOKEN_UNREADABLE`, `NOT_DISCOVERED` (Jira), `MAPPING_INVALID` (Jira),
+         *       `MAPPING_UNREADABLE` (Jira), `TIME_ZONE_INVALID` (Flow), `CONNECTION_GONE`, `CONNECTION_DISABLED`, `RUN_DEADLINE`, `SHUTDOWN`,
+         *       `INTERNAL`, `ABANDONED`). For a `FLOW` run `observedCount` is the Flow teams the document carried, `goneCount` the bound Flow teams
+         *       missing from it, and `callCount` is 1. `errorDetail` is a short hint of at most 500 characters and never holds a URL, a query string
+         *       or a credential.
          */
         get: operations["listSyncRuns"];
         put?: never;
@@ -2404,12 +2407,13 @@ export interface paths {
          * Start a sync run now
          * @description ADMIN only, guarded before the body decodes (a non-admin's malformed body is still `403`). Claims the run (an unfinished row in
          *     the registry), then answers `202` with that row while the run executes in the background: poll `GET /integrations/sync/runs`.
-         *     The run OBSERVES - it reads the bound issues from Jira and records what they look like; it writes nothing to Jira, takes no plan
-         *     lock and bumps no plan revision. A connection that is unknown, deleted or disabled is a `400` on `connectionId`.
+         *     The run OBSERVES - a `JIRA` run reads the bound issues from Jira and records what they look like, a `FLOW` run reads Flow's teams,
+         *     members and sprints into the mirror; it writes nothing upstream, takes no plan lock and bumps no plan revision. A connection that is
+         *     unknown, deleted or disabled for the `kind` is a `400` on `connectionId`.
          *
          *     One run per connection and kind at a time: `409` `urn:astrolabe:problem:run-in-progress` while one is unfinished. A run that
          *     crashed with the process is abandoned (`ABANDONED`) by the first claim after `sync.maxRunMinutes` (default 10), so the `409` lasts
-         *     at most that long. Audited `jira.sync_requested`.
+         *     at most that long. Audited `jira.sync_requested` or `flow.sync_requested`, by the request's `kind`.
          */
         post: operations["requestSyncRun"];
         delete?: never;
@@ -4713,7 +4717,7 @@ export interface components {
         /** @description One connection's derived sync status. Never its site, email or token. */
         TelemetrySyncConnection: {
             /** @enum {string} */
-            kind: "JIRA";
+            kind: "JIRA" | "FLOW";
             /** Format: int32 */
             connectionId: number;
             name: string;
@@ -4722,7 +4726,7 @@ export interface components {
              * @description Minutes between scheduled runs; null means manual only.
              */
             pollIntervalMinutes: number | null;
-            /** @description Whether a passing connection test stored a discovery; an untested connection is never polled. */
+            /** @description Whether the connection is pollable: a Jira discovery is stored, or a Flow test passed or a Flow run has already mirrored a document (sticky: a later token or zone edit does not clear it). A connection that is not ready is never polled. */
             ready: boolean;
             status: components["schemas"]["SyncStatus"];
         };
@@ -5598,6 +5602,9 @@ export interface components {
              * @description Epoch millis of the run that last replaced the mirror of Flow's teams; null until one ran.
              */
             teamsAt: number | null;
+            /** @description This connection's own newest run (the other connections' runs never count); null before the first. `running` is the server's verdict. */
+            lastRun: components["schemas"]["SyncLastRun"] | null;
+            status: components["schemas"]["SyncStatus"];
             /**
              * Format: int64
              * @description Epoch millis
@@ -5653,7 +5660,7 @@ export interface components {
         };
         SyncRunRequest: {
             /** @enum {string} */
-            kind: "JIRA";
+            kind: "JIRA" | "FLOW";
             /** Format: int32 */
             connectionId: number;
         };
@@ -5662,7 +5669,7 @@ export interface components {
             /** Format: int32 */
             id: number;
             /** @enum {string} */
-            kind: "JIRA";
+            kind: "JIRA" | "FLOW";
             /** Format: int32 */
             connectionId: number;
             /** @enum {string} */
@@ -9208,7 +9215,7 @@ export interface operations {
     listSyncRuns: {
         parameters: {
             query?: {
-                kind?: "JIRA";
+                kind?: "JIRA" | "FLOW";
                 connectionId?: number;
             };
             header?: never;

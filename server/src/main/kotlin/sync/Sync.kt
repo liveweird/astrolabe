@@ -29,9 +29,9 @@ private const val MILLIS_PER_SECOND = 1_000L
 
 /**
  * The run registry's module (`.claude/docs/observability.md` "Sync runs"): the executor, the scheduler and the routes. Registered after
- * `configureJira` (which registers the Jira connector in [SyncConnectors]) and before the routing catch-all. The executor's scope is the
- * application's, the shape of `telemetry/Telemetry.kt`: a `SupervisorJob`, cancelled on [ApplicationStopping] with a bounded join so every
- * in-flight run records its `SHUTDOWN` finish before the pool is disposed.
+ * `configureJira` and `configureFlow` (which register the Jira and Flow connectors in [SyncConnectors]) and before the routing
+ * catch-all. The executor's scope is the application's, the shape of `telemetry/Telemetry.kt`: a `SupervisorJob`, cancelled on
+ * [ApplicationStopping] with a bounded join so every in-flight run records its `SHUTDOWN` finish before the pool is disposed.
  *
  * **The scheduler (1.3)** is one coroutine on that SAME scope, launched on [ApplicationStarted] (so the connectors and a test's
  * `application {}` are in place): `runner.shutdown()` ends it, there is no second scope and no second hook. `sync.tickSeconds` (15..600)

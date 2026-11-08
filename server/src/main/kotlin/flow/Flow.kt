@@ -10,6 +10,7 @@ import ch.nokillswit.infra.outbound.guardedOkHttpClient
 import ch.nokillswit.infra.outbound.loadCaBundleTrust
 import ch.nokillswit.infra.outbound.parseFlowInsecureOrigins
 import ch.nokillswit.infra.outbound.parseSelfManagedHosts
+import ch.nokillswit.sync.SyncConnectorsKey
 import io.ktor.client.HttpClient
 import io.ktor.server.application.*
 import io.ktor.util.AttributeKey
@@ -32,7 +33,7 @@ val FlowHttpClientKey = AttributeKey<HttpClient>("FlowHttpClient")
  * its allow-list the operator's [FlowOrigins] (`flow.allowedHosts`, `flow.allowedCidrs`, `flow.caBundle`, and in development mode ONLY
  * `flow.insecureOrigins`). A non-blank `flow.insecureOrigins` outside development mode refuses startup (fail-closed, the shape of
  * `jira.stubBaseUrl` in `jira/Jira.kt`), naming the key and never the value. Registered in `application.yaml` after the Jira wiring,
- * before the sync registry (the run, a later step, registers its connector there).
+ * before the sync registry (`FlowObserver`, the run, registers its connector there).
  *
  * Flow's in-flight budget is NOT sized by a second heap-fit check: the bounds are tight enough that no configuration can exceed the 96 MiB
  * reserve `jira/JiraHeapFit.kt` keeps for what is not Jira's. At most `flow.maxConcurrentRequests` (1..2) bodies of at most
@@ -67,7 +68,15 @@ fun Application.configureFlow() {
         httpClient, maxRetries, maxResponseBytes, maxConcurrentRequests,
         requestDeadlineMillis = requestDeadlineSeconds * MILLIS_PER_SECOND, permits = OutboundPermits(maxConcurrentRequests),
     )
-    attributes.put(FlowConnectorKey, FlowConnector({ baseUrl, token -> HttpFlowClient(flowHttp, baseUrl, token) }, sprintsSinceDays))
+    val connector = FlowConnector({ baseUrl, token -> HttpFlowClient(flowHttp, baseUrl, token) }, sprintsSinceDays)
+    attributes.put(FlowConnectorKey, connector)
+    // The run: the Flow connector of the sync registry (`sync/`), registered here and started by `configureSync`'s routes and scheduler.
+    // The services it reads were published by `configureDatabase`, which runs before this module.
+    val observer = FlowObserver(
+        connector, attributes[FlowConnectionServiceKey], attributes[FlowMirrorStoreKey], attributes[FlowTeamBindingServiceKey],
+    )
+    attributes.put(FlowObserverKey, observer)
+    attributes[SyncConnectorsKey].register(observer)
     // Counts only: never a host, an origin or a path.
     log.info(
         "Flow outbound wired ({} allowed host(s), {} development origin(s), {})",

@@ -40,7 +40,7 @@ interface Connector {
     /**
      * [connections] under a statement budget of [queryTimeoutSeconds] (whole seconds, the transaction's `queryTimeout`; 0 = none): the
      * telemetry read API's reads all carry one. The default ignores the budget, so a connector that does not own a database (a test
-     * fake) needs nothing; the Jira connector applies it.
+     * fake) needs nothing; the Jira and Flow connectors apply it.
      */
     suspend fun connections(queryTimeoutSeconds: Int): List<ConnectorConnection> = connections()
 
@@ -53,7 +53,10 @@ interface Connector {
     suspend fun run(run: ClaimedRun): SyncResult
 }
 
-/** The connectors by kind. Built empty by the composition root; each connector's module registers itself (`configureJira`). */
+/**
+ * The connectors by kind. Built empty by the composition root; each connector's module registers itself (`configureJira`,
+ * `configureFlow`).
+ */
 class SyncConnectors {
     private val byKind = ConcurrentHashMap<SyncKind, Connector>()
 

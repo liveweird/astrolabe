@@ -4,6 +4,8 @@ import ch.nokillswit.infra.maskedSecret
 import ch.nokillswit.infra.paging.PageResponse
 import ch.nokillswit.infra.validation.requireNameAndDescription
 import ch.nokillswit.infra.validation.sanitizeSingleLine
+import ch.nokillswit.sync.SyncLastRun
+import ch.nokillswit.sync.SyncStatus
 import io.ktor.server.plugins.BadRequestException
 import kotlinx.serialization.Serializable
 import java.time.ZoneId
@@ -60,6 +62,10 @@ data class FlowConnectionResponse(
     val lastTestOk: Boolean?,
     /** Epoch millis of the run that last replaced the mirror; null until one ran. */
     val teamsAt: Long?,
+    /** The connection's own newest run (any other connection's runs never count); null before the first. */
+    val lastRun: SyncLastRun?,
+    /** The derived sync state (`SyncStatusKernels`): state, newest run, last success, failure streak, next poll. */
+    val status: SyncStatus,
     val createdAt: Long,
     val updatedAt: Long,
 )

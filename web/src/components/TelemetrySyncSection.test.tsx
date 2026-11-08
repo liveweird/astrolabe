@@ -24,6 +24,15 @@ function renderSection(sync: TelemetryCurrent["sync"]) {
 }
 
 describe("TelemetrySyncSection", () => {
+  test("a Flow connection is listed with its own kind label beside the Jira ones", () => {
+    renderSection({ schedulerEnabled: true, tickSeconds: 60, connections: [connection(), connection({ kind: "FLOW", connectionId: 1, name: "Acme Flow", pollIntervalMinutes: 60 })] });
+    const table = screen.getByRole("table", { name: "Sync status per connection" });
+    const row = within(table).getByText("Acme Flow").closest("tr")!;
+    expect(within(row).getByText("Flow")).toBeInTheDocument();
+    expect(within(row).getByText("every 60 min")).toBeInTheDocument();
+    expect(within(within(table).getByText("Acme Jira").closest("tr")!).getByText("Jira")).toBeInTheDocument();
+  });
+
   test("one row per connection: its kind, state, the age of the last success (against the server's own clock), failures, next poll and interval", () => {
     renderSection({ schedulerEnabled: true, tickSeconds: 60, connections: [connection()] });
     expect(screen.getByText("The scheduler looks for connections that are due every 60 s.")).toBeInTheDocument();

@@ -82,7 +82,8 @@
     "tableAria": "Stan synchronizacji każdego połączenia",
     "none": "Nie ma jeszcze połączenia do synchronizacji.",
     "kind": {
-      "JIRA": "Jira"
+      "JIRA": "Jira",
+      "FLOW": "Flow"
     },
     "schedulerOn": "Harmonogram sprawdza co {{seconds}} s, które połączenia czekają na odpytanie.",
     "schedulerOff": "Harmonogram jest wyłączony w procesie, który odpowiedział, więc nie uruchamia zaplanowanych przebiegów.",

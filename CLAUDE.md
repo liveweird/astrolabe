@@ -154,6 +154,7 @@ disagree, the doc wins. The always-loaded set (this file plus the two imports) s
 | `.claude/docs/authorization.md` | any route: its guard (ADMIN vs any authenticated), 403-before-400/404 ordering, existence disclosure, the error/`ProblemDetail` mapping |
 | `.claude/docs/observability.md` | any mutation or denial path (it needs an `audit(...)` event, listed there), logging, OpenTelemetry, health probes, the telemetry panel's server side |
 | `.claude/docs/jira-sync.md` | the Jira sync: gateway/auth, probes, mapping, bindings, the run, deviations, the stub, the first real-site walk-through, the assumptions ledger |
+| `.claude/docs/flow-sync.md` | the Flow sync (`flow/`): transport, probes, the run, status, ledger |
 | `.claude/docs/ci.md` | a CI job (ids and list), Dependabot rule or static-analysis config; the full-stack/Kubernetes notes and the sibling port table |
 | `.claude/docs/product.md` | the per-version roadmap, the user's domain decisions, assumptions; what each donor repo contributed and what to port later |
 | `.claude/docs/planning-model.md` | the planning domain: plan structure, lock, guards; milestones … capacity (sketch) |

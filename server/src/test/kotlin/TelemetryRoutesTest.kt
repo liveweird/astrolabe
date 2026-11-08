@@ -8,6 +8,7 @@ import ch.nokillswit.sync.SyncConnectors
 import ch.nokillswit.sync.SyncConnectorsKey
 import ch.nokillswit.sync.SyncCounts
 import ch.nokillswit.sync.SyncFirstTickDelayKey
+import ch.nokillswit.flow.FlowConnectionResponse
 import ch.nokillswit.sync.SyncKind
 import ch.nokillswit.sync.SyncResult
 import ch.nokillswit.sync.SyncRunService
@@ -532,6 +533,44 @@ class TelemetryRoutesTest {
             } finally {
                 // Removes the connection (and its runs): a due connection must not stay in the shared database for a later scheduler test.
                 admin.delete("$JB_CONNECTIONS/${created.id}")
+            }
+        }
+
+    @Test
+    fun `the sync block lists a Flow connection beside the Jira ones, with its derived status and nothing of its origin or token`() =
+        testApplication {
+            configureApp("flow.insecureOrigins" to FLOW_TEST_ORIGIN)
+            startApplication()
+            val admin = seededClient("telemetry-flow", UserRole.ADMIN)
+            val token = flowToken('y')
+            val request = flowRequest(name = flowUnique("tele-flow"), token = token)
+            val created = admin.postJson("/api/v1/integrations/flow/connections", request)
+            val id = jbJson.decodeFromString<FlowConnectionResponse>(created.bodyAsText()).id
+            val failedAt = System.currentTimeMillis() - 10 * TELE_MINUTE
+            // Tested and last edited BEFORE the run began, else the edit makes it due at once (the scheduler's rule).
+            jbSql(
+                "UPDATE flow_connections SET last_tested_at = ?, last_test_ok = TRUE, created_at = ?, updated_at = ? WHERE id = ?",
+                failedAt - TELE_MINUTE, failedAt - TELE_MINUTE, failedAt - TELE_MINUTE, id.toInt(),
+            )
+            jbSql(
+                "INSERT INTO sync_runs (kind, connection_id, \"trigger\", started_at, finished_at, outcome, error_code) " +
+                    "VALUES ('FLOW', ?, 'SCHEDULED', ?, ?, 'FAILED', 'UPSTREAM_UNAVAILABLE')",
+                id.toInt(), failedAt, failedAt + 1_000,
+            )
+            try {
+                val raw = admin.get("/api/v1/telemetry/current").bodyAsText()
+                val connections = jbJson.decodeFromString<TelemetryCurrent>(raw).sync.connections
+                val row = connections.single { it.kind == SyncKind.FLOW && it.connectionId == id }
+                assertEquals(60, row.pollIntervalMinutes)
+                assertTrue(row.ready, "a passing test makes a Flow connection pollable")
+                assertEquals(SyncState.FAILED, row.status.state)
+                assertEquals("UPSTREAM_UNAVAILABLE", row.status.lastRun!!.errorCode)
+                val interval = 60 * TELE_MINUTE
+                val jitter = failureJitterMillis(interval, interval, failureJitterFraction(row.connectionId, row.status.lastRun!!.id))
+                assertEquals(failedAt + 1_000 + interval + jitter, row.status.nextPollAt, "one interval plus the jitter after the finish")
+                assertFalse(listOf(FLOW_TEST_ORIGIN, "flow.test", token).any { raw.contains(it) }, "no origin or token")
+            } finally {
+                admin.delete("/api/v1/integrations/flow/connections/$id")
             }
         }
 

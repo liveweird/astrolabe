@@ -48,7 +48,7 @@ class HttpFlowClient(
 
 /**
  * What `configureFlow` publishes (`FlowConnectorKey`): the client factory over the guarded transport and the one setting the run reads.
- * The Test connection (C4) and the run (C5) take their clients from here, so neither names the transport.
+ * The Test connection and the run (`FlowObserver`) take their clients from here, so neither names the transport.
  */
 class FlowConnector(
     private val clients: FlowClientFactory,

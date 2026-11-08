@@ -274,6 +274,8 @@ class FlowConnectionServiceTest {
         jbSql("INSERT INTO sync_runs (kind, connection_id, \"trigger\", started_at) VALUES ('FLOW', ?, 'SCHEDULED', 3)", id.toInt())
         fun count(sql: String, connection: UInt) = jbScalar(sql, connection.toInt()) { it.getInt(1) }
 
+        // Other test classes leave JIRA runs behind under small connection ids the Flow sequence reaches too: compare before and after.
+        val jiraBefore = count("SELECT count(*) FROM sync_runs WHERE kind = 'JIRA' AND connection_id = ?", id)
         try {
             val outcome = service.delete(id)
             val host = FLOW_TEST_ORIGIN.substringAfter("://")
@@ -294,7 +296,8 @@ class FlowConnectionServiceTest {
             }
             assertEquals(0, count("SELECT count(*) FROM sync_runs WHERE kind = 'FLOW' AND connection_id = ?", id))
             val jiraRuns = count("SELECT count(*) FROM sync_runs WHERE kind = 'JIRA' AND connection_id = ?", id)
-            assertEquals(1, jiraRuns, "another kind's runs stay")
+            assertEquals(jiraBefore, jiraRuns, "another kind's runs stay")
+            assertTrue(jiraRuns >= 1, "the JIRA run this test inserted is among them")
             assertEquals(1, store.sprintsOf(other, 1).size, "another connection's mirror is untouched")
             assertEquals(1, store.teamsOf(other).size)
 

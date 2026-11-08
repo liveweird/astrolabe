@@ -10,7 +10,9 @@ import ch.nokillswit.infra.db.nowMillis
 import ch.nokillswit.infra.paging.PageRequest
 import ch.nokillswit.infra.paging.applyPaging
 import ch.nokillswit.sync.ConnectorConnection
+import ch.nokillswit.sync.SyncKind
 import ch.nokillswit.sync.SyncRunService
+import ch.nokillswit.sync.SyncStatus
 import io.ktor.util.AttributeKey
 import java.security.GeneralSecurityException
 import kotlinx.coroutines.flow.toList
@@ -33,9 +35,6 @@ private val SORTABLE_COLUMNS: Map<String, Column<*>> = mapOf(
 val FLOW_CONNECTION_SORT_FIELDS: Set<String> = SORTABLE_COLUMNS.keys
 
 private val log = LoggerFactory.getLogger(FlowConnectionService::class.java)
-
-/** The `sync_runs.kind` of a Flow run: stored text until `SyncKind.FLOW` lands (the V21 CHECK already admits it). */
-private const val FLOW_RUN_KIND = "FLOW"
 
 /**
  * The Flow connection registry (V24), the Jira registry's template with Flow's own parts: `api_token` holds a [FieldCipher] envelope of
@@ -86,12 +85,15 @@ class FlowConnectionService(
         val predicate = Connections.active()
         val total = Connections.selectAll().where { predicate }.count()
         val rows = Connections.selectAll().where { predicate }.applyPaging(paging, SORTABLE_COLUMNS).toList()
-        FlowConnectionListResult(rows.map { it.toResponse() }, total)
+        // One indexed LIMIT query per listed connection (a page holds at most 100), inside this transaction.
+        val statuses = runs.statusesInTransaction(rows.map { it.toConnectorConnection() })
+        FlowConnectionListResult(rows.zip(statuses) { row, status -> row.toResponse(status) }, total)
     }
 
     /** The connection, or null when missing/deleted. */
     suspend fun read(id: UInt): FlowConnectionResponse? = suspendTransaction(database) {
-        Connections.selectAll().where { (Connections.id eq id) and Connections.active() }.toList().singleOrNull()?.toResponse()
+        Connections.selectAll().where { (Connections.id eq id) and Connections.active() }.toList().singleOrNull()
+            ?.let { row -> row.toResponse(runs.statusesInTransaction(listOf(row.toConnectorConnection())).single()) }
     }
 
     /** Creates the connection; the token is encrypted before it is bound. A name clash rides the V24 partial index into the central 409. */
@@ -158,8 +160,8 @@ class FlowConnectionService(
 
     /**
      * The run's reader of the stored token (the second and last decrypting reader): the same target, one short transaction before the
-     * Flow call, none across it. The run re-asks [runnableState] before it writes the mirror. Null when the connection is missing or
-     * deleted.
+     * Flow call, none across it. The mirror write re-checks the connection under its row lock ([FlowMirrorStore.replace]). Null when the
+     * connection is missing or deleted.
      */
     suspend fun readForRun(id: UInt): FlowConnectionTarget? = readDecrypted(id)
 
@@ -183,28 +185,8 @@ class FlowConnectionService(
         true
     }
 
-    /**
-     * The scheduler's rows: every ACTIVE connection in id order as the connector-agnostic [ConnectorConnection], selecting SEVEN columns by
-     * name - never the encrypted token - so the timer's read can neither decrypt a credential nor carry one into a log line. `ready` is
-     * "the last Test connection passed" (a poll of an untested or failing connection could only fail); `changedAt` is the later of the
-     * row's last edit and its last test, so a new token or a fresh passing test makes the connection due at once.
-     */
-    suspend fun pollRows(queryTimeoutSeconds: Int = 0): List<ConnectorConnection> = suspendTransaction(database) {
-        queryTimeout = queryTimeoutSeconds
-        Connections.select(
-            Connections.id, Connections.name, Connections.enabled, Connections.pollIntervalMinutes,
-            Connections.lastTestOk, Connections.updatedAt, Connections.lastTestedAt,
-        ).where { Connections.active() }.orderBy(Connections.id).toList().map {
-            ConnectorConnection(
-                id = it[Connections.id].value,
-                name = it[Connections.name],
-                enabled = it[Connections.enabled],
-                pollIntervalMinutes = it[Connections.pollIntervalMinutes],
-                ready = it[Connections.lastTestOk] == true,
-                changedAt = maxOf(it[Connections.updatedAt], it[Connections.lastTestedAt] ?: 0L),
-            )
-        }
-    }
+    /** The scheduler's rows (no token): `pollRowsOf` in `FlowConnectionPolling.kt`. */
+    suspend fun pollRows(queryTimeoutSeconds: Int = 0): List<ConnectorConnection> = pollRowsOf(database, queryTimeoutSeconds)
 
     /** Whether the connection is active and enabled: what a manual run needs before it claims (no token is read). */
     suspend fun isRunnable(id: UInt): Boolean = runnableState(id) == FlowRunnableState.RUNNABLE
@@ -246,7 +228,7 @@ class FlowConnectionService(
             it[apiToken] = null
         }
         // The runs are operational history of a registry row that no longer shows; a run still in flight ends as a no-op finish.
-        val runsDeleted = runs.deleteForConnectionInTransaction(FLOW_RUN_KIND, id)
+        val runsDeleted = runs.deleteForConnectionInTransaction(SyncKind.FLOW, id)
         // The mirror too; a run's write re-checks the connection is ACTIVE under a row lock (FlowMirrorStore.replace).
         val mirrorDeleted = FlowMirrorStore.deleteForConnectionInTransaction(id)
         // The connection's bindings go with it: an active binding on a deleted connection would block its team (the team has at most one
@@ -288,7 +270,7 @@ class FlowConnectionService(
         return null
     }
 
-    private fun ResultRow.toResponse(): FlowConnectionResponse = FlowConnectionResponse(
+    private fun ResultRow.toResponse(status: SyncStatus): FlowConnectionResponse = FlowConnectionResponse(
         id = this[Connections.id].value,
         name = this[Connections.name],
         baseUrl = this[Connections.baseUrl],
@@ -299,6 +281,8 @@ class FlowConnectionService(
         lastTestedAt = this[Connections.lastTestedAt],
         lastTestOk = this[Connections.lastTestOk],
         teamsAt = this[Connections.teamsAt],
+        lastRun = status.lastRun,
+        status = status,
         createdAt = this[Connections.createdAt],
         updatedAt = this[Connections.updatedAt],
     )

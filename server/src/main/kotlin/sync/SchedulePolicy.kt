@@ -85,7 +85,7 @@ fun trailingFailures(runsNewestFirst: List<RunFact>): Int =
 
 /** What the scheduler does with one connection at one tick. */
 sealed interface Decision {
-    /** Never polled: disabled, never tested (no discovery) or manual only. */
+    /** Never polled: disabled, not ready (Jira: no discovery; Flow: never tested and never run) or manual only. */
     data object Never : Decision
 
     /** A run is in flight (younger than `sync.maxRunMinutes`): a claim would be a `409` anyway. */
@@ -103,7 +103,8 @@ sealed interface Decision {
  * from the connection's rows and its runs ([runsNewestFirst], at most the retention of 50), so a manual refresh resets the cadence by
  * itself and a replica that restarts loses nothing.
  *
- * 1. [Decision.Never] for a disabled, not-ready (no discovery yet) or manual-only (no interval) [connection].
+ * 1. [Decision.Never] for a disabled, not-ready (Jira: no discovery yet; Flow: never tested and never run) or manual-only (no interval)
+ *    [connection].
  * 2. The newest run unfinished: [Decision.Running] while it is younger than [maxRunMinutes] (the registry's `isRunning` rule), else it
  *    is a crash and the connection is [Decision.Due] (the claim abandons the row).
  * 3. [Decision.Due] with no run at all, or when the connection changed ([ConnectorConnection.changedAt]: an edit, a mapping change, a

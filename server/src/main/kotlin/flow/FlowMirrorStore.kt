@@ -11,6 +11,9 @@ import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
 
 val FlowMirrorStoreKey = AttributeKey<FlowMirrorStore>("FlowMirrorStore")
 
+/** What [FlowMirrorStore.replace] did: [WRITTEN], or nothing because the connection was deleted ([GONE]) or switched off ([DISABLED]). */
+enum class FlowMirrorWrite { WRITTEN, GONE, DISABLED }
+
 /**
  * `flow_teams` (V24): the teams of the latest Flow document of a connection. Not plan state: no soft delete, no revision, no plan lock.
  * With [FlowSprints] and [FlowMembers] it is replaced wholesale by every run and hard-deleted with its connection - a documented
@@ -66,19 +69,26 @@ class FlowMirrorStore(private val database: R2dbcDatabase) {
     /**
      * Replaces the connection's mirror with [teams] in ONE transaction (the old rows deleted, the new ones inserted, `teams_at` stamped
      * with [at]): a failure leaves the previous document intact, and no reader sees a half-written one. The rows are fitted to the
-     * columns first ([fitted]). Answers false, writing nothing, when the connection is no longer active (deleted since the run started).
+     * columns first ([fitted]). Judged under the connection row lock: [FlowMirrorWrite.GONE] when it is no longer active (deleted since the
+     * run started) and [FlowMirrorWrite.DISABLED] when an administrator switched it off meanwhile - both write nothing.
+     *
+     * [keepAbsentTeams] is the run's rule for a TRUNCATED document (`teamsTruncated`: Flow cut its answer at the team cap, so a team
+     * missing from it was merely not sent): the teams of [teams] are replaced and every other team already mirrored is KEPT with its
+     * sprints and members (so a bound team never reads as gone because of a cap). Without it the mirror is exactly [teams].
      *
      * The row lock is `FOR NO KEY UPDATE` from the start (never upgraded from `FOR SHARE`): concurrent replaces of one connection, the
      * delete and an edit all queue on it, so there is no lock cycle whatever the run claim allows. It does not conflict with the
      * `FOR KEY SHARE` of an FK check (a binding insert), so a link is never stalled by a replace.
      */
-    suspend fun replace(connectionId: UInt, teams: List<FlowMirrorTeam>, at: Long): Boolean {
+    suspend fun replace(connectionId: UInt, teams: List<FlowMirrorTeam>, at: Long, keepAbsentTeams: Boolean = false): FlowMirrorWrite {
         val rows = teams.distinctBy { it.flowTeamId }.map { it.fitted() }
         return suspendTransaction(database) {
-            val live = connections.select(connections.id).where { (connections.id eq connectionId) and connections.active() }
-                .forUpdate(ForUpdateOption.PostgreSQL.ForNoKeyUpdate).toList().isNotEmpty()
-            if (!live) return@suspendTransaction false
-            deleteRowsOf(connectionId)
+            val row = connections.select(connections.id, connections.enabled)
+                .where { (connections.id eq connectionId) and connections.active() }
+                .forUpdate(ForUpdateOption.PostgreSQL.ForNoKeyUpdate).toList().singleOrNull()
+            if (row == null) return@suspendTransaction FlowMirrorWrite.GONE
+            if (!row[connections.enabled]) return@suspendTransaction FlowMirrorWrite.DISABLED
+            deleteRowsOf(connectionId, only = if (keepAbsentTeams) rows.map { it.flowTeamId } else null)
             FlowTeams.insertRows(rows) { team ->
                 this[FlowTeams.connectionId] = connectionId
                 this[FlowTeams.flowTeamId] = team.flowTeamId
@@ -109,7 +119,7 @@ class FlowMirrorStore(private val database: R2dbcDatabase) {
                 this[FlowMembers.validTo] = member.validTo
             }
             connections.update({ connections.id eq connectionId }) { it[teamsAt] = at }
-            true
+            FlowMirrorWrite.WRITTEN
         }
     }
 
@@ -174,9 +184,16 @@ class FlowMirrorStore(private val database: R2dbcDatabase) {
          */
         suspend fun deleteForConnectionInTransaction(connectionId: UInt): Int = deleteRowsOf(connectionId)
 
-        private suspend fun deleteRowsOf(connectionId: UInt): Int =
-            FlowMembers.deleteWhere { FlowMembers.connectionId eq connectionId } +
-                FlowSprints.deleteWhere { FlowSprints.connectionId eq connectionId } +
-                FlowTeams.deleteWhere { FlowTeams.connectionId eq connectionId }
+        /** The connection's mirror rows, or - with [only] - those of the named Flow teams (an empty list deletes nothing). */
+        private suspend fun deleteRowsOf(connectionId: UInt, only: List<Int>? = null): Int {
+            if (only != null && only.isEmpty()) return 0
+            return FlowMembers.deleteWhere {
+                (FlowMembers.connectionId eq connectionId) and (only?.let { FlowMembers.flowTeamId inList it } ?: Op.TRUE)
+            } + FlowSprints.deleteWhere {
+                (FlowSprints.connectionId eq connectionId) and (only?.let { FlowSprints.flowTeamId inList it } ?: Op.TRUE)
+            } + FlowTeams.deleteWhere {
+                (FlowTeams.connectionId eq connectionId) and (only?.let { FlowTeams.flowTeamId inList it } ?: Op.TRUE)
+            }
+        }
     }
 }

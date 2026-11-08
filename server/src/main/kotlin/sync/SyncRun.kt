@@ -4,9 +4,10 @@ import kotlinx.serialization.Serializable
 
 /**
  * The run registry's vocabulary (V21 `sync_runs`). A run is one pass of a connector over one connection of its [SyncKind]; the registry is
- * connector-agnostic, so Flow's connector (1.5) adds a kind and nothing else. `sync/` imports no connector package.
+ * connector-agnostic, so Flow's connector (1.5) added a kind and nothing else. `sync/` imports no connector package. The kind is
+ * persisted as its NAME in `sync_runs.kind` (the V21 CHECK admits exactly these two), so a value is never renamed or removed.
  */
-enum class SyncKind { JIRA }
+enum class SyncKind { JIRA, FLOW }
 
 /** Who started a run: a person clicking "Refresh now" ([MANUAL]) or the scheduler (1.3). */
 enum class SyncTrigger { MANUAL, SCHEDULED }
@@ -82,7 +83,7 @@ class ClaimedRun(
     val meter: RunMeter = RunMeter(),
 )
 
-/** What a run did, in the registry's counters (calls = Jira requests issued, not retries). */
+/** What a run did, in the registry's counters (calls = upstream requests issued, not retries). */
 data class SyncCounts(
     val observed: Int = 0,
     val gone: Int = 0,
