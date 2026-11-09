@@ -74,23 +74,25 @@ object ScheduleKernels {
      * Places the team's movable milestones greedily in the team's effective order (after the milestones they wait for), each on the
      * earliest span that fits per day within capacity and the WIP limit and after its dependencies. See `planning-model.md`.
      */
-    fun propose(inputs: ScheduleInputs): ScheduleProposalResult = ProposalRun(inputs).run()
+    fun propose(inputs: ScheduleInputs): ScheduleProposalResult {
+        requireAcyclicPlan(planContainment(inputs.plan, inputs.team), inputs.links.sortedBy { it.id })
+        return proposeUnchecked(inputs)
+    }
+
+    /**
+     * [propose] without the plan-wide acyclicity check: the cross-team run (`CrossTeamKernels.kt`) checks the plan ONCE and then calls
+     * this per team and pass. Callers other than that run use [propose].
+     */
+    internal fun proposeUnchecked(inputs: ScheduleInputs): ScheduleProposalResult = ProposalRun(inputs).run()
 
     /**
      * The post-check of a [result]: [ScheduleProposalCheck.weeks] from the view's own [weeklyLoad] over the team's spans after the run,
-     * and the links with a milestone end among the team's milestones or a project end whose derived span changed, checked before and
-     * after.
+     * and the links of [teamLinkChecks] (a milestone end among the team's milestones or a project end whose derived span changed),
+     * checked before and after. The other teams keep their stored spans on both sides; the cross-team post-check is
+     * [checkMany] (`CrossTeamKernels.kt`).
      */
     fun postCheck(inputs: ScheduleInputs, result: ScheduleProposalResult): ScheduleProposalCheck {
-        val calendar = inputs.calendar
-        val items = inputs.team.mapNotNull { item -> result.spansAfter[item.id]?.let { LoadItem(it, item.estimateMd) } }
-        val window = loadWindow(items.map { it.span })
-        val weeks = weeklyLoad(items, inputs.periods.sortedBy { it.effectiveFrom }, window?.span, calendar)
-        return ScheduleProposalCheck(weeks, window?.truncated ?: false, linkChecks(inputs, result.spansAfter))
-    }
-
-    private fun linkChecks(inputs: ScheduleInputs, spansAfter: Map<UInt, DaySpan>): List<ScheduleLinkCheck> {
-        val teamIds = inputs.team.map { it.id }.toSet()
+        val (weeks, truncated) = proposedWeeks(inputs.team, inputs.periods, result.spansAfter, inputs.calendar)
         val before = PlanValues()
         val after = PlanValues()
         for (fact in inputs.plan.sortedBy { it.id }) {
@@ -102,18 +104,52 @@ object ScheduleKernels {
         }
         for (item in inputs.team) {
             item.span?.let { before.put(item.id, item.projectId, it) }
-            spansAfter[item.id]?.let { after.put(item.id, item.projectId, it) }
+            result.spansAfter[item.id]?.let { after.put(item.id, item.projectId, it) }
         }
-        val checks = inputs.links.sortedBy { it.id }.filter { link ->
+        return ScheduleProposalCheck(weeks, truncated, teamLinkChecks(inputs.team, inputs.links, inputs.calendar, before, after))
+    }
+
+    /** The view's own [weeklyLoad] over the team's spans after a run ([spansAfter], by milestone id), and whether the window was cut. */
+    internal fun proposedWeeks(
+        team: List<TeamScheduleItem>,
+        periods: List<CapacityPeriod>,
+        spansAfter: Map<UInt, DaySpan>,
+        calendar: WorkingCalendar,
+    ): Pair<List<WeekLoad>, Boolean> {
+        val items = team.mapNotNull { item -> spansAfter[item.id]?.let { LoadItem(it, item.estimateMd) } }
+        val window = loadWindow(items.map { it.span })
+        return weeklyLoad(items, periods.sortedBy { it.effectiveFrom }, window?.span, calendar) to (window?.truncated ?: false)
+    }
+
+    /**
+     * The links one team's post-check lists, checked on [before] (stored spans) and [after] (the spans after the run), violated-after
+     * first, then by link id: a link with a MILESTONE end among the team's milestones, or with a PROJECT end that holds one of the
+     * team's milestones and whose derived span changed. (For one team the holding clause is implied: only its milestones can change a
+     * project's span; in a cross-team run it keeps another team's project out of this team's list.)
+     */
+    internal fun teamLinkChecks(
+        team: List<TeamScheduleItem>,
+        links: Collection<PlanLinkFact>,
+        calendar: WorkingCalendar,
+        before: PlanValues,
+        after: PlanValues,
+    ): List<ScheduleLinkCheck> {
+        val milestoneIds = team.map { it.id }.toSet()
+        val projectIds = team.map { it.projectId }.toSet()
+        val checks = links.sortedBy { it.id }.filter { link ->
             listOf(link.predecessor, link.successor).any { end ->
-                if (end.kind == EndpointKind.MILESTONE) end.id in teamIds else before.spanOf(end) != after.spanOf(end)
+                if (end.kind == EndpointKind.MILESTONE) {
+                    end.id in milestoneIds
+                } else {
+                    end.id in projectIds && before.spanOf(end) != after.spanOf(end)
+                }
             }
         }.map { link ->
             val statusBefore = DependencyKernels.check(
-                link.type, link.lagDays, before.spanOf(link.predecessor), before.spanOf(link.successor), inputs.calendar,
+                link.type, link.lagDays, before.spanOf(link.predecessor), before.spanOf(link.successor), calendar,
             ).status
             val checkAfter = DependencyKernels.check(
-                link.type, link.lagDays, after.spanOf(link.predecessor), after.spanOf(link.successor), inputs.calendar,
+                link.type, link.lagDays, after.spanOf(link.predecessor), after.spanOf(link.successor), calendar,
             )
             ScheduleLinkCheck(link.id, statusBefore, checkAfter)
         }
@@ -121,17 +157,25 @@ object ScheduleKernels {
     }
 }
 
+/** Every milestone's containment: the plan's and the team's (a team row missing from the plan facts still counts). */
+internal fun planContainment(plan: Collection<PlanMilestoneFact>, items: Iterable<TeamScheduleItem>): List<ContainmentLink> {
+    val projectOf = LinkedHashMap<UInt, UInt>()
+    plan.sortedBy { it.id }.forEach { projectOf[it.id] = it.projectId }
+    items.forEach { projectOf[it.id] = it.projectId }
+    return projectOf.map { (milestone, project) -> ContainmentLink(milestone, project) }
+}
+
 /**
- * One run of [ScheduleKernels.propose]: the sorted inputs and the FIXPOINT around [Pass]. A scheduled movable milestone that ends up
- * unplaced keeps its stored dates when the proposal is accepted, so its load is real: it is PINNED (treated as fixed at its stored
- * dates, which also feed link values) and the pass repeats, until no further one fails. The pinned set only grows, so there are at
- * most `|movable| + 1` passes. An unscheduled milestone that stays unplaced needs nothing.
+ * One run of [ScheduleKernels.proposeUnchecked] (the acyclicity check is the caller's): the sorted inputs and the FIXPOINT around
+ * [Pass]. A scheduled movable milestone that ends up unplaced keeps its stored dates when the proposal is accepted, so its load is
+ * real: it is PINNED (treated as fixed at its stored dates, which also feed link values) and the pass repeats, until no further one
+ * fails. The pinned set only grows, so there are at most `|movable| + 1` passes. An unscheduled milestone that stays unplaced needs
+ * nothing.
  */
 private class ProposalRun(private val inputs: ScheduleInputs) {
     private val team = effectiveOrder(inputs.team) { it.key }
 
     fun run(): ScheduleProposalResult {
-        requireAcyclicPlan(containment(), inputs.links.sortedBy { it.id })
         val pinned = HashSet<UInt>()
         val reasons = HashMap<UInt, UnplacedReason>()
         while (true) {
@@ -141,14 +185,6 @@ private class ProposalRun(private val inputs: ScheduleInputs) {
             if (failed.isEmpty()) return pass.result(reasons)
             pinned.addAll(failed)
         }
-    }
-
-    /** Every milestone's containment: the plan's and the team's (a team row missing from the plan facts still counts). */
-    private fun containment(): List<ContainmentLink> {
-        val projectOf = LinkedHashMap<UInt, UInt>()
-        inputs.plan.sortedBy { it.id }.forEach { projectOf[it.id] = it.projectId }
-        team.forEach { projectOf[it.id] = it.projectId }
-        return projectOf.map { (milestone, project) -> ContainmentLink(milestone, project) }
     }
 }
 

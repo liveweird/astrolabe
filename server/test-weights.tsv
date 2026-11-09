@@ -27,6 +27,7 @@ ch.nokillswit.ConnectionPoolTest	3.0
 ch.nokillswit.ContainsPatternTest	0.0
 ch.nokillswit.CoverageGapsTest	0.2
 ch.nokillswit.CriticalPathKernelsTest	0.0
+ch.nokillswit.CrossTeamKernelsTest	0.2
 ch.nokillswit.CryptoBootTest	0.2
 ch.nokillswit.DatesTest	0.0
 ch.nokillswit.DecimalColumnTest	0.1
@@ -201,7 +202,7 @@ ch.nokillswit.RoadmapKernelsTest	0.0
 ch.nokillswit.RoadmapRankingTest	3.8
 ch.nokillswit.RoadmapViewBaselineTest	0.5
 ch.nokillswit.RoadmapViewTest	2.6
-ch.nokillswit.ScheduleKernelsScaleTest	1.3
+ch.nokillswit.ScheduleKernelsScaleTest	2.8
 ch.nokillswit.ScheduleKernelsTest	0.1
 ch.nokillswit.SchedulePolicyTest	0.0
 ch.nokillswit.ScheduleProposalTest	2.5
