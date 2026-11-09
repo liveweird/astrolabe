@@ -58,6 +58,21 @@ data class ProposalTeam(val id: UInt, val name: String)
 data class ProposalTeamList(val items: List<ProposalTeam>)
 
 /**
+ * `POST /schedule-proposals/accept` (1.8.0): the accept of a [CrossTeamProposal], N teams' schedule PUTs in ONE plan write. [teamIds] is
+ * the run's team SET (the proposal's request, not derived from the items: a team whose moves were all unticked is still a premise of
+ * the run and must be checked and re-guarded), [expectedRevision] the proposal's `revision` and [scopeHash] its `scopeHash` - REQUIRED,
+ * the run's whole point is the cross-team premise. [items] are the ticked moves of every team ([TeamScheduleBatchItem], at most
+ * [MAX_RUN_SCHEDULE_ITEMS]); the answer is the per-team batch's [TeamScheduleBatchResponse].
+ */
+@Serializable
+data class CrossTeamAcceptRequest(
+    val expectedRevision: Long,
+    val scopeHash: String,
+    val teamIds: List<UInt>,
+    val items: List<TeamScheduleBatchItem>,
+)
+
+/**
  * The run's team-set rule, checked right after the body decodes and BEFORE the guard (the guard needs well-formed ids): between one and
  * [MAX_RUN_TEAMS] teams, none twice (a 400 otherwise). Returns the ids as given.
  */

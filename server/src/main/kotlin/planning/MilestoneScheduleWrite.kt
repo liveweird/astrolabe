@@ -21,7 +21,8 @@ private const val PARAMETERS_PER_ROW = 3
  *
  * Statements follow the `MultiRowInsert.kt` plan ([payloadChunkSizes] over payload-free rows): at most the bind cap's rows, otherwise a
  * power of two, so the SQL texts stay a handful instead of one per batch size (the prepared-statement cache is bounded,
- * `PREPARED_STATEMENT_CACHE_QUERIES`). A batch of up to 1000 items is at most six statements; one when it is a power of two.
+ * `PREPARED_STATEMENT_CACHE_QUERIES`). A batch of up to 2000 items (the cross-team accept's cap; 1000 for the team batch) is at most
+ * ten statements, one per set bit of its size; one when it is a power of two.
  */
 internal suspend fun writeSchedules(items: List<ValidatedBatchItem>, newRevision: Long) {
     if (items.isEmpty()) return

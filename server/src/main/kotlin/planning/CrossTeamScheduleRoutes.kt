@@ -1,5 +1,6 @@
 package ch.nokillswit.planning
 
+import ch.nokillswit.audit.audit
 import ch.nokillswit.authz.NotFoundException
 import ch.nokillswit.authz.caller
 import io.ktor.http.HttpStatusCode
@@ -18,15 +19,20 @@ class ScheduleProposalsRoute {
     @Serializable
     @Resource("teams")
     class Teams(val parent: ScheduleProposalsRoute = ScheduleProposalsRoute())
+
+    @Serializable
+    @Resource("accept")
+    class Accept(val parent: ScheduleProposalsRoute = ScheduleProposalsRoute())
 }
 
 /**
  * The plan-scoped cross-team schedule routes (1.8.0, `planning-model.md` "The cross-team run"): unlike every team-scoped route the
  * team set is in the BODY, so the guard cannot run before the body is read.
  */
-internal fun Route.crossTeamScheduleRoutes(d: PlanRouteDeps, crossTeam: CrossTeamProposalService) {
+internal fun Route.crossTeamScheduleRoutes(d: PlanRouteDeps, crossTeam: CrossTeamProposalService, schedules: TeamScheduleService) {
     runRoute(d, crossTeam)
     runnableTeamsRoute(d, crossTeam)
+    acceptRoute(d, schedules)
 }
 
 /**
@@ -60,5 +66,47 @@ private fun Route.runnableTeamsRoute(d: PlanRouteDeps, crossTeam: CrossTeamPropo
     get<ScheduleProposalsRoute.Teams> {
         val caller = call.caller()
         call.respond(HttpStatusCode.OK, crossTeam.runnableTeams(d.actor(caller, withManagedTeams = true)))
+    }
+}
+
+/**
+ * `POST /schedule-proposals/accept`: the accept of a run, N teams' schedule PUTs in ONE plan write. The order of the checks is the run's
+ * (the team SET is in the body) with the batch's write half: the body decodes FIRST (`400`, a missing `scopeHash` included), then
+ * [validateTeamIds] `400`, then [PlanRouteDeps.requireTeamManagers] (every team ACTIVE else `404` for EVERY caller, then ADMIN or the
+ * ACTIVE manager of EVERY team else `403`: a forbidden caller's malformed items stay `403`), then [TeamScheduleService.acceptRun]: the
+ * rest of the shape `400` before the lock, and under the plan lock every team locked and re-guarded ([PlanRouteDeps.teamManagerGuard]),
+ * the `409`s, the per-item rules. Answers the per-team batch's `{revision, accepted, skipped}`.
+ *
+ * Audit, after the commit (a 4xx emits nothing of its own, a 403 is the central `authz.denied`): `milestone.scheduled` per accepted
+ * item whose dates changed, with the item's STORED team, `milestone.unpinned` per released pin ([auditScheduledItems]), and ONE
+ * `team.schedule_batch_applied` PER TEAM of the set (ascending id) over the items whose stored team it is - a GONE or NOT_ON_TEAM item
+ * has no run team and is in no line (the response carries it); a team with no item gets a zero line (the lock was taken on its
+ * behalf) - each with the additive `runTeamIds` (the sorted set, comma-joined) so the N lines read as one accept.
+ */
+private fun Route.acceptRoute(d: PlanRouteDeps, schedules: TeamScheduleService) {
+    post<ScheduleProposalsRoute.Accept> {
+        val caller = call.caller()
+        val request = call.receive<CrossTeamAcceptRequest>()
+        val teamIds = validateTeamIds(request.teamIds)
+        d.requireTeamManagers(caller, teamIds)
+        val outcome = schedules.acceptRun(request, d.teamManagerGuard(caller))
+        auditScheduledItems(caller.userId, outcome)
+        val runTeamIds = teamIds.sorted()
+        for (teamId in runTeamIds) {
+            val accepted = outcome.accepted.filter { it.teamId == teamId }.map { it.milestoneId }.sorted()
+            val skipped = outcome.skipped.filter { outcome.storedTeams[it.milestoneId] == teamId }.map { it.milestoneId }.sorted()
+            audit(
+                "team.schedule_batch_applied",
+                "byUserId" to caller.userId.toLong(),
+                "teamId" to teamId.toLong(),
+                "revisionTo" to outcome.revision,
+                "acceptedCount" to accepted.size,
+                "skippedCount" to skipped.size,
+                "acceptedIds" to accepted.joinToString(","),
+                "skippedIds" to skipped.joinToString(","),
+                "runTeamIds" to runTeamIds.joinToString(","),
+            )
+        }
+        call.respond(HttpStatusCode.OK, outcome.toResponse())
     }
 }

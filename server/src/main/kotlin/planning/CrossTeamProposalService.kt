@@ -31,7 +31,7 @@ class CrossTeamProposalService(private val database: R2dbcDatabase) {
     suspend fun propose(teamIds: List<UInt>, asOf: LocalDate): CrossTeamProposal? =
         suspendTransaction(database, SNAPSHOT, readOnly = true) {
             val revision = readPlanRevision()
-            val names = activeNames(teamIds)
+            val names = activeTeamNames(teamIds)
             if (names.size != teamIds.size) return@suspendTransaction null
             val snapshot = loadCrossTeamSnapshot(names)
             val inputs = snapshot.inputs(asOf)
@@ -78,12 +78,5 @@ class CrossTeamProposalService(private val database: R2dbcDatabase) {
                 .sortedWith(compareBy<Pair<UInt, String>>({ it.second.lowercase() }, { it.first }))
                 .map { (id, name) -> ProposalTeam(id, name) },
         )
-    }
-
-    /** The names of the ACTIVE teams among [ids], read inside the caller's snapshot (a missing or deleted id is absent). */
-    private suspend fun activeNames(ids: List<UInt>): Map<UInt, String> {
-        val teams = TeamService.Teams
-        return teams.select(teams.id, teams.name).where { (teams.id inList ids) and teams.active() }
-            .toList().associate { it[teams.id].value to it[teams.name] }
     }
 }

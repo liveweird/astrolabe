@@ -61,23 +61,7 @@ private fun Route.batchScheduleRoute(d: PlanRouteDeps, schedules: TeamScheduleSe
         val request = call.receive<TeamScheduleBatchRequest>()
         val outcome = schedules.batch(route.id, request, d.teamManagerGuard(caller))
         val byUserId = caller.userId.toLong()
-        for (item in outcome.accepted.filter { it.from != it.to }) {
-            audit(
-                "milestone.scheduled",
-                "byUserId" to byUserId,
-                "milestoneId" to item.milestoneId.toLong(),
-                "teamId" to route.id.toLong(),
-                "startFrom" to item.from?.start?.toString(),
-                "endFrom" to item.from?.end?.toString(),
-                "startTo" to item.to?.start?.toString(),
-                "endTo" to item.to?.end?.toString(),
-                "revisionTo" to outcome.revision,
-            )
-            // An unscheduling item released a pin in the same statement (`writeSchedules`): its own line, as the single PUT writes it.
-            if (item.pinCleared) {
-                auditPin("milestone.unpinned", caller.userId, item.milestoneId, route.id, outcome.revision, PIN_CLEARED_BY_UNSCHEDULE)
-            }
-        }
+        auditScheduledItems(caller.userId, outcome)
         audit(
             "team.schedule_batch_applied",
             "byUserId" to byUserId,
@@ -88,9 +72,34 @@ private fun Route.batchScheduleRoute(d: PlanRouteDeps, schedules: TeamScheduleSe
             "acceptedIds" to outcome.accepted.map { it.milestoneId }.sorted().joinToString(","),
             "skippedIds" to outcome.skipped.map { it.milestoneId }.sorted().joinToString(","),
         )
-        call.respond(
-            HttpStatusCode.OK,
-            TeamScheduleBatchResponse(outcome.revision, outcome.accepted.map { it.milestoneId }, outcome.skipped),
+        call.respond(HttpStatusCode.OK, outcome.toResponse())
+    }
+}
+
+/** The batch answer of either accept: the plan revision left behind, the written ids and the skipped items, in request order. */
+internal fun TeamBatchOutcome.toResponse() = TeamScheduleBatchResponse(revision, accepted.map { it.milestoneId }, skipped)
+
+/**
+ * The per-item audit lines of either accept, one `milestone.scheduled` per accepted item whose dates actually changed (the single
+ * PUT's fields, so the trail reads the same however a bar moved) with the item's STORED team (`AcceptedSchedule.teamId` - on a
+ * team-scoped batch that is the path's team, on a cross-team accept the item's own run team), and `milestone.unpinned` (reason
+ * `UNSCHEDULED`) right after the item that released a pin in the same statement (`writeSchedules`).
+ */
+internal fun auditScheduledItems(userId: UInt, outcome: TeamBatchOutcome) {
+    for (item in outcome.accepted.filter { it.from != it.to }) {
+        audit(
+            "milestone.scheduled",
+            "byUserId" to userId.toLong(),
+            "milestoneId" to item.milestoneId.toLong(),
+            "teamId" to item.teamId.toLong(),
+            "startFrom" to item.from?.start?.toString(),
+            "endFrom" to item.from?.end?.toString(),
+            "startTo" to item.to?.start?.toString(),
+            "endTo" to item.to?.end?.toString(),
+            "revisionTo" to outcome.revision,
         )
+        if (item.pinCleared) {
+            auditPin("milestone.unpinned", userId, item.milestoneId, item.teamId, outcome.revision, PIN_CLEARED_BY_UNSCHEDULE)
+        }
     }
 }

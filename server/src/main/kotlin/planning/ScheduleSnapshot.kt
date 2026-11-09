@@ -1,6 +1,11 @@
 package ch.nokillswit.planning
 
+import ch.nokillswit.infra.db.active
 import ch.nokillswit.infra.time.WorkingCalendar
+import ch.nokillswit.teams.TeamService
+import kotlinx.coroutines.flow.toList
+import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.r2dbc.select
 import java.time.LocalDate
 
 /**
@@ -99,4 +104,15 @@ internal suspend fun loadCrossTeamSnapshot(teamNames: Map<UInt, String>): CrossT
         TeamSnapshot(teamId, name, rows, teamCapacityRows(teamId).second)
     }
     return CrossTeamSnapshot(calendar, teams, milestoneFacts().map { it.fact }, linkFacts())
+}
+
+/**
+ * The names of the ACTIVE teams among [ids] (a missing or deleted id is absent), read inside the caller's transaction: the run's
+ * snapshot (one REPEATABLE READ read) and the accept under the plan lock (after every team's row was locked `FOR SHARE`, so a rename -
+ * `TeamService.update` takes `FOR NO KEY UPDATE` - has either committed before or waits) both load the names through here.
+ */
+internal suspend fun activeTeamNames(ids: List<UInt>): Map<UInt, String> {
+    val teams = TeamService.Teams
+    return teams.select(teams.id, teams.name).where { (teams.id inList ids) and teams.active() }
+        .toList().associate { it[teams.id].value to it[teams.name] }
 }

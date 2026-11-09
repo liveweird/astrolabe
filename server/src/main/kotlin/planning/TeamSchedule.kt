@@ -9,6 +9,9 @@ import java.time.LocalDate
 /** The most items one batch schedule may carry (`MAX_TEAM_ORDER_MILESTONES`' precedent; the largest sample team, Platform, holds 301). */
 const val MAX_BATCH_SCHEDULE_ITEMS = 1000
 
+/** The most items one cross-team accept (`POST /schedule-proposals/accept`) may carry: the sample plan's 1,000 milestones, twice over. */
+const val MAX_RUN_SCHEDULE_ITEMS = 2000
+
 /**
  * One item of the batch schedule: exactly the single `PUT /milestones/{id}/schedule` body without the revision
  * ([MilestoneScheduleRequest]): both dates or neither (the null pair unschedules), inclusive, the end not before the start, a working
@@ -66,10 +69,26 @@ data class TeamScheduleBatchResponse(
  * An item whose dates were written: the STORED span before and the span after (null = unscheduled), for the per-item audit.
  * [pinCleared]: the item unscheduled a PINNED milestone, so the same statement released the pin (audited as `milestone.unpinned`).
  */
-data class AcceptedSchedule(val milestoneId: UInt, val from: MilestoneSpan?, val to: MilestoneSpan?, val pinCleared: Boolean = false)
+data class AcceptedSchedule(
+    val milestoneId: UInt,
+    /** The milestone's STORED team (read under the lock): the team the audit line is attributed to, whatever team the request named. */
+    val teamId: UInt,
+    val from: MilestoneSpan?,
+    val to: MilestoneSpan?,
+    val pinCleared: Boolean = false,
+)
 
-/** What a batch write did, for the route's answer and audit trail: [revision] is the plan revision it left behind. */
-data class TeamBatchOutcome(val revision: Long, val accepted: List<AcceptedSchedule>, val skipped: List<SkippedSchedule>)
+/**
+ * What a batch write did, for the route's answer and audit trail: [revision] is the plan revision it left behind. [storedTeams] maps
+ * every item that found an ACTIVE milestone (accepted or skipped) to its stored team, so the cross-team accept can attribute a skipped
+ * item to its team; a GONE item has no entry.
+ */
+data class TeamBatchOutcome(
+    val revision: Long,
+    val accepted: List<AcceptedSchedule>,
+    val skipped: List<SkippedSchedule>,
+    val storedTeams: Map<UInt, UInt> = emptyMap(),
+)
 
 /** A validated item: its span is null for the unschedule pair. */
 data class ValidatedBatchItem(val milestoneId: UInt, val span: MilestoneSpan?)
@@ -82,16 +101,31 @@ private val SCOPE_HASH = Regex("^[0-9a-f]{64}$")
  * [MAX_BATCH_SCHEDULE_ITEMS] items, no milestone id twice, and every item through [validateSchedule] (one date only, shape, order, a
  * weekend-only span; the holiday-aware half runs per item under the lock and SKIPS the item). A 400 names the failing item's index.
  */
-fun validateBatchRequest(request: TeamScheduleBatchRequest): List<ValidatedBatchItem> {
-    if (request.expectedRevision < 0) throw BadRequestException("expectedRevision must not be negative")
-    if (request.scopeHash != null && !SCOPE_HASH.matches(request.scopeHash)) {
+fun validateBatchRequest(request: TeamScheduleBatchRequest): List<ValidatedBatchItem> =
+    validateBatchItems(request.expectedRevision, request.scopeHash, request.items, MAX_BATCH_SCHEDULE_ITEMS)
+
+/**
+ * The cross-team accept's rules before the lock: [validateTeamIds] and [validateBatchRequest]'s rules with [MAX_RUN_SCHEDULE_ITEMS]
+ * and a REQUIRED `scopeHash` (the run accept has no legacy contract). `scopeHash` is non-null by type, so a missing field is already a
+ * 400 at the decode.
+ */
+fun validateCrossTeamAccept(request: CrossTeamAcceptRequest): List<ValidatedBatchItem> {
+    validateTeamIds(request.teamIds)
+    return validateBatchItems(request.expectedRevision, request.scopeHash, request.items, MAX_RUN_SCHEDULE_ITEMS)
+}
+
+private fun validateBatchItems(
+    expectedRevision: Long,
+    scopeHash: String?,
+    items: List<TeamScheduleBatchItem>,
+    maxItems: Int,
+): List<ValidatedBatchItem> {
+    if (expectedRevision < 0) throw BadRequestException("expectedRevision must not be negative")
+    if (scopeHash != null && !SCOPE_HASH.matches(scopeHash)) {
         throw BadRequestException("scopeHash must be 64 lowercase hexadecimal characters")
     }
-    val items = request.items
     if (items.isEmpty()) throw BadRequestException("items must list at least one milestone")
-    if (items.size > MAX_BATCH_SCHEDULE_ITEMS) {
-        throw BadRequestException("items must list at most $MAX_BATCH_SCHEDULE_ITEMS milestones")
-    }
+    if (items.size > maxItems) throw BadRequestException("items must list at most $maxItems milestones")
     if (items.map { it.milestoneId }.toSet().size != items.size) throw BadRequestException("items must name each milestone once")
     return items.mapIndexed { index, item ->
         val span = try {

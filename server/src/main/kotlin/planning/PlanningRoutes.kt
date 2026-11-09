@@ -78,7 +78,7 @@ fun Application.configurePlanningRoutes() {
             roadmapRoutes(deps, views)
             teamOrderRoutes(deps, teamOrder)
             teamScheduleRoutes(deps, teamSchedule, scheduleProposal)
-            crossTeamScheduleRoutes(deps, crossTeam)
+            crossTeamScheduleRoutes(deps, crossTeam, teamSchedule)
             publicHolidayRoutes(holidays)
             baselineRoutes(deps, baselines)
         }

@@ -3,6 +3,9 @@ package ch.nokillswit
 import ch.nokillswit.planning.BaselineCreateRequest
 import ch.nokillswit.planning.BaselineResponse
 import ch.nokillswit.planning.BaselineUpdateRequest
+import ch.nokillswit.planning.CrossTeamAcceptRequest
+import ch.nokillswit.planning.CrossTeamProposal
+import ch.nokillswit.planning.CrossTeamProposalRequest
 import ch.nokillswit.planning.DependencyResponse
 import ch.nokillswit.planning.MilestoneCreateRequest
 import ch.nokillswit.planning.MilestonePinRequest
@@ -225,6 +228,59 @@ class PlanStateTest {
             bumps(0, "409 for a scope hash that no longer matches (stale-scope)", {
                 t.manager.client.postJson(path, body(TestPlan.revision()).copy(scopeHash = "0".repeat(64))).status
             }, HttpStatusCode.Conflict)
+        }
+
+    @Test
+    fun `a cross-team accept bumps the revision by one - an all-skipped one too - and a refused or rejected one does not`() =
+        testApplication {
+            usePostgresTestcontainer()
+            val w = planWorld("runrev", teams = true)
+            val t = w.requireTeams()
+            val first = TestPlan.milestone(w.projectId, t.teamId)
+            val second = TestPlan.milestone(w.projectId, t.otherTeamId)
+            val teams = listOf(t.teamId, t.otherTeamId)
+            val path = "/api/v1/schedule-proposals/accept"
+            val hash = "0".repeat(64)
+            fun item(milestone: UInt) = TeamScheduleBatchItem(milestone, "2026-11-02", "2026-11-06")
+            suspend fun runHash() = w.admin.client.postJson("/api/v1/schedule-proposals", CrossTeamProposalRequest("2026-10-31", teams))
+                .body<CrossTeamProposal>().scopeHash
+
+            suspend fun bumps(
+                expected: Long,
+                label: String,
+                status: HttpStatusCode,
+                who: PlanCaller = w.admin,
+                request: suspend () -> CrossTeamAcceptRequest,
+            ) {
+                val before = TestPlan.revision()
+                assertEquals(status, who.client.postJson(path, request()).status, label)
+                assertEquals(before + expected, TestPlan.revision(), label)
+            }
+
+            bumps(1, "an accept over two teams", HttpStatusCode.OK) {
+                CrossTeamAcceptRequest(TestPlan.revision(), runHash(), teams, listOf(item(first), item(second)))
+            }
+            bumps(1, "an all-skipped accept (an unknown id)", HttpStatusCode.OK) {
+                CrossTeamAcceptRequest(TestPlan.revision(), runHash(), teams, listOf(item(999_999u)))
+            }
+            bumps(0, "403 for the manager of one of the teams", HttpStatusCode.Forbidden, t.manager) {
+                CrossTeamAcceptRequest(TestPlan.revision(), hash, teams, listOf(item(first)))
+            }
+            bumps(0, "404 for an unknown team", HttpStatusCode.NotFound) {
+                CrossTeamAcceptRequest(TestPlan.revision(), hash, teams + 999_999u, listOf(item(first)))
+            }
+            bumps(0, "409 for a view from the future", HttpStatusCode.Conflict) {
+                CrossTeamAcceptRequest(TestPlan.revision() + 1, runHash(), teams, listOf(item(first)))
+            }
+            bumps(0, "409 for a scope hash that no longer matches (stale-scope)", HttpStatusCode.Conflict) {
+                CrossTeamAcceptRequest(TestPlan.revision(), hash, teams, listOf(item(first)))
+            }
+            bumps(0, "400 for a weekend-only span", HttpStatusCode.BadRequest) {
+                CrossTeamAcceptRequest(TestPlan.revision(), hash, teams, listOf(TeamScheduleBatchItem(first, "2026-11-07", "2026-11-08")))
+            }
+            bumps(0, "400 for a team twice", HttpStatusCode.BadRequest) {
+                CrossTeamAcceptRequest(TestPlan.revision(), hash, teams + t.teamId, listOf(item(first)))
+            }
         }
 
     @Test

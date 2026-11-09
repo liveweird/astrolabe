@@ -16,9 +16,10 @@ val TeamScheduleServiceKey = AttributeKey<TeamScheduleService>("TeamScheduleServ
 private class StoredSchedule(val teamId: UInt, val span: MilestoneSpan?, val scheduleRevision: Long, val pinned: Boolean)
 
 /**
- * The team-scoped schedule write (v0.8.0): the batch accept of an auto-proposal, "N schedule PUTs in ONE plan write under the TEAM's
- * guard". It is the second writer of `milestones.start_date/end_date/schedule_revision` beside [MilestoneService.schedule] and keeps its
- * per-milestone optimistic concurrency, but a stale item is SKIPPED (the rest are written) instead of failing the call.
+ * The schedule batch writer: the team-scoped batch accept of an auto-proposal (v0.8.0), "N schedule PUTs in ONE plan write under the
+ * TEAM's guard", and the cross-team accept of a run (1.8.0, [acceptRun]), the same over a SET of teams. It is the second writer of
+ * `milestones.start_date/end_date/schedule_revision` beside [MilestoneService.schedule] and keeps its per-milestone optimistic
+ * concurrency, but a stale item is SKIPPED (the rest are written) instead of failing the call.
  */
 class TeamScheduleService(private val database: R2dbcDatabase) {
     /**
@@ -40,36 +41,117 @@ class TeamScheduleService(private val database: R2dbcDatabase) {
         val write = database.withPlanWrite { revision ->
             lockActiveTeam(teamId)
             guard(teamId)
-            if (request.expectedRevision > revision) {
-                throw ConflictException(
-                    "The view revision ${request.expectedRevision} is ahead of the plan; reload the team",
-                    problemType = STALE_REVISION_PROBLEM,
-                )
-            }
+            if (request.expectedRevision > revision) throw staleRevision(request.expectedRevision, "reload the team")
             val snapshot = request.scopeHash?.let { requireScopeUnchanged(teamId, request.expectedRevision, items, it) }
             val calendar = snapshot?.calendar ?: loadWorkingCalendar()
-            val stored = storedSchedules(items.map { it.milestoneId })
-            val accepted = mutableListOf<AcceptedSchedule>()
-            val skipped = mutableListOf<SkippedSchedule>()
-            val toWrite = mutableListOf<ValidatedBatchItem>()
-            for (item in items) {
-                val row = stored[item.milestoneId]
-                val reason = skipReason(row, item.span, teamId, request.expectedRevision, calendar)
-                when {
-                    reason != null -> skipped += SkippedSchedule(item.milestoneId, reason)
-                    // A null reason means a stored row (the GONE verdict is the only one without it).
-                    row != null -> {
-                        // An unscheduling item clears a pin in the same statement (`writeSchedules`); the route audits it.
-                        accepted += AcceptedSchedule(item.milestoneId, row.span, item.span, pinCleared = row.pinned && item.span == null)
-                        toWrite += item
-                    }
+            val decided = decideItems(items, setOf(teamId), request.expectedRevision, calendar)
+            // The decisions above read only; the writes are multi-row statements, not a round trip per item under the global lock.
+            writeSchedules(decided.toWrite, revision + 1)
+            decided
+        }
+        return write.value.outcome(write.revision)
+    }
+
+    /**
+     * The cross-team accept (1.8.0, `POST /schedule-proposals/accept`): [request]'s items are written in ONE plan write for the run's
+     * team SET, ONE revision bump. In this order: the whole-request shape is validated (400, before the lock) -> under the plan lock,
+     * every team of the set in ascending id order is re-read and locked `FOR SHARE` ([lockActiveTeam], gone = 404) and re-guarded by
+     * [guard] (the caller as of the lock must be ADMIN or the ACTIVE manager of EVERY team: 403, nothing written, no bump) -> the
+     * `expectedRevision` above the plan revision is a 409 `stale-revision` -> [requireRunScopeUnchanged] (a 409 `stale-scope`: the
+     * run's fingerprint, recomputed with the teams' CURRENT names, differs, or ANY milestone of ANY run team that is not an item was
+     * scheduled after `expectedRevision`) -> per item, in body order, the first of GONE / NOT_ON_TEAM (its STORED team is outside the
+     * set) / NO_WORKING_DAY / STALE skips it and the rest are written ([decideItems], the per-team batch's rules). An all-skipped
+     * accept bumps like the batch. The 409 and 403 are whole-request: the transaction rolls back.
+     */
+    suspend fun acceptRun(request: CrossTeamAcceptRequest, guard: TeamGuard): TeamBatchOutcome {
+        val items = validateCrossTeamAccept(request)
+        val teamIds = request.teamIds.sorted()
+        val write = database.withPlanWrite { revision ->
+            for (teamId in teamIds) {
+                lockActiveTeam(teamId)
+                guard(teamId)
+            }
+            if (request.expectedRevision > revision) throw staleRevision(request.expectedRevision, "reload the proposal")
+            val snapshot = requireRunScopeUnchanged(teamIds, request.expectedRevision, items, request.scopeHash)
+            val decided = decideItems(items, teamIds.toSet(), request.expectedRevision, snapshot.calendar)
+            writeSchedules(decided.toWrite, revision + 1)
+            decided
+        }
+        return write.value.outcome(write.revision)
+    }
+
+    /** The decisions of one write: what is [accepted] (and [toWrite]), what is [skipped], and every found item's stored team. */
+    private class Decided(
+        val accepted: List<AcceptedSchedule>,
+        val skipped: List<SkippedSchedule>,
+        val toWrite: List<ValidatedBatchItem>,
+        val storedTeams: Map<UInt, UInt>,
+    ) {
+        fun outcome(revision: Long) = TeamBatchOutcome(revision, accepted, skipped, storedTeams)
+    }
+
+    /**
+     * The per-item rules shared by the team batch ([teamIds] = just that team) and the cross-team accept (the run's set), under the
+     * lock, reading only: each item gets the first matching [skipReason] or is accepted with its STORED team, span and pin.
+     */
+    private suspend fun decideItems(
+        items: List<ValidatedBatchItem>,
+        teamIds: Set<UInt>,
+        expectedRevision: Long,
+        calendar: WorkingCalendar,
+    ): Decided {
+        val stored = storedSchedules(items.map { it.milestoneId })
+        val accepted = mutableListOf<AcceptedSchedule>()
+        val skipped = mutableListOf<SkippedSchedule>()
+        val toWrite = mutableListOf<ValidatedBatchItem>()
+        for (item in items) {
+            val row = stored[item.milestoneId]
+            val reason = skipReason(row, item.span, teamIds, expectedRevision, calendar)
+            when {
+                reason != null -> skipped += SkippedSchedule(item.milestoneId, reason)
+                // A null reason means a stored row (the GONE verdict is the only one without it).
+                row != null -> {
+                    // An unscheduling item clears a pin in the same statement (`writeSchedules`); the route audits it.
+                    val cleared = row.pinned && item.span == null
+                    accepted += AcceptedSchedule(item.milestoneId, row.teamId, row.span, item.span, pinCleared = cleared)
+                    toWrite += item
                 }
             }
-            // The decisions above read only; the writes are multi-row statements, not a round trip per item under the global lock.
-            writeSchedules(toWrite, revision + 1)
-            accepted to skipped
         }
-        return TeamBatchOutcome(write.revision, write.value.first, write.value.second)
+        return Decided(accepted, skipped, toWrite, stored.mapValues { it.value.teamId })
+    }
+
+    private fun staleRevision(expectedRevision: Long, advice: String) = ConflictException(
+        "The view revision $expectedRevision is ahead of the plan; $advice",
+        problemType = STALE_REVISION_PROBLEM,
+    )
+
+    /**
+     * The scope check of a run accept ([hash] is the run's, under the plan lock, nothing written yet): the SAME [loadCrossTeamSnapshot]
+     * and [CrossTeamSnapshot.scopeHash] the run used, but with the teams' CURRENT names (the names are IN the fingerprint: a blank would
+     * never match), must still give [hash]; and no milestone of ANY run team that the accept does not name - the movable ones AND the
+     * fixed ones (started, pinned), whose spans are deliberately NOT in the run's hash - may carry a `schedule_revision` above
+     * [expectedRevision] ([reschedulesOutsideBatch]: a colleague's drag, or a new milestone). Either is a 409 `stale-scope`. A per-team
+     * hash never matches (another definition of "foreign"). Returns the snapshot (its calendar is the accept's).
+     */
+    private suspend fun requireRunScopeUnchanged(
+        teamIds: List<UInt>,
+        expectedRevision: Long,
+        items: List<ValidatedBatchItem>,
+        hash: String,
+    ): CrossTeamSnapshot {
+        val names = activeTeamNames(teamIds)
+        // Every team was locked FOR SHARE in this very transaction (acceptRun), so none can be gone: a mismatch is a bug, not a 404.
+        check(names.size == teamIds.size) { "a locked run team vanished: ${teamIds.filter { it !in names }}" }
+        val snapshot = loadCrossTeamSnapshot(names)
+        if (snapshot.scopeHash() != hash || reschedulesOutsideBatch(teamIds, expectedRevision, items.map { it.milestoneId })) {
+            throw ConflictException(
+                "The plan changed since the proposal (another milestone of one of the teams, a pin, a capacity period, a link or a " +
+                    "holiday): propose again",
+                problemType = STALE_SCOPE_PROBLEM,
+            )
+        }
+        return snapshot
     }
 
     /**
@@ -88,7 +170,8 @@ class TeamScheduleService(private val database: R2dbcDatabase) {
     ): ScheduleSnapshot {
         // The fingerprint reads no team name, so the rows are loaded with an empty one (the proposal's wire rows are the only readers).
         val snapshot = loadScheduleSnapshot(teamId, "")
-        val changed = snapshot.scopeHash(teamId) != hash || reschedulesOutsideBatch(teamId, expectedRevision, items.map { it.milestoneId })
+        val batchIds = items.map { it.milestoneId }
+        val changed = snapshot.scopeHash(teamId) != hash || reschedulesOutsideBatch(listOf(teamId), expectedRevision, batchIds)
         if (changed) {
             throw ConflictException(
                 "The team's plan changed since the proposal (another milestone, a pin, a capacity period, a link or a holiday): " +
@@ -99,8 +182,8 @@ class TeamScheduleService(private val database: R2dbcDatabase) {
         return snapshot
     }
 
-    /** Whether an ACTIVE milestone of the team that is not among [batchIds] was scheduled after [expectedRevision]. */
-    private suspend fun reschedulesOutsideBatch(teamId: UInt, expectedRevision: Long, batchIds: List<UInt>): Boolean {
+    /** Whether an ACTIVE milestone of ANY of [teamIds] that is not among [batchIds] was scheduled after [expectedRevision]. */
+    private suspend fun reschedulesOutsideBatch(teamIds: Collection<UInt>, expectedRevision: Long, batchIds: List<UInt>): Boolean {
         val milestones = MilestoneService.Milestones
         val projects = ProjectService.Projects
         val programs = ProgramService.Programs
@@ -110,7 +193,7 @@ class TeamScheduleService(private val database: R2dbcDatabase) {
             .innerJoin(streams, { programs.workStreamId }, { streams.id })
             .select(milestones.id)
             .where {
-                (milestones.teamId eq teamId) and (milestones.scheduleRevision greater expectedRevision) and
+                (milestones.teamId inList teamIds) and (milestones.scheduleRevision greater expectedRevision) and
                     (milestones.id notInList batchIds) and milestones.active() and projects.active() and programs.active() and
                     streams.active()
             }
@@ -122,12 +205,12 @@ class TeamScheduleService(private val database: R2dbcDatabase) {
     private fun skipReason(
         row: StoredSchedule?,
         span: MilestoneSpan?,
-        teamId: UInt,
+        teamIds: Set<UInt>,
         expectedRevision: Long,
         calendar: WorkingCalendar,
     ): SkippedScheduleReason? = when {
         row == null -> SkippedScheduleReason.GONE
-        row.teamId != teamId -> SkippedScheduleReason.NOT_ON_TEAM
+        row.teamId !in teamIds -> SkippedScheduleReason.NOT_ON_TEAM
         span != null && !calendar.containsWorkingDay(span.start, span.end) -> SkippedScheduleReason.NO_WORKING_DAY
         row.scheduleRevision > expectedRevision -> SkippedScheduleReason.STALE
         else -> null

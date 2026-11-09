@@ -27,6 +27,7 @@ ch.nokillswit.ConnectionPoolTest	3.0
 ch.nokillswit.ContainsPatternTest	0.0
 ch.nokillswit.CoverageGapsTest	0.2
 ch.nokillswit.CriticalPathKernelsTest	0.0
+ch.nokillswit.CrossTeamAcceptTest	3.5
 ch.nokillswit.CrossTeamKernelsTest	0.2
 ch.nokillswit.CrossTeamProposalSizeTest	4.0
 ch.nokillswit.CrossTeamProposalTest	3.0

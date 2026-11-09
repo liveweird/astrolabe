@@ -1780,6 +1780,52 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/schedule-proposals/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accept a cross-team run - schedule several teams' milestones at once (ONE plan write, ONE bump)
+         * @description The accept of `POST /schedule-proposals`: the ticked moves of EVERY team of the run, N `PUT /milestones/{id}/schedule` in ONE plan
+         *     write. ADMIN or the ACTIVE manager of EVERY team in `teamIds`. The order of the checks, like the run's (the team set is IN the
+         *     body): the body decodes first (a malformed body, a missing `scopeHash` included, is `400` even for a caller who would be
+         *     refused), `teamIds` shape `400` (one to 50 teams, none twice), every listed team must be ACTIVE else `404` for EVERY caller (it
+         *     names the missing ids), `403` unless the caller manages every listed team (the project's owner and every other caller get `403`),
+         *     and only then the rest of the shape, `400` before the lock with nothing written: a negative `expectedRevision`, a `scopeHash` that
+         *     is not 64 lowercase hex digits, an empty list, more than 2000 items, a milestone listed twice, an item with one date only, a bad
+         *     date, an end before the start or a span of only weekend days (a forbidden caller's malformed items are still `403`).
+         *
+         *     Then, under the plan lock, EVERY team of the set is re-read and locked (a team deleted meanwhile is `404`) and the guard is re-run
+         *     for each (a manager cleared while the request was in flight is `403`, nothing written, no bump); then two `409`s for the WHOLE
+         *     request, nothing written and the revision not bumped: `expectedRevision` above the current plan revision (`type`
+         *     `urn:astrolabe:problem:stale-revision`), and the run's scope (`type` `urn:astrolabe:problem:stale-scope`): the run's
+         *     `scopeHash` - REQUIRED here - is fingerprinted again from the same rows (the teams and their names, each team's milestone set with
+         *     estimates, projects and pins, effective order and capacity periods, the links touching the set with the dates of their ends
+         *     outside the set, the Monday-Friday holidays), and ANY milestone of ANY listed team that is not an item - started or pinned ones
+         *     included - that was scheduled after `expectedRevision` is looked for. A different fingerprint or such a milestone refuses the
+         *     accept: propose again. The dates of the items' own milestones are not in the fingerprint (they stay the per-item `STALE`). A
+         *     per-team proposal's `scopeHash` never matches (it defines "foreign" as outside ONE team), nor does a run's `scopeHash` match the
+         *     per-team batch.
+         *
+         *     Otherwise every item is decided on its own, in body order, with the per-team batch's rules: the first matching `reason` skips it and
+         *     the rest are still written - `GONE`, `NOT_ON_TEAM` (its stored team is outside `teamIds`), `NO_WORKING_DAY`, `STALE`. A written
+         *     item has its `schedule_revision` stamped with the new plan revision; an item that unschedules a PINNED milestone clears its pin in
+         *     the same statement. ONE bump for the whole accept, an all-skipped one included, and the answer's `revision` is the new revision.
+         *     Audited as `milestone.scheduled` per written item whose dates changed (with the milestone's own team), `milestone.unpinned` per
+         *     cleared pin and ONE `team.schedule_batch_applied` per team of `teamIds`, each with `runTeamIds`.
+         */
+        post: operations["acceptCrossTeamSchedule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/schedule-proposals/teams": {
         parameters: {
             query?: never;
@@ -5176,6 +5222,19 @@ export interface components {
             asOf: string;
             /** @description The run's teams: one to 50, each once, in any order (the server places them in dependency order). The caller must manage every one, or be ADMIN. */
             teamIds: number[];
+        };
+        CrossTeamAcceptRequest: {
+            /**
+             * Format: int64
+             * @description The run's `revision`; an item is skipped as `STALE` only when ITS milestone's schedule was written after it, and a value above the current plan revision is a `409` for the whole accept.
+             */
+            expectedRevision: number;
+            /** @description The run's `scopeHash`, REQUIRED. The whole accept is refused (`409`, `stale-scope`) when the plan the run read changed, or a milestone of a listed team that is not an item was scheduled since. */
+            scopeHash: string;
+            /** @description The run's teams, exactly the proposal request's (a team whose moves were all unticked stays in the set: it is part of the run's premise and is checked and re-guarded). The caller must manage every one, or be ADMIN. */
+            teamIds: number[];
+            /** @description One entry per milestone of any listed team (an id twice is a `400`), applied in this order. */
+            items: components["schemas"]["TeamScheduleBatchItem"][];
         };
         CrossTeamProposal: {
             /**
@@ -9305,6 +9364,46 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    acceptCrossTeamSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CrossTeamAcceptRequest"];
+            };
+        };
+        responses: {
+            /** @description The accept was applied; the body lists the written and the skipped milestones */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeamScheduleBatchResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description `expectedRevision` is above the current plan revision (`type` is `urn:astrolabe:problem:stale-revision`), or the run's plan changed since the proposal `scopeHash` names (`type` is `urn:astrolabe:problem:stale-scope`); nothing was written */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
             413: components["responses"]["PayloadTooLarge"];
             415: components["responses"]["UnsupportedMediaType"];
             500: components["responses"]["InternalServerError"];
