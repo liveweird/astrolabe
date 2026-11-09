@@ -27,7 +27,7 @@ export default function RoadmapCriticalPicker({ view, target, onPick, disabled }
       <Select
         id={id}
         size="xs"
-        w={220}
+        w={{ base: 160, sm: 220 }}
         searchable
         allowDeselect={false}
         data={[{ value: NONE, label: t("roadmap.critical.none") }, ...options]}

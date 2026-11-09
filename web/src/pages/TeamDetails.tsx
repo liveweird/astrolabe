@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
 import { Group, Stack, Text } from "@mantine/core";
@@ -83,9 +83,10 @@ function TeamPage({ id }: { id: number }) {
   const jiraBars = useJiraBarsPick();
   // The critical-path toggle (1.7): the project page's remembered choice, one for both pages. Off, the page renders what it always did.
   const { shown: criticalPath, setShown: setCriticalPath } = useCriticalPathPick();
+  const criticalNoteId = useId();
   const dropping = useDropUnknownPick(query.error, pick, setPick);
   const order = useTeamOrder(id, view, schedule.announce, pick, schedule.placeholder);
-  const proposal = useScheduleProposal(id, schedule.announce, schedule.placeholder);
+  const proposal = useScheduleProposal(id, schedule.announce, schedule.placeholder, pick);
   const lock = useProposalLock(proposal, schedule.announce);
   const { open, locked } = lock;
   const writing = schedule.pending || order.pending;
@@ -187,7 +188,7 @@ function TeamPage({ id }: { id: number }) {
             </Group>
             <TeamProposalNotes proposal={proposal} />
             {criticalPath && (
-              <Text size="sm" c="dimmed">
+              <Text size="sm" c="dimmed" id={criticalNoteId}>
                 {t("teams.view.criticalNote")}
               </Text>
             )}
@@ -205,7 +206,7 @@ function TeamPage({ id }: { id: number }) {
               toolbar={
                 <>
                   <BaselinePicker pick={pick} onPick={setPick} current={view.baseline} disabled={busy || locked} />
-                  <CriticalPathToggle shown={criticalPath} onChange={setCriticalPath} />
+                  <CriticalPathToggle shown={criticalPath} onChange={setCriticalPath} describedBy={criticalNoteId} />
                   {view.jiraSites.length > 0 && <JiraBarsToggle shown={jiraBars.shown} onChange={jiraBars.setShown} />}
                 </>
               }

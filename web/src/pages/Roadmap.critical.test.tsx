@@ -69,16 +69,21 @@ let mockFetch: ReturnType<typeof vi.fn>;
 let viewUrls: string[];
 /** The project 3 vanished server-side: ?criticalPath=3 answers the plain 400. */
 let threeIsGone: boolean;
+/** When set, ?criticalPath=1 waits for it (the target switched A -> B while B's chain is on its way). */
+let holdOne: Promise<void> | null;
 
 beforeEach(() => {
   view = plainView();
   viewUrls = [];
   threeIsGone = false;
+  holdOne = null;
   mockFetch = vi.fn((url: string) => {
     if (url.startsWith("/api/v1/views/roadmap")) {
       viewUrls.push(url);
       if (url.endsWith("?criticalPath=3") && threeIsGone) return Promise.resolve(jsonResponse(400, GONE));
       if (url.endsWith("?criticalPath=3")) return Promise.resolve(jsonResponse(200, { ...view, criticalPath: CHAIN }));
+      if (url.endsWith("?criticalPath=1"))
+        return (holdOne ?? Promise.resolve()).then(() => jsonResponse(200, { ...view, criticalPath: { projectId: 1, projects: [{ projectId: 2, slackDays: 0, critical: true, hops: 1 }], pairs: [{ predecessorProjectId: 2, successorProjectId: 1 }] } }));
       if (url.endsWith("?criticalPath=4")) return Promise.resolve(jsonResponse(200, { ...view, criticalPath: { projectId: 4, projects: [], pairs: [] } }));
       if (url.endsWith("?criticalPath=99")) return Promise.resolve(jsonResponse(400, GONE));
       return Promise.resolve(jsonResponse(200, view));
@@ -154,6 +159,36 @@ describe("Roadmap page: the critical path to a picked project", () => {
     expect(Object.keys(localStorage).filter((key) => key.includes("ritical"))).toEqual([]);
   });
 
+  test("switching the target A -> B: no stale A emphasis and no announcement while B loads, then B's chain is drawn, A's is gone and B is announced", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Roadmap />);
+    await waitForGrid();
+    await pickFromToolbar(user, "Audit");
+    await waitFor(() => expect(criticalBars()).toHaveLength(2));
+    const said = () => screen.getAllByRole("status").map((region) => region.textContent).join("|");
+    await waitFor(() => expect(said()).toContain(ANNOUNCE));
+    let release = () => {};
+    holdOne = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await pickFromToolbar(user, "Invoices");
+    await waitFor(() => expect(viewUrls.at(-1)).toBe("/api/v1/views/roadmap?criticalPath=1"));
+    // B is still loading: the kept A view carries none of A's chain and nothing says B is shown yet
+    await waitFor(() => expect(criticalBars()).toEqual([]));
+    expect(document.querySelector("[data-critical]")).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Critical path to Audit" })).toBeNull();
+    expect(said()).not.toContain("Showing the critical path to Invoices");
+    release();
+    await screen.findByRole("heading", { level: 3, name: "Critical path to Invoices" });
+    expect(criticalBars()).toEqual(["Invoices, 2026-03-09 to 2026-04-10, on the critical path, read-only", "Taxes, 2026-02-02 to 2026-02-27, on the critical path, read-only"]);
+    expect(screen.getByRole("img", { name: "Audit, 2026-05-04 to 2026-06-05, read-only" })).not.toHaveAttribute("data-critical");
+    expect(arrows()).toEqual([
+      ["41", null],
+      ["bundle:2-1", "true"],
+    ]);
+    await waitFor(() => expect(said()).toContain("Showing the critical path to Invoices"));
+  });
+
   test("the row menu's Show critical path to this project sets it, says so in the live region, and the item then reads Hide critical path", async () => {
     const user = userEvent.setup();
     renderWithProviders(<Roadmap />);
@@ -180,6 +215,9 @@ describe("Roadmap page: the critical path to a picked project", () => {
     await user.click(screen.getByRole("menuitem", { name: "Show critical path to this project: Ledger" }));
     await screen.findByText("Nothing is scheduled in Ledger, so no chain drives its end.");
     expect(await picker()).toHaveValue("Ledger");
+    // the live region says what the panel says, not "Showing the critical path to Ledger"
+    await waitFor(() => expect(screen.getAllByRole("status").map((region) => region.textContent).join("|")).toContain("Nothing is scheduled in Ledger, so no chain drives its end."));
+    expect(screen.getAllByRole("status").map((region) => region.textContent).join("|")).not.toContain("Showing the critical path");
     expect(screen.queryByRole("table", { name: /Projects upstream/ })).toBeNull();
     expect(document.querySelector("[data-critical]")).toBeNull();
   });
@@ -205,6 +243,7 @@ describe("Roadmap page: the critical path to a picked project", () => {
     expect(await screen.findByText("The project chosen for the critical path is no longer in the plan, so the choice was cleared.")).toBeInTheDocument();
     await waitForGrid();
     expect(await picker()).toHaveValue("None");
+    expect(screen.getAllByRole("status").map((region) => region.textContent).join("|")).not.toContain("Showing the critical path");
     expect(screen.queryByText(/Could not load the roadmap/)).toBeNull();
     expect(viewUrls.filter((url) => url.endsWith("?criticalPath=3"))).toHaveLength(1);
     expect(viewUrls.at(-1)).toBe("/api/v1/views/roadmap");

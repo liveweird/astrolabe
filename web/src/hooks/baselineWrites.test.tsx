@@ -12,8 +12,8 @@ import type { TeamView } from "../api/teams";
 import { jsonResponse } from "../test/http";
 
 // v0.9: the write paths with a baseline pick. The view's cache key carries the pick, so a write must (a) never start from the previous pick's
-// placeholder copy, (b) roll back into the entry it was made on, and (c) store its answered revision into the entry it was made on (the ranking: and
-// into no other - a sibling entry keeps its old order AND its old revision, `useRoadmapRanking.test.tsx`).
+// placeholder copy, (b) roll back into the entry it was made on, and (c) store its answered revision into the entry it was made on and
+// into no other - a sibling entry keeps its old order AND its old revision (`useRoadmapRanking.test.tsx`, `teamWriteSiblings.test.tsx`).
 
 vi.mock("../utils/toast", () => ({ showSuccessToast: vi.fn() }));
 
@@ -85,7 +85,7 @@ const entry = (pick: number | null) => client.getQueryData<TeamView>(teamViewKey
 const startOf = (view: TeamView | undefined, id: number) => [...(view?.scheduled ?? []), ...(view?.unscheduled ?? [])].find((m) => m.id === id)?.startDate;
 
 describe("the schedule path with a baseline pick", () => {
-  test("the PUT carries the picked view's revision and its success stores the new revision into every cached pick entry", async () => {
+  test("the PUT carries the picked view's revision and its success stores the new revision into the entry it was made on only", async () => {
     client.setQueryData(teamViewKey(1, null), teamView());
     const { result } = renderHook(() => useTeamSchedule(1, 5), { wrapper });
     await waitFor(() => expect(result.current.view?.baseline).toBeDefined());
@@ -93,10 +93,11 @@ describe("the schedule path with a baseline pick", () => {
     act(() => void result.current.commit(5, "2042-03-16", "2042-03-17"));
     expect(result.current.view?.baseline).toEqual(BASELINE);
     expect(startOf(entry(5), 5)).toBe("2042-03-16");
-    await waitFor(() => expect(entry(null)?.revision).toBe(13));
+    await waitFor(() => expect(result.current.pending).toBe(false));
     expect(puts).toEqual([{ url: "/api/v1/milestones/5/schedule", body: { expectedRevision: 12, startDate: "2042-03-16", endDate: "2042-03-17" } }]);
-    // the entry of the other pick keeps ITS rows (the refetch brings the server's) but not the old revision
+    // the entry of the other pick keeps ITS rows AND its old revision (`teamWriteSiblings.test.tsx`: a write from it is then a stale 409)
     expect(startOf(entry(null), 5)).toBe("2042-03-02");
+    expect(entry(null)?.revision).toBe(12);
   });
 
   test("a pick changed while the save runs: the failure rolls back the entry the change was made on and leaves the other pick's alone", async () => {
@@ -148,7 +149,7 @@ describe("the schedule path with a baseline pick", () => {
 });
 
 describe("the order path with a baseline pick", () => {
-  test("refused while the view is the placeholder; otherwise its order revision goes into every cached pick entry", async () => {
+  test("refused while the view is the placeholder; otherwise its order revision goes into the written entry only", async () => {
     client.setQueryData(teamViewKey(1, null), teamView());
     client.setQueryData(teamViewKey(1, 5), teamView({ baseline: BASELINE }));
     const { result, rerender } = renderHook(({ loading }: { loading: boolean }) => useTeamOrder(1, client.getQueryData<TeamView>(teamViewKey(1, 5)), announce, 5, loading), {
@@ -166,9 +167,11 @@ describe("the order path with a baseline pick", () => {
     act(() => {
       expect(result.current.move(5, 1)).toBe(true);
     });
-    await waitFor(() => expect(entry(null)?.order.revision).toBe(13));
+    await waitFor(() => expect(puts).toHaveLength(1));
+    await waitFor(() => expect(result.current.pending).toBe(false));
+    // the written entry (pick 5) adopts the answered order revision; the sibling holds the OLD order, so it keeps the old order revision
     expect(entry(5)?.order.revision).toBe(13);
-    expect(puts).toHaveLength(1);
+    expect(entry(null)?.order.revision).toBe(1);
   });
 });
 
@@ -192,7 +195,7 @@ describe("the proposal's accept with a baseline pick", () => {
           : jsonResponse(404, { title: "x", status: 404 }),
       ),
     );
-    const { result, rerender } = renderHook(({ loading }: { loading: boolean }) => useScheduleProposal(1, announce, loading), { wrapper, initialProps: { loading: false } });
+    const { result, rerender } = renderHook(({ loading }: { loading: boolean }) => useScheduleProposal(1, announce, loading, 5), { wrapper, initialProps: { loading: false } });
     act(() => void result.current.propose());
     await waitFor(() => expect(result.current.proposal).not.toBeNull());
     rerender({ loading: true });

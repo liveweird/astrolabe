@@ -52,26 +52,23 @@ type PinVariables<V> = { id: number; pinned: boolean; before: V; key: QueryKey }
  * While a save (the PUT, and after a failure the rollback reload) runs, further changes are ignored (`pending`) — and so are they while
  * ANY other write sharing `writeKey` runs (the team page's order PUT): two optimistic writes on one cached view would roll each other back.
  * The cached view's key includes the baseline pick, so an optimistic step hits the entry the page shows and its rollback the entry it was made
- * on; a SUCCESS stores the answered revision into every cached pick entry of the view (`entriesKey`, the key without the pick), so no entry keeps
- * the old revision for the next write. The steps (`apply`) leave the view's `baseline` block untouched like `idleGaps` (the refetch brings the new
+ * on; a SUCCESS stores the answered revision into the entry the change was made on ONLY (a sibling pick's entry still holds the old dates, so it must keep
+ * the old revision: a write of the same milestone from it is then a stale 409, not an overwrite). The steps (`apply`) leave the view's `baseline` block untouched like `idleGaps` (the refetch brings the new
  * movement). A change is REFUSED out loud while the shown copy is only the previous pick's placeholder (`placeholder`): its revision and rows are
  * not this pick's entry.
  * `announcement` is the live-region sentence for the last non-drag change (a drag is announced by dnd-kit itself).
  * `pin(id, pinned)` (1.7) is the page's SECOND write on the same cached view and key: a pin or unpin of a scheduled milestone (`PUT /milestones/{id}/pin`,
- * no `expectedRevision`). It follows the same rules (optimistic flip, the answered revision stored into every pick's entry, a failure rolls back and
+ * no `expectedRevision`). It follows the same rules (optimistic flip, the answered revision stored into the written entry only, a failure rolls back and
  * awaits the refetch; refused out loud while any write of `writeKey` runs) and says the change in the live region; it is never a toast.
  */
 export function useScheduleWritePath<V extends ScheduleView & { baseline?: unknown }>({
   queryKey,
-  entriesKey,
   queryFn,
   apply,
   enabled,
   writeKey,
 }: {
   queryKey: QueryKey;
-  /** The view's key WITHOUT the baseline pick: a prefix of every pick's entry. */
-  entriesKey: QueryKey;
   queryFn: () => Promise<V>;
   /** The optimistic step: the view with one milestone's dates replaced (a null pair unschedules). */
   apply: (view: V, id: number, start: string | null, end: string | null) => V;
@@ -94,9 +91,11 @@ export function useScheduleWritePath<V extends ScheduleView & { baseline?: unkno
   const save = useMutation({
     mutationKey: writeKey,
     mutationFn: ({ id, start, end, expectedRevision }: SaveVariables<V>) => scheduleMilestone(id, { expectedRevision, startDate: start, endDate: end }),
-    onSuccess: ({ revision }) => {
-      // Every pick's entry of this view (the page may show another pick's by now): none keeps the old revision.
-      queryClient.setQueriesData<V>({ queryKey: entriesKey }, (current) => current && { ...current, revision });
+    onSuccess: ({ revision }, { key }) => {
+      // The new revision into the entry the change was made on - the one holding the moved dates - and into no other: a sibling entry (another
+      // pick visited earlier) still holds the OLD dates, so it keeps the old revision and a write of the SAME milestone made from it before its
+      // refetch lands is answered 409 (the milestone's own schedule revision is newer) instead of silently overwriting this one.
+      queryClient.setQueryData<V>(key, (current) => current && { ...current, revision });
       // Not awaited: the save is over, so the next change may go at once; its `commit` cancels this refetch.
       void refreshQueriesAfterMutation(queryClient, ["plan"]);
     },
@@ -108,8 +107,9 @@ export function useScheduleWritePath<V extends ScheduleView & { baseline?: unkno
   const pinSave = useMutation({
     mutationKey: writeKey,
     mutationFn: ({ id, pinned }: PinVariables<V>) => pinMilestone(id, pinned),
-    onSuccess: ({ revision }) => {
-      queryClient.setQueriesData<V>({ queryKey: entriesKey }, (current) => current && { ...current, revision });
+    onSuccess: ({ revision }, { key }) => {
+      // As for a schedule: the written entry only (a pin stamps no schedule revision, but a sibling's newer plan revision would mask a staleness).
+      queryClient.setQueryData<V>(key, (current) => current && { ...current, revision });
       void refreshQueriesAfterMutation(queryClient, ["plan"]);
     },
     onError: async (_err, { before, key }) => {

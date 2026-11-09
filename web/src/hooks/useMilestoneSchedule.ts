@@ -12,7 +12,6 @@ export const projectViewKey = (projectId: number, baseline: number | null) => ["
 export function useMilestoneSchedule(projectId: number, baseline: number | null) {
   return useScheduleWritePath({
     queryKey: projectViewKey(projectId, baseline),
-    entriesKey: ["plan", "project", projectId],
     queryFn: () => getProjectView(projectId, baseline),
     apply: applySchedule,
     enabled: Number.isInteger(projectId),

@@ -100,7 +100,7 @@ afterEach(() => {
 });
 
 async function opened() {
-  const rendered = renderHook(() => useScheduleProposal(1, announce, false), { wrapper });
+  const rendered = renderHook(() => useScheduleProposal(1, announce, false, null), { wrapper });
   act(() => {
     expect(rendered.result.current.propose()).toBe(true);
   });
@@ -129,7 +129,7 @@ describe("propose", () => {
 
   test("a proposal with nothing to show opens nothing: the note and the live-region sentence", async () => {
     proposalAnswer = jsonResponse(200, { ...PROPOSAL, moves: [], unchanged: [4] });
-    const { result } = renderHook(() => useScheduleProposal(1, announce, false), { wrapper });
+    const { result } = renderHook(() => useScheduleProposal(1, announce, false, null), { wrapper });
     act(() => void result.current.propose());
     await waitFor(() => expect(result.current.note).toBe("nothing"));
     expect(result.current.proposal).toBeNull();
@@ -138,7 +138,7 @@ describe("propose", () => {
 
   test("nothing placed for lack of capacity: the no-capacity note counts from the day after asOf; dismiss clears it", async () => {
     proposalAnswer = jsonResponse(200, { ...PROPOSAL, moves: [], unchanged: [], unplaced: [{ milestoneId: 1, name: "m1", projectId: 7, projectName: "Invoices", reason: "NO_CAPACITY" }] });
-    const { result } = renderHook(() => useScheduleProposal(1, announce, false), { wrapper });
+    const { result } = renderHook(() => useScheduleProposal(1, announce, false, null), { wrapper });
     act(() => void result.current.propose());
     await waitFor(() => expect(result.current.note).toBe("noCapacity"));
     // the note names the request's own asOf, whatever weekday it is
@@ -149,7 +149,7 @@ describe("propose", () => {
   });
 
   test("the server's refusals read in the page's words: 403 forbidden, 404 gone, anything else a generic failure", async () => {
-    const { result } = renderHook(() => useScheduleProposal(1, announce, false), { wrapper });
+    const { result } = renderHook(() => useScheduleProposal(1, announce, false, null), { wrapper });
     proposalAnswer = () => jsonResponse(403, { title: "Forbidden", status: 403 });
     act(() => void result.current.propose());
     await waitFor(() => expect(result.current.error).toBe("Only the team's manager or an administrator can propose a schedule"));
@@ -351,7 +351,7 @@ describe("accept", () => {
     batchAnswer = new Promise<Response>((resolve) => {
       release = resolve;
     });
-    const { result } = renderHook(() => ({ proposal: useScheduleProposal(1, announce, false), schedule: useTeamSchedule(1, null) }), { wrapper });
+    const { result } = renderHook(() => ({ proposal: useScheduleProposal(1, announce, false, null), schedule: useTeamSchedule(1, null) }), { wrapper });
     await waitFor(() => expect(result.current.schedule.view).toBeDefined());
     act(() => void result.current.proposal.propose());
     await waitFor(() => expect(result.current.proposal.proposal).not.toBeNull());

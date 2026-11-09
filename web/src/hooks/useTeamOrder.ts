@@ -9,7 +9,7 @@ import { saveErrorMessage } from "../utils/saveError";
 import { placeScheduled } from "../utils/teamOrderList";
 import { applyTeamOrder } from "../utils/teamViewUpdate";
 import { useRefusal } from "./useRefusal";
-import { teamViewEntries, teamViewKey, teamWriteKey } from "./useTeamSchedule";
+import { teamViewKey, teamWriteKey } from "./useTeamSchedule";
 
 const SAVE_ERROR_KEYS = {
   forbidden: "teams.view.orderForbidden",
@@ -33,14 +33,14 @@ const listChanged = (error: unknown) => isStaleRevision(error) || (error instanc
  * permutation)`; `placeScheduled` (`utils/teamOrderList.ts`) turns it into the full list, so a listed milestone that is now unscheduled
  * keeps its stored place (a manager's order is never reshuffled; Reset sends `[]`):
  *  - the rows are reordered optimistically in the cached view, at once;
- *  - success stores the revision the PUT answers into `order.revision` (and nowhere else), then refreshes `["plan"]` in the background;
+ *  - success stores the revision the PUT answers into `order.revision` of the entry the change was made on (and nowhere else), then refreshes `["plan"]` in the background;
  *  - a stale 409 or a 400 (a listed milestone left the team) rolls back, says so (`stale`) and AWAITS the refetch;
  *  - any other failure rolls back and surfaces through `error` (already mapped to words).
  * A change made while any write of this page (this one or a schedule PUT, which share `teamWriteKey`) is in flight is REFUSED out loud:
  * `commit` answers `false`, `refused` is set (the page's visible note) and `project.busy` is announced. A taken change is announced
  * through the page's one live region (`announce`). `loading` is the page's "the shown view is the previous baseline pick's copy" (`placeholder` of
  * the schedule path): nothing is written from it, a change is refused like one made during a save; a success stores the order revision into
- * every cached pick entry of the team's view. `move`, `moveTo`, `placed` and `reset` answer whether the change was taken.
+ * the written entry only (a sibling pick's entry still holds the old order). `move`, `moveTo`, `placed` and `reset` answer whether the change was taken.
  */
 export function useTeamOrder(teamId: number, view: TeamView | undefined, announce: (text: string) => void, baseline: number | null, loading: boolean) {
   const { t } = useTranslation();
@@ -50,8 +50,11 @@ export function useTeamOrder(teamId: number, view: TeamView | undefined, announc
   const save = useMutation({
     mutationKey: teamWriteKey(teamId),
     mutationFn: ({ ids, expectedRevision }: SaveVariables) => putTeamOrder(teamId, { milestoneIds: ids, expectedRevision }),
-    onSuccess: ({ revision }) => {
-      queryClient.setQueriesData<TeamView>({ queryKey: teamViewEntries(teamId) }, (current) => current && { ...current, order: { ...current.order, revision } });
+    onSuccess: ({ revision }, { key: madeOn }) => {
+      // The new order revision into the entry the change was made on - the one holding the new order - and into no other: a sibling entry (another
+      // pick visited earlier) still holds the OLD order, so it keeps the old revision and a reorder made from it before its refetch lands is a
+      // stale 409, not a silent revert of this one.
+      queryClient.setQueryData<TeamView>(madeOn, (current) => current && { ...current, order: { ...current.order, revision } });
       // Not awaited: the save is over, so the next change may go at once; its `commit` cancels this refetch.
       void refreshQueriesAfterMutation(queryClient, ["plan"]);
     },

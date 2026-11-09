@@ -9,6 +9,7 @@ import { ApiError } from "../api/http";
 import BaselineCompareControls from "../components/BaselineCompareControls";
 import { DateRange, Figures, StatusBadge, TotalsBadges } from "../components/BaselineParts";
 import ClearableTextInput from "../components/ClearableTextInput";
+import ErrorAlert from "../components/ErrorAlert";
 import EditPageLoadState from "../components/EditPageLoadState";
 import PageHeader from "../components/PageHeader";
 import ScrollRegion from "../components/ScrollRegion";
@@ -142,6 +143,16 @@ function Comparison({ id }: { id: number }) {
   if (!data) {
     if (isLoading || dropping) return <EditPageLoadState isLoading message="" backTo={baselinesPath} backLabel={t("baselines.compare.backToList")} title={t("baselines.compare.title")} />;
     const gone = error instanceof ApiError && error.status === 404;
+    // A newly picked "now" failed (5xx, network - the typed 400 is dropped above): keep the chrome and the picker, so the user can pick the live plan or another baseline.
+    if (against !== null && !gone) {
+      return (
+        <Stack gap="md">
+          <PageHeader title={t("baselines.compare.title")} backTo={{ to: baselinesPath, label: t("baselines.compare.backToList") }} />
+          <BaselineCompareControls id={id} against={against} onChange={setAgainst} dropped={false} />
+          <ErrorAlert error={error} title={t("baselines.compare.loadFailed")} />
+        </Stack>
+      );
+    }
     return <NotFound message={gone ? t("baselines.compare.notFound") : error ? loadErrorMessage(error, t) : t("baselines.compare.loadFailed")} />;
   }
 

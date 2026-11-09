@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Alert, Badge, Group, Loader, Stack, Text, Title, VisuallyHidden } from "@mantine/core";
 import { IconFilterOff, IconListNumbers } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
@@ -184,12 +184,23 @@ function RoadmapBody({
     setEditingId(null);
     focus.restore(id);
   };
-  // The critical path toward `project` (or none): said in the live region, since the change is a bar outline and a panel.
+  // The critical path toward `project` (or none). Hiding is said at once; showing is said by the effect below once the chain has ARRIVED (the change
+  // is a bar outline and a panel, so the live region carries it) - never on the pick itself, which the server may still reject.
   const showCriticalTo = (project: RoadmapProject | null) => {
     onTarget(project?.id ?? null);
-    ranking.announce(project === null ? t("roadmap.announce.criticalCleared") : t("roadmap.announce.criticalShown", { name: project.name }));
+    if (project === null) ranking.announce(t("roadmap.announce.criticalCleared"));
   };
   const pickCriticalTarget = (id: number | null) => showCriticalTo(allProjects(view).find((project) => project.id === id) ?? null);
+  // Said once per ARRIVAL of a chain (its target id changes), not per render or refetch; a target with nothing scheduled says so instead.
+  const chainProject = allProjects(view).find((project) => project.id === view.criticalPath?.projectId);
+  const chainId = chainProject?.id ?? null;
+  const announcedChain = useRef<number | null>(null);
+  useEffect(() => {
+    if (chainId === announcedChain.current) return;
+    announcedChain.current = chainId;
+    if (chainProject === undefined) return;
+    ranking.announce(chainProject.span === null ? t("roadmap.critical.nothingScheduled", { name: chainProject.name }) : t("roadmap.announce.criticalShown", { name: chainProject.name }));
+  });
   const actions: RoadmapActions = {
     menuClosed: (project) => focus.menuClosed(project.id),
     move: (project, delta) => focus.keep(project.id, ranking.move(project.id, delta, visibleRankedIds)),

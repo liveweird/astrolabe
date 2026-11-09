@@ -168,6 +168,27 @@ describe("Baseline comparison page, two baselines", () => {
     expect(screen.getByRole("button", { name: "Show on the roadmap" })).toBeInTheDocument();
   });
 
+  test("a newly picked baseline that fails to load (a 500) keeps the page chrome and the picker with the error inline; picking the live plan recovers", async () => {
+    mockFetch.mockImplementation((url: string) => {
+      if (url === "/api/v1/baselines") return Promise.resolve(jsonResponse(200, LIST));
+      if (url === "/api/v1/views/baseline/5?against=7") return Promise.resolve(jsonResponse(500, { title: "x", status: 500 }));
+      if (url === "/api/v1/views/baseline/5") return Promise.resolve(jsonResponse(200, LIVE_VIEW));
+      return Promise.resolve(jsonResponse(404, { title: "x", status: 404 }));
+    });
+    const user = userEvent.setup();
+    renderPage("/baselines/5");
+    await user.click(await screen.findByRole("combobox", { name: "Compare against" }));
+    await user.click(await screen.findByRole("option", { name: "Q2.5 draft (plan revision 46)" }));
+    expect(await screen.findByRole("alert", {}, { timeout: 5000 })).toHaveTextContent(/Could not load the comparison/);
+    expect(screen.getByRole("combobox", { name: "Compare against" })).toHaveValue("Q2.5 draft (plan revision 46)");
+    expect(screen.getByRole("heading", { level: 2, name: "Baseline" })).toBeInTheDocument();
+    await user.click(screen.getByRole("combobox", { name: "Compare against" }));
+    await user.click(await screen.findByRole("option", { name: "The live plan" }));
+    await screen.findByRole("button", { name: "Show on the roadmap" });
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByRole("heading", { level: 2, name: "Q2 commitment" })).toBeInTheDocument();
+  });
+
   test.each(["abc", "5", "0", "9999999999"])("a ?against=%s that is no other baseline's id is ignored: the live comparison, no such request", async (raw) => {
     renderPage(`/baselines/5?against=${raw}`);
     expect(await screen.findByRole("combobox", { name: "Compare against" })).toHaveValue("The live plan");

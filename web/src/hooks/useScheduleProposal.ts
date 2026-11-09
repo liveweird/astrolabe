@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { useIsMutating, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useIsMutating, useMutation, useQueryClient, type QueryKey } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { isStaleRevision } from "../api/roadmap";
 import { isStaleScope, proposeTeamSchedule, scheduleTeamMilestones, type ScheduleProposal, type TeamView } from "../api/teams";
@@ -9,7 +9,7 @@ import { saveErrorMessage } from "../utils/saveError";
 import { acceptItems, noteOf, outcomeOf, outcomeSentence, type ProposalNote, type ProposalOutcome } from "../utils/scheduleProposal";
 import { applyTeamSchedule } from "../utils/teamViewUpdate";
 import { useRefusal } from "./useRefusal";
-import { teamViewEntries, teamWriteKey } from "./useTeamSchedule";
+import { teamViewKey, teamWriteKey } from "./useTeamSchedule";
 
 const PROPOSE_ERROR_KEYS = {
   forbidden: "teams.proposal.forbidden",
@@ -19,7 +19,8 @@ const PROPOSE_ERROR_KEYS = {
   failed: "common.error.actionFailed",
 } as const;
 
-type AcceptVariables = { expectedRevision: number; scopeHash: string; items: ReturnType<typeof acceptItems> };
+/** `key` is the cache entry the accept was made on (captured at accept time): the answer goes there and nowhere else. */
+type AcceptVariables = { expectedRevision: number; scopeHash: string; items: ReturnType<typeof acceptItems>; key: QueryKey };
 
 /**
  * The team page's schedule proposal (the third write path of the page, v0.8).
@@ -41,15 +42,17 @@ type AcceptVariables = { expectedRevision: number; scopeHash: string; items: Ret
  * (`stale`) and reloads; any other failure stays inline in `error` (already mapped to words) with the preview open. Every taken step is
  * said in the page's live region (`announce`).
  *
- * The accepted dates and the answered revision go into every cached baseline-pick entry of the team's view (the page may show another pick's by
- * now); `loading` (the shown view is the previous pick's copy while the new one loads) refuses an accept like one made during a write.
+ * The accepted dates and the answered revision go into the entry the accept was made on (`baseline`, the page's pick, captured at accept time)
+ * and into no other: a sibling pick's entry (visited earlier) still holds the OLD dates, so it is left alone - it keeps its old revision, a write
+ * from it before the `["plan"]` refetch lands is a stale 409, not a silent revert - and the refetch brings it right. `loading` (the shown view is
+ * the previous pick's copy while the new one loads) refuses an accept like one made during a write.
  *
  * The batch carries the proposal's `scopeHash`. When the TEAM's plan changed since the proposal (a 409 `stale-scope`: nothing was
  * written) the preview closes and a fresh proposal is requested at once, for a fresh `asOf`; the new preview keeps the ticks of the
  * milestones that were ticked and still move, and `rescoped` says so until the next action. A fresh proposal with nothing to show
  * opens nothing and leaves its usual `note`.
  */
-export function useScheduleProposal(teamId: number, announce: (text: string) => void, loading: boolean) {
+export function useScheduleProposal(teamId: number, announce: (text: string) => void, loading: boolean, baseline: number | null) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [proposal, setProposal] = useState<ScheduleProposal | null>(null);
@@ -93,12 +96,13 @@ export function useScheduleProposal(teamId: number, announce: (text: string) => 
     mutationKey: teamWriteKey(teamId),
     mutationFn: ({ expectedRevision, scopeHash, items }: AcceptVariables) =>
       scheduleTeamMilestones(teamId, { expectedRevision, items, scopeHash }),
-    onSuccess: (result, { items }) => {
-      // The accepted milestones take their proposed dates in the cached view at once (a skipped one keeps its old dates) and the view
-      // adopts the answered revision, so the page is right before the background refetch brings the server's derived figures.
+    onSuccess: (result, { items, key }) => {
+      // The accepted milestones take their proposed dates in the entry the accept was made on at once (a skipped one keeps its old dates) and
+      // that entry adopts the answered revision, so the page is right before the background refetch brings the server's derived figures.
+      // A sibling pick's entry is NOT touched (its old dates must keep its old revision).
       const spans = new Map(items.map((item) => [item.milestoneId, item]));
-      queryClient.setQueriesData<TeamView>(
-        { queryKey: teamViewEntries(teamId) },
+      queryClient.setQueryData<TeamView>(
+        key,
         (current) =>
           current &&
           result.accepted.reduce((view, id) => {
@@ -219,7 +223,7 @@ export function useScheduleProposal(teamId: number, announce: (text: string) => 
       setOutcome(null);
       setStale(false);
       setRescoped(false);
-      apply.mutate({ expectedRevision: proposal.revision, scopeHash: proposal.scopeHash, items: acceptItems(proposal, selected) });
+      apply.mutate({ expectedRevision: proposal.revision, scopeHash: proposal.scopeHash, items: acceptItems(proposal, selected), key: teamViewKey(teamId, baseline) });
       return true;
     },
   };

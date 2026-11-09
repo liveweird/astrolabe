@@ -817,7 +817,7 @@ the shared sentences; PL has the full `_one/_few/_many/_other` set). The picker,
 a "Show on the roadmap" one - both set the browser-wide pick (`useBaselinePick`) before they navigate. **Two baselines (1.7):** `components/BaselineCompareControls.tsx` is the
 "Compare against" `Select` (the live plan, the default, or any OTHER baseline newest first with its plan revision; the URL's `?against=N` is the state, so a comparison is a link; a
 malformed or own id is ignored, the typed 400 `unknown-baseline` drops the parameter with an inline note); this baseline stays "then", the facts line and the Then/Now column headers name
-both sides, a project row gains the rank sentence ("Rank 3 -> 5", `utils/baselineCompare.ts` `rankSentence`, none for a new or gone project) and both "Show on ..." buttons are hidden (the overlay is one
+both sides, a project row gains the rank sentence ("Rank 3 → 5", `utils/baselineCompare.ts` `rankSentence`, none for a new or gone project) and both "Show on ..." buttons are hidden (a newly picked "now" that fails to load with anything but the typed 400 keeps the page chrome and the picker mounted with the error inline, so the live plan or another baseline can be picked; a failure with no `against` is the load-error page; the overlay is one
 baseline against the live plan). Tests: `Baselines.test.tsx`, `BaselineCompare.test.tsx`, `BaselineCompare.against.test.tsx`,
 `baselines.test.ts`, `useBaselines.test.tsx`, `baselineOverlay.test.ts`, `baselineCompare.test.ts`.
 
@@ -827,7 +827,7 @@ baseline against the live plan). Tests: `Baselines.test.tsx`, `BaselineCompare.t
 the baseline all four pages compare with: `components/BaselinePicker.tsx` in the Timeline's `toolbar` slot (None + the baselines newest first, the first
 "(latest)"), `?baseline=N` on the view getters, the pick inside every query key (`["plan","team",id,{baseline}]`, ...; the optimistic steps keep the cached
 `baseline` block; a write is refused while the shown copy is the previous pick's placeholder, rolls back into the entry it was made on and stores its revision
-into every pick's entry - except the roadmap ranking, which stamps only the entry it was made on, so a sibling entry's old order keeps its old revision and a drop there is a 409; the picker is disabled while a write runs), the typed 400 `unknown-baseline` clearing the pick once (`useDropUnknownPick`), shadow bars
+into the entry it was made on ONLY (the roadmap ranking and the schedule, pin, team-order and proposal-accept writes: a sibling pick's entry still holds the old order and dates, so it keeps its old revision and a write there is a 409); the picker is disabled while a write runs), the typed 400 `unknown-baseline` clearing the pick once (`useDropUnknownPick`), shadow bars
 and appended rows from the pure `utils/baselineOverlay.ts`. The project and team pages add the Movement section (`components/BaselineMovement.tsx`), the plan
 pages one totals line (`components/BaselineTotals.tsx`); the comparison page's "Show on timeline" sets the pick. Reference and the details: `timeline.md` "The
 baseline overlay (v0.9.0)".
@@ -1066,7 +1066,7 @@ a project the team works on. Read, never recomputed; off, the DOM is the one it 
 **The pin (1.7).** `PUT /milestones/{id}/pin {pinned}` (`api/milestones.ts` `pinMilestone`, answers `{revision}`; no `expectedRevision`: an idempotent flag) is a SECOND write of `useScheduleWritePath`
 (`pin(id, pinned)`, so both timeline pages have it): its own mutation on the SAME write key (`teamWriteKey`; the project page's `["plan","project-write",id]`), so a drag, a pin and an order save see each other in
 flight and a change made meanwhile is refused out loud like any other (`refused`, `project.busy`). The step is optimistic (`utils/pinUpdate.ts` `applyPin`, pure, generic over both views), success stores the
-answered plan revision into every pick's entry and refreshes `["plan"]` (the views carry `pinned`), a failure rolls back and awaits the refetch; the quiet confirmation is the live region ("{{name}} pinned" /
+answered plan revision into the entry the pin was made on (only) and refreshes `["plan"]` (the views carry `pinned`), a failure rolls back and awaits the refetch; the quiet confirmation is the live region ("{{name}} pinned" /
 "unpinned", `project.announce.pinned|unpinned`) and there is NO toast (a pin is a state, not an event). A 403 reads the schedule's forbidden sentence, a 404 the gone one, and the one 409
 (`milestone-unscheduled`: it lost its dates meanwhile) `project.pinUnscheduled`, inline through the page's `error`; a taken schedule change and a taken pin each clear the other's old failure.
 The server clears the pin on an unschedule, so `applySchedule` / `applyTeamSchedule` set `pinned` false on a null pair (a reschedule keeps it). The row menu (`TeamTimelineMenu.tsx`) offers Pin / Unpin dates

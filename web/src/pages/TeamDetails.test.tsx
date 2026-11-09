@@ -828,7 +828,7 @@ describe("Team view page: the critical path (1.7)", () => {
     expect(toggle()).toHaveAttribute("aria-pressed", "false");
     expect(screen.queryByRole("columnheader", { name: "Slack" })).toBeNull();
     expect(document.querySelector("[data-critical]")).toBeNull();
-    expect(screen.queryByText(/measured toward each milestone/)).toBeNull();
+    expect(screen.queryByText(/measured toward the end of the milestone/)).toBeNull();
   });
 
   test("on: the toggle sits after the baseline picker, the Slack column and the emphasis appear, and the choice is remembered under the project page's key", async () => {
@@ -845,7 +845,9 @@ describe("Team view page: the critical path (1.7)", () => {
     expect(barOf("tv-a")).toHaveAccessibleName("tv-a, Invoices, 2027-02-01 to 2027-02-05, 10 man-days, on the critical path");
     expect(barOf("tv-b")).not.toHaveAttribute("data-critical");
     expect(document.querySelector("[data-arrow]")).toHaveAttribute("data-critical", "true");
-    expect(screen.getByText(/measured toward each milestone's own project's end/)).toBeInTheDocument();
+    const note = screen.getByText(/measured toward the end of the milestone's own project/);
+    // the toggle is described by the note while it is on the page
+    expect(toggle()).toHaveAccessibleDescription(note.textContent ?? "");
     expect(localStorage.getItem(KEY)).toBe("true");
 
     // remembered across visits, and off again takes everything away
