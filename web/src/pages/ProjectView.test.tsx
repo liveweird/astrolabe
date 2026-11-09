@@ -9,6 +9,7 @@ import ProjectView from "./ProjectView";
 import type { DependencyEndpoint, ProjectDependency } from "../api/dependencies";
 import type { ProjectMilestone, ProjectView as ProjectViewDocument, UpstreamEntity } from "../api/milestones";
 import { applySchedule } from "../utils/projectViewUpdate";
+import { withoutGeneratedIds } from "../test/generatedIds";
 import { headingOutline } from "../test/headings";
 import { jsonResponse } from "../test/http";
 import { renderWithProviders } from "../test/render";
@@ -1289,7 +1290,7 @@ describe("Project view page: the critical path", () => {
       criticalPath: { upstream: [], upstreamTruncated: false },
     });
     // Generated ids differ between two mounts (React's, Mantine's, dnd-kit's) and so does the theme provider's <style>; everything else must be identical.
-    const dom = (container: HTMLElement) => container.innerHTML.replace(/<style[\s\S]*?<\/style>/g, "").replace(/mantine-[a-z0-9]{9}(?![a-z0-9])|DndDescribedBy-\d+|DndLiveRegion-\d+|:r[0-9a-z]+:|_r_[0-9a-z]+_/g, "ID");
+    const dom = (container: HTMLElement) => withoutGeneratedIds(container.innerHTML);
     view = strip(critically());
     const first = renderPage();
     await screen.findByRole("grid", { name: "Milestone timeline" });

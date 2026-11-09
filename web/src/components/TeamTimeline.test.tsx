@@ -5,6 +5,7 @@ import TeamTimeline, { TeamTray, type TeamActions } from "./TeamTimeline";
 import TimelineDndContext from "./TimelineDndContext";
 import type { DependencyEndpoint, ProjectDependency } from "../api/dependencies";
 import type { ScheduleProposalMove, TeamMilestone, TeamView, WeekLoad } from "../api/teams";
+import { withoutGeneratedIds } from "../test/generatedIds";
 import { jsonResponse } from "../test/http";
 import { renderWithProviders } from "../test/render";
 import { makeScale, toEpochDay } from "../utils/timelineScale";
@@ -256,7 +257,7 @@ describe("TeamTimeline with the critical path (1.7)", () => {
   const CA = { ...A, slackDays: 0, critical: true };
   const CB = { ...B, slackDays: 3, critical: false };
   const critical = () => viewOf({ scheduled: [CA, CB], dependencies: [linkOf(41, CA, CB, { critical: true }), linkOf(42, CB, CA)] });
-  const dom = (container: HTMLElement) => container.innerHTML.replace(/<style[\s\S]*?<\/style>/g, "").replace(/mantine-[a-z0-9]{9}(?![a-z0-9])|DndDescribedBy-\d+|DndLiveRegion-\d+|:r[0-9a-z]+:|_r_[0-9a-z]+_/g, "ID");
+  const dom = (container: HTMLElement) => withoutGeneratedIds(container.innerHTML);
 
   test("off: no Slack column, no emphasis, no critical arrow, the bar names as before - and the DOM equals the one without any critical data", () => {
     const stripped = () => viewOf({ scheduled: [A, B], dependencies: [linkOf(41, CA, CB), linkOf(42, CB, CA)] });
