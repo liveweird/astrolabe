@@ -8,6 +8,7 @@ import ch.nokillswit.authz.requireAncestorOwnerOrAdmin
 import ch.nokillswit.authz.requireOwnerOrAdmin
 import ch.nokillswit.authz.requireRoadmapEditorOrAdmin
 import ch.nokillswit.authz.requireTargetWindowEditorOrAdmin
+import ch.nokillswit.authz.requireTeamManagerOfAllOrAdmin
 import ch.nokillswit.authz.requireTeamManagerOrAdmin
 import ch.nokillswit.planning.PlanActor
 import ch.nokillswit.planning.PlanPermissions
@@ -243,5 +244,22 @@ class PlanPermissionsTest {
         val manager = actors.first { it.label == "project owner who also manages team A" }.asPlanActor()
         assertTrue(PlanPermissions.canEditCapacity(manager, teamA))
         assertFalse(PlanPermissions.canEditTeamOrder(manager, teamB), "only the managed team")
+    }
+
+    @Test
+    fun `a team set passes requireTeamManagerOfAllOrAdmin exactly when every member's schedule flag holds`() {
+        val sets = listOf(listOf(teamA), listOf(teamB), listOf(teamA, teamB), listOf(teamB, teamC), listOf(teamA, teamB, teamC))
+        var cells = 0
+        for (actor in actors) for (set in sets) {
+            val lookup: suspend (UInt) -> Set<UInt> = { userId -> if (userId == actor.caller.userId) actor.managed else emptySet() }
+            val guard = allowed { runBlocking { requireTeamManagerOfAllOrAdmin(actor.caller, set, lookup) } }
+            val flags = set.all { PlanPermissions.canSchedule(actor.asPlanActor(), it) }
+            assertEquals(flags, guard, "${actor.label} on $set")
+            cells++
+        }
+        assertEquals(actors.size * sets.size, cells)
+        val twoTeams = actors.first { it.label == "manager of teams A and B, stranger person" }.asPlanActor()
+        assertTrue(listOf(teamA, teamB).all { PlanPermissions.canSchedule(twoTeams, it) })
+        assertFalse(listOf(teamA, teamB, teamC).all { PlanPermissions.canSchedule(twoTeams, it) }, "one team short refuses the set")
     }
 }

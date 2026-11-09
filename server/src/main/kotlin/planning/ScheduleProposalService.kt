@@ -41,36 +41,9 @@ class ScheduleProposalService(private val database: R2dbcDatabase) {
             unplaced = lists.unplaced,
             weeks = check.weeks.map { it.toView() },
             weeksTruncated = check.weeksTruncated,
-            dependencies = proposalLinks(inputs, check),
+            dependencies = proposalLinks(inputs.links, check),
             pinned = lists.pinned,
             scopeHash = snapshot.scopeHash(teamId),
         )
     }
-
-    /**
-     * The links the proposal touches whose verdict is or was VIOLATED (before or after the moves), each end named ([resolveEndpoints],
-     * slimmed to [ScheduleProposalEnd]), with its status before and its check after - in the kernel's order, violated-after first. A link
-     * that is fine both times (or unscheduled, then fine) is dropped: the page prints nothing for it and the response is the size budget.
-     */
-    private suspend fun proposalLinks(inputs: ScheduleInputs, check: ScheduleProposalCheck): List<ScheduleProposalLink> {
-        val reported = check.links.filter { it.before == DependencyStatus.VIOLATED || it.after.status == DependencyStatus.VIOLATED }
-        if (reported.isEmpty()) return emptyList()
-        val facts = inputs.links.associateBy { it.id }
-        val ends = resolveEndpoints(reported.map { facts.getValue(it.linkId) }.flatMap { listOf(it.predecessor, it.successor) })
-        return reported.map { linkCheck ->
-            val link = facts.getValue(linkCheck.linkId)
-            ScheduleProposalLink(
-                id = link.id,
-                predecessor = ends.getValue(link.predecessor).toProposalEnd(),
-                successor = ends.getValue(link.successor).toProposalEnd(),
-                type = link.type,
-                lagDays = link.lagDays,
-                before = linkCheck.before,
-                check = linkCheck.after,
-            )
-        }
-    }
-
-    private fun DependencyEndpoint.toProposalEnd() =
-        ScheduleProposalEnd(kind, id, name, projectName.takeIf { kind == EndpointKind.MILESTONE })
 }

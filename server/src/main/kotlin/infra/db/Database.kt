@@ -42,6 +42,8 @@ import ch.nokillswit.planning.BaselineService
 import ch.nokillswit.planning.BaselineServiceKey
 import ch.nokillswit.planning.BaselineViewService
 import ch.nokillswit.planning.BaselineViewServiceKey
+import ch.nokillswit.planning.CrossTeamProposalService
+import ch.nokillswit.planning.CrossTeamProposalServiceKey
 import ch.nokillswit.planning.DependencyService
 import ch.nokillswit.planning.DependencyServiceKey
 import ch.nokillswit.planning.MilestoneService
@@ -322,6 +324,7 @@ suspend fun Application.configureDatabase() {
     attributes.put(TeamOrderServiceKey, TeamOrderService(database))
     attributes.put(TeamScheduleServiceKey, TeamScheduleService(database))
     attributes.put(ScheduleProposalServiceKey, ScheduleProposalService(database))
+    attributes.put(CrossTeamProposalServiceKey, CrossTeamProposalService(database))
     attributes.put(PublicHolidayServiceKey, PublicHolidayService(database))
     attributes.put(BaselineServiceKey, BaselineService(database))
     attributes.put(BaselineViewServiceKey, BaselineViewService(database))

@@ -11,6 +11,7 @@ import ch.nokillswit.authz.requireOwnerOrAdmin
 import ch.nokillswit.authz.requireRoadmapEditorOrAdmin
 import ch.nokillswit.authz.requireTargetWindowEditorOrAdmin
 import ch.nokillswit.authz.requireSelfOrAdmin
+import ch.nokillswit.authz.requireTeamManagerOfAllOrAdmin
 import ch.nokillswit.authz.requireTeamManagerOrAdmin
 import ch.nokillswit.users.Permission
 import ch.nokillswit.users.UserRole
@@ -131,6 +132,36 @@ class GuardsTest {
         assertFailsWith<ForbiddenException> { requireOwnerOrAdmin(user, callerPersonId = 99u, chain = chain) }
         assertFailsWith<ForbiddenException> { requireOwnerOrAdmin(user, callerPersonId = 10u, chain = OwnerChain(emptyList())) }
     }
+
+    @Test
+    fun `requireTeamManagerOfAllOrAdmin - admin passes unasked, a manager only when EVERY listed team is theirs`() =
+        runBlocking<Unit> {
+            val asked = mutableListOf<UInt>()
+            val managed: suspend (UInt) -> Set<UInt> = { who -> asked += who; setOf(10u, 11u) }
+            requireTeamManagerOfAllOrAdmin(admin, listOf(1u, 2u, 3u), managed)
+            assertEquals(emptyList(), asked, "ADMIN short-circuits before the lookup")
+
+            requireTeamManagerOfAllOrAdmin(user, listOf(10u, 11u), managed)
+            requireTeamManagerOfAllOrAdmin(user, listOf(11u), managed)
+            assertEquals(listOf(user.userId, user.userId), asked, "one lookup per call, whatever the set's size")
+
+            for (set in listOf(listOf(10u, 12u), listOf(12u, 10u), listOf(12u), listOf(10u, 11u, 99u))) {
+                val refused = assertFailsWith<ForbiddenException> { requireTeamManagerOfAllOrAdmin(user, set, managed) }
+                assertEquals("Team manager or admin role required", refused.message, "the single-team guard's words: a uniform 403 ($set)")
+            }
+            assertEquals(2 + 4, asked.size, "each refused call asked once too")
+        }
+
+    @Test
+    fun `requireTeamManagerOfAllOrAdmin fails closed - a throwing lookup propagates for a non-admin, a manager of nothing is refused`() =
+        runBlocking<Unit> {
+            val broken: suspend (UInt) -> Set<UInt> = { error("database unavailable") }
+            requireTeamManagerOfAllOrAdmin(admin, listOf(1u), broken)
+            assertEquals("database unavailable", assertFailsWith<IllegalStateException> {
+                requireTeamManagerOfAllOrAdmin(user, listOf(1u), broken)
+            }.message)
+            assertFailsWith<ForbiddenException> { requireTeamManagerOfAllOrAdmin(user, listOf(1u)) { emptySet() } }
+        }
 
     @Test
     fun `requireAncestorOwnerOrAdmin - only an owner ABOVE the node passes, the node's own owner and a stranger do not`() {

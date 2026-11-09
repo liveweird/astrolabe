@@ -50,6 +50,24 @@ suspend fun requireTeamManagerOrAdmin(
 }
 
 /**
+ * ADMIN, or the ACTIVE manager of EVERY team in [teamIds] (the cross-team schedule run, `POST /schedule-proposals`): the first team the
+ * caller does not manage fails the whole set with the single-team guard's own words, so the 403 is uniform. DB-free: [managedTeamIds]
+ * is the injected `TeamService.activeManagedTeamIds` lookup, asked ONCE per request after the ADMIN short-circuit (the set arrives in
+ * a body, so there is no per-team path id to ask [requireTeamManagerOrAdmin] about N times). A lookup failure propagates (fails
+ * closed). An empty [teamIds] passes vacuously - the route's shape check (`validateTeamIds`) refuses it first. READ-BEFORE-GUARD like
+ * the single-team routes: the route has already answered `404` for any team that is missing or deleted.
+ */
+suspend fun requireTeamManagerOfAllOrAdmin(
+    caller: CallerPrincipal,
+    teamIds: Collection<UInt>,
+    managedTeamIds: suspend (userId: UInt) -> Set<UInt>,
+) {
+    if (caller.isAdmin()) return
+    val managed = managedTeamIds(caller.userId)
+    if (teamIds.any { it !in managed }) throw ForbiddenException("Team manager or admin role required")
+}
+
+/**
  * ADMIN, or a user holding the [Permission.ROADMAP_EDITOR] grant (V11): the global project rank. [hasPermission] is
  * the injected `UserService.hasPermission` lookup (a database read per request, never a JWT claim), so the guard stays
  * DB-free and `GuardsTest` pure. ADMIN short-circuits before the lookup; a lookup failure propagates (fails closed:

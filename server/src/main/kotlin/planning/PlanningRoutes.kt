@@ -8,6 +8,7 @@ import ch.nokillswit.authz.orNotFound
 import ch.nokillswit.authz.requireAncestorOwnerOrAdmin
 import ch.nokillswit.authz.requireOwnerOrAdmin
 import ch.nokillswit.authz.requireTargetWindowEditorOrAdmin
+import ch.nokillswit.authz.requireTeamManagerOfAllOrAdmin
 import ch.nokillswit.authz.requireTeamManagerOrAdmin
 import ch.nokillswit.people.PersonService
 import ch.nokillswit.people.PersonServiceKey
@@ -25,9 +26,11 @@ import io.ktor.server.routing.routing
  * The planning REST surface (`/api/v1/work-streams`, `/programs`, `/projects`, `/milestones`, `/views/plan`, `/views/project/{id}`,
  * `/views/roadmap`, `/views/programs`, `/views/team/{id}`, `/views/baseline/{id}`, `/roadmap/ranking`, since V15 `/dependencies` with
  * `POST /projects/{id}/dependencies`, since V17 `PUT /teams/{id}/milestone-order` and since v0.8.0
- * `POST /teams/{id}/milestone-schedules` and `POST /teams/{id}/schedule-proposal`), registered by this ONE
+ * `POST /teams/{id}/milestone-schedules` and `POST /teams/{id}/schedule-proposal`, since 1.8 the plan-scoped `/schedule-proposals`),
+ * registered by this ONE
  * module function and split per entity (`WorkStreamRoutes.kt`, `ProgramRoutes.kt`, `ProjectRoutes.kt`, `MilestoneRoutes.kt`,
- * `DependencyRoutes.kt`, `PlanViewRoutes.kt`, `RoadmapRoutes.kt`, `TeamOrderRoutes.kt`, `TeamScheduleRoutes.kt`, and since V19
+ * `DependencyRoutes.kt`, `PlanViewRoutes.kt`, `RoadmapRoutes.kt`, `TeamOrderRoutes.kt`, `TeamScheduleRoutes.kt`,
+ * `CrossTeamScheduleRoutes.kt`, and since V19
  * `PublicHolidayRoutes.kt` - the ADMIN registry `/public-holidays`, guard-before-read, whose writes are plan writes, and since V20
  * `BaselineRoutes.kt` - the registry `/baselines`, written by ADMIN or a `ROADMAP_EDITOR`, guard-before-read like the ranking) — the first
  * deliberate exception to the one-routes-file template (`conventions.md`): eleven resources with different guards would blow the
@@ -55,6 +58,7 @@ fun Application.configurePlanningRoutes() {
     val teamOrder = attributes[TeamOrderServiceKey]
     val teamSchedule = attributes[TeamScheduleServiceKey]
     val scheduleProposal = attributes[ScheduleProposalServiceKey]
+    val crossTeam = attributes[CrossTeamProposalServiceKey]
     val holidays = attributes[PublicHolidayServiceKey]
     val baselines = attributes[BaselineServiceKey]
     val views = PlanViewServices(
@@ -74,6 +78,7 @@ fun Application.configurePlanningRoutes() {
             roadmapRoutes(deps, views)
             teamOrderRoutes(deps, teamOrder)
             teamScheduleRoutes(deps, teamSchedule, scheduleProposal)
+            crossTeamScheduleRoutes(deps, crossTeam)
             publicHolidayRoutes(holidays)
             baselineRoutes(deps, baselines)
         }
@@ -196,6 +201,19 @@ internal class PlanRouteDeps(
     suspend fun requireTeamManager(caller: CallerPrincipal, teamId: UInt) {
         if (!teams.exists(teamId)) throw NotFoundException("Team not found")
         requireTeamManagerOrAdmin(caller, teamId, teams::isActiveManager)
+    }
+
+    /**
+     * The read-before-guard preamble of a route whose team SET is in the body (the cross-team run): every id must name an ACTIVE team
+     * else a `404` for EVERY caller (it names the missing ids: ids are sequential and no secret), and only then must the caller be ADMIN
+     * or the ACTIVE manager of EVERY listed team (`requireTeamManagerOfAllOrAdmin`, one `activeManagedTeamIds` query) else a `403`.
+     * The 404 outranks the 403 whatever the caller manages. [teamIds] are already shape-validated (`validateTeamIds`).
+     */
+    suspend fun requireTeamManagers(caller: CallerPrincipal, teamIds: List<UInt>) {
+        val active = teams.activeNamesAmong(teamIds).keys
+        val missing = teamIds.filter { it !in active }
+        if (missing.isNotEmpty()) throw NotFoundException("Team not found: ${missing.joinToString(", ")}")
+        requireTeamManagerOfAllOrAdmin(caller, teamIds, teams::activeManagedTeamIds)
     }
 
     /**

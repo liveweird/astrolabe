@@ -28,6 +28,8 @@ ch.nokillswit.ContainsPatternTest	0.0
 ch.nokillswit.CoverageGapsTest	0.2
 ch.nokillswit.CriticalPathKernelsTest	0.0
 ch.nokillswit.CrossTeamKernelsTest	0.2
+ch.nokillswit.CrossTeamProposalSizeTest	4.0
+ch.nokillswit.CrossTeamProposalTest	3.0
 ch.nokillswit.CryptoBootTest	0.2
 ch.nokillswit.DatesTest	0.0
 ch.nokillswit.DecimalColumnTest	0.1

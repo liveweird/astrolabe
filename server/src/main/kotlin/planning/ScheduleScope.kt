@@ -55,6 +55,9 @@ data class ScheduleScope(
 /**
  * The scope of [teamId] from the rows the kernel reads: its milestones [team], its capacity [periods], every active milestone of the
  * [plan] and every active [links], the Monday-Friday [holidays]. Pure; the result does not depend on the order of any input.
+ * "Foreign" is a milestone of a team outside [runTeamIds] (default: just this team, the per-team proposal's rule). A cross-team run
+ * passes its whole team set ([runScope]): the spans of the run teams' milestones are NOT in the hash then, because each one is covered
+ * by its `schedule_revision` (a ticked item is skipped STALE) or by the accept's sweep over the run's teams.
  */
 fun scheduleScope(
     teamId: UInt,
@@ -63,10 +66,11 @@ fun scheduleScope(
     plan: Collection<PlanMilestoneFact>,
     links: Collection<PlanLinkFact>,
     holidays: Collection<LocalDate>,
+    runTeamIds: Set<UInt> = setOf(teamId),
 ): ScheduleScope {
     val teamMilestoneIds = team.mapTo(HashSet()) { it.id }
     val teamProjectIds = team.mapTo(HashSet()) { it.projectId }
-    val foreignByMilestone = plan.filter { it.teamId != teamId }.associateBy { it.id }
+    val foreignByMilestone = plan.filter { it.teamId !in runTeamIds }.associateBy { it.id }
     val foreignByProject = foreignByMilestone.values.filter { it.span != null }.groupBy { it.projectId }
 
     fun end(ref: EndpointRef): ScopeEnd {
@@ -98,3 +102,41 @@ private fun BigDecimal.plain() = stripTrailingZeros().toPlainString()
 
 /** The 64-character lowercase hex SHA-256 of [scope]'s canonical JSON: the wire `scopeHash`. */
 fun scopeFingerprint(scope: ScheduleScope): String = sha256Hex(canonicalJson(Json.encodeToString(scope)))
+
+/** A run team in the fingerprint: its id and its LOWERCASE name (the team order's tiebreak reads the name case-insensitively). */
+@Serializable
+data class ScopeRunTeam(val id: UInt, val name: String)
+
+/**
+ * The scope of a cross-team run (1.8.0): the [teams] sorted by id (each with its name: `proposeMany` breaks team-order ties by name,
+ * so a rename between the run and the accept can change the placement) and, per team in that order, its own [ScheduleScope] built with
+ * the WHOLE set as "own" ([scheduleScope]'s `runTeamIds`). Its JSON differs from a [ScheduleScope]'s by construction, so a per-team
+ * hash and a run hash never match (the two definitions of "foreign" differ; `planning-model.md` "The cross-team run").
+ */
+@Serializable
+data class ScheduleRunScope(val teams: List<ScopeRunTeam>, val scopes: List<ScheduleScope>)
+
+/**
+ * The [ScheduleRunScope] of the teams in [teamsById] (each team's milestones) with their [names] (one per team) and [periodsById] (a
+ * team without periods may be absent). Pure; the result does not depend on the order of any input.
+ */
+fun runScope(
+    teamsById: Map<UInt, Collection<TeamScheduleItem>>,
+    names: Map<UInt, String>,
+    periodsById: Map<UInt, Collection<CapacityPeriod>>,
+    plan: Collection<PlanMilestoneFact>,
+    links: Collection<PlanLinkFact>,
+    holidays: Collection<LocalDate>,
+): ScheduleRunScope {
+    val teamIds = teamsById.keys.sorted()
+    val run = teamIds.toSet()
+    return ScheduleRunScope(
+        teamIds.map { ScopeRunTeam(it, names.getValue(it).lowercase()) },
+        teamIds.map { id ->
+            scheduleScope(id, teamsById.getValue(id), periodsById[id].orEmpty(), plan, links, holidays, runTeamIds = run)
+        },
+    )
+}
+
+/** The 64-character lowercase hex SHA-256 of [scope]'s canonical JSON: the wire `scopeHash` of a cross-team run. */
+fun scopeFingerprint(scope: ScheduleRunScope): String = sha256Hex(canonicalJson(Json.encodeToString(scope)))

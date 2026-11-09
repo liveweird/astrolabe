@@ -75,6 +75,20 @@ class TeamService(private val database: R2dbcDatabase) {
     /** Whether an ACTIVE team [id] exists — the read-before-guard 404 of a team-scoped write. */
     suspend fun exists(id: UInt): Boolean = suspendTransaction(database) { Teams.existsActive(id) }
 
+    /**
+     * The names of the ACTIVE teams among [ids], one query (a missing or deleted id is simply absent): the 404 half of a route that
+     * takes a team SET in its body (`POST /schedule-proposals`), where [exists] per id would be N round trips.
+     */
+    suspend fun activeNamesAmong(ids: Collection<UInt>): Map<UInt, String> {
+        if (ids.isEmpty()) return emptyMap()
+        return suspendTransaction(database) {
+            Teams.select(Teams.id, Teams.name).where { (Teams.id inList ids.distinct()) and Teams.active() }
+                .map { it[Teams.id].value to it[Teams.name] }
+                .toList()
+                .toMap()
+        }
+    }
+
     /** The team, or null when missing/deleted. */
     suspend fun read(id: UInt): TeamResponse? = suspendTransaction(database) {
         val row = Teams.selectAll().where { (Teams.id eq id) and Teams.active() }.toList().singleOrNull()

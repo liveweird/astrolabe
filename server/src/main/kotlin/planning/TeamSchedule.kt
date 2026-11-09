@@ -206,8 +206,11 @@ private val LATEST_AS_OF: LocalDate = LAST_PLAN_DAY.minusWeeks(MAX_LOAD_WEEKS + 
  * The proposal request's rules, checked after the guard: `asOf` is an ISO date in the planning calendar's years ([parseIsoDate]) and
  * not after [LATEST_AS_OF] (a 400 otherwise).
  */
-fun validateProposalRequest(request: ScheduleProposalRequest): LocalDate {
-    val asOf = parseIsoDate(request.asOf, "asOf")
+fun validateProposalRequest(request: ScheduleProposalRequest): LocalDate = validateAsOf(request.asOf)
+
+/** The `asOf` rule of [validateProposalRequest], shared with the cross-team run (`POST /schedule-proposals`). */
+fun validateAsOf(value: String): LocalDate {
+    val asOf = parseIsoDate(value, "asOf")
     if (asOf.isAfter(LATEST_AS_OF)) throw BadRequestException("asOf must not be after $LATEST_AS_OF")
     return asOf
 }

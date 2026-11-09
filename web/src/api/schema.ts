@@ -1739,6 +1739,69 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/schedule-proposals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Propose a schedule over several teams at once (a computation, nothing is stored)
+         * @description The cross-team run (1.8): ONE proposal over a SET of teams instead of one team with every other team's dates fixed. The caller
+         *     must be ADMIN or the ACTIVE manager of EVERY team listed; the other teams stay fixed constraints, as for the per-team proposal.
+         *     The order of the checks, which differs from `POST /teams/{id}/schedule-proposal` only because the team set is IN the body: the
+         *     body decodes first (a malformed body is `400` even for a caller who would be refused), `teamIds` shape `400` (one to 50 teams,
+         *     none twice), then every listed team must be ACTIVE else `404` for EVERY caller (it names the missing ids; ids are no secret), then
+         *     `403` unless the caller manages every listed team (the first failing guard wins; the project's owner and every other caller get
+         *     `403`), and only then `asOf` `400` - a forbidden caller's malformed `asOf` is still `403`. A COMPUTATION, not a mutation: `200`
+         *     (no `Location`), one read-only snapshot, nothing is written or stored, no lock is taken, the plan revision does not move and no
+         *     audit event is emitted. The client shows the diff per team and sends the accepted moves back with this document's `revision` and
+         *     `scopeHash`.
+         *
+         *     The teams are placed in DEPENDENCY order (a team holding the predecessor of a link before the team holding its successor; a cycle
+         *     is broken by the team with the most movable milestones, then by name), each by the per-team proposal's rules with the teams placed
+         *     so far held as fixed facts, and the whole round is repeated until a pass changes nothing an earlier-placed team reads, at most
+         *     five passes. `passes` is the number made; `settled` is false when the limit was hit (the last pass's dates stand and the links that
+         *     still fail are in `dependencies`). A team graph without a cycle settles in one pass. Pinned milestones are fixed everywhere. A run
+         *     over one team equals that team's per-team proposal (its `scopeHash` apart).
+         *
+         *     `teams` lists each team's block in PLACEMENT order, in the per-team proposal's shape (`moves`, `unchanged`, `unplaced`, `pinned`,
+         *     `weeks` at most 520, `dependencies`: the links touching that team whose verdict is or was violated over the run's final dates; a
+         *     link between two run teams is listed in both blocks). `scopeHash` fingerprints what the run read that the milestones' own schedule
+         *     revisions do not cover; "foreign" there means outside the run set, so it differs from a per-team hash by design.
+         */
+        post: operations["proposeCrossTeamSchedule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/schedule-proposals/teams": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the teams the caller may include in a cross-team run
+         * @description Any authenticated caller. The ACTIVE teams `POST /schedule-proposals` would let the caller name: every active team for an ADMIN,
+         *     otherwise the teams the caller currently manages (none = an empty list). By name, case-insensitively, then id. A bounded `{items}`
+         *     list (the active teams, about 15), not paged. The server's `403` on the run stays the rule.
+         */
+        get: operations["listScheduleProposalTeams"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/public-holidays": {
         parameters: {
             query?: never;
@@ -5104,6 +5167,67 @@ export interface components {
             name: string;
             /** @description The milestone's project for a milestone end; null for a project end, whose `name` is the project. */
             projectName: string | null;
+        };
+        CrossTeamProposalRequest: {
+            /**
+             * Format: date
+             * @description The viewer's calendar day, from 1900-01-01 to 2990-01-05 (as for the per-team proposal). A milestone of a run team that starts after it (or has no dates) may move; the others are fixed.
+             */
+            asOf: string;
+            /** @description The run's teams: one to 50, each once, in any order (the server places them in dependency order). The caller must manage every one, or be ADMIN. */
+            teamIds: number[];
+        };
+        CrossTeamProposal: {
+            /**
+             * Format: int64
+             * @description The plan revision the run was computed from.
+             */
+            revision: number;
+            /**
+             * Format: date
+             * @description The request's `asOf`, echoed.
+             */
+            asOf: string;
+            /**
+             * Format: int32
+             * @description The passes the kernel made (at most five).
+             */
+            passes: number;
+            /** @description True when another pass would reproduce every team's result; false when the pass limit was hit (the last pass's dates stand). */
+            settled: boolean;
+            /** @description One block per requested team, in PLACEMENT order. */
+            teams: components["schemas"]["CrossTeamProposalTeam"][];
+            /** @description A fingerprint of everything the run read that the milestones' own schedule revisions do not cover, over the whole team set ("foreign" = outside the run). Stable while the run teams' plan is unchanged, whatever else happens in the plan. */
+            scopeHash: string;
+        };
+        /** @description One team's block of a cross-team run, in the per-team proposal's shape. */
+        CrossTeamProposalTeam: {
+            /** Format: int32 */
+            teamId: number;
+            name: string;
+            /** @description The team's movable milestones that change dates, in the team's effective order. */
+            moves: components["schemas"]["ScheduleProposalMove"][];
+            /** @description The team's movable milestones that land on their current dates, in the team's effective order. */
+            unchanged: number[];
+            /** @description The team's movable milestones that got no dates, in the team's effective order. */
+            unplaced: components["schemas"]["ScheduleProposalUnplaced"][];
+            /** @description The team's pinned milestones starting after `asOf` (fixed by their pin), in the team's effective order. */
+            pinned: number[];
+            /** @description The team's weekly load AFTER accepting every move of the run (at most 520); empty while nothing would be scheduled. */
+            weeks: components["schemas"]["WeekLoad"][];
+            /** @description True when `weeks` stops at 520 weeks. */
+            weeksTruncated: boolean;
+            /** @description The links touching the team (an end among its milestones, or a project end holding one of them whose span changes) whose verdict is or was VIOLATED - before the run or over its final dates; violated-after first. A link between two run teams is listed in both blocks. */
+            dependencies: components["schemas"]["ScheduleProposalLink"][];
+        };
+        ProposalTeam: {
+            /** Format: int32 */
+            id: number;
+            name: string;
+        };
+        /** @description The teams a cross-team run may include - bounded by the active teams (about 15), not paged. */
+        ProposalTeamList: {
+            items: components["schemas"]["ProposalTeam"][];
         };
         /** @description RFC 7807 problem detail. Served as `application/problem+json`; instance is the request path without query parameters. */
         ProblemDetail: {
@@ -9152,6 +9276,59 @@ export interface operations {
             404: components["responses"]["NotFound"];
             413: components["responses"]["PayloadTooLarge"];
             415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    proposeCrossTeamSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CrossTeamProposalRequest"];
+            };
+        };
+        responses: {
+            /** @description The run; nothing was changed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrossTeamProposal"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    listScheduleProposalTeams: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The teams */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProposalTeamList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
             500: components["responses"]["InternalServerError"];
         };
     };
