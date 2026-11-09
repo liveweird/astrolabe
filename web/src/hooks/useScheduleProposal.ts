@@ -68,6 +68,8 @@ export function useScheduleProposal(teamId: number, announce: (text: string) => 
   const close = () => {
     setProposal(null);
     setSelected(new Set());
+    // The ticked-subset checks (1.8) belong to the proposal that closes: drop them before the `["plan"]` refresh below can re-ask an active one.
+    queryClient.removeQueries({ queryKey: ["plan", "schedule-check"] });
   };
 
   const request = useMutation({

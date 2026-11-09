@@ -1145,7 +1145,7 @@ follows Idle gaps. Tests: `TeamDetails.baseline.test.tsx`, `TeamTimeline.test.ts
 
 **The schedule proposal (v0.8)** - a third write path, `hooks/useScheduleProposal.ts` (the generated view of it: `timeline.md` "The proposal preview (v0.8.0)").
 "Propose schedule" (timeline header, `team.can.schedule`) POSTs the viewer's local day as `asOf`; a proposal with something to show opens the **Proposed
-schedule section** (`components/TeamProposal.tsx`, h3, mounted under the timeline before the Unscheduled tray), one that has nothing to show (nothing to propose
+schedule section** (`components/TeamProposal.tsx`, h3, mounted under the timeline before the Unscheduled tray; since 1.8 its summary line, table and unplaced rows are `components/ProposalTable.tsx`, a controlled table over the structural `ProposalContent` with no actions, which the cross-team page composes once per team), one that has nothing to show (nothing to propose
 / no capacity: add a capacity period first) opens nothing and says so in a note. The section is controlled by the hook (`selected`, `toggle`, `selectAll`,
 `selectNone`, `accept`, `discard`): a summary line ("3 moves · 1 newly scheduled · 2 stay · 1 could not be placed"), a RED "N links would be violated" badge for
 links violated AFTER and not before (a gray "N links stay violated" for those violated both times - `linkTotals`), the table (`teams.proposal.tableAria`; a
@@ -1161,7 +1161,7 @@ the whole-batch stale refusal ("the plan changed in the meantime - nothing was s
 refusal (see below); the status region is the single announcer, so none is an `Alert` with its implicit `role="alert"`. A 403/404/400 of the accept is a
 `FormErrorAlert` INSIDE the open section above the actions (the preview stays open, the selection is kept) and takes the focus (the disabled Accept would
 otherwise drop it to the body); a propose's failure shows under the timeline header while no preview is open. There is no success toast on accept: the visible
-outcome note and the polite sentence carry it. The intro line says the link warnings assume every move is accepted. Focus: Discard takes it when the preview
+outcome note and the polite sentence carry it. The intro line says the link warnings and the proposed load follow the moves you tick (1.8, below). Focus: Discard takes it when the preview
 opens; Propose gets it back after Discard, an accept or a stale refusal, once no write is running (a disabled button cannot take it). The page is read-only
 while a proposal is requested or open (`hooks/useProposalLock.ts`). **The scope check (v0.9 C4):** the accept sends the proposal's `scopeHash`; on a
 `409 stale-scope` (`isStaleScope`; the team's plan changed since the proposal, nothing was written) the hook closes the preview, requests a fresh proposal at
@@ -1172,6 +1172,22 @@ page arms the focus when a preview opens or the rescoped note appears, and hands
 the usual note instead. The whole-batch `stale-revision` 409 keeps the "reloaded, propose again" note. Tests: `TeamProposal.test.tsx` (select all/some/none,
 names, badges, unplaced rows), `TeamDetails.proposal.test.tsx` (accept sends exactly the selected moves, outcome/skipped/stale/rescoped notes, Discard, focus),
 `useScheduleProposal.test.tsx`, `utils/scheduleProposal.test.ts`.
+
+**The ticked-subset check (1.8)** - the proposal's link verdicts (`dependencies`) and proposed load (`weeks`) describe EVERY move accepted, so they would lie
+once some moves are unticked. `hooks/useScheduleCheck.ts` (`{teamIds, revision, scopeHash, moves, selected, enabled}`; the cross-team page reuses it with the run's
+teams) asks the server (`checkSchedule`, `api/scheduleProposals.ts`: `POST /schedule-proposals/check {teamIds:[team], items}`, a computation) for the
+verdicts of exactly the ticked moves, and ONLY while some but not all are ticked: all ticked IS the proposal's own answer and none ticked changes nothing, so
+neither sends a request. The ticks are debounced 300 ms (`useDebouncedValue` over their JSON; the query is keyed `["plan", "schedule-check", sorted teamIds, revision,
+scopeHash, items]` by the DEBOUNCED ticks and runs only once they have caught up with the current ones, so an answer for an older selection is never shown for the current
+one). It returns `ScheduleCheckState {mode: all|some|none, byTeam, pending, failed}` and `overlayCheck(open, check, teamId)` (`utils/scheduleProposal.ts`, pure)
+turns the open proposal into what the page shows: all = the proposal as it is; none = the plan as it is: only the links already violated BEFORE remain (the gray "N links stay violated", no new warning) and no `weeks` (the strip keeps the CURRENT load, so
+`TeamProposalView.weeks` is optional); some = the check's `dependencies`/`weeks`/`weeksTruncated` for the team once they are in. While the check is pending
+(the debounce window and the request count; a check cancelled by a write's `cancelQueries(["plan"])` is asked again, never left "Checking…") or has failed the all-accepted verdicts stay and `ProposalTable` says so in one dimmed line under the summary
+(`teams.proposal.checking` / `checkFailed`; visible only, never a toast or an alert, no announcement - the status region already speaks on select all/none).
+So unticking a predecessor turns the ticked successor's Links cell and the summary badge red BEFORE the accept. `TeamDetails` hands the overlaid proposal to
+both `TeamProposal` and `TeamTimeline`; the accept still sends the selected moves exactly as before (the check is a query, `teamWriteKey` is untouched); closing the preview drops the check queries, so the refresh after an accept re-asks none.
+`ProposalNotes` takes the structural `ProposalFlow` (`utils/scheduleProposal.ts`), so a second hook fits it. Tests: `ProposalTable.test.tsx`,
+`useScheduleCheck.test.tsx`, `TeamDetails.proposal.test.tsx` ("the ticked-subset check"), `utils/scheduleProposal.test.ts` (`overlayCheck`).
 
 **The Jira markers (1.3).** The same view-fed pieces as the project page, from `GET /views/team/{id}` alone: the chip's count line (`teamMarks(view)`: the
 team's linked milestones, scheduled and tray, and their open flags), a **Flags** column on the timeline (while a scheduled milestone is linked; it replaces the

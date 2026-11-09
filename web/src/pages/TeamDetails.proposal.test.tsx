@@ -4,7 +4,7 @@ import { act, fireEvent, screen, waitFor, within } from "@testing-library/react"
 import { QueryClient } from "@tanstack/react-query";
 import { Route, Routes } from "react-router-dom";
 import TeamDetails from "./TeamDetails";
-import type { ScheduleProposal, ScheduleProposalMove, TeamMilestone, TeamView, WeekLoad } from "../api/teams";
+import type { ScheduleProposal, ScheduleProposalEnd, ScheduleProposalLink, ScheduleProposalMove, TeamMilestone, TeamView, WeekLoad } from "../api/teams";
 import { READ_ONLY_PANEL } from "../test/flow";
 import { headingOutline } from "../test/headings";
 import { jsonResponse } from "../test/http";
@@ -18,6 +18,8 @@ const TOKEN_KEY = "astrolabe.auth.token";
 const ROLES_KEY = "astrolabe.auth.roles";
 
 type FetchMock = ReturnType<typeof vi.fn>;
+
+const CHECK_URL = "/api/v1/schedule-proposals/check";
 
 const milestone = (id: number, name: string, over: Partial<TeamMilestone> = {}): TeamMilestone => ({
   jira: null,
@@ -121,6 +123,7 @@ const proposalOf = (over: Partial<ScheduleProposal> = {}): ScheduleProposal => (
 let view: TeamView;
 let proposalAnswer: Response | (() => Response | Promise<Response>);
 let batchAnswer: Response | (() => Response | Promise<Response>);
+let checkAnswer: Response | (() => Response | Promise<Response>);
 let mockFetch: FetchMock;
 
 function serve() {
@@ -130,6 +133,7 @@ function serve() {
     if (method === "GET" && url === "/api/v1/teams/1/flow") return Promise.resolve(jsonResponse(200, READ_ONLY_PANEL));
     if (method === "GET" && url === "/api/v1/public-holidays") return Promise.resolve(jsonResponse(200, { items: [] }));
     if (method === "POST" && url === "/api/v1/teams/1/schedule-proposal") return Promise.resolve(typeof proposalAnswer === "function" ? proposalAnswer() : proposalAnswer.clone());
+    if (method === "POST" && url === CHECK_URL) return Promise.resolve(typeof checkAnswer === "function" ? checkAnswer() : checkAnswer.clone());
     if (method === "POST" && url === "/api/v1/teams/1/milestone-schedules") return Promise.resolve(typeof batchAnswer === "function" ? batchAnswer() : batchAnswer.clone());
     return Promise.resolve(jsonResponse(404, { title: "Not Found", status: 404 }));
   });
@@ -181,6 +185,7 @@ beforeEach(() => {
   view = viewOf();
   proposalAnswer = jsonResponse(200, proposalOf());
   batchAnswer = jsonResponse(200, { revision: 11, accepted: [2, 3], skipped: [] });
+  checkAnswer = jsonResponse(200, { teams: [{ teamId: 1, weeks: [week("2027-06-14", 3)], weeksTruncated: false, dependencies: [] }] });
   mockFetch = vi.fn();
   vi.stubGlobal("fetch", mockFetch);
   localStorage.setItem(TOKEN_KEY, "fake-token");
@@ -668,5 +673,138 @@ describe("the Proposed schedule section", () => {
     await user.click(screen.getByRole("checkbox", { name: "Accept all" }));
     expect(liveText()).toContain("2 of 2 selected");
     expect(acceptButton(2)).toBeEnabled();
+  });
+});
+
+describe("the ticked-subset check (1.8)", () => {
+  const end = (id: number, name: string): ScheduleProposalEnd => ({ kind: "MILESTONE", id, name, projectName: "Invoices" });
+  const link = (id: number, predecessor: ScheduleProposalEnd, successor: ScheduleProposalEnd, before: ScheduleProposalLink["before"], status: ScheduleProposalLink["before"]): ScheduleProposalLink => ({
+    id,
+    predecessor,
+    successor,
+    type: "FS",
+    lagDays: 0,
+    before,
+    check: { status, shortfallDays: status === "VIOLATED" ? 2 : null, slackDays: status === "VIOLATED" ? -2 : null, requiredDate: "2027-06-17", actualDate: null },
+  });
+  const checkPosts = () => mockFetch.mock.calls.filter(([url, init]) => url === CHECK_URL && (init as RequestInit).method === "POST").map(([, init]) => JSON.parse((init as RequestInit).body as string));
+  // A fake clock (real time still flows for waitFor): the 300 ms debounce is advanced by hand, so "no request yet" never depends on load.
+  const settle = () => act(() => vi.advanceTimersByTimeAsync(450));
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+  const rowOf = (name: string) => screen.getByRole("checkbox", { name: `Accept ${name}` }).closest("tr") as HTMLElement;
+
+  test("unticking a move sends the check with the ticked items, the Links column and the strip follow the answer; all ticked sends nothing; none ticked shows the plan as it is", async () => {
+    const broken = link(1, end(2, "tp-b"), end(50, "Checkout page"), "OK", "VIOLATED");
+    const old = link(4, end(60, "Design"), end(61, "Build"), "VIOLATED", "VIOLATED");
+    proposalAnswer = jsonResponse(200, proposalOf({ dependencies: [broken, old] }));
+    const user = userEvent.setup();
+    await openPreview(user);
+    // every move ticked: the proposal's own verdicts and load, and no request however long we wait
+    expect(within(rowOf("tp-b")).getByText("would violate: Invoices › Checkout page must start on 2027-06-17 or later")).toBeInTheDocument();
+    expect(screen.getByText("1 link would be violated")).toBeInTheDocument();
+    expect(document.querySelector('[data-week="2027-06-07"]')).not.toBeNull();
+    await settle();
+    expect(checkPosts()).toEqual([]);
+
+    // tp-tray unticked: only tp-b is asked about, and the answer (no violation, another load) replaces the proposal's
+    await user.click(screen.getByRole("checkbox", { name: "Accept tp-tray" }));
+    expect(screen.getByText("Checking the ticked moves…")).toBeInTheDocument();
+    await waitFor(() => expect(checkPosts()).toEqual([{ teamIds: [1], items: [{ milestoneId: 2, startDate: "2027-06-14", endDate: "2027-06-16" }] }]));
+    await waitFor(() => expect(screen.queryByText("1 link would be violated")).toBeNull());
+    expect(screen.queryByText("Checking the ticked moves…")).toBeNull();
+    expect(within(rowOf("tp-b")).queryByText(/would violate/)).toBeNull();
+    expect(document.querySelector('[data-week="2027-06-14"]')).not.toBeNull();
+    expect(document.querySelector('[data-week="2027-06-07"]')).toBeNull();
+
+    // everything ticked again: the proposal's own again, still one request
+    await user.click(screen.getByRole("checkbox", { name: "Accept tp-tray" }));
+    expect(screen.getByText("1 link would be violated")).toBeInTheDocument();
+    expect(document.querySelector('[data-week="2027-06-07"]')).not.toBeNull();
+    await settle();
+    expect(checkPosts()).toHaveLength(1);
+
+    // nothing ticked: the plan as it is (only the link already violated before, gray; no new warning) and the current load, still one request
+    await user.click(screen.getByRole("checkbox", { name: "Accept all" }));
+    expect(screen.queryByText("1 link would be violated")).toBeNull();
+    expect(screen.getByText("1 link stays violated")).toBeInTheDocument();
+    expect(within(rowOf("tp-b")).queryByText(/would violate/)).toBeNull();
+    expect(document.querySelector('[data-week="2027-02-01"]')).not.toBeNull();
+    expect(document.querySelector('[data-week="2027-06-07"]')).toBeNull();
+    await settle();
+    expect(checkPosts()).toHaveLength(1);
+  });
+
+  test("unticking a predecessor turns the badge of the ticked successor red before the accept", async () => {
+    // accepting both is fine (tp-b ends 06-16, tp-tray starts after it); without tp-b's move the successor would start before the stored end of tp-b
+    const fine = link(1, end(2, "tp-b"), end(3, "tp-tray"), "OK", "OK");
+    proposalAnswer = jsonResponse(200, proposalOf({ dependencies: [fine] }));
+    const violated = link(1, end(2, "tp-b"), end(3, "tp-tray"), "OK", "VIOLATED");
+    checkAnswer = jsonResponse(200, { teams: [{ teamId: 1, weeks: [week("2027-06-07", 4)], weeksTruncated: false, dependencies: [violated] }] });
+    const user = userEvent.setup();
+    await openPreview(user);
+    expect(screen.queryByText(/would be violated/)).toBeNull();
+    expect(within(rowOf("tp-tray")).queryByText("Conflict")).toBeNull();
+    await user.click(screen.getByRole("checkbox", { name: "Accept tp-b" }));
+    await waitFor(() => expect(screen.getByText("1 link would be violated")).toBeInTheDocument());
+    const successor = rowOf("tp-tray");
+    expect(within(successor).getByText("Conflict")).toBeInTheDocument();
+    expect(within(successor).getByText("would violate: must start on 2027-06-17 or later (link from Invoices › tp-b)")).toBeInTheDocument();
+    expect(checkPosts()).toEqual([{ teamIds: [1], items: [{ milestoneId: 3, startDate: "2027-06-07", endDate: "2027-06-10" }] }]);
+  });
+
+  test("a failed check says so inline, never as a toast or an alert, and the proposal's own verdicts stay", async () => {
+    const broken = link(1, end(2, "tp-b"), end(50, "Checkout page"), "OK", "VIOLATED");
+    proposalAnswer = jsonResponse(200, proposalOf({ dependencies: [broken] }));
+    checkAnswer = jsonResponse(500, { title: "Internal Server Error", status: 500 });
+    const user = userEvent.setup();
+    await openPreview(user);
+    await user.click(screen.getByRole("checkbox", { name: "Accept tp-tray" }));
+    expect(await screen.findByText("The ticked moves could not be checked; the warnings describe all moves.")).toBeInTheDocument();
+    expect(screen.queryByText("Checking the ticked moves…")).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByText("1 link would be violated")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Accept selected (1)" })).toBeEnabled();
+  });
+
+  test("an accept that cancels a check in flight and then fails leaves the check asked again, not 'Checking…' forever", async () => {
+    let held: ((response: Response) => void) | null = null;
+    let calls = 0;
+    checkAnswer = () => {
+      calls += 1;
+      return calls === 1
+        ? new Promise<Response>((resolve) => {
+            held = resolve;
+          })
+        : jsonResponse(200, { teams: [{ teamId: 1, weeks: [week("2027-06-14", 3)], weeksTruncated: false, dependencies: [] }] });
+    };
+    batchAnswer = jsonResponse(403, { title: "Forbidden", status: 403 });
+    const user = userEvent.setup();
+    await openPreview(user);
+    await user.click(screen.getByRole("checkbox", { name: "Accept tp-tray" }));
+    await waitFor(() => expect(checkPosts()).toHaveLength(1));
+    expect(held).not.toBeNull();
+    // the accept cancels the plan reads, the held check with them; its refusal leaves the preview open
+    await user.click(screen.getByRole("button", { name: "Accept selected (1)" }));
+    await screen.findByRole("alert");
+    await waitFor(() => expect(checkPosts()).toHaveLength(2));
+    await waitFor(() => expect(screen.queryByText("Checking the ticked moves…")).toBeNull());
+    expect(document.querySelector('[data-week="2027-06-14"]')).not.toBeNull();
+  });
+
+  test("a successful subset accept sends no further check request", async () => {
+    batchAnswer = jsonResponse(200, { revision: 11, accepted: [2], skipped: [] });
+    const user = userEvent.setup();
+    await openPreview(user);
+    await user.click(screen.getByRole("checkbox", { name: "Accept tp-tray" }));
+    await waitFor(() => expect(checkPosts()).toHaveLength(1));
+    await user.click(screen.getByRole("button", { name: "Accept selected (1)" }));
+    await waitFor(() => expect(screen.queryByRole("table", { name: "Proposed schedule moves" })).toBeNull());
+    await settle();
+    expect(checkPosts()).toHaveLength(1);
   });
 });

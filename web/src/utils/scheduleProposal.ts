@@ -1,4 +1,5 @@
 import type { TFunction } from "i18next";
+import type { ScheduleCheckTeam } from "../api/scheduleProposals";
 import type { ScheduleProposal, ScheduleProposalEnd, ScheduleProposalLink, ScheduleProposalMove, SkippedSchedule, TeamMilestone, TeamScheduleBatchResponse, TeamView } from "../api/teams";
 import type { TimelineBarData } from "./timelineModel";
 
@@ -7,8 +8,27 @@ import type { TimelineBarData } from "./timelineModel";
  * and the batch body of an accept. The SERVER decides every date and figure; nothing here recomputes a schedule.
  */
 
-/** The part of a proposal the team timeline draws: the moved milestones' proposed spans and the weekly load AFTER accepting all of them. */
-export type TeamProposalView = Pick<ScheduleProposal, "moves" | "weeks">;
+/**
+ * The part of a proposal the team timeline draws: the moved milestones' proposed spans and the weekly load AFTER accepting the ticked
+ * ones. `weeks` is absent when nothing is ticked: the strip then keeps the current load.
+ */
+export type TeamProposalView = Pick<ScheduleProposal, "moves"> & Partial<Pick<ScheduleProposal, "weeks">>;
+
+/** What the proposal table reads: the figures, the moves, the unplaced rows and the link verdicts - never the revision, hash, team or weeks. */
+export type ProposalContent = Pick<ScheduleProposal, "asOf" | "moves" | "unchanged" | "unplaced" | "pinned" | "dependencies">;
+
+/** What the notes under the timeline header read of the proposal flow (structural, so the team page's hook and the cross-team page's both fit). */
+export type ProposalFlow = {
+  /** The open preview, or `null`; the notes only ask whether one is open. */
+  proposal: object | null;
+  note: ProposalNote | null;
+  noteDate: string;
+  outcome: ProposalOutcome | null;
+  stale: boolean;
+  rescoped: boolean;
+  dismiss: () => void;
+  error: string | null;
+};
 
 /** The id of a proposal bar (unique among the timeline's bars, whose own ids are the milestones' numbers). */
 const proposalBarId = (milestoneId: number) => `proposal:${milestoneId}`;
@@ -70,8 +90,8 @@ export function noteOf(proposal: Pick<ScheduleProposal, "moves" | "unchanged" | 
   return null;
 }
 
-/** The batch body's items: the SELECTED moves, in the proposal's order, each exactly as proposed. */
-export function acceptItems(proposal: Pick<ScheduleProposal, "moves">, selected: ReadonlySet<number>) {
+/** The batch body's items (and the check's): the SELECTED moves, in the proposal's order, each exactly as proposed. */
+export function acceptItems(proposal: { moves: readonly ScheduleProposalMove[] }, selected: ReadonlySet<number>) {
   return proposal.moves
     .filter((move) => selected.has(move.milestoneId))
     .map((move) => ({ milestoneId: move.milestoneId, startDate: move.to.start, endDate: move.to.end }));
@@ -104,6 +124,41 @@ export function outcomeSentence(outcome: ProposalOutcome, t: TFunction): string 
     parts.push(t("teams.proposal.outcome.skipped", { count: outcome.skipped.length, reasons }));
   }
   return parts.join(" · ");
+}
+
+// ---- the ticked subset: the check's verdicts over the proposal's ----------------------------------------------------------------
+
+/**
+ * Where the ticks stand against the proposal's own lists (which describe EVERY move accepted): `all` - they are exact, no check is asked;
+ * `none` - nothing would change; `some` - the server's check describes the subset (`byTeam`, once it has answered for the CURRENT ticks).
+ */
+export type ScheduleCheckState = {
+  mode: "all" | "some" | "none";
+  byTeam: ReadonlyMap<number, Pick<ScheduleCheckTeam, "weeks" | "weeksTruncated" | "dependencies">> | null;
+  /** The ticks changed (or the answer is on its way): the verdicts shown are the proposal's own. */
+  pending: boolean;
+  /** The check for the current ticks failed: the verdicts shown are the proposal's own. */
+  failed: boolean;
+};
+
+const isViolatedBefore = (link: ScheduleProposalLink) => link.before === "VIOLATED";
+
+/** Nothing accepted leaves a link violated before as it was: it counts in the gray "stays violated" figure (its dates are not shown for it). */
+const stillViolated = (link: ScheduleProposalLink): ScheduleProposalLink => ({ ...link, check: { ...link.check, status: "VIOLATED" } });
+
+/**
+ * What the table and the strip show for one team: every move ticked = the proposal as it is; none ticked = the plan as it is (only the
+ * links already violated before, as "stay violated", no new warnings) and the current load (no `weeks`); some ticked = the server's check of exactly those moves once it has answered, the proposal's own verdicts (all moves
+ * accepted) while it is on its way or has failed - the table says so. The verdicts are never computed here.
+ */
+export function overlayCheck<P extends Pick<ScheduleProposal, "dependencies"> & Partial<Pick<ScheduleProposal, "weeks">>>(
+  open: P,
+  check: ScheduleCheckState,
+  teamId: number,
+): Omit<P, "weeks"> & Pick<TeamProposalView, "weeks"> {
+  if (check.mode === "none") return { ...open, dependencies: open.dependencies.filter(isViolatedBefore).map(stillViolated), weeks: undefined };
+  const team = check.mode === "some" ? check.byTeam?.get(teamId) : undefined;
+  return team === undefined ? open : { ...open, dependencies: team.dependencies, weeks: team.weeks, weeksTruncated: team.weeksTruncated };
 }
 
 // ---- the Proposed schedule section: the figures and the links column ----------------------------------------------------------

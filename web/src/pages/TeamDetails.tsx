@@ -38,6 +38,7 @@ import { useDialogFocus } from "../hooks/useDialogFocus";
 import { isOneOf, useStoredState } from "../hooks/useStoredState";
 import { useProposalFocus } from "../hooks/useProposalFocus";
 import { useProposalLock } from "../hooks/useProposalLock";
+import { useScheduleCheck } from "../hooks/useScheduleCheck";
 import { useScheduleProposal } from "../hooks/useScheduleProposal";
 import { useTeamOrder } from "../hooks/useTeamOrder";
 import { useJiraBarsPick } from "../hooks/useJiraBarsPick";
@@ -48,7 +49,7 @@ import { jiraPageRange } from "../utils/jiraBars";
 import { teamMarks } from "../utils/jiraMarks";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { loadErrorMessage } from "../utils/saveError";
-import { proposalDays } from "../utils/scheduleProposal";
+import { overlayCheck, proposalDays } from "../utils/scheduleProposal";
 import { growSeenRange, type SeenRange } from "../utils/seenRange";
 import { teamsPath } from "../utils/teamLinks";
 import { dropOutcome } from "../utils/timelineDrag";
@@ -89,6 +90,8 @@ function TeamPage({ id }: { id: number }) {
   const proposal = useScheduleProposal(id, schedule.announce, schedule.placeholder, pick);
   const lock = useProposalLock(proposal, schedule.announce);
   const { open, locked } = lock;
+  // 1.8: while only some moves are ticked, the server judges THOSE moves (the link warnings and the proposed load); all or none need no request.
+  const check = useScheduleCheck({ teamIds: [id], revision: open?.revision ?? 0, scopeHash: open?.scopeHash ?? "", moves: open?.moves ?? [], selected: proposal.selected, enabled: open !== null });
   const writing = schedule.pending || order.pending;
   const busy = writing || proposal.requesting;
   // Focus follows the preview (Discard takes it when a proposal opens, Propose gets it back once the preview is closed): `useProposalFocus`.
@@ -133,6 +136,8 @@ function TeamPage({ id }: { id: number }) {
   const grown = growSeenRange(seen, dates);
   if (grown !== null) setSeen(grown);
   const scale = makeScale(zoom, defaultRange(seen === null ? [] : [seen.min, seen.max], today, zoom));
+  // What the table and the strip show: the proposal with the verdicts and the load of the TICKED moves.
+  const shown = open === null ? null : overlayCheck(open, check, id);
 
   // The schedule and the order are read-only while locked: every entry point (menu, tray, dialog, drag, Reset) refuses out loud instead.
   if (locked && scheduling !== null) setScheduling(null);
@@ -200,7 +205,7 @@ function TeamPage({ id }: { id: number }) {
               busy={busy}
               actions={actions}
               label={t("teams.view.timelineAria")}
-              proposal={open ?? undefined}
+              proposal={shown ?? undefined}
               jira={jiraWindowNow}
               criticalPath={criticalPath}
               toolbar={
@@ -212,9 +217,10 @@ function TeamPage({ id }: { id: number }) {
               }
             />
           </Stack>
-          {open !== null && (
+          {shown !== null && (
             <TeamProposal
-              proposal={open}
+              proposal={shown}
+              check={check}
               selected={proposal.selected}
               busy={busy}
               applying={proposal.applying}

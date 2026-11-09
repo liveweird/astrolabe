@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import i18n from "../i18n";
+import type { ScheduleCheckTeam } from "../api/scheduleProposals";
 import type { ScheduleProposal, ScheduleProposalEnd, ScheduleProposalLink, ScheduleProposalMove, TeamMilestone } from "../api/teams";
 import {
   acceptItems,
@@ -11,6 +12,7 @@ import {
   noteOf,
   outcomeOf,
   outcomeSentence,
+  overlayCheck,
   proposalBars,
   proposalDays,
   proposalRows,
@@ -223,5 +225,44 @@ describe("endpointText", () => {
 describe("requiredEdge", () => {
   test("FS and SS constrain the successor's start, FF and SF its end", () => {
     expect((["FS", "SS", "FF", "SF"] as const).map(requiredEdge)).toEqual(["start", "start", "end", "end"]);
+  });
+});
+
+describe("overlayCheck", () => {
+  const dep = (id: number, status: "OK" | "VIOLATED"): ScheduleProposalLink =>
+    linkOf(id, endpoint("MILESTONE", 1, "a"), endpoint("MILESTONE", 50, "x"), "OK", status);
+  const open = {
+    moves: [move(1), move(2)],
+    dependencies: [dep(1, "VIOLATED")],
+    weeks: [{ weekStart: "2042-01-05", load: 9, capacity: 10, overloaded: false, overloadMd: null, maxWip: 1, wipExceeded: false }],
+    weeksTruncated: false,
+  };
+  const checked: Pick<ScheduleCheckTeam, "weeks" | "weeksTruncated" | "dependencies"> = { weeks: [], weeksTruncated: true, dependencies: [dep(2, "OK")] };
+  const state = (over: Partial<Parameters<typeof overlayCheck>[1]>): Parameters<typeof overlayCheck>[1] => ({ mode: "some", byTeam: null, pending: false, failed: false, ...over });
+
+  test("every move ticked: the proposal as it is", () => {
+    expect(overlayCheck(open, state({ mode: "all" }), 1)).toBe(open);
+  });
+
+  test("no move ticked: the plan as it is - only the links already violated before remain (as stay-violated), no proposed load (the strip keeps the current one)", () => {
+    const before = linkOf(3, endpoint("MILESTONE", 1, "a"), endpoint("MILESTONE", 50, "x"), "VIOLATED", "OK");
+    const shown = overlayCheck({ ...open, dependencies: [dep(1, "VIOLATED"), before] }, state({ mode: "none" }), 1);
+    expect(shown.dependencies.map((link) => link.id)).toEqual([3]);
+    expect(linkTotals(shown.dependencies)).toEqual({ newlyViolated: 0, stillViolated: 1 });
+    expect(shown.weeks).toBeUndefined();
+    expect(shown.moves).toBe(open.moves);
+  });
+
+  test("some ticked: the check's verdicts and load for the team once they are in", () => {
+    const shown = overlayCheck(open, state({ byTeam: new Map([[1, checked]]) }), 1);
+    expect(shown.dependencies).toBe(checked.dependencies);
+    expect(shown.weeks).toBe(checked.weeks);
+    expect(shown.moves).toBe(open.moves);
+  });
+
+  test("some ticked while the check is on its way, has failed, or does not list the team: the proposal's own verdicts", () => {
+    expect(overlayCheck(open, state({ pending: true }), 1)).toBe(open);
+    expect(overlayCheck(open, state({ failed: true }), 1)).toBe(open);
+    expect(overlayCheck(open, state({ byTeam: new Map([[2, checked]]) }), 1)).toBe(open);
   });
 });
