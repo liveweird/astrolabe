@@ -54,7 +54,7 @@
    - *Expected*: the **Critical path** toggle is not pressed; the timeline has no Slack column and no element with `data-critical`.
 2. They press **Critical path**.
    - *Expected*: the toggle is pressed and a **Slack** column appears: p1 reads "0 critical path" (it drives P's end), p2 "10 working days";
-     the note says slack and the critical path are measured toward each milestone's own project's end.
+     the note says slack and the critical path are measured toward the end of the milestone's own project.
    - *Expected*: p1's bar (a movable button for the administrator) is named "..., on the critical path" and carries `data-critical="true"`;
      p2's does not; exactly ONE element on the page carries the flag, and no arrow is drawn (the link y1 -> p1 comes from the other team's
      milestone, which is no row of this page).

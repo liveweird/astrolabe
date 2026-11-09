@@ -265,7 +265,7 @@ test("the administrator reads the critical path on P's team page: p1 critical wi
   await expect(teamGrid.getByRole("columnheader", { name: "Slack" })).toBeVisible();
   await expect(teamSlackOf(page, p1.name).getByRole("gridcell").filter({ hasText: "0 critical path" })).toHaveCount(1);
   await expect(teamSlackOf(page, p2.name).getByRole("gridcell").filter({ hasText: "10 working days" })).toHaveCount(1);
-  await expect(page.getByText("Slack and the critical path are measured toward each milestone's own project's end.", { exact: false })).toBeVisible();
+  await expect(page.getByText("Slack and the critical path are measured toward the end of the milestone's own project.", { exact: false })).toBeVisible();
 
   // The emphasis: p1's bar is critical and says so, p2's is not. y1 -> p1 is a link from another team's milestone, so y1 is no row of this page and no arrow is drawn.
   await expect(teamGrid.getByRole("button", { name: new RegExp(`^${p1.name}, .*on the critical path`) })).toHaveAttribute("data-critical", "true");
