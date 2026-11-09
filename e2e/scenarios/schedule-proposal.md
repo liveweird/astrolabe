@@ -3,7 +3,7 @@
 - **Spec**: [tests/schedule-proposal.spec.ts](../tests/schedule-proposal.spec.ts)
 - **Actors**: two throwaway logins seeded through the API — a team MANAGER (the manager of the team, owning nothing) and a project OWNER (a
   person who owns the project, not its team); the seed administrator acts only through the API (seeding, and the schedule write that
-  reschedules a milestone under an open proposal)
+  reschedules a milestone under an open proposal). The pin scenario (1.7) is the manager's: pinning is a schedule write of the team's manager or an administrator
 - **Owns** (exclusive server-side state): its throwaway users, people, team (with its ONE capacity period), work stream, program, project,
   three milestones and the link between two of them (unique `e2e-sp-*` names), all seeded through the API and removed by the afterEach
   through the API, the project first (its milestones and link go with it), then program, work stream, team, people and users. Each test
@@ -66,6 +66,21 @@ the week of 01-13 loads 1 + 2 = 3 of 10 (the server's answer agrees; checked by 
    - *Expected*: c's bar is a read-only image ("..., 2042-03-03 to 2042-03-04, ..., read-only"); the tray tells that the team's manager or an
      administrator schedules; there is no **Propose schedule** button (nor any button starting with "Propose") and no Proposed schedule section.
 
+## Scenario: a pinned milestone keeps its dates: the manager pins c, proposes, c is not among the moves and the summary counts it, then unpins it
+
+1. The manager opens the team's page (the same world) and chooses **Pin dates of <c>** from c's row menu (only a scheduled row offers it).
+   - *Expected*: the pin request (`PUT /milestones/<c>/pin`) succeeds; the live region says "<c> pinned"; a hidden "pinned" follows c's name and its bar's
+     accessible name ends ", pinned".
+2. They press **Propose schedule**.
+   - *Expected*: the summary reads "2 moves · 2 newly scheduled · 0 stay · 0 could not be placed · 1 pinned" and the section adds "1 milestone keeps its
+     dates because it is pinned"; the table has the header, a and b only (no row for c); two dashed bars (b 2042-01-06 to 2042-01-13, a 2042-01-06
+     to 2042-01-09) and none for c; the strip's week of 2042-03-03 still reads "2 of 10 man-days" (c stays where it is).
+3. They press **Discard** and choose **Unpin dates of <c>** from c's row menu (a previewing page is read-only, so only after the discard).
+   - *Expected*: the table is gone; the pin request succeeds; the live region says "<c> unpinned" and the hidden "pinned" is gone.
+4. They press **Propose schedule** again.
+   - *Expected*: the summary reads "3 moves · 2 newly scheduled · 0 stay · 0 could not be placed" with no pinned count or sentence; c's row reads
+     2042-01-14 to 2042-01-15 and "34 working days earlier", as in the first scenario. Nothing is accepted.
+
 ## Not covered here (and why)
 
 - **The unplaced rows ("no capacity after …", "no room within the 520-week horizon"), the link badges and the "resolves" text** — the server
@@ -73,4 +88,6 @@ the week of 01-13 loads 1 + 2 = 3 of 10 (the server's answer agrees; checked by 
   link on the page.
 - **The 403/404 matrix of the proposal and batch routes** — covered by the server tests (`ScheduleProposalTest`, `TeamScheduleBatchTest`); here only
   the visible consequence (no button for the owner).
-- **A discard** — covered by the web unit tests; it writes nothing.
+- **A discard** — covered by the web unit tests; it writes nothing (the pin scenario presses it only to leave the read-only preview).
+- **The pin's refusals and the pinned milestone in an accepted batch** — the server tests (`MilestonePinTest`, `ScheduleKernelsTest`) and the web unit tests
+  (`TeamDetails.pin.test.tsx`, `TeamProposal.test.tsx`); a pin of an unscheduled milestone (409) and a pin flipped after a proposal (`stale-scope`) are not driven here.

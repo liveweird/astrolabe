@@ -1,6 +1,7 @@
 // The schedule proposal (v0.8) on the team page (/teams/:id), in 2042: the team's manager asks for a proposal, reads the moves and the proposed
 // weekly load beside the dashed bars, and accepts all of it, some of it, or all of it while one milestone was rescheduled under the open
-// preview (that one is skipped, the others land); the project OWNER, who is not the manager, has no Propose button.
+// preview (that one is skipped, the others land); the project OWNER, who is not the manager, has no Propose button; and (1.7) a milestone the manager
+// pins is not among the moves, the summary counts it, and it moves again once unpinned.
 // Owns: its throwaway users, people, team (with ONE capacity period from Monday 2042-01-06, 10 MD/week, WIP limit 2), work stream, program,
 // project, three milestones and the link between two of them (unique `e2e-sp-*` names), all seeded through the API and deleted by the
 // afterEach below (the project first - its milestones and link go with it - then program, work stream, team, people, users). Every date
@@ -8,7 +9,7 @@
 // team's first capacity period whatever today is.
 import { randomUUID } from "node:crypto";
 import type { APIRequestContext, Page } from "@playwright/test";
-import { apiAsAdmin, deleteViaApi, expect, login, test, uniqueText } from "./helpers";
+import { apiAsAdmin, deleteViaApi, expect, login, rowOperation, test, uniqueText } from "./helpers";
 
 // The holiday dictionary is global, and a schedule proposal's scope hash covers it: a holiday written while a proposal is open stales the accept (409
 // `stale-scope`). Specs that write the dictionary or compare the hash never run at the same time (a named lock holds the whole file's run).
@@ -253,4 +254,52 @@ test("the project owner reads the team page without the Propose schedule button"
   await expect(proposeButton(page)).toHaveCount(0);
   await expect(page.getByRole("button", { name: /^Propose/ })).toHaveCount(0);
   await expect(page.getByRole("heading", { level: 3, name: "Proposed schedule" })).toHaveCount(0);
+});
+
+test("a pinned milestone keeps its dates: the manager pins c, proposes, c is not among the moves and the summary counts it, then unpins it", async ({ page }) => {
+  const world = await seedWorld();
+  await world.api.dispose();
+  const table = proposalTable(page);
+
+  await login(page, world.manager.email, world.manager.password);
+  await openTeam(page, world);
+
+  // Pin c (its row menu; only a scheduled row offers it): the PUT lands, the live region says so, the bar's name ends ", pinned" and a hidden "pinned" follows the name.
+  const cRow = timeline(page).getByRole("row").filter({ has: page.getByRole("rowheader", { name: new RegExp(`^${world.c.name}`) }) });
+  await Promise.all([
+    page.waitForResponse((r) => r.request().method() === "PUT" && r.url().endsWith(`/api/v1/milestones/${world.c.id}/pin`) && r.ok()),
+    rowOperation(page, world.c.name, `Pin dates of ${world.c.name}`),
+  ]);
+  await expect(page.getByRole("status").filter({ hasText: `${world.c.name} pinned` })).toBeAttached();
+  await expect(cRow.getByText("pinned", { exact: true })).toBeAttached();
+  await expect(timeline(page).getByRole("button", { name: new RegExp(`^${world.c.name}, .*, 2042-03-03 to 2042-03-04, .*pinned$`) })).toBeVisible();
+
+  // Propose: a and b move as before, c is in neither the moves nor the stays - it is counted as pinned, and the section says why.
+  await propose(page);
+  await expect(page.getByText("2 moves · 2 newly scheduled · 0 stay · 0 could not be placed · 1 pinned")).toBeVisible();
+  await expect(page.getByText("1 milestone keeps its dates because it is pinned")).toBeVisible();
+  await expect(table.getByRole("row")).toHaveCount(3); // the header, a and b
+  await expect(table.getByRole("row").filter({ hasText: world.c.name })).toHaveCount(0);
+  await expect(page.locator('[data-tone="proposal"]')).toHaveCount(2);
+  await expect(page.getByRole("img", { name: `Proposed: ${world.b.name}, 2042-01-06 to 2042-01-13, read-only` })).toBeVisible();
+  await expect(page.getByRole("img", { name: `Proposed: ${world.a.name}, 2042-01-06 to 2042-01-09, read-only` })).toBeVisible();
+  await expect(page.getByRole("img", { name: new RegExp(`^Proposed: ${world.c.name}, `) })).toHaveCount(0);
+  // c still loads its own week (2 of 10), untouched by the proposal.
+  await expect(strip(page, "2042-03-03")).toHaveAttribute("title", /^Week of 2042-03-03: 2 of 10 man-days/);
+
+  // Discard, unpin (the menu offers the opposite now, and a preview is read-only, so only after the discard), propose again: c is a move, 34 working days earlier.
+  await page.getByRole("button", { name: "Discard", exact: true }).click();
+  await expect(table).toHaveCount(0);
+  await Promise.all([
+    page.waitForResponse((r) => r.request().method() === "PUT" && r.url().endsWith(`/api/v1/milestones/${world.c.id}/pin`) && r.ok()),
+    rowOperation(page, world.c.name, `Unpin dates of ${world.c.name}`),
+  ]);
+  await expect(page.getByRole("status").filter({ hasText: `${world.c.name} unpinned` })).toBeAttached();
+  await expect(cRow.getByText("pinned", { exact: true })).toHaveCount(0);
+  await propose(page);
+  await expect(page.getByText("3 moves · 2 newly scheduled · 0 stay · 0 could not be placed", { exact: true })).toBeVisible();
+  await expect(page.getByText("keeps its dates because it is pinned")).toHaveCount(0);
+  const rowC = table.getByRole("row").filter({ hasText: world.c.name });
+  await expect(rowC).toContainText("2042-01-14 to 2042-01-15");
+  await expect(rowC).toContainText("34 working days earlier");
 });

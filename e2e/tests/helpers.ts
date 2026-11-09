@@ -369,7 +369,7 @@ export async function deleteViaApi(paths: string[]): Promise<void> {
  * project, moves the ranking's revision; other plan writes do not), so a stale-revision 409 re-reads and tries again; anything else fails.
  */
 export async function updateRankingViaApi(api: APIRequestContext, change: (ranked: number[]) => number[]): Promise<void> {
-  for (let attempt = 0; attempt < 5; attempt++) {
+  for (let attempt = 0; attempt < 10; attempt++) {
     const read = await api.get("/api/v1/views/roadmap");
     expect(read.ok(), await read.text()).toBeTruthy();
     const view = (await read.json()) as { revision: number; ranked: { project: { id: number } }[] };

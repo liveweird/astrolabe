@@ -1,7 +1,8 @@
 // Baselines (v0.9), in 2043: an administrator takes a baseline on /baselines, the plan moves under it (a milestone later, a new one, a deleted one), and
 // the team's manager reads the movement on the team page (the picker, the shadow bars, the Movement table) and anyone reads the plan-wide comparison
 // page; a reader sees the list without the write controls; an editor renames a baseline (the picker reads the new name) and deletes it (a page that had
-// it picked falls back to no baseline).
+// it picked falls back to no baseline); and (1.7) the comparison page's "Compare against" reads the movement between TWO baselines (a re-plan after the
+// second one is invisible, the rank sentence needs the project ranked between them - this spec ranks only its own project, through the retrying helper).
 // Owns: its throwaway users, people, team, plan nodes and milestones (unique `e2e-bl-*` names, every date in 2043, which nothing writes a holiday in), all
 // seeded through the API and deleted by the afterEach below (the baselines first - a soft delete, the only delete there is, so the frozen rows stay by
 // design - then the project, whose milestones go with it, program, work stream, team, people, users), and its throwaway BASELINES (unique `e2e-bl-*`
@@ -9,7 +10,7 @@
 // setting, local to the test's own browser context: no other spec ever sees it.
 import { randomUUID } from "node:crypto";
 import type { APIRequestContext, Page } from "@playwright/test";
-import { apiAsAdmin, deleteViaApi, expect, login, rowOperation, test, uniqueText } from "./helpers";
+import { apiAsAdmin, deleteViaApi, expect, login, rowOperation, test, uniqueText, updateRankingViaApi } from "./helpers";
 
 // Registered in creation order; torn down in reverse (a baseline before the project, a project before its program before its stream before the team and the people).
 const teardown: string[] = [];
@@ -295,4 +296,69 @@ test("an editor renames and deletes a baseline, and a page that had it picked fa
   await expect(picker(page)).toHaveValue("None");
   await expect(shadows(page)).toHaveCount(0);
   await expect(page.getByRole("grid", { name: "Team milestone timeline" }).getByRole("row").filter({ hasText: world.m1.name })).toBeVisible();
+});
+
+test("the administrator compares two baselines: the second re-plan is invisible, the first one reads as movement, and nothing offers the timeline", async ({ page }) => {
+  const world = await seedWorld();
+  const nameA = uniqueText("e2e-bl-then");
+  const nameB = uniqueText("e2e-bl-now");
+
+  // A: the plan as seeded (the project unranked). The first re-plan and a rank for the project (the ranking is shared state, so the helper retries a stale
+  // answer and the page assertion below never reads a position), then B; then a SECOND re-plan that only the live plan knows: m3 a week later.
+  const idA = await takeBaseline(world, nameA);
+  const m3 = await replan(world);
+  await updateRankingViaApi(world.api, (ranked) => [...ranked, world.projectId]);
+  const idB = await takeBaseline(world, nameB);
+  await schedule(world, m3, "2043-01-26", "2043-01-28");
+  await world.api.dispose();
+
+  // The administrator opens A (the "then" side) and narrows the table to the spec's project: against the live plan, m3 is already at its latest dates, and
+  // the page offers both "Show on" shortcuts.
+  await login(page);
+  await page.goto(`/baselines/${idA}`);
+  await expect(page.getByRole("heading", { level: 2, name: nameA })).toBeVisible();
+  await page.getByLabel("Project", { exact: true }).fill(world.project);
+  const changes = page.getByRole("table", { name: "Changes since the baseline" });
+  await expect(changes.getByRole("row").filter({ hasText: m3.name }).getByRole("cell").nth(3)).toHaveText(dates("2043-01-26", "2043-01-28"));
+  await expect(page.getByRole("button", { name: `Show on timeline: ${world.project}` })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Show on the roadmap" })).toBeVisible();
+
+  // Compare against B: the sides are named, the URL carries the choice, the second re-plan is gone and the first reads as movement.
+  const against = page.getByRole("combobox", { name: "Compare against" });
+  await expect(against).toHaveValue("The live plan");
+  await against.click();
+  await page.getByRole("option", { name: new RegExp(`^${nameB} \\(plan revision \\d+\\)$`) }).click();
+  await expect(page).toHaveURL(new RegExp(`/baselines/${idA}\\?against=${idB}$`));
+  const facts = page.getByRole("group", { name: "Baseline facts" });
+  await expect(facts).toContainText(`Then: ${nameA}`);
+  await expect(facts).toContainText(`Now: ${nameB}`);
+  const between = page.getByRole("table", { name: "Changes between the two baselines" });
+  await expect(between).toBeVisible();
+  const projectRow = between.getByRole("row").filter({ has: page.getByRole("link", { name: `Open project ${world.project}` }) });
+  await expect(projectRow).toHaveCount(1);
+  await expect(projectRow).toContainText("start 5 working days later, end 3 working days later");
+  await expect(projectRow).toContainText(/Unranked → rank \d+/);
+  const moved = between.getByRole("row").filter({ hasText: world.m1.name }).getByRole("cell");
+  await expect(moved.nth(2)).toHaveText(dates("2043-01-05", "2043-01-09"));
+  await expect(moved.nth(3)).toHaveText(dates("2043-01-12", "2043-01-16"));
+  await expect(moved.nth(4)).toHaveText("+5");
+  await expect(moved.nth(5)).toHaveText("+5");
+  await expect(moved.nth(7)).toHaveText("Later");
+  const added = between.getByRole("row").filter({ hasText: m3.name }).getByRole("cell");
+  await expect(added.nth(2)).toHaveText("—");
+  await expect(added.nth(3)).toHaveText(dates("2043-01-19", "2043-01-21")); // B's dates, not the later ones the live plan has
+  await expect(added.nth(7)).toHaveText("New");
+  await expect(between.getByRole("row").filter({ hasText: world.m2.name })).toHaveCount(0); // unchanged between the two
+  await expect(between).not.toContainText("2043-01-26");
+  // The overlay is one baseline against the live plan: neither shortcut is offered between two baselines.
+  await expect(page.getByRole("button", { name: /^Show on timeline/ })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Show on the roadmap" })).toHaveCount(0);
+
+  // Back to the live plan: the parameter is gone and the second re-plan shows (m3 at its latest dates), the shortcuts return.
+  await against.click();
+  await page.getByRole("option", { name: "The live plan", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/baselines/${idA}$`));
+  const live = page.getByRole("table", { name: "Changes since the baseline" });
+  await expect(live.getByRole("row").filter({ hasText: m3.name }).getByRole("cell").nth(3)).toHaveText(dates("2043-01-26", "2043-01-28"));
+  await expect(page.getByRole("button", { name: `Show on timeline: ${world.project}` })).toBeVisible();
 });

@@ -3,7 +3,9 @@
 - **Spec**: [tests/baselines.spec.ts](../tests/baselines.spec.ts)
 - **Actors**: the seed administrator (takes, renames and deletes baselines in the UI, and acts through the API to seed and to re-plan); two
   throwaway logins seeded through the API — a project OWNER (the person who owns the project; no baseline right) and a team MANAGER (the
-  manager of the team, owning nothing; no baseline right)
+  manager of the team, owning nothing; no baseline right). The two-baseline scenario (1.7) is the administrator's, and it ranks its own project at the end
+  of the global ranking through the API (shared state: the helper retries a stale answer, the project leaves the ranking when it is deleted in the afterEach,
+  and the page assertion reads the sentence "Unranked → rank N", never the position)
 - **Owns** (exclusive server-side state): its throwaway users, people, team, work stream, program, project and milestones (unique `e2e-bl-*`
   names, every date in **2043**, a year nothing writes a holiday in: 2043-01-01 is a Thursday, so the Mondays are 01-05, 01-12, 01-19, 01-26),
   all seeded through the API and removed by the afterEach through the API (the baselines first, then the project - its milestones go with it -
@@ -66,6 +68,24 @@ overlap only warns), and a new `m3` (2 MD) is scheduled 2043-01-19..01-21.
    - *Expected*: the DELETE succeeds and the row is gone. T's page, opened again (the stored pick names a deleted baseline: the server's typed
      400 clears it), reads **None** in the picker, has no shadow bar and still lists `m1`'s row.
 
+## Scenario: the administrator compares two baselines: the second re-plan is invisible, the first one reads as movement, and nothing offers the timeline
+
+1. Through the API the administrator takes baseline A (the seeded plan: `m1` 2043-01-05..01-09, `m2` 01-12..01-16, the project unranked), applies the first
+   re-plan (`m1` -> 01-12..01-16, a new `m3` at 01-19..01-21), ranks the project at the end of the global ranking, takes baseline B, and applies a SECOND re-plan
+   that only the live plan knows: `m3` -> 2043-01-26..01-28.
+2. They sign in and open `/baselines/<A>` and narrow the **Project** filter to the spec's project.
+   - *Expected*: against the live plan `m3` already reads its latest dates (2043-01-26 – 2043-01-28); the **Show on timeline: <project>** and **Show on the
+     roadmap** buttons are offered; the **Compare against** field reads "The live plan".
+3. They choose B in **Compare against** (the option reads "<B> (plan revision N)").
+   - *Expected*: the URL becomes `/baselines/<A>?against=<B>`; the facts group names the sides ("Then: <A>", "Now: <B>"); the table is "Changes between the
+     two baselines".
+   - *Expected*: the project row reads "start 5 working days later, end 3 working days later" and the rank sentence "Unranked → rank N" (the position is shared
+     state and never asserted); `m1` reads 2043-01-05 – 2043-01-09 then 2043-01-12 – 2043-01-16, +5, +5, "Later"; `m3` reads no "then" dates, B's dates
+     2043-01-19 – 2043-01-21 (not the 01-26 ones) and "New"; `m2`, unchanged between the two, has no row.
+   - *Expected*: neither **Show on timeline** nor **Show on the roadmap** is offered (the overlay is one baseline against the live plan).
+4. They choose **The live plan** again.
+   - *Expected*: the URL is `/baselines/<A>` again, `m3` reads 2043-01-26 – 2043-01-28 (the second re-plan appears) and **Show on timeline: <project>** is back.
+
 ## Not covered here (and why)
 
 - **The cap of 100** — taking 100 baselines would fill the shared registry for every parallel spec; the cap and its 409 are covered by the server tests
@@ -73,6 +93,9 @@ overlap only warns), and a new `m3` (2 MD) is scheduled 2043-01-19..01-21.
 - **The authz matrix and the colours** — server tests (`BaselineTest`) and the web unit tests; the specs here assert the visible consequences
   (no write control for a reader; the words "Later" and "New").
 - **A `ROADMAP_EDITOR` grant** — the administrator stands for "an editor" (the grant UI is `roadmap.spec.ts`'s subject; the server decides both identically).
+- **The roadmap's rank cell ("(was N)" / "(was unranked)") and the "N moved up in rank" totals** — the web unit tests (`Roadmap.baseline.test.tsx`,
+  `baselineOverlay.test.ts`); `roadmap.spec.ts` owns the ranking and writing it here would race it. The comparison page's rank sentence is asserted in the
+  two-baseline scenario only. A deleted "now" baseline (the typed 400 that drops `against`) is covered by `BaselineCompare.against.test.tsx`.
 - **The roadmap and programs overlays** — the web unit tests (`Roadmap.baseline.test.tsx`, `Programs.baseline.test.tsx`); the axe scans in
   `accessibility.spec.ts` cover the team page, the registry and the comparison page.
 - **The project page's overlay and Movement section, the comparison page's "Show on timeline" / "Show on the roadmap" and the "(latest)" label** — the web
