@@ -128,7 +128,7 @@ while failing would wedge a site whose only bound item was really deleted.
 
 ## Deviations
 
-`GET /views/deviations` (one `READ ONLY REPEATABLE READ` snapshot, the plan revision first, unpaged, ≤ 2,000 items, `totals` before the cap) applies the pure `JiraDeviationKernels.deviations` to each
+`GET /views/deviations` (one `READ ONLY REPEATABLE READ` snapshot, the plan revision first, unpaged, ≤ 2,000 items, `totals` before the cap; the document is `{revision, asOf, connections[{…, status}], totals{warnings, infos, bindings, gone, acknowledged}, items[≤ 2,000], truncated}`, the `totals` counting before the cap; `warnings`, `infos` and `gone` over OPEN items; `all=false` overrides the `all`-implying filters) applies the pure `JiraDeviationKernels.deviations` to each
 binding. Dates compare in WORKING days on the plan's holiday calendar (a start snaps to the next working day, an end to the previous one); a derived span (project, program) is compared, not stored dates.
 A `gone` issue raises `GONE` alone. Default: OPEN bindings (deviating and not currently acknowledged, 1.3), warnings first; `all`, `projectId` or `teamId` also list clean and acknowledged ones. A **disabled** connection's bindings stay in the view with their last
 observation (they still block their nodes).

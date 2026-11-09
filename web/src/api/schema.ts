@@ -1826,6 +1826,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/schedule-proposals/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Check the link verdicts and the weekly load for the ticked subset of a proposal (a computation, nothing is stored)
+         * @description The companion of `POST /schedule-proposals` and `POST /teams/{id}/schedule-proposal` (1.8): which dependency links would be
+         *     violated, and how loaded each week would be, if ONLY the given `items` were accepted. The client sends the ticked moves of a
+         *     proposal and gets the verdicts for exactly that subset - the proposal's own lists describe the plan with EVERY move accepted. The
+         *     team page calls it with its one team, the cross-team page with the run's team set. ADMIN or the ACTIVE manager of EVERY team in
+         *     `teamIds`; the order of the checks is the run's (the team set is IN the body): the body decodes first (a malformed body is `400`
+         *     even for a caller who would be refused), `teamIds` shape `400` (one to 50 teams, none twice), every listed team must be ACTIVE else
+         *     `404` for EVERY caller (it names the missing ids), `403` unless the caller manages every listed team, and only then the rest of
+         *     the shape, `400` (an empty list, more than 2000 items, a milestone listed twice, an item with one date only, a bad date, an end
+         *     before the start or a span of only weekend days - a forbidden caller's malformed items are still `403`), and a milestone that is
+         *     not an ACTIVE milestone of one of the listed teams (unknown, deleted, or on another team) is a `400` too.
+         *
+         *     A COMPUTATION, not a mutation: `200`, one read-only snapshot, no lock, nothing written, the plan revision does not move and no
+         *     audit event is emitted. Each listed team's dates are its STORED dates with exactly the items applied over them (an item with no
+         *     dates removes the milestone's); every other milestone of the plan keeps its stored dates. There is no `asOf`: no verdict reads it.
+         *     An unticked move keeps its stored dates, so a successor ticked without its predecessor is judged against the predecessor's stored
+         *     dates. The verdicts are the proposal's own (`dependencies`: the links touching the team, with an end among its milestones, whose
+         *     verdict is or was `VIOLATED`; a link between two listed teams is in both blocks), so the answer for the dates of a proposal equals
+         *     that proposal's `weeks` and `dependencies`. Items an accept would skip (`STALE`, `NO_WORKING_DAY`) are not anticipated.
+         */
+        post: operations["checkCrossTeamSchedule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/schedule-proposals/teams": {
         parameters: {
             query?: never;
@@ -5277,6 +5314,27 @@ export interface components {
             /** @description True when `weeks` stops at 520 weeks. */
             weeksTruncated: boolean;
             /** @description The links touching the team (an end among its milestones, or a project end holding one of them whose span changes) whose verdict is or was VIOLATED - before the run or over its final dates; violated-after first. A link between two run teams is listed in both blocks. */
+            dependencies: components["schemas"]["ScheduleProposalLink"][];
+        };
+        ScheduleCheckRequest: {
+            /** @description The teams to check: one to 50, each once (the proposal's team set; the team page sends its one team). The caller must manage every one, or be ADMIN. */
+            teamIds: number[];
+            /** @description The ticked moves: one entry per milestone of a listed team (an id twice, or of a milestone outside the listed teams, is a `400`). Both dates or neither (the pair of nulls unschedules). */
+            items: components["schemas"]["TeamScheduleBatchItem"][];
+        };
+        ScheduleCheckResponse: {
+            /** @description One block per requested team, in the REQUEST's order. */
+            teams: components["schemas"]["ScheduleCheckTeam"][];
+        };
+        /** @description One team's verdicts for the dates the ticked items would give the listed teams. */
+        ScheduleCheckTeam: {
+            /** Format: int32 */
+            teamId: number;
+            /** @description The team's weekly load with the items applied over its stored dates (at most 520); empty while nothing would be scheduled. */
+            weeks: components["schemas"]["WeekLoad"][];
+            /** @description True when `weeks` stops at 520 weeks. */
+            weeksTruncated: boolean;
+            /** @description The links touching the team (an end among its milestones, or a project end holding one of them whose span changes) whose verdict is or was VIOLATED - on the stored dates or with the items applied; violated-after first. A link between two listed teams is in both blocks. */
             dependencies: components["schemas"]["ScheduleProposalLink"][];
         };
         ProposalTeam: {
@@ -9404,6 +9462,37 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    checkCrossTeamSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScheduleCheckRequest"];
+            };
+        };
+        responses: {
+            /** @description The verdicts; nothing was changed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduleCheckResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
             413: components["responses"]["PayloadTooLarge"];
             415: components["responses"]["UnsupportedMediaType"];
             500: components["responses"]["InternalServerError"];

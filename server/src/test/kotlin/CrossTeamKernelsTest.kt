@@ -345,7 +345,7 @@ class CrossTeamKernelsTest {
             links = listOf(link(1u, ms(11u), ms(21u))),
         )
         val after = mapOf(a to mapOf(11u to span("2027-02-22", "2027-02-23")), b to mapOf(21u to span("2027-02-03")))
-        val checks = ScheduleKernels.checkMany(input, after)
+        val checks = ScheduleKernels.checkMany(input.checkInputs(), after)
         val link = checks.getValue(b).links.single()
         assertEquals(DependencyStatus.UNSCHEDULED, link.before)
         assertEquals(DependencyStatus.VIOLATED, link.after.status, "b1 starts 02-03, a1 ends 02-23")

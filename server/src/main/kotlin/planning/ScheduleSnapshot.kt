@@ -56,6 +56,9 @@ private fun List<TeamMilestoneRow>.toScheduleItems() =
 /** One team of a [CrossTeamSnapshot]: its [name] (the wire's, and the team order's tiebreak), milestone [rows] and capacity [periods]. */
 internal class TeamSnapshot(val teamId: UInt, val name: String, val rows: List<TeamMilestoneRow>, val periods: List<CapacityPeriod>) {
     val items = rows.toScheduleItems()
+
+    /** The STORED spans of the team's scheduled milestones, by milestone id (an unscheduled one is absent). */
+    val storedSpans: Map<UInt, DaySpan> = items.mapNotNull { item -> item.span?.let { item.id to it } }.toMap()
 }
 
 /**
@@ -78,6 +81,12 @@ internal class CrossTeamSnapshot(
         links = links,
         calendar = calendar,
     )
+
+    /** The stored spans of run team [teamId] (`TeamSnapshot.storedSpans`); fails closed for a team outside the run. */
+    fun storedSpansOf(teamId: UInt): Map<UInt, DaySpan> = teams.first { it.teamId == teamId }.storedSpans
+
+    /** The kernel's input for [ScheduleKernels.checkMany] (the check endpoint reads no `asOf`). */
+    fun checkInputs() = CheckInputs(teams.map { TeamRun(it.teamId, it.name, it.items, it.periods) }, plan, links, calendar)
 
     /** The run's scope fingerprint (`ScheduleScope.kt` [runScope]): "foreign" is every team OUTSIDE the run. */
     fun scopeHash(): String = scopeFingerprint(

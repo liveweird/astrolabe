@@ -23,6 +23,10 @@ class ScheduleProposalsRoute {
     @Serializable
     @Resource("accept")
     class Accept(val parent: ScheduleProposalsRoute = ScheduleProposalsRoute())
+
+    @Serializable
+    @Resource("check")
+    class Check(val parent: ScheduleProposalsRoute = ScheduleProposalsRoute())
 }
 
 /**
@@ -33,6 +37,7 @@ internal fun Route.crossTeamScheduleRoutes(d: PlanRouteDeps, crossTeam: CrossTea
     runRoute(d, crossTeam)
     runnableTeamsRoute(d, crossTeam)
     acceptRoute(d, schedules)
+    checkRoute(d, crossTeam)
 }
 
 /**
@@ -108,5 +113,24 @@ private fun Route.acceptRoute(d: PlanRouteDeps, schedules: TeamScheduleService) 
             )
         }
         call.respond(HttpStatusCode.OK, outcome.toResponse())
+    }
+}
+
+/**
+ * `POST /schedule-proposals/check`: the link verdicts and the weekly load of the run teams for the dates the ticked
+ * [ScheduleCheckRequest.items] would give them - a COMPUTATION (`200`, one read-only snapshot, no lock, no revision bump, NO audit
+ * event). The run's order of checks: the body decodes FIRST, [validateTeamIds] `400`, [PlanRouteDeps.requireTeamManagers] (every team
+ * ACTIVE else `404`, then ADMIN or the ACTIVE manager of EVERY team else `403`), then the items' shape [validateScheduleCheck] `400` (a
+ * forbidden caller's malformed items stay `403`), then [CrossTeamProposalService.check] (`400` for a milestone outside the run teams; a
+ * team deleted in the gap since the guard is the same `404`). Nothing is written, so no inner re-guard under a lock.
+ */
+private fun Route.checkRoute(d: PlanRouteDeps, crossTeam: CrossTeamProposalService) {
+    post<ScheduleProposalsRoute.Check> {
+        val caller = call.caller()
+        val request = call.receive<ScheduleCheckRequest>()
+        val teamIds = validateTeamIds(request.teamIds)
+        d.requireTeamManagers(caller, teamIds)
+        val items = validateScheduleCheck(request)
+        call.respond(HttpStatusCode.OK, crossTeam.check(teamIds, items) ?: throw NotFoundException("Team not found"))
     }
 }

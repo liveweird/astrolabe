@@ -82,3 +82,36 @@ fun validateTeamIds(ids: List<UInt>): List<UInt> {
     }
     return ids
 }
+
+/**
+ * `POST /schedule-proposals/check` (1.8.0): the ticked subset of a run (or of one team's proposal) as hypothetical dates. [teamIds] is
+ * the run's team SET (as the run's: the caller must manage every one); [items] the ticked moves - each milestone of one of those teams,
+ * once, [TeamScheduleBatchItem] (the null pair = unschedule) - applied over the STORED spans of those teams. There is no `asOf`: no
+ * verdict reads it.
+ */
+@Serializable
+data class ScheduleCheckRequest(val teamIds: List<UInt>, val items: List<TeamScheduleBatchItem>)
+
+/**
+ * One run team's verdicts for the hypothetical dates: [weeks] its load with the items applied (at most `MAX_LOAD_WEEKS`),
+ * [dependencies] the links touching it that are or were VIOLATED (as [CrossTeamProposalTeam.dependencies]; a link between two run teams
+ * is in both blocks).
+ */
+@Serializable
+data class ScheduleCheckTeam(
+    val teamId: UInt,
+    val weeks: List<WeekLoadView>,
+    val weeksTruncated: Boolean,
+    val dependencies: List<ScheduleProposalLink>,
+)
+
+/** The check's answer: a COMPUTATION, one block per requested team in the REQUEST's order. */
+@Serializable
+data class ScheduleCheckResponse(val teams: List<ScheduleCheckTeam>)
+
+/**
+ * The check's item rules, checked after the guard (the team set is already shaped, [validateTeamIds]): 1..[MAX_RUN_SCHEDULE_ITEMS]
+ * items, no milestone twice, each through [validateSchedule] (a 400 names the failing item's index).
+ */
+fun validateScheduleCheck(request: ScheduleCheckRequest): List<ValidatedBatchItem> =
+    validateItemList(request.items, MAX_RUN_SCHEDULE_ITEMS)

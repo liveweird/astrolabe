@@ -29,6 +29,20 @@ data class MultiTeamInputs(
     val calendar: WorkingCalendar,
     val horizonWeeks: Int = MAX_LOAD_WEEKS,
     val maxPasses: Int = MAX_CROSS_TEAM_PASSES,
+) {
+    /** The part of the inputs [checkMany] reads: no `asOf`, no horizon, no pass limit. */
+    fun checkInputs() = CheckInputs(teams, plan, links, calendar)
+}
+
+/**
+ * What [checkMany] reads, and nothing it does not: the run [teams], the [plan] facts, the [links] and the [calendar]. A check judges
+ * GIVEN spans, so no `asOf` (what is movable) and no horizon enter it - and the type cannot be misread as carrying either.
+ */
+data class CheckInputs(
+    val teams: List<TeamRun>,
+    val plan: Collection<PlanMilestoneFact>,
+    val links: Collection<PlanLinkFact>,
+    val calendar: WorkingCalendar,
 )
 
 /**
@@ -90,16 +104,16 @@ fun ScheduleKernels.proposeMany(inputs: MultiTeamInputs): MultiTeamResult {
  * [MultiTeamResult.byTeam] fails closed (`NoSuchElementException`, see [checkMany]).
  */
 fun ScheduleKernels.postCheckMany(inputs: MultiTeamInputs, result: MultiTeamResult): Map<UInt, ScheduleProposalCheck> =
-    checkMany(inputs, result.byTeam.mapValues { it.value.spansAfter })
+    checkMany(inputs.checkInputs(), result.byTeam.mapValues { it.value.spansAfter })
 
 /**
  * The post-check of ANY set of final spans of the run teams ([afterByTeam]: team id -> milestone id -> span, an id absent = no dates):
  * `before` is every plan fact's stored span, `after` the stored spans of the teams outside the run plus [afterByTeam]. Per team the
- * weekly load of its after-spans and the links of [ScheduleKernels.teamLinkChecks]. `asOf` and the horizon are not read. Every run
+ * weekly load of its after-spans and the links of [ScheduleKernels.teamLinkChecks]. [CheckInputs] carries no `asOf` or horizon. Every run
  * team MUST have an entry in [afterByTeam] (an empty map = nothing dated): a missing one throws `NoSuchElementException` (fail closed,
  * never read as "no dates"), so a caller building the map must cover the whole run.
  */
-fun ScheduleKernels.checkMany(inputs: MultiTeamInputs, afterByTeam: Map<UInt, Map<UInt, DaySpan>>): Map<UInt, ScheduleProposalCheck> {
+fun ScheduleKernels.checkMany(inputs: CheckInputs, afterByTeam: Map<UInt, Map<UInt, DaySpan>>): Map<UInt, ScheduleProposalCheck> {
     val runIds = inputs.teams.map { it.teamId }.toSet()
     val before = PlanValues()
     val after = PlanValues()

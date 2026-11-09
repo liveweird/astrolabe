@@ -2602,6 +2602,50 @@ paths:
               schema: { $ref: '#/components/schemas/ProblemDetail' }
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/schedule-proposals/check:
+    post:
+      tags: [plan]
+      operationId: checkCrossTeamSchedule
+      summary: Check the link verdicts and the weekly load for the ticked subset of a proposal (a computation, nothing is stored)
+      description: |
+        The companion of `POST /schedule-proposals` and `POST /teams/{id}/schedule-proposal` (1.8): which dependency links would be
+        violated, and how loaded each week would be, if ONLY the given `items` were accepted. The client sends the ticked moves of a
+        proposal and gets the verdicts for exactly that subset - the proposal's own lists describe the plan with EVERY move accepted. The
+        team page calls it with its one team, the cross-team page with the run's team set. ADMIN or the ACTIVE manager of EVERY team in
+        `teamIds`; the order of the checks is the run's (the team set is IN the body): the body decodes first (a malformed body is `400`
+        even for a caller who would be refused), `teamIds` shape `400` (one to 50 teams, none twice), every listed team must be ACTIVE else
+        `404` for EVERY caller (it names the missing ids), `403` unless the caller manages every listed team, and only then the rest of
+        the shape, `400` (an empty list, more than 2000 items, a milestone listed twice, an item with one date only, a bad date, an end
+        before the start or a span of only weekend days - a forbidden caller's malformed items are still `403`), and a milestone that is
+        not an ACTIVE milestone of one of the listed teams (unknown, deleted, or on another team) is a `400` too.
+
+        A COMPUTATION, not a mutation: `200`, one read-only snapshot, no lock, nothing written, the plan revision does not move and no
+        audit event is emitted. Each listed team's dates are its STORED dates with exactly the items applied over them (an item with no
+        dates removes the milestone's); every other milestone of the plan keeps its stored dates. There is no `asOf`: no verdict reads it.
+        An unticked move keeps its stored dates, so a successor ticked without its predecessor is judged against the predecessor's stored
+        dates. The verdicts are the proposal's own (`dependencies`: the links touching the team, with an end among its milestones, whose
+        verdict is or was `VIOLATED`; a link between two listed teams is in both blocks), so the answer for the dates of a proposal equals
+        that proposal's `weeks` and `dependencies`. Items an accept would skip (`STALE`, `NO_WORKING_DAY`) are not anticipated.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScheduleCheckRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '200':
+          description: The verdicts; nothing was changed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduleCheckResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   /api/v1/schedule-proposals/teams:
     get:
       tags: [plan]
@@ -6700,6 +6744,54 @@ components:
             The links touching the team (an end among its milestones, or a project end holding one of them whose span changes) whose
             verdict is or was VIOLATED - before the run or over its final dates; violated-after first. A link between two run teams is
             listed in both blocks.
+          items: { $ref: '#/components/schemas/ScheduleProposalLink' }
+    ScheduleCheckRequest:
+      type: object
+      required: [teamIds, items]
+      properties:
+        teamIds:
+          type: array
+          minItems: 1
+          maxItems: 50
+          uniqueItems: true
+          items: { type: integer, format: int32, minimum: 0 }
+          description: >-
+            The teams to check: one to 50, each once (the proposal's team set; the team page sends its one team). The caller must manage
+            every one, or be ADMIN.
+        items:
+          type: array
+          minItems: 1
+          maxItems: 2000
+          items: { $ref: '#/components/schemas/TeamScheduleBatchItem' }
+          description: >-
+            The ticked moves: one entry per milestone of a listed team (an id twice, or of a milestone outside the listed teams, is a
+            `400`). Both dates or neither (the pair of nulls unschedules).
+    ScheduleCheckResponse:
+      type: object
+      required: [teams]
+      properties:
+        teams:
+          type: array
+          maxItems: 50
+          description: One block per requested team, in the REQUEST's order.
+          items: { $ref: '#/components/schemas/ScheduleCheckTeam' }
+    ScheduleCheckTeam:
+      type: object
+      required: [teamId, weeks, weeksTruncated, dependencies]
+      description: One team's verdicts for the dates the ticked items would give the listed teams.
+      properties:
+        teamId: { type: integer, format: int32, minimum: 0 }
+        weeks:
+          type: array
+          description: The team's weekly load with the items applied over its stored dates (at most 520); empty while nothing would be scheduled.
+          items: { $ref: '#/components/schemas/WeekLoad' }
+        weeksTruncated: { type: boolean, description: True when `weeks` stops at 520 weeks. }
+        dependencies:
+          type: array
+          description: >-
+            The links touching the team (an end among its milestones, or a project end holding one of them whose span changes) whose
+            verdict is or was VIOLATED - on the stored dates or with the items applied; violated-after first. A link between two listed
+            teams is in both blocks.
           items: { $ref: '#/components/schemas/ScheduleProposalLink' }
     ProposalTeam:
       type: object

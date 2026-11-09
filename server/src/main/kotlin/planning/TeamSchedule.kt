@@ -124,6 +124,11 @@ private fun validateBatchItems(
     if (scopeHash != null && !SCOPE_HASH.matches(scopeHash)) {
         throw BadRequestException("scopeHash must be 64 lowercase hexadecimal characters")
     }
+    return validateItemList(items, maxItems)
+}
+
+/** The item rules both the accepts and the check share: 1..[maxItems] items, no milestone twice, each through [validateSchedule]. */
+internal fun validateItemList(items: List<TeamScheduleBatchItem>, maxItems: Int): List<ValidatedBatchItem> {
     if (items.isEmpty()) throw BadRequestException("items must list at least one milestone")
     if (items.size > maxItems) throw BadRequestException("items must list at most $maxItems milestones")
     if (items.map { it.milestoneId }.toSet().size != items.size) throw BadRequestException("items must name each milestone once")
