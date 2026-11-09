@@ -17,6 +17,24 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.8.0",
+    date: "2026-11-10",
+    en: `**Astrolabe 1.8.0: schedule proposals across several teams, and warnings that follow the moves you tick.**
+
+- A new page, Schedule proposals, under Planning: pick the teams you want to plan together (a team's manager sees the teams they manage, an administrator sees every team) and press "Propose". Astrolabe places the teams in dependency order, each one around the dates of the teams placed before it, and repeats until the dates stop changing. Nothing is saved until you accept.
+- One section per team, in the order the teams were placed ("placed 2 of 3"), each with the same table as the team page: current and proposed dates, the change, the link warnings, the milestones that could not be placed and the pinned ones that stay. A line above the sections says how many rounds it took: "Placed in 2 passes · settled". "Not settled" means the teams depend on each other in a loop, so every pass moved something again; the dates shown are the last pass's, so check the link warnings before you accept.
+- Under each section, "Proposed load" shows the team's load per week after the moves you ticked. It only warns; nothing moves by itself.
+- One accept across teams: tick the moves you want in any of the sections and press "Accept selected across teams". All the ticked moves are saved in one step. You must manage every team in the proposal (or be an administrator). If the plan of those teams changed since the proposal, Astrolabe shows a fresh proposal and keeps your ticks for the milestones that still move; a milestone someone else rescheduled in the meantime is skipped and the rest are saved, with the skipped ones listed.
+- On the team page, after "Propose schedule": the link warnings (the red "would violate" badges and the Conflict badge) and the proposed weekly load now follow the moves you tick. Untick a move and the warnings and the load describe the plan without it, instead of the plan with every move accepted. With every move ticked, nothing changes.`,
+    pl: `**Astrolabe 1.8.0: propozycje harmonogramu dla kilku zespołów naraz i ostrzeżenia, które uwzględniają zaznaczone zmiany.**
+
+- Nowa strona, Propozycje harmonogramu, w sekcji Planowanie: wybierz zespoły, które chcesz planować razem (kierownik/czka zespołu widzi zespoły, którymi zarządza, administrator/ka widzi wszystkie), i naciśnij „Zaproponuj”. Astrolabe układa zespoły w kolejności zależności, każdy wokół terminów zespołów ułożonych wcześniej, i powtarza to, aż terminy przestaną się zmieniać. Nic nie zostanie zapisane, dopóki nie zaakceptujesz propozycji.
+- Jedna sekcja na zespół, w kolejności, w jakiej zespoły ułożono („kolejność układania: 2 z 3”), z taką samą tabelą jak na stronie zespołu: obecne i proponowane terminy, zmiana, ostrzeżenia o zależnościach, kamienie milowe, których nie udało się umieścić, i przypięte, które zostają na miejscu. Wiersz nad sekcjami podaje, ile przebiegów to zajęło: „Ułożono w 2 przebiegach · terminy się ustabilizowały”. „Terminy nie ustabilizowały się” oznacza, że zespoły zależą od siebie nawzajem w pętli, więc każdy przebieg znów coś przesunął; pokazane terminy pochodzą z ostatniego przebiegu, więc przed zaakceptowaniem sprawdź ostrzeżenia o zależnościach.
+- Pod każdą sekcją „Proponowane obciążenie” pokazuje obciążenie zespołu w kolejnych tygodniach po zaznaczonych zmianach. Tylko ostrzega; nic nie przesuwa się samo.
+- Jedna akceptacja dla wszystkich zespołów: zaznacz zmiany w dowolnych sekcjach i naciśnij „Zaakceptuj zaznaczone we wszystkich zespołach”. Wszystkie zaznaczone zmiany zapisujemy jednym krokiem. Musisz zarządzać każdym zespołem z propozycji (albo być administratorem/ką). Jeśli plan tych zespołów zmienił się od czasu propozycji, Astrolabe pokazuje nową propozycję i zachowuje Twoje zaznaczenia dla kamieni milowych, które nadal się przesuwają; kamień milowy, którego termin ktoś inny zmienił w międzyczasie, pomijamy, a resztę zapisujemy i wymieniamy pominięte.
+- Na stronie zespołu, po „Zaproponuj harmonogram”: ostrzeżenia o zależnościach (czerwone oznaczenia „byłaby niedotrzymana” i oznaczenie „Konflikt”) oraz proponowane obciążenie tygodniowe uwzględniają teraz zaznaczone zmiany. Odznacz zmianę, a ostrzeżenia i obciążenie opiszą plan bez niej, a nie plan ze wszystkimi zmianami zaakceptowanymi. Gdy zaznaczone są wszystkie zmiany, nic się nie zmienia.`,
+  },
+  {
     version: "1.7.0",
     date: "2026-11-09",
     en: `**Astrolabe 1.7.0: the critical path on more pages, pinned dates and two baselines compared.**

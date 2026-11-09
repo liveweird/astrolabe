@@ -495,6 +495,15 @@ The roll-up service cost (the SAME services built without and with the source, s
 
 **Gates (held, none moved).** Team view with the overlay **440,689 B <= 500,000 B** (59 KB of headroom, the five-children world) and **8,295 B gzip <= 40,000 B**; project view with the overlay **15,452 B <= 40,000 B**; every p50 under the 1,000 ms tripwire. **The 1.3 figure moved before C6 too:** the team view with the overlay read 405,653 B in 1.3 and 417,392 B at `1923722`, because `DeviationDetail.count` (C4, always present, `"count":null` on 903 flags) added about 11.7 KB; C6's roll-up is the other +23.3 KB (77 B a row: the filled object is 75 B; the disabled pass pays only the 14 B `"rollup":null`, so the Jira blocks, a difference of the two, grow 60 B a row). The Jira payload is now 792 B a row on the team view (238,392 / 301; 771 B in 1.3): `BACKLOG.md` "Slim the Jira blocks" stays the lever, and the headroom left under the 500 KB gate is about 59 KB, roughly 197 B a row.
 
+#### Measured figures (1.8)
+
+One-off, **NON-BINDING**, this machine only (Apple M5 Max, in-process `testApplication` against the Postgres container; re-measure rather than quote). Two figures of the cross-team run (`planning-model.md` "The cross-team run"); the real sample plan was not loaded for them.
+
+- **The kernel at 15 teams** (`CrossTeamKernelsTest` and `ScheduleKernelsScaleTest`, commit `abe0dd2`): 15 teams in the sample's sizes (1,000 milestones, 300 links of which 30 % cross teams, a capacity cliff on a third of the teams, WIP limits on half, a few pinned) through `proposeMany`: **about 285-318 ms per run, 4 passes, settled** (the post-check about 15 ms); the tripwire is 20 s.
+- **The run's response** (`CrossTeamProposalSizeTest`, a synthetic 15-team world of the sample's density, ADMIN, `asOf` 2026-11-02): **472,470 bytes uncompressed against the 600,000-byte gate** (about 127 KB of headroom), **3 passes, settled**.
+
+The accept's hold time under the plan lock with 15 teams was not measured (about five queries per team; `BACKLOG.md`).
+
 #### Deliberate departures from the bootstrap sketch
 
 A div grid instead of a `<table>` (virtual rows); `top` instead of `translateY` for virtual rows (stacking); the tray's drag is pointer-only with an explicit Schedule button; the row handle is pointer-only like the tray's (the row menu's Move items are the keyboard path); dnd-kit's live region is the single announcer for drags (the page's polite region announces only non-drag changes).

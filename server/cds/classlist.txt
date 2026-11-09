@@ -1070,6 +1070,21 @@ ch/nokillswit/planning/BaselinesRoute$Id
 ch/nokillswit/planning/BaselinesRoute$Id$$serializer
 ch/nokillswit/planning/BaselinesRoute$Id$$serializer$annotationImpl$io_ktor_resources_Resource$0
 ch/nokillswit/planning/BaselinesRoute$Id$Companion
+ch/nokillswit/planning/CrossTeamProposalService
+ch/nokillswit/planning/CrossTeamProposalServiceKt
+ch/nokillswit/planning/CrossTeamScheduleRoutesKt
+ch/nokillswit/planning/CrossTeamScheduleRoutesKt$acceptRoute$$inlined$post$1
+ch/nokillswit/planning/CrossTeamScheduleRoutesKt$acceptRoute$$inlined$post$1$1
+ch/nokillswit/planning/CrossTeamScheduleRoutesKt$acceptRoute$1
+ch/nokillswit/planning/CrossTeamScheduleRoutesKt$checkRoute$$inlined$post$1
+ch/nokillswit/planning/CrossTeamScheduleRoutesKt$checkRoute$$inlined$post$1$1
+ch/nokillswit/planning/CrossTeamScheduleRoutesKt$checkRoute$1
+ch/nokillswit/planning/CrossTeamScheduleRoutesKt$runRoute$$inlined$post$1
+ch/nokillswit/planning/CrossTeamScheduleRoutesKt$runRoute$$inlined$post$1$1
+ch/nokillswit/planning/CrossTeamScheduleRoutesKt$runRoute$1
+ch/nokillswit/planning/CrossTeamScheduleRoutesKt$runnableTeamsRoute$$inlined$get$1
+ch/nokillswit/planning/CrossTeamScheduleRoutesKt$runnableTeamsRoute$$inlined$get$1$1
+ch/nokillswit/planning/CrossTeamScheduleRoutesKt$runnableTeamsRoute$1
 ch/nokillswit/planning/DependenciesRoute$$serializer
 ch/nokillswit/planning/DependenciesRoute$Id
 ch/nokillswit/planning/DependenciesRoute$Id$$serializer
@@ -1346,6 +1361,19 @@ ch/nokillswit/planning/RoadmapViewService
 ch/nokillswit/planning/RoadmapViewServiceKt
 ch/nokillswit/planning/ScheduleProposalService
 ch/nokillswit/planning/ScheduleProposalServiceKt
+ch/nokillswit/planning/ScheduleProposalsRoute
+ch/nokillswit/planning/ScheduleProposalsRoute$$serializer
+ch/nokillswit/planning/ScheduleProposalsRoute$Accept
+ch/nokillswit/planning/ScheduleProposalsRoute$Accept$$serializer
+ch/nokillswit/planning/ScheduleProposalsRoute$Accept$Companion
+ch/nokillswit/planning/ScheduleProposalsRoute$Check
+ch/nokillswit/planning/ScheduleProposalsRoute$Check$$serializer
+ch/nokillswit/planning/ScheduleProposalsRoute$Check$Companion
+ch/nokillswit/planning/ScheduleProposalsRoute$Companion
+ch/nokillswit/planning/ScheduleProposalsRoute$Teams
+ch/nokillswit/planning/ScheduleProposalsRoute$Teams$$serializer
+ch/nokillswit/planning/ScheduleProposalsRoute$Teams$$serializer$annotationImpl$io_ktor_resources_Resource$0
+ch/nokillswit/planning/ScheduleProposalsRoute$Teams$Companion
 ch/nokillswit/planning/TargetWindow
 ch/nokillswit/planning/TeamMilestoneOrderRoute
 ch/nokillswit/planning/TeamMilestoneOrderRoute$$serializer
@@ -6688,6 +6716,8 @@ java/text/FieldPosition
 java/text/Format
 java/text/Format$Field
 java/text/Format$FieldDelegate
+java/text/MessageFormat
+java/text/MessageFormat$Field
 java/text/Normalizer
 java/text/Normalizer$Form
 java/text/NumberFormat
@@ -6960,6 +6990,7 @@ java/util/Locale$Cache
 java/util/Locale$Category
 java/util/Map
 java/util/Map$Entry
+java/util/MissingResourceException
 java/util/NavigableMap
 java/util/NavigableSet
 java/util/NoSuchElementException
@@ -6978,9 +7009,15 @@ java/util/RegularEnumSet$EnumSetIterator
 java/util/ResourceBundle
 java/util/ResourceBundle$1
 java/util/ResourceBundle$2
+java/util/ResourceBundle$BundleReference
+java/util/ResourceBundle$CacheKey
+java/util/ResourceBundle$CacheKeyReference
 java/util/ResourceBundle$Control
+java/util/ResourceBundle$Control$2
 java/util/ResourceBundle$Control$CandidateListCache
+java/util/ResourceBundle$KeyElementReference
 java/util/ResourceBundle$NoFallbackControl
+java/util/ResourceBundle$ResourceBundleControlProviderHolder
 java/util/ResourceBundle$ResourceBundleProviderHelper
 java/util/ResourceBundle$SingleFormatControl
 java/util/ReverseOrderListView
@@ -7277,6 +7314,7 @@ java/util/spi/CalendarDataProvider
 java/util/spi/CurrencyNameProvider
 java/util/spi/LocaleNameProvider
 java/util/spi/LocaleServiceProvider
+java/util/spi/ResourceBundleControlProvider
 java/util/spi/TimeZoneNameProvider
 java/util/stream/AbstractPipeline
 java/util/stream/AbstractSpinedBuffer
@@ -10513,6 +10551,10 @@ org/flywaydb/core/internal/exception/FlywayMigrateException
 org/flywaydb/core/internal/exception/FlywayRollbackFailedException
 org/flywaydb/core/internal/exception/FlywaySqlException
 org/flywaydb/core/internal/exception/FlywayUnknownMigrationTypeException
+org/flywaydb/core/internal/exception/sqlExceptions/FlywaySqlErrorCode
+org/flywaydb/core/internal/exception/sqlExceptions/FlywaySqlNoDriversForInteractiveAuthException
+org/flywaydb/core/internal/exception/sqlExceptions/FlywaySqlNoIntegratedAuthException
+org/flywaydb/core/internal/exception/sqlExceptions/FlywaySqlServerUntrustedCertificateSqlException
 org/flywaydb/core/internal/exception/sqlExceptions/FlywaySqlUnableToConnectToDbException
 org/flywaydb/core/internal/info/AppliedMigrationAttributes
 org/flywaydb/core/internal/info/MigrationConfigPrinter
@@ -10647,6 +10689,7 @@ org/flywaydb/core/internal/util/BomStrippingReader
 org/flywaydb/core/internal/util/ClassUtils
 org/flywaydb/core/internal/util/CloseableIterator
 org/flywaydb/core/internal/util/DataUnits
+org/flywaydb/core/internal/util/ExceptionUtils
 org/flywaydb/core/internal/util/FeatureDetector
 org/flywaydb/core/internal/util/FileUtils
 org/flywaydb/core/internal/util/FlywayDbWebsiteLinks
@@ -11236,6 +11279,7 @@ org/postgresql/util/ByteStreamWriter
 org/postgresql/util/ByteStreamWriter$ByteStreamTarget
 org/postgresql/util/CanEstimateSize
 org/postgresql/util/ClassLoaderStrategy
+org/postgresql/util/GT
 org/postgresql/util/Gettable
 org/postgresql/util/HostSpec
 org/postgresql/util/IntList
@@ -11258,6 +11302,7 @@ org/postgresql/util/PGPropertyUtil
 org/postgresql/util/PGmoney
 org/postgresql/util/PGobject
 org/postgresql/util/PSQLException
+org/postgresql/util/PSQLState
 org/postgresql/util/PSQLWarning
 org/postgresql/util/ReaderInputStream
 org/postgresql/util/SharedTimer
@@ -11968,6 +12013,7 @@ sun/net/spi/DefaultProxySelector$3
 sun/net/spi/DefaultProxySelector$NonProxyInfo
 sun/net/util/IPAddressUtil
 sun/net/util/IPAddressUtil$MASKS
+sun/net/util/SocketExceptions
 sun/net/util/URLUtil
 sun/net/www/MessageHeader
 sun/net/www/ParseUtil
@@ -12836,8 +12882,8 @@ sun/util/spi/CalendarProvider
 @lambda-proxy ch/nokillswit/planning/PlanStateKt$withPlanWrite$2 invoke ()Lkotlin/jvm/functions/Function0; ()Ljava/lang/Object; REF_invokeStatic ch/nokillswit/planning/PlanStateKt$withPlanWrite$2 invokeSuspend$lambda$0 ()Lorg/jetbrains/exposed/v1/core/Op; ()Lorg/jetbrains/exposed/v1/core/Op;
 @lambda-proxy ch/nokillswit/planning/PlanStateKt$withPlanWrite$2 invoke ()Lkotlin/jvm/functions/Function0; ()Ljava/lang/Object; REF_invokeStatic ch/nokillswit/planning/PlanStateKt$withPlanWrite$2 invokeSuspend$lambda$1 ()Lorg/jetbrains/exposed/v1/core/Op; ()Lorg/jetbrains/exposed/v1/core/Op;
 @lambda-proxy ch/nokillswit/planning/PlanStateKt$withPlanWrite$2 invoke ()Lkotlin/jvm/functions/Function2; (Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic ch/nokillswit/planning/PlanStateKt$withPlanWrite$2 invokeSuspend$lambda$2 (Lch/nokillswit/planning/PlanState;Lorg/jetbrains/exposed/v1/core/statements/UpdateStatement;)Lkotlin/Unit; (Lch/nokillswit/planning/PlanState;Lorg/jetbrains/exposed/v1/core/statements/UpdateStatement;)Lkotlin/Unit;
-@lambda-proxy ch/nokillswit/planning/PlanningRoutesKt invoke (Lch/nokillswit/planning/PlanRouteDeps;Lch/nokillswit/planning/PlanViewServices;Lch/nokillswit/planning/TeamOrderService;Lch/nokillswit/planning/TeamScheduleService;Lch/nokillswit/planning/ScheduleProposalService;Lch/nokillswit/planning/PublicHolidayService;Lch/nokillswit/planning/BaselineService;)Lkotlin/jvm/functions/Function1; (Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic ch/nokillswit/planning/PlanningRoutesKt configurePlanningRoutes$lambda$0 (Lch/nokillswit/planning/PlanRouteDeps;Lch/nokillswit/planning/PlanViewServices;Lch/nokillswit/planning/TeamOrderService;Lch/nokillswit/planning/TeamScheduleService;Lch/nokillswit/planning/ScheduleProposalService;Lch/nokillswit/planning/PublicHolidayService;Lch/nokillswit/planning/BaselineService;Lio/ktor/server/routing/Routing;)Lkotlin/Unit; (Lio/ktor/server/routing/Routing;)Lkotlin/Unit;
-@lambda-proxy ch/nokillswit/planning/PlanningRoutesKt invoke (Lch/nokillswit/planning/PlanRouteDeps;Lch/nokillswit/planning/PlanViewServices;Lch/nokillswit/planning/TeamOrderService;Lch/nokillswit/planning/TeamScheduleService;Lch/nokillswit/planning/ScheduleProposalService;Lch/nokillswit/planning/PublicHolidayService;Lch/nokillswit/planning/BaselineService;)Lkotlin/jvm/functions/Function1; (Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic ch/nokillswit/planning/PlanningRoutesKt configurePlanningRoutes$lambda$0$0 (Lch/nokillswit/planning/PlanRouteDeps;Lch/nokillswit/planning/PlanViewServices;Lch/nokillswit/planning/TeamOrderService;Lch/nokillswit/planning/TeamScheduleService;Lch/nokillswit/planning/ScheduleProposalService;Lch/nokillswit/planning/PublicHolidayService;Lch/nokillswit/planning/BaselineService;Lio/ktor/server/routing/Route;)Lkotlin/Unit; (Lio/ktor/server/routing/Route;)Lkotlin/Unit;
+@lambda-proxy ch/nokillswit/planning/PlanningRoutesKt invoke (Lch/nokillswit/planning/PlanRouteDeps;Lch/nokillswit/planning/PlanViewServices;Lch/nokillswit/planning/TeamOrderService;Lch/nokillswit/planning/TeamScheduleService;Lch/nokillswit/planning/ScheduleProposalService;Lch/nokillswit/planning/CrossTeamProposalService;Lch/nokillswit/planning/PublicHolidayService;Lch/nokillswit/planning/BaselineService;)Lkotlin/jvm/functions/Function1; (Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic ch/nokillswit/planning/PlanningRoutesKt configurePlanningRoutes$lambda$0 (Lch/nokillswit/planning/PlanRouteDeps;Lch/nokillswit/planning/PlanViewServices;Lch/nokillswit/planning/TeamOrderService;Lch/nokillswit/planning/TeamScheduleService;Lch/nokillswit/planning/ScheduleProposalService;Lch/nokillswit/planning/CrossTeamProposalService;Lch/nokillswit/planning/PublicHolidayService;Lch/nokillswit/planning/BaselineService;Lio/ktor/server/routing/Routing;)Lkotlin/Unit; (Lio/ktor/server/routing/Routing;)Lkotlin/Unit;
+@lambda-proxy ch/nokillswit/planning/PlanningRoutesKt invoke (Lch/nokillswit/planning/PlanRouteDeps;Lch/nokillswit/planning/PlanViewServices;Lch/nokillswit/planning/TeamOrderService;Lch/nokillswit/planning/TeamScheduleService;Lch/nokillswit/planning/ScheduleProposalService;Lch/nokillswit/planning/CrossTeamProposalService;Lch/nokillswit/planning/PublicHolidayService;Lch/nokillswit/planning/BaselineService;)Lkotlin/jvm/functions/Function1; (Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic ch/nokillswit/planning/PlanningRoutesKt configurePlanningRoutes$lambda$0$0 (Lch/nokillswit/planning/PlanRouteDeps;Lch/nokillswit/planning/PlanViewServices;Lch/nokillswit/planning/TeamOrderService;Lch/nokillswit/planning/TeamScheduleService;Lch/nokillswit/planning/ScheduleProposalService;Lch/nokillswit/planning/CrossTeamProposalService;Lch/nokillswit/planning/PublicHolidayService;Lch/nokillswit/planning/BaselineService;Lio/ktor/server/routing/Route;)Lkotlin/Unit; (Lio/ktor/server/routing/Route;)Lkotlin/Unit;
 @lambda-proxy ch/nokillswit/planning/ProgramService$read$2 invoke (I)Lkotlin/jvm/functions/Function0; ()Ljava/lang/Object; REF_invokeStatic ch/nokillswit/planning/ProgramService$read$2 invokeSuspend$lambda$0 (I)Lorg/jetbrains/exposed/v1/core/Op; ()Lorg/jetbrains/exposed/v1/core/Op;
 @lambda-proxy ch/nokillswit/planning/ProjectService$read$2 invoke ()Lkotlin/jvm/functions/Function1; (Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic ch/nokillswit/planning/ProjectService$read$2 invokeSuspend$lambda$0 (Lch/nokillswit/planning/ProjectService$Projects;)Lorg/jetbrains/exposed/v1/core/Expression; (Lch/nokillswit/planning/ProjectService$Projects;)Lorg/jetbrains/exposed/v1/core/Expression;
 @lambda-proxy ch/nokillswit/planning/ProjectService$read$2 invoke (I)Lkotlin/jvm/functions/Function0; ()Ljava/lang/Object; REF_invokeStatic ch/nokillswit/planning/ProjectService$read$2 invokeSuspend$lambda$2 (I)Lorg/jetbrains/exposed/v1/core/Op; ()Lorg/jetbrains/exposed/v1/core/Op;
@@ -13793,6 +13839,9 @@ sun/util/spi/CalendarProvider
 @lambda-proxy java/time/format/DateTimeFormatterBuilder queryFrom ()Ljava/time/temporal/TemporalQuery; (Ljava/time/temporal/TemporalAccessor;)Ljava/lang/Object; REF_invokeStatic java/time/format/DateTimeFormatterBuilder lambda$static$0 (Ljava/time/temporal/TemporalAccessor;)Ljava/time/ZoneId; (Ljava/time/temporal/TemporalAccessor;)Ljava/time/ZoneId;
 @lambda-proxy java/time/temporal/TemporalAdjusters adjustInto (I)Ljava/time/temporal/TemporalAdjuster; (Ljava/time/temporal/Temporal;)Ljava/time/temporal/Temporal; REF_invokeStatic java/time/temporal/TemporalAdjusters lambda$nextOrSame$10 (ILjava/time/temporal/Temporal;)Ljava/time/temporal/Temporal; (Ljava/time/temporal/Temporal;)Ljava/time/temporal/Temporal;
 @lambda-proxy java/util/Collections$UnmodifiableMap$UnmodifiableEntrySet accept (Ljava/util/function/Consumer;)Ljava/util/function/Consumer; (Ljava/lang/Object;)V REF_invokeStatic java/util/Collections$UnmodifiableMap$UnmodifiableEntrySet lambda$entryConsumer$0 (Ljava/util/function/Consumer;Ljava/util/Map$Entry;)V (Ljava/util/Map$Entry;)V
+@lambda-proxy java/util/ResourceBundle run (Ljava/lang/Module;)Ljava/security/PrivilegedAction; ()Ljava/lang/Object; REF_invokeVirtual java/lang/Module getClassLoader ()Ljava/lang/ClassLoader; ()Ljava/lang/ClassLoader;
+@lambda-proxy java/util/ResourceBundle$ResourceBundleControlProviderHolder apply ()Ljava/util/function/Function; (Ljava/lang/Object;)Ljava/lang/Object; REF_invokeInterface java/util/ServiceLoader$Provider get ()Ljava/lang/Object; (Ljava/util/ServiceLoader$Provider;)Ljava/util/spi/ResourceBundleControlProvider;
+@lambda-proxy java/util/ResourceBundle$ResourceBundleControlProviderHolder run ()Ljava/security/PrivilegedAction; ()Ljava/lang/Object; REF_invokeStatic java/util/ResourceBundle$ResourceBundleControlProviderHolder lambda$static$0 ()Ljava/util/List; ()Ljava/util/List;
 @lambda-proxy java/util/ResourceBundle$ResourceBundleProviderHelper run (Ljava/lang/reflect/Constructor;)Ljava/security/PrivilegedAction; ()Ljava/lang/Object; REF_invokeStatic java/util/ResourceBundle$ResourceBundleProviderHelper lambda$newResourceBundle$0 (Ljava/lang/reflect/Constructor;)Ljava/lang/Void; ()Ljava/lang/Void;
 @lambda-proxy java/util/function/Consumer accept (Ljava/util/function/Consumer;Ljava/util/function/Consumer;)Ljava/util/function/Consumer; (Ljava/lang/Object;)V REF_invokeInterface java/util/function/Consumer lambda$andThen$0 (Ljava/util/function/Consumer;Ljava/lang/Object;)V (Ljava/lang/Object;)V
 @lambda-proxy java/util/function/Function apply ()Ljava/util/function/Function; (Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic java/util/function/Function lambda$identity$2 (Ljava/lang/Object;)Ljava/lang/Object; (Ljava/lang/Object;)Ljava/lang/Object;
@@ -14400,7 +14449,6 @@ sun/util/spi/CalendarProvider
 @lambda-form-invoker [LF_RESOLVE] java.lang.invoke.DirectMethodHandle$Holder invokeSpecial L7_V
 @lambda-form-invoker [LF_RESOLVE] java.lang.invoke.DirectMethodHandle$Holder invokeSpecial L8JL3_L
 @lambda-form-invoker [LF_RESOLVE] java.lang.invoke.DirectMethodHandle$Holder invokeSpecial L8_L
-@lambda-form-invoker [LF_RESOLVE] java.lang.invoke.DirectMethodHandle$Holder invokeSpecial L9_L
 @lambda-form-invoker [LF_RESOLVE] java.lang.invoke.DirectMethodHandle$Holder invokeSpecial LLI3LIJ_L
 @lambda-form-invoker [LF_RESOLVE] java.lang.invoke.DirectMethodHandle$Holder invokeSpecial LLIIJL_L
 @lambda-form-invoker [LF_RESOLVE] java.lang.invoke.DirectMethodHandle$Holder invokeSpecial LLIIL_J
@@ -14619,7 +14667,6 @@ sun/util/spi/CalendarProvider
 @lambda-form-invoker [LF_RESOLVE] java.lang.invoke.DirectMethodHandle$Holder newInvokeSpecial L6_L
 @lambda-form-invoker [LF_RESOLVE] java.lang.invoke.DirectMethodHandle$Holder newInvokeSpecial L7JL3_L
 @lambda-form-invoker [LF_RESOLVE] java.lang.invoke.DirectMethodHandle$Holder newInvokeSpecial L7_L
-@lambda-form-invoker [LF_RESOLVE] java.lang.invoke.DirectMethodHandle$Holder newInvokeSpecial L8_L
 @lambda-form-invoker [LF_RESOLVE] java.lang.invoke.DirectMethodHandle$Holder newInvokeSpecial L9_L
 @lambda-form-invoker [LF_RESOLVE] java.lang.invoke.DirectMethodHandle$Holder newInvokeSpecial LI3LIJ_L
 @lambda-form-invoker [LF_RESOLVE] java.lang.invoke.DirectMethodHandle$Holder newInvokeSpecial LII_L
@@ -14697,7 +14744,6 @@ sun/util/spi/CalendarProvider
 @lambda-form-invoker [LF_RESOLVE] java.lang.invoke.Invokers$Holder linkToTargetMethod L6JL4_L
 @lambda-form-invoker [LF_RESOLVE] java.lang.invoke.Invokers$Holder linkToTargetMethod L6_L
 @lambda-form-invoker [LF_RESOLVE] java.lang.invoke.Invokers$Holder linkToTargetMethod L7_L
-@lambda-form-invoker [LF_RESOLVE] java.lang.invoke.Invokers$Holder linkToTargetMethod L8_L
 @lambda-form-invoker [LF_RESOLVE] java.lang.invoke.Invokers$Holder linkToTargetMethod L9_L
 @lambda-form-invoker [LF_RESOLVE] java.lang.invoke.Invokers$Holder linkToTargetMethod LDL_L
 @lambda-form-invoker [LF_RESOLVE] java.lang.invoke.Invokers$Holder linkToTargetMethod LIIJL_L
