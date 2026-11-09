@@ -28,7 +28,12 @@ export type ProposalFlow = {
   rescoped: boolean;
   dismiss: () => void;
   error: string | null;
+  /** Page-own sentences that replace the team page's for the "no capacity", "stale" and "re-proposed" notes (the cross-team page speaks of several teams). */
+  words?: ProposalWords;
 };
+
+/** The notes' sentences a page words itself, already translated; `noCapacity` takes the request's `asOf`. */
+export type ProposalWords = { noCapacity: (date: string) => string; stale: string; rescoped: string };
 
 /** The id of a proposal bar (unique among the timeline's bars, whose own ids are the milestones' numbers). */
 const proposalBarId = (milestoneId: number) => `proposal:${milestoneId}`;

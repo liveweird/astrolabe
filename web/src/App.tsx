@@ -35,6 +35,7 @@ const ProjectView = lazy(() => import("./pages/ProjectView"));
 const Roadmap = lazy(() => import("./pages/Roadmap"));
 const Programs = lazy(() => import("./pages/Programs"));
 const Baselines = lazy(() => import("./pages/Baselines"));
+const ScheduleProposals = lazy(() => import("./pages/ScheduleProposals"));
 const Deviations = lazy(() => import("./pages/Deviations"));
 const BaselineCompare = lazy(() => import("./pages/BaselineCompare"));
 const Teams = lazy(() => import("./pages/Teams"));
@@ -250,6 +251,7 @@ export default function App() {
             <Route path="programs" element={<Programs />} />
             <Route path="baselines" element={<Baselines />} />
             <Route path="baselines/:id" element={<BaselineCompare />} />
+            <Route path="schedule-proposals" element={<ScheduleProposals />} />
             <Route path="deviations" element={<Deviations />} />
             <Route path="people" element={<People />} />
             <Route path="people/:id" element={<PersonDetails />} />

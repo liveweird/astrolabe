@@ -1,14 +1,15 @@
 import { useEffect, useRef } from "react";
-import type { useScheduleProposal } from "./useScheduleProposal";
+import type { ProposalFlow } from "../utils/scheduleProposal";
 
-type Proposal = ReturnType<typeof useScheduleProposal>;
+/** What the focus hand-over reads of a proposal hook (structural: the team page's and the cross-team page's both fit). */
+type Proposal = Pick<ProposalFlow, "rescoped"> & { applying: boolean };
 
 /**
- * Focus follows the schedule proposal's preview on the team page: Discard (in the section) takes it when a proposal opens, Propose gets it back once
+ * Focus follows the schedule proposal's preview on the team page and the cross-team page: Discard (in the section) takes it when a proposal opens, Propose gets it back once
  * the preview is closed (discarded, accepted or voided by a stale refusal) and no write is running any more (`busy`), since a button that is still
  * disabled cannot take it. Returns the two refs the page hands to the buttons.
  */
-export function useProposalFocus(proposal: Proposal, open: Proposal["proposal"], busy: boolean) {
+export function useProposalFocus(proposal: Proposal, open: object | null, busy: boolean) {
   const proposeRef = useRef<HTMLButtonElement>(null);
   const discardRef = useRef<HTMLButtonElement>(null);
   const wasOpen = useRef(false);

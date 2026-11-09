@@ -6,19 +6,19 @@ import FormErrorAlert from "./FormErrorAlert";
 /**
  * What the proposal flow says outside the section, as dismissible notes that last until the next action: a proposal that opened nothing
  * ("nothing to propose" gray, "no capacity: add a capacity period first" orange), what an accept came to (green; orange when something
- * was skipped, with the server's reasons), the whole-batch stale notice and the re-proposed-after-a-scope-change notice (orange), and the inline failure of a propose or an accept.
+ * was skipped, with the server's reasons), the whole-batch stale notice and the re-proposed-after-a-scope-change notice (orange), and the inline failure of a propose or an accept. A page may word the no-capacity, stale and re-proposed notes itself (`words`).
  * Visible only (`role="note"`): the page's status region says each, so an Alert's implicit `role="alert"` would read it twice.
  */
 export default function ProposalNotes({ proposal }: { proposal: ProposalFlow }) {
   const { t } = useTranslation();
-  const { note, outcome, stale, rescoped } = proposal;
+  const { note, outcome, stale, rescoped, words } = proposal;
   const open = proposal.proposal;
   const dismissible = { variant: "light", role: "note", withCloseButton: true, closeButtonLabel: t("common.action.close"), onClose: proposal.dismiss } as const;
   return (
     <>
       {note !== null && (
         <Alert color={note === "noCapacity" ? "orange" : "gray"} {...dismissible}>
-          {note === "noCapacity" ? t("teams.proposal.noCapacity", { date: proposal.noteDate }) : t("teams.proposal.nothing")}
+          {note === "noCapacity" ? (words?.noCapacity(proposal.noteDate) ?? t("teams.proposal.noCapacity", { date: proposal.noteDate })) : t("teams.proposal.nothing")}
         </Alert>
       )}
       {outcome !== null && (
@@ -28,12 +28,12 @@ export default function ProposalNotes({ proposal }: { proposal: ProposalFlow }) 
       )}
       {stale && (
         <Alert color="orange" {...dismissible}>
-          {t("teams.proposal.stale")}
+          {words?.stale ?? t("teams.proposal.stale")}
         </Alert>
       )}
       {rescoped && (
         <Alert color="orange" {...dismissible}>
-          {t("teams.proposal.rescoped")}
+          {words?.rescoped ?? t("teams.proposal.rescoped")}
         </Alert>
       )}
       {/* An accept's failure sits inside the open section; this is a propose's, shown while no preview is open. */}

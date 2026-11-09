@@ -131,6 +131,7 @@ Everything is lazy under `RequireAuth` unless noted.
 - `/roadmap` — Planning, everyone (`can.editRank`, `can.editTargetWindow`) — "Roadmap" + `timeline.md`.
 - `/programs` — Planning, everyone (the target window by `can`) — "Programs" + `timeline.md`.
 - `/baselines`, `/baselines/:id` — Planning, everyone (`can.manage` writes) — "Baselines".
+- `/schedule-proposals` — Planning, everyone (the teams offered come from `GET /schedule-proposals/teams`; the server's 403 is the rule) — "Schedule proposals".
 - `/deviations` — Planning, everyone (Refresh now ADMIN, acknowledge by `can`) — "Deviations, bindings and the Jira chips".
 - `/teams` — Administration, everyone reads, ADMIN writes — "Teams and the team page" (the Registries template); `/teams/:id` — everyone (`team.can`) — "Teams and the team page" + `timeline.md`.
 - `/people`, `/people/:id` — Administration, everyone reads, ADMIN writes — "People".

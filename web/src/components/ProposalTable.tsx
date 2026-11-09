@@ -202,6 +202,7 @@ export default function ProposalTable({
   onSelectAll,
   onSelectNone,
   check,
+  label,
 }: {
   proposal: ProposalContent;
   selected: ReadonlySet<number>;
@@ -210,18 +211,20 @@ export default function ProposalTable({
   onSelectAll: () => void;
   onSelectNone: () => void;
   check?: ProposalCheckNote;
+  /** The table's accessible name; several tables on one page (the cross-team sections) each name their team. */
+  label?: string;
 }) {
   const { t } = useTranslation();
   const total = proposal.moves.length;
   // Counted over THIS table's moves: a selection held for several tables (the cross-team page) is wider than one table.
   const ticked = proposal.moves.filter((move) => selected.has(move.milestoneId)).length;
   const all = total > 0 && ticked === total;
-  const label = t("teams.proposal.tableAria");
+  const name = label ?? t("teams.proposal.tableAria");
   return (
     <>
       <Summary proposal={proposal} check={check} />
-      <ScrollRegion label={label} minWidth={920} maxHeight={TABLE_MAX_HEIGHT}>
-        <Table aria-label={label} stickyHeader>
+      <ScrollRegion label={name} minWidth={920} maxHeight={TABLE_MAX_HEIGHT}>
+        <Table aria-label={name} stickyHeader>
           <Table.Thead>
             <Table.Tr>
               <Table.Th>

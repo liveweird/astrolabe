@@ -1,0 +1,42 @@
+{
+  "title": "Propozycje harmonogramu",
+  "intro": "Zaproponuj terminy dla kilku zespołów naraz. Zespoły są układane w kolejności zależności, każdy przy założeniu, że terminy wcześniej ułożonych zespołów są stałe, aż terminy przestaną się zmieniać. Nic się nie zmieni, dopóki nie zaakceptujesz propozycji.",
+  "teams": "Zespoły",
+  "teamsPlaceholder": "Wybierz zespoły do wspólnego planowania",
+  "clearTeams": "Wyczyść zespoły",
+  "propose": "Zaproponuj",
+  "readOnly": "Propozycja jest otwarta, więc zespoły są zablokowane — najpierw ją odrzuć, aby wybrać inne zespoły.",
+  "noTeams": "Nie zarządzasz żadnym zespołem",
+  "noTeamsHint": "Propozycję może uruchomić kierownik/czka zespołu albo administrator/ka.",
+  "loadFailed": "Nie udało się wczytać Twoich zespołów",
+  "forbidden": "Harmonogram dla kilku zespołów może zaproponować i zaakceptować tylko kierownik/czka każdego z wybranych zespołów albo administrator/ka",
+  "gone": "Któryś z zespołów propozycji już nie istnieje — odśwież stronę",
+  "invalid": "Nie udało się zastosować propozycji — zaproponuj ponownie",
+  "accept": "Zaakceptuj zaznaczone we wszystkich zespołach ({{count}})",
+  "facts": {
+    "settled_one": "Ułożono w {{count}} przebiegu · terminy się ustabilizowały",
+    "settled_few": "Ułożono w {{count}} przebiegach · terminy się ustabilizowały",
+    "settled_many": "Ułożono w {{count}} przebiegach · terminy się ustabilizowały",
+    "settled_other": "Ułożono w {{count}} przebiegach · terminy się ustabilizowały",
+    "unsettled_one": "Terminy nie ustabilizowały się po {{count}} przebiegu: zespoły zależą od siebie nawzajem w pętli, więc każdy przebieg znów coś przesunął. Pokazane terminy pochodzą z ostatniego przebiegu — przed zaakceptowaniem sprawdź ostrzeżenia o zależnościach.",
+    "unsettled_few": "Terminy nie ustabilizowały się po {{count}} przebiegach: zespoły zależą od siebie nawzajem w pętli, więc każdy przebieg znów coś przesunął. Pokazane terminy pochodzą z ostatniego przebiegu — przed zaakceptowaniem sprawdź ostrzeżenia o zależnościach.",
+    "unsettled_many": "Terminy nie ustabilizowały się po {{count}} przebiegach: zespoły zależą od siebie nawzajem w pętli, więc każdy przebieg znów coś przesunął. Pokazane terminy pochodzą z ostatniego przebiegu — przed zaakceptowaniem sprawdź ostrzeżenia o zależnościach.",
+    "unsettled_other": "Terminy nie ustabilizowały się po {{count}} przebiegach: zespoły zależą od siebie nawzajem w pętli, więc każdy przebieg znów coś przesunął. Pokazane terminy pochodzą z ostatniego przebiegu — przed zaakceptowaniem sprawdź ostrzeżenia o zależnościach."
+  },
+  "section": {
+    "placed": "kolejność układania: {{position}} z {{total}}",
+    "tableAria": "Proponowane zmiany zespołu {{name}}",
+    "loadTitle": "Proponowane obciążenie",
+    "loadIntro": "Obciążenie zespołu w kolejnych tygodniach po zaakceptowaniu zaznaczonych zmian. Tylko ostrzega — nic się nie przesuwa.",
+    "loadAria": "Proponowane tygodniowe obciążenie zespołu {{name}}",
+    "loadNone": "Zaznacz zmianę, aby zobaczyć obciążenie po jej zaakceptowaniu.",
+    "showLoad": "Pokaż tygodniowe wartości zespołu {{name}}",
+    "hideLoad": "Ukryj tygodniowe wartości zespołu {{name}}"
+  },
+  "noCapacity": "Nic nie udało się umieścić: wybrane zespoły nie mają przepustowości po {{date}} dla kamieni milowych do ułożenia — najpierw dodaj okres przepustowości.",
+  "rescoped": "Plan wybranych zespołów zmienił się od czasu propozycji: oto nowa. Zachowaliśmy zaznaczenie dla kamieni milowych, które nadal się przesuwają.",
+  "stale": "Plan zmienił się w międzyczasie — niczego nie zapisaliśmy. Zaproponuj ponownie.",
+  "requesting": "Pobieramy propozycję — zespoły są zablokowane do jej nadejścia.",
+  "noTeamsAdmin": "Nie ma jeszcze zespołu, dla którego można zaproponować harmonogram",
+  "noTeamsAdminHint": "Najpierw utwórz zespół w sekcji Zespoły."
+}

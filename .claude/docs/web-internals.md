@@ -23,6 +23,7 @@ section of the page you touch before changing it, and put a new page's mechanics
 - [Roadmap](#roadmap-pagesroadmaptsx)
 - [Programs](#programs-pagesprogramstsx)
 - [Baselines](#baselines-pagesbaselinestsx-pagesbaselinecomparetsx-v09)
+- [Schedule proposals](#schedule-proposals-pagesscheduleproposalstsx-18)
 - [Deviations, bindings and the Jira chips](#deviations-bindings-and-the-jira-chips-pagesdeviationstsx-v110)
 - [Teams and the team page](#teams-and-the-team-page-pagesteamstsx-pagesteamdetailstsx-v050)
 - [People](#people-pagespeopletsx-pagespersondetailstsx)
@@ -831,6 +832,38 @@ into the entry it was made on ONLY (the roadmap ranking and the schedule, pin, t
 and appended rows from the pure `utils/baselineOverlay.ts`. The project and team pages add the Movement section (`components/BaselineMovement.tsx`), the plan
 pages one totals line (`components/BaselineTotals.tsx`); the comparison page's "Show on timeline" sets the pick. Reference and the details: `timeline.md` "The
 baseline overlay (v0.9.0)".
+
+## Schedule proposals (`pages/ScheduleProposals.tsx`, 1.8)
+
+`/schedule-proposals` (nav: Planning after Baselines, `IconCalendarStats`, **for everyone**; palette "Schedule proposals" / PL "Propozycje harmonogramu", keywords proposal, schedule,
+cross-team; path `utils/scheduleProposalLinks.ts`) runs ONE proposal over several teams (`POST /schedule-proposals`: the teams in dependency order to a fixed point, `planning-model.md`
+"The cross-team run") and accepts the ticked moves of every team in ONE plan write. **What it offers comes from the server:** the `MultiSelect` (`maxValues` 50, searchable, disabled while a
+run is requested or open, picks the server no longer lists are dropped at Propose) is filled from `GET /schedule-proposals/teams` under `["schedule-proposals","teams"]` (an ADMIN: every
+active team; otherwise the teams the caller manages); an empty list is the `EmptyState` "You manage no team" with no multi-select and no Propose; the server's 403/404/400 on the run reach the page
+inline (`scheduleProposals.forbidden/gone/invalid`, then the generic action words). Wrappers in `api/scheduleProposals.ts` (`listProposalTeams`, `proposeCrossTeamSchedule`,
+`acceptCrossTeamSchedule`, `checkSchedule`).
+
+**The run** is page state in `hooks/useCrossTeamProposal.ts`, the team page's `useScheduleProposal` state machine over a run: `propose(teamIds)` (local `asOf`; a run with no move in ANY team
+opens nothing and leaves the same two notes as the team page), ONE `selected` set over every team's move ids (milestone ids are global), `toggle`, `selectAll(teamId)` / `selectNone(teamId)` (a
+section's header checkbox acts on THAT team's moves; the status region says the run-wide "n of N selected"), `discard()` (not while the accept runs), `dismiss()`. `accept()` posts
+`{expectedRevision, scopeHash, teamIds (the run's blocks), items}` for the ticked moves of all sections on the write key `["schedule-proposals","accept"]`; while it runs a second accept
+or Propose is refused out loud (`refused`, the `role="note"` "A save is still running", `project.busy` announced; Discard answers `false`). On success the preview closes, `["plan"]` and
+`["roadmap"]` refresh in the background (no cache patch: the page holds no view) and `outcome` is the inline note ("N scheduled · M skipped: reasons", the fixed `teams.proposal.reason.*`
+vocabulary; no toast). `409 stale-revision` closes the run with the reload note; **`409 stale-scope`** closes it, re-proposes the SAME teams at once and keeps the ticks of the moves that still
+exist (`rescoped`, orange note); any other failure is the inline `FormErrorAlert` above the buttons, which takes the focus, with the run open. The page owns the ONE polite status region
+(`VisuallyHidden role="status"`, the zero-width-space re-read flip) the hook announces into; `useProposalFocus` (made structural, `{applying, rescoped}`) hands Discard the focus when a run
+opens and Propose gets it back.
+
+**The page** (a `Stack`, h2 `PageHeader` with Propose in `actions`): the multi-select, `ProposalNotes` (its prop is the structural `ProposalFlow`), then with a run open `components/CrossTeamFacts.tsx`
+(`role="note"`: gray "Placed in N pass(es) · settled"; an ORANGE Alert when `!settled`: "Not settled after 5 passes: the teams depend on each other in a loop, so every pass moved something again.
+The dates shown are the last pass's - check the link warnings before you accept"), one `components/CrossTeamProposalSection.tsx` per block of `teams[]` in PLACEMENT order, the accept's alert
+and ONE **Accept selected across teams (N)** (primary) with Discard. A section is an h3 (the team's name, a dimmed "placed n of N") holding the team page's `ProposalTable` (named per team
+through its `label` prop, so no two tables share a name; "Accept all" in its header acts on that team) and, collapsed, `TeamWeeklyLoad` with `labels` (an h4 "Proposed load", the table named per team);
+with no move ticked anywhere there are no `weeks` and the section says "Tick a move to see the load after accepting it". **The ticked-subset check is `useScheduleCheck`** with ALL the run's team ids and
+every team's moves; `overlayCheck(block, check, block.teamId)` gives each section the verdicts and load of the ticked moves (all ticked = the run's own, none = no new warnings, some = the check's answer
+once in), and `ProposalTable` words "Checking the ticked moves..." / the failure under each summary. Closing the run drops the `["plan","schedule-check"]` queries. The hook returns `words` (`ProposalWords`, an optional override of `ProposalFlow`): the no-capacity, stale and re-proposed notes and their announcements speak of "the chosen teams" (`scheduleProposals.noCapacity/stale/rescoped`), not of one team or a schedule to reload. A run that did not settle is announced in the SAME sentence as the ready one (two announcements in one batch keep only the last). `accept()` sets a synchronous in-flight ref (cleared in `onSettled`) so a double click sends ONE request and the second is refused out loud. Strings: `scheduleProposals.*`
+(`appShell.nav.scheduleProposals`), the accept/discard/outcome words reuse `teams.proposal.*`; an administrator with no team at all reads "No team to propose for yet" (the words only: `useAdmin()` gates nothing). Tests: `ScheduleProposals.test.tsx`, `CrossTeamProposalSection.test.tsx`,
+`useCrossTeamProposal.test.tsx` (fixtures `test/crossTeamRun.ts`).
 
 ## Deviations, bindings and the Jira chips (`pages/Deviations.tsx`, v1.1.0)
 
