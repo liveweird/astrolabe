@@ -1115,6 +1115,9 @@ ch/nokillswit/planning/MilestoneRoutesKt$milestoneRoutes$2
 ch/nokillswit/planning/MilestoneRoutesKt$milestoneRoutes$3
 ch/nokillswit/planning/MilestoneRoutesKt$milestoneRoutes$4
 ch/nokillswit/planning/MilestoneRoutesKt$milestoneRoutes$5
+ch/nokillswit/planning/MilestoneRoutesKt$pinRoute$$inlined$put$1
+ch/nokillswit/planning/MilestoneRoutesKt$pinRoute$$inlined$put$1$1
+ch/nokillswit/planning/MilestoneRoutesKt$pinRoute$1
 ch/nokillswit/planning/MilestoneService
 ch/nokillswit/planning/MilestoneService$Milestones
 ch/nokillswit/planning/MilestoneServiceKt
@@ -1125,6 +1128,9 @@ ch/nokillswit/planning/MilestonesRoute$Companion
 ch/nokillswit/planning/MilestonesRoute$Id
 ch/nokillswit/planning/MilestonesRoute$Id$$serializer
 ch/nokillswit/planning/MilestonesRoute$Id$Companion
+ch/nokillswit/planning/MilestonesRoute$Id$Pin
+ch/nokillswit/planning/MilestonesRoute$Id$Pin$$serializer
+ch/nokillswit/planning/MilestonesRoute$Id$Pin$Companion
 ch/nokillswit/planning/MilestonesRoute$Id$Schedule
 ch/nokillswit/planning/MilestonesRoute$Id$Schedule$$serializer
 ch/nokillswit/planning/MilestonesRoute$Id$Schedule$$serializer$annotationImpl$io_ktor_resources_Resource$0
@@ -13339,6 +13345,7 @@ sun/util/spi/CalendarProvider
 @lambda-proxy io/ktor/util/date/GMTDate invoke ()Lkotlin/jvm/functions/Function0; ()Ljava/lang/Object; REF_invokeStatic io/ktor/util/date/GMTDate _childSerializers$_anonymous_ ()Lkotlinx/serialization/KSerializer; ()Lkotlinx/serialization/KSerializer;
 @lambda-proxy io/ktor/util/date/GMTDate invoke ()Lkotlin/jvm/functions/Function0; ()Ljava/lang/Object; REF_invokeStatic io/ktor/util/date/GMTDate _childSerializers$_anonymous_$0 ()Lkotlinx/serialization/KSerializer; ()Lkotlinx/serialization/KSerializer;
 @lambda-proxy io/ktor/util/debug/IntellijIdeaDebugDetector invoke ()Lkotlin/jvm/functions/Function0; ()Ljava/lang/Object; REF_invokeStatic io/ktor/util/debug/IntellijIdeaDebugDetector isDebuggerConnected_delegate$lambda$0 ()Z ()Ljava/lang/Boolean;
+@lambda-proxy io/ktor/utils/io/ByteChannel dispose ()Lkotlinx/coroutines/DisposableHandle; ()V REF_invokeStatic io/ktor/utils/io/ByteChannel invokeOnClose$lambda$0 ()V ()V
 @lambda-proxy io/ktor/utils/io/ByteChannel dispose (Lio/ktor/utils/io/ByteChannel;Lkotlin/jvm/functions/Function1;)Lkotlinx/coroutines/DisposableHandle; ()V REF_invokeStatic io/ktor/utils/io/ByteChannel invokeOnClose$lambda$2 (Lio/ktor/utils/io/ByteChannel;Lkotlin/jvm/functions/Function1;)V ()V
 @lambda-proxy io/ktor/utils/io/ByteChannelUtilsKt invoke (Lio/ktor/utils/io/ByteChannel;)Lkotlin/jvm/functions/Function1; (Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic io/ktor/utils/io/ByteChannelUtilsKt attachJob$lambda$0 (Lio/ktor/utils/io/ByteChannel;Ljava/lang/Throwable;)Lkotlin/Unit; (Ljava/lang/Throwable;)Lkotlin/Unit;
 @lambda-proxy io/ktor/utils/io/ByteChannelUtilsKt invoke (Lio/ktor/utils/io/ByteReadChannel;)Lkotlin/jvm/functions/Function1; (Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic io/ktor/utils/io/ByteChannelUtilsKt attachWriterJob$lambda$0 (Lio/ktor/utils/io/ByteReadChannel;Ljava/lang/Throwable;)Lkotlin/Unit; (Ljava/lang/Throwable;)Lkotlin/Unit;

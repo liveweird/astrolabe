@@ -13,7 +13,7 @@ milestones) → milestone (start/end, man-day estimate, exactly one team, no own
 (its milestones against capacity), the **roadmap** (projects by one global rank, and in time) and the **programs** view. **Planning flow:** build the hierarchy and rank the projects; the
 team manager schedules milestones (manual drag/resize, or accept a server proposal); dependencies (FS/SS/FF/SF + lag) and capacity overload only ever **warn**, never move anything.
 
-**Roadmap:** 0.1.0 foundation · 0.2.0 plan structure · 0.3.0 timeline + project view · 0.4.0 dependencies · 0.5.0 team view + capacity · 0.6.0 roadmap + programs · 0.7.0 calendar + critical path · 0.8.0 auto-proposal · 0.9.0 baselines · 1.0.0 checkup · 1.1.0 Jira sync · 1.2.0 import · 1.3.0 polling · 1.4.0 coverage + roll-ups · 1.5.1 Flow · **1.6.0 (current)** capacity deviation · next 1.7. Per-version scope, domain decisions, assumptions: `.claude/docs/product.md`. Open items: `BACKLOG.md`.
+**Roadmap:** 0.1.0 foundation · 0.2.0 plan structure · 0.3.0 timeline + project view · 0.4.0 dependencies · 0.5.0 team view + capacity · 0.6.0 roadmap + programs · 0.7.0 calendar + critical path · 0.8.0 auto-proposal · 0.9.0 baselines · 1.0.0 checkup · 1.1.0 Jira sync · 1.2.0 import · 1.3.0 polling · 1.4.0 coverage + roll-ups · 1.5.1 Flow · 1.6.0 capacity deviation · **1.7.0 (current)** planning features · next 1.8. Per-version scope, domain decisions, assumptions: `.claude/docs/product.md`. Open items: `BACKLOG.md`.
 
 Brand: deep cyan (the `astrolabe` colour tuple in `web/src/theme.ts`, `primaryShade: { light: 8, dark: 9 }`); the logo is a stylised astrolabe.
 

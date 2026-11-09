@@ -5,10 +5,10 @@ data in a four-level hierarchy — **work stream → program → project → mil
 globally, teams schedule their milestones against capacity, and dependencies and overload only ever warn. It compares the plan with Jira (by polling, or on a manual refresh) and with Flow (its teams and their capacity) to detect deviations and, on request, to import its items into the plan; corrections are made in
 Astrolabe and nothing is written back. Connecting to Jira (Test connection) was verified on a real Jira Cloud site in 1.5.1; the Jira sync, import and deviations, and the Flow sync, are proven against built-in stubs (the capacity deviation also read-only against a copy of real Flow data). The name is the instrument: a tool for reading where everything stands against time.
 
-## What's here today (1.6.0 — the capacity deviation)
+## What's here today (1.7.0 — planning features)
 
 Astrolabe's repository started as an exact copy of [Flow](https://github.com/liveweird/flow) (1.35.0, `e9c3b726`), trimmed to its generic foundation. 0.2.0 added the plan's structure, 0.3.0 the first timeline view, 0.4.0 the dependencies, 0.5.0 the team view with capacity,
-0.6.0 the roadmap and programs timelines, 0.7.0 the calendar and the critical path, 0.8.0 the auto-proposal, 0.9.0 baselines, 1.0.0 the checkup, 1.1.0 the Jira connection, 1.2.0 the import from Jira, 1.3.0 polling with Jira markers on the timelines, 1.4.0 coverage with story roll-ups, 1.5.0 the Flow connection (teams, capacity import, roster) and 1.6.0 the capacity deviation:
+0.6.0 the roadmap and programs timelines, 0.7.0 the calendar and the critical path, 0.8.0 the auto-proposal, 0.9.0 baselines, 1.0.0 the checkup, 1.1.0 the Jira connection, 1.2.0 the import from Jira, 1.3.0 polling with Jira markers on the timelines, 1.4.0 coverage with story roll-ups, 1.5.0 the Flow connection (teams, capacity import, roster), 1.6.0 the capacity deviation and 1.7.0 the planning features (the critical path on the team page and the roadmap, pinned dates, two baselines compared):
 
 - **People** — the directory of the plan's owners and managers, each optionally linked to a login; a team's manager is a person.
 - **Work streams, programs and projects**, each with an owner; owners edit what they own and everything below it, ADMIN everything. A project carries an optional target window; a work
@@ -36,7 +36,7 @@ Astrolabe's repository started as an exact copy of [Flow](https://github.com/liv
 ## Roadmap
 
 0.1.0 the foundation · 0.2.0 plan structure · 0.3.0 the timeline and the project view · 0.4.0 dependencies · 0.5.0 the team view
-and capacity (shipped) · 0.6.0 roadmap and programs timelines (shipped) · 0.7.0 calendar and critical path (shipped) · 0.8.0 auto-proposal (shipped) · 0.9.0 baselines (shipped) · 1.0.0 checkup (shipped) · 1.1.0 Jira connection, bindings and deviations (shipped) · 1.2.0 import from Jira (shipped) · 1.3.0 polling, status, acknowledge and markers (shipped) · 1.4.0 coverage and roll-ups (shipped) · 1.5.0 Flow teams, capacity and roster (shipped) · 1.5.1 fixes from the first real Jira and Flow connections · 1.6.0 the capacity deviation, plan against Flow (shipped). The scope of each version and the decisions
+and capacity (shipped) · 0.6.0 roadmap and programs timelines (shipped) · 0.7.0 calendar and critical path (shipped) · 0.8.0 auto-proposal (shipped) · 0.9.0 baselines (shipped) · 1.0.0 checkup (shipped) · 1.1.0 Jira connection, bindings and deviations (shipped) · 1.2.0 import from Jira (shipped) · 1.3.0 polling, status, acknowledge and markers (shipped) · 1.4.0 coverage and roll-ups (shipped) · 1.5.0 Flow teams, capacity and roster (shipped) · 1.5.1 fixes from the first real Jira and Flow connections · 1.6.0 the capacity deviation, plan against Flow (shipped) · 1.7.0 planning features: critical path reach, pinned dates, baseline-vs-baseline (shipped). The scope of each version and the decisions
 behind it: `.claude/docs/product.md`; open items: `BACKLOG.md`. `CLAUDE.md`'s "Product" and "Donors" sections say which sibling project each capability ports from.
 
 ## The stack

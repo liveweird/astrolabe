@@ -17,6 +17,26 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.7.0",
+    date: "2026-11-09",
+    en: `**Astrolabe 1.7.0: the critical path on more pages, pinned dates and two baselines compared.**
+
+- The critical path on the team page: turn on "Critical path" in the team's toolbar to outline the milestones and dependencies on the chain that drives the end of each milestone's own project, and to get a Slack column. The toggle is the same one as on the project page, so one choice is remembered for both. Slack is measured toward the end of the milestone's own project, so both pages say the same about the same milestone. A dependency is marked only when it lies on the chain of a project this team works on.
+- The critical path on the roadmap: pick "Critical path to…" in the toolbar, or "Show critical path to this project" in a project's row menu. The roadmap emphasises that project, the projects upstream of it that drive its end and the arrows between them, and a "Critical path to …" panel under the timeline lists them with their dates and slack, filtered-out projects included. Nothing moves; it is computed from the planned dates.
+- A Slack column for every dependency: with "Critical path" on, the project page's Dependencies table shows how many working days each link could slip before it is violated, or by how many working days it is already violated.
+- Pin dates: a team's manager or an administrator can pin a scheduled milestone's dates from its row menu ("Pin dates", "Unpin dates"), and everyone sees the pin on the bar. Propose schedule keeps a pinned milestone where it is, books its load, plans the others around it and counts it in the summary ("N pinned"). A pin does not lock anything: dragging the bar or the schedule dialog still moves the milestone, and it stays pinned. Moving a milestone back to Unscheduled removes its pin.
+- Two baselines compared: on a baseline's page, "Compare against" now offers any other baseline as well as the live plan. The page then lists only the rows that changed between the two, in working days, and names both sides. The overlay on the timelines still compares one baseline with the live plan.
+- Rank movement: with a baseline picked, the roadmap reads "5 (was 3)" in the rank column of a project that moved, and the totals line counts the projects that moved up, moved down, were newly ranked or lost their rank. The comparison page says "Rank 3 → 5" on the project's row.`,
+    pl: `**Astrolabe 1.7.0: ścieżka krytyczna na kolejnych stronach, przypięte terminy i porównanie dwóch baz odniesienia.**
+
+- Ścieżka krytyczna na stronie zespołu: włącz „Ścieżka krytyczna” na pasku zespołu, aby obrysować kamienie milowe i zależności leżące na łańcuchu wyznaczającym koniec własnego projektu każdego kamienia milowego, i aby zobaczyć kolumnę Luz. Przełącznik jest ten sam co na stronie projektu, więc jeden wybór jest zapamiętany dla obu stron. Luz liczymy względem końca własnego projektu kamienia milowego, więc obie strony mówią to samo o tym samym kamieniu milowym. Zależność jest oznaczona tylko wtedy, gdy leży na łańcuchu projektu, nad którym pracuje ten zespół.
+- Ścieżka krytyczna na Roadmapie: wybierz „Ścieżka krytyczna do…” na pasku narzędzi albo „Pokaż ścieżkę krytyczną do tego projektu” w menu wiersza projektu. Roadmapa wyróżnia ten projekt, projekty przed nim, które wyznaczają jego koniec, i strzałki między nimi, a panel „Ścieżka krytyczna do projektu …” pod osią czasu wymienia je z datami i luzem, także projekty ukryte filtrami. Nic się nie przesuwa; liczymy z planowanych dat.
+- Luz dla każdej zależności: przy włączonej „Ścieżce krytycznej” tabela Zależności na stronie projektu pokazuje, o ile dni roboczych każde powiązanie może się przesunąć, zanim zostanie naruszone, albo o ile dni roboczych jest już naruszone.
+- Przypinanie terminów: kierownik/czka zespołu lub administrator/ka może przypiąć terminy zaplanowanego kamienia milowego z menu jego wiersza („Przypnij terminy”, „Odepnij terminy”), a przypięcie widzi każda osoba na pasku. „Zaproponuj harmonogram” zostawia przypięty kamień milowy tam, gdzie jest, uwzględnia jego obciążenie, układa pozostałe wokół niego i liczy go w podsumowaniu („przypięte: N”). Przypięcie niczego nie blokuje: przeciągnięcie paska lub okno harmonogramu nadal przesuwa kamień milowy, a on pozostaje przypięty. Przeniesienie kamienia milowego z powrotem do niezaplanowanych zdejmuje przypięcie.
+- Porównanie dwóch baz odniesienia: na stronie bazy odniesienia „Porównaj z” oferuje teraz także każdą inną bazę odniesienia, nie tylko aktualny plan. Strona wymienia wtedy tylko wiersze, które zmieniły się między nimi, w dniach roboczych, i nazywa obie strony. Nakładka na osiach czasu nadal porównuje jedną bazę odniesienia z aktualnym planem.
+- Zmiana pozycji w rankingu: gdy wybrana jest baza odniesienia, Roadmapa pokazuje „5 (było 3)” w kolumnie rankingu projektu, który zmienił pozycję, a wiersz podsumowania liczy projekty, które awansowały, spadły, trafiły do rankingu lub z niego wypadły. Strona porównania podaje w wierszu projektu „Pozycja w rankingu: 3 → 5”.`,
+  },
+  {
     version: "1.6.0",
     date: "2026-11-08",
     en: `**Astrolabe 1.6.0: capacity compared with Flow.**
