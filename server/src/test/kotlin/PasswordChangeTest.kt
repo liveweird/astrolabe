@@ -13,12 +13,14 @@ import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.testing.testApplication
 import kotlin.test.Test
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 
 class PasswordChangeTest {
 
@@ -131,7 +133,11 @@ class PasswordChangeTest {
             repeat(3) {
                 val locked = client.selfChange(userId, "old-password")
                 assertEquals(HttpStatusCode.TooManyRequests, locked.status)
-                assertContains(locked.bodyAsText(), "wrong current passwords")
+                val body = locked.bodyAsText()
+                assertContains(body, "wrong current passwords")
+                // The SPA tells this 429 from the rate bucket's on the type, not the prose; the lock sends no Retry-After.
+                assertContains(body, "urn:astrolabe:problem:password-change-locked")
+                assertNull(locked.headers[HttpHeaders.RetryAfter])
             }
             // The load-bearing property: the lock is the password change's own, so the owner can still sign in.
             assertEquals(HttpStatusCode.OK, jsonClient().login(email, "old-password").status)

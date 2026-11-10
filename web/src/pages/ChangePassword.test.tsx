@@ -117,15 +117,44 @@ describe("ChangePassword page", () => {
     expect(pendingSignedOut()).toBeNull();
   });
 
-  test("a 429 reads as the temporary lock, not as a wrong password", async () => {
+  test("the lock's 429 (its own problem type) reads as the temporary lock, not as a wrong password", async () => {
     mockFetch.mockImplementation(() =>
-      Promise.resolve(jsonResponse(429, { title: "Too Many Requests", status: 429 })),
+      Promise.resolve(
+        jsonResponse(429, {
+          type: "urn:astrolabe:problem:password-change-locked",
+          title: "Too Many Requests",
+          status: 429,
+          detail: "Too many wrong current passwords — try again later",
+        }),
+      ),
     );
     const user = userEvent.setup();
     renderPage();
 
     await fill(user, "old-password-1", "new-password-42");
     expect(await screen.findByText(/password changes are locked.*reset your password/i)).toBeInTheDocument();
+    expect(screen.queryByText(/current password is incorrect/i)).not.toBeInTheDocument();
+    expect(localStorage.getItem(TOKEN_KEY)).toBe("fake-token");
+    expect(pendingSignedOut()).toBeNull();
+  });
+
+  test("the rate bucket's 429 (type about:blank) says to wait a minute, not that the password is locked", async () => {
+    mockFetch.mockImplementation(() =>
+      Promise.resolve(
+        jsonResponse(429, {
+          type: "about:blank",
+          title: "Too Many Requests",
+          status: 429,
+          detail: "Rate limit exceeded — retry later",
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    renderPage();
+
+    await fill(user, "old-password-1", "new-password-42");
+    expect(await screen.findByText(/too many requests.*wait a minute/i)).toBeInTheDocument();
+    expect(screen.queryByText(/password changes are locked/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/current password is incorrect/i)).not.toBeInTheDocument();
     expect(localStorage.getItem(TOKEN_KEY)).toBe("fake-token");
     expect(pendingSignedOut()).toBeNull();

@@ -53,6 +53,10 @@ data class ProblemCycleNode(val kind: String, val id: UInt, val name: String)
 /**
  * Caller-specific throttling (e.g. the per-account login lockout) → 429 with the given detail.
  * Distinct from the per-IP RateLimit plugin's bodiless 429, which the StatusPages
- * `status(TooManyRequests)` handler completes with a generic problem body.
+ * `status(TooManyRequests)` handler completes with a generic problem body. [problemType] is the RFC 7807 `type` of the answer
+ * (default `about:blank`): the self password change's lock sets one so the SPA can tell it from a rate-bucket 429 without reading prose.
  */
-class TooManyRequestsException(message: String = "Too many requests") : RuntimeException(message)
+class TooManyRequestsException(
+    message: String = "Too many requests",
+    val problemType: String = "about:blank",
+) : RuntimeException(message)

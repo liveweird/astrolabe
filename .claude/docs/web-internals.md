@@ -1010,8 +1010,8 @@ apply sends the SCOPE the preview was read under. `totals.truncated` disables Im
 aborts at `IMPORT_TIMEOUT_MS` (180 s, over the server's 170 s browse), the visible wait has a Stop for a preview, one request at a time, and an apply is never
 aborted by the client: the dialog cannot be closed over it, and leaving the page (Back, the palette) does not cancel it either (only an unmount mid-PREVIEW
 aborts) - it finishes and still refreshes the plan; an answer that leaves the write in doubt (the 180 s abort, no server answer, a 5xx other than the server's
-own 502: `applyMayHaveLanded`) says so, points at the "Links to plan items" list, offers Preview again and refreshes anyway. The app's own 429 carries no
-`Retry-After` (a registered spec gap) and the transport reads none: the message says to wait a minute (the `jira-import` bucket is 5/min, shared by preview and
+own 502: `applyMayHaveLanded`) says so, points at the "Links to plan items" list, offers Preview again and refreshes anyway. The app's rate-bucket 429 (this one, `jira-import`) carries
+`Retry-After` in whole seconds (declared on the spec's `TooManyRequests`; the account-lockout and password-change-lock 429s carry none) but `ApiError` exposes no headers and the transport reads none: the message says to wait a minute (the `jira-import` bucket is 5/min, shared by preview and
 apply). Failures are inline (`importFailure`), a 409 in the apply offers "Preview again". **After an apply the plan moves**, so it refreshes `["jira"]`,
 `["plan"]` (plan, project and team views) and `["roadmap"]` (roadmap and programs) - the one Jira mutation that does. A non-admin's redacted SKIP row (empty
 summary, the key as its name) renders the key, never a blank cell. The rows are one fixed 88 px (`IMPORT_ROW_HEIGHT`; clamped text keeps its full text in the

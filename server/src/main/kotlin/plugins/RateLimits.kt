@@ -59,9 +59,10 @@ internal class RateLimitAuditThrottle(
 }
 
 /**
- * Every token bucket the routes ride (per client IP, except [TELEMETRY], [JIRA_BIND] and [JIRA_IMPORT]: per signed-in user), named in
- * one place so a feature module never has to know another's constant (the auth module used to import the try-it bucket's name — a
- * layering inversion the checkup removed). Route files reference these names; only this plugin installs them.
+ * Every token bucket the routes ride (per client IP, except [TELEMETRY], [JIRA_BIND], [JIRA_IMPORT] and [PASSWORD_CHANGE]: per
+ * signed-in user), named in one place so a feature module never has to know another's constant (the auth module used to import
+ * the try-it bucket's name — a layering inversion the checkup removed). Route files reference these names; only this plugin
+ * installs them.
  */
 object RateLimits {
     const val LOGIN = "login"
@@ -105,6 +106,15 @@ object RateLimits {
      * node, so it runs before the guard. It limits the RATE, not the concurrency: see `security.md`.
      */
     const val JIRA_IMPORT = "jira-import"
+    /**
+     * `PUT /api/v1/users/{id}/password` (`users/UserRoutes.kt`): 10/min per SIGNED-IN USER in every mode, keyed by the CALLER (the verified
+     * JWT `userId`), never the path id, so an admin resetting somebody else's password spends the admin's own tokens and the target's
+     * attempts can never starve it. One bucket covers the self change and the admin reset (the route cannot tell them apart before the
+     * guard); it rides the route node, so it runs before the lock preflight and before the cost-12 bcrypt verify: a burst from one
+     * account stops paying CPU after ten requests instead of after the lock trips. Ten because a human changing a password needs a few
+     * tries (a typo in the current password, a refused new one) and the wrong-current lock (5 attempts) is the guess budget, not this.
+     */
+    const val PASSWORD_CHANGE = "password-change"
 
     const val DEFAULT_REFRESH_PER_MINUTE = 30
     /**
@@ -117,6 +127,7 @@ object RateLimits {
     private const val TELEMETRY_PER_MINUTE = 30
     private const val JIRA_BIND_PER_MINUTE = 30
     private const val JIRA_IMPORT_PER_MINUTE = 5
+    private const val PASSWORD_CHANGE_PER_MINUTE = 10
     private const val MFA_PER_MINUTE = 10
     private const val PASSWORD_RESET_CONFIRM_PER_MINUTE = 10
     private const val JIRA_TEST_PER_MINUTE = 10
@@ -150,6 +161,7 @@ object RateLimits {
     internal fun telemetryLimit() = TELEMETRY_PER_MINUTE
     internal fun jiraBindLimit() = JIRA_BIND_PER_MINUTE
     internal fun jiraImportLimit() = JIRA_IMPORT_PER_MINUTE
+    internal fun passwordChangeLimit() = PASSWORD_CHANGE_PER_MINUTE
     internal fun mfaLimit() = MFA_PER_MINUTE
     internal fun passwordResetConfirmLimit() = PASSWORD_RESET_CONFIRM_PER_MINUTE
     /** The shipped manifests keep 10; the e2e stacks (compose, the OrbStack overlay) pin 30. Capped at 100: each call fans out to Jira. */
@@ -162,11 +174,11 @@ object RateLimits {
 }
 
 /**
- * The buckets (see application.yaml `security.rateLimit` and security.md): per IP, except the per-USER telemetry bucket. Login and
- * password-reset follow the mode — production keeps them tight, development lifts them so one host
- * driving the e2e suite is not throttled (the per-account lockout and the per-email throttle are the
- * abuse defences in both modes); refresh, ready, MFA and the password-reset confirm are the same in every mode. Installed here, before
- * the feature modules, so any route may ride any bucket regardless of module order.
+ * The buckets (see application.yaml `security.rateLimit` and security.md): per IP, except the per-USER buckets (telemetry,
+ * jira-bind, jira-import, password-change). Login and password-reset follow the mode — production keeps them tight, development
+ * lifts them so one host driving the e2e suite is not throttled (the per-account lockout and the per-email throttle are the
+ * abuse defences in both modes); refresh, ready, MFA and the password-reset confirm are the same in every mode. Installed here,
+ * before the feature modules, so any route may ride any bucket regardless of module order.
  */
 fun Application.configureRateLimits() {
     val buckets = with(RateLimits) {
@@ -182,7 +194,12 @@ fun Application.configureRateLimits() {
         )
     }
     val perUserBuckets = with(RateLimits) {
-        mapOf(TELEMETRY to telemetryLimit(), JIRA_BIND to jiraBindLimit(), JIRA_IMPORT to jiraImportLimit())
+        mapOf(
+            TELEMETRY to telemetryLimit(),
+            JIRA_BIND to jiraBindLimit(),
+            JIRA_IMPORT to jiraImportLimit(),
+            PASSWORD_CHANGE to passwordChangeLimit(),
+        )
     }
     install(RateLimit) {
         buckets.forEach { (name, limit) ->
@@ -196,9 +213,9 @@ fun Application.configureRateLimits() {
                 }
             }
         }
-        // The per-USER buckets (telemetry, jira-bind, jira-import). The routes mount them INSIDE `authenticate {}`
+        // The per-USER buckets (telemetry, jira-bind, jira-import, password-change). The routes mount them INSIDE `authenticate {}`
         // (telemetry/TelemetryRoutes.kt,
-        // jira/JiraBindingRoutes.kt), so this key
+        // jira/JiraBindingRoutes.kt, users/UserRoutes.kt), so this key
         // runs only for a verified token: an anonymous call is a 401 that never reaches it
         // and never creates a limiter. The plugin keeps one limiter per key and drops it after its refill period, so memory is
         // bounded by the accounts active within a minute.

@@ -170,12 +170,12 @@ with `hasKeyValue` from `TestEnvironment.kt`). Emitted today:
 - `crypto.reencrypted` (rows/label/rotating — the boot-time encryption-at-rest backfill, `infra/db/Bootstrap.kt`: `rows` the rows wrapped or, with `rotating` true, re-encrypted under the current key, `label` the owning service's noun (`Jira API token`); emitted only when a pass touched rows, so an idempotent re-boot emits nothing; counts and a noun, never a value; `security.md` "Encryption at rest"),
 - `authz.denied` (every 403, from the `ForbiddenException` handler in `plugins/ErrorHandling.kt`,
   with method/path/byUserId/detail — `path` is the request path only, never the query string),
-- `rate_limit.exceeded` (bucket/method/path/suppressed, plus `byUserId` on the per-USER buckets `telemetry`, `jira-bind` and `jira-import` — a token bucket (`plugins/RateLimits.kt`: per-IP login, refresh,
-  password-reset, password-reset-confirm, mfa, ready, jira-test, flow-test; per-user telemetry, jira-bind, jira-import) rejected the request with a 429, emitted from the 429 status handler in
+- `rate_limit.exceeded` (bucket/method/path/suppressed, plus `byUserId` on the per-USER buckets `telemetry`, `jira-bind`, `jira-import` and `password-change` — a token bucket (`plugins/RateLimits.kt`: per-IP login, refresh,
+  password-reset, password-reset-confirm, mfa, ready, jira-test, flow-test; per-user telemetry, jira-bind, jira-import, password-change) rejected the request with a 429, emitted from the 429 status handler in
   `plugins/ErrorHandling.kt`; `bucket` is stamped by the bucket's own `requestKey`. **Coalesced**
   (`RateLimitAuditThrottle`): at most ONE event per bucket per 60 s, `suppressed` counting the rejections folded into it
   since the previous event (0 on the first), so an unauthenticated flood writes a line a minute per bucket instead of one
-  per request; keyed by bucket only (per-IP buckets), so memory is bounded whoever floods. The per-USER buckets (`telemetry`, `jira-bind`, `jira-import`) are keyed by
+  per request; keyed by bucket only (per-IP buckets), so memory is bounded whoever floods. The per-USER buckets (`telemetry`, `jira-bind`, `jira-import`, `password-change`) are keyed by
   `<bucket>:<userId>` instead and carry `byUserId` -- the server-minted claim of a verified token, never client text; only a signed-in
   account reaches that key, so the key space is the account count. The client address is deliberately NOT a field
   (it is `X-Forwarded-For`-derived behind a proxy, i.e. attacker-chosen text; the ingress log has it), and neither is the

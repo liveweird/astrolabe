@@ -69,6 +69,18 @@ describe("useResetPassword", () => {
     expect(result.current.pending).toBe(false);
   });
 
+  test("a 429 from the per-user bucket says to wait, not 'Reset failed (429)'", async () => {
+    mockFetch.mockResolvedValue(jsonResponse(429, { title: "Too Many Requests", status: 429 }));
+    const { result } = renderHook(() => useResetPassword());
+
+    act(() => result.current.request(TARGET));
+    await act(() => result.current.confirm());
+
+    expect(result.current.error).toBe("Too many requests. Wait a minute and try again.");
+    expect(result.current.revealed).toBeNull();
+    expect(result.current.target).toEqual(TARGET);
+  });
+
   test("a network failure surfaces the generic message", async () => {
     mockFetch.mockRejectedValue(new Error("offline"));
     const { result } = renderHook(() => useResetPassword());

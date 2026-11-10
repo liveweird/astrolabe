@@ -200,7 +200,7 @@ private fun ApplicationCall.hasNegativeIdSegment(): Boolean {
 fun Application.configureErrorHandling() {
     val rateLimitAudit = RateLimitAuditThrottle()
     install(StatusPages) {
-        // The RateLimit plugin (per-IP buckets and the per-USER telemetry bucket) rejects with a bodiless 429; give it the same RFC 7807
+        // The RateLimit plugin (the per-IP buckets and the per-USER ones) rejects with a bodiless 429; give it the same RFC 7807
         // body every other error carries. NOTE: this status handler intercepts EVERY 429 that
         // StatusPages itself didn't produce — so caller-specific 429s (the login lockout) must
         // go through TooManyRequestsException below (handled calls are marked and skipped),
@@ -209,7 +209,7 @@ fun Application.configureErrorHandling() {
             // A rate-limit rejection leaves the security trail too (checkup 2C15): the bucket (stamped by the
             // bucket's own requestKey, plugins/RateLimits.kt) and the path — never the client address
             // (X-Forwarded-For-derived, so attacker-chosen text) or the query string. Coalesced to one event per
-            // bucket per minute (per bucket AND user for the per-user telemetry bucket, which also names `byUserId`)
+            // bucket per minute (per bucket AND user for the per-USER buckets, which also name `byUserId`)
             // carrying `suppressed` (the rejections folded in since the previous one), so a flood cannot write a
             // line per request.
             val bucket = call.attributes.getOrNull(RateLimitBucketKey) ?: "unknown"
@@ -233,7 +233,7 @@ fun Application.configureErrorHandling() {
             call.respondProblem(status, "Method not allowed for this resource")
         }
         exception<TooManyRequestsException> { call, cause ->
-            call.respondProblem(HttpStatusCode.TooManyRequests, cause.message ?: "Too many requests")
+            call.respondProblem(HttpStatusCode.TooManyRequests, cause.message ?: "Too many requests", type = cause.problemType)
         }
         // The global RequestBodyLimit plugin (plugins/Http.kt) rejects oversized bodies with
         // this exception; give the 413 the RFC 7807 body every other error carries.

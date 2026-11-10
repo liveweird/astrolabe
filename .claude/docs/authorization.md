@@ -197,6 +197,7 @@ Layered RBAC. Implemented in the `server/src/main/kotlin/authz/` package.
     (even by an admin) additionally requires a correct `currentPassword` in the body (else `403`,
     audited `password.change_denied`); an admin resetting **another** user's password does not. The self
     change is **throttled per user** (`users/PasswordChangeThrottle.kt`, `security.md`): the order is
+    `429` (the per-USER `password-change` bucket, 10/min, keyed by the CALLER, on the route node: it answers before the guard, for the self change and the admin reset alike) →
     `403` (the guard) → `429` (locked or untrackable; keyed by the PATH id, so it needs nothing from the
     payload and rides before `call.receive`, like the guard) → `400` (body decode) → `400` (the new
     password's rules) → `403` (wrong or missing current password) → write. **A deliberate exception to
@@ -439,8 +440,8 @@ Layered RBAC. Implemented in the `server/src/main/kotlin/authz/` package.
   `respondProblem(NotFound, …)` + return), unique-violation `23505`→409 and NUL-byte `22021`→400
   (via the R2DBC/Exposed cause-chain walkers), and a catch-all `Throwable`→500 (logged) through
   that helper. A `status(TooManyRequests)` handler additionally gives the `RateLimit`
-  plugin's bodiless 429 (per-IP buckets, and the per-USER `telemetry` bucket) a generic problem body and emits the `rate_limit.exceeded` audit event
-  (bucket/method/path, coalesced to one per bucket per minute with a `suppressed` count — per user, with `byUserId`, for the `telemetry` bucket —
+  plugin's bodiless 429 (per-IP buckets, and the four per-USER buckets `telemetry`, `jira-bind`, `jira-import` and `password-change`) a generic problem body and emits the `rate_limit.exceeded` audit event
+  (bucket/method/path, coalesced to one per bucket per minute with a `suppressed` count — per user, with `byUserId`, for the four per-user buckets —
   `observability.md`) — **that handler rewrites any non-StatusPages
   429**, which is why caller-specific 429s (the login lockout) must go through
   `TooManyRequestsException` (handled calls are marked and skipped) — and a sibling

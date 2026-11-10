@@ -37,6 +37,7 @@ export function useResetPassword() {
     } catch (err) {
       setError(
         saveErrorMessage(err, t, {
+          tooManyRequests: "common.error.tooManyRequests",
           failedStatus: "users.resetFailedStatus",
           failed: "users.resetFailedNetwork",
         }),

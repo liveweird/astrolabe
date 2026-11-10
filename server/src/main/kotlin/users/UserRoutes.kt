@@ -20,12 +20,15 @@ import ch.nokillswit.infra.paging.parsePaging
 import ch.nokillswit.infra.paging.toPage
 import ch.nokillswit.infra.validation.canonicalEmail
 import ch.nokillswit.infra.validation.sanitizeSingleLine
+import ch.nokillswit.plugins.RateLimits
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.resources.Resource
 import io.ktor.server.application.*
 import io.ktor.server.auth.authenticate
 import io.ktor.server.plugins.BadRequestException
+import io.ktor.server.plugins.ratelimit.RateLimitName
+import io.ktor.server.plugins.ratelimit.rateLimit
 import io.ktor.server.request.receive
 import io.ktor.server.resources.delete
 import io.ktor.server.resources.get
@@ -256,6 +259,14 @@ private fun Route.userReadUpdateDelete(userService: UserService) {
 }
 
 private fun Route.userPassword(userService: UserService) {
+    // The per-USER bucket (keyed by the CALLER, `RateLimits.PASSWORD_CHANGE`) sits on the route node, so it runs before the handler:
+    // before the guard, the lock preflight, the body and the bcrypt verify. A flood from one account is a 429 that costs no hash.
+    rateLimit(RateLimitName(RateLimits.PASSWORD_CHANGE)) {
+        userPasswordPut(userService)
+    }
+}
+
+private fun Route.userPasswordPut(userService: UserService) {
     put<Users.Id.Password> { route ->
         val caller = call.caller()
         requireSelfOrAdmin(caller, route.parent.id)

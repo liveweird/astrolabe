@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { Button, Group, Paper, PasswordInput, Stack } from "@mantine/core";
 import { useForm } from "@mantine/form";
+import { ApiError } from "../api/http";
 import { changeUserPassword } from "../api/users";
 import { clearSession, getUserId } from "../api/session";
 import { flagSignedOut } from "../auth";
@@ -12,6 +13,9 @@ import { newPasswordValidation } from "../utils/userForm";
 import PageHeader from "../components/PageHeader";
 import { FORM_MAX_WIDTH } from "../utils/layout";
 import FormErrorAlert from "../components/FormErrorAlert";
+
+/** The problem `type` of the server's wrong-current-password lock 429 (`PasswordChangeThrottle.kt`). */
+const PASSWORD_CHANGE_LOCKED_TYPE = "urn:astrolabe:problem:password-change-locked";
 
 type Values = { currentPassword: string; password: string; confirm: string };
 
@@ -52,7 +56,12 @@ export default function ChangePassword() {
       setError(
         saveErrorMessage(err, t, {
           forbidden: "users.wrongCurrentPassword",
-          tooManyRequests: "users.passwordChangeLocked",
+          // Two different 429s: the lock (wrong current passwords) is the only one carrying this problem `type`; the rate
+          // bucket's (`password-change`, 10/min) is `about:blank`. The type, never the prose, tells them apart.
+          tooManyRequests:
+            err instanceof ApiError && err.type === PASSWORD_CHANGE_LOCKED_TYPE
+              ? "users.passwordChangeLocked"
+              : "common.error.tooManyRequests",
           failedStatus: "users.changeFailedStatus",
           failed: "users.changeFailedNetwork",
         }),
