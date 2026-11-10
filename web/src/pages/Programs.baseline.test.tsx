@@ -4,12 +4,12 @@ import { screen, waitFor, within } from "@testing-library/react";
 import Programs from "./Programs";
 import type { Movement } from "../api/baselines";
 import type { ProgramsProgram, ProgramsView, ProgramsWorkStream } from "../api/programs";
-import type { RoadmapProject } from "../api/roadmap";
+import type { RemovedProject, RoadmapProject } from "../api/roadmap";
 import { jsonResponse } from "../test/http";
 import { renderWithProviders } from "../test/render";
 
-// The v0.9 baseline overlay on the Programs page: the picker, shadow bars on project, program and work stream rows, the totals line (no
-// removed count: the programs view does not list the removed projects), the typed 400 that clears the pick.
+// The v0.9 baseline overlay on the Programs page: the picker, shadow bars on project, program and work stream rows, the totals line, the typed
+// 400 that clears the pick; and (1.10) the dimmed rows for the baseline's deleted projects under their expanded program, counted by the totals line.
 
 const PICK_KEY = "astrolabe.viewSettings.timeline.baseline";
 const PROGRAM_PICK_KEY = "astrolabe.viewSettings.planning.programPick";
@@ -59,7 +59,27 @@ const PLATFORM: ProgramsWorkStream = {
   baseline: frozen({ start: "2026-03-02", end: "2026-06-05" }, move("MOVED", 0, 63)),
 };
 
-const viewOf = (): ProgramsView => ({ jiraSites: [], revision: 9, teams: [], links: [], workStreams: [PLATFORM], baseline: { id: 5, name: "Q1 plan", planRevision: 4 } });
+const viewOf = (): ProgramsView => ({ jiraSites: [], revision: 9, teams: [], links: [], workStreams: [PLATFORM], baseline: { id: 5, name: "Q1 plan", planRevision: 4, removedProjects: [] } });
+const gone = (projectId: number, name: string, over: Partial<RemovedProject> = {}): RemovedProject => ({
+  projectId,
+  name,
+  programId: 10,
+  programName: "Billing",
+  workStreamId: 1,
+  workStreamName: "Platform",
+  span: { start: "2026-02-02", end: "2026-02-27" },
+  ...over,
+});
+/** Baseline 7: Billing lost "Retired" (and a project with no span), Reports lost "Reaped", a program that is gone lost "Orphan". */
+const withRemoved = (): ProgramsView => ({
+  ...viewOf(),
+  baseline: {
+    id: 7,
+    name: "Q2 plan",
+    planRevision: 5,
+    removedProjects: [gone(11, "Retired"), gone(12, "Spanless", { span: null }), gone(13, "Reaped", { programId: 11, programName: "Reports" }), gone(14, "Orphan", { programId: 99, programName: "Gone" })],
+  },
+});
 /** The plain document: no `baseline` anywhere. */
 const plainOf = (): ProgramsView => {
   const strip = <T extends { baseline?: unknown }>(item: T): T => ({ ...item, baseline: undefined });
@@ -87,7 +107,8 @@ beforeEach(() => {
     if (url.startsWith("/api/v1/views/programs")) {
       viewUrls.push(url);
       if (url.endsWith("?baseline=5")) return Promise.resolve(jsonResponse(200, viewOf()));
-      if (url.endsWith("?baseline=6")) return Promise.resolve(jsonResponse(200, { ...viewOf(), baseline: { id: 6, name: "Q0 plan", planRevision: 3 } }));
+      if (url.endsWith("?baseline=6")) return Promise.resolve(jsonResponse(200, { ...viewOf(), baseline: { id: 6, name: "Q0 plan", planRevision: 3, removedProjects: [] } }));
+      if (url.endsWith("?baseline=7")) return Promise.resolve(jsonResponse(200, withRemoved()));
       if (url.endsWith("?baseline=99")) return Promise.resolve(jsonResponse(400, UNKNOWN));
       return Promise.resolve(jsonResponse(200, plainOf()));
     }
@@ -144,6 +165,60 @@ describe("Programs page with a baseline", () => {
     expect(note).toHaveTextContent("vs baseline Q1 plan:");
     expect(within(note).getAllByText(/./).map((node) => node.textContent)).toEqual(expect.arrayContaining(["1 end later", "1 new"]));
     expect(within(note).queryByText(/removed/)).toBeNull();
+  });
+
+  test("a deleted project the baseline froze shows dimmed under its program once that program is expanded; the totals line counts every removed project", async () => {
+    const user = userEvent.setup();
+    localStorage.setItem(PICK_KEY, "7");
+    renderWithProviders(<Programs />);
+    await waitForGrid();
+    expect(await screen.findByText("4 removed")).toBeInTheDocument();
+    // Billing and Reports are folded: nothing is drawn for the deleted projects yet
+    expect(screen.queryByText(/\(removed\)/)).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Program Billing" }));
+    const name = await screen.findByText("Retired (removed)");
+    const row = name.closest('[role="row"]')!;
+    expect(row).toBe(screen.getByRole("link", { name: /Taxes/ }).closest('[role="row"]')!.nextElementSibling);
+    expect(name.closest("[title]")).toHaveAttribute("title", "Billing · Platform");
+    expect(within(row as HTMLElement).queryByRole("link")).toBeNull();
+    expect(within(row as HTMLElement).queryByRole("button")).toBeNull();
+    expect(row.querySelector('[data-tone="baseline"]')).toHaveAttribute("aria-label", "Baseline: Retired, 2026-02-02 to 2026-02-27, read-only");
+    // a project without a span, one of another (still folded) program and one whose program is gone have no row
+    expect(screen.queryByText(/Spanless|Reaped|Orphan/)).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Program Reports" }));
+    expect(await screen.findByText("Reaped (removed)")).toBeInTheDocument();
+    expect(screen.queryByText(/Orphan/)).toBeNull();
+  });
+
+  test("a program whose live projects are all deleted still has its chevron: it expands and shows the removed row, announced with the count", async () => {
+    const user = userEvent.setup();
+    const empty: ProgramsProgram = { id: 12, name: "Legacy", ownerName: "Lea Legacy", span: null, flags: { warnings: 0, infos: 0 }, projects: [] };
+    mockFetch.mockImplementation((url: string) => {
+      if (url.startsWith("/api/v1/views/programs")) {
+        const base = withRemoved();
+        const stream = { ...PLATFORM, programs: [...PLATFORM.programs, empty] };
+        return Promise.resolve(jsonResponse(200, { ...base, workStreams: [stream], baseline: { ...base.baseline!, removedProjects: [gone(15, "Lost", { programId: 12, programName: "Legacy" })] } }));
+      }
+      return Promise.resolve(url === "/api/v1/baselines" ? jsonResponse(200, BASELINES) : url === "/api/v1/public-holidays" ? jsonResponse(200, { items: [] }) : jsonResponse(404, { title: "x", status: 404 }));
+    });
+    localStorage.setItem(PICK_KEY, "7");
+    renderWithProviders(<Programs />);
+    await waitForGrid();
+    await user.click(await screen.findByRole("button", { name: "Program Legacy" }));
+    expect(await screen.findByText("Lost (removed)")).toBeInTheDocument();
+    expect(screen.getByText("Legacy expanded, 1 project")).toBeInTheDocument();
+  });
+
+  test("a program the pick hides draws none of its deleted projects, and the one the pick keeps does", async () => {
+    const user = userEvent.setup();
+    localStorage.setItem(PICK_KEY, "7");
+    localStorage.setItem(PROGRAM_PICK_KEY, JSON.stringify([11]));
+    renderWithProviders(<Programs />);
+    await waitForGrid();
+    await user.click(await screen.findByRole("button", { name: "Program Reports" }));
+    expect(await screen.findByText("Reaped (removed)")).toBeInTheDocument();
+    expect(screen.queryByText(/Retired/)).toBeNull();
+    expect(screen.getByText("4 removed")).toBeInTheDocument();
   });
 
   test("an expanded program shows its projects' shadow bars", async () => {

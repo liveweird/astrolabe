@@ -26,11 +26,11 @@ import { usePlanScale } from "../hooks/usePlanScale";
 import { useProgramPick } from "../hooks/useProgramPick";
 import { useRowMenuFocus } from "../hooks/useRowMenuFocus";
 import { useTargetWindow } from "../hooks/useTargetWindow";
-import { projectTotals } from "../utils/baselineOverlay";
+import { projectTotals, removedProjectRows } from "../utils/baselineOverlay";
 import { localIsoDate } from "../utils/isoDate";
 import { jiraWindow } from "../utils/jiraBars";
 import { projectOfWindowBar } from "../utils/planTrack";
-import { allOpen, defaultOpen, programChoices, toggled, treeDates, treeFacts, treeProjects, treeRows } from "../utils/programsTree";
+import { allOpen, defaultOpen, isNodeRow, programChoices, toggled, treeDates, treeFacts, treeProjects, treeRows } from "../utils/programsTree";
 import { pickAmong } from "../utils/roadmapRows";
 import { applyProgramsWindow } from "../utils/targetWindowUpdate";
 
@@ -110,7 +110,8 @@ function ProgramsBody({ view, pick: baselinePick, onPick, loading }: { view: Pro
   const choices = programChoices(view);
   const pick = pickAmong(choices, storedPick);
   const open = expanded ?? defaultOpen(view);
-  const rows = treeRows(view, pick, open);
+  const removedRows = removedProjectRows(view.baseline?.removedProjects ?? [], t);
+  const rows = treeRows(view, pick, open, removedRows);
 
   // A toggle can change what the grid is made of: when it takes the rows across the virtualisation threshold (80) the Timeline switches paths and
   // EVERY row remounts as a new DOM node, so the pressed chevron is gone and the focus falls to `body` (and, going virtual, the first render
@@ -155,9 +156,9 @@ function ProgramsBody({ view, pick: baselinePick, onPick, loading }: { view: Pro
 
   function toggle(key: string) {
     refocus.current = key;
-    const row = rows.find((candidate) => candidate.kind !== "project" && candidate.key === key);
+    const row = rows.find((candidate) => isNodeRow(candidate) && candidate.key === key);
     setExpanded(toggled(open, key));
-    if (row === undefined || row.kind === "project") return;
+    if (row === undefined || !isNodeRow(row)) return;
     const count = row.childCount;
     setAnnouncement(
       row.expanded ? t("programs.announce.collapsed", { name: row.name }) : t(row.kind === "workStream" ? "programs.announce.expandedStream" : "programs.announce.expandedProgram", { name: row.name, count }),
@@ -185,7 +186,7 @@ function ProgramsBody({ view, pick: baselinePick, onPick, loading }: { view: Pro
       <Group gap="sm" justify="space-between" align="flex-end" wrap="wrap">
         <ProgramsFacts view={view} pick={pick} />
         <Group gap="xs" data-print="hide">
-          <Button variant="default" size="xs" leftSection={<IconArrowsMaximize size={14} />} onClick={() => setAll(allOpen(view), t("programs.announce.expandedAll"))}>
+          <Button variant="default" size="xs" leftSection={<IconArrowsMaximize size={14} />} onClick={() => setAll(allOpen(view, removedRows), t("programs.announce.expandedAll"))}>
             {t("programs.expandAll")}
           </Button>
           <Button variant="default" size="xs" leftSection={<IconArrowsMinimize size={14} />} onClick={() => setAll(new Set(), t("programs.announce.collapsedAll"))}>
@@ -193,7 +194,7 @@ function ProgramsBody({ view, pick: baselinePick, onPick, loading }: { view: Pro
           </Button>
         </Group>
       </Group>
-      {view.baseline !== undefined && <BaselineTotals name={view.baseline.name} totals={projectTotals(treeProjects(view), 0)} />}
+      {view.baseline !== undefined && <BaselineTotals name={view.baseline.name} totals={projectTotals(treeProjects(view), view.baseline.removedProjects.length)} />}
       <FilterPanel activeFilterCount={pick === null ? 0 : 1} storageKey="programs">
         <ProgramPickField programs={choices} pick={[...(pick ?? [])]} onPick={setPick} />
       </FilterPanel>

@@ -1,4 +1,5 @@
-import type { PlanFlag, RoadmapLink, RoadmapProject, RoadmapRankedProject, RoadmapView } from "../api/roadmap";
+import type { PlanFlag, RemovedProject, RoadmapLink, RoadmapProject, RoadmapRankedProject, RoadmapView } from "../api/roadmap";
+import { removedProjectDays } from "./baselineOverlay";
 import { EDGES } from "./dependencyArrows";
 import { addDays } from "./isoDate";
 import { jiraRangeDates, type JiraWindow } from "./jiraBars";
@@ -87,6 +88,16 @@ export function visibleProjects(view: RoadmapView, filters: RoadmapFilters, pick
   return { ranked: view.ranked.filter((entry) => keeps(entry.project)), unranked: view.unranked.filter(keeps) };
 }
 
+/**
+ * The baseline's deleted projects the filters and the program pick leave visible (1.10): the work stream filter and the pick compare the ids the
+ * baseline froze; a team, owner or flagged-only filter hides them ALL (nothing frozen says a deleted project's teams or owner, and it has no flags: a
+ * row the filter might exclude is never shown).
+ */
+export function visibleRemoved(view: Pick<RoadmapView, "baseline">, filters: RoadmapFilters, pick: ReadonlySet<number> | null): RemovedProject[] {
+  if (filters.teamId !== null || filters.ownerPersonId !== null || filters.flaggedOnly) return [];
+  return (view.baseline?.removedProjects ?? []).filter((gone) => (pick === null || pick.has(gone.programId)) && (filters.workStreamId === null || gone.workStreamId === filters.workStreamId));
+}
+
 /** How many filters are in force (the toggle's badge): each field of the filters, plus the program pick. */
 export function activeFilterCount(filters: RoadmapFilters, pick: ReadonlySet<number> | null): number {
   const set = [filters.workStreamId, filters.teamId, filters.ownerPersonId].filter((id) => id !== null).length;
@@ -146,7 +157,7 @@ export function driftBandOf(project: RoadmapProject): { start: string; end: stri
 }
 
 /**
- * Every date the page shows (spans, target windows and, with a baseline picked, the frozen spans): the range the timeline must cover. With the page's
+ * Every date the page shows (spans, target windows and, with a baseline picked, the frozen spans, the deleted projects' too): the range the timeline must cover. With the page's
  * Jira `window` (the "Jira dates" toggle on, `jiraWindow(datesOf(view), today)`) the Jira dates of each bound project join it, CUT at the window so a
  * mistyped Jira date cannot stretch the range (the range only grows, and the toggle could not undo it).
  */
@@ -154,8 +165,9 @@ export function datesOf(view: RoadmapView, jira: JiraWindow | null = null): stri
   const own = allProjects(view).flatMap((project) =>
     [project.span?.start, project.span?.end, project.targetStart, project.targetEnd, project.baseline?.span?.start, project.baseline?.span?.end].filter((d): d is string => typeof d === "string"),
   );
-  if (jira === null) return own;
-  return [...own, ...jiraRangeDates(allProjects(view), jira)];
+  const days = [...own, ...removedProjectDays(view.baseline?.removedProjects)];
+  if (jira === null) return days;
+  return [...days, ...jiraRangeDates(allProjects(view), jira)];
 }
 
 /** How many violated links end on each project (a direct link and the violated milestone links of a pair), for the span bar's accessible name. */

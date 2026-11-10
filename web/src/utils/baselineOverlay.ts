@@ -1,5 +1,6 @@
 import type { TFunction } from "i18next";
 import type { BaselineFigures, BaselineMilestone, Movement, MovementTotals, RemovedMilestone, SpanBaseline } from "../api/baselines";
+import type { RemovedProject } from "../api/roadmap";
 import type { TimelineBarData } from "./timelineModel";
 
 /**
@@ -200,6 +201,23 @@ export function removedRows(baseline: Pick<MilestoneBaseline, "milestones" | "re
   return rows.sort((a, b) => compare(a.bar.start, b.bar.start) || compare(a.bar.end, b.bar.end) || a.name.toLowerCase().localeCompare(b.name.toLowerCase()) || a.milestoneId - b.milestoneId);
 }
 
+/** A row the roadmap and programs pages append for a project the baseline froze that is deleted now: only its frozen span as a shadow bar, dimmed. */
+export type RemovedProjectRow = { id: string; projectId: number; name: string; programId: number; programName: string; workStreamId: number; workStreamName: string; bar: TimelineBarData };
+
+/**
+ * The appended project rows (1.10): the baseline's deleted projects that HAD a span, each as its shadow bar `baseline:<projectId>`, in (start, end,
+ * name, id) order; one without a span has nothing to draw and gets no row (the comparison page lists it), like a frozen milestone without dates.
+ */
+export function removedProjectRows(removed: readonly RemovedProject[], t: TFunction): RemovedProjectRow[] {
+  const compare = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+  return removed
+    .flatMap(({ span, ...gone }) => (span === null ? [] : [{ id: `baseline-removed-project:${gone.projectId}`, ...gone, bar: shadowBar(gone.projectId, gone.name, span, null, t) }]))
+    .sort((a, b) => compare(a.bar.start, b.bar.start) || compare(a.bar.end, b.bar.end) || a.name.toLowerCase().localeCompare(b.name.toLowerCase()) || a.projectId - b.projectId);
+}
+
+/** The frozen days of the removed projects' spans: the plan pages' grow-only range covers them, so no appended shadow bar sits outside it. */
+export const removedProjectDays = (removed: readonly RemovedProject[] | undefined): string[] => (removed ?? []).flatMap((gone) => (gone.span === null ? [] : [gone.span.start, gone.span.end]));
+
 /** The dimmed text after an appended row's name. */
 export function rowSuffix(row: Pick<BaselineRow, "reason" | "movedTo">, t: TFunction): string {
   if (row.reason === "removed") return t("timeline.baseline.removedMark");
@@ -321,7 +339,7 @@ export function movementTotalsOf(movements: readonly Movement[]): MovementTotals
 
 /**
  * The plan pages' totals over their projects: a project row without a `baseline` block is new since the baseline, one with it counts by its span's
- * movement, and `removed` is the number of the baseline's projects that are gone (the roadmap lists them; the programs view does not, so it passes 0).
+ * movement, and `removed` is the number of the baseline's projects that are gone (both plan views list them since 1.10 and pass the count).
  */
 export function projectTotals(projects: readonly { baseline?: { movement: Movement } }[], removed: number): MovementTotals {
   const added: Movement = { kind: "ADDED", ...ABSENT };

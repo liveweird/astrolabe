@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import type { ProgramsProgram, ProgramsView, ProgramsWorkStream } from "../api/programs";
 import type { RoadmapProject } from "../api/roadmap";
 import { jiraWindow } from "./jiraBars";
+import type { RemovedProjectRow } from "./baselineOverlay";
 import { allOpen, defaultOpen, programChoices, toggled, treeDates, treeFacts, treeRows } from "./programsTree";
 
 const project = (id: number, name: string, over: Partial<RoadmapProject> = {}): RoadmapProject => ({
@@ -67,7 +68,22 @@ const viewOf = (): ProgramsView => ({
   ],
 });
 
-const shape = (rows: ReturnType<typeof treeRows>) => rows.map((row) => (row.kind === "project" ? `project:${row.project.name}` : `${row.kind}:${row.name}${row.expanded ? "+" : ""}`));
+const shape = (rows: ReturnType<typeof treeRows>) =>
+  rows.map((row) => {
+    if (row.kind === "project") return `project:${row.project.name}`;
+    return row.kind === "removedProject" ? `removed:${row.removed.name}` : `${row.kind}:${row.name}${row.expanded ? "+" : ""}`;
+  });
+
+const removedRow = (projectId: number, name: string, programId: number): RemovedProjectRow => ({
+  id: `baseline-removed-project:${projectId}`,
+  projectId,
+  name,
+  programId,
+  programName: "",
+  workStreamId: 1,
+  workStreamName: "Platform",
+  bar: { id: `baseline:${projectId}`, start: "2026-02-02", end: "2026-02-27", label: name, describe: name, editable: false, tone: "baseline" },
+});
 
 describe("treeRows", () => {
   test("the default opens every work stream and no program: stream rows with their programs, in the server's order", () => {
@@ -84,7 +100,7 @@ describe("treeRows", () => {
   test("a node with nothing to expand is never expanded, whatever the set holds", () => {
     const view = viewOf();
     const rows = treeRows(view, null, new Set(["ws:2", "pg:12", "ws:3"]));
-    expect(rows.flatMap((row) => (row.kind === "project" ? [] : [[row.name, row.childCount, row.expanded]]))).toEqual([
+    expect(rows.flatMap((row) => (row.kind === "workStream" || row.kind === "program" ? [[row.name, row.childCount, row.expanded]] : []))).toEqual([
       ["Platform", 2, false],
       ["Archive", 1, true],
       ["Legacy", 0, false],
@@ -116,6 +132,63 @@ describe("treeRows", () => {
     const unscheduled = viewOf();
     unscheduled.workStreams[0].programs = [LEGACY, REPORTS];
     expect(treeRows(unscheduled, new Set([12]), new Set())[0]).toMatchObject({ span: null, flags: { warnings: 0, infos: 0 } });
+  });
+});
+
+describe("removed project rows (1.10)", () => {
+  const removed = [removedRow(90, "Old", 10), removedRow(91, "Older", 10), removedRow(92, "Orphan", 99), removedRow(93, "Reporting", 11)];
+
+  test("a removed row sits under its expanded program, after that program's projects, in the order given", () => {
+    const view = viewOf();
+    expect(shape(treeRows(view, null, new Set(["ws:1", "pg:10", "pg:11"]), removed))).toEqual([
+      "workStream:Platform+",
+      "program:Billing+",
+      "project:Invoices",
+      "project:Taxes",
+      "removed:Old",
+      "removed:Older",
+      "program:Reports+",
+      "project:Dashboards",
+      "removed:Reporting",
+      "workStream:Archive",
+      "workStream:Empty",
+    ]);
+    expect(treeRows(view, null, new Set(["ws:1", "pg:10"]), removed).find((row) => row.kind === "removedProject")).toMatchObject({ programId: 10, removed: { id: "baseline-removed-project:90" } });
+  });
+
+  test("none when the program is collapsed, hidden by the pick or absent; no rows given, the same rows as before", () => {
+    const view = viewOf();
+    expect(shape(treeRows(view, null, new Set(["ws:1"]), removed))).toEqual(["workStream:Platform+", "program:Billing", "program:Reports", "workStream:Archive", "workStream:Empty"]);
+    expect(shape(treeRows(view, new Set([11]), allOpen(view), removed))).toEqual(["workStream:Platform+", "program:Reports+", "project:Dashboards", "removed:Reporting"]);
+    // Orphan's program (99) is not in the plan: no row, whatever is expanded.
+    expect(shape(treeRows(view, null, allOpen(view, removed), removed))).not.toContain("removed:Orphan");
+    expect(treeRows(view, null, allOpen(view))).toEqual(treeRows(view, null, allOpen(view), []));
+  });
+
+  test("a program whose live projects are all deleted still expands: the removed rows are its children (childCount, allOpen)", () => {
+    const view = viewOf();
+    const lost = [removedRow(94, "In legacy", 12)];
+    expect(treeRows(view, null, new Set(["ws:2", "pg:12"]), []).find((row) => row.kind === "program" && row.id === 12)).toMatchObject({ childCount: 0, expanded: false });
+    const rows = treeRows(view, null, new Set(["ws:2", "pg:12"]), lost);
+    expect(rows.find((row) => row.kind === "program" && row.id === 12)).toMatchObject({ childCount: 1, expanded: true });
+    expect(shape(rows)).toEqual(["workStream:Platform", "workStream:Archive+", "program:Legacy+", "removed:In legacy", "workStream:Empty"]);
+    expect([...allOpen(view, lost)]).toEqual(["ws:1", "pg:10", "pg:11", "ws:2", "pg:12"]);
+    expect([...allOpen(view)]).toEqual(["ws:1", "pg:10", "pg:11", "ws:2"]);
+  });
+
+  test("treeDates covers the removed projects' spans, whatever is folded or picked away", () => {
+    const view = viewOf();
+    view.baseline = {
+      id: 5,
+      name: "Q1",
+      planRevision: 4,
+      removedProjects: [
+        { projectId: 90, name: "Old", programId: 10, programName: "Billing", workStreamId: 1, workStreamName: "Platform", span: { start: "2025-11-03", end: "2025-12-12" } },
+        { projectId: 91, name: "Spanless", programId: 10, programName: "Billing", workStreamId: 1, workStreamName: "Platform", span: null },
+      ],
+    };
+    expect(treeDates(view)).toEqual(expect.arrayContaining(["2025-11-03", "2025-12-12"]));
+    expect(treeDates(view)).toHaveLength(treeDates(viewOf()).length + 2);
   });
 });
 

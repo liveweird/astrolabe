@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import i18n from "../i18n";
 import type { Movement, MovementTotals } from "../api/baselines";
+import type { RemovedProject } from "../api/roadmap";
 import {
   baselineBars,
   baselineDays,
@@ -14,6 +15,8 @@ import {
   projectTotals,
   rankTotals,
   rankTotalsParts,
+  removedProjectDays,
+  removedProjectRows,
   removedRows,
   rowChanged,
   rowSuffix,
@@ -169,6 +172,30 @@ describe("the overlay derivations", () => {
     expect(rows[2]).toMatchObject({ projectName: "Invoices", projectId: 7 });
     expect(rows[2].bar.describe).toBe("Baseline: Gamma, 2027-02-01 to 2027-02-05, unscheduled since the baseline");
     expect(rows.map((row) => rowSuffix(row, t))).toEqual(["(moved to Billing)", "(removed)", "(unscheduled since the baseline)"]);
+  });
+
+  test("removedProjectRows: a project without a span has no row; the rest follow in (start, end, name, id) order with the shadow bar of the project id", () => {
+    const gone = (projectId: number, name: string, span: RemovedProject["span"]): RemovedProject => ({ projectId, name, programId: 10, programName: "Billing", workStreamId: 1, workStreamName: "Platform", span });
+    const removed = [
+      gone(5, "zeta", { start: "2027-03-01", end: "2027-03-12" }),
+      gone(6, "Spanless", null),
+      gone(7, "Alpha", { start: "2027-03-01", end: "2027-03-12" }),
+      gone(4, "Early", { start: "2027-02-01", end: "2027-02-05" }),
+      gone(3, "Alpha", { start: "2027-03-01", end: "2027-03-12" }),
+    ];
+    const rows = removedProjectRows(removed, t);
+    expect(rows.map((row) => [row.id, row.name])).toEqual([
+      ["baseline-removed-project:4", "Early"],
+      ["baseline-removed-project:3", "Alpha"],
+      ["baseline-removed-project:7", "Alpha"],
+      ["baseline-removed-project:5", "zeta"],
+    ]);
+    expect(rows[0]).toMatchObject({ projectId: 4, programId: 10, programName: "Billing", workStreamId: 1, workStreamName: "Platform" });
+    expect(rows[0].bar).toMatchObject({ id: "baseline:4", tone: "baseline", editable: false, start: "2027-02-01", end: "2027-02-05" });
+    expect(rows[0].bar.describe).toBe("Baseline: Early, 2027-02-01 to 2027-02-05");
+    expect(removedProjectRows([], t)).toEqual([]);
+    expect(removedProjectDays(removed)).toEqual(["2027-03-01", "2027-03-12", "2027-03-01", "2027-03-12", "2027-02-01", "2027-02-05", "2027-03-01", "2027-03-12"]);
+    expect(removedProjectDays(undefined)).toEqual([]);
   });
 
   test("baselineDays lists every frozen day, the removed milestones' and the project's own span included", () => {

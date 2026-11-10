@@ -3467,17 +3467,6 @@ export interface components {
             /** Format: int32 */
             removed: number;
         };
-        /** @description The baseline a view's `baseline` blocks compare to. */
-        BaselineRef: {
-            /** Format: int32 */
-            id: number;
-            name: string;
-            /**
-             * Format: int64
-             * @description The plan revision the baseline equals.
-             */
-            planRevision: number;
-        };
         /** @description A project's, program's or work stream's span in the baseline and what became of it. */
         SpanBaseline: {
             /** @description The derived span then; null when nothing was scheduled. */
@@ -3558,16 +3547,26 @@ export interface components {
             /** @description The baseline's milestones of THIS team that are not on it any more (deleted, or moved - `now`), by start, end, name and id. */
             removed: components["schemas"]["RemovedMilestone"][];
         };
-        /** @description A project the baseline froze that is gone now, with its names as they were. */
+        /** @description A project the baseline froze that is gone now, with its names and the ids of its program and work stream as they were. */
         RemovedProject: {
             /** Format: int32 */
             projectId: number;
             name: string;
+            /**
+             * Format: int32
+             * @description The program's id then; the program may be gone too.
+             */
+            programId: number;
             programName: string;
+            /**
+             * Format: int32
+             * @description The work stream's id then; the work stream may be gone too.
+             */
+            workStreamId: number;
             workStreamName: string;
             span: components["schemas"]["DateSpan"] | null;
         };
-        /** @description Present only with `?baseline=N`. */
+        /** @description Present only with `?baseline=N`, on the roadmap and programs documents. */
         RoadmapBaseline: {
             /** Format: int32 */
             id: number;
@@ -5114,7 +5113,7 @@ export interface components {
             workStreams: components["schemas"]["ProgramsWorkStream"][];
             /** @description The Jira connections, enabled or not, that a binding in this document's scope links to (a roadmap or programs document also lists a connection that only has milestone bindings), by connection id, once per document; the client builds a row's browse URL as `siteUrl + "/browse/" + jira.issueKey`. Empty when nothing is linked. */
             jiraSites: components["schemas"]["JiraSite"][];
-            baseline?: components["schemas"]["BaselineRef"];
+            baseline?: components["schemas"]["RoadmapBaseline"];
         };
         ProgramsWorkStream: {
             /** Format: int32 */

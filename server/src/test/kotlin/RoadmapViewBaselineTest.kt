@@ -76,7 +76,9 @@ class RoadmapViewBaselineTest {
 
                 val removed = baseline.removedProjects.single { it.projectId == doomed }
                 assertEquals("2027-02-15", removed.span?.start)
+                assertEquals(w.programId, removed.programId)
                 assertEquals(rows.getValue(steady).programName, removed.programName)
+                assertEquals(rows.getValue(steady).workStreamId, removed.workStreamId)
                 assertEquals(rows.getValue(steady).workStreamName, removed.workStreamName)
                 assertEquals(false, baseline.removedProjects.any { it.projectId in rows.keys }, "a live project is never 'removed'")
 

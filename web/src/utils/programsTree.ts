@@ -1,6 +1,7 @@
 import type { Movement } from "../api/baselines";
 import type { ProgramsProgram, ProgramsView, ProgramsWorkStream } from "../api/programs";
 import type { RoadmapProject } from "../api/roadmap";
+import { removedProjectDays, type RemovedProjectRow } from "./baselineOverlay";
 import { jiraRangeDates, type JiraWindow } from "./jiraBars";
 import type { FlagCounts, ProgramOption } from "./roadmapRows";
 
@@ -40,9 +41,11 @@ type NodeBase = {
 type StreamRow = NodeBase & { kind: "workStream"; /** The stream has an end date: it was closed (it still takes programs). */ closed: boolean };
 type ProgramRow = NodeBase & { kind: "program"; workStreamId: number };
 export type ProjectTreeRow = { kind: "project"; project: RoadmapProject; programId: number };
+/** A project the baseline froze that is deleted now (1.10), appended under the program it sat in when that program is shown and expanded. */
+export type RemovedTreeRow = { kind: "removedProject"; removed: RemovedProjectRow; programId: number };
 /** A work stream or program row (the expandable ones). */
 export type NodeRow = StreamRow | ProgramRow;
-export type TreeRow = NodeRow | ProjectTreeRow;
+export type TreeRow = NodeRow | ProjectTreeRow | RemovedTreeRow;
 
 /** The earliest start to the latest end over the spans that exist; `null` when there is none. ISO dates compare as strings. */
 function unionSpan(spans: readonly (DateSpan | null)[]): DateSpan | null {
@@ -89,10 +92,12 @@ function shownStreams(view: ProgramsView, pick: ReadonlySet<number> | null): Sho
 
 /**
  * The rows of the timeline, top to bottom, in the server's order: a row per shown work stream, under an EXPANDED one its shown programs, under an
- * expanded program its projects (ranked first, as the server lists them). `open` holds the keys of the expanded nodes; a node with no children
- * is never expanded.
+ * expanded program its projects (ranked first, as the server lists them), then the `removed` rows (1.10: the baseline's deleted projects, pre-built
+ * by `removedProjectRows`) whose program it was - one whose program is gone, hidden by the pick or folded draws nothing. They count as the program's
+ * children, so a program whose live projects are all deleted can still be expanded. `open` holds the keys of the expanded nodes; a node with no
+ * children is never expanded.
  */
-export function treeRows(view: ProgramsView, pick: ReadonlySet<number> | null, open: ReadonlySet<string>): TreeRow[] {
+export function treeRows(view: ProgramsView, pick: ReadonlySet<number> | null, open: ReadonlySet<string>, removed: readonly RemovedProjectRow[] = []): TreeRow[] {
   const rows: TreeRow[] = [];
   for (const { stream, programs, span, flags, baseline } of shownStreams(view, pick)) {
     const key = streamKey(stream.id);
@@ -101,7 +106,9 @@ export function treeRows(view: ProgramsView, pick: ReadonlySet<number> | null, o
     if (!expanded) continue;
     for (const program of programs) {
       const programRowKey = programKey(program.id);
-      const programExpanded = program.projects.length > 0 && open.has(programRowKey);
+      const gone = removed.filter((row) => row.programId === program.id);
+      const childCount = program.projects.length + gone.length;
+      const programExpanded = childCount > 0 && open.has(programRowKey);
       rows.push({
         kind: "program",
         key: programRowKey,
@@ -112,26 +119,31 @@ export function treeRows(view: ProgramsView, pick: ReadonlySet<number> | null, o
         span: program.span,
         flags: program.flags,
         baseline: nodeBaseline(program.baseline),
-        childCount: program.projects.length,
+        childCount,
         expanded: programExpanded,
       });
-      if (programExpanded) for (const project of program.projects) rows.push({ kind: "project", project, programId: program.id });
+      if (!programExpanded) continue;
+      for (const project of program.projects) rows.push({ kind: "project", project, programId: program.id });
+      for (const row of gone) rows.push({ kind: "removedProject", removed: row, programId: program.id });
     }
   }
   return rows;
 }
+
+/** Is this row a work stream or program (the expandable ones, with a `key`)? */
+export const isNodeRow = (row: TreeRow): row is NodeRow => row.kind === "workStream" || row.kind === "program";
 
 /** What the page opens with: every work stream expanded (its programs show), every program collapsed. */
 export function defaultOpen(view: ProgramsView): Set<string> {
   return new Set(view.workStreams.map((stream) => streamKey(stream.id)));
 }
 
-/** Every work stream and program that has children: "Expand all". */
-export function allOpen(view: ProgramsView): Set<string> {
+/** Every work stream and program that has children (the `removed` rows count, as in `treeRows`): "Expand all". */
+export function allOpen(view: ProgramsView, removed: readonly RemovedProjectRow[] = []): Set<string> {
   return new Set(
     view.workStreams.flatMap((stream) => [
       ...(stream.programs.length > 0 ? [streamKey(stream.id)] : []),
-      ...stream.programs.filter((program) => program.projects.length > 0).map((program) => programKey(program.id)),
+      ...stream.programs.filter((program) => program.projects.length > 0 || removed.some((row) => row.programId === program.id)).map((program) => programKey(program.id)),
     ]),
   );
 }
@@ -168,7 +180,7 @@ export function treeProjects(view: ProgramsView): RoadmapProject[] {
 }
 
 /**
- * Every date the page can show (spans, target windows and, with a baseline picked, the frozen spans of ALL projects): the range the timeline must cover,
+ * Every date the page can show (spans, target windows and, with a baseline picked, the frozen spans of ALL projects and of the deleted ones): the range the timeline must cover,
  * whatever is folded or picked away. With the page's Jira `window` (the "Jira dates" toggle on, `jiraWindow(treeDates(view), today)`) the Jira dates of
  * each bound project join it, CUT at the window so a mistyped Jira date cannot stretch the grow-only range.
  */
@@ -177,6 +189,7 @@ export function treeDates(view: ProgramsView, jira: JiraWindow | null = null): s
   const own = projects.flatMap((project) =>
     [project.span?.start, project.span?.end, project.targetStart, project.targetEnd, project.baseline?.span?.start, project.baseline?.span?.end].filter((d): d is string => typeof d === "string"),
   );
-  if (jira === null) return own;
-  return [...own, ...jiraRangeDates(projects, jira)];
+  const days = [...own, ...removedProjectDays(view.baseline?.removedProjects)];
+  if (jira === null) return days;
+  return [...days, ...jiraRangeDates(projects, jira)];
 }

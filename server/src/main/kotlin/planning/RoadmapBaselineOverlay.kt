@@ -4,8 +4,9 @@ import ch.nokillswit.infra.time.WorkingCalendar
 import kotlinx.serialization.Serializable
 
 /**
- * `GET /views/roadmap?baseline=N`: [id]/[name]/[planRevision] name the baseline the projects' [RoadmapProjectBaseline] blocks compare to;
- * [removedProjects] are the baseline's projects that are not active any more (by work stream, program, name, id).
+ * `GET /views/roadmap?baseline=N` and `GET /views/programs?baseline=N`: [id]/[name]/[planRevision] name the baseline the projects'
+ * [RoadmapProjectBaseline] blocks compare to; [removedProjects] are the baseline's projects that are not active any more (by work
+ * stream, program, name, id).
  */
 @Serializable
 data class RoadmapBaseline(
@@ -15,9 +16,20 @@ data class RoadmapBaseline(
     val removedProjects: List<RemovedProject>,
 )
 
-/** A project the baseline froze that is gone now: its names as they were and the derived span it had ([span] null = nothing scheduled). */
+/**
+ * A project the baseline froze that is gone now: its names as they were and the derived span it had ([span] null = nothing
+ * scheduled), plus the ids of its program and work stream THEN (either may be gone too; the pages place the row by them).
+ */
 @Serializable
-data class RemovedProject(val projectId: UInt, val name: String, val programName: String, val workStreamName: String, val span: DateSpan?)
+data class RemovedProject(
+    val projectId: UInt,
+    val name: String,
+    val programId: UInt,
+    val programName: String,
+    val workStreamId: UInt,
+    val workStreamName: String,
+    val span: DateSpan?,
+)
 
 /**
  * One project row against the baseline: the derived [span] it had ([movement] compares it with the current one), its rank position and
@@ -65,6 +77,6 @@ internal suspend fun overlayRoadmap(
     val live = projects.mapTo(HashSet()) { it.id }
     val removed = frozen.values.filter { it.id !in live }
         .sortedWith(compareBy({ it.workStreamName.lowercase() }, { it.programName.lowercase() }, { it.name.lowercase() }, { it.id }))
-        .map { RemovedProject(it.id, it.name, it.programName, it.workStreamName, it.span?.toDateSpan()) }
+        .map { RemovedProject(it.id, it.name, it.programId, it.programName, it.workStreamId, it.workStreamName, it.span?.toDateSpan()) }
     return RoadmapOverlay(rows, removed, projects.filter { it.id in frozen }.associate { it.id to frozen.getValue(it.id).span })
 }

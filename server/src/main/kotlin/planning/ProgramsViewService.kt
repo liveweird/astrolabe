@@ -27,7 +27,8 @@ class ProgramsViewService(private val database: R2dbcDatabase, private val exter
             streamFacts(), programFacts(), overlay?.projects ?: snapshot.projects, snapshot.spans,
             overlay?.let { TreeBaseline(it.frozenSpans, snapshot.calendar) },
         )
-        ProgramsView(revision, snapshot.teams, snapshot.links, tree, snapshot.jiraSites, header?.toRef())
+        val baseline = header?.let { RoadmapBaseline(it.id, it.name, it.planRevision, checkNotNull(overlay).removed) }
+        ProgramsView(revision, snapshot.teams, snapshot.links, tree, snapshot.jiraSites, baseline)
     }
 }
 

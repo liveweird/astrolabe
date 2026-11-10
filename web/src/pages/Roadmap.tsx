@@ -44,6 +44,7 @@ import {
   knownFilters,
   knownPick,
   visibleProjects,
+  visibleRemoved,
   type FlagCounts,
 } from "../utils/roadmapRows";
 
@@ -170,6 +171,7 @@ function RoadmapBody({
   const filters = knownFilters(view, storedFilters);
   const pick = knownPick(view, storedPick);
   const visible = visibleProjects(view, filters, pick);
+  const removed = visibleRemoved(view, filters, pick);
   const rowCount = visible.ranked.length + visible.unranked.length;
   const visibleRankedIds = visible.ranked.map((entry) => entry.project.id);
 
@@ -226,7 +228,7 @@ function RoadmapBody({
         <RoadmapFilterFields view={view} filters={filters} onFilters={setFilters} pick={[...(pick ?? [])]} onPick={setPick} />
       </FilterPanel>
 
-      {rowCount === 0 ? (
+      {rowCount + removed.length === 0 ? (
         <EmptyState icon={IconFilterOff} label={t("roadmap.noMatch")} hint={t("roadmap.noMatchHint")} />
       ) : (
         <TimelineDndContext
@@ -255,6 +257,7 @@ function RoadmapBody({
             <RoadmapTimeline
               view={view}
               visible={visible}
+              removed={removed}
               actions={actions}
               scale={scale}
               onZoomChange={setZoom}

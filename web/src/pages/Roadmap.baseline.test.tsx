@@ -3,12 +3,13 @@ import userEvent from "@testing-library/user-event";
 import { screen, waitFor, within } from "@testing-library/react";
 import Roadmap from "./Roadmap";
 import type { Movement } from "../api/baselines";
-import type { RoadmapProject, RoadmapView } from "../api/roadmap";
+import type { RemovedProject, RoadmapProject, RoadmapView } from "../api/roadmap";
 import { jsonResponse } from "../test/http";
 import { renderWithProviders } from "../test/render";
 
 // The v0.9 baseline overlay on the Roadmap page: the picker in the timeline toolbar, a shadow bar under each baselined project's span bar,
-// the totals line, the typed 400 that clears the pick. The pick is the one the other timeline pages share.
+// the totals line, the typed 400 that clears the pick, and (1.10) the appended rows for the projects the baseline froze that are deleted now. The pick
+// is the one the other timeline pages share.
 
 const PICK_KEY = "astrolabe.viewSettings.timeline.baseline";
 const UNKNOWN = { type: "urn:astrolabe:problem:unknown-baseline", title: "Bad Request", status: 400, detail: "unknown baseline" };
@@ -51,6 +52,19 @@ const plainView = (): RoadmapView => ({
 });
 
 /** Invoices ends 5 working days later, Taxes did not move, Audit ended later too, Fresh is new, one project is gone. */
+const gone = (projectId: number, name: string, over: Partial<RemovedProject> = {}): RemovedProject => ({
+  projectId,
+  name,
+  programId: 10,
+  programName: "Billing",
+  workStreamId: 1,
+  workStreamName: "Platform",
+  span: null,
+  ...over,
+});
+/** The removed projects beyond the always-there spanless "Old" (a test sets it before the view is fetched). */
+let moreRemoved: RemovedProject[] = [];
+
 const withBaseline = (view = plainView()): RoadmapView => {
   const baselineOf = (span: { start: string; end: string } | null, movement: Movement) => ({ span, movement, rankPosition: null, targetStart: null, targetEnd: null });
   const [invoices, taxes, audit] = view.ranked;
@@ -61,7 +75,7 @@ const withBaseline = (view = plainView()): RoadmapView => {
       { ...taxes, project: { ...taxes.project, baseline: baselineOf({ start: "2026-05-04", end: "2026-06-05" }, move("UNCHANGED", 0, 0)) } },
       { ...audit, project: { ...audit.project, baseline: baselineOf({ start: "2026-06-08", end: "2026-06-12" }, move("MOVED", 0, 5)) } },
     ],
-    baseline: { id: 5, name: "Q1 plan", planRevision: 4, removedProjects: [{ projectId: 9, name: "Old", programName: "Billing", workStreamName: "Platform", span: null }] },
+    baseline: { id: 5, name: "Q1 plan", planRevision: 4, removedProjects: [gone(9, "Old"), ...moreRemoved] },
   };
 };
 
@@ -78,6 +92,7 @@ let mockFetch: ReturnType<typeof vi.fn>;
 let viewUrls: string[];
 
 beforeEach(() => {
+  moreRemoved = [];
   view = plainView();
   viewUrls = [];
   mockFetch = vi.fn((url: string) => {
@@ -142,6 +157,60 @@ describe("Roadmap page with a baseline", () => {
     expect(within(note).getAllByText(/./).map((node) => node.textContent)).toEqual(expect.arrayContaining(["2 end later", "1 new", "1 removed"]));
     // the span bars keep their own tone; the baseline never makes a project row editable
     expect(screen.getByRole("img", { name: /^Invoices, / })).toHaveAttribute("data-tone", "summary");
+  });
+
+  test("a deleted project the baseline froze with a span is appended after the last unranked row: dimmed '(removed)', no rank, the shadow bar only; one without a span has no row", async () => {
+    moreRemoved = [gone(11, "Retired", { span: { start: "2026-02-02", end: "2026-02-27" } })];
+    localStorage.setItem(PICK_KEY, "5");
+    renderPage();
+    await waitForGrid();
+    await waitFor(() => expect(shadows()).toHaveLength(4));
+    const name = screen.getByText("Retired (removed)");
+    const row = name.closest('[role="row"]')!;
+    expect(row).toBe(screen.getByRole("link", { name: /Fresh/ }).closest('[role="row"]')!.nextElementSibling);
+    expect(within(row as HTMLElement).queryByRole("link")).toBeNull();
+    expect(within(row as HTMLElement).queryByRole("button")).toBeNull();
+    expect(name.closest("[title]")).toHaveAttribute("title", "Billing · Platform");
+    expect(row.querySelector('[data-tone="baseline"]')).toHaveAttribute("aria-label", "Baseline: Retired, 2026-02-02 to 2026-02-27, read-only");
+    expect(screen.queryByText(/Old \(removed\)/)).toBeNull();
+    // the totals line still counts both removed projects
+    expect(within(screen.getByRole("note")).getByText("2 removed")).toBeInTheDocument();
+  });
+
+  test.each([
+    ["no filter", {}, ["Elsewhere", "Retired"]],
+    ["the work stream filter (Platform)", { "roadmap.filter.workStream": "1" }, ["Retired"]],
+    ["the program pick (Ledger)", { "planning.programPick": "[20]" }, ["Elsewhere"]],
+    ["a team filter", { "roadmap.filter.team": "7" }, []],
+    ["an owner filter", { "roadmap.filter.owner": "6" }, []],
+  ])("%s leaves the removed rows %j visible", async (_name, stored, expected) => {
+    moreRemoved = [
+      gone(11, "Retired", { span: { start: "2026-02-02", end: "2026-02-27" } }),
+      gone(12, "Elsewhere", { programId: 20, programName: "Ledger", workStreamId: 2, workStreamName: "Finance", span: { start: "2026-02-02", end: "2026-02-27" } }),
+    ];
+    view = { ...plainView(), teams: [{ id: 7, name: "Core" }] };
+    view.unranked.push(project(5, "Ledgered", { programId: 20, programName: "Ledger", workStreamId: 2, workStreamName: "Finance", ownerPersonId: 6, ownerName: "Fin Owner", teamIds: [7] }));
+    localStorage.setItem(PICK_KEY, "5");
+    for (const [key, value] of Object.entries(stored)) localStorage.setItem(`astrolabe.viewSettings.${key}`, value);
+    renderPage();
+    await waitForGrid();
+    await screen.findByRole("note"); // the totals line: the baselined view has arrived
+    const shown = screen.queryAllByText(/\(removed\)$/).map((node) => node.textContent);
+    expect(shown).toEqual(expected.map((name) => `${name} (removed)`));
+  });
+
+  test("when the filters leave no live row the removed rows still show, not the 'no match' state", async () => {
+    // The stream filter (Platform) and the program pick (Ledger, a Finance program) leave no live project; a project removed from Ledger when it still sat in Platform matches both.
+    moreRemoved = [gone(12, "Moved over", { programId: 20, programName: "Ledger", workStreamId: 1, span: { start: "2026-02-02", end: "2026-02-27" } })];
+    view = plainView();
+    view.unranked.push(project(5, "Ledgered", { programId: 20, programName: "Ledger", workStreamId: 2, workStreamName: "Finance" }));
+    localStorage.setItem(PICK_KEY, "5");
+    localStorage.setItem("astrolabe.viewSettings.roadmap.filter.workStream", "1");
+    localStorage.setItem("astrolabe.viewSettings.planning.programPick", "[20]");
+    renderPage();
+    expect(await screen.findByText("Moved over (removed)")).toBeInTheDocument();
+    expect(screen.queryByText(/No project matches/)).toBeNull();
+    expect(screen.queryByRole("link", { name: /Ledgered/ })).toBeNull();
   });
 
   test("picking a baseline from the toolbar fetches it and remembers it", async () => {

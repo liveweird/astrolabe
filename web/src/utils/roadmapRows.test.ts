@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import type { PlanFlag, RoadmapLink, RoadmapProject, RoadmapView } from "../api/roadmap";
+import type { PlanFlag, RemovedProject, RoadmapLink, RoadmapProject, RoadmapView } from "../api/roadmap";
 import { jiraWindow } from "./jiraBars";
 import {
   activeFilterCount,
@@ -19,6 +19,7 @@ import {
   pickAmong,
   programOptions,
   visibleProjects,
+  visibleRemoved,
   workStreamOptions,
   type RoadmapFilters,
 } from "./roadmapRows";
@@ -153,6 +154,28 @@ describe("flags", () => {
       [1, "DRIFT_END_EARLY"],
     ]);
     expect(entries[1].position).toBe(4);
+  });
+});
+
+describe("visibleRemoved (1.10)", () => {
+  const gone = (projectId: number, programId: number, workStreamId: number): RemovedProject => ({ projectId, name: `P${projectId}`, programId, programName: "", workStreamId, workStreamName: "", span: { start: "2027-01-04", end: "2027-01-29" } });
+  const withRemoved = view({ baseline: { id: 5, name: "Q1", planRevision: 3, removedProjects: [gone(1, 10, 1), gone(2, 11, 2), gone(3, 99, 9)] } });
+  const ids = (rows: RemovedProject[]) => rows.map((row) => row.projectId);
+
+  test("no baseline or no filter: every removed project; the pick and the work stream compare the frozen ids", () => {
+    expect(ids(visibleRemoved(view(), NONE, null))).toEqual([]);
+    expect(ids(visibleRemoved(withRemoved, NONE, null))).toEqual([1, 2, 3]);
+    expect(ids(visibleRemoved(withRemoved, { ...NONE, workStreamId: 2 }, null))).toEqual([2]);
+    expect(ids(visibleRemoved(withRemoved, NONE, new Set([10, 99])))).toEqual([1, 3]);
+    expect(ids(visibleRemoved(withRemoved, { ...NONE, workStreamId: 1 }, new Set([11])))).toEqual([]);
+  });
+
+  test("a team, owner or flagged-only filter hides them all: a deleted project's teams, owner and flags are not known", () => {
+    for (const filter of [{ teamId: 7 }, { ownerPersonId: 5 }, { flaggedOnly: true }]) expect(visibleRemoved(withRemoved, { ...NONE, ...filter }, null)).toEqual([]);
+  });
+
+  test("datesOf covers their frozen spans", () => {
+    expect(datesOf(withRemoved).sort()).toEqual(["2027-01-04", "2027-01-04", "2027-01-04", "2027-01-29", "2027-01-29", "2027-01-29"]);
   });
 });
 

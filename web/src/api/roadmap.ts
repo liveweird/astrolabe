@@ -11,6 +11,7 @@ export type RoadmapView = Schemas["RoadmapView"];
 export type RoadmapRankedProject = Schemas["RoadmapRankedProject"];
 export type RoadmapProject = Schemas["RoadmapProject"];
 export type RoadmapLink = Schemas["RoadmapLink"];
+export type RemovedProject = Schemas["RemovedProject"];
 /** 1.7: the chain toward the picked project (`?criticalPath=N`), rolled up to projects and ordered project pairs. */
 export type RoadmapCriticalPath = Schemas["RoadmapCriticalPath"];
 export type RoadmapCriticalProject = Schemas["RoadmapCriticalProject"];

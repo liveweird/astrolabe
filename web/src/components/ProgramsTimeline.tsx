@@ -8,10 +8,11 @@ import { useHolidays } from "../hooks/useHolidays";
 import { shadowBar } from "../utils/baselineOverlay";
 import type { JiraWindow } from "../utils/jiraBars";
 import { planArrows, projectTrack } from "../utils/planTrack";
-import type { NodeRow, ProjectTreeRow, TreeRow } from "../utils/programsTree";
+import { isNodeRow, type NodeRow, type ProjectTreeRow, type RemovedTreeRow, type TreeRow } from "../utils/programsTree";
 import { conflictsByProject, countFlags } from "../utils/roadmapRows";
 import type { RovingTarget, TimelineBarData, TimelineColumn, TimelineRowData } from "../utils/timelineModel";
 import { PLAN_ZOOMS, type TimelineScale, type Zoom } from "../utils/timelineScale";
+import { BaselineRowName } from "./BaselineParts";
 import { FlagCountsCell, OpenProjectItem, ProjectLink, TargetWindowItems, type WindowActions } from "./PlanProjectCells";
 import RowActionsMenu from "./RowActionsMenu";
 import Timeline, { type TimelineHandle } from "./Timeline";
@@ -79,6 +80,16 @@ function ProjectLabel({ project, stop }: { project: RoadmapProject; stop: Roving
           {project.ownerName}
         </Text>
       </Text>
+    </Group>
+  );
+}
+
+/** The name cell of a deleted project's row (1.10): indented like a project row, dimmed, "(removed)" after the name, its program and work stream as the title. */
+function RemovedLabel({ row }: { row: RemovedTreeRow["removed"] }) {
+  return (
+    <Group gap={4} wrap="nowrap" style={{ minWidth: 0, paddingLeft: 2 * INDENT }} title={`${row.programName} · ${row.workStreamName}`}>
+      <span aria-hidden="true" style={{ width: CHEVRON_SLOT, flex: "none" }} />
+      <BaselineRowName row={{ name: row.name, reason: "removed", movedTo: null }} />
     </Group>
   );
 }
@@ -152,7 +163,8 @@ export default function ProgramsTimeline({
   const conflicts = conflictsByProject(links);
 
   function rowOf(row: TreeRow): TimelineRowData {
-    if (row.kind !== "project") {
+    if (row.kind === "removedProject") return { id: row.removed.id, cells: [<RemovedLabel key="name" row={row.removed} />, "", ""], bars: [row.removed.bar] };
+    if (isNodeRow(row)) {
       return {
         id: row.key,
         // A node with something to expand puts its chevron button on the roving stop; a leaf node is a static cell (the cell is the stop).

@@ -41,12 +41,6 @@ data class MovementTotalsView(
 
 internal fun MovementTotals.toView() = MovementTotalsView(unchanged, moved, later, earlier, scheduled, unscheduled, added, removed)
 
-/** The baseline an overlay was computed against; the plan revision it EQUALS (a view at that revision shows no movement). */
-@Serializable
-data class BaselineRef(val id: UInt, val name: String, val planRevision: Long)
-
-internal fun BaselineHeader.toRef() = BaselineRef(id, name, planRevision)
-
 /** A span then ([span], null = it had no dated work) and what became of it ([movement]): a project's, program's or work stream's. */
 @Serializable
 data class SpanBaseline(val span: DateSpan?, val movement: MovementView)

@@ -4898,14 +4898,6 @@ components:
         unscheduled: { type: integer, format: int32, minimum: 0 }
         added: { type: integer, format: int32, minimum: 0 }
         removed: { type: integer, format: int32, minimum: 0 }
-    BaselineRef:
-      type: object
-      required: [id, name, planRevision]
-      description: The baseline a view's `baseline` blocks compare to.
-      properties:
-        id: { type: integer, format: int32, minimum: 0 }
-        name: { type: string }
-        planRevision: { type: integer, format: int64, description: The plan revision the baseline equals. }
     SpanBaseline:
       type: object
       required: [span, movement]
@@ -4995,12 +4987,14 @@ components:
             $ref: '#/components/schemas/RemovedMilestone'
     RemovedProject:
       type: object
-      required: [projectId, name, programName, workStreamName, span]
-      description: A project the baseline froze that is gone now, with its names as they were.
+      required: [projectId, name, programId, programName, workStreamId, workStreamName, span]
+      description: A project the baseline froze that is gone now, with its names and the ids of its program and work stream as they were.
       properties:
         projectId: { type: integer, format: int32, minimum: 0 }
         name: { type: string }
+        programId: { type: integer, format: int32, minimum: 0, description: The program's id then; the program may be gone too. }
         programName: { type: string }
+        workStreamId: { type: integer, format: int32, minimum: 0, description: The work stream's id then; the work stream may be gone too. }
         workStreamName: { type: string }
         span:
           nullable: true
@@ -5009,7 +5003,7 @@ components:
     RoadmapBaseline:
       type: object
       required: [id, name, planRevision, removedProjects]
-      description: Present only with `?baseline=N`.
+      description: Present only with `?baseline=N`, on the roadmap and programs documents.
       properties:
         id: { type: integer, format: int32, minimum: 0 }
         name: { type: string }
@@ -6487,7 +6481,7 @@ components:
           items:
             $ref: '#/components/schemas/JiraSite'
         baseline:
-          $ref: '#/components/schemas/BaselineRef'
+          $ref: '#/components/schemas/RoadmapBaseline'
     ProgramsWorkStream:
       type: object
       required: [id, name, ownerName, startDate, endDate, span, flags, programs]

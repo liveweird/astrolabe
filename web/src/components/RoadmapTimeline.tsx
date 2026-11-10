@@ -2,14 +2,16 @@ import type { ReactNode, Ref } from "react";
 import { Group, Menu, Text, VisuallyHidden } from "@mantine/core";
 import { IconArrowBarDown, IconArrowBarUp, IconArrowDown, IconArrowUp, IconListNumbers, IconRoute, IconX } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
-import type { RoadmapProject, RoadmapView } from "../api/roadmap";
+import type { RemovedProject, RoadmapProject, RoadmapView } from "../api/roadmap";
 import { useHolidays } from "../hooks/useHolidays";
+import { removedProjectRows } from "../utils/baselineOverlay";
 import type { JiraWindow } from "../utils/jiraBars";
 import { projectTrack, planArrows } from "../utils/planTrack";
 import { criticalIndex } from "../utils/roadmapCritical";
 import { conflictsByProject, countFlags, displayRows, DIVIDER_ID, type DisplayRow, type VisibleProjects } from "../utils/roadmapRows";
 import type { RovingTarget, TimelineColumn, TimelineRowData } from "../utils/timelineModel";
 import { PLAN_ZOOMS, type TimelineScale, type Zoom } from "../utils/timelineScale";
+import { BaselineRowName } from "./BaselineParts";
 import { FlagCountsCell, OpenProjectItem, ProjectLink, TargetWindowItems, type WindowActions } from "./PlanProjectCells";
 import RowActionsMenu from "./RowActionsMenu";
 import Timeline, { type TimelineHandle } from "./Timeline";
@@ -150,7 +152,7 @@ function ProjectCell({ project, placement, stop }: { project: RoadmapProject; pl
 }
 
 /**
- * The roadmap's timeline: one row per visible project in rank order, a divider row, then the unranked ones. A project row is the `#`, the project
+ * The roadmap's timeline: one row per visible project in rank order, a divider row, then the unranked ones, then (with a baseline picked) a dimmed row per project it froze that is deleted now. A project row is the `#`, the project
  * (handle, link, program), its flags and the row menu on the left; on the track the span its milestones cover over the target window's band and,
  * past the window, the drift band. The arrows are the rolled-up links between the projects (direct links by type, one bundle per ordered pair).
  * It must sit inside the page's `TimelineDndContext`; nothing here decides rights or checks — the view's `can` flags and the server's figures do.
@@ -158,6 +160,7 @@ function ProjectCell({ project, placement, stop }: { project: RoadmapProject; pl
 export default function RoadmapTimeline({
   view,
   visible,
+  removed,
   actions,
   scale,
   onZoomChange,
@@ -170,6 +173,8 @@ export default function RoadmapTimeline({
 }: {
   view: RoadmapView;
   visible: VisibleProjects;
+  /** The baseline's deleted projects the filters leave visible (`visibleRemoved`): appended after every current row, shadow bar only. */
+  removed: readonly RemovedProject[];
   actions: RoadmapActions;
   scale: TimelineScale;
   onZoomChange: (zoom: Zoom) => void;
@@ -225,7 +230,22 @@ export default function RoadmapTimeline({
     };
   }
 
-  const rows: TimelineRowData[] = display.map(rowOf);
+  // A baseline picked (1.10): its deleted projects follow every current row (after the unranked block) - no rank, dimmed name, the frozen span as the shadow bar.
+  const gone: TimelineRowData[] = removedProjectRows(removed, t).map((row) => ({
+    id: row.id,
+    cells: [
+      <Text key="rank" component="span" size="sm" c="dimmed">
+        —
+      </Text>,
+      <span key="name" title={`${row.programName} · ${row.workStreamName}`} style={{ minWidth: 0, display: "flex" }}>
+        <BaselineRowName row={{ name: row.name, reason: "removed", movedTo: null }} />
+      </span>,
+      "",
+      "",
+    ],
+    bars: [row.bar],
+  }));
+  const rows: TimelineRowData[] = [...display.map(rowOf), ...gone];
 
   const withSpan = new Set(display.flatMap((entry) => (entry.kind === "project" && entry.project.span !== null ? [entry.project.id] : [])));
   const names = new Map(display.flatMap((entry) => (entry.kind === "project" ? [[entry.project.id, entry.project.name] as const] : [])));

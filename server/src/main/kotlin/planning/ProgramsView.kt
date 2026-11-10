@@ -25,9 +25,12 @@ data class ProgramsView(
     val workStreams: List<ProgramsWorkStream>,
     /** The Jira connections a binding in scope links to (empty without a binding), once per document ([JiraSite]). */
     val jiraSites: List<JiraSite> = emptyList(),
-    /** Present only for `?baseline=N`: the baseline the projects', programs' and work streams' `baseline` blocks compare to. */
+    /**
+     * Present only for `?baseline=N`: the baseline the projects', programs' and work streams' `baseline` blocks compare to, and
+     * (the roadmap's [RoadmapBaseline]) the baseline's projects that are gone now.
+     */
     @EncodeDefault(EncodeDefault.Mode.NEVER)
-    val baseline: BaselineRef? = null,
+    val baseline: RoadmapBaseline? = null,
 )
 
 /**
