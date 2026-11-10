@@ -1896,6 +1896,13 @@ paths:
         one `JIRA_DEVIATION` flag per OPEN deviation, as `GET /views/roadmap` describes; `jiraSites` lists the connections the rows link
         to. An unbound milestone answers `jira: null` and `flags: []`; one on a disabled connection keeps its `jira` (dates null) and `flags: []`.
 
+        Flow (1.9): a team linked to a Flow team carries `team.flags` - ONE `FLOW_CAPACITY` roll-up over its OPEN capacity deviations
+        (`GET /views/capacity-deviations`: a row is open unless its acknowledgement is current; `count` = the open rows, the severity the
+        worst of them, a sprint the plan has no capacity for counts as an INFO row) and each `weeks[]` row that an open row's held days
+        (`effectiveFrom` to the sprint's end) meet carries `flowCapacity`, the worst severity among the rows that meet it (a `TEAM_GONE` row
+        flags the header but marks no week). A disabled connection, an unlinked team, a team whose every row is acknowledged and a week no row
+        meets raise nothing (`team.flags: []`, no `flowCapacity` member).
+
         With `?baseline=N` the document gains `baseline` (`TeamBaseline`): one entry per LIVE milestone of the team that the baseline
         also froze (`milestones`, with the team it sat on then - `teamIdThen` - and its movement in working days on the CURRENT
         calendar; a live milestone without an entry is new since the baseline) and the baseline's milestones of THIS team that are not
@@ -5849,8 +5856,8 @@ components:
         workingDays: { type: integer, format: int32, minimum: 3, description: The number of idle working days from `start` to `end` (weekends and holidays not counted). }
     TeamViewTeam:
       type: object
-      required: [id, name, managerPersonId, managerName, createdAt, updatedAt, can]
-      description: The `TeamResponse` fields plus what the caller may do with the team's plan.
+      required: [id, name, managerPersonId, managerName, createdAt, updatedAt, can, flags]
+      description: The `TeamResponse` fields plus what the caller may do with the team's plan and the team-level flags.
       properties:
         id: { type: integer, format: int32, minimum: 0 }
         name: { type: string }
@@ -5872,6 +5879,13 @@ components:
             schedule: { type: boolean, description: 'The caller may set or clear the dates of this team''s milestones (`PUT /milestones/{id}/schedule`).' }
             editCapacity: { type: boolean, description: 'The caller may add, change and delete this team''s capacity periods.' }
             editOrder: { type: boolean, description: 'The caller may replace this team''s milestone order (`PUT /teams/{id}/milestone-order`).' }
+        flags:
+          type: array
+          description: >-
+            The team-level flags (1.9): today only `FLOW_CAPACITY`, ONE roll-up of the team's open Flow capacity deviations. Empty without a
+            Flow link, with a disabled connection or when every row is acknowledged.
+          items:
+            $ref: '#/components/schemas/PlanFlag'
     TeamViewOrder:
       type: object
       required: [custom, revision, milestoneIds]
@@ -5927,6 +5941,12 @@ components:
           minimum: 0
           description: The most scheduled milestones in progress on one working day of the week.
         wipExceeded: { type: boolean, description: Some working day's in-progress count exceeds the WIP limit in force that day. }
+        flowCapacity:
+          type: string
+          enum: [WARNING, INFO]
+          description: >-
+            Present only on `GET /views/team/{id}` and only when an OPEN Flow capacity deviation's held days meet the week (1.9): the worst
+            severity among the rows that meet it. Absent otherwise, and always absent on a proposal's or a check's weeks.
     TeamMilestone:
       type: object
       required: [id, projectId, name, description, teamId, teamName, estimateMd, startDate, endDate, createdAt, updatedAt, projectName, programName, workStreamName, rankPosition, slackDays, critical, pinned, jira, flags]
@@ -6325,14 +6345,17 @@ components:
     PlanFlag:
       type: object
       required: [kind, severity, days, teamId, otherProjectId, deviation, count]
-      description: One flag raised on a project or, for `JIRA_DEVIATION`, a milestone. Warnings only - nothing is ever moved.
+      description: >-
+        One flag raised on a project or, for `JIRA_DEVIATION`, a milestone, or (1.9) on a team: `FLOW_CAPACITY`, in `GET /views/team/{id}`'s
+        `team.flags`. Warnings only - nothing is ever moved.
       properties:
         kind:
           type: string
-          enum: [DRIFT_END_LATE, DRIFT_START_LATE, DRIFT_END_EARLY, RANK_INVERSION, JIRA_DEVIATION, JIRA_MILESTONES]
+          enum: [DRIFT_END_LATE, DRIFT_START_LATE, DRIFT_END_EARLY, RANK_INVERSION, JIRA_DEVIATION, JIRA_MILESTONES, FLOW_CAPACITY]
           description: >-
             `JIRA_DEVIATION` is one open deviation between a node and its Jira item (a binding through an enabled connection that is not
-            currently acknowledged; `ESTIMATE_NOT_COMPARABLE` never raises one), `JIRA_MILESTONES` a project's roll-up of its milestones'.
+            currently acknowledged; `ESTIMATE_NOT_COMPARABLE` never raises one), `JIRA_MILESTONES` a project's roll-up of its milestones',
+            `FLOW_CAPACITY` (1.9, only in `GET /views/team/{id}`'s `team.flags`) the team's roll-up of its open Flow capacity deviations.
         severity:
           type: string
           enum: [WARNING, INFO]
@@ -6364,7 +6387,7 @@ components:
           format: int32
           minimum: 1
           nullable: true
-          description: The milestones of the project that raised a Jira flag, for `JIRA_MILESTONES` (the flag's severity is the worst among them); null on every other kind.
+          description: The milestones of the project that raised a Jira flag, for `JIRA_MILESTONES` (the flag's severity is the worst among them), or the open sprint rows for `FLOW_CAPACITY`; null on every other kind.
     JiraLink:
       type: object
       required: [bindingId, connectionId, issueKey, start, end, rollup]

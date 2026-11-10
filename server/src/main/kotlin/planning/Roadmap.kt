@@ -85,9 +85,10 @@ data class RoadmapProjectCan(val editTargetWindow: Boolean)
 /**
  * What a flag is about; the declaration order is the flags' order within a severity. The Jira kinds come last (1.3):
  * [JIRA_DEVIATION] is one open deviation between a node and its Jira item, [JIRA_MILESTONES] a project's roll-up of its milestones'.
+ * [FLOW_CAPACITY] (1.9) is the team view's roll-up of its open Flow capacity deviations: `count` = the open rows, the worst severity.
  */
 @Serializable
-enum class FlagKind { DRIFT_END_LATE, DRIFT_START_LATE, DRIFT_END_EARLY, RANK_INVERSION, JIRA_DEVIATION, JIRA_MILESTONES }
+enum class FlagKind { DRIFT_END_LATE, DRIFT_START_LATE, DRIFT_END_EARLY, RANK_INVERSION, JIRA_DEVIATION, JIRA_MILESTONES, FLOW_CAPACITY }
 
 /** WARNING sorts before INFO. */
 @Serializable
@@ -98,7 +99,8 @@ enum class FlagSeverity { WARNING, INFO }
  * earlier this project starts than [otherProjectId]; [teamId] is the shared team of a per-team inversion (null for the no-shared-team
  * INFO and for drift); [otherProjectId] is the higher-ranked project of an inversion. A [FlagKind.JIRA_DEVIATION] carries its
  * [deviation] (the evidence; [days] stays null, the detail holds them) and a [FlagKind.JIRA_MILESTONES] its [count] of milestones with
- * an open deviation (the severity is the worst among them); both members are null on every other kind.
+ * an open deviation (the severity is the worst among them); both members are null on every other kind. A [FlagKind.FLOW_CAPACITY]
+ * carries its [count] too (the open sprint rows).
  */
 @Serializable
 data class PlanFlag(

@@ -17,7 +17,7 @@ const FLOW_PERIOD: CapacityPeriod = { id: 40, teamId: 1, effectiveFrom: "2026-11
 const TEAM_VIEW: TeamView = {
   jiraSites: [],
   revision: 10,
-  team: { id: 1, name: "Payments", description: null, managerPersonId: 12, managerName: "Cara New", createdAt: 1, updatedAt: 2, can: { schedule: true, editCapacity: true, editOrder: true } },
+  team: { id: 1, name: "Payments", description: null, managerPersonId: 12, managerName: "Cara New", createdAt: 1, updatedAt: 2, can: { schedule: true, editCapacity: true, editOrder: true }, flags: [] },
   order: { custom: false, revision: 4, milestoneIds: [] },
   capacity: { periods: [] },
   weeks: [{ weekStart: "2026-11-09", load: 0, capacity: null, overloaded: false, overloadMd: null, maxWip: 0, wipExceeded: false }],

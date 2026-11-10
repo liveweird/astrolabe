@@ -20,8 +20,10 @@ val TeamViewServiceKey = AttributeKey<TeamViewService>("TeamViewService")
  * milestone's OWN project's end; a link is critical when it lies on the chain of one of those projects). The team must be active
  * (null = the route's 404). Reads `Teams`, `People`, the plan tables, `RoadmapEntries`,
  * the order tables, `CapacityPeriods`, `Dependencies` and `PublicHolidays` (the working calendar, [loadWorkingCalendar], read right
- * after the revision) and writes nothing (`persistence.md`). The milestones' Jira links and flags (1.3) come from [external] inside
- * the same snapshot, after the calendar.
+ * after the revision) and writes nothing (`persistence.md`). The milestones' Jira links and flags (1.3) and the team's Flow capacity
+ * flag and marked weeks (1.9) come from [external] inside the same snapshot, after the calendar: through the seam the Flow source reads
+ * `FlowConnections`, `FlowTeamBindings`, `CapacityPeriods`, the Flow mirror (`flow_teams`, `flow_sprints`), the Flow capacity
+ * acknowledgements and the acknowledging logins' names (`persistence.md` matrix).
  */
 class TeamViewService(private val database: R2dbcDatabase, private val external: ExternalFlagSource = NoExternalFlags) {
     suspend fun view(
@@ -44,10 +46,12 @@ class TeamViewService(private val database: R2dbcDatabase, private val external:
         val paths = loadCriticalPaths(rawRows.map { it.view.projectId }.distinct(), calendar)
         val rows = rawRows.map { it.withCriticalPath(paths[it.view.projectId]) }
         val criticalLinks = paths.values.flatMapTo(HashSet()) { it.criticalDependencies }
-        // Inside the snapshot, after the calendar: each milestone's Jira link and flags (1.3); no project rows here.
+        // Inside the snapshot, after the calendar: each milestone's Jira link and flags (1.3), the team's own flag and marked days (1.9);
+        // no project rows here.
         val outside = external.flagsInTransaction(
-            ExternalFlagRequest(projectIds = emptyList(), milestoneIds = rows.map { it.view.id }, calendar = calendar),
+            ExternalFlagRequest(projectIds = emptyList(), milestoneIds = rows.map { it.view.id }, calendar = calendar, teamId = teamId),
         )
+        val teamOutside = outside.team(teamId)
         // The stored order, read FROM the active milestones (a stale row of a gone one never shows), in stored position order.
         val listed = rows.filter { it.key.customPosition != null }.sortedBy { it.key.customPosition }.map { it.view.id }
         val (periodRows, periods) = teamCapacityRows(teamId)
@@ -70,10 +74,11 @@ class TeamViewService(private val database: R2dbcDatabase, private val external:
                     editCapacity = PlanPermissions.canEditCapacity(actor, teamId),
                     editOrder = PlanPermissions.canEditTeamOrder(actor, teamId),
                 ),
+                flags = teamOutside.flags,
             ),
             order = TeamViewOrder(custom = listed.isNotEmpty(), revision = orderRevisionOf(teamId), milestoneIds = listed),
             capacity = TeamViewCapacity(periodRows),
-            weeks = weeklyLoad(items, periods, window?.span, calendar).map { it.toView() },
+            weeks = weeklyLoad(items, periods, window?.span, calendar).map { it.toView() }.withFlaggedRanges(teamOutside.ranges),
             weeksTruncated = window?.truncated ?: false,
             scheduled = scheduled.map { it.view.withExternal(outside.milestone(it.view.id)) },
             unscheduled = unscheduled.map { it.view.withExternal(outside.milestone(it.view.id)) },

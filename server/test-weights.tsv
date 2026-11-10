@@ -27,6 +27,7 @@ ch.nokillswit.CapacityImportPreviewTest	2.5
 ch.nokillswit.CatchingFailuresTest	0.0
 ch.nokillswit.CdsClassListTest	0.1
 ch.nokillswit.CgroupProbeTest	0.0
+ch.nokillswit.CompositeExternalFlagSourceTest	0.0
 ch.nokillswit.ConnectionPoolTest	3.0
 ch.nokillswit.ContainsPatternTest	0.0
 ch.nokillswit.CoverageGapsTest	0.2
@@ -52,6 +53,7 @@ ch.nokillswit.DeviationViewScopeTest	1.7
 ch.nokillswit.DeviationViewTest	1.5
 ch.nokillswit.DurationConfigBoundsTest	0.2
 ch.nokillswit.EncryptedAtRestBootTest	0.3
+ch.nokillswit.ExternalFlagsTest	0.0
 ch.nokillswit.FeatureFlagsTest	0.3
 ch.nokillswit.FieldCipherTest	0.0
 ch.nokillswit.FixtureTripwireTest	0.0
@@ -61,6 +63,7 @@ ch.nokillswit.FlowClientTest	0.0
 ch.nokillswit.FlowConnectionServiceTest	0.5
 ch.nokillswit.FlowConnectionStatusTest	0.9
 ch.nokillswit.FlowConnectionTest	1.6
+ch.nokillswit.FlowFlagSourceTest	2.0
 ch.nokillswit.FlowMirrorStoreTest	0.4
 ch.nokillswit.FlowOriginsTest	0.0
 ch.nokillswit.FlowRunTest	0.3
@@ -245,6 +248,7 @@ ch.nokillswit.TeamScheduleBatchTest	2.0
 ch.nokillswit.TeamScheduleScopeTest	1.8
 ch.nokillswit.TeamTest	1.1
 ch.nokillswit.TeamViewBaselineTest	0.4
+ch.nokillswit.TeamViewFlowFlagTest	1.5
 ch.nokillswit.TeamViewTest	2.7
 ch.nokillswit.TelemetryConfigTest	0.1
 ch.nokillswit.TelemetryRegistryTest	0.1

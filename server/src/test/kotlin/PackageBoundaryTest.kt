@@ -67,7 +67,8 @@ class PackageBoundaryTest {
         FeatureEdge("flow", "authz", "the guards and typed errors: requireAdmin, requireTeamManagerOrAdmin, caller, NotFound/Conflict"),
         FeatureEdge(
             "flow", "planning",
-            "pure rules and the createdBy name rule (symbols pinned by the flow test): CapacityPeriod, capacityOn, creatorsOf, ...",
+            "pure rules, the createdBy name rule and the 1.9 flag seam (symbols pinned by the flow test): " +
+                "CapacityPeriod, capacityOn, creatorsOf, ...",
         ),
         FeatureEdge(
             "flow", "sync",
@@ -207,7 +208,15 @@ class PackageBoundaryTest {
         // types). No plan node, no `readPlanRevision`, nothing of `jira`: a capacity deviation is a team x sprint row, not a plan binding.
         // The 1.9 acknowledge adds `creatorsOf` (the `createdBy` name rule: the acknowledging login's display name; `flow/` may not name
         // `users`/`people`, so the name comes through `planning`, as the Jira acknowledge's does).
-        val allowed = setOf("loadWorkingCalendar", "validateManDays", "CapacityPeriod", "capacityOn", "DeviationSeverity", "creatorsOf")
+        // The 1.9 flag seam adds the types of `planning`'s `ExternalFlagSource`: `flow/FlowFlagSource` implements it the way
+        // `jira/JiraFlagSource` does (the team view's Flow capacity flag and marked days): the interface, its request and answer
+        // (`ExternalFlagSource`, `ExternalFlagRequest`, `ExternalFlags`, `TeamExternal`, `FlaggedRange`) and the flag vocabulary
+        // (`PlanFlag`, `FlagKind`, `FlagSeverity`). Still no plan node, no `readPlanRevision`.
+        val allowed = setOf(
+            "loadWorkingCalendar", "validateManDays", "CapacityPeriod", "capacityOn", "DeviationSeverity", "creatorsOf",
+            "ExternalFlagSource", "ExternalFlagRequest", "ExternalFlags", "TeamExternal", "FlaggedRange",
+            "PlanFlag", "FlagKind", "FlagSeverity",
+        )
         assertEquals(emptySet(), used - allowed, "flow may import only these planning symbols")
     }
 

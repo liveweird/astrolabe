@@ -115,6 +115,10 @@
     "jiraMilestones_few": "{{count}} kamienie milowe odbiegają od Jiry",
     "jiraMilestones_many": "{{count}} kamieni milowych odbiega od Jiry",
     "jiraMilestones_other": "{{count}} kamienia milowego odbiega od Jiry",
+    "flowCapacity_one": "Pojemność różni się od Flow w {{count}} sprincie",
+    "flowCapacity_few": "Pojemność różni się od Flow w {{count}} sprintach",
+    "flowCapacity_many": "Pojemność różni się od Flow w {{count}} sprintach",
+    "flowCapacity_other": "Pojemność różni się od Flow w {{count}} sprintu",
     "show": "Pokaż na osi czasu",
     "showAria": "Pokaż na osi czasu: {{name}}"
   },

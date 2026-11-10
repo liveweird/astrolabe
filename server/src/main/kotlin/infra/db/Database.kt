@@ -14,6 +14,7 @@ import ch.nokillswit.flow.CapacityImportService
 import ch.nokillswit.flow.CapacityImportServiceKey
 import ch.nokillswit.flow.FlowConnectionService
 import ch.nokillswit.flow.FlowConnectionServiceKey
+import ch.nokillswit.flow.FlowFlagSource
 import ch.nokillswit.flow.FlowMirrorStore
 import ch.nokillswit.flow.FlowMirrorStoreKey
 import ch.nokillswit.flow.FlowOriginsKey
@@ -44,6 +45,7 @@ import ch.nokillswit.planning.BaselineService
 import ch.nokillswit.planning.BaselineServiceKey
 import ch.nokillswit.planning.BaselineViewService
 import ch.nokillswit.planning.BaselineViewServiceKey
+import ch.nokillswit.planning.CompositeExternalFlagSource
 import ch.nokillswit.planning.CrossTeamProposalService
 import ch.nokillswit.planning.CrossTeamProposalServiceKey
 import ch.nokillswit.planning.DependencyService
@@ -361,8 +363,9 @@ suspend fun Application.configureDatabase() {
     val deviationView = DeviationViewService(database, syncRuns)
     attributes.put(DeviationViewServiceKey, deviationView)
     attributes.put(JiraAcknowledgeServiceKey, JiraAcknowledgeService(database, deviationView))
-    // The four timeline views read the Jira links and flags through planning's seam, inside their own snapshot.
-    val jiraFlags = JiraFlagSource(deviationView)
+    // The four timeline views read the Jira links and flags (and, since 1.9, the team view's Flow capacity flag) through planning's seam,
+    // inside their own snapshot; the composite merges the two sources.
+    val jiraFlags = CompositeExternalFlagSource(listOf(JiraFlagSource(deviationView), FlowFlagSource(capacityDeviations)))
     attributes.put(ProjectViewServiceKey, ProjectViewService(database, jiraFlags))
     attributes.put(RoadmapViewServiceKey, RoadmapViewService(database, jiraFlags))
     attributes.put(ProgramsViewServiceKey, ProgramsViewService(database, jiraFlags))

@@ -51,6 +51,8 @@ data class TeamViewTeam(
     val createdAt: Long,
     val updatedAt: Long,
     val can: TeamViewCan,
+    /** The team-level flags (1.9): today only [FlagKind.FLOW_CAPACITY]; empty unless an enabled Flow link has open rows. */
+    val flags: List<PlanFlag> = emptyList(),
 )
 
 /** Three names, one arithmetic ([PlanPermissions.canSchedule]): ADMIN, or the caller manages THIS team. */
@@ -68,7 +70,11 @@ data class TeamViewOrder(val custom: Boolean, val revision: Long, val milestoneI
 @Serializable
 data class TeamViewCapacity(val periods: List<CapacityPeriodResponse>)
 
-/** [WeekLoad] on the wire: man-day figures as numbers with two decimals, the week as its Monday's ISO date. */
+/**
+ * [WeekLoad] on the wire: man-day figures as numbers with two decimals, the week as its Monday's ISO date. [flowCapacity] (1.9) is
+ * the worst severity of the OPEN Flow capacity deviations whose held days meet the week; present only on the team view and only when
+ * set (absent on the proposal's and the check's weeks, so their bytes are unchanged).
+ */
 @Serializable
 data class WeekLoadView(
     val weekStart: String,
@@ -78,6 +84,8 @@ data class WeekLoadView(
     val overloadMd: Double?,
     val maxWip: Int,
     val wipExceeded: Boolean,
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val flowCapacity: FlagSeverity? = null,
 )
 
 /**

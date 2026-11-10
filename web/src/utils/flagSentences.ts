@@ -37,6 +37,9 @@ export function flagSentence(t: TFunction, flag: PlanFlag, names: FlagNames, jir
     // The roll-up of the project's milestones' open deviations; the detail lives on the project page's rows.
     case "JIRA_MILESTONES":
       return t("roadmap.flag.jiraMilestones", { count: flag.count ?? 0 });
+    // The team page's roll-up of its open Flow capacity deviations (1.9); the rows live on the page's Flow section.
+    case "FLOW_CAPACITY":
+      return t("roadmap.flag.flowCapacity", { count: flag.count ?? 0 });
   }
 }
 

@@ -65,7 +65,7 @@ const TV_TRAY = milestone(3, "tv-tray");
 const plainView = (): TeamView => ({
   jiraSites: [],
   revision: 10,
-  team: { id: 1, name: "Payments", description: null, managerPersonId: 12, managerName: "Cara New", createdAt: 1, updatedAt: 2, can: { schedule: true, editCapacity: true, editOrder: true } },
+  team: { id: 1, name: "Payments", description: null, managerPersonId: 12, managerName: "Cara New", createdAt: 1, updatedAt: 2, can: { schedule: true, editCapacity: true, editOrder: true }, flags: [] },
   order: { custom: false, revision: 4, milestoneIds: [] },
   capacity: { periods: [] },
   weeks: [],

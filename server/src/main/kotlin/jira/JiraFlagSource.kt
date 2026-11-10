@@ -37,7 +37,7 @@ import ch.nokillswit.planning.PlanFlag
  */
 internal class JiraFlagSource(private val deviations: DeviationViewService) : ExternalFlagSource {
     override suspend fun flagsInTransaction(request: ExternalFlagRequest): ExternalFlags {
-        if (request.isEmpty) return ExternalFlags()
+        if (request.namesNoNode) return ExternalFlags()
         val scope = DeviationScope(
             levels = setOf(JiraLevel.PROJECT, JiraLevel.MILESTONE),
             projectIds = request.projectIds,

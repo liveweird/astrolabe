@@ -48,7 +48,7 @@ const milestone = (id: number, name: string, over: Partial<TeamMilestone> = {}):
 const TEAM_VIEW: TeamView = {
   jiraSites: [{ connectionId: 1, siteUrl: "https://acme.atlassian.net" }],
   revision: 10,
-  team: { id: 1, name: "Payments", description: null, managerPersonId: 12, managerName: "Cara New", createdAt: 1, updatedAt: 2, can: { schedule: false, editCapacity: false, editOrder: false } },
+  team: { id: 1, name: "Payments", description: null, managerPersonId: 12, managerName: "Cara New", createdAt: 1, updatedAt: 2, can: { schedule: false, editCapacity: false, editOrder: false }, flags: [] },
   order: { custom: false, revision: 4, milestoneIds: [] },
   capacity: { periods: [] },
   weeks: [],

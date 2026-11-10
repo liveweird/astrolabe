@@ -34,6 +34,13 @@ describe("flagSentence", () => {
     expect(flagSentence(en, flag("JIRA_MILESTONES", "WARNING", { count: 3 }), NAMES, null)).toBe("3 milestones deviate from Jira");
   });
 
+  test("the team page's Flow capacity roll-up counts the open sprints, in both languages", () => {
+    expect(flagSentence(en, flag("FLOW_CAPACITY", "WARNING", { count: 1 }), NAMES, null)).toBe("Capacity differs from Flow in 1 sprint");
+    expect(flagSentence(en, flag("FLOW_CAPACITY", "INFO", { count: 3 }), NAMES, null)).toBe("Capacity differs from Flow in 3 sprints");
+    expect(flagSentence(pl, flag("FLOW_CAPACITY", "WARNING", { count: 1 }), NAMES, null)).toBe("Pojemność różni się od Flow w 1 sprincie");
+    expect(flagSentence(pl, flag("FLOW_CAPACITY", "WARNING", { count: 3 }), NAMES, null)).toBe("Pojemność różni się od Flow w 3 sprintach");
+  });
+
   test("the plan flags name the project and team they compare", () => {
     expect(flagSentence(en, flag("DRIFT_END_LATE", "WARNING", { days: 10 }), NAMES, null)).toBe("Ends 10 days after the target");
     expect(flagSentence(en, flag("RANK_INVERSION", "WARNING", { days: 7, teamId: 2, otherProjectId: 9 }), NAMES, null)).toContain("P9");

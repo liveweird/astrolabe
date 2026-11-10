@@ -53,6 +53,7 @@ const viewOf = (over: Partial<TeamView> = {}): TeamView => ({
     createdAt: 1,
     updatedAt: 2,
     can: { schedule: true, editCapacity: true, editOrder: true },
+    flags: [],
   },
   order: { custom: false, revision: 4, milestoneIds: [] },
   capacity: { periods: [] },
