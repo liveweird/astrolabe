@@ -1,7 +1,19 @@
 {
   "title": "Astrolabe",
-  "empty": {
-    "label": "Planning views are on their way",
-    "hint": "Work streams, programs, projects and the timeline arrive in version 0.2. For now you can sign in, manage users, teams and feature flags, and try the language and theme switches."
+  "intro": "Plan work streams, programs and projects, rank them on the roadmap, and see where the plan differs from Jira and from Flow.",
+  "plan": {
+    "text": "Work streams, programs and projects with their owners.",
+    "open": "Open the plan"
+  },
+  "roadmap": {
+    "text": "Projects in rank order on one timeline.",
+    "open": "Open the roadmap"
+  },
+  "deviations": {
+    "text": "Where the plan differs from the linked Jira items and from Flow's capacity.",
+    "open": "Open the deviations",
+    "openJira": "Open differences from Jira:",
+    "openFlow": "Open capacity differences from Flow:",
+    "loadFailed": "Could not read the open deviations"
   }
 }

@@ -12,6 +12,24 @@ import { currentFixture, historyFixture } from "./test/telemetryFixtures";
 
 const TOKEN_KEY = "astrolabe.auth.token";
 
+/**
+ * The two reads the Home page makes at `/` (the open deviation counts). A paged envelope or any other blanket body is not a deviation view, so the
+ * stubs answer these two URLs with their own empty documents (no connection: Home shows no figure) and leave every other URL to the test.
+ * `undefined` = not a Home read.
+ */
+function homeViews(input: RequestInfo | URL): Promise<Response> | undefined {
+  const url = String(input);
+  if (url.startsWith("/api/v1/views/deviations")) {
+    return Promise.resolve(jsonResponse(200, { revision: 1, asOf: "2026-11-10", connections: [], totals: { warnings: 0, infos: 0, bindings: 0, gone: 0, acknowledged: 0 }, items: [], truncated: false }));
+  }
+  if (url.startsWith("/api/v1/views/capacity-deviations")) {
+    return Promise.resolve(jsonResponse(200, { asOf: "2026-11-10", connections: [], totals: { warnings: 0, infos: 0, gone: 0, acknowledged: 0, teams: 0 }, items: [], truncated: false }));
+  }
+  return undefined;
+}
+
+const emptyPage = () => Promise.resolve(jsonResponse(200, { items: [], page: 1, pageSize: 20, total: 0 }));
+
 function renderApp(route: string) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -29,7 +47,7 @@ function renderApp(route: string) {
 
 describe("App shell", () => {
   beforeEach(() => {
-    vi.stubGlobal("fetch", vi.fn());
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => homeViews(input)));
   });
 
   afterEach(() => {
@@ -135,6 +153,8 @@ describe("App shell", () => {
 
       function stubTelemetry() {
         const fetchMock = vi.fn((url: string) => {
+          const home = homeViews(url);
+          if (home) return home;
           if (url.startsWith("/api/v1/telemetry/current")) return Promise.resolve(jsonResponse(200, currentFixture()));
           if (url.startsWith("/api/v1/telemetry/history")) return Promise.resolve(jsonResponse(200, historyFixture("memory", "24h", [])));
           return Promise.reject(new Error("offline"));
@@ -173,7 +193,7 @@ describe("App shell", () => {
         localStorage.setItem("astrolabe.auth.roles", JSON.stringify(["ADMIN"]));
         localStorage.setItem(PANEL_KEY, "true");
         // A malformed answer (no processes) crashes the panel's render.
-        vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(jsonResponse(200, { generatedAt: 1 }))));
+        vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => homeViews(input) ?? Promise.resolve(jsonResponse(200, { generatedAt: 1 }))));
         const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
         const user = userEvent.setup();
         try {
@@ -201,7 +221,7 @@ describe("App shell", () => {
 
     test("the tab title follows the page: brand alone on Home, then \"Teams · Astrolabe\" after navigating", async () => {
       const user = userEvent.setup();
-      vi.mocked(fetch).mockImplementation(() => Promise.resolve(jsonResponse(200, { items: [], page: 1, pageSize: 20, total: 0 })));
+      vi.mocked(fetch).mockImplementation((input) => homeViews(input) ?? emptyPage());
       renderApp("/");
       await screen.findByRole("heading", { level: 2, name: "Astrolabe" });
       expect(document.title).toBe("Astrolabe");
@@ -213,7 +233,7 @@ describe("App shell", () => {
 
     test("focus: a fresh render leaves it on the document, a nav click hands it to the main area", async () => {
       const user = userEvent.setup();
-      vi.mocked(fetch).mockImplementation(() => Promise.resolve(jsonResponse(200, { items: [], page: 1, pageSize: 20, total: 0 })));
+      vi.mocked(fetch).mockImplementation((input) => homeViews(input) ?? emptyPage());
       renderApp("/");
       await screen.findByRole("heading", { level: 2, name: "Astrolabe" });
       expect(document.activeElement).toBe(document.body);
@@ -226,7 +246,7 @@ describe("App shell", () => {
     test("focus: a page that autofocuses its first field wins over the main area (lazy chunk arriving after the move)", async () => {
       localStorage.setItem("astrolabe.auth.roles", JSON.stringify(["ADMIN"]));
       const user = userEvent.setup();
-      vi.mocked(fetch).mockImplementation(() => Promise.resolve(jsonResponse(200, { items: [], page: 1, pageSize: 20, total: 0 })));
+      vi.mocked(fetch).mockImplementation((input) => homeViews(input) ?? emptyPage());
       renderApp("/users");
       await user.click(await screen.findByRole("link", { name: "New user" }));
       const name = await screen.findByRole("textbox", { name: /Name/ });
@@ -276,9 +296,7 @@ describe("App shell", () => {
     });
 
     test("logout clears the session and lands on the login page", async () => {
-      (fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(
-        new Response(null, { status: 204 }),
-      );
+      vi.mocked(fetch).mockImplementation((input) => homeViews(input) ?? Promise.resolve(new Response(null, { status: 204 })));
       const user = userEvent.setup();
       renderApp("/");
       await user.click(await screen.findByRole("button", { name: /account menu/i }));

@@ -1,7 +1,19 @@
 {
   "title": "Astrolabe",
-  "empty": {
-    "label": "Widoki planowania są w drodze",
-    "hint": "Strumienie prac, programy, projekty i oś czasu pojawią się w wersji 0.2. Na razie możesz się zalogować, zarządzać użytkownikami/czkami, zespołami i flagami funkcji oraz wypróbować przełączniki języka i motywu."
+  "intro": "Planuj strumienie prac, programy i projekty, ustalaj ich kolejność na roadmapie i sprawdzaj, gdzie plan różni się od Jiry i od Flow.",
+  "plan": {
+    "text": "Strumienie prac, programy i projekty wraz z osobami odpowiedzialnymi.",
+    "open": "Otwórz plan"
+  },
+  "roadmap": {
+    "text": "Projekty w kolejności rankingu na jednej osi czasu.",
+    "open": "Otwórz roadmapę"
+  },
+  "deviations": {
+    "text": "Gdzie plan różni się od powiązanych elementów Jiry i od przepustowości z Flow.",
+    "open": "Otwórz odchylenia",
+    "openJira": "Otwarte różnice względem Jiry:",
+    "openFlow": "Otwarte różnice przepustowości względem Flow:",
+    "loadFailed": "Nie udało się odczytać otwartych odchyleń"
   }
 }

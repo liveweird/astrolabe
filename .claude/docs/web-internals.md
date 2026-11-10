@@ -16,8 +16,9 @@ section of the page you touch before changing it, and put a new page's mechanics
 - [Shared list-page and dialog mechanics](#shared-list-page-and-dialog-mechanics)
 - [Timeline mechanics](#timeline-mechanics-componentstimelinetsx)
 
-**Pages in nav order (Home has no mechanics)**
+**Pages in nav order**
 
+- [Home](#home-pageshometsx-110)
 - [Plan](#plan-pagesplantsx)
 - [Project view](#project-view-pagesprojectviewtsx)
 - [Roadmap](#roadmap-pagesroadmaptsx)
@@ -358,6 +359,24 @@ feeds the row hatch (`trackBackground`: the holiday gradient layer over the week
 as `hatch`), the header (`headerRows(scale, map)` puts `holiday` on the day cells; `HeaderCells` renders the `title` and `data-holiday`) and the visually hidden
 "Public holidays shown" paragraph (`holidaysShown`). The pages never touch any of it: they pass `useHolidays()` straight through. happy-dom keeps gradient
 strings in `style.backgroundImage`, so the tests count `gradient(` occurrences on the body row's LAST `gridcell` (its left cells are gridcells too).
+
+## Home (`pages/Home.tsx`, 1.10)
+
+The landing at `/`, for everyone: `PageHeader` (title "Astrolabe", the intro as its description) and a `SimpleGrid` of three `Paper withBorder` cards - Plan, Roadmap, Deviations - each an h3
+(the nav's own label, `appShell.nav.*`), the nav's icon, one dimmed sentence and a real `RouterLink` `Anchor` ("Open the plan", "Open the roadmap", "Open the deviations": distinct from the
+sidebar's names, so a by-name locator never meets two links) to `planPath` / `roadmapPath` / `deviationsPath`. The outline is `[[2,"Astrolabe"],[3,"Plan"],[3,"Roadmap"],[3,"Deviations"]]`; the other pages
+stay in the nav only, and the tab title stays the brand alone (`usePageTitle` of the `home.title`).
+
+**The only live figures are the OPEN deviation counts**, in the Deviations card (`hooks/useOpenDeviationCounts.ts`): `GET /views/deviations?acknowledged=true` and `GET /views/capacity-deviations?acknowledged=true`,
+keyed `["jira","deviations","totals"]` and `["flow","deviations","totals"]` (under the prefixes the existing refresh helpers invalidate), `staleTime` 60 s. Why `acknowledged=true`: both views compute `totals` over
+"every filter but the acknowledgement state" and count the OPEN rows, so the same totals arrive while the body lists only the acknowledged items (typically a few KB against up to 700 KB for the default list of up to 2,000
+items; the cost grows with the acknowledgements, so a plan with nearly everything acknowledged pays close to the full list, bounded by `staleTime` 60 s; not yet measured on the sample plan). No new endpoint, no plan or roadmap read. Per source, ONE line (label "Open differences from Jira:" / "Open capacity differences from Flow:" and the orange warnings / gray infos badges of the Deviations page; a zero badge is omitted)
+- shown only for a source whose view lists a connection AND whose count is positive. **No claim at zero** (no "nothing open", `web/CLAUDE.md` "Deviations wording"): zero, no connection and loading all show nothing.
+A failed read is the inline `ErrorAlert` (title `home.deviations.loadFailed`) inside the Deviations card, the other source's line still shows and the links never depend on either read.
+
+**Tests:** `Home.test.tsx` pins the outline, the three hrefs, both requests (`acknowledged=true`), the badges, the silence at zero / without a connection and the alert. `App.test.tsx` renders `/` about twenty times, so its
+blanket fetch stubs answer the two Home URLs with their own empty documents (`homeViews`): a paged envelope is not a deviation view. `pages/headingOutline.test.tsx`'s `emptyApi` answers them with a 404 and the
+outline holds with the alert shown.
 
 ## Plan (`pages/Plan.tsx`)
 

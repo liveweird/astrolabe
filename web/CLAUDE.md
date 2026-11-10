@@ -126,7 +126,7 @@ registry's field limits explicit and mirrored from the server's validation (`inf
 One line per page in nav order: route — guard — the owning section of `.claude/docs/web-internals.md` (Timeline pages also `.claude/docs/timeline.md`).
 Everything is lazy under `RequireAuth` unless noted.
 
-- `/` — Overview, everyone — a placeholder Home; no mechanics.
+- `/` — Overview, everyone — "Home" (links and the open deviation counts).
 - `/plan` — Planning, everyone (actions by the view's `can`) — "Plan"; `/projects/:id` (no nav leaf, linked from Plan) — everyone (`can`) — "Project view" + `timeline.md`.
 - `/roadmap` — Planning, everyone (`can.editRank`, `can.editTargetWindow`) — "Roadmap" + `timeline.md`.
 - `/programs` — Planning, everyone (the target window by `can`) — "Programs" + `timeline.md`.
