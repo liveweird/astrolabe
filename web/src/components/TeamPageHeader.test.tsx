@@ -28,8 +28,8 @@ describe("TeamPageHeader: the Flow capacity flag (1.9)", () => {
     const badge = document.querySelector("[data-team-flag]") as HTMLElement;
     expect(badge).toHaveAttribute("data-team-flag", "FLOW_CAPACITY");
     expect(badge).toHaveAttribute("data-severity", "WARNING");
-    expect(badge).toHaveTextContent(/^Capacity differs from Flow in 2 sprints$/);
-    expect(screen.getAllByText("Capacity differs from Flow in 2 sprints")).toHaveLength(1);
+    expect(badge).toHaveTextContent(/^Capacity differs from Flow: 2 open differences$/);
+    expect(screen.getAllByText("Capacity differs from Flow: 2 open differences")).toHaveLength(1);
     expect(document.querySelector("[data-flags]")).toBeNull();
     expect(badge.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
   });
@@ -37,14 +37,14 @@ describe("TeamPageHeader: the Flow capacity flag (1.9)", () => {
   test("an INFO flag is the gray info variant", () => {
     renderHeader(team({ flags: [{ ...FLAG, severity: "INFO", count: 1 }] }));
     expect(document.querySelector("[data-team-flag]")).toHaveAttribute("data-severity", "INFO");
-    expect(screen.getByText("Capacity differs from Flow in 1 sprint")).toBeInTheDocument();
+    expect(screen.getByText("Capacity differs from Flow: 1 open difference")).toBeInTheDocument();
   });
 
   test("two flags are two badges, each its own sentence and severity", () => {
     renderHeader(team({ flags: [FLAG, { ...FLAG, severity: "INFO", count: 1 }] }));
     const badges = Array.from(document.querySelectorAll("[data-team-flag]"));
     expect(badges.map((b) => b.getAttribute("data-severity"))).toEqual(["WARNING", "INFO"]);
-    expect(badges.map((b) => b.textContent)).toEqual(["Capacity differs from Flow in 2 sprints", "Capacity differs from Flow in 1 sprint"]);
+    expect(badges.map((b) => b.textContent)).toEqual(["Capacity differs from Flow: 2 open differences", "Capacity differs from Flow: 1 open difference"]);
   });
 
   test("no flags: nothing is drawn and the title stays the heading", () => {

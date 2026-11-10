@@ -1,13 +1,16 @@
 import { useTranslation } from "react-i18next";
 import { Alert, Button, Stack, Text } from "@mantine/core";
 import type { DeviationItem } from "../api/deviations";
-import type { Acknowledge, AckNotice } from "../hooks/useAcknowledge";
+import type { Acknowledge } from "../hooks/useAcknowledge";
 import { ackActions } from "../utils/deviations";
 import { formatDate, formatDateTime } from "../utils/formatDate";
 import FormErrorAlert from "./FormErrorAlert";
 
-/** The message a write left for this row, next to its button where the user is looking: the orange stale note (`role="status"`) or the red refusal (`role="alert"`). */
-export function AckNoticeAlert({ notice }: { notice: AckNotice }) {
+/**
+ * The message a write left for this row, next to its button where the user is looking: the orange stale note (`role="status"`) or the red refusal
+ * (`role="alert"`). Structural, so the Jira `AckNotice` and the Flow capacity `CapacityAckNotice` (`CapacityAckCell`) both fit.
+ */
+export function AckNoticeAlert({ notice }: { notice: { kind: "stale" } | { kind: "failure"; text: string } }) {
   const { t } = useTranslation();
   return notice.kind === "stale" ? (
     <Alert color="orange" variant="light" role="status" p="xs">

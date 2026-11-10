@@ -34,11 +34,12 @@ describe("flagSentence", () => {
     expect(flagSentence(en, flag("JIRA_MILESTONES", "WARNING", { count: 3 }), NAMES, null)).toBe("3 milestones deviate from Jira");
   });
 
-  test("the team page's Flow capacity roll-up counts the open sprints, in both languages", () => {
-    expect(flagSentence(en, flag("FLOW_CAPACITY", "WARNING", { count: 1 }), NAMES, null)).toBe("Capacity differs from Flow in 1 sprint");
-    expect(flagSentence(en, flag("FLOW_CAPACITY", "INFO", { count: 3 }), NAMES, null)).toBe("Capacity differs from Flow in 3 sprints");
-    expect(flagSentence(pl, flag("FLOW_CAPACITY", "WARNING", { count: 1 }), NAMES, null)).toBe("Przepustowość różni się od Flow w 1 sprincie");
-    expect(flagSentence(pl, flag("FLOW_CAPACITY", "WARNING", { count: 3 }), NAMES, null)).toBe("Przepustowość różni się od Flow w 3 sprintach");
+  test("the team page's Flow capacity roll-up counts the open differences (a gone team is one too), in all plural forms of both languages", () => {
+    expect(flagSentence(en, flag("FLOW_CAPACITY", "WARNING", { count: 1 }), NAMES, null)).toBe("Capacity differs from Flow: 1 open difference");
+    expect(flagSentence(en, flag("FLOW_CAPACITY", "INFO", { count: 3 }), NAMES, null)).toBe("Capacity differs from Flow: 3 open differences");
+    expect(flagSentence(pl, flag("FLOW_CAPACITY", "WARNING", { count: 1 }), NAMES, null)).toBe("Przepustowość różni się od Flow: 1 otwarta różnica");
+    expect(flagSentence(pl, flag("FLOW_CAPACITY", "WARNING", { count: 3 }), NAMES, null)).toBe("Przepustowość różni się od Flow: 3 otwarte różnice");
+    expect(flagSentence(pl, flag("FLOW_CAPACITY", "WARNING", { count: 5 }), NAMES, null)).toBe("Przepustowość różni się od Flow: 5 otwartych różnic");
   });
 
   test("the plan flags name the project and team they compare", () => {

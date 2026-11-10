@@ -183,7 +183,11 @@
       "loadFailed": "Could not compare the capacity with Flow",
       "listAria": "Capacity differences from Flow",
       "fix": "Import capacity… shows what an import would change. Hand-entered periods are left as they are, and a sprint where Flow has 0 must be ticked by hand.",
-      "noneSoFar": "No difference in the data read so far"
+      "noneSoFar": "No difference in the data read so far",
+      "acknowledged_one": "· {{count}} acknowledged",
+      "acknowledged_other": "· {{count}} acknowledged",
+      "noneOpen_one": "No open difference · {{count}} acknowledged",
+      "noneOpen_other": "No open difference · {{count}} acknowledged"
     }
   },
   "link": {

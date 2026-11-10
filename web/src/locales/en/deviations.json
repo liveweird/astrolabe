@@ -268,16 +268,27 @@
     "column": {
       "sprint": "Sprint",
       "dates": "Dates",
-      "flow": "Flow (man-days)"
+      "flow": "Flow (man-days)",
+      "acknowledgement": "Acknowledgement"
     },
     "moreShow": "Show {{n}} more",
-    "moreHide": "Hide {{n}} more"
+    "moreHide": "Hide {{n}} more",
+    "ack": {
+      "acknowledgeAria": "Acknowledge {{sprint}}",
+      "unacknowledgeAria": "Unacknowledge {{sprint}}",
+      "teamRow": "the team's own row",
+      "forbidden": "Only the team's manager or an administrator can acknowledge its capacity differences.",
+      "acknowledgedCount_one": "· {{count}} acknowledged",
+      "acknowledgedCount_other": "· {{count}} acknowledged",
+      "missingSummaryAcknowledged_one": "{{count}} sprint without capacity in the plan, acknowledged",
+      "missingSummaryAcknowledged_other": "{{count}} sprints without capacity in the plan, all acknowledged"
+    }
   },
   "flowSection": {
     "title": "Capacity from Flow",
     "intro": "Where a linked team's capacity in the plan differs from what Flow says for its current and future sprints. Astrolabe only reads from Flow: nothing is written back. Import capacity… on the team's page shows what an import would change; hand-entered periods are left as they are.",
     "loadFailed": "Could not load the capacity comparison with Flow",
-    "filtersNote": "The Status, plan item type, work stream, project, kind and connection filters do not apply to this section; the team and severity filters do.",
+    "filtersNote": "The plan item type, work stream, project, kind and connection filters do not apply to this section; the Status, team and severity filters do.",
     "staleBanner": "At least one Flow connection has no current refresh behind it, so the list below may be out of date. See Data from Flow.",
     "sources": {
       "title": "Data from Flow",
@@ -299,6 +310,8 @@
       "truncated": "Only the first {{count}} teams are listed. The warning and info counts cover every match; narrow the filters to see the rest.",
       "gone_one": "of which {{count}} team gone from Flow",
       "gone_other": "of which {{count}} teams gone from Flow",
+      "acknowledged_one": "{{count}} acknowledged",
+      "acknowledged_other": "{{count}} acknowledged",
       "shownOf": "{{n}} of {{total}} teams shown"
     },
     "list": {
@@ -320,6 +333,9 @@
       "inLineSoFar": "In line with Flow in the data read so far.",
       "inLineSoFarHint": "Not every connection has a current refresh behind it, so this may change.",
       "noMatch": "No capacity difference matches the filters.",
+      "noOpen": "No open capacity difference.",
+      "noOpenHint_one": "{{count}} acknowledged sprint is hidden. Choose Acknowledged or All under Status to see it.",
+      "noOpenHint_other": "{{count}} acknowledged sprints are hidden. Choose Acknowledged or All under Status to see them.",
       "countFailed": "Could not check whether any team is linked to Flow"
     }
   }

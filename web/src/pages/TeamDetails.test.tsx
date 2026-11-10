@@ -348,7 +348,7 @@ describe("Team view page", () => {
     const user = userEvent.setup();
     renderPage();
     await screen.findByRole("grid", { name: "Team milestone timeline" });
-    expect(await screen.findByText("Capacity differs from Flow in 2 sprints")).toBeInTheDocument();
+    expect(await screen.findByText("Capacity differs from Flow: 2 open differences")).toBeInTheDocument();
     expect(document.querySelector('[data-week="2027-02-08"]')).toHaveAttribute("data-flow-capacity", "WARNING");
     expect(document.querySelector('[data-week="2027-02-01"]')).not.toHaveAttribute("data-flow-capacity");
     await user.click(screen.getByRole("button", { name: "Show the weekly figures" }));

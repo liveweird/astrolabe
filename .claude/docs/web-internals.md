@@ -1034,13 +1034,15 @@ for an open `UNSCHEDULED_IN_PLAN` flag, the name cell adds "Jira: 2027-03-01 to 
 ### Capacity from Flow (1.6)
 
 `components/CapacityDeviationsSection.tsx` (the page's second h3 after the Jira list): ANOTHER document, `GET /views/capacity-deviations`
-(`{asOf, connections[], totals{warnings, infos, gone, teams}, items[≤1,000 teams, each with its sprint rows], truncated}`, no `revision`: capacity is team data)
+(`{asOf, connections[], totals{warnings, infos, gone, acknowledged, teams}, items[≤1,000 teams, each with `can{acknowledge}` and its sprint rows, each row with its
+`fingerprint` and `acknowledgement{at, by, current}|null`], truncated}`, no `revision`: capacity is team data)
 under `["flow","deviations","view",filter]` through `hooks/useCapacityDeviations.ts` (`api/capacityDeviations.ts`) - the Jira document is untouched, the two
 load in parallel and fail separately (a failed Flow document is the section's own heading and alert; a failed Jira one leaves the Flow section standing). **It
 exists only when there is a Flow connection** (`connections.length > 0`; a Jira-only stack sees nothing new, not even a heading). **Filters:** it takes the
-URL's `teamId` and `severity` (a team id and the WARNING/INFO scale mean the same in both lists; the server narrows each team's ROWS by severity, so "warnings
-only" lists the warning sprints); Status, plan item type, work stream, project, kind and connection are the Jira list's (a Jira connection id is not a Flow one)
-and are named in one `role="note"` line while any is in the URL. **Honesty about currency** (the Jira rule, read off the derived `status`,
+URL's `teamId`, `severity` and **Status** (a team id and the WARNING/INFO scale mean the same in both lists; the server narrows each team's ROWS by severity, so
+"warnings only" lists the warning sprints; the page's ONE Status select - Open / Acknowledged / All, `acknowledged`/`all` in the URL - applies to both lists and is
+sent as the view's own `acknowledged`/`all`, `all=false` too, the Open choice under a team scope, since the server's `teamId` implies `all`); plan item type, work
+stream, project, kind and connection are the Jira list's (a Jira connection id is not a Flow one) and are named in one `role="note"` line while any is in the URL. **Honesty about currency** (the Jira rule, read off the derived `status`,
 `utils/capacityDeviations.ts`): "Data from Flow" (`CapacityDeviationsSources.tsx`, h4) is a row per connection - state badge, when its document was mirrored
 (`teamsAt`), the notes that qualify the figures (never refreshed, last refresh failed with `errorCodeText(…, "FLOW")`, stale, disabled) and, for an ADMIN,
 **Refresh now** = `POST /integrations/sync/runs {kind: "FLOW"}` then a re-read of `["flow"]` (a 409 run-in-progress is a normal state); an orange `role="note"`
@@ -1049,17 +1051,29 @@ the connections' own team lists `["flow","teams",id]`, only then), a filter that
 (`verifiedFlowAt`: the OLDEST success, withheld - "read so far" - when ANY connection is disabled or not CURRENT; the team-list check is not polled, it re-reads
 on focus and on `refreshFlowLinks`). A failed re-read keeps the last answer under the section's `ErrorAlert`. A row whose connection is disabled or not CURRENT
 carries "stale" under "Data as of" (the Jira table's mark), since the banner covers enabled connections only. **Totals:** orange warnings (a gone team is one of
-them), gray infos, an ORANGE "of which N teams gone from Flow" (part of the warnings, not an addition), "N teams shown", or "N of M teams shown" from
-`totals.teams` when the server cut the list. The poll is the Jira page's (`DEVIATIONS_POLL_MS` while `status.lastRun.running`, bounded). **Rows:** one per team -
+them), gray infos, an ORANGE "of which N teams gone from Flow" (part of the warnings, not an addition), a gray "N acknowledged" (rows, not teams; warnings,
+infos and gone count the OPEN rows whatever Status lists, so under Acknowledged/All the Jira list's "open items only" note says it), "N teams shown", or "N of M
+teams shown" from `totals.teams` when the server cut the list. The poll is the Jira page's (`DEVIATIONS_POLL_MS` while `status.lastRun.running`, bounded). **Rows:** one per team -
 the team (a link to `/teams/:id`), its Flow team (with the connection's name only when there are several), the lines (`CapacityDeviationList`, shared with the
 team page: severity in words before an orange/gray kind badge, `TEAM_GONE` as one sentence, the sprints that differ as sentences, the sprints WITHOUT capacity
-folded into one "N sprints without capacity in the plan (from DATE)" line over a table disclosure) and when Flow was last seen. **The sentence**
+folded into one "N sprints without capacity in the plan (from DATE)" line over a table disclosure - the count and the date are the OPEN sprints', with a dimmed
+"· M acknowledged" after it, or "N sprints … all acknowledged" when none is open) and when Flow was last seen. **The acknowledge (1.9)** is per sprint row: every
+line carries `CapacityAckCell` (the Jira `DeviationAckCell`'s shape and its `deviations.ack.*` sentences - "Acknowledged by Ada on 2026-11-06", "… by Ada ·
+changed since" for a stale one, which is open again and offers Acknowledge anew - plus ONE button named by the sprint, "the team's own row" for the gone team,
+Acknowledge / Unacknowledge by the item's `can.acknowledge` and the row's state, `data-ack-for="<bindingId>:<sprintId|team>"`); the folded sprints carry it in a
+fourth "Acknowledgement" column of their table, so a single missing sprint is a sentence with its cell. The write is `hooks/useCapacityAcknowledge.ts`, the Jira
+`useAcknowledge` state machine over the row key: `POST`/`DELETE /integrations/flow/team-bindings/{id}/acknowledge` with the row's `detail.sprintId` (always in
+the POST body, `null` for the gone team) and `fingerprint`; a success re-reads `["flow","deviations"]` and `["plan"]` (`refreshCapacityAcknowledgements`: the team
+view's flag and markers follow the open rows); the shared `409 stale-deviations` (`isStaleDeviations`) is an orange note in the row plus the re-read (a note of
+a row that left the list is shown above the list, `CapacityAckOrphanNotice`), a 403/404 a red message and a `refreshFlowLinks`; the focus rule is the Jira
+one (the row's own button, the next row's, the previous row's, else the "Differences from Flow" heading). **The sentence**
 (`capacityDeviationSentence`, EN/PL): `"<Flow's sprint name> (<start> – <end>): the plan has 36.00 man-days, Flow 30.00 — 6.00 more in the plan"` (`gapMd` > 0 =
 the plan has more; man-days are JSON numbers shown with two decimals and a dot), plus "Flow plans 44.00 man-days for the whole sprint; 22.00 fall on the days it
-holds here." when `flowTotalMd` differs from `flowMd` (a fixed per-sprint figure that shares days with an earlier sprint). There is no acknowledge
-(`BACKLOG.md`). Tests: `CapacityDeviationsSection.test.tsx`, `Deviations.test.tsx` ("Capacity from Flow"), `utils/capacityDeviations.test.ts`,
-`hooks/useCapacityDeviations.test.tsx`, `api/capacityDeviations.test.ts`; fixtures in `test/flow.ts` (`capacityView`, `capacityItem`, `differsRow`,
-`missingRow`, `NO_FLOW_VIEW`).
+holds here." when `flowTotalMd` differs from `flowMd` (a fixed per-sprint figure that shares days with an earlier sprint). **An empty Open list** with rows
+acknowledged (`totals.acknowledged > 0`) says "No open capacity difference." and how many sprints are hidden - never "In line with Flow". Tests:
+`CapacityDeviationsSection.test.tsx`, `CapacityDeviationsSection.ack.test.tsx` (the acknowledge), `CapacityDeviationList.test.tsx`, `CapacityAckCell.test.tsx`, `Deviations.test.tsx` ("Capacity from Flow"),
+`utils/capacityDeviations.test.ts`, `hooks/useCapacityDeviations.test.tsx`, `hooks/useCapacityAcknowledge.test.tsx`, `api/capacityDeviations.test.ts`; fixtures in
+`test/flow.ts` (`capacityView`, `capacityItem`, `differsRow`, `missingRow`, `acknowledgedRow`, `staleAcknowledgedRow`, `NO_FLOW_VIEW`).
 
 ## Teams and the team page (`pages/Teams.tsx`, `pages/TeamDetails.tsx`, v0.5.0)
 
@@ -1080,7 +1094,7 @@ scheduled permutation filled around the unscheduled listed ids, `planning-model.
 like the project view. **Everything is gated by the view's `team.can:{schedule, editCapacity, editOrder}`** (the team's manager or an ADMIN), never the
 session's roles.
 
-Header: name, description, the manager line, an ADMIN's Edit (`TeamEditorModal` on the view's team block; a save refreshes `["teams"]` and `["plan"]`); **the Flow capacity flag (1.9)** beside the title — `team.flags[]` (the ONE `FLOW_CAPACITY` roll-up of the OPEN rows, so an acknowledged row is not in it) through `PageHeader`'s `titleAddon` slot as a light badge (`TeamPageHeader`'s `TeamFlags`: orange with a triangle for a warning, gray with an info circle for an info; the visible text is `flagSentence`'s "Capacity differs from Flow in N sprints", the icon `aria-hidden`, so it is announced once; NO count badge — the roll-up is one flag and the number of sprints is in the sentence; nothing for `[]`; the rows themselves are the Flow section's); the
+Header: name, description, the manager line, an ADMIN's Edit (`TeamEditorModal` on the view's team block; a save refreshes `["teams"]` and `["plan"]`); **the Flow capacity flag (1.9)** beside the title — `team.flags[]` (the ONE `FLOW_CAPACITY` roll-up of the OPEN rows, so an acknowledged row is not in it) through `PageHeader`'s `titleAddon` slot as a light badge (`TeamPageHeader`'s `TeamFlags`: orange with a triangle for a warning, gray with an info circle for an info; the visible text is `flagSentence`'s "Capacity differs from Flow: N open differences" (open ROWS, not sprints: a gone Flow team is one too), the icon `aria-hidden`, so it is announced once; NO count badge — the roll-up is one flag and the number is in the sentence; nothing for `[]`; the rows themselves are the Flow section's); the
 facts line: "N milestones · M scheduled", ORANGE "N weeks overloaded" and "N weeks over WIP limit" badges (warnings — nothing moves), the RED conflicts badge of
 the project page, a gray "Custom order" badge while the team's own order is in force.
 
@@ -1250,18 +1264,26 @@ administrator links on their own; a refused link (409/400) re-reads the Flow tea
 **Capacity vs Flow (1.6)** (`components/TeamFlowCapacity.tsx`, shared lines in `CapacityDeviationList.tsx`): once the team is linked the section also asks
 `GET /views/capacity-deviations?teamId=` (`hooks/useCapacityDeviations.ts`, under `["flow","deviations","view",filter]`, re-read every `IDLE_REFRESH_MS` like
 the panel; the SAME document and sentences as the Deviations page's section, no second computation) and adds a **Capacity vs Flow** fact row: an ORANGE badge
-"Differs from Flow for N sprints" while the plan has MORE than Flow for some sprint, gray when it only has less, a gray "No capacity in the plan for N sprints",
-both when both, and green TEXT "In line with Flow" (the AA-tested `--mantine-color-green-light-color`; never a badge) when the team has no row AND its
+"Differs from Flow for N sprints" while the plan has MORE than Flow for some OPEN sprint, gray when it only has less, a gray "No capacity in the plan for N
+sprints", both when both - the badges count the OPEN rows (1.9: the document asks `teamId`, which the server takes as `all`, so the acknowledged rows arrive with
+their state; the team's own item brings `can.acknowledge`), a dimmed "· N acknowledged" follows them when any is acknowledged, and with only acknowledged rows left
+the fact reads the dimmed "No open difference · N acknowledged" (never "In line with Flow": the figures still differ) - and green TEXT "In line with Flow" (the AA-tested `--mantine-color-green-light-color`; never a badge) when the team has no row AND its
 connection is enabled and CURRENT (`staleFlowConnection` on the panel's binding) - a disabled, failed, stale or never-mirrored connection reads the neutral
 dimmed "No difference in the data read so far" instead; each badge carries a visually hidden "Warning:"/"Info:" prefix; a loading line while the answer is on
 its way, an inline `ErrorAlert` below the facts when a read failed (also a re-read: the last answer stays under the alert). A Flow team that left the document
 (the panel's `gone`, or a `TEAM_GONE` row) adds nothing: the panel's own orange badge says it. Under the facts the team's lines (`CapacityDeviationList`:
 warnings first, the first five, the rest behind a `TableDisclosure` "Show N more", the sprints without capacity folded into ONE line with their own table
-disclosure) and, for whoever `can.importCapacity` (and no proposal is open), the truthful remedy line "Import capacity… shows what an import would change.
+disclosure), EVERY line carrying its `CapacityAckCell` (`CapacityDetails` passes `ack`: the section's `useCapacityAcknowledge`, keyed by the team's id, whose focus
+fallback is the section's h3; an orphaned note shows above the lines; "Capacity from Flow" above has the cell's and the hook's mechanics, so the manager
+acknowledges where they plan) and, for whoever `can.importCapacity` (and no proposal is open), the truthful remedy line "Import capacity… shows what an import would change.
 Hand-entered periods are left as they are, and a sprint where Flow has 0 must be ticked by hand." (it never promises the plan will match: a hand-entered period
 and a ZERO_CAPACITY sprint are not touched by default) The apply of the import (`onImported`), a link or unlink (`refreshFlowLinks`), a saved/deleted capacity
-period (`TeamCapacity`) and a public-holiday write all invalidate `["flow","deviations"]`, because each moves what the comparison reads. Tests:
-`TeamFlowSection.test.tsx` ("capacity against Flow"), `utils/capacityDeviations.test.ts`, `hooks/useCapacityDeviations.test.tsx`.
+period (`TeamCapacity`) and a public-holiday write all invalidate `["flow","deviations"]`, because each moves what the comparison reads; an acknowledge or its
+withdrawal re-reads `["flow","deviations"]` and `["plan"]` (`refreshCapacityAcknowledgements`). A gone Flow team (`TEAM_GONE`, or the panel's `gone`) has no
+sprint lines, no fact row and no import remedy, but its OWN row is listed (`CapacityDetails`) with its cell ("the team's own row", `sprintId` null, the DELETE
+carries no parameter): the open row counts in the header's flag, so the manager silences it where they plan. An acknowledged row's severity badge is dimmed gray
+(`SeverityBadge` `dimmed`; a stale acknowledgement keeps its colour), as is a fully acknowledged folded missing line. Tests: `TeamFlowSection.test.tsx` ("capacity against Flow"), `TeamFlowSection.ack.test.tsx` (acknowledging a sprint from the team page),
+`utils/capacityDeviations.test.ts`, `hooks/useCapacityDeviations.test.tsx`, `hooks/useCapacityAcknowledge.test.tsx`.
 
 **`CapacityImportModal`** (`utils/capacityImport.ts` is its pure half): "Include closed sprints" (re-reads the plan), the preview table
 (`POST …/capacity-preview`, read once per opening: `gcTime: 0`, no refocus refetch, so ticks are never reset), a checkbox only on a CREATE / UPDATE row

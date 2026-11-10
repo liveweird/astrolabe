@@ -289,20 +289,32 @@ describe("TeamFlowSection", () => {
       expect(screen.getByText(/E2E Flow Sprint 7 \(/)).toBeInTheDocument();
     });
 
-    test("a team that left Flow adds no second badge and no list: the panel's own badge says it", async () => {
+    test("a team that left Flow adds no second badge and no fact row: the panel's own badge says it, and only the team's own row is listed", async () => {
       serve(mockFetch, { panel: linkedPanel({ binding: panelBinding({ gone: true }), roster: null, sprints: null }), capacity: capacityView({ items: [capacityItem({ deviations: [GONE_ROW] })] }) });
       renderSection();
       expect(await screen.findByText("No longer in Flow")).toBeInTheDocument();
       expect(screen.queryByText("Capacity vs Flow")).not.toBeInTheDocument();
-      expect(screen.queryByRole("list", { name: "Capacity differences from Flow" })).not.toBeInTheDocument();
+      const list = await screen.findByRole("list", { name: "Capacity differences from Flow" });
+      expect(within(list).getAllByRole("listitem")).toHaveLength(1);
+      expect(list).toHaveTextContent("The Flow team is no longer in Flow's document");
+      // No import remedy: there is no Flow team to import from.
+      expect(screen.queryByText(REMEDY)).not.toBeInTheDocument();
     });
 
-    test("a Flow team that left the document before the panel knows it still shows nothing here", async () => {
+    test("a Flow team that left the document before the panel knows it shows the same: no fact row, the team's own row", async () => {
       serve(mockFetch, { panel: linkedPanel(), capacity: capacityView({ items: [capacityItem({ deviations: [GONE_ROW] })] }) });
       renderSection();
       await screen.findByRole("table", { name: "Link to Flow" });
       await waitFor(() => expect(count(mockFetch, `GET ${CAPACITY_URL}`)).toBe(1));
       expect(screen.queryByText("Capacity vs Flow")).not.toBeInTheDocument();
+      expect(await screen.findByRole("list", { name: "Capacity differences from Flow" })).toHaveTextContent("no longer in Flow's document");
+    });
+
+    test("a panel that says gone lists nothing while the comparison has no TEAM_GONE row (sprint lines never show for a gone team)", async () => {
+      serve(mockFetch, { panel: linkedPanel({ binding: panelBinding({ gone: true }), roster: null, sprints: null }), capacity: capacityView({ items: [capacityItem({ deviations: [differsRow()] })] }) });
+      renderSection();
+      expect(await screen.findByText("No longer in Flow")).toBeInTheDocument();
+      await waitFor(() => expect(count(mockFetch, `GET ${CAPACITY_URL}`)).toBe(1));
       expect(screen.queryByRole("list", { name: "Capacity differences from Flow" })).not.toBeInTheDocument();
     });
 

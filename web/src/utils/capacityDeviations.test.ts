@@ -1,14 +1,17 @@
 import { describe, expect, test } from "vitest";
 import i18n from "../i18n";
 import type { CapacityDeviation } from "../api/capacityDeviations";
-import { CAPACITY_CONNECTION, GONE_ROW, differsRow, missingRow } from "../test/flow";
+import { CAPACITY_CONNECTION, GONE_ROW, acknowledgedRow, differsRow, missingRow, staleAcknowledgedRow } from "../test/flow";
 import {
+  capacityAckKey,
   capacityDeviationSentence,
   capacityEntries,
   capacityKindLabel,
   countCapacityDeviations,
+  entryRows,
   formatMd,
   hasStaleFlowSource,
+  isOpen,
   sprintLabel,
   staleFlowConnection,
   verifiedFlowAt,
@@ -120,12 +123,80 @@ describe("the sprint-count wording (plural forms of both languages)", () => {
   });
 });
 
+describe("the acknowledge's plural forms", () => {
+  test.each([
+    [1, "· 1 acknowledged", "· 1 potwierdzony"],
+    [2, "· 2 acknowledged", "· 2 potwierdzone"],
+    [5, "· 5 acknowledged", "· 5 potwierdzonych"],
+  ])("the dimmed tail after the badges for %i sprints (the missing line and the team page's fact)", (count, english, polish) => {
+    expect(en("deviations.capacity.ack.acknowledgedCount", { count })).toBe(english);
+    expect(pl("deviations.capacity.ack.acknowledgedCount", { count })).toBe(polish);
+    expect(en("flow.panel.capacity.acknowledged", { count })).toBe(english);
+    expect(pl("flow.panel.capacity.acknowledged", { count })).toBe(polish);
+  });
+
+  test.each([
+    [1, "No open difference · 1 acknowledged", "Brak otwartych różnic · 1 potwierdzony"],
+    [3, "No open difference · 3 acknowledged", "Brak otwartych różnic · 3 potwierdzone"],
+    [8, "No open difference · 8 acknowledged", "Brak otwartych różnic · 8 potwierdzonych"],
+  ])("the team page's fact with nothing open, %i acknowledged", (count, english, polish) => {
+    expect(en("flow.panel.capacity.noneOpen", { count })).toBe(english);
+    expect(pl("flow.panel.capacity.noneOpen", { count })).toBe(polish);
+  });
+
+  test.each([
+    [1, "1 acknowledged", "1 potwierdzony"],
+    [4, "4 acknowledged", "4 potwierdzone"],
+    [6, "6 acknowledged", "6 potwierdzonych"],
+  ])("the section's totals badge for %i rows", (count, english, polish) => {
+    expect(en("deviations.flowSection.totals.acknowledged", { count })).toBe(english);
+    expect(pl("deviations.flowSection.totals.acknowledged", { count })).toBe(polish);
+  });
+
+  test.each([
+    [1, "1 acknowledged sprint is hidden. Choose Acknowledged or All under Status to see it.", "1 potwierdzony sprint jest ukryty. Wybierz w polu Stan „Potwierdzone” lub „Wszystkie”, żeby go zobaczyć."],
+    [2, "2 acknowledged sprints are hidden. Choose Acknowledged or All under Status to see them.", "2 potwierdzone sprinty są ukryte. Wybierz w polu Stan „Potwierdzone” lub „Wszystkie”, żeby je zobaczyć."],
+    [5, "5 acknowledged sprints are hidden. Choose Acknowledged or All under Status to see them.", "5 potwierdzonych sprintów jest ukrytych. Wybierz w polu Stan „Potwierdzone” lub „Wszystkie”, żeby je zobaczyć."],
+  ])("the hint under an empty Open list for %i hidden sprints", (count, english, polish) => {
+    expect(en("deviations.flowSection.empty.noOpenHint", { count })).toBe(english);
+    expect(pl("deviations.flowSection.empty.noOpenHint", { count })).toBe(polish);
+  });
+
+  test.each([
+    [1, "1 sprint without capacity in the plan, acknowledged", "1 sprint bez przepustowości w planie, potwierdzony"],
+    [3, "3 sprints without capacity in the plan, all acknowledged", "3 sprinty bez przepustowości w planie, wszystkie potwierdzone"],
+    [9, "9 sprints without capacity in the plan, all acknowledged", "9 sprintów bez przepustowości w planie, wszystkie potwierdzone"],
+  ])("the folded line when every one of its %i sprints is acknowledged", (count, english, polish) => {
+    expect(en("deviations.capacity.ack.missingSummaryAcknowledged", { count })).toBe(english);
+    expect(pl("deviations.capacity.ack.missingSummaryAcknowledged", { count })).toBe(polish);
+  });
+});
+
+describe("isOpen and capacityAckKey", () => {
+  test("a row is open unless its acknowledgement is current: a stale one (the figures changed since) is open again", () => {
+    expect(isOpen(differsRow())).toBe(true);
+    expect(isOpen(acknowledgedRow(differsRow()))).toBe(false);
+    expect(isOpen(staleAcknowledgedRow(differsRow()))).toBe(true);
+  });
+
+  test("a row's key is its binding and Flow's sprint id; the gone team's own row is `team`", () => {
+    expect(capacityAckKey(5, 90002)).toBe("5:90002");
+    expect(capacityAckKey(5, null)).toBe("5:team");
+  });
+});
+
 describe("countCapacityDeviations", () => {
-  test("counts the sprints that differ (and the ones the plan has more for), the ones without capacity, and the gone flag", () => {
+  test("counts the OPEN sprints that differ (and the ones the plan has more for), the open ones without capacity, the acknowledged rows, and the gone flag", () => {
     const rows = [differsRow(), differsRow({ planMd: 20 }), missingRow(90003, "2047-02-04", "2047-02-15"), missingRow(90004, "2047-02-18", "2047-03-01")];
-    expect(countCapacityDeviations(rows)).toEqual({ differs: 2, warnings: 1, missing: 2, gone: false });
-    expect(countCapacityDeviations([GONE_ROW])).toEqual({ differs: 0, warnings: 0, missing: 0, gone: true });
-    expect(countCapacityDeviations([])).toEqual({ differs: 0, warnings: 0, missing: 0, gone: false });
+    expect(countCapacityDeviations(rows)).toEqual({ differs: 2, warnings: 1, missing: 2, acknowledged: 0, gone: false });
+    expect(countCapacityDeviations([GONE_ROW])).toEqual({ differs: 0, warnings: 0, missing: 0, acknowledged: 0, gone: true });
+    expect(countCapacityDeviations([])).toEqual({ differs: 0, warnings: 0, missing: 0, acknowledged: 0, gone: false });
+  });
+
+  test("an acknowledged row is counted as acknowledged and no longer as open; a stale acknowledgement is open again", () => {
+    const rows = [acknowledgedRow(differsRow()), staleAcknowledgedRow(differsRow({ sprintId: 90003, planMd: 20 })), acknowledgedRow(missingRow(90004, "2047-02-18", "2047-03-01"))];
+    expect(countCapacityDeviations(rows)).toEqual({ differs: 1, warnings: 0, missing: 0, acknowledged: 2, gone: false });
+    expect(countCapacityDeviations([acknowledgedRow(GONE_ROW)])).toEqual({ differs: 0, warnings: 0, missing: 0, acknowledged: 1, gone: true });
   });
 });
 
@@ -145,6 +216,23 @@ describe("capacityEntries", () => {
   test("the day a folded sprint holds is its effective start, falling back to its start; none known is null", () => {
     expect(capacityEntries([missingRow(1, "2047-03-04", "2047-03-15", { effectiveFrom: "2047-03-05" }), missingRow(2, "2047-03-18", "2047-03-29")])[0]).toMatchObject({ from: "2047-03-05" });
     expect(capacityEntries([missingRow(1, "2047-03-04", "2047-03-15", { effectiveFrom: null, start: null })])[0]).toMatchObject({ from: null });
+  });
+
+  test("acknowledged rows stay in their entries; the folded line names the first day of the OPEN sprints, and every sprint when none is open", () => {
+    const first = acknowledgedRow(missingRow(90002, "2047-01-21", "2047-02-01"));
+    const second = missingRow(90003, "2047-02-04", "2047-02-15");
+    expect(capacityEntries([first, second])[0]).toMatchObject({ type: "missing", rows: [first, second], from: "2047-02-04" });
+    const third = acknowledgedRow(second);
+    expect(capacityEntries([first, third])[0]).toMatchObject({ type: "missing", from: "2047-01-21" });
+    const kept = acknowledgedRow(differsRow());
+    expect(capacityEntries([kept])).toEqual([{ type: "row", key: "CAPACITY_DIFFERS:90002", deviation: kept }]);
+  });
+
+  test("an entry stands for its row, or for every sprint of a folded line (the focus rule's neighbours)", () => {
+    const [one, folded] = [differsRow(), missingRow(90003, "2047-02-04", "2047-02-15")];
+    const entries = capacityEntries([one, folded, missingRow(90004, "2047-02-18", "2047-03-01")]);
+    expect(entryRows(entries[0])).toEqual([one]);
+    expect(entryRows(entries[1]).map((row) => row.detail.sprintId)).toEqual([90003, 90004]);
   });
 
   test("a team gone is the one warning row; nothing is nothing", () => {

@@ -314,16 +314,31 @@
     "column": {
       "sprint": "Sprint",
       "dates": "Daty",
-      "flow": "Flow (osobodni)"
+      "flow": "Flow (osobodni)",
+      "acknowledgement": "Potwierdzenie"
     },
     "moreShow": "Pokaż pozostałe: {{n}}",
-    "moreHide": "Ukryj pozostałe: {{n}}"
+    "moreHide": "Ukryj pozostałe: {{n}}",
+    "ack": {
+      "acknowledgeAria": "Potwierdź {{sprint}}",
+      "unacknowledgeAria": "Cofnij potwierdzenie {{sprint}}",
+      "teamRow": "wiersz samego zespołu",
+      "forbidden": "Różnice przepustowości może potwierdzić tylko kierownik/czka zespołu albo administrator/ka.",
+      "acknowledgedCount_one": "· {{count}} potwierdzony",
+      "acknowledgedCount_few": "· {{count}} potwierdzone",
+      "acknowledgedCount_many": "· {{count}} potwierdzonych",
+      "acknowledgedCount_other": "· {{count}} potwierdzonego",
+      "missingSummaryAcknowledged_one": "{{count}} sprint bez przepustowości w planie, potwierdzony",
+      "missingSummaryAcknowledged_few": "{{count}} sprinty bez przepustowości w planie, wszystkie potwierdzone",
+      "missingSummaryAcknowledged_many": "{{count}} sprintów bez przepustowości w planie, wszystkie potwierdzone",
+      "missingSummaryAcknowledged_other": "{{count}} sprintu bez przepustowości w planie, wszystkie potwierdzone"
+    }
   },
   "flowSection": {
     "title": "Przepustowość z Flow",
     "intro": "Gdzie przepustowość powiązanego zespołu w planie różni się od tego, co podaje Flow dla jego bieżących i przyszłych sprintów. Astrolabe tylko czyta z Flow: nic się tam nie zapisuje. Przycisk Importuj przepustowość… na stronie zespołu pokazuje, co zmieniłby import; okresy wpisane ręcznie zostają bez zmian.",
     "loadFailed": "Nie udało się wczytać porównania przepustowości z Flow",
-    "filtersNote": "Filtry Stan, rodzaj elementu planu, strumień pracy, projekt, rodzaj odchylenia i połączenie nie dotyczą tej sekcji; stosują się do niej tylko filtry zespołu i ważności.",
+    "filtersNote": "Filtry rodzaju elementu planu, strumienia pracy, projektu, rodzaju odchylenia i połączenia nie dotyczą tej sekcji; stosują się do niej filtry Stan, zespołu i ważności.",
     "staleBanner": "Co najmniej jedno połączenie z Flow nie ma za sobą aktualnego odświeżenia, więc lista poniżej może być nieaktualna. Zobacz sekcję Dane z Flow.",
     "sources": {
       "title": "Dane z Flow",
@@ -344,6 +359,10 @@
       "gone_few": "w tym {{count}} zespoły zniknęły z Flow",
       "gone_many": "w tym {{count}} zespołów zniknęło z Flow",
       "gone_other": "w tym {{count}} zespołu zniknęło z Flow",
+      "acknowledged_one": "{{count}} potwierdzony",
+      "acknowledged_few": "{{count}} potwierdzone",
+      "acknowledged_many": "{{count}} potwierdzonych",
+      "acknowledged_other": "{{count}} potwierdzonego",
       "shown_one": "Pokazano {{count}} zespół",
       "shown_few": "Pokazano {{count}} zespoły",
       "shown_many": "Pokazano {{count}} zespołów",
@@ -370,6 +389,11 @@
       "inLineSoFar": "Plan jest zgodny z Flow w dotychczas odczytanych danych.",
       "inLineSoFarHint": "Nie każde połączenie ma za sobą aktualne odświeżenie, więc to może się zmienić.",
       "noMatch": "Żadna różnica przepustowości nie pasuje do filtrów.",
+      "noOpen": "Brak otwartych różnic przepustowości.",
+      "noOpenHint_one": "{{count}} potwierdzony sprint jest ukryty. Wybierz w polu Stan „Potwierdzone” lub „Wszystkie”, żeby go zobaczyć.",
+      "noOpenHint_few": "{{count}} potwierdzone sprinty są ukryte. Wybierz w polu Stan „Potwierdzone” lub „Wszystkie”, żeby je zobaczyć.",
+      "noOpenHint_many": "{{count}} potwierdzonych sprintów jest ukrytych. Wybierz w polu Stan „Potwierdzone” lub „Wszystkie”, żeby je zobaczyć.",
+      "noOpenHint_other": "{{count}} potwierdzonego sprintu jest ukryte. Wybierz w polu Stan „Potwierdzone” lub „Wszystkie”, żeby je zobaczyć.",
       "countFailed": "Nie udało się sprawdzić, czy jakiś zespół jest powiązany z Flow"
     }
   }

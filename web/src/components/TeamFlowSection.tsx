@@ -5,6 +5,7 @@ import { IconDownload, IconLink, IconLinkOff } from "@tabler/icons-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { deleteFlowTeamBinding, getTeamFlow, type FlowPanelBinding, type FlowTeamPanel } from "../api/flow";
 import { staleFlowConnection } from "../utils/capacityDeviations";
+import { useCapacityAcknowledge, type CapacityAcknowledge } from "../hooks/useCapacityAcknowledge";
 import { useCapacityDeviations } from "../hooks/useCapacityDeviations";
 import { useDeleteConfirm } from "../hooks/useDeleteConfirm";
 import { useDialogFocus } from "../hooks/useDialogFocus";
@@ -49,6 +50,7 @@ function FlowLinked({
   data,
   binding,
   comparison,
+  ack,
   now,
   importBlocked,
   onImport,
@@ -57,6 +59,7 @@ function FlowLinked({
   data: FlowTeamPanel;
   binding: FlowPanelBinding;
   comparison: CapacityComparison;
+  ack: CapacityAcknowledge;
   now: number;
   importBlocked: boolean;
   onImport: () => void;
@@ -86,7 +89,7 @@ function FlowLinked({
           {!binding.gone && <CapacityFact comparison={comparison} />}
         </Table.Tbody>
       </Table>
-      {!binding.gone && <CapacityDetails comparison={comparison} canImport={can.importCapacity === true && !importBlocked} />}
+      <CapacityDetails comparison={comparison} canImport={can.importCapacity === true && !importBlocked} ack={ack} panelGone={binding.gone} />
       {binding.gone && (
         <Text size="sm" role="note">
           {t("flow.panel.goneNote")}
@@ -126,7 +129,8 @@ function FlowLinked({
  * The team page's **Flow** section (`GET /teams/{id}/flow` under `["flow","team",id]`, its own read - not a member of the team view): not linked
  * ("Link to Flow team…"), or linked - the Flow team, its connection with the sync status, when the mirror last saw it (an orange "No longer in
  * Flow" when it left the document, a note while the connection is disabled), **Import capacity…**, **Unlink** (an in-page confirm) and the
- * observed roster, and its **Capacity vs Flow** row and lines (`TeamFlowCapacity`, from the Deviations document asked for this team). What each control offers is the panel's `can`, never the session's roles. `importBlocked` (a schedule proposal is open) keeps
+ * observed roster, and its **Capacity vs Flow** row and lines (`TeamFlowCapacity`, from the Deviations document asked for this team), where the team's
+ * manager or an ADMIN acknowledges one sprint at a time (the item's `can.acknowledge`; `useCapacityAcknowledge`). What each control offers is the panel's `can`, never the session's roles. `importBlocked` (a schedule proposal is open) keeps
  * the capacity import closed: a capacity change would void the proposal's premise. Nothing here calls Flow.
  */
 export default function TeamFlowSection({ teamId, importBlocked = false }: { teamId: number; importBlocked?: boolean }) {
@@ -150,8 +154,12 @@ export default function TeamFlowSection({ teamId, importBlocked = false }: { tea
   // The plan's capacity against Flow's, for this team alone (the Deviations page's document); only a linked team has anything to compare.
   const linked = panel.data?.binding ?? null;
   const deviations = useCapacityDeviations({ teamId }, { enabled: linked !== null, idleRefresh: true });
+  // `teamId` implies `all` on the server, so the team's acknowledged rows arrive too, each with its state; the team's item carries `can.acknowledge`.
+  const item = deviations.data?.items.find((candidate) => candidate.team.id === teamId);
+  const ack = useCapacityAcknowledge(headingRef, String(teamId));
   const comparison: CapacityComparison = {
-    rows: deviations.data === undefined ? undefined : (deviations.data.items.find((item) => item.team.id === teamId)?.deviations ?? []),
+    rows: deviations.data === undefined ? undefined : (item?.deviations ?? []),
+    item,
     failed: deviations.isError,
     error: deviations.error,
     // Agreement is only claimed for a connection that is enabled and CURRENT; a team whose Flow was never mirrored has neither.
@@ -184,6 +192,7 @@ export default function TeamFlowSection({ teamId, importBlocked = false }: { tea
           data={data}
           binding={binding}
           comparison={comparison}
+          ack={ack}
           now={now}
           importBlocked={importBlocked}
           onImport={() => setImporting(true)}

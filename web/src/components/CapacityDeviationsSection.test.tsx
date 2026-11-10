@@ -238,12 +238,25 @@ describe("CapacityDeviationsSection", () => {
   });
 
   describe("the filters", () => {
-    test("it asks for the page's team and severity only; the Jira list's other filters are named as not applying", async () => {
+    test("it asks for the page's team, severity and Status only; the Jira list's other filters are named as not applying", async () => {
       doc = capacityView({ items: [] });
-      renderSection({ teamId: 3, severity: "WARNING", projectId: 7, level: "MILESTONE", acknowledged: true });
+      renderSection({ teamId: 3, severity: "WARNING", projectId: 7, level: "MILESTONE" });
       await screen.findByText("No capacity difference matches the filters.");
       expect(viewCalls()).toEqual([`${VIEW_URL}?teamId=3&severity=WARNING`]);
-      expect(screen.getByText(/filters do not apply to this section; the team and severity filters do/)).toBeInTheDocument();
+      expect(screen.getByText(/filters do not apply to this section; the Status, team and severity filters do/)).toBeInTheDocument();
+    });
+
+    test("the page's ONE Status select is sent as the view's `acknowledged` and `all` (`all=false` too: the Open choice under a team scope)", async () => {
+      doc = capacityView({ items: [] });
+      const view = renderSection({ acknowledged: true });
+      await screen.findByText("No capacity difference matches the filters.");
+      expect(viewCalls()).toEqual([`${VIEW_URL}?acknowledged=true`]);
+      view.rerender(<CapacityDeviationsSection filter={{ all: true }} admin={false} />);
+      await waitFor(() => expect(viewCalls()).toContain(`${VIEW_URL}?all=true`));
+      view.rerender(<CapacityDeviationsSection filter={{ teamId: 3, all: false }} admin={false} />);
+      await waitFor(() => expect(viewCalls()).toContain(`${VIEW_URL}?teamId=3&all=false`));
+      // The Status is the section's own, so it is no "ignored filter".
+      expect(screen.queryByText(/filters do not apply/)).not.toBeInTheDocument();
     });
 
     test("with only the shared filters, or none, the note is absent", async () => {

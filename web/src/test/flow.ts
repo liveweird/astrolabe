@@ -226,6 +226,19 @@ export function missingRow(sprintId: number, start: string, end: string, over: P
   return { kind: "CAPACITY_MISSING", severity: "INFO", detail: { ...NO_DETAIL, sprintId, sprintName: `E2E Flow Sprint ${sprintId - 90000}`, start, end, effectiveFrom: start, workingDays: 10, flowMd: 40, flowTotalMd: 40, ...over }, fingerprint: fingerprintOf(sprintId), acknowledgement: null };
 }
 
+/** When the fixtures' acknowledgements were made: 2026-11-08 10:00 UTC. */
+const ACK_AT = Date.UTC(2026, 10, 8, 10, 0);
+
+/** The row as a manager has acknowledged it ("known, leave it") and its figures have not changed since: `current` is true, so the row is not open. */
+export function acknowledgedRow(row: CapacityDeviation, by: string | null = "Ada Manager"): CapacityDeviation {
+  return { ...row, acknowledgement: { at: ACK_AT, by, current: true } };
+}
+
+/** The row as acknowledged and then CHANGED (`current: false`): the server lists it as open again, with "changed since". */
+export function staleAcknowledgedRow(row: CapacityDeviation, by: string | null = "Ada Manager"): CapacityDeviation {
+  return { ...row, acknowledgement: { at: ACK_AT, by, current: false } };
+}
+
 export const GONE_ROW: CapacityDeviation = { kind: "TEAM_GONE", severity: "WARNING", detail: NO_DETAIL, fingerprint: fingerprintOf(0), acknowledgement: null };
 
 /** Payments, linked to "Payments Flow" on connection 1, with one WARNING sprint unless told otherwise. */
@@ -237,10 +250,11 @@ export function capacityItem(over: Partial<CapacityDeviationItem> = {}): Capacit
 export function capacityView(over: Partial<CapacityDeviationView> = {}): CapacityDeviationView {
   const items = over.items ?? [capacityItem()];
   const rows = items.flatMap((item) => item.deviations);
+  const open = rows.filter((row) => row.acknowledgement?.current !== true);
   return {
     asOf: "2026-11-08",
     connections: [CAPACITY_CONNECTION],
-    totals: { warnings: rows.filter((row) => row.severity === "WARNING").length, infos: rows.filter((row) => row.severity === "INFO").length, gone: rows.filter((row) => row.kind === "TEAM_GONE").length, acknowledged: 0, teams: items.length },
+    totals: { warnings: open.filter((row) => row.severity === "WARNING").length, infos: open.filter((row) => row.severity === "INFO").length, gone: open.filter((row) => row.kind === "TEAM_GONE").length, acknowledged: rows.length - open.length, teams: items.length },
     items,
     truncated: false,
     ...over,

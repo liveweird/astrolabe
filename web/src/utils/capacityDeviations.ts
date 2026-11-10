@@ -56,20 +56,31 @@ export function capacityDeviationSentence(deviation: CapacityDeviation, t: TFunc
   }
 }
 
-/** What a team's rows come to: the sprints that differ (and how many of them the plan has MORE for), the sprints without capacity, and whether the Flow team is gone. */
-export function countCapacityDeviations(deviations: readonly CapacityDeviation[]): { differs: number; warnings: number; missing: number; gone: boolean } {
+/** Whether the row is OPEN: not currently acknowledged (a stale acknowledgement - the figures changed since - is open again). */
+export const isOpen = (deviation: CapacityDeviation): boolean => deviation.acknowledgement?.current !== true;
+
+/** The key one row is addressed by, in the focus rule's `data-ack-for` and the hook's notice: the binding and Flow's sprint id (`team` for the `TEAM_GONE` row). */
+export const capacityAckKey = (bindingId: number, sprintId: number | null): string => `${bindingId}:${sprintId ?? "team"}`;
+
+/**
+ * What a team's rows come to: the OPEN sprints that differ (and how many of them the plan has MORE for), the OPEN sprints without capacity, the rows
+ * acknowledged and still current, and whether the Flow team is gone (told by the panel whether or not its row is acknowledged).
+ */
+export function countCapacityDeviations(deviations: readonly CapacityDeviation[]): { differs: number; warnings: number; missing: number; acknowledged: number; gone: boolean } {
   let differsCount = 0;
   let warnings = 0;
   let missingCount = 0;
+  let acknowledged = 0;
   let gone = false;
   for (const deviation of deviations) {
-    if (deviation.kind === "CAPACITY_DIFFERS") {
+    if (deviation.kind === "TEAM_GONE") gone = true;
+    if (!isOpen(deviation)) acknowledged += 1;
+    else if (deviation.kind === "CAPACITY_DIFFERS") {
       differsCount += 1;
       if (deviation.severity === "WARNING") warnings += 1;
     } else if (deviation.kind === "CAPACITY_MISSING") missingCount += 1;
-    else gone = true;
   }
-  return { differs: differsCount, warnings, missing: missingCount, gone };
+  return { differs: differsCount, warnings, missing: missingCount, acknowledged, gone };
 }
 
 /** One line of a team's list: a sentence of its own, or the sprints without capacity folded into one ("6 sprints without capacity in the plan, from 2047-01-07"). */
@@ -80,7 +91,8 @@ export type CapacityEntry =
 /**
  * A team's rows as the lines the UI lists: the Flow team gone, then the sprints whose figures differ (the server's order, by date), the sprints
  * without capacity folded into ONE entry at the place of the first of them, and the warnings before the infos (a stable sort, so the part of the list a
- * limit cuts off is the quiet one). `from` is the first day any of the folded sprints holds.
+ * limit cuts off is the quiet one). Acknowledged rows stay in their entries (the state is on the row). `from` is the first day any of the folded OPEN
+ * sprints holds (any of them when none is open): the date the summary line names.
  */
 export function capacityEntries(deviations: readonly CapacityDeviation[]): CapacityEntry[] {
   const entries: CapacityEntry[] = [];
@@ -91,12 +103,18 @@ export function capacityEntries(deviations: readonly CapacityDeviation[]): Capac
       entries.push({ type: "row", key: `${deviation.kind}:${deviation.detail.sprintId ?? "team"}`, deviation });
     } else if (!folded) {
       folded = true;
-      const days = missingRows.map((row) => row.detail.effectiveFrom ?? row.detail.start).filter((day): day is string => day !== null);
+      const open = missingRows.filter(isOpen);
+      const days = (open.length > 0 ? open : missingRows).map((row) => row.detail.effectiveFrom ?? row.detail.start).filter((day): day is string => day !== null);
       entries.push({ type: "missing", key: "missing", rows: missingRows, from: days.length === 0 ? null : days.reduce((a, b) => (a <= b ? a : b)) });
     }
   }
   const rank = (entry: CapacityEntry) => (entry.type === "row" && entry.deviation.severity === "WARNING" ? 0 : 1);
   return entries.sort((a, b) => rank(a) - rank(b));
+}
+
+/** The rows an entry stands for, in display order (a folded entry's every sprint): the neighbours the focus rule falls back on after a write. */
+export function entryRows(entry: CapacityEntry): readonly CapacityDeviation[] {
+  return entry.type === "row" ? [entry.deviation] : entry.rows;
 }
 
 /**

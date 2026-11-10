@@ -95,8 +95,8 @@
     "jiraDeviationBare": "Differs from Jira",
     "jiraMilestones_one": "{{count}} milestone deviates from Jira",
     "jiraMilestones_other": "{{count}} milestones deviate from Jira",
-    "flowCapacity_one": "Capacity differs from Flow in {{count}} sprint",
-    "flowCapacity_other": "Capacity differs from Flow in {{count}} sprints",
+    "flowCapacity_one": "Capacity differs from Flow: {{count}} open difference",
+    "flowCapacity_other": "Capacity differs from Flow: {{count}} open differences",
     "show": "Show in timeline",
     "showAria": "Show in timeline: {{name}}"
   },

@@ -189,7 +189,15 @@
       "loadFailed": "Nie udało się porównać przepustowości z Flow",
       "listAria": "Różnice przepustowości względem Flow",
       "fix": "Przycisk Importuj przepustowość… pokazuje, co zmieniłby import. Okresy wpisane ręcznie zostają bez zmian, a sprint, w którym Flow podaje 0, trzeba zaznaczyć ręcznie.",
-      "noneSoFar": "Brak różnic w dotychczas odczytanych danych"
+      "noneSoFar": "Brak różnic w dotychczas odczytanych danych",
+      "acknowledged_one": "· {{count}} potwierdzony",
+      "acknowledged_few": "· {{count}} potwierdzone",
+      "acknowledged_many": "· {{count}} potwierdzonych",
+      "acknowledged_other": "· {{count}} potwierdzonego",
+      "noneOpen_one": "Brak otwartych różnic · {{count}} potwierdzony",
+      "noneOpen_few": "Brak otwartych różnic · {{count}} potwierdzone",
+      "noneOpen_many": "Brak otwartych różnic · {{count}} potwierdzonych",
+      "noneOpen_other": "Brak otwartych różnic · {{count}} potwierdzonego"
     }
   },
   "link": {

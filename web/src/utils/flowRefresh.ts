@@ -10,3 +10,12 @@ import { refreshQueriesAfterMutation } from "./queryRefresh";
 export function refreshFlowLinks(queryClient: QueryClient): Promise<void> {
   return refreshQueriesAfterMutation(queryClient, ["flow", "teams"], ["flow", "team"], ["flow", "deviations"]);
 }
+
+/**
+ * After a per-sprint capacity acknowledge or its withdrawal: the capacity deviations (`["flow","deviations"]`: the Deviations page's section and the
+ * team page's lines) and the plan's views (`["plan"]`: the team view's flag and week markers follow the open rows). A link carries no plan state, but
+ * an acknowledgement does reach the team view.
+ */
+export function refreshCapacityAcknowledgements(queryClient: QueryClient): Promise<void> {
+  return refreshQueriesAfterMutation(queryClient, ["flow", "deviations"], ["plan"]);
+}
