@@ -67,7 +67,7 @@ function renderDialog(props: Partial<React.ComponentProps<typeof JiraBindDialog>
   const onBound = vi.fn(() => Promise.resolve());
   const onClose = vi.fn();
   const result = renderWithProviders(<JiraBindDialog source={{ connections, failed, retry }} onBound={onBound} onClose={onClose} {...props} />);
-  return { onBound, onClose, unmount: result.unmount };
+  return { onBound, onClose, unmount: result.unmount, rerender: result.rerender };
 }
 
 describe("JiraBindDialog - a plan owner who is no administrator", () => {
@@ -110,6 +110,26 @@ describe("JiraBindDialog - a plan owner who is no administrator", () => {
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText("Choose a connection to link through.")).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "Link" })).toBeDisabled();
+  });
+
+  test("a chosen connection that leaves the list is forgotten: the only one left is picked again, several wait for a new pick", async () => {
+    const user = userEvent.setup();
+    const other = { ...DEV_CONNECTION, id: 2, name: "Other Jira" };
+    const third = { ...DEV_CONNECTION, id: 3, name: "Third Jira" };
+    connections = [DEV_CONNECTION, other, third];
+    const view = renderDialog({ target: { level: "PROJECT", id: 7, name: "Invoices" } });
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("combobox", { name: "Jira connection" }));
+    await user.click(await screen.findByRole("option", { name: "Other Jira" }));
+    expect(within(dialog).getByRole("combobox", { name: "Jira connection" })).toHaveValue("Other Jira");
+    const rerenderWith = (list: typeof connections) =>
+      view.rerender(<JiraBindDialog source={{ connections: list, failed, retry }} target={{ level: "PROJECT", id: 7, name: "Invoices" }} onBound={view.onBound} onClose={view.onClose} />);
+    rerenderWith([DEV_CONNECTION, third]);
+    expect(within(dialog).getByRole("combobox", { name: "Jira connection" })).toHaveValue("");
+    expect(within(dialog).getByText("Choose a connection to link through.")).toBeInTheDocument();
+    rerenderWith([DEV_CONNECTION]);
+    expect(within(dialog).getByRole("combobox", { name: "Jira connection" })).toHaveValue("Acme Jira");
+    expect(within(dialog).queryByText("Choose a connection to link through.")).not.toBeInTheDocument();
   });
 
   test("a connection list that is not known yet says loading; one that failed says so and retries", async () => {

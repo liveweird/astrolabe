@@ -5,6 +5,7 @@ import Plan from "./Plan";
 import type { PlanProgram, PlanProject, PlanView, PlanWorkStream } from "../api/plan";
 import { QueryClient } from "@tanstack/react-query";
 import { headingOutline } from "../test/headings";
+import { DEV_CONNECTION, view as deviationsOf } from "../test/deviations";
 import { jsonResponse } from "../test/http";
 import { renderWithProviders } from "../test/render";
 
@@ -79,6 +80,7 @@ const PEOPLE = {
 };
 
 let view: PlanView;
+let connections = [DEV_CONNECTION];
 
 function serve(mockFetch: FetchMock, mutations: Record<string, { status: number; body?: unknown }> = {}) {
   mockFetch.mockImplementation((url: string, init?: RequestInit) => {
@@ -86,6 +88,7 @@ function serve(mockFetch: FetchMock, mutations: Record<string, { status: number;
     const m = mutations[`${method} ${url}`];
     if (m) return Promise.resolve(m.body === undefined ? new Response(null, { status: m.status }) : jsonResponse(m.status, m.body));
     if (method === "GET" && url === "/api/v1/views/plan") return Promise.resolve(jsonResponse(200, view));
+    if (method === "GET" && url.startsWith("/api/v1/views/deviations")) return Promise.resolve(jsonResponse(200, deviationsOf({ connections, items: [] })));
     if (method === "GET" && url.startsWith("/api/v1/people?")) return Promise.resolve(jsonResponse(200, PEOPLE));
     return Promise.resolve(jsonResponse(404, { title: "x", status: 404 }));
   });
@@ -521,6 +524,68 @@ describe("Plan page and the roadmap", () => {
     await openMenu(user, "Invoices", "Delete Invoices");
     await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: /^delete$/i }));
     await waitFor(() => expect(queryClient.getQueryState(["roadmap", "view"])?.isInvalidated).toBe(true));
+  });
+});
+
+describe("Plan page: Import from Jira", () => {
+  const deviationCalls = (mockFetch: FetchMock) => mockFetch.mock.calls.map(([u]) => String(u)).filter((u) => u.startsWith("/api/v1/views/deviations"));
+  let mockFetch: FetchMock;
+
+  beforeEach(() => {
+    view = VIEW;
+    connections = [DEV_CONNECTION];
+    mockFetch = vi.fn();
+    vi.stubGlobal("fetch", mockFetch);
+    localStorage.setItem("astrolabe.auth.token", "fake-token");
+    serve(mockFetch);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    localStorage.clear();
+  });
+
+  test("the entry is in the stream's menu under can.edit only, and the connections are asked for only after the click", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Plan />);
+    await screen.findByRole("heading", { level: 3, name: "Platform" });
+    expect(deviationCalls(mockFetch)).toEqual([]);
+    await user.click(screen.getByRole("button", { name: "Operations for Platform" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Import from Jira into Platform" }));
+    expect(await screen.findByRole("heading", { level: 2, name: "Import from Jira" })).toBeInTheDocument();
+    expect(deviationCalls(mockFetch)).toEqual(["/api/v1/views/deviations?workStreamId=1"]);
+  });
+
+  test("the dialog opens with the stream preset and read-only and the one usable connection preselected", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Plan />);
+    await openMenu(user, "Platform", "Import from Jira into Platform");
+    const dialog = await screen.findByRole("dialog");
+    const stream = await within(dialog).findByRole("combobox", { name: /^Work stream/ });
+    await waitFor(() => expect(stream).toHaveValue("Platform"));
+    expect(stream).toHaveAttribute("readonly");
+    const connection = await within(dialog).findByRole("combobox", { name: /^Jira connection/ });
+    expect(connection).toHaveValue("Acme Jira");
+  });
+
+  test("a disabled connection, or one whose mapping does not fit, is not offered: the note says who can fix it", async () => {
+    connections = [
+      { ...DEV_CONNECTION, id: 2, name: "Off", enabled: false },
+      { ...DEV_CONNECTION, id: 3, name: "Unmapped", mappingOk: false },
+    ];
+    const user = userEvent.setup();
+    renderWithProviders(<Plan />);
+    await openMenu(user, "Platform", "Import from Jira into Platform");
+    expect(await screen.findByText("No Jira connection can import right now: an administrator has to add, enable and test one.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Preview" })).toBeDisabled();
+  });
+
+  test("a stream without can.edit has no menu and so no entry", async () => {
+    view = { revision: 1, can: { createWorkStream: false }, workStreams: [stream({ id: 1, name: "Platform", can: { edit: false, delete: false, createProgram: false } })] };
+    renderWithProviders(<Plan />);
+    await screen.findByRole("heading", { level: 3, name: "Platform" });
+    expect(screen.queryByRole("button", { name: "Operations for Platform" })).not.toBeInTheDocument();
+    expect(deviationCalls(mockFetch)).toEqual([]);
   });
 });
 

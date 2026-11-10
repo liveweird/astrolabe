@@ -91,7 +91,25 @@ export type ScopeForm = {
   copyDates: boolean;
 };
 
-export const emptyScope = (allKeys: readonly string[]): ScopeForm => ({ workStreamId: null, owner: null, team: null, programId: null, projectId: null, keys: [...allKeys], copyDates: true });
+/** `workStreamId` presets the stream (the Plan page's work-stream menu: the stream is the intent, so the scope step shows it read-only). */
+export const emptyScope = (allKeys: readonly string[], workStreamId?: number): ScopeForm => ({
+  workStreamId: workStreamId === undefined ? null : String(workStreamId),
+  owner: null,
+  team: null,
+  programId: null,
+  projectId: null,
+  keys: [...allKeys],
+  copyDates: true,
+});
+
+/**
+ * What the import modal needs of a connection: the connection page's `JiraConnection` is structurally one, and so is a deviations view's
+ * `connections[]` row (every signed-in user may read it, unlike the ADMIN-only registry).
+ */
+export type ImportConnection = { id: number; name: string; siteUrl: string; projectKeys: readonly string[] };
+
+/** Where the import modal's connections come from (the bind dialog's `BindSource` contract): null = not known (yet, or the query failed). Only usable connections are listed. */
+export type ImportSource = { connections: readonly ImportConnection[] | null; failed: boolean; retry: () => void };
 
 /** The request scope; null while the work stream, the owner or the keys are missing. All keys ticked = no `projectKeys` (the server's default: every key of the connection). */
 export function toScope(form: ScopeForm, allKeys: readonly string[]): JiraImportScope | null {
@@ -144,3 +162,7 @@ export function toApplyRequest(scope: JiraImportScope, items: readonly JiraImpor
       }),
   };
 }
+
+/** The connections the Plan page offers the import: enabled, with a mapping that fits the site (otherwise the server answers 409 `jira-mapping-invalid`). */
+export const usableImportConnections = (connections: readonly (ImportConnection & { enabled: boolean; mappingOk: boolean })[]): ImportConnection[] =>
+  connections.filter((connection) => connection.enabled && connection.mappingOk);

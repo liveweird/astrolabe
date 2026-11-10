@@ -26,7 +26,7 @@ class DeviationViewRoute
  * `GET /views/deviations`: any authenticated user (the plan, the bindings' node names and the issue data of a binding are already
  * readable by every login; the `connections` block lists every active connection with its NAME - the id and the site of a BOUND one
  * were already in `GET /bindings`, a binding-less one is new - so a non-admin owner's bind dialog can pick one; never the email,
- * token, keys or mapping). A read: no
+ * token or mapping; since 1.10 the project keys, `authorization.md`). A read: no
  * audit event, no lock, no revision (the caller's person is resolved once, for each item's `can.acknowledge`). A repeated or malformed
  * filter, an unknown enum value or a non-strict boolean is a `400`
  * (`list-endpoints.md`); unknown parameter NAMES are ignored.

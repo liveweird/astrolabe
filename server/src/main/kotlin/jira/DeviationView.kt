@@ -34,10 +34,10 @@ data class DeviationView(
 /**
  * An active connection. A bind goes through an ENABLED one only; a disabled one is listed because its bindings are (they still block
  * their node and issue, so they must stay seen and unlinkable). The id and site of a bound connection were already visible through
- * `GET /bindings`; the name, and the very existence of a binding-less one, are new to a non-admin. Never the email, the token, the
- * project keys or the mapping. [mappingOk] is false when the connection's effective mapping cannot be
- * resolved against its discovery (unset discovery, an unreadable or stale document): no level or estimate comparison is made for its
- * bindings, and a bind through it would be refused with a `409`.
+ * `GET /bindings`; the name, the very existence of a binding-less one and (1.10) the connection's [projectKeys] (the import's scope
+ * options for a work-stream owner) are new to a non-admin. Never the email, the token or the mapping. [mappingOk] is false when the
+ * connection's effective mapping cannot be resolved against its discovery (unset discovery, an unreadable or stale document): no level
+ * or estimate comparison is made for its bindings, and a bind through it would be refused with a `409`.
  */
 @Serializable
 data class DeviationConnection(
@@ -45,6 +45,7 @@ data class DeviationConnection(
     val name: String,
     val siteUrl: String,
     val enabled: Boolean,
+    val projectKeys: List<String>,
     val mappingOk: Boolean,
     /** The newest run, also [SyncStatus.lastRun] (kept for the page's existing readers). */
     val lastRun: SyncLastRun?,

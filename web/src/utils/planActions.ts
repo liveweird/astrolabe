@@ -6,6 +6,8 @@ export type PlanActions = {
   deleteWorkStream: (stream: PlanWorkStream) => void;
   /** Close (end date today, never before the start) or reopen (no end date) a stream in one step. */
   setWorkStreamClosed: (stream: PlanWorkStream, closed: boolean) => void;
+  /** Open the Jira import for this stream (a stream's owner or ADMIN; the stream is preset in the dialog). */
+  importFromJira: (stream: PlanWorkStream) => void;
   newProgram: (stream: PlanWorkStream) => void;
   editProgram: (stream: PlanWorkStream, program: PlanProgram) => void;
   deleteProgram: (program: PlanProgram) => void;

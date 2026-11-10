@@ -20,6 +20,7 @@ export const DEV_CONNECTION: DeviationConnection = {
   name: "Acme Jira",
   siteUrl: "https://acme.atlassian.net",
   enabled: true,
+  projectKeys: ["E2E"],
   mappingOk: true,
   lastRun: DEV_LAST_RUN,
   status: { state: "CURRENT", lastRun: DEV_LAST_RUN, lastSucceededAt: OBSERVED_AT, consecutiveFailures: 0, nextPollAt: OBSERVED_AT + 15 * 60_000 },

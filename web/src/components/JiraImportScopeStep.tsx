@@ -1,11 +1,11 @@
 import { useTranslation } from "react-i18next";
 import { Button, Group, MultiSelect, Select, Stack, Switch, Text } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
-import type { JiraConnection } from "../api/jira";
 import { getPlanView } from "../api/plan";
 import type { ImportFailure } from "../utils/jiraImportText";
-import { toScope, type ScopeForm } from "../utils/jiraImport";
+import { toScope, type ImportConnection, type ImportSource, type ScopeForm } from "../utils/jiraImport";
 import ErrorAlert from "./ErrorAlert";
+import JiraImportConnectionField from "./JiraImportConnectionField";
 import JiraImportFailureAlert from "./JiraImportFailureAlert";
 import PersonSelect from "./PersonSelect";
 import TeamSelect from "./TeamSelect";
@@ -15,22 +15,29 @@ import TeamSelect from "./TeamSelect";
  * it), the owner of what is created, an optional default team / program / project for the orphans, the Jira projects to read (all of
  * them preselected: narrowing is how a scope over 2,000 issues is cut down) and whether Jira's dates are copied. The work streams, programs
  * and projects come from the plan view (`["plan","view"]`, shared with the Plan page): the defaults are offered only from the picked stream,
- * which is the server's own rule (a default elsewhere is a 400).
+ * which is the server's own rule (a default elsewhere is a 400). The connection comes from the modal's source (`JiraImportConnectionField`);
+ * Preview waits for one. `streamLocked` (opened from a work stream's own menu on the Plan page) shows the preset stream read-only.
  */
 export default function JiraImportScopeStep({
+  source,
   connection,
+  streamLocked,
   form,
   failure,
   reading,
   onChange,
+  onPickConnection,
   onPreview,
   onClose,
 }: {
-  connection: JiraConnection;
+  source: ImportSource;
+  connection: ImportConnection | null;
+  streamLocked: boolean;
   form: ScopeForm;
   failure: ImportFailure | null;
   reading: boolean;
   onChange: (patch: Partial<ScopeForm>) => void;
+  onPickConnection: (id: string | null) => void;
   onPreview: () => void;
   onClose: () => void;
 }) {
@@ -42,7 +49,8 @@ export default function JiraImportScopeStep({
   const projects = (stream?.programs ?? []).flatMap((program) =>
     program.projects.map((project) => ({ value: String(project.id), label: t("jira.import.scope.projectOption", { name: project.name, program: program.name }) })),
   );
-  const ready = toScope(form, connection.projectKeys) !== null;
+  const keys = connection?.projectKeys ?? [];
+  const ready = connection !== null && toScope(form, keys) !== null;
 
   return (
     <form
@@ -56,6 +64,7 @@ export default function JiraImportScopeStep({
         <Text size="sm" c="dimmed">
           {t("jira.import.scope.intro")}
         </Text>
+        <JiraImportConnectionField source={source} selected={connection} disabled={reading} onPick={onPickConnection} />
         {plan.isError && <ErrorAlert error={plan.error} title={t("jira.import.scope.planFailed")} />}
         <Select
           label={t("jira.import.scope.workStream")}
@@ -68,6 +77,7 @@ export default function JiraImportScopeStep({
           withAsterisk
           allowDeselect={false}
           nothingFoundMessage={t("jira.import.scope.noWorkStreams")}
+          readOnly={streamLocked}
           disabled={reading}
         />
         <PersonSelect
@@ -82,7 +92,7 @@ export default function JiraImportScopeStep({
         <MultiSelect
           label={t("jira.import.scope.keys")}
           description={t("jira.import.scope.keysHint")}
-          data={connection.projectKeys}
+          data={[...keys]}
           value={form.keys}
           onChange={(keys) => onChange({ keys })}
           withAsterisk

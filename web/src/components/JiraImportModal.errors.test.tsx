@@ -4,7 +4,7 @@ import { QueryClient } from "@tanstack/react-query";
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import JiraImportModal from "./JiraImportModal";
 import { jsonResponse } from "../test/http";
-import { CONNECTION } from "../test/jira";
+import { ONE_CONNECTION_SOURCE } from "../test/jira";
 import { fillScope, hangUntilAborted, installImportApi, previewScope, type Handler } from "../test/jiraImportHarness";
 import { PREVIEW_ITEMS, previewOf } from "../test/jiraImport";
 import { renderWithProviders } from "../test/render";
@@ -26,7 +26,7 @@ afterEach(() => {
   localStorage.clear();
 });
 
-const open = () => renderWithProviders(<JiraImportModal connection={CONNECTION} onClose={vi.fn()} />, { queryClient });
+const open = () => renderWithProviders(<JiraImportModal source={ONE_CONNECTION_SOURCE} onClose={vi.fn()} />, { queryClient });
 const importButton = () => screen.getByRole("button", { name: /^Import \(\d+\)$/ });
 
 describe("the preview call", () => {

@@ -313,6 +313,7 @@
   "import": {
     "title": "Import z Jiry",
     "entry": "Importuj z Jiry…",
+    "entryAria": "Importuj z Jiry do: {{name}}",
     "step": "Krok {{n}} z 3: {{name}}",
     "stepName": {
       "scope": "wybierz, co zaimportować",
@@ -331,6 +332,7 @@
       "pickWorkStream": "Wybierz strumień pracy",
       "closedName": "{{name}} (zamknięty)",
       "noWorkStreams": "Brak pasujących strumieni pracy",
+      "noConnection": "Żadne połączenie z Jirą nie może teraz importować: administrator/ka musi je dodać, włączyć i przetestować.",
       "owner": "Właściciel/ka nowych elementów",
       "ownerHint": "Każdy utworzony program i projekt dostanie tę osobę jako właściciela/kę.",
       "keys": "Projekty Jiry",

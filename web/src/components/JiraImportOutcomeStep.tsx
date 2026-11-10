@@ -1,7 +1,8 @@
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert, Badge, Button, Group, Stack, Table, Text, Title } from "@mantine/core";
-import type { JiraConnection, JiraImportResult } from "../api/jira";
+import type { JiraImportResult } from "../api/jira";
+import type { ImportConnection } from "../utils/jiraImport";
 import { reasonText, type ImportFailure } from "../utils/jiraImportText";
 import JiraImportFailureAlert from "./JiraImportFailureAlert";
 import JiraImportVirtualTable from "./JiraImportVirtualTable";
@@ -22,7 +23,7 @@ export default function JiraImportOutcomeStep({
   onPreviewAgain,
   onClose,
 }: {
-  connection: JiraConnection;
+  connection: ImportConnection;
   result: JiraImportResult;
   busy: boolean;
   failure: ImportFailure | null;

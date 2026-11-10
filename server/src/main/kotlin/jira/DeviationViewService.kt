@@ -129,6 +129,7 @@ class DeviationViewService(
             name = name,
             siteUrl = siteUrl,
             enabled = enabled,
+            projectKeys = projectKeys,
             mappingOk = levels != null,
             lastRun = status.lastRun,
             status = status,

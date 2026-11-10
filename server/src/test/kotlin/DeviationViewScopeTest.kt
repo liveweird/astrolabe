@@ -108,11 +108,12 @@ class DeviationViewScopeTest {
         assertTrue(connection.name.startsWith("jb-"))
         assertTrue(connection.mappingOk)
         assertTrue(connection.enabled)
+        assertEquals(listOf("E2E"), connection.projectKeys, "the connection's keys are the import dialog's scope options (1.10)")
         assertNull(connection.lastRun, "no run yet")
         val raw = user.get(DV_VIEW).bodyAsText()
         assertFalse(
-            listOf("email", "apiToken", "projectKeys", "jira.user@example.test", "JTOK").any { raw.contains(it, ignoreCase = true) },
-            "nothing of the registry beyond name and site",
+            listOf("email", "apiToken", "jira.user@example.test", "JTOK").any { raw.contains(it, ignoreCase = true) },
+            "nothing of the registry beyond name, site and the project keys",
         )
     }
 

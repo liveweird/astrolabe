@@ -33,18 +33,21 @@ export function useDeviations(filter: DeviationFilter) {
 }
 
 /**
- * The connections the project page's bind dialog offers (`connections[]` of the deviations document, which every signed-in user may read, unlike the
- * ADMIN-only registry). Nothing else of that document is used: the chips, the Flags column and the bars come from the page's own view. Asked only
- * while the dialog is open (`enabled`), so a page that never links anything never makes the request; a failed answer is the dialog's inline note with
- * a Retry, never the page's. `null` = not answered yet.
+ * The connections a dialog offers (`connections[]` of the deviations document, which every signed-in user may read, unlike the ADMIN-only registry):
+ * the project page's bind dialog (`projectId`) and the Plan page's import (`workStreamId`). Nothing else of that document is used: the chips, the
+ * Flags column and the bars come from the page's own view. Asked only while the dialog is open (`enabled`), so a page that never links or imports
+ * anything never makes the request; a failed answer is the dialog's inline note with a Retry, never the page's. `null` = not answered yet.
  */
-export function useJiraLinks(projectId: number, enabled: boolean) {
+export function useJiraConnections(filter: Pick<DeviationFilter, "projectId" | "workStreamId">, enabled: boolean) {
   const query = useQuery({
-    queryKey: ["jira", "deviations", "connections", projectId],
-    queryFn: () => getDeviations({ projectId }),
+    queryKey: ["jira", "deviations", "connections", filter],
+    queryFn: () => getDeviations(filter),
     staleTime: 30_000,
     retry: false,
-    enabled: enabled && Number.isInteger(projectId),
+    enabled,
   });
   return { connections: query.data?.connections ?? null, failed: query.isError && query.data === undefined, retry: () => void query.refetch() };
 }
+
+/** The project page's bind dialog's connections (`useJiraConnections` for one project; a malformed id is never asked). */
+export const useJiraLinks = (projectId: number, enabled: boolean) => useJiraConnections({ projectId }, enabled && Number.isInteger(projectId));

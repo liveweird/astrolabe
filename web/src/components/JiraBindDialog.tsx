@@ -53,7 +53,9 @@ export default function JiraBindDialog({
   const [submitting, setSubmitting] = useState(false);
 
   const offered = (source.connections ?? []).filter((connection) => connection.enabled && (connectionId === undefined || connection.id === connectionId));
-  const selected = offered.find((connection) => String(connection.id) === (chosenConnection ?? (offered.length === 1 ? String(offered[0].id) : null))) ?? null;
+  // A chosen id that left the list is ignored: the single remaining connection is auto-picked again, several wait for a pick.
+  const chosenId = offered.some((connection) => String(connection.id) === chosenConnection) ? chosenConnection : offered.length === 1 ? String(offered[0].id) : null;
+  const selected = offered.find((connection) => String(connection.id) === chosenId) ?? null;
   const level = target?.level ?? chosenLevel;
 
   async function submit() {
@@ -122,7 +124,7 @@ export default function JiraBindDialog({
                 value={selected === null ? null : String(selected.id)}
                 onChange={setChosenConnection}
                 allowDeselect={false}
-                readOnly={offered.length === 1}
+                readOnly={offered.length === 1 && selected !== null}
               />
               {selected === null && (
                 <Text size="xs" role="note">

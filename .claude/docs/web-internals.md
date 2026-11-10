@@ -364,7 +364,7 @@ strings in `style.backgroundImage`, so the tests count `gradient(` occurrences o
 The plan tree (V12 + `GET /views/plan`), a read for everyone whose actions are gated by the view's `can` flags (`utils/planActions.ts` is the row-to-page
 callback contract). `Plan.tsx` owns the query (`["plan","view"]`), which editor is open (`EditorState`: work stream / program under its stream / project under
 its program), one `useDeleteConfirm` for all three delete levels (the confirm texts come from the `DELETE_TEXT` map, a 409 says "delete the children first") and
-the close/reopen mutation; every success refreshes `["plan"]` through `refreshQueriesAfterMutation`. **Close / reopen** is a one-step menu action on a stream:
+the close/reopen mutation; every success refreshes `["plan"]` through `refreshQueriesAfterMutation`. A stream's menu (`can.edit`) also has **Import from Jira…** (1.10: `importing` state, `useDialogFocus`, the connections read from the deviations view only after the click; "The import modal" under the Jira sections). **Close / reopen** is a one-step menu action on a stream:
 the full-replace `PUT /work-streams/{id}` of the row as it stands with only `endDate` changed (today, never before the start / `null`) — a closed stream (end
 date set) still shows "New program" and still takes children. The stream editor's End date field does the same with a typed date, and clearing it reopens.
 
@@ -976,8 +976,8 @@ page only (`BACKLOG.md`).
 (`confirmLabel`; focus returns to the section's h3) and "Link a node…" (disabled while the connection is disabled). The server hides bindings of deleted plan
 items, so a row is not always there and the list may differ from a connection delete's count by those.
 
-**The import modal** (1.2, `components/JiraImportModal.tsx`, opened by "Import from Jira…" beside "Link a node…" in the bindings section - ADMIN's page only,
-decision B; disabled until the connection is enabled and has a stored discovery): ONE wide `Modal` (title = the h2, phases are h3) in three phases, state in
+**The import modal** (1.2, `components/JiraImportModal.tsx`; two entry points since 1.10: "Import from Jira…" beside "Link a node…" in the bindings section - ADMIN's
+page, disabled until the connection is enabled and has a stored discovery - and the Plan page's work-stream menu, below): ONE wide `Modal` (title = the h2, phases are h3) in three phases, state in
 `hooks/useJiraImport.ts`, pure model in `utils/jiraImport.ts` (ticks, scope, body), sentences in `utils/jiraImportText.ts`. **Scope** (`JiraImportScopeStep`:
 work stream from `["plan","view"]`, owner, Jira project keys all preselected, "Copy Jira's dates", default team / program / project - the last two offered only
 from the picked stream, the server's own rule) -> `POST …/import-preview`; **Preview** (`JiraImportPreviewStep`: totals, notes, "N of M selected", a virtualised
@@ -998,9 +998,20 @@ apply). Failures are inline (`importFailure`), a 409 in the apply offers "Previe
 summary, the key as its name) renders the key, never a blank cell. The rows are one fixed 88 px (`IMPORT_ROW_HEIGHT`; clamped text keeps its full text in the
 DOM and a `title`), there is no Level column (the cell under the key reads "Epic → milestone"), and the Skipped badge is orange only when some skip is not
 `ALREADY_BOUND`. The "N of M milestones created unscheduled" note counts ticked rows the SERVER marked `DATES_NOT_COPIED`. Tests: `JiraImportModal.test.tsx`,
-`.errors.test.tsx`, `.virtual.test.tsx` (the 2,000-row cap), `hooks/useJiraImport.test.tsx` (the in-flight guard, unmount),
+`.errors.test.tsx`, `.virtual.test.tsx` (the 2,000-row cap), `.source.test.tsx` (the connection source), `hooks/useJiraImport.test.tsx` (the in-flight guard, unmount),
 `utils/jiraImport|jiraImportText.test.ts`, harness `test/jiraImportHarness.ts`; the server pins the same bodies in `JiraImportWebBodyTest.kt` (literal JSON
 through the real deserialization and the kernel).
+**The modal is connection-source driven (1.10)**, `JiraBindDialog`'s contract: props `{ source: ImportSource, initialWorkStreamId?, onClose }` (`utils/jiraImport.ts`:
+`ImportConnection` = `{id, name, siteUrl, projectKeys}`, a `JiraConnection` is structurally one; `ImportSource` = `{connections | null, failed, retry}`). The connection page
+passes `{connections: [connection]}`; the Plan page passes the deviations view's `connections[]` filtered to `enabled && mappingOk` (`usableImportConnections`). The scope
+step opens with `JiraImportConnectionField` (loading text / a failed alert with Retry / the "none usable" note / the Select, read-only when exactly one; reusing
+`jira.bind.connection|loading|loadFailed|retry`); the modal preselects exactly one, and changing the connection resets the Jira-project keys to the new one's (the rest of the
+form stays). `useJiraImport(connectionId | null)` does nothing while null and Preview is disabled until a connection is chosen. `initialWorkStreamId` presets the stream
+(`emptyScope(keys, workStreamId)`) and the stream Select is `readOnly`. The connection of the preview and outcome phases is kept even if a later refetch drops it.
+**The Plan page's entry** (`PlanActions.importFromJira`, `PlanWorkStreamSection`): a `Menu.Item` "Import from Jira…" (aria "Import from Jira into {name}") under `can.edit`, after
+Close/Reopen. `Plan.tsx` holds `importing: PlanWorkStream | null`, calls `useDialogFocus(importing !== null)` and reads the connections with
+`useJiraConnections({workStreamId}, importing !== null)` (`hooks/useDeviations.ts`, key `["jira","deviations","connections",filter]`; `useJiraLinks` is its one-line
+project wrapper) - the request appears only after the click. After an apply the plan page shows the imported tree (the hook refreshes `["jira"]`, `["plan"]`, `["roadmap"]`).
 
 **The chips and marks (1.3: built from the VIEW)** (`components/JiraChips.tsx`, `utils/jiraMarks.ts`): the project and team pages make **no request of their
 own** for what is linked - `projectMarks(view)` / `teamMarks(view)` read the document's `jira` blocks (the project's own and every milestone row's, scheduled

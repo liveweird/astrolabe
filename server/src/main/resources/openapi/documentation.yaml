@@ -2055,7 +2055,7 @@ paths:
 
         **`connections`** lists EVERY active connection, with or without bindings, enabled or not (`enabled` says which; a bind goes
         through an enabled one only), by name: a non-admin owner's bind dialog gets its connection id here (the registry itself is
-        ADMIN only). It carries the name and site and never the email, token, keys or mapping. The id and site of a connection with
+        ADMIN only). It carries the name, site and (since 1.10) the project keys, and never the email, token or mapping (`authorization.md`). The id and site of a connection with
         bindings are already in `GET /integrations/jira/bindings`; the name, and the existence of one with none, are new to any login. `mappingOk` is false when the connection's
         EFFECTIVE mapping (stored, else the defaults) cannot be resolved against its discovery now (never discovered, unreadable or
         stale): no `LEVEL_MISMATCH` and no estimate deviation is raised for its bindings, and a bind through it is refused with `409`.
@@ -6037,12 +6037,17 @@ components:
         nextPollAt: { type: integer, format: int64, nullable: true, description: "Epoch millis the scheduler claims next (now when due); null for a disabled, untested, manual-only or running connection. Computed by the scheduler's own rule, back-off and the per-connection retry jitter after a failure included." }
     DeviationConnection:
       type: object
-      required: [id, name, siteUrl, enabled, mappingOk, lastRun, status]
+      required: [id, name, siteUrl, enabled, projectKeys, mappingOk, lastRun, status]
       properties:
         id: { type: integer, format: int32, minimum: 0 }
         name: { type: string }
         siteUrl: { type: string }
         enabled: { type: boolean, description: "A bind goes through an enabled connection only; a disabled one is listed because its bindings are." }
+        projectKeys:
+          type: array
+          maxItems: 50
+          items: { type: string }
+          description: "The connection's Jira project keys, the import's scope options (a work-stream owner's import dialog reads them here; project keys are not secrets)."
         mappingOk: { type: boolean, description: "False when the effective mapping cannot be resolved against the discovery now: no level or estimate comparison is made for this connection's bindings." }
         lastRun:
           allOf:

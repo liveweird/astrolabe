@@ -1,6 +1,6 @@
 import { useId } from "react";
 import { Badge, Box, Button, Divider, Group, Menu, Paper, Stack, Text, Title } from "@mantine/core";
-import { IconLock, IconLockOpen, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconFileImport, IconLock, IconLockOpen, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import type { PlanWorkStream } from "../api/plan";
 import type { PlanActions } from "../utils/planActions";
@@ -66,6 +66,15 @@ export default function PlanWorkStreamSection({ workStream, actions }: { workStr
                     aria-label={t(closed ? "plan.workStream.reopenAria" : "plan.workStream.closeAria", { name: workStream.name })}
                   >
                     {t(closed ? "plan.workStream.reopen" : "plan.workStream.close")}
+                  </Menu.Item>
+                )}
+                {can.edit && (
+                  <Menu.Item
+                    leftSection={<IconFileImport size={14} />}
+                    onClick={() => actions.importFromJira(workStream)}
+                    aria-label={t("jira.import.entryAria", { name: workStream.name })}
+                  >
+                    {t("jira.import.entry")}
                   </Menu.Item>
                 )}
                 {can.edit && can.delete && <Menu.Divider />}

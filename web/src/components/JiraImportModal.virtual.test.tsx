@@ -5,7 +5,7 @@ import JiraImportModal from "./JiraImportModal";
 import { IMPORT_ROW_HEIGHT } from "./JiraImportRow";
 import type { JiraImportItem } from "../api/jira";
 import { jsonResponse } from "../test/http";
-import { CONNECTION } from "../test/jira";
+import { ONE_CONNECTION_SOURCE } from "../test/jira";
 import { installImportApi, previewScope } from "../test/jiraImportHarness";
 import { previewOf } from "../test/jiraImport";
 import { renderWithProviders } from "../test/render";
@@ -69,7 +69,7 @@ const mountedRows = () => within(screen.getByRole("table", { name: "Import previ
 describe("the preview at the 2,000-row cap", () => {
   test("mounts a window of the rows, keeps the true count for assistive technology, and follows the scroll", async () => {
     const user = userEvent.setup();
-    renderWithProviders(<JiraImportModal connection={CONNECTION} onClose={vi.fn()} />);
+    renderWithProviders(<JiraImportModal source={ONE_CONNECTION_SOURCE} onClose={vi.fn()} />);
     await previewScope(user);
     const table = screen.getByRole("table", { name: "Import preview" });
     expect(table).toHaveAttribute("aria-rowcount", "2001");
@@ -87,7 +87,7 @@ describe("the preview at the 2,000-row cap", () => {
 
   test("select none, select all and an untick of the root answer with the new counts", async () => {
     const user = userEvent.setup();
-    renderWithProviders(<JiraImportModal connection={CONNECTION} onClose={vi.fn()} />);
+    renderWithProviders(<JiraImportModal source={ONE_CONNECTION_SOURCE} onClose={vi.fn()} />);
     await previewScope(user);
     await user.click(screen.getByRole("button", { name: "Select none" }));
     expect(screen.getByText("0 of 2000 selected")).toBeInTheDocument();

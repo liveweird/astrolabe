@@ -2,6 +2,7 @@ package ch.nokillswit.jira
 
 import ch.nokillswit.authz.OwnerChain
 import ch.nokillswit.infra.db.active
+import ch.nokillswit.infra.json.parseStringArray
 import ch.nokillswit.planning.DaySpan
 import ch.nokillswit.planning.MilestoneService
 import ch.nokillswit.planning.ProgramService
@@ -46,6 +47,8 @@ internal class ConnectionFacts(
     val name: String,
     val siteUrl: String,
     val enabled: Boolean,
+    /** The connection's configured Jira project keys: the import's scope options (project keys are not secrets). */
+    val projectKeys: List<String>,
     val levels: Map<JiraLevel, DeviationMapping>?,
     /** The poll facts the status derives from (`SyncStatusKernels`). */
     val connector: ConnectorConnection,
@@ -57,8 +60,9 @@ internal class ConnectionFacts(
  */
 internal suspend fun loadConnections(onlyId: UInt? = null, onlyIds: Collection<UInt>? = null): List<ConnectionFacts> =
     if (onlyIds?.isEmpty() == true) emptyList() else connections.select(
-        connections.id, connections.name, connections.siteUrl, connections.enabled, connections.mapping, connections.discovery,
-        connections.pollIntervalMinutes, connections.mappingChangedAt, connections.updatedAt, connections.discoveredAt,
+        connections.id, connections.name, connections.siteUrl, connections.enabled, connections.projectKeys, connections.mapping,
+        connections.discovery, connections.pollIntervalMinutes, connections.mappingChangedAt, connections.updatedAt,
+        connections.discoveredAt,
     ).where {
         val one = onlyId?.let { connections.id eq it } ?: Op.TRUE
         val several = onlyIds?.let { connections.id inList it } ?: Op.TRUE
@@ -69,8 +73,8 @@ internal suspend fun loadConnections(onlyId: UInt? = null, onlyIds: Collection<U
             val usable = discovery?.let { resolveEffectiveMapping(state, it) } as? MappingResolution.Usable
             val levels = usable?.mapping?.let(::deviationLevels)
             ConnectionFacts(
-                row[connections.id].value, row[connections.name], row[connections.siteUrl], row[connections.enabled], levels,
-                row.toConnectorConnection(),
+                row[connections.id].value, row[connections.name], row[connections.siteUrl], row[connections.enabled],
+                parseStringArray(row[connections.projectKeys]), levels, row.toConnectorConnection(),
             )
         }
 

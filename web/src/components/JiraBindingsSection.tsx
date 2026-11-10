@@ -28,7 +28,16 @@ const LEVELS: readonly JiraLevel[] = ["PROGRAM", "PROJECT", "MILESTONE"];
  * This page's connection as the dialog's one choice. The registry row does not say whether the mapping fits the site now (`mappingOk` is the
  * deviations view's verdict), so it is taken as fitting: a stale mapping is then the SERVER's refusal, shown inline (409 `jira-mapping-invalid`).
  */
-const fixedConnection = ({ id, name, siteUrl, enabled, status }: JiraConnection): DeviationConnection => ({ id, name, siteUrl, enabled, mappingOk: true, lastRun: status.lastRun, status });
+const fixedConnection = ({ id, name, siteUrl, enabled, projectKeys, status }: JiraConnection): DeviationConnection => ({
+  id,
+  name,
+  siteUrl,
+  enabled,
+  projectKeys,
+  mappingOk: true,
+  lastRun: status.lastRun,
+  status,
+});
 
 const levelWord = (kind: JiraLevel) => `jira.mapping.level.${kind.toLowerCase() as "program" | "project" | "milestone"}` as const;
 
@@ -206,7 +215,7 @@ export default function JiraBindingsSection({ connection }: { connection: JiraCo
           }}
         />
       )}
-      {importing && <JiraImportModal connection={connection} onClose={() => setImporting(false)} />}
+      {importing && <JiraImportModal source={{ connections: [connection], failed: false, retry: () => undefined }} onClose={() => setImporting(false)} />}
       <JiraUnlinkModal confirm={unlink} />
     </Stack>
   );

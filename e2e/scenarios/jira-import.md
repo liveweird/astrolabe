@@ -2,7 +2,7 @@
 
 - **Spec**: [tests/jira-import.spec.ts](../tests/jira-import.spec.ts)
 - **Actors**: a throwaway administrator per test (seeded through the API; the preview and the apply share a 5-a-minute bucket PER USER, so every test has its own
-  login), who works in the browser; the seed administrator only seeds and tears down through the API
+  login), who works in the browser (the owner test's actor is a throwaway NON-admin `USER` login linked to the person who owns the test's work stream); the seed administrator only seeds and tears down through the API
 - **Owns** (exclusive server-side state): one Jira connection (`e2e-import-connection-*`, scoped to the stub's `IMP` project ONLY, on a unique throwaway site, tested once
   in the beforeAll through the API: Test connection shares a per-IP bucket (10 a minute by default, 30 on the e2e stacks) with the other Jira specs; a 429 there waits the bucket out once) and, per test, a person, a team, a work stream (unique
   `e2e-import-*` names), the login, and what the import creates under that work stream with **the stub's own names** ("IMP Program", "IMP Initiative Alpha",
@@ -34,6 +34,16 @@ here: every milestone takes the default team.
 5. They open the modal again, fill the same scope and press **Preview**.
    - *Expected*: "To create: 0", "To link: 0", "Skipped: 9", "0 of 0 selected"; IMP-4 reads "Already linked", IMP-8 still "Nowhere to put it", **Import (0)** is disabled (there is nothing to
      press, so a re-import can create nothing), the links table still has 8 rows and a re-read of the stream's programs, projects and milestones (names and dates) is identical to step 4's.
+
+## Scenario: an owner imports from the Plan page's work-stream menu
+
+1. A throwaway non-admin login (linked to a person) owns a throwaway work stream (that person) with a team beside it. They open the Plan page, the stream's **Operations** menu and **Import from Jira…**.
+   - *Expected*: the import dialog opens; its Jira connection is preselected when it is the only usable one (else the spec's connection is picked by name: other specs' connections may be offered too);
+     the Work stream field reads the stream's name and is read-only.
+2. They pick themselves (the person) as the owner of the new items and the team as the default team, and press **Preview**.
+   - *Expected*: the totals read "Jira items: 9", "To create: 8", "To link: 0", "Skipped: 1" (the skipped row's own text is redacted for a non-admin and is not asserted).
+3. They press **Import (8)** and close the dialog.
+   - *Expected*: the outcome reads "Created: 8"; the Plan page lists "IMP Program" under the stream, and the plan read through the API holds exactly that program under it.
 
 ## Scenario: unticking a parent leaves its children out of the import, with the reason shown
 

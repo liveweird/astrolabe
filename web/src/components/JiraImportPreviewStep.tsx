@@ -2,10 +2,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert, Badge, Button, Checkbox, Group, Loader, Stack, Table, Text, Title } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
-import type { JiraConnection } from "../api/jira";
 import { listTeams } from "../api/teams";
 import type { PreviewState } from "../hooks/useJiraImport";
-import { allSelectable, blockingParent, indexItems, isSelectable, tickRow, unscheduledForRights } from "../utils/jiraImport";
+import { allSelectable, blockingParent, type ImportConnection, indexItems, isSelectable, tickRow, unscheduledForRights } from "../utils/jiraImport";
 import type { ImportFailure } from "../utils/jiraImportText";
 import JiraImportFailureAlert from "./JiraImportFailureAlert";
 import JiraImportRow, { IMPORT_ROW_HEIGHT, type TeamOption } from "./JiraImportRow";
@@ -21,7 +20,7 @@ export default function JiraImportPreviewStep({
   onBack,
   onPreviewAgain,
 }: {
-  connection: JiraConnection;
+  connection: ImportConnection;
   preview: PreviewState;
   busy: "preview" | "apply" | null;
   failure: ImportFailure | null;

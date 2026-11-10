@@ -307,6 +307,7 @@
   "import": {
     "title": "Import from Jira",
     "entry": "Import from Jira…",
+    "entryAria": "Import from Jira into {{name}}",
     "step": "Step {{n}} of 3: {{name}}",
     "stepName": {
       "scope": "choose what to import",
@@ -325,6 +326,7 @@
       "pickWorkStream": "Pick a work stream",
       "closedName": "{{name}} (closed)",
       "noWorkStreams": "No matching work streams",
+      "noConnection": "No Jira connection can import right now: an administrator has to add, enable and test one.",
       "owner": "Owner of the new items",
       "ownerHint": "Every program and project that is created gets this owner.",
       "keys": "Jira projects",

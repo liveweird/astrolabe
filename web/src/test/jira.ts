@@ -1,6 +1,7 @@
 // Shared fixtures for the Jira pages' tests: a connection, the discovery it stored, the mapping response and a passing probe set.
 import type { JiraConnection, JiraDiscovery, JiraMapping, JiraMappingResponse, JiraTestResult } from "../api/jira";
 import type { SyncRun } from "../api/sync";
+import type { ImportSource } from "../utils/jiraImport";
 
 export const CONNECTION: JiraConnection = {
   id: 1,
@@ -23,6 +24,9 @@ export const CONNECTION: JiraConnection = {
   updatedAt: 2,
   stub: false,
 };
+
+/** The connection page's import source: the one connection, nothing to load. */
+export const ONE_CONNECTION_SOURCE: ImportSource = { connections: [CONNECTION], failed: false, retry: () => undefined };
 
 const START = { id: "customfield_10020", name: "Target start", type: "date", custom: "com.atlassian.jpo:jpo-custom-field-baseline-start" };
 const END = { id: "customfield_10021", name: "Target end", type: "date", custom: "com.atlassian.jpo:jpo-custom-field-baseline-end" };

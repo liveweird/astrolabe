@@ -1,7 +1,8 @@
 // Import from Jira (v1.2), against the compose stack's Jira STUB and its isolated `IMP` project (a Program, two Initiatives, six Epics, every date in 2045):
 // an administrator imports the tree into a throwaway work stream through the connection page's modal (scope, preview, import), finds the milestones
 // dated in the project view and a second preview offering nothing; unticking a parent unticks what is created under it; a skipped row says how to fix
-// it (a default project); the modal's three steps pass an axe scan, light and dark; and so does a five-key preview of about 1,100 rows (the virtualised table).
+// it (a default project); the modal's three steps pass an axe scan, light and dark; and so does a five-key preview of about 1,100 rows (the virtualised table);
+// and a NON-admin who owns a throwaway work stream imports from the Plan page's work-stream menu (1.10; the connection picked from the deviations view's list).
 // Owns: ONE Jira connection (`e2e-import-connection-*`, scoped to the stub's `IMP` project on a unique throwaway site, tested once in the beforeAll; the
 // five-key preview test makes, tests and deletes one more, `e2e-import-scale-*`, and never imports through it. Test
 // connection shares a per-IP bucket (10 a minute by default, 30 on the e2e stacks) with the other Jira specs) and, per test, an administrator login (the preview and the apply share a
@@ -30,6 +31,7 @@ interface Account {
 }
 
 interface World {
+  /** The login the test signs in as: a throwaway ADMIN in `seedWorld`, a throwaway non-admin stream owner in `seedOwnerWorld`. */
   admin: Account;
   ownerName: string;
   teamName: string;
@@ -184,6 +186,30 @@ async function seedDefaultProject(world: World): Promise<{ project: string; prog
     const programId = await create(api, `/api/v1/work-streams/${world.streamId}/programs`, { name: program, ownerPersonId: ownerId }, "/api/v1/programs");
     await create(api, `/api/v1/programs/${programId}/projects`, { name: project, ownerPersonId: ownerId }, "/api/v1/projects");
     return { project, program };
+  } finally {
+    await api.dispose();
+  }
+}
+
+/**
+ * A NON-admin owner: a USER login linked to a person, a work stream that person owns (the person is the owner of the new items too) and a team (no
+ * manager: the milestones are created unscheduled). Registered in creation order so the afterEach deletes the stream, team, person and login in that order.
+ */
+async function seedOwnerWorld(): Promise<World> {
+  const { api } = await apiAsAdmin();
+  try {
+    const name = uniqueText(`${MARK}streamowner`);
+    const owner = { email: `${name.toLowerCase()}@astrolabe.local`, password: randomUUID().replace(/-/g, "") };
+    const userId = await create(api, "/api/v1/users", { name, email: owner.email, password: owner.password }, "/api/v1/users");
+    const ownerName = uniqueText(`${MARK}ownerperson`);
+    const ownerId = await create(api, "/api/v1/people", { name: ownerName, userId }, "/api/v1/people");
+    const teamName = uniqueText(`${MARK}team`);
+    const teamId = await create(api, "/api/v1/teams", { name: teamName }, "/api/v1/teams");
+    const streamName = uniqueText(`${MARK}stream`);
+    const id = await create(api, "/api/v1/work-streams", { name: streamName, ownerPersonId: ownerId, startDate: "2045-01-02" }, "/api/v1/work-streams");
+    streamId = id;
+    // `admin` is the world's browser login: here the non-admin owner.
+    return { admin: owner, ownerName, teamName, teamId, streamId: id, streamName };
   } finally {
     await api.dispose();
   }
@@ -349,6 +375,45 @@ test("admin imports the stub's IMP project tree and a re-import creates nothing"
   await expect(page.getByRole("table", { name: "Links to plan items" }).getByRole("row").filter({ hasText: "IMP-" })).toHaveCount(8);
   // Nothing was written by the second preview: the plan under the stream is exactly what the import made.
   expect(await planOf(world)).toEqual(planned);
+});
+
+// 1.10 (decision B of 1.2): the owner of a work stream, who is no administrator, imports from the Plan page's work-stream menu. The connection comes from the deviations
+// view (the registry is ADMIN only): preselected when it is the only usable one, else picked in the scope step (other specs' connections may be offered too). The stream
+// is preset and read-only. A non-admin's preview redacts the skipped row (IMP-8), so only the totals are asserted for it.
+test("an owner imports from the Plan page's work-stream menu", async ({ page }) => {
+  const world = await seedOwnerWorld();
+  await login(page, world.admin.email, world.admin.password);
+  await page.goto("/plan");
+  await page.getByRole("button", { name: `Operations for ${world.streamName}` }).click();
+  await page.getByRole("menuitem", { name: `Import from Jira into ${world.streamName}` }).click();
+  const dialog = modal(page);
+  await expect(dialog).toBeVisible();
+
+  // The connection: auto-picked when alone, else picked by its name; the stream is the one whose menu was opened and cannot be changed.
+  const connectionField = dialog.getByRole("combobox", { name: "Jira connection" });
+  await expect(connectionField).toBeVisible();
+  if ((await connectionField.inputValue()) !== connection.name) {
+    await connectionField.click();
+    await page.getByRole("option", { name: connection.name, exact: true }).click();
+  }
+  await expect(connectionField).toHaveValue(connection.name);
+  const streamField = dialog.getByRole("combobox", { name: "Work stream" });
+  await expect(streamField).toHaveValue(world.streamName);
+  await expect(streamField).toHaveAttribute("readonly", "");
+  await pick(page, dialog.getByRole("combobox", { name: "Owner of the new items" }), world.ownerName);
+  await pick(page, dialog.getByRole("combobox", { name: "Default team" }), world.teamName);
+  await preview(page);
+
+  // 9 Jira items, 8 created (1 program, 2 projects, 5 milestones), 1 skipped; the skipped row's text is redacted for a non-admin, so it is not asserted.
+  await expectTotals(page, { found: 9, create: 8, bind: 0, skip: 1 });
+  await importAll(page, 8);
+  await expect(dialog.getByRole("status")).toContainText("Created: 8");
+  await dialog.getByRole("button", { name: "Close", exact: true }).last().click();
+  await expect(dialog).toHaveCount(0);
+
+  // The plan page shows what was imported under the owner's stream.
+  await expect(page.getByRole("region", { name: world.streamName }).getByRole("heading", { level: 4, name: PROGRAM_NAME })).toBeVisible();
+  expect((await planOf(world)).programs).toEqual([PROGRAM_NAME]);
 });
 
 test("unticking a parent leaves its children out of the import, with the reason shown", async ({ page }) => {

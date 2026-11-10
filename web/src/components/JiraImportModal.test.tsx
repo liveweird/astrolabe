@@ -5,7 +5,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import JiraImportModal from "./JiraImportModal";
 import type { JiraImportResult } from "../api/jira";
 import { jsonResponse } from "../test/http";
-import { CONNECTION } from "../test/jira";
+import { ONE_CONNECTION_SOURCE } from "../test/jira";
 import { fillScope, installImportApi, previewScope } from "../test/jiraImportHarness";
 import { PREVIEW_ITEMS, previewOf } from "../test/jiraImport";
 import { renderWithProviders } from "../test/render";
@@ -46,7 +46,7 @@ afterEach(() => {
   localStorage.clear();
 });
 
-const open = (onClose = vi.fn()) => renderWithProviders(<JiraImportModal connection={CONNECTION} onClose={onClose} />, { queryClient });
+const open = (onClose = vi.fn()) => renderWithProviders(<JiraImportModal source={ONE_CONNECTION_SOURCE} onClose={onClose} />, { queryClient });
 const table = () => screen.getByRole("table", { name: "Import preview" });
 const rowOf = (key: string) => within(table()).getByRole("checkbox", { name: `Import ${key}` }).closest("tr")!;
 const importButton = () => screen.getByRole("button", { name: /^Import \(\d+\)$/ });

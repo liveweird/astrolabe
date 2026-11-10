@@ -24,8 +24,9 @@ export type PreviewState = { scope: JiraImportScope; data: JiraImportPreview };
  * refused too); each call owns an AbortController that aborts at `IMPORT_TIMEOUT_MS` (a browse can take the server 170 s) and, for the
  * PREVIEW only, when the user cancels or the modal unmounts - an apply is never cancelled by the client (it may already be writing).
  * After an apply the plan views and the Jira queries are refreshed - also after an answer that leaves the write in doubt (`applyMayHaveLanded`).
+ * `connectionId` is null until the modal has a connection (the Plan page's list arrives asynchronously, or several are offered): both calls then do nothing.
  */
-export function useJiraImport(connectionId: number) {
+export function useJiraImport(connectionId: number | null) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [phase, setPhase] = useState<ImportPhase>("scope");
@@ -87,7 +88,7 @@ export function useJiraImport(connectionId: number) {
     failure,
     /** Reads Jira and moves to (or stays on) the preview. */
     runPreview: (scope: JiraImportScope) =>
-      guarded(
+      connectionId === null ? Promise.resolve() : guarded(
         "preview",
         (signal) => previewJiraImport(connectionId, scope, signal),
         (data) => {
@@ -98,7 +99,7 @@ export function useJiraImport(connectionId: number) {
       ),
     /** Writes the ticked rows; the outcome is the next phase. */
     runApply: (body: JiraImportApplyRequest) =>
-      guarded(
+      connectionId === null ? Promise.resolve() : guarded(
         "apply",
         (signal) => applyJiraImport(connectionId, body, signal),
         (value) => {
