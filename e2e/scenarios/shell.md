@@ -1,4 +1,4 @@
-# App shell chrome: the icon rail, the theme switch, the account menu's Tab and route changes
+# App shell chrome: the icon rail, the theme items, the account menu's Tab and route changes
 
 - **Spec**: [tests/shell.spec.ts](../tests/shell.spec.ts)
 - **Actors**: the seed administrator (`admin@astrolabe.local`)
@@ -21,7 +21,7 @@
 
 ## Scenario: switching the theme in the account menu updates the color scheme and persists across reload
 
-1. The admin opens the account menu and picks **Dark** in the theme control.
+1. The admin opens the account menu and picks the **Dark** theme item.
    - *Expected*: `<html data-mantine-color-scheme="dark">`.
 2. They reload the page.
    - *Expected*: still dark — the device cached the choice.

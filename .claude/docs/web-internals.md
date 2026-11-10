@@ -251,7 +251,7 @@ The template and its rules: `web/CLAUDE.md` "Shared list-page building blocks". 
   (Feature flags) is state, not an action. A menu opens with the focus on its FIRST item (the theme drops Mantine's focus placeholder, which fails axe
   `aria-required-children`), so the next ArrowDown reaches the second; the item's tint shows for the pointer and for a keyboard focus only. Tab or Shift+Tab
   closes an open menu and moves on from its trigger (`hooks/useMenuTabExit.ts`; Mantine's trap would swallow the key; menu items are `tabindex="-1"`, so
-  the first Tab leaves, including the account menu's theme items); the hook stays general: a dropdown with its own tabbable controls would keep Tab among them until the last. A destructive item (Delete, Sign out) is `components/DestructiveMenuItem.tsx`, never
+  the first Tab leaves, including the account menu's theme items); every menu is items only, so the hook has no inner-Tab-stop branch (a menu that ever needs its own tabbable controls adds one). A destructive item (Delete, Sign out) is `components/DestructiveMenuItem.tsx`, never
   `Menu.Item color="red"` (red-6 is 3.3:1 on the white dropdown); an item's `aria-label` must contain its visible text ("Move to top: {{name}}", not "Move
   {{name}} to top": axe `label-content-name-mismatch`). **A dialog mounted with `opened` already true (`{editor && <XModal ... />}`) calls
   `useDialogFocus(open)`** in its owner (`hooks/useDialogFocus.ts`): Mantine records no opener for it, so without the hook the focus lands on `body`. Focus

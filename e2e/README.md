@@ -123,7 +123,7 @@ the same commit** — this list is the coverage map, the scenario file is the de
   explicit sign-out from a non-home protected page returns the next sign-in to Home,
   including while server revocation is delayed.
 - [`shell.spec.ts`](scenarios/shell.md) — the app shell chrome: the icon rail collapses/expands
-  the navbar and remembers the choice across reload; the account menu's theme control switches
+  the navbar and remembers the choice across reload; the account menu's theme items switch
   the color scheme and persists it; the tab title names the page ("Teams · Astrolabe", the brand alone on Home) and a navigation moves the focus to `#main-content` so the next Tab lands inside the page; Tab in the open account menu closes it and moves the focus on from its trigger (menu items are not Tab stops), also after picking another theme. The Home page's three links (**Open the plan**, **Open the roadmap**, **Open the deviations**) each reach their page (1.10).
 - [`telemetry.spec.ts`](scenarios/telemetry.md) — the ADMIN telemetry panel (Astrolabe's own vital signs): after the sampler's first sample (awaited through the
   API) the admin opens it from the account menu and reads Memory (the compose app's 512 MB container limit and the share of it) and Storage (the database size); the open panel and its expanded sections survive a
