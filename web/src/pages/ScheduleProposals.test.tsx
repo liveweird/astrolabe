@@ -81,6 +81,38 @@ describe("the teams", () => {
     expect(screen.getByRole("button", { name: "Propose" })).toBeEnabled();
   });
 
+  test("an administrator gets an All teams shortcut that ticks every listed team at once", async () => {
+    localStorage.setItem("astrolabe.auth.roles", JSON.stringify(["ADMIN"]));
+    const user = userEvent.setup();
+    renderWithProviders(<ScheduleProposals />);
+    await screen.findByRole("combobox", { name: "Teams" });
+    expect(screen.getByRole("button", { name: "Propose" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "All teams" }));
+    expect(screen.getByRole("button", { name: "Propose" })).toBeEnabled();
+    await user.click(screen.getByRole("button", { name: "Propose" }));
+    await screen.findByRole("button", { name: "Discard" });
+    expect(posts(RUN_URL).map((body) => body.teamIds)).toEqual([[1, 2]]);
+    expect(screen.getByRole("button", { name: "All teams" })).toBeDisabled();
+  });
+
+  test("All teams respects the run's ceiling of 50 teams", async () => {
+    localStorage.setItem("astrolabe.auth.roles", JSON.stringify(["ADMIN"]));
+    teamsAnswer = jsonResponse(200, { items: Array.from({ length: 60 }, (_, i) => ({ id: i + 1, name: `Team ${i + 1}` })) });
+    const user = userEvent.setup();
+    renderWithProviders(<ScheduleProposals />);
+    await screen.findByRole("combobox", { name: "Teams" });
+    await user.click(screen.getByRole("button", { name: "All teams" }));
+    await user.click(screen.getByRole("button", { name: "Propose" }));
+    await screen.findByRole("button", { name: "Discard" });
+    expect((posts(RUN_URL)[0] as { teamIds: number[] }).teamIds).toEqual(Array.from({ length: 50 }, (_, i) => i + 1));
+  });
+
+  test("a caller who is not an administrator has no All teams shortcut", async () => {
+    renderWithProviders(<ScheduleProposals />);
+    await screen.findByRole("combobox", { name: "Teams" });
+    expect(screen.queryByRole("button", { name: "All teams" })).toBeNull();
+  });
+
   test("a caller who manages no team sees the empty state and no Propose", async () => {
     teamsAnswer = jsonResponse(200, { items: [] });
     renderWithProviders(<ScheduleProposals />);

@@ -6,13 +6,15 @@ import { useTranslation } from "react-i18next";
  * The shared confirm-before-acting modal (Lettuce's, ported with the feature-flags bulk
  * actions): a message plus a neutral cancel and a confirm button whose `loading` blocks
  * cancel/close while the action runs. Labels arrive already translated — they differ per
- * flow. Row-deletion flows paired with useDeleteConfirm keep using ConfirmDeleteModal.
+ * flow. `error` is an optional inline failure (a FormErrorAlert) shown between the message and
+ * the buttons. Row-deletion flows paired with useDeleteConfirm keep using ConfirmDeleteModal.
  */
 export default function ConfirmActionModal({
   opened,
   onClose,
   title,
   message,
+  error,
   cancelLabel,
   confirmLabel,
   onConfirm,
@@ -23,6 +25,7 @@ export default function ConfirmActionModal({
   onClose: () => void;
   title: string;
   message: ReactNode;
+  error?: ReactNode;
   cancelLabel: string;
   confirmLabel: string;
   onConfirm: () => void;
@@ -41,6 +44,7 @@ export default function ConfirmActionModal({
     >
       <Stack gap="md">
         <Text>{message}</Text>
+        {error}
         <Group justify="flex-end" gap="sm">
           <Button variant="default" onClick={onClose} disabled={loading}>
             {cancelLabel}

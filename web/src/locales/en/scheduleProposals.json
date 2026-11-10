@@ -4,6 +4,7 @@
   "teams": "Teams",
   "teamsPlaceholder": "Pick the teams to plan together",
   "clearTeams": "Clear the teams",
+  "allTeams": "All teams",
   "propose": "Propose",
   "readOnly": "A proposal is open, so the teams are locked — discard it first to pick other teams.",
   "noTeams": "You manage no team",

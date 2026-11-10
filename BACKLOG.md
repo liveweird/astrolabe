@@ -32,7 +32,6 @@ Each increment gets its own plan (architect) before implementation. The domain s
 - [new] **Re-run only the dirty teams in a cross-team pass (1.8).** Every pass runs every team; a worklist over the team graph would skip the teams whose incoming facts did not change. Build it if the 15-team run measures slow (about 285-318 ms today, `timeline.md` "Measured figures (1.8)").
 - [new] **Persist a cross-team run so a second manager can read it (1.8).** A run is page state, lost on navigation; sharing needs a stored proposal, the v0.8 alternative's "proposals that persist".
 - [new] **Ghost bars for the other sections' proposed dates on the team page (1.8).** The cross-team page has no timeline; the team page shows one team.
-- [next] **An ADMIN-only "all teams" shortcut on `/schedule-proposals` (1.8).** The multi-select lists every team; the ADMIN ticks them one by one.
 - [new] **A plan-scoped hold-time measurement of the cross-team accept (1.8 C3 review).** About 5 queries per team under the plan lock; record it in `timeline.md` if 50-team runs appear.
 
 ## Integrations (1.x)
@@ -104,7 +103,6 @@ Each increment gets its own plan (architect) before implementation. The domain s
 - [new] **A severity filter on the flag panel.** The roadmap's flag panel lists every flag of the visible rows (208 warnings and 52 infos on the sample plan); warnings only / infos only would shorten it without hiding the row icons.
 - [new] **Reconsider the inversion rule if the flag panel grows.** The rule raises one flag per adjacent pair per team (184 on the sample plan; all pairs would be 1,038); if it changes to all pairs, the panel becomes a report and needs grouping or paging first.
 - [next] **Share the timeline move-menu block.** The same four menu items are copied in `TeamTimelineMenu.tsx:80-91` and `RoadmapTimeline.tsx:96-107`; extract a `MoveItems` component (1.0.0 checkup).
-- [next] **Move the user reset dialog to `ConfirmActionModal`.** `pages/Users.tsx:273-300` hand-rolls the same text, error and Cancel/Confirm shape (1.0.0 checkup).
 - [next] **Remove version-history comments from the code.** `v0.x` notes in `utils/timelineModel.ts` (11), `ProjectTimeline.tsx` (5), `Timeline.tsx` and `TeamTimeline.tsx` (4 each) belong in the docs or the changelog (1.0.0 checkup).
 - [next] **Split `PlanRouteDeps`.** At 11 constructor parameters (`planning/PlanningRoutes.kt:92-104`) it sits at its documented ceiling; the next service forces the split (1.0.0 checkup). 1.8 passed `CrossTeamProposalService` beside it, the sixth service beside the record.
 - [next] **Split `Timeline.tsx` (399) before its next edit.** It sits at the 400-line cap of `web/src/sourceFileSize.test.ts`; the next change to it splits first.
@@ -114,4 +112,3 @@ Each increment gets its own plan (architect) before implementation. The domain s
 - [next] **Axe over the open account menu.** `accessibility.spec.ts` scans the row menus open, not the account menu, which now opens with the focus on its first item (1.0.1 review).
 - [new] **Tab in an open menu on Safari.** Unverified. With its default settings Safari's Tab skips buttons and radios, so in the account menu Tab from an item could leave the dropdown without closing it; `useMenuTabExit` and Mantine's trap both assume every control is a Tab stop. Only Chromium was exercised (1.0.1 review).
 - [new] **Page-level tests for `useDialogFocus`.** The hook's own tests and the Teams page and e2e pin the behaviour; removing the call from Plan, ProjectView, TeamDetails, TeamCapacity, People, PersonDetails, Baselines or Users fails no test (each was checked once in a browser, 2026-11-05). A shared e2e sweep over one dialog per owner would close it (1.0.1 review).
-- [next] **Add a `json-summary` coverage reporter.** `web/vite.config.ts:83` reports `text,html` only, so raising the vitest thresholds cannot be scripted and per-file coverage is not machine-readable (1.0.0 checkup).

@@ -256,6 +256,28 @@ describe("Users page", () => {
     await waitFor(() => expect(screen.queryByText(body.password)).not.toBeInTheDocument());
   });
 
+  test("a failed reset PUT keeps the dialog open and shows the failure inside it", async () => {
+    mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+      if ((init?.method ?? "GET") === "PUT" && url === "/api/v1/users/2/password") {
+        return Promise.resolve(jsonResponse(500, { title: "boom", status: 500 }));
+      }
+      if (url.startsWith("/api/v1/users?")) return Promise.resolve(usersPage(SEED_USERS));
+      return Promise.resolve(jsonResponse(404, {}));
+    });
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Operations for Bob Basic" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Reset password for Bob Basic" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: /^reset$/i }));
+
+    expect(await within(dialog).findByText("Failed to reset the password")).toBeInTheDocument();
+    expect(within(dialog).getByText("Reset failed (500)")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: /^cancel$/i })).toBeEnabled();
+    expect(screen.queryByText("Password reset")).not.toBeInTheDocument();
+  });
+
   test("shows the load-failure alert", async () => {
     setupMocks(mockFetch, () => jsonResponse(500, { title: "boom", status: 500 }));
     renderPage();

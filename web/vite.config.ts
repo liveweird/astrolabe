@@ -80,7 +80,8 @@ export default defineConfig({
     testTimeout: 10000,
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'html'],
+      // json-summary writes coverage/coverage-summary.json: per-file figures a script can read (raising the thresholds below).
+      reporter: ['text', 'html', 'json-summary'],
       include: ['src/**/*.{ts,tsx}'],
       exclude: [
         'src/api/schema.ts',

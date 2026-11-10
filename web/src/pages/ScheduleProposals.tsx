@@ -21,6 +21,9 @@ import { overlayCheck } from "../utils/scheduleProposal";
 /** Zero-width space: toggled on the live-region text so the same sentence twice is announced twice. */
 const REREAD = "​";
 
+/** The run takes `teamIds[1..50]`: the multi-select's `maxValues` and the "All teams" shortcut (the first 50 listed) share it. */
+const MAX_TEAMS = 50;
+
 /**
  * Schedule proposals (`/schedule-proposals`, 1.8): ONE proposal over several teams. The multi-select offers the teams the SERVER says the caller
  * may include (`GET /schedule-proposals/teams`: an administrator's are all, a manager's their own; the server's 403 on the run stays the rule).
@@ -32,7 +35,7 @@ const REREAD = "​";
  */
 export default function ScheduleProposals() {
   const { t } = useTranslation();
-  // Only the words of the empty state depend on it (an administrator with no team has none to propose for); the server's list decides what is offered.
+  // The words of the empty state and the "All teams" shortcut depend on it (an administrator with no team has none to propose for); the server's list decides what is offered.
   const admin = useAdmin();
   const teams = useQuery({ queryKey: ["schedule-proposals", "teams"], queryFn: listProposalTeams });
   const [announcement, setAnnouncement] = useState("");
@@ -78,20 +81,28 @@ export default function ScheduleProposals() {
       {teams.isLoading && <LoadingBlock />}
       {teams.isSuccess && items.length === 0 && <EmptyState icon={IconCalendarStats} label={t(admin ? "scheduleProposals.noTeamsAdmin" : "scheduleProposals.noTeams")} hint={t(admin ? "scheduleProposals.noTeamsAdminHint" : "scheduleProposals.noTeamsHint")} />}
       {items.length > 0 && (
-        <MultiSelect
-          label={t("scheduleProposals.teams")}
-          description={run !== null ? t("scheduleProposals.readOnly") : flow.requesting ? t("scheduleProposals.requesting") : undefined}
-          placeholder={chosen.length === 0 ? t("scheduleProposals.teamsPlaceholder") : undefined}
-          data={items.map((team) => ({ value: String(team.id), label: team.name }))}
-          value={chosen.map(String)}
-          onChange={setPicked}
-          maxValues={50}
-          disabled={open}
-          searchable
-          clearable
-          clearButtonProps={{ "aria-label": t("scheduleProposals.clearTeams") }}
-          maw={640}
-        />
+        <Group gap="sm" align="flex-end" wrap="wrap">
+          <MultiSelect
+            label={t("scheduleProposals.teams")}
+            description={run !== null ? t("scheduleProposals.readOnly") : flow.requesting ? t("scheduleProposals.requesting") : undefined}
+            placeholder={chosen.length === 0 ? t("scheduleProposals.teamsPlaceholder") : undefined}
+            data={items.map((team) => ({ value: String(team.id), label: team.name }))}
+            value={chosen.map(String)}
+            onChange={setPicked}
+            maxValues={MAX_TEAMS}
+            disabled={open}
+            searchable
+            clearable
+            clearButtonProps={{ "aria-label": t("scheduleProposals.clearTeams") }}
+            maw={640}
+            style={{ flex: "1 1 20rem" }}
+          />
+          {admin && (
+            <Button variant="default" disabled={open} onClick={() => setPicked(items.slice(0, MAX_TEAMS).map((team) => String(team.id)))}>
+              {t("scheduleProposals.allTeams")}
+            </Button>
+          )}
+        </Group>
       )}
       {flow.refused && (
         <Alert color="orange" variant="light" role="note">

@@ -861,7 +861,7 @@ baseline overlay (v0.9.0)".
 cross-team; path `utils/scheduleProposalLinks.ts`) runs ONE proposal over several teams (`POST /schedule-proposals`: the teams in dependency order to a fixed point, `planning-model.md`
 "The cross-team run") and accepts the ticked moves of every team in ONE plan write. **What it offers comes from the server:** the `MultiSelect` (`maxValues` 50, searchable, disabled while a
 run is requested or open, picks the server no longer lists are dropped at Propose) is filled from `GET /schedule-proposals/teams` under `["schedule-proposals","teams"]` (an ADMIN: every
-active team; otherwise the teams the caller manages); an empty list is the `EmptyState` "You manage no team" with no multi-select and no Propose; the server's 403/404/400 on the run reach the page
+active team; otherwise the teams the caller manages; an ADMIN also gets an **"All teams"** button beside it that ticks the first 50 listed at once, the run's `teamIds` ceiling, disabled while a run is requested or open); an empty list is the `EmptyState` "You manage no team" with no multi-select and no Propose; the server's 403/404/400 on the run reach the page
 inline (`scheduleProposals.forbidden/gone/invalid`, then the generic action words). Wrappers in `api/scheduleProposals.ts` (`listProposalTeams`, `proposeCrossTeamSchedule`,
 `acceptCrossTeamSchedule`, `checkSchedule`).
 
@@ -1399,7 +1399,7 @@ under ONE `RequireAdmin` route (UX only: the server's `requireAdmin` is the rule
 Passwords are generated client-side (`utils/password.ts`) and revealed exactly once: the modal (`components/OneTimePasswordModal.tsx`) sets
 `closeOnClickOutside={false} closeOnEscape={false}`, renders `components/RevealablePassword.tsx` (masked by default, eye toggle, copy), and closing drops the
 plaintext from state for good — the server never returns it. The admin Reset-password action (`hooks/useResetPassword.ts`) reuses the same generate→PUT→reveal
-flow. `NavLeaf.adminOnly` gates the Users nav item (the Shell filters by `isAdmin()`); the management routes sit under ONE `<Route element={<RequireAdmin />}>`
+flow; the confirm is the shared `ConfirmActionModal` (its optional `error` slot carries the inline `FormErrorAlert`). `NavLeaf.adminOnly` gates the Users nav item (the Shell filters by `isAdmin()`); the management routes sit under ONE `<Route element={<RequireAdmin />}>`
 in `App.tsx` (`auth.tsx`, beside `RequireAuth` — a regular user is sent home), so no page redirects itself; their queries additionally stay `enabled: isAdmin()`
 so a redirected caller fires no request. UX only — the server's `requireAdmin` is the rule. The pages live under `/users` (`utils/userLinks.ts` is the one place
 the family is spelled out; Flow's `/flow-users` rename and its legacy `/users…` redirect do not exist here).
