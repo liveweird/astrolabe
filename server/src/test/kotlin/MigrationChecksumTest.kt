@@ -48,6 +48,7 @@ class MigrationChecksumTest {
         "V24__flow_sync.sql" to -852538185,
         "V25__milestone_pin.sql" to -588653258,
         "V26__flow_capacity_acknowledgements.sql" to 1641040429,
+        "V27__jira_gone_probe_marker.sql" to -99972177,
     )
 
     @Test

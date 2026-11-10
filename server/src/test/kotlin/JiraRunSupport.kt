@@ -1,6 +1,7 @@
 package ch.nokillswit
 
 import ch.nokillswit.infra.db.R2dbcDatabaseKey
+import ch.nokillswit.jira.GONE_PROBE_CAP
 import ch.nokillswit.jira.HttpJiraClient
 import ch.nokillswit.jira.JiraConnectionServiceKey
 import ch.nokillswit.jira.JiraConnector
@@ -37,6 +38,7 @@ class MockJiraRun(
     chunkSize: Int = RUN_CHUNK,
     now: () -> Long = System::currentTimeMillis,
     maxRetries: Int = 0,
+    probeCap: Int = GONE_PROBE_CAP,
     handler: suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData,
 ) {
     private val engine = MockEngine { request ->
@@ -64,6 +66,7 @@ class MockJiraRun(
         observer = JiraObserver(
             connector, app.attributes[JiraConnectionServiceKey], JiraRunStore(app.attributes[R2dbcDatabaseKey]),
             JiraIssueStore(app.attributes[R2dbcDatabaseKey]), runs, now = now, chunkSize = chunkSize,
+            probeCap = probeCap,
         )
     }
 

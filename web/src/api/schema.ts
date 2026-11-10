@@ -6287,7 +6287,7 @@ export interface components {
             /** @description The issue could not be read on a later run (set by the run, never by a bind). */
             gone: boolean;
             /**
-             * @description Why the issue is gone. `OUT_OF_SCOPE` is the sweep's verdict (kept when the per-issue probe answers 200, or could not run), `DELETED` is the probe's 404 (Jira answers the same 404 for an issue the connection's account cannot see), `FORBIDDEN` its 403.
+             * @description Why the issue is gone. `OUT_OF_SCOPE` is the sweep's verdict (kept when the per-issue probe answers 200, and until a probe answers: a failed, cut or over-cap probe is retried by a later run), `DELETED` is the probe's 404 (Jira answers the same 404 for an issue the connection's account cannot see), `FORBIDDEN` its 403.
              * @enum {string|null}
              */
             goneReason?: "DELETED" | "OUT_OF_SCOPE" | "FORBIDDEN" | null;

@@ -14,7 +14,7 @@ internal const val RUN_CHUNK = 100
 
 /**
  * The `gone_reason` a sweep writes: absent from the in-scope listing (deleted, moved out and unreadable are indistinguishable). The
- * run's probe (`probeGone`) refines it to `DELETED` or `FORBIDDEN` for the bindings it flagged in that run.
+ * run's probe (`probeGone`) refines it to `DELETED` or `FORBIDDEN` for a gone binding Jira has not yet answered for.
  */
 internal const val GONE_OUT_OF_SCOPE = "OUT_OF_SCOPE"
 
@@ -31,6 +31,8 @@ internal class BoundIssue(
     val observed: Boolean,
     val gone: Boolean,
     val typeId: String?,
+    /** The by-id probe has answered for the vanish the row is flagged with (`gone_probed_at`); meaningless unless [gone]. */
+    val probed: Boolean,
 )
 
 /**
@@ -48,6 +50,7 @@ internal class JiraRunStore(private val database: R2dbcDatabase) {
             .select(
                 bindings.id, bindings.level, bindings.jiraIssueId, bindings.jiraIssueKey,
                 JiraObservations.observedAt, JiraObservations.gone, JiraObservations.typeId,
+                JiraObservations.goneProbedAt,
             )
             .where { (bindings.connectionId eq connectionId) and bindings.active() }
             .orderBy(bindings.id).toList().map {
@@ -59,6 +62,7 @@ internal class JiraRunStore(private val database: R2dbcDatabase) {
                     observed = it.getOrNull(JiraObservations.observedAt) != null,
                     gone = it.getOrNull(JiraObservations.gone) == true,
                     typeId = it.getOrNull(JiraObservations.typeId),
+                    probed = it.getOrNull(JiraObservations.goneProbedAt) != null,
                 )
             }
     }
@@ -113,6 +117,7 @@ internal class JiraRunStore(private val database: R2dbcDatabase) {
                 this[JiraObservations.jiraUpdatedAt] = o.jiraUpdatedAt
                 this[JiraObservations.gone] = false
                 this[JiraObservations.goneReason] = null
+                this[JiraObservations.goneProbedAt] = null
             }
             rows.map { it.first }
         }
@@ -127,19 +132,23 @@ internal class JiraRunStore(private val database: R2dbcDatabase) {
                 JiraObservations.update({ (JiraObservations.bindingId inList active) and (JiraObservations.gone eq false) }) {
                     it[gone] = true
                     it[goneReason] = GONE_OUT_OF_SCOPE
+                    it[goneProbedAt] = null
                 }
             }
         }
     }
 
-    /** Sets [reason] on the bindings' observations that are `gone` (the probe's verdict); an unbound binding is left alone. */
-    suspend fun setGoneReason(bindingIds: List<UInt>, reason: String) {
-        if (bindingIds.isEmpty()) return
+    /**
+     * Records the probe's ANSWER for [bindingId] if its observation is still `gone`: stamps `gone_probed_at` = [at] and, when [reason]
+     * is given (404 `DELETED`, 403 `FORBIDDEN`), sets `gone_reason`; a 200 passes `null` and keeps the sweep's `OUT_OF_SCOPE`. An unbound
+     * binding, or one the run's own writes cleared meanwhile, is left alone.
+     */
+    suspend fun recordProbe(bindingId: UInt, reason: String?, at: Long) {
         suspendTransaction(database) {
-            val active = lockActive(bindingIds).keys
-            if (active.isNotEmpty()) {
-                JiraObservations.update({ (JiraObservations.bindingId inList active) and (JiraObservations.gone eq true) }) {
-                    it[goneReason] = reason
+            if (lockActive(listOf(bindingId)).isNotEmpty()) {
+                JiraObservations.update({ (JiraObservations.bindingId eq bindingId) and (JiraObservations.gone eq true) }) {
+                    it[goneProbedAt] = at
+                    if (reason != null) it[goneReason] = reason
                 }
             }
         }
@@ -154,6 +163,7 @@ internal class JiraRunStore(private val database: R2dbcDatabase) {
                 JiraObservations.update({ (JiraObservations.bindingId inList active) and (JiraObservations.gone eq true) }) {
                     it[gone] = false
                     it[goneReason] = null
+                    it[goneProbedAt] = null
                 }
             }
         }

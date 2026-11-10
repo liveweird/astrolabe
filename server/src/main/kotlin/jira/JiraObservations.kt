@@ -30,6 +30,9 @@ object JiraObservations : Table("jira_observations") {
     val jiraUpdatedAt = long("jira_updated_at").nullable()
     val gone = bool("gone").default(false)
     val goneReason = varchar("gone_reason", length = 20).nullable()
+
+    /** V27: when the run's by-id probe last ANSWERED (200, 404, 403) about this vanish; null = not yet (server-internal, never exposed). */
+    val goneProbedAt = long("gone_probed_at").nullable()
     override val primaryKey = PrimaryKey(bindingId)
 }
 

@@ -272,6 +272,21 @@ class JiraSchemaTest {
         // Jira's own dates are stored as observed: an end before the start is data (a deviation), not a constraint violation.
         assertNull(observe(binding))
         assertEquals(UNIQUE, observe(binding), "one latest row per binding")
+
+        // V27: the probe stamp is a nullable BIGINT that only a gone row may carry.
+        assertEquals(
+            1,
+            int(
+                "SELECT count(*) FROM information_schema.columns WHERE table_name = 'jira_observations' " +
+                    "AND column_name = 'gone_probed_at' AND data_type = 'bigint' AND is_nullable = 'YES'",
+            ),
+            "gone_probed_at is a nullable BIGINT",
+        )
+        val update = "UPDATE jira_observations SET"
+        assertEquals(CHECK, sqlState("$update gone_probed_at = 5 WHERE binding_id = $binding"), "not gone: no stamp")
+        assertNull(sqlState("$update gone = TRUE, gone_reason = 'OUT_OF_SCOPE', gone_probed_at = 5 WHERE binding_id = $binding"))
+        assertEquals(CHECK, sqlState("$update gone = FALSE WHERE binding_id = $binding"), "clearing gone must clear the stamp")
+        assertNull(sqlState("$update gone = FALSE, gone_reason = NULL, gone_probed_at = NULL WHERE binding_id = $binding"))
     }
 
     @Test

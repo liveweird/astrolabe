@@ -98,6 +98,9 @@ class JiraRunTest {
     private fun staleObservation(id: UInt) =
         jbSql("UPDATE jira_observations SET observed_at = 1, summary = 'stale' WHERE binding_id = ?", id.toInt())
 
+    private fun probeStamped(id: UInt): Boolean =
+        jbScalar("SELECT gone_probed_at IS NOT NULL FROM jira_observations WHERE binding_id = ?", id.toInt()) { it.getBoolean(1) }
+
     private fun e2eIssue(key: String): JsonObject =
         expected.getValue("e2e").jsonObject.getValue("issues").jsonArray.map { it.jsonObject }
             .single { it.getValue("key").jsonPrimitive.content == key }
@@ -231,6 +234,7 @@ class JiraRunTest {
             val gone = assertNotNull(admin.binding(vanishing.id).observation)
             assertEquals(true, gone.gone)
             assertEquals("DELETED", gone.goneReason, "the probe's 404")
+            assertTrue(probeStamped(vanishing.id), "the answer is stamped")
             assertEquals("stale", gone.summary, "the content last read stays")
 
             JiraStubServer.resetScenarios()
@@ -241,6 +245,7 @@ class JiraRunTest {
             val back = assertNotNull(admin.binding(vanishing.id).observation)
             assertFalse(back.gone)
             assertNull(back.goneReason)
+            assertFalse(probeStamped(vanishing.id), "clearing the flag clears the stamp (the CHECK requires it)")
             assertEquals("stale", back.summary, "its content was not re-read")
             assertEquals(revision, TestPlan.revision(), "runs bump nothing")
         } finally {
@@ -249,7 +254,7 @@ class JiraRunTest {
     }
 
     @Test
-    fun `a probe that reads the issue keeps it out of scope, a failed probe never fails the run, a gone binding is not probed again`() =
+    fun `a 200 probe is final, a failed probe never fails the run and is retried, a 404 then classifies it`() =
         testApplication {
             val f = fixture("jrprobe")
             val admin = f.w.admin.client
@@ -275,6 +280,12 @@ class JiraRunTest {
                 val outOfScope = assertNotNull(admin.binding(vanishing.id).observation)
                 assertTrue(outOfScope.gone)
                 assertEquals("OUT_OF_SCOPE", outOfScope.goneReason)
+                assertTrue(probeStamped(vanishing.id), "the 200 is an answer: it stamps gone_probed_at")
+
+                // (a2) A 200 is final for that vanish: the next run, still flagged, sends NO probe.
+                JiraStubServer.resetRequests()
+                assertEquals(SyncOutcome.SUCCEEDED, runAndAwait(admin, f.connectionId).outcome)
+                assertEquals(0, JiraStubServer.countRequests(getRequestedFor(issuePath)), "answered once, not probed again")
 
                 // (b) Back in scope, then vanished again with the probe answering 500: the run succeeds, the row stays OUT_OF_SCOPE.
                 JiraStubServer.resetScenarios()
@@ -289,16 +300,30 @@ class JiraRunTest {
                 assertEquals(1, JiraStubServer.countRequests(getRequestedFor(issuePath)), "the failed probe was sent once")
                 val stays = assertNotNull(admin.binding(vanishing.id).observation)
                 assertEquals(listOf(true, "OUT_OF_SCOPE"), listOf(stays.gone, stays.goneReason))
+                assertFalse(probeStamped(vanishing.id), "a failure is not an answer: no stamp")
                 val warning = assertNotNull(
                     log.awaitEvent { it.level.toString() == "WARN" && "probe of issue 90006 failed" in it.formattedMessage },
                 )
                 assertTrue(f.token !in warning.formattedMessage, "the log line never carries the token")
 
-                // (c) Already flagged when the run began: classified once, so no second probe.
+                // (c) Case (c) was INVERTED in 1.10 (V27 gone_probed_at): a binding already flagged when the run began but never ANSWERED
+                // is probed again (it used to be classified once, so a failed probe was never retried). Swap the 500 for a 404: the next
+                // run classifies it and stamps it; the run after that sends no probe.
+                JiraStubServer.removeOverride(override)
+                override = JiraStubServer.addOverride(
+                    get(issuePath).atPriority(1).willReturn(aResponse().withStatus(404)),
+                )
                 JiraStubServer.resetRequests()
                 val again = runAndAwait(admin, f.connectionId)
                 assertEquals(SyncOutcome.SUCCEEDED, again.outcome, again.errorDetail)
-                assertEquals(0, JiraStubServer.countRequests(getRequestedFor(issuePath)), "no probe")
+                assertEquals(1, JiraStubServer.countRequests(getRequestedFor(issuePath)), "the unanswered probe is sent again")
+                val classified = assertNotNull(admin.binding(vanishing.id).observation)
+                assertEquals(listOf(true, "DELETED"), listOf(classified.gone, classified.goneReason))
+                assertTrue(probeStamped(vanishing.id))
+
+                JiraStubServer.resetRequests()
+                assertEquals(SyncOutcome.SUCCEEDED, runAndAwait(admin, f.connectionId).outcome)
+                assertEquals(0, JiraStubServer.countRequests(getRequestedFor(issuePath)), "answered: no further probe")
             } finally {
                 log.detach()
                 override?.let(JiraStubServer::removeOverride)
@@ -323,6 +348,7 @@ class JiraRunTest {
             assertEquals(SyncOutcome.SUCCEEDED, run.outcome, run.errorDetail)
             val observed = assertNotNull(admin.binding(vanishing.id).observation)
             assertEquals(listOf(true, "FORBIDDEN"), listOf(observed.gone, observed.goneReason))
+            assertTrue(probeStamped(vanishing.id), "a 403 is an answer too")
         } finally {
             override?.let(JiraStubServer::removeOverride)
             JiraStubServer.resetScenarios()
