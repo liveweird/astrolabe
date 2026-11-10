@@ -11,6 +11,7 @@ const ROW_2 = differsRow();
 const ROW_3 = differsRow({ sprintId: 90003, sprintName: "E2E Flow Sprint 3", start: "2047-02-04", end: "2047-02-15", planMd: 44, flowMd: 48 });
 const ROW_4 = missingRow(90004, "2047-02-18", "2047-03-01");
 const URL_5 = "/api/v1/integrations/flow/team-bindings/5/acknowledge";
+const URL_ALL = "/api/v1/integrations/flow/team-bindings/5/acknowledge-all";
 const STALE = { type: "urn:astrolabe:problem:stale-deviations", title: "Conflict", status: 409, detail: "changed" };
 
 /** Three buttons that write (each names its neighbours as a list does) and the hook's state in text, so the machine is read the way a list reads it. */
@@ -30,6 +31,9 @@ function Harness({ scope = "a" }: { scope?: string }) {
       </button>
       <button onClick={() => ack.run({ kind: "acknowledge", bindingId: 5, row: ROW_4 }, [])}>ack 4</button>
       <button onClick={() => ack.run({ kind: "acknowledge", bindingId: 6, row: GONE_ROW }, [])}>ack gone</button>
+      <button data-ack-for="5:all" onClick={() => ack.run({ kind: "acknowledgeAll", bindingId: 5, rows: [ROW_2, ROW_4] }, ["5:90002", "5:90003", "5:90004"])}>
+        ack all
+      </button>
       <output data-testid="busy">{ack.busyKey ?? "idle"}</output>
       <output data-testid="notice">{ack.notice === null ? "none" : `${ack.notice.key} ${ack.notice.kind}${ack.notice.kind === "failure" ? `: ${ack.notice.text}` : ""}`}</output>
     </div>
@@ -176,5 +180,63 @@ describe("useCapacityAcknowledge", () => {
     await userEvent.click(other);
     await waitFor(() => expect(invalidated.length).toBeGreaterThanOrEqual(4));
     expect(screen.getByRole("button", { name: "unack 3" })).toHaveFocus();
+  });
+
+  test("acknowledge all is ONE request naming every row with the fingerprint read (the team's own row as null), keyed by the binding, then the same re-read", async () => {
+    mockFetch.mockResolvedValue(jsonResponse(200, { acknowledged: [] }));
+    renderHarness();
+    await userEvent.click(screen.getByRole("button", { name: "ack all" }));
+    await waitFor(() => expect(invalidated).toEqual([["flow", "deviations"], ["plan"]]));
+    expect(writes()).toHaveLength(1);
+    expect(writes()[0][0]).toBe(URL_ALL);
+    expect(writes()[0][1].method).toBe("POST");
+    expect(JSON.parse(writes()[0][1].body as string)).toEqual({
+      items: [
+        { sprintId: 90002, fingerprint: ROW_2.fingerprint },
+        { sprintId: 90004, fingerprint: ROW_4.fingerprint },
+      ],
+    });
+    expect(screen.getByTestId("notice")).toHaveTextContent("none");
+  });
+
+  test("while a batch runs the busy key is the binding's all-key and every other write is ignored", async () => {
+    let finish: (response: Response) => void = () => {};
+    mockFetch.mockImplementation(() => new Promise<Response>((resolve) => (finish = resolve)));
+    renderHarness();
+    await userEvent.click(screen.getByRole("button", { name: "ack all" }));
+    await waitFor(() => expect(screen.getByTestId("busy")).toHaveTextContent("5:all"));
+    await userEvent.click(screen.getByRole("button", { name: "ack 4" }));
+    expect(writes()).toHaveLength(1);
+    await act(async () => finish(jsonResponse(200, { acknowledged: [] })));
+    await waitFor(() => expect(screen.getByTestId("busy")).toHaveTextContent("idle"));
+  });
+
+  test("a batch's 409 stale-deviations is the same note, tied to the all-key (nothing was stored), with the same re-read", async () => {
+    mockFetch.mockResolvedValue(jsonResponse(409, STALE));
+    renderHarness();
+    await userEvent.click(screen.getByRole("button", { name: "ack all" }));
+    await waitFor(() => expect(screen.getByTestId("notice")).toHaveTextContent("5:all stale"));
+    expect(invalidated).toEqual([["flow", "deviations"], ["plan"]]);
+  });
+
+  test("a batch's 403 is the capacity refusal in words under the all-key and re-reads the links", async () => {
+    mockFetch.mockResolvedValue(jsonResponse(403, { title: "Forbidden", status: 403 }));
+    renderHarness();
+    await userEvent.click(screen.getByRole("button", { name: "ack all" }));
+    await waitFor(() => expect(screen.getByTestId("notice")).toHaveTextContent("5:all failure: Only the team's manager or an administrator can acknowledge its capacity differences."));
+    expect(invalidated).toEqual([["flow", "teams"], ["flow", "team"], ["flow", "deviations"]]);
+  });
+
+  test("after a batch the focus the browser dropped on body goes to the first neighbour still there", async () => {
+    renderHarness();
+    const all = screen.getByRole("button", { name: "ack all" });
+    all.focus();
+    mockFetch.mockImplementation(() => {
+      all.remove();
+      (document.activeElement as HTMLElement | null)?.blur();
+      return Promise.resolve(jsonResponse(200, { acknowledged: [] }));
+    });
+    await userEvent.click(all);
+    await waitFor(() => expect(screen.getByRole("button", { name: "ack 2" })).toHaveFocus());
   });
 });

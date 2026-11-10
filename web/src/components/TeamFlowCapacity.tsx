@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { Group, Stack, Text } from "@mantine/core";
 import type { CapacityDeviation, CapacityDeviationItem } from "../api/capacityDeviations";
 import type { CapacityAcknowledge } from "../hooks/useCapacityAcknowledge";
-import { capacityAckKey, countCapacityDeviations } from "../utils/capacityDeviations";
+import { capacityAckAllKey, capacityAckKey, countCapacityDeviations } from "../utils/capacityDeviations";
 import { CapacityAckOrphanNotice } from "./CapacityAckCell";
 import CapacityDeviationList from "./CapacityDeviationList";
 import ErrorAlert from "./ErrorAlert";
@@ -96,8 +96,8 @@ export function CapacityDetails({ comparison, canImport, ack, panelGone = false 
   return (
     <Stack gap="xs">
       {failed && <ErrorAlert error={error} title={t("flow.panel.capacity.loadFailed")} />}
-      {showRows && item !== undefined && <CapacityAckOrphanNotice hook={ack} listedKeys={new Set(shown.map((row) => capacityAckKey(item.bindingId, row.detail.sprintId)))} />}
-      {showRows && <CapacityDeviationList deviations={shown} label={t("flow.panel.capacity.listAria")} ack={item === undefined ? undefined : { can: item.can, bindingId: item.bindingId, hook: ack }} />}
+      {showRows && item !== undefined && <CapacityAckOrphanNotice hook={ack} listedKeys={new Set([capacityAckAllKey(item.bindingId), ...shown.map((row) => capacityAckKey(item.bindingId, row.detail.sprintId))])} />}
+      {showRows && <CapacityDeviationList deviations={shown} label={t("flow.panel.capacity.listAria")} ack={item === undefined ? undefined : { can: item.can, bindingId: item.bindingId, team: item.team.name, hook: ack }} />}
       {showRows && !gone && canImport && <Text size="sm">{t("flow.panel.capacity.fix")}</Text>}
     </Stack>
   );

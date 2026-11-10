@@ -275,6 +275,9 @@
     "moreHide": "Hide {{n}} more",
     "ack": {
       "acknowledgeAria": "Acknowledge {{sprint}}",
+      "acknowledgeAll": "Acknowledge all ({{count}})",
+      "acknowledgeAllAria_one": "Acknowledge all ({{count}}) open difference of {{team}}",
+      "acknowledgeAllAria_other": "Acknowledge all ({{count}}) open differences of {{team}}",
       "unacknowledgeAria": "Unacknowledge {{sprint}}",
       "teamRow": "the team's own row",
       "forbidden": "Only the team's manager or an administrator can acknowledge its capacity differences.",

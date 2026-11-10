@@ -8,7 +8,7 @@ import CapacityAckCell, { CapacityAckOrphanNotice, type CapacityAckContext } fro
 function hook(over: Partial<CapacityAcknowledge> = {}): CapacityAcknowledge {
   return { busyKey: null, notice: null, run: vi.fn(), ...over };
 }
-const context = (over: Partial<CapacityAckContext> = {}): CapacityAckContext => ({ can: { acknowledge: true }, bindingId: 5, hook: hook(), ...over });
+const context = (over: Partial<CapacityAckContext> = {}): CapacityAckContext => ({ can: { acknowledge: true }, bindingId: 5, team: "Platform", hook: hook(), ...over });
 const NEIGHBOURS = ["5:90003"];
 
 describe("CapacityAckCell", () => {

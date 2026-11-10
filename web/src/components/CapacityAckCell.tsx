@@ -4,12 +4,12 @@ import { useTranslation } from "react-i18next";
 import { Button, Stack, Text } from "@mantine/core";
 import type { CapacityDeviation, CapacityDeviationCan } from "../api/capacityDeviations";
 import type { CapacityAcknowledge } from "../hooks/useCapacityAcknowledge";
-import { capacityAckKey, isOpen } from "../utils/capacityDeviations";
+import { capacityAckAllKey, capacityAckKey, isOpen } from "../utils/capacityDeviations";
 import { formatDate, formatDateTime } from "../utils/formatDate";
 import { AckNoticeAlert } from "./DeviationAckCell";
 
-/** What a list needs to offer the acknowledge on its rows: the item's `can`, the binding the rows belong to and the write's state machine. */
-export type CapacityAckContext = { can: CapacityDeviationCan; bindingId: number; hook: CapacityAcknowledge };
+/** What a list needs to offer the acknowledge on its rows: the item's `can`, the binding the rows belong to (and its team's name, for "Acknowledge all") and the write's state machine. */
+export type CapacityAckContext = { can: CapacityDeviationCan; bindingId: number; team: string; hook: CapacityAcknowledge };
 
 /** The row's name in a button's accessible name: Flow's sprint name, "Sprint 90002" when it has none, "the team's own row" for the gone team. */
 function rowName(row: CapacityDeviation, t: TFunction): string {
@@ -58,6 +58,34 @@ export default function CapacityAckCell({ row, ack, neighbours }: { row: Capacit
       {can.acknowledge && !open && (
         <Button size="compact-sm" variant="default" data-ack-for={key} aria-label={t("deviations.capacity.ack.unacknowledgeAria", { sprint })} aria-disabled={busy || undefined} data-disabled={busy || undefined} onClick={() => hook.run({ kind: "unacknowledge", bindingId, row }, neighbours)}>
           {t("deviations.ack.unacknowledge")}
+        </Button>
+      )}
+      {notice !== null && <AckNoticeAlert notice={notice} />}
+    </Stack>
+  );
+}
+
+/**
+ * The head of a team's list (1.10): **Acknowledge all (N)** - one request for every OPEN row the list shows (the page's filters already narrowed it; a
+ * stale acknowledgement and the folded "sprints without capacity" count as open), offered with `can.acknowledge` and only when at least two rows are
+ * open (one open row has its own button). It is `aria-disabled` while any write runs, never `disabled` (the cell's rule: the focus stays). `order` is the
+ * list's row keys, the neighbours the focus falls back on. A note or refusal the batch left (its key is the binding's all-key) shows under the button,
+ * whether or not the button is still there; with the team's row off the list, `CapacityAckOrphanNotice` shows it instead.
+ */
+export function CapacityAckAll({ deviations, ack, order }: { deviations: readonly CapacityDeviation[]; ack: CapacityAckContext; order: readonly string[] }) {
+  const { t } = useTranslation();
+  const { bindingId, can, hook, team } = ack;
+  const key = capacityAckAllKey(bindingId);
+  const open = deviations.filter(isOpen);
+  const notice = hook.notice?.key === key ? hook.notice : null;
+  const offered = can.acknowledge && open.length >= 2;
+  if (!offered && notice === null) return null;
+  const busy = hook.busyKey !== null;
+  return (
+    <Stack gap={6} align="flex-start">
+      {offered && (
+        <Button size="compact-sm" variant="default" data-ack-for={key} aria-label={t("deviations.capacity.ack.acknowledgeAllAria", { count: open.length, team })} aria-disabled={busy || undefined} data-disabled={busy || undefined} onClick={() => hook.run({ kind: "acknowledgeAll", bindingId, rows: open }, order)}>
+          {t("deviations.capacity.ack.acknowledgeAll", { count: open.length })}
         </Button>
       )}
       {notice !== null && <AckNoticeAlert notice={notice} />}

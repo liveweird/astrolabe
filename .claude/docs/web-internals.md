@@ -1099,12 +1099,23 @@ fourth "Acknowledgement" column of their table, so a single missing sprint is a 
 the POST body, `null` for the gone team) and `fingerprint`; a success re-reads `["flow","deviations"]` and `["plan"]` (`refreshCapacityAcknowledgements`: the team
 view's flag and markers follow the open rows); the shared `409 stale-deviations` (`isStaleDeviations`) is an orange note in the row plus the re-read (a note of
 a row that left the list is shown above the list, `CapacityAckOrphanNotice`), a 403/404 a red message and a `refreshFlowLinks`; the focus rule is the Jira
-one (the row's own button, the next row's, the previous row's, else the "Differences from Flow" heading). **The sentence**
+one (the row's own button, the next row's, the previous row's, else the "Differences from Flow" heading). **Acknowledge all (1.10)**: at the head of a team's list
+(`CapacityAckAll` in `CapacityAckCell.tsx`, rendered by `CapacityDeviationList`, so both surfaces have it) a `Button` "Acknowledge all (N)" - named "Acknowledge all (N)
+open differences of <team>" (`CapacityAckContext.team` is the item's team name) - shown only when the item's `can.acknowledge` allows it AND at least two of the listed
+rows are open (`isOpen`: a stale acknowledgement and every folded "sprints without capacity" row count; acknowledged ones neither count nor are sent; one open row has
+its own button). It **acknowledges what the list shows**: the page's Status/severity/team filters have already narrowed the rows, and N is on the label. One request,
+`POST /integrations/flow/team-bindings/{id}/acknowledge-all` (`acknowledgeCapacityDeviations`, body `{items:[{sprintId|null, fingerprint}]}`, all or nothing), through the
+SAME hook as a `{kind: "acknowledgeAll", bindingId, rows}` request keyed by `capacityAckAllKey(bindingId)` (`<id>:all`, the button's `data-ack-for` and the busy and notice
+key): the success toast, the re-read, the stale `409` note ("The deviations changed since you looked…", nothing was stored), the 403/404 refusals and the focus rule are
+the single write's (the neighbours are the list's row keys, so after a batch the focus goes to the first row button still there, else the heading). While any write runs the button is
+`aria-disabled`/`data-disabled`, never `disabled`. The batch's note shows under the button at the head of its team's list (button or not), and `listedKeys` of both
+callers hold each listed team's all-key, so `CapacityAckOrphanNotice` shows it above the list only once the team's item has left the list (an Open list with nothing open
+left). No "withdraw all". **The sentence**
 (`capacityDeviationSentence`, EN/PL): `"<Flow's sprint name> (<start> – <end>): the plan has 36.00 man-days, Flow 30.00 — 6.00 more in the plan"` (`gapMd` > 0 =
 the plan has more; man-days are JSON numbers shown with two decimals and a dot), plus "Flow plans 44.00 man-days for the whole sprint; 22.00 fall on the days it
 holds here." when `flowTotalMd` differs from `flowMd` (a fixed per-sprint figure that shares days with an earlier sprint). **An empty Open list** with rows
 acknowledged (`totals.acknowledged > 0`) says "No open capacity difference." and how many sprints are hidden - never "In line with Flow". Tests:
-`CapacityDeviationsSection.test.tsx`, `CapacityDeviationsSection.ack.test.tsx` (the acknowledge), `CapacityDeviationList.test.tsx`, `CapacityAckCell.test.tsx`, `Deviations.test.tsx` ("Capacity from Flow"),
+`CapacityDeviationsSection.test.tsx`, `CapacityDeviationsSection.ack.test.tsx` (the acknowledge, "Acknowledge all"), `CapacityDeviationList.test.tsx`, `CapacityAckCell.test.tsx`, `Deviations.test.tsx` ("Capacity from Flow"),
 `utils/capacityDeviations.test.ts`, `hooks/useCapacityDeviations.test.tsx`, `hooks/useCapacityAcknowledge.test.tsx`, `api/capacityDeviations.test.ts`; fixtures in
 `test/flow.ts` (`capacityView`, `capacityItem`, `differsRow`, `missingRow`, `acknowledgedRow`, `staleAcknowledgedRow`, `NO_FLOW_VIEW`).
 
@@ -1308,14 +1319,14 @@ its way, an inline `ErrorAlert` below the facts when a read failed (also a re-re
 warnings first, the first five, the rest behind a `TableDisclosure` "Show N more", the sprints without capacity folded into ONE line with their own table
 disclosure), EVERY line carrying its `CapacityAckCell` (`CapacityDetails` passes `ack`: the section's `useCapacityAcknowledge`, keyed by the team's id, whose focus
 fallback is the section's h3; an orphaned note shows above the lines; "Capacity from Flow" above has the cell's and the hook's mechanics, so the manager
-acknowledges where they plan) and, for whoever `can.importCapacity` (and no proposal is open), the truthful remedy line "Import capacity… shows what an import would change.
+acknowledges where they plan; the list opens with "Acknowledge all (N)", `CapacityAckAll`, "Capacity from Flow" above) and, for whoever `can.importCapacity` (and no proposal is open), the truthful remedy line "Import capacity… shows what an import would change.
 Hand-entered periods are left as they are, and a sprint where Flow has 0 must be ticked by hand." (it never promises the plan will match: a hand-entered period
 and a ZERO_CAPACITY sprint are not touched by default) The apply of the import (`onImported`), a link or unlink (`refreshFlowLinks`), a saved/deleted capacity
 period (`TeamCapacity`) and a public-holiday write all invalidate `["flow","deviations"]`, because each moves what the comparison reads; an acknowledge or its
 withdrawal re-reads `["flow","deviations"]` and `["plan"]` (`refreshCapacityAcknowledgements`). A gone Flow team (`TEAM_GONE`, or the panel's `gone`) has no
 sprint lines, no fact row and no import remedy, but its OWN row is listed (`CapacityDetails`) with its cell ("the team's own row", `sprintId` null, the DELETE
 carries no parameter): the open row counts in the header's flag, so the manager silences it where they plan. An acknowledged row's severity badge is dimmed gray
-(`SeverityBadge` `dimmed`; a stale acknowledgement keeps its colour), as is a fully acknowledged folded missing line. Tests: `TeamFlowSection.test.tsx` ("capacity against Flow"), `TeamFlowSection.ack.test.tsx` (acknowledging a sprint from the team page),
+(`SeverityBadge` `dimmed`; a stale acknowledgement keeps its colour), as is a fully acknowledged folded missing line. Tests: `TeamFlowSection.test.tsx` ("capacity against Flow"), `TeamFlowSection.ack.test.tsx` (acknowledging a sprint, and all the open ones, from the team page),
 `utils/capacityDeviations.test.ts`, `hooks/useCapacityDeviations.test.tsx`, `hooks/useCapacityAcknowledge.test.tsx`.
 
 **`CapacityImportModal`** (`utils/capacityImport.ts` is its pure half): "Include closed sprints" (re-reads the plan), the preview table

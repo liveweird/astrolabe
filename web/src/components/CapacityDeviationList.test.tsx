@@ -12,7 +12,7 @@ const ROW_3 = differsRow({ sprintId: 90003, sprintName: "E2E Flow Sprint 3", sta
 
 function ack(over: Partial<CapacityAckContext> = {}): CapacityAckContext {
   const hook: CapacityAcknowledge = { busyKey: null, notice: null, run: vi.fn() };
-  return { can: { acknowledge: true }, bindingId: 5, hook, ...over };
+  return { can: { acknowledge: true }, bindingId: 5, team: "Platform", hook, ...over };
 }
 const missingRows = (count: number, acknowledged: readonly number[] = []): CapacityDeviation[] =>
   Array.from({ length: count }, (_, n) => {
@@ -119,5 +119,69 @@ describe("CapacityDeviationList without the acknowledge", () => {
     await userEvent.click(screen.getByRole("button", { name: "Show the sprints" }));
     const table = await screen.findByRole("table", { name: "Sprints without capacity in the plan" });
     expect(within(table).getAllByRole("columnheader")).toHaveLength(3);
+  });
+});
+
+describe("CapacityDeviationList: Acknowledge all", () => {
+  const ALL = { name: /^Acknowledge all/ };
+  const THIRD = differsRow({ sprintId: 90004, sprintName: "E2E Flow Sprint 4", planMd: 20 });
+
+  test("with two open rows the head of the list offers Acknowledge all (N), named by its count and team, and hands the hook every open row", async () => {
+    const context = ack();
+    renderWithProviders(<CapacityDeviationList deviations={[ROW_2, ROW_3]} ack={context} />);
+    const button = screen.getByRole("button", { name: "Acknowledge all (2) open differences of Platform" });
+    expect(button).toHaveTextContent("Acknowledge all (2)");
+    expect(button).toHaveAttribute("data-ack-for", "5:all");
+    // At the HEAD: before the first sentence.
+    expect(button.compareDocumentPosition(screen.getAllByRole("listitem")[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await userEvent.click(button);
+    expect(context.hook.run).toHaveBeenCalledWith({ kind: "acknowledgeAll", bindingId: 5, rows: [ROW_2, ROW_3] }, ["5:90002", "5:90003"]);
+  });
+
+  test("N counts the OPEN rows only: an acknowledged row is not counted or sent, a stale one is, and the folded sprints without capacity count one each", async () => {
+    const context = ack();
+    const stale = staleAcknowledgedRow(THIRD);
+    const folded = missingRows(3, [1]);
+    renderWithProviders(<CapacityDeviationList deviations={[ROW_2, acknowledgedRow(ROW_3), stale, ...folded]} ack={context} />);
+    // open: ROW_2, the stale one, two of the three folded sprints.
+    await userEvent.click(screen.getByRole("button", { name: "Acknowledge all (4) open differences of Platform" }));
+    expect(context.hook.run).toHaveBeenCalledTimes(1);
+    const request = vi.mocked(context.hook.run).mock.calls[0][0];
+    expect(request.kind === "acknowledgeAll" && request.rows.map((row) => row.detail.sprintId)).toEqual([90002, 90004, 90010, 90012]);
+  });
+
+  test("no button without can.acknowledge, with a single open row or with none", () => {
+    const view = renderWithProviders(<CapacityDeviationList deviations={[ROW_2, ROW_3]} ack={ack({ can: { acknowledge: false } })} />);
+    expect(screen.queryByRole("button", ALL)).not.toBeInTheDocument();
+    view.rerender(<CapacityDeviationList deviations={[ROW_2, acknowledgedRow(ROW_3)]} ack={ack()} />);
+    expect(screen.queryByRole("button", ALL)).not.toBeInTheDocument();
+    view.rerender(<CapacityDeviationList deviations={[acknowledgedRow(ROW_2), acknowledgedRow(ROW_3)]} ack={ack()} />);
+    expect(screen.queryByRole("button", ALL)).not.toBeInTheDocument();
+  });
+
+  test("no button without the acknowledge context at all", () => {
+    renderWithProviders(<CapacityDeviationList deviations={[ROW_2, ROW_3]} />);
+    expect(screen.queryByRole("button", ALL)).not.toBeInTheDocument();
+  });
+
+  test("while any write runs the button is aria-disabled and never `disabled`, so the focus stays (the hook ignores the click)", () => {
+    renderWithProviders(<CapacityDeviationList deviations={[ROW_2, ROW_3]} ack={ack({ hook: { busyKey: "5:90002", notice: null, run: vi.fn() } })} />);
+    const button = screen.getByRole("button", ALL);
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button).toHaveAttribute("data-disabled", "true");
+    expect(button).not.toBeDisabled();
+  });
+
+  test("the notice a batch left (its key is the all-key) shows at the head of the list, button or not; another row's notice does not", () => {
+    const stale = { key: "5:all", kind: "stale" } as const;
+    const view = renderWithProviders(<CapacityDeviationList deviations={[ROW_2, ROW_3]} ack={ack({ hook: { busyKey: null, notice: stale, run: vi.fn() } })} />);
+    expect(screen.getByText(/The deviations changed since you looked/)).toBeInTheDocument();
+    expect(screen.getByRole("button", ALL)).toBeInTheDocument();
+    view.rerender(<CapacityDeviationList deviations={[ROW_2]} ack={ack({ hook: { busyKey: null, notice: stale, run: vi.fn() } })} />);
+    expect(screen.getByText(/The deviations changed since you looked/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", ALL)).not.toBeInTheDocument();
+    view.rerender(<CapacityDeviationList deviations={[ROW_2, ROW_3]} ack={ack({ hook: { busyKey: null, notice: { key: "5:90002", kind: "stale" }, run: vi.fn() } })} />);
+    // Only the row's own cell carries it.
+    expect(screen.getAllByText(/The deviations changed since you looked/)).toHaveLength(1);
   });
 });

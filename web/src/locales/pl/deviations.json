@@ -321,6 +321,11 @@
     "moreHide": "Ukryj pozostałe: {{n}}",
     "ack": {
       "acknowledgeAria": "Potwierdź {{sprint}}",
+      "acknowledgeAll": "Potwierdź wszystkie ({{count}})",
+      "acknowledgeAllAria_one": "Potwierdź wszystkie ({{count}}) otwarte różnice zespołu {{team}}",
+      "acknowledgeAllAria_few": "Potwierdź wszystkie ({{count}}) otwarte różnice zespołu {{team}}",
+      "acknowledgeAllAria_many": "Potwierdź wszystkie ({{count}}) otwarte różnice zespołu {{team}}",
+      "acknowledgeAllAria_other": "Potwierdź wszystkie ({{count}}) otwarte różnice zespołu {{team}}",
       "unacknowledgeAria": "Cofnij potwierdzenie {{sprint}}",
       "teamRow": "wiersz samego zespołu",
       "forbidden": "Różnice przepustowości może potwierdzić tylko kierownik/czka zespołu albo administrator/ka.",

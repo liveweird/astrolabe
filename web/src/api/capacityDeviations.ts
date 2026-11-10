@@ -46,6 +46,15 @@ export async function acknowledgeCapacityDeviation(bindingId: number, body: { sp
   return jsonRequest<CapacityAcknowledgement>(acknowledgePath(bindingId), { method: "POST", body: JSON.stringify(body) });
 }
 
+/**
+ * Acknowledges SEVERAL sprints of one team in one call (`POST …/acknowledge-all`): the rows the client lists as open, each with the fingerprint it read.
+ * All or nothing - a row that is not listed now or has another fingerprint is the shared 409 `stale-deviations` and nothing is stored. The `sprintId`
+ * keys follow the single acknowledge's rule (null = the team's own row, always sent); a row is named once.
+ */
+export async function acknowledgeCapacityDeviations(bindingId: number, items: readonly { sprintId: number | null; fingerprint: string }[]): Promise<Schemas["CapacityAcknowledgeBatch"]> {
+  return jsonRequest<Schemas["CapacityAcknowledgeBatch"]>(`${acknowledgePath(bindingId)}-all`, { method: "POST", body: JSON.stringify({ items }) });
+}
+
 /** Withdraws one sprint's acknowledgement, current or stale (`sprintId` null = the team's own row, sent as no parameter; a 404 when none is stored). */
 export async function unacknowledgeCapacityDeviation(bindingId: number, sprintId: number | null): Promise<void> {
   const params = buildQuery({ sprintId });

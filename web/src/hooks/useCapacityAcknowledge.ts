@@ -1,24 +1,27 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { acknowledgeCapacityDeviation, unacknowledgeCapacityDeviation, type CapacityDeviation } from "../api/capacityDeviations";
+import { acknowledgeCapacityDeviation, acknowledgeCapacityDeviations, unacknowledgeCapacityDeviation, type CapacityDeviation } from "../api/capacityDeviations";
 import { isStaleDeviations } from "../api/deviations";
 import { ApiError } from "../api/http";
-import { capacityAckKey } from "../utils/capacityDeviations";
+import { capacityAckAllKey, capacityAckKey } from "../utils/capacityDeviations";
 import { refreshCapacityAcknowledgements, refreshFlowLinks } from "../utils/flowRefresh";
 import { saveErrorMessage } from "../utils/saveError";
 import { showSuccessToast } from "../utils/toast";
 
-/** What a row asks for: acknowledge the sprint's deviation as the page read it (the row's fingerprint), or withdraw the acknowledgement. */
-type AckRequest = { kind: "acknowledge" | "unacknowledge"; bindingId: number; row: CapacityDeviation };
+/**
+ * What a write asks for: acknowledge ONE sprint's deviation as the page read it (the row's fingerprint), withdraw its acknowledgement, or acknowledge
+ * every open row of a team at once (`acknowledgeAll`: the rows the list shows as open, each with the fingerprint the page read; keyed by the binding).
+ */
+type AckRequest = { kind: "acknowledge" | "unacknowledge"; bindingId: number; row: CapacityDeviation } | { kind: "acknowledgeAll"; bindingId: number; rows: readonly CapacityDeviation[] };
 
 /** The message a write left, tied to its row's key: `stale` = the 409 note (the list is re-read), `failure` = a refusal already in words (inline, red). */
 type CapacityAckNotice = { key: string; kind: "stale" } | { key: string; kind: "failure"; text: string };
 
 export type CapacityAcknowledge = {
-  /** The row being written (its key), else null: every action waits for it, so a second click cannot race the first. */
+  /** The key being written (a row's, or a team's "all" key for the batch), else null: every action waits for it, so a second click cannot race the first. */
   busyKey: string | null;
-  /** The newest message, shown in its row's own cell (the list shows it itself only when that row has left it); null = none. */
+  /** The newest message, shown under its own control - a row's cell or the team's "Acknowledge all" (the list shows it itself only when that control has left it); null = none. */
   notice: CapacityAckNotice | null;
   /** `neighbours` are the keys of the rows beside this one (next first): where the focus goes if this row leaves the list. */
   run: (request: AckRequest, neighbours: readonly string[]) => void;
@@ -27,12 +30,13 @@ export type CapacityAcknowledge = {
 /** The button of a row's action cell (`CapacityAckCell` marks both of its buttons with the row's key). */
 const buttonOf = (key: string) => document.querySelector<HTMLElement>(`[data-ack-for="${key}"]`);
 
-const keyOf = (request: AckRequest) => capacityAckKey(request.bindingId, request.row.detail.sprintId);
+const keyOf = (request: AckRequest) => (request.kind === "acknowledgeAll" ? capacityAckAllKey(request.bindingId) : capacityAckKey(request.bindingId, request.row.detail.sprintId));
 
 /**
- * Acknowledging ONE sprint's capacity deviation, from the Deviations page's Capacity from Flow section and from the team page's Flow section:
- * `POST` / `DELETE /integrations/flow/team-bindings/{id}/acknowledge`. The state machine of the Jira `useAcknowledge`, keyed by the row (binding +
- * sprint) instead of the binding.
+ * Acknowledging a sprint's capacity deviation (or, since 1.10, all of a team's open rows at once), from the Deviations page's Capacity from Flow section and from the team page's Flow section:
+ * `POST` / `DELETE /integrations/flow/team-bindings/{id}/acknowledge`, and (1.10) all of a team's open rows in one `POST …/acknowledge-all`. The state
+ * machine of the Jira `useAcknowledge`, keyed by the row (binding + sprint) instead of the binding; a batch is keyed by the binding (`<id>:all`). A batch
+ * is all or nothing, so its `409 stale-deviations` is the same note (the list is read again, nothing was stored) and its success the same toast.
  *
  * **What is refreshed.** A success re-reads the capacity deviations and the plan's views (`refreshCapacityAcknowledgements`: the team view's flag
  * and markers follow the open rows). A `409 stale-deviations` is a normal state, not an error: the sprint's figures changed since the list was read (or the
@@ -87,13 +91,14 @@ export function useCapacityAcknowledge(fallback: RefObject<HTMLElement | null>, 
   type Variables = { request: AckRequest; neighbours: readonly string[]; scope: string };
   const mutation = useMutation({
     mutationFn: async ({ request }: Variables) => {
-      if (request.kind === "acknowledge") await acknowledgeCapacityDeviation(request.bindingId, { sprintId: request.row.detail.sprintId, fingerprint: request.row.fingerprint });
+      if (request.kind === "acknowledgeAll") await acknowledgeCapacityDeviations(request.bindingId, request.rows.map((row) => ({ sprintId: row.detail.sprintId, fingerprint: row.fingerprint })));
+      else if (request.kind === "acknowledge") await acknowledgeCapacityDeviation(request.bindingId, { sprintId: request.row.detail.sprintId, fingerprint: request.row.fingerprint });
       else await unacknowledgeCapacityDeviation(request.bindingId, request.row.detail.sprintId);
     },
     onMutate: () => setNotice(null),
     onSuccess: async (_result, { request, neighbours, scope: writtenOn }) => {
       if (writtenOn === latestScope.current) pending.current = [keyOf(request), ...neighbours];
-      showSuccessToast(t(request.kind === "acknowledge" ? "deviations.ack.toast.acknowledged" : "deviations.ack.toast.withdrawn"));
+      showSuccessToast(t(request.kind === "unacknowledge" ? "deviations.ack.toast.withdrawn" : "deviations.ack.toast.acknowledged"));
       await refresh(() => refreshCapacityAcknowledgements(queryClient));
     },
     onError: async (err, { request, neighbours, scope: writtenOn }) => {

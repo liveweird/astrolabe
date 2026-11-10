@@ -9,7 +9,7 @@ import type { DeviationFilter } from "../api/deviations";
 import { listFlowTeams } from "../api/flow";
 import { useCapacityAcknowledge, type CapacityAcknowledge } from "../hooks/useCapacityAcknowledge";
 import { useCapacityDeviations } from "../hooks/useCapacityDeviations";
-import { capacityAckKey, hasStaleFlowSource, staleFlowConnection, verifiedFlowAt } from "../utils/capacityDeviations";
+import { capacityAckAllKey, capacityAckKey, hasStaleFlowSource, staleFlowConnection, verifiedFlowAt } from "../utils/capacityDeviations";
 import { ageText } from "../utils/deviations";
 import { deviationStatus } from "../utils/deviationFilters";
 import { formatDateTime } from "../utils/formatDate";
@@ -141,7 +141,7 @@ function TeamsTable({ view, now, hook }: { view: CapacityDeviationView; now: num
                 )}
               </Table.Td>
               <Table.Td>
-                <CapacityDeviationList deviations={item.deviations} ack={{ can: item.can, bindingId: item.bindingId, hook }} />
+                <CapacityDeviationList deviations={item.deviations} ack={{ can: item.can, bindingId: item.bindingId, team: item.team.name, hook }} />
               </Table.Td>
               <Table.Td>
                 {item.observedAt === null ? (
@@ -195,7 +195,8 @@ export default function CapacityDeviationsSection({ filter, admin }: { filter: D
   if (data.connections.length === 0) return null;
   const status = deviationStatus(own);
   const narrowed = own.teamId !== undefined || own.severity !== undefined || own.acknowledged === true;
-  const listedKeys = new Set(data.items.flatMap((item) => item.deviations.map((row) => capacityAckKey(item.bindingId, row.detail.sprintId))));
+  // A listed team's own all-key too: its "Acknowledge all" notice shows in the team's list, and here only once the team has left it.
+  const listedKeys = new Set(data.items.flatMap((item) => [capacityAckAllKey(item.bindingId), ...item.deviations.map((row) => capacityAckKey(item.bindingId, row.detail.sprintId))]));
 
   return (
     <Stack gap="md">

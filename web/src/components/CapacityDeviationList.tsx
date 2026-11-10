@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { Box, Stack, Table, Text } from "@mantine/core";
 import type { CapacityDeviation } from "../api/capacityDeviations";
 import { capacityAckKey, capacityDeviationSentence, capacityEntries, capacityKindLabel, entryRows, formatMd, isOpen, type CapacityEntry } from "../utils/capacityDeviations";
-import CapacityAckCell, { type CapacityAckContext } from "./CapacityAckCell";
+import CapacityAckCell, { CapacityAckAll, type CapacityAckContext } from "./CapacityAckCell";
 import ScrollRegion from "./ScrollRegion";
 import SeverityBadge from "./SeverityBadge";
 import TableDisclosure from "./TableDisclosure";
@@ -117,8 +117,8 @@ function Lines({ entries, label, ack, neighbours }: { entries: readonly Capacity
 /**
  * One team's capacity deviations as lines: warnings first, the sprints without capacity folded into one line behind a table disclosure, and
  * everything past the first {@link VISIBLE_ENTRIES} lines behind a second disclosure. Shared by the Deviations page's section and the team page's
- * Flow section; `label` names the list when it stands alone. With `ack` (the item's `can`, its binding and the write's state machine) every line
- * carries the acknowledge cell - for the folded sprints inside their table, whose summary counts the OPEN ones - and acknowledged rows read as such
+ * Flow section; `label` names the list when it stands alone. With `ack` (the item's `can`, its binding, its team's name and the write's state machine) the
+ * list opens with "Acknowledge all (N)" (`CapacityAckAll`) and every line carries the acknowledge cell - for the folded sprints inside their table, whose summary counts the OPEN ones - and acknowledged rows read as such
  * (their severity badge goes gray: a current acknowledgement dims it, a stale one keeps its colour).
  */
 export default function CapacityDeviationList({ deviations, label, ack }: { deviations: readonly CapacityDeviation[]; label?: string; ack?: CapacityAckContext }) {
@@ -132,6 +132,7 @@ export default function CapacityDeviationList({ deviations, label, ack }: { devi
   };
   return (
     <Stack gap={6}>
+      {ack !== undefined && <CapacityAckAll deviations={deviations} ack={ack} order={order} />}
       <Lines entries={entries.slice(0, VISIBLE_ENTRIES)} label={label} ack={ack} neighbours={neighbours} />
       {rest.length > 0 && (
         <TableDisclosure showLabel={t("deviations.capacity.moreShow", { n: rest.length })} hideLabel={t("deviations.capacity.moreHide", { n: rest.length })}>

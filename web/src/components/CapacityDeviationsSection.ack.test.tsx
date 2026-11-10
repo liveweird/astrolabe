@@ -12,6 +12,7 @@ import CapacityDeviationsSection from "./CapacityDeviationsSection";
 const VIEW_URL = "/api/v1/views/capacity-deviations";
 const TEAMS_URL = "/api/v1/integrations/flow/teams?connectionId=1";
 const ACK_URL = "/api/v1/integrations/flow/team-bindings/5/acknowledge";
+const ALL_URL = `${ACK_URL}-all`;
 const NOW = CAPACITY_CONNECTION.teamsAt! + 5 * 60_000;
 type FetchMock = ReturnType<typeof vi.fn>;
 
@@ -157,5 +158,77 @@ describe("CapacityDeviationsSection: the acknowledge", () => {
     doc = capacityView({ items: [] });
     renderSection({ acknowledged: true });
     expect(await screen.findByText("No capacity difference matches the filters.")).toBeInTheDocument();
+  });
+
+  describe("Acknowledge all", () => {
+    const sprint3 = () => differsRow({ sprintId: 90003, sprintName: "E2E Flow Sprint 3", start: "2047-02-04", end: "2047-02-15", planMd: 44, flowMd: 48 });
+    const openDoc = () => capacityView({ items: [capacityItem({ can: { acknowledge: true }, deviations: [differsRow(), sprint3()] })] });
+    const allPosts = () => mockFetch.mock.calls.filter(([url, init]) => url === ALL_URL && (init as RequestInit | undefined)?.method === "POST");
+    const stale = () => jsonResponse(409, { type: "urn:astrolabe:problem:stale-deviations", title: "Conflict", status: 409, detail: "changed" });
+
+    test("one request names every open row of the team with the fingerprints read; the document is read again", async () => {
+      doc = openDoc();
+      ackResponse = jsonResponse(200, { acknowledged: [] });
+      mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+        if (url.startsWith(VIEW_URL)) return Promise.resolve(jsonResponse(200, doc));
+        if (url === ALL_URL && init?.method === "POST") return Promise.resolve(ackResponse.clone());
+        return Promise.resolve(jsonResponse(404, { title: "x", status: 404 }));
+      });
+      renderSection();
+      await userEvent.click(await screen.findByRole("button", { name: "Acknowledge all (2) open differences of Payments" }));
+      await waitFor(() => expect(allPosts()).toHaveLength(1));
+      expect(JSON.parse((allPosts()[0][1] as RequestInit).body as string)).toEqual({
+        items: [
+          { sprintId: 90002, fingerprint: differsRow().fingerprint },
+          { sprintId: 90003, fingerprint: sprint3().fingerprint },
+        ],
+      });
+      await waitFor(() => expect(viewCalls().length).toBeGreaterThan(1));
+    });
+
+    test("only for a team whose item allows it and which has two open rows; each team's list has its own button", async () => {
+      doc = capacityView({
+        items: [
+          capacityItem({ can: { acknowledge: false }, deviations: [differsRow(), sprint3()] }),
+          capacityItem({ bindingId: 6, can: { acknowledge: true }, deviations: [differsRow(), acknowledgedRow(sprint3())] }),
+          capacityItem({ bindingId: 7, can: { acknowledge: true }, deviations: [differsRow(), sprint3()] }),
+        ],
+      });
+      renderSection({ all: true });
+      expect(await screen.findAllByRole("button", { name: /^Acknowledge all/ })).toHaveLength(1);
+    });
+
+    test("a 409 is the note at the head of the team's list (the row stays listed, so the page shows it once) and the list is read again", async () => {
+      doc = openDoc();
+      ackResponse = stale();
+      mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+        if (url.startsWith(VIEW_URL)) return Promise.resolve(jsonResponse(200, doc));
+        if (url === ALL_URL && init?.method === "POST") return Promise.resolve(ackResponse.clone());
+        return Promise.resolve(jsonResponse(404, { title: "x", status: 404 }));
+      });
+      renderSection();
+      await userEvent.click(await screen.findByRole("button", { name: "Acknowledge all (2) open differences of Payments" }));
+      await screen.findByText(/The deviations changed since you looked/);
+      expect(screen.getAllByText(/The deviations changed since you looked/)).toHaveLength(1);
+      expect(within(screen.getByRole("table", { name: "Capacity differences between the plan and Flow" })).getByText(/The deviations changed since you looked/)).toBeInTheDocument();
+      await waitFor(() => expect(viewCalls().length).toBeGreaterThan(1));
+    });
+
+    test("when the re-read no longer lists the team the page shows the batch's note above the list instead", async () => {
+      doc = openDoc();
+      mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+        if (url.startsWith(VIEW_URL)) return Promise.resolve(jsonResponse(200, doc));
+        if (url === ALL_URL && init?.method === "POST") return Promise.resolve(stale());
+        if (url === TEAMS_URL) return Promise.resolve(jsonResponse(404, { title: "x", status: 404 }));
+        return Promise.resolve(jsonResponse(404, { title: "x", status: 404 }));
+      });
+      renderSection();
+      const button = await screen.findByRole("button", { name: "Acknowledge all (2) open differences of Payments" });
+      doc = capacityView({ items: [] });
+      await userEvent.click(button);
+      const note = await screen.findByText(/The deviations changed since you looked/);
+      expect(note.closest('[role="status"]')).not.toBeNull();
+      expect(screen.queryByRole("table", { name: "Capacity differences between the plan and Flow" })).not.toBeInTheDocument();
+    });
   });
 });

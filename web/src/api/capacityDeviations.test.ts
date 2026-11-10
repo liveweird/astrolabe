@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { jsonResponse } from "../test/http";
 import { capacityView } from "../test/flow";
-import { acknowledgeCapacityDeviation, getCapacityDeviations, unacknowledgeCapacityDeviation } from "./capacityDeviations";
+import { acknowledgeCapacityDeviation, acknowledgeCapacityDeviations, getCapacityDeviations, unacknowledgeCapacityDeviation } from "./capacityDeviations";
 
 describe("getCapacityDeviations", () => {
   let mockFetch: ReturnType<typeof vi.fn>;
@@ -61,6 +61,24 @@ describe("the per-sprint acknowledge", () => {
     mockFetch.mockResolvedValue(jsonResponse(200, { bindingId: 6, sprintId: null, fingerprint: "b".repeat(64), acknowledgedAt: 1, acknowledgedBy: null }));
     await acknowledgeCapacityDeviation(6, { sprintId: null, fingerprint: "b".repeat(64) });
     expect(call()[1].body).toBe(JSON.stringify({ sprintId: null, fingerprint: "b".repeat(64) }));
+  });
+
+  test("acknowledge all POSTs the items (the team's own row as an explicit null) to the binding's acknowledge-all route", async () => {
+    mockFetch.mockResolvedValue(jsonResponse(200, { acknowledged: [] }));
+    const result = await acknowledgeCapacityDeviations(5, [
+      { sprintId: 90002, fingerprint: "a".repeat(64) },
+      { sprintId: null, fingerprint: "b".repeat(64) },
+    ]);
+    expect(result.acknowledged).toEqual([]);
+    const [url, init] = call();
+    expect(url).toBe("/api/v1/integrations/flow/team-bindings/5/acknowledge-all");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body as string)).toEqual({
+      items: [
+        { sprintId: 90002, fingerprint: "a".repeat(64) },
+        { sprintId: null, fingerprint: "b".repeat(64) },
+      ],
+    });
   });
 
   test("DELETE names the sprint in the query; the team's own row is the route with no parameter", async () => {

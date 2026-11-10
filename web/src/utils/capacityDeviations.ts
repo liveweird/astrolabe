@@ -62,6 +62,9 @@ export const isOpen = (deviation: CapacityDeviation): boolean => deviation.ackno
 /** The key one row is addressed by, in the focus rule's `data-ack-for` and the hook's notice: the binding and Flow's sprint id (`team` for the `TEAM_GONE` row). */
 export const capacityAckKey = (bindingId: number, sprintId: number | null): string => `${bindingId}:${sprintId ?? "team"}`;
 
+/** The key of a binding's "Acknowledge all" (its button's `data-ack-for` and the notice a batch leaves): never equal to a row's key. */
+export const capacityAckAllKey = (bindingId: number): string => `${bindingId}:all`;
+
 /**
  * What a team's rows come to: the OPEN sprints that differ (and how many of them the plan has MORE for), the OPEN sprints without capacity, the rows
  * acknowledged and still current, and whether the Flow team is gone (told by the panel whether or not its row is acknowledged).

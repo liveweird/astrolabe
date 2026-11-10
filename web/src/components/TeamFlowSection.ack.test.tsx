@@ -39,6 +39,8 @@ describe("TeamFlowSection: acknowledging a sprint from the team page", () => {
     localStorage.clear();
   });
   const renderSection = () => renderWithProviders(<TeamFlowSection teamId={1} />);
+  const ALL_URL = "/api/v1/integrations/flow/team-bindings/5/acknowledge-all";
+  const ALL_KEY = `POST ${ALL_URL}`;
   const ACK_KEY = "POST /api/v1/integrations/flow/team-bindings/5/acknowledge";
   const sprint3 = () => differsRow({ sprintId: 90003, sprintName: "E2E Flow Sprint 3", start: "2047-02-04", end: "2047-02-15", planMd: 44, flowMd: 48 });
   const itemOf = (deviations: ReturnType<typeof differsRow>[], acknowledge = true) => capacityItem({ can: { acknowledge }, deviations });
@@ -140,5 +142,51 @@ describe("TeamFlowSection: acknowledging a sprint from the team page", () => {
     expect(await screen.findByRole("button", { name: "Acknowledge the team's own row" })).toBeInTheDocument();
     // The DELETE named no sprint at all: the team's own row is the route with no parameter.
     expect(mockFetch.mock.calls.some(([url]) => (url as string).includes("sprintId"))).toBe(false);
+  });
+
+  test("Acknowledge all (N) names every open row of the team in one request; the acknowledged ones are neither counted nor sent", async () => {
+    const sprint4 = () => differsRow({ sprintId: 90004, sprintName: "E2E Flow Sprint 4", planMd: 20 });
+    const world = serve(mockFetch, { capacity: capacityView({ items: [itemOf([differsRow(), acknowledgedRow(sprint3()), sprint4()])] }) });
+    world.respond[ALL_KEY] = () => {
+      world.capacity = capacityView({ items: [itemOf([acknowledgedRow(differsRow()), acknowledgedRow(sprint3()), acknowledgedRow(sprint4())])] });
+      return jsonResponse(200, { acknowledged: [] });
+    };
+    renderSection();
+    await userEvent.click(await screen.findByRole("button", { name: "Acknowledge all (2) open differences of Payments" }));
+    await waitFor(() => expect(count(mockFetch, ALL_KEY)).toBe(1));
+    const post = mockFetch.mock.calls.find(([url, init]) => url === ALL_URL && (init as RequestInit).method === "POST");
+    expect(JSON.parse((post?.[1] as RequestInit).body as string)).toEqual({
+      items: [
+        { sprintId: 90002, fingerprint: differsRow().fingerprint },
+        { sprintId: 90004, fingerprint: sprint4().fingerprint },
+      ],
+    });
+    // The list stays (the team page asks for acknowledged rows too), now with nothing open: no button, the states told.
+    expect(await within(await factsRow()).findByText("No open difference · 3 acknowledged")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Acknowledge all/ })).not.toBeInTheDocument();
+    expect(count(mockFetch, `GET ${CAPACITY_URL}`)).toBe(2);
+  });
+
+  test("no Acknowledge all for one open row, or without the item's can", async () => {
+    serve(mockFetch, { capacity: capacityView({ items: [itemOf([differsRow(), acknowledgedRow(sprint3())])] }) });
+    const view = renderSection();
+    await screen.findByRole("button", { name: "Acknowledge E2E Flow Sprint 2" });
+    expect(screen.queryByRole("button", { name: /^Acknowledge all/ })).not.toBeInTheDocument();
+    view.unmount();
+    mockFetch.mockReset();
+    serve(mockFetch, { capacity: capacityView({ items: [itemOf([differsRow(), sprint3()], false)] }) });
+    renderSection();
+    await screen.findByRole("list", { name: "Capacity differences from Flow" });
+    expect(screen.queryByRole("button", { name: /^Acknowledge all/ })).not.toBeInTheDocument();
+  });
+
+  test("a batch's 409 is the note at the head of the list, shown once, and the capacity is read again", async () => {
+    const world = serve(mockFetch, { capacity: capacityView({ items: [itemOf([differsRow(), sprint3()])] }) });
+    world.respond[ALL_KEY] = () => jsonResponse(409, { type: "urn:astrolabe:problem:stale-deviations", title: "Conflict", status: 409, detail: "changed" });
+    renderSection();
+    await userEvent.click(await screen.findByRole("button", { name: "Acknowledge all (2) open differences of Payments" }));
+    expect(await screen.findByText(/The deviations changed since you looked/)).toBeInTheDocument();
+    expect(screen.getAllByText(/The deviations changed since you looked/)).toHaveLength(1);
+    await waitFor(() => expect(count(mockFetch, `GET ${CAPACITY_URL}`)).toBe(2));
   });
 });
