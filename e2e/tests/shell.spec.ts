@@ -92,3 +92,21 @@ test("the document title names the page and the focus moves to the main content 
   await page.getByRole("link", { name: "Home" }).click();
   await expect(page).toHaveTitle("Astrolabe");
 });
+
+// The Home landing: three cards, each with a link named after its purpose (distinct from the sidebar's "Plan" / "Roadmap" / "Deviations"). Read-only.
+test("the Home page links to the plan, the roadmap and the deviations", async ({ page }) => {
+  await login(page);
+  const home = page.getByRole("heading", { level: 2, name: "Astrolabe" });
+  await expect(home).toBeVisible();
+
+  for (const [link, heading] of [
+    ["Open the plan", "Plan"],
+    ["Open the roadmap", "Roadmap"],
+    ["Open the deviations", "Deviations"],
+  ] as const) {
+    await page.getByRole("link", { name: link, exact: true }).click();
+    await expect(page.getByRole("heading", { level: 2, name: heading, exact: true })).toBeVisible();
+    await page.getByRole("link", { name: "Home", exact: true }).click();
+    await expect(home).toBeVisible();
+  }
+});

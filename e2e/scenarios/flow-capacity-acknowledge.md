@@ -8,7 +8,7 @@
   through that connection; a login-less owner's person, work stream, program and project holding ONE milestone of the team scheduled **2047-01-07 .. 2047-02-15**, so the team view's weekly load - and its strip - covers sprints 1-3); the six capacity periods the import writes
   (they go with the team); the acknowledgements the scenarios make (they go with the binding; each scenario starts by withdrawing every one of the world through the API, so none depends on an earlier one); and the stub's **`flow-day2` SCENARIO**, which this file flips too - the
   second flipper beside `flow-capacity-deviation.spec.ts` - under the Playwright lock **`flow-stub-scenario`** shared with both Flow specs. The beforeAll puts the scenario back to `Started` (and fails fast naming `flow-outage` if a walk left that one on), imports day one's capacity,
-  flips to day two only to refresh the mirror once and resets at once; the afterAll resets it even after a failure. Everything is removed through the API (the connection first, then the plan, the teams, the people and the user). **Every date is in 2047** ("E2E Flow Team": six
+  flips to day two only to refresh the mirror once and resets at once; the afterAll resets it even after a failure. Since 1.10 the last scenario flips it again (to day one and back to day two, each followed by a refresh) and resets it in a `finally`, so the mirror ends on day two as the beforeAll leaves it. Everything is removed through the API (the connection first, then the plan, the teams, the people and the user). **Every date is in 2047** ("E2E Flow Team": six
   two-week sprints from Monday 2047-01-07, ten working days each; nothing writes a holiday there). The Deviations page lists every linked team of the stack, so each page is narrowed to the spec's own team with the `teamId` filter.
 - **Needs**: the compose stack with its Flow stub (`flow-stub`, `FLOW_INSECURE_ORIGINS=http://flow-stub:8080`, `FLOW_TEST_RATE_LIMIT_PER_MINUTE=30`) and `E2E_FLOW_STUB_URL` pointing at the stub of the same stack as `E2E_BASE_URL`. The figures are read from `expected.json`
   (`e2e.preview`, `day2.capacityChanges`, `day2.gone`), never copied: after the day-one import (20 / 18 / 22 man-days a week for sprints 1-3) day two reads sprint 2 (`E2E Flow Sprint 2`, 2047-01-21 – 2047-02-01) as a WARNING (the plan has 36.00, Flow 30.00) and sprint 3
@@ -47,6 +47,24 @@
 2. The manager (through the API) edits the period starting 2047-02-04 (sprint 3's, written by the import) to 23 man-days a week; the page is opened again.
    - *Expected*: sprint 3's line now has the plan's new figure ("the plan has 46.00 man-days, Flow 48.00 — 2.00 less in the plan"), reads "Acknowledged on <date> by <person> · changed since" and offers Acknowledge again; sprint 2's line still reads "Acknowledged by …" with Unacknowledge; the fact reads
      "Differs from Flow for 1 sprint" and "1 acknowledged"; the header flag reads "Capacity differs from Flow: 1 open difference" with `data-severity="INFO"`; the weeks 2047-02-04 and 2047-02-11 carry `data-flow-capacity="INFO"` and the weeks of sprint 2 carry none.
+
+## Scenario: the team's manager acknowledges every open difference of the team in one click
+
+1. (Setup) Sprint 3's capacity period is put back to the import's figure (the previous scenario raised it) and every acknowledgement of the team is withdrawn, through the API. The manager opens `/teams/<team>`.
+   - *Expected*: the header flag reads "Capacity differs from Flow: 2 open differences"; the head of the "Capacity differences from Flow" list has ONE button, visible text "Acknowledge all (2)", accessible name "Acknowledge all (2) open differences of <team>".
+2. An axe scan (WCAG A/AA, `color-contrast` included) of `/teams/<team>` in this state, in the light scheme and again in the dark one.
+   - *Expected*: zero violations in both.
+3. They press the button.
+   - *Expected*: both lines read "Acknowledged by <the manager's person> on <date>" with their Unacknowledge buttons; the fact reads "No open difference" and "2 acknowledged"; the header has no flag; no strip cell carries `data-flow-capacity`; the batch button is gone.
+
+## Scenario: an acknowledged sprint that comes back in line loses its acknowledgement, so the same difference is open when it returns
+
+1. (Setup) Sprint 3's capacity period is put back to the import's figure and every acknowledgement of the team is withdrawn, then the manager acknowledges sprint 3, all through the API. The administrator puts the stub back on day one (`Started`) and refreshes the connection through the API.
+   - *Expected*: every sprint is in line, so `GET /views/capacity-deviations?teamId=<team>` lists no item for the team.
+2. The stub goes to day two and the connection is refreshed again (the stub is put back to `Started` in a `finally`, the mirror stays on day two).
+   - *Expected*: the view lists sprint 3's row again and it carries NO acknowledgement (the first refresh deleted it with the row).
+3. The manager opens `/teams/<team>`.
+   - *Expected*: sprint 3's line shows the same sentence as before (the plan has 44.00 man-days, Flow 48.00 - 4.00 less in the plan), without "Acknowledged", and offers Acknowledge; sprint 2's line offers Acknowledge too; the fact reads "Differs from Flow for 2 sprints" and the header flag "Capacity differs from Flow: 2 open differences".
 
 ## Not covered here (and why)
 

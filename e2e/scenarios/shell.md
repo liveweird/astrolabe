@@ -52,6 +52,17 @@
 5. They click **Home**.
    - *Expected*: the tab title is **Astrolabe** again.
 
+## Scenario: the Home page links to the plan, the roadmap and the deviations
+
+1. The admin signs in.
+   - *Expected*: the Home page's heading "Astrolabe" (h2) shows.
+2. They click **Open the plan**.
+   - *Expected*: the "Plan" heading (h2) shows. They click **Home** in the sidebar and the "Astrolabe" heading is back.
+3. They click **Open the roadmap**.
+   - *Expected*: the "Roadmap" heading (h2) shows. They click **Home** in the sidebar and the "Astrolabe" heading is back.
+4. They click **Open the deviations**.
+   - *Expected*: the "Deviations" heading (h2) shows. They click **Home** in the sidebar and the "Astrolabe" heading is back. Nothing is written.
+
 ## Not covered here (and why)
 
 - **The System (auto) option and OS-preference resolution** — needs color-scheme emulation
