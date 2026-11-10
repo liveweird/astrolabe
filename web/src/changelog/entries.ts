@@ -17,6 +17,36 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.10.0",
+    date: "2026-11-10",
+    en: `**Astrolabe 1.10.0: a Home page with the open deviations, "Acknowledge all" for capacity differences from Flow, and Jira items told apart when they vanish.**
+
+- Home: the start page now links to the plan, the roadmap and the deviations. Under Deviations it shows how many warnings and how many infos are open, one line for Jira ("Open differences from Jira") and one for Flow ("Open capacity differences from Flow"). A source with no connection, or with nothing open, shows no line.
+- Acknowledge all: on Deviations, Capacity from Flow, and in the Flow section of the team page, "Acknowledge all (N)" acknowledges every open line listed for the team in one step, for the team's manager or an administrator. It appears when at least two lines are open, and it acknowledges the lines the list shows, so the page's filters apply. If any of those lines changed since the page was read, nothing is acknowledged, you see the usual note and the list is read again.
+- An acknowledgement ends with its line: when a sprint is back in line with Flow or closes, or a team that was missing is back, its acknowledgement is removed at the connection's next refresh or at the next acknowledge on the team; when a sprint leaves Flow's document, at the next refresh. So a difference that returns is open again. A team that is missing from Flow keeps its sprint acknowledgements, and so does a document Flow cut short. A sprint put in line and back to the same figures only by plan edits (a capacity import, an edited period), with no refresh of the connection and no acknowledge on the team in between, still reads acknowledged. A deleted connection takes its acknowledgements with it.
+- Jira, items that vanished: Astrolabe now reads each vanished item once by its id and tells the cases apart: "Deleted in Jira (or no longer visible to the connection's account)", or "No longer visible to the connection's account"; an item Jira still returns (it moved out of the connection's projects) keeps the wider "No longer readable in Jira: deleted, moved out of the connection's projects, or no longer visible to its account", as does one not read yet. A read that fails, is cut short or does not fit in one refresh (100 a refresh) is repeated on later refreshes until Jira answers. Items already flagged as gone before this version are classified too, and an acknowledged "gone" deviation whose reason changes opens once.
+- Import from Jira on the Plan page: the owner of a work stream starts it from the stream's menu. The connection is picked in the dialog when there are several, and the work stream is preset.
+- Timelines: a milestone whose dates cover only weekends or holidays is flagged "Covers no working day: only weekends or holidays" on the project and team pages.
+- Baselines: with a baseline picked, the roadmap and the programs page also list the projects removed since, dimmed and marked "(removed)", with their frozen span.
+- Security: calls the server makes to Jira and Flow also refuse the deprecated IPv4-compatible IPv6 range.
+- Nothing is written to Jira or Flow.
+- Proven against a built-in Jira stub; not yet tested against a real Jira site.
+- Proven against the built-in Flow stub; not yet compared with a real Flow.`,
+    pl: `**Astrolabe 1.10.0: strona główna z otwartymi odchyleniami, „Potwierdź wszystkie” dla różnic przepustowości względem Flow i elementy Jiry, które zniknęły, rozróżniane po przyczynie.**
+
+- Strona główna: strona startowa prowadzi teraz do planu, roadmapy i odchyleń. W karcie Odchylenia pokazuje, ile ostrzeżeń i ile informacji jest otwartych: jeden wiersz dla Jiry („Otwarte różnice względem Jiry”) i jeden dla Flow („Otwarte różnice przepustowości względem Flow”). Źródło bez połączenia albo bez otwartych różnic nie pokazuje wiersza.
+- Potwierdź wszystkie: w Odchyleniach, w sekcji „Przepustowość z Flow” i w sekcji Flow na stronie zespołu przycisk „Potwierdź wszystkie (N)” potwierdza jednym krokiem wszystkie otwarte wiersze zespołu z listy, kierownikowi/czce zespołu albo administratorowi/ce. Pojawia się, gdy otwarte są co najmniej dwa wiersze, i potwierdza wiersze widoczne na liście, więc filtry strony mają znaczenie. Jeśli którykolwiek z tych wierszy zmienił się od chwili odczytu strony, nic nie zostanie potwierdzone, zobaczysz zwykłą informację, a lista zostanie odczytana ponownie.
+- Potwierdzenie kończy się razem z wierszem: gdy sprint znów zgadza się z Flow albo się zamyka, albo gdy wraca zespół, którego brakowało, jego potwierdzenie jest usuwane przy najbliższym odświeżeniu połączenia albo przy najbliższym potwierdzeniu w tym zespole; gdy sprint znika z dokumentu Flow, przy najbliższym odświeżeniu. Dzięki temu różnica, która wraca, jest znów otwarta. Zespół, którego brakuje we Flow, zachowuje potwierdzenia swoich sprintów, tak samo przy dokumencie, który Flow uciął. Sprint doprowadzony do zgodności i z powrotem do tych samych wartości samymi zmianami w planie (import przepustowości, edycja okresu), bez odświeżenia połączenia i bez potwierdzenia w tym zespole w międzyczasie, nadal wygląda na potwierdzony. Usunięcie połączenia usuwa jego potwierdzenia.
+- Jira, elementy, które zniknęły: Astrolabe czyta teraz każdy zniknięty element raz, po jego identyfikatorze, i rozróżnia przypadki: „Usunięty w Jirze (albo konto połączenia już go nie widzi)” albo „Konto połączenia już go nie widzi”; element, który Jira nadal zwraca (wyszedł poza projekty połączenia), zachowuje szerszy opis, tak samo jak element jeszcze nieodczytany. Odczyt, który się nie powiódł, został przerwany albo nie zmieścił się w jednym odświeżeniu (100 na odświeżenie), jest powtarzany przy kolejnych odświeżeniach, dopóki Jira nie odpowie. Elementy oznaczone jako zniknięte już przed tą wersją też są klasyfikowane, a potwierdzone odchylenie „zniknął”, którego przyczyna się zmienia, otwiera się jeden raz.
+- Import z Jiry ze strony Planu: osoba odpowiedzialna za strumień prac uruchamia go z menu strumienia. Połączenie wybiera się w oknie, gdy jest ich kilka, a strumień prac jest już ustawiony.
+- Osie czasu: kamień milowy, którego daty obejmują tylko weekendy lub święta, jest oznaczony „Nie obejmuje żadnego dnia roboczego: tylko weekendy lub święta” na stronach projektu i zespołu.
+- Bazy odniesienia: po wybraniu bazy odniesienia roadmapa i strona programów wymieniają także projekty usunięte od tamtej pory, przygaszone i oznaczone „(usunięty)”, z ich zamrożonym przedziałem.
+- Bezpieczeństwo: wywołania, które serwer wysyła do Jiry i Flow, odrzucają też przestarzały zakres adresów IPv6 zgodnych z IPv4.
+- Niczego nie zapisujemy w Jirze ani we Flow.
+- Sprawdzone na wbudowanej atrapie Jiry; jeszcze nie przetestowane na prawdziwej witrynie Jira.
+- Sprawdzone na wbudowanej atrapie Flow; jeszcze nie porównane z prawdziwym Flow.`,
+  },
+  {
     version: "1.9.0",
     date: "2026-11-10",
     en: `**Astrolabe 1.9.0: acknowledge a capacity difference from Flow, and a Flow capacity flag on the team page.**
