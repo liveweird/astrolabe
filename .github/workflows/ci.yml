@@ -342,10 +342,17 @@ jobs:
           grep -qE '^  KTOR_DEVELOPMENT: "false"$' k8s/front-door.yaml
           grep -qE '^  HTTP_BEHIND_PROXY: "true"$' k8s/front-door.yaml
           grep -qE '^  HTTP_PROXY_HOPS: "1"$' k8s/front-door.yaml
-          # The Deployment must READ the ConfigMap: exactly seven refs (the three keys plus the overlay-only, OPTIONAL JIRA_STUB_BASE_URL,
-          # JIRA_TEST_RATE_LIMIT_PER_MINUTE, FLOW_INSECURE_ORIGINS and FLOW_TEST_RATE_LIMIT_PER_MINUTE),
-          # and no inline value for any of them. The production ConfigMap carries no stub key (the app refuses a stub URL in production).
-          test "$(grep -cE '^ +name: astrolabe-front-door$' k8s/app-deployment.yaml)" -eq 7
+          # The Deployment must READ the ConfigMap: EXACTLY these keys (the three posture keys plus the overlay-only, OPTIONAL
+          # JIRA_STUB_BASE_URL, JIRA_TEST_RATE_LIMIT_PER_MINUTE, FLOW_INSECURE_ORIGINS and FLOW_TEST_RATE_LIMIT_PER_MINUTE), each once,
+          # and no inline value for any of them. A new connector's key is one more name in `expected`; a lost or an extra ref names itself.
+          # The production ConfigMap carries no stub key (the app refuses a stub URL in production).
+          expected=$(printf '%s\n' KTOR_DEVELOPMENT HTTP_BEHIND_PROXY HTTP_PROXY_HOPS JIRA_STUB_BASE_URL JIRA_TEST_RATE_LIMIT_PER_MINUTE FLOW_INSECURE_ORIGINS FLOW_TEST_RATE_LIMIT_PER_MINUTE | sort)
+          actual=$(grep -A1 -E '^ +name: astrolabe-front-door$' k8s/app-deployment.yaml | sed -n 's/^ *key: *//p' | sort)
+          lost=$(comm -23 <(printf '%s\n' "$expected") <(printf '%s\n' "$actual") | tr '\n' ' ')
+          extra=$(comm -13 <(printf '%s\n' "$expected") <(printf '%s\n' "$actual") | tr '\n' ' ')
+          if [ -n "$lost" ] || [ -n "$extra" ]; then
+            echo "k8s/app-deployment.yaml's astrolabe-front-door ConfigMap refs differ: missing [ ${lost}] unexpected or duplicated [ ${extra}]" >&2; exit 1
+          fi
           if grep -q 'JIRA_STUB_BASE_URL' k8s/front-door.yaml; then echo "the production ConfigMap must not carry the Jira stub URL" >&2; exit 1; fi
           if grep -q 'JIRA_TEST_RATE_LIMIT_PER_MINUTE' k8s/front-door.yaml; then echo "the production ConfigMap keeps the default jira-test bucket" >&2; exit 1; fi
           if grep -q 'FLOW_INSECURE_ORIGINS' k8s/front-door.yaml; then echo "the production ConfigMap must not carry the Flow insecure origins" >&2; exit 1; fi

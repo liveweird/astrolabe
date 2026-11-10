@@ -16,6 +16,8 @@
 // that acknowledge the world's one item withdraw the acknowledgement again in a finally.
 import type { APIRequestContext, Locator, Page } from "@playwright/test";
 import {
+  accountMenu,
+  ADMIN,
   apiAsAdmin,
   axeViolations,
   bindFlowTeamViaApi,
@@ -120,6 +122,35 @@ test.describe("dark scheme", () => {
     await expectScheme(page, "dark");
     await scan(page);
   });
+});
+
+// The OPEN account menu: a portal'd `role="menu"` that exists only while open (like the row menus below), holding the identity block, the
+// language items, the theme switch, the Changelog link, the ADMIN telemetry toggle and the destructive Sign out; it opens with the focus on
+// its first item (English). Escape closes it and gives the focus back to its trigger.
+function registerAccountMenuScan(scheme: Scheme): void {
+  const suffix = scheme === "dark" ? " in the dark scheme" : "";
+  test(`the open account menu has no WCAG A/AA violations${suffix}`, async ({ page }) => {
+    await login(page);
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: "Astrolabe" }).first()).toBeVisible();
+    await expectScheme(page, scheme);
+    const trigger = accountMenu(page);
+    await trigger.click();
+    const menu = page.getByRole("menu");
+    await expect(menu).toBeVisible();
+    await expect(menu).toHaveCSS("opacity", "1"); // axe measures contrast against the fade-in's partial opacity
+    await expect(menu.getByRole("menuitem", { name: "English" })).toBeFocused();
+    await expect(menu.getByText(ADMIN, { exact: true })).toBeVisible(); // the identity query has landed: no "—" placeholders in the scan
+    await scan(page);
+    await page.keyboard.press("Escape");
+    await expect(menu).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+  });
+}
+registerAccountMenuScan("light");
+test.describe("dark scheme", () => {
+  test.use({ colorScheme: "dark" });
+  registerAccountMenuScan("dark");
 });
 
 // The app shell at a phone width (390x844): the desktop rail toggle gives way to the burger — the

@@ -4,6 +4,7 @@
 // through the API (login, MFA-free admin lists, users and teams, feature flags, telemetry, password reset mail, and the Jira path: a connection
 // against the stub, Test connection (all rows green or the run is refused), discovery, a binding, a sync run, the deviations view — the OkHttp/Ktor-client/Jackson classes only that path loads;
 // and the Flow path (1.5): a connection against the Flow stub, Test connection (all rows green), a run, the teams list, a team link, the team panel, a capacity preview and import),
+// waits for the telemetry sampler's first aligned tick after the workload (polls the ADMIN read API for a fresh sample, up to 120 s, else fails: a ~10 s run would otherwise drop ~35 telemetry classes),
 // stops the app gracefully and keeps the JVM's `-XX:DumpLoadedClassList` output in canonical form (sorted, deduplicated, no ids).
 // Classes missing from the list are simply loaded from the jars at runtime, so a stale list only costs startup time and
 // ~metaspace, never correctness; regenerate when CdsClassListTest warns, before a release, or after a big dependency/code move.
@@ -88,6 +89,7 @@ const call = async (method, path, body) => {
     method,
     headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) },
     body: body === undefined ? undefined : JSON.stringify(body),
+    signal: AbortSignal.timeout(10_000), // a hung connection must not block past the bound (an abort throws: loud, except in the telemetry polls)
   });
   const text = await res.text();
   let json = null;
@@ -214,6 +216,40 @@ try {
   await call("DELETE", `/api/v1/users/${user}`);
   must(await call("POST", "/api/v1/refresh", { refreshToken: session.refreshToken }), "refreshing the session");
   await call("POST", "/api/v1/logout", {});
+
+  // The sampler's first tick lands 5 s after boot, the next aligned one up to a full interval later (60 s, the floor): a run of ~10 s would stop
+  // before the aligned tick and silently drop the classes it loads (~35 telemetry ones). So wait, with the app's own telemetry read, for a
+  // sample whose bucket lies AFTER the one the workload ended in: a whole tick (the process samples and the cluster section) has then run
+  // after the workload. The storage measurement is NOT waited on: its heavy collector runs on the first tick and then only every
+  // storageIntervalSeconds (3600), so the boundary tick never runs it (its state is only logged). Server-side timestamps only, never compared
+  // with this machine's clock. Fails loudly on timeout.
+  log("waiting for a telemetry sample taken after the workload (up to ~120 s)");
+  // The telemetry reads share one per-user bucket of 30 a minute (plugins/RateLimits.kt), and the sweep above spent some: poll every ~3 s, a 429 just reads as "not yet".
+  const telemetry = async () => {
+    await sleep(2_000);
+    try {
+      return (await call("GET", "/api/v1/telemetry/current")).json;
+    } catch {
+      return null; // an aborted or refused request (the 10 s bound, a reset socket) reads as "not yet"
+    }
+  };
+  token = must(await call("POST", "/api/v1/login", { email: "admin@astrolabe.local", password: "changeme" }), "login before the telemetry wait").token; // the workload logged out
+  const before = await until("the telemetry read to answer after the workload", async () => {
+    const r = await telemetry();
+    return r?.generatedAt && r?.sampleIntervalSeconds ? r : null;
+  }, 20);
+  const intervalMs = before.sampleIntervalSeconds * 1000;
+  const sampleAfter = before.generatedAt - (before.generatedAt % intervalMs) + intervalMs; // the first bucket after the workload's
+  const sampled = await until(
+    "a telemetry sample after the workload (did the sampler tick? is telemetry enabled?)",
+    async () => {
+      const now = await telemetry();
+      return (now?.processes ?? []).some((p) => !p.stale && p.sampledAt >= sampleAfter) ? now : null;
+    },
+    40, // polls of ~3 s each: about 120 s
+  );
+  await sleep(5_000); // the tick commits its sample before its cluster section finishes: let the rest of it load its classes
+  log(`a telemetry sample was written after the workload (storage measurement ${sampled.storage == null ? "absent" : "present"})`);
 
   log("stopping the app so the JVM flushes the class list");
   compose("stop", "-t", "30", "app");

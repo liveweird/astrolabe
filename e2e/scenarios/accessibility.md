@@ -126,6 +126,20 @@ states, so nothing here depends on `jira-sync.spec.ts`'s flips or rows. Each tes
 1. An anonymous visitor with the dark scheme emulated opens `/login` and waits for the sign-in form.
    - *Expected*: the dark scheme is on `<html>` and the axe scan reports zero violations.
 
+## Scenario: the open account menu has no WCAG A/AA violations
+
+1. The admin signs in, opens `/`, waits for the Home heading and opens the header's account menu.
+   - *Expected*: the menu (a portal'd `role="menu"`, in the DOM only while open) is visible and has settled at full opacity (axe measures contrast against a fade-in's partial opacity), its
+     first item "English" holds the focus, the admin's email shows in the identity block (the identity query has landed: no "—" placeholders), `<html>` carries the light scheme and an axe scan of the whole page (same tags, `color-contrast` included) reports zero violations: the identity block, the language items,
+     the theme switch, the Changelog link, the telemetry toggle and the red Sign out item.
+2. The admin presses Escape.
+   - *Expected*: the menu leaves the DOM and the focus returns to the account-menu trigger.
+
+## Scenario: the open account menu has no WCAG A/AA violations in the dark scheme
+
+1. The same with the dark scheme emulated.
+   - *Expected*: `<html>` carries the dark scheme and the scan reports zero violations.
+
 ## Scenario: the app shell at a mobile width has no WCAG A/AA violations
 
 1. The browser viewport is 390x844. The admin signs in, opens `/` and waits for the Home heading.
