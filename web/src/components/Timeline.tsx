@@ -1,13 +1,12 @@
-import { useEffect, useImperativeHandle, useLayoutEffect, useRef, type CSSProperties, type KeyboardEvent, type ReactNode, type Ref } from "react";
+import { useImperativeHandle, useRef, type CSSProperties, type KeyboardEvent, type ReactNode, type Ref } from "react";
 import { Stack, Text, VisuallyHidden } from "@mantine/core";
 import { useTranslation } from "react-i18next";
-import { useDndContext, useDroppable } from "@dnd-kit/core";
+import { useDndContext } from "@dnd-kit/core";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { TIMELINE_DROP_ID, TIMELINE_ROW_DROP_ID, type DropZoneData, type RowDropZoneData } from "../hooks/useTimelinePreview";
 import { useRovingGrid } from "../hooks/useRovingGrid";
+import { useTimelineDropZones } from "../hooks/useTimelineDropZones";
+import { useTimelinePendingFocus } from "../hooks/useTimelinePendingFocus";
 import {
-  BAR_HEIGHT,
-  BAR_INSET,
   DEFAULT_VIRTUALIZE_FROM,
   hasColumn,
   headerHeight,
@@ -21,6 +20,8 @@ import {
   type TimelineRowData,
   type TimelineStripData,
 } from "../utils/timelineModel";
+import { buildTimelineGeometry } from "../utils/timelineGeometry";
+import { revealFocused } from "../utils/timelineReveal";
 import {
   holidayDayMap,
   holidayListing,
@@ -64,22 +65,22 @@ export interface TimelineProps {
   rows: readonly TimelineRowData[];
   /** Bands spanning every row (the project's target window). */
   bands?: readonly TimelineBandData[];
-  /** Drawn over the body as one `pointer-events: none` svg, from data-derived geometry (v0.4 dependency arrows). */
+  /** Drawn over the body as one `pointer-events: none` svg, from data-derived geometry (the dependency arrows). */
   overlay?: (geometry: TimelineGeometry) => ReactNode;
   /**
-   * A third, sticky header row under the date cells (v0.5: the team's weekly load strip). Decorative: the page's table is the accessible
+   * A third, sticky header row under the date cells (the team's weekly load strip). Decorative: the page's table is the accessible
    * surface. It makes the header taller, which every sticky-header consumer follows (`headerHeight`, `--timeline-head`).
    */
   strip?: TimelineStripData;
   /**
-   * The public holidays (v0.7; the dictionary's `{date, name}` rows, any range): at week and month zoom a holiday working day is hatched
+   * The public holidays (the dictionary's `{date, name}` rows, any range): at week and month zoom a holiday working day is hatched
    * like a weekend (a second gradient layer on the row), at week zoom its header day cell is tinted and named in its `title`, and a visually
    * hidden paragraph lists the ones in view (the header and the tracks are `aria-hidden`).
    */
   holidays?: readonly TimelineHoliday[];
   /** The dictionary could not be loaded, so `holidays` is empty for want of it: a small muted note says the days off are not marked. */
   holidaysFailed?: boolean;
-  /** The page's own toolbar controls (v0.7: the project page's critical-path toggle), rendered after Today inside the toolbar group. */
+  /** The page's own toolbar controls (the project page's critical-path toggle), rendered after Today inside the toolbar group. */
   toolbar?: ReactNode;
   /** More rows than this are virtualised; fewer or equal are all mounted. */
   virtualizeFrom?: number;
@@ -127,33 +128,11 @@ export default function Timeline({
 }: TimelineProps) {
   const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
-  const pendingFocus = useRef<{ r: number; c: number } | null>(null);
   const { active: dragging } = useDndContext();
   const leftWidth = columns.reduce((sum, column) => sum + column.width, 0);
   // The sticky header's height: the ONE number the drop zone, the virtualiser, the reveal and the CSS scroll margins all follow.
   const head = headerHeight(strip !== undefined);
-  // The drop zone is as large as every row; a tray drop only counts inside what the scroller actually shows of it.
-  const zoneNode = useRef<HTMLDivElement | null>(null);
-  const zoneData: DropZoneData = {
-    visibleBounds: () => {
-      const rect = scrollRef.current?.getBoundingClientRect();
-      return rect === undefined ? null : { left: rect.left + leftWidth, right: rect.right, top: rect.top + head, bottom: rect.bottom };
-    },
-    zoneLeft: () => zoneNode.current?.getBoundingClientRect().left ?? null,
-  };
-  const { setNodeRef: dropRef } = useDroppable({ id: TIMELINE_DROP_ID, data: zoneData });
-  // A second, invisible zone over the WHOLE body: a held ROW lands in the slot under the pointer (the context excludes it for every other kind).
-  // Its readers are live: the grid scrolls under a held row, so the zone's top and the bounds are read at the event, never snapshotted.
-  const rowZoneNode = useRef<HTMLDivElement | null>(null);
-  const rowZoneData: RowDropZoneData = {
-    zoneTop: () => rowZoneNode.current?.getBoundingClientRect().top ?? null,
-    rowBounds: () => {
-      const rect = scrollRef.current?.getBoundingClientRect();
-      return rect === undefined ? null : { left: rect.left, right: rect.right, top: rect.top + head, bottom: rect.bottom, scrollerTop: rect.top };
-    },
-    rowCount: rows.length,
-  };
-  const { setNodeRef: rowDropRef } = useDroppable({ id: TIMELINE_ROW_DROP_ID, data: rowZoneData });
+  const { zoneRef, rowZoneRef } = useTimelineDropZones({ scrollRef, head, leftWidth, rowCount: rows.length });
   const virtual = rows.length > virtualizeFrom;
   // TanStack Virtual returns a stable mutable instance the React compiler cannot memoise around; nothing here is memoised on it.
   // eslint-disable-next-line react-hooks/incompatible-library -- see above
@@ -180,42 +159,7 @@ export default function Timeline({
     fallback: { r: first + 1, c: 0 },
   });
 
-  // Scrolled-to rows mount a frame later: focus the wanted cell (or the nearest to its left) as soon as it exists.
-  useLayoutEffect(() => {
-    const wanted = pendingFocus.current;
-    const root = grid.ref.current;
-    if (wanted === null || root === null) return;
-    for (let c = wanted.c; c >= 0; c -= 1) {
-      const cell = root.querySelector<HTMLElement>(`[data-grid-pos="${wanted.r},${c}"]`);
-      if (cell !== null) {
-        pendingFocus.current = null;
-        cell.focus();
-        return;
-      }
-    }
-  });
-
-  // A wish to focus a row that has not mounted yet must not outlive the user's intent: any other key, a focus elsewhere or a
-  // scroll by hand (wheel, touch, pointer, keys on the scroller itself) drops it, so it cannot steal focus later.
-  useEffect(() => {
-    const scroller = scrollRef.current;
-    const cancel = () => {
-      pendingFocus.current = null;
-    };
-    const cancelOnScroller = (event: Event) => {
-      if (event.type !== "keydown" || event.target === scroller) cancel();
-    };
-    const focusElsewhere = (event: FocusEvent) => {
-      if (!grid.ref.current?.contains(event.target as Node)) cancel();
-    };
-    const events = ["wheel", "touchmove", "pointerdown", "keydown"];
-    events.forEach((name) => scroller?.addEventListener(name, cancelOnScroller, { passive: true }));
-    document.addEventListener("focusin", focusElsewhere);
-    return () => {
-      events.forEach((name) => scroller?.removeEventListener(name, cancelOnScroller));
-      document.removeEventListener("focusin", focusElsewhere);
-    };
-  }, [grid.ref]);
+  const pendingFocus = useTimelinePendingFocus(scrollRef, grid.ref);
 
   /** ↑/↓ and Ctrl+Home/End aimed at a row that is not mounted: scroll to it and let the layout effect focus it. */
   const jumpToUnmountedRow = (event: KeyboardEvent<HTMLElement>): boolean => {
@@ -242,33 +186,7 @@ export default function Timeline({
     grid.onKeyDown(event);
   };
 
-  /**
-   * A focused cell, bar or handle must not sit UNDER the sticky parts. The browser scrolls a focused element only when it is not (partly)
-   * visible, and it does not know that the sticky columns and header cover part of the scroller (`scroll-margin` is only honoured when it
-   * decides to scroll at all): a bar half under the columns took focus with its ring hidden (found by the 1,000-row measurement). So the
-   * grid measures the focus target against the part of the scroller that is really shown (inside its border, so a classic scrollbar is
-   * not counted) and scrolls the difference — never further than the target's own start edge reaching the sticky parts, so a bar wider
-   * than the visible track shows its START (and a handle never bounces). Only keyboard-style focus (`:focus-visible`) reveals: a mouse
-   * press on a bar must not move the grid under the pointer — unless the page forced it (`focusRow`: a focus it moved itself after a click).
-   * Left cells are sticky themselves and need no horizontal correction.
-   */
-  const revealFocused = (target: HTMLElement, force = false) => {
-    const scroller = scrollRef.current;
-    if (scroller === null || target.closest("[data-grid-pos]") === null || !(force || target.matches(":focus-visible"))) return;
-    const box = target.getBoundingClientRect();
-    const view = scroller.getBoundingClientRect();
-    const viewTop = view.top + scroller.clientTop;
-    const viewBottom = viewTop + scroller.clientHeight;
-    const clearTop = viewTop + head;
-    if (box.top < clearTop) scroller.scrollTop -= clearTop - box.top;
-    else if (box.bottom > viewBottom) scroller.scrollTop += Math.min(box.bottom - viewBottom, box.top - clearTop);
-    if (target.closest(`.${classes.timelineLeft}`) !== null) return;
-    const viewLeft = view.left + scroller.clientLeft;
-    const viewRight = viewLeft + scroller.clientWidth;
-    const clearLeft = viewLeft + leftWidth;
-    if (box.left < clearLeft) scroller.scrollLeft -= clearLeft - box.left;
-    else if (box.right > viewRight) scroller.scrollLeft += Math.min(box.right - viewRight, box.left - clearLeft);
-  };
+  const reveal = (target: HTMLElement, force = false) => revealFocused(scrollRef.current, target, head, leftWidth, force);
 
   useImperativeHandle(
     ref,
@@ -280,10 +198,10 @@ export default function Timeline({
           const cell = grid.ref.current?.querySelector<HTMLElement>(`[data-grid-pos="${index + 1},0"]`);
           if (cell === null || cell === undefined) return;
           cell.focus();
-          revealFocused(cell, true);
+          reveal(cell, true);
           return;
         }
-        // Not mounted (the virtual path): scroll to it and let the layout effect above focus it as soon as it exists.
+        // Not mounted (the virtual path): scroll to it and let the pending-focus layout effect (useTimelinePendingFocus) focus it as soon as it exists.
         pendingFocus.current = { r: index + 1, c: 0 };
         virtualizer.scrollToIndex(index);
       },
@@ -304,28 +222,7 @@ export default function Timeline({
   const bodyHeight = Math.max(rows.length, MIN_BODY_ROWS) * ROW_HEIGHT;
   const trackLeft = { left: leftWidth };
 
-  // Built on first use (an arrow resolves its rows by id), so a timeline without arrows never pays for it.
-  let rowIndexById: Map<number | string, number> | null = null;
-  const geometry: TimelineGeometry | null =
-    overlay === undefined
-      ? null
-      : {
-          scale,
-          rowIndexOf: (rowId) => {
-            rowIndexById ??= new Map(rows.map((candidate, index) => [candidate.id, index]));
-            return rowIndexById.get(rowId) ?? null;
-          },
-          xOf: (iso) => scale.xOf(toEpochDay(iso)),
-          rowTop: (index) => index * ROW_HEIGHT,
-          rowHeight: ROW_HEIGHT,
-          visibleRows: { first, last },
-          barRect: (index, barId) => {
-            const bar = rows[index]?.bars.find((candidate) => candidate.id === barId);
-            if (bar === undefined) return null;
-            const start = toEpochDay(bar.start);
-            return { x: scale.xOf(start), y: index * ROW_HEIGHT + BAR_INSET, width: scale.widthOf(start, toEpochDay(bar.end)), height: BAR_HEIGHT };
-          },
-        };
+  const geometry = overlay === undefined ? null : buildTimelineGeometry(rows, scale, { first, last });
 
   const gridStyle = { width: leftWidth + scale.totalWidth, "--timeline-left": `${leftWidth}px`, "--timeline-head": `${head}px` } as CSSProperties;
 
@@ -358,7 +255,7 @@ export default function Timeline({
           onKeyDown={onKeyDown}
           onFocus={(event) => {
             pendingFocus.current = null;
-            revealFocused(event.target as HTMLElement);
+            reveal(event.target as HTMLElement);
             grid.onFocus(event);
           }}
         >
@@ -370,8 +267,8 @@ export default function Timeline({
               </div>
             ))}
             {todayInRange && <div aria-hidden="true" className={classes.timelineToday} style={{ left: leftWidth + scale.xOf(todayDay) + scale.dayWidth / 2 }} />}
-            <div ref={(node) => { zoneNode.current = node; dropRef(node); }} aria-hidden="true" style={{ position: "absolute", top: 0, height: bodyHeight, width: scale.totalWidth, pointerEvents: "none", ...trackLeft }} />
-            <div ref={(node) => { rowZoneNode.current = node; rowDropRef(node); }} aria-hidden="true" style={{ position: "absolute", top: 0, left: 0, height: bodyHeight, width: leftWidth + scale.totalWidth, pointerEvents: "none" }} />
+            <div ref={zoneRef} aria-hidden="true" style={{ position: "absolute", top: 0, height: bodyHeight, width: scale.totalWidth, pointerEvents: "none", ...trackLeft }} />
+            <div ref={rowZoneRef} aria-hidden="true" style={{ position: "absolute", top: 0, left: 0, height: bodyHeight, width: leftWidth + scale.totalWidth, pointerEvents: "none" }} />
             {mountedIndexes.map((index) => (
               <TimelineRow
                 key={rows[index].id}

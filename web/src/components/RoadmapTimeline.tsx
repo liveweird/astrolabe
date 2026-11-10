@@ -1,6 +1,6 @@
 import type { ReactNode, Ref } from "react";
 import { Group, Menu, Text, VisuallyHidden } from "@mantine/core";
-import { IconArrowBarDown, IconArrowBarUp, IconArrowDown, IconArrowUp, IconListNumbers, IconRoute, IconX } from "@tabler/icons-react";
+import { IconListNumbers, IconRoute, IconX } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import type { RemovedProject, RoadmapProject, RoadmapView } from "../api/roadmap";
 import { useHolidays } from "../hooks/useHolidays";
@@ -13,6 +13,7 @@ import type { RovingTarget, TimelineColumn, TimelineRowData } from "../utils/tim
 import { PLAN_ZOOMS, type TimelineScale, type Zoom } from "../utils/timelineScale";
 import { BaselineRowName } from "./BaselineParts";
 import { FlagCountsCell, OpenProjectItem, ProjectLink, TargetWindowItems, type WindowActions } from "./PlanProjectCells";
+import MoveItems from "./MoveItems";
 import RowActionsMenu from "./RowActionsMenu";
 import Timeline, { type TimelineHandle } from "./Timeline";
 import TimelineArrows from "./TimelineArrows";
@@ -95,18 +96,7 @@ function ProjectMenu({
     <RowActionsMenu label={t("common.table.operationsAria", { name })} trigger={{ ...trigger, "data-operations-for": project.id }} onClosed={() => actions.menuClosed(project)}>
       {canRank && rankedIndex !== null && (
         <>
-          <Menu.Item leftSection={<IconArrowUp size={14} />} disabled={first} onClick={() => actions.move(project, -1)} aria-label={t("roadmap.action.moveUpAria", { name })}>
-            {t("roadmap.action.moveUp")}
-          </Menu.Item>
-          <Menu.Item leftSection={<IconArrowDown size={14} />} disabled={last} onClick={() => actions.move(project, 1)} aria-label={t("roadmap.action.moveDownAria", { name })}>
-            {t("roadmap.action.moveDown")}
-          </Menu.Item>
-          <Menu.Item leftSection={<IconArrowBarUp size={14} />} disabled={first} onClick={() => actions.moveTo(project, "top")} aria-label={t("roadmap.action.moveTopAria", { name })}>
-            {t("roadmap.action.moveTop")}
-          </Menu.Item>
-          <Menu.Item leftSection={<IconArrowBarDown size={14} />} disabled={last} onClick={() => actions.moveTo(project, "bottom")} aria-label={t("roadmap.action.moveBottomAria", { name })}>
-            {t("roadmap.action.moveBottom")}
-          </Menu.Item>
+          <MoveItems name={name} scope="roadmap.action" first={first} last={last} onMove={(delta) => actions.move(project, delta)} onMoveTo={(edge) => actions.moveTo(project, edge)} />
           <Menu.Item leftSection={<IconX size={14} />} onClick={() => actions.unrank(project)} aria-label={t("roadmap.action.unrankAria", { name })}>
             {t("roadmap.action.unrank")}
           </Menu.Item>

@@ -44,8 +44,8 @@ interface BarProps {
 }
 
 /**
- * A bar's tone: a ghost (another project's endpoint) is faint and dashed, a summary (the project's span) hollow, a proposal (v0.8: a proposed
- * span) hollow with a dashed outline, a baseline (v0.9: the span a baseline froze) a thin shadow bar under the row's bar, a jira (1.3: the dates Jira holds) a thin dashed outline above it — all READ-ONLY tones, ignored on an editable bar — and a window (a target window) the band look, honoured on a read-only AND on an editable bar (`toneOf`).
+ * A bar's tone: a ghost (another project's endpoint) is faint and dashed, a summary (the project's span) hollow, a proposal (a proposed
+ * span) hollow with a dashed outline, a baseline (the span a baseline froze) a thin shadow bar under the row's bar, a jira (1.3: the dates Jira holds) a thin dashed outline above it — all READ-ONLY tones, ignored on an editable bar — and a window (a target window) the band look, honoured on a read-only AND on an editable bar (`toneOf`).
  */
 const TONE_CLASS = {
   ghost: classes.timelineBarGhost,
@@ -79,7 +79,7 @@ const toneClass = (bar: TimelineBarData) => {
   return tone === undefined ? "" : TONE_CLASS[tone];
 };
 
-/** The critical-path emphasis (v0.7): a leading-space class so a bar without it keeps its exact class string. */
+/** The critical-path emphasis: a leading-space class so a bar without it keeps its exact class string. */
 const emphasisClass = (bar: TimelineBarData) => (bar.emphasis === "critical" ? ` ${classes.timelineBarCritical}` : "");
 const emphasisAttr = (bar: TimelineBarData) => (bar.emphasis === "critical" ? "true" : undefined);
 

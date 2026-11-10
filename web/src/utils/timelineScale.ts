@@ -16,7 +16,7 @@ export const ZOOMS: readonly Zoom[] = ["week", "month", "quarter", "year"];
 /** The zooms of the milestone pages (the project and the team view): week / month / quarter, exactly as before the Year zoom existed. */
 export const MILESTONE_ZOOMS: readonly Zoom[] = ["week", "month", "quarter"];
 
-/** The zooms of the plan pages (the roadmap and the programs view, v0.6): month / quarter / year — a week is noise over a multi-year plan. */
+/** The zooms of the plan pages (the roadmap and the programs view): month / quarter / year — a week is noise over a multi-year plan. */
 export const PLAN_ZOOMS: readonly Zoom[] = ["month", "quarter", "year"];
 
 /** Pixels per day at each zoom. */
@@ -131,7 +131,7 @@ export interface HeaderCell {
   to: number;
   /** A day cell that is a Saturday or Sunday (the other grains are never "weekend"). */
   weekend: boolean;
-  /** The public holiday's name on a DAY cell (v0.7; the other grains never carry one). Absent on every other cell. */
+  /** The public holiday's name on a DAY cell (the other grains never carry one). Absent on every other cell. */
   holiday?: string;
 }
 

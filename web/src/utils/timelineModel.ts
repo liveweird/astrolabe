@@ -11,7 +11,7 @@ import type { TimelineScale } from "./timelineScale";
 export const ROW_HEIGHT = 36;
 export const HEADER_ROW_HEIGHT = 28;
 const HEADER_HEIGHT = 2 * HEADER_ROW_HEIGHT;
-/** The optional third header row (the v0.5 load strip). */
+/** The optional third header row (the load strip). */
 export const STRIP_HEIGHT = 36;
 export const BAR_INSET = 6;
 export const BAR_HEIGHT = ROW_HEIGHT - 2 * BAR_INSET;
@@ -47,16 +47,16 @@ export interface TimelineBarData {
   editable: boolean;
   /**
    * How the bar is drawn, read-only or editable: `ghost` = an endpoint that lives on another project (a faint dashed bar),
-   * `summary` = the project's own derived span (a hollow outline), `window` (v0.6) = a target window (the band look: the full row
-   * height, the band tint, dashed edges; an EDITABLE window bar keeps its move and resize handles and its keyboard path), `proposal` (v0.8) =
-   * a PROPOSED span beside the current one (hollow, a dashed 2 px text-colour outline; read-only: a preview, never an edit), `baseline` (v0.9)
+   * `summary` = the project's own derived span (a hollow outline), `window` = a target window (the band look: the full row
+   * height, the band tint, dashed edges; an EDITABLE window bar keeps its move and resize handles and its keyboard path), `proposal` =
+   * a PROPOSED span beside the current one (hollow, a dashed 2 px text-colour outline; read-only: a preview, never an edit), `baseline`
    * = the span a baseline froze, a thin SHADOW bar along the bottom of the row under the current bar (a solid dimmed fill, square corners;
    * read-only, pointer-transparent), `jira` (1.3) = the dates Jira holds for the row, a 5 px dashed OUTLINE along the TOP of the row (hollow, the
    * dimmed arrow ink; read-only, pointer-transparent). Absent = the ordinary neutral bar.
    */
   tone?: "ghost" | "summary" | "window" | "proposal" | "baseline" | "jira";
   /**
-   * v0.7 critical-path emphasis, independent of `tone` and honoured on an editable AND a read-only bar: `critical` = a text-colour outline
+   * Critical-path emphasis, independent of `tone` and honoured on an editable AND a read-only bar: `critical` = a text-colour outline
    * and `data-critical="true"` (monochrome, no new hue). Absent = nothing is drawn or rendered extra.
    */
   emphasis?: "critical";
@@ -68,7 +68,7 @@ export interface TimelineBandData {
   end: string;
   label: string;
   /**
-   * `window` = a plan window (quiet gray, dashed edges); `drift` = a deviation from it (orange); `idle` (v0.7) = a run of idle
+   * `window` = a plan window (quiet gray, dashed edges); `drift` = a deviation from it (orange); `idle` = a run of idle
    * working days (a diagonal gray hatch, no edges: information, neither a plan nor a warning).
    */
   tone: "window" | "drift" | "idle";
@@ -95,7 +95,7 @@ export interface TimelineArrowData {
   to: TimelineArrowEnd;
   /** The constraint does not hold: drawn red (and `data-violated="true"`). */
   violated: boolean;
-  /** v0.7: a zero-slack link on the critical chain: a heavier text-colour stroke with its own arrowhead and `data-critical="true"`. A violated arrow stays red. */
+  /** A zero-slack link on the critical chain: a heavier text-colour stroke with its own arrowhead and `data-critical="true"`. A violated arrow stays red. */
   critical?: boolean;
   /** A short human description ("A → B, FS"); the path's `<title>` (not an accessible name: the svg is `aria-hidden`). */
   label: string;
@@ -115,7 +115,7 @@ export interface TimelineColumn {
 }
 
 /**
- * Opts a row in to the DRAW gesture (v0.6): a pointer drag across the row's empty stretch proposes a span through the page's
+ * Opts a row in to the DRAW gesture: a pointer drag across the row's empty stretch proposes a span through the page's
  * `onSchedule(barId, start, end)` (the same seam as a bar move), `barId` being the id of the bar the row would have once drawn.
  * Pointer-only: the page's dialog is the keyboard and touch path.
  */
@@ -134,12 +134,12 @@ export interface TimelineRowData {
   bands?: readonly TimelineBandData[];
   /** Draw a new span across this row's empty stretch (a row without its target window). Absent = no draw surface. */
   draw?: TimelineDrawData;
-  /** Replaces the bar rendering of this row's track, positioned with the exported scale. No page uses it: the v0.5 load strip is a header band (`TimelineStripData`). */
+  /** Replaces the bar rendering of this row's track, positioned with the exported scale. No page uses it: the load strip is a header band (`TimelineStripData`). */
   track?: ReactNode;
 }
 
 /**
- * A third, sticky header row under the date cells (v0.5: the team's weekly load). Decorative (`aria-hidden`): the page's table is the
+ * A third, sticky header row under the date cells (the team's weekly load). Decorative (`aria-hidden`): the page's table is the
  * accessible surface. `label` is the visible caption of the sticky left part; `render` draws the track part, positioned with the scale.
  */
 export interface TimelineStripData {
@@ -147,7 +147,7 @@ export interface TimelineStripData {
   render: (scale: TimelineScale) => ReactNode;
 }
 
-/** What the overlay slot (v0.4 arrows) draws against; all in pixels from the track origin (left of the range, top of the first row). */
+/** What the overlay slot (the dependency arrows) draws against; all in pixels from the track origin (left of the range, top of the first row). */
 export interface TimelineGeometry {
   scale: TimelineScale;
   /** The x of the LEFT edge of an ISO day. */

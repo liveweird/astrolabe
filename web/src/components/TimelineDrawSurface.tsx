@@ -6,7 +6,7 @@ import { toEpochDay, type TimelineScale } from "../utils/timelineScale";
 import classes from "../theme.module.css";
 
 /**
- * The draw gesture's surface (v0.6): an invisible layer behind a row's bands and bars (so a bar always wins the pointer where it sits) on which a
+ * The draw gesture's surface: an invisible layer behind a row's bands and bars (so a bar always wins the pointer where it sits) on which a
  * pointer drag across the EMPTY stretch of the row proposes a span, previewed here as a window-toned ghost. A POINTER affordance only, the
  * `TimelineRowHandle` rule: only the pointer activator is attached (never the keyboard sensor's `onKeyDown`, no `attributes`), it is `aria-hidden`
  * and not focusable (the page's dialog is the keyboard and screen-reader path), and `touch-action: pan-x pan-y pinch-zoom` lets a finger scroll the grid

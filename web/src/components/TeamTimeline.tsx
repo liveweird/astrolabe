@@ -37,7 +37,7 @@ const estimateText = (t: TFunction, milestone: TeamMilestone) => t("project.esti
 
 /**
  * The name with the description as dimmed text after it; one line (rows are a fixed height), the cell clips the rest. A row a preview appends is
- * marked "(new)"; `sinceBaseline` (v0.9) marks a milestone the picked baseline did not know; `note` (1.3) is a tray row's "Jira: start to end".
+ * marked "(new)"; `sinceBaseline` marks a milestone the picked baseline did not know; `note` (1.3) is a tray row's "Jira: start to end".
  */
 function NameCell({ milestone, isNew = false, sinceBaseline = false, note }: { milestone: TeamMilestone; isNew?: boolean; sinceBaseline?: boolean; note?: string }) {
   const { t } = useTranslation();
@@ -104,12 +104,12 @@ const proposalBarOf = (proposed: ReadonlyMap<number, TimelineBarData>, milestone
  * project, an unscheduled or another team's milestone — is simply not drawn; the project's page is where those are read). It must sit
  * inside the page's `TimelineDndContext`. Nothing here decides rights or checks — the view's `can` flags and the server's `check` do.
  *
- * With a `proposal` (v0.8) the timeline PREVIEWS it, read-only: every moved milestone that has a row gets a second, proposal-toned bar
+ * With a `proposal` the timeline PREVIEWS it, read-only: every moved milestone that has a row gets a second, proposal-toned bar
  * beside its current one, a tray milestone the proposal schedules gets a row APPENDED after the scheduled ones (only the proposal bar,
  * "(new)" after its name), the strip shows the proposed load instead, the current bars lose their handles, the row handles are gone and
  * the idle bands (about the current schedule) are not drawn. Arrows stay on the current bars; none ends on a proposal bar.
  *
- * With the view's `baseline` (v0.9, `?baseline=N`) every row the baseline had scheduled gets a thin shadow bar under its bar, a milestone it did not
+ * With the view's `baseline` (`?baseline=N`) every row the baseline had scheduled gets a thin shadow bar under its bar, a milestone it did not
  * know reads "(new since the baseline)", and the baseline's milestones that are gone from the team (deleted, moved to another team) and the tray
  * milestones it had scheduled are appended as dimmed rows with the shadow bar only (after the scheduled rows, then a preview's rows). It coexists
  * with a proposal preview: three bars in a row, the tones differ.
@@ -232,7 +232,7 @@ export default function TeamTimeline({
       ...barList(jira == null ? undefined : jiraBar(milestone.id, milestone.name, milestone.jira, milestone.flags, jira, t)),
     ],
   }));
-  // The baseline's rows (v0.9): gone from the team, or in the tray now though the baseline had them scheduled - dimmed, the shadow bar only.
+  // The baseline's rows: gone from the team, or in the tray now though the baseline had them scheduled - dimmed, the shadow bar only.
   for (const row of overlay === undefined ? [] : removedRows(overlay, view.unscheduled, t)) {
     rows.push({
       id: row.id,

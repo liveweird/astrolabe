@@ -1,11 +1,12 @@
 import { Menu } from "@mantine/core";
-import { IconArrowBarDown, IconArrowBarUp, IconArrowDown, IconArrowUp, IconCalendarEvent, IconCalendarOff, IconExternalLink, IconPin, IconPinnedOff } from "@tabler/icons-react";
+import { IconCalendarEvent, IconCalendarOff, IconExternalLink, IconPin, IconPinnedOff } from "@tabler/icons-react";
 import { Link as RouterLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import type { TeamMilestone, TeamView } from "../api/teams";
 import type { BaselineRow } from "../utils/baselineOverlay";
 import { projectPath } from "../utils/planLinks";
 import type { RovingTarget } from "../utils/timelineModel";
+import MoveItems from "./MoveItems";
 import RowActionsMenu from "./RowActionsMenu";
 
 /** What a milestone row can ask the page to do — the page owns the schedule write path and the order write path. */
@@ -77,18 +78,7 @@ export default function MilestoneMenu({
       {ordering && (
         <>
           <Menu.Divider />
-          <Menu.Item leftSection={<IconArrowUp size={14} />} disabled={first} onClick={() => actions.move(milestone, -1)} aria-label={t("teams.view.action.moveUpAria", { name })}>
-            {t("teams.view.action.moveUp")}
-          </Menu.Item>
-          <Menu.Item leftSection={<IconArrowDown size={14} />} disabled={last} onClick={() => actions.move(milestone, 1)} aria-label={t("teams.view.action.moveDownAria", { name })}>
-            {t("teams.view.action.moveDown")}
-          </Menu.Item>
-          <Menu.Item leftSection={<IconArrowBarUp size={14} />} disabled={first} onClick={() => actions.moveTo(milestone, "top")} aria-label={t("teams.view.action.moveTopAria", { name })}>
-            {t("teams.view.action.moveTop")}
-          </Menu.Item>
-          <Menu.Item leftSection={<IconArrowBarDown size={14} />} disabled={last} onClick={() => actions.moveTo(milestone, "bottom")} aria-label={t("teams.view.action.moveBottomAria", { name })}>
-            {t("teams.view.action.moveBottom")}
-          </Menu.Item>
+          <MoveItems name={name} scope="teams.view.action" first={first} last={last} onMove={(delta) => actions.move(milestone, delta)} onMoveTo={(edge) => actions.moveTo(milestone, edge)} />
         </>
       )}
       <Menu.Divider />

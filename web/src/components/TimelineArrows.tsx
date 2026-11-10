@@ -2,7 +2,7 @@ import { arrowsToDraw } from "../utils/timelineArrows";
 import type { TimelineArrowData, TimelineGeometry } from "../utils/timelineModel";
 import classes from "../theme.module.css";
 
-/** The three arrowheads (the critical one, v0.7, only while an arrow is critical). Fixed ids: a page has ONE timeline (`timeline.md`), and a marker is looked up by document-wide id. */
+/** The three arrowheads (the critical one, only while an arrow is critical). Fixed ids: a page has ONE timeline (`timeline.md`), and a marker is looked up by document-wide id. */
 const HEAD = "timeline-arrowhead";
 const HEAD_VIOLATED = "timeline-arrowhead-violated";
 const HEAD_CRITICAL = "timeline-arrowhead-critical";

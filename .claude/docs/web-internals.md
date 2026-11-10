@@ -348,8 +348,8 @@ CSS classes (`timelineArrowHead*`), because a marker's content inherits from the
 name rows by `TimelineRowData.id`, so a re-sorted page never re-indexes its arrows. The route math (`utils/timelineArrows.ts`) is pure; the tests feed a
 hand-built geometry, and `Timeline.test.tsx` covers the plain and the virtual path (the unmounted end of an arrow is positioned from data). (10) **The header
 height (v0.5 load strip):** the sticky header is `headerHeight(hasStrip)` = 56 px, or 92 px with a `strip` (`STRIP_HEIGHT` 36). Its five consumers all follow
-ONE number computed in `Timeline.tsx`: the track drop zone's `visibleBounds().top`, the virtualiser's `scrollMargin` and `scrollPaddingStart`, `revealFocused`'s
-`clearTop`, and the two CSS `scroll-margin-top`s (`.timelineCell`, `.timelineBarBody`), which read `var(--timeline-head)` set on the grid beside
+ONE number computed in `Timeline.tsx`: the track drop zone's `visibleBounds().top` (`hooks/useTimelineDropZones.ts`), the virtualiser's `scrollMargin` and `scrollPaddingStart`, `revealFocused`'s
+`clearTop` (`utils/timelineReveal.ts`), and the two CSS `scroll-margin-top`s (`.timelineCell`, `.timelineBarBody`), which read `var(--timeline-head)` set on the grid beside
 `--timeline-left`. A new sticky part adds to `headerHeight()`, never to a literal; `Timeline.test.tsx` "the load strip" pins the value of `--timeline-head` and
 the drop zone's top, `revealFocused`'s `clearTop` and the virtualiser's `scrollMargin` (through the mounted window), with and without a strip. NOT pinned
 (happy-dom has no layout and does not process CSS modules): `scrollPaddingStart` (where `scrollToIndex` lands a row) and the two CSS `var(--timeline-head)`

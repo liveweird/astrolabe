@@ -48,7 +48,7 @@ export default function ProjectTimeline({
   busy: boolean;
   actions: MilestoneActions;
   label: string;
-  /** The critical-path toggle is on (v0.7): the Slack column, the bar and arrow emphasis and the ghost rows' slack. */
+  /** The critical-path toggle is on: the Slack column, the bar and arrow emphasis and the ghost rows' slack. */
   criticalPath: boolean;
   /** The Timeline's `toolbar` slot: the page's toggle buttons. */
   toolbar: ReactNode;

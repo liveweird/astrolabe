@@ -95,7 +95,7 @@ function RemovedLabel({ row }: { row: RemovedTreeRow["removed"] }) {
 }
 
 /**
- * A work stream's or program's summary bar: the span its projects cover, read-only; with a baseline picked (v0.9) the span they had then follows
+ * A work stream's or program's summary bar: the span its projects cover, read-only; with a baseline picked the span they had then follows
  * as a thin shadow bar (also where nothing is scheduled any more).
  */
 function summaryBars(row: NodeRow, t: TFunction): TimelineBarData[] {

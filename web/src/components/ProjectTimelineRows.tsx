@@ -31,7 +31,7 @@ export const hasMenu = ({ can }: ProjectMilestone, canLink: boolean) => can.edit
 
 /**
  * The target window as a band across every row, and — when the derived span ends after the target — the overrun in the drift tone;
- * then (v0.7) one hatched `idle` band per idle gap the server lists, after them so the hatch is painted over the window's tint.
+ * then one hatched `idle` band per idle gap the server lists, after them so the hatch is painted over the window's tint.
  */
 export function bandsOf(view: ProjectView, t: TFunction): TimelineBandData[] {
   const { targetStart, targetEnd } = view.project;
@@ -46,7 +46,7 @@ export function bandsOf(view: ProjectView, t: TFunction): TimelineBandData[] {
 }
 
 /**
- * The critical-path emphasis of one bar (v0.7), applied only while the page's toggle is on AND the entity is critical: the bar's `emphasis`
+ * The critical-path emphasis of one bar, applied only while the page's toggle is on AND the entity is critical: the bar's `emphasis`
  * and the ", on the critical path" suffix of its accessible name. Anything else keeps its name and carries no `emphasis` at all.
  */
 const emphasized = (t: TFunction, critical: boolean, describe: string): Pick<TimelineBarData, "describe" | "emphasis"> =>
@@ -170,7 +170,7 @@ export function milestoneRows(
 ): TimelineRowData[] {
   const canLink = view.project.can.createDependency;
   const sites = siteUrls(view.jiraSites);
-  // v0.9: with `?baseline=` the view carries the overlay - a shadow bar per row the baseline had scheduled, a dimmed "(new …)" mark on a milestone it did not know.
+  // With `?baseline=` the view carries the overlay - a shadow bar per row the baseline had scheduled, a dimmed "(new …)" mark on a milestone it did not know.
   const overlay = view.baseline;
   const shadows = overlay === undefined ? null : baselineBars(overlay, view.scheduled, t);
   const fresh = overlay === undefined ? null : newSince(overlay, view.scheduled);
