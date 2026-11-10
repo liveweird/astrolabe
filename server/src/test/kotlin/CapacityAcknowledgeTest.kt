@@ -282,28 +282,42 @@ class CapacityAcknowledgeTest {
         }
     }
 
+    // INVERTED ON PURPOSE in 1.10 (the 1.9 version asserted "a sprint acknowledgement is not the mirror's business": the sprint's row
+    // stayed stored when it went in line, so the SAME difference returning read acknowledged again - the limitation (a) this release
+    // closes). An acknowledgement now lives only while its row is listed: a run that finds the sprint in line deletes it, so the
+    // difference that comes back is OPEN. Billing's team row goes the same way (the 1.9 rule, now one case of the general one).
     @Test
-    fun `a team that returns to Flow loses its gone acknowledgement - its next disappearance is open again`() = testApplication {
-        val world = dayTwo("capack9")
-        with(world) {
-            val admin = w.admin.client
-            val billingManager = w.requireTeams().otherManager.client
-            val sprint = admin.rowOf(2)
-            assertEquals(HttpStatusCode.OK, manager.client.capAck(bindingId, 2, sprint.fingerprint).status)
-            val gone = admin.rowOf(null, billingBindingId)
-            assertEquals(HttpStatusCode.OK, billingManager.capAck(billingBindingId, null, gone.fingerprint).status)
-            assertEquals(1, capAckStored(billingBindingId))
+    fun `an acknowledgement ends with its row - sprint 2 in line and Billing back lose theirs, and the difference that returns is open`() =
+        testApplication {
+            val world = dayTwo("capack9")
+            with(world) {
+                val admin = w.admin.client
+                val billingManager = w.requireTeams().otherManager.client
+                val sprint = admin.rowOf(2)
+                assertEquals(HttpStatusCode.OK, manager.client.capAck(bindingId, 2, sprint.fingerprint).status)
+                val gone = admin.rowOf(null, billingBindingId)
+                assertEquals(HttpStatusCode.OK, billingManager.capAck(billingBindingId, null, gone.fingerprint).status)
+                assertEquals(1, capAckStored(billingBindingId))
+                assertEquals(1, capAckStored(bindingId))
+                assertNotNull(admin.rowOf(2).acknowledgement, "acknowledged and listed: it reads acknowledged")
 
-            refresh(dayTwo = false)
-            assertEquals(0, capAckStored(billingBindingId), "Billing is in the document again: its gone acknowledgement is cleared")
-            assertEquals(1, capAckStored(bindingId), "a sprint acknowledgement is not the mirror's business")
-            assertTrue(admin.rowsOf(billingBindingId).isEmpty(), "no deviation while the team is present")
+                refresh(dayTwo = false)
+                assertEquals(0, capAckStored(billingBindingId), "Billing is in the document again: its gone acknowledgement is cleared")
+                assertEquals(0, capAckStored(bindingId), "sprint 2 is in line again: its row left the list, so its acknowledgement went")
+                assertTrue(admin.rowsOf(billingBindingId).isEmpty(), "no deviation while the team is present")
+                assertTrue(admin.rowsOf().isEmpty(), "every sprint is in line on day one")
 
-            refresh(dayTwo = true)
-            val again = admin.rowOf(null, billingBindingId)
-            assertNull(again.acknowledgement)
-            assertNull(capAckRow(billingBindingId, null), "the new disappearance is open, nothing is stored for it")
-            assertEquals(HttpStatusCode.OK, billingManager.capAck(billingBindingId, null, again.fingerprint).status, "and acknowledgeable")
+                refresh(dayTwo = true)
+                val again = admin.rowOf(2)
+                assertNull(again.acknowledgement, "the same difference is open again")
+                assertEquals(sprint.fingerprint, again.fingerprint, "the very same difference: the fingerprint acknowledged before")
+                val goneAgain = admin.rowOf(null, billingBindingId)
+                assertNull(goneAgain.acknowledgement)
+                assertEquals(gone.fingerprint, goneAgain.fingerprint)
+                assertNull(capAckRow(billingBindingId, null), "the new disappearance is open, nothing is stored for it")
+                assertEquals(
+                    HttpStatusCode.OK, billingManager.capAck(billingBindingId, null, goneAgain.fingerprint).status, "and acknowledgeable",
+                )
+            }
         }
-    }
 }

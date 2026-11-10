@@ -1,5 +1,7 @@
 package ch.nokillswit
 
+import ch.nokillswit.flow.CapacityAcknowledgeService
+import ch.nokillswit.flow.CapacityDeviationService
 import ch.nokillswit.flow.FlowClient
 import ch.nokillswit.flow.FlowConnectionService
 import ch.nokillswit.flow.FlowConnector
@@ -26,6 +28,7 @@ import ch.nokillswit.sync.SyncState
 import ch.nokillswit.sync.SyncStatusKernels
 import ch.nokillswit.sync.SyncTrigger
 import ch.nokillswit.sync.failureJitterFraction
+import ch.nokillswit.teams.TeamCapacityService
 import io.ktor.server.plugins.BadRequestException
 import java.util.concurrent.ThreadLocalRandom
 import java.util.concurrent.atomic.AtomicInteger
@@ -191,9 +194,13 @@ class SyncSchedulerTest {
                 return FlowTeamsDocument(1L, sprintsSince.toString(), teamsTruncated = false, sprintsTruncated = false, items = emptyList())
             }
         }
+        val mirror = FlowMirrorStore(database)
+        val flowBindings = FlowTeamBindingService(database)
+        val acknowledgements = CapacityAcknowledgeService(
+            database, CapacityDeviationService(database, flowBindings, mirror, TeamCapacityService(database), runs), flowBindings, mirror,
+        )
         val observer = FlowObserver(
-            FlowConnector({ _, _ -> client }, sprintsSinceDays = 365), connections, FlowMirrorStore(database),
-            FlowTeamBindingService(database),
+            FlowConnector({ _, _ -> client }, sprintsSinceDays = 365), connections, mirror, flowBindings, acknowledgements,
         )
         suspend fun connection(testOk: Boolean?): UInt {
             val id = connections.create(flowRequest(name = flowUnique(FLOW_PREFIX)))

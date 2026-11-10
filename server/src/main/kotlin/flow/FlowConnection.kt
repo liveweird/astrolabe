@@ -81,7 +81,8 @@ data class FlowConnectionUpdateOutcome(val affected: Int, val tokenRotated: Bool
 /**
  * `affected` is the soft-deleted row count (0 -> 404); `name` and `host` are the row as STORED (the audit fields); `bindingsUnbound` the
  * connection's ACTIVE team bindings soft-deleted with it, `runsDeleted` its hard-deleted runs and `mirrorDeleted` its hard-deleted mirror
- * rows (teams, sprints and members together), all in the same transaction (the audit's counts).
+ * rows (teams, sprints and members together) and `acknowledgementsDeleted` its bindings' capacity acknowledgements (1.10), all in the
+ * same transaction (the audit's counts).
  */
 data class FlowConnectionDeleteOutcome(
     val affected: Int,
@@ -90,6 +91,7 @@ data class FlowConnectionDeleteOutcome(
     val bindingsUnbound: Int,
     val runsDeleted: Int = 0,
     val mirrorDeleted: Int = 0,
+    val acknowledgementsDeleted: Int = 0,
 )
 
 /**

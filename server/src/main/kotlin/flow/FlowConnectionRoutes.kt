@@ -127,6 +127,7 @@ fun Application.configureFlowRoutes() {
                     "host" to outcome.host,
                     "bindingsUnbound" to outcome.bindingsUnbound,
                     "runsDeleted" to outcome.runsDeleted,
+                    "acknowledgementsDeleted" to outcome.acknowledgementsDeleted,
                 )
                 call.respond(HttpStatusCode.NoContent)
             }

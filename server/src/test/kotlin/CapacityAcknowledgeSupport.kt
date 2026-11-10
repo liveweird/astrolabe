@@ -4,6 +4,7 @@ import ch.nokillswit.flow.CapacityAcknowledgeRequest
 import ch.nokillswit.flow.CapacityAcknowledgement
 import ch.nokillswit.flow.CapacityDeviation
 import ch.nokillswit.flow.CapacityDeviationView
+import ch.nokillswit.sync.SyncTrigger
 import io.ktor.client.HttpClient
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
@@ -86,6 +87,21 @@ class CapAckWorld(
 
     /** Re-reads the scripted Flow: day two when [dayTwo] (Billing vanishes), with sprint 2 under [s2Name]. */
     suspend fun refresh(dayTwo: Boolean = true, s2Name: String = "S2") = mirror.capAckRefresh(flowName, dayTwo, s2Name)
+
+    /**
+     * Re-reads the scripted Flow (day-two figures) with ONLY the E2E team's sprints [sprintIds] (none = the team is listed with ZERO
+     * sprints) and no Billing; [truncated] says `sprintsTruncated`, so a sprint missing from it was merely not sent.
+     */
+    suspend fun refreshOnly(
+        vararg sprintIds: Long,
+        truncated: Boolean = false,
+        trigger: SyncTrigger = SyncTrigger.MANUAL,
+        byUserId: UInt? = null,
+    ) {
+        val sprints = capAckSprints(dayTwo = true, "S2").filterIndexed { i, _ -> (i + 1).toLong() in sprintIds }
+        val team = flowTeamDoc(1, flowName, sprints = sprints)
+        if (truncated) mirror.refreshSprintsTruncated(team) else mirror.refresh(team, trigger = trigger, byUserId = byUserId)
+    }
 
     /** The rows of the view for binding [id], as [this] caller reads them (default: the E2E team's binding). */
     suspend fun HttpClient.rowsOf(id: UInt = bindingId): List<CapacityDeviation> {

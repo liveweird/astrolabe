@@ -1,7 +1,6 @@
 package ch.nokillswit
 
 import ch.nokillswit.sync.STALE_DEVIATIONS_PROBLEM
-import io.ktor.client.statement.HttpResponse
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
@@ -14,6 +13,8 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -38,14 +39,14 @@ class CapacityAcknowledgeRaceTest {
      * Holds [lockSql] (one int parameter [id]) on a raw session, runs every request in [requests], waits for [waiters] sessions
      * blocked in a statement containing [waitsAt], [change]s the world and commits.
      */
-    private suspend fun heldAt(
+    private suspend fun <T> heldAt(
         lockSql: String,
         id: UInt,
         waitsAt: String,
-        vararg requests: suspend () -> HttpResponse,
+        vararg requests: suspend () -> T,
         waiters: Int = 1,
         change: (Connection) -> Unit = {},
-    ): List<HttpResponse> {
+    ): List<T> {
         PostgresTestSupport.connect().use { raw ->
             raw.autoCommit = false
             raw.prepareStatement(lockSql).use { st ->
@@ -167,6 +168,77 @@ class CapacityAcknowledgeRaceTest {
                 )
                 assertEquals(listOf(HttpStatusCode.OK, HttpStatusCode.OK), responses.map { it.status })
                 assertEquals(1, capAckStored(bindingId), "the unique key held: the second UPDATEd the first's row")
+            }
+        }
+
+    @Test
+    fun `a run waits for a binding row another session holds, then completes and prunes`() =
+        testApplication {
+            val world = dayTwo("capackr8")
+            with(world) {
+                val admin = w.admin.client
+                admin.capAck(bindingId, 2, admin.rowOf(2).fingerprint).capAcknowledgement()
+                admin.capAck(bindingId, 3, admin.rowOf(3).fingerprint).capAcknowledgement()
+                // Sprint 2 leaves the document; the run (the connection row taken, then the binding rows) stops at the held binding row.
+                heldAt(bindingLock, bindingId, "FOR NO KEY UPDATE", { refreshOnly(1, 3) })
+                assertNull(capAckRow(bindingId, 2), "the run resumed after the release and pruned the row that left the list")
+                assertNotNull(capAckRow(bindingId, 3))
+            }
+        }
+
+    @Test
+    fun `an acknowledge that waits behind a run's prune recomputes on the new mirror - 409, nothing stored`() = testApplication {
+        val world = dayTwo("capackr9")
+        with(world) {
+            val admin = w.admin.client
+            val s2 = admin.rowOf(2)
+            admin.capAck(bindingId, 3, admin.rowOf(3).fingerprint).capAcknowledgement()
+            PostgresTestSupport.connect().use { raw ->
+                raw.autoCommit = false
+                // The stored row is held, so the run stops at its DELETE with the binding row ALREADY locked.
+                raw.prepareStatement("SELECT id FROM flow_capacity_acknowledgements WHERE binding_id = ? FOR UPDATE").use { st ->
+                    st.setInt(1, bindingId.toInt())
+                    st.executeQuery().close()
+                }
+                try {
+                    val acknowledge = coroutineScope {
+                        val run = async { refresh(dayTwo = false) } // every sprint in line: sprint 3's row is pruned, sprint 2 is no row
+                        awaitLockWait("DELETE FROM flow_capacity_acknowledgements")
+                        val acknowledge = async { manager.client.capAck(bindingId, 2, s2.fingerprint) }
+                        awaitLockWait("FOR NO KEY UPDATE")
+                        assertFalse(acknowledge.isCompleted, "the acknowledge is queued behind the run's binding row")
+                        raw.commit()
+                        run.await()
+                        acknowledge.await()
+                    }
+                    assertEquals(HttpStatusCode.Conflict, acknowledge.status, "judged against the mirror the run committed")
+                    assertEquals(STALE_DEVIATIONS_PROBLEM, acknowledge.jbProblem().type)
+                    assertEquals(0, capAckStored(bindingId), "the pruned row is gone and nothing was stored for sprint 2")
+                } finally {
+                    raw.rollback()
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `a run on a connection without stored acknowledgements takes no binding lock - it completes while every binding row is held`() =
+        testApplication {
+            val world = dayTwo("capackr10")
+            with(world) {
+                assertEquals(0, capAckStored(bindingId) + capAckStored(billingBindingId))
+                PostgresTestSupport.connect().use { raw ->
+                    raw.autoCommit = false
+                    raw.prepareStatement("SELECT id FROM flow_team_bindings WHERE connection_id = ? FOR NO KEY UPDATE").use { st ->
+                        st.setInt(1, mirror.connectionId.toInt())
+                        st.executeQuery().close()
+                    }
+                    try {
+                        withTimeout(30_000) { refresh(dayTwo = false) }
+                    } finally {
+                        raw.rollback()
+                    }
+                }
             }
         }
 

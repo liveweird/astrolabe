@@ -74,6 +74,7 @@ fun Application.configureFlow() {
     // The services it reads were published by `configureDatabase`, which runs before this module.
     val observer = FlowObserver(
         connector, attributes[FlowConnectionServiceKey], attributes[FlowMirrorStoreKey], attributes[FlowTeamBindingServiceKey],
+        attributes[CapacityAcknowledgeServiceKey],
     )
     attributes.put(FlowObserverKey, observer)
     attributes[SyncConnectorsKey].register(observer)

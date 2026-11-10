@@ -36,7 +36,9 @@ private fun sprintAuditValue(sprintId: Long?): Any = sprintId ?: "none"
  * guard (`403`, whatever the body is), then the body (`400`), or for the DELETE the `sprintId` parameter (`400`: repeated, malformed or
  * below 1). The service runs the guard again under the binding's row lock with the team and the manager's person locked `FOR SHARE`;
  * the stale-fingerprint `409` and the withdrawal's `404` ("nothing stored") are decided there too. The audit lines are written after
- * the commit; a refused request writes none of its own. No rate bucket: nothing here calls Flow.
+ * the commit; a refused request writes none of its own. The acknowledge also prunes the binding's stored rows that are no longer listed
+ * (1.10, under the same lock) and then audits `flow.capacity_acknowledgements_cleared` after its own line. No rate bucket: nothing
+ * here calls Flow.
  */
 internal fun Route.capacityAcknowledgeRoutes(
     acknowledgements: CapacityAcknowledgeService,
@@ -64,6 +66,9 @@ internal fun Route.capacityAcknowledgeRoutes(
             "severity" to outcome.severity.name,
             "fingerprint" to request.fingerprint,
         )
+        if (outcome.cleared.isNotEmpty()) {
+            auditCapacityAcksCleared(id, outcome.cleared, outcome.connectionId, caller.userId, via = "acknowledge")
+        }
         call.respond(HttpStatusCode.OK, outcome.acknowledgement)
     }
     delete<CapacityAcknowledgeRoute> { route ->

@@ -81,8 +81,20 @@ class FlowMirrorStore(private val database: R2dbcDatabase) {
      * takes the connection row `FOR SHARE`, which DOES conflict with it: a link waits for a replace in flight (briefly, one document's
      * rows) and then reads the new mirror. No cycle: a replace holds the connection row and touches only the three mirror tables, and a
      * link holds nothing a replace waits for. The `FOR KEY SHARE` of an FK check (a binding insert) does not conflict with it.
+     *
+     * [afterWrite] runs INSIDE the transaction, after the new document and `teams_at` are written (so it reads the new mirror) and
+     * still under the connection row lock: the run's prune of the capacity acknowledgements whose row left the list
+     * ([CapacityAcknowledgeService.pruneConnectionInTransaction]). The store itself writes no acknowledgement. A lock the block takes
+     * comes AFTER the connection row (the binding rows, in id order); a failure in it rolls the whole replace back, the previous
+     * document and its stamp stay.
      */
-    suspend fun replace(connectionId: UInt, teams: List<FlowMirrorTeam>, at: Long, keepAbsentTeams: Boolean = false): FlowMirrorWrite {
+    suspend fun replace(
+        connectionId: UInt,
+        teams: List<FlowMirrorTeam>,
+        at: Long,
+        keepAbsentTeams: Boolean = false,
+        afterWrite: suspend () -> Unit = {},
+    ): FlowMirrorWrite {
         val rows = teams.distinctBy { it.flowTeamId }.map { it.fitted() }
         return suspendTransaction(database) {
             val row = connections.select(connections.id, connections.enabled)
@@ -120,30 +132,10 @@ class FlowMirrorStore(private val database: R2dbcDatabase) {
                 this[FlowMembers.validFrom] = member.validFrom
                 this[FlowMembers.validTo] = member.validTo
             }
-            clearGoneAcknowledgements(connectionId)
             connections.update({ connections.id eq connectionId }) { it[teamsAt] = at }
+            afterWrite()
             FlowMirrorWrite.WRITTEN
         }
-    }
-
-    /**
-     * A Flow team that is in the mirror again has no "gone" acknowledgement any more (1.9): the `TEAM_GONE` row's fingerprint is constant,
-     * so an acknowledgement kept across the team's return would silence its NEXT disappearance. Deletes the NULL-sprint rows of the
-     * connection's ACTIVE bindings whose Flow team is mirrored now, inside [replace]'s transaction. It takes no binding lock (only the
-     * acknowledgement rows it deletes), so it adds no lock cycle with the binding-first acknowledge; an acknowledge that recomputed
-     * "gone" before this commit and inserts after it can leave one such row behind (`flow-sync.md` "Acknowledge (1.9)").
-     */
-    private suspend fun clearGoneAcknowledgements(connectionId: UInt) {
-        val bindings = FlowTeamBindingService.Bindings
-        val present = FlowTeams.select(FlowTeams.flowTeamId).where { FlowTeams.connectionId eq connectionId }.toList()
-            .map { it[FlowTeams.flowTeamId] }
-        if (present.isEmpty()) return
-        val back = bindings.select(bindings.id)
-            .where { (bindings.connectionId eq connectionId) and bindings.active() and (bindings.flowTeamId inList present) }.toList()
-            .map { it[bindings.id].value }
-        if (back.isEmpty()) return
-        val acks = CapacityAcknowledgeService.Acknowledgements
-        acks.deleteWhere { acks.sprintId.isNull() and (acks.bindingId inList back) }
     }
 
     /** The connection's mirrored teams by name with their sprint and member counts (≤ ~100 teams); empty before the first run. */

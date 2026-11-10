@@ -2211,7 +2211,7 @@ paths:
         login's active person's name, else its display name, never the email, null once that login is deleted - and `current`, false
         when the row was acknowledged and its figures CHANGED since, which makes it open again). Each item carries `can.acknowledge`
         (the team's active manager, or ADMIN: the capacity import's arithmetic; false for everyone else). The writes are `POST` and
-        `DELETE /integrations/flow/team-bindings/{id}/acknowledge`. The unit is the sprint row, so a team's other rows are not touched.
+        `DELETE /integrations/flow/team-bindings/{id}/acknowledge`. The unit is the sprint row, so a team's other LISTED rows are not touched.
 
         **Items.** Only linked teams with at least one deviation (after the filters) are listed. A DISABLED, FAILED or STALE
         connection's teams are listed from its last mirrored document; the connection's `status` (derived in the same snapshot)
@@ -4017,9 +4017,13 @@ paths:
         fingerprint is not the one sent (a figure moved in the plan or in Flow since the client read); otherwise the fingerprint, the time and
         the login are stored for that sprint. Acknowledging again restamps. An acknowledgement lasts while THAT sprint's row is
         unchanged: a change of its dates, held days, working days, either figure, the gap or the severity reopens it
-        (`acknowledgement.current` false); a rename in Flow does not, a closing sprint reopens nothing and a new sprint arrives open. Not plan
-        state: no plan lock, no revision bump, no rate bucket (nothing calls Flow, nothing is written to Flow). Audited
-        `flow.capacity_deviation_acknowledged`.
+        (`acknowledgement.current` false); a rename in Flow does not and a new sprint arrives open. **An acknowledgement lives only while
+        its row is listed (1.10):** the same transaction deletes this binding's other stored acknowledgements whose row is no longer listed
+        (a sprint that is in line, closed or skipped; a sprint merely missing from Flow's document is left to the refresh), and a
+        connection's refresh does the same for every binding of it (a document Flow cut at its sprint cap judges no sprint), so a
+        difference that returns is open. A team missing from Flow keeps its sprint acknowledgements. Not plan state: no plan lock, no
+        revision bump, no rate bucket (nothing calls Flow, nothing is written to Flow). Audited `flow.capacity_deviation_acknowledged`,
+        then `flow.capacity_acknowledgements_cleared` when rows were pruned.
       requestBody:
         required: true
         content:

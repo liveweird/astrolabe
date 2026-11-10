@@ -161,7 +161,10 @@ class AuditTest {
                 assertNotNull(denied, "the denial carries the bare path")
                 assertEquals(HttpStatusCode.NoContent, admin.delete("$base/${created.id}").status)
                 val deleted = assertNotNull(capture.awaitEvent { it.message == "flow.connection_deleted" })
-                assertTrue(deleted.hasKeyValue("bindingsUnbound", 0) && deleted.hasKeyValue("runsDeleted", 0))
+                assertTrue(
+                    deleted.hasKeyValue("bindingsUnbound", 0) && deleted.hasKeyValue("runsDeleted", 0) &&
+                        deleted.hasKeyValue("acknowledgementsDeleted", 0),
+                )
                 assertTrue(
                     capture.events.none { event -> token in event.formattedMessage || event.keyValuePairs.any { token in "${it.value}" } },
                     "no event carries the token",

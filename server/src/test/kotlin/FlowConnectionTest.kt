@@ -244,11 +244,25 @@ class FlowConnectionTest {
                     "VALUES ('FLOW', ?, 'MANUAL', 1, 2, 'FAILED')",
                 created.id.toInt(),
             )
+            // Two capacity acknowledgements of the binding (1.10: they are deleted with their connection and counted in the audit).
+            val bindingId = jbScalar("SELECT id FROM flow_team_bindings WHERE connection_id = ?", created.id.toInt()) { it.getInt(1) }
+            for (sprint in listOf(7, 8)) {
+                jbSql(
+                    "INSERT INTO flow_capacity_acknowledgements (binding_id, sprint_id, fingerprint, ack_at, ack_by_user_id) " +
+                        "VALUES (?, ?, ?, 1, ?)",
+                    bindingId, sprint, "0".repeat(64), user.toInt(),
+                )
+            }
             withAuditCapture { audit ->
                 assertEquals(HttpStatusCode.NoContent, admin.delete("$BASE/${created.id}").status)
                 val event = assertNotNull(audit.awaitEvent { it.message == "flow.connection_deleted" })
                 assertTrue(event.hasKeyValue("bindingsUnbound", 1) && event.hasKeyValue("runsDeleted", 1), "${event.keyValuePairs}")
+                assertTrue(event.hasKeyValue("acknowledgementsDeleted", 2), "${event.keyValuePairs}")
             }
+            assertEquals(
+                0, jbScalar("SELECT count(*) FROM flow_capacity_acknowledgements WHERE binding_id = ?", bindingId) { it.getInt(1) },
+                "no acknowledgement outlives its connection",
+            )
             assertNull(storedTokenOrNull(created.id), "the credential is gone from the database, not re-wrapped")
             // readForTest filters active(): a deleted row answers like a missing one.
             assertEquals(HttpStatusCode.NotFound, admin.post("$BASE/${created.id}/test").status)

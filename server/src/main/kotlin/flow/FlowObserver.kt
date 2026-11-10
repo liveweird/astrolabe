@@ -63,9 +63,10 @@ private class RunProgress {
 
 /**
  * The Flow connector's run (`flow-sync.md` "The run"): ONE `GET /integration/teams?sprintsSince=` and, from that single document, a
- * wholesale replacement of the connection's mirror ([FlowMirrorStore.replace]). It OBSERVES: nothing is ever written to Flow, no plan
- * lock is taken, no plan revision moves, and no database transaction is open across the Flow call (the token is read in its own short
- * transaction before it, the mirror written in another after it).
+ * wholesale replacement of the connection's mirror ([FlowMirrorStore.replace], whose transaction also prunes the capacity
+ * acknowledgements whose row left the list: [CapacityAcknowledgeService.pruneConnectionInTransaction]). It OBSERVES: nothing is ever
+ * written to Flow, no plan lock is taken, no plan revision moves, and no database transaction is open across the Flow call (the token
+ * is read in its own short transaction before it, the mirror written in another after it).
  *
  * Every problem of the run itself is a typed [SyncResult.failed]: a [FetchException] keeps its code (a revoked token is
  * `AUTHENTICATION_FAILED`, an outage `UPSTREAM_UNAVAILABLE`, a throttle `RATE_LIMITED`; the registry's doubling back-off and its jitter
@@ -77,6 +78,8 @@ class FlowObserver internal constructor(
     private val connections: FlowConnectionService,
     private val mirror: FlowMirrorStore,
     private val bindings: FlowTeamBindingService,
+    /** REQUIRED (no default): the run prunes the capacity acknowledgements in the mirror's transaction; a wiring slip must not compile. */
+    private val acknowledgements: CapacityAcknowledgeService,
     private val now: () -> Long = ::nowMillis,
 ) : Connector {
     override val kind = SyncKind.FLOW
@@ -130,8 +133,18 @@ class FlowObserver internal constructor(
         // A document cut at the team cap omits teams that still exist: they stay in the mirror (neither replaced nor deleted), never gone.
         // The call may have outlived the connection, so the store judges it under the connection's row lock, the same instant it writes:
         // a deleted one (its token destroyed, its mirror removed) or one switched off meanwhile gets nothing stored.
-        when (mirror.replace(run.connectionId, teams.map { it.toMirrorTeam() }, now(), keepAbsentTeams = document.teamsTruncated)) {
-            FlowMirrorWrite.WRITTEN -> Unit
+        // The same transaction prunes the capacity acknowledgements whose row left the list (1.10). A sprints-truncated document judges
+        // no SPRINT key (a sprint missing from it was merely not sent; the cap is per document, across all teams) but still prunes what
+        // does not depend on sprints: a returned team's own row, an unlinked binding, a deleted team.
+        var cleared: List<ClearedCapacityAcks> = emptyList()
+        val prune: suspend () -> Unit = {
+            cleared = acknowledgements.pruneConnectionInTransaction(run.connectionId, sprintsJudgeable = !document.sprintsTruncated)
+        }
+        val write = mirror.replace(
+            run.connectionId, teams.map { it.toMirrorTeam() }, now(), keepAbsentTeams = document.teamsTruncated, afterWrite = prune,
+        )
+        when (write) {
+            FlowMirrorWrite.WRITTEN -> reportCleared(run, cleared)
             FlowMirrorWrite.GONE -> throw RunProblem(FlowRunCodes.CONNECTION_GONE, GONE_DETAIL)
             FlowMirrorWrite.DISABLED -> throw RunProblem(FlowRunCodes.CONNECTION_DISABLED, DISABLED_DETAIL)
         }
@@ -148,6 +161,15 @@ class FlowObserver internal constructor(
             val present = teams.mapTo(HashSet()) { it.id }
             progress.gone = bindings.bindingsOf(run.connectionId).count { it.flowTeamId !in present }
         }
+    }
+
+    /** After the commit (a line inside the transaction could describe a rollback): one audit line per binding that lost rows, one INFO. */
+    private fun reportCleared(run: ClaimedRun, cleared: List<ClearedCapacityAcks>) {
+        if (cleared.isEmpty()) return
+        cleared.forEach {
+            auditCapacityAcksCleared(it.bindingId, it.sprintIds, run.connectionId, run.byUserId, via = "run", runId = run.id)
+        }
+        log.info("Sync run {} cleared {} capacity acknowledgement(s) whose row left the list", run.id, cleared.sumOf { it.sprintIds.size })
     }
 
     /** Today in the connection's zone minus `flow.sprintsSinceDays`: the oldest sprint the run asks Flow for. */

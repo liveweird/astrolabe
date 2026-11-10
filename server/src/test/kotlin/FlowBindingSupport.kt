@@ -4,6 +4,7 @@ import ch.nokillswit.flow.FlowTeamBindRequest
 import ch.nokillswit.flow.FlowTeamBindingResponse
 import ch.nokillswit.plugins.ProblemDetail
 import ch.nokillswit.sync.SyncOutcome
+import ch.nokillswit.sync.SyncTrigger
 import io.ktor.client.HttpClient
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
@@ -40,8 +41,15 @@ class ScriptedFlowMirror(private val prefix: String) {
     }
 
     /** Runs the connection against a document of exactly [teams] (JSON rows of `flowTeamDoc`/`flowTeamJson`). */
-    suspend fun refresh(vararg teams: String): ScriptedFlowMirror {
+    suspend fun refresh(vararg teams: String, trigger: SyncTrigger = SyncTrigger.MANUAL, byUserId: UInt? = null): ScriptedFlowMirror {
         document = flowDocument(*teams)
+        check(harness.run(connectionId, trigger, byUserId).outcome == SyncOutcome.SUCCEEDED) { "the scripted run must succeed" }
+        return this
+    }
+
+    /** Like [refresh], but the document says `sprintsTruncated`: Flow cut its answer at the sprint cap (a missing sprint was not sent). */
+    suspend fun refreshSprintsTruncated(vararg teams: String): ScriptedFlowMirror {
+        document = flowDocument(*teams, sprintsTruncated = true)
         check(harness.run(connectionId).outcome == SyncOutcome.SUCCEEDED) { "the scripted run must succeed" }
         return this
     }

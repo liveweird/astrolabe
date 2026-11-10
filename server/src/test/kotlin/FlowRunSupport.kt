@@ -1,5 +1,7 @@
 package ch.nokillswit
 
+import ch.nokillswit.flow.CapacityAcknowledgeService
+import ch.nokillswit.flow.CapacityDeviationService
 import ch.nokillswit.flow.FlowClientFactory
 import ch.nokillswit.flow.FlowConnectionRequest
 import ch.nokillswit.flow.FlowConnectionService
@@ -13,6 +15,7 @@ import ch.nokillswit.sync.SyncKind
 import ch.nokillswit.sync.SyncResult
 import ch.nokillswit.sync.SyncRunService
 import ch.nokillswit.sync.SyncTrigger
+import ch.nokillswit.teams.TeamCapacityService
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.MockRequestHandleScope
@@ -80,7 +83,12 @@ class FlowRunHarness(clients: FlowClientFactory, sprintsSinceDays: Int = 365, no
     val connections = FlowConnectionService(database, flowTestCipher, runs, anyFlowOrigin)
     val mirror = FlowMirrorStore(database)
     val bindings = FlowTeamBindingService(database)
-    val observer = FlowObserver(FlowConnector(clients, sprintsSinceDays), connections, mirror, bindings, now)
+    private val capacity = TeamCapacityService(database)
+
+    /** The deviation computation of the run's prune, on the harness's OWN clock (a clock-injected test must prune against its "today"). */
+    val deviations = CapacityDeviationService(database, bindings, mirror, capacity, runs, now)
+    val acknowledgements = CapacityAcknowledgeService(database, deviations, bindings, mirror)
+    val observer = FlowObserver(FlowConnector(clients, sprintsSinceDays), connections, mirror, bindings, acknowledgements, now)
 
     /** Creates a connection to [origin]; [tested] records a passing Test connection (what makes the scheduler poll it). */
     suspend fun connect(
@@ -100,8 +108,8 @@ class FlowRunHarness(clients: FlowClientFactory, sprintsSinceDays: Int = 365, no
     }
 
     /** Claims and runs once, finishing the row like the runner does; the answer is what the connector reported. */
-    suspend fun run(connectionId: UInt, trigger: SyncTrigger = SyncTrigger.MANUAL): SyncResult {
-        val claimed = runs.claim(SyncKind.FLOW, connectionId, trigger, null)
+    suspend fun run(connectionId: UInt, trigger: SyncTrigger = SyncTrigger.MANUAL, byUserId: UInt? = null): SyncResult {
+        val claimed = runs.claim(SyncKind.FLOW, connectionId, trigger, byUserId)
         val result = observer.run(claimed)
         runs.finish(claimed.id, result)
         return result

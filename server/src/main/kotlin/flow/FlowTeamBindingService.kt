@@ -70,6 +70,9 @@ private class Holder(
  * row, and a `FOR SHARE` on the team never waits for a binding row (a team delete locks the team row and touches no binding), so no
  * lock cycle exists between it and a link, a match, a connection delete or a team delete. [CapacityAcknowledgeService] (1.9) is the second
  * binding-first path, in the same shape and with the same argument (binding row, then the guard's rows, then its own acknowledgement rows).
+ * The run's prune of those rows (1.10, [CapacityAcknowledgeService.pruneConnectionInTransaction], inside the mirror replace) is a third
+ * path that takes binding rows: AFTER the connection row, in id order, then the acknowledgement rows - the link's order (connection,
+ * then bindings), so nobody goes binding -> connection.
  */
 class FlowTeamBindingService(private val database: R2dbcDatabase) {
     object Bindings : UIntIdTable("flow_team_bindings"), SoftDeletable {

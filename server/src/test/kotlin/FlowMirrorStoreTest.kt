@@ -126,6 +126,30 @@ class FlowMirrorStoreTest {
     }
 
     @Test
+    fun `afterWrite runs inside the replace's transaction - it reads the new document, and a failure in it leaves the previous one`() =
+        runBlocking {
+            PostgresTestSupport.ensureMigrated()
+            val id = connection()
+            assertEquals(FlowMirrorWrite.WRITTEN, store.replace(id, listOf(flowTeam(1, "Old", sprints = listOf(flowSprint(1)))), at = 10L))
+            var seen = emptyList<String>()
+            var stamp: Long? = null
+            assertEquals(
+                FlowMirrorWrite.WRITTEN,
+                store.replace(id, listOf(flowTeam(2, "New")), at = 20L) {
+                    seen = store.teamsOf(id).map { it.name }
+                    stamp = connections.read(id)?.teamsAt
+                },
+            )
+            assertEquals(listOf("New"), seen, "the block reads the new mirror (the same transaction)")
+            assertEquals(20L, stamp, "... after the stamp")
+
+            val failure = runCatching { store.replace(id, listOf(flowTeam(3, "Third")), at = 30L, afterWrite = { error("boom") }) }
+            assertTrue(failure.isFailure, "a throwing block fails the replace")
+            assertEquals(listOf("New"), store.teamsOf(id).map { it.name }, "the previous document is back")
+            assertEquals(20L, assertNotNull(connections.read(id)).teamsAt, "and the stamp did not move")
+        }
+
+    @Test
     fun `a replace for a deleted or unknown connection writes nothing`() = runBlocking {
         PostgresTestSupport.ensureMigrated()
         val id = connection()

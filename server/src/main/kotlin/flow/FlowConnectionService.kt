@@ -201,8 +201,8 @@ class FlowConnectionService(
 
     /**
      * Soft delete: frees the name, sets the token NULL, and - in the SAME transaction - soft-deletes the connection's ACTIVE team
-     * bindings, hard-deletes its runs and its mirror. `affected` 0 = missing/deleted (404). The mirror rows removed are logged after
-     * the commit, never as an audit field.
+     * bindings, hard-deletes its runs, its mirror and (1.10) its bindings' capacity acknowledgements. `affected` 0 = missing/deleted
+     * (404). The mirror rows removed are logged after the commit, never as an audit field.
      */
     suspend fun delete(id: UInt): FlowConnectionDeleteOutcome = deleteInTransaction(id).also {
         if (it.mirrorDeleted > 0) log.info("Flow connection {} deleted: {} mirror rows removed", id, it.mirrorDeleted)
@@ -231,8 +231,12 @@ class FlowConnectionService(
             it[markedAsDeleted] = true
             it[updatedAt] = stamp
         }
+        // The capacity acknowledgements of those bindings (1.10): a HARD delete, AFTER the soft delete above, so the bindings' rows are
+        // locked by this transaction first (the run's prune takes the connection row, then the binding rows, then these rows).
+        val acknowledgementsDeleted = CapacityAcknowledgeService.Acknowledgements.deleteForConnectionInTransaction(id)
         FlowConnectionDeleteOutcome(
             affected, row[Connections.name], flowHostOf(row[Connections.baseUrl]), unbound, runsDeleted, mirrorDeleted,
+            acknowledgementsDeleted,
         )
     }
 

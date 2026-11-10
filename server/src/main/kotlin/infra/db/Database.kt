@@ -355,7 +355,7 @@ suspend fun Application.configureDatabase() {
     attributes.put(CapacityImportServiceKey, CapacityImportService(database, flowBindings, flowMirror, teamCapacity))
     val capacityDeviations = CapacityDeviationService(database, flowBindings, flowMirror, teamCapacity, syncRuns)
     attributes.put(CapacityDeviationServiceKey, capacityDeviations)
-    attributes.put(CapacityAcknowledgeServiceKey, CapacityAcknowledgeService(database, capacityDeviations, flowBindings))
+    attributes.put(CapacityAcknowledgeServiceKey, CapacityAcknowledgeService(database, capacityDeviations, flowBindings, flowMirror))
     val jiraBindings = JiraBindingService(database)
     attributes.put(JiraBindingServiceKey, jiraBindings)
     attributes.put(JiraImportServiceKey, JiraImportService(database, teamService, jiraBindings))
