@@ -17,6 +17,24 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.9.0",
+    date: "2026-11-10",
+    en: `**Astrolabe 1.9.0: acknowledge a capacity difference from Flow, and a Flow capacity flag on the team page.**
+
+- Acknowledge a sprint: on Deviations, Capacity from Flow, and in the Flow section of the team page, each line has an Acknowledge button for the team's manager or an administrator. It means "known, leave it". A line stays acknowledged until that sprint's figures change (its dates, the days it holds, either figure, the gap or the severity); then it reads "changed since" and is open again. Closing sprints reopen nothing, new sprints arrive open, and a rename in Flow changes nothing. Sprints without capacity in the plan are acknowledged one by one, and a team that is no longer in Flow is acknowledged as the team's own row, from the Deviations page or the team page.
+- The Status filter on Deviations now covers Capacity from Flow as well: Open (the default), Acknowledged or All. The totals say "N acknowledged", and the severity badge of an acknowledged line is dimmed. On the team page, "Capacity vs Flow" counts the open differences and adds "· N acknowledged"; with only acknowledged ones it reads "No open difference · N acknowledged", never "In line with Flow", because the figures still differ.
+- The team page's header shows one flag, "Capacity differs from Flow: N open differences", in the worst severity among them. The weeks strip marks the weeks of the sprints in dispute with a corner mark (a triangle for a warning, a ring for an info), and the Weekly load table says "Differs from Flow" on those weeks. Only open differences flag: acknowledging one silences it. The marks follow the current plan, so a proposal preview's strip shows none. The roadmap and the programs page carry no such flag.
+- Nothing moves by itself and nothing is written to Flow. Every signed-in user sees the acknowledgements; only the team's manager or an administrator can acknowledge or withdraw one.
+- Proven against the built-in Flow stub; not yet compared with a real Flow.`,
+    pl: `**Astrolabe 1.9.0: potwierdzanie różnic przepustowości względem Flow i znacznik przepustowości z Flow na stronie zespołu.**
+
+- Potwierdzanie sprintu: w Odchyleniach, w sekcji „Przepustowość z Flow”, i w sekcji Flow na stronie zespołu każdy wiersz ma przycisk „Potwierdź” dla kierownika/czki zespołu albo administratora/ki. Znaczy on: „wiem o tym, zostaw”. Wiersz pozostaje potwierdzony, dopóki nie zmienią się wartości tego sprintu (jego daty, liczba dni, które obejmuje, którakolwiek z wartości, różnica albo ważność); wtedy pokazuje „zmieniono od tego czasu” i jest znów otwarty. Zamykające się sprinty niczego nie otwierają na nowo, nowe sprinty pojawiają się jako otwarte, a zmiana nazwy we Flow niczego nie zmienia. Sprinty bez przepustowości w planie potwierdza się po jednym, a zespół, którego nie ma już we Flow, potwierdza się jako wiersz samego zespołu, na stronie Odchyleń albo na stronie zespołu.
+- Filtr Stan w Odchyleniach obejmuje teraz także „Przepustowość z Flow”: Otwarte (domyślnie), Potwierdzone albo Wszystkie. Sumy podają „N potwierdzonych”, a oznaczenie ważności potwierdzonego wiersza jest przygaszone. Na stronie zespołu „Przepustowość a Flow” liczy otwarte różnice i dodaje „· N potwierdzonych”; gdy są tylko potwierdzone, pokazuje „Brak otwartych różnic · N potwierdzonych”, a nigdy „Zgodnie z Flow”, bo wartości nadal się różnią.
+- Nagłówek strony zespołu pokazuje jeden znacznik, „Przepustowość różni się od Flow: N otwartych różnic”, w najwyższej ważności spośród nich. Oś tygodni oznacza tygodnie sprintów, w których jest różnica, znacznikiem w rogu (trójkąt dla ostrzeżenia, kółko dla informacji), a tabela Obciążenie tygodniowe pisze „Różni się od Flow” przy tych tygodniach. Znaczniki pojawiają się tylko dla otwartych różnic: potwierdzenie ją wycisza. Znaczniki odpowiadają bieżącemu planowi, więc oś w podglądzie propozycji ich nie pokazuje. Roadmapa i strona programów nie mają takiego znacznika.
+- Nic nie przesuwa się samo i niczego nie zapisujemy we Flow. Potwierdzenia widzi każda zalogowana osoba; potwierdzić albo wycofać potwierdzenie może tylko kierownik/czka zespołu albo administrator/ka.
+- Sprawdzone na wbudowanej atrapie Flow; jeszcze nie porównane z prawdziwym Flow.`,
+  },
+  {
     version: "1.8.0",
     date: "2026-11-10",
     en: `**Astrolabe 1.8.0: schedule proposals across several teams, and warnings that follow the moves you tick.**
