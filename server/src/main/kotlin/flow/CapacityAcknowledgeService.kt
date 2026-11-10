@@ -35,6 +35,9 @@ class CapacityUnacknowledgeOutcome(
     val fingerprint: String,
 )
 
+/** A stored acknowledgement row: the fingerprint it was made on, when, and the acknowledging login's id. */
+internal class StoredCapacityAck(val fingerprint: String, val at: Long, val byUserId: UInt)
+
 /**
  * The per-sprint acknowledgement of a capacity deviation (1.9, V26 `flow_capacity_acknowledgements`): the service OWNS the table and
  * READS the binding, its team and, through [CapacityDeviationService], the whole deviation computation. **No plan lock and no
@@ -71,6 +74,17 @@ class CapacityAcknowledgeService(
 
         /** The acknowledging login's id (`users.id` is BIGINT; V26 has the FK, no `users` import here: `flow/` names no `users` type). */
         val ackByUserId = long("ack_by_user_id")
+
+        /**
+         * The stored acknowledgements of [bindingIds] in ONE statement, keyed (binding, sprint id; null = the team's own row): the view's
+         * read, inside its snapshot ([CapacityDeviationService] reads the table without owning it, so it needs no service instance).
+         */
+        internal suspend fun storedOf(bindingIds: Collection<UInt>): Map<Pair<UInt, Long?>, StoredCapacityAck> {
+            if (bindingIds.isEmpty()) return emptyMap()
+            return select(bindingId, sprintId, fingerprint, ackAt, ackByUserId).where { bindingId inList bindingIds }.toList().associate {
+                (it[bindingId].value to it[sprintId]) to StoredCapacityAck(it[fingerprint], it[ackAt], it[ackByUserId].toUInt())
+            }
+        }
     }
 
     /**

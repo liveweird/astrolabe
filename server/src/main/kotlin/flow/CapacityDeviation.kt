@@ -48,8 +48,8 @@ data class CapacityDeviationDetail(
 /**
  * One deviation row. [fingerprint] is the SHA-256 of the row's kind, severity and figures with the sprint's NAME left out
  * ([capacityFingerprint]): what an acknowledgement of THIS row is keyed on, so a rename in Flow reopens nothing and any other change
- * does. [acknowledgement] is null until someone acknowledges the row (the view fills it from 1.9's C2); no defaults on purpose, like
- * [CapacityDeviationDetail]: both are always on the wire.
+ * does. [acknowledgement] is null until someone acknowledges the row (the view fills it from the stored acknowledgement); no defaults on
+ * purpose, like [CapacityDeviationDetail]: both are always on the wire.
  */
 @Serializable
 data class CapacityDeviation(
@@ -68,6 +68,9 @@ data class CapacityDeviation(
 @Serializable
 data class CapacityDeviationAcknowledgement(val at: Long, val by: String?, val current: Boolean)
 
+/** A row is OPEN unless its acknowledgement is current: a stale one (acknowledged, then the figures changed) is open again. */
+val CapacityDeviation.isOpen: Boolean get() = acknowledgement?.current != true
+
 /** An ACTIVE Flow connection, enabled or not. No base URL, token or zone; [teamsAt] is when it last mirrored a document. */
 @Serializable
 data class CapacityDeviationConnection(val id: UInt, val name: String, val enabled: Boolean, val status: SyncStatus, val teamsAt: Long?)
@@ -78,9 +81,14 @@ data class CapacityDeviationTeam(val id: UInt, val name: String)
 @Serializable
 data class CapacityDeviationFlowTeam(val id: Int, val name: String)
 
+/** What the caller may do with a team's rows: [acknowledge] is ADMIN or the team's active manager (the capacity import's guard). */
+@Serializable
+data class CapacityDeviationCan(val acknowledge: Boolean)
+
 /**
  * One bound team with its deviations ([deviations] is never empty in a listed item; the filters narrow it). [observedAt] is when the mirror
- * last saw the Flow team (null when it is gone), [zone] the connection's IANA id the sprint dates are in.
+ * last saw the Flow team (null when it is gone), [zone] the connection's IANA id the sprint dates are in, [can] the caller's right to
+ * acknowledge and withdraw the team's rows.
  */
 @Serializable
 data class CapacityDeviationItem(
@@ -90,15 +98,17 @@ data class CapacityDeviationItem(
     val flowTeam: CapacityDeviationFlowTeam,
     val observedAt: Long?,
     val zone: String,
+    val can: CapacityDeviationCan,
     val deviations: List<CapacityDeviation>,
 )
 
 /**
- * Over the teams MATCHED (all that pass the filters), before the cap: [warnings] and [infos] count their rows, [gone] the `TEAM_GONE`
- * ones, [teams] the teams (it can exceed the items listed).
+ * Before the cap, on the Jira view's basis: [warnings], [infos] and [gone] count the OPEN rows (not currently acknowledged), and
+ * [acknowledged] the rows whose acknowledgement is CURRENT, over every row matching the filters but the acknowledgement state (so "N open"
+ * survives `acknowledged=true`). [teams] is the exception: the teams with a row the list answers (it can exceed the items listed).
  */
 @Serializable
-data class CapacityDeviationTotals(val warnings: Int, val infos: Int, val gone: Int, val teams: Int)
+data class CapacityDeviationTotals(val warnings: Int, val infos: Int, val gone: Int, val acknowledged: Int, val teams: Int)
 
 /**
  * `GET /api/v1/views/capacity-deviations`: [asOf] is the UTC date of the read; [connections] every ACTIVE Flow connection (at most

@@ -61,7 +61,7 @@ fun Application.configureFlowRoutes() {
             flowTeamBindingRoutes(bindings, flowTeams, teams)
             capacityImportRoutes(capacityImport, bindings, teams)
             capacityAcknowledgeRoutes(capacityAcknowledgements, bindings, teams)
-            capacityDeviationRoutes(capacityDeviations)
+            capacityDeviationRoutes(capacityDeviations, teams)
             get<FlowOriginsRoute> {
                 requireAdmin(call.caller())
                 call.respond(HttpStatusCode.OK, FlowOriginList(origins.allowedOrigins()))

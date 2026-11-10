@@ -230,7 +230,7 @@ export const GONE_ROW: CapacityDeviation = { kind: "TEAM_GONE", severity: "WARNI
 
 /** Payments, linked to "Payments Flow" on connection 1, with one WARNING sprint unless told otherwise. */
 export function capacityItem(over: Partial<CapacityDeviationItem> = {}): CapacityDeviationItem {
-  return { bindingId: 5, connectionId: 1, team: { id: 1, name: "Payments" }, flowTeam: { id: 12, name: "Payments Flow" }, observedAt: READ_AT, zone: "Europe/Warsaw", deviations: [differsRow()], ...over };
+  return { bindingId: 5, connectionId: 1, team: { id: 1, name: "Payments" }, flowTeam: { id: 12, name: "Payments Flow" }, observedAt: READ_AT, zone: "Europe/Warsaw", can: { acknowledge: false }, deviations: [differsRow()], ...over };
 }
 
 /** The document: totals are counted from the items unless given (as the server counts them, before any cap). */
@@ -240,7 +240,7 @@ export function capacityView(over: Partial<CapacityDeviationView> = {}): Capacit
   return {
     asOf: "2026-11-08",
     connections: [CAPACITY_CONNECTION],
-    totals: { warnings: rows.filter((row) => row.severity === "WARNING").length, infos: rows.filter((row) => row.severity === "INFO").length, gone: rows.filter((row) => row.kind === "TEAM_GONE").length, teams: items.length },
+    totals: { warnings: rows.filter((row) => row.severity === "WARNING").length, infos: rows.filter((row) => row.severity === "INFO").length, gone: rows.filter((row) => row.kind === "TEAM_GONE").length, acknowledged: 0, teams: items.length },
     items,
     truncated: false,
     ...over,

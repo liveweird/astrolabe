@@ -4,6 +4,7 @@ import ch.nokillswit.infra.db.active
 import ch.nokillswit.infra.db.nowMillis
 import ch.nokillswit.infra.time.WorkingCalendar
 import ch.nokillswit.planning.DeviationSeverity
+import ch.nokillswit.planning.creatorsOf
 import ch.nokillswit.planning.loadWorkingCalendar
 import ch.nokillswit.sync.SyncKind
 import ch.nokillswit.sync.SyncRunService
@@ -23,14 +24,38 @@ val CapacityDeviationServiceKey = AttributeKey<CapacityDeviationService>("Capaci
 
 /**
  * The filters of `GET /views/capacity-deviations` (each null = unrestricted). [severity] and [kind] narrow the ROWS of a team, not only
- * the team: the unit of this view is a sprint, so "warnings only" must list only the warning sprints.
+ * the team: the unit of this view is a sprint, so "warnings only" must list only the warning sprints. [acknowledged] and [all] are the
+ * Jira deviations view's rule over rows: by default only the OPEN rows (not currently acknowledged); [acknowledged] true lists the
+ * currently acknowledged rows, false the open ones; [includeAll] (`all`, which `teamId` implies unless `all=false`) keeps every state.
  */
 data class CapacityDeviationFilter(
     val connectionId: UInt? = null,
     val teamId: UInt? = null,
     val severity: DeviationSeverity? = null,
     val kind: CapacityDeviationKind? = null,
-)
+    val acknowledged: Boolean? = null,
+    val all: Boolean? = null,
+) {
+    val includeAll: Boolean get() = all ?: (teamId != null)
+
+    /** Whether a row is listed (it already matches every other filter). */
+    fun lists(row: CapacityDeviation): Boolean = when (acknowledged) {
+        true -> !row.isOpen
+        false -> row.isOpen
+        null -> includeAll || row.isOpen
+    }
+}
+
+/**
+ * The caller of the view, resolved once per request by the route: [admin], and the ids of the teams the caller ACTIVELY manages (empty
+ * for an ADMIN, who needs none). It feeds only each item's `can.acknowledge`, the capacity import's arithmetic.
+ */
+class CapacityDeviationActor(val admin: Boolean, val managedTeamIds: Set<UInt>) {
+    fun mayAcknowledge(teamId: UInt): Boolean = admin || teamId in managedTeamIds
+}
+
+/** One team's rows with their acknowledgement state, and whether its connection is enabled (the team view's flag source reads both). */
+internal class TeamCapacityFacts(val enabled: Boolean, val deviations: List<CapacityDeviation>)
 
 /**
  * The capacity deviation document (`GET /views/capacity-deviations`): ONE `READ ONLY REPEATABLE READ` transaction (the capacity import
@@ -44,8 +69,10 @@ data class CapacityDeviationFilter(
  * connection has and whose Flow team is absent from the mirror is `TEAM_GONE` (the panel's rule, [FlowTeamService.panel]). A DISABLED,
  * FAILED or STALE connection's teams are computed from its last mirrored document; the connection's status qualifies them. Nothing is
  * stored, locked, audited or sent to Flow, and there is no `revision`: capacity periods are team data and no plan revision moves with
- * them. [now] is the view's clock (`asOf` is its UTC date; each connection's "today" is the same instant in its own zone) and [maxItems]
- * the cap on teams; a test injects both.
+ * them. The stored acknowledgements are read in the same snapshot, in one statement
+ * ([CapacityAcknowledgeService.Acknowledgements.storedOf]), and the acknowledging logins' names in one more ([creatorsOf]). [now] is the
+ * view's clock (`asOf` is its UTC date; each connection's "today" is the same instant in its own zone) and [maxItems] the cap on the
+ * teams LISTED (a team whose rows are all acknowledged is not listed, so it takes no slot); a test injects both.
  */
 class CapacityDeviationService(
     private val database: R2dbcDatabase,
@@ -56,7 +83,8 @@ class CapacityDeviationService(
     private val now: () -> Long = ::nowMillis,
     private val maxItems: Int = MAX_CAPACITY_DEVIATION_ITEMS,
 ) {
-    suspend fun view(filter: CapacityDeviationFilter): CapacityDeviationView =
+    /** [actor] null = an anonymous reader (every `can.acknowledge` false); the route resolves it once per request. */
+    suspend fun view(filter: CapacityDeviationFilter, actor: CapacityDeviationActor? = null): CapacityDeviationView =
         suspendTransaction(database, IsolationLevel.REPEATABLE_READ, readOnly = true) {
             val at = now()
             val calendar = loadWorkingCalendar()
@@ -64,23 +92,63 @@ class CapacityDeviationService(
             val bound = bindings.activeBindingsWithTeams(registry.map { it.wire.id }, filter.teamId)
             val periods = capacity.importRowsOfTeams(bound.map { it.binding.teamId }.distinct())
             val byConnection = registry.associateBy { it.wire.id }
-            val items = bound.mapNotNull { row ->
-                itemOf(row, checkNotNull(byConnection[row.binding.connectionId]), periods[row.binding.teamId].orEmpty(), calendar, at)
-            }.map { it.narrowedTo(filter) }.filter { it.deviations.isNotEmpty() }.sortedWith(ITEM_ORDER)
-            val deviations = items.flatMap { it.deviations }
+            val computed = bound.mapNotNull { row ->
+                val connection = checkNotNull(byConnection[row.binding.connectionId])
+                itemOf(row, connection, periods[row.binding.teamId].orEmpty(), calendar, at, actor)
+            }
+            val states = withAcknowledgements(computed.associate { it.bindingId to it.deviations })
+            // Every filter but the acknowledgement state: what the totals count over, so "N open" survives `acknowledged=true`.
+            val inScope = computed.map { it.copy(deviations = states.getValue(it.bindingId)).narrowedTo(filter) }
+                .filter { it.deviations.isNotEmpty() }
+            val items = inScope.map { it.copy(deviations = it.deviations.filter(filter::lists)) }
+                .filter { it.deviations.isNotEmpty() }.sortedWith(ITEM_ORDER)
+            val open = inScope.flatMap { it.deviations }.filter { it.isOpen }
             CapacityDeviationView(
                 asOf = Instant.ofEpochMilli(at).atOffset(ZoneOffset.UTC).toLocalDate().toString(),
                 connections = registry.map { it.wire },
                 totals = CapacityDeviationTotals(
-                    warnings = deviations.count { it.severity == DeviationSeverity.WARNING },
-                    infos = deviations.count { it.severity == DeviationSeverity.INFO },
-                    gone = deviations.count { it.kind == CapacityDeviationKind.TEAM_GONE },
+                    warnings = open.count { it.severity == DeviationSeverity.WARNING },
+                    infos = open.count { it.severity == DeviationSeverity.INFO },
+                    gone = open.count { it.kind == CapacityDeviationKind.TEAM_GONE },
+                    acknowledged = inScope.sumOf { item -> item.deviations.count { !it.isOpen } },
                     teams = items.size,
                 ),
                 items = items.take(maxItems),
                 truncated = items.size > maxItems,
             )
         }
+
+    /**
+     * The ACTIVE binding of [teamId] with its rows and their acknowledgement state, computed INSIDE the caller's transaction (the team
+     * view's flag source: its snapshot, its calendar, [at] its clock). Null = nothing to compare: the team is not linked, or its
+     * connection has never mirrored a document. The connection's `enabled` flag rides along (a DISABLED connection raises no flag).
+     */
+    internal suspend fun computeTeamInTransaction(teamId: UInt, calendar: WorkingCalendar, at: Long = now()): TeamCapacityFacts? {
+        val registry = FlowConnectionService.Connections
+        val connections = registry.select(registry.id, registry.enabled, registry.timeZone, registry.teamsAt)
+            .where { registry.active() }.limit(MAX_PANEL_CONNECTIONS).toList().associateBy { it[registry.id].value }
+        val binding = bindings.activeBindingsWithTeams(connections.keys, teamId).firstOrNull()?.binding ?: return null
+        val connection = connections.getValue(binding.connectionId)
+        val periods = capacity.importRowsOfTeams(listOf(teamId))[teamId].orEmpty()
+        val computed = computeOf(binding, connection[registry.timeZone], connection[registry.teamsAt], periods, calendar, at) ?: return null
+        val rows = withAcknowledgements(mapOf(binding.id to computed.deviations)).getValue(binding.id)
+        return TeamCapacityFacts(connection[registry.enabled], rows)
+    }
+
+    /** Each binding's rows with their stored acknowledgement: ONE read of the table and ONE of the acknowledging logins' names. */
+    private suspend fun withAcknowledgements(rows: Map<UInt, List<CapacityDeviation>>): Map<UInt, List<CapacityDeviation>> {
+        val stored = CapacityAcknowledgeService.Acknowledgements.storedOf(rows.filterValues { it.isNotEmpty() }.keys)
+        val names = creatorsOf(stored.values.map { it.byUserId }.distinct())
+        return rows.mapValues { (bindingId, deviations) ->
+            deviations.map { row ->
+                val ack = stored[bindingId to row.detail.sprintId]
+                val stamped = ack?.let {
+                    CapacityDeviationAcknowledgement(it.at, names[it.byUserId]?.name, current = it.fingerprint == row.fingerprint)
+                }
+                row.copy(acknowledgement = stamped)
+            }
+        }
+    }
 
     /** The team's item, or null when there is nothing to compare (the connection never mirrored a document) or nothing deviates. */
     private suspend fun itemOf(
@@ -89,6 +157,7 @@ class CapacityDeviationService(
         periods: List<CapacityPeriodRow>,
         calendar: WorkingCalendar,
         at: Long,
+        actor: CapacityDeviationActor?,
     ): CapacityDeviationItem? {
         val binding = row.binding
         val computed = computeOf(binding, connection.timeZone, connection.wire.teamsAt, periods, calendar, at) ?: return null
@@ -100,6 +169,7 @@ class CapacityDeviationService(
             flowTeam = CapacityDeviationFlowTeam(binding.flowTeamId, binding.flowTeamName),
             observedAt = computed.observedAt,
             zone = connection.timeZone,
+            can = CapacityDeviationCan(acknowledge = actor?.mayAcknowledge(binding.teamId) == true),
             deviations = computed.deviations,
         )
     }
@@ -187,9 +257,9 @@ private class Computed(val deviations: List<CapacityDeviation>, val observedAt: 
 /** What a connection row adds to the wire shape: its IANA zone id (the sprint dates' zone), which the wire connection never carries. */
 private class ConnectionFacts(val wire: CapacityDeviationConnection, val timeZone: String)
 
-/** A team with a WARNING first, then by team name (lowercase), then binding id. */
+/** A team with an OPEN WARNING first (an acknowledged one asks for nothing), then by team name (lowercase), then binding id. */
 private val ITEM_ORDER: Comparator<CapacityDeviationItem> = compareBy<CapacityDeviationItem>(
-    { item -> if (item.deviations.any { it.severity == DeviationSeverity.WARNING }) 0 else 1 },
+    { item -> if (item.deviations.any { it.severity == DeviationSeverity.WARNING && it.isOpen }) 0 else 1 },
     { it.team.name.lowercase() },
     { it.bindingId },
 )

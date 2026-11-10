@@ -2197,19 +2197,33 @@ paths:
         of the sprint (`planMd` and `gapMd` are null). `TEAM_GONE` (WARNING): the connection has mirrored a document and the linked
         Flow team is not in it; it is the team's ONLY row and every `detail` member is null (a truncated document keeps absent teams,
         so it never raises one). A team whose connection has never mirrored a document is not listed. The remedy is the team page's
-        Import capacity; there is no acknowledgement.
+        Import capacity, or, for a figure the manager keeps on purpose, an acknowledgement (below).
+
+        **Acknowledge (1.9).** Each row carries `fingerprint` (the SHA-256 of its kind, severity and figures, the sprint's name left out:
+        stable across reads while nothing changes) and `acknowledgement` (null until someone acknowledges; `at`, `by` - the acknowledging
+        login's active person's name, else its display name, never the email, null once that login is deleted - and `current`, false
+        when the row was acknowledged and its figures CHANGED since, which makes it open again). Each item carries `can.acknowledge`
+        (the team's active manager, or ADMIN: the capacity import's arithmetic; false for everyone else). The writes are `POST` and
+        `DELETE /integrations/flow/team-bindings/{id}/acknowledge`. The unit is the sprint row, so a team's other rows are not touched.
 
         **Items.** Only linked teams with at least one deviation (after the filters) are listed. A DISABLED, FAILED or STALE
         connection's teams are listed from its last mirrored document; the connection's `status` (derived in the same snapshot)
         qualifies them. `connections` lists EVERY ACTIVE Flow connection (at most 100, by name then id), enabled or not, with the
-        sync `status` and `teamsAt`, when it last mirrored a document. Order: teams with a WARNING first, then team name
+        sync `status` and `teamsAt`, when it last mirrored a document. Order: teams with an OPEN WARNING first, then team name
         (case-insensitive), then link id; a team's rows are ordered by the sprint's first held day, then sprint id. Capped at 1,000 teams
-        (Flow's own team cap): `truncated` says teams were dropped; `totals` are computed over every team matched BEFORE the cap
-        (`warnings` and `infos` count rows, `gone` the `TEAM_GONE` ones, `teams` the teams matched). `asOf` is the UTC date of the read.
+        (Flow's own team cap): `truncated` says teams were dropped; `totals` are computed BEFORE the cap.
 
-        Filters, all equality, a repeated key or a malformed value a `400`: `connectionId`, `teamId`, `severity` and `kind`.
-        **`severity` and `kind` narrow the rows of each team as well as the teams** (the unit here is a sprint: "warnings only" lists
-        only the warning sprints), unlike the Jira view, where the binding is the unit.
+        **Which rows are listed** (the Jira view's rule, over rows): by default only the OPEN rows, those not currently acknowledged (a
+        team whose rows are all acknowledged is not listed); `all=true` adds the acknowledged ones, and `teamId` makes `all` default to
+        true (an explicit `all=false` is respected); `acknowledged=true` lists only the rows whose acknowledgement is CURRENT,
+        `acknowledged=false` the open ones. `acknowledgement.current` tells the states apart. `warnings`, `infos` and `gone` count the
+        OPEN rows and `acknowledged` the rows with a CURRENT acknowledgement, all over the rows matching every filter but the
+        acknowledgement state (so "N open" survives `acknowledged=true`); `teams` is the number of teams the list answers.
+        `asOf` is the UTC date of the read.
+
+        Filters, all equality, a repeated key or a malformed value a `400`: `connectionId`, `teamId`, `severity`, `kind`, `acknowledged`
+        and `all`. **`severity` and `kind` narrow the rows of each team as well as the teams** (the unit here is a sprint: "warnings
+        only" lists only the warning sprints), unlike the Jira view, where the binding is the unit.
       parameters:
         - name: connectionId
           in: query
@@ -2227,6 +2241,18 @@ paths:
           in: query
           required: false
           schema: { $ref: '#/components/schemas/CapacityDeviationKind' }
+        - name: all
+          in: query
+          required: false
+          schema: { type: boolean }
+          description: Also list the acknowledged rows. Strictly `true` or `false`; defaults to true when `teamId` is given. A repeated key is a `400`.
+        - name: acknowledged
+          in: query
+          required: false
+          schema: { type: boolean }
+          description: >-
+            `true` lists only the rows whose acknowledgement is current, `false` those without a current one. Strictly `true` or `false`;
+            absent, the default lists the open rows. A repeated key is a `400`.
       responses:
         '200':
           description: The capacity deviations
@@ -8222,10 +8248,15 @@ components:
       properties:
         id: { type: integer, format: int32 }
         name: { type: string, description: "The Flow team's name when it was linked." }
+    CapacityDeviationCan:
+      type: object
+      required: [acknowledge]
+      properties:
+        acknowledge: { type: boolean, description: "The caller may acknowledge and unacknowledge this team's rows: ADMIN, or the team's active manager." }
     CapacityDeviationItem:
       type: object
       description: One linked team with its deviations (never empty in a listed item; the filters narrow it).
-      required: [bindingId, connectionId, team, flowTeam, observedAt, zone, deviations]
+      required: [bindingId, connectionId, team, flowTeam, observedAt, zone, can, deviations]
       properties:
         bindingId: { type: integer, format: int32, minimum: 0 }
         connectionId: { type: integer, format: int32, minimum: 0 }
@@ -8233,19 +8264,21 @@ components:
         flowTeam: { $ref: '#/components/schemas/CapacityDeviationFlowTeam' }
         observedAt: { type: integer, format: int64, nullable: true, description: "Epoch millis the mirror last saw the Flow team; null when it is gone." }
         zone: { type: string, description: "The connection's IANA time zone id, the zone of the sprint dates." }
+        can: { $ref: '#/components/schemas/CapacityDeviationCan' }
         deviations:
           type: array
           items:
             $ref: '#/components/schemas/CapacityDeviation'
     CapacityDeviationTotals:
       type: object
-      description: Over the teams MATCHED (every team that passes the filters), before the cap - `teams` can exceed the length of `items`.
-      required: [warnings, infos, gone, teams]
+      description: Before the 1,000-team cap. `teams` counts what the list answers; `warnings`, `infos`, `gone` and `acknowledged` share one basis, the rows matching every filter but the acknowledgement state.
+      required: [warnings, infos, gone, acknowledged, teams]
       properties:
-        warnings: { type: integer, format: int32, minimum: 0, description: "WARNING rows, `TEAM_GONE` included." }
-        infos: { type: integer, format: int32, minimum: 0 }
-        gone: { type: integer, format: int32, minimum: 0, description: "`TEAM_GONE` rows." }
-        teams: { type: integer, format: int32, minimum: 0, description: "Teams matched, before the cap; `items` holds at most the first 1,000." }
+        warnings: { type: integer, format: int32, minimum: 0, description: "The OPEN (not currently acknowledged) WARNING rows, `TEAM_GONE` included." }
+        infos: { type: integer, format: int32, minimum: 0, description: "The OPEN INFO rows." }
+        gone: { type: integer, format: int32, minimum: 0, description: "The OPEN `TEAM_GONE` rows." }
+        acknowledged: { type: integer, format: int32, minimum: 0, description: "The rows with a CURRENT acknowledgement among those matching every filter but `acknowledged` (and the default that hides them)." }
+        teams: { type: integer, format: int32, minimum: 0, description: "Teams the list answers (the ones with an open row by default), before the cap; `items` holds at most the first 1,000." }
     CapacityDeviationView:
       type: object
       required: [asOf, connections, totals, items, truncated]

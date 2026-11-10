@@ -186,7 +186,7 @@ describe("CapacityDeviationsSection", () => {
     });
 
     test("a list cut by the server says how many teams matched", async () => {
-      doc = capacityView({ truncated: true, totals: { warnings: 1200, infos: 0, gone: 0, teams: 1200 } });
+      doc = capacityView({ truncated: true, totals: { warnings: 1200, infos: 0, gone: 0, acknowledged: 0, teams: 1200 } });
       renderSection();
       expect(await screen.findByText("1 of 1200 teams shown")).toBeInTheDocument();
     });
