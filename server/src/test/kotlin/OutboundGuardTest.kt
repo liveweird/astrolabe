@@ -10,6 +10,9 @@ import ch.nokillswit.infra.outbound.Origin
 import ch.nokillswit.infra.outbound.SelfManagedHosts
 import ch.nokillswit.infra.outbound.isAllowedJiraHost
 import ch.nokillswit.infra.outbound.isAllowedJiraOrigin
+import ch.nokillswit.infra.outbound.isBlockedAddress
+import ch.nokillswit.infra.outbound.isInZeroPrefix96
+import ch.nokillswit.infra.outbound.isNeverAllowed
 import ch.nokillswit.infra.outbound.parseSelfManagedHosts
 import ch.nokillswit.jira.JiraAuthScheme
 import ch.nokillswit.jira.JiraConnector
@@ -169,11 +172,41 @@ class OutboundGuardTest {
             "NAT64 local-use 64:ff9b:1::/48 embedding a PUBLIC IPv4" to ipv6(0x0064, 0xff9b, 0x0001, 0, 0, 0, 0x0808, 0x0808),
             "NAT64 local-use 64:ff9b:1:ffff::" to ipv6(0x0064, 0xff9b, 0x0001, 0, 0xffff, 0xffff, 0xffff, 0xffff),
             "IPv4-mapped IPv6 broadcast ::ffff:255.255.255.255" to ipv6(0, 0, 0, 0, 0, 0xffff, 0xffff, 0xffff),
+            "IPv4-compatible ::10.0.0.1" to ipv6(0, 0, 0, 0, 0, 0, 0x0a00, 0x0001),
+            "IPv4-compatible ::8.8.8.8 embedding a PUBLIC IPv4" to ipv6(0, 0, 0, 0, 0, 0, 0x0808, 0x0808),
+            "IPv4-compatible ::0.0.0.2" to ipv6(0, 0, 0, 0, 0, 0, 0, 2),
         )
         blocked.forEach { (label, address) ->
             val dns = GuardedDns(allowedHost = { true }, resolver = { listOf(address) })
             assertFailsWith<BlockedHostException>("expected $label to be blocked") { dns.lookup("api.atlassian.com") }
         }
+    }
+
+    @Test
+    fun `the whole IPv6 zero-prefix range is refused by both address predicates, and only that prefix`() {
+        listOf(
+            ipv6(0, 0, 0, 0, 0, 0, 0, 0),
+            ipv6(0, 0, 0, 0, 0, 0, 0, 1),
+            ipv6(0, 0, 0, 0, 0, 0, 0, 2),
+            ipv6(0, 0, 0, 0, 0, 0, 0x0a00, 0x0001),
+            ipv6(0, 0, 0, 0, 0, 0, 0x0808, 0x0808),
+            ipv6(0, 0, 0, 0, 0, 0, 0xffff, 0xffff),
+        ).forEach { address ->
+            assertTrue(address.isInZeroPrefix96(), "$address is in ::/96")
+            assertTrue(address.isBlockedAddress(), "$address is blocked for a genuine host")
+            assertTrue(address.isNeverAllowed(), "$address is never allowed")
+        }
+        // Outside the prefix: a non-zero bit in the first 12 bytes, and the IPv4-mapped public form (unwrapped to IPv4 first).
+        val outside = ipv6(0, 0, 0, 0, 0, 1, 0x0808, 0x0808)
+        assertFalse(outside.isInZeroPrefix96())
+        assertFalse(outside.isBlockedAddress(), "0:0:0:0:0:1:808:808 is outside ::/96")
+        assertFalse(outside.isNeverAllowed())
+        // A non-zero first byte is outside the prefix too (the helper alone; 0100::/64 has its own rules).
+        assertFalse(ipv6(0x0100, 0, 0, 0, 0, 0, 0x0a00, 0x0001).isInZeroPrefix96())
+        val mappedPublic = rawMapped(203, 0, 113, 10)
+        assertFalse(mappedPublic.isInZeroPrefix96())
+        assertFalse(mappedPublic.isBlockedAddress(), "::ffff:203.0.113.10 stays allowed")
+        assertFalse(mappedPublic.isNeverAllowed())
     }
 
     /** An `Inet6Address` holding IPv4-mapped bytes: `getByName` folds the literal into an `Inet4Address`, this constructor does not. */

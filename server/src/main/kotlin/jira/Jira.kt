@@ -104,8 +104,8 @@ fun Application.configureJira() {
  * The address rule of the Jira client. The stub is a local compose/in-JVM fixture BY DESIGN (see GuardedDns's kdoc) - its address is
  * expected to be loopback/private, unlike a genuine Jira Cloud host - but never link-local, any-local, multicast, `0.0.0.0/8`, a
  * NAT64 prefix embedding a refused address or another tunnelling prefix ([isDevelopmentFixtureAddress], Flow's rule for its insecure
- * origins). The stub host is judged by that rule ALONE (the public-only rule would pass `::a.b.c.d`). Every other host: public
- * addresses only.
+ * origins). The stub host is judged by that rule ALONE (the public-only rule would refuse its loopback/private address). Every other
+ * host: public addresses only.
  */
 internal fun jiraAddressRule(developmentMode: Boolean, stubHost: String?): (String, InetAddress) -> Boolean = { host, address ->
     if (developmentMode && stubHost != null && host.equals(stubHost, ignoreCase = true)) {

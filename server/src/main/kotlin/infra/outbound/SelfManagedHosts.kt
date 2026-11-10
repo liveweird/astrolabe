@@ -72,7 +72,7 @@ private val PORT_DIGITS = Regex("[0-9]{1,5}")
 internal fun InetAddress.isNeverAllowed(): Boolean {
     if (isLoopbackAddress || isLinkLocalAddress || isAnyLocalAddress || isMulticastAddress) return true
     if (isSixToFourOrTeredo() || isNeverAllowedNat64()) return true
-    return if (this is Inet4Address) address[0] == 0.toByte() else address.take(IPV6_ZERO_PREFIX_BYTES).all { it == 0.toByte() }
+    return if (this is Inet4Address) address[0] == 0.toByte() else isInZeroPrefix96()
 }
 
 private const val IPV6_ZERO_PREFIX_BYTES = 12

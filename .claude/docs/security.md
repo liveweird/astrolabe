@@ -422,8 +422,9 @@ by `PayloadValidationTest`.
 site-local, link-local, any-local, multicast, IPv6 unique-local `fc00::/7`, CGNAT `100.64.0.0/10`,
 `192.0.0.0/24`, benchmarking `198.18.0.0/15`, "this network" `0.0.0.0/8`, reserved `240.0.0.0/4` (the limited broadcast
 `255.255.255.255` inside it), a NAT64 `64:ff9b::/96` address embedding a non-public IPv4, and the whole of the
-local-use NAT64 prefix `64:ff9b:1::/48`), adding two things: an IPv4-mapped IPv6 address is unwrapped to its IPv4 form first, and 6to4 `2002::/16`
-and Teredo `2001:0::/32` are blocked (both pinned by `OutboundGuardTest`), as defense in depth. The PRIMARY
+local-use NAT64 prefix `64:ff9b:1::/48`), adding three things: an IPv4-mapped IPv6 address is unwrapped to its IPv4 form first, 6to4 `2002::/16`
+and Teredo `2001:0::/32` are blocked, and so is the deprecated IPv6 `::/96` family, IPv4-compatible `::a.b.c.d` included (one helper,
+`isInZeroPrefix96`, shared with `isNeverAllowed`); all pinned by `OutboundGuardTest`, as defense in depth. The PRIMARY
 boundary is a **host allow-list** the caller supplies (a connector allows exactly its provider's API hosts; a development-only stub
 host may be added in development mode and is refused at startup in production, like the crypto-key/mail-transport checks). `GuardedDns`
 (an `okhttp3.Dns`) re-checks the allow-list and re-resolves + re-checks addresses on every NEW connection (not just once per request, since the

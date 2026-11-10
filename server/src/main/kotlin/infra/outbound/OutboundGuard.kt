@@ -80,17 +80,26 @@ fun isAllowedJiraHost(host: String, stubHost: String?, developmentMode: Boolean)
 }
 
 /**
- * Ported from Toadie's `infra/fetch/UrlFetch.kt` (`isBlockedAddress`, lines 129-154), with two additions: an IPv4-mapped IPv6
+ * Ported from Toadie's `infra/fetch/UrlFetch.kt` (`isBlockedAddress`, lines 129-154), with three additions: an IPv4-mapped IPv6
  * address (`::ffff:a.b.c.d`) is unwrapped to its IPv4 form first ([withoutIpv4Mapping]) - an `Inet6Address` built from the raw 16
  * bytes is not folded by the JDK, and its `isLoopbackAddress`/`isSiteLocalAddress` would answer for the IPv6 form only - and the
  * IPv6 tunnelling prefixes 6to4 `2002::/16` and Teredo `2001:0::/32` are blocked ([isSixToFourOrTeredo]): both embed an arbitrary
- * IPv4 address a translator may deliver to, so the embedded address cannot be vouched for here.
+ * IPv4 address a translator may deliver to, so the embedded address cannot be vouched for here; and the deprecated IPv6 `::/96`
+ * family (IPv4-compatible `::a.b.c.d`, an embedded public address included) is blocked whole ([isInZeroPrefix96], shared with
+ * [isNeverAllowed] so the two predicates cannot drift apart).
  */
 internal fun InetAddress.isBlockedAddress(): Boolean = withoutIpv4Mapping().isBlockedForm()
 
 private fun InetAddress.isBlockedForm(): Boolean =
     isLoopbackAddress || isSiteLocalAddress || isLinkLocalAddress || isAnyLocalAddress ||
-        isMulticastAddress || isUniqueLocalIpv6() || isSpecialIpv4() || isNat64() || isSixToFourOrTeredo()
+        isMulticastAddress || isUniqueLocalIpv6() || isSpecialIpv4() || isNat64() || isSixToFourOrTeredo() ||
+        isInZeroPrefix96()
+
+/** The deprecated IPv6 `::/96` (RFC 4291 IPv4-compatible, `::` and `::1` included): 16 bytes whose first 12 are zero. */
+internal fun InetAddress.isInZeroPrefix96(): Boolean {
+    val bytes = address
+    return bytes.size == IPV6_BYTES && (0 until IPV6_BYTES - IPV4_BYTES).all { bytes[it] == 0.toByte() }
+}
 
 /** 6to4 `2002::/16` or Teredo `2001:0000::/32`. */
 internal fun InetAddress.isSixToFourOrTeredo(): Boolean {
