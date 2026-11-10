@@ -24,6 +24,11 @@ import kotlinx.serialization.Serializable
 @Resource("acknowledge")
 class CapacityAcknowledgeRoute(val parent: FlowTeamBindingsRoute.Id)
 
+/** `POST …/team-bindings/{id}/acknowledge-all` (1.10): every row the client names, one all-or-nothing write. */
+@Serializable
+@Resource("acknowledge-all")
+class CapacityAcknowledgeAllRoute(val parent: FlowTeamBindingsRoute.Id)
+
 private const val BINDING = "Flow team binding"
 
 /** The audit value of a row's sprint: the Flow sprint id, or `none` for the team's own row. */
@@ -38,7 +43,8 @@ private fun sprintAuditValue(sprintId: Long?): Any = sprintId ?: "none"
  * the stale-fingerprint `409` and the withdrawal's `404` ("nothing stored") are decided there too. The audit lines are written after
  * the commit; a refused request writes none of its own. The acknowledge also prunes the binding's stored rows that are no longer listed
  * (1.10, under the same lock) and then audits `flow.capacity_acknowledgements_cleared` after its own line. No rate bucket: nothing
- * here calls Flow.
+ * here calls Flow. The batch (1.10) follows the same order; its audit is one `flow.capacity_deviations_acknowledged` line, one single-write
+ * line per row (the same fields, in the request's order) and then the cleared line.
  */
 internal fun Route.capacityAcknowledgeRoutes(
     acknowledgements: CapacityAcknowledgeService,
@@ -70,6 +76,40 @@ internal fun Route.capacityAcknowledgeRoutes(
             auditCapacityAcksCleared(id, outcome.cleared, outcome.connectionId, caller.userId, via = "acknowledge")
         }
         call.respond(HttpStatusCode.OK, outcome.acknowledgement)
+    }
+    post<CapacityAcknowledgeAllRoute> { route ->
+        // The single acknowledge's order: binding 404 (every caller), guard 403 (whatever the body), body 400, then the locked write.
+        val caller = call.caller()
+        val id = route.parent.id
+        val teamId = bindings.teamIdOf(id).orNotFound(BINDING)
+        requireTeamManagerOrAdmin(caller, teamId, teams::isActiveManager)
+        val request = validateCapacityAcknowledgeAll(call.receive<CapacityAcknowledgeAllRequest>())
+        val outcome = acknowledgements.acknowledgeAll(id, request.items, caller.userId) { guarded ->
+            requireTeamManagerOrAdmin(caller, guarded, teams::lockedIsActiveManager)
+        }
+        val common = arrayOf(
+            "byUserId" to caller.userId.toLong(),
+            "bindingId" to id.toLong(),
+            "connectionId" to outcome.connectionId.toLong(),
+            "teamId" to outcome.teamId.toLong(),
+            "flowTeamId" to outcome.flowTeamId.toLong(),
+        )
+        audit(
+            "flow.capacity_deviations_acknowledged", *common,
+            "count" to outcome.rows.size,
+            "sprintIds" to outcome.rows.joinToString(",") { sprintAuditValue(it.acknowledgement.sprintId).toString() },
+        )
+        for (row in outcome.rows) {
+            audit(
+                "flow.capacity_deviation_acknowledged", *common,
+                "sprintId" to sprintAuditValue(row.acknowledgement.sprintId), "kind" to row.kind.name, "severity" to row.severity.name,
+                "fingerprint" to row.acknowledgement.fingerprint,
+            )
+        }
+        if (outcome.cleared.isNotEmpty()) {
+            auditCapacityAcksCleared(id, outcome.cleared, outcome.connectionId, caller.userId, via = "acknowledge")
+        }
+        call.respond(HttpStatusCode.OK, CapacityAcknowledgeBatch(outcome.rows.map { it.acknowledgement }))
     }
     delete<CapacityAcknowledgeRoute> { route ->
         val caller = call.caller()

@@ -4,6 +4,7 @@ import ch.nokillswit.audit.audit
 import ch.nokillswit.authz.ConflictException
 import ch.nokillswit.authz.NotFoundException
 import ch.nokillswit.infra.catchingFailures
+import ch.nokillswit.infra.db.insertRows
 import ch.nokillswit.infra.db.lockActiveForWrite
 import ch.nokillswit.infra.db.nowMillis
 import ch.nokillswit.infra.time.WorkingCalendar
@@ -39,6 +40,23 @@ class CapacityAcknowledgeOutcome(
     val cleared: List<Long?>,
 )
 
+/** One row an acknowledge-all stored: its [acknowledgement] and the row's [kind] and [severity] (the per-row audit line's fields). */
+class AcknowledgedCapacityRow(
+    val acknowledgement: CapacityAcknowledgement,
+    val kind: CapacityDeviationKind,
+    val severity: DeviationSeverity,
+)
+
+/** What a committed acknowledge-all leaves for the route's audit lines: the binding, its Flow team, the rows (request order), the prune. */
+class CapacityAcknowledgeAllOutcome(
+    val rows: List<AcknowledgedCapacityRow>,
+    val connectionId: UInt,
+    val teamId: UInt,
+    val flowTeamId: Int,
+    /** As [CapacityAcknowledgeOutcome.cleared]. */
+    val cleared: List<Long?>,
+)
+
 /** What a prune removed from ONE binding: the Flow sprint ids of the deleted rows, `null` standing for the team's own `TEAM_GONE` row. */
 class ClearedCapacityAcks(val bindingId: UInt, val sprintIds: List<Long?>)
 
@@ -70,6 +88,8 @@ internal class StoredCapacityAck(val fingerprint: String, val at: Long, val byUs
  * edits alone, with no run and no acknowledge in between, still reads acknowledged (`flow-sync.md` "Acknowledge"). A team ABSENT from
  * Flow's document keeps its sprint rows (nothing can be judged while it is gone) and a sprints-truncated document judges no sprint key
  * (it still clears a returned team's own row, an unlinked binding's rows and a dead team's).
+ *
+ * The batch [acknowledgeAll] (1.10) is the same protocol over a list of rows: all or nothing, one lock, one stamp, one prune.
  *
  * Both single writes run in ONE short transaction in the Jira acknowledge's order: the binding row `FOR NO KEY UPDATE`
  * ([lockActiveForWrite]; gone = `404`), the binding re-read with its team ACTIVE (a dead team = `404`), the caller's [TeamGuard] run
@@ -171,6 +191,58 @@ class CapacityAcknowledgeService(
         CapacityAcknowledgeOutcome(
             CapacityAcknowledgement(bindingId, sprintId, fingerprint, stamp, by),
             binding.connectionId, binding.teamId, binding.flowTeamId, row.kind, row.severity, cleared,
+        )
+    }
+
+    /**
+     * The batch of [acknowledge] (1.10): stamps every row named in [items] (each: the sprint, null = the team's own row, and the
+     * fingerprint the client read) with ONE time and ONE login, in ONE transaction. The binding row is locked once, the guard run again,
+     * the rows recomputed once. **All or nothing**: a named row that is not listed now, or whose fingerprint differs, is `409`
+     * [STALE_DEVIATIONS_PROBLEM] and nothing is stored (nor pruned: the transaction rolls back). Only the named rows are written, never
+     * an open row the client did not name. The acknowledge's prune applies once, after the checks; the named rows are listed, so it can
+     * never remove one of them. The named keys' stored rows are deleted and re-inserted in one multi-row statement (the binding row lock
+     * makes that exact; `uq_flow_capacity_acks_key` is the backstop).
+     */
+    suspend fun acknowledgeAll(
+        bindingId: UInt,
+        items: List<CapacityAcknowledgeRequest>,
+        byUserId: UInt,
+        guard: TeamGuard,
+    ): CapacityAcknowledgeAllOutcome = suspendTransaction(database) {
+        validateCapacityAcknowledgeAll(CapacityAcknowledgeAllRequest(items))
+        val binding = lockedBinding(bindingId, guard)
+        val rows = deviations.computeBindingInTransaction(binding).orEmpty()
+        val listed = rows.associateBy { it.detail.sprintId }
+        val named = items.map { item ->
+            val what = item.sprintId?.let { "Sprint $it" } ?: "The team's own row"
+            val row = listed[item.sprintId] ?: throw ConflictException("$what has no deviation to acknowledge", STALE_DEVIATIONS_PROBLEM)
+            if (row.fingerprint != item.fingerprint) {
+                throw ConflictException("$what changed since it was read", STALE_DEVIATIONS_PROBLEM)
+            }
+            row
+        }
+        val cleared = pruneUnlisted(binding, rows)
+        val stamp = nowMillis()
+        val keys = items.map { it.sprintId }
+        val sprints = keys.filterNotNull()
+        val teamRow = if (null in keys) Acknowledgements.sprintId.isNull() else Op.FALSE
+        Acknowledgements.deleteWhere {
+            (Acknowledgements.bindingId eq bindingId) and ((Acknowledgements.sprintId inList sprints) or teamRow)
+        }
+        Acknowledgements.insertRows(items) { item ->
+            this[Acknowledgements.bindingId] = bindingId
+            this[Acknowledgements.sprintId] = item.sprintId
+            this[Acknowledgements.fingerprint] = item.fingerprint
+            this[Acknowledgements.ackAt] = stamp
+            this[Acknowledgements.ackByUserId] = byUserId.toLong()
+        }
+        val by = creatorsOf(listOf(byUserId))[byUserId]?.name
+        CapacityAcknowledgeAllOutcome(
+            items.zip(named).map { (item, row) ->
+                val acknowledgement = CapacityAcknowledgement(bindingId, item.sprintId, item.fingerprint, stamp, by)
+                AcknowledgedCapacityRow(acknowledgement, row.kind, row.severity)
+            },
+            binding.connectionId, binding.teamId, binding.flowTeamId, cleared,
         )
     }
 

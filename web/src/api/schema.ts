@@ -1527,7 +1527,8 @@ export interface paths {
          *     login's active person's name, else its display name, never the email, null once that login is deleted - and `current`, false
          *     when the row was acknowledged and its figures CHANGED since, which makes it open again). Each item carries `can.acknowledge`
          *     (the team's active manager, or ADMIN: the capacity import's arithmetic; false for everyone else). The writes are `POST` and
-         *     `DELETE /integrations/flow/team-bindings/{id}/acknowledge`. The unit is the sprint row, so a team's other LISTED rows are not touched.
+         *     `DELETE /integrations/flow/team-bindings/{id}/acknowledge`, or `POST …/acknowledge-all` for the rows the caller names at once.
+         *     The unit is the sprint row, so a team's other LISTED rows are not touched.
          *
          *     **Items.** Only linked teams with at least one deviation (after the filters) are listed. A DISABLED, FAILED or STALE
          *     connection's teams are listed from its last mirrored document; the connection's `status` (derived in the same snapshot)
@@ -2908,6 +2909,38 @@ export interface paths {
          *     (decided under the lock, after the guard). Audited `flow.capacity_deviation_unacknowledged`.
          */
         delete: operations["unacknowledgeCapacityDeviation"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/integrations/flow/team-bindings/{id}/acknowledge-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Acknowledge several of a team's capacity deviations at once, all or nothing
+         * @description The batch of the single acknowledge, for "Acknowledge all": `items` are the rows the client lists as open, each the `sprintId`
+         *     (`null` = the team's own `TEAM_GONE` row) and the `fingerprint` it read, 1 to 2,000 of them, no row named twice (`400`). The
+         *     audience, the order and the lock are the single acknowledge's: `404` for EVERY caller when the binding is unknown, unlinked or its
+         *     team was deleted, then `403` (the binding's team's ACTIVE manager or ADMIN; whatever the body is), then the body (`400`); the write
+         *     locks the binding row ONCE, re-reads the binding and its team ACTIVE, runs the guard AGAIN and recomputes the binding's rows ONCE.
+         *     **All or nothing:** a named row that is not listed now, or whose fingerprint is not the one sent, is `409`
+         *     `urn:astrolabe:problem:stale-deviations` and NOTHING is stored (the client reads the view again). Otherwise every named row is
+         *     stamped with the same time and login (acknowledging again restamps), and only the named rows: an open row the request does not name
+         *     stays open. The single acknowledge's cleanup of rows that are no longer listed applies once. Not plan state: no plan lock, no
+         *     revision bump, no rate bucket (nothing calls Flow, nothing is written to Flow). Audited `flow.capacity_deviations_acknowledged`
+         *     (the batch), `flow.capacity_deviation_acknowledged` per row, then `flow.capacity_acknowledgements_cleared` when rows were pruned.
+         */
+        post: operations["acknowledgeCapacityDeviations"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -6917,6 +6950,14 @@ export interface components {
             acknowledgedAt: number;
             /** @description The acknowledging login's active person's name, else its display name; never the email. */
             acknowledgedBy: string | null;
+        };
+        CapacityAcknowledgeAllRequest: {
+            /** @description The rows to acknowledge, the single acknowledge's pair each; no row (`sprintId`) twice. */
+            items: components["schemas"]["CapacityAcknowledgeRequest"][];
+        };
+        CapacityAcknowledgeBatch: {
+            /** @description The stored acknowledgements, in the request's order; all stamped with one time and login. */
+            acknowledged: components["schemas"]["CapacityAcknowledgement"][];
         };
         /** @description An ACTIVE Flow connection, enabled or not - never a base URL, token or time zone. */
         CapacityDeviationConnection: {
@@ -11002,6 +11043,40 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    acknowledgeCapacityDeviations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CapacityAcknowledgeAllRequest"];
+            };
+        };
+        responses: {
+            /** @description Acknowledged */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CapacityAcknowledgeBatch"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
             500: components["responses"]["InternalServerError"];
         };
     };

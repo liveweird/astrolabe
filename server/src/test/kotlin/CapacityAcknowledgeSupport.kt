@@ -1,5 +1,7 @@
 package ch.nokillswit
 
+import ch.nokillswit.flow.CapacityAcknowledgeAllRequest
+import ch.nokillswit.flow.CapacityAcknowledgeBatch
 import ch.nokillswit.flow.CapacityAcknowledgeRequest
 import ch.nokillswit.flow.CapacityAcknowledgement
 import ch.nokillswit.flow.CapacityDeviation
@@ -32,6 +34,23 @@ suspend fun HttpClient.capAck(bindingId: UInt, sprintId: Long?, fingerprint: Str
 suspend fun HttpClient.capAckRaw(bindingId: UInt, body: String): HttpResponse = post(capAckUrl(bindingId)) {
     contentType(ContentType.Application.Json)
     setBody(body)
+}
+
+fun capAckAllUrl(bindingId: UInt) = "${capAckUrl(bindingId)}-all"
+
+/** `POST …/acknowledge-all` naming [items] (sprint id - null = the team's own row - and the fingerprint read), in this order. */
+suspend fun HttpClient.capAckAll(bindingId: UInt, vararg items: Pair<Long?, String>): HttpResponse =
+    postJson(capAckAllUrl(bindingId), CapacityAcknowledgeAllRequest(items.map { CapacityAcknowledgeRequest(it.first, it.second) }))
+
+/** `POST …/acknowledge-all` with a raw body (a malformed one). */
+suspend fun HttpClient.capAckAllRaw(bindingId: UInt, body: String): HttpResponse = post(capAckAllUrl(bindingId)) {
+    contentType(ContentType.Application.Json)
+    setBody(body)
+}
+
+suspend fun HttpResponse.capBatch(): CapacityAcknowledgeBatch {
+    assertEquals(HttpStatusCode.OK, status, bodyAsText())
+    return fbJson.decodeFromString(bodyAsText())
 }
 
 /** `DELETE …/acknowledge` with the raw [query] (`""`, `"?sprintId=2"`, …). */

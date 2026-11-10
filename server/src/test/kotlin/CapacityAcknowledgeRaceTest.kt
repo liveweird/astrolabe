@@ -172,6 +172,48 @@ class CapacityAcknowledgeRaceTest {
         }
 
     @Test
+    fun `an acknowledge-all and a single acknowledge of one binding at once are serialised - both succeed, one row per sprint`() =
+        testApplication {
+            val world = dayTwo("capackr11")
+            with(world) {
+                val warning = w.admin.client.rowOf(2).fingerprint
+                val info = w.admin.client.rowOf(3).fingerprint
+                val responses = heldAt(
+                    bindingLock, bindingId, "FOR NO KEY UPDATE",
+                    { manager.client.capAckAll(bindingId, 2L to warning, 3L to info) },
+                    { w.admin.client.capAck(bindingId, 2, warning) },
+                    waiters = 2,
+                )
+                assertEquals(listOf(HttpStatusCode.OK, HttpStatusCode.OK), responses.map { it.status })
+                assertEquals(2, capAckStored(bindingId), "the unique key held: whichever came second UPDATEd or replaced the first's row")
+            }
+        }
+
+    @Test
+    fun `a manager cleared while the acknowledge-all waits is refused 403, and a figure changed meanwhile is a 409 - nothing stored`() =
+        testApplication {
+            val world = dayTwo("capackr12")
+            with(world) {
+                val warning = w.admin.client.rowOf(2).fingerprint
+                val info = w.admin.client.rowOf(3).fingerprint
+                val successor = w.requireTeams().otherManager.personId!!.toInt()
+                val refused = heldAt(
+                    bindingLock, bindingId, "FOR NO KEY UPDATE", { manager.client.capAckAll(bindingId, 2L to warning, 3L to info) },
+                ) { it.exec("UPDATE teams SET manager_person_id = ? WHERE id = ?", successor, teamId.toInt()) }.single()
+                assertEquals(HttpStatusCode.Forbidden, refused.status, "the guard ran again under the lock")
+                assertEquals(0, capAckStored(bindingId))
+
+                val stale = heldAt(
+                    bindingLock, bindingId, "FOR NO KEY UPDATE", { w.admin.client.capAckAll(bindingId, 2L to warning, 3L to info) },
+                ) { it.exec("UPDATE team_capacity_periods SET md_per_week = 17 WHERE team_id = ? AND flow_sprint_id = 2", teamId.toInt()) }
+                    .single()
+                assertEquals(HttpStatusCode.Conflict, stale.status, "recomputed inside the write")
+                assertEquals(STALE_DEVIATIONS_PROBLEM, stale.jbProblem().type)
+                assertEquals(0, capAckStored(bindingId), "all or nothing: sprint 3's fingerprint was still right, and was not stored")
+            }
+        }
+
+    @Test
     fun `a run waits for a binding row another session holds, then completes and prunes`() =
         testApplication {
             val world = dayTwo("capackr8")
