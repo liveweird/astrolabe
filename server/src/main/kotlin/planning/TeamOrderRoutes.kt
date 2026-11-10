@@ -22,13 +22,13 @@ class TeamMilestoneOrderRoute(val id: UInt)
  * forbidden caller's malformed body stays 403), then the pure validation (400). The service re-runs the guard under the plan lock
  * ([PlanRouteDeps.teamManagerGuard]), so only that inner verdict authorizes the write. Every accepted PUT is audited, a no-op one included.
  */
-internal fun Route.teamOrderRoutes(d: PlanRouteDeps, teamOrder: TeamOrderService) {
+internal fun Route.teamOrderRoutes(d: PlanRouteDeps) {
     put<TeamMilestoneOrderRoute> { route ->
         val caller = call.caller()
         d.requireTeamManager(caller, route.id)
         val request = call.receive<TeamOrderUpdateRequest>()
         validateTeamOrder(request)
-        val outcome = teamOrder.replaceOrder(route.id, request, d.teamManagerGuard(caller))
+        val outcome = d.scheduling.teamOrder.replaceOrder(route.id, request, d.teamManagerGuard(caller))
         audit(
             "team.milestone_order_changed",
             "byUserId" to caller.userId.toLong(),

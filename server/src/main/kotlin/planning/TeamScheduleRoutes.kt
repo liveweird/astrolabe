@@ -27,9 +27,9 @@ class TeamScheduleProposalRoute(val id: UInt)
  * in the service before the lock). The service re-runs the guard under the plan lock ([PlanRouteDeps.teamManagerGuard]), so only that
  * inner verdict authorizes the write.
  */
-internal fun Route.teamScheduleRoutes(d: PlanRouteDeps, schedules: TeamScheduleService, proposals: ScheduleProposalService) {
-    proposalRoute(d, proposals)
-    batchScheduleRoute(d, schedules)
+internal fun Route.teamScheduleRoutes(d: PlanRouteDeps) {
+    proposalRoute(d)
+    batchScheduleRoute(d)
 }
 
 /**
@@ -38,13 +38,13 @@ internal fun Route.teamScheduleRoutes(d: PlanRouteDeps, schedules: TeamScheduleS
  * once - nothing is written, so there is no inner re-guard: read-before-guard (the team resolved first, missing or deleted = 404 for
  * every caller), `requireTeamManagerOrAdmin` (403), then the body (a forbidden caller's malformed body stays 403), then `asOf` (400).
  */
-private fun Route.proposalRoute(d: PlanRouteDeps, proposals: ScheduleProposalService) {
+private fun Route.proposalRoute(d: PlanRouteDeps) {
     post<TeamScheduleProposalRoute> { route ->
         val caller = call.caller()
         d.requireTeamManager(caller, route.id)
         val request = call.receive<ScheduleProposalRequest>()
         val asOf = validateProposalRequest(request)
-        call.respond(HttpStatusCode.OK, proposals.propose(route.id, asOf) ?: throw NotFoundException("Team not found"))
+        call.respond(HttpStatusCode.OK, d.scheduling.proposal.propose(route.id, asOf) ?: throw NotFoundException("Team not found"))
     }
 }
 
@@ -54,12 +54,12 @@ private fun Route.proposalRoute(d: PlanRouteDeps, proposals: ScheduleProposalSer
  * so the trail reads the same however a bar moved), `milestone.unpinned` (reason `UNSCHEDULED`) per accepted item that unscheduled a pinned
  * milestone, and ONE `team.schedule_batch_applied` per accepted request, an all-skipped one included; a 4xx emits nothing of its own.
  */
-private fun Route.batchScheduleRoute(d: PlanRouteDeps, schedules: TeamScheduleService) {
+private fun Route.batchScheduleRoute(d: PlanRouteDeps) {
     post<TeamMilestoneSchedulesRoute> { route ->
         val caller = call.caller()
         d.requireTeamManager(caller, route.id)
         val request = call.receive<TeamScheduleBatchRequest>()
-        val outcome = schedules.batch(route.id, request, d.teamManagerGuard(caller))
+        val outcome = d.scheduling.teamSchedule.batch(route.id, request, d.teamManagerGuard(caller))
         val byUserId = caller.userId.toLong()
         auditScheduledItems(caller.userId, outcome)
         audit(

@@ -64,14 +64,14 @@ internal fun Route.projectRoutes(d: PlanRouteDeps) {
     listProjectsRoute(d)
     get<ProjectsRoute.Id> { route ->
         call.caller()
-        call.respond(HttpStatusCode.OK, d.projects.read(route.id).orNotFound(PROJECT))
+        call.respond(HttpStatusCode.OK, d.structure.projects.read(route.id).orNotFound(PROJECT))
     }
     put<ProjectsRoute.Id> { route ->
         val caller = call.caller()
-        d.requireOwner(caller, d.projects.chain(route.id), PROJECT)
+        d.requireOwner(caller, d.structure.projects.chain(route.id), PROJECT)
         val request = call.receive<ProjectUpdateRequest>().sanitized()
         validateProjectFields(request.name, request.description)
-        val outcome = d.projects.update(route.id, request, d.ownerGuard(caller))
+        val outcome = d.structure.projects.update(route.id, request, d.ownerGuard(caller))
         val base = arrayOf("byUserId" to caller.userId.toLong(), "projectId" to route.id.toLong())
         audit("project.updated", *base, "name" to request.name)
         if (outcome.ownerFrom != request.ownerPersonId) {
@@ -85,11 +85,11 @@ internal fun Route.projectRoutes(d: PlanRouteDeps) {
     put<ProjectsRoute.Id.TargetWindow> { route ->
         val caller = call.caller()
         val projectId = route.parent.id
-        val chain = d.projects.chain(projectId).orNotFound(PROJECT)
+        val chain = d.structure.projects.chain(projectId).orNotFound(PROJECT)
         requireTargetWindowEditorOrAdmin(caller, d.callerPersonId(caller), chain, d.hasPermission)
         val request = call.receive<TargetWindowRequest>()
         val window = validateTargetWindow(request.targetStart, request.targetEnd)
-        val outcome = d.projects.setTargetWindow(projectId, request, d.windowGuard(caller))
+        val outcome = d.structure.projects.setTargetWindow(projectId, request, d.windowGuard(caller))
         if (outcome.from != window) {
             audit(
                 "project.target_window_changed",
@@ -105,8 +105,8 @@ internal fun Route.projectRoutes(d: PlanRouteDeps) {
     }
     delete<ProjectsRoute.Id> { route ->
         val caller = call.caller()
-        d.requireOwner(caller, d.projects.chain(route.id), PROJECT)
-        val cascade = d.projects.delete(route.id, d.ownerGuard(caller))
+        d.requireOwner(caller, d.structure.projects.chain(route.id), PROJECT)
+        val cascade = d.structure.projects.delete(route.id, d.ownerGuard(caller))
         audit(
             "project.deleted",
             "byUserId" to caller.userId.toLong(),
@@ -119,10 +119,10 @@ internal fun Route.projectRoutes(d: PlanRouteDeps) {
     post<ProjectsRoute.Id.Move> { route ->
         val caller = call.caller()
         val projectId = route.parent.id
-        val person = d.requireMoveSource(caller, d.projects.chain(projectId), PROJECT)
+        val person = d.requireMoveSource(caller, d.structure.projects.chain(projectId), PROJECT)
         val request = call.receive<ProjectMoveRequest>()
-        d.requireMoveTarget(caller, person, d.programs.chain(request.programId), "program", request.programId)
-        val outcome = d.projects.move(projectId, request.programId, d.moveGuards(caller))
+        d.requireMoveTarget(caller, person, d.structure.programs.chain(request.programId), "program", request.programId)
+        val outcome = d.structure.projects.move(projectId, request.programId, d.moveGuards(caller))
         if (outcome.changed) {
             audit(
                 "project.moved",
@@ -137,10 +137,10 @@ internal fun Route.projectRoutes(d: PlanRouteDeps) {
     post<ProjectsRoute.Id.Milestones> { route ->
         val caller = call.caller()
         val projectId = route.parent.id
-        d.requireOwner(caller, d.projects.chain(projectId), PROJECT)
+        d.requireOwner(caller, d.structure.projects.chain(projectId), PROJECT)
         val request = call.receive<MilestoneCreateRequest>().sanitized()
         validateMilestoneFields(request.name, request.description, request.estimateMd)
-        val id = d.milestones.create(projectId, request, d.ownerGuard(caller))
+        val id = d.structure.milestones.create(projectId, request, d.ownerGuard(caller))
         audit(
             "milestone.created",
             "byUserId" to caller.userId.toLong(),
@@ -151,7 +151,7 @@ internal fun Route.projectRoutes(d: PlanRouteDeps) {
             "estimateMd" to request.estimateMd,
         )
         call.response.header(HttpHeaders.Location, call.application.href(MilestonesRoute.Id(id = id)))
-        call.respond(HttpStatusCode.Created, d.milestones.read(id).orVanished("Milestone", id))
+        call.respond(HttpStatusCode.Created, d.structure.milestones.read(id).orVanished("Milestone", id))
     }
     createDependencyRoute(d)
 }
@@ -162,7 +162,7 @@ private fun Route.listProjectsRoute(d: PlanRouteDeps) {
         call.caller()
         val paging = call.parsePaging(sortable = PROJECT_SORT_FIELDS)
         val filter = ProjectListFilter(name = call.request.queryParameters.optionalString("name"))
-        val result = d.projects.list(filter, paging)
+        val result = d.structure.projects.list(filter, paging)
         call.respond(HttpStatusCode.OK, paging.toPage(result.items, result.total))
     }
 }
@@ -172,10 +172,10 @@ private fun Route.createDependencyRoute(d: PlanRouteDeps) {
     post<ProjectsRoute.Id.Dependencies> { route ->
         val caller = call.caller()
         val projectId = route.parent.id
-        d.requireOwner(caller, d.projects.chain(projectId), PROJECT)
+        d.requireOwner(caller, d.structure.projects.chain(projectId), PROJECT)
         val request = call.receive<DependencyCreateRequest>()
         validateDependencyCreate(request)
-        val id = d.dependencies.create(projectId, request, d.ownerGuard(caller))
+        val id = d.structure.dependencies.create(projectId, request, d.ownerGuard(caller))
         audit(
             "dependency.created",
             "byUserId" to caller.userId.toLong(),
@@ -189,6 +189,6 @@ private fun Route.createDependencyRoute(d: PlanRouteDeps) {
             "lagDays" to request.lagDays,
         )
         call.response.header(HttpHeaders.Location, call.application.href(DependenciesRoute.Id(id = id)))
-        call.respond(HttpStatusCode.Created, d.dependencies.read(id).orVanished("Dependency", id))
+        call.respond(HttpStatusCode.Created, d.structure.dependencies.read(id).orVanished("Dependency", id))
     }
 }

@@ -136,6 +136,13 @@ class ProductionHttpTest {
             ),
         )
         val log = LogCapture(org.slf4j.Logger.ROOT_LOGGER_NAME)
+        var stopped = false
+        val stopServer = {
+            if (!stopped) {
+                stopped = true
+                server.stop(gracePeriodMillis = 100, timeoutMillis = 1_000)
+            }
+        }
         try {
             server.start(wait = false)
             val port = runBlocking { server.engine.resolvedConnectors().first().port }
@@ -146,9 +153,10 @@ class ProductionHttpTest {
                 assertEquals(301, response.status)
                 assertTrue(response.location?.startsWith("https://") == true, "redirect must target https: ${response.location}")
             }
-            // The failure surfaced AFTER the client already had its 301 (the pipeline continues past the response),
-            // so give a late log line a moment to land before asserting its absence.
-            Thread.sleep(500)
+            // The failure surfaced AFTER the client already had its 301 (the pipeline continues past the response), logged
+            // synchronously on the same dispatch (LogCapture is a synchronous ROOT appender). Stopping the engine quiesces the
+            // call pipeline before the absence is asserted, in place of a fixed sleep.
+            stopServer()
             val offending = log.events.filter {
                 it.formattedMessage.contains("Unhandled exception") ||
                     it.throwableProxy?.className == UnsupportedOperationException::class.java.name
@@ -156,7 +164,7 @@ class ProductionHttpTest {
             assertTrue(offending.isEmpty(), "no unhandled exception may be logged: ${offending.map { it.formattedMessage }}")
         } finally {
             log.detach()
-            server.stop(gracePeriodMillis = 100, timeoutMillis = 1_000)
+            stopServer()
             runBlocking { TestSeedState.restoreSeedAccounts() }
         }
     }

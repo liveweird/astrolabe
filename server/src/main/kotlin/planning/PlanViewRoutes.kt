@@ -42,36 +42,36 @@ internal fun ApplicationCall.baselineParam(): UInt? = request.queryParameters.op
  * `GET /views/plan`, `GET /views/project/{id}`, `GET /views/programs` and `GET /views/team/{id}`: any authenticated user reads the
  * whole plan, one project with its milestones, the plan tree with its derived spans and flag roll-ups, or one team with its schedule,
  * capacity and load (404 when the project, an ancestor or the team is gone, for every caller: plan ids are sequential and the plan is
- * open to read); the caller's rights ride in the `can` flags. The team, roadmap, programs and baseline view services are passed beside
- * [PlanRouteDeps] in [PlanViewServices] (its constructor is at detekt's parameter ceiling). The project, team, programs (here) and
+ * open to read); the caller's rights ride in the `can` flags. The view services travel in
+ * [PlanRouteDeps.views] ([PlanViewServices]). The project, team, programs (here) and
  * roadmap (`RoadmapRoutes.kt`) views take `?baseline=N`; `GET /views/baseline/{id}` is the comparison document (404 for an unknown or
  * deleted baseline: it is the addressed resource), with `?against=N` (1.7) comparing it with a second baseline instead of the live plan
  * (a repeated or malformed value is a `400` here, an unknown or deleted id the view's typed `400` after the path id's `404`). Any
  * authenticated user; a read: no audit event.
  */
-internal fun Route.planViewRoutes(d: PlanRouteDeps, views: PlanViewServices) {
+internal fun Route.planViewRoutes(d: PlanRouteDeps) {
     get<PlanViewRoute> {
         val caller = call.caller()
-        call.respond(HttpStatusCode.OK, d.view.view(d.actor(caller)))
+        call.respond(HttpStatusCode.OK, d.views.plan.view(d.actor(caller)))
     }
     get<ProjectViewRoute> { route ->
         val caller = call.caller()
         val baseline = call.baselineParam()
-        val view = d.projectView.view(route.id, d.actor(caller, withManagedTeams = true), baseline)
+        val view = d.views.project.view(route.id, d.actor(caller, withManagedTeams = true), baseline)
         call.respond(HttpStatusCode.OK, view.orNotFound("Project"))
     }
     get<ProgramsViewRoute> {
         val caller = call.caller()
-        call.respond(HttpStatusCode.OK, views.programs.view(d.actor(caller), call.baselineParam()))
+        call.respond(HttpStatusCode.OK, d.views.programs.view(d.actor(caller), call.baselineParam()))
     }
     get<TeamViewRoute> { route ->
         val caller = call.caller()
         val baseline = call.baselineParam()
-        call.respond(HttpStatusCode.OK, views.team.view(route.id, d.actor(caller, withManagedTeams = true), baseline).orNotFound("Team"))
+        call.respond(HttpStatusCode.OK, d.views.team.view(route.id, d.actor(caller, withManagedTeams = true), baseline).orNotFound("Team"))
     }
     get<BaselineViewRoute> { route ->
         call.caller()
         val against = call.request.queryParameters.optionalUInt("against")
-        call.respond(HttpStatusCode.OK, views.baseline.view(route.id, against).orNotFound("Baseline"))
+        call.respond(HttpStatusCode.OK, d.views.baseline.view(route.id, against).orNotFound("Baseline"))
     }
 }

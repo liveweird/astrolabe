@@ -44,29 +44,33 @@ fun Application.configurePlanningRoutes() {
     val deps = PlanRouteDeps(
         people = attributes[PersonServiceKey],
         users = attributes[UserServiceKey],
-        workStreams = attributes[WorkStreamServiceKey],
-        programs = attributes[ProgramServiceKey],
-        projects = attributes[ProjectServiceKey],
-        milestones = attributes[MilestoneServiceKey],
-        dependencies = attributes[DependencyServiceKey],
         teams = attributes[TeamServiceKey],
-        view = attributes[PlanViewServiceKey],
-        projectView = attributes[ProjectViewServiceKey],
         roadmap = attributes[RoadmapServiceKey],
+        structure = PlanStructureServices(
+            workStreams = attributes[WorkStreamServiceKey],
+            programs = attributes[ProgramServiceKey],
+            projects = attributes[ProjectServiceKey],
+            milestones = attributes[MilestoneServiceKey],
+            dependencies = attributes[DependencyServiceKey],
+        ),
+        views = PlanViewServices(
+            plan = attributes[PlanViewServiceKey],
+            project = attributes[ProjectViewServiceKey],
+            team = attributes[TeamViewServiceKey],
+            roadmap = attributes[RoadmapViewServiceKey],
+            programs = attributes[ProgramsViewServiceKey],
+            baseline = attributes[BaselineViewServiceKey],
+        ),
+        scheduling = PlanSchedulingServices(
+            teamOrder = attributes[TeamOrderServiceKey],
+            teamSchedule = attributes[TeamScheduleServiceKey],
+            proposal = attributes[ScheduleProposalServiceKey],
+            crossTeam = attributes[CrossTeamProposalServiceKey],
+        ),
     )
-    // Not in PlanRouteDeps: its constructor is at detekt's 12-parameter ceiling, and only one route file reads each of these.
-    val teamOrder = attributes[TeamOrderServiceKey]
-    val teamSchedule = attributes[TeamScheduleServiceKey]
-    val scheduleProposal = attributes[ScheduleProposalServiceKey]
-    val crossTeam = attributes[CrossTeamProposalServiceKey]
+    // Not in PlanRouteDeps: the two registries, each read by ONE route file (the baselines' routes take the deps for the caller's flags).
     val holidays = attributes[PublicHolidayServiceKey]
     val baselines = attributes[BaselineServiceKey]
-    val views = PlanViewServices(
-        team = attributes[TeamViewServiceKey],
-        roadmap = attributes[RoadmapViewServiceKey],
-        programs = attributes[ProgramsViewServiceKey],
-        baseline = attributes[BaselineViewServiceKey],
-    )
     routing {
         authenticate {
             workStreamRoutes(deps)
@@ -74,38 +78,58 @@ fun Application.configurePlanningRoutes() {
             projectRoutes(deps)
             milestoneRoutes(deps)
             dependencyRoutes(deps)
-            planViewRoutes(deps, views)
-            roadmapRoutes(deps, views)
-            teamOrderRoutes(deps, teamOrder)
-            teamScheduleRoutes(deps, teamSchedule, scheduleProposal)
-            crossTeamScheduleRoutes(deps, crossTeam, teamSchedule)
+            planViewRoutes(deps)
+            roadmapRoutes(deps)
+            teamOrderRoutes(deps)
+            teamScheduleRoutes(deps)
+            crossTeamScheduleRoutes(deps)
             publicHolidayRoutes(holidays)
             baselineRoutes(deps, baselines)
         }
     }
 }
 
-/** The read-only view services passed BESIDE [PlanRouteDeps] (its constructor is at detekt's 12-parameter ceiling). */
+/** The entity services of the plan hierarchy (`PlanRouteDeps.structure`): one per level, work stream down to dependency. */
+internal class PlanStructureServices(
+    val workStreams: WorkStreamService,
+    val programs: ProgramService,
+    val projects: ProjectService,
+    val milestones: MilestoneService,
+    val dependencies: DependencyService,
+)
+
+/** The read-only view services (`PlanRouteDeps.views`): the plan, project, team, roadmap, programs and baseline documents. */
 internal class PlanViewServices(
+    val plan: PlanViewService,
+    val project: ProjectViewService,
     val team: TeamViewService,
     val roadmap: RoadmapViewService,
     val programs: ProgramsViewService,
     val baseline: BaselineViewService,
 )
 
-/** The services the planning routes share, plus the per-request caller resolution the guards and the `can` flags need. */
+/** The team-scheduling services (`PlanRouteDeps.scheduling`): the team order, the batch accept, the proposal and the cross-team run. */
+internal class PlanSchedulingServices(
+    val teamOrder: TeamOrderService,
+    val teamSchedule: TeamScheduleService,
+    val proposal: ScheduleProposalService,
+    val crossTeam: CrossTeamProposalService,
+)
+
+/**
+ * Everything the planning routes share, in coherent groups ([structure], [views], [scheduling]) beside the services the guards and
+ * the per-request caller resolution read ([people], [users], [teams]) and the ranking ([roadmap]), plus that resolution itself. Seven
+ * constructor parameters, well under detekt's 12-parameter ceiling: a new service joins its group rather than the constructor. The two
+ * registries (public holidays, baselines) stay out: one route file each reads them.
+ */
 internal class PlanRouteDeps(
     val people: PersonService,
     val users: UserService,
-    val workStreams: WorkStreamService,
-    val programs: ProgramService,
-    val projects: ProjectService,
-    val milestones: MilestoneService,
-    val dependencies: DependencyService,
     val teams: TeamService,
-    val view: PlanViewService,
-    val projectView: ProjectViewService,
     val roadmap: RoadmapService,
+    val structure: PlanStructureServices,
+    val views: PlanViewServices,
+    val scheduling: PlanSchedulingServices,
 ) {
     /** `UserService.hasPermission` as the guards' injected lookup (a database read per request, never a token claim). */
     val hasPermission: suspend (userId: UInt, permission: Permission) -> Boolean = users::hasPermission

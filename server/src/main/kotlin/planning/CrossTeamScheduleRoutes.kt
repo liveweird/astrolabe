@@ -33,11 +33,11 @@ class ScheduleProposalsRoute {
  * The plan-scoped cross-team schedule routes (1.8.0, `planning-model.md` "The cross-team run"): unlike every team-scoped route the
  * team set is in the BODY, so the guard cannot run before the body is read.
  */
-internal fun Route.crossTeamScheduleRoutes(d: PlanRouteDeps, crossTeam: CrossTeamProposalService, schedules: TeamScheduleService) {
-    runRoute(d, crossTeam)
-    runnableTeamsRoute(d, crossTeam)
-    acceptRoute(d, schedules)
-    checkRoute(d, crossTeam)
+internal fun Route.crossTeamScheduleRoutes(d: PlanRouteDeps) {
+    runRoute(d)
+    runnableTeamsRoute(d)
+    acceptRoute(d)
+    checkRoute(d)
 }
 
 /**
@@ -52,14 +52,14 @@ internal fun Route.crossTeamScheduleRoutes(d: PlanRouteDeps, crossTeam: CrossTea
  *  5. one read-only snapshot ([CrossTeamProposalService.propose]); a team deleted in the gap since step 3 is the same `404`.
  * Nothing is written, so there is no inner re-guard under a lock (the per-team proposal's rule).
  */
-private fun Route.runRoute(d: PlanRouteDeps, crossTeam: CrossTeamProposalService) {
+private fun Route.runRoute(d: PlanRouteDeps) {
     post<ScheduleProposalsRoute> {
         val caller = call.caller()
         val request = call.receive<CrossTeamProposalRequest>()
         val teamIds = validateTeamIds(request.teamIds)
         d.requireTeamManagers(caller, teamIds)
         val asOf = validateAsOf(request.asOf)
-        call.respond(HttpStatusCode.OK, crossTeam.propose(teamIds, asOf) ?: throw NotFoundException("Team not found"))
+        call.respond(HttpStatusCode.OK, d.scheduling.crossTeam.propose(teamIds, asOf) ?: throw NotFoundException("Team not found"))
     }
 }
 
@@ -67,10 +67,10 @@ private fun Route.runRoute(d: PlanRouteDeps, crossTeam: CrossTeamProposalService
  * `GET /schedule-proposals/teams`: the active teams the caller may include in a run - any authenticated caller, a read (no audit):
  * ADMIN every active team, otherwise the teams the caller currently manages (one query, `withManagedTeams`).
  */
-private fun Route.runnableTeamsRoute(d: PlanRouteDeps, crossTeam: CrossTeamProposalService) {
+private fun Route.runnableTeamsRoute(d: PlanRouteDeps) {
     get<ScheduleProposalsRoute.Teams> {
         val caller = call.caller()
-        call.respond(HttpStatusCode.OK, crossTeam.runnableTeams(d.actor(caller, withManagedTeams = true)))
+        call.respond(HttpStatusCode.OK, d.scheduling.crossTeam.runnableTeams(d.actor(caller, withManagedTeams = true)))
     }
 }
 
@@ -88,13 +88,13 @@ private fun Route.runnableTeamsRoute(d: PlanRouteDeps, crossTeam: CrossTeamPropo
  * has no run team and is in no line (the response carries it); a team with no item gets a zero line (the lock was taken on its
  * behalf) - each with the additive `runTeamIds` (the sorted set, comma-joined) so the N lines read as one accept.
  */
-private fun Route.acceptRoute(d: PlanRouteDeps, schedules: TeamScheduleService) {
+private fun Route.acceptRoute(d: PlanRouteDeps) {
     post<ScheduleProposalsRoute.Accept> {
         val caller = call.caller()
         val request = call.receive<CrossTeamAcceptRequest>()
         val teamIds = validateTeamIds(request.teamIds)
         d.requireTeamManagers(caller, teamIds)
-        val outcome = schedules.acceptRun(request, d.teamManagerGuard(caller))
+        val outcome = d.scheduling.teamSchedule.acceptRun(request, d.teamManagerGuard(caller))
         auditScheduledItems(caller.userId, outcome)
         val runTeamIds = teamIds.sorted()
         for (teamId in runTeamIds) {
@@ -124,13 +124,13 @@ private fun Route.acceptRoute(d: PlanRouteDeps, schedules: TeamScheduleService) 
  * forbidden caller's malformed items stay `403`), then [CrossTeamProposalService.check] (`400` for a milestone outside the run teams; a
  * team deleted in the gap since the guard is the same `404`). Nothing is written, so no inner re-guard under a lock.
  */
-private fun Route.checkRoute(d: PlanRouteDeps, crossTeam: CrossTeamProposalService) {
+private fun Route.checkRoute(d: PlanRouteDeps) {
     post<ScheduleProposalsRoute.Check> {
         val caller = call.caller()
         val request = call.receive<ScheduleCheckRequest>()
         val teamIds = validateTeamIds(request.teamIds)
         d.requireTeamManagers(caller, teamIds)
         val items = validateScheduleCheck(request)
-        call.respond(HttpStatusCode.OK, crossTeam.check(teamIds, items) ?: throw NotFoundException("Team not found"))
+        call.respond(HttpStatusCode.OK, d.scheduling.crossTeam.check(teamIds, items) ?: throw NotFoundException("Team not found"))
     }
 }

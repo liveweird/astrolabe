@@ -92,6 +92,15 @@ class PlanMoveTest {
 
     private suspend fun PlanCaller.program(id: UInt): ProgramResponse = client.get("/api/v1/programs/$id").body()
 
+    /** Spins until the wall clock is strictly past [stamp]: `updatedAt` is epoch millis, so a later write stamps a larger one only then. */
+    private fun awaitClockPast(stamp: Long) {
+        val deadline = System.nanoTime() + CLOCK_WAIT_NANOS
+        while (System.currentTimeMillis() <= stamp) {
+            check(System.nanoTime() < deadline) { "the clock did not pass $stamp" }
+            Thread.onSpinWait()
+        }
+    }
+
     private suspend fun PlanCaller.planView(): PlanView = client.get("/api/v1/views/plan").body()
 
     private fun PlanView.stream(id: UInt): PlanWorkStream = workStreams.single { it.id == id }
@@ -165,7 +174,7 @@ class PlanMoveTest {
         )
         val position = w.admin.client.get("/api/v1/views/roadmap").body<RoadmapView>()
             .ranked.single { it.project.id == w.projectId }.position
-        Thread.sleep(5) // updatedAt is epoch millis: let the clock tick past the create stamp
+        awaitClockPast(before.updatedAt)
 
         assertEquals(noContent, w.admin.client.postJson(moveProject(w.projectId), ProjectMoveRequest(m.tgtProgramId)).status)
 
@@ -231,7 +240,7 @@ class PlanMoveTest {
         val w = m.w
         val projectBefore = w.admin.project(w.projectId)
         val programBefore = w.admin.program(w.programId)
-        Thread.sleep(5)
+        awaitClockPast(maxOf(projectBefore.updatedAt, programBefore.updatedAt))
         withAuditCapture { capture ->
             assertEquals(noContent, w.programOwner.client.postJson(moveProject(w.projectId), ProjectMoveRequest(w.programId)).status)
             assertEquals(noContent, w.streamOwner.client.postJson(moveProgram(w.programId), ProgramMoveRequest(w.streamId)).status)
@@ -497,5 +506,10 @@ class PlanMoveTest {
         assertEquals(HttpStatusCode.BadRequest, response.status)
         assertEquals(revision, TestPlan.revision())
         assertEquals(w.streamId, w.admin.program(w.programId).workStreamId)
+    }
+
+    private companion object {
+        /** The clock is only ever a few milliseconds behind: a wait this long means it is stuck or the stamp is from the future. */
+        const val CLOCK_WAIT_NANOS = 5_000_000_000L
     }
 }

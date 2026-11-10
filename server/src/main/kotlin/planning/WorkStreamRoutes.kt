@@ -45,7 +45,7 @@ internal fun Route.workStreamRoutes(d: PlanRouteDeps) {
         requireAdmin(caller)
         val request = call.receive<WorkStreamCreateRequest>().sanitized()
         validateWorkStream(request)
-        val id = d.workStreams.create(request)
+        val id = d.structure.workStreams.create(request)
         audit(
             "work_stream.created",
             "byUserId" to caller.userId.toLong(),
@@ -54,18 +54,18 @@ internal fun Route.workStreamRoutes(d: PlanRouteDeps) {
             "ownerPersonId" to request.ownerPersonId.toLong(),
         )
         call.response.header(HttpHeaders.Location, call.application.href(WorkStreamsRoute.Id(id = id)))
-        call.respond(HttpStatusCode.Created, d.workStreams.read(id).orVanished(WORK_STREAM, id))
+        call.respond(HttpStatusCode.Created, d.structure.workStreams.read(id).orVanished(WORK_STREAM, id))
     }
     get<WorkStreamsRoute.Id> { route ->
         call.caller()
-        call.respond(HttpStatusCode.OK, d.workStreams.read(route.id).orNotFound(WORK_STREAM))
+        call.respond(HttpStatusCode.OK, d.structure.workStreams.read(route.id).orNotFound(WORK_STREAM))
     }
     put<WorkStreamsRoute.Id> { route ->
         val caller = call.caller()
-        d.requireOwner(caller, d.workStreams.chain(route.id), WORK_STREAM)
+        d.requireOwner(caller, d.structure.workStreams.chain(route.id), WORK_STREAM)
         val request = call.receive<WorkStreamUpdateRequest>().sanitized()
         validateWorkStream(request)
-        val outcome = d.workStreams.update(route.id, request, d.ownerGuard(caller))
+        val outcome = d.structure.workStreams.update(route.id, request, d.ownerGuard(caller))
         val base = arrayOf("byUserId" to caller.userId.toLong(), "workStreamId" to route.id.toLong())
         audit("work_stream.updated", *base, "name" to request.name)
         // An owner change is a rights path (the new owner gains the whole subtree), so it is its own trail line.
@@ -84,18 +84,18 @@ internal fun Route.workStreamRoutes(d: PlanRouteDeps) {
     }
     delete<WorkStreamsRoute.Id> { route ->
         val caller = call.caller()
-        d.requireOwner(caller, d.workStreams.chain(route.id), WORK_STREAM)
-        d.workStreams.delete(route.id, d.ownerGuard(caller))
+        d.requireOwner(caller, d.structure.workStreams.chain(route.id), WORK_STREAM)
+        d.structure.workStreams.delete(route.id, d.ownerGuard(caller))
         audit("work_stream.deleted", "byUserId" to caller.userId.toLong(), "workStreamId" to route.id.toLong())
         call.respond(HttpStatusCode.NoContent)
     }
     post<WorkStreamsRoute.Id.Programs> { route ->
         val caller = call.caller()
         val streamId = route.parent.id
-        d.requireOwner(caller, d.workStreams.chain(streamId), WORK_STREAM)
+        d.requireOwner(caller, d.structure.workStreams.chain(streamId), WORK_STREAM)
         val request = call.receive<ProgramCreateRequest>().sanitized()
         validateProgram(request)
-        val id = d.programs.create(streamId, request, d.ownerGuard(caller))
+        val id = d.structure.programs.create(streamId, request, d.ownerGuard(caller))
         audit(
             "program.created",
             "byUserId" to caller.userId.toLong(),
@@ -105,6 +105,6 @@ internal fun Route.workStreamRoutes(d: PlanRouteDeps) {
             "ownerPersonId" to request.ownerPersonId.toLong(),
         )
         call.response.header(HttpHeaders.Location, call.application.href(ProgramsRoute.Id(id = id)))
-        call.respond(HttpStatusCode.Created, d.programs.read(id).orVanished("Program", id))
+        call.respond(HttpStatusCode.Created, d.structure.programs.read(id).orVanished("Program", id))
     }
 }

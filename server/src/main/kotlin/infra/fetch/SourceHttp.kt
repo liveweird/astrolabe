@@ -8,27 +8,18 @@ import io.ktor.client.request.parameter
 import io.ktor.client.request.prepareRequest
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
-import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.ContentType
 import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
 import io.ktor.http.contentType
-import io.ktor.utils.io.readAvailable
-import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
 import java.io.IOException
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
-import kotlinx.serialization.ExperimentalSerializationApi
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.decodeFromStream
 import org.slf4j.LoggerFactory
 
 private val log = LoggerFactory.getLogger(SourceHttp::class.java)
@@ -64,13 +55,13 @@ internal const val BIG_BODY_BYTES_FOR_HEAP_FIT = 1024L * 1024
  *
  * **Shared pause, per tenant.** A 429 (or a 5xx that carries `Retry-After`; an HTTP-date `Retry-After` parses as no header, like the
  * backoff treats it) says the TENANT is rate limiting, not just this call, so it records a "not before" instant for the call's
- * `pauseKey` ([pauses]; `max(current, now + the wait the call is about to take)`, set even when the call itself gives up). Every other
- * call of the SAME tenant waits for it before it STARTS a request ([awaitPause]: [sleeper], so cancellable, never holding a permit; a
- * pause that appears while a call queued for a permit is caught after acquiring, and the permit goes back). Atlassian limits per tenant,
- * so the key is the cloud id (`HttpJiraClient`), NOT the host (`api.atlassian.com` is shared by every tenant); a call without a key
- * (the unauthenticated `tenant_info` lookup, direct callers) neither sets nor obeys a pause. Requests already on the wire are not
- * interrupted. A network error (IOException) or a plain 5xx pauses nobody. A tenant's entry stays for the process's life (one tiny entry
- * per cloud id).
+ * `pauseKey` ([TenantPauses]; `max(current, now + the wait the call is about to take)`, set even when the call itself gives up).
+ * Every other call of the SAME tenant waits for it before it STARTS a request ([TenantPauses.await]: [sleeper], so cancellable, never
+ * holding a permit; a pause that appears while a call queued for a permit is caught after acquiring, and the permit goes back).
+ * Atlassian limits per tenant, so the key is the cloud id (`HttpJiraClient`), NOT the host (`api.atlassian.com` is shared by every
+ * tenant); a call without a key (the unauthenticated `tenant_info` lookup, direct callers) neither sets nor obeys a pause.
+ * Requests already on the wire are not interrupted. A network error (IOException) or a plain 5xx pauses nobody. A tenant's entry stays
+ * for the process's life (one tiny entry per cloud id).
  *
  * **Tally.** A call that runs inside a [CallTally] (a coroutine-context element, read once per call) counts its 429s, the back-off it
  * sleeps, the tenant pause it waits out and its rate-limit-signal pauses into the sync job's progress; outside one it counts nothing.
@@ -100,8 +91,8 @@ class SourceHttp(
     /** Held while a body over [BIG_BODY_BYTES] is parsed: at most one big tree is under construction at a time. */
     private val bigParses = Mutex()
 
-    /** Per tenant key: the epoch-millis [clock] instant before which no call of that tenant starts a request. */
-    private val pauses = ConcurrentHashMap<String, AtomicLong>()
+    /** Per tenant key: the instant before which no call of that tenant starts a request (`TenantPauses.kt`). */
+    private val tenantPauses = TenantPauses(clock, sleeper)
 
     suspend fun request(
         method: HttpMethod,
@@ -211,36 +202,15 @@ class SourceHttp(
         val interactive = currentCoroutineContext()[PermitWait]?.millis
         var seen = 0L
         while (true) {
-            seen = awaitPause(pauseKey, seen, tally)
+            seen = tenantPauses.await(pauseKey, seen, tally)
             afterWait()
             val deadline = budgetMillis?.let { clock() + it }
             val remaining = deadline?.let { it - clock() }
             val busy = interactive != null && interactive <= (remaining ?: interactive)
             val limit = listOfNotNull(interactive, remaining).minOrNull()
             if (!permit.acquire(limit)) throw FetchException(source, if (busy) "BUSY" else "TIMEOUT")
-            if (pendingPause(pauseKey, seen) == null) return deadline ?: 0L
+            if (tenantPauses.pending(pauseKey, seen) == null) return deadline ?: 0L
             permit.release()
-        }
-    }
-
-    /**
-     * The instant [pauseKey]'s tenant is paused until, if that is still ahead and is not [seen] (the one a wait already served: a
-     * test's no-op [sleeper] and frozen clock must not loop forever).
-     */
-    private fun pendingPause(pauseKey: String?, seen: Long): Long? {
-        val target = pauseKey?.let { pauses[it]?.get() } ?: return null
-        return target.takeIf { it > clock() && it != seen }
-    }
-
-    /** Suspends until [pauseKey]'s pause has passed (re-checking if it was extended); returns the last pause instant waited for. */
-    private suspend fun awaitPause(pauseKey: String?, seen: Long, tally: CallTally?): Long {
-        var waitedFor = seen
-        while (true) {
-            val target = pendingPause(pauseKey, waitedFor) ?: return waitedFor
-            waitedFor = target
-            val wait = target - clock()
-            tally?.addTenantPause(wait.coerceAtLeast(0))
-            sleeper(wait)
         }
     }
 
@@ -252,7 +222,7 @@ class SourceHttp(
         val delayMs = Backoff.delayMillis(attempt, retry.retryAfterSeconds, random)
         // The tenant asked for the wait whether or not THIS call will take it (retries exhausted, deadline): the others still honour it.
         if (retry.pausesOthers && call.pauseKey != null) {
-            pauses.computeIfAbsent(call.pauseKey) { AtomicLong(0) }.accumulateAndGet(clock() + delayMs) { a, b -> maxOf(a, b) }
+            tenantPauses.record(call.pauseKey, clock() + delayMs)
         }
         if (attempt >= maxRetries) throw retry.terminal()
         // A Retry-After that crosses the total per-request budget is reported as RATE_LIMITED specifically (the upstream told us how
@@ -277,7 +247,7 @@ class SourceHttp(
             // [LOW-4] Ported with the donor transport: request the identity encoding so
             // maxResponseBytes counts the SAME bytes actually read off the wire — OkHttp otherwise
             // adds `Accept-Encoding: gzip` itself and transparently decompresses, which would let
-            // [readBounded]'s cap be reached only after inflating a compressed body (still safely
+            // [readBoundedBody]'s cap be reached only after inflating a compressed body (still safely
             // bounded — decoded bytes are the STRICTER count — but "identity" keeps the two the
             // same rather than relying on that argument).
             header(HttpHeaders.AcceptEncoding, "identity")
@@ -328,7 +298,7 @@ class SourceHttp(
             call.tally?.countSignalPause()
             sleeper(pause)
         }
-        val bytes = readBounded(response)
+        val bytes = readBoundedBody(response, source, maxResponseBytes)
         // Before the body is parsed: the byte cap bounds neither the tree a dense document parses to nor the stack a deep one
         // overflows (NodeCeiling.kt). The same failure an over-cap body is, so every stream answers it the way it answers that one.
         jsonCeilingBreach(bytes, maxResponseNodes)?.let { breach ->
@@ -342,42 +312,12 @@ class SourceHttp(
         // a hostile host cannot make the process build several dense trees at once. A small body takes no lock.
         // A caller's transform runs inside the same lock, so the tree it was built from is unreachable once the lock is released.
         val value = if (bytes.size > BIG_BODY_BYTES) {
-            bigParses.withLock { call.transform(parse(bytes, status, url), response.headers) }
+            bigParses.withLock { call.transform(parseJsonBody(bytes, source, status, url), response.headers) }
         } else {
-            call.transform(parse(bytes, status, url), response.headers)
+            call.transform(parseJsonBody(bytes, source, status, url), response.headers)
         }
         call.onWireBytes?.invoke(bytes.size)
         return Done(value)
-    }
-
-    // Parsed straight from the bytes: no decoded String (8-16 MiB of UTF-16 for a big body) is ever held beside the tree. A malformed or
-    // truncated body, or text after the document, throws a SerializationException (an IOException would be caught the same way).
-    @OptIn(ExperimentalSerializationApi::class)
-    private fun parse(bytes: ByteArray, status: Int, url: String): JsonElement = try {
-        Json.decodeFromStream<JsonElement>(ByteArrayInputStream(bytes))
-    } catch (cause: Exception) {
-        throw FetchException(source, "INVALID_RESPONSE", status, url).also { it.initCause(cause) }
-    }
-
-    private suspend fun readBounded(response: HttpResponse): ByteArray {
-        val channel = response.bodyAsChannel()
-        val output = ByteArrayOutputStream()
-        val buffer = ByteArray(READ_BUFFER_SIZE)
-        var total = 0L
-        while (true) {
-            val count = channel.readAvailable(buffer)
-            if (count == -1) break
-            total += count
-            if (total > maxResponseBytes) throw FetchException(source, "LIMIT_EXCEEDED", response.status.value, null)
-            output.write(buffer, 0, count)
-        }
-        // A one-shot answer (GET /field) cannot be halved: one past half the cap is the operator's early warning to raise it.
-        if (total > maxResponseBytes / 2) {
-            log.warn(
-                "A {} response passed half of {}: {} of {} bytes", source.label, source.maxResponseBytesSetting, total, maxResponseBytes,
-            )
-        }
-        return output.toByteArray()
     }
 
     private fun retryAfterSeconds(response: HttpResponse): Long? = response.headers[HttpHeaders.RetryAfter]?.toLongOrNull()
@@ -386,15 +326,6 @@ class SourceHttp(
         private const val RATE_LIMITED_STATUS = 429
         private const val SERVER_ERROR_FLOOR = 500
         private val SUCCESS_RANGE = 200..299
-        private const val READ_BUFFER_SIZE = 8_192
         private const val BIG_BODY_BYTES = BIG_BODY_BYTES_FOR_HEAP_FIT.toInt()
-
-        private fun codeForStatus(status: Int): String = when (status) {
-            401 -> "AUTHENTICATION_FAILED"
-            403 -> "FORBIDDEN_SCOPE"
-            404 -> "NOT_FOUND"
-            in 300..399 -> "REDIRECT"
-            else -> "INVALID_RESPONSE"
-        }
     }
 }

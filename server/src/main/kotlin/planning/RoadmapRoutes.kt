@@ -30,15 +30,15 @@ private fun ApplicationCall.criticalPathParam(): UInt? = request.queryParameters
 
 /**
  * The global project rank. `GET /views/roadmap`: any authenticated user reads it; `can.editRank` and each project's
- * `can.editTargetWindow` carry the caller's rights (the view service travels beside [PlanRouteDeps], see [PlanViewServices]).
+ * `can.editTargetWindow` carry the caller's rights (the view service is [PlanRouteDeps.views]).
  * `PUT /roadmap/ranking`: ADMIN or a `ROADMAP_EDITOR`, GUARD-BEFORE-READ (the route addresses no node: the guard runs before the
  * body is read, so every other caller gets a uniform 403 even for a malformed body). The grant is re-checked INSIDE the plan lock
  * ([RoadmapService.replaceRanking]) — a request can be held open after the outer guard, so only the inner verdict authorizes the write.
  */
-internal fun Route.roadmapRoutes(d: PlanRouteDeps, views: PlanViewServices) {
+internal fun Route.roadmapRoutes(d: PlanRouteDeps) {
     get<RoadmapViewRoute> {
         val caller = call.caller()
-        call.respond(HttpStatusCode.OK, views.roadmap.view(d.actor(caller), call.baselineParam(), call.criticalPathParam()))
+        call.respond(HttpStatusCode.OK, d.views.roadmap.view(d.actor(caller), call.baselineParam(), call.criticalPathParam()))
     }
     put<RoadmapRankingRoute> {
         val caller = call.caller()

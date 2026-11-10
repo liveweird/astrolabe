@@ -46,14 +46,14 @@ private const val PROGRAM = "Program"
 internal fun Route.programRoutes(d: PlanRouteDeps) {
     get<ProgramsRoute.Id> { route ->
         call.caller()
-        call.respond(HttpStatusCode.OK, d.programs.read(route.id).orNotFound(PROGRAM))
+        call.respond(HttpStatusCode.OK, d.structure.programs.read(route.id).orNotFound(PROGRAM))
     }
     put<ProgramsRoute.Id> { route ->
         val caller = call.caller()
-        d.requireOwner(caller, d.programs.chain(route.id), PROGRAM)
+        d.requireOwner(caller, d.structure.programs.chain(route.id), PROGRAM)
         val request = call.receive<ProgramUpdateRequest>().sanitized()
         validateProgram(request)
-        val outcome = d.programs.update(route.id, request, d.ownerGuard(caller))
+        val outcome = d.structure.programs.update(route.id, request, d.ownerGuard(caller))
         val base = arrayOf("byUserId" to caller.userId.toLong(), "programId" to route.id.toLong())
         audit("program.updated", *base, "name" to request.name)
         if (outcome.ownerFrom != request.ownerPersonId) {
@@ -66,18 +66,18 @@ internal fun Route.programRoutes(d: PlanRouteDeps) {
     }
     delete<ProgramsRoute.Id> { route ->
         val caller = call.caller()
-        d.requireOwner(caller, d.programs.chain(route.id), PROGRAM)
-        d.programs.delete(route.id, d.ownerGuard(caller))
+        d.requireOwner(caller, d.structure.programs.chain(route.id), PROGRAM)
+        d.structure.programs.delete(route.id, d.ownerGuard(caller))
         audit("program.deleted", "byUserId" to caller.userId.toLong(), "programId" to route.id.toLong())
         call.respond(HttpStatusCode.NoContent)
     }
     post<ProgramsRoute.Id.Move> { route ->
         val caller = call.caller()
         val programId = route.parent.id
-        val person = d.requireMoveSource(caller, d.programs.chain(programId), PROGRAM)
+        val person = d.requireMoveSource(caller, d.structure.programs.chain(programId), PROGRAM)
         val request = call.receive<ProgramMoveRequest>()
-        d.requireMoveTarget(caller, person, d.workStreams.chain(request.workStreamId), "work stream", request.workStreamId)
-        val outcome = d.programs.move(programId, request.workStreamId, d.moveGuards(caller))
+        d.requireMoveTarget(caller, person, d.structure.workStreams.chain(request.workStreamId), "work stream", request.workStreamId)
+        val outcome = d.structure.programs.move(programId, request.workStreamId, d.moveGuards(caller))
         if (outcome.changed) {
             audit(
                 "program.moved",
@@ -92,10 +92,10 @@ internal fun Route.programRoutes(d: PlanRouteDeps) {
     post<ProgramsRoute.Id.Projects> { route ->
         val caller = call.caller()
         val programId = route.parent.id
-        d.requireOwner(caller, d.programs.chain(programId), PROGRAM)
+        d.requireOwner(caller, d.structure.programs.chain(programId), PROGRAM)
         val request = call.receive<ProjectCreateRequest>().sanitized()
         validateProjectCreate(request)
-        val id = d.projects.create(programId, request, d.ownerGuard(caller))
+        val id = d.structure.projects.create(programId, request, d.ownerGuard(caller))
         audit(
             "project.created",
             "byUserId" to caller.userId.toLong(),
@@ -105,6 +105,6 @@ internal fun Route.programRoutes(d: PlanRouteDeps) {
             "ownerPersonId" to request.ownerPersonId.toLong(),
         )
         call.response.header(HttpHeaders.Location, call.application.href(ProjectsRoute.Id(id = id)))
-        call.respond(HttpStatusCode.Created, d.projects.read(id).orVanished("Project", id))
+        call.respond(HttpStatusCode.Created, d.structure.projects.read(id).orVanished("Project", id))
     }
 }

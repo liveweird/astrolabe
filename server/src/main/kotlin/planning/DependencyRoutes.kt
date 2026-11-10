@@ -34,14 +34,14 @@ private const val DEPENDENCY = "Dependency"
 internal fun Route.dependencyRoutes(d: PlanRouteDeps) {
     get<DependenciesRoute.Id> { route ->
         call.caller()
-        call.respond(HttpStatusCode.OK, d.dependencies.read(route.id).orNotFound(DEPENDENCY))
+        call.respond(HttpStatusCode.OK, d.structure.dependencies.read(route.id).orNotFound(DEPENDENCY))
     }
     put<DependenciesRoute.Id> { route ->
         val caller = call.caller()
-        d.requireOwner(caller, d.dependencies.chain(route.id)?.owners, DEPENDENCY)
+        d.requireOwner(caller, d.structure.dependencies.chain(route.id)?.owners, DEPENDENCY)
         val request = call.receive<DependencyUpdateRequest>()
         validateDependencyUpdate(request)
-        val outcome = d.dependencies.update(route.id, request, d.ownerGuard(caller))
+        val outcome = d.structure.dependencies.update(route.id, request, d.ownerGuard(caller))
         if (outcome.typeFrom != request.type || outcome.lagFrom != request.lagDays) {
             audit(
                 "dependency.updated",
@@ -61,8 +61,8 @@ internal fun Route.dependencyRoutes(d: PlanRouteDeps) {
     }
     delete<DependenciesRoute.Id> { route ->
         val caller = call.caller()
-        d.requireOwner(caller, d.dependencies.chain(route.id)?.owners, DEPENDENCY)
-        val deleted = d.dependencies.delete(route.id, d.ownerGuard(caller))
+        d.requireOwner(caller, d.structure.dependencies.chain(route.id)?.owners, DEPENDENCY)
+        val deleted = d.structure.dependencies.delete(route.id, d.ownerGuard(caller))
         audit(
             "dependency.deleted",
             "byUserId" to caller.userId.toLong(),

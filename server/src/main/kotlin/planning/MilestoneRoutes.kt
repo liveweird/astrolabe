@@ -51,19 +51,19 @@ internal fun Route.milestoneRoutes(d: PlanRouteDeps) {
         call.caller()
         val paging = call.parsePaging(sortable = MILESTONE_SORT_FIELDS)
         val filter = MilestoneListFilter(name = call.request.queryParameters.optionalString("name"))
-        val result = d.milestones.list(filter, paging)
+        val result = d.structure.milestones.list(filter, paging)
         call.respond(HttpStatusCode.OK, paging.toPage(result.items, result.total))
     }
     get<MilestonesRoute.Id> { route ->
         call.caller()
-        call.respond(HttpStatusCode.OK, d.milestones.read(route.id).orNotFound(MILESTONE))
+        call.respond(HttpStatusCode.OK, d.structure.milestones.read(route.id).orNotFound(MILESTONE))
     }
     put<MilestonesRoute.Id> { route ->
         val caller = call.caller()
-        d.requireOwner(caller, d.milestones.chain(route.id)?.owners, MILESTONE)
+        d.requireOwner(caller, d.structure.milestones.chain(route.id)?.owners, MILESTONE)
         val request = call.receive<MilestoneUpdateRequest>().sanitized()
         validateMilestoneFields(request.name, request.description, request.estimateMd)
-        val outcome = d.milestones.update(route.id, request, d.ownerGuard(caller))
+        val outcome = d.structure.milestones.update(route.id, request, d.ownerGuard(caller))
         val base = arrayOf("byUserId" to caller.userId.toLong(), "milestoneId" to route.id.toLong())
         audit("milestone.updated", *base, "name" to request.name, "estimateMd" to request.estimateMd)
         if (outcome.teamFrom != request.teamId) {
@@ -75,10 +75,10 @@ internal fun Route.milestoneRoutes(d: PlanRouteDeps) {
     put<MilestonesRoute.Id.Schedule> { route ->
         val caller = call.caller()
         val id = route.parent.id
-        d.requireManager(caller, d.milestones.chain(id))
+        d.requireManager(caller, d.structure.milestones.chain(id))
         val request = call.receive<MilestoneScheduleRequest>()
         val span = validateScheduleRequest(request)
-        val outcome = d.milestones.schedule(id, request, d.managerGuard(caller))
+        val outcome = d.structure.milestones.schedule(id, request, d.managerGuard(caller))
         if (outcome.from != span) {
             audit(
                 "milestone.scheduled",
@@ -100,9 +100,9 @@ internal fun Route.milestoneRoutes(d: PlanRouteDeps) {
     }
     delete<MilestonesRoute.Id> { route ->
         val caller = call.caller()
-        val chain = d.milestones.chain(route.id).orNotFound(MILESTONE)
+        val chain = d.structure.milestones.chain(route.id).orNotFound(MILESTONE)
         d.requireOwner(caller, chain.owners, MILESTONE)
-        val cascade = d.milestones.delete(route.id, d.ownerGuard(caller))
+        val cascade = d.structure.milestones.delete(route.id, d.ownerGuard(caller))
         audit(
             "milestone.deleted",
             "byUserId" to caller.userId.toLong(),
@@ -128,9 +128,9 @@ private fun Route.pinRoute(d: PlanRouteDeps) {
     put<MilestonesRoute.Id.Pin> { route ->
         val caller = call.caller()
         val id = route.parent.id
-        d.requireManager(caller, d.milestones.chain(id))
+        d.requireManager(caller, d.structure.milestones.chain(id))
         val request = call.receive<MilestonePinRequest>()
-        val outcome = d.milestones.pin(id, request.pinned, d.managerGuard(caller))
+        val outcome = d.structure.milestones.pin(id, request.pinned, d.managerGuard(caller))
         if (outcome.before != request.pinned) {
             val event = if (request.pinned) "milestone.pinned" else "milestone.unpinned"
             val reason = if (request.pinned) null else PIN_REQUESTED
