@@ -590,6 +590,8 @@ class TelemetryRoutesTest {
 
         override suspend fun requireRunnable(connectionId: UInt) = Unit
 
+        override suspend fun lockActiveInTransaction(connectionId: UInt) = Unit
+
         override suspend fun connections(): List<ConnectorConnection> = error("the telemetry block must pass its statement budget")
 
         override suspend fun connections(queryTimeoutSeconds: Int): List<ConnectorConnection> {

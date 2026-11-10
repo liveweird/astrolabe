@@ -80,7 +80,7 @@ class MockJiraRun(
 
     /** Claims and runs once, finishing the row like the runner does; the answer is what the connector reported. */
     suspend fun run(connectionId: UInt): SyncResult {
-        val claimed = runs.claim(SyncKind.JIRA, connectionId, SyncTrigger.MANUAL, null)
+        val claimed = runs.claimUnchecked(SyncKind.JIRA, connectionId, SyncTrigger.MANUAL, null)
         val result = observer.run(claimed)
         runs.finish(claimed.id, result)
         return result

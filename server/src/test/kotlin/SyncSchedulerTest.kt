@@ -95,11 +95,17 @@ class SyncSchedulerTest {
         @Volatile
         var check: suspend (UInt) -> Unit = {}
 
+        /** The claim's own lock: throws `BadRequestException` for a connection deleted since the check. */
+        @Volatile
+        var lock: suspend (UInt) -> Unit = {}
+
         @Volatile
         var body: suspend (ClaimedRun) -> SyncResult = { SyncResult.succeeded(SyncCounts()) }
         val runCalls = AtomicInteger()
 
         override suspend fun requireRunnable(connectionId: UInt) = check(connectionId)
+
+        override suspend fun lockActiveInTransaction(connectionId: UInt) = lock(connectionId)
 
         override suspend fun connections(): List<ConnectorConnection> = listing()
 
@@ -253,7 +259,7 @@ class SyncSchedulerTest {
         val id = connectionId()
         val fake = FakeConnector().apply { rows = listOf(conn(id)) }
         val scheduler = scheduler(fake)
-        val inFlight = runs.claim(SyncKind.JIRA, id, SyncTrigger.MANUAL, null)
+        val inFlight = runs.claimUnchecked(SyncKind.JIRA, id, SyncTrigger.MANUAL, null)
 
         at(9, 59_000)
         scheduler.tickAndSettle(id)
@@ -457,6 +463,23 @@ class SyncSchedulerTest {
     }
 
     @Test
+    fun `a connection deleted after the last look but before the claim's lock is skipped and leaves no run`() = runBlocking {
+        val gone = connectionId()
+        val log = capture()
+        val fake = FakeConnector().apply {
+            rows = listOf(conn(gone))
+            lock = { throw BadRequestException("Unknown or disabled") } // the delete committed between requireRunnable and the claim
+        }
+        val scheduler = scheduler(fake)
+        scheduler.tickAndSettle(gone)
+
+        assertEquals(0, fake.runCalls.get())
+        assertEquals(emptyList(), rows(gone), "the refused claim wrote nothing")
+        assertTrue(log.lines(ch.qos.logback.classic.Level.INFO).any { "JIRA connection $gone was deleted before the claim" in it })
+        assertEquals(true, scheduler.lastTickOk, "a deleted connection is a skip, not a failure")
+    }
+
+    @Test
     fun `a connection that throws fails only itself, once in the log, and never leaks the exception text`() = runBlocking {
         val broken = connectionId()
         val healthy = connectionId()
@@ -578,7 +601,7 @@ class SyncSchedulerTest {
         val id = connectionId()
         val fake = FakeConnector().apply { rows = listOf(conn(id)) }
         fake.check = { // the other replica gets in between the read and the claim, and its run is already over
-            val other = runs.claim(SyncKind.JIRA, it, SyncTrigger.SCHEDULED, null)
+            val other = runs.claimUnchecked(SyncKind.JIRA, it, SyncTrigger.SCHEDULED, null)
             runs.finish(other.id, SyncResult.succeeded(SyncCounts()))
         }
         val log = capture()

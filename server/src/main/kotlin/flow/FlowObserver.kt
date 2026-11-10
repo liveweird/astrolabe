@@ -88,6 +88,10 @@ class FlowObserver internal constructor(
         if (!connections.isRunnable(connectionId)) throw BadRequestException(UNKNOWN_FLOW_CONNECTION)
     }
 
+    override suspend fun lockActiveInTransaction(connectionId: UInt) {
+        if (!connections.lockActiveInTransaction(connectionId)) throw BadRequestException(UNKNOWN_FLOW_CONNECTION)
+    }
+
     /** The scheduler's poll rows (no token): `FlowConnectionService.pollRows`. */
     override suspend fun connections(): List<ConnectorConnection> = connections.pollRows()
 

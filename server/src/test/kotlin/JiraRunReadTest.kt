@@ -274,7 +274,7 @@ class JiraRunReadTest {
         }
         val runs = mock.runs
         val deadline = SyncRunner(CoroutineScope(SupervisorJob() + Dispatchers.IO), runs, deadlineMillis = 500)
-        val first = runs.claim(ch.nokillswit.sync.SyncKind.JIRA, f.connectionId, SyncTrigger.MANUAL, null)
+        val first = runs.claimUnchecked(ch.nokillswit.sync.SyncKind.JIRA, f.connectionId, SyncTrigger.MANUAL, null)
         deadline.start(mock.connector, first)
         withTimeout(60_000) { deadline.await(first.id) }
         val cut = runs.list(ch.nokillswit.sync.SyncKind.JIRA, f.connectionId).single { it.id == first.id }
@@ -283,7 +283,7 @@ class JiraRunReadTest {
         hanging.receive() // the first run's request
 
         val shutdown = SyncRunner(CoroutineScope(SupervisorJob() + Dispatchers.IO), runs)
-        val second = runs.claim(ch.nokillswit.sync.SyncKind.JIRA, f.connectionId, SyncTrigger.MANUAL, null)
+        val second = runs.claimUnchecked(ch.nokillswit.sync.SyncKind.JIRA, f.connectionId, SyncTrigger.MANUAL, null)
         shutdown.start(mock.connector, second)
         withTimeout(60_000) { hanging.receive() } // the second run's request is in flight
         shutdown.shutdown()

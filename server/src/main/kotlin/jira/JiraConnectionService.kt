@@ -19,6 +19,7 @@ import ch.nokillswit.sync.SyncKind
 import ch.nokillswit.sync.SyncRunService
 import ch.nokillswit.sync.SyncStatus
 import ch.nokillswit.sync.isRunnable
+import ch.nokillswit.sync.lockActiveConnection
 import ch.nokillswit.sync.runnableStateOf
 import ch.nokillswit.sync.statusesInTransaction
 import io.ktor.util.AttributeKey
@@ -209,6 +210,9 @@ class JiraConnectionService(
 
     /** Whether the connection is active and enabled: what a run needs before it claims (no token is read). */
     suspend fun isRunnable(id: UInt): Boolean = isRunnable(database, Connections, id)
+
+    /** The claim's guard, INSIDE its open transaction: the ACTIVE row locked `FOR SHARE` against [delete]. */
+    suspend fun lockActiveInTransaction(id: UInt): Boolean = lockActiveConnection(Connections, id)
 
     /** What a run in flight may still do with its connection, checked once per search page (`sync/ConnectionRegistry.kt`). */
     suspend fun runnableState(id: UInt): RunnableState = runnableStateOf(database, Connections, id)

@@ -165,6 +165,16 @@ class PackageBoundaryTest {
         }
     }
 
+    @Test
+    fun `the unguarded claim is declared in the run registry and used by no main source`() {
+        // claimUnchecked skips the connection lock (the claim/delete race fix); `internal` is module-wide, so the scan is the fence.
+        val uses = mainSources.flatMap { file ->
+            file.readLines().filter { !isComment(it) && "claimUnchecked" in it }.map { "${file.name}: ${it.trim()}" }
+        }
+        assertEquals(1, uses.size, "claimUnchecked may appear only as its own declaration under src/main: $uses")
+        assertTrue(uses.single().startsWith("SyncRunService.kt: internal suspend fun claimUnchecked("), uses.single())
+    }
+
     private fun sourcesOf(pkg: String): List<File> = mainSources.filter { packageOf(it.readText()) == "ch.nokillswit.$pkg" }
 
     @Test

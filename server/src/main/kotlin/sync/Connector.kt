@@ -32,6 +32,13 @@ interface Connector {
     suspend fun requireRunnable(connectionId: UInt)
 
     /**
+     * INSIDE the claim's open transaction (it opens none): locks the connection's row `FOR SHARE` so a delete of it serializes with the
+     * claim ([lockActiveConnection]), and throws `BadRequestException` - the one [requireRunnable] throws - when it is unknown or
+     * deleted. Called by [SyncRunService.claim] before it writes anything, so a claim never leaves a row for a connection that is gone.
+     */
+    suspend fun lockActiveInTransaction(connectionId: UInt)
+
+    /**
      * The connector's ACTIVE (not deleted) connections as the scheduler needs them, in id order: disabled and manual-only ones included
      * (the status reads them too), each as a [ConnectorConnection]. One cheap read; it must never carry a token or the upstream's snapshot.
      */

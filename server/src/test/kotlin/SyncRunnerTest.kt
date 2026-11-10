@@ -58,12 +58,13 @@ class SyncRunnerTest {
     private fun connector(body: suspend (ClaimedRun) -> SyncResult) = object : Connector {
         override val kind = SyncKind.JIRA
         override suspend fun requireRunnable(connectionId: UInt) = Unit
+        override suspend fun lockActiveInTransaction(connectionId: UInt) = Unit
         override suspend fun connections() = emptyList<ConnectorConnection>()
         override suspend fun run(run: ClaimedRun) = body(run)
     }
 
     private suspend fun SyncRunner.execute(connector: Connector, id: UInt): SyncRunResponse {
-        val claimed = runs.claim(SyncKind.JIRA, id, SyncTrigger.MANUAL, null)
+        val claimed = runs.claimUnchecked(SyncKind.JIRA, id, SyncTrigger.MANUAL, null)
         start(connector, claimed)
         withTimeout(30_000) { await(claimed.id) }
         return runs.list(SyncKind.JIRA, id).single { it.id == claimed.id }
@@ -117,7 +118,7 @@ class SyncRunnerTest {
             }
         }
         val id = connection()
-        val claimed = runs.claim(SyncKind.JIRA, id, SyncTrigger.MANUAL, null)
+        val claimed = runs.claimUnchecked(SyncKind.JIRA, id, SyncTrigger.MANUAL, null)
         runner.start(hanging, claimed)
         withTimeout(30_000) { started.await() }
         runner.shutdown()
@@ -127,7 +128,7 @@ class SyncRunnerTest {
         assertEquals("SHUTDOWN", row.errorCode)
         assertTrue(runnerScope.coroutineContext[Job]!!.isCancelled)
         // A run that starts on the stopped runner still records its end (ATOMIC start): never a row left unfinished by shutdown.
-        val late = runs.claim(SyncKind.JIRA, id, SyncTrigger.MANUAL, null)
+        val late = runs.claimUnchecked(SyncKind.JIRA, id, SyncTrigger.MANUAL, null)
         runner.start(connector { SyncResult.succeeded(SyncCounts()) }, late)
         withTimeout(30_000) { runner.await(late.id) }
         assertTrue(runs.list(SyncKind.JIRA, id).single { it.id == late.id }.outcome != null)
@@ -165,7 +166,7 @@ class SyncRunnerTest {
             configureApp()
             startApplication()
             val started = CompletableDeferred<Unit>()
-            claimed = application.attributes[SyncRunServiceKey].claim(SyncKind.JIRA, id, SyncTrigger.MANUAL, null)
+            claimed = application.attributes[SyncRunServiceKey].claimUnchecked(SyncKind.JIRA, id, SyncTrigger.MANUAL, null)
             application.attributes[SyncRunnerKey].start(connector { started.complete(Unit).let { awaitCancellation() } }, claimed)
             withTimeout(30_000) { started.await() }
         } // the application stops here

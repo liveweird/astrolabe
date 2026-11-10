@@ -165,7 +165,7 @@ class SyncScheduler(
         if (!stillDue(connector, connection, now)) return false
         return try {
             withContext(NonCancellable) {
-                val claimed = runs.claim(connector.kind, connection.id, SyncTrigger.SCHEDULED, null)
+                val claimed = runs.claim(connector, connection.id, SyncTrigger.SCHEDULED, null)
                 runner.start(connector, claimed)
                 log.info("Scheduler started run {} for {} connection {}", claimed.id, connector.kind, connection.id)
             }
@@ -175,6 +175,10 @@ class SyncScheduler(
                 "Scheduler: {} connection {} is claimed elsewhere (another instance or a refresh), skipped",
                 connector.kind, connection.id,
             )
+            false
+        } catch (_: BadRequestException) {
+            // The claim's own lock found the connection deleted since stillDue looked: nothing was written.
+            log.info("Scheduler: {} connection {} was deleted before the claim, skipped", connector.kind, connection.id)
             false
         }
     }

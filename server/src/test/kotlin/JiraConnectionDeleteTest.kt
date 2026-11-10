@@ -49,7 +49,7 @@ class JiraConnectionDeleteTest {
         // A finished earlier run of the connection, and the run of this test: the script deletes the connection while its first search is
         // "on the wire", then answers a page that WOULD overwrite the stale summary.
         val runs = application.attributes[SyncRunServiceKey]
-        runs.finish(runs.claim(SyncKind.JIRA, connectionId, SyncTrigger.MANUAL, null).id, SyncResult.failed("INTERNAL", "history"))
+        runs.finish(runs.claimUnchecked(SyncKind.JIRA, connectionId, SyncTrigger.MANUAL, null).id, SyncResult.failed("INTERNAL", "history"))
         assertEquals(1, runCount(connectionId))
         var deleted = false
         val mock = MockJiraRun(application) { request ->

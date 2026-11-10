@@ -109,7 +109,7 @@ class FlowRunHarness(clients: FlowClientFactory, sprintsSinceDays: Int = 365, no
 
     /** Claims and runs once, finishing the row like the runner does; the answer is what the connector reported. */
     suspend fun run(connectionId: UInt, trigger: SyncTrigger = SyncTrigger.MANUAL, byUserId: UInt? = null): SyncResult {
-        val claimed = runs.claim(SyncKind.FLOW, connectionId, trigger, byUserId)
+        val claimed = runs.claimUnchecked(SyncKind.FLOW, connectionId, trigger, byUserId)
         val result = observer.run(claimed)
         runs.finish(claimed.id, result)
         return result

@@ -48,20 +48,20 @@ class SyncRunServiceTest {
         val runs = service()
         val id = connection()
         val requester = TestUsers.seed(uniqueEmail("syncrun"), "sync-run-pass-1")
-        val claimed = runs.claim(SyncKind.JIRA, id, SyncTrigger.MANUAL, requester)
+        val claimed = runs.claimUnchecked(SyncKind.JIRA, id, SyncTrigger.MANUAL, requester)
         val listed = runs.list(SyncKind.JIRA, id).single()
         assertEquals(claimed.id, listed.id)
         assertNull(listed.finishedAt)
         assertNull(listed.outcome)
         assertEquals(SyncTrigger.MANUAL, listed.trigger)
         assertEquals(requester, listed.requestedByUserId)
-        val refused = assertFailsWith<ConflictException> { runs.claim(SyncKind.JIRA, id, SyncTrigger.SCHEDULED, null) }
+        val refused = assertFailsWith<ConflictException> { runs.claimUnchecked(SyncKind.JIRA, id, SyncTrigger.SCHEDULED, null) }
         assertEquals(RUN_IN_PROGRESS_PROBLEM, refused.problemType)
         assertEquals(1, runs.list(SyncKind.JIRA, id).size, "the refused claim left nothing behind")
         // Another connection is independent; a finished run frees its own.
-        runs.claim(SyncKind.JIRA, connection(), SyncTrigger.MANUAL, null)
+        runs.claimUnchecked(SyncKind.JIRA, connection(), SyncTrigger.MANUAL, null)
         assertTrue(runs.finish(claimed.id, SyncResult.succeeded(SyncCounts())))
-        runs.claim(SyncKind.JIRA, id, SyncTrigger.SCHEDULED, null)
+        runs.claimUnchecked(SyncKind.JIRA, id, SyncTrigger.SCHEDULED, null)
         assertEquals(setOf(SyncTrigger.MANUAL, SyncTrigger.SCHEDULED), runs.list(SyncKind.JIRA, id).map { it.trigger }.toSet())
     }
 
@@ -70,12 +70,12 @@ class SyncRunServiceTest {
         val clock = Clock()
         val runs = service(clock, maxRunMinutes = 10)
         val id = connection()
-        val stale = runs.claim(SyncKind.JIRA, id, SyncTrigger.MANUAL, null)
+        val stale = runs.claimUnchecked(SyncKind.JIRA, id, SyncTrigger.MANUAL, null)
         clock.now += 10 * 60_000L // exactly the limit: still valid (the bound is strict)
-        assertFailsWith<ConflictException> { runs.claim(SyncKind.JIRA, id, SyncTrigger.MANUAL, null) }
+        assertFailsWith<ConflictException> { runs.claimUnchecked(SyncKind.JIRA, id, SyncTrigger.MANUAL, null) }
         assertNull(runs.list(SyncKind.JIRA, id).single().outcome)
         clock.now += 1
-        val fresh = runs.claim(SyncKind.JIRA, id, SyncTrigger.MANUAL, null)
+        val fresh = runs.claimUnchecked(SyncKind.JIRA, id, SyncTrigger.MANUAL, null)
         val byId = runs.list(SyncKind.JIRA, id).associateBy { it.id }
         val abandoned = byId.getValue(stale.id)
         assertEquals(SyncOutcome.ABANDONED, abandoned.outcome)
@@ -95,11 +95,11 @@ class SyncRunServiceTest {
         val runs = service(clock)
         val id = connection()
         val other = connection()
-        val otherRun = runs.claim(SyncKind.JIRA, other, SyncTrigger.MANUAL, null)
+        val otherRun = runs.claimUnchecked(SyncKind.JIRA, other, SyncTrigger.MANUAL, null)
         runs.finish(otherRun.id, SyncResult.succeeded(SyncCounts()))
         val ids = (1..MAX_LISTED_RUNS + 5).map {
             clock.now += 1_000
-            val run = runs.claim(SyncKind.JIRA, id, SyncTrigger.MANUAL, null)
+            val run = runs.claimUnchecked(SyncKind.JIRA, id, SyncTrigger.MANUAL, null)
             runs.finish(run.id, SyncResult.succeeded(SyncCounts()))
             run.id
         }
@@ -109,7 +109,7 @@ class SyncRunServiceTest {
         assertEquals(1, runs.list(SyncKind.JIRA, other).size, "another connection's history is not pruned")
         // 50 finished + one unfinished claim: the claim leaves room for itself, so the unfinished row is the 50th.
         clock.now += 1_000
-        val running = runs.claim(SyncKind.JIRA, id, SyncTrigger.MANUAL, null)
+        val running = runs.claimUnchecked(SyncKind.JIRA, id, SyncTrigger.MANUAL, null)
         val withRunning = runs.list(SyncKind.JIRA, id)
         assertEquals(MAX_LISTED_RUNS, withRunning.size)
         assertEquals(running.id, withRunning.first().id)
@@ -120,11 +120,11 @@ class SyncRunServiceTest {
     fun `finish stores the outcome, the counters and a clamped detail`() = runBlocking {
         val runs = service()
         val id = connection()
-        val ok = runs.claim(SyncKind.JIRA, id, SyncTrigger.MANUAL, null)
+        val ok = runs.claimUnchecked(SyncKind.JIRA, id, SyncTrigger.MANUAL, null)
         val counts = SyncCounts(observed = 12, gone = 3, calls = 9, rateLimited = 2, backoffMs = 4_500)
         assertTrue(runs.finish(ok.id, SyncResult.succeeded(counts)))
         val longDetail = "x".repeat(2_000) + " https://acme.atlassian.net/rest/api/3/search/jql?jql=secret&fields=id Bearer abc.def-ghi"
-        val failed = runs.claim(SyncKind.JIRA, id, SyncTrigger.MANUAL, null)
+        val failed = runs.claimUnchecked(SyncKind.JIRA, id, SyncTrigger.MANUAL, null)
         assertTrue(runs.finish(failed.id, SyncResult.failed("A".repeat(80), longDetail, SyncCounts(calls = 4))))
         val rows = runs.list(SyncKind.JIRA, id).associateBy { it.id }
         val success = rows.getValue(ok.id)
@@ -145,13 +145,13 @@ class SyncRunServiceTest {
         val runs = service(clock)
         val id = connection()
         assertNull(runs.lastSucceededStart(SyncKind.JIRA, id))
-        val first = runs.claim(SyncKind.JIRA, id, SyncTrigger.MANUAL, null)
+        val first = runs.claimUnchecked(SyncKind.JIRA, id, SyncTrigger.MANUAL, null)
         runs.finish(first.id, SyncResult.succeeded(SyncCounts()))
         clock.now += 60_000
-        val failed = runs.claim(SyncKind.JIRA, id, SyncTrigger.MANUAL, null)
+        val failed = runs.claimUnchecked(SyncKind.JIRA, id, SyncTrigger.MANUAL, null)
         runs.finish(failed.id, SyncResult.failed("TIMEOUT"))
         clock.now += 60_000
-        runs.claim(SyncKind.JIRA, id, SyncTrigger.MANUAL, null)
+        runs.claimUnchecked(SyncKind.JIRA, id, SyncTrigger.MANUAL, null)
         assertEquals(first.startedAt, runs.lastSucceededStart(SyncKind.JIRA, id))
     }
 
@@ -183,7 +183,7 @@ class SyncRunServiceTest {
         val clock = Clock()
         val runs = service(clock, maxRunMinutes = 10)
         val id = connection()
-        val claimed = runs.claim(SyncKind.JIRA, id, SyncTrigger.MANUAL, null)
+        val claimed = runs.claimUnchecked(SyncKind.JIRA, id, SyncTrigger.MANUAL, null)
         assertTrue(runs.list(SyncKind.JIRA, id).single().running, "just claimed")
         clock.now += 10 * 60_000L
         assertTrue(runs.list(SyncKind.JIRA, id).single().running, "exactly at the limit: still inside the window")

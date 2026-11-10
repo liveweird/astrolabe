@@ -70,7 +70,6 @@ Each increment gets its own plan (architect) before implementation. The domain s
 - [new] **Drill-downs for the roll-up and "and N more" (1.4).** The chip shows `5/12 · 34 pt` and a coverage detail lists ten keys; the mirror holds every child's key, summary and status, so a milestone could open its children and a coverage row its full list (the summaries stay out of the Deviations view today, `authorization.md`).
 - [new] **The reverse `CHILDREN_OPEN` (1.4).** The plan ended and Jira children are still open; today `PROGRESS_MISMATCH` covers the epic's own status only. One more kernel rule over the same roll-up.
 - [new] **Read children by `parent in (...)` chunks for a site past the 200-page ceiling (1.4, A11).** The children read is one typed listing (20,000 stories at 100 a page); past it the run keeps what it read, prunes nothing and warns, and roll-ups are incomplete. A chunked read over the bound epics' ids would not hit the ceiling, but a static stub cannot answer it.
-- [next] **A claim racing a connection delete leaves an unpruned `sync_runs` row (1.3).** The scheduler's claim and the manual route can both insert a run for a connection that is deleted a moment later; the row is never pruned. Prune by connection at claim time or sweep orphans.
 
 ## Engineering follow-ups
 

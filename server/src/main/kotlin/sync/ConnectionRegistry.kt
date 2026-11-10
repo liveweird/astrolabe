@@ -5,6 +5,7 @@ import ch.nokillswit.infra.db.active
 import kotlinx.coroutines.flow.toList
 import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.core.dao.id.UIntIdTable
+import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
 import org.jetbrains.exposed.v1.r2dbc.*
 import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
 
@@ -43,6 +44,20 @@ suspend fun <T> runnableStateOf(database: R2dbcDatabase, table: T, id: UInt): Ru
 /** Whether the connection is active and enabled: what a manual run needs before it claims. */
 suspend fun <T> isRunnable(database: R2dbcDatabase, table: T, id: UInt): Boolean
     where T : UIntIdTable, T : ConnectionColumns = runnableStateOf(database, table, id) == RunnableState.RUNNABLE
+
+/**
+ * Whether the connection is ACTIVE (not deleted), locking its row `FOR SHARE` for the rest of the CALLER's open transaction (it opens
+ * none): the claim's guard ([SyncRunService.claim]). The lock conflicts with the connection delete's `FOR NO KEY UPDATE`, so a claim and
+ * a delete of one connection serialize: the delete committed first and this answers false (nothing is inserted), or the claim holds the
+ * lock until its INSERT commits and the delete, which waited, then removes the new row with the rest of the connection's runs. Without
+ * it a claim whose connector check passed just before the delete would commit an unfinished row for a connection that no longer
+ * exists, which nothing prunes (`sync_runs` has no foreign key). A disabled connection is still locked and answered true: the run
+ * itself ends `CONNECTION_DISABLED`.
+ */
+suspend fun <T> lockActiveConnection(table: T, id: UInt): Boolean
+    where T : UIntIdTable, T : ConnectionColumns =
+    table.select(table.id).where { (table.id eq id) and table.active() }
+        .forUpdate(ForUpdateOption.PostgreSQL.ForShare).toList().isNotEmpty()
 
 /**
  * The scheduler's rows of one connector's connections: every ACTIVE connection, in id order, in one budgeted transaction

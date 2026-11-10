@@ -102,7 +102,7 @@ Deleting a connection soft-deletes its bindings in the same transaction (**D2**)
 `TODO|IN_PROGRESS|DONE`, anything else `UNKNOWN`), parent id/key, start, end, estimate and unit, team name, `gone`. `JiraObservation.of` is pure and clamps every value to its column (a figure
 that cannot fit `NUMERIC(12,2)` reads as null) so one odd issue cannot fail a chunk and wedge every later run.
 
-**Refresh now** → `POST /integrations/sync/runs`: `requireRunnable` (the connection is active and enabled, else `400`), `SyncRunService.claim` (abandon any unfinished run of the connection older than
+**Refresh now** → `POST /integrations/sync/runs`: `requireRunnable` (the connection is active and enabled, else `400`), `SyncRunService.claim` (in ONE transaction: lock the connection row `FOR SHARE` through `Connector.lockActiveInTransaction` - a delete racing the claim serializes with it, and a claim that meets a deleted connection is a `400` that writes nothing, so no orphan `sync_runs` row outlives its connection, which the delete otherwise purges; abandon any unfinished run of the connection older than
 `sync.maxRunMinutes`, prune the finished ones to 50, INSERT the unfinished row; a `23505` on **`uq_sync_runs_running`** is `409 run-in-progress`: the claim IS the unique index, so replicas cannot double-run),
 audit `jira.sync_requested`, `202`, and the run executes on the application's background scope (`SyncRunner`). The page polls `GET /integrations/sync/runs?kind=JIRA&connectionId=` (≤ 50, newest first).
 Outcomes are `SUCCEEDED|FAILED|ABANDONED`; a run's own deadline is `maxRunMinutes − 1` (never under 30 s) → `FAILED/RUN_DEADLINE`, so a live run is never abandoned under itself.

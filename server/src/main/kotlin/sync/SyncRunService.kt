@@ -21,13 +21,17 @@ private const val MAX_ERROR_DETAIL = 500
 private const val MAX_ERROR_CODE = 40
 
 /**
- * The run registry (V21 `sync_runs`): who is running what, and how each run ended. It writes ONLY its own table and reads no other. A
- * run is claimed by INSERTing its unfinished row - the partial unique index `uq_sync_runs_running` admits one per (kind, connection), so
- * of any number of replicas that tick together exactly one INSERT lands and the others get a `409` (manual) or the scheduler's
- * INFO "claimed elsewhere" line. There is no lock beyond that index and no timer: a process that died with a run unfinished is cleaned
- * up by the NEXT claim, which finishes any unfinished row older than [maxRunMinutes] as `ABANDONED` (the run's own deadline is shorter,
- * so a live run is never abandoned under itself). The rows are operational history, pruned to the last [MAX_LISTED_RUNS] per connection
- * at claim time.
+ * The run registry (V21 `sync_runs`): who is running what, and how each run ended. It writes ONLY its own table and reads no other,
+ * except the connection row lock a claim takes through the connector ([Connector.lockActiveInTransaction]). A run is claimed by
+ * INSERTing its unfinished row - the partial unique index `uq_sync_runs_running` admits one per (kind, connection), so of any number
+ * of replicas that tick together exactly one INSERT lands and the others get a `409` (manual) or the scheduler's INFO "claimed
+ * elsewhere" line. There is no lock on this table beyond that index and no timer: a process that died with a run unfinished is
+ * cleaned up by the NEXT claim, which finishes any unfinished row older than [maxRunMinutes] as `ABANDONED` (the run's own deadline
+ * is shorter, so a live run is never abandoned under itself). The rows are operational history, pruned to the last
+ * [MAX_LISTED_RUNS] per connection at claim time. A claim also takes the connection's row `FOR SHARE` first
+ * ([Connector.lockActiveInTransaction]) against the connection delete's `FOR NO KEY UPDATE`, which hard-deletes the connection's
+ * runs: a claim racing a delete either lands before it (the delete removes the row) or is refused `400` after it, so no run is ever
+ * left for a connection that is gone (`sync_runs` has no foreign key, nothing else would prune the row).
  */
 class SyncRunService(
     private val database: R2dbcDatabase,
@@ -53,16 +57,35 @@ class SyncRunService(
     }
 
     /**
-     * Claims a run: in ONE transaction, finishes any unfinished run of the (kind, connection) older than [maxRunMinutes] as `ABANDONED`,
-     * prunes the finished ones to leave room for this one, then INSERTs the unfinished row. A `23505` on the unique index means another
-     * run holds the claim: `409 run-in-progress`.
+     * Claims a run for [connectionId] of [connector]'s kind: in ONE transaction, locks the connection's row `FOR SHARE`
+     * ([Connector.lockActiveInTransaction]: `400` when it is unknown or deleted, nothing written), finishes any unfinished run of the
+     * (kind, connection) older than [maxRunMinutes] as `ABANDONED`, prunes the finished ones to leave room for this one, then INSERTs
+     * the unfinished row. A `23505` on the unique index means another run holds the claim: `409 run-in-progress`. Every production
+     * claim (the manual route, the scheduler) comes through here.
      */
-    suspend fun claim(kind: SyncKind, connectionId: UInt, trigger: SyncTrigger, byUserId: UInt?): ClaimedRun {
+    suspend fun claim(connector: Connector, connectionId: UInt, trigger: SyncTrigger, byUserId: UInt?): ClaimedRun =
+        claimLocked(connector.kind, connectionId, trigger, byUserId) { connector.lockActiveInTransaction(connectionId) }
+
+    /**
+     * [claim] without the connection lock, for tests over throwaway connection ids that name no row. `internal` only keeps it off the
+     * public API: it is visible module-wide, so `PackageBoundaryTest` bans every use under `src/main` outside this declaration.
+     */
+    internal suspend fun claimUnchecked(kind: SyncKind, connectionId: UInt, trigger: SyncTrigger, byUserId: UInt?): ClaimedRun =
+        claimLocked(kind, connectionId, trigger, byUserId) {}
+
+    private suspend fun claimLocked(
+        kind: SyncKind,
+        connectionId: UInt,
+        trigger: SyncTrigger,
+        byUserId: UInt?,
+        lockConnection: suspend () -> Unit,
+    ): ClaimedRun {
         val startedAt = clock()
         var abandoned = 0
         val claimed = catchingFailures(
             {
                 suspendTransaction(database) {
+                    lockConnection()
                     abandoned = abandonStale(kind, connectionId, startedAt)
                     prune(kind, connectionId)
                     val id = Runs.insert {

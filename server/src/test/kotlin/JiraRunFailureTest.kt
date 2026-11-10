@@ -90,7 +90,7 @@ class JiraRunFailureTest {
             JiraRunStore(app.attributes[R2dbcDatabaseKey]),
             JiraIssueStore(app.attributes[R2dbcDatabaseKey]), runs, chunkSize = chunkSize,
         )
-        val claimed = runs.claim(SyncKind.JIRA, connectionId, SyncTrigger.MANUAL, null)
+        val claimed = runs.claimUnchecked(SyncKind.JIRA, connectionId, SyncTrigger.MANUAL, null)
         return observer.run(claimed).also { runs.finish(claimed.id, it) }
     }
 

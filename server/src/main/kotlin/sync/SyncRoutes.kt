@@ -38,7 +38,7 @@ internal fun Route.syncRoutes(runs: SyncRunService, runner: SyncRunner, connecto
         val request = call.receive<SyncRunRequest>()
         val connector = connectors.of(request.kind) ?: throw BadRequestException("No ${request.kind} connector is configured")
         connector.requireRunnable(request.connectionId)
-        val claimed = runs.claim(request.kind, request.connectionId, SyncTrigger.MANUAL, caller.userId)
+        val claimed = runs.claim(connector, request.connectionId, SyncTrigger.MANUAL, caller.userId)
         audit(
             "${request.kind.name.lowercase()}.sync_requested",
             "byUserId" to caller.userId.toLong(),
