@@ -168,7 +168,8 @@ export function uniqueText(prefix: string): string {
  * revisited page restores the panel open — a blind toggle click would close it again.
  */
 export async function openFilters(page: Page): Promise<void> {
-  const toggle = page.getByRole("button", { name: "Filters" });
+  // Anchored: a substring "Filters" also matches the "Clear the filters" button once a filter is set (strict-mode clash).
+  const toggle = page.getByRole("button", { name: /^Filters/ });
   await expect(toggle).toBeVisible();
   if ((await toggle.getAttribute("aria-expanded")) !== "true") {
     await toggle.click();
@@ -237,7 +238,7 @@ export async function testJiraConnectionViaApi(api: APIRequestContext, connectio
 
 /** Flow's address as the APP reaches the built-in Flow stub (the compose service on the compose network): the only origin its `FLOW_INSECURE_ORIGINS` lists. */
 export const FLOW_STUB_ORIGIN = process.env.E2E_FLOW_STUB_ORIGIN ?? "http://flow-stub:8080";
-/** The stub's own admin API as the SPEC reaches it (the host port compose publishes): read to prove the stub is on "day one"; only `flow-capacity-deviation.spec.ts` writes it (the `flow-day2` flip, under the lock `flow-stub-scenario`). */
+/** The stub's own admin API as the SPEC reaches it (the host port compose publishes): read to prove the stub is on "day one"; only `flow-capacity-deviation.spec.ts` and `flow-capacity-acknowledge.spec.ts` write it (the `flow-day2` flip, under the lock `flow-stub-scenario`). */
 export const FLOW_STUB_URL = process.env.E2E_FLOW_STUB_URL ?? "http://localhost:8097";
 
 /** The slice of `sample-data/flow/expected.json` (the generator's record of the Flow stub) the specs read. */
@@ -265,7 +266,7 @@ export function flowStub(): FlowExpected {
 
 /**
  * Fails fast, naming the cause, when the stub's `flow-day2` or `flow-outage` scenario is not at `Started` (a manual walk left it flipped): the figures the specs
- * assert are day one's. Reads only; the one spec that flips `flow-day2` (`flow-capacity-deviation`) resets it itself.
+ * assert are day one's. Reads only; the two specs that flip `flow-day2` (`flow-capacity-deviation`, `flow-capacity-acknowledge`) reset it themselves.
  */
 export async function expectFlowStubOnDayOne(): Promise<void> {
   const stub = await playwrightRequest.newContext({ baseURL: FLOW_STUB_URL });

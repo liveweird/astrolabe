@@ -6,7 +6,7 @@
 // Owns: ONE Flow connection (`e2e-capdev-connection-*`, manual only, made through the API and tested + refreshed in the beforeAll: one call of the per-IP `flow-test` bucket per worker start),
 // a throwaway world (a team-manager login and its person, the team `e2e-capdev-team-*` linked to "E2E Flow Team" and the team `e2e-capdev-gone-*` linked to the stub's "Billing", both through that
 // connection, so the Flow-team uniqueness of no other spec's connection is ever met), the six capacity periods the import writes (they go with the team) and the stub's `flow-day2` SCENARIO,
-// which this file alone flips (the stub is one process with one state). It holds the Playwright lock `flow-stub-scenario` with `flow-sync.spec.ts`, whose figures are day one's; the beforeAll
+// which this file flips (as does `flow-capacity-acknowledge.spec.ts`: the stub is one process with one state). It holds the Playwright lock `flow-stub-scenario` with `flow-sync.spec.ts`, whose figures are day one's, and with that spec; the beforeAll
 // puts the scenario back to `Started` and the afterAll does so even after a failure. Everything is removed through the API (the connection first - the links go with it - then the teams, the person
 // and the user). The section lists EVERY linked team of the stack, so each page is narrowed to the spec's own team with the `teamId` filter and every assertion is about that team's rows.
 import { randomUUID } from "node:crypto";
@@ -30,7 +30,7 @@ import {
   uniqueText,
 } from "./helpers";
 
-// One stub scenario state for the whole stack: this file is the only flipper, runs serially, and takes the lock that `flow-sync` holds too (it asserts day one's figures).
+// One stub scenario state for the whole stack: this file and `flow-capacity-acknowledge` are the flippers, each serial, and every Flow spec takes the lock (`flow-sync` asserts day one's figures).
 test.describe.configure({ mode: "serial", lock: "flow-stub-scenario", timeout: 120_000 });
 
 const E2E_TEAM = flowStub().e2e.team;

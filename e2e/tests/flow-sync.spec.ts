@@ -8,7 +8,7 @@
 // world of its own (a team manager login, a viewer login with no right on the team, their people and the team `e2e-flow-team-*`, unique `e2e-flow-*` names), all seeded and removed
 // through the API (the connections first - their link goes with them - then the team, the people and the users). It never flips a scenario of the stub (day one's figures are
 // asserted, and the beforeAll fails fast naming the scenario if a walk left one on), never presses "Link all suggested" (that would link the demo plan's teams) and shares the Playwright lock
-// `flow-stub-scenario` with `flow-capacity-deviation.spec.ts`, which flips `flow-day2` (so this file never meets day two).
+// `flow-stub-scenario` with `flow-capacity-deviation.spec.ts` and `flow-capacity-acknowledge.spec.ts`, which flip `flow-day2` (so this file never meets day two).
 import { randomUUID } from "node:crypto";
 import { type APIRequestContext, type Locator, type Page } from "@playwright/test";
 import {
@@ -29,7 +29,7 @@ import {
 } from "./helpers";
 
 // One world, read by three tests in order (the roster scenario reuses the link the second one made, or makes its own when it runs alone). The lock keeps `flow-capacity-deviation.spec.ts`
-// (the one spec that flips the stub's `flow-day2`) from running at the same time: this file asserts day one's figures.
+// and `flow-capacity-acknowledge.spec.ts` (the two specs that flip the stub's `flow-day2`) from running at the same time: this file asserts day one's figures.
 test.describe.configure({ mode: "serial", lock: "flow-stub-scenario" });
 
 const E2E_TEAM = flowStub().e2e.team;
