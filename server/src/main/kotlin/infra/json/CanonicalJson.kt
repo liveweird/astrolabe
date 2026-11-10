@@ -1,5 +1,6 @@
 package ch.nokillswit.infra.json
 
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -94,3 +95,18 @@ fun sha256Hex(text: String): String {
     val digest = MessageDigest.getInstance("SHA-256").digest(text.toByteArray(Charsets.UTF_8))
     return digest.joinToString(separator = "") { byte -> "%02x".format(byte) }
 }
+
+/** The Json the fingerprints are rendered with: pinned here, so a change of the application's Json can never move a stored hash. */
+private val FINGERPRINT_JSON = Json {
+    // Neither nulls nor defaults are written, so a later additive nullable member of a fingerprinted value (null on every existing
+    // value) leaves every stored hash alone; a null still differs from a value, which is written.
+    explicitNulls = false
+    encodeDefaults = false
+}
+
+/**
+ * The fingerprint of [value]: the SHA-256 (lower-case hex) of its canonical JSON under [FINGERPRINT_JSON]. Equal values give equal
+ * fingerprints across reads and processes; it is what an acknowledgement is keyed on (the Jira deviation list, the Flow capacity row).
+ */
+fun <T> fingerprintOf(serializer: KSerializer<T>, value: T): String =
+    sha256Hex(canonicalJson(FINGERPRINT_JSON.encodeToJsonElement(serializer, value)))

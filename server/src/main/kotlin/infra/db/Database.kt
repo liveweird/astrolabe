@@ -6,6 +6,8 @@ import ch.nokillswit.auth.TokenBlocklistService
 import ch.nokillswit.auth.TokenBlocklistServiceKey
 import ch.nokillswit.infra.config.requireConfigInt
 import ch.nokillswit.infra.config.requireConfigLong
+import ch.nokillswit.flow.CapacityAcknowledgeService
+import ch.nokillswit.flow.CapacityAcknowledgeServiceKey
 import ch.nokillswit.flow.CapacityDeviationService
 import ch.nokillswit.flow.CapacityDeviationServiceKey
 import ch.nokillswit.flow.CapacityImportService
@@ -349,7 +351,9 @@ suspend fun Application.configureDatabase() {
     attributes.put(FlowTeamBindingServiceKey, flowBindings)
     attributes.put(FlowTeamServiceKey, FlowTeamService(database, flowConnections, flowMirror))
     attributes.put(CapacityImportServiceKey, CapacityImportService(database, flowBindings, flowMirror, teamCapacity))
-    attributes.put(CapacityDeviationServiceKey, CapacityDeviationService(database, flowBindings, flowMirror, teamCapacity, syncRuns))
+    val capacityDeviations = CapacityDeviationService(database, flowBindings, flowMirror, teamCapacity, syncRuns)
+    attributes.put(CapacityDeviationServiceKey, capacityDeviations)
+    attributes.put(CapacityAcknowledgeServiceKey, CapacityAcknowledgeService(database, capacityDeviations, flowBindings))
     val jiraBindings = JiraBindingService(database)
     attributes.put(JiraBindingServiceKey, jiraBindings)
     attributes.put(JiraImportServiceKey, JiraImportService(database, teamService, jiraBindings))

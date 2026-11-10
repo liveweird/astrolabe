@@ -2844,6 +2844,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/integrations/flow/team-bindings/{id}/acknowledge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Acknowledge ONE sprint's capacity deviation until its figures change
+         * @description "Known, leave it" for one row of `GET /views/capacity-deviations`: a sprint's `CAPACITY_DIFFERS` or `CAPACITY_MISSING` row, or - with
+         *     `sprintId: null` - the team's own `TEAM_GONE` row. The binding's team's ACTIVE manager or ADMIN (the capacity import's guard); a
+         *     project owner, a roadmap editor, another team's manager, a person-less login and a stranger are `403`. **Read-before-guard**: the
+         *     binding is in the PATH, so it is resolved first and an unknown or unlinked binding, or one whose team was deleted, is `404` for EVERY
+         *     caller (team ids are public); then the guard (`403`, whatever the body is); then the body (`400`: `sprintId` is REQUIRED - an absent
+         *     key is refused, `null` names the team's own row - and is a positive number otherwise; `fingerprint` is 64 lower-case hexadecimal
+         *     characters). The write runs in ONE short transaction: the binding row is locked, the binding and its team re-read ACTIVE and the
+         *     guard run AGAIN against the stored team (a request can be held open, so only this verdict authorizes the write), and the binding's
+         *     rows are RECOMPUTED in that transaction: `409` `urn:astrolabe:problem:stale-deviations` when the binding has no such row now (the
+         *     sprint is in line, closed or not in the window; the team is not gone; the connection never mirrored a document) or the row's
+         *     fingerprint is not the one sent (a figure moved in the plan or in Flow since the client read); otherwise the fingerprint, the time and
+         *     the login are stored for that sprint. Acknowledging again restamps. An acknowledgement lasts while THAT sprint's row is
+         *     unchanged: a change of its dates, held days, working days, either figure, the gap or the severity reopens it
+         *     (`acknowledgement.current` false); a rename in Flow does not, a closing sprint reopens nothing and a new sprint arrives open. Not plan
+         *     state: no plan lock, no revision bump, no rate bucket (nothing calls Flow, nothing is written to Flow). Audited
+         *     `flow.capacity_deviation_acknowledged`.
+         */
+        post: operations["acknowledgeCapacityDeviation"];
+        /**
+         * Withdraw ONE sprint's capacity acknowledgement
+         * @description The same audience and order as the acknowledge (`404` for every caller when the binding is unknown, unlinked or its team is gone,
+         *     then `403`, then the query parameter `400`; the binding row is locked and the guard run again in the transaction). Clears the
+         *     acknowledgement of the row named by `sprintId` (absent = the team's own `TEAM_GONE` row), current or stale; `404` when none is stored
+         *     (decided under the lock, after the guard). Audited `flow.capacity_deviation_unacknowledged`.
+         */
+        delete: operations["unacknowledgeCapacityDeviation"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/integrations/flow/connections/{id}/team-bindings/match": {
         parameters: {
             query?: never;
@@ -6795,6 +6839,48 @@ export interface components {
             /** @enum {string} */
             severity: "WARNING" | "INFO";
             detail: components["schemas"]["CapacityDeviationDetail"];
+            /** @description The SHA-256 of the row's kind, severity and figures, the sprint's name excluded (a rename in Flow changes nothing): what an acknowledgement of this row is keyed on. Send it back to `POST .../acknowledge` with the row's `detail.sprintId`. */
+            fingerprint: string;
+            /** @description The row's stored acknowledgement, null until someone acknowledges it. */
+            acknowledgement: components["schemas"]["CapacityDeviationAcknowledgement"] | null;
+        };
+        /** @description A row's stored acknowledgement. */
+        CapacityDeviationAcknowledgement: {
+            /**
+             * Format: int64
+             * @description When it was acknowledged (epoch milliseconds).
+             */
+            at: number;
+            /** @description The acknowledging login's ACTIVE person's name, else its display name; never the email; null once that login is deleted. */
+            by: string | null;
+            /** @description True while the stored fingerprint equals the row's now. False = acknowledged, then changed since, so the row is open again. */
+            current: boolean;
+        };
+        CapacityAcknowledgeRequest: {
+            /**
+             * Format: int64
+             * @description Flow's id of the sprint (the row's `detail.sprintId`); null names the binding's own `TEAM_GONE` row. REQUIRED: an absent key is a `400`.
+             */
+            sprintId: number | null;
+            /** @description The `fingerprint` of the row the client read. */
+            fingerprint: string;
+        };
+        CapacityAcknowledgement: {
+            /** Format: int32 */
+            bindingId: number;
+            /**
+             * Format: int64
+             * @description The acknowledged sprint; null = the team's own row.
+             */
+            sprintId: number | null;
+            fingerprint: string;
+            /**
+             * Format: int64
+             * @description Epoch milliseconds.
+             */
+            acknowledgedAt: number;
+            /** @description The acknowledging login's active person's name, else its display name; never the email. */
+            acknowledgedBy: string | null;
         };
         /** @description An ACTIVE Flow connection, enabled or not - never a base URL, token or time zone. */
         CapacityDeviationConnection: {
@@ -10801,6 +10887,68 @@ export interface operations {
             404: components["responses"]["NotFound"];
             413: components["responses"]["PayloadTooLarge"];
             415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    acknowledgeCapacityDeviation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CapacityAcknowledgeRequest"];
+            };
+        };
+        responses: {
+            /** @description Acknowledged */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CapacityAcknowledgement"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    unacknowledgeCapacityDeviation: {
+        parameters: {
+            query?: {
+                /** @description Flow's id of the sprint whose acknowledgement is withdrawn; absent names the team's own `TEAM_GONE` row. A repeated or malformed value is a `400`. */
+                sprintId?: number;
+            };
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Withdrawn */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
             500: components["responses"]["InternalServerError"];
         };
     };

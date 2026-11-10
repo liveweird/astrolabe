@@ -14,6 +14,9 @@ ch.nokillswit.BootstrapTest	2.9
 ch.nokillswit.CaBundleTest	0.0
 ch.nokillswit.CallTallyTest	0.0
 ch.nokillswit.CanonicalJsonTest	0.0
+ch.nokillswit.CapacityAcknowledgeRaceTest	1.6
+ch.nokillswit.CapacityAcknowledgeTest	2.6
+ch.nokillswit.CapacityDeviationFingerprintTest	0.0
 ch.nokillswit.CapacityDeviationKernelsTest	0.0
 ch.nokillswit.CapacityDeviationViewTest	3.2
 ch.nokillswit.CapacityImportApplyRaceTest	2.1

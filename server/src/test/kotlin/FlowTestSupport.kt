@@ -67,6 +67,9 @@ fun flowStoredToken(id: UInt): String? = jbScalar("SELECT api_token FROM flow_co
 /** Removes the fixture rows of connections named `namePrefix*` (children first): the shared tables keep nothing for later tests. */
 fun removeFlowFixtureRows(namePrefix: String) {
     val mine = "SELECT id FROM flow_connections WHERE name LIKE '$namePrefix%'"
+    // The acknowledgements (V26) reference the bindings: they go first.
+    val bindings = "SELECT id FROM flow_team_bindings WHERE connection_id IN ($mine)"
+    jbSql("DELETE FROM flow_capacity_acknowledgements WHERE binding_id IN ($bindings)")
     for (table in listOf("flow_members", "flow_sprints", "flow_teams", "flow_team_bindings")) {
         jbSql("DELETE FROM $table WHERE connection_id IN ($mine)")
     }

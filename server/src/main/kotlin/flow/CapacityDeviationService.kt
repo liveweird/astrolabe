@@ -91,12 +91,54 @@ class CapacityDeviationService(
         at: Long,
     ): CapacityDeviationItem? {
         val binding = row.binding
+        val computed = computeOf(binding, connection.timeZone, connection.wire.teamsAt, periods, calendar, at) ?: return null
+        if (computed.deviations.isEmpty()) return null
+        return CapacityDeviationItem(
+            bindingId = binding.id,
+            connectionId = binding.connectionId,
+            team = CapacityDeviationTeam(binding.teamId, row.teamName),
+            flowTeam = CapacityDeviationFlowTeam(binding.flowTeamId, binding.flowTeamName),
+            observedAt = computed.observedAt,
+            zone = connection.timeZone,
+            deviations = computed.deviations,
+        )
+    }
+
+    /**
+     * ONE binding's deviation rows as the view computes them, for the acknowledge's write (it recomputes the row it is told about INSIDE
+     * its locked transaction, so a figure that moved since the client read the view is a `409`). Nests into the caller's transaction like
+     * the view's helper reads. Null when there is nothing to compare: the connection is gone, or has never mirrored a document. The
+     * connection's `enabled` flag and status do not matter here (a DISABLED connection's rows are listed and acknowledgeable). A null
+     * [calendar] loads the public-holiday dictionary (a suspend read cannot be a default value).
+     */
+    internal suspend fun computeBindingInTransaction(
+        binding: FlowTeamBindingRow,
+        calendar: WorkingCalendar? = null,
+        at: Long = now(),
+    ): List<CapacityDeviation>? {
+        val registry = FlowConnectionService.Connections
+        val connection = registry.select(registry.timeZone, registry.teamsAt)
+            .where { (registry.id eq binding.connectionId) and registry.active() }.toList().singleOrNull() ?: return null
+        val periods = capacity.importRowsOfTeams(listOf(binding.teamId))[binding.teamId].orEmpty()
+        val working = calendar ?: loadWorkingCalendar()
+        return computeOf(binding, connection[registry.timeZone], connection[registry.teamsAt], periods, working, at)?.deviations
+    }
+
+    /** The rows of [binding] and when the mirror last saw its Flow team; null = nothing to compare (no document was ever mirrored). */
+    private suspend fun computeOf(
+        binding: FlowTeamBindingRow,
+        timeZone: String,
+        teamsAt: Long?,
+        periods: List<CapacityPeriodRow>,
+        calendar: WorkingCalendar,
+        at: Long,
+    ): Computed? {
         val team = mirror.teamSprintsOf(binding.connectionId, binding.flowTeamId)
-        if (team == null && connection.wire.teamsAt == null) return null
+        if (team == null && teamsAt == null) return null
         val deviations = if (team == null) {
             CapacityDeviationKernels.deviations(CapacityPlan(emptyList(), emptyList()), periods, calendar, gone = true)
         } else {
-            val zone = zoneOrUtc(connection.timeZone)
+            val zone = zoneOrUtc(timeZone)
             val plan = CapacityImportKernels.plan(
                 sprints = team.sprints,
                 zone = zone,
@@ -108,16 +150,7 @@ class CapacityDeviationService(
             )
             CapacityDeviationKernels.deviations(plan, periods, calendar, gone = false)
         }
-        if (deviations.isEmpty()) return null
-        return CapacityDeviationItem(
-            bindingId = binding.id,
-            connectionId = binding.connectionId,
-            team = CapacityDeviationTeam(binding.teamId, row.teamName),
-            flowTeam = CapacityDeviationFlowTeam(binding.flowTeamId, binding.flowTeamName),
-            observedAt = team?.observedAt,
-            zone = connection.timeZone,
-            deviations = deviations,
-        )
+        return Computed(deviations, team?.observedAt)
     }
 
     /** The ACTIVE connections (or the one asked for) by name then id with their derived status; only the columns the status needs. */
@@ -147,6 +180,9 @@ class CapacityDeviationService(
             },
         )
 }
+
+/** A binding's rows with the instant its Flow team was last seen in the mirror (null = gone). */
+private class Computed(val deviations: List<CapacityDeviation>, val observedAt: Long?)
 
 /** What a connection row adds to the wire shape: its IANA zone id (the sprint dates' zone), which the wire connection never carries. */
 private class ConnectionFacts(val wire: CapacityDeviationConnection, val timeZone: String)

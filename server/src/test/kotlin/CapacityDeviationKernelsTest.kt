@@ -10,6 +10,7 @@ import ch.nokillswit.flow.CapacityInfoCode
 import ch.nokillswit.flow.CapacityPlan
 import ch.nokillswit.flow.CapacitySkipReason
 import ch.nokillswit.flow.FlowMirrorSprint
+import ch.nokillswit.flow.capacityFingerprint
 import ch.nokillswit.infra.time.WorkingCalendar
 import ch.nokillswit.planning.DeviationSeverity
 import ch.nokillswit.teams.CapacityPeriodRow
@@ -343,7 +344,8 @@ class CapacityDeviationKernelsTest {
     fun `a gone team is exactly one TEAM_GONE WARNING with no detail, whatever else was given`() {
         val periods = listOf(period(1, "2047-01-07", "20.00"))
         val noDetail = CapacityDeviationDetail(null, null, null, null, null, null, null, null, null, null)
-        val expected = listOf(CapacityDeviation(CapacityDeviationKind.TEAM_GONE, DeviationSeverity.WARNING, noDetail))
+        val fingerprint = capacityFingerprint(CapacityDeviationKind.TEAM_GONE, DeviationSeverity.WARNING, noDetail)
+        val expected = listOf(CapacityDeviation(CapacityDeviationKind.TEAM_GONE, DeviationSeverity.WARNING, noDetail, fingerprint, null))
         // The real service plans a gone team EMPTY; the flag alone decides, so a non-empty plan changes nothing.
         val calendar = WorkingCalendar.MON_FRI
         assertEquals(expected, CapacityDeviationKernels.deviations(CapacityPlan(emptyList(), emptyList()), periods, calendar, gone = true))

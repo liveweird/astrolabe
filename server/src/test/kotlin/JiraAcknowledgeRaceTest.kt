@@ -1,7 +1,7 @@
 package ch.nokillswit
 
 import ch.nokillswit.jira.JiraLevel
-import ch.nokillswit.jira.STALE_DEVIATIONS_PROBLEM
+import ch.nokillswit.sync.STALE_DEVIATIONS_PROBLEM
 import io.ktor.client.statement.HttpResponse
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.testing.ApplicationTestBuilder

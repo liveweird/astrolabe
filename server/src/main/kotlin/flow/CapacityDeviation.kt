@@ -45,8 +45,28 @@ data class CapacityDeviationDetail(
     val gapMd: Double?,
 )
 
+/**
+ * One deviation row. [fingerprint] is the SHA-256 of the row's kind, severity and figures with the sprint's NAME left out
+ * ([capacityFingerprint]): what an acknowledgement of THIS row is keyed on, so a rename in Flow reopens nothing and any other change
+ * does. [acknowledgement] is null until someone acknowledges the row (the view fills it from 1.9's C2); no defaults on purpose, like
+ * [CapacityDeviationDetail]: both are always on the wire.
+ */
 @Serializable
-data class CapacityDeviation(val kind: CapacityDeviationKind, val severity: DeviationSeverity, val detail: CapacityDeviationDetail)
+data class CapacityDeviation(
+    val kind: CapacityDeviationKind,
+    val severity: DeviationSeverity,
+    val detail: CapacityDeviationDetail,
+    val fingerprint: String,
+    val acknowledgement: CapacityDeviationAcknowledgement?,
+)
+
+/**
+ * A row's stored acknowledgement: [at] epoch millis, [by] the acknowledging login's active person's name else its display name (never the
+ * email; null once the login is deleted), [current] whether the stored fingerprint still equals the row's (false = acknowledged, then
+ * changed: the row is open again).
+ */
+@Serializable
+data class CapacityDeviationAcknowledgement(val at: Long, val by: String?, val current: Boolean)
 
 /** An ACTIVE Flow connection, enabled or not. No base URL, token or zone; [teamsAt] is when it last mirrored a document. */
 @Serializable

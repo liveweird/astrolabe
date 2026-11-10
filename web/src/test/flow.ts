@@ -211,19 +211,22 @@ export const CAPACITY_CONNECTION: CapacityDeviationConnection = {
 type DeviationDetail = CapacityDeviation["detail"];
 const NO_DETAIL: DeviationDetail = { sprintId: null, sprintName: null, start: null, end: null, effectiveFrom: null, workingDays: null, flowMd: null, flowTotalMd: null, planMd: null, gapMd: null };
 
+/** A 64-hex fingerprint stand-in for a fixture row, distinct per [seed] (the server's is a SHA-256 of the row). */
+const fingerprintOf = (seed: number): string => (seed + 1).toString(16).padStart(64, "0");
+
 /** `CAPACITY_DIFFERS` for the e2e world's second sprint: the plan has 36.00, Flow 30.00 (a WARNING, +6.00); pass `planMd`/`flowMd` to move the figures (the gap and the severity follow). */
 export function differsRow(over: Partial<DeviationDetail> = {}): CapacityDeviation {
   const detail: DeviationDetail = { ...NO_DETAIL, sprintId: 90002, sprintName: "E2E Flow Sprint 2", start: "2047-01-21", end: "2047-02-01", effectiveFrom: "2047-01-21", workingDays: 10, flowMd: 30, flowTotalMd: 30, planMd: 36, ...over };
   const gapMd = over.gapMd ?? Math.round(((detail.planMd ?? 0) - (detail.flowMd ?? 0)) * 100) / 100;
-  return { kind: "CAPACITY_DIFFERS", severity: gapMd > 0 ? "WARNING" : "INFO", detail: { ...detail, gapMd } };
+  return { kind: "CAPACITY_DIFFERS", severity: gapMd > 0 ? "WARNING" : "INFO", detail: { ...detail, gapMd }, fingerprint: fingerprintOf(detail.sprintId ?? 0), acknowledgement: null };
 }
 
 /** `CAPACITY_MISSING` (an INFO): no capacity in the plan for the sprint that starts on `start` (a two-week sprint), Flow says 40.00. */
 export function missingRow(sprintId: number, start: string, end: string, over: Partial<DeviationDetail> = {}): CapacityDeviation {
-  return { kind: "CAPACITY_MISSING", severity: "INFO", detail: { ...NO_DETAIL, sprintId, sprintName: `E2E Flow Sprint ${sprintId - 90000}`, start, end, effectiveFrom: start, workingDays: 10, flowMd: 40, flowTotalMd: 40, ...over } };
+  return { kind: "CAPACITY_MISSING", severity: "INFO", detail: { ...NO_DETAIL, sprintId, sprintName: `E2E Flow Sprint ${sprintId - 90000}`, start, end, effectiveFrom: start, workingDays: 10, flowMd: 40, flowTotalMd: 40, ...over }, fingerprint: fingerprintOf(sprintId), acknowledgement: null };
 }
 
-export const GONE_ROW: CapacityDeviation = { kind: "TEAM_GONE", severity: "WARNING", detail: NO_DETAIL };
+export const GONE_ROW: CapacityDeviation = { kind: "TEAM_GONE", severity: "WARNING", detail: NO_DETAIL, fingerprint: fingerprintOf(0), acknowledgement: null };
 
 /** Payments, linked to "Payments Flow" on connection 1, with one WARNING sprint unless told otherwise. */
 export function capacityItem(over: Partial<CapacityDeviationItem> = {}): CapacityDeviationItem {

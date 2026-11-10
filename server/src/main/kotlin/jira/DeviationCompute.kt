@@ -1,7 +1,6 @@
 package ch.nokillswit.jira
 
-import ch.nokillswit.infra.json.canonicalJson
-import ch.nokillswit.infra.json.sha256Hex
+import ch.nokillswit.infra.json.fingerprintOf
 import ch.nokillswit.infra.time.WorkingCalendar
 import ch.nokillswit.planning.BaselineCreator
 import ch.nokillswit.planning.DaySpan
@@ -11,7 +10,6 @@ import ch.nokillswit.planning.DeviationSeverity
 import ch.nokillswit.planning.PlanActor
 import ch.nokillswit.planning.PlanPermissions
 import kotlinx.serialization.builtins.ListSerializer
-import kotlinx.serialization.json.Json
 import java.time.LocalDate
 
 /*
@@ -20,21 +18,14 @@ import java.time.LocalDate
  * binding, inside its locked transaction) and - from 1.3's C5 - the timeline flag fold.
  */
 
-/** The Json the fingerprint is rendered with: pinned here, so a change of the application's Json settings can never move a stored hash. */
-private val FINGERPRINT_JSON = Json {
-    // Neither nulls nor defaults are written, so a later additive nullable member of [Deviation] or [DeviationDetail] (null on every
-    // existing value) leaves every stored hash alone; a null still differs from a value, which is written.
-    explicitNulls = false
-    encodeDefaults = false
-}
-
 /**
  * The fingerprint of a deviation list: the SHA-256 (lower-case hex) of its canonical JSON (`[{kind, severity, detail}]` in the
- * kernel's order). Equal lists give equal fingerprints across reads and processes; any change to a kind, a severity or a detail
- * changes it. The EMPTY list has one too ([fingerprintOf] of `[]`), but nothing is ever acknowledged against it.
+ * kernel's order), through the shared [fingerprintOf] of `infra/json`. Equal lists give equal fingerprints across reads and processes;
+ * any change to a kind, a severity or a detail changes it. The EMPTY list has one too ([fingerprintOf] of `[]`), but nothing is ever
+ * acknowledged against it.
  */
 internal fun fingerprintOf(deviations: List<Deviation>): String =
-    sha256Hex(canonicalJson(FINGERPRINT_JSON.encodeToJsonElement(ListSerializer(Deviation.serializer()), deviations)))
+    fingerprintOf(ListSerializer(Deviation.serializer()), deviations)
 
 /**
  * A live binding's computed row. [all] is the kernel's FULL list (what [DeviationItem.fingerprint] hashes); [shown] the part the

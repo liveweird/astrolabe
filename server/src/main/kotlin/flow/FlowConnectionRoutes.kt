@@ -52,6 +52,7 @@ fun Application.configureFlowRoutes() {
     val flowTeams = attributes[FlowTeamServiceKey]
     val capacityImport = attributes[CapacityImportServiceKey]
     val capacityDeviations = attributes[CapacityDeviationServiceKey]
+    val capacityAcknowledgements = attributes[CapacityAcknowledgeServiceKey]
     val teams = attributes[TeamServiceKey]
 
     routing {
@@ -59,6 +60,7 @@ fun Application.configureFlowRoutes() {
             flowTestRoutes(connections, connector, origins)
             flowTeamBindingRoutes(bindings, flowTeams, teams)
             capacityImportRoutes(capacityImport, bindings, teams)
+            capacityAcknowledgeRoutes(capacityAcknowledgements, bindings, teams)
             capacityDeviationRoutes(capacityDeviations)
             get<FlowOriginsRoute> {
                 requireAdmin(call.caller())

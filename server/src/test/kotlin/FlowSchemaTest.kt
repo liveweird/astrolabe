@@ -133,6 +133,37 @@ class FlowSchemaTest {
     }
 
     @Test
+    fun `a capacity acknowledgement is one row per binding and sprint (the team row too), with a sprint of 1+ and a 64-hex fingerprint`() =
+        runBlocking {
+            PostgresTestSupport.ensureMigrated()
+            val connection = newConnection()
+            val team = TestTeams.seed(unique())
+            val user = TestUsers.seed(uniqueEmail("flowschema"), "schema-pass-1")
+            val bindingId = jbScalar(
+                "INSERT INTO flow_team_bindings (connection_id, team_id, flow_team_id, flow_team_name, created_by_user_id, created_at, " +
+                    "updated_at) VALUES ($connection, $team, 5, 'FT', $user, 1, 1) RETURNING id",
+            ) { it.getInt(1) }
+            val hex = "ab".repeat(32)
+            fun ack(sprint: String, fingerprint: String = hex, by: Any = user, binding: Int = bindingId) =
+                "INSERT INTO flow_capacity_acknowledgements (binding_id, sprint_id, fingerprint, ack_at, ack_by_user_id) " +
+                    "VALUES ($binding, $sprint, '$fingerprint', 5, $by)"
+
+            assertNull(sqlState(ack("7")))
+            assertEquals(UNIQUE, sqlState(ack("7")), "one acknowledgement per (binding, sprint)")
+            assertNull(sqlState(ack("8")), "another sprint of the binding")
+            assertNull(sqlState(ack("NULL")), "the team's own (TEAM_GONE) row")
+            assertEquals(UNIQUE, sqlState(ack("NULL")), "NULLS NOT DISTINCT: two NULL-sprint rows of one binding collide")
+            assertEquals(CHECK, sqlState(ack("0")), "a sprint id is at least 1")
+            assertEquals(CHECK, sqlState(ack("-4")), "a sprint id is at least 1")
+            assertEquals(CHECK, sqlState(ack("9", hex.uppercase())), "lower-case hex only")
+            assertEquals(CHECK, sqlState(ack("9", hex.dropLast(1))), "64 characters exactly")
+            assertEquals(TOO_LONG, sqlState(ack("9", hex + "0")), "a 65-character fingerprint overflows the column")
+            assertEquals(FOREIGN_KEY, sqlState(ack("9", binding = 999999999)), "an acknowledgement needs its binding")
+            assertEquals(FOREIGN_KEY, sqlState(ack("9", by = 999999999)), "and its acknowledger")
+            assertEquals(NOT_NULL, sqlState(ack("9", by = "NULL")), "ack_by_user_id is required")
+        }
+
+    @Test
     fun `a capacity period is MANUAL by default and its source is MANUAL or FLOW`() = runBlocking {
         PostgresTestSupport.ensureMigrated()
         val team = TestTeams.seed(unique())

@@ -5,9 +5,9 @@ import io.ktor.server.plugins.BadRequestException
 
 // Small helpers for the repeated list-endpoint query-param parsing idioms, so every route stops
 // hand-writing `params["x"]?.takeIf { it.isNotBlank() }` and the numeric variants. Ported from
-// Lettuce minus its view-scoped helpers (optionalIncludeIndirect, uintOnlyForView) and the
-// remaining typed scalar parser (optionalLong) — each returns with its first consumer
-// (optionalBoolean arrived with the users-list featureEnabled filter; optionalUInt serves teamId/connectionId).
+// Lettuce minus its view-scoped helpers (optionalIncludeIndirect, uintOnlyForView) — each returns
+// with its first consumer (optionalBoolean arrived with the users-list featureEnabled filter;
+// optionalUInt serves teamId/connectionId; optionalLong the Flow acknowledge's sprintId).
 
 /**
  * The single value of [name], or null when absent. A repeated key is a 400: repetition is
@@ -18,7 +18,8 @@ import io.ktor.server.plugins.BadRequestException
 fun Parameters.singleValue(name: String): String? {
     val all = getAll(name) ?: return null
     if (all.size > 1) throw BadRequestException("Parameter '$name' must not be repeated")
-    return all.first()
+    // A key sent without `=` (`?name`) arrives with NO values: it is present but blank, never an empty-list failure (a 500).
+    return all.firstOrNull().orEmpty()
 }
 
 /** The param's value, or null when absent or blank. */
@@ -27,6 +28,16 @@ fun Parameters.optionalString(name: String): String? = singleValue(name)?.takeIf
 /** An unsigned-id param (the `?teamId=` shape): null when absent, 400 when not a non-negative integer. */
 fun Parameters.optionalUInt(name: String): UInt? =
     optionalString(name)?.let { it.toUIntOrNull() ?: throw BadRequestException("Invalid $name: $it") }
+
+/**
+ * A 64-bit id param (the `?sprintId=` shape): null only when the key is ABSENT, 400 when present but blank or not an integer of at
+ * least [minValue] (default 1) - unlike [optionalString], a blank value is not "absent" here, so `?sprintId=` can never silently name
+ * the team's own row.
+ */
+fun Parameters.optionalLong(name: String, minValue: Long = 1): Long? =
+    singleValue(name)?.let { raw ->
+        raw.trim().toLongOrNull()?.takeIf { it >= minValue } ?: throw BadRequestException("Invalid $name: $raw")
+    }
 
 /**
  * Every non-blank value of [name] — for the params whose documented contract makes repetition

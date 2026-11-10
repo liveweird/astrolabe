@@ -1,10 +1,12 @@
 package ch.nokillswit.flow
 
+import ch.nokillswit.infra.json.fingerprintOf
 import ch.nokillswit.infra.time.WorkingCalendar
 import ch.nokillswit.planning.CapacityPeriod
 import ch.nokillswit.planning.DeviationSeverity
 import ch.nokillswit.planning.capacityOn
 import ch.nokillswit.teams.CapacityPeriodRow
+import kotlinx.serialization.Serializable
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.time.LocalDate
@@ -43,11 +45,15 @@ object CapacityDeviationKernels {
         calendar: WorkingCalendar,
         gone: Boolean,
     ): List<CapacityDeviation> {
-        if (gone) return listOf(CapacityDeviation(CapacityDeviationKind.TEAM_GONE, DeviationSeverity.WARNING, NO_DETAIL))
+        if (gone) return listOf(rowOf(CapacityDeviationKind.TEAM_GONE, DeviationSeverity.WARNING, NO_DETAIL))
         val inForce = periods.map { CapacityPeriod(it.effectiveFrom, it.mdPerWeek, it.wipLimit) }
         return plan.items.mapNotNull { deviationOf(it, inForce, calendar) }
             .sortedWith(compareBy<CapacityDeviation>({ it.detail.effectiveFrom }, { it.detail.sprintId }))
     }
+
+    /** A row with its fingerprint; the acknowledgement is the view's overlay, never the kernel's. */
+    private fun rowOf(kind: CapacityDeviationKind, severity: DeviationSeverity, detail: CapacityDeviationDetail) =
+        CapacityDeviation(kind, severity, detail, capacityFingerprint(kind, severity, detail), acknowledgement = null)
 
     private val NO_DETAIL = CapacityDeviationDetail(null, null, null, null, null, null, null, null, null, null)
 
@@ -77,7 +83,7 @@ object CapacityDeviationKernels {
         )
         // No period in force against Flow's 0 (a ZERO_CAPACITY sprint): both sides say "nobody", so it is not a missing figure.
         if (planMd == null && flowMd.signum() == 0) return null
-        return kindAndSeverityOf(gap)?.let { (kind, severity) -> CapacityDeviation(kind, severity, detail) }
+        return kindAndSeverityOf(gap)?.let { (kind, severity) -> rowOf(kind, severity, detail) }
     }
 
     /** The kind and severity a [gap] earns, or null for a sprint in line; a null gap is a sprint with no capacity in the plan at all. */
@@ -94,3 +100,20 @@ object CapacityDeviationKernels {
         figures.fold(BigDecimal.ZERO) { sum, md -> sum + md.divide(WORKING_DAYS_PER_WEEK, SHARE_SCALE, RoundingMode.HALF_UP) }
             .setScale(MD_SCALE, RoundingMode.HALF_UP)
 }
+
+/** What a row's fingerprint hashes: its kind, severity and detail (the sprint's name excluded, see [capacityFingerprint]). */
+@Serializable
+private class CapacityFingerprintInput(
+    val kind: CapacityDeviationKind,
+    val severity: DeviationSeverity,
+    val detail: CapacityDeviationDetail,
+)
+
+/**
+ * The fingerprint of one row (1.9): the shared [fingerprintOf] idiom over `{kind, severity, detail}` with `detail.sprintName` nulled, so
+ * the name is not written. A rename in Flow reopens nothing; a change of the sprint's dates, held days, working days, either figure, the
+ * gap or the severity does. `TEAM_GONE` (every detail member null) has one too. A later release that changes a rule or the detail's
+ * figures un-acknowledges everything: by design (`flow-sync.md` "Acknowledge (1.9)").
+ */
+fun capacityFingerprint(kind: CapacityDeviationKind, severity: DeviationSeverity, detail: CapacityDeviationDetail): String =
+    fingerprintOf(CapacityFingerprintInput.serializer(), CapacityFingerprintInput(kind, severity, detail.copy(sprintName = null)))

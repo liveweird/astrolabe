@@ -68,7 +68,8 @@ private class Holder(
  * bindings. [unbind] is the one path that takes a binding row FIRST (it is addressed by the binding): the binding row `FOR NO KEY
  * UPDATE`, then the guard's team and person rows `FOR SHARE`, then the soft delete. It takes neither the bind lock nor the connection
  * row, and a `FOR SHARE` on the team never waits for a binding row (a team delete locks the team row and touches no binding), so no
- * lock cycle exists between it and a link, a match, a connection delete or a team delete.
+ * lock cycle exists between it and a link, a match, a connection delete or a team delete. [CapacityAcknowledgeService] (1.9) is the second
+ * binding-first path, in the same shape and with the same argument (binding row, then the guard's rows, then its own acknowledgement rows).
  */
 class FlowTeamBindingService(private val database: R2dbcDatabase) {
     object Bindings : UIntIdTable("flow_team_bindings"), SoftDeletable {

@@ -67,9 +67,12 @@ class PackageBoundaryTest {
         FeatureEdge("flow", "authz", "the guards and typed errors: requireAdmin, requireTeamManagerOrAdmin, caller, NotFound/Conflict"),
         FeatureEdge(
             "flow", "planning",
-            "pure rules only (symbols pinned by the flow test): CapacityPeriod, capacityOn, validateManDays, ...",
+            "pure rules and the createdBy name rule (symbols pinned by the flow test): CapacityPeriod, capacityOn, creatorsOf, ...",
         ),
-        FeatureEdge("flow", "sync", "the connector contract and the run registry: Connector, SyncRunService, SyncStatus, SyncKind, ..."),
+        FeatureEdge(
+            "flow", "sync",
+            "the connector contract, the run registry and the acknowledge vocabulary: Connector, SyncRunService, Acknowledge.kt",
+        ),
         FeatureEdge("flow", "teams", "team bindings and the capacity import write through TeamService, TeamCapacityService, TeamGuard"),
         FeatureEdge("jira", "authz", "the guards and typed errors: requireAdmin, requireOwnerOrAdmin, caller, OwnerChain"),
         FeatureEdge("jira", "people", "PersonService: the caller's person for the owner-chain guards and the import's owner lookups"),
@@ -77,7 +80,10 @@ class PackageBoundaryTest {
             "jira", "planning",
             "bindings follow plan nodes: chains (projectChain, ...), the import's insert*Row, withPlanWrite, SNAPSHOT",
         ),
-        FeatureEdge("jira", "sync", "the connector contract and the run registry: Connector, SyncRunService, SyncStatus, SyncKind, ..."),
+        FeatureEdge(
+            "jira", "sync",
+            "the connector contract, the run registry and the acknowledge vocabulary: Connector, SyncRunService, Acknowledge.kt",
+        ),
         FeatureEdge("jira", "teams", "TeamService: the team names of the deviation rows and the import's team lookups"),
         FeatureEdge("jira", "users", "UserService.Users: the binding's created_by / ack_by_user_id references"),
         FeatureEdge("people", "authz", "the guards and typed errors: requireAdmin, caller, ConflictException"),
@@ -199,7 +205,9 @@ class PackageBoundaryTest {
         // three pure symbols: `CapacityPeriod` and `capacityOn` (the team view's capacity-in-force rule - the deviation must compare what
         // the team view shows, never a second copy that could drift) and `DeviationSeverity` (the WARNING/INFO scale the web already
         // types). No plan node, no `readPlanRevision`, nothing of `jira`: a capacity deviation is a team x sprint row, not a plan binding.
-        val allowed = setOf("loadWorkingCalendar", "validateManDays", "CapacityPeriod", "capacityOn", "DeviationSeverity")
+        // The 1.9 acknowledge adds `creatorsOf` (the `createdBy` name rule: the acknowledging login's display name; `flow/` may not name
+        // `users`/`people`, so the name comes through `planning`, as the Jira acknowledge's does).
+        val allowed = setOf("loadWorkingCalendar", "validateManDays", "CapacityPeriod", "capacityOn", "DeviationSeverity", "creatorsOf")
         assertEquals(emptySet(), used - allowed, "flow may import only these planning symbols")
     }
 
