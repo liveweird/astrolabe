@@ -11,9 +11,11 @@ import ch.nokillswit.infra.outbound.SelfManagedHosts
 import ch.nokillswit.infra.outbound.isAllowedJiraHost
 import ch.nokillswit.infra.outbound.isAllowedJiraOrigin
 import ch.nokillswit.infra.outbound.isBlockedAddress
+import ch.nokillswit.infra.outbound.isInSiitPrefix96
 import ch.nokillswit.infra.outbound.isInZeroPrefix96
 import ch.nokillswit.infra.outbound.isNeverAllowed
 import ch.nokillswit.infra.outbound.parseSelfManagedHosts
+import ch.nokillswit.infra.outbound.withoutIpv4Mapping
 import ch.nokillswit.jira.JiraAuthScheme
 import ch.nokillswit.jira.JiraConnector
 import ch.nokillswit.jira.JiraStubRouting
@@ -29,6 +31,7 @@ import com.github.tomakehurst.wiremock.client.WireMock.anyUrl
 import com.github.tomakehurst.wiremock.client.WireMock.get
 import com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo
 import io.ktor.http.HttpMethod
+import java.net.Inet6Address
 import java.net.InetAddress
 import java.net.URI
 import java.net.UnknownHostException
@@ -45,6 +48,7 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 /**
@@ -209,6 +213,44 @@ class OutboundGuardTest {
         assertFalse(mappedPublic.isNeverAllowed())
     }
 
+    @Test
+    fun `the whole IPv4-translated SIIT range ffff-0-0-0 slash 96 is refused by both address predicates and never unwrapped`() {
+        // The JDK keeps the literal an Inet6Address (only the ::ffff:a.b.c.d mapped form folds to IPv4), so the raw 16 bytes are judged.
+        val literal = InetAddress.getByName("::ffff:0:10.0.0.1")
+        assertTrue(literal is Inet6Address, "::ffff:0:10.0.0.1 stays an Inet6Address: ${literal.javaClass}")
+        assertSame(literal, literal.withoutIpv4Mapping(), "the SIIT form is not unwrapped")
+        listOf(
+            literal,
+            InetAddress.getByName("::ffff:0:8.8.8.8"), // a public IPv4 inside is refused as well
+            ipv6(0, 0, 0, 0, 0xffff, 0, 0, 0), // the range's first address
+            ipv6(0, 0, 0, 0, 0xffff, 0, 0xffff, 0xffff), // and its last
+        ).forEach { address ->
+            assertTrue(address.isInSiitPrefix96(), "$address is in ::ffff:0:0:0/96")
+            assertTrue(address.isBlockedAddress(), "$address is blocked for a genuine host")
+            assertTrue(address.isNeverAllowed(), "$address is never allowed")
+            assertFalse(address.isInZeroPrefix96(), "$address is not in ::/96")
+            val dns = GuardedDns(allowedHost = { true }, resolver = { listOf(address) })
+            assertFailsWith<BlockedHostException>("expected $address to be blocked") { dns.lookup("api.atlassian.com") }
+        }
+        // Neighbours just outside the range stay as they were: a bit set in bytes 0-7, 8-9 off by one, and a non-zero 10-11.
+        listOf(
+            ipv6(1, 0, 0, 0, 0xffff, 0, 0x0808, 0x0808),
+            ipv6(0, 0, 0, 0, 0xffff, 0x0100, 0x0808, 0x0808),
+            ipv6(0, 0, 0, 1, 0xffff, 0, 0x0808, 0x0808),
+            ipv6(0, 0, 0, 0, 0xfffe, 0, 0x0808, 0x0808),
+            ipv6(0, 0, 0, 0, 0xffff, 1, 0x0808, 0x0808),
+            ipv6(0, 0, 0, 0, 0x0001, 0, 0x0808, 0x0808),
+        ).forEach { outside ->
+            assertFalse(outside.isInSiitPrefix96(), "$outside is outside ::ffff:0:0:0/96")
+            assertFalse(outside.isBlockedAddress(), "$outside stays allowed")
+            assertFalse(outside.isNeverAllowed(), "$outside stays allowed")
+        }
+        val mappedPublic = rawMapped(203, 0, 113, 10)
+        assertFalse(mappedPublic.isInSiitPrefix96())
+        assertFalse(mappedPublic.isBlockedAddress(), "::ffff:203.0.113.10 stays allowed")
+        assertTrue(rawMapped(10, 0, 0, 1).isBlockedAddress(), "the mapped private form is still unwrapped and refused")
+    }
+
     /** An `Inet6Address` holding IPv4-mapped bytes: `getByName` folds the literal into an `Inet4Address`, this constructor does not. */
     private fun rawMapped(a: Int, b: Int, c: Int, d: Int): InetAddress {
         val bytes = ByteArray(16).also {
@@ -272,6 +314,7 @@ class OutboundGuardTest {
             "IPv4-mapped multicast" to rawMapped(224, 0, 0, 1),
             "NAT64 64:ff9b::/96 embedding the metadata address" to ipv6(0x0064, 0xff9b, 0, 0, 0, 0, 0xa9fe, 0xa9fe),
             "NAT64 local-use 64:ff9b:1::/48" to ipv6(0x0064, 0xff9b, 0x0001, 0, 0, 0, 0, 5),
+            "SIIT ::ffff:0:0:0/96 embedding the metadata address" to ipv6(0, 0, 0, 0, 0xffff, 0, 0xa9fe, 0xa9fe),
         )
         never.forEach { (label, address) -> assertFailsWith<BlockedHostException>(label) { lookup("jira-stub", address) } }
         // Any OTHER host keeps the public-only rule, and production has no stub host at all.

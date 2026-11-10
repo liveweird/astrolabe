@@ -85,20 +85,37 @@ fun isAllowedJiraHost(host: String, stubHost: String?, developmentMode: Boolean)
  * bytes is not folded by the JDK, and its `isLoopbackAddress`/`isSiteLocalAddress` would answer for the IPv6 form only - and the
  * IPv6 tunnelling prefixes 6to4 `2002::/16` and Teredo `2001:0::/32` are blocked ([isSixToFourOrTeredo]): both embed an arbitrary
  * IPv4 address a translator may deliver to, so the embedded address cannot be vouched for here; and the deprecated IPv6 `::/96`
- * family (IPv4-compatible `::a.b.c.d`, an embedded public address included) is blocked whole ([isInZeroPrefix96], shared with
- * [isNeverAllowed] so the two predicates cannot drift apart).
+ * family (IPv4-compatible `::a.b.c.d`, an embedded public address included) and the IPv4-translated SIIT range `::ffff:0:0:0/96`
+ * are blocked whole ([isInZeroPrefix96], [isInSiitPrefix96], shared with [isNeverAllowed] so the predicates cannot drift apart).
  */
 internal fun InetAddress.isBlockedAddress(): Boolean = withoutIpv4Mapping().isBlockedForm()
 
 private fun InetAddress.isBlockedForm(): Boolean =
     isLoopbackAddress || isSiteLocalAddress || isLinkLocalAddress || isAnyLocalAddress ||
         isMulticastAddress || isUniqueLocalIpv6() || isSpecialIpv4() || isNat64() || isSixToFourOrTeredo() ||
-        isInZeroPrefix96()
+        isInZeroPrefix96() || isInSiitPrefix96()
 
 /** The deprecated IPv6 `::/96` (RFC 4291 IPv4-compatible, `::` and `::1` included): 16 bytes whose first 12 are zero. */
 internal fun InetAddress.isInZeroPrefix96(): Boolean {
     val bytes = address
     return bytes.size == IPV6_BYTES && (0 until IPV6_BYTES - IPV4_BYTES).all { bytes[it] == 0.toByte() }
+}
+
+/**
+ * The IPv4-translated SIIT range `::ffff:0:0:0/96` (RFC 2765): `::ffff:0:a.b.c.d`, bytes 0-7 zero, 8-9 `ffff`, 10-11 zero. Not the
+ * IPv4-mapped `::ffff:0:0/96` (bytes 10-11 `ffff`), which is unwrapped first. Refused whole, never unwrapped: the format is obsolete
+ * (RFC 6145 dropped it) and no DNS64 synthesises it, so refusing it costs nothing. The well-known NAT64 prefix `64:ff9b::/96` is
+ * judged by its embedded IPv4 instead ([isNat64]) because that mapping is stateless and the embedded address is the real target.
+ */
+internal fun InetAddress.isInSiitPrefix96(): Boolean {
+    val bytes = address
+    return bytes.size == IPV6_BYTES && bytes.copyOfRange(0, IPV6_BYTES - IPV4_BYTES).contentEquals(SIIT_PREFIX)
+}
+
+/** `::ffff:0:0:0/96` as its first 12 bytes. */
+private val SIIT_PREFIX = ByteArray(IPV6_BYTES - IPV4_BYTES).also {
+    it[SIIT_FFFF_OFFSET] = 0xFF.toByte()
+    it[SIIT_FFFF_OFFSET + 1] = 0xFF.toByte()
 }
 
 /** 6to4 `2002::/16` or Teredo `2001:0000::/32`. */
@@ -122,12 +139,13 @@ internal fun InetAddress.withoutIpv4Mapping(): InetAddress {
 private const val IPV4_BYTES = 4
 private const val IPV6_BYTES = 16
 private const val IPV4_MAPPED_ZERO_BYTES = 10
+private const val SIIT_FFFF_OFFSET = 8
 
 /**
  * The address rule of a development-only fixture host (the Jira stub's host, a Flow insecure origin): loopback (the in-JVM stub), or any
  * address outside the never-admitted classes ([isNeverAllowed]: link-local - the metadata address -, any-local, multicast, `0.0.0.0/8`,
- * `::/96`, NAT64 to a refused address or in `64:ff9b:1::/48`, 6to4 and Teredo). A docker or private address is fine; one DNS answer
- * must not steer a dev stack's authenticated calls anywhere else.
+ * `::/96`, `::ffff:0:0:0/96`, NAT64 to a refused address or in `64:ff9b:1::/48`, 6to4 and Teredo). A docker or private address is
+ * fine; one DNS answer must not steer a dev stack's authenticated calls anywhere else.
  */
 internal fun InetAddress.isDevelopmentFixtureAddress(): Boolean {
     val unwrapped = withoutIpv4Mapping()
@@ -198,7 +216,8 @@ class GuardedDns(
      * The address rule, asked of EVERY address a lookup resolved to (all-or-nothing: one refused address fails the whole
      * lookup, audited). The default is [publicAddressesOnly]. The development stub host (`jira.stubBaseUrl`) is judged by
      * [isDevelopmentFixtureAddress] for its own host only (loopback, private or docker addresses pass; link-local, any-local,
-     * multicast, `0.0.0.0/8`, `::/96`, NAT64 to a refused address, 6to4 and Teredo never do), see `jira/Jira.kt`'s `jiraAddressRule`.
+     * multicast, `0.0.0.0/8`, `::/96`, `::ffff:0:0:0/96`, NAT64 to a refused address, 6to4 and Teredo never do), see `jira/Jira.kt`'s
+     * `jiraAddressRule`.
      * A self-managed host answers through `SelfManagedHosts.addressAllowed` (`.claude/docs/security.md` "Outbound HTTP
      * calls"). The allow-list check above still applies unconditionally — this never widens which HOSTS are reachable.
      */

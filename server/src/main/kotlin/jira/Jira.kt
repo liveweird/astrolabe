@@ -102,10 +102,10 @@ fun Application.configureJira() {
 
 /**
  * The address rule of the Jira client. The stub is a local compose/in-JVM fixture BY DESIGN (see GuardedDns's kdoc) - its address is
- * expected to be loopback/private, unlike a genuine Jira Cloud host - but never link-local, any-local, multicast, `0.0.0.0/8`, a
- * NAT64 prefix embedding a refused address or another tunnelling prefix ([isDevelopmentFixtureAddress], Flow's rule for its insecure
- * origins). The stub host is judged by that rule ALONE (the public-only rule would refuse its loopback/private address). Every other
- * host: public addresses only.
+ * expected to be loopback/private, unlike a genuine Jira Cloud host - but never link-local, any-local, multicast, `0.0.0.0/8`,
+ * `::/96`, `::ffff:0:0:0/96`, a NAT64 prefix embedding a refused address or another tunnelling prefix
+ * ([isDevelopmentFixtureAddress], Flow's rule for its insecure origins). The stub host is judged by that rule ALONE (the public-only
+ * rule would refuse its loopback/private address). Every other host: public addresses only.
  */
 internal fun jiraAddressRule(developmentMode: Boolean, stubHost: String?): (String, InetAddress) -> Boolean = { host, address ->
     if (developmentMode && stubHost != null && host.equals(stubHost, ignoreCase = true)) {
@@ -142,7 +142,8 @@ internal fun validatedStubOrigin(value: String): Origin {
  * rule would never see it: a literal is judged here, once. An IPv6 literal is refused outright (the per-request origin check compares
  * the bracketless host OkHttp sees, so it could never be reached); a numeric host must be a canonical dotted quad (the JDK also reads
  * `2852039166` or `0169.254.169.254` as 169.254.169.254) of a class [isDevelopmentFixtureAddress] admits (never link-local,
- * any-local, multicast, `0.0.0.0/8` or a NAT64/tunnelling prefix). Every failure names the key, never the value.
+ * any-local, multicast, `0.0.0.0/8`, `::/96`, `::ffff:0:0:0/96` or a NAT64/tunnelling prefix). Every failure names the key, never
+ * the value.
  */
 private fun checkStubLiteral(host: String) {
     if (host.startsWith("[") || ':' in host) {

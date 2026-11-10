@@ -10,9 +10,9 @@ import java.net.InetAddress
  *
  * What the rule is, in one place ([addressAllowed]):
  *  - an address that is NOT blocked today ([isBlockedAddress]) is allowed for every host, listed or not;
- *  - loopback, link-local (incl. the cloud metadata address), any-local, multicast, `0.0.0.0/8`, `::/96`, NAT64 to a refused address
- *    or in `64:ff9b:1::/48`, 6to4 and Teredo are refused for every host, whatever the CIDRs say (and the CIDRs may not overlap
- *    them: [parseSelfManagedHosts] refuses at boot);
+ *  - loopback, link-local (incl. the cloud metadata address), any-local, multicast, `0.0.0.0/8`, `::/96`, `::ffff:0:0:0/96`, NAT64 to a
+ *    refused address or in `64:ff9b:1::/48`, 6to4 and Teredo are refused for every host, whatever the CIDRs say (and the CIDRs may not
+ *    overlap them: [parseSelfManagedHosts] refuses at boot);
  *  - any other blocked address (private, unique-local, CGNAT, ...) is allowed only for a LISTED host and only inside a CIDR.
  *
  * An IPv4-mapped IPv6 address is unwrapped to IPv4 before any matching, so `::ffff:10.0.0.5` is judged as `10.0.0.5`.
@@ -66,13 +66,14 @@ private val PORT_DIGITS = Regex("[0-9]{1,5}")
 
 /**
  * Always refused, for every host: loopback, link-local, any-local, multicast, the whole of `0.0.0.0/8` ("this network", of which
- * the JDK flags only `0.0.0.0`), the deprecated IPv6 `::/96` family (`::`, `::1`, IPv4-compatible `::a.b.c.d`) and the tunnelling
- * prefixes 6to4 `2002::/16` and Teredo `2001:0::/32`, and NAT64 (`64:ff9b::/96` embedding a never-allowed IPv4, `64:ff9b:1::/48`).
+ * the JDK flags only `0.0.0.0`), the deprecated IPv6 `::/96` family (`::`, `::1`, IPv4-compatible `::a.b.c.d`), the IPv4-translated
+ * SIIT range `::ffff:0:0:0/96`, the tunnelling prefixes 6to4 `2002::/16` and Teredo `2001:0::/32`, and NAT64 (`64:ff9b::/96`
+ * embedding a never-allowed IPv4, `64:ff9b:1::/48`).
  */
 internal fun InetAddress.isNeverAllowed(): Boolean {
     if (isLoopbackAddress || isLinkLocalAddress || isAnyLocalAddress || isMulticastAddress) return true
     if (isSixToFourOrTeredo() || isNeverAllowedNat64()) return true
-    return if (this is Inet4Address) address[0] == 0.toByte() else isInZeroPrefix96()
+    return if (this is Inet4Address) address[0] == 0.toByte() else isInZeroPrefix96() || isInSiitPrefix96()
 }
 
 private const val IPV6_ZERO_PREFIX_BYTES = 12

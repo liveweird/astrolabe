@@ -22,7 +22,7 @@ enum class FlowBaseUrlVerdict { ALLOWED, NOT_CANONICAL, NOT_LISTED }
  *  - [insecure] (`FLOW_INSECURE_ORIGINS`): exact `http://host[:port]` origins - the Flow stub and a plain-http Flow on OrbStack - honoured
  *    in [developmentMode] ONLY (`configureFlow` refuses a non-blank list at boot otherwise; this class ignores it as defence in depth).
  *    Such a host may resolve to a loopback, private or docker-network address ("a local fixture by construction"), but never to a
- *    link-local (the cloud metadata address), any-local, multicast, `0.0.0.0/8`, `::/96`, NAT64, 6to4 or Teredo one
+ *    link-local (the cloud metadata address), any-local, multicast, `0.0.0.0/8`, `::/96`, `::ffff:0:0:0/96`, NAT64, 6to4 or Teredo one
  *    ([insecureAddressAllowed]);
  *    the host check still applies unconditionally, so this never widens WHICH hosts are reachable. A host that is ALSO a listed TLS host
  *    follows the listed-host rule only.

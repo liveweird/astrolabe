@@ -101,6 +101,7 @@ class FlowOriginsTest {
             "64:ff9b::a9fe:a9fe", // NAT64 embedding the metadata address
             "64:ff9b::7f00:1", // NAT64 embedding loopback
             "64:ff9b:1::5", // NAT64 local-use /48, refused whole
+            "::ffff:0:a9fe:a9fe", // IPv4-translated SIIT embedding the metadata address
         )
         for (address in never) {
             assertFalse(dev.addressAllowed("flow-stub", ip(address)), "$address for the insecure host in development")

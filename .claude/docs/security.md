@@ -422,9 +422,9 @@ by `PayloadValidationTest`.
 site-local, link-local, any-local, multicast, IPv6 unique-local `fc00::/7`, CGNAT `100.64.0.0/10`,
 `192.0.0.0/24`, benchmarking `198.18.0.0/15`, "this network" `0.0.0.0/8`, reserved `240.0.0.0/4` (the limited broadcast
 `255.255.255.255` inside it), a NAT64 `64:ff9b::/96` address embedding a non-public IPv4, and the whole of the
-local-use NAT64 prefix `64:ff9b:1::/48`), adding three things: an IPv4-mapped IPv6 address is unwrapped to its IPv4 form first, 6to4 `2002::/16`
-and Teredo `2001:0::/32` are blocked, and so is the deprecated IPv6 `::/96` family, IPv4-compatible `::a.b.c.d` included (one helper,
-`isInZeroPrefix96`, shared with `isNeverAllowed`); all pinned by `OutboundGuardTest`, as defense in depth. The PRIMARY
+local-use NAT64 prefix `64:ff9b:1::/48`), adding four things: an IPv4-mapped IPv6 address is unwrapped to its IPv4 form first, 6to4 `2002::/16`
+and Teredo `2001:0::/32` are blocked, and so is the deprecated IPv6 `::/96` family, IPv4-compatible `::a.b.c.d` included, and the IPv4-translated SIIT range `::ffff:0:0:0/96` whole, never unwrapped (one helper
+each, `isInZeroPrefix96` / `isInSiitPrefix96`, shared with `isNeverAllowed`); all pinned by `OutboundGuardTest`, as defense in depth. The PRIMARY
 boundary is a **host allow-list** the caller supplies (a connector allows exactly its provider's API hosts; a development-only stub
 host may be added in development mode and is refused at startup in production, like the crypto-key/mail-transport checks). `GuardedDns`
 (an `okhttp3.Dns`) re-checks the allow-list and re-resolves + re-checks addresses on every NEW connection (not just once per request, since the
@@ -449,7 +449,7 @@ scoped, read-only credential, stored encrypted ("Encryption at rest" below).
 **The Jira consumer (`jira/Jira.kt` `configureJira`, v1.1.0; donor Flow's `jira/Jira.kt`, same rules).** ONE guarded client (`buildGuardedJiraHttpClient`, the very function the tests build their client with) serves every connection, closed on `ApplicationStopped`, with:
 
 - `allowedHost = isAllowedJiraHost(host, stubHost, developmentMode)` (`api.atlassian.com`, a genuine `*.atlassian.net` tenant by the SAME `JIRA_SITE_URL_PATTERN` + `ATLASSIAN_RESERVED_SITE_LABELS` the connection validation uses, `infra/outbound/AtlassianSites.kt` — the sync's allow-list now —, or in development the stub host);
-- `addressAllowed` = `publicAddressesOnly`, plus the stub host in development, judged by Flow's rule (`jiraAddressRule` -> `isDevelopmentFixtureAddress`: loopback, or any address outside the never-admitted classes - link-local, any-local, multicast, `0.0.0.0/8`, `::/96`, NAT64 to a refused address or in `64:ff9b:1::/48`, 6to4, Teredo; a docker or private address is fine; an IP-literal `jira.stubBaseUrl` is judged by the same rule at boot: an IPv6 literal or a non-canonical numeric host such as `2852039166` is refused);
+- `addressAllowed` = `publicAddressesOnly`, plus the stub host in development, judged by Flow's rule (`jiraAddressRule` -> `isDevelopmentFixtureAddress`: loopback, or any address outside the never-admitted classes - link-local, any-local, multicast, `0.0.0.0/8`, `::/96`, `::ffff:0:0:0/96`, NAT64 to a refused address or in `64:ff9b:1::/48`, 6to4, Teredo; a docker or private address is fine; an IP-literal `jira.stubBaseUrl` is judged by the same rule at boot: an IPv6 literal or a non-canonical numeric host such as `2852039166` is refused);
 - `schemeFor` = the stub's own scheme for the stub host, else `https` (so `outbound.blocked` never claims a scheme that was not used);
 - `originAllowed = isAllowedJiraOrigin` (`https` on 443 to an allowed host, or exactly the stub's origin in development: an IP-literal URL, a foreign port or plain http to a tenant is refused and audited);
 - no proxy, no redirects, no retry at the OkHttp layer.
@@ -475,7 +475,7 @@ Also pinned by `OutboundGuardTest` (the production-wiring cases against the loop
 by design. `infra/outbound/SelfManagedHosts.kt`, `Cidr.kt` and `CaBundle.kt` (ported from Flow; their consumer is the Flow sync, "The Flow consumer" below) widen it
 for ONE connector from OPERATOR configuration only (never from anything a user or admin types): exact lowercase hosts (no wildcards, no IP literals, no
 credentials in a config value), CIDRs a listed host may resolve to (boot refuses `/0`, IPv4 wider than /8, IPv6 wider than /32 and anything overlapping
-loopback, link-local — the cloud metadata address `169.254.169.254` — any-local, multicast, 6to4, Teredo, IPv4-mapped or NAT64 space), a request-origin check
+loopback, link-local — the cloud metadata address `169.254.169.254` — any-local, multicast, 6to4, Teredo, IPv4-mapped, `::/96`, `::ffff:0:0:0/96` or NAT64 space), a request-origin check
 (`https` to a listed `host[:port]` only), and an optional extra CA bundle added ALONGSIDE the JVM defaults (no skip-TLS or trust-all switch anywhere). Pinned by
 `SelfManagedHostsTest`; in k8s the egress NetworkPolicy still excludes private ranges, so such a host needs its own egress rule (the policy is the second layer,
 the guard the first).
@@ -484,7 +484,7 @@ the guard the first).
 
 **A non-blank `flow.insecureOrigins` outside development mode refuses startup** (the `jira.stubBaseUrl` rule: `FlowBootTest`), and `FlowOrigins` ignores the list outside development mode as defence in depth.
 
-**An insecure host may resolve to a loopback, private or docker-network address, and to nothing else**: its addresses are refused when they are link-local (the cloud metadata address `169.254.169.254` included), any-local, multicast, in `0.0.0.0/8` or `::/96`, NAT64 to a refused address or in `64:ff9b:1::/48`, or 6to4/Teredo (the `isNeverAllowed` classes minus loopback; `FlowOriginsTest`), and a host that is ALSO a listed TLS host follows the listed-host rule only (never loopback, whatever the CIDRs say). The host check still gates WHICH hosts are reachable.
+**An insecure host may resolve to a loopback, private or docker-network address, and to nothing else**: its addresses are refused when they are link-local (the cloud metadata address `169.254.169.254` included), any-local, multicast, in `0.0.0.0/8`, `::/96` or `::ffff:0:0:0/96`, NAT64 to a refused address or in `64:ff9b:1::/48`, or 6to4/Teredo (the `isNeverAllowed` classes minus loopback; `FlowOriginsTest`), and a host that is ALSO a listed TLS host follows the listed-host rule only (never loopback, whatever the CIDRs say). The host check still gates WHICH hosts are reachable.
 
 **A connection's `baseUrl` must be exactly one listed origin in its canonical form** (`FlowOrigins.baseUrlVerdict`: `scheme://host[:port]`, lowercase scheme and host, the scheme's default port omitted, no path, trailing slash, query or credentials; the verdict is `ALLOWED`, `NOT_CANONICAL` or `NOT_LISTED` and the 400 names which, never quoting the value; wired through the composition root `infra/db/Database.kt`, which fails closed until `configureFlow` has built the rule), so an admin can never widen the list and every origin has one spelling.
 

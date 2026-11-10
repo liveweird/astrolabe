@@ -201,13 +201,18 @@ class SelfManagedHostsTest {
             "169.254.0.0/16", "169.254.169.254/32", "169.254.1.0/24",
             "0.0.0.0/8", "0.0.0.0/32", "0.1.0.0/16",
             "224.0.0.0/4", "239.1.0.0/16", "224.0.0.1/32",
-            "::1/128", "::/128", "::/32", "2002::/32", "2002:c000::/32", "2001::/32", "2001:0:4136::/48",
+            "::1/128", "::/128", "::/32", "::ffff:0:0:0/96", "::ffff:0:10.0.0.0/104",
+            "2002::/32", "2002:c000::/32", "2001::/32", "2001:0:4136::/48",
             "fe80::/10", "fe80::1/128", "fe80:1::/32",
             "ff00::/8", "ff02::/32", "ff02::1/128",
         )
         for (entry in bad) {
             val message = refusal(hosts = "gitlab.example.com", cidrs = entry)
             assertTrue(entry in message, "$entry must be refused by name: $message")
+        }
+        for (entry in listOf("::ffff:0:0:0/96", "::ffff:0:10.0.0.0/104")) {
+            val message = refusal(hosts = "gitlab.example.com", cidrs = entry)
+            assertTrue("IPv4-translated SIIT ::ffff:0:0:0/96" in message, "$entry must name the SIIT range: $message")
         }
         // The forbidden-range check is on OVERLAP, not on equality: a broad range that merely CONTAINS one is refused as well
         // (the /8 floor makes the widest such range 0.0.0.0/8 .. 255/8, e.g. 127.0.0.0/8 itself and 169.0.0.0/8 here).
@@ -276,7 +281,7 @@ class SelfManagedHostsTest {
         val broad = parseGitLabHosts(listedHost, "10.0.0.0/8,126.0.0.0/8,128.0.0.0/8,169.0.0.0/9,170.0.0.0/8,fd00::/32")
         val never = listOf(
             "127.0.0.1", "127.255.255.254", "169.254.169.254", "169.254.0.1", "0.0.0.0", "0.1.2.3", "224.0.0.1", "239.255.255.255",
-            "::1", "::", "fe80::1", "febf::1", "ff02::1", "ff00::", "::10.0.0.1",
+            "::1", "::", "fe80::1", "febf::1", "ff02::1", "ff00::", "::10.0.0.1", "::ffff:0:10.0.0.1", "::ffff:0:8.8.8.8",
             "2002:c000:204::1", "2002:0a14:0105::1", "2001:0:4136:e378:8000:63bf:3fff:fdd2", "2001:0:0:0:0:0:0:1",
         )
         for (literal in never) {
