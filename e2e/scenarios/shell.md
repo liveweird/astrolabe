@@ -28,16 +28,16 @@
 3. They open the account menu again and pick **Light**.
    - *Expected*: `<html data-mantine-color-scheme="light">`.
 
-## Scenario: Tab in the open account menu stays among its controls and leaves, closing the menu, past the last
+## Scenario: Tab in the open account menu closes it and moves the focus on from its trigger
 
 1. The admin signs in, focuses the account menu button and presses Enter.
    - *Expected*: the menu is open with the focus on its first item, **English**.
-2. They press Tab.
-   - *Expected*: the focus moves to the checked theme control and the menu stays open.
-3. They press Tab again.
+2. They press Tab (menu items are not Tab stops; the arrow keys move between them).
    - *Expected*: the menu is gone and the keyboard focus has moved on — not the account button, not the document start.
-4. They switch the theme to **Dark** with the pointer, close the menu with Escape, open it again from the keyboard and press Tab twice.
-   - *Expected*: the menu opens on **English** again, the first Tab lands on **Dark**, the second leaves the menu.
+3. They open the menu with the pointer and pick **Dark** among the theme items.
+   - *Expected*: the menu stays open and **Dark** is marked as the chosen theme (`aria-current`).
+4. They close the menu with Escape, open it again from the keyboard and press Tab.
+   - *Expected*: the menu opens on **English** again with **Dark** still marked, and the Tab leaves the menu as before.
 
 ## Scenario: the document title names the page and the focus moves to the main content on navigation
 

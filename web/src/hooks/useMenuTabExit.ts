@@ -26,8 +26,8 @@ function hasTabStopBeyond(dropdown: HTMLElement, from: Element, backwards: boole
  * synchronously and closes the menu; the browser's own Tab default then runs from the trigger, to the next stop after it (Shift+Tab: the one
  * before it). Mantine's focus return finds the focus moved on by the time it looks (10 ms after the close) and leaves it alone.
  *
- * A dropdown with its own tabbable controls (the account menu's theme switch) keeps Tab among them: the key is only taken over when no further
- * Tab stop lies in that direction, so Tab leaves from the last control and Shift+Tab from the first.
+ * A dropdown with its own tabbable controls (none today: every menu is items only, so Tab leaves at once) keeps Tab among them: the key is only taken
+ * over when no further Tab stop lies in that direction, so Tab leaves from the last control and Shift+Tab from the first.
  *
  * It is the BUBBLE `onKeyDown`, not `onKeyDownCapture`: `Popover.Dropdown` swaps the capture handler for its Escape-only one while `closeOnEscape` is on.
  */

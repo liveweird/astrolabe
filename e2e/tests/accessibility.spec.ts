@@ -125,7 +125,7 @@ test.describe("dark scheme", () => {
 });
 
 // The OPEN account menu: a portal'd `role="menu"` that exists only while open (like the row menus below), holding the identity block, the
-// language items, the theme switch, the Changelog link, the ADMIN telemetry toggle and the destructive Sign out; it opens with the focus on
+// language items, the theme items, the Changelog link, the ADMIN telemetry toggle and the destructive Sign out; it opens with the focus on
 // its first item (English). Escape closes it and gives the focus back to its trigger.
 function registerAccountMenuScan(scheme: Scheme): void {
   const suffix = scheme === "dark" ? " in the dark scheme" : "";

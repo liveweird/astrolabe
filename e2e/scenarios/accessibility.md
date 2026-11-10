@@ -131,7 +131,7 @@ states, so nothing here depends on `jira-sync.spec.ts`'s flips or rows. Each tes
 1. The admin signs in, opens `/`, waits for the Home heading and opens the header's account menu.
    - *Expected*: the menu (a portal'd `role="menu"`, in the DOM only while open) is visible and has settled at full opacity (axe measures contrast against a fade-in's partial opacity), its
      first item "English" holds the focus, the admin's email shows in the identity block (the identity query has landed: no "—" placeholders), `<html>` carries the light scheme and an axe scan of the whole page (same tags, `color-contrast` included) reports zero violations: the identity block, the language items,
-     the theme switch, the Changelog link, the telemetry toggle and the red Sign out item.
+     the theme items, the Changelog link, the telemetry toggle and the red Sign out item.
 2. The admin presses Escape.
    - *Expected*: the menu leaves the DOM and the focus returns to the account-menu trigger.
 

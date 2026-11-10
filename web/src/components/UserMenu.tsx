@@ -8,7 +8,6 @@ import {
   Group,
   Indicator,
   Menu,
-  SegmentedControl,
   Text,
   UnstyledButton,
   useMantineColorScheme,
@@ -26,6 +25,12 @@ import { setTelemetryPanelOpen, useTelemetryPanelOpen } from "../hooks/useTeleme
 import DestructiveMenuItem from "./DestructiveMenuItem";
 
 const IDENTITY_STALE_MS = 5 * 60_000;
+
+const THEMES = [
+  { value: "light", label: "appShell.userMenu.themeLight" },
+  { value: "dark", label: "appShell.userMenu.themeDark" },
+  { value: "auto", label: "appShell.userMenu.themeAuto" },
+] as const;
 
 function initials(name: string): string {
   return name
@@ -47,7 +52,8 @@ function initials(name: string): string {
  * (readable before switching); a pick switches the UI and fire-and-forgets the server-side
  * user language (one synced language — it drives every email sent to the user). Theme: the
  * three real states (light / dark / system — the provider mounts `defaultColorScheme="auto"`),
- * as a SegmentedControl rather than items so the menu stays open. The what's-new dot rides
+ * as items with `closeMenuOnClick={false}` so the menu stays open (not a SegmentedControl: a radiogroup is not allowed inside `role="menu"`, axe
+ * `aria-required-children`). The what's-new dot rides
  * the TRIGGER (`title` = the accessible "What's new" e2e looks for) and the Changelog item
  * carries a text badge instead of a second title — two titled nodes would trip strict-mode
  * locators while the menu is open.
@@ -138,7 +144,7 @@ export default function UserMenu() {
         {SUPPORTED_LANGUAGES.map((lng, index) => (
           <Menu.Item
             key={lng}
-            // The menu opens on its first item, like every menu: without this Mantine's trap takes the first radio of the theme switch, even an unchecked one, where Tab is stuck and an arrow key changes the theme.
+            // The menu opens on its first item, like every menu.
             data-autofocus={index === 0 ? true : undefined}
             onClick={() => pickLanguage(lng)}
             // Mantine fixes the item's role to "menuitem" (not overridable), so the chosen language is carried by the global aria-current.
@@ -149,20 +155,18 @@ export default function UserMenu() {
           </Menu.Item>
         ))}
         <Menu.Label>{t("appShell.userMenu.theme")}</Menu.Label>
-        <Box px="xs" pb="xs">
-          <SegmentedControl
-            size="xs"
-            fullWidth
-            aria-label={t("appShell.userMenu.theme")}
-            value={colorScheme}
-            onChange={(value) => setColorScheme(value as "light" | "dark" | "auto")}
-            data={[
-              { value: "light", label: t("appShell.userMenu.themeLight") },
-              { value: "dark", label: t("appShell.userMenu.themeDark") },
-              { value: "auto", label: t("appShell.userMenu.themeAuto") },
-            ]}
-          />
-        </Box>
+        {THEMES.map(({ value, label }) => (
+          <Menu.Item
+            key={value}
+            closeMenuOnClick={false}
+            onClick={() => setColorScheme(value)}
+            // The language items' idiom: Mantine fixes the role to "menuitem", so the chosen theme is carried by aria-current.
+            aria-current={value === colorScheme ? "true" : undefined}
+            leftSection={value === colorScheme ? <IconCheck size={14} /> : <Box w={14} />}
+          >
+            {t(label)}
+          </Menu.Item>
+        ))}
         <Menu.Divider />
         <Menu.Item component={RouterLink} to="/change-password" leftSection={<IconKey size={14} />}>
           {t("appShell.nav.changePassword")}

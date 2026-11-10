@@ -40,35 +40,31 @@ test("switching the theme in the account menu updates the color scheme and persi
   await expect(html).toHaveAttribute("data-mantine-color-scheme", "light");
 });
 
-test("Tab in the open account menu stays among its controls and leaves, closing the menu, past the last", async ({ page }) => {
+test("Tab in the open account menu closes it and moves the focus on from its trigger", async ({ page }) => {
   await login(page);
   const trigger = accountMenu(page);
   await trigger.focus();
   await page.keyboard.press("Enter");
   const menu = page.getByRole("menu");
   await expect(menu).toBeVisible();
-  // The menu opens on its first item; the next Tab stop is the theme control, and past that one Tab leaves.
+  // The menu opens on its first item. Menu items are not Tab stops (arrow keys move between them), so the first Tab leaves.
   const first = menu.getByRole("menuitem", { name: "English" });
-  const theme = menu.getByRole("radio", { checked: true });
   await expect(first).toBeFocused();
-  await page.keyboard.press("Tab");
-  await expect(theme).toBeFocused();
-  await expect(menu).toBeVisible();
   await page.keyboard.press("Tab");
   await expect(menu).toHaveCount(0);
   await expect(trigger).not.toBeFocused();
   await expect(page.locator("body")).not.toBeFocused();
 
-  // The same with a theme other than the switch's first (the radios are in the order Light, Dark, Auto; the default is Auto).
+  // The same with a theme other than the default (System): picking Dark leaves the menu open, Escape closes it, and Tab from the reopened menu still leaves.
   await trigger.click();
-  await page.getByText("Dark", { exact: true }).click();
+  await menu.getByRole("menuitem", { name: "Dark" }).click();
+  await expect(menu.getByRole("menuitem", { name: "Dark" })).toHaveAttribute("aria-current", "true");
   await page.keyboard.press("Escape");
   await expect(menu).toHaveCount(0);
   await trigger.focus();
   await page.keyboard.press("Enter");
   await expect(first).toBeFocused();
-  await page.keyboard.press("Tab");
-  await expect(menu.getByRole("radio", { name: "Dark" })).toBeFocused();
+  await expect(menu.getByRole("menuitem", { name: "Dark" })).toHaveAttribute("aria-current", "true");
   await page.keyboard.press("Tab");
   await expect(menu).toHaveCount(0);
   await expect(page.locator("body")).not.toBeFocused();

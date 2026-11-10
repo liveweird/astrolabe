@@ -58,7 +58,7 @@ in the DOM, so tests and e2e address the links directly; leaf clicks close the m
 hairline `Divider`s. The mobile overlay always shows full labels.
 
 **The header and the palette.** The shell header is 48px: brand, the `CommandPalette` trigger, and the `UserMenu` (avatar → identity from `GET /users/{id}`
-under the `["user", id]` key, language, theme as a three-state SegmentedControl, Change password, Changelog with the what's-new badge, for an ADMIN a "Telemetry
+under the `["user", id]` key, language, theme as three `Menu.Item`s (Light / Dark / System; the chosen one carries `IconCheck` + `aria-current`, `closeMenuOnClick={false}` keeps the menu open: a SegmentedControl is a radiogroup, not allowed inside `role="menu"`, axe `aria-required-children`), Change password, Changelog with the what's-new badge, for an ADMIN a "Telemetry
 panel" toggle, Sign out). The version stamp stays in the sidebar footer. **Focus on navigation**: `hooks/useFocusMainOnNavigation.ts` (called in the `Shell`)
 focuses `#main-content` (`tabIndex={-1}`, ring suppressed in `index.css`, `preventScroll`) when the PATHNAME changes - never for a `?baseline=`/filter/sort
 change or a same-path push, never on the first render (a fresh sign-in or reload leaves the document start; the skip link is the first Tab stop) - and leaves a
@@ -250,8 +250,8 @@ The template and its rules: `web/CLAUDE.md` "Shared list-page building blocks". 
   name is `common.table.operationsAria` ("Operations for {{name}}"; items are plain `menuitem`s, only one row's menu is open at a time); a per-row `Switch`
   (Feature flags) is state, not an action. A menu opens with the focus on its FIRST item (the theme drops Mantine's focus placeholder, which fails axe
   `aria-required-children`), so the next ArrowDown reaches the second; the item's tint shows for the pointer and for a keyboard focus only. Tab or Shift+Tab
-  closes an open menu and moves on from its trigger (`hooks/useMenuTabExit.ts`; Mantine's trap would swallow the key); a dropdown with its own tabbable controls
-  (the account menu's theme switch) keeps Tab among them until the last. A destructive item (Delete, Sign out) is `components/DestructiveMenuItem.tsx`, never
+  closes an open menu and moves on from its trigger (`hooks/useMenuTabExit.ts`; Mantine's trap would swallow the key; menu items are `tabindex="-1"`, so
+  the first Tab leaves, including the account menu's theme items); the hook stays general: a dropdown with its own tabbable controls would keep Tab among them until the last. A destructive item (Delete, Sign out) is `components/DestructiveMenuItem.tsx`, never
   `Menu.Item color="red"` (red-6 is 3.3:1 on the white dropdown); an item's `aria-label` must contain its visible text ("Move to top: {{name}}", not "Move
   {{name}} to top": axe `label-content-name-mismatch`). **A dialog mounted with `opened` already true (`{editor && <XModal ... />}`) calls
   `useDialogFocus(open)`** in its owner (`hooks/useDialogFocus.ts`): Mantine records no opener for it, so without the hook the focus lands on `body`. Focus
