@@ -31,6 +31,8 @@ const VIEW = {
   unscheduled: [milestone(3, "audit"), milestone(4, "Zeta")],
 } as ProjectView;
 
+const CALENDAR = { kind: "NO_WORKING_DAY", severity: "WARNING", days: null, teamId: null, otherProjectId: null, deviation: null, count: null } as const;
+const JIRA = { kind: "JIRA_MILESTONES", severity: "WARNING", days: null, teamId: null, otherProjectId: null, deviation: null, count: 1 } as const;
 const ids = (list: ProjectMilestone[]) => list.map((m) => m.id);
 
 describe("applySchedule", () => {
@@ -51,6 +53,13 @@ describe("applySchedule", () => {
   test("a move keeps the milestone in the scheduled list, re-sorted by start then end then name", () => {
     expect(ids(applySchedule(VIEW, 1, "2027-01-25", "2027-01-26").scheduled)).toEqual([2, 1]);
     expect(ids(applySchedule(VIEW, 1, "2027-01-18", "2027-01-22").scheduled)).toEqual([1, 2]);
+  });
+
+  test("the written row drops its NO_WORKING_DAY flag (it described the old dates; the refetch re-derives it) and keeps the others", () => {
+    const flagged = { ...VIEW, scheduled: [{ ...milestone(1, "Build", "2027-01-06", "2027-01-06"), flags: [CALENDAR, JIRA] }, VIEW.scheduled[1]] };
+    expect(applySchedule(flagged, 1, "2027-01-07", "2027-01-08").scheduled[0].flags).toEqual([JIRA]);
+    expect(applySchedule(flagged, 1, null, null).unscheduled.find((m) => m.id === 1)?.flags).toEqual([JIRA]);
+    expect(applySchedule(flagged, 2, "2027-02-01", "2027-02-02").scheduled.find((m) => m.id === 1)?.flags).toEqual([CALENDAR, JIRA]);
   });
 
   test("a null pair unschedules: the milestone returns to the tray in case-insensitive name order", () => {

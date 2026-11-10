@@ -35,7 +35,9 @@ export function applyTeamSchedule(view: TeamView, id: number, start: string | nu
   const target = [...view.scheduled, ...view.unscheduled].find((milestone) => milestone.id === id);
   if (target === undefined) return view;
   // Unscheduling clears the pin (the server does it in the same write): only a scheduled milestone can be pinned.
-  const moved: TeamMilestone = { ...target, startDate: start, endDate: end, pinned: start !== null && target.pinned };
+  // The calendar flag belongs to the OLD dates: drop it, the refetch re-derives it from the new ones.
+  const flags = target.flags.filter((flag) => flag.kind !== "NO_WORKING_DAY");
+  const moved: TeamMilestone = { ...target, startDate: start, endDate: end, pinned: start !== null && target.pinned, flags };
   const scheduled = view.scheduled.filter((milestone) => milestone.id !== id);
   const unscheduled = view.unscheduled.filter((milestone) => milestone.id !== id);
   if (start === null) return { ...view, scheduled, unscheduled: [...unscheduled, moved].sort(byDefaultOrder) };

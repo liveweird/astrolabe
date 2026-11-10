@@ -6,6 +6,7 @@ import { DndContext } from "@dnd-kit/core";
 import { Route, Routes } from "react-router-dom";
 import TeamDetails from "./TeamDetails";
 import type { DependencyEndpoint, ProjectDependency } from "../api/dependencies";
+import type { PlanFlag } from "../api/roadmap";
 import type { CapacityPeriod, TeamMilestone, TeamView } from "../api/teams";
 import { READ_ONLY_PANEL } from "../test/flow";
 import { headingOutline } from "../test/headings";
@@ -53,6 +54,7 @@ const dropRow = (m: TeamMilestone, position: number, y: number) => {
   act(() => dndProps?.onDragEnd?.(event as never));
 };
 
+const NO_WORKING_DAY: PlanFlag = { kind: "NO_WORKING_DAY", severity: "WARNING", days: null, teamId: null, otherProjectId: null, deviation: null, count: null };
 const milestone = (id: number, name: string, over: Partial<TeamMilestone> = {}): TeamMilestone => ({
   jira: null,
   flags: [],
@@ -357,6 +359,23 @@ describe("Team view page", () => {
     expect(table.querySelectorAll("[data-flow-badge]")).toHaveLength(1);
     // the strip cell alone carries data-flow-capacity
     expect(document.querySelectorAll("[data-flow-capacity]")).toHaveLength(1);
+  });
+
+  test("a calendar flag alone opens the Flags column, its sentence the row's label; a view with neither a link nor a flag has no column", async () => {
+    view = viewOf({ scheduled: [{ ...TV_A, flags: [NO_WORKING_DAY] }, TV_B, TV_C] });
+    const first = renderPage();
+    const grid = await screen.findByRole("grid", { name: "Team milestone timeline" });
+    expect(within(grid).getAllByRole("columnheader").map((header) => header.textContent)).toContain("Flags");
+    const flagged = within(grid).getByRole("row", { name: new RegExp(TV_A.name) });
+    expect(flagged.querySelector("[data-flags]")).toHaveAttribute("data-flags", "1,0");
+    expect(flagged).toHaveTextContent("Covers no working day: only weekends or holidays");
+    expect(within(grid).getByRole("row", { name: new RegExp(TV_B.name) }).querySelector("[data-flags]")).toBeNull();
+    first.unmount();
+
+    view = viewOf();
+    renderPage();
+    const plain = await screen.findByRole("grid", { name: "Team milestone timeline" });
+    expect(within(plain).queryByRole("columnheader", { name: "Flags" })).not.toBeInTheDocument();
   });
 
   test("a team without flags and unmarked weeks shows none of it", async () => {

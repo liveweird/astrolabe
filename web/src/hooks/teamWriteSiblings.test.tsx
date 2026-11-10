@@ -28,7 +28,7 @@ const view = (): TeamView =>
   ({
     revision: server.revision,
     team: { id: 1, can: { schedule: true, editCapacity: true, editOrder: true } },
-    scheduled: server.order.map((id) => ({ id, name: `m${id}`, projectId: 7, projectName: "Invoices", rankPosition: 1, startDate: server.start[id], endDate: server.start[id] })),
+    scheduled: server.order.map((id) => ({ id, name: `m${id}`, projectId: 7, projectName: "Invoices", rankPosition: 1, flags: [], startDate: server.start[id], endDate: server.start[id] })),
     unscheduled: [],
     order: { custom: true, revision: server.orderRevision, milestoneIds: server.order },
   }) as unknown as TeamView;

@@ -1,6 +1,7 @@
 package ch.nokillswit.planning
 
 import ch.nokillswit.infra.db.active
+import ch.nokillswit.infra.time.WorkingCalendar
 import ch.nokillswit.teams.TeamService
 import io.ktor.util.AttributeKey
 import io.r2dbc.spi.IsolationLevel
@@ -49,7 +50,7 @@ class ProjectViewService(private val database: R2dbcDatabase, private val extern
         val targetEnd = row[projects.targetEnd]
 
         val critical = loadCriticalPath(projectId, calendar)
-        val milestones = milestoneRows(projectId, actor, manage, critical.result)
+        val milestones = milestoneRows(projectId, actor, manage, critical.result, calendar)
         // Inside the snapshot, after the calendar: the project's own Jira link and every milestone's, with the flags (1.3).
         val outside = external.flagsInTransaction(
             ExternalFlagRequest(projectIds = listOf(projectId), milestoneIds = milestones.map { it.view.id }, calendar = calendar),
@@ -104,13 +105,14 @@ class ProjectViewService(private val database: R2dbcDatabase, private val extern
     /**
      * Every ACTIVE milestone of [projectId] with its team name, read WITHOUT an `active()` filter on the team: an active milestone's
      * team is always active (`TeamService.delete`'s 409), the `ownerNames` reasoning. [manage] is the project-level edit/delete verdict;
-     * [critical] fills each scheduled milestone's slack and critical flag.
+     * [critical] fills each scheduled milestone's slack and critical flag, [calendar] its `NO_WORKING_DAY` flag.
      */
     private suspend fun milestoneRows(
         projectId: UInt,
         actor: PlanActor,
         manage: Boolean,
         critical: CriticalPathResult,
+        calendar: WorkingCalendar,
     ): List<MilestoneRow> {
         val milestones = MilestoneService.Milestones
         val teams = TeamService.Teams
@@ -143,6 +145,7 @@ class ProjectViewService(private val database: R2dbcDatabase, private val extern
                         critical = id in critical.criticalMilestones,
                         pinned = row[milestones.pinned],
                         can = ProjectMilestoneCan(edit = manage, delete = manage, schedule = PlanPermissions.canSchedule(actor, teamId)),
+                        flags = listOfNotNull(MilestoneFlagKernels.noWorkingDay(span, calendar)),
                     ),
                 )
             }

@@ -5777,7 +5777,9 @@ components:
             - $ref: '#/components/schemas/JiraLink'
         flags:
           type: array
-          description: The open Jira flags of the milestone (`JIRA_DEVIATION`, one per deviation, WARNING first); empty when it is unbound, clean, acknowledged or on a disabled connection.
+          description: >-
+            The milestone's flags, WARNING first: `NO_WORKING_DAY` (the scheduled span holds no working day on the current calendar, raised from the view's own
+            calendar) and the open Jira flags (`JIRA_DEVIATION`, one per deviation); empty when none applies (unscheduled, a clean or unbound row, acknowledged or on a disabled connection).
           items:
             $ref: '#/components/schemas/PlanFlag'
         can:
@@ -5977,7 +5979,9 @@ components:
             - $ref: '#/components/schemas/JiraLink'
         flags:
           type: array
-          description: The open Jira flags of the milestone (`JIRA_DEVIATION`, one per deviation, WARNING first); empty when it is unbound, clean, acknowledged or on a disabled connection.
+          description: >-
+            The milestone's flags, WARNING first: `NO_WORKING_DAY` (the scheduled span holds no working day on the current calendar, raised from the view's own
+            calendar) and the open Jira flags (`JIRA_DEVIATION`, one per deviation); empty when none applies (unscheduled, a clean or unbound row, acknowledged or on a disabled connection).
           items:
             $ref: '#/components/schemas/PlanFlag'
 
@@ -6351,11 +6355,13 @@ components:
       properties:
         kind:
           type: string
-          enum: [DRIFT_END_LATE, DRIFT_START_LATE, DRIFT_END_EARLY, RANK_INVERSION, JIRA_DEVIATION, JIRA_MILESTONES, FLOW_CAPACITY]
+          enum: [DRIFT_END_LATE, DRIFT_START_LATE, DRIFT_END_EARLY, RANK_INVERSION, NO_WORKING_DAY, JIRA_DEVIATION, JIRA_MILESTONES, FLOW_CAPACITY]
           description: >-
             `JIRA_DEVIATION` is one open deviation between a node and its Jira item (a binding through an enabled connection that is not
             currently acknowledged; `ESTIMATE_NOT_COMPARABLE` never raises one), `JIRA_MILESTONES` a project's roll-up of its milestones',
             `FLOW_CAPACITY` (1.9, only in `GET /views/team/{id}`'s `team.flags`) the team's roll-up of its open Flow capacity deviations.
+            `NO_WORKING_DAY` (the project and team views' milestone rows) the scheduled span holds no working day on the current calendar:
+            a holiday added after the schedule was written (decision D2); every other member is null.
         severity:
           type: string
           enum: [WARNING, INFO]

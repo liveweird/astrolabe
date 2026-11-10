@@ -17,7 +17,7 @@ import { jsonResponse } from "../test/http";
 
 vi.mock("../utils/toast", () => ({ showSuccessToast: vi.fn() }));
 
-const row = (id: number, startDate: string | null, endDate: string | null) => ({ id, name: `m${id}`, projectId: 7, projectName: "Invoices", rankPosition: 1, startDate, endDate });
+const row = (id: number, startDate: string | null, endDate: string | null) => ({ id, name: `m${id}`, projectId: 7, projectName: "Invoices", rankPosition: 1, flags: [], startDate, endDate });
 const BASELINE = { id: 5, name: "Q1", planRevision: 4, milestones: [], removed: [] };
 
 const teamView = (over: Record<string, unknown> = {}) =>

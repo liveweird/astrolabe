@@ -4417,7 +4417,7 @@ export interface components {
             critical: boolean;
             /** @description The node's Jira item (1.3); null when it is unbound. Through a disabled connection it is kept with null dates. */
             jira: components["schemas"]["JiraLink"] | null;
-            /** @description The open Jira flags of the milestone (`JIRA_DEVIATION`, one per deviation, WARNING first); empty when it is unbound, clean, acknowledged or on a disabled connection. */
+            /** @description The milestone's flags, WARNING first: `NO_WORKING_DAY` (the scheduled span holds no working day on the current calendar, raised from the view's own calendar) and the open Jira flags (`JIRA_DEVIATION`, one per deviation); empty when none applies (unscheduled, a clean or unbound row, acknowledged or on a disabled connection). */
             flags: components["schemas"]["PlanFlag"][];
             can: {
                 /** @description The caller may change the plan fields (an owner on the project's chain, or ADMIN). */
@@ -4609,7 +4609,7 @@ export interface components {
             critical: boolean;
             /** @description The node's Jira item (1.3); null when it is unbound. Through a disabled connection it is kept with null dates. */
             jira: components["schemas"]["JiraLink"] | null;
-            /** @description The open Jira flags of the milestone (`JIRA_DEVIATION`, one per deviation, WARNING first); empty when it is unbound, clean, acknowledged or on a disabled connection. */
+            /** @description The milestone's flags, WARNING first: `NO_WORKING_DAY` (the scheduled span holds no working day on the current calendar, raised from the view's own calendar) and the open Jira flags (`JIRA_DEVIATION`, one per deviation); empty when none applies (unscheduled, a clean or unbound row, acknowledged or on a disabled connection). */
             flags: components["schemas"]["PlanFlag"][];
         };
         /** @enum {string} */
@@ -4995,10 +4995,10 @@ export interface components {
         /** @description One flag raised on a project or, for `JIRA_DEVIATION`, a milestone, or (1.9) on a team: `FLOW_CAPACITY`, in `GET /views/team/{id}`'s `team.flags`. Warnings only - nothing is ever moved. */
         PlanFlag: {
             /**
-             * @description `JIRA_DEVIATION` is one open deviation between a node and its Jira item (a binding through an enabled connection that is not currently acknowledged; `ESTIMATE_NOT_COMPARABLE` never raises one), `JIRA_MILESTONES` a project's roll-up of its milestones', `FLOW_CAPACITY` (1.9, only in `GET /views/team/{id}`'s `team.flags`) the team's roll-up of its open Flow capacity deviations.
+             * @description `JIRA_DEVIATION` is one open deviation between a node and its Jira item (a binding through an enabled connection that is not currently acknowledged; `ESTIMATE_NOT_COMPARABLE` never raises one), `JIRA_MILESTONES` a project's roll-up of its milestones', `FLOW_CAPACITY` (1.9, only in `GET /views/team/{id}`'s `team.flags`) the team's roll-up of its open Flow capacity deviations. `NO_WORKING_DAY` (the project and team views' milestone rows) the scheduled span holds no working day on the current calendar: a holiday added after the schedule was written (decision D2); every other member is null.
              * @enum {string}
              */
-            kind: "DRIFT_END_LATE" | "DRIFT_START_LATE" | "DRIFT_END_EARLY" | "RANK_INVERSION" | "JIRA_DEVIATION" | "JIRA_MILESTONES" | "FLOW_CAPACITY";
+            kind: "DRIFT_END_LATE" | "DRIFT_START_LATE" | "DRIFT_END_EARLY" | "RANK_INVERSION" | "NO_WORKING_DAY" | "JIRA_DEVIATION" | "JIRA_MILESTONES" | "FLOW_CAPACITY";
             /** @enum {string} */
             severity: "WARNING" | "INFO";
             /**

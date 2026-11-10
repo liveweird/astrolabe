@@ -27,7 +27,9 @@ export function applySchedule(view: ProjectView, id: number, start: string | nul
   const target = all.find((milestone) => milestone.id === id);
   if (target === undefined) return view;
   // Unscheduling clears the pin (the server does it in the same write): only a scheduled milestone can be pinned.
-  const moved: ProjectMilestone = { ...target, startDate: start, endDate: end, pinned: start !== null && target.pinned };
+  // The calendar flag belongs to the OLD dates: drop it, the refetch re-derives it from the new ones.
+  const flags = target.flags.filter((flag) => flag.kind !== "NO_WORKING_DAY");
+  const moved: ProjectMilestone = { ...target, startDate: start, endDate: end, pinned: start !== null && target.pinned, flags };
   const rest = all.filter((milestone) => milestone.id !== id);
   const scheduled = [...rest.filter((m) => m.startDate !== null), ...(start === null ? [] : [moved])].sort(byStart);
   const unscheduled = [...rest.filter((m) => m.startDate === null), ...(start === null ? [moved] : [])].sort(byName);

@@ -52,6 +52,14 @@ describe("MilestoneFlags - the roll-up", () => {
     expect(screen.getByText("5/12 · 34 pt")).toBeInTheDocument();
   });
 
+  test("an unlinked row with only the calendar flag shows the triangle, the sentence as its label", () => {
+    const calendar: PlanFlag = { kind: "NO_WORKING_DAY", severity: "WARNING", days: null, teamId: null, otherProjectId: null, deviation: null, count: null };
+    const { container } = renderWithProviders(<MilestoneFlags flags={[calendar]} link={null} sites={SITES} />);
+    expect(container.querySelector("[data-flags]")).toHaveAttribute("data-flags", "1,0");
+    expect(screen.getByText("Covers no working day: only weekends or holidays")).toBeInTheDocument();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
+
   test("the tray's name cell carries it too (NameWithFlags)", () => {
     renderWithProviders(
       <NameWithFlags flags={[]} link={link(rollup())} sites={SITES}>

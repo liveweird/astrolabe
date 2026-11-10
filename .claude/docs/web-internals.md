@@ -1012,7 +1012,7 @@ out of date" qualifier is gone with the separate query: the view carries no conn
 while the dialog is open, no `answered` gate on the page); `useJiraColumn` and its `teams.jiraColumn.<id>` key are removed.
 
 **The Flags column and the tray (1.3)** (`components/MilestoneFlags.tsx`, `utils/flagSentences.ts`): the project and team timelines get a **Flags** column
-(`roadmap.column.flags`, before Slack and Operations) while some SCHEDULED milestone has a `jira` link; the column is 130 px, 210 px while some scheduled row
+(`roadmap.column.flags`, before Slack and Operations) while some SCHEDULED milestone has a `jira` link or a flag (the calendar's `NO_WORKING_DAY`, phrased "Covers no working day: only weekends or holidays" by `roadmap.flag.noWorkingDay`; an unlinked row shows just the triangle); the column is 130 px, 210 px while some scheduled row
 shows a roll-up and its cell is the row's Jira key as an external link (`JiraKeyLink`, out of the roving tab order, https only through `jiraBrowseUrl`, the site
 from the view's `jiraSites`), beside the roadmap's icon (an orange triangle for warnings, a gray info circle for infos, with counts); the icon's accessible
 label lists the row's flag sentences behind its key ("Jira E2E-3: Ends 3 working days later than Jira (plan …, Jira …)", `flagSentence` shared with the

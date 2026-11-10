@@ -12,6 +12,9 @@ import ch.nokillswit.planning.IdleGapView
 import ch.nokillswit.planning.MilestoneResponse
 import ch.nokillswit.planning.MilestoneScheduleRequest
 import ch.nokillswit.planning.MilestoneUpdateRequest
+import ch.nokillswit.planning.FlagKind
+import ch.nokillswit.planning.FlagSeverity
+import ch.nokillswit.planning.PlanFlag
 import ch.nokillswit.planning.ProjectView
 import ch.nokillswit.planning.RankingUpdateRequest
 import ch.nokillswit.planning.ScheduleProposalRequest
@@ -405,6 +408,28 @@ class TeamViewTest {
                 assertEquals(2.0, held.overloadMd)
             }
             assertEquals(10.0, w.view(team).weeks.single().capacity, "removing the holiday restores the week")
+        }
+
+    @Test
+    fun `a holiday-only span carries NO_WORKING_DAY, a weekday neighbour never does, the team header stays clean`() =
+        testApplication {
+            usePostgresTestcontainer()
+            val w = planWorld("tvnw")
+            val team = w.team()
+            val lone = w.milestone(team, "2027-01-06", "2027-01-06", 1.0)
+            val weekdays = w.milestone(team, "2027-01-04", "2027-01-08", 1.0)
+            val tray = w.milestone(team, null, null, 1.0)
+
+            fun TeamView.flagsOf(id: UInt) = (scheduled + unscheduled).single { it.id == id }.flags
+            assertEquals(emptyList(), w.view(team).flagsOf(lone))
+            TestHolidays.with("2027-01-06") {
+                val held = w.view(team)
+                assertEquals(listOf(PlanFlag(FlagKind.NO_WORKING_DAY, FlagSeverity.WARNING, null, null, null)), held.flagsOf(lone))
+                assertEquals(emptyList(), held.flagsOf(weekdays))
+                assertEquals(emptyList(), held.flagsOf(tray))
+                assertEquals(emptyList(), held.team.flags, "the header's flags are the Flow roll-up only")
+            }
+            assertEquals(emptyList(), w.view(team).flagsOf(lone))
         }
 
     @Test

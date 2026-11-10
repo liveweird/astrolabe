@@ -91,6 +91,7 @@
     "inversion_other": "Ranked below {{other}}, but starts {{count}} days earlier on {{team}}",
     "inversionNoTeam_one": "Ranked below {{other}}, but starts {{count}} day earlier (no shared team)",
     "inversionNoTeam_other": "Ranked below {{other}}, but starts {{count}} days earlier (no shared team)",
+    "noWorkingDay": "Covers no working day: only weekends or holidays",
     "jiraDeviation": "Jira {{key}}: {{sentence}}",
     "jiraDeviationBare": "Differs from Jira",
     "jiraMilestones_one": "{{count}} milestone deviates from Jira",

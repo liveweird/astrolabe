@@ -9,6 +9,7 @@ import ch.nokillswit.planning.JiraRollup
 import ch.nokillswit.planning.JiraSite
 import ch.nokillswit.planning.PlanFlag
 import ch.nokillswit.planning.ProgramsView
+import ch.nokillswit.planning.ProjectMilestone
 import ch.nokillswit.planning.ProjectView
 import ch.nokillswit.planning.RoadmapProject
 import ch.nokillswit.planning.RoadmapView
@@ -157,6 +158,29 @@ class TimelineJiraFlagsTest {
         assertEquals(emptyList(), rows.getValue(b.unbound).flags)
         assertTrue(view.scheduled.any { it.id == b.warn.first } && view.unscheduled.any { it.id == b.info.first })
     }
+
+    @Test
+    fun `a bound milestone on a holiday-only span carries the calendar flag BEFORE its Jira flag, on the project and the team view`() =
+        testApplication {
+            val b = world("tjf5")
+            // One working day (Wed 2044-02-10), dated exactly as Jira has it, so the only Jira deviation is the name.
+            val id = TestPlan.milestone(b.w.projectId, b.team, planName("hol"))
+            TestPlan.schedule(id, "2044-02-10", "2044-02-10")
+            val (issueId, key) = nextIssue()
+            dvBind(b.c, JiraLevel.MILESTONE, id, issueId, key, DvObs("Not the name", 1, start = "2044-02-10", end = "2044-02-10"))
+            val calendar = PlanFlag(FlagKind.NO_WORKING_DAY, FlagSeverity.WARNING, null, null, null)
+
+            fun List<ProjectMilestone>.kinds() = single { it.id == id }.flags.map { it.kind }
+            assertEquals(listOf(FlagKind.JIRA_DEVIATION), b.client.project(b.w.projectId).scheduled.kinds())
+            TestHolidays.with("2044-02-10") {
+                val onProject = b.client.project(b.w.projectId).scheduled.single { it.id == id }.flags
+                assertEquals(listOf(FlagKind.NO_WORKING_DAY, FlagKind.JIRA_DEVIATION), onProject.map { it.kind })
+                assertEquals(calendar, onProject.first())
+                assertEquals(DeviationKind.RENAMED, onProject.last().deviation?.kind)
+                val onTeam = b.client.team(b.team).scheduled.single { it.id == id }.flags
+                assertEquals(onProject, onTeam, "both views merge the same way")
+            }
+        }
 
     @Test
     fun `the team view carries each milestone's link and flags, scheduled and unscheduled, and its sites`() = testApplication {

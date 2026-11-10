@@ -11,7 +11,7 @@ import java.time.LocalDate
  * name the PRODUCT ("Jira"), not the package. A view built without a source (a test, a build without the Jira module) answers
  * [NoExternalFlags]: no link, no flag, no site. Since 1.9 the seam also carries a TEAM half (the team view's header flag and the weeks
  * strip's marked days, the Flow capacity deviation: `flow/FlowFlagSource`), and the views read every source through
- * [CompositeExternalFlagSource].
+ * [CompositeExternalFlagSource]. A milestone row's own calendar flag (`NO_WORKING_DAY`) is merged with the external ones, never replaced.
  */
 
 /**
@@ -118,9 +118,12 @@ object NoExternalFlags : ExternalFlagSource {
 internal fun RoadmapProject.withExternal(external: NodeExternal): RoadmapProject =
     copy(jira = external.jira, flags = (flags + external.flags).sortedWith(FLAG_ORDER))
 
-internal fun ProjectMilestone.withExternal(external: NodeExternal): ProjectMilestone = copy(jira = external.jira, flags = external.flags)
+/** A milestone row keeps its own calendar flag ([MilestoneFlagKernels]) and gains the node's [external] link and flags, in [FLAG_ORDER]. */
+internal fun ProjectMilestone.withExternal(external: NodeExternal): ProjectMilestone =
+    copy(jira = external.jira, flags = (flags + external.flags).sortedWith(FLAG_ORDER))
 
-internal fun TeamMilestone.withExternal(external: NodeExternal): TeamMilestone = copy(jira = external.jira, flags = external.flags)
+internal fun TeamMilestone.withExternal(external: NodeExternal): TeamMilestone =
+    copy(jira = external.jira, flags = (flags + external.flags).sortedWith(FLAG_ORDER))
 
 /**
  * [this] week strip with the weeks [ranges] touch marked (1.9): a week `weekStart..weekStart+6` that meets a range's `[start, end]` gets

@@ -25,8 +25,8 @@ const COLUMN_WIDTHS = { name: 220, team: 130, estimate: 120, flags: 130, slack: 
  * link endpoint that has dates; the target window is a band; the links are arrows through the overlay slot. It must sit inside the
  * page's `TimelineDndContext`. Nothing here decides rights or checks — the flags and the server's `check` do.
  *
- * Jira (1.3, all from the view): while some scheduled milestone is linked there is a Flags column (the row's Jira key and its open Jira flags as the
- * roadmap's icons, the sentences as the accessible label), and with `jira` (the page's window, the "Jira dates" toggle on) each linked row gets a dashed shadow bar
+ * Jira (1.3, all from the view): while some scheduled milestone is linked or flagged there is a Flags column (the row's Jira key and its flags, the Jira ones and the calendar's
+ * `NO_WORKING_DAY`, as the roadmap's icons, the sentences as the accessible label; a cell is empty only for a row that is neither linked nor flagged), and with `jira` (the page's window, the "Jira dates" toggle on) each linked row gets a dashed shadow bar
  * of the dates Jira holds.
  */
 export default function ProjectTimeline({
@@ -58,8 +58,8 @@ export default function ProjectTimeline({
   const { t } = useTranslation();
   const { holidays, failed: holidaysFailed } = useHolidays();
   const conflicts = conflictsByBar(view);
-  // The Flags column exists while some scheduled milestone is linked to Jira (the view says so: no stored answer, no second request).
-  const flagsColumn = view.scheduled.some((milestone) => milestone.jira !== null);
+  // The Flags column exists while some scheduled milestone is linked to Jira or carries a flag (the view says so: no stored answer, no second request).
+  const flagsColumn = view.scheduled.some((milestone) => milestone.jira !== null || milestone.flags.length > 0);
   const flagsWidth = view.scheduled.some((milestone) => milestone.jira?.rollup != null) ? FLAGS_WITH_ROLLUP_WIDTH : COLUMN_WIDTHS.flags;
   const columns: TimelineColumn[] = [
     { id: "name", header: t("project.column.milestone"), width: COLUMN_WIDTHS.name },

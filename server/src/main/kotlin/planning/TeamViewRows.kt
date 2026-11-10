@@ -1,6 +1,7 @@
 package ch.nokillswit.planning
 
 import ch.nokillswit.infra.db.active
+import ch.nokillswit.infra.time.WorkingCalendar
 import ch.nokillswit.teams.CapacityPeriodResponse
 import ch.nokillswit.teams.CapacitySource
 import ch.nokillswit.teams.TeamCapacityService
@@ -33,9 +34,15 @@ internal class TeamMilestoneRow(val view: TeamMilestone, val span: DaySpan?, val
  * Every ACTIVE milestone of [teamId] with its project, program and work stream names and its project's rank position (`roadmap_entries`,
  * left-joined: unranked = null), read WITHOUT an `active()` filter on the ancestors - an active milestone's project, program and work
  * stream are always active (the deletes cascade or refuse), the `ownerNames` reasoning. [positions] are the team's own order positions
- * ([positionsOf]), looked up FROM these active milestones, never the other way round.
+ * ([positionsOf]), looked up FROM these active milestones, never the other way round. [calendar] raises each scheduled row's
+ * `NO_WORKING_DAY` flag.
  */
-internal suspend fun teamMilestoneRows(teamId: UInt, teamName: String, positions: Map<UInt, Int>): List<TeamMilestoneRow> {
+internal suspend fun teamMilestoneRows(
+    teamId: UInt,
+    teamName: String,
+    positions: Map<UInt, Int>,
+    calendar: WorkingCalendar,
+): List<TeamMilestoneRow> {
     val milestones = MilestoneService.Milestones
     val projects = ProjectService.Projects
     val programs = ProgramService.Programs
@@ -53,8 +60,9 @@ internal suspend fun teamMilestoneRows(teamId: UInt, teamName: String, positions
             val start = row[milestones.startDate]
             val end = row[milestones.endDate]
             val rank = row.getOrNull(ranks.position) // null: the LEFT JOIN found no entry (unranked)
+            val span = if (start != null && end != null) DaySpan(start, end) else null
             TeamMilestoneRow(
-                span = if (start != null && end != null) DaySpan(start, end) else null,
+                span = span,
                 estimate = row[milestones.estimateMd],
                 key = OrderKey(
                     customPosition = positions[id],
@@ -85,6 +93,7 @@ internal suspend fun teamMilestoneRows(teamId: UInt, teamName: String, positions
                     slackDays = null,
                     critical = false,
                     pinned = row[milestones.pinned],
+                    flags = listOfNotNull(MilestoneFlagKernels.noWorkingDay(span, calendar)),
                 ),
             )
         }

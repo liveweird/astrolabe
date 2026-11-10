@@ -42,6 +42,13 @@ describe("flagSentence", () => {
     expect(flagSentence(pl, flag("FLOW_CAPACITY", "WARNING", { count: 5 }), NAMES, null)).toBe("Przepustowość różni się od Flow: 5 otwartych różnic");
   });
 
+  test("a milestone's calendar flag, alone or beside a Jira one, in both languages", () => {
+    const calendar = flag("NO_WORKING_DAY", "WARNING");
+    expect(flagSentence(en, calendar, NAMES, null)).toBe("Covers no working day: only weekends or holidays");
+    expect(flagSentence(pl, calendar, NAMES, null)).toBe("Nie obejmuje żadnego dnia roboczego: tylko weekendy lub święta");
+    expect(milestoneFlagLabel(en, [calendar, deviationFlag(endLater(3))], "E2E-3")).toMatch(/^Covers no working day: only weekends or holidays; Jira E2E-3: /);
+  });
+
   test("the plan flags name the project and team they compare", () => {
     expect(flagSentence(en, flag("DRIFT_END_LATE", "WARNING", { days: 10 }), NAMES, null)).toBe("Ends 10 days after the target");
     expect(flagSentence(en, flag("RANK_INVERSION", "WARNING", { days: 7, teamId: 2, otherProjectId: 9 }), NAMES, null)).toContain("P9");

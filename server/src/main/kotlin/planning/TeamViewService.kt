@@ -41,7 +41,7 @@ class TeamViewService(private val database: R2dbcDatabase, private val external:
         val managerName = managerId?.let { activePersonName(it) }
 
         val positions = positionsOf(teamId)
-        val rawRows = teamMilestoneRows(teamId, team[teams.name], positions)
+        val rawRows = teamMilestoneRows(teamId, team[teams.name], positions, calendar)
         // The critical path (1.7): each milestone's slack toward its OWN project's end, one graph build for every project of the team.
         val paths = loadCriticalPaths(rawRows.map { it.view.projectId }.distinct(), calendar)
         val rows = rawRows.map { it.withCriticalPath(paths[it.view.projectId]) }

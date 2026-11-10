@@ -40,6 +40,8 @@ const viewOf = (scheduled: TeamMilestone[], unscheduled: TeamMilestone[] = []): 
   idleGaps: [],
 });
 
+const CALENDAR = { kind: "NO_WORKING_DAY", severity: "WARNING", days: null, teamId: null, otherProjectId: null, deviation: null, count: null } as const;
+const JIRA = { kind: "JIRA_MILESTONES", severity: "WARNING", days: null, teamId: null, otherProjectId: null, deviation: null, count: 1 } as const;
 const ids = (list: TeamMilestone[]) => list.map((m) => m.id);
 
 describe("applyTeamSchedule", () => {
@@ -49,6 +51,13 @@ describe("applyTeamSchedule", () => {
     expect(ids(next.scheduled)).toEqual([1, 2, 3]);
     expect(next.scheduled[2]).toMatchObject({ startDate: "2027-03-01", endDate: "2027-03-05" });
     expect(next.unscheduled).toEqual([]);
+  });
+
+  test("the written row drops its NO_WORKING_DAY flag (it described the old dates; the refetch re-derives it) and keeps the others", () => {
+    const view = viewOf([milestone(1, "A", { flags: [CALENDAR, JIRA] }), milestone(2, "B", { flags: [CALENDAR] })]);
+    expect(applyTeamSchedule(view, 1, "2027-04-05", "2027-04-09").scheduled[0].flags).toEqual([JIRA]);
+    expect(applyTeamSchedule(view, 1, null, null).unscheduled[0].flags).toEqual([JIRA]);
+    expect(applyTeamSchedule(view, 1, "2027-04-05", "2027-04-09").scheduled[1].flags).toEqual([CALENDAR]);
   });
 
   test("a rescheduled row keeps its place; the weeks and the revisions stay the view's", () => {

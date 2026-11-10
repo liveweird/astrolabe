@@ -1,6 +1,9 @@
 package ch.nokillswit
 
+import ch.nokillswit.planning.FlagKind
+import ch.nokillswit.planning.FlagSeverity
 import ch.nokillswit.planning.IdleGapView
+import ch.nokillswit.planning.PlanFlag
 import ch.nokillswit.planning.EndpointKind
 import ch.nokillswit.planning.MilestoneCreateRequest
 import ch.nokillswit.planning.MilestoneScheduleRequest
@@ -403,6 +406,30 @@ class ProjectViewTest {
             assertEquals(listOf(IdleGapView("2027-01-05", "2027-01-08", 3)), w.stranger.view(split).idleGaps, "Tue Thu Fri")
         }
     }
+
+    @Test
+    fun `a milestone whose span lost its last working day to a holiday carries NO_WORKING_DAY while the holiday stands`() =
+        testApplication {
+            usePostgresTestcontainer()
+            val w = planWorld("pvnw")
+            val team = TestTeams.seed(planName("pvnw-t"), null)
+            val lone = TestPlan.milestone(w.projectId, team, "lone", 1.0)
+            val spanning = TestPlan.milestone(w.projectId, team, "spanning", 1.0)
+            val tray = TestPlan.milestone(w.projectId, team, "tray", 1.0)
+            TestPlan.schedule(lone, "2027-01-06", "2027-01-06")
+            TestPlan.schedule(spanning, "2027-01-05", "2027-01-07")
+
+            fun ProjectView.flagsOf(id: UInt) = (scheduled + unscheduled).single { it.id == id }.flags
+            assertEquals(emptyList(), w.stranger.view(w.projectId).flagsOf(lone))
+            // Epiphany, Wednesday 2027-01-06: the one-day milestone covers nothing; the Tue-Thu one still holds two working days.
+            TestHolidays.with("2027-01-06") {
+                val held = w.stranger.view(w.projectId)
+                assertEquals(listOf(PlanFlag(FlagKind.NO_WORKING_DAY, FlagSeverity.WARNING, null, null, null)), held.flagsOf(lone))
+                assertEquals(emptyList(), held.flagsOf(spanning))
+                assertEquals(emptyList(), held.flagsOf(tray), "an unscheduled milestone has no span to flag")
+            }
+            assertEquals(emptyList(), w.stranger.view(w.projectId).flagsOf(lone), "removing the holiday clears it")
+        }
 
     @Test
     fun `a milestone whose only day became a holiday opens no leading idle gap`() = testApplication {

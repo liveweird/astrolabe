@@ -114,8 +114,8 @@ const proposalBarOf = (proposed: ReadonlyMap<number, TimelineBarData>, milestone
  * milestones it had scheduled are appended as dimmed rows with the shadow bar only (after the scheduled rows, then a preview's rows). It coexists
  * with a proposal preview: three bars in a row, the tones differ.
  *
- * Jira (1.3, all from the view): while some scheduled milestone is linked there is a Flags column (the row's Jira key and its open Jira flags as the roadmap's
- * icons, the sentences as the accessible label), and with `jira` (the page's window, the "Jira dates" toggle on) each linked row gets a dashed shadow bar of the
+ * Jira (1.3, all from the view): while some scheduled milestone is linked or flagged there is a Flags column (the row's Jira key and its flags, the Jira ones and the calendar's
+ * `NO_WORKING_DAY`, as the roadmap's icons, the sentences as the accessible label; a cell is empty only for a row that is neither linked nor flagged), and with `jira` (the page's window, the "Jira dates" toggle on) each linked row gets a dashed shadow bar of the
  * dates Jira holds, beside the baseline's.
  *
  * With `criticalPath` (1.7, the page's toggle; the server's `slackDays`/`critical` per milestone toward ITS OWN project's end and the links' `critical`) a Slack
@@ -153,8 +153,8 @@ export default function TeamTimeline({
   const { t } = useTranslation();
   const { holidays, failed: holidaysFailed } = useHolidays();
   const previewing = proposal !== undefined;
-  // The Flags column exists while some scheduled milestone is linked to Jira (the view says so: no stored answer, no second request).
-  const flagsColumn = view.scheduled.some((milestone) => milestone.jira !== null);
+  // The Flags column exists while some scheduled milestone is linked to Jira or carries a flag (the view says so: no stored answer, no second request).
+  const flagsColumn = view.scheduled.some((milestone) => milestone.jira !== null || milestone.flags.length > 0);
   const flagsWidth = view.scheduled.some((milestone) => milestone.jira?.rollup != null) ? FLAGS_WITH_ROLLUP_WIDTH : COLUMN_WIDTHS.flags;
   const sites = siteUrls(view.jiraSites);
   /**

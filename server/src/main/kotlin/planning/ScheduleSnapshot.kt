@@ -45,7 +45,7 @@ internal class ScheduleSnapshot(
  */
 internal suspend fun loadScheduleSnapshot(teamId: UInt, teamName: String): ScheduleSnapshot {
     val calendar = loadWorkingCalendar()
-    val rows = teamMilestoneRows(teamId, teamName, positionsOf(teamId))
+    val rows = teamMilestoneRows(teamId, teamName, positionsOf(teamId), calendar)
     val (_, periods) = teamCapacityRows(teamId)
     return ScheduleSnapshot(calendar, rows, periods, milestoneFacts().map { it.fact }, linkFacts())
 }
@@ -109,7 +109,7 @@ internal class CrossTeamSnapshot(
 internal suspend fun loadCrossTeamSnapshot(teamNames: Map<UInt, String>): CrossTeamSnapshot {
     val calendar = loadWorkingCalendar()
     val teams = teamNames.entries.sortedBy { it.key }.map { (teamId, name) ->
-        val rows = teamMilestoneRows(teamId, name, positionsOf(teamId))
+        val rows = teamMilestoneRows(teamId, name, positionsOf(teamId), calendar)
         TeamSnapshot(teamId, name, rows, teamCapacityRows(teamId).second)
     }
     return CrossTeamSnapshot(calendar, teams, milestoneFacts().map { it.fact }, linkFacts())

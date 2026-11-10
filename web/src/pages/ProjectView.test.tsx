@@ -8,6 +8,7 @@ import { Route, Routes } from "react-router-dom";
 import ProjectView from "./ProjectView";
 import type { DependencyEndpoint, ProjectDependency } from "../api/dependencies";
 import type { ProjectMilestone, ProjectView as ProjectViewDocument, UpstreamEntity } from "../api/milestones";
+import type { PlanFlag } from "../api/roadmap";
 import { applySchedule } from "../utils/projectViewUpdate";
 import { withoutGeneratedIds } from "../test/generatedIds";
 import { headingOutline } from "../test/headings";
@@ -60,6 +61,7 @@ const milestone = (id: number, name: string, over: Partial<ProjectMilestone> = {
   ...over,
 });
 
+const NO_WORKING_DAY: PlanFlag = { kind: "NO_WORKING_DAY", severity: "WARNING", days: null, teamId: null, otherProjectId: null, deviation: null, count: null };
 const DISCOVERY = milestone(1, "Discovery", { description: "Interviews", estimateMd: 12.25, startDate: "2027-01-11", endDate: "2027-01-15" });
 const BUILD = milestone(2, "Build", { startDate: "2027-01-18", endDate: "2027-01-29" });
 const ROLLOUT = milestone(3, "Rollout");
@@ -215,6 +217,23 @@ describe("Project view page", () => {
     expect(barOf("Discovery")).toHaveAccessibleName("Discovery, Backend, 2027-01-11 to 2027-01-15, 12.25 man-days");
     const tray = screen.getByRole("table", { name: "Unscheduled milestones" });
     expect(within(tray).getAllByRole("row").slice(1).map((r) => within(r).getAllByRole("cell")[1].textContent)).toEqual(["Audit", "Rollout"]);
+  });
+
+  test("a calendar flag alone opens the Flags column, its sentence the row's label; a view with neither a link nor a flag has no column", async () => {
+    view = viewOf({ scheduled: [{ ...DISCOVERY, flags: [NO_WORKING_DAY] }, BUILD] });
+    const first = renderPage();
+    const grid = await screen.findByRole("grid", { name: "Milestone timeline" });
+    expect(within(grid).getAllByRole("columnheader").map((header) => header.textContent)).toContain("Flags");
+    const discovery = within(grid).getByRole("row", { name: /Discovery/ });
+    expect(discovery.querySelector("[data-flags]")).toHaveAttribute("data-flags", "1,0");
+    expect(discovery).toHaveTextContent("Covers no working day: only weekends or holidays");
+    expect(within(grid).getByRole("row", { name: /Build/ }).querySelector("[data-flags]")).toBeNull();
+    first.unmount();
+
+    view = viewOf();
+    renderPage();
+    const plain = await screen.findByRole("grid", { name: "Milestone timeline" });
+    expect(within(plain).queryByRole("columnheader", { name: "Flags" })).not.toBeInTheDocument();
   });
 
   test("idle gaps: a hatched band per gap (with or without a target window), a gray badge in the facts line and the table behind a disclosure", async () => {

@@ -89,6 +89,7 @@
     "INFO": "Informacja"
   },
   "flag": {
+    "noWorkingDay": "Nie obejmuje żadnego dnia roboczego: tylko weekendy lub święta",
     "endLate_one": "Kończy się {{count}} dzień po terminie docelowym",
     "endLate_few": "Kończy się {{count}} dni po terminie docelowym",
     "endLate_many": "Kończy się {{count}} dni po terminie docelowym",

@@ -15,7 +15,7 @@ import { FlagCountsCell } from "./PlanProjectCells";
 // an epic with mirrored children adds the roll-up LAST, after the key and the flag icons (1.4: "5/12 · 34 pt", `JiraRollupText`, its accessible name the full sentence): it is the least critical element, so a clipped cell loses it before a warning badge.
 
 /**
- * The Flags column's cell and the tray's addition to the name: nothing for an unlinked row. `sites` is the view's `jiraSites` by connection id
+ * The Flags column's cell and the tray's addition to the name: nothing for a row that is neither linked nor flagged. `sites` is the view's `jiraSites` by connection id
  * (`siteUrls`): the key links to `{site}/browse/{KEY}` through `JiraKeyLink` (https only, plain text otherwise).
  */
 export function MilestoneFlags({ flags, link, sites }: { flags: readonly PlanFlag[]; link: JiraLink | null; sites: ReadonlyMap<number, string> }) {
