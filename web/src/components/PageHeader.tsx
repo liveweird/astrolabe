@@ -11,7 +11,8 @@ import { usePageTitle } from "../hooks/usePageTitle";
  * and an optional toolbar row underneath (the list pages' filter/lens/kind row). One
  * component, so a "New …" button can only ever be in one place. It also names the browser tab
  * after the title (`usePageTitle`): the one owner, so every routed page has a tab title. The title is programmatically focusable
- * (`tabIndex={-1}`, never a tab stop) and `titleRef` hands it out: `useDeleteConfirm` puts the focus there after a row delete.
+ * (`tabIndex={-1}`, never a tab stop) and `titleRef` hands it out: `useDeleteConfirm` puts the focus there after a row delete. `titleAddon` (1.9: the
+ * team page's Flow capacity flag) sits beside the title on its row; without it the title is rendered exactly as before.
  */
 export default function PageHeader({
   title,
@@ -20,6 +21,7 @@ export default function PageHeader({
   actions,
   toolbar,
   titleRef,
+  titleAddon,
 }: {
   title: string;
   description?: ReactNode;
@@ -27,6 +29,7 @@ export default function PageHeader({
   actions?: ReactNode;
   toolbar?: ReactNode;
   titleRef?: Ref<HTMLHeadingElement>;
+  titleAddon?: ReactNode;
 }) {
   usePageTitle(title);
   return (
@@ -41,9 +44,18 @@ export default function PageHeader({
               </Group>
             </Anchor>
           )}
-          <Title order={2} ref={titleRef} tabIndex={-1}>
-            {title}
-          </Title>
+          {titleAddon ? (
+            <Group gap="xs" align="center" wrap="wrap">
+              <Title order={2} ref={titleRef} tabIndex={-1}>
+                {title}
+              </Title>
+              {titleAddon}
+            </Group>
+          ) : (
+            <Title order={2} ref={titleRef} tabIndex={-1}>
+              {title}
+            </Title>
+          )}
           {description && (
             <Text c="dimmed" size="sm">
               {description}

@@ -99,7 +99,7 @@
     "noCapacityHint": "Dodaj okres, aby porównać obciążenie każdego tygodnia z przepustowością zespołu.",
     "noCapacityHintReadOnly": "Przepustowość ustawia kierownik/czka zespołu albo administrator/ka.",
     "weeklyTitle": "Obciążenie tygodniowe",
-    "weeklyIntro": "Kolumny to obciążenie tygodnia, linia to przepustowość zespołu; pomarańczowy oznacza tydzień przeciążony, kreskowany znacznik tydzień ponad limitem WIP. Oba tylko ostrzegają — nic się nie przesuwa.",
+    "weeklyIntro": "Kolumny to obciążenie tygodnia, linia to przepustowość zespołu; pomarańczowy oznacza tydzień przeciążony, kreskowany znacznik tydzień ponad limitem WIP, a znacznik w rogu (trójkąt albo, przy samej informacji, kółko) tydzień ze sprintem, w którym przepustowość różni się od Flow. Znaczniki tylko ostrzegają — nic się nie przesuwa.",
     "weeklyEmpty": "Nic nie jest jeszcze zaplanowane, więc nie ma obciążenia tygodniowego.",
     "weeklyTruncated": "Pokazujemy pierwsze {{count}} tygodni harmonogramu.",
     "weeklyAria": "Obciążenie tygodniowe zespołu",
@@ -114,7 +114,8 @@
       "ok": "OK",
       "overloaded": "Przeciążenie · +{{md}} osobodnia",
       "noCapacity": "Brak przepustowości",
-      "wipExceeded": "Ponad limitem WIP"
+      "wipExceeded": "Ponad limitem WIP",
+      "flowCapacity": "Różni się od Flow"
     },
     "period": {
       "createTitle": "Dodaj okres przepustowości",

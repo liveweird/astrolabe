@@ -29,6 +29,8 @@ export interface LoadWeek {
   maxWip: number;
   /** Some working day had more milestones in progress than the WIP limit in force that day. */
   wipExceeded: boolean;
+  /** 1.9: the worst severity of the open Flow capacity deviations whose held days meet the week; absent (or null) when none does. */
+  flowCapacity?: "WARNING" | "INFO" | null;
 }
 
 /** What `TimelineLoadStrip` draws for one week. */
@@ -50,6 +52,8 @@ export interface StripCell {
   wipExceeded: boolean;
   /** The WIP chip's text (the peak) at week and month zoom; "" at quarter and year zoom, where the chip is a dot. */
   wipText: string;
+  /** The Flow capacity mark's severity, or `null` = unmarked (1.9). */
+  flowCapacity: "WARNING" | "INFO" | null;
 }
 
 /** A man-day figure for a cell: at most two decimals, no trailing zeros ("14", "8.5", "0.8"). */
@@ -96,6 +100,7 @@ export function stripCells(weeks: readonly LoadWeek[], scale: TimelineScale): St
       maxWip: week.maxWip,
       wipExceeded: week.wipExceeded,
       wipText: scale.zoom === "quarter" || scale.zoom === "year" ? "" : String(week.maxWip),
+      flowCapacity: week.flowCapacity ?? null,
     });
   }
   return cells;

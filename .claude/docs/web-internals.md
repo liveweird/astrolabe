@@ -1080,7 +1080,7 @@ scheduled permutation filled around the unscheduled listed ids, `planning-model.
 like the project view. **Everything is gated by the view's `team.can:{schedule, editCapacity, editOrder}`** (the team's manager or an ADMIN), never the
 session's roles.
 
-Header: name, description, the manager line, an ADMIN's Edit (`TeamEditorModal` on the view's team block; a save refreshes `["teams"]` and `["plan"]`); the
+Header: name, description, the manager line, an ADMIN's Edit (`TeamEditorModal` on the view's team block; a save refreshes `["teams"]` and `["plan"]`); **the Flow capacity flag (1.9)** beside the title — `team.flags[]` (the ONE `FLOW_CAPACITY` roll-up of the OPEN rows, so an acknowledged row is not in it) through `PageHeader`'s `titleAddon` slot as a light badge (`TeamPageHeader`'s `TeamFlags`: orange with a triangle for a warning, gray with an info circle for an info; the visible text is `flagSentence`'s "Capacity differs from Flow in N sprints", the icon `aria-hidden`, so it is announced once; NO count badge — the roll-up is one flag and the number of sprints is in the sentence; nothing for `[]`; the rows themselves are the Flow section's); the
 facts line: "N milestones · M scheduled", ORANGE "N weeks overloaded" and "N weeks over WIP limit" badges (warnings — nothing moves), the RED conflicts badge of
 the project page, a gray "Custom order" badge while the team's own order is in force.
 
@@ -1150,7 +1150,8 @@ proposal keeps ONLY because of the pin). A pin flipped after a proposal was read
   keys (`project.busy`, `project.milestoneGone`, `project.stale`, `project.scheduleForbidden`, `project.announce.*`): the same refusal says the same words on
   both pages.
 - **The strip's data.** `view.weeks` is handed to `TimelineLoadStrip` as it is: the API's `WeekLoad` is structurally the strip's local `LoadWeek`, so no mapping
-  layer exists. The weekly table formats with two decimals (what the server flags on); the strip trims zeros.
+  layer exists (`flowCapacity?` is optional on both; `stripCells` normalises an absent member to `null`). The weekly table formats with two decimals (what the server flags on); the strip trims zeros.
+- **The Flow capacity marks (1.9, the web half of `timeline.md` "The Flow capacity marker").** `weeks[].flowCapacity` (`WARNING`|`INFO`, only the weeks an OPEN row's held days meet) is read, never recomputed: the strip cell gets `data-flow-capacity` and a top-left mark `data-part="flow-capacity"` (`data-severity`; a SHAPE per severity, never a hue alone — a solid orange triangle for a warning, a hollow gray ring for an info), the cell's `title` gains "; capacity differs from Flow for this week's sprint", and the weekly table's verdict cell gains a badge "Differs from Flow" (orange / gray, `data-flow-badge`; `data-flow-capacity` is the strip cell's alone) BESIDE the week's own verdict (an OK week reads "OK" + "Differs from Flow"); the table's intro names the corner mark. The marks follow the CURRENT plan: a proposal preview's strip draws the proposal's weeks, which carry none, while the header flag and the Weekly load table keep reading `view.weeks`. An acknowledge refreshes `["plan"]` (1.9 C4), so the flag and every mark follow without a reload. Tests: `TeamPageHeader.test.tsx`, `TimelineLoadStrip.test.tsx`, `timelineLoad.test.ts`, `TeamWeeklyLoad.test.tsx`, `TeamDetails.test.tsx`.
 
 **The deterministic order path** (the Roadmap rule; the write paths are the bullets above): the dates go through `useScheduleWritePath` → `useTeamSchedule`, the
 order is the wholesale `PUT /teams/{id}/milestone-order` against the TEAM's order revision (`view.order.revision`), and every reorder is
@@ -1162,7 +1163,7 @@ page's one polite live region. A refused Reset keeps its confirm dialog open and
 limit); Add/Edit/Delete only with `can.editCapacity`; a period takes effect on ANY date (no weekday rule — a weekend date applies from the next working day),
 man-days per week (0 ≤ x < 1,000,000, two decimals) and an optional WIP limit 1..99 (empty sends `null`); a date clash (409) marks the date field. **The weekly
 load table** (`components/TeamWeeklyLoad.tsx`, behind a `TableDisclosure`) is the accessible surface of the decorative strip: load, capacity ("—" when none),
-peak WIP and the verdict in words (orange "Overloaded · +X MD", orange "Over WIP limit", gray "OK" / "No capacity"). **Row drag:** a manager (`can.editOrder`)
+peak WIP and the verdict in words (orange "Overloaded · +X MD", orange "Over WIP limit", gray "OK" / "No capacity", plus the 1.9 "Differs from Flow" badge). **Row drag:** a manager (`can.editOrder`)
 also drags a row by its pointer-only handle (`TimelineRowHandle`, the first thing in the name cell) — a drop becomes `onReorder(id, slot)` on the
 `TimelineDndContext` → `order.dropAt` → the same `commit` as the menu, so the save, the rollback and the stale notice are one path; the menu stays the keyboard
 path, and dnd-kit's region announces the drag (the single announcer of a drag: `dropAt` passes through `placed` silently, so the page's polite region does not

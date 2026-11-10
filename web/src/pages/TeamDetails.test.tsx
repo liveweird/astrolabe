@@ -338,6 +338,35 @@ describe("Team view page", () => {
     expect(screen.queryByRole("table", { name: "Weekly load of the team" })).toBeNull();
   });
 
+  test("the header shows the Flow capacity flag from the view, the marked weeks read on the strip and in the weekly table", async () => {
+    const flag = { kind: "FLOW_CAPACITY", severity: "WARNING", days: null, teamId: null, otherProjectId: null, deviation: null, count: 2 } as const;
+    const base = viewOf();
+    view = viewOf({
+      team: { ...base.team, flags: [flag] },
+      weeks: base.weeks.map((w) => (w.weekStart === "2027-02-08" ? { ...w, flowCapacity: "WARNING" as const } : w)),
+    });
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByRole("grid", { name: "Team milestone timeline" });
+    expect(await screen.findByText("Capacity differs from Flow in 2 sprints")).toBeInTheDocument();
+    expect(document.querySelector('[data-week="2027-02-08"]')).toHaveAttribute("data-flow-capacity", "WARNING");
+    expect(document.querySelector('[data-week="2027-02-01"]')).not.toHaveAttribute("data-flow-capacity");
+    await user.click(screen.getByRole("button", { name: "Show the weekly figures" }));
+    const table = await screen.findByRole("table", { name: "Weekly load of the team" });
+    expect(within(table).getAllByText("Differs from Flow")).toHaveLength(1);
+    expect(table.querySelectorAll("[data-flow-badge]")).toHaveLength(1);
+    // the strip cell alone carries data-flow-capacity
+    expect(document.querySelectorAll("[data-flow-capacity]")).toHaveLength(1);
+  });
+
+  test("a team without flags and unmarked weeks shows none of it", async () => {
+    renderPage();
+    await screen.findByRole("grid", { name: "Team milestone timeline" });
+    expect(screen.queryByText(/Capacity differs from Flow/)).toBeNull();
+    expect(document.querySelector("[data-flow-capacity]")).toBeNull();
+    expect(document.querySelector("[data-flow-badge]")).toBeNull();
+  });
+
   test("a stranger reads the page without a single control: no Add period, no Move items, no Schedule, no Reset, read-only bars", async () => {
     localStorage.setItem(ROLES_KEY, "[]");
     view = viewOf({ team: { ...viewOf().team, can: { schedule: false, editCapacity: false, editOrder: false } } });

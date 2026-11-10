@@ -37,8 +37,8 @@ describe("flagSentence", () => {
   test("the team page's Flow capacity roll-up counts the open sprints, in both languages", () => {
     expect(flagSentence(en, flag("FLOW_CAPACITY", "WARNING", { count: 1 }), NAMES, null)).toBe("Capacity differs from Flow in 1 sprint");
     expect(flagSentence(en, flag("FLOW_CAPACITY", "INFO", { count: 3 }), NAMES, null)).toBe("Capacity differs from Flow in 3 sprints");
-    expect(flagSentence(pl, flag("FLOW_CAPACITY", "WARNING", { count: 1 }), NAMES, null)).toBe("Pojemność różni się od Flow w 1 sprincie");
-    expect(flagSentence(pl, flag("FLOW_CAPACITY", "WARNING", { count: 3 }), NAMES, null)).toBe("Pojemność różni się od Flow w 3 sprintach");
+    expect(flagSentence(pl, flag("FLOW_CAPACITY", "WARNING", { count: 1 }), NAMES, null)).toBe("Przepustowość różni się od Flow w 1 sprincie");
+    expect(flagSentence(pl, flag("FLOW_CAPACITY", "WARNING", { count: 3 }), NAMES, null)).toBe("Przepustowość różni się od Flow w 3 sprintach");
   });
 
   test("the plan flags name the project and team they compare", () => {

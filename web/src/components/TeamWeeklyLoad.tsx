@@ -16,7 +16,8 @@ const md = (value: number) => value.toFixed(2);
 
 /**
  * A week's verdicts as words — never colour alone: ORANGE "Overloaded · +2.50 MD" and/or ORANGE "Over WIP limit" (both warnings, nothing
- * moves), else a gray "OK" or, when the team has no capacity yet that week, a gray "No capacity".
+ * moves), else a gray "OK" or, when the team has no capacity yet that week, a gray "No capacity". A week the server marks `flowCapacity`
+ * (1.9: an open Flow capacity deviation's held days meet it) adds "Differs from Flow" beside the verdict — orange for WARNING, gray for INFO.
  */
 function Status({ week }: { week: WeekLoad }) {
   const { t } = useTranslation();
@@ -37,6 +38,11 @@ function Status({ week }: { week: WeekLoad }) {
       {!warned && (
         <Badge color="gray" variant="light" tt="none" miw="max-content">
           {t(week.capacity === null ? "teams.view.status.noCapacity" : "teams.view.status.ok")}
+        </Badge>
+      )}
+      {week.flowCapacity != null && (
+        <Badge color={week.flowCapacity === "WARNING" ? "orange" : "gray"} variant="light" tt="none" miw="max-content" data-flow-badge={week.flowCapacity}>
+          {t("teams.view.status.flowCapacity")}
         </Badge>
       )}
     </Group>

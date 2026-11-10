@@ -144,3 +144,22 @@ describe("the WIP mark", () => {
     expect(only(week({ load: 20, overloaded: true, overloadMd: 6 }))).toMatchObject({ overloaded: true, wipExceeded: false });
   });
 });
+
+describe("the Flow capacity mark (1.9)", () => {
+  test("a week carries the server's severity at every zoom; an unmarked or null week reads null", () => {
+    for (const zoom of ["week", "month", "quarter", "year"] as const) {
+      expect(only(week({ flowCapacity: "WARNING" }), zoom).flowCapacity).toBe("WARNING");
+      expect(only(week({ flowCapacity: "INFO" }), zoom).flowCapacity).toBe("INFO");
+    }
+    expect(only(week()).flowCapacity).toBeNull();
+    expect(only(week({ flowCapacity: null })).flowCapacity).toBeNull();
+  });
+
+  test("is independent of the overload and the WIP verdict", () => {
+    expect(only(week({ load: 20, overloaded: true, overloadMd: 6, wipExceeded: true, flowCapacity: "INFO" }))).toMatchObject({
+      overloaded: true,
+      wipExceeded: true,
+      flowCapacity: "INFO",
+    });
+  });
+});

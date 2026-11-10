@@ -389,6 +389,29 @@ table.table {
   border-radius: 50%;
 }
 
+/* The Flow capacity mark (1.9): the top-left corner of a week whose sprint's capacity differs from Flow, a SHAPE per severity (the WIP
+   chip's rule: never a hue alone) — a solid triangle in the warning hue, a hollow ring in the dimmed arrow ink (both >= 3:1 non-text). */
+.timelineStripFlowWarning {
+  position: absolute;
+  top: 0;
+  left: 1px;
+  width: 0;
+  height: 0;
+  border-top: 10px solid var(--timeline-overload);
+  border-right: 10px solid transparent;
+}
+
+.timelineStripFlowInfo {
+  position: absolute;
+  top: 2px;
+  left: 3px;
+  box-sizing: border-box;
+  width: 7px;
+  height: 7px;
+  border: 1.5px solid var(--timeline-arrow);
+  border-radius: 50%;
+}
+
 .timelineTodayTag {
   position: absolute;
   top: 6px;

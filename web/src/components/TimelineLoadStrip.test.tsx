@@ -99,6 +99,31 @@ describe("TimelineLoadStrip", () => {
     expect(part("2027-02-01", "fill")).toBeNull();
   });
 
+  test("a week the server marks carries data-flow-capacity, a mark shaped per severity and the note in its title; an unmarked week has none", () => {
+    const marked: LoadWeek[] = [
+      { weekStart: "2027-02-01", load: 8.5, capacity: 14, overloaded: false, overloadMd: null, maxWip: 2, wipExceeded: false, flowCapacity: "WARNING" },
+      { weekStart: "2027-02-08", load: 20, capacity: 14, overloaded: true, overloadMd: 6, maxWip: 3, wipExceeded: true, flowCapacity: "INFO" },
+      { weekStart: "2027-02-15", load: 5, capacity: 14, overloaded: false, overloadMd: null, maxWip: 1, wipExceeded: false },
+    ];
+    renderWithProviders(<TimelineLoadStrip weeks={marked} scale={scaleOf("week")} />);
+    expect(cell("2027-02-01")).toHaveAttribute("data-flow-capacity", "WARNING");
+    expect(cell("2027-02-08")).toHaveAttribute("data-flow-capacity", "INFO");
+    expect(cell("2027-02-15")).not.toHaveAttribute("data-flow-capacity");
+    expect(part("2027-02-01", "flow-capacity")).toHaveAttribute("data-severity", "WARNING");
+    expect(part("2027-02-08", "flow-capacity")).toHaveAttribute("data-severity", "INFO");
+    // two different shapes (classes), never a hue alone
+    expect(part("2027-02-01", "flow-capacity")?.className).not.toBe(part("2027-02-08", "flow-capacity")?.className);
+    expect(part("2027-02-15", "flow-capacity")).toBeNull();
+    expect(cell("2027-02-01")).toHaveAttribute("title", "Week of 2027-02-01: 8.5 of 14 man-days; up to 2 milestones in progress; capacity differs from Flow for this week's sprint");
+    expect(cell("2027-02-08")).toHaveAttribute(
+      "title",
+      "Week of 2027-02-08: 20 of 14 man-days; up to 3 milestones in progress, over the WIP limit; capacity differs from Flow for this week's sprint",
+    );
+    // the mark is independent of the overload and WIP marks
+    expect(part("2027-02-08", "wip")).not.toBeNull();
+    expect(cell("2027-02-08")).toHaveAttribute("data-overloaded", "true");
+  });
+
   test("is decorative: no role, no name, nothing focusable", () => {
     renderStrip();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();

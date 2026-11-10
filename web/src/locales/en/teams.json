@@ -93,7 +93,7 @@
     "noCapacityHint": "Add a period to compare each week's load with the team's capacity.",
     "noCapacityHintReadOnly": "The team's manager or an administrator sets the capacity.",
     "weeklyTitle": "Weekly load",
-    "weeklyIntro": "Columns are the week's load, the line the team's capacity; orange marks an overloaded week, a dashed mark a week over the WIP limit. Both only warn — nothing moves.",
+    "weeklyIntro": "Columns are the week's load, the line the team's capacity; orange marks an overloaded week, a dashed mark a week over the WIP limit; a corner mark (a triangle, or a ring when only informational) is a week whose sprint's capacity differs from Flow. They only warn — nothing moves.",
     "weeklyEmpty": "Nothing is scheduled yet, so there is no weekly load.",
     "weeklyTruncated": "Showing the first {{count}} weeks of the schedule.",
     "weeklyAria": "Weekly load of the team",
@@ -108,7 +108,8 @@
       "ok": "OK",
       "overloaded": "Overloaded · +{{md}} MD",
       "noCapacity": "No capacity",
-      "wipExceeded": "Over WIP limit"
+      "wipExceeded": "Over WIP limit",
+      "flowCapacity": "Differs from Flow"
     },
     "period": {
       "createTitle": "Add a capacity period",

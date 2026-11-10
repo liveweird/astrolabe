@@ -117,7 +117,8 @@
     "wip_few": "; do {{count}} kamieni milowych w toku",
     "wip_many": "; do {{count}} kamieni milowych w toku",
     "wip_other": "; do {{count}} kamienia milowego w toku",
-    "wipExceeded": ", powyżej limitu WIP"
+    "wipExceeded": ", powyżej limitu WIP",
+    "flowCapacity": "; przepustowość różni się od Flow w sprincie z tego tygodnia"
   },
   "dnd": {
     "instructions": "Aby przesunąć pasek, ustaw na nim fokus i naciśnij Spację lub Enter, potem strzałkami w lewo i w prawo przesuwaj go o dzień (z Shift o tydzień), Spacją lub Enterem upuść go, Escape anuluje. Ustaw fokus na uchwycie początku lub końca paska, aby zmienić ten brzeg."
