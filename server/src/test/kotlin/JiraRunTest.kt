@@ -14,6 +14,11 @@ import ch.nokillswit.sync.SyncRunServiceKey
 import ch.nokillswit.sync.SyncRunnerKey
 import ch.nokillswit.sync.SyncScheduler
 import ch.nokillswit.sync.SyncTrigger
+import com.github.tomakehurst.wiremock.client.WireMock.aResponse
+import com.github.tomakehurst.wiremock.client.WireMock.get
+import com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor
+import com.github.tomakehurst.wiremock.client.WireMock.urlPathMatching
+import com.github.tomakehurst.wiremock.stubbing.StubMapping
 import io.ktor.client.HttpClient
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
@@ -220,12 +225,12 @@ class JiraRunTest {
             assertEquals(SyncOutcome.SUCCEEDED, second.outcome, second.errorDetail)
             // Incremental: E2E-5 is one of the stub's two recently updated epics, E2E-4 is not, E2E-6 is deleted on day 2.
             assertEquals(listOf(1, 1), listOf(second.observedCount, second.goneCount))
-            assertEquals(3, second.callCount, "tenant_info, the incremental page, the sweep page")
+            assertEquals(4, second.callCount, "tenant_info, the incremental page, the sweep page, the probe of E2E-6")
             assertEquals("E2E Epic Two", admin.binding(changed.id).observation?.summary, "re-read: it changed")
             assertEquals("stale", admin.binding(unchanged.id).observation?.summary, "only what the run read is overwritten")
             val gone = assertNotNull(admin.binding(vanishing.id).observation)
             assertEquals(true, gone.gone)
-            assertEquals("OUT_OF_SCOPE", gone.goneReason)
+            assertEquals("DELETED", gone.goneReason, "the probe's 404")
             assertEquals("stale", gone.summary, "the content last read stays")
 
             JiraStubServer.resetScenarios()
@@ -239,6 +244,87 @@ class JiraRunTest {
             assertEquals("stale", back.summary, "its content was not re-read")
             assertEquals(revision, TestPlan.revision(), "runs bump nothing")
         } finally {
+            JiraStubServer.resetScenarios()
+        }
+    }
+
+    @Test
+    fun `a probe that reads the issue keeps it out of scope, a failed probe never fails the run, a gone binding is not probed again`() =
+        testApplication {
+            val f = fixture("jrprobe")
+            val admin = f.w.admin.client
+            val vanishing = f.bind(JiraLevel.MILESTONE, f.milestone(), "E2E-6")
+            assertEquals(SyncOutcome.SUCCEEDED, runAndAwait(admin, f.connectionId).outcome)
+            staleObservation(vanishing.id)
+            val issuePath = urlPathMatching("/ex/jira/.*/rest/api/3/issue/90006")
+            val log = LogCapture("ch.nokillswit.sync")
+            var override: StubMapping? = null
+            try {
+                // (a) The sweep misses E2E-6 but a read by id answers 200: readable elsewhere, so moved out of the keys.
+                JiraStubServer.setScenarioState("jira-day2", "day2")
+                override = JiraStubServer.addOverride(
+                    get(issuePath).atPriority(1).willReturn(
+                        aResponse().withStatus(200).withHeader("Content-Type", "application/json")
+                            .withBody("""{"id":"90006","key":"OUT-1"}"""),
+                    ),
+                )
+                val moved = runAndAwait(admin, f.connectionId)
+                assertEquals(SyncOutcome.SUCCEEDED, moved.outcome, moved.errorDetail)
+                assertEquals(1, moved.goneCount)
+                assertEquals(4, moved.callCount, "tenant_info, the incremental page, the sweep page, the probe")
+                val outOfScope = assertNotNull(admin.binding(vanishing.id).observation)
+                assertTrue(outOfScope.gone)
+                assertEquals("OUT_OF_SCOPE", outOfScope.goneReason)
+
+                // (b) Back in scope, then vanished again with the probe answering 500: the run succeeds, the row stays OUT_OF_SCOPE.
+                JiraStubServer.resetScenarios()
+                assertEquals(SyncOutcome.SUCCEEDED, runAndAwait(admin, f.connectionId).outcome)
+                assertFalse(admin.binding(vanishing.id).observation!!.gone)
+                JiraStubServer.removeOverride(override)
+                override = JiraStubServer.addOverride(get(issuePath).atPriority(1).willReturn(aResponse().withStatus(500)))
+                JiraStubServer.setScenarioState("jira-day2", "day2")
+                JiraStubServer.resetRequests()
+                val failed = runAndAwait(admin, f.connectionId)
+                assertEquals(SyncOutcome.SUCCEEDED, failed.outcome, failed.errorDetail)
+                assertEquals(1, JiraStubServer.countRequests(getRequestedFor(issuePath)), "the failed probe was sent once")
+                val stays = assertNotNull(admin.binding(vanishing.id).observation)
+                assertEquals(listOf(true, "OUT_OF_SCOPE"), listOf(stays.gone, stays.goneReason))
+                val warning = assertNotNull(
+                    log.awaitEvent { it.level.toString() == "WARN" && "probe of issue 90006 failed" in it.formattedMessage },
+                )
+                assertTrue(f.token !in warning.formattedMessage, "the log line never carries the token")
+
+                // (c) Already flagged when the run began: classified once, so no second probe.
+                JiraStubServer.resetRequests()
+                val again = runAndAwait(admin, f.connectionId)
+                assertEquals(SyncOutcome.SUCCEEDED, again.outcome, again.errorDetail)
+                assertEquals(0, JiraStubServer.countRequests(getRequestedFor(issuePath)), "no probe")
+            } finally {
+                log.detach()
+                override?.let(JiraStubServer::removeOverride)
+                JiraStubServer.resetScenarios()
+            }
+        }
+
+    @Test
+    fun `a probe that answers 403 writes FORBIDDEN`() = testApplication {
+        val f = fixture("jrforbid")
+        val admin = f.w.admin.client
+        val vanishing = f.bind(JiraLevel.MILESTONE, f.milestone(), "E2E-6")
+        assertEquals(SyncOutcome.SUCCEEDED, runAndAwait(admin, f.connectionId).outcome)
+        staleObservation(vanishing.id)
+        var override: StubMapping? = null
+        try {
+            JiraStubServer.setScenarioState("jira-day2", "day2")
+            override = JiraStubServer.addOverride(
+                get(urlPathMatching("/ex/jira/.*/rest/api/3/issue/90006")).atPriority(1).willReturn(aResponse().withStatus(403)),
+            )
+            val run = runAndAwait(admin, f.connectionId)
+            assertEquals(SyncOutcome.SUCCEEDED, run.outcome, run.errorDetail)
+            val observed = assertNotNull(admin.binding(vanishing.id).observation)
+            assertEquals(listOf(true, "FORBIDDEN"), listOf(observed.gone, observed.goneReason))
+        } finally {
+            override?.let(JiraStubServer::removeOverride)
             JiraStubServer.resetScenarios()
         }
     }
@@ -293,9 +379,16 @@ class JiraRunTest {
             assertEquals(day2.getValue("inScopeDelta").jsonPrimitive.content.toInt(), second.goneCount, "expected.json's inScopeDelta")
             assertEquals(gone.size, second.goneCount)
             assertEquals(recent.size, second.observedCount, "only the recently updated bound epics are re-read")
-            assertEquals(1 + pages("sample/incremental/any/day2") + pages("sample/sweep/eip/day2"), second.callCount)
+            // tenant_info, the incremental and the sweep pages, and one probe by id for each newly flagged binding.
+            assertEquals(1 + pages("sample/incremental/any/day2") + pages("sample/sweep/eip/day2") + gone.size, second.callCount)
             val flagged = bound.filter { (_, b) -> admin.binding(b.id).observation?.gone == true }.keys
             assertEquals(gone.toSet(), flagged, "exactly the 12 deleted and the 5 moved-out issues")
+            deleted.forEach {
+                assertEquals("DELETED", admin.binding(bound.getValue(it).id).observation?.goneReason, "$it: the probe's 404")
+            }
+            moved.forEach {
+                assertEquals("OUT_OF_SCOPE", admin.binding(bound.getValue(it).id).observation?.goneReason, "$it: the probe's 200")
+            }
             assertEquals(0, jbScalar(censusOf, f.connectionId.toInt()) { it.getInt(1) }, "and the sweep removes them from the census")
             recent.forEach { assertFalse(admin.binding(bound.getValue(it).id).observation?.gone == true, it) }
         } finally {

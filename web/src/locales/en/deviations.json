@@ -145,7 +145,7 @@
   },
   "phrase": {
     "goneOutOfScope": "No longer readable in Jira: deleted, moved out of the connection's projects, or no longer visible to its account",
-    "goneDeleted": "Deleted in Jira",
+    "goneDeleted": "Deleted in Jira (or no longer visible to the connection's account)",
     "goneForbidden": "No longer visible to the connection's account",
     "gone": "No longer readable in Jira",
     "levelMismatch": "The Jira item is at hierarchy level {{jira}}, but the mapping expects level {{plan}} here",

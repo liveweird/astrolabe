@@ -103,6 +103,8 @@ ch.nokillswit.JiraDiscoveryTest	0.0
 ch.nokillswit.JiraEffectiveMappingTest	0.0
 ch.nokillswit.JiraFlagSourceTest	2.3
 ch.nokillswit.JiraFlagsScaleTest	7.4
+ch.nokillswit.JiraGoneProbeRunTest	1.0
+ch.nokillswit.JiraGoneProbeTest	0.0
 ch.nokillswit.JiraHeapFitTest	0.0
 ch.nokillswit.JiraImportApplyChangesTest	0.4
 ch.nokillswit.JiraImportApplyErrorsTest	0.7

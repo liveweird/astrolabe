@@ -100,8 +100,8 @@ read "2"). The stub's own figure for its E2E data (`endLaterWorkingDays: 3`) is 
 4. `kept`'s row does not say "Gone from Jira" yet. The stub moves to day 2 (E2E-6 deleted); the administrator, in a browser of their own, presses **Refresh now:
    <connection>** and waits for `kept`'s row to show "Gone from Jira". The stub goes back to day 1 at once (in a `finally`), before anything else is read.
 5. The owner reloads the page.
-   - *Expected*: `kept`'s row shows E2E-6, the badge "Gone from Jira", the warning "Gone" with "No longer readable in Jira: deleted, moved out of the connection's
-     projects, or no longer visible to its account" and its "Data as of" cell ends in "· stale" (what a row shows is what was last read); the totals read "1 gone from
+   - *Expected*: `kept`'s row shows E2E-6, the badge "Gone from Jira", the warning "Gone" with "Deleted in Jira (or no longer visible to the connection's
+     account)" (the run's probe of E2E-6 got the stub's 404) and its "Data as of" cell ends in "· stale" (what a row shows is what was last read); the totals read "1 gone from
      Jira".
 6. The afterAll puts the stub back to `Started` once more, as the backstop.
    - *Expected*: nothing of this test's state remains - the connection (and with it the bindings), the plan rows and the logins are deleted.

@@ -165,7 +165,7 @@
   },
   "phrase": {
     "goneOutOfScope": "Nie da się już odczytać z Jiry: usunięto go, przeniesiono poza projekty połączenia albo konto połączenia już go nie widzi",
-    "goneDeleted": "Usunięty w Jirze",
+    "goneDeleted": "Usunięty w Jirze (albo konto połączenia już go nie widzi)",
     "goneForbidden": "Konto połączenia już go nie widzi",
     "gone": "Nie da się już odczytać z Jiry",
     "levelMismatch": "Element Jiry leży na poziomie hierarchii {{jira}}, a mapowanie oczekuje tu poziomu {{plan}}",

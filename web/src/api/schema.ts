@@ -6285,7 +6285,10 @@ export interface components {
             jiraUpdatedAt?: number | null;
             /** @description The issue could not be read on a later run (set by the run, never by a bind). */
             gone: boolean;
-            /** @enum {string|null} */
+            /**
+             * @description Why the issue is gone. `OUT_OF_SCOPE` is the sweep's verdict (kept when the per-issue probe answers 200, or could not run), `DELETED` is the probe's 404 (Jira answers the same 404 for an issue the connection's account cannot see), `FORBIDDEN` its 403.
+             * @enum {string|null}
+             */
             goneReason?: "DELETED" | "OUT_OF_SCOPE" | "FORBIDDEN" | null;
         };
         JiraBinding: {

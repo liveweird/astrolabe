@@ -12,7 +12,10 @@ import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
 /** The most bindings one run write touches in one transaction (`JiraObserver`'s chunk of 100). */
 internal const val RUN_CHUNK = 100
 
-/** The `gone_reason` a sweep writes: absent from the in-scope listing (deleted, moved out and unreadable are indistinguishable). */
+/**
+ * The `gone_reason` a sweep writes: absent from the in-scope listing (deleted, moved out and unreadable are indistinguishable). The
+ * run's probe (`probeGone`) refines it to `DELETED` or `FORBIDDEN` for the bindings it flagged in that run.
+ */
 internal const val GONE_OUT_OF_SCOPE = "OUT_OF_SCOPE"
 
 /**
@@ -124,6 +127,19 @@ internal class JiraRunStore(private val database: R2dbcDatabase) {
                 JiraObservations.update({ (JiraObservations.bindingId inList active) and (JiraObservations.gone eq false) }) {
                     it[gone] = true
                     it[goneReason] = GONE_OUT_OF_SCOPE
+                }
+            }
+        }
+    }
+
+    /** Sets [reason] on the bindings' observations that are `gone` (the probe's verdict); an unbound binding is left alone. */
+    suspend fun setGoneReason(bindingIds: List<UInt>, reason: String) {
+        if (bindingIds.isEmpty()) return
+        suspendTransaction(database) {
+            val active = lockActive(bindingIds).keys
+            if (active.isNotEmpty()) {
+                JiraObservations.update({ (JiraObservations.bindingId inList active) and (JiraObservations.gone eq true) }) {
+                    it[goneReason] = reason
                 }
             }
         }

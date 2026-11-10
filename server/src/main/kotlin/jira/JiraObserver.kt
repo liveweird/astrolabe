@@ -67,7 +67,8 @@ private sealed interface ReadPlan {
 
 /**
  * The Jira connector's run (§3.6 "One run"): the node sweep, an incremental (or, with no usable watermark, full) read of the bound issues
- * into observations, then a sweep of the ids still in scope that flags the vanished ones `gone`. It OBSERVES: nothing is ever written to
+ * into observations, then a sweep of the ids still in scope that flags the vanished ones `gone` (each newly flagged binding is then probed
+ * once by id: 404 `DELETED`, 403 `FORBIDDEN`, otherwise it stays `OUT_OF_SCOPE`; [probeGone]). It OBSERVES: nothing is ever written to
  * Jira, no plan lock is taken, no plan revision moves. Every database write is a short transaction of at most [RUN_CHUNK] bindings
  * ([JiraRunStore]); no transaction is open across a Jira call; a failure part-way leaves whole chunks written and nothing half-written.
  *
@@ -180,7 +181,8 @@ class JiraObserver internal constructor(
         search(client, { JiraJql.sweep(keys, sweepTypes) }, "id", progress) { page ->
             page.forEach { entry -> idOf(entry)?.let(inScope::add) }
         }
-        reconcile(run, bound, sweepTypes.toSet(), inScope, observed, progress)
+        val flagged = reconcile(run, bound, sweepTypes.toSet(), inScope, observed, progress)
+        probeGone(run.id, client, flagged, store, { progress.beforePage() }, { progress.calls++ })
         // The census after the reconcile: the mapped levels' prune, the children (a full read or a due sweep), the stamp.
         val censusSearch: CensusSearch = { jql, censusFields, onPage -> search(client, jql, censusFields, progress, onPage) }
         census.complete(censusSearch, inScope, shape is ReadPlan.Full, censusAt, connector.censusHours)
@@ -271,7 +273,9 @@ class JiraObserver internal constructor(
      * whether or not it exists: it is never flagged here (its stored level keeps showing as a `LEVEL_MISMATCH`). A flagged binding the
      * sweep sees again, and this run did not re-read, has its flag cleared with its content untouched (an incremental read does not
      * return an unchanged issue). A genuinely empty listing of a non-empty bound set still flags: a false flag warns only and heals on
-     * the next good sweep, while failing the run would wedge a site whose only bound item really was deleted - so it is logged.
+     * the next good sweep, while failing the run would wedge a site whose only bound item really was deleted - so it is logged. Answers the
+     * bindings it NEWLY flagged (not already `gone` when the run began): the probe ([probeGone]) then classifies them once (`DELETED` /
+     * `FORBIDDEN` / stays `OUT_OF_SCOPE`), so a binding that stays gone costs no call on later runs.
      */
     private suspend fun reconcile(
         run: ClaimedRun,
@@ -280,7 +284,7 @@ class JiraObserver internal constructor(
         inScope: Set<String>,
         observed: Set<String>,
         progress: RunProgress,
-    ) {
+    ): List<BoundIssue> {
         val gone = bound.filter { it.issueId !in inScope && it.issueId !in observed && it.typeId in sweepTypes }
         val back = bound.filter { it.gone && it.issueId in inScope && it.issueId !in observed }
         if (inScope.isEmpty() && bound.isNotEmpty()) {
@@ -289,6 +293,7 @@ class JiraObserver internal constructor(
         gone.map { it.bindingId }.chunked(chunkSize).forEach { store.markGone(it) }
         back.map { it.bindingId }.chunked(chunkSize).forEach { store.clearGone(it) }
         progress.gone = gone.size
+        return gone.filter { !it.gone }
     }
 
     /** The run's failure for a connection that no longer exists; the loop guard drops its entry. */

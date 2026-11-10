@@ -7687,7 +7687,11 @@ components:
         teamName: { type: string, nullable: true, maxLength: 100 }
         jiraUpdatedAt: { type: integer, format: int64, nullable: true }
         gone: { type: boolean, description: "The issue could not be read on a later run (set by the run, never by a bind)." }
-        goneReason: { type: string, nullable: true, enum: [DELETED, OUT_OF_SCOPE, FORBIDDEN] }
+        goneReason:
+          type: string
+          nullable: true
+          enum: [DELETED, OUT_OF_SCOPE, FORBIDDEN]
+          description: "Why the issue is gone. `OUT_OF_SCOPE` is the sweep's verdict (kept when the per-issue probe answers 200, or could not run), `DELETED` is the probe's 404 (Jira answers the same 404 for an issue the connection's account cannot see), `FORBIDDEN` its 403."
     JiraBinding:
       type: object
       required: [id, connectionId, level, node, issueId, issueKey, url, createdAt]

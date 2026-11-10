@@ -479,7 +479,7 @@ test("unlinking the milestone removes its deviation, and a deleted Jira item rea
   await expect(gone).toContainText("E2E-6");
   await expect(page.getByText("1 gone from Jira")).toBeVisible();
   await expect(gone).toContainText("Warning: Gone");
-  await expect(gone).toContainText("No longer readable in Jira: deleted, moved out of the connection's projects, or no longer visible to its account");
+  await expect(gone).toContainText("Deleted in Jira (or no longer visible to the connection's account)"); // the probe's 404 on the stub's day 2
   // The "Data as of" cell (the fifth: Plan item, Jira item, Dates, Deviations, Data as of, Acknowledgement): what the row shows is what was last read,
   // not a current figure.
   await expect(gone.getByRole("cell").nth(4)).toHaveText(/ · stale$/);
@@ -563,7 +563,7 @@ test("the owner's milestone deviation shows as a flag and a Jira bar on the proj
   await expect(gone).toContainText("· changed since");
   await expect(gone.getByRole("button", { name: "Acknowledge E2E-6" })).toBeVisible();
   await page.goto(`/projects/${world.projectId}`);
-  await expect(page.locator('[data-flags][title*="Jira E2E-6: No longer readable in Jira"]')).toHaveCount(1); // the flag is back, now with the "gone" sentence
+  await expect(page.locator('[data-flags][title*="Jira E2E-6: Deleted in Jira"]')).toHaveCount(1); // the flag is back, now with the "gone" sentence
   flags = await roadmapFlags();
   await expect(flags).toContainText("1 milestone deviates from Jira");
 });
