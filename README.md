@@ -107,7 +107,9 @@ node scripts/sample-plan/load.mjs --base-url http://localhost:8086 --reset --log
 The loader prints progress and a summary (about 15 s against a local stack) and names the largest team's page (`/teams/<id>`). `--logins` creates `<first>.<last>@sample.astrolabe.local` for
 every manager and owner so you can sign in as a team manager; `--anchor YYYY-MM-DD` pins the Monday the dates are offset from. It stops before writing anything when a real team, program
 or work stream already uses one of the dataset's names, and `--reset` only deletes what it can recognise as its own (a sample name together with a sample owner); the sample projects are
-added to the stack's existing project ranking, which stays as it was. Plain `http` is accepted for `localhost`, loopback and `*.local` hosts only (`--insecure-http` overrides). The files are
+added to the stack's existing project ranking, which stays as it was. `--polish-holidays` applies the Polish public holidays BEFORE the plan is written (right after a `--reset`); with or without it
+the loader reads the stack's holiday dictionary first, and a milestone span that falls wholly on weekends and holidays (24-25 Dec 2026) gets its end moved to the next working day (the server answers 400
+for such a span), so a reload over holidays an earlier load left behind works (`--reset` never removes holidays); it prints how many spans it moved. Plain `http` is accepted for `localhost`, loopback and `*.local` hosts only (`--insecure-http` overrides). The files are
 regenerated with `node scripts/sample-plan/generate.mjs` (byte-identical for the same seed); `node --test scripts/sample-plan/generate.test.mjs` and `node --test scripts/sample-plan/load.test.mjs` pin that, the
 dataset's invariants and the loader's refusals against http stubs, and runs in `scripts/gates.sh e2e` and CI. Details: `sample-data/plan/README.md`.
 

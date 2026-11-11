@@ -6,6 +6,8 @@
 // The generator, its statistics (`summary.json`) and the self-test are holiday-free BY CONSTRUCTION and stay so whatever the stack's holiday
 // dictionary holds: the loader's `--polish-holidays` (v0.7) only fills the server's dictionary, after which the server's own load/overload/
 // dependency figures differ from `summary.json` (the measured shift: `timeline.md` "Measured figures (v0.7)"), never these helpers.
+// The one holiday-aware helper is `extendedEnd` below, used by the LOADER only: the server refuses a milestone span without a working day (a
+// span wholly on weekends and the dictionary's holidays), so the loader asks it for the dictionary and moves such an end forward.
 
 export const weekday = (d) => ((d % 7) + 7) % 7;
 export const isWorking = (d) => weekday(d) < 5;
@@ -48,4 +50,25 @@ export function mondayOfWeek(now = new Date()) {
 export function containsWorkingDay(start, end) {
   for (let d = start; d <= end && d < start + 7; d++) if (isWorking(d)) return true;
   return false;
+}
+
+/** The weekday of an ISO date: 0 = Monday ... 6 = Sunday. */
+const isoWeekday = (iso) => (new Date(parseIsoDate(iso)).getUTCDay() + 6) % 7;
+const isWorkingIso = (iso, holidays) => isoWeekday(iso) < 5 && !holidays.has(iso);
+
+/** The most days past the end of a span that `extendedEnd` looks for a working day (a longer holiday run is a failure, not a quiet move). */
+export const MAX_EXTENSION_DAYS = 14;
+
+/**
+ * The end the server will accept for the inclusive ISO span [start, end] when `holidays` (a Set of ISO dates) are days nobody works: `end`
+ * itself when the span holds a Monday-Friday day outside the set (the server's `containsWorkingDay`), otherwise the first working day after
+ * `end` (so 24-25 Dec 2026, both holidays, ends on Monday 28 Dec). Throws when that day is more than `MAX_EXTENSION_DAYS` after `end`.
+ */
+export function extendedEnd(start, end, holidays) {
+  for (let d = start; d <= end; d = isoDateAt(d, 1)) if (isWorkingIso(d, holidays)) return end;
+  for (let n = 1; n <= MAX_EXTENSION_DAYS; n++) {
+    const d = isoDateAt(end, n);
+    if (isWorkingIso(d, holidays)) return d;
+  }
+  throw new Error(`the span ${start} to ${end} holds no working day and none follows within ${MAX_EXTENSION_DAYS} days`);
 }

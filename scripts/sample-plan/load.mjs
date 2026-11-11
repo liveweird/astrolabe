@@ -18,10 +18,16 @@
 //                    under it that sample people own, the sample teams (name AND a sample manager), the sample people and their logins.
 //                    Anything else under a sample work stream is never deleted: the loader refuses and lists it. Without --reset an existing
 //                    load makes the loader stop before writing anything
-//   --polish-holidays  after the load, apply the Polish public-holiday preset (POST /public-holidays/apply-preset) for every calendar year the
-//                    dataset's dates span (anchor-relative: 2026-2028 for an anchor in late 2026). Idempotent (a date that already holds a
-//                    holiday is skipped, so a re-run adds nothing). The holiday dictionary is GLOBAL, not sample-owned: --reset NEVER removes holidays
+//   --polish-holidays  apply the Polish public-holiday preset (POST /public-holidays/apply-preset) for every calendar year the dataset's dates
+//                    span (anchor-relative: 2026-2028 for an anchor in late 2026), BEFORE the plan is written (right after a --reset), so the
+//                    schedule writes see the holidays. Idempotent (a date that already holds a holiday is skipped, so a re-run adds nothing).
+//                    The holiday dictionary is GLOBAL, not sample-owned: --reset NEVER removes holidays
 //   --concurrency    requests in flight at once, 1..16 (default 6); plan writes serialise on the server's plan lock anyway
+//
+// Holidays and spans: the server refuses a milestone span without a working day (400 "must cover at least one working day"). Whether or not
+// --polish-holidays is given, the loader reads the stack's holiday dictionary (GET /public-holidays: an earlier load or an administrator may
+// have filled it) before it writes the plan, and a span that falls wholly on weekends and holidays (24-25 Dec 2026) gets its END moved to the
+// next working day (days.mjs `extendedEnd`; more than 14 days is a failure naming the milestone). It prints how many it moved.
 //
 // Before any write the loader also refuses when a REAL (non-sample) team, program or work stream already uses a name of the dataset (those
 // names are globally unique), and it ADDS the sample projects to the existing global project ranking instead of replacing it.
@@ -32,7 +38,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { isMonday, isoDateAt, mondayOfWeek } from "./days.mjs";
+import { extendedEnd, isMonday, isoDateAt, mondayOfWeek } from "./days.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const SAMPLE_DOMAIN = "@sample.astrolabe.local";
@@ -345,11 +351,31 @@ export async function resetLoad(client, existing, limit) {
 // ---------------------------------------------------------------------------------------------------------------------------------
 // The load
 // ---------------------------------------------------------------------------------------------------------------------------------
-async function loadPlan(client, data, args, loginPassword) {
+async function loadPlan(client, data, args, loginPassword, deletedEarlier) {
   const post = (p, body, what) => client.must("POST", p, body, what, RESET_HINT);
   const at = (offset) => (offset === null || offset === undefined ? null : isoDateAt(args.anchor, offset));
   const limit = args.concurrency;
   const ids = { person: new Map(), team: new Map(), project: new Map(), milestone: new Map() };
+
+  // Before the first write: the schedule each milestone will get, against the stack's holiday dictionary (the preset, if asked for, is in
+  // by now). A span the server would refuse (no working day) ends on its next working day; one that cannot be placed stops the load here.
+  const holidays = new Set((await client.must("GET", "/api/v1/public-holidays", undefined, "reading the public holidays")).items.map((h) => h.date));
+  let extended = 0;
+  const schedules = data.milestones
+    .filter((m) => m.startOffset !== null)
+    .map((m) => {
+      const startDate = at(m.startOffset);
+      const planned = at(m.endOffset);
+      let endDate = planned;
+      try {
+        if (planned !== null) endDate = extendedEnd(startDate, planned, holidays);
+      } catch (e) {
+        throw new Error(`milestone ${m.ref} cannot be scheduled: ${e.message}; nothing of the sample plan was written${deletedEarlier ? " (the earlier load is already deleted by --reset)" : ""}`, { cause: e });
+      }
+      if (endDate !== planned) extended++;
+      return { m, startDate, endDate };
+    });
+  if (extended > 0) console.log(`${extended} span${extended === 1 ? "" : "s"} extended to their next working day (they hold no working day: only weekends and public holidays)`);
 
   await phase(args.logins ? "people + logins" : "people", data.people, limit, async (p) => {
     const userId = args.logins ? (await post("/api/v1/users", { name: p.name, email: p.email, password: loginPassword }, `creating login ${p.ref}`)).id : null;
@@ -386,8 +412,8 @@ async function loadPlan(client, data, args, loginPassword) {
   // The schedule PUT is staled only by a LATER write of the same milestone's dates, so the plan revision read now (after every create)
   // is a valid expectedRevision for all of them; each answer can only raise it.
   let revision = (await client.must("GET", "/api/v1/views/plan", undefined, "reading the plan revision")).revision;
-  await phase("schedules", data.milestones.filter((m) => m.startOffset !== null), limit, async (m) => {
-    const body = { expectedRevision: revision, startDate: at(m.startOffset), endDate: at(m.endOffset) };
+  await phase("schedules", schedules, limit, async ({ m, startDate, endDate }) => {
+    const body = { expectedRevision: revision, startDate, endDate };
     const answer = await client.must("PUT", `/api/v1/milestones/${ids.milestone.get(m.ref)}/schedule`, body, `scheduling milestone ${m.ref}`);
     revision = Math.max(revision, answer.revision);
   });
@@ -424,8 +450,8 @@ async function loadPlan(client, data, args, loginPassword) {
   return ids;
 }
 // ---------------------------------------------------------------------------------------------------------------------------------
-// The Polish public holidays (--polish-holidays). The dictionary is global and not sample-owned: the loader only ever ADDS to it (the preset
-// is idempotent) and --reset never deletes a holiday.
+// The Polish public holidays (--polish-holidays), applied before the plan is written. The dictionary is global and not sample-owned: the
+// loader only ever ADDS to it (the preset is idempotent) and --reset never deletes a holiday.
 // ---------------------------------------------------------------------------------------------------------------------------------
 /**
  * Every calendar year the dataset's PLANNING dates span once offset 0 is `anchor`: the projects' target windows, the milestones' spans and the
@@ -484,15 +510,16 @@ export async function main(argv, env = process.env) {
     const started = Date.now();
     if (found > 0) await resetLoad(client, existing, args.concurrency);
     else if (args.reset) console.log("--reset: no earlier sample load found");
-    const ids = await loadPlan(client, data, args, loginPassword);
+    // The preset precedes the plan: the schedule writes (and the loader's own span check) must see the holidays. It does not depend on the plan.
     let holidays = null;
     if (args.polishHolidays) {
       try {
         holidays = await applyPolishHolidays(client, spannedYears(data, args.anchor));
       } catch (e) {
-        throw new Error(`${e?.message ?? e}; the sample plan itself is loaded, only the holidays are missing: re-run with --reset --polish-holidays`, { cause: e });
+        throw new Error(`${e?.message ?? e}; nothing of the sample plan was written${found > 0 ? " (the earlier load is already deleted by --reset)" : ""}: fix the cause and run again`, { cause: e });
       }
     }
+    const ids = await loadPlan(client, data, args, loginPassword, found > 0);
 
     const seconds = ((Date.now() - started) / 1000).toFixed(1);
     console.log(`\nloaded in ${seconds}s with ${client.requests} requests:`);

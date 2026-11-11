@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { extendedEnd, isoDateAt, MAX_EXTENSION_DAYS } from "./days.mjs";
 import { TimePointGraph } from "./graph.mjs";
 import { Refusal, applyPolishHolidays, assertDevelopmentStack, createClient, findExistingLoad, loadDataset, main, parseArgs, resetLoad, spannedYears } from "./load.mjs";
 
@@ -157,6 +158,7 @@ async function fakeApi(state) {
     else if (req.method === "GET" && url.pathname === "/api/v1/people") page(state.people ?? emailsOf());
     else if (req.method === "GET" && url.pathname === "/api/v1/teams") page(state.teams ?? []);
     else if (req.method === "GET" && url.pathname === "/api/v1/users") page(state.users ?? []);
+    else if (req.method === "GET" && url.pathname === "/api/v1/public-holidays") json(res, 200, { items: [] });
     else if (url.pathname === "/api/v1/views/plan") json(res, 200, { revision: 1, workStreams: state.streams ?? [] });
     else if (req.method === "DELETE") json(res, 204);
     else json(res, 500, { title: "unexpected request in the test" });
@@ -322,17 +324,34 @@ test("a network error keeps its context and a 409 on a create suggests --reset",
 // ---------------------------------------------------------------------------------------------------------------------------------
 const PRESET = "POST /api/v1/public-holidays/apply-preset";
 
-/** A stack that accepts the whole load (every create answers an id, every PUT a revision); `holidayStatus` is the preset's answer, `state` an earlier load for `fakeApi`'s reads. */
-async function loadApi({ holidayStatus = 200, state = {}, intercept } = {}) {
+/**
+ * A stack that accepts the whole load (every create answers an id, every PUT a revision); `holidayStatus` is the preset's answer, `state` an
+ * earlier load for `fakeApi`'s reads, `holidays` the dictionary the stack already holds (ISO dates; the preset adds to it). It replays the
+ * server's schedule rule: a PUT whose span holds no Monday-Friday day outside the dictionary is a 400 "must cover at least one working day"
+ * (listed in the stub's `refused`), and every accepted span is kept in `scheduled`.
+ */
+async function loadApi({ holidayStatus = 200, state = {}, intercept, holidays = [] } = {}) {
   let nextId = 1000;
-  const held = new Set();
-  return stub((req, res, body) => {
+  const held = new Set(holidays);
+  const refused = [];
+  const scheduled = [];
+  const server = await stub((req, res, body) => {
     const url = new URL(req.url, "http://x");
     const page = (items) => json(res, 200, { items, page: 1, pageSize: 100, total: items.length });
     if (url.pathname === "/openapi/documentation.yaml") { res.writeHead(200, { "content-type": "application/yaml" }); res.end(OPENAPI); }
     else if (url.pathname === "/api/v1/login") json(res, 200, { token: "t", refreshToken: "r" });
     else if (url.pathname === "/api/v1/logout") json(res, 204);
     else if (intercept?.(req.method, url.pathname, body, (status, payload) => json(res, status, payload))) return;
+    else if (req.method === "GET" && url.pathname === "/api/v1/public-holidays") json(res, 200, { items: [...held].sort().map((date, id) => ({ id, date, name: "holiday" })) });
+    else if (req.method === "PUT" && /^\/api\/v1\/milestones\/\d+\/schedule$/.test(url.pathname)) {
+      const span = JSON.parse(body);
+      if (!hasWorkingDay(span.startDate, span.endDate, held)) {
+        refused.push(span);
+        return json(res, 400, { title: "Bad Request", detail: "A milestone must cover at least one working day" });
+      }
+      scheduled.push(span);
+      json(res, 200, { revision: 2 });
+    }
     else if (url.pathname === "/api/v1/public-holidays/apply-preset") {
       if (holidayStatus !== 200) return json(res, holidayStatus, { title: "Forbidden" });
       const { preset, year } = JSON.parse(body);
@@ -352,7 +371,25 @@ async function loadApi({ holidayStatus = 200, state = {}, intercept } = {}) {
     else if (req.method === "PUT") json(res, 200, { revision: 2 });
     else json(res, 201, { id: ++nextId });
   });
+  return Object.assign(server, { refused, scheduled });
 }
+
+/** The server's rule on ISO dates, written independently of the loader's helper: the span holds a Monday-Friday day that is not a holiday. */
+function hasWorkingDay(start, end, held) {
+  for (let d = start; d <= end; d = isoDateAt(d, 1)) if (![0, 6].includes(new Date(`${d}T00:00:00Z`).getUTCDay()) && !held.has(d)) return true;
+  return false;
+}
+
+/** The Polish statutory days of `year` (what the server's POLISH preset stores), for a stack that already holds them. */
+function polishHolidays(year) {
+  const a = year % 19, b = Math.floor(year / 100), c = year % 100, d = Math.floor(b / 4), f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30, l = (32 + 2 * (b % 4) + 2 * Math.floor(c / 4) - h - (c % 4)) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const easter = `${year}-${String(month).padStart(2, "0")}-${String(((h + l - 7 * m + 114) % 31) + 1).padStart(2, "0")}`;
+  return [`${year}-01-01`, `${year}-01-06`, easter, isoDateAt(easter, 1), `${year}-05-01`, `${year}-05-03`, isoDateAt(easter, 49), isoDateAt(easter, 60), `${year}-08-15`, `${year}-11-01`, `${year}-11-11`, `${year}-12-24`, `${year}-12-25`, `${year}-12-26`];
+}
+const POLISH_2026_2029 = [2026, 2027, 2028, 2029].flatMap(polishHolidays);
+const days = (from, to) => Array.from({ length: (Date.parse(to) - Date.parse(from)) / 86_400_000 + 1 }, (_, i) => isoDateAt(from, i));
 
 test("--polish-holidays: parsing, and the spanned years follow the anchor", () => {
   assert.equal(parseArgs([]).polishHolidays, false);
@@ -361,7 +398,7 @@ test("--polish-holidays: parsing, and the spanned years follow the anchor", () =
   assert.deepEqual(spannedYears(data, "2027-06-07"), [2027, 2028], "the anchor moves the span; a work stream's start does not widen it");
 });
 
-test("--polish-holidays: main applies the preset once per spanned year, after the last load request and before logout", async () => {
+test("--polish-holidays: main applies the preset once per spanned year, before the first plan write (the schedules need the holidays)", async () => {
   const anchor = "2027-06-07";
   const s = await loadApi();
   try {
@@ -369,12 +406,12 @@ test("--polish-holidays: main applies the preset once per spanned year, after th
     const lines = s.lines();
     const presets = s.log.filter((l) => l.line === PRESET);
     assert.deepEqual(presets.map((l) => JSON.parse(l.body)), spannedYears(data, anchor).map((year) => ({ preset: "POLISH", year })));
-    const first = lines.indexOf(PRESET);
-    const lastLoad = lines.findLastIndex((l) => l !== PRESET && l !== "POST /api/v1/logout");
-    assert.ok(lastLoad < first, "every load request precedes the first preset call");
+    const firstWrite = lines.findIndex((l) => l !== PRESET && !l.startsWith("GET ") && l !== "POST /api/v1/login");
+    assert.equal(lines[firstWrite], "POST /api/v1/people", "the first write that is not a preset call is the first plan write");
+    assert.equal(lines[firstWrite - 1], "GET /api/v1/public-holidays", "the dictionary is read right before the first plan write");
+    assert.ok(lines.lastIndexOf(PRESET) < firstWrite - 1, "every preset call precedes that read, so the read sees the holidays");
     assert.equal(lines.at(-1), "POST /api/v1/logout");
-    assert.equal(lines.lastIndexOf(PRESET), lines.length - 2, "the preset calls are the last requests before logout");
-    assert.ok(lines.includes("POST /api/v1/people") && lines.includes("PUT /api/v1/roadmap/ranking"), "the load really ran");
+    assert.ok(lines.includes("PUT /api/v1/roadmap/ranking"), "the load really ran");
   } finally {
     await s.close();
   }
@@ -383,6 +420,7 @@ test("--polish-holidays: main applies the preset once per spanned year, after th
   try {
     await quiet(() => main(["--base-url", without.origin, "--anchor", anchor], ENV));
     assert.ok(!without.lines().includes(PRESET), "no flag, no holidays");
+    assert.ok(without.lines().includes("GET /api/v1/public-holidays"), "no flag, but the dictionary is still read");
   } finally {
     await without.close();
   }
@@ -400,16 +438,17 @@ test("--polish-holidays: applyPolishHolidays is idempotent (a re-run adds nothin
   }
 });
 
-test("--polish-holidays: a failing preset call is rejected naming the year and says the plan is loaded (re-run with --reset)", async () => {
+test("--polish-holidays: a failing preset call is rejected naming the year, and nothing of the plan has been written", async () => {
   for (const status of [403, 500]) {
     const s = await loadApi({ holidayStatus: status });
     try {
       await assert.rejects(
         quiet(() => main(["--base-url", s.origin, "--anchor", "2027-06-07", "--polish-holidays"], ENV)),
-        (e) => new RegExp(`applying the Polish holidays of 2027 answered ${status}`).test(e.message) && /sample plan itself is loaded/.test(e.message) && /--reset --polish-holidays/.test(e.message),
+        (e) => new RegExp(`applying the Polish holidays of 2027 answered ${status}`).test(e.message) && /nothing of the sample plan was written/.test(e.message) && !/--reset/.test(e.message),
         String(status),
       );
       assert.equal(s.lines().filter((l) => l === PRESET).length, 1, "stops at the first failing year");
+      assert.deepEqual(writes(s), [PRESET], "no plan write was sent");
       assert.equal(s.lines().at(-1), "POST /api/v1/logout", "the session is still revoked");
     } finally {
       await s.close();
@@ -417,16 +456,89 @@ test("--polish-holidays: a failing preset call is rejected naming the year and s
   }
 });
 
-test("--polish-holidays with --reset: the earlier sample data is deleted, no holiday is ever deleted, the preset follows the load", async () => {
+test("--polish-holidays with --reset: the earlier sample data is deleted, no holiday is ever deleted, the preset follows the reset and precedes the load", async () => {
   const state = { people: emailsOf(), streams: [stream(2, SAMPLE_PERSON, data.workStreams[1].name)], teams: [{ id: 7, name: data.teams[0].name, managerPersonId: SAMPLE_PERSON }] };
   const s = await loadApi({ state });
   try {
     await quiet(() => main(["--base-url", s.origin, "--anchor", "2027-06-07", "--reset", "--polish-holidays"], ENV));
     const lines = s.lines();
     assert.ok(lines.includes("DELETE /api/v1/work-streams/2") && lines.includes("DELETE /api/v1/teams/7"), "the earlier load was reset");
-    assert.ok(!lines.some((l) => l.includes("public-holidays") && l !== PRESET), "nothing but the preset touches the dictionary");
-    assert.ok(lines.findLastIndex((l) => l.startsWith("DELETE ")) < lines.indexOf(PRESET), "the preset follows the reset and the load");
+    assert.ok(!lines.some((l) => l.includes("public-holidays") && l !== PRESET && l !== "GET /api/v1/public-holidays"), "nothing but the preset touches the dictionary");
+    assert.ok(lines.findLastIndex((l) => l.startsWith("DELETE ")) < lines.indexOf(PRESET), "the preset follows the reset");
+    assert.ok(lines.lastIndexOf(PRESET) < lines.indexOf("POST /api/v1/people"), "the preset precedes the load");
     assert.equal(lines.filter((l) => l === PRESET).length, spannedYears(data, "2027-06-07").length);
+  } finally {
+    await s.close();
+  }
+});
+
+// ---------------------------------------------------------------------------------------------------------------------------------
+// Spans that fall on holidays: the server answers 400 for a span without a working day, so the loader extends the end first
+// ---------------------------------------------------------------------------------------------------------------------------------
+test("extendedEnd: a span with a working day is unchanged, a span wholly off ends on the next working day", () => {
+  const holidays = new Set(["2026-12-24", "2026-12-25", "2026-12-26"]);
+  assert.equal(extendedEnd("2026-12-24", "2026-12-25", holidays), "2026-12-28", "24-25 Dec 2026 (Thu-Fri, both holidays) ends on Monday 28 Dec");
+  assert.equal(extendedEnd("2026-12-25", "2026-12-25", holidays), "2026-12-28", "a one-day span on a holiday");
+  assert.equal(extendedEnd("2026-12-23", "2026-12-25", holidays), "2026-12-25", "Wednesday is a working day: unchanged");
+  assert.equal(extendedEnd("2026-12-25", "2026-12-28", holidays), "2026-12-28", "the span reaches Monday: unchanged");
+  assert.equal(extendedEnd("2026-12-24", "2026-12-25", new Set()), "2026-12-25", "no holidays: unchanged");
+  assert.equal(extendedEnd("2026-12-26", "2026-12-27", new Set()), "2026-12-28", "a weekend alone is off with an empty dictionary too");
+  assert.equal(extendedEnd("2026-12-24", "2026-12-25", new Set([...holidays, "2026-12-28"])), "2026-12-29", "a holiday on the following Monday is skipped as well");
+  assert.equal(extendedEnd("2026-12-14", "2027-02-26", new Set(days("2026-12-14", "2026-12-18"))), "2027-02-26", "a long span with a working day anywhere is unchanged");
+});
+
+test("extendedEnd: looks at most 14 days past the end, then fails naming the span", () => {
+  const upTo = (last) => new Set(days("2026-12-28", last));
+  assert.equal(MAX_EXTENSION_DAYS, 14);
+  assert.equal(extendedEnd("2026-12-24", "2026-12-25", new Set(["2026-12-24", "2026-12-25", ...upTo("2027-01-07")])), "2027-01-08", "exactly 14 days after the end is allowed");
+  assert.throws(() => extendedEnd("2026-12-24", "2026-12-25", new Set(["2026-12-24", "2026-12-25", ...upTo("2027-01-08")])), /2026-12-24 to 2026-12-25 holds no working day/);
+});
+
+test("a reload over holidays the stack already holds: no 400, the span ends on its next working day (with the flag or without it)", async () => {
+  const anchor = "2026-11-02";
+  const planned = data.milestones.filter((m) => m.startOffset !== null).map((m) => ({ ref: m.ref, startDate: isoDateAt(anchor, m.startOffset), endDate: isoDateAt(anchor, m.endOffset) }));
+  const held = new Set(POLISH_2026_2029);
+  const wholly = planned.filter((p) => !hasWorkingDay(p.startDate, p.endDate, held));
+  assert.equal(wholly.length, 6, "six spans of the dataset fall wholly on Polish holidays from this anchor (the server would answer 400 for each)");
+  assert.ok(wholly.some((p) => p.startDate === "2026-12-24" && p.endDate === "2026-12-24") && wholly.some((p) => p.startDate === "2026-12-25"), "24 and 25 Dec among them");
+
+  for (const flags of [[], ["--polish-holidays"]]) {
+    const s = await loadApi({ holidays: POLISH_2026_2029 });
+    try {
+      await quiet(() => main(["--base-url", s.origin, "--anchor", anchor, "--concurrency", "4", ...flags], ENV));
+      assert.deepEqual(s.refused, [], `${flags.join(" ") || "no flag"}: the stub (the server's rule) refused nothing`);
+      assert.equal(s.scheduled.length, planned.length, "every milestone was scheduled");
+      const nextWorkingDay = (iso) => { let d = isoDateAt(iso, 1); while (!hasWorkingDay(d, d, held)) d = isoDateAt(d, 1); return d; };
+      const key = (b) => `${b.startDate} ${b.endDate}`;
+      const expected = planned.map((p) => key(wholly.includes(p) ? { startDate: p.startDate, endDate: nextWorkingDay(p.endDate) } : p));
+      assert.deepEqual(s.scheduled.map(key).sort(), expected.sort(), "every span as planned, except the six that moved to their next working day");
+      assert.ok(s.scheduled.some((b) => key(b) === "2026-12-24 2026-12-28") && s.scheduled.some((b) => key(b) === "2026-12-25 2026-12-28"), "the 24 Dec and 25 Dec spans end on Monday 28 Dec");
+      assert.ok(s.lines().includes("GET /api/v1/public-holidays"), "the dictionary was read");
+      assert.equal(s.lines().includes(PRESET), flags.length > 0);
+      assert.ok(s.lines().indexOf("GET /api/v1/public-holidays") < s.lines().indexOf("POST /api/v1/people"), "the dictionary is read before the first plan write");
+    } finally {
+      await s.close();
+    }
+  }
+});
+
+test("without any holiday the load sends every span as planned", async () => {
+  const s = await loadApi();
+  try {
+    await quiet(() => main(["--base-url", s.origin, "--anchor", "2026-11-02"], ENV));
+    const planned = data.milestones.filter((m) => m.startOffset !== null).map((m) => ({ startDate: isoDateAt("2026-11-02", m.startOffset), endDate: isoDateAt("2026-11-02", m.endOffset) }));
+    assert.deepEqual(s.scheduled.map((b) => `${b.startDate} ${b.endDate}`).sort(), planned.map((p) => `${p.startDate} ${p.endDate}`).sort());
+    assert.deepEqual(s.refused, []);
+  } finally {
+    await s.close();
+  }
+});
+
+test("a span that cannot be placed stops the load naming the milestone, before any plan write", async () => {
+  const s = await loadApi({ holidays: days("2026-01-01", "2029-12-31") });
+  try {
+    await assert.rejects(quiet(() => main(["--base-url", s.origin, "--anchor", "2026-11-02"], ENV)), /milestone \d+ cannot be scheduled: the span \d{4}-\d{2}-\d{2} to \d{4}-\d{2}-\d{2} holds no working day/);
+    assert.deepEqual(writes(s), [], "nothing was written");
   } finally {
     await s.close();
   }
