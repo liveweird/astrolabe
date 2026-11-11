@@ -320,7 +320,7 @@ class JiraBindingTest {
     // --- the first observation ---------------------------------------------------------------------------------------------------------
 
     @Test
-    fun `a gone observation reads OUT_OF_SCOPE until a probe answered and MOVED_OUT after, whatever the column keeps`() = testApplication {
+    fun `a gone observation reads OUT_OF_SCOPE until a probe answered, then MOVED_OUT or NOT_LISTED`() = testApplication {
         val f = fixture("jbmoved")
         val admin = f.w.admin.client
         val binding = admin.jbBind(f.connectionId, JiraLevel.MILESTONE, f.milestone(), "E2E-5").jbBinding()
@@ -331,13 +331,17 @@ class JiraBindingTest {
         jbSql("UPDATE jira_observations SET gone = TRUE, gone_reason = 'OUT_OF_SCOPE', gone_probed_at = NULL WHERE binding_id = ?", id)
         assertEquals("OUT_OF_SCOPE", reason(), "the sweep's verdict, no probe answer yet")
         jbSql("UPDATE jira_observations SET gone_probed_at = 5 WHERE binding_id = ?", id)
-        assertEquals("MOVED_OUT", reason(), "the probe's 200")
+        assertEquals("MOVED_OUT", reason(), "the probe's 200 that kept no key: 1.12's inference")
+        jbSql("UPDATE jira_observations SET gone_probed_key = 'OUT-3' WHERE binding_id = ?", id)
+        assertEquals("MOVED_OUT", reason(), "a key outside the connection's keys (E2E)")
+        jbSql("UPDATE jira_observations SET gone_probed_key = 'E2E-9' WHERE binding_id = ?", id)
+        assertEquals("NOT_LISTED", reason(), "a key inside them: Jira has it where the connection looks, the listing does not")
         assertEquals(
             "OUT_OF_SCOPE", jbScalar("SELECT gone_reason FROM jira_observations WHERE binding_id = ?", id) { it.getString(1) },
             "derived on read: the column is untouched",
         )
         jbSql("UPDATE jira_observations SET gone_reason = 'FORBIDDEN' WHERE binding_id = ?", id)
-        assertEquals("FORBIDDEN", reason(), "a probe's 403 verdict is stored as it is")
+        assertEquals("FORBIDDEN", reason(), "a probe's 403 verdict is stored as it is, whatever key is left")
     }
 
     @Test

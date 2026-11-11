@@ -281,6 +281,7 @@ class JiraRunTest {
                 assertTrue(outOfScope.gone)
                 assertEquals("MOVED_OUT", outOfScope.goneReason, "stored OUT_OF_SCOPE, answered: the wire says MOVED_OUT")
                 assertTrue(probeStamped(vanishing.id), "the 200 is an answer: it stamps gone_probed_at")
+                assertEquals("OUT-1", admin.binding(vanishing.id).issueKey, "the binding follows the key the 200 carried")
 
                 // (a2) A 200 is final for that vanish: the next run, still flagged, sends NO probe.
                 JiraStubServer.resetRequests()
@@ -376,7 +377,9 @@ class JiraRunTest {
         val f = fixture("jrday2", keys = sample)
         val day2 = expected.getValue("day2").jsonObject
         val deleted = day2.getValue("deleted").jsonObject.getValue("keys").jsonArray.map { it.jsonPrimitive.content }
-        val moved = day2.getValue("movedOut").jsonArray.map { it.jsonObject.getValue("key").jsonPrimitive.content }
+        val movedRows = day2.getValue("movedOut").jsonArray.map { it.jsonObject }
+        val moved = movedRows.map { it.getValue("key").jsonPrimitive.content }
+        val movedKeys = movedRows.associate { it.getValue("key").jsonPrimitive.content to it.getValue("movedKey").jsonPrimitive.content }
         val gone = deleted + moved
         val recent = expected.getValue("incremental").jsonObject.getValue("epics").jsonArray.map { it.jsonPrimitive.content }
             .filter { it !in gone }.take(3)
@@ -410,10 +413,18 @@ class JiraRunTest {
             val flagged = bound.filter { (_, b) -> admin.binding(b.id).observation?.gone == true }.keys
             assertEquals(gone.toSet(), flagged, "exactly the 12 deleted and the 5 moved-out issues")
             deleted.forEach {
-                assertEquals("DELETED", admin.binding(bound.getValue(it).id).observation?.goneReason, "$it: the probe's 404")
+                val row = admin.binding(bound.getValue(it).id)
+                assertEquals("DELETED", row.observation?.goneReason, "$it: the probe's 404")
+                assertEquals(it, row.issueKey, "$it: a deleted issue keeps its key")
+                assertTrue(row.url.endsWith("/browse/$it"), "$it: and its link")
             }
             moved.forEach {
-                assertEquals("MOVED_OUT", admin.binding(bound.getValue(it).id).observation?.goneReason, "$it: the probe's 200")
+                val row = admin.binding(bound.getValue(it).id)
+                val movedKey = movedKeys.getValue(it)
+                assertEquals("MOVED_OUT", row.observation?.goneReason, "$it: the probe's 200 under a key outside the connection's keys")
+                assertEquals(movedKey, row.issueKey, "$it: the binding follows the key Jira answered with")
+                assertTrue(row.url.endsWith("/browse/$movedKey"), "$it: and so does its link")
+                assertEquals(it, row.observation?.issueKey, "$it: the observation keeps the key it was last read under")
             }
             assertEquals(0, jbScalar(censusOf, f.connectionId.toInt()) { it.getInt(1) }, "and the sweep removes them from the census")
             recent.forEach { assertFalse(admin.binding(bound.getValue(it).id).observation?.gone == true, it) }

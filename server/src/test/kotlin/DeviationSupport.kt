@@ -90,6 +90,8 @@ class DvObs(
     val goneReason: String? = null,
     /** `gone_probed_at` (V27): the probe answered for this vanish (needs [gone]); a probed `OUT_OF_SCOPE` reads `MOVED_OUT` on the wire. */
     val goneProbedAt: Long? = null,
+    /** `gone_probed_key` (V29): the key the probe's 200 answered with; inside the connection's keys (`E2E`) it reads `NOT_LISTED`. */
+    val goneProbedKey: String? = null,
 )
 
 private fun java.sql.PreparedStatement.set(index: Int, value: Any?) {
@@ -125,8 +127,8 @@ fun dvBind(connectionId: UInt, level: JiraLevel, nodeId: UInt, issueId: String, 
             c.prepareStatement(
                 "INSERT INTO jira_observations (binding_id, observed_at, issue_key, summary, type_name, hierarchy_level, status_name, " +
                     "status_category, parent_issue_id, parent_issue_key, start_date, end_date, estimate, estimate_unit, team_name, " +
-                    "jira_updated_at, gone, gone_reason, gone_probed_at) " +
-                    "VALUES (?, 1234, ?, ?, 'Epic', ?, 'In progress', ?, ?, ?, ?, ?, ?, ?, 'Team', 1, ?, ?, ?)",
+                    "jira_updated_at, gone, gone_reason, gone_probed_at, gone_probed_key) " +
+                    "VALUES (?, 1234, ?, ?, 'Epic', ?, 'In progress', ?, ?, ?, ?, ?, ?, ?, 'Team', 1, ?, ?, ?, ?)",
             ).use { st ->
                 st.setInt(1, id)
                 st.setString(2, key)
@@ -142,6 +144,7 @@ fun dvBind(connectionId: UInt, level: JiraLevel, nodeId: UInt, issueId: String, 
                 st.setBoolean(12, obs.gone)
                 st.set(13, obs.goneReason)
                 st.set(14, obs.goneProbedAt)
+                st.set(15, obs.goneProbedKey)
                 st.executeUpdate()
             }
         }

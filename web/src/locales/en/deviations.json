@@ -95,6 +95,7 @@
   "jira": {
     "gone": "Gone from Jira",
     "goneMovedOut": "Moved out of scope",
+    "goneNotListed": "Not listed by Jira",
     "connectionDisabled": "Connection disabled",
     "notRead": "Not read yet"
   },
@@ -146,6 +147,7 @@
   "phrase": {
     "goneOutOfScope": "No longer readable in Jira: deleted, moved out of the connection's projects, or no longer visible to its account",
     "goneMovedOut": "Moved out of the connection's projects (Jira still has it)",
+    "goneNotListed": "Still in the connection's projects, but Jira no longer lists it (archived, or its type changed)",
     "goneDeleted": "Deleted in Jira (or no longer visible to the connection's account)",
     "goneForbidden": "No longer visible to the connection's account",
     "gone": "No longer readable in Jira",

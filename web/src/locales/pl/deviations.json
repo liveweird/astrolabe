@@ -105,6 +105,7 @@
   "jira": {
     "gone": "Zniknął z Jiry",
     "goneMovedOut": "Przeniesiony poza zakres",
+    "goneNotListed": "Jira go nie wymienia",
     "connectionDisabled": "Połączenie wyłączone",
     "notRead": "Jeszcze nie odczytano"
   },
@@ -166,6 +167,7 @@
   "phrase": {
     "goneOutOfScope": "Nie da się już odczytać z Jiry: usunięto go, przeniesiono poza projekty połączenia albo konto połączenia już go nie widzi",
     "goneMovedOut": "Przeniesiony poza projekty połączenia (Jira nadal go ma)",
+    "goneNotListed": "Nadal w projektach połączenia, ale Jira już go nie wymienia (zarchiwizowany albo zmieniono mu typ)",
     "goneDeleted": "Usunięty w Jirze (albo konto połączenia już go nie widzi)",
     "goneForbidden": "Konto połączenia już go nie widzi",
     "gone": "Nie da się już odczytać z Jiry",

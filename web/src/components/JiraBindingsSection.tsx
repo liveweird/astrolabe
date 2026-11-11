@@ -9,6 +9,7 @@ import { listJiraBindings, type JiraBinding, type JiraConnection, type JiraLevel
 import { useJiraUnlink } from "../hooks/useJiraUnlink";
 import { useDialogFocus } from "../hooks/useDialogFocus";
 import { useRegistryListControls } from "../hooks/useRegistryListControls";
+import { goneBadge } from "../utils/deviations";
 import { formatDateTime } from "../utils/formatDate";
 import { projectPath } from "../utils/planLinks";
 import { refreshJiraAndTimelines } from "../utils/queryRefresh";
@@ -38,6 +39,8 @@ const fixedConnection = ({ id, name, siteUrl, enabled, projectKeys, status }: Ji
   lastRun: status.lastRun,
   status,
 });
+
+const GONE_BADGE = { movedOut: "jira.bindings.goneMovedOut", notListed: "jira.bindings.goneNotListed", gone: "jira.bindings.gone" } as const;
 
 const levelWord = (kind: JiraLevel) => `jira.mapping.level.${kind.toLowerCase() as "program" | "project" | "milestone"}` as const;
 
@@ -171,7 +174,7 @@ export default function JiraBindingsSection({ connection }: { connection: JiraCo
                 </Text>
                 {row.observation?.gone && (
                   <Badge color="orange" variant="light" tt="none">
-                    {t(row.observation.goneReason === "MOVED_OUT" ? "jira.bindings.goneMovedOut" : "jira.bindings.gone")}
+                    {t(GONE_BADGE[goneBadge(row.observation.goneReason)])}
                   </Badge>
                 )}
               </Group>

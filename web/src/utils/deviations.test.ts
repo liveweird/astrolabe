@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import i18n from "../i18n";
 import type { Deviation, DeviationKind } from "../api/deviations";
 import { DEV_CONNECTION, detail, endLater, item, renamed, startEarlier, stamped } from "../test/deviations";
-import { ageText, countDeviations, deviationAckAllKey, deviationAckKey, deviationKindLabel, deviationSentence, formatPoints, hasStaleSource, isLineOpen, itemAckKeys, rollupSentence, rollupText, splitLines, staleConnection, verifiedAt } from "./deviations";
+import { ageText, countDeviations, deviationAckAllKey, deviationAckKey, deviationKindLabel, deviationSentence, formatPoints, goneBadge, hasStaleSource, isLineOpen, itemAckKeys, rollupSentence, rollupText, splitLines, staleConnection, verifiedAt } from "./deviations";
 
 const en = i18n.getFixedT("en");
 const pl = i18n.getFixedT("pl");
@@ -79,6 +79,7 @@ describe("deviationSentence - every other kind, in both languages", () => {
   const cases: [Deviation, string, string][] = [
     [{ kind: "GONE", severity: "WARNING", detail: detail({ jira: "DELETED" }) }, "Deleted in Jira (or no longer visible to the connection's account)", "Usunięty w Jirze (albo konto połączenia już go nie widzi)"],
     [{ kind: "GONE", severity: "WARNING", detail: detail({ jira: "MOVED_OUT" }) }, "Moved out of the connection's projects (Jira still has it)", "Przeniesiony poza projekty połączenia (Jira nadal go ma)"],
+    [{ kind: "GONE", severity: "WARNING", detail: detail({ jira: "NOT_LISTED" }) }, "Still in the connection's projects, but Jira no longer lists it (archived, or its type changed)", "Nadal w projektach połączenia, ale Jira już go nie wymienia (zarchiwizowany albo zmieniono mu typ)"],
     [{ kind: "GONE", severity: "WARNING", detail: detail({ jira: "OUT_OF_SCOPE" }) }, "No longer readable in Jira: deleted, moved out of the connection's projects, or no longer visible to its account", "Nie da się już odczytać z Jiry: usunięto go, przeniesiono poza projekty połączenia albo konto połączenia już go nie widzi"],
     [{ kind: "GONE", severity: "WARNING", detail: detail({ jira: "FORBIDDEN" }) }, "No longer visible to the connection's account", "Konto połączenia już go nie widzi"],
     [{ kind: "GONE", severity: "WARNING", detail: detail() }, "No longer readable in Jira", "Nie da się już odczytać z Jiry"],
@@ -319,5 +320,13 @@ describe("the per-line acknowledgement vocabulary (1.12)", () => {
     const { open, acknowledged } = splitLines(item({ deviations: lines }));
     expect(open.map((line) => line.kind)).toEqual(["END_DIFFERS", "RENAMED"]);
     expect(acknowledged.map((line) => line.kind)).toEqual(["START_DIFFERS"]);
+  });
+});
+
+describe("goneBadge", () => {
+  test("the two readable-by-id verdicts have their own badge, every other reason (and none) the plain one", () => {
+    expect(goneBadge("MOVED_OUT")).toBe("movedOut");
+    expect(goneBadge("NOT_LISTED")).toBe("notListed");
+    for (const reason of ["OUT_OF_SCOPE", "DELETED", "FORBIDDEN", "SOMETHING_NEW", null, undefined]) expect(goneBadge(reason)).toBe("gone");
   });
 });

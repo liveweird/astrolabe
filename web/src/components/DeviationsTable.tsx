@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Anchor, Badge, Stack, Table, Text } from "@mantine/core";
 import type { DeviationConnection, DeviationItem } from "../api/deviations";
 import type { Acknowledge } from "../hooks/useAcknowledge";
-import { ageText, deviationKindLabel, deviationSentence, isLineOpen, itemAckKeys } from "../utils/deviations";
+import { ageText, deviationKindLabel, deviationSentence, goneBadge, isLineOpen, itemAckKeys } from "../utils/deviations";
 import { formatDateTime } from "../utils/formatDate";
 import { projectPath } from "../utils/planLinks";
 import DeviationAckCell, { DeviationAckAll } from "./DeviationAckCell";
@@ -11,6 +11,8 @@ import JiraKeyLink from "./JiraKeyLink";
 import JiraRollupText from "./JiraRollupText";
 import ScrollRegion from "./ScrollRegion";
 import SeverityBadge from "./SeverityBadge";
+
+const GONE_BADGE = { movedOut: "deviations.jira.goneMovedOut", notListed: "deviations.jira.goneNotListed", gone: "deviations.jira.gone" } as const;
 
 const levelWord = (kind: DeviationItem["level"]) => `jira.mapping.level.${kind.toLowerCase() as "program" | "project" | "milestone"}` as const;
 
@@ -52,8 +54,8 @@ function JiraCell({ item, connection, showConnection }: { item: DeviationItem; c
   const { t } = useTranslation();
   const { jira } = item;
   const meta = [jira.typeName, jira.statusName].filter((part): part is string => Boolean(part)).join(" · ");
-  // The reason is the GONE line's detail (the item's `jira.gone` is only the flag); a probed-readable item reads MOVED_OUT.
-  const movedOut = item.deviations.some((deviation) => deviation.kind === "GONE" && deviation.detail.jira === "MOVED_OUT");
+  // The reason is the GONE line's detail (the item's `jira.gone` is only the flag); a probed-readable item reads MOVED_OUT or NOT_LISTED.
+  const badge = goneBadge(item.deviations.find((deviation) => deviation.kind === "GONE")?.detail.jira);
   return (
     <>
       <Text size="sm" fw={500}>
@@ -81,7 +83,7 @@ function JiraCell({ item, connection, showConnection }: { item: DeviationItem; c
       )}
       {jira.gone && (
         <Badge color="orange" variant="light" tt="none" mt={2}>
-          {t(movedOut ? "deviations.jira.goneMovedOut" : "deviations.jira.gone")}
+          {t(GONE_BADGE[badge])}
         </Badge>
       )}
       {connection && !connection.enabled && (

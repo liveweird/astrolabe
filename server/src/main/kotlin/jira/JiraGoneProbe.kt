@@ -1,6 +1,7 @@
 package ch.nokillswit.jira
 
 import ch.nokillswit.infra.fetch.FetchException
+import kotlinx.serialization.json.JsonObject
 import org.slf4j.LoggerFactory
 
 private val log = LoggerFactory.getLogger("ch.nokillswit.sync")
@@ -18,10 +19,18 @@ internal const val GONE_PROBE_CAP = 100
 internal const val GONE_PROBE_MAX_FAILURES = 3
 
 /**
- * The wire `goneReason` of a probe that answered 200 (1.12): derived on read, never stored (the column keeps `OUT_OF_SCOPE`). A 200 proves
- * "Jira still has it, readable by id, absent from the connection's listing", which is what "moved out of the connection's projects" says.
+ * The wire `goneReason` of a probe that answered 200 under a key OUTSIDE the connection's projects (1.12; since 1.13 checked against the
+ * key the answer carried): derived on read, never stored (the column keeps `OUT_OF_SCOPE`). Also what a 200 that kept no key reads (1.12's
+ * inference: "Jira still has it, readable by id, absent from the connection's listing").
  */
 internal const val GONE_MOVED_OUT = "MOVED_OUT"
+
+/**
+ * The wire `goneReason` of a probe that answered 200 under a key INSIDE the connection's projects (1.13): Jira has the issue where the
+ * connection looks, yet the listing no longer returns it (archived, a type change, a false-empty sweep). Derived on read, like
+ * [GONE_MOVED_OUT].
+ */
+internal const val GONE_NOT_LISTED = "NOT_LISTED"
 
 private const val NOT_FOUND = "NOT_FOUND"
 private const val FORBIDDEN_SCOPE = "FORBIDDEN_SCOPE"
@@ -33,16 +42,27 @@ internal fun goneReasonFor(code: String): String? = when (code) {
     else -> null
 }
 
-/** The wire form of a stored `gone_reason`: `OUT_OF_SCOPE` with a probe's answer ([probedAt] set: the 200) reads [GONE_MOVED_OUT]. */
-internal fun wireGoneReason(stored: String?, probedAt: Long?): String? =
-    if (stored == GONE_OUT_OF_SCOPE && probedAt != null) GONE_MOVED_OUT else stored
+/**
+ * The wire form of a stored `gone_reason`, derived on read against the connection's CURRENT [projectKeys] (a key edit needs no rewrite).
+ * Only `OUT_OF_SCOPE` with a probe's answer ([probedAt] set: the 200) is refined: no [probedKey] (answered before 1.13, or the document's
+ * key was unusable) reads [GONE_MOVED_OUT] (1.12's inference), a key inside the projects [GONE_NOT_LISTED], one outside [GONE_MOVED_OUT].
+ * Anything else (not gone, a 404 or 403 verdict, a row not yet answered for) is returned as stored.
+ */
+internal fun wireGoneReason(stored: String?, probedAt: Long?, probedKey: String?, projectKeys: Collection<String>): String? = when {
+    stored != GONE_OUT_OF_SCOPE || probedAt == null -> stored
+    probedKey == null -> GONE_MOVED_OUT
+    isInScope(probedKey, projectKeys) -> GONE_NOT_LISTED
+    else -> GONE_MOVED_OUT
+}
 
 /**
  * The probe step of a run: the sweep can only say a bound issue is absent from the in-scope listing ([GONE_OUT_OF_SCOPE]), so each
  * gone binding Jira has not yet ANSWERED for ([unprobed]: newly flagged, or still gone with no `gone_probed_at`; at most [cap], the
  * ones newly flagged in this run BEFORE the retries, each group by binding id) is read once by id with `fields=id` through the run's
  * own guarded client: 404 -> [GONE_DELETED], 403 -> [GONE_FORBIDDEN],
- * 200 -> stays `OUT_OF_SCOPE` (readable, so moved out of the keys). **Every answer stamps `gone_probed_at`** ([now]; the 200 too), and
+ * 200 -> stays `OUT_OF_SCOPE` (readable) and keeps the issue KEY the answer carried (`gone_probed_key`, validated by [probedKeyOf]; the
+ * binding's key follows it), from which [wireGoneReason] reads moved out or not listed. **Every answer stamps `gone_probed_at`**
+ * ([now]; the 200 too), and
  * is written as it arrives (one short transaction), so a run cut later (a stop from [beforeCall]: the connection deleted or disabled
  * during the run, or a shutdown) keeps every answer already obtained; a failed, cut or over-cap probe leaves no stamp, so a later run
  * probes it again (while the sweep still judges the binding gone). After [GONE_PROBE_MAX_FAILURES] failures in a row (a 200 or a verdict
@@ -70,7 +90,7 @@ internal suspend fun probeGone(
         val answer = readById(client, binding)
         if (answer is ProbeAnswer.Said) {
             failuresInARow = 0
-            store.recordProbe(binding.bindingId, answer.reason, now())
+            store.recordProbe(binding.bindingId, answer.reason, answer.key, now())
             continue
         }
         log.warn("Sync run {} probe of issue {} failed: {}", runId, binding.issueId, (answer as ProbeAnswer.Failed).code)
@@ -84,16 +104,26 @@ internal suspend fun probeGone(
     }
 }
 
-/** One by-id read: [Said] when Jira answered about the issue (200: no [Said.reason]; 404 or 403: the verdict), else [Failed]. */
+/**
+ * One by-id read: [Said] when Jira answered about the issue (200: no [Said.reason], and the validated current [Said.key] or null; 404 or
+ * 403: the verdict, no key), else [Failed].
+ */
 private sealed interface ProbeAnswer {
-    data class Said(val reason: String?) : ProbeAnswer
+    data class Said(val reason: String?, val key: String? = null) : ProbeAnswer
 
     data class Failed(val code: String) : ProbeAnswer
 }
 
 private suspend fun readById(client: JiraClient, binding: BoundIssue): ProbeAnswer = try {
-    client.issue(binding.issueId, "id")
-    ProbeAnswer.Said(null)
+    ProbeAnswer.Said(null, probedKeyOf(client.issue(binding.issueId, "id"), binding.issueId))
 } catch (failure: FetchException) {
     goneReasonFor(failure.code)?.let { ProbeAnswer.Said(it) } ?: ProbeAnswer.Failed(failure.code)
 }
+
+/**
+ * The key a 200 carries, kept only when the document is the probed issue (its `id` equals [issueId]) and the key has the issue-key shape:
+ * the value comes from an outbound response and is stored, then rendered as a link, so anything else reads as no key (the 200 still counts
+ * as an answer).
+ */
+private fun probedKeyOf(document: JsonObject, issueId: String): String? =
+    document["id"].text(MAX_ID)?.takeIf { it == issueId }?.let { document["key"].text(MAX_ID)?.takeIf(ISSUE_KEY_PATTERN::matches) }

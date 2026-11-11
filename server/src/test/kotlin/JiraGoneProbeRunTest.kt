@@ -1,15 +1,22 @@
 package ch.nokillswit
 
+import ch.nokillswit.infra.db.R2dbcDatabaseKey
 import ch.nokillswit.jira.JiraBindingResponse
 import ch.nokillswit.jira.JiraLevel
+import ch.nokillswit.jira.JiraRunStore
 import ch.nokillswit.sync.SyncOutcome
 import io.ktor.client.request.HttpRequestData
+import io.ktor.client.request.get
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
+import kotlinx.coroutines.runBlocking
 import org.junit.BeforeClass
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -51,6 +58,99 @@ class JiraGoneProbeRunTest {
     private fun reasonOf(binding: JiraBindingResponse): Pair<Boolean, String?> =
         jbScalar("SELECT gone, gone_reason FROM jira_observations WHERE binding_id = ?", binding.id.toInt()) {
             it.getBoolean(1) to it.getString(2)
+        }
+
+    private fun keyOf(binding: JiraBindingResponse): String? =
+        jbScalar("SELECT gone_probed_key FROM jira_observations WHERE binding_id = ?", binding.id.toInt()) { it.getString(1) }
+
+    private fun bindingKeyOf(binding: JiraBindingResponse): String =
+        jbScalar("SELECT jira_issue_key FROM jira_bindings WHERE id = ?", binding.id.toInt()) { it.getString(1) }
+
+    /** The binding as the API answers it now: the key, the browse URL and the derived gone reason. */
+    private suspend fun apiRow(f: Fixture, binding: JiraBindingResponse): Triple<String, String, String?> {
+        val row = jbJson.decodeFromString<JiraBindingResponse>(f.w.admin.client.get("$JB_BINDINGS/${binding.id}").bodyAsText())
+        return Triple(row.issueKey, row.url, assertNotNull(row.observation).goneReason)
+    }
+
+    @Test
+    fun `a 200 keeps the key it carries and the binding follows it, a foreign document keeps none`() = testApplication {
+        val f = fixture("jrpkey")
+        val moved = f.bound[0]
+        val listed = f.bound[1]
+        val otherId = f.bound[2]
+        val malformed = f.bound[3]
+        val deleted = f.bound[4]
+        val bodies = mapOf(
+            moved.issueId to """{"id":"${moved.issueId}","key":"OUT-7"}""",
+            listed.issueId to """{"id":"${listed.issueId}","key":"E2E-90"}""",
+            otherId.issueId to """{"id":"999999","key":"OUT-8"}""",
+            malformed.issueId to """{"id":"${malformed.issueId}","key":"out-1; DROP"}""",
+        )
+        val mock = MockJiraRun(application) { request ->
+            when {
+                request.isIssueRead() ->
+                    bodies[request.issueId()]?.let { jsonOk(it) } ?: failure(HttpStatusCode.NotFound)
+                request.url.parameters["fields"] == "id" -> jsonOk(idsPage())
+                else -> jsonOk(searchPage())
+            }
+        }
+        val result = mock.run(f.connectionId)
+        assertEquals(SyncOutcome.SUCCEEDED, result.outcome, result.errorDetail)
+        assertEquals(listOf("OUT-7", "E2E-90", null, null, null), f.bound.map { keyOf(it) })
+        assertTrue(f.bound.all { probed(it) }, "a 200 without a usable key is still an answer")
+        assertEquals(
+            listOf("OUT-7", "E2E-90", "E2E-6", "E2E-7", "E2E-8"), f.bound.map { bindingKeyOf(it) }, "only a kept key moves the binding",
+        )
+        val (key, url, reason) = apiRow(f, moved)
+        assertEquals("OUT-7", key)
+        assertTrue(url.endsWith("/browse/OUT-7"), "the link follows the key")
+        assertEquals("MOVED_OUT", reason, "outside the connection's keys")
+        assertEquals("NOT_LISTED", apiRow(f, listed).third, "inside them")
+        assertEquals("MOVED_OUT", apiRow(f, otherId).third, "no key: 1.12's inference")
+        assertEquals("MOVED_OUT", apiRow(f, malformed).third)
+        assertEquals("DELETED", apiRow(f, deleted).third)
+
+        // The sweep lists everything again: every flag is cleared and so is the key; the binding keeps the key it followed.
+        val relist = MockJiraRun(application) { request ->
+            if (request.url.parameters["fields"] == "id") {
+                jsonOk(idsPage(*f.bound.map { it.issueId }.toTypedArray()))
+            } else {
+                jsonOk(searchPage())
+            }
+        }
+        assertEquals(SyncOutcome.SUCCEEDED, relist.run(f.connectionId).outcome)
+        assertEquals(List(5) { false }, f.bound.map { reasonOf(it).first })
+        assertEquals(List(5) { null }, f.bound.map { keyOf(it) })
+        assertEquals("OUT-7", bindingKeyOf(moved))
+    }
+
+    @Test
+    fun `a later verdict clears the key a former 200 kept, and an answer for a binding that is no longer gone writes nothing`() =
+        testApplication {
+            val f = fixture("jrpclear")
+            val (first, second) = f.bound
+            val mock = MockJiraRun(application) { request ->
+                when {
+                    request.isIssueRead() -> jsonOk("""{"id":"${request.issueId()}","key":"OUT-${request.issueId().takeLast(3)}"}""")
+                    request.url.parameters["fields"] == "id" -> jsonOk(idsPage())
+                    else -> jsonOk(searchPage())
+                }
+            }
+            assertEquals(SyncOutcome.SUCCEEDED, mock.run(f.connectionId).outcome)
+            assertNotNull(keyOf(first))
+            val store = JiraRunStore(application.attributes[R2dbcDatabaseKey])
+            runBlocking { store.recordProbe(first.id, "DELETED", null, 42) }
+            assertNull(keyOf(first), "a 404 or 403 clears the key")
+            assertEquals(true to "DELETED", reasonOf(first))
+            jbSql(
+                "UPDATE jira_observations SET gone = FALSE, gone_reason = NULL, gone_probed_at = NULL, gone_probed_key = NULL " +
+                    "WHERE binding_id = ?",
+                second.id.toInt(),
+            )
+            val keyBefore = bindingKeyOf(second)
+            runBlocking { store.recordProbe(second.id, null, "OUT-1", 43) }
+            assertNull(keyOf(second), "a binding that is not gone keeps no key")
+            assertEquals(keyBefore, bindingKeyOf(second), "and its key does not follow an answer that was not recorded")
         }
 
     @Test
@@ -146,6 +246,7 @@ class JiraGoneProbeRunTest {
         assertEquals(true to "DELETED", reasonOf(f.bound[4]))
         assertTrue(f.bound.take(4).all { reasonOf(it) == true to "OUT_OF_SCOPE" })
         assertEquals(listOf(false, false, true, false, true), f.bound.map { probed(it) }, "the 200 and the 404 answered; the 500s did not")
+        assertEquals(List(5) { null }, f.bound.map { keyOf(it) }, "the 200's {id 1, key X-1} is no key")
     }
 
     @Test

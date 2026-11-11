@@ -37,8 +37,9 @@ internal class BoundIssue(
 
 /**
  * The run's database side: short transactions, each independent of any HTTP call (`JiraObserver` makes none inside one), none taking the
- * plan lock and none bumping the revision - an observation is not plan state. It writes `jira_observations` (upsert / the gone flag) and
- * `jira_bindings.marked_as_deleted` (the node sweep's release), reads `jira_bindings` and the plan's liveness through
+ * plan lock and none bumping the revision - an observation is not plan state. It writes `jira_observations` (upsert / the gone flag),
+ * `jira_bindings.marked_as_deleted` (the node sweep's release) and `jira_bindings.jira_issue_key`/`updated_at` (a moved key),
+ * reads `jira_bindings` and the plan's liveness through
  * `JiraBindingNodes.kt`. **Every read of bindings filters [JiraBindingService.Bindings.active]** (a deleted connection's rows stay in
  * the table), and every write re-checks that the binding is still active under a row lock, so an unbind that raced the run is respected.
  */
@@ -118,6 +119,7 @@ internal class JiraRunStore(private val database: R2dbcDatabase) {
                 this[JiraObservations.gone] = false
                 this[JiraObservations.goneReason] = null
                 this[JiraObservations.goneProbedAt] = null
+                this[JiraObservations.goneProbedKey] = null
             }
             rows.map { it.first }
         }
@@ -133,22 +135,32 @@ internal class JiraRunStore(private val database: R2dbcDatabase) {
                     it[gone] = true
                     it[goneReason] = GONE_OUT_OF_SCOPE
                     it[goneProbedAt] = null
+                    it[goneProbedKey] = null
                 }
             }
         }
     }
 
     /**
-     * Records the probe's ANSWER for [bindingId] if its observation is still `gone`: stamps `gone_probed_at` = [at] and, when [reason]
-     * is given (404 `DELETED`, 403 `FORBIDDEN`), sets `gone_reason`; a 200 passes `null` and keeps the sweep's `OUT_OF_SCOPE`. An unbound
-     * binding, or one the run's own writes cleared meanwhile, is left alone.
+     * Records the probe's ANSWER for [bindingId] if its observation is still `gone`: stamps `gone_probed_at` = [at]; a 200 passes a null
+     * [reason] (the sweep's `OUT_OF_SCOPE` stays) and the validated current issue [key] (null when the document had none usable), a 404 or
+     * 403 passes the verdict [reason] and no key, which clears any key a former 200 left. When the key differs from the binding's, the
+     * binding's key follows it (the `writeObservations` idiom: the list, the browse URL, the sort and the audits all read it). An unbound
+     * binding, or one the run's own writes cleared meanwhile, is left alone and keeps its key. No audit event and no log line: run data.
      */
-    suspend fun recordProbe(bindingId: UInt, reason: String?, at: Long) {
+    suspend fun recordProbe(bindingId: UInt, reason: String?, key: String?, at: Long) {
         suspendTransaction(database) {
-            if (lockActive(listOf(bindingId)).isNotEmpty()) {
-                JiraObservations.update({ (JiraObservations.bindingId eq bindingId) and (JiraObservations.gone eq true) }) {
-                    it[goneProbedAt] = at
-                    if (reason != null) it[goneReason] = reason
+            val active = lockActive(listOf(bindingId), forWrite = key != null)
+            if (active.isEmpty()) return@suspendTransaction
+            val updated = JiraObservations.update({ (JiraObservations.bindingId eq bindingId) and (JiraObservations.gone eq true) }) {
+                it[goneProbedAt] = at
+                it[goneProbedKey] = key
+                if (reason != null) it[goneReason] = reason
+            }
+            if (updated == 1 && key != null && active[bindingId] != key) {
+                bindings.update({ bindings.id eq bindingId }) {
+                    it[jiraIssueKey] = key
+                    it[updatedAt] = nowMillis()
                 }
             }
         }
@@ -164,6 +176,7 @@ internal class JiraRunStore(private val database: R2dbcDatabase) {
                     it[gone] = false
                     it[goneReason] = null
                     it[goneProbedAt] = null
+                    it[goneProbedKey] = null
                 }
             }
         }

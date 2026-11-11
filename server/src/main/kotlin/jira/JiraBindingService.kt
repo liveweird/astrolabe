@@ -257,11 +257,16 @@ class JiraBindingService(private val database: R2dbcDatabase) {
         val stored = rows.map(::StoredBinding)
         val nodes = describeNodes(stored.map { it.level to it.nodeId })
         val connections = JiraConnectionService.Connections
-        val sites = connections.select(connections.id, connections.siteUrl)
+        val siteRows = connections.select(connections.id, connections.siteUrl, connections.projectKeys)
             .where { connections.id inList stored.map { it.connectionId }.distinct() }
-            .toList().associate { it[connections.id].value to it[connections.siteUrl] }
+            .toList().associateBy { it[connections.id].value }
+        val connectionOf = stored.associate { it.id to it.connectionId }
         val observations = JiraObservations.selectAll().where { JiraObservations.bindingId inList stored.map { it.id } }.toList()
-            .associate { it[JiraObservations.bindingId].value to it.toObservationResponse() }
+            .associate { observed ->
+                val bindingId = observed[JiraObservations.bindingId].value
+                val keys = siteRows[connectionOf[bindingId]]?.let { parseStringArray(it[connections.projectKeys]) }.orEmpty()
+                bindingId to observed.toObservationResponse(keys)
+            }
         val creators = creatorsOf(rows.mapNotNull { it[Bindings.createdByUserId]?.value })
         return stored.map { binding ->
             val creator = binding.row[Bindings.createdByUserId]?.value?.let(creators::get)
@@ -272,7 +277,7 @@ class JiraBindingService(private val database: R2dbcDatabase) {
                 node = checkNotNull(nodes[binding.level to binding.nodeId]) { "a binding's node row exists (foreign key)" },
                 issueId = binding.issueId,
                 issueKey = binding.issueKey,
-                url = "${sites[binding.connectionId].orEmpty()}/browse/${binding.issueKey}",
+                url = "${siteRows[binding.connectionId]?.get(connections.siteUrl).orEmpty()}/browse/${binding.issueKey}",
                 observation = observations[binding.id],
                 createdAt = binding.row[Bindings.createdAt],
                 createdBy = creator?.let { JiraBindingCreator(it.userId, it.name) },

@@ -128,6 +128,10 @@ internal val CANDIDATE_ORDER: Comparator<Candidate> = compareBy<Candidate>(
     { it.bindingId },
 )
 
+/** The kernels' view of the observation: its stored gone reason refined into the wire one against the connection's CURRENT keys. */
+private fun StoredObservation.wireIssue(projectKeys: Collection<String>): ObservedIssue =
+    issue.copy(goneReason = wireGoneReason(issue.goneReason, goneProbedAt, goneProbedKey, projectKeys))
+
 /**
  * Everything one computation reads, so the per-binding step is a method with a short signature. [boundTo] is the plan node each
  * binding's issue is bound to, per connection ([loadBoundTo]); [actor] null = an anonymous computation (`can.acknowledge` false);
@@ -157,7 +161,7 @@ internal class World(
         val rollup = coverage.rollups[row.id]?.takeUnless { stored?.issue?.gone == true }
         val all = JiraDeviationKernels.deviations(
             level = row.ref.level,
-            issue = stored?.issue,
+            issue = stored?.wireIssue(connection.projectKeys),
             plan = plan,
             mapping = connection.levels?.get(row.ref.level),
             parentBoundTo = parentIssueId?.let { boundTo[row.connectionId to it] },

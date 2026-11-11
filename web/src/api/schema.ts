@@ -1456,7 +1456,7 @@ export interface paths {
          *     /integrations/jira/bindings/{id}/acknowledge`.
          *
          *     **Deviations** (WARNING unless noted; `detail.days` is in WORKING days on the live calendar, POSITIVE = the plan is later):
-         *     `GONE` (the issue is gone; it is raised ALONE - a gone issue's dates are stale; `detail.jira` is the reason, `MOVED_OUT` when a by-id probe still read the issue); `LEVEL_MISMATCH` (the observed hierarchy level
+         *     `GONE` (the issue is gone; it is raised ALONE - a gone issue's dates are stale; `detail.jira` is the reason, `MOVED_OUT` when a by-id probe still read the issue under a key outside the connection's projects, `NOT_LISTED` under one inside them); `LEVEL_MISMATCH` (the observed hierarchy level
          *     is not the one the current mapping gives the level; an unknown observed level counts as a mismatch); `PARENT_MISMATCH`
          *     (projects and milestones: the observed parent issue is bound, on the same connection, to a node that is not the plan parent -
          *     an unbound parent raises nothing; the plan parent is the nearest ancestor whose level the connection maps - a milestone's
@@ -4708,8 +4708,8 @@ export interface components {
          */
         NullableDeviationKind: "GONE" | "LEVEL_MISMATCH" | "PARENT_MISMATCH" | "RENAMED" | "START_DIFFERS" | "END_DIFFERS" | "TARGET_DIFFERS" | "UNSCHEDULED_IN_PLAN" | "UNSCHEDULED_IN_JIRA" | "ESTIMATE_DIFFERS" | "ESTIMATE_NOT_COMPARABLE" | "PROGRESS_MISMATCH" | "UNLINKED_IN_JIRA" | "UNLINKED_IN_PLAN" | "CHILDREN_DONE" | null;
         /**
-         * @description The evidence, every member optional and text so one shape serves every kind. `GONE`: jira = the gone reason (`DELETED`, `FORBIDDEN`, `OUT_OF_SCOPE`, or `MOVED_OUT` for
-         *     a probed-readable issue). `LEVEL_MISMATCH`:
+         * @description The evidence, every member optional and text so one shape serves every kind. `GONE`: jira = the gone reason (`DELETED`, `FORBIDDEN`, `OUT_OF_SCOPE`, `MOVED_OUT` for
+         *     a probed-readable issue whose current key is outside the connection's projects, `NOT_LISTED` for one inside them). `LEVEL_MISMATCH`:
          *     jira = the observed hierarchy level (`unknown` when none), plan = the mapped one. `PARENT_MISMATCH`: jira = the observed parent's
          *     key, plan = the plan parent's name. `RENAMED`: jira = the summary, plan = the name. `START_DIFFERS` / `END_DIFFERS`: the two ISO
          *     dates and `days`. `TARGET_DIFFERS`: `days` only (the item's `jira` and `plan` blocks hold the dates). `ESTIMATE_DIFFERS`: jira =
@@ -4864,8 +4864,9 @@ export interface components {
         /** @description Jira's side as last observed; everything after `url` is null for a binding never observed (`rollup` also for a binding that is not a milestone or whose issue has no mirrored child). */
         DeviationJira: {
             issueId: string;
+            /** @description The issue's current key as Jira last answered it: after a run's by-id probe read a gone issue, the key that answer carried (an issue moved to another project, possibly one outside the connection's project keys, shows its new key). */
             key: string;
-            /** @description `<site>/browse/<key>`. */
+            /** @description `<site>/browse/<key>`, under the current key. */
             url: string;
             summary: string | null;
             typeName: string | null;
@@ -6399,10 +6400,10 @@ export interface components {
             /** @description The issue could not be read on a later run (set by the run, never by a bind). */
             gone: boolean;
             /**
-             * @description Why the issue is gone. `OUT_OF_SCOPE` is the sweep's verdict until the per-issue probe answers (a failed, cut or over-cap probe is retried by a later run), `MOVED_OUT` is what a probe's 200 reads (Jira still has the issue and the account can read it by id, but it is absent from the connection's listing: moved out of the connection's projects; derived on read, never stored), `DELETED` is the probe's 404 (Jira answers the same 404 for an issue the connection's account cannot see), `FORBIDDEN` its 403.
+             * @description Why the issue is gone. `OUT_OF_SCOPE` is the sweep's verdict until the per-issue probe answers (a failed, cut or over-cap probe is retried by a later run), `MOVED_OUT` is what a probe's 200 reads when the key it carried is outside the connection's project keys (or carried none usable): Jira still has the issue and the account can read it by id, but it is absent from the connection's listing, so it moved out of the connection's projects; `NOT_LISTED` is a 200 whose key is inside the connection's project keys (archived, a changed type, a listing that came back empty by mistake: Jira has it where the connection looks, but no longer lists it). Both are derived on read against the connection's CURRENT project keys, never stored. `DELETED` is the probe's 404 (Jira answers the same 404 for an issue the connection's account cannot see), `FORBIDDEN` its 403.
              * @enum {string|null}
              */
-            goneReason?: "DELETED" | "OUT_OF_SCOPE" | "MOVED_OUT" | "FORBIDDEN" | null;
+            goneReason?: "DELETED" | "OUT_OF_SCOPE" | "MOVED_OUT" | "NOT_LISTED" | "FORBIDDEN" | null;
         };
         JiraBinding: {
             /** Format: int32 */
@@ -6414,8 +6415,9 @@ export interface components {
             node: components["schemas"]["JiraBindingNode"];
             /** @description The numeric Jira issue id (a key changes when an issue moves project). */
             issueId: string;
+            /** @description The issue's current key as Jira last answered it: it follows the issue when a run sees it in another project (a moved issue shows its new key, possibly in a project outside the connection's keys, to every caller who may read the bindings); `observation.issueKey` keeps the key the issue was last read under. */
             issueKey: string;
-            /** @description `<site>/browse/<key>`. */
+            /** @description `<site>/browse/<key>`, under the current key. */
             url: string;
             observation?: components["schemas"]["JiraBindingObservation"] | null;
             /** Format: int64 */

@@ -83,9 +83,14 @@ private fun deviationLevels(mapping: JiraMapping): Map<JiraLevel, DeviationMappi
         level to DeviationMapping(mapped.hierarchyLevel, mapping.estimate.unit, mapping.estimate.manDaysPerUnit)
     }
 
-/** The latest observation of a binding: what the kernels compare ([issue]) and what the row shows besides. */
+/**
+ * The latest observation of a binding: what the kernels compare ([issue], whose `goneReason` is the STORED one: [World.candidate] derives
+ * the wire reason from [goneProbedAt] and [goneProbedKey] against the connection's keys) and what the row shows besides.
+ */
 internal class StoredObservation(
     val issue: ObservedIssue,
+    val goneProbedAt: Long?,
+    val goneProbedKey: String?,
     val typeName: String?,
     val statusName: String?,
     val teamName: String?,
@@ -148,7 +153,7 @@ internal suspend fun loadBindings(scope: DeviationScope = DeviationScope()): Lis
             observations.observedAt, observations.summary, observations.typeName, observations.hierarchyLevel, observations.statusName,
             observations.statusCategory, observations.parentIssueId, observations.parentIssueKey, observations.startDate,
             observations.endDate, observations.estimate, observations.estimateUnit, observations.teamName, observations.gone,
-            observations.goneReason, observations.goneProbedAt,
+            observations.goneReason, observations.goneProbedAt, observations.goneProbedKey,
         )
         .where { scope.predicate() }.orderBy(bindings.id).toList().map { row ->
             BindingRow(
@@ -200,10 +205,11 @@ private fun ResultRow.storedObservation(): StoredObservation? {
         estimate = estimate,
         estimateUnit = unit,
         gone = getOrNull(observations.gone) == true,
-        goneReason = wireGoneReason(getOrNull(observations.goneReason), getOrNull(observations.goneProbedAt)),
+        goneReason = getOrNull(observations.goneReason),
     )
     return StoredObservation(
-        issue, getOrNull(observations.typeName), getOrNull(observations.statusName), getOrNull(observations.teamName), observedAt,
+        issue, getOrNull(observations.goneProbedAt), getOrNull(observations.goneProbedKey),
+        getOrNull(observations.typeName), getOrNull(observations.statusName), getOrNull(observations.teamName), observedAt,
     )
 }
 

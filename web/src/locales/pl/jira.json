@@ -261,6 +261,7 @@
     },
     "gone": "Zniknął z Jiry",
     "goneMovedOut": "Przeniesiony poza zakres",
+    "goneNotListed": "Jira go nie wymienia",
     "unlink": "Odepnij",
     "unlinkAria": "Odepnij: {{name}}",
     "unlinkTitle": "Odpiąć od Jiry?",

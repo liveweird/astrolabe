@@ -28,12 +28,24 @@ function startOrEnd(kind: "START_DIFFERS" | "END_DIFFERS", detail: Deviation["de
   return `${t(moved.later ? "deviations.phrase.endLater" : "deviations.phrase.endEarlier", { count })}${suffix}`;
 }
 
+/**
+ * Which badge a gone issue wears, from the wire `goneReason` (a `GONE` line's `detail.jira`, a binding's `observation.goneReason`): the
+ * two readable-by-id verdicts get their own wording (`movedOut`: Jira has it outside the connection's projects; `notListed`: inside them),
+ * every other reason, and none, the plain "gone from Jira". The caller maps the kind to its own string key.
+ */
+export function goneBadge(reason: string | null | undefined): "movedOut" | "notListed" | "gone" {
+  if (reason === "MOVED_OUT") return "movedOut";
+  return reason === "NOT_LISTED" ? "notListed" : "gone";
+}
+
 function gone(detail: Deviation["detail"], t: TFunction): string {
   switch (detail.jira) {
     case "OUT_OF_SCOPE":
       return t("deviations.phrase.goneOutOfScope");
     case "MOVED_OUT":
       return t("deviations.phrase.goneMovedOut");
+    case "NOT_LISTED":
+      return t("deviations.phrase.goneNotListed");
     case "DELETED":
       return t("deviations.phrase.goneDeleted");
     case "FORBIDDEN":

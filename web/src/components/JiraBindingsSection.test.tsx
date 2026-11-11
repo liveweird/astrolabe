@@ -60,6 +60,15 @@ describe("JiraBindingsSection", () => {
     expect(within(table).queryByText("Gone from Jira")).not.toBeInTheDocument();
   });
 
+  test("a gone link whose probe found the issue inside the connection's projects wears the 'Not listed by Jira' badge", async () => {
+    rows = [binding(1, { observation: { observedAt: 1, statusCategory: "IN_PROGRESS", summary: "Epic 1", gone: true, goneReason: "NOT_LISTED" } })];
+    renderWithProviders(<JiraBindingsSection connection={CONNECTION} />);
+    const table = await screen.findByRole("table", { name: "Links to plan items" });
+    expect(await within(table).findByText("Not listed by Jira")).toBeInTheDocument();
+    expect(within(table).queryByText("Gone from Jira")).not.toBeInTheDocument();
+    expect(within(table).queryByText("Moved out of scope")).not.toBeInTheDocument();
+  });
+
   test("lists the connection's links with the plan item, its level, the Jira key as an external link, a gone mark and who linked it", async () => {
     renderWithProviders(<JiraBindingsSection connection={CONNECTION} />);
     const table = await screen.findByRole("table", { name: "Links to plan items" });

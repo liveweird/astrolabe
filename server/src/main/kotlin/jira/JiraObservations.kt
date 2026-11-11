@@ -33,6 +33,12 @@ object JiraObservations : Table("jira_observations") {
 
     /** V27: when the run's by-id probe last ANSWERED (200, 404, 403) about this vanish; null = not yet (server-internal, never exposed). */
     val goneProbedAt = long("gone_probed_at").nullable()
+
+    /**
+     * V29: the issue KEY the probe's 200 answered with (where Jira has the issue now; validated before it is stored); null = no such
+     * answer (server-internal, never exposed raw: the API derives the gone reason from it, `wireGoneReason`). No CHECK ties it to `gone`.
+     */
+    val goneProbedKey = varchar("gone_probed_key", length = 50).nullable()
     override val primaryKey = PrimaryKey(bindingId)
 }
 
@@ -64,7 +70,8 @@ internal suspend fun insertFirstObservation(bindingId: UInt, observation: JiraOb
     }
 }
 
-internal fun ResultRow.toObservationResponse() = JiraObservationResponse(
+/** The wire row of an observation; [projectKeys] are the observing connection's CURRENT keys (the gone reason is derived against them). */
+internal fun ResultRow.toObservationResponse(projectKeys: Collection<String>) = JiraObservationResponse(
     observedAt = this[JiraObservations.observedAt],
     issueKey = this[JiraObservations.issueKey],
     summary = this[JiraObservations.summary],
@@ -83,5 +90,7 @@ internal fun ResultRow.toObservationResponse() = JiraObservationResponse(
     teamName = this[JiraObservations.teamName],
     jiraUpdatedAt = this[JiraObservations.jiraUpdatedAt],
     gone = this[JiraObservations.gone],
-    goneReason = wireGoneReason(this[JiraObservations.goneReason], this[JiraObservations.goneProbedAt]),
+    goneReason = wireGoneReason(
+        this[JiraObservations.goneReason], this[JiraObservations.goneProbedAt], this[JiraObservations.goneProbedKey], projectKeys,
+    ),
 )
