@@ -83,5 +83,5 @@ internal fun ResultRow.toObservationResponse() = JiraObservationResponse(
     teamName = this[JiraObservations.teamName],
     jiraUpdatedAt = this[JiraObservations.jiraUpdatedAt],
     gone = this[JiraObservations.gone],
-    goneReason = this[JiraObservations.goneReason],
+    goneReason = wireGoneReason(this[JiraObservations.goneReason], this[JiraObservations.goneProbedAt]),
 )

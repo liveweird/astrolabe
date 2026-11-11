@@ -1451,7 +1451,7 @@ export interface paths {
          *     `POST` and `DELETE /integrations/jira/bindings/{id}/acknowledge`.
          *
          *     **Deviations** (WARNING unless noted; `detail.days` is in WORKING days on the live calendar, POSITIVE = the plan is later):
-         *     `GONE` (the issue is gone; it is raised ALONE - a gone issue's dates are stale); `LEVEL_MISMATCH` (the observed hierarchy level
+         *     `GONE` (the issue is gone; it is raised ALONE - a gone issue's dates are stale; `detail.jira` is the reason, `MOVED_OUT` when a by-id probe still read the issue); `LEVEL_MISMATCH` (the observed hierarchy level
          *     is not the one the current mapping gives the level; an unknown observed level counts as a mismatch); `PARENT_MISMATCH`
          *     (projects and milestones: the observed parent issue is bound, on the same connection, to a node that is not the plan parent -
          *     an unbound parent raises nothing; the plan parent is the nearest ancestor whose level the connection maps - a milestone's
@@ -4689,7 +4689,8 @@ export interface components {
         /** @enum {string} */
         DeviationKind: "GONE" | "LEVEL_MISMATCH" | "PARENT_MISMATCH" | "RENAMED" | "START_DIFFERS" | "END_DIFFERS" | "TARGET_DIFFERS" | "UNSCHEDULED_IN_PLAN" | "UNSCHEDULED_IN_JIRA" | "ESTIMATE_DIFFERS" | "ESTIMATE_NOT_COMPARABLE" | "PROGRESS_MISMATCH" | "UNLINKED_IN_JIRA" | "UNLINKED_IN_PLAN" | "CHILDREN_DONE";
         /**
-         * @description The evidence, every member optional and text so one shape serves every kind. `GONE`: jira = the gone reason. `LEVEL_MISMATCH`:
+         * @description The evidence, every member optional and text so one shape serves every kind. `GONE`: jira = the gone reason (`DELETED`, `FORBIDDEN`, `OUT_OF_SCOPE`, or `MOVED_OUT` for
+         *     a probed-readable issue). `LEVEL_MISMATCH`:
          *     jira = the observed hierarchy level (`unknown` when none), plan = the mapped one. `PARENT_MISMATCH`: jira = the observed parent's
          *     key, plan = the plan parent's name. `RENAMED`: jira = the summary, plan = the name. `START_DIFFERS` / `END_DIFFERS`: the two ISO
          *     dates and `days`. `TARGET_DIFFERS`: `days` only (the item's `jira` and `plan` blocks hold the dates). `ESTIMATE_DIFFERS`: jira =
@@ -6362,10 +6363,10 @@ export interface components {
             /** @description The issue could not be read on a later run (set by the run, never by a bind). */
             gone: boolean;
             /**
-             * @description Why the issue is gone. `OUT_OF_SCOPE` is the sweep's verdict (kept when the per-issue probe answers 200, and until a probe answers: a failed, cut or over-cap probe is retried by a later run), `DELETED` is the probe's 404 (Jira answers the same 404 for an issue the connection's account cannot see), `FORBIDDEN` its 403.
+             * @description Why the issue is gone. `OUT_OF_SCOPE` is the sweep's verdict until the per-issue probe answers (a failed, cut or over-cap probe is retried by a later run), `MOVED_OUT` is what a probe's 200 reads (Jira still has the issue and the account can read it by id, but it is absent from the connection's listing: moved out of the connection's projects; derived on read, never stored), `DELETED` is the probe's 404 (Jira answers the same 404 for an issue the connection's account cannot see), `FORBIDDEN` its 403.
              * @enum {string|null}
              */
-            goneReason?: "DELETED" | "OUT_OF_SCOPE" | "FORBIDDEN" | null;
+            goneReason?: "DELETED" | "OUT_OF_SCOPE" | "MOVED_OUT" | "FORBIDDEN" | null;
         };
         JiraBinding: {
             /** Format: int32 */

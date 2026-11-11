@@ -32,6 +32,8 @@ function gone(detail: Deviation["detail"], t: TFunction): string {
   switch (detail.jira) {
     case "OUT_OF_SCOPE":
       return t("deviations.phrase.goneOutOfScope");
+    case "MOVED_OUT":
+      return t("deviations.phrase.goneMovedOut");
     case "DELETED":
       return t("deviations.phrase.goneDeleted");
     case "FORBIDDEN":

@@ -260,6 +260,7 @@
       "by": "Powiązał/a"
     },
     "gone": "Zniknął z Jiry",
+    "goneMovedOut": "Przeniesiony poza zakres",
     "unlink": "Odepnij",
     "unlinkAria": "Odepnij: {{name}}",
     "unlinkTitle": "Odpiąć od Jiry?",

@@ -171,7 +171,7 @@ export default function JiraBindingsSection({ connection }: { connection: JiraCo
                 </Text>
                 {row.observation?.gone && (
                   <Badge color="orange" variant="light" tt="none">
-                    {t("jira.bindings.gone")}
+                    {t(row.observation.goneReason === "MOVED_OUT" ? "jira.bindings.goneMovedOut" : "jira.bindings.gone")}
                   </Badge>
                 )}
               </Group>

@@ -254,6 +254,7 @@
       "by": "Linked by"
     },
     "gone": "Gone from Jira",
+    "goneMovedOut": "Moved out of scope",
     "unlink": "Unlink",
     "unlinkAria": "Unlink: {{name}}",
     "unlinkTitle": "Unlink from Jira?",

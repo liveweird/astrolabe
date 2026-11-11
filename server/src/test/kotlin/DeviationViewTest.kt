@@ -45,6 +45,30 @@ class DeviationViewTest {
     }
 
     @Test
+    fun `a gone binding reads OUT_OF_SCOPE until probed, then MOVED_OUT, DELETED and FORBIDDEN stay as stored`() = testApplication {
+        start()
+        val w = planWorld("dvmo", teams = true)
+        val n = Nodes(w)
+        val c = w.admin.client.dvConnection()
+        suspend fun gone(issue: Int, reason: String, probedAt: Long?): UInt {
+            val (id, name) = n.milestone("mo$issue", "2044-02-01", "2044-02-04")
+            val obs = DvObs(name, 1, gone = true, goneReason = reason, goneProbedAt = probedAt)
+            return dvBind(c, JiraLevel.MILESTONE, id, issue.toString(), "ABC-$issue", obs)
+        }
+        val sweep = gone(8101, "OUT_OF_SCOPE", null)
+        val probed = gone(8102, "OUT_OF_SCOPE", 5)
+        val deleted = gone(8103, "DELETED", 5)
+        val forbidden = gone(8104, "FORBIDDEN", 5)
+        val view = w.admin.client.dvView("connectionId=$c")
+        fun reason(id: UInt) = assertNotNull(view.byBinding()[id]).deviations.single().also { assertEquals(DeviationKind.GONE, it.kind) }
+            .detail.jira
+        assertEquals(
+            listOf("OUT_OF_SCOPE", "MOVED_OUT", "DELETED", "FORBIDDEN"), listOf(sweep, probed, deleted, forbidden).map(::reason),
+        )
+        assertEquals(4, view.totals.gone, "a moved-out item still counts as gone from Jira")
+    }
+
+    @Test
     fun `every kind comes through the wire with its severity and detail, and the view moves no revision`() = testApplication {
         start()
         val w = planWorld("dvk", teams = true)

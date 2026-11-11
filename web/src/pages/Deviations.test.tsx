@@ -193,6 +193,18 @@ describe("Deviations page", () => {
     expect(viewCalls()[0]).toBe("/api/v1/views/deviations?all=true");
   });
 
+  test("a probed-readable gone item reads 'Moved out' in its sentence and badge; an unprobed one keeps the wide phrase", async () => {
+    const gone = (bindingId: number, key: string, reason: "MOVED_OUT" | "OUT_OF_SCOPE") =>
+      item({ bindingId, node: { ...item().node, id: 10 + bindingId, name: `Gone ${key}` }, jira: { ...item().jira, key, gone: true }, deviations: [{ kind: "GONE", severity: "WARNING", detail: detail({ jira: reason }) }] });
+    doc = view({ items: [gone(1, "OLD-1", "MOVED_OUT"), gone(2, "OLD-2", "OUT_OF_SCOPE")] });
+    renderPage("/deviations?all=true");
+    const table = await screen.findByRole("table", { name: "Differences between the plan and Jira" });
+    expect(within(table).getByText("Moved out of the connection's projects (Jira still has it)")).toBeInTheDocument();
+    expect(within(table).getByText("Moved out of scope")).toBeInTheDocument();
+    expect(within(table).getAllByText("Gone from Jira")).toHaveLength(1);
+    expect(within(table).getByText(/No longer readable in Jira: deleted, moved out/)).toBeInTheDocument();
+  });
+
   test("a truncated list says so, and does not claim its totals are the number of links", async () => {
     doc = { ...view(), truncated: true };
     renderPage();

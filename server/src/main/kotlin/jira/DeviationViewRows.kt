@@ -152,7 +152,7 @@ internal suspend fun loadBindings(scope: DeviationScope = DeviationScope()): Lis
             observations.observedAt, observations.summary, observations.typeName, observations.hierarchyLevel, observations.statusName,
             observations.statusCategory, observations.parentIssueId, observations.parentIssueKey, observations.startDate,
             observations.endDate, observations.estimate, observations.estimateUnit, observations.teamName, observations.gone,
-            observations.goneReason,
+            observations.goneReason, observations.goneProbedAt,
         )
         .where { scope.predicate() }.orderBy(bindings.id).toList().map { row ->
             val fingerprint = row[bindings.ackFingerprint]
@@ -208,7 +208,7 @@ private fun ResultRow.storedObservation(): StoredObservation? {
         estimate = estimate,
         estimateUnit = unit,
         gone = getOrNull(observations.gone) == true,
-        goneReason = getOrNull(observations.goneReason),
+        goneReason = wireGoneReason(getOrNull(observations.goneReason), getOrNull(observations.goneProbedAt)),
     )
     return StoredObservation(
         issue, getOrNull(observations.typeName), getOrNull(observations.statusName), getOrNull(observations.teamName), observedAt,

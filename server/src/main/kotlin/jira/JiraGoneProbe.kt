@@ -17,6 +17,12 @@ internal const val GONE_PROBE_CAP = 100
 /** The probe stops after this many failures in a row that say nothing about the issue (a site that is down or refusing): the rest stay. */
 internal const val GONE_PROBE_MAX_FAILURES = 3
 
+/**
+ * The wire `goneReason` of a probe that answered 200 (1.12): derived on read, never stored (the column keeps `OUT_OF_SCOPE`). A 200 proves
+ * "Jira still has it, readable by id, absent from the connection's listing", which is what "moved out of the connection's projects" says.
+ */
+internal const val GONE_MOVED_OUT = "MOVED_OUT"
+
 private const val NOT_FOUND = "NOT_FOUND"
 private const val FORBIDDEN_SCOPE = "FORBIDDEN_SCOPE"
 
@@ -26,6 +32,10 @@ internal fun goneReasonFor(code: String): String? = when (code) {
     FORBIDDEN_SCOPE -> GONE_FORBIDDEN
     else -> null
 }
+
+/** The wire form of a stored `gone_reason`: `OUT_OF_SCOPE` with a probe's answer ([probedAt] set: the 200) reads [GONE_MOVED_OUT]. */
+internal fun wireGoneReason(stored: String?, probedAt: Long?): String? =
+    if (stored == GONE_OUT_OF_SCOPE && probedAt != null) GONE_MOVED_OUT else stored
 
 /**
  * The probe step of a run: the sweep can only say a bound issue is absent from the in-scope listing ([GONE_OUT_OF_SCOPE]), so each

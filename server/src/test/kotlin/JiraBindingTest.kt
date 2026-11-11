@@ -1,5 +1,6 @@
 package ch.nokillswit
 
+import ch.nokillswit.jira.JiraBindingResponse
 import ch.nokillswit.jira.JiraLevel
 import com.github.tomakehurst.wiremock.client.MappingBuilder
 import com.github.tomakehurst.wiremock.client.WireMock.aResponse
@@ -317,6 +318,27 @@ class JiraBindingTest {
     }
 
     // --- the first observation ---------------------------------------------------------------------------------------------------------
+
+    @Test
+    fun `a gone observation reads OUT_OF_SCOPE until a probe answered and MOVED_OUT after, whatever the column keeps`() = testApplication {
+        val f = fixture("jbmoved")
+        val admin = f.w.admin.client
+        val binding = admin.jbBind(f.connectionId, JiraLevel.MILESTONE, f.milestone(), "E2E-5").jbBinding()
+        suspend fun reason() = assertNotNull(
+            jbJson.decodeFromString<JiraBindingResponse>(admin.get("$JB_BINDINGS/${binding.id}").bodyAsText()).observation,
+        ).goneReason
+        val id = binding.id.toInt()
+        jbSql("UPDATE jira_observations SET gone = TRUE, gone_reason = 'OUT_OF_SCOPE', gone_probed_at = NULL WHERE binding_id = ?", id)
+        assertEquals("OUT_OF_SCOPE", reason(), "the sweep's verdict, no probe answer yet")
+        jbSql("UPDATE jira_observations SET gone_probed_at = 5 WHERE binding_id = ?", id)
+        assertEquals("MOVED_OUT", reason(), "the probe's 200")
+        assertEquals(
+            "OUT_OF_SCOPE", jbScalar("SELECT gone_reason FROM jira_observations WHERE binding_id = ?", id) { it.getString(1) },
+            "derived on read: the column is untouched",
+        )
+        jbSql("UPDATE jira_observations SET gone_reason = 'FORBIDDEN' WHERE binding_id = ?", id)
+        assertEquals("FORBIDDEN", reason(), "a probe's 403 verdict is stored as it is")
+    }
 
     @Test
     fun `a bind stores the binding and its first observation read through the mapping`() = testApplication {

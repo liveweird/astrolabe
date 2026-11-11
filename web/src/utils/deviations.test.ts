@@ -78,6 +78,8 @@ describe("deviationSentence - the working-day phrasing (positive days = the plan
 describe("deviationSentence - every other kind, in both languages", () => {
   const cases: [Deviation, string, string][] = [
     [{ kind: "GONE", severity: "WARNING", detail: detail({ jira: "DELETED" }) }, "Deleted in Jira (or no longer visible to the connection's account)", "Usunięty w Jirze (albo konto połączenia już go nie widzi)"],
+    [{ kind: "GONE", severity: "WARNING", detail: detail({ jira: "MOVED_OUT" }) }, "Moved out of the connection's projects (Jira still has it)", "Przeniesiony poza projekty połączenia (Jira nadal go ma)"],
+    [{ kind: "GONE", severity: "WARNING", detail: detail({ jira: "OUT_OF_SCOPE" }) }, "No longer readable in Jira: deleted, moved out of the connection's projects, or no longer visible to its account", "Nie da się już odczytać z Jiry: usunięto go, przeniesiono poza projekty połączenia albo konto połączenia już go nie widzi"],
     [{ kind: "GONE", severity: "WARNING", detail: detail({ jira: "FORBIDDEN" }) }, "No longer visible to the connection's account", "Konto połączenia już go nie widzi"],
     [{ kind: "GONE", severity: "WARNING", detail: detail() }, "No longer readable in Jira", "Nie da się już odczytać z Jiry"],
     [

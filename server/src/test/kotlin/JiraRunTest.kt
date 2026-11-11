@@ -279,7 +279,7 @@ class JiraRunTest {
                 assertEquals(4, moved.callCount, "tenant_info, the incremental page, the sweep page, the probe")
                 val outOfScope = assertNotNull(admin.binding(vanishing.id).observation)
                 assertTrue(outOfScope.gone)
-                assertEquals("OUT_OF_SCOPE", outOfScope.goneReason)
+                assertEquals("MOVED_OUT", outOfScope.goneReason, "stored OUT_OF_SCOPE, answered: the wire says MOVED_OUT")
                 assertTrue(probeStamped(vanishing.id), "the 200 is an answer: it stamps gone_probed_at")
 
                 // (a2) A 200 is final for that vanish: the next run, still flagged, sends NO probe.
@@ -413,7 +413,7 @@ class JiraRunTest {
                 assertEquals("DELETED", admin.binding(bound.getValue(it).id).observation?.goneReason, "$it: the probe's 404")
             }
             moved.forEach {
-                assertEquals("OUT_OF_SCOPE", admin.binding(bound.getValue(it).id).observation?.goneReason, "$it: the probe's 200")
+                assertEquals("MOVED_OUT", admin.binding(bound.getValue(it).id).observation?.goneReason, "$it: the probe's 200")
             }
             assertEquals(0, jbScalar(censusOf, f.connectionId.toInt()) { it.getInt(1) }, "and the sweep removes them from the census")
             recent.forEach { assertFalse(admin.binding(bound.getValue(it).id).observation?.gone == true, it) }

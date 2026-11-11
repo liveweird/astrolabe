@@ -143,6 +143,23 @@ class JiraFlagSourceTest {
     }
 
     @Test
+    fun `a probed gone item flags MOVED_OUT, an unprobed one OUT_OF_SCOPE, and an acknowledgement keys on the wire`() = testApplication {
+        val f = fixture("jfs3m")
+        val (unprobed, _) = f.milestone { DvObs(it, 1, gone = true, goneReason = "OUT_OF_SCOPE") }
+        val (probed, probedBinding) = f.milestone { DvObs(it, 1, gone = true, goneReason = "OUT_OF_SCOPE", goneProbedAt = 5) }
+        val (deleted, _) = f.milestone { DvObs(it, 1, gone = true, goneReason = "DELETED", goneProbedAt = 5) }
+        val answer = ask(emptyList(), listOf(unprobed, probed, deleted))
+        fun reason(milestone: UInt) = answer.milestone(milestone).flags.single().deviation?.detail?.jira
+        assertEquals("OUT_OF_SCOPE", reason(unprobed))
+        assertEquals("MOVED_OUT", reason(probed))
+        assertEquals("DELETED", reason(deleted), "only a probe's 200 is re-read: a 404 verdict is stored as DELETED")
+        assertEquals("MOVED_OUT", f.w.admin.client.ackItem(f.c, probedBinding).deviations.single().detail.jira, "the view says the same")
+        // The acknowledge recomputes through the same rows: its fingerprint equals the view's, so it is accepted and silences the flag.
+        f.acknowledge(probedBinding)
+        assertEquals(emptyList(), ask(emptyList(), listOf(probed)).milestone(probed).flags)
+    }
+
+    @Test
     fun `a current acknowledgement raises nothing, a stale one raises again, and the link stays either way`() = testApplication {
         val f = fixture("jfs4")
         val (m, binding) = f.milestone { DvObs("Not the name", 1) }

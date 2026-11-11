@@ -52,6 +52,8 @@ function JiraCell({ item, connection, showConnection }: { item: DeviationItem; c
   const { t } = useTranslation();
   const { jira } = item;
   const meta = [jira.typeName, jira.statusName].filter((part): part is string => Boolean(part)).join(" · ");
+  // The reason is the GONE line's detail (the item's `jira.gone` is only the flag); a probed-readable item reads MOVED_OUT.
+  const movedOut = item.deviations.some((deviation) => deviation.kind === "GONE" && deviation.detail.jira === "MOVED_OUT");
   return (
     <>
       <Text size="sm" fw={500}>
@@ -79,7 +81,7 @@ function JiraCell({ item, connection, showConnection }: { item: DeviationItem; c
       )}
       {jira.gone && (
         <Badge color="orange" variant="light" tt="none" mt={2}>
-          {t("deviations.jira.gone")}
+          {t(movedOut ? "deviations.jira.goneMovedOut" : "deviations.jira.gone")}
         </Badge>
       )}
       {connection && !connection.enabled && (

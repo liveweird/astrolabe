@@ -937,7 +937,7 @@ abandoned or interrupted, or its mapping does not fit (`hasStaleSource`/`staleCo
 (a failed run is a run). **Refresh now is ADMIN-only** (per connection, `POST /integrations/sync/runs`; a `409 run-in-progress` is a normal state: no error and
 no note of its own, the page re-reads and its status line says a refresh is running). Each row's last column is "Data as of": `jira.observedAt` aged ("5 minutes
 ago", the exact UTC time in its `title`) - it is when Astrolabe last CAPTURED that item (the bind, or a run in which Jira reported it changed), NOT when it was
-linked and not when a run last looked, so it can be older than the connection's last run; a gone item or a disabled connection adds "stale". The age is measured
+linked and not when a run last looked, so it can be older than the connection's last run; a gone item or a disabled connection adds "stale". A gone item's Jira cell badge reads "Gone from Jira", or "Moved out of scope" when its GONE line's `detail.jira` is `MOVED_OUT` (1.12: a probe still read the issue; the sentence is "Moved out of the connection's projects (Jira still has it)", `deviations.phrase.goneMovedOut`). The age is measured
 against the browser's clock (`dataUpdatedAt`) from the server's `observedAt`, so the two clocks can differ by their skew: accepted, the tooltip carries the
 exact UTC time and the age is cosmetic. **The chips on the project and team pages are the exception that proves the rule**: they are built from the timeline
 view, which carries no connection status, so they show the LAST OBSERVATION and say nothing about whether it is current (1.1's "may be out of date" qualifier is
@@ -991,7 +991,7 @@ The header's Link/Unlink read the view's own `jira` blocks, so they are right fr
 page only (`BACKLOG.md`).
 
 **The bindings list** (`components/JiraBindingsSection.tsx`, the connection page's third h3 section): `GET /integrations/jira/bindings?connectionId=` paged
-(sort `issueKey`/`createdAt`), a level filter and the `q` name filter, a gone mark, **Unlink** through `useDeleteConfirm` + `ConfirmDeleteModal`
+(sort `issueKey`/`createdAt`), a level filter and the `q` name filter, a gone mark ("Gone from Jira", or "Moved out of scope" from `observation.goneReason === "MOVED_OUT"`), **Unlink** through `useDeleteConfirm` + `ConfirmDeleteModal`
 (`confirmLabel`; focus returns to the section's h3) and "Link a node…" (disabled while the connection is disabled). The server hides bindings of deleted plan
 items, so a row is not always there and the list may differ from a connection delete's count by those.
 

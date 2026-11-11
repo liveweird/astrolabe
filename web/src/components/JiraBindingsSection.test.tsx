@@ -52,6 +52,14 @@ afterEach(() => {
 const listCalls = () => mockFetch.mock.calls.map(([url]) => url as string).filter((url) => url.startsWith("/api/v1/integrations/jira/bindings?")).map((url) => Object.fromEntries(new URL(url, "http://x").searchParams));
 
 describe("JiraBindingsSection", () => {
+  test("a gone link whose probe still read the issue wears the 'Moved out of scope' badge", async () => {
+    rows = [binding(1, { observation: { observedAt: 1, statusCategory: "IN_PROGRESS", summary: "Epic 1", gone: true, goneReason: "MOVED_OUT" } })];
+    renderWithProviders(<JiraBindingsSection connection={CONNECTION} />);
+    const table = await screen.findByRole("table", { name: "Links to plan items" });
+    expect(await within(table).findByText("Moved out of scope")).toBeInTheDocument();
+    expect(within(table).queryByText("Gone from Jira")).not.toBeInTheDocument();
+  });
+
   test("lists the connection's links with the plan item, its level, the Jira key as an external link, a gone mark and who linked it", async () => {
     renderWithProviders(<JiraBindingsSection connection={CONNECTION} />);
     const table = await screen.findByRole("table", { name: "Links to plan items" });
