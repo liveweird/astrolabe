@@ -85,8 +85,7 @@
     "jira": "Jira item",
     "dates": "Dates",
     "deviations": "Deviations",
-    "observed": "Data as of",
-    "acknowledgement": "Acknowledgement"
+    "observed": "Data as of"
   },
   "node": {
     "openProjectAria": "Open {{name}}",
@@ -234,9 +233,15 @@
   "loadingList": "Updating the list…",
   "ack": {
     "acknowledge": "Acknowledge",
-    "acknowledgeAria": "Acknowledge {{key}}",
+    "acknowledgeLineAria": "Acknowledge {{key}}: {{kind}}",
     "unacknowledge": "Unacknowledge",
-    "unacknowledgeAria": "Unacknowledge {{key}}",
+    "unacknowledgeLineAria": "Unacknowledge {{key}}: {{kind}}",
+    "acknowledgeAll": "Acknowledge all ({{count}})",
+    "acknowledgeAllAria_one": "Acknowledge all ({{count}}) open deviation of {{key}}",
+    "acknowledgeAllAria_other": "Acknowledge all ({{count}}) open deviations of {{key}}",
+    "withdrawAll": "Withdraw all ({{count}})",
+    "withdrawAllAria_one": "Withdraw all ({{count}}) acknowledged deviation of {{key}}",
+    "withdrawAllAria_other": "Withdraw all ({{count}}) acknowledged deviations of {{key}}",
     "done": "Acknowledged by {{name}} on {{date}}",
     "doneUnknown": "Acknowledged on {{date}}",
     "stale": "Acknowledged on {{date}} by {{name}} · changed since",

@@ -3,10 +3,10 @@ import { useTranslation } from "react-i18next";
 import { Anchor, Badge, Stack, Table, Text } from "@mantine/core";
 import type { DeviationConnection, DeviationItem } from "../api/deviations";
 import type { Acknowledge } from "../hooks/useAcknowledge";
-import { ageText, deviationKindLabel, deviationSentence } from "../utils/deviations";
+import { ageText, deviationKindLabel, deviationSentence, isLineOpen, itemAckKeys } from "../utils/deviations";
 import { formatDateTime } from "../utils/formatDate";
 import { projectPath } from "../utils/planLinks";
-import DeviationAckCell from "./DeviationAckCell";
+import DeviationAckCell, { DeviationAckAll } from "./DeviationAckCell";
 import JiraKeyLink from "./JiraKeyLink";
 import JiraRollupText from "./JiraRollupText";
 import ScrollRegion from "./ScrollRegion";
@@ -118,8 +118,12 @@ function DatesCell({ item }: { item: DeviationItem }) {
   );
 }
 
-/** Every deviation of the binding: the severity in words (never colour alone), a kind badge (orange warning, gray info) and the sentence. */
-function DeviationsCell({ item }: { item: DeviationItem }) {
+/**
+ * Every listed deviation of the binding (1.12: each its own line): the severity in words (never colour alone), a kind badge (orange warning, gray info;
+ * gray whatever the severity once the line is acknowledged) and the sentence, under it the line's acknowledgement (`DeviationAckCell`). At the head
+ * "Acknowledge all (N)" / "Withdraw all (N)" (`DeviationAckAll`). `order` is the control keys the focus falls back on: this row's, then its neighbours'.
+ */
+function DeviationsCell({ item, ack, order }: { item: DeviationItem; ack: Acknowledge; order: readonly string[] }) {
   const { t } = useTranslation();
   if (item.deviations.length === 0) {
     return (
@@ -129,16 +133,20 @@ function DeviationsCell({ item }: { item: DeviationItem }) {
     );
   }
   return (
-    <Stack gap={6}>
-      {item.deviations.map((deviation) => (
-        <div key={deviation.kind}>
-          <SeverityBadge severity={deviation.severity} mr={6}>
-            {deviationKindLabel(deviation.kind, t)}
-          </SeverityBadge>
-          <Text span size="sm">
-            {deviationSentence(deviation, item, t)}
-          </Text>
-        </div>
+    <Stack gap="xs" align="flex-start">
+      <DeviationAckAll item={item} ack={ack} order={order} />
+      {item.deviations.map((line) => (
+        <Stack key={line.kind} gap={4} align="flex-start">
+          <div>
+            <SeverityBadge severity={line.severity} mr={6} dimmed={!isLineOpen(line)}>
+              {deviationKindLabel(line.kind, t)}
+            </SeverityBadge>
+            <Text span size="sm">
+              {deviationSentence(line, item, t)}
+            </Text>
+          </div>
+          <DeviationAckCell item={item} line={line} ack={ack} neighbours={order} />
+        </Stack>
       ))}
     </Stack>
   );
@@ -147,24 +155,23 @@ function DeviationsCell({ item }: { item: DeviationItem }) {
 /**
  * The differences list: one row per linked plan node with its Jira item, both sides' dates, every deviation of the binding and how long ago the server
  * last READ the item from Jira (`observedAt` - not when it was linked; a disabled connection or a gone item is marked stale). Unpaged: the view is
- * capped at 2,000 items by the server. In a focusable scroll region so it reads at a phone's width. The last column is the acknowledgement
- * (`DeviationAckCell`); `ack` is the page's `useAcknowledge`.
+ * capped at 2,000 items by the server. In a focusable scroll region so it reads at a phone's width. The acknowledgement lives in the Deviations column,
+ * per line (`DeviationAckCell`, `DeviationAckAll`); `ack` is the page's `useAcknowledge`.
  */
 export default function DeviationsTable({ items, connections, now, ack }: { items: readonly DeviationItem[]; connections: readonly DeviationConnection[]; now: number; ack: Acknowledge }) {
   const { t } = useTranslation();
   const label = t("deviations.list.tableAria");
   const byId = new Map(connections.map((connection) => [connection.id, connection]));
   return (
-    <ScrollRegion label={label} minWidth={1180}>
+    <ScrollRegion label={label} minWidth={1080}>
       <Table aria-label={label}>
         <Table.Thead>
           <Table.Tr>
             <Table.Th miw={190}>{t("deviations.column.planItem")}</Table.Th>
             <Table.Th miw={200}>{t("deviations.column.jira")}</Table.Th>
             <Table.Th miw={190}>{t("deviations.column.dates")}</Table.Th>
-            <Table.Th miw={340}>{t("deviations.column.deviations")}</Table.Th>
+            <Table.Th miw={380}>{t("deviations.column.deviations")}</Table.Th>
             <Table.Th miw={120}>{t("deviations.column.observed")}</Table.Th>
-            <Table.Th miw={180}>{t("deviations.column.acknowledgement")}</Table.Th>
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
@@ -183,7 +190,7 @@ export default function DeviationsTable({ items, connections, now, ack }: { item
                   <DatesCell item={item} />
                 </Table.Td>
                 <Table.Td>
-                  <DeviationsCell item={item} />
+                  <DeviationsCell item={item} ack={ack} order={[...itemAckKeys(item), ...(items[index + 1] ? itemAckKeys(items[index + 1]) : []), ...(items[index - 1] ? itemAckKeys(items[index - 1]) : [])]} />
                 </Table.Td>
                 <Table.Td>
                   {item.jira.observedAt === null ? (
@@ -196,9 +203,6 @@ export default function DeviationsTable({ items, connections, now, ack }: { item
                       {stale ? ` · ${t("deviations.observed.stale")}` : ""}
                     </Text>
                   )}
-                </Table.Td>
-                <Table.Td>
-                  <DeviationAckCell item={item} ack={ack} neighbours={[items[index + 1]?.bindingId, items[index - 1]?.bindingId].filter((id) => id !== undefined)} />
                 </Table.Td>
               </Table.Tr>
             );

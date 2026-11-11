@@ -2,7 +2,7 @@ import { describe, expect, test, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
 import { screen, waitFor } from "../test/render";
 import { jsonResponse } from "../test/http";
-import { view } from "../test/deviations";
+import { endLater, stamped, view } from "../test/deviations";
 import { programsViewKey } from "../api/programs";
 import { roadmapViewKey } from "../api/roadmap";
 import { projectViewKey } from "../hooks/useMilestoneSchedule";
@@ -14,7 +14,7 @@ describe("Deviations page - acknowledge and unacknowledge", () => {
   const { renderPage, viewCalls, writes } = h;
 
   describe("acknowledging", () => {
-    test("Acknowledge POSTs exactly the fingerprint of the row as read, then the page, the Jira keys AND the timeline views are re-read", async () => {
+    test("Acknowledge POSTs the fingerprint of the row as read WITH the line's kind, then the page, the Jira keys AND the timeline views are re-read", async () => {
       const cancel = vi.spyOn(h.queryClient, "cancelQueries");
       const invalidate = vi.spyOn(h.queryClient, "invalidateQueries");
       h.onWrite = () => {
@@ -23,12 +23,12 @@ describe("Deviations page - acknowledge and unacknowledge", () => {
       };
       const user = userEvent.setup();
       renderPage();
-      await user.click(await screen.findByRole("button", { name: "Acknowledge E2E-3" }));
+      await user.click(await screen.findByRole("button", { name: "Acknowledge E2E-3: End" }));
       await waitFor(() => expect(writes()).toHaveLength(1));
       const [url, init] = writes()[0];
       expect(url).toBe("/api/v1/integrations/jira/bindings/1/acknowledge");
       expect(init.method).toBe("POST");
-      expect(JSON.parse(init.body as string)).toEqual({ fingerprint: "1".repeat(64) });
+      expect(JSON.parse(init.body as string)).toEqual({ fingerprint: "1".repeat(64), kind: "END_DIFFERS" });
       await waitFor(() => expect(screen.getByText("Nothing is open.")).toBeInTheDocument());
       // The Jira queries (the page itself), and the flags every timeline view carries: plan/project/team under ["plan"], roadmap/programs under ["roadmap"].
       expect(keysOf(cancel)).toEqual(expect.arrayContaining(['["jira"]', '["plan"]', '["roadmap"]']));
@@ -44,11 +44,11 @@ describe("Deviations page - acknowledge and unacknowledge", () => {
       };
       const user = userEvent.setup();
       renderPage();
-      await user.click(await screen.findByRole("button", { name: "Acknowledge E2E-4" }));
-      await waitFor(() => expect(screen.queryByRole("button", { name: "Acknowledge E2E-4" })).not.toBeInTheDocument());
-      await waitFor(() => expect(screen.getByRole("button", { name: "Acknowledge E2E-5" })).toHaveFocus());
-      await user.click(screen.getByRole("button", { name: "Acknowledge E2E-5" }));
-      await waitFor(() => expect(screen.getByRole("button", { name: "Acknowledge E2E-3" })).toHaveFocus());
+      await user.click(await screen.findByRole("button", { name: "Acknowledge E2E-4: End" }));
+      await waitFor(() => expect(screen.queryByRole("button", { name: "Acknowledge E2E-4: End" })).not.toBeInTheDocument());
+      await waitFor(() => expect(screen.getByRole("button", { name: "Acknowledge E2E-5: End" })).toHaveFocus());
+      await user.click(screen.getByRole("button", { name: "Acknowledge E2E-5: End" }));
+      await waitFor(() => expect(screen.getByRole("button", { name: "Acknowledge E2E-3: End" })).toHaveFocus());
     });
 
     test("the last row of the list: the focus goes to the list's heading, never to body", async () => {
@@ -58,7 +58,7 @@ describe("Deviations page - acknowledge and unacknowledge", () => {
       };
       const user = userEvent.setup();
       renderPage();
-      await user.click(await screen.findByRole("button", { name: "Acknowledge E2E-3" }));
+      await user.click(await screen.findByRole("button", { name: "Acknowledge E2E-3: End" }));
       await waitFor(() => expect(screen.getByRole("heading", { level: 3, name: "Differences" })).toHaveFocus());
       expect(document.body).not.toHaveFocus();
     });
@@ -71,8 +71,8 @@ describe("Deviations page - acknowledge and unacknowledge", () => {
       };
       const user = userEvent.setup();
       renderPage("/deviations?all=true");
-      await user.click(await screen.findByRole("button", { name: "Acknowledge E2E-3" }));
-      const button = await screen.findByRole("button", { name: "Unacknowledge E2E-3" });
+      await user.click(await screen.findByRole("button", { name: "Acknowledge E2E-3: End" }));
+      const button = await screen.findByRole("button", { name: "Unacknowledge E2E-3: End" });
       await waitFor(() => expect(button).toHaveFocus());
       expect(screen.getByText("Acknowledged by Ada Lovelace on 2026-11-06")).toBeInTheDocument();
     });
@@ -81,7 +81,7 @@ describe("Deviations page - acknowledge and unacknowledge", () => {
       h.doc = view({ items: [row(1, "E2E-3", { can: { acknowledge: false } }), row(2, "E2E-4", { deviations: [] }), row(3, "E2E-5")] });
       renderPage("/deviations?all=true");
       await screen.findByRole("table", { name: "Differences between the plan and Jira" });
-      expect(screen.getAllByRole("button", { name: /^Acknowledge E2E-/ }).map((b) => b.getAttribute("aria-label"))).toEqual(["Acknowledge E2E-5"]);
+      expect(screen.getAllByRole("button", { name: /^Acknowledge E2E-/ }).map((b) => b.getAttribute("aria-label"))).toEqual(["Acknowledge E2E-5: End"]);
     });
 
     test("a second click while the write runs is ignored", async () => {
@@ -89,7 +89,7 @@ describe("Deviations page - acknowledge and unacknowledge", () => {
       h.onWrite = () => new Promise<Response>((resolve) => (release = resolve));
       const user = userEvent.setup();
       renderPage();
-      const button = await screen.findByRole("button", { name: "Acknowledge E2E-3" });
+      const button = await screen.findByRole("button", { name: "Acknowledge E2E-3: End" });
       await user.click(button);
       await waitFor(() => expect(button).toHaveAttribute("aria-disabled", "true"));
       await user.click(button);
@@ -106,7 +106,7 @@ describe("Deviations page - acknowledge and unacknowledge", () => {
       };
       const user = userEvent.setup();
       renderPage();
-      await user.click(await screen.findByRole("button", { name: "Acknowledge E2E-3" }));
+      await user.click(await screen.findByRole("button", { name: "Acknowledge E2E-3: End" }));
       await waitFor(() => expect(keysOf(invalidate)).toEqual(expect.arrayContaining(['["jira"]', '["plan"]', '["roadmap"]'])));
       const refreshed = keyArraysOf(invalidate);
       for (const real of [roadmapViewKey(null), programsViewKey(null), projectViewKey(7, null), teamViewKey(3, null), ["jira", "deviations", "view", {}]]) {
@@ -119,7 +119,7 @@ describe("Deviations page - acknowledge and unacknowledge", () => {
       h.onWrite = () => new Promise<Response>((resolve) => (release = resolve));
       const user = userEvent.setup();
       renderPage();
-      const button = await screen.findByRole("button", { name: "Acknowledge E2E-3" });
+      const button = await screen.findByRole("button", { name: "Acknowledge E2E-3: End" });
       await user.click(button);
       await waitFor(() => expect(button).toHaveAttribute("aria-disabled", "true"));
       expect(button).toHaveFocus();
@@ -132,7 +132,7 @@ describe("Deviations page - acknowledge and unacknowledge", () => {
   });
 
   describe("unacknowledging", () => {
-    test("Unacknowledge DELETEs with no body; in the Acknowledged list the row leaves and the next one takes the focus", async () => {
+    test("Unacknowledge DELETEs the line (?kind=) with no body; in the Acknowledged list the row leaves and the next one takes the focus", async () => {
       h.doc = view({ items: [row(1, "E2E-3", acknowledged()), row(2, "E2E-4", acknowledged())] });
       h.onWrite = (_method, id) => {
         h.doc = view({ items: h.doc.items.filter((i) => i.bindingId !== id) });
@@ -140,20 +140,20 @@ describe("Deviations page - acknowledge and unacknowledge", () => {
       };
       const user = userEvent.setup();
       renderPage("/deviations?acknowledged=true");
-      await user.click(await screen.findByRole("button", { name: "Unacknowledge E2E-3" }));
+      await user.click(await screen.findByRole("button", { name: "Unacknowledge E2E-3: End" }));
       await waitFor(() => expect(writes()).toHaveLength(1));
-      expect(writes()[0][0]).toBe("/api/v1/integrations/jira/bindings/1/acknowledge");
+      expect(writes()[0][0]).toBe("/api/v1/integrations/jira/bindings/1/acknowledge?kind=END_DIFFERS");
       expect(writes()[0][1].method).toBe("DELETE");
       expect(writes()[0][1].body).toBeUndefined();
-      await waitFor(() => expect(screen.getByRole("button", { name: "Unacknowledge E2E-4" })).toHaveFocus());
+      await waitFor(() => expect(screen.getByRole("button", { name: "Unacknowledge E2E-4: End" })).toHaveFocus());
     });
 
     test("a stale acknowledgement reads 'changed since', the item is open again, and Acknowledge is offered (not Unacknowledge)", async () => {
-      h.doc = view({ items: [row(1, "E2E-3", { acknowledgement: { at: AT, by: "Ada Lovelace", current: false } })] });
+      h.doc = view({ items: [row(1, "E2E-3", { deviations: [stamped(endLater(3), { current: false })] })] });
       renderPage();
       expect(await screen.findByText("Acknowledged on 2026-11-06 by Ada Lovelace · changed since")).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Acknowledge E2E-3" })).toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "Unacknowledge E2E-3" })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Acknowledge E2E-3: End" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Unacknowledge E2E-3: End" })).not.toBeInTheDocument();
     });
   });
 

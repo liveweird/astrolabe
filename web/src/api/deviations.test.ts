@@ -66,17 +66,24 @@ describe("deviations and bindings API wrappers", () => {
     expect(Object.fromEntries(new URL(lastCall()[0], "http://x").searchParams)).toEqual({ acknowledged: "true", all: "false", projectId: "7" });
   });
 
-  test("acknowledgeDeviation POSTs exactly {fingerprint} to the binding's acknowledge path; unacknowledgeDeviation DELETEs it", async () => {
-    mockFetch.mockImplementation(() => Promise.resolve(jsonResponse(200, { bindingId: 4, fingerprint: "b".repeat(64), acknowledgedAt: 1, acknowledgedBy: "Ada" })));
+  test("acknowledgeDeviation POSTs {fingerprint} with no kind for the batch and {fingerprint, kind} for one line; unacknowledgeDeviation DELETEs the binding's row(s), ?kind= for one line", async () => {
+    mockFetch.mockImplementation(() => Promise.resolve(jsonResponse(200, { bindingId: 4, kind: null, fingerprint: "b".repeat(64), acknowledgedAt: 1, acknowledgedBy: "Ada" })));
     const result = await acknowledgeDeviation(4, "b".repeat(64));
     expect(result.acknowledgedBy).toBe("Ada");
     const [url, init] = lastCall();
     expect(url).toBe("/api/v1/integrations/jira/bindings/4/acknowledge");
     expect(init?.method).toBe("POST");
     expect(JSON.parse(init?.body as string)).toEqual({ fingerprint: "b".repeat(64) });
+    await acknowledgeDeviation(4, "b".repeat(64), "END_DIFFERS");
+    expect(lastCall()[0]).toBe("/api/v1/integrations/jira/bindings/4/acknowledge");
+    expect(JSON.parse(lastCall()[1]?.body as string)).toEqual({ fingerprint: "b".repeat(64), kind: "END_DIFFERS" });
     mockFetch.mockImplementation(() => Promise.resolve(new Response(null, { status: 204 })));
     await unacknowledgeDeviation(4);
     expect(lastCall()[0]).toBe("/api/v1/integrations/jira/bindings/4/acknowledge");
+    expect(lastCall()[1]?.method).toBe("DELETE");
+    expect(lastCall()[1]?.body).toBeUndefined();
+    await unacknowledgeDeviation(4, "ESTIMATE_DIFFERS");
+    expect(lastCall()[0]).toBe("/api/v1/integrations/jira/bindings/4/acknowledge?kind=ESTIMATE_DIFFERS");
     expect(lastCall()[1]?.method).toBe("DELETE");
     expect(lastCall()[1]?.body).toBeUndefined();
   });

@@ -20,7 +20,7 @@ describe("Deviations page - acknowledge refusals", () => {
       const user = userEvent.setup();
       renderPage();
       const before = viewCalls().length;
-      await user.click(await screen.findByRole("button", { name: "Acknowledge E2E-3" }));
+      await user.click(await screen.findByRole("button", { name: "Acknowledge E2E-3: End" }));
       const note = await screen.findByText(/The deviations changed since you looked\./);
       expect(note.closest('[role="status"]')).not.toBeNull();
       expect(screen.queryByRole("alert")).not.toBeInTheDocument();
@@ -41,12 +41,12 @@ describe("Deviations page - acknowledge refusals", () => {
       h.onWrite = () => jsonResponse(status, { title: "x", status });
       const user = userEvent.setup();
       renderPage();
-      const button = await screen.findByRole("button", { name: "Acknowledge E2E-3" });
+      const button = await screen.findByRole("button", { name: "Acknowledge E2E-3: End" });
       await user.click(button);
       expect(await screen.findByRole("alert")).toHaveTextContent(text);
       expect(screen.queryByText(/changed since you looked/)).not.toBeInTheDocument();
       // The button is still there and still has the focus: a refusal moves nothing.
-      expect(screen.getByRole("button", { name: "Acknowledge E2E-3" })).toHaveFocus();
+      expect(screen.getByRole("button", { name: "Acknowledge E2E-3: End" })).toHaveFocus();
     });
 
     test("the message sits in the cell of the row it is about, not at the top of the page", async () => {
@@ -54,7 +54,7 @@ describe("Deviations page - acknowledge refusals", () => {
       h.onWrite = () => jsonResponse(500, { title: "x", status: 500 });
       const user = userEvent.setup();
       renderPage();
-      await user.click(await screen.findByRole("button", { name: "Acknowledge E2E-4" }));
+      await user.click(await screen.findByRole("button", { name: "Acknowledge E2E-4: End" }));
       const alert = await screen.findByRole("alert");
       const table = screen.getByRole("table", { name: "Differences between the plan and Jira" });
       const rows = within(table).getAllByRole("row");
@@ -71,7 +71,7 @@ describe("Deviations page - acknowledge refusals", () => {
       const user = userEvent.setup();
       renderPage("/deviations?severity=INFO");
       h.doc = view({ items: [row(1, "E2E-3")] });
-      await user.click(await screen.findByRole("button", { name: "Acknowledge E2E-3" }));
+      await user.click(await screen.findByRole("button", { name: "Acknowledge E2E-3: End" }));
       expect(await screen.findByRole("alert")).toHaveTextContent("Only the owner of this plan item, the manager of the milestone's team or an administrator can acknowledge its deviations.");
       await user.click(await screen.findByRole("button", { name: "Clear the filters" }));
       await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
@@ -83,13 +83,13 @@ describe("Deviations page - acknowledge refusals", () => {
       h.onWrite = () => new Promise<Response>((resolve) => (release = resolve));
       const user = userEvent.setup();
       renderPage();
-      await user.click(await screen.findByRole("button", { name: "Acknowledge E2E-3" }));
+      await user.click(await screen.findByRole("button", { name: "Acknowledge E2E-3: End" }));
       await waitFor(() => expect(writes()).toHaveLength(1));
       await user.click(screen.getByRole("button", { name: /^Filters/ }));
       await user.click(screen.getByRole("switch", { name: /Show everything/ }));
       await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("/deviations?all=true"));
       release?.(jsonResponse(500, { title: "x", status: 500 }));
-      await waitFor(() => expect(screen.getByRole("button", { name: "Acknowledge E2E-3" })).not.toHaveAttribute("aria-disabled"));
+      await waitFor(() => expect(screen.getByRole("button", { name: "Acknowledge E2E-3: End" })).not.toHaveAttribute("aria-disabled"));
       expect(screen.queryByRole("alert")).not.toBeInTheDocument();
       expect(screen.queryByText(/changed since you looked/)).not.toBeInTheDocument();
     });
@@ -100,7 +100,7 @@ describe("Deviations page - acknowledge refusals", () => {
       h.onWrite = () => jsonResponse(404, { title: "x", status: 404 });
       const user = userEvent.setup();
       renderPage("/deviations?acknowledged=true");
-      await user.click(await screen.findByRole("button", { name: "Unacknowledge E2E-3" }));
+      await user.click(await screen.findByRole("button", { name: "Unacknowledge E2E-3: End" }));
       expect(await screen.findByRole("alert")).toHaveTextContent("That acknowledgement was already withdrawn. The list has been read again.");
       expect(screen.queryByText(/no longer exists/)).not.toBeInTheDocument();
       expect(writes()[0][1].method).toBe("DELETE");
@@ -111,13 +111,13 @@ describe("Deviations page - acknowledge refusals", () => {
       const cancel = vi.spyOn(h.queryClient, "cancelQueries");
       const user = userEvent.setup();
       renderPage();
-      const button = await screen.findByRole("button", { name: "Acknowledge E2E-3" });
+      const button = await screen.findByRole("button", { name: "Acknowledge E2E-3: End" });
       h.onWrite = () => jsonResponse(500, { title: "x", status: 500 });
       await user.click(button);
       await screen.findByRole("alert");
       expect(cancel).not.toHaveBeenCalled();
       h.onWrite = () => jsonResponse(403, { title: "x", status: 403 });
-      await user.click(screen.getByRole("button", { name: "Acknowledge E2E-3" }));
+      await user.click(screen.getByRole("button", { name: "Acknowledge E2E-3: End" }));
       await waitFor(() => expect(cancel).toHaveBeenCalled());
       expect(keysOf(cancel)).toEqual(['["jira"]']);
     });

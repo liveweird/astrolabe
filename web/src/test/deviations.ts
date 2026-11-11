@@ -1,5 +1,5 @@
 // Shared fixtures for the Deviations page, the chips and the bind dialog: a deviations document, an item and its connection.
-import type { Deviation, DeviationConnection, DeviationItem, DeviationView } from "../api/deviations";
+import type { Deviation, DeviationConnection, DeviationItem, DeviationLine, DeviationView } from "../api/deviations";
 
 const OBSERVED_AT = Date.UTC(2026, 10, 6, 10, 0);
 /** "Now" for the age wording: five minutes after the observation. */
@@ -28,14 +28,21 @@ export const DEV_CONNECTION: DeviationConnection = {
 
 export const detail = (over: Partial<Deviation["detail"]> = {}): Deviation["detail"] => ({ jira: null, plan: null, days: null, count: null, ...over });
 
-/** A listed line of an item (1.12: a deviation with the state of its own acknowledgement); still assignable to a flag's `Deviation`. */
-type DeviationLine = DeviationItem["deviations"][number];
-
 export const endLater = (days: number): DeviationLine => ({
   kind: "END_DIFFERS",
   severity: days > 0 ? "WARNING" : "INFO",
   detail: detail({ jira: "2044-03-04", plan: "2044-03-07", days }),
   acknowledgement: null,
+});
+
+/** Further lines for the items that carry more than one: "Starts 1 working day earlier" (INFO) and "Named differently" (INFO). */
+export const startEarlier = (): DeviationLine => ({ kind: "START_DIFFERS", severity: "INFO", detail: detail({ jira: "2044-03-01", plan: "2044-02-29", days: -1 }), acknowledgement: null });
+export const renamed = (): DeviationLine => ({ kind: "RENAMED", severity: "INFO", detail: detail({ jira: "Checkout", plan: "Checkout page" }), acknowledgement: null });
+
+/** A line stamped by Ada Lovelace on 2026-11-06 (UTC); `over` makes it stale (`current: false`) or nameless (`by: null`). */
+export const stamped = (line: DeviationLine, over: Partial<NonNullable<DeviationLine["acknowledgement"]>> = {}): DeviationLine => ({
+  ...line,
+  acknowledgement: { at: Date.UTC(2026, 10, 6, 12, 30), by: "Ada Lovelace", current: true, ...over },
 });
 
 export function item(over: Partial<DeviationItem> = {}): DeviationItem {
@@ -96,7 +103,7 @@ export function view(over: Partial<DeviationView> = {}): DeviationView {
       infos: deviations.filter((d) => d.severity === "INFO").length,
       bindings: items.length,
       gone: items.filter((i) => i.jira.gone).length,
-      acknowledged: items.filter((i) => i.acknowledgement?.current).length,
+      acknowledged: items.filter((i) => i.deviations.some((line) => line.acknowledgement?.current)).length,
     },
     items,
     truncated: false,

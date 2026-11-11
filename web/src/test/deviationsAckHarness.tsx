@@ -5,7 +5,7 @@ import { QueryClient } from "@tanstack/react-query";
 import { Route, Routes, useLocation } from "react-router-dom";
 import { renderWithProviders } from "./render";
 import { jsonResponse } from "./http";
-import { item, view } from "./deviations";
+import { endLater, item, stamped, view } from "./deviations";
 import { NO_FLOW_VIEW } from "./flow";
 import type { DeviationItem, DeviationView } from "../api/deviations";
 import Deviations from "../pages/Deviations";
@@ -25,12 +25,13 @@ export const keysOf = (spy: { mock: { calls: unknown[][] } }) => spy.mock.calls.
 export const keyArraysOf = (spy: { mock: { calls: unknown[][] } }) => spy.mock.calls.map(([filters]) => (filters as { queryKey: readonly unknown[] }).queryKey);
 export const isPrefix = (prefix: readonly unknown[], key: readonly unknown[]) => prefix.length <= key.length && prefix.every((part, i) => JSON.stringify(part) === JSON.stringify(key[i]));
 
-/** A row the caller may acknowledge: its Jira key names the buttons ("Acknowledge E2E-3"). */
+/** A row the caller may acknowledge: its Jira key names the buttons ("Acknowledge E2E-3: End"). */
 export const row = (bindingId: number, key: string, over: Partial<DeviationItem> = {}): DeviationItem => {
   const base = item();
   return item({ bindingId, node: { ...base.node, id: 10 + bindingId, name: `Milestone ${key}` }, jira: { ...base.jira, key }, fingerprint: String(bindingId).repeat(64).slice(0, 64), can: { acknowledge: true }, ...over });
 };
-export const acknowledged = (over: Partial<DeviationItem> = {}) => ({ acknowledgement: { at: AT, by: "Ada Lovelace", current: true }, ...over });
+/** An item whose only line (the 3-day END_DIFFERS) is currently acknowledged; the deprecated item-level summary is kept in step (the UI does not read it). */
+export const acknowledged = (over: Partial<DeviationItem> = {}) => ({ deviations: [stamped(endLater(3))], acknowledgement: { at: AT, by: "Ada Lovelace", current: true }, ...over });
 
 function Where() {
   const location = useLocation();
@@ -44,11 +45,11 @@ function Where() {
 export function ackHarness() {
   const h = {
     doc: view({ items: [row(1, "E2E-3")] }) as DeviationView,
-    onWrite: ((_method: string, _bindingId: number, _body: unknown): Response | Promise<Response> => jsonResponse(500, { title: "x", status: 500 })),
+    onWrite: ((_method: string, _bindingId: number, _body: unknown, _url: string): Response | Promise<Response> => jsonResponse(500, { title: "x", status: 500 })),
     queryClient: new QueryClient(),
     mockFetch: vi.fn(),
     viewCalls: () => h.mockFetch.mock.calls.map(([url]) => url as string).filter((url) => url.startsWith("/api/v1/views/deviations")),
-    writes: () => h.mockFetch.mock.calls.filter(([url]) => /\/bindings\/\d+\/acknowledge$/.test(url as string)) as [string, RequestInit][],
+    writes: () => h.mockFetch.mock.calls.filter(([url]) => /\/bindings\/\d+\/acknowledge(\?.*)?$/.test(url as string)) as [string, RequestInit][],
     renderPage: (route = "/deviations") =>
       renderWithProviders(
         <Routes>
@@ -74,8 +75,8 @@ export function ackHarness() {
     h.doc = view({ items: [row(1, "E2E-3")] });
     h.onWrite = () => jsonResponse(500, { title: "x", status: 500 });
     h.mockFetch.mockImplementation((url: string, init?: RequestInit) => {
-      const write = /\/bindings\/(\d+)\/acknowledge$/.exec(url);
-      if (write) return Promise.resolve(h.onWrite(init?.method ?? "GET", Number(write[1]), init?.body ? JSON.parse(init.body as string) : undefined));
+      const write = /\/bindings\/(\d+)\/acknowledge(\?.*)?$/.exec(url);
+      if (write) return Promise.resolve(h.onWrite(init?.method ?? "GET", Number(write[1]), init?.body ? JSON.parse(init.body as string) : undefined, url));
       if (url.startsWith("/api/v1/views/deviations")) return Promise.resolve(jsonResponse(200, h.doc));
       if (url.startsWith("/api/v1/views/capacity-deviations")) return Promise.resolve(jsonResponse(200, NO_FLOW_VIEW));
       if (url === "/api/v1/views/plan") return Promise.resolve(jsonResponse(200, PLAN));

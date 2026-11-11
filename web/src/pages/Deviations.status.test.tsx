@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import userEvent from "@testing-library/user-event";
 import { screen, waitFor, within } from "../test/render";
-import { DEV_CONNECTION, view } from "../test/deviations";
+import { DEV_CONNECTION, endLater, startEarlier, stamped, view } from "../test/deviations";
 import { ackHarness, row } from "../test/deviationsAckHarness";
 
 describe("Deviations page - the Status filter, totals and empty Open list", () => {
@@ -108,6 +108,16 @@ describe("Deviations page - the Status filter, totals and empty Open list", () =
       expect(await screen.findByText("No items match the filters.")).toBeInTheDocument();
       expect(screen.queryByText("Nothing here is linked to Jira yet.")).not.toBeInTheDocument();
     });
+  });
+
+  test("a row listed under Acknowledged shows EVERY line with its own state: the acknowledged one offers Unacknowledge, the open one still offers Acknowledge", async () => {
+    h.doc = view({ items: [row(1, "E2E-3", { deviations: [stamped(endLater(3)), startEarlier()] })] });
+    renderPage("/deviations?acknowledged=true");
+    expect(await screen.findByRole("button", { name: "Unacknowledge E2E-3: End" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Acknowledge E2E-3: Start" })).toBeInTheDocument();
+    expect(screen.getByText("Acknowledged by Ada Lovelace on 2026-11-06")).toBeInTheDocument();
+    // One line of each state: no batch button.
+    expect(screen.queryByRole("button", { name: /all \(/ })).not.toBeInTheDocument();
   });
 
   test("the Jira connection's own data is untouched by the Status filter (the sources table still renders)", async () => {

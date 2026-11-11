@@ -1,5 +1,5 @@
 import type { TFunction } from "i18next";
-import type { Deviation, DeviationConnection, DeviationItem, DeviationKind } from "../api/deviations";
+import type { Deviation, DeviationConnection, DeviationItem, DeviationKind, DeviationLine } from "../api/deviations";
 import type { JiraLink } from "../api/roadmap";
 import { hasStaleSource as hasStaleConnection, verifiedAt as verifiedConnectionsAt } from "./staleness";
 import { runState } from "./syncRuns";
@@ -224,10 +224,19 @@ export function verifiedAt(connections: readonly DeviationConnection[]): number 
   return verifiedConnectionsAt(connections, staleConnection, ({ lastRun }) => (lastRun?.outcome === "SUCCEEDED" ? (lastRun.finishedAt ?? lastRun.startedAt ?? 0) : null));
 }
 
-/** What the row may offer: Acknowledge for an item with something to acknowledge that is not currently acknowledged, Unacknowledge for a current one - both only with `can.acknowledge`. */
-export function ackActions(item: DeviationItem): { acknowledge: boolean; unacknowledge: boolean } {
-  // `can.acknowledge` is a pure RIGHTS flag (true on a clean item too, where a POST is a guaranteed 409), so the button also needs a listed deviation.
-  // An estimate that cannot be compared is listed - and so acknowledgeable - only where the page asked for everything.
-  const current = item.acknowledgement?.current === true;
-  return { acknowledge: item.can.acknowledge && item.deviations.length > 0 && !current, unacknowledge: item.can.acknowledge && current };
+/** Whether a listed line is OPEN: not currently acknowledged (a stale stamp - the line changed since - is open again). */
+export const isLineOpen = (line: DeviationLine): boolean => line.acknowledgement?.current !== true;
+
+/** The key one LINE is addressed by, in the focus rule's `data-ack-for` and the hook's busy and notice: the binding and the line's kind (the server raises a kind once per binding). */
+export const deviationAckKey = (bindingId: number, kind: DeviationKind): string => `${bindingId}:${kind}`;
+
+/** The key of a binding's "Acknowledge all" / "Withdraw all" (button, busy and notice): never equal to a line's key. */
+export const deviationAckAllKey = (bindingId: number): string => `${bindingId}:all`;
+
+/** Every control key an item can carry, in reading order (the batch buttons head the lines): where the focus may go when a button of the item is gone. */
+export const itemAckKeys = (item: DeviationItem): string[] => [deviationAckAllKey(item.bindingId), ...item.deviations.map((line) => deviationAckKey(item.bindingId, line.kind))];
+
+/** The listed lines split by state: the open ones (what "Acknowledge all" sends) and the currently acknowledged ones (what "Withdraw all" withdraws). */
+export function splitLines(item: DeviationItem): { open: DeviationLine[]; acknowledged: DeviationLine[] } {
+  return { open: item.deviations.filter(isLineOpen), acknowledged: item.deviations.filter((line) => !isLineOpen(line)) };
 }

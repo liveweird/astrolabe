@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import { Link as RouterLink, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Alert, Anchor, Badge, Button, Group, Stack, Text, Title, VisuallyHidden } from "@mantine/core";
@@ -7,7 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { DeviationFilter, DeviationView } from "../api/deviations";
 import { listJiraBindings } from "../api/jira";
 import { useAdmin } from "../auth";
-import { AckNoticeAlert } from "../components/DeviationAckCell";
+import { DeviationAckOrphanNotice } from "../components/DeviationAckCell";
 import CapacityDeviationsSection from "../components/CapacityDeviationsSection";
 import DeviationsFilters from "../components/DeviationsFilters";
 import DeviationsSources from "../components/DeviationsSources";
@@ -16,9 +16,9 @@ import EmptyState from "../components/EmptyState";
 import ErrorAlert from "../components/ErrorAlert";
 import LoadingBlock from "../components/LoadingBlock";
 import PageHeader from "../components/PageHeader";
-import { useAcknowledge, type AckNotice } from "../hooks/useAcknowledge";
+import { useAcknowledge } from "../hooks/useAcknowledge";
 import { useDeviations } from "../hooks/useDeviations";
-import { hasStaleSource, verifiedAt } from "../utils/deviations";
+import { hasStaleSource, itemAckKeys, verifiedAt } from "../utils/deviations";
 import { formatDateTime } from "../utils/formatDate";
 import { deviationFilterParams, deviationStatus, keepStatus, narrowingCount, parseDeviationFilter } from "../utils/deviationFilters";
 import { jiraConnectionsPath } from "../utils/jiraLinks";
@@ -128,26 +128,10 @@ function Totals({ view, filter }: { view: DeviationView; filter: DeviationFilter
 }
 
 /**
- * A write's message for a row that has LEFT the list (an acknowledged row leaving Open, a 409 that dropped it): the row's cell is gone, so the page
- * shows it above the table and brings it into view. A message for a row that is still listed is in that row's cell (`DeviationAckCell`).
- */
-function OrphanNotice({ notice }: { notice: AckNotice }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    ref.current?.scrollIntoView?.({ block: "nearest" });
-  }, [notice]);
-  return (
-    <div ref={ref}>
-      <AckNoticeAlert notice={notice} />
-    </div>
-  );
-}
-
-/**
  * The Deviations page (`/deviations`, everyone): where the plan and the linked Jira items disagree, from `GET /views/deviations`. The filters
  * live in the URL (`?projectId=7&severity=WARNING`), so a chip's link, a reload and Back all restore them. It says how current the figures are
  * (the connections' newest runs, a failed one never reads as fresh), refetches on window focus and while a run is running. The owner of a linked
- * item (or, on a milestone, its team's manager, or an ADMIN) acknowledges its deviations in the last column (`useAcknowledge`: that write, unlike the Jira reads, re-reads the timeline
+ * item (or, on a milestone, its team's manager, or an ADMIN) acknowledges its deviations line by line, or all at once, in the Deviations column (`useAcknowledge`: that write, unlike the Jira reads, re-reads the timeline
  * views too); a 409 `stale-deviations` is the inline note under the filters. Refresh now is the ADMIN's, per connection. After the Jira list comes **Capacity from Flow**, its own document and section (`CapacityDeviationsSection`; hidden without a Flow connection).
  */
 export default function Deviations() {
@@ -181,7 +165,7 @@ export default function Deviations() {
             )}
             <DeviationsFilters filter={filter} connections={data.connections} onChange={change} />
             <Totals view={data} filter={filter} />
-            {ack.notice !== null && !data.items.some((listed) => listed.bindingId === ack.notice?.bindingId) && <OrphanNotice notice={ack.notice} />}
+            <DeviationAckOrphanNotice ack={ack} listedKeys={new Set(data.items.flatMap((listed) => (listed.deviations.length > 0 ? itemAckKeys(listed) : [])))} />
             {isPlaceholderData ? (
               // The answer for these filters is still on its way: the kept one belongs to the previous filters, so it may not make an empty-state claim.
               <div role="status" aria-busy="true">

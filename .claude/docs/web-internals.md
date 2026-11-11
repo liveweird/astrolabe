@@ -907,26 +907,34 @@ cache entry) and team, plus the **"Show everything"** switch (`all=true`: items 
 listed otherwise nor counted by a chip; a project or team scope IMPLIES `all` server-side, so the switch reads ON there and turning it off sends `all=false`,
 which the URL accepts); a project / program / kind scope from the URL is a removable chip beside the toggle ("Project: Invoices"), named from the plan view.
 
-**Acknowledge** (1.3; `hooks/useAcknowledge.ts`, `components/DeviationAckCell.tsx` = the table's last column,
-`POST`/`DELETE /integrations/jira/bindings/{id}/acknowledge`). **Status** (`deviationStatus`/`deviationStatusPatch`, `utils/deviationFilters.ts`) composes with
+**Acknowledge** (1.3, per LINE since 1.12; `hooks/useAcknowledge.ts`, `components/DeviationAckCell.tsx` = a line's sentence and button, `DeviationAckAll` = the batch buttons at the head of a
+row's lines, `DeviationAckOrphanNotice`; `POST`/`DELETE /integrations/jira/bindings/{id}/acknowledge`). **Status** (`deviationStatus`/`deviationStatusPatch`, `utils/deviationFilters.ts`) composes with
 the URL as the server does: Open sends NOTHING (the server lists the open items), except under a project/team scope, which implies `all`, where it sends the
 override `all=false` (so does ADDING a scope while Open, `keepStatus`; REMOVING the last scope falls back to the default Open list, the implied All being the
 chip's; `acknowledged=false` in a URL is dropped); Acknowledged sends `acknowledged=true` (and keeps an explicit `all=true`); All sends `all=true`; a scope
-reads All. The "Show everything" switch writes the same `all`, so All and the switch are two views of one parameter. **The buttons** (`ackActions`,
-`utils/deviations.ts`): Acknowledge needs `can.acknowledge` (a pure RIGHTS flag, true on a clean item, where a POST is a guaranteed 409) AND a LISTED deviation
-AND no current acknowledgement (a stale one is open again and offers it; an item whose only listed line is `ESTIMATE_NOT_COMPARABLE`, shown under `all=true`, is
-acknowledgeable: the server allows it); Unacknowledge needs `can.acknowledge` and a current one. The text is "Acknowledged by X on D" / "Acknowledged on D by X
-· changed since" (a deleted acknowledger drops the name). Buttons name the row by Jira key ("Acknowledge E2E-6"), are `aria-disabled` + `data-disabled`
-(Mantine's disabled look; never `disabled`/`loading`: they lose the focus) and ignore clicks while a write runs. **A success re-reads `["jira"]`, `["plan"]` and
+reads All. The "Show everything" switch writes the same `all`, so All and the switch are two views of one parameter. **There is no Acknowledgement column**: the
+Deviations cell lists every LISTED line of the row (`items[].deviations[]`, whatever the Status - a row on the Open list shows its acknowledged lines too), each
+as the kind badge (gray once acknowledged, `SeverityBadge dimmed`) and the sentence, and under it the line's own acknowledgement (`DeviationLine.acknowledgement{at, by, current}`; the
+deprecated item-level `acknowledgement` is NOT read): "Acknowledged by X on D" / "Acknowledged on D by X · changed since" (a stamp whose line changed is `current: false`,
+the line is open again; a deleted acknowledger drops the name) and ONE button (`isLineOpen`, `utils/deviations.ts`): **Acknowledge** for an open line (no stamp or a stale one),
+**Unacknowledge** for a current one - both only with the item's `can.acknowledge` (a pure RIGHTS flag; a clean row has no lines, so no button). The buttons name the line by
+Jira key and kind ("Acknowledge E2E-6: End"), carry `data-ack-for="<bindingId>:<KIND>"`, are `aria-disabled` + `data-disabled` (Mantine's disabled look; never `disabled`/`loading`:
+they lose the focus) and ignore clicks while ANY write runs. A line is `POST {fingerprint: item.fingerprint, kind}` / `DELETE …?kind=KIND`. **Acknowledge all (N)** /
+**Withdraw all (N)** (the port of Flow's `CapacityAckAll`; named "Acknowledge all (N) open deviations of E2E-6" / "Withdraw all (N) acknowledged deviations of E2E-6") head the lines when
+at least two LISTED lines are open (a stale stamp counts) / currently acknowledged; one open line has only its own button. The batch is the same two calls WITHOUT `kind`
+(`POST {fingerprint}` stamps every line without a current acknowledgement; `DELETE` clears every stored stamp of the binding, stale ones too), both with the key
+`<bindingId>:all` (`data-ack-for`, busy, notice), and the success toast, re-read, 409 note, refusals and focus rule of a single line. N counts the lines the row lists: a hidden
+`ESTIMATE_NOT_COMPARABLE` line (shown under `all=true` only) is not in it, though the kind-less POST would stamp it. **A success re-reads `["jira"]`, `["plan"]` and
 `["roadmap"]`** (a current acknowledgement silences the Jira flags on all four timeline views); a `409 stale-deviations` is the orange inline `role="status"`
 note "The deviations changed since you looked" plus the same re-read, never a toast and never the red alert; a 403/404 is a red inline message and re-reads
-`["jira"]`; the note or message shows in the ROW's own Acknowledgement cell (`AckNoticeAlert`; a row far down must see why its button did nothing), above the
-table with a scroll-into-view only once that row has left the list; a DELETE's 404 reads "already withdrawn", not "link gone"; messages clear on the next write
-or whenever the filters' URL string changes (Back, a chip link and "Clear the filters" included), and a write that settles after that sets none. **Focus**:
-after a write that re-reads, `useDeleteConfirm`'s rule at every render and once after the re-read (focus on `body` -> the row's own button if still there, else
-the next row's, else the previous row's, else the list's h3 `tabIndex={-1}`; anywhere else -> leave). Totals gain a gray "N acknowledged"
-(`totals.acknowledged`), and under any Status but Open a line says the warning/info/gone figures count open items only; an Open list that is empty while
-acknowledged items exist reads "Nothing is open" with the count hidden. Tests: `Deviations.ack.test.tsx`, `DeviationAckCell.test.tsx`.
+`["jira"]`; the note or message shows under its OWN control (`AckNoticeAlert`; a row far down must see why its button did nothing), above the
+table with a scroll-into-view only once that control has left the list (`DeviationAckOrphanNotice` over the keys of the rendered rows, `itemAckKeys`); a DELETE's 404 reads "already withdrawn", not "link gone";
+messages clear on the next write or whenever the filters' URL string changes (Back, a chip link and "Clear the filters" included), and a write that settles after that sets none. **Focus**:
+after a write that re-reads, `useDeleteConfirm`'s rule at every render and once after the re-read (focus on `body` -> the control's own button if still there (a line's Acknowledge becomes its
+Unacknowledge under the same key, the two batch buttons share the all-key), else the row's other controls, the next row's, the previous row's, else the list's h3 `tabIndex={-1}`; anywhere else -> leave).
+Totals gain a gray "N acknowledged" (`totals.acknowledged`: bindings with a current line), and under any Status but Open a line says the warning/info/gone figures count open items only (the
+server counts open LINES); an Open list that is empty while acknowledged items exist reads "Nothing is open" with the count hidden. Tests: `Deviations.ack.test.tsx`, `Deviations.ack.lines.test.tsx`
+(per line, the batch, counts, `can` false), `Deviations.ack.refusals.test.tsx`, `DeviationAckCell.test.tsx`, `utils/deviations.test.ts`, `api/deviations.test.ts`.
 
 **Honesty about currency** (the page never implies the data is fresh): "Data from Jira" (`components/DeviationsSources.tsx`, h3) is one row per connection with
 its newest run as the C8 helpers read it (`utils/syncRuns.ts` `runState`: the server's `running`, `finishedAt: null` and not running = **Interrupted**) and the
@@ -967,7 +975,7 @@ sentence appends "and {N} more" (PL "i jeszcze {N}") when `count` exceeds 10 - t
 name may contain ", "); a missing list, count or date degrades to the plain kind label. The roadmap panel phrases these through the same function. Severity is
 spelled in a visually hidden word before each kind badge (`components/SeverityBadge.tsx`: orange warning / gray info; the Deviations table, the Flow capacity lines and the team page's fact use it, the roadmap flag panel with `hiddenPrefix={false}`). `ageText`/`countDeviations` are in the same file; the table is `components/DeviationsTable.tsx` (plan
 item with its link into `/projects/:id` - a milestone's through its project -, the Jira key through `JiraKeyLink`, both sides' dates, the sentences, the age)
-with an Acknowledgement column, in a `ScrollRegion` (1,180 px minimum: a phone scrolls it). Tests: `Deviations.test.tsx`,
+in a `ScrollRegion` (1,080 px minimum: a phone scrolls it); the acknowledgement is per line inside the Deviations cell (above). Tests: `Deviations.test.tsx`,
 `utils/deviations|deviationFilters|jiraMarks|jiraBind.test.ts`, `hooks/useDeviations.test.tsx`, `api/deviations.test.ts`.
 
 **The bind dialog** (`components/JiraBindDialog.tsx`, `JiraBindNodePicker.tsx`; used on the connection page and the project page):

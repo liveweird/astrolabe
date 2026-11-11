@@ -95,8 +95,7 @@
     "jira": "Element Jiry",
     "dates": "Daty",
     "deviations": "Odchylenia",
-    "observed": "Dane z chwili",
-    "acknowledgement": "Potwierdzenie"
+    "observed": "Dane z chwili"
   },
   "node": {
     "openProjectAria": "Otwórz {{name}}",
@@ -276,9 +275,19 @@
   "loadingList": "Aktualizuję listę…",
   "ack": {
     "acknowledge": "Potwierdź",
-    "acknowledgeAria": "Potwierdź {{key}}",
+    "acknowledgeLineAria": "Potwierdź {{key}}: {{kind}}",
     "unacknowledge": "Cofnij potwierdzenie",
-    "unacknowledgeAria": "Cofnij potwierdzenie {{key}}",
+    "unacknowledgeLineAria": "Cofnij potwierdzenie {{key}}: {{kind}}",
+    "acknowledgeAll": "Potwierdź wszystkie ({{count}})",
+    "acknowledgeAllAria_one": "Potwierdź wszystkie ({{count}}) otwarte odchylenia {{key}}",
+    "acknowledgeAllAria_few": "Potwierdź wszystkie ({{count}}) otwarte odchylenia {{key}}",
+    "acknowledgeAllAria_many": "Potwierdź wszystkie ({{count}}) otwarte odchylenia {{key}}",
+    "acknowledgeAllAria_other": "Potwierdź wszystkie ({{count}}) otwarte odchylenia {{key}}",
+    "withdrawAll": "Cofnij wszystkie ({{count}})",
+    "withdrawAllAria_one": "Cofnij wszystkie ({{count}}) potwierdzone odchylenia {{key}}",
+    "withdrawAllAria_few": "Cofnij wszystkie ({{count}}) potwierdzone odchylenia {{key}}",
+    "withdrawAllAria_many": "Cofnij wszystkie ({{count}}) potwierdzone odchylenia {{key}}",
+    "withdrawAllAria_other": "Cofnij wszystkie ({{count}}) potwierdzone odchylenia {{key}}",
     "done": "Potwierdzone przez {{name}} dnia {{date}}",
     "doneUnknown": "Potwierdzone dnia {{date}}",
     "stale": "Potwierdzone przez {{name}} dnia {{date}} · zmieniono od tego czasu",

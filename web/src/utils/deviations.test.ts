@@ -1,8 +1,8 @@
 import { describe, expect, test } from "vitest";
 import i18n from "../i18n";
 import type { Deviation, DeviationKind } from "../api/deviations";
-import { DEV_CONNECTION, detail } from "../test/deviations";
-import { ageText, countDeviations, deviationKindLabel, deviationSentence, formatPoints, hasStaleSource, rollupSentence, rollupText, staleConnection, verifiedAt } from "./deviations";
+import { DEV_CONNECTION, detail, endLater, item, renamed, startEarlier, stamped } from "../test/deviations";
+import { ageText, countDeviations, deviationAckAllKey, deviationAckKey, deviationKindLabel, deviationSentence, formatPoints, hasStaleSource, isLineOpen, itemAckKeys, rollupSentence, rollupText, splitLines, staleConnection, verifiedAt } from "./deviations";
 
 const en = i18n.getFixedT("en");
 const pl = i18n.getFixedT("pl");
@@ -293,5 +293,31 @@ describe("hasStaleSource, staleConnection and verifiedAt", () => {
     expect(verifiedAt([ok, { ...ok, id: 2, mappingOk: false }])).toBeNull();
     expect(verifiedAt([{ ...ok, lastRun: null }])).toBeNull();
     expect(verifiedAt([{ ...ok, lastRun: { ...run, outcome: "FAILED", errorCode: "TIMEOUT" } }])).toBeNull();
+  });
+});
+
+describe("the per-line acknowledgement vocabulary (1.12)", () => {
+  test("a line is open unless its stamp is CURRENT: no stamp and a stale stamp (changed since) are both open", () => {
+    expect(isLineOpen(endLater(3))).toBe(true);
+    expect(isLineOpen(stamped(endLater(3), { current: false }))).toBe(true);
+    expect(isLineOpen(stamped(endLater(3)))).toBe(false);
+  });
+
+  test("a line's key is the binding and its kind, the batch's key the binding and 'all' - never equal", () => {
+    expect(deviationAckKey(7, "END_DIFFERS")).toBe("7:END_DIFFERS");
+    expect(deviationAckAllKey(7)).toBe("7:all");
+    expect(deviationAckKey(7, "RENAMED")).not.toBe(deviationAckAllKey(7));
+  });
+
+  test("an item's control keys read batch first, then its lines in order (where the focus may fall back)", () => {
+    expect(itemAckKeys(item({ bindingId: 4, deviations: [endLater(3), renamed()] }))).toEqual(["4:all", "4:END_DIFFERS", "4:RENAMED"]);
+    expect(itemAckKeys(item({ bindingId: 4, deviations: [] }))).toEqual(["4:all"]);
+  });
+
+  test("splitLines separates the open lines (stale included) from the currently acknowledged ones, keeping the order", () => {
+    const lines = [endLater(3), stamped(startEarlier()), stamped(renamed(), { current: false })];
+    const { open, acknowledged } = splitLines(item({ deviations: lines }));
+    expect(open.map((line) => line.kind)).toEqual(["END_DIFFERS", "RENAMED"]);
+    expect(acknowledged.map((line) => line.kind)).toEqual(["START_DIFFERS"]);
   });
 });

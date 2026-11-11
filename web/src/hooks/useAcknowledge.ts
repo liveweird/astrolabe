@@ -1,32 +1,42 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { acknowledgeDeviation, isStaleDeviations, unacknowledgeDeviation, type DeviationItem } from "../api/deviations";
+import { acknowledgeDeviation, isStaleDeviations, unacknowledgeDeviation, type DeviationItem, type DeviationLine } from "../api/deviations";
 import { ApiError } from "../api/http";
+import { deviationAckAllKey, deviationAckKey } from "../utils/deviations";
 import { refreshJiraAndTimelines, refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { saveErrorMessage } from "../utils/saveError";
 import { showSuccessToast } from "../utils/toast";
 
-/** What a row asks for: acknowledge the deviations as the page read them (the item's fingerprint), or withdraw the acknowledgement. */
-type AckRequest = { kind: "acknowledge"; item: DeviationItem } | { kind: "unacknowledge"; item: DeviationItem };
+/**
+ * What a write asks for (1.12, per line): acknowledge ONE line as the page read it (the item's fingerprint and the line's kind), withdraw that line's
+ * acknowledgement, or - the batch, no kind - acknowledge every line without a current acknowledgement (`acknowledgeAll`) or withdraw every stored one
+ * (`unacknowledgeAll`). A batch is keyed by the binding's all-key, a line by binding and kind.
+ */
+type AckRequest =
+  | { kind: "acknowledge" | "unacknowledge"; item: DeviationItem; line: DeviationLine }
+  | { kind: "acknowledgeAll" | "unacknowledgeAll"; item: DeviationItem };
 
-/** The message a write left, tied to its row: `stale` = the 409 note (the list is re-read), `failure` = a refusal already in words (inline, red). */
-export type AckNotice = { bindingId: number; kind: "stale" } | { bindingId: number; kind: "failure"; text: string };
+/** The message a write left, tied to its control's key: `stale` = the 409 note (the list is re-read), `failure` = a refusal already in words (inline, red). */
+type AckNotice = { key: string; kind: "stale" } | { key: string; kind: "failure"; text: string };
 
 export type Acknowledge = {
-  /** The binding being written, else null: every action waits for it, so a second click cannot race the first. */
-  busyId: number | null;
-  /** The newest message, shown in its row's own cell (the page shows it itself only when that row has left the list); null = none. */
+  /** The key being written (a line's, or a binding's "all" key for a batch), else null: every action waits for it, so a second click cannot race the first. */
+  busyKey: string | null;
+  /** The newest message, shown under its own control (the page shows it itself only when that control has left the list); null = none. */
   notice: AckNotice | null;
-  /** `neighbours` are the bindings of the rows beside this one (next first): where the focus goes if this row leaves the list. */
-  run: (request: AckRequest, neighbours: readonly number[]) => void;
+  /** `neighbours` are the control keys to try for the focus, in order, if this one leaves the list (the item's own, then the next row's, then the previous row's). */
+  run: (request: AckRequest, neighbours: readonly string[]) => void;
 };
 
-/** The button of a row's action cell (`DeviationAckCell` marks both of its buttons with the binding). */
-const buttonOf = (bindingId: number) => document.querySelector<HTMLElement>(`[data-ack-for="${bindingId}"]`);
+/** The button carrying a control key (`DeviationAckCell` and `DeviationAckAll` mark their buttons with it). */
+const buttonOf = (key: string) => document.querySelector<HTMLElement>(`[data-ack-for="${key}"]`);
+
+const keyOf = (request: AckRequest) => ("line" in request ? deviationAckKey(request.item.bindingId, request.line.kind) : deviationAckAllKey(request.item.bindingId));
 
 /**
- * Acknowledging a binding's deviations from the Deviations page: `POST` / `DELETE /integrations/jira/bindings/{id}/acknowledge`.
+ * Acknowledging a binding's deviations from the Deviations page: `POST` / `DELETE /integrations/jira/bindings/{id}/acknowledge`, one line (with `kind`) or
+ * all of them (without). The state machine of Flow's `useCapacityAcknowledge`, keyed by a string.
  *
  * **What is refreshed.** An acknowledgement changes what the Jira flags on the four timeline views show (a current one silences them), so a
  * success re-reads the `["jira"]` queries AND the timeline views (`["plan"]`: plan, project and team; `["roadmap"]`: roadmap and programs), through
@@ -39,7 +49,7 @@ const buttonOf = (bindingId: number) => document.querySelector<HTMLElement>(`[da
  *
  * **Focus.** The clicked button is gone once the refetch has taken the row off the Open list (or swapped Acknowledge for Unacknowledge), and the
  * browser would leave the focus on `body`. After a write that re-reads, the focus goes, at every render and once more when the re-read has settled,
- * by `useDeleteConfirm`'s rule: focus on `body` -> take it (the row's own button if it is still there, else the next row's, else the previous row's,
+ * by `useDeleteConfirm`'s rule: focus on `body` -> take it (the clicked control's key if it is still there, else the row's other controls, else the next row's, else the previous row's,
  * else `fallback`, the list's heading); anywhere else (the user, or the browser, put it somewhere real) -> leave it. A write that failed without a re-read
  * never arms it: the button is still where it was.
  */
@@ -58,7 +68,7 @@ export function useAcknowledge(fallback: RefObject<HTMLElement | null>, scope: s
     latestScope.current = scope;
   }, [scope]);
   // The rows whose button may take the focus, in order of preference; null = no move is waiting.
-  const pending = useRef<readonly number[] | null>(null);
+  const pending = useRef<readonly string[] | null>(null);
 
   const settleFocus = () => {
     const candidates = pending.current;
@@ -81,41 +91,45 @@ export function useAcknowledge(fallback: RefObject<HTMLElement | null>, scope: s
     }, 0);
   };
 
-  type Variables = { request: AckRequest; neighbours: readonly number[]; scope: string };
+  type Variables = { request: AckRequest; neighbours: readonly string[]; scope: string };
   const mutation = useMutation({
     mutationFn: async ({ request }: Variables) => {
-      if (request.kind === "acknowledge") await acknowledgeDeviation(request.item.bindingId, request.item.fingerprint);
-      else await unacknowledgeDeviation(request.item.bindingId);
+      const { bindingId, fingerprint } = request.item;
+      if ("line" in request) {
+        if (request.kind === "acknowledge") await acknowledgeDeviation(bindingId, fingerprint, request.line.kind);
+        else await unacknowledgeDeviation(bindingId, request.line.kind);
+      } else if (request.kind === "acknowledgeAll") await acknowledgeDeviation(bindingId, fingerprint);
+      else await unacknowledgeDeviation(bindingId);
     },
     onMutate: () => setNotice(null),
     onSuccess: async (_result, { request, neighbours, scope: writtenOn }) => {
-      if (writtenOn === latestScope.current) pending.current = [request.item.bindingId, ...neighbours];
-      showSuccessToast(t(request.kind === "acknowledge" ? "deviations.ack.toast.acknowledged" : "deviations.ack.toast.withdrawn"));
+      if (writtenOn === latestScope.current) pending.current = [keyOf(request), ...neighbours];
+      showSuccessToast(t(request.kind === "acknowledge" || request.kind === "acknowledgeAll" ? "deviations.ack.toast.acknowledged" : "deviations.ack.toast.withdrawn"));
       await refresh(() => refreshJiraAndTimelines(queryClient));
     },
     onError: async (err, { request, neighbours, scope: writtenOn }) => {
-      const bindingId = request.item.bindingId;
+      const key = keyOf(request);
       const current = writtenOn === latestScope.current;
       if (isStaleDeviations(err)) {
         if (current) {
-          setNotice({ bindingId, kind: "stale" });
-          pending.current = [bindingId, ...neighbours];
+          setNotice({ key, kind: "stale" });
+          pending.current = [key, ...neighbours];
         }
         await refresh(() => refreshJiraAndTimelines(queryClient));
         return;
       }
-      const notFound = request.kind === "unacknowledge" ? "deviations.ack.notFoundWithdrawn" : "deviations.ack.notFound";
+      const notFound = request.kind === "unacknowledge" || request.kind === "unacknowledgeAll" ? "deviations.ack.notFoundWithdrawn" : "deviations.ack.notFound";
       const text = saveErrorMessage(err, t, { forbidden: "deviations.ack.forbidden", notFound, failedStatus: "common.error.actionFailedStatus", failed: "deviations.ack.failed" });
-      if (current) setNotice({ bindingId, kind: "failure", text });
+      if (current) setNotice({ key, kind: "failure", text });
       if (err instanceof ApiError && (err.status === 403 || err.status === 404)) {
-        if (current) pending.current = [bindingId, ...neighbours];
+        if (current) pending.current = [key, ...neighbours];
         await refresh(() => refreshQueriesAfterMutation(queryClient, ["jira"]));
       }
     },
   });
 
   return {
-    busyId: mutation.isPending ? mutation.variables.request.item.bindingId : null,
+    busyKey: mutation.isPending ? keyOf(mutation.variables.request) : null,
     notice,
     run: (request, neighbours) => {
       if (!mutation.isPending) mutation.mutate({ request, neighbours, scope });
