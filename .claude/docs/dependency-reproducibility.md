@@ -112,6 +112,47 @@ generation run can reuse warm project build-output state (`core/build/`, `server
 from earlier local builds and skip re-resolving a configuration nothing changed, even against a
 fresh `GRADLE_USER_HOME`.
 
+## Pruning superseded entries
+
+`--write-verification-metadata` only ever ADDS to an existing `gradle/verification-metadata.xml` (it merges, it never
+drops), so a dependency bump leaves the old version's entries behind. A **clean regeneration** is therefore the
+command above with the file deleted first, in a scratch copy of the tree (`git archive HEAD | tar -x -C <scratch>`,
+then `rm gradle/verification-metadata.xml` there). Its output is the ground truth: the committed file minus what it no
+longer produces (removals only; a clean regeneration that ADDS or CHANGES a checksum for an existing coordinate is an
+integrity question, not a prune: investigate, do not take it). The 1.13.1 prune dropped 170 entries; the follow-up
+(after 1.13.2) dropped nine parent POMs/BOMs it had left (`logback-parent` 1.6.5, `error_prone_parent` 2.49.0 and 2.50.0,
+`guava-parent` 33.7.2-jre, `netty-parent` 4.2.19.Final, `flyway-parent` 13.10.3 and 13.11.1, `slf4j-bom`/`slf4j-parent`
+2.0.9), and the resulting file was byte-identical to the clean regeneration.
+
+**`:checkVerificationMetadata`** (root project, rides `./gradlew check` through `:server:check`; offline, ~1 s) keeps the
+trail from coming back. It reads the metadata and the seven lockfiles (root/core/server project locks, their three
+buildscript locks, `settings-gradle.lockfile`) and fails on a superseded entry by two rules:
+
+1. **Locked:** a `group:name` some lockfile locks, present in the metadata at a version no lockfile locks for it (an old
+   jar/pom/module a bump left behind). Plugin marker artifacts and build tools are locked by their buildscript locks, so they pass.
+2. **Family:** a POM-only entry (every artifact is a `.pom`/`.module`) that no lockfile locks by name, whose group has
+   locked components and one of whose versions equals a locked version in the group (the parent or BOM moves in lockstep
+   with its members: `netty-parent`, `flyway-parent`, `slf4j-parent`), at a version no component of the group is locked at.
+   Version-independent parents (`org.apache:apache`, `commons-parent`, `oss-parent`, `junit-bom`) show no lockstep and are
+   never judged by this rule.
+
+The trade-off, stated plainly: whether a lingering entry is still READ (a conflict loser's BOM, a third-party artifact's old
+parent) lives in POM contents, which neither the metadata nor the locks carry, so no offline rule separates "forgotten" from
+"still imported". The rules flag both, and the 10 entries a clean regeneration legitimately keeps (4 `jackson-bom`, `netty-bom`
+4.2.19.Final, `opentelemetry-bom` 1.49.0, 2 `kotlinx-coroutines-bom`, 2 `guava-parent` `-android`) sit in the `keptSuperseded`
+map in the root `build.gradle.kts`, one line each naming the POM that still reads it. The check fails on a **stale** line as
+well (allowlisted but absent or no longer flagged). That catches a line whose entry vanished, not one whose named referrer no longer
+reads it, so the lines still need a human re-trace (step 5 below).
+
+**When it fails:** (1) run the clean regeneration above and compare: `diff` it against the committed file. (2) An entry the
+regeneration no longer produces: delete that `<component>` from the committed file (removals only), re-run the check and the strict
+cold build below. (3) An entry the regeneration still produces: find what reads it (`grep -l` the cache's `.pom`/`.module` files for
+the coordinate) and add one `keptSuperseded` line naming it. (4) A "stale allowlist" failure: delete the named line. (5) On any bump that touches an allowlisted family (jackson, netty,
+opentelemetry, kotlinx-coroutines, guava), re-trace each line's referrer and drop the lines whose referrer is gone (re-run a clean
+regeneration). The proof
+that the check bites is `./gradlew checkVerificationMetadata -PverificationMetadataFile=<path>` against another copy of the
+file (it names the nine above on the pre-prune file).
+
 ## Intentional dependency changes
 
 Regenerate locks and verification metadata together, review every generated change before

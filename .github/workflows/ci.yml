@@ -89,7 +89,7 @@ jobs:
           for state in gradle/verification-metadata.xml gradle.lockfile settings-gradle.lockfile buildscript-gradle.lockfile core/gradle.lockfile core/buildscript-gradle.lockfile server/gradle.lockfile server/buildscript-gradle.lockfile; do
             test -s "$state"
           done
-      # `check` = compile + detekt + test + koverVerify + checkDependencyAlignment, plus `:server:installDist` (the packaging the
+      # `check` = compile + detekt + test + koverVerify + checkDependencyAlignment + checkVerificationMetadata, plus `:server:installDist` (the packaging the
       # image uses); not `build`, whose extra assemble outputs (zips/tars, the never-used fat JAR) cost ~15 s and verify nothing
       # the image depends on (`.claude/docs/build-times.md` status check 2026-10-23).
       # `--dependency-verification strict` is explicit here on top of the automatic enforcement

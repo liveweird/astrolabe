@@ -110,6 +110,9 @@ GRADLE_USER_HOME=$(mktemp -d) ./gradlew --write-verification-metadata sha256 \
   build :server:installDist
 ```
 
+A bump must also pass `:checkVerificationMetadata` (it rides `check`): prune what a clean regeneration drops, per
+`dependency-reproducibility.md` "Pruning superseded entries".
+
 Then validate from a second, also-empty `GRADLE_USER_HOME` with
 `./gradlew --dependency-verification strict build` before committing. See
 `.claude/docs/dependency-reproducibility.md` for what this covers, why the task list must resolve

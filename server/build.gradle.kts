@@ -700,4 +700,6 @@ val checkDependencyAlignment = tasks.register("checkDependencyAlignment") {
         if (jackson3.isNotEmpty()) logger.lifecycle("tools.jackson (Jackson 3, via Flyway) present alongside Jackson 2: $jackson3")
     }
 }
-tasks.named("check") { dependsOn(checkDependencyAlignment) }
+// The root project's checkVerificationMetadata (no superseded entry in gradle/verification-metadata.xml) rides the same `check`: the root
+// project has no `check` lifecycle of its own, so the server's is the one `./gradlew check` and CI's `server` job already run.
+tasks.named("check") { dependsOn(checkDependencyAlignment, ":checkVerificationMetadata") }
