@@ -6216,7 +6216,7 @@ components:
       required: [issueId, key, url, summary, typeName, hierarchyLevel, statusName, statusCategory, start, end, estimate, estimateUnit, parentKey, teamName, observedAt, gone, rollup]
       properties:
         issueId: { type: string }
-        key: { type: string, description: "The issue's current key as Jira last answered it: after a run's by-id probe read a gone issue, the key that answer carried (an issue moved to another project, possibly one outside the connection's project keys, shows its new key)." }
+        key: { type: string, pattern: '^[A-Z][A-Z0-9_]{1,9}-[0-9]{1,10}$', maxLength: 21, description: "The issue's current key as Jira last answered it: after a run's by-id probe read a gone issue, the key that answer carried (an issue moved to another project, possibly one outside the connection's project keys, shows its new key)." }
         url: { type: string, description: "`<site>/browse/<key>`, under the current key." }
         summary: { type: string, nullable: true, maxLength: 255 }
         typeName: { type: string, nullable: true }
@@ -6543,7 +6543,7 @@ components:
       properties:
         bindingId: { type: integer, format: int32, minimum: 0 }
         connectionId: { type: integer, format: int32, minimum: 0 }
-        issueKey: { type: string }
+        issueKey: { type: string, pattern: '^[A-Z][A-Z0-9_]{1,9}-[0-9]{1,10}$', maxLength: 21, description: "The issue's current key as Jira last answered it, possibly outside the connection's project keys (a moved issue shows its new key)." }
         start: { type: string, format: date, nullable: true, description: 'The start Jira was last observed to hold; null when never observed, absent in Jira, or the item is gone.' }
         end: { type: string, format: date, nullable: true, description: 'The end Jira was last observed to hold; null when never observed, absent in Jira, or the item is gone.' }
         rollup:
@@ -7841,7 +7841,7 @@ components:
         level: { type: string, enum: [PROGRAM, PROJECT, MILESTONE] }
         node: { $ref: '#/components/schemas/JiraBindingNode' }
         issueId: { type: string, description: The numeric Jira issue id (a key changes when an issue moves project). }
-        issueKey: { type: string, description: "The issue's current key as Jira last answered it: it follows the issue when a run sees it in another project (a moved issue shows its new key, possibly in a project outside the connection's keys, to every caller who may read the bindings); `observation.issueKey` keeps the key the issue was last read under." }
+        issueKey: { type: string, pattern: '^[A-Z][A-Z0-9_]{1,9}-[0-9]{1,10}$', maxLength: 21, description: "The issue's current key as Jira last answered it: it follows the issue when a run sees it in another project (a moved issue shows its new key, possibly in a project outside the connection's keys, to every caller who may read the bindings); `observation.issueKey` keeps the key the issue was last read under." }
         url: { type: string, description: "`<site>/browse/<key>`, under the current key." }
         observation:
           allOf:

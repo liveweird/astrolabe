@@ -52,6 +52,8 @@ class JiraGoneProbeTest {
         assertFalse(isInScope("AB_C-12", listOf("AB")))
         assertFalse(isInScope("E2E-1", emptyList()))
         assertFalse(isInScope("OUT-1", setOf("E2E")))
+        assertFalse(isInScope("E2E", listOf("E2E")), "a dash-less value is no key, even when it equals a project key")
+        assertFalse(isInScope("e2e-1", listOf("e2e")), "nor is a value without the issue-key shape")
     }
 
     private val now = 1_000 * MILLIS_PER_HOUR

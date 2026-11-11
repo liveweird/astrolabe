@@ -102,8 +102,13 @@ internal fun Route.jiraMappingRoutes(connections: JiraConnectionService, mapping
 
 private const val NOT_DISCOVERED_DETAIL = "Test the connection first - no discovery has been stored yet"
 
-/** The ONE scope rule: the key's project (everything before the last dash, so `AB_C-12` is project `AB_C`) is one of [projectKeys]. */
-internal fun isInScope(issueKey: String, projectKeys: Collection<String>): Boolean = issueKey.substringBeforeLast('-') in projectKeys
+/**
+ * The ONE scope rule: [issueKey] has the issue-key shape and its project (everything before the last dash, so `AB_C-12` is project
+ * `AB_C`) is one of [projectKeys]. A dash-less value is no key: `substringBeforeLast` would return it whole, so a bare `ABC` would read
+ * as project `ABC`.
+ */
+internal fun isInScope(issueKey: String, projectKeys: Collection<String>): Boolean =
+    ISSUE_KEY_PATTERN.matches(issueKey) && issueKey.substringBeforeLast('-') in projectKeys
 
 internal fun requireInScope(issueKey: String, projectKeys: List<String>) {
     if (!isInScope(issueKey, projectKeys)) {

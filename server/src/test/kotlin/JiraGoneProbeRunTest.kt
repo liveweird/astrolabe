@@ -400,4 +400,60 @@ class JiraGoneProbeRunTest {
             assertEquals(0, run(200, SyncTrigger.SCHEDULED))
             assertEquals(0, run(200, SyncTrigger.MANUAL))
         }
+
+    /** A JSON string literal with every non-ASCII char escaped, so the wire bytes do not depend on a charset. */
+    private fun jsonString(text: String): String = text.map {
+        when {
+            it == '"' || it == '\\' -> "\\$it"
+            it.code in 0x20..0x7e -> it.toString()
+            else -> "\\u%04x".format(it.code)
+        }
+    }.joinToString(prefix = "\"", postfix = "\"", separator = "")
+
+    @Test
+    fun `a 200 with a hostile key or a document that is not the probed issue stores no key and moves no binding`() = testApplication {
+        val f = fixture("jrphostile")
+        // Each case is the by-id 200 body for a probed issue id.
+        val hostileKeys = listOf(
+            "../OUT-1", "OUT-1?x=1", "OUT-1#x", "//evil.example/OUT-1", "javascript:alert(1)", "OUT-1\n",
+            "\uFF2F\uFF35\uFF34-1", "\u00D3UT-1", "OUT-\u0661", "ABCDEFGHIJ-12345678901", "A".repeat(54) + "-1234567890",
+        )
+        val cases = LinkedHashMap<String, (String) -> String>()
+        hostileKeys.forEach { key -> cases["key ${key.length}:$key"] = { id -> """{"id":"$id","key":${jsonString(key)}}""" } }
+        cases["key is a number"] = { id -> """{"id":"$id","key":7}""" }
+        cases["key is an object"] = { id -> """{"id":"$id","key":{"key":"OUT-1"}}""" }
+        cases["key is null"] = { id -> """{"id":"$id","key":null}""" }
+        cases["id is a number"] = { id -> """{"id":$id,"key":"OUT-1"}""" }
+        cases["id is another issue's"] = { _ -> """{"id":"1","key":"OUT-1"}""" }
+        var body: (String) -> String = { error("no case chosen") }
+        val mock = MockJiraRun(application) { request ->
+            when {
+                request.isIssueRead() -> jsonOk(body(request.issueId()))
+                request.url.parameters["fields"] == "id" -> jsonOk(idsPage())
+                else -> jsonOk(searchPage())
+            }
+        }
+        val bindingKeys = f.bound.map { bindingKeyOf(it) }
+        // A manual run asks again at once about every readable gone item, so one fixture serves every case.
+        cases.forEach { (name, make) ->
+            body = make
+            val result = mock.run(f.connectionId)
+            assertEquals(SyncOutcome.SUCCEEDED, result.outcome, "$name: ${result.errorDetail}")
+            assertEquals(List(5) { null }, f.bound.map { keyOf(it) }, "$name: no key is stored")
+            assertEquals(bindingKeys, f.bound.map { bindingKeyOf(it) }, "$name: no binding follows it")
+            assertTrue(f.bound.all { probed(it) }, "$name: the 200 is still an answer")
+        }
+        val reads = mock.requests.filter { it.isIssueRead() }
+        assertEquals(cases.size * 5, reads.size, "every case re-asked all five")
+        assertTrue(
+            reads.all { it.url.parameters.names() == setOf("fields") && it.url.parameters.getAll("fields") == listOf("id") },
+            "the probe asks fields=id and nothing else",
+        )
+
+        // The rig can store a key: a well-formed answer for the probed issue is kept and followed.
+        body = { id -> """{"id":"$id","key":"OUT-7"}""" }
+        assertEquals(SyncOutcome.SUCCEEDED, mock.run(f.connectionId).outcome)
+        assertEquals(List(5) { "OUT-7" }, f.bound.map { keyOf(it) })
+        assertEquals(List(5) { "OUT-7" }, f.bound.map { bindingKeyOf(it) })
+    }
 }

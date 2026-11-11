@@ -5149,6 +5149,7 @@ export interface components {
             bindingId: number;
             /** Format: int32 */
             connectionId: number;
+            /** @description The issue's current key as Jira last answered it, possibly outside the connection's project keys (a moved issue shows its new key). */
             issueKey: string;
             /**
              * Format: date

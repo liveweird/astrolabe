@@ -165,7 +165,10 @@ class JiraObserver internal constructor(
         progress.beforePage = {
             when (connections.runnableState(run.connectionId)) {
                 RunnableState.RUNNABLE -> Unit
-                RunnableState.GONE -> throw RunProblem("CONNECTION_GONE", "The Jira connection was deleted during the run")
+                RunnableState.GONE -> {
+                    goneDamper.forget(run.connectionId) // a run that finds the connection deleted forgets its streak
+                    throw RunProblem("CONNECTION_GONE", "The Jira connection was deleted during the run")
+                }
                 RunnableState.DISABLED -> throw RunProblem("CONNECTION_DISABLED", "The Jira connection was disabled during the run")
             }
         }
