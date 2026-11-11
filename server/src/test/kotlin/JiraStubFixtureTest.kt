@@ -137,7 +137,7 @@ class JiraStubFixtureTest {
         assertEquals(mapOf("Sub-task" to -1, "Story" to 0, "Task" to 0, "Bug" to 0, "Epic" to 1, "Initiative" to 2, "Program" to 3), types)
 
         val projects = api("/project/search").obj.getValue("values").jsonArray.map { it.str("key") }
-        assertEquals(listOf("CE", "PF", "CG", "DI", "OE", "E2E", "OUT", "IMP", "COV"), projects)
+        assertEquals(listOf("CE", "PF", "CG", "DI", "OE", "E2E", "OUT", "IMP", "COV", "IMF"), projects)
     }
 
     @Test
@@ -164,6 +164,73 @@ class JiraStubFixtureTest {
             assertEquals(int("search", group, "pages"), pages, key)
             assertTrue(issues.all { it.str("key").startsWith("$key-") }, "$key: only its own project")
         }
+    }
+
+    @Test
+    fun `the import's windowed browse lists what the typed read lists, page for page, for every import scope`() {
+        // The stub does not evaluate the filter: the family answers with the typed read's own listing (1.13.2), whatever the clauses say.
+        val types = "${typeId("program")},${typeId("initiative")},${typeId("epic")}"
+        val window = " AND updated >= \"-525600m\""
+        val done = " AND statusCategory != Done"
+        for (key in listOf("IMF", "IMP", "CE")) {
+            val typed = search("project in (\"$key\") AND issuetype in ($types) ORDER BY id ASC", fullFields)
+            assertTrue(typed.first.isNotEmpty(), key)
+            for (clauses in listOf(done + window, window)) {
+                val windowed = search("project in (\"$key\") AND issuetype in ($types)$clauses ORDER BY id ASC", fullFields)
+                assertEquals(typed.first.map { it.str("id") }, windowed.first.map { it.str("id") }, "$key$clauses: same issues, same order")
+                assertEquals(typed.second, windowed.second, "$key$clauses: the same pages")
+            }
+            // The done-only form has no window: it is the typed read's own shape.
+            val doneOnly = search("project in (\"$key\") AND issuetype in ($types)$done ORDER BY id ASC", fullFields)
+            assertEquals(typed.first.map { it.str("id") }, doneOnly.first.map { it.str("id") }, key)
+        }
+        assertEquals(int("search", "imf/importwindow/eip/started", "issues"), 15)
+        assertEquals(int("search", "ce/importwindow/eip/started", "pages"), int("search", "ce/fulltypes/eip/started", "pages"))
+
+        // A windowed browse over another type set is an unmapped shape, never the incremental mapping's recent rows.
+        val twoTypes = "${typeId("initiative")},${typeId("epic")}"
+        val epicOnly = typeId("epic")
+        val refused = listOf(
+            "project in (\"IMF\") AND issuetype in ($twoTypes)$done$window ORDER BY id ASC",
+            "project in ($SAMPLE) AND issuetype in ($epicOnly)$window ORDER BY id ASC",
+        )
+        for (jql in refused) {
+            assertEquals(401, api("/search/jql", mapOf("jql" to jql, "fields" to fullFields)).status, jql)
+        }
+        // The incremental read still answers the recent set (nothing for IMF), and the sweep still answers ids.
+        val recent = figure("incremental", "epics").jsonArray.map { it.jsonPrimitive.content }.toSet()
+        val sampleRecent = search("project in ($SAMPLE) AND updated >= \"-15m\" ORDER BY updated ASC", fullFields).first
+        assertEquals(recent, sampleRecent.map { it.str("key") }.toSet())
+        assertEquals(0, search("project in (\"IMF\") AND updated >= \"-15m\" ORDER BY updated ASC", fullFields).first.size)
+        assertEquals(15, search("project in (\"IMF\") AND issuetype in ($types) ORDER BY id ASC", "id").first.size)
+    }
+
+    @Test
+    fun `IMF lists fifteen issues, every one answers by id and by key, and its hidden parent answers 404 while IMF-15 names it`() {
+        val types = listOf("program", "initiative", "epic").joinToString(",") { typeId(it) }
+        val listed = search("project in (\"IMF\") AND issuetype in ($types) ORDER BY id ASC", fullFields).first
+        val expectedIssues = figure("imf", "issues").jsonArray
+        assertEquals(expectedIssues.map { it.str("key") }, listed.map { it.str("key") })
+        for ((entry, issue) in listed.zip(expectedIssues)) {
+            val key = issue.str("key")
+            val category = entry.str("fields", "status", "statusCategory", "key")
+            assertEquals(issue.str("status") == "done", category == "done", "$key: the status category")
+            assertEquals(issue.str("updated"), entry.str("fields", "updated"), "$key: the stamp")
+            assertEquals(entry.str("id"), api("/issue/$key").obj.str("id"), "$key by key")
+            assertEquals(key, api("/issue/${entry.str("id")}").obj.str("key"), "$key by id")
+        }
+        // The hidden parent: in no listing, no mapping answers it, so both forms are the stub's 404; IMF-15's document still names it.
+        val hidden = figure("imf", "hidden").jsonArray.single()
+        assertEquals("IMF-16", hidden.str("key"))
+        assertEquals(404, api("/issue/${hidden.str("id")}").status)
+        assertEquals(404, api("/issue/IMF-16").status)
+        assertTrue(listed.none { it.str("key") == "IMF-16" })
+        for (doc in listOf(listed.single { it.str("key") == "IMF-15" }, api("/issue/IMF-15").obj)) {
+            assertEquals(hidden.str("key"), doc.str("fields", "parent", "key"))
+            assertEquals(hidden.str("id"), doc.str("fields", "parent", "id"))
+        }
+        // The parent member carries what the import classifies a parent outside its set by: the issue type.
+        assertEquals("Initiative", api("/issue/IMF-15").obj.str("fields", "parent", "fields", "issuetype", "name"))
     }
 
     @Test

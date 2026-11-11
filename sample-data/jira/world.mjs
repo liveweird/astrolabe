@@ -1,6 +1,6 @@
 // The stub's Jira world, derived from sample-data/plan/*.json: 20 programs -> `Program`, 100 projects -> `Initiative`, 1,000 milestones
 // -> `Epic`, one Jira project per work stream, plus the small isolated `E2E` project (2044), the import's isolated `IMP` project (2045), the
-// coverage `COV` project (2046) and the day-2 destination project `OUT`. Under every fifth epic of the work streams sit 1..4 Stories (level 0,
+// coverage `COV` project (2046), the import-filter `IMF` project (2045, 1.13.2) and the day-2 destination project `OUT`. Under every fifth epic of the work streams sit 1..4 Stories (level 0,
 // the 1.4 census's child level), and ten planted epics carry only done children.
 // Pure and deterministic: every random draw comes from one seeded mulberry32 stream and there is no clock.
 //
@@ -13,10 +13,13 @@ export const ANCHOR = "2026-10-26"; // the sample plan's default anchor Monday (
 export const E2E_ANCHOR = "2044-01-04"; // a Monday in the e2e suite's own holiday-free year
 export const IMP_ANCHOR = "2045-01-02"; // a Monday in the import e2e's own year (the next unused after 2044)
 export const COV_ANCHOR = "2046-03-05"; // a Monday in the coverage e2e's own year (the next unused after 2045); March, so COV-10's "past" is still 2046
+export const IMF_ANCHOR = IMP_ANCHOR; // the import-filter project (1.13.2) shares the import's year; it is its own project, so no key or id collides
 const FIRST_ID = 20_001;
 const E2E_FIRST_ID = 90_001;
 const IMP_FIRST_ID = 95_001;
 const COV_FIRST_ID = 97_001;
+const IMF_FIRST_ID = 98_001;
+const IMF_STALE = "2010-03-01T10:00:00.000+0000"; // outside every allowed window, whatever the clock
 const STORY_POINTS = [1, 2, 3, 5, 8];
 const MS = 1000;
 
@@ -250,6 +253,8 @@ export function buildWorld(plan, milestones, teams, seed = 42) {
   const imp = buildImp();
   // --- the COV project: fixed, draws none ---------------------------------------------------------------------------------------------
   const cov = buildCov();
+  // --- the IMF project (1.13.2): fixed, draws none ------------------------------------------------------------------------------------
+  const imf = buildImf();
 
   // Hierarchy-level presence on the issue's own type object: omitted on every third id so the client's /issuetype fallback is exercised too.
   issues.forEach((i) => {
@@ -264,7 +269,10 @@ export function buildWorld(plan, milestones, teams, seed = 42) {
   [...stories, ...cov.issues].forEach((i) => {
     i.anchor = i.projectKey === "COV" ? COV_ANCHOR : ANCHOR;
   });
-  [...issues, ...stories, ...e2e.issues, ...imp.issues, ...cov.issues].forEach((i) => {
+  [...imf.issues, ...imf.hidden].forEach((i) => {
+    i.anchor = IMF_ANCHOR;
+  });
+  [...issues, ...stories, ...e2e.issues, ...imp.issues, ...cov.issues, ...imf.issues, ...imf.hidden].forEach((i) => {
     i.omitLevel = Number(i.id) % 3 === 0;
   });
 
@@ -273,7 +281,7 @@ export function buildWorld(plan, milestones, teams, seed = 42) {
     movedOut: planted.movedOut.map((x, n) => ({ issue: milestoneIssue.get(x.m.ref), movedKey: `OUT-${n + 1}` })),
   };
   return {
-    seed, keys, streams, programs, projects, milestones, issues, stories, e2e, imp, cov, recent, day2, planted, tags, programIssue, projectIssue, milestoneIssue,
+    seed, keys, streams, programs, projects, milestones, issues, stories, e2e, imp, cov, imf, recent, day2, planted, tags, programIssue, projectIssue, milestoneIssue,
     projectsTargetLater, projectsRenamed, programsShifted, typeOf,
     projectRows: [
       ...streams.map((w, n) => ({ id: String(10_000 + n), key: keys[n], name: w.name })),
@@ -281,6 +289,7 @@ export function buildWorld(plan, milestones, teams, seed = 42) {
       { id: "10006", key: "OUT", name: "Archive (out of scope)" },
       { id: "10007", key: "IMP", name: "Astrolabe import" },
       { id: "10008", key: "COV", name: "Astrolabe coverage" },
+      { id: "10009", key: "IMF", name: "Astrolabe import filter" },
     ],
   };
 }
@@ -362,4 +371,44 @@ function buildCov() {
   add(11, { level: "story", summary: "COV story three", parentId: id(4), status: "done", points: 2 });
   add(12, { level: "story", summary: "COV story four", parentId: id(4), status: "done", points: 3 });
   return { issues, unbound: ["COV-5", "COV-10"] };
+}
+
+/**
+ * The import-filter project (1.13.2): fifteen listed issues in 2045 (offsets from IMF_ANCHOR) that exercise the import's done/quiet filter, and
+ * ONE hidden Initiative (IMF-16) that exists only as the `parent` member of IMF-15: in no listing and with no issue mapping, so a by-id read
+ * of it falls to the stub's 404 (the parent the connection cannot read). "fresh" is stamped a week before the anchor (inside every window until
+ * the end of 2044), "stale" is stamped 2010 (outside every window): no figure depends on the clock. The stub does not evaluate the filter; the
+ * server's own rule drops what it does not admit (the cases: sample-data/jira/README.md and expected.json `imf`).
+ */
+function buildImf() {
+  const issues = [];
+  const fresh = `${isoDateAt(IMF_ANCHOR, -7)}T10:00:00.000+0000`;
+  const add = (n, fields) => issues.push({
+    id: String(IMF_FIRST_ID + n - 1), key: `IMF-${n}`, projectKey: "IMF", points: null, team: null, parentId: null, decoy: false, ref: null,
+    updated: fresh, status: "todo", ...fields,
+  });
+  const id = (n) => String(IMF_FIRST_ID + n - 1);
+  const team = { id: teamUuid(904), name: "IMF Team" };
+  add(1, { level: "program", summary: "IMF Program", start: 0, end: 60 });
+  add(2, { level: "project", summary: "IMF Initiative Open", parentId: id(1), start: 0, end: 18, status: "doing" });
+  add(3, { level: "project", summary: "IMF Initiative Done", parentId: id(1), start: 21, end: 32, status: "done" });
+  add(4, { level: "project", summary: "IMF Initiative Quiet", parentId: id(1), start: 35, end: 46, updated: IMF_STALE });
+  add(5, { level: "project", summary: "IMF Initiative Closed", parentId: id(1), start: 49, end: 60, status: "done" });
+  add(6, { level: "milestone", summary: "IMF Epic Open", parentId: id(2), start: 0, end: 4, points: 5, team });
+  add(7, { level: "milestone", summary: "IMF Epic Under Done", parentId: id(3), start: 21, end: 25, points: 3, team, status: "doing" });
+  add(8, { level: "milestone", summary: "IMF Epic Under Quiet", parentId: id(4), start: 35, end: 39, points: 2, team });
+  add(9, { level: "milestone", summary: "IMF Epic Done", parentId: id(2), start: 7, end: 11, points: 1, team, status: "done" });
+  add(10, { level: "milestone", summary: "IMF Epic Closed", parentId: id(5), start: 49, end: 53, points: 2, team, status: "done" });
+  add(11, { level: "milestone", summary: "IMF Epic Quiet", parentId: id(2), start: 14, end: 18, points: 3, team, updated: IMF_STALE });
+  add(12, { level: "program", summary: "IMF Program Old", start: 63, end: 88, status: "done", updated: IMF_STALE });
+  add(13, { level: "project", summary: "IMF Initiative Old", parentId: id(12), start: 63, end: 81, status: "done", updated: IMF_STALE });
+  add(14, { level: "milestone", summary: "IMF Epic Under Old", parentId: id(13), start: 63, end: 67, points: 5, team });
+  // IMF-15 hangs under the hidden IMF-16: the parent member of its document names it, no listing and no mapping does.
+  const hiddenId = String(IMF_FIRST_ID + 15);
+  add(15, { level: "milestone", summary: "IMF Epic Under Hidden", parentId: hiddenId, start: 70, end: 74, points: 4, team });
+  const hidden = [{
+    id: hiddenId, key: "IMF-16", projectKey: "IMF", level: "project", summary: "IMF Initiative Hidden", parentId: null, points: null, team: null, decoy: false, ref: null,
+    updated: fresh, status: "todo", start: 70, end: 74,
+  }];
+  return { issues, hidden };
 }

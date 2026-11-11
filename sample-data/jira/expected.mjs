@@ -2,7 +2,7 @@
 // mappings (so they cannot drift) and rendered with short arrays on one line (the key lists are 1,000 entries).
 import { isoDateAt } from "../../scripts/sample-plan/days.mjs";
 import { TYPE, typeOf } from "./catalog.mjs";
-import { ANCHOR, COV_ANCHOR, E2E_ANCHOR, IMP_ANCHOR, PLANTED } from "./world.mjs";
+import { ANCHOR, COV_ANCHOR, E2E_ANCHOR, IMF_ANCHOR, IMP_ANCHOR, PLANTED } from "./world.mjs";
 import { PAGE_SIZE, SCENARIO, keyScopesOf, scopesOf } from "./mappings.mjs";
 import { REJECTED_TOKEN, CLOUD_ID } from "./catalog.mjs";
 
@@ -39,8 +39,58 @@ function rollupOf(children) {
   return { children: children.length, done: children.filter((c) => c.status === "done").length, points: withPoints.length === 0 ? null : withPoints.reduce((sum, c) => sum + c.points, 0) };
 }
 
+/**
+ * What the import's server-side filter makes of the IMF project (1.13.2), computed from the world by the SAME rules the server applies (the stub
+ * does not evaluate the filter): a listed issue is kept unless it is done (with `excludeDone`) or quiet (with a window; "stale" is outside every
+ * window); the missing direct parents of the kept issues are then read by id, round by round (never one already held or tried, ascending id), and
+ * what a read brings is KEPT AS A PARENT. A hidden parent answers 404: its child is skipped with NO_PARENT (without a filter nothing is read and
+ * IMF-15 is skipped NO_PARENT all the same). Only the three mapped levels exist here, so a parent chain ends at the program.
+ */
+function imfOutcome(imf, { excludeDone, window }) {
+  const byId = new Map([...imf.issues, ...imf.hidden].map((i) => [i.id, i]));
+  const stale = (i) => i.updated.startsWith("2010");
+  const kept = imf.issues.filter((i) => !(excludeDone && i.status === "done") && !(window && stale(i)));
+  const held = new Set(kept.map((i) => i.id));
+  const reads = [];
+  const keptAsParent = [];
+  const unreadable = [];
+  if (excludeDone || window) {
+    const tried = new Set();
+    let round = kept;
+    while (round.length > 0) {
+      const wanted = [...new Set(round.filter((i) => i.parentId !== null && !held.has(i.parentId) && !tried.has(i.parentId)).map((i) => i.parentId))].sort((a, b) => Number(a) - Number(b));
+      const fetched = [];
+      for (const parentId of wanted) {
+        tried.add(parentId);
+        const parent = byId.get(parentId);
+        const listed = imf.issues.includes(parent);
+        reads.push({ key: parent.key, answer: listed ? 200 : 404 });
+        if (!listed) {
+          unreadable.push(...round.filter((i) => i.parentId === parentId).map((i) => i.key));
+          continue;
+        }
+        held.add(parent.id);
+        keptAsParent.push(parent.key);
+        fetched.push(parent);
+      }
+      round = fetched;
+    }
+  }
+  const rows = imf.issues.filter((i) => held.has(i.id));
+  const skipped = unreadable.length > 0 ? unreadable : ["IMF-15"];
+  return {
+    rows: rows.length,
+    create: rows.length - skipped.length,
+    skip: skipped.length,
+    skipped,
+    leftOut: imf.issues.filter((i) => !held.has(i.id)).map((i) => i.key),
+    keptAsParent: keptAsParent.sort((a, b) => Number(a.slice(4)) - Number(b.slice(4))),
+    byIdReads: reads,
+  };
+}
+
 export function buildExpected(world, counts, stub) {
-  const { issues, stories, planted, milestoneIssue, e2e, imp, cov } = world;
+  const { issues, stories, planted, milestoneIssue, e2e, imp, cov, imf } = world;
   const childrenOf = (list, epic) => list.filter((s) => s.parentId === epic.id);
   const level = (name) => issues.filter((i) => i.level === name);
   const items = (name, extra = () => ({})) => ({
@@ -66,7 +116,7 @@ export function buildExpected(world, counts, stub) {
     totals: { programs: level("program").length, projects: level("project").length, milestones: level("milestone").length, issues: issues.length, e2eIssues: e2e.issues.length, stories: stories.length },
     projects: world.projectRows.map((p) => ({
       key: p.key, id: p.id, name: p.name,
-      issues: [...issues, ...stories, ...e2e.issues, ...imp.issues, ...cov.issues].filter((i) => i.projectKey === p.key).length,
+      issues: [...issues, ...stories, ...e2e.issues, ...imp.issues, ...cov.issues, ...imf.issues].filter((i) => i.projectKey === p.key).length,
     })),
     keys: {
       programs: level("program").map((i) => i.key),
@@ -116,6 +166,22 @@ export function buildExpected(world, counts, stub) {
       unbound: cov.unbound,
       unlinkedOpen: cov.unbound.filter((key) => cov.issues.find((i) => i.key === key).status !== "done"),
       unlinkedDone: cov.unbound.filter((key) => cov.issues.find((i) => i.key === key).status === "done"),
+    },
+    imf: {
+      project: "IMF",
+      anchor: IMF_ANCHOR,
+      issues: imf.issues.map((i) => ({
+        key: i.key, id: i.id, level: i.level, summary: i.summary, parent: i.parentId === null ? null : [...imf.issues, ...imf.hidden].find((p) => p.id === i.parentId).key,
+        status: i.status, updated: i.updated, team: i.team?.name ?? null, points: i.points, ...dates(i),
+      })),
+      hidden: imf.hidden.map((i) => ({ key: i.key, id: i.id, level: i.level, summary: i.summary, status: i.status, updated: i.updated, note: "in no listing and no issue mapping: GET /issue/{id or key} answers 404, while the parent member of its child names it" })),
+      note: "the stub does not evaluate the import filter; byFilter is what the SERVER makes of the listing (the rule, then the parents read by id), with a default team and no default parent",
+      byFilter: {
+        none: imfOutcome(imf, { excludeDone: false, window: false }),
+        doneAndWindow: imfOutcome(imf, { excludeDone: true, window: true }),
+        doneOnly: imfOutcome(imf, { excludeDone: true, window: false }),
+        windowOnly: imfOutcome(imf, { excludeDone: false, window: true }),
+      },
     },
     e2e: {
       project: "E2E",

@@ -1,0 +1,37 @@
+{
+  "priority": 2,
+  "request": {
+    "method": "GET",
+    "urlPath": "/ex/jira/b3f1a2c4-5d6e-4f7a-8b9c-0d1e2f3a4b5c/rest/api/3/search/jql",
+    "headers": {
+      "Authorization": {
+        "matches": "^(Basic|Bearer) .+$"
+      }
+    },
+    "queryParameters": {
+      "jql": {
+        "and": [
+          {
+            "matches": "[\\s\\S]*\\bupdated >= \"-\\d+m\"[\\s\\S]*"
+          },
+          {
+            "matches": "[\\s\\S]* ORDER BY id ASC"
+          },
+          {
+            "doesNotMatch": "[\\s\\S]*\\bissuetype in \\((?=[^)]*\\b10004\\b)(?=[^)]*\\b10005\\b)(?=[^)]*\\b10006\\b)\\s*\"?(?:10004|10005|10006)\"?(?:\\s*,\\s*\"?(?:10004|10005|10006)\"?)*\\s*\\)[\\s\\S]*"
+          }
+        ]
+      },
+      "fields": {
+        "matches": "(?=[\\s\\S]*\\bsummary\\b)(?=[\\s\\S]*\\bissuetype\\b)[\\s\\S]*"
+      }
+    }
+  },
+  "response": {
+    "status": 401,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "bodyFileName": "auth-401.json"
+  }
+}

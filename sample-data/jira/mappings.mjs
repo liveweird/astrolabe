@@ -27,6 +27,7 @@ export const scopesOf = (world) => [
   { name: "all", keys: [...world.keys, "E2E"] },
   { name: "imp", keys: ["IMP"] },
   { name: "cov", keys: ["COV"] },
+  { name: "imf", keys: ["IMF"] },
 ];
 
 /**
@@ -61,6 +62,31 @@ export function listClause(clause, items) {
 }
 const UPDATED_CLAUSE = '[\\s\\S]*\\bupdated >= "-\\d+m"[\\s\\S]*';
 const FIELDS_CARRY_SUMMARY = "(?=[\\s\\S]*\\bsummary\\b)(?=[\\s\\S]*\\bissuetype\\b)[\\s\\S]*";
+const ORDER_BY_ID = "[\\s\\S]* ORDER BY id ASC"; // the full read, the sweep and the import's browse end like this; the incremental read orders by `updated`
+
+/**
+ * The `jql` shapes the stub tells apart, each as the regexes a WireMock `and` combines: the `matches` ALL match, the `doesNotMatch` none does.
+ * One definition serves the mappings and the generator's self-test (generate.test.mjs evaluates them against the exact texts the server sends).
+ *   - full / typed / sweep: the run's reads (JiraJql.full and sweep), no `updated` clause;
+ *   - incremental: the scope and a relative `updated` bound;
+ *   - importWindow (1.13.2): the import's filtered browse WITH a window, `... AND updated >= "-Nm" ORDER BY id ASC`, naming the three mapped
+ *     types; the stub does not evaluate the filter, so it answers with the typed read's own listing (pages and bodies);
+ *   - importWindowRefusal: the same windowed browse over ANY OTHER type set (a connection whose saved mapping has one or two levels): the 401
+ *     an unmapped shape gets, never the incremental mapping's wrong rows. It excludes the family by the three-type clause.
+ * A done-only filtered browse (`statusCategory != Done` and no window) is the typed read's shape already (its pattern ignores that clause).
+ */
+export const JQL_SHAPES = {
+  full: (keys) => ({ matches: [listClause("project", keys)], doesNotMatch: [UPDATED_CLAUSE] }),
+  typed: (keys, typeIds) => ({ matches: [listClause("project", keys), listClause("issuetype", typeIds)], doesNotMatch: [UPDATED_CLAUSE] }),
+  incremental: (keys) => ({ matches: [listClause("project", keys), UPDATED_CLAUSE], doesNotMatch: [] }),
+  sweep: (keys, typeIds) => ({ matches: [listClause("project", keys), listClause("issuetype", typeIds)], doesNotMatch: [] }),
+  importWindow: (keys, typeIds) => ({ matches: [listClause("project", keys), listClause("issuetype", typeIds), UPDATED_CLAUSE, ORDER_BY_ID], doesNotMatch: [] }),
+  importWindowRefusal: (typeIds) => ({ matches: [UPDATED_CLAUSE, ORDER_BY_ID], doesNotMatch: [listClause("issuetype", typeIds)] }),
+};
+/** A shape as the WireMock `and` of its clauses (matches first, then doesNotMatch). */
+export const andOf = (shape) => ({ and: [...shape.matches.map((matches) => ({ matches })), ...shape.doesNotMatch.map((doesNotMatch) => ({ doesNotMatch }))] });
+/** The three mapped types (Epic, Initiative, Program): the import's default type set, `eip`. */
+export const IMPORT_TYPE_IDS = [TYPE.epic, TYPE.initiative, TYPE.program].map((t) => t.id);
 
 /**
  * The Authorization header values the stub refuses: `Bearer wrong-token`, or a Basic value whose decoded password ends in that token (the
@@ -83,8 +109,9 @@ const typeObject = (issue) => {
 const date = (issue, offset) => (offset === null ? null : isoDateAt(issue.anchor, offset));
 
 export function makeDocs(world) {
-  const all = [...world.issues, ...world.stories, ...world.e2e.issues, ...world.imp.issues, ...world.cov.issues];
-  const byId = new Map(all.map((i) => [i.id, i]));
+  const all = [...world.issues, ...world.stories, ...world.e2e.issues, ...world.imp.issues, ...world.cov.issues, ...world.imf.issues];
+  // The hidden parent (IMF-16) is known to the document that names it as its `parent`, never listed and never mapped: `all` excludes it.
+  const byId = new Map([...all, ...world.imf.hidden].map((i) => [i.id, i]));
   const projectOf = new Map(world.projectRows.map((p) => [p.key, p]));
   const project = (key) => ({ id: projectOf.get(key).id, key, name: projectOf.get(key).name });
   const rank = (issue) => `0|i${String(issue.id).padStart(5, "0")}:`;
@@ -211,16 +238,19 @@ export function buildStub(world) {
   });
   const recentIds = new Set([...world.recent, ...world.e2e.recent].map((i) => i.id));
 
-  /** Pages of `issues` (already filtered and in id order) under one mapping group; `idsOnly` serves `{id}` entries. */
-  function addPages(group, issues, request, { idsOnly, state, priority = null }) {
+  /**
+   * Pages of `issues` (already filtered and in id order) under one mapping group; `idsOnly` serves `{id}` entries. `tokenGroup` names the page
+   * tokens (and so the bodies) of ANOTHER group when this one answers the same pages under a different request shape.
+   */
+  function addPages(group, issues, request, { idsOnly, state, priority = null, tokenGroup = group }) {
     const pages = Math.max(1, Math.ceil(issues.length / PAGE_SIZE));
     counts[group] = { issues: issues.length, pages };
     for (let page = 1; page <= pages; page++) {
       const slice = issues.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
       const last = page === pages;
-      const body = { issues: slice.map((i) => (idsOnly ? { id: i.id } : issueDoc(i))), isLast: last, ...(last ? {} : { nextPageToken: `${group.replaceAll("/", "-")}-p${page + 1}` }) };
+      const body = { issues: slice.map((i) => (idsOnly ? { id: i.id } : issueDoc(i))), isLast: last, ...(last ? {} : { nextPageToken: `${tokenGroup.replaceAll("/", "-")}-p${page + 1}` }) };
       const file = addBody(idsOnly ? "search-ids" : "search-issues", compact(body));
-      const token = page === 1 ? { absent: true } : { equalTo: `${group.replaceAll("/", "-")}-p${page}` };
+      const token = page === 1 ? { absent: true } : { equalTo: `${tokenGroup.replaceAll("/", "-")}-p${page}` };
       addMapping(
         `search-${group.replaceAll("/", "-")}-page-${page}`,
         { ...request, queryParameters: { ...request.queryParameters, nextPageToken: token } },
@@ -230,8 +260,15 @@ export function buildStub(world) {
     }
   }
 
+  // The windowed browse over any other type set: the unmapped-shape 401 (see JQL_SHAPES), not the incremental mapping's wrong rows. Priority 2 beats it.
+  addMapping(
+    "search-importwindow-refused-401",
+    get("/search/jql", { queryParameters: { jql: andOf(JQL_SHAPES.importWindowRefusal(IMPORT_TYPE_IDS)), fields: { matches: FIELDS_CARRY_SUMMARY } } }),
+    json(401, "auth-401.json"),
+    { priority: 2 },
+  );
+
   for (const scope of scopes) {
-    const scopeJql = { matches: listClause("project", scope.keys) };
     const has = (shape) => scope.only === undefined || scope.only.includes(shape);
     for (const state of STATES) {
       const base = (queryParameters) => get("/search/jql", { queryParameters });
@@ -239,7 +276,7 @@ export function buildStub(world) {
       // FULL read (no `updated` clause): the first run and the import browse. All types in scope; `fields` must name summary + issuetype.
       if (has("full")) addPages(
         `${scope.name}/full/any/${state}`, sweepable,
-        base({ jql: { and: [scopeJql, { doesNotMatch: UPDATED_CLAUSE }] }, fields: { matches: FIELDS_CARRY_SUMMARY } }), { idsOnly: false, state },
+        base({ jql: andOf(JQL_SHAPES.full(scope.keys)), fields: { matches: FIELDS_CARRY_SUMMARY } }), { idsOnly: false, state },
       );
       // FULL read LIMITED TO TYPES (the run's first read: `project in (...) AND issuetype in (...) ORDER BY id ASC`, the sweep's clause, with the
       // observation `fields`): per issue-type set, priority 2 so it wins over the unfiltered full read above (whose scope regex also matches).
@@ -247,24 +284,30 @@ export function buildStub(world) {
         const typeIds = set.types.map((t) => t.id);
         addPages(
           `${scope.name}/fulltypes/${set.name}/${state}`, sweepable.filter((i) => typeIds.includes(typeOf(i).id)),
-          base({
-            jql: { and: [scopeJql, { matches: listClause("issuetype", typeIds) }, { doesNotMatch: UPDATED_CLAUSE }] },
-            fields: { matches: FIELDS_CARRY_SUMMARY },
-          }),
+          base({ jql: andOf(JQL_SHAPES.typed(scope.keys, typeIds)), fields: { matches: FIELDS_CARRY_SUMMARY } }),
           { idsOnly: false, state, priority: 2 },
         );
       }
+      // IMPORT WINDOW (1.13.2: `... AND updated >= "-Nm" ORDER BY id ASC` over the three mapped types, the import's filtered browse): the typed
+      // read's listing of the three types, page for page and body for body (its page tokens, `tokenGroup`). The stub does not evaluate the
+      // filter; the server's own rule drops what it does not admit. Priority 2 beats the incremental read below (3); the typed read refuses a
+      // window and this one needs it, so no request matches both.
+      addPages(
+        `${scope.name}/importwindow/eip/${state}`, sweepable.filter((i) => IMPORT_TYPE_IDS.includes(typeOf(i).id)),
+        base({ jql: andOf(JQL_SHAPES.importWindow(scope.keys, IMPORT_TYPE_IDS)), fields: { matches: FIELDS_CARRY_SUMMARY } }),
+        { idsOnly: false, state, priority: 2, tokenGroup: `${scope.name}/fulltypes/eip/${state}` },
+      );
       // INCREMENTAL (`updated >= "-Nm"`): the recently updated issues only.
       if (has("incremental")) addPages(
         `${scope.name}/incremental/any/${state}`, sweepable.filter((i) => recentIds.has(i.id)),
-        base({ jql: { and: [scopeJql, { matches: UPDATED_CLAUSE }] }, fields: { matches: FIELDS_CARRY_SUMMARY } }), { idsOnly: false, state },
+        base({ jql: andOf(JQL_SHAPES.incremental(scope.keys)), fields: { matches: FIELDS_CARRY_SUMMARY } }), { idsOnly: false, state },
       );
       // SWEEP (`fields=id`, an `issuetype in (...)` clause): the ids still in scope, per issue-type set.
       for (const set of has("sweep") ? TYPE_SETS : []) {
         const typeIds = set.types.map((t) => t.id);
         addPages(
           `${scope.name}/sweep/${set.name}/${state}`, sweepable.filter((i) => typeIds.includes(typeOf(i).id)),
-          base({ jql: { and: [scopeJql, { matches: listClause("issuetype", typeIds) }] }, fields: { equalTo: "id" } }), { idsOnly: true, state },
+          base({ jql: andOf(JQL_SHAPES.sweep(scope.keys, typeIds)), fields: { equalTo: "id" } }), { idsOnly: true, state },
         );
       }
     }

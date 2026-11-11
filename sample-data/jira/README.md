@@ -24,6 +24,7 @@ One site (`cloudId` `b3f1a2c4-5d6e-4f7a-8b9c-0d1e2f3a4b5c`, answered by the unau
 | `E2E` | the small isolated project only the e2e spec binds: 1 Program, 2 Initiatives, 7 Epics, every date in **2044** (a holiday-free year), `E2E-5` is the epic whose end reads 3 working days later than the spec's milestone, `E2E-6` is deleted on day 2, `E2E-9` is undated, `E2E-10` moves to `OUT-6` on day 2 (1.13; only `jira-sync.spec.ts` binds it) |
 | `IMP` | the import's isolated project (v1.2.0): 1 Program, 2 Initiatives, 6 Epics, every date in **2045** (anchor Monday 2045-01-02), every issue To Do and untouched by day 2; only the import's e2e spec imports it (table below) |
 | `COV` | the coverage project (v1.4.0): 1 Program, 1 Initiative, 4 Epics and 6 children, every date in **2046** (anchor Monday 2046-03-05), untouched by day 2; only the coverage e2e spec binds it (table below) |
+| `IMF` | the import filter's isolated project (v1.13.2): 15 listed issues (2 Programs, 5 Initiatives, 8 Epics), every date in **2045**, untouched by day 2, plus ONE hidden Initiative that only `IMF-15` names as its parent (table below); only the import-filter specs import it |
 | `OUT` | where day 2 moves five epics (`OUT-1`..`OUT-5`) and `E2E-10` (`OUT-6`); no scope lists it |
 
 `IMP` (ids 95001..95009, team "IMP Team"; the stub does not filter `fields`, so an issue carries every field below):
@@ -64,6 +65,28 @@ stories are never orphaned, deleted or moved on day 2; they are not in the incre
 
 Roll-ups: `COV-3` has 4 children, 2 done, 13 points; `COV-4` has 2 children, 2 done, 5 points (all done while the epic is still To Do and its plan end is ahead: `CHILDREN_DONE`, its only deviation).
 
+`IMF` (1.13.2, ids 98001..98015 listed, team "IMF Team"; "fresh" = `updated` 2044-12-26, "stale" = `updated` 2010-03-01, so no figure depends on the clock; the stub does **not** evaluate the import's filter, the server's own rule does, and `expected.json` `imf.byFilter` says what the server must make of the listing under each of the four filters):
+
+| Key | Level | Summary | Parent | Status | Updated | What it proves |
+|---|---|---|---|---|---|---|
+| `IMF-1` | Program | IMF Program | none | To Do | fresh | the top of the live chain |
+| `IMF-2` | Initiative | IMF Initiative Open | `IMF-1` | In Progress | fresh | an open parent |
+| `IMF-3` | Initiative | IMF Initiative Done | `IMF-1` | Done | fresh | a DONE parent of an open epic (`IMF-7`): left out by "leave out done", kept as a parent |
+| `IMF-4` | Initiative | IMF Initiative Quiet | `IMF-1` | To Do | stale | a QUIET parent of an open epic (`IMF-8`): left out by the window, kept as a parent |
+| `IMF-5` | Initiative | IMF Initiative Closed | `IMF-1` | Done | fresh | a left-out parent nobody needs (only `IMF-10`, itself left out, hangs under it): never read |
+| `IMF-6` | Epic | IMF Epic Open | `IMF-2` | To Do | fresh | an open epic under an open parent: no read |
+| `IMF-7` | Epic | IMF Epic Under Done | `IMF-3` | In Progress | fresh | an open epic whose parent is done |
+| `IMF-8` | Epic | IMF Epic Under Quiet | `IMF-4` | To Do | fresh | an open epic whose parent is quiet |
+| `IMF-9` | Epic | IMF Epic Done | `IMF-2` | Done | fresh | a done epic: left out by "leave out done" |
+| `IMF-10` | Epic | IMF Epic Closed | `IMF-5` | Done | fresh | a done epic under a done parent: both left out |
+| `IMF-11` | Epic | IMF Epic Quiet | `IMF-2` | To Do | stale | a quiet epic: left out by the window |
+| `IMF-12` | Program | IMF Program Old | none | Done | stale | the top of a TWO-ROUND chain, left out by every filter |
+| `IMF-13` | Initiative | IMF Initiative Old | `IMF-12` | Done | stale | the middle of it, left out by every filter |
+| `IMF-14` | Epic | IMF Epic Under Old | `IMF-13` | To Do | fresh | an open epic: its parent is read in round one, that parent's program in round two |
+| `IMF-15` | Epic | IMF Epic Under Hidden | `IMF-16` (hidden) | To Do | fresh | a parent the connection cannot read: skipped `NO_PARENT` with `PARENT_UNREADABLE` under a filter |
+
+**`IMF-16`** (id 98016, an Initiative) is in no listing and has no issue mapping: `GET /issue/98016` and `/issue/IMF-16` fall to `issue-unknown-404`, while `IMF-15`'s `parent` member names it. The server must read, in order, under a filter: both switches `IMF-3, IMF-4, IMF-13, IMF-16 (404), IMF-12` (11 rows, 10 to create, 1 skipped); done only `IMF-3, IMF-13, IMF-16 (404), IMF-12` (12 rows); window only `IMF-4, IMF-13, IMF-16 (404), IMF-12` (14 rows); no filter reads nothing (15 rows, 14 to create, 1 skipped).
+
 Search entries carry the `parent` member with `parent.fields.issuetype` (the import classifies a parent outside its set by it); a parent's type object omits `hierarchyLevel` on the same
 every-third-id rule as the issue's own (`IMP-1`, `IMP-4`, `IMP-7`).
 
@@ -79,22 +102,24 @@ relative to the anchor Monday **2026-10-26** (ended before it = Done, started = 
 | Request | Matched by | Answer |
 |---|---|---|
 | `GET /_edge/tenant_info` | path | `{cloudId}` |
-| `GET /myself`, `/field`, `/issuetype`, `/project/search` | path + auth | one document each (`project/search` lists all nine projects on one page) |
+| `GET /myself`, `/field`, `/issuetype`, `/project/search` | path + auth | one document each (`project/search` lists all ten projects on one page) |
 | `GET /project/search?keys=A&keys=B` | path + auth + the `keys` set exactly as a scope lists it (`E2E`; the five work-stream keys; those plus `E2E`), priority 2 | only the named projects (any other key set falls to the unfiltered page above) |
 | `GET /issue/{id or key}` | the issue's id OR key in the path; the query is ignored | the full document; 404 for any other key (`issue-unknown-404`) |
 | `GET /search/jql` **full** | `jql` names the scope and has no `updated >=`; `fields` names `summary` and `issuetype` | every issue in scope, the stories included (100 a page, `nextPageToken`) |
 | `GET /search/jql` **full, typed** (the run's first read, and the import's browse) | `jql` names the scope (any of the above, or one work-stream key) AND an `issuetype in (...)` set (Epic; Epic + Initiative; all three; or the **child set** Story + Task + Bug) with no `updated >=`; `fields` as above, priority 2 | the issues of those types in scope (100 a page, cursors `<scope>-fulltypes-<set>-<state>-p<n>`) |
+| `GET /search/jql` **import window** (1.13.2: the import's filtered browse with an `updated` window) | `jql` names the scope (any of the scopes below, or one work-stream key), the three-type `issuetype in (...)` set (Epic + Initiative + Program), `updated >= "-Nm"`, and ends ` ORDER BY id ASC`; `fields` as above, priority 2 | the SAME pages as that scope's typed read of the three types (its cursors `<scope>-fulltypes-eip-<state>-p<n>`, its bodies): the stub evaluates neither `statusCategory` nor the window |
+| `GET /search/jql` **import window, any other type set** | the same window and ` ORDER BY id ASC` over a type set that is NOT the three, priority 2 | `401` (an unmapped shape, never the incremental mapping's recent rows) |
 | `GET /search/jql` **incremental** | `jql` names the scope and has `updated >= "-Nm"`; `fields` as above | the 15 recently updated epics (2 in `E2E`) |
 | `GET /search/jql` **sweep** | `jql` names the scope and an `issuetype in (...)` set; `fields=id` | `{id}` entries of the in-scope issues of those types |
 | `GET /search/jql` **probe** | the scope; `fields=id`, `maxResults=1` | the first epic in scope |
 | a wrong token (`Bearer wrong-token`, or a Basic header whose password is `wrong-token`, any email) | `Authorization` | `401` on every authenticated route (`auth-wrong-token-401`) |
 
-*Scopes* (any key order, quoted or not): `E2E`; the five work-stream keys; those five plus `E2E`; `IMP`; `COV` (all of them answer every shape above, `project/search?keys=` and the probe included, so
+*Scopes* (any key order, quoted or not): `E2E`; the five work-stream keys; those five plus `E2E`; `IMP`; `COV`; `IMF` (all of them answer every shape above, `project/search?keys=` and the probe included, so
 Test connection, Peek and Refresh work on an `IMP`-scoped connection). The import's browse also reads ONE key at a time: the single-key scopes `CE`, `PF`, `CG`, `DI` and `OE` answer
 the **typed full read only** (no connection is scoped to one key, so they have no `project/search`, probe, sweep or incremental mapping). *Issue-type sets* for a typed read or a sweep: Epic;
 Epic + Initiative; all three; Story + Task + Bug (the child level, `s`: what the server's `typeIdsAtLevel(0)` names; every scope and every single key answers it, both reads). A request outside a listed shape (a `fields` value without `summary`, a different scope) matches nothing and falls to the catch-all `401`: that is deliberate (it is how the
 real site's id-only default fails a client that forgot `fields`), and adding a shape or scope is a local edit in `mappings.mjs` (`scopesOf`, `keyScopesOf`, `TYPE_SETS`) plus a regenerate.
-The stub does **not** filter `fields` (documents carry a superset) and ignores `maxResults` except for the probe.
+The stub does **not** filter `fields` (documents carry a superset) and ignores `maxResults` except for the probe. It does not evaluate the import's filter either (1.13.2): a browse with `AND statusCategory != Done` and no window is answered by the typed read (its pattern ignores that clause), one with a window by the import-window family above, both with the unfiltered listing; tests assert the REQUESTED `jql` and the by-id reads, and the server's own rule drops what a real site's query would have left out.
 
 ## Day 2
 
@@ -108,7 +133,7 @@ Jira's dates start as the plan's; these differ on purpose, in disjoint sets of s
 working days, 40 **earlier** by 1..10, 30 **renamed** (`<name> (renamed)`), 25 **re-parented** to a sibling initiative, 20 **undated** in Jira, 15 **Done** while the plan's end is
 at least two weeks past the anchor, 10 with **story points** +3..+9 off 2 x man-days; plus 20 milestones that are unscheduled in the plan but **dated in Jira**, and (1.4) **10 `childrenDone`** epics whose stories are all done while the epic is still To Do and the plan's end is ahead. Projects: 10 whose
 Jira dates end 5 working days after their target window, 5 renamed; programs: 2 whose Jira span is 3 working days later. `expected.json` also lists every key by level
-(`keys`), the search page counts per shape (`search`), the `E2E` project (`e2e`) and the `IMP` project (`imp`) and the `COV` project (`cov`: issues, `rollups`, `unlinkedOpen`, `unlinkedDone`).
+(`keys`), the search page counts per shape (`search`), the `E2E` project (`e2e`) and the `IMP` project (`imp`), the `COV` project (`cov`: issues, `rollups`, `unlinkedOpen`, `unlinkedDone`) and the `IMF` project (`imf`: issues with status and stamp, the `hidden` parent, `byFilter`).
 
 ## How it is served
 
