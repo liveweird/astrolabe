@@ -1,13 +1,15 @@
 # Flow sync (connection, mirror, team link, capacity import, roster)
 
 - **Spec**: [tests/flow-sync.spec.ts](../tests/flow-sync.spec.ts)
-- **Actors**: the seed administrator (the first scenario, in the browser; the API seeding and teardown), a throwaway TEAM MANAGER login (a user with no administrator right, linked to a person who manages the world's team) for the second and
+- **Actors**: the seed administrator (the first scenario, in the browser, where it presses Refresh now once; the API seeding and teardown), a throwaway ADMINISTRATOR of the file's own
+  (`e2e-flow-runner-*`, made in the beforeAll and deleted in the afterAll) who asks for the beforeAll's one API run (a manual run rides a per-USER `sync-run` bucket, 10 a minute, so the file's
+  runs are split: the one API run is the throwaway's, the one button press the seed administrator's), a throwaway TEAM MANAGER login (a user with no administrator right, linked to a person who manages the world's team) for the second and
   third scenarios, and a throwaway VIEWER login (no right on the team) who reads the roster in the third.
 - **Owns** (exclusive server-side state): two Flow connections (unique `e2e-flow-*` names, base URL `E2E_FLOW_STUB_ORIGIN` - default `http://flow-stub:8080`, the address the app reaches the stub at - with the stub's one public service token
   read from `sample-data/flow/expected.json`, time zone `Europe/Warsaw`, **manual only** - `pollIntervalMinutes: null`, so the scheduler never touches them): `e2e-flow-shared-*`, made through the API in the beforeAll, tested once (one call of the per-IP
   `flow-test` bucket) and refreshed once (awaited by a bounded poll on the runs API), and `e2e-flow-ui-*`, made in the first scenario's modal, tested there (the second call) and refreshed there; the link of the world's team to the stub's "E2E Flow Team"
   through the shared connection; the six capacity periods the import writes (they go with the team); and a throwaway world of its own - the manager login, the viewer login, the manager's person and the team `e2e-flow-team-*`, unique
-  `e2e-flow-*` names, **every date in 2047** (the stub's "E2E Flow Team": six two-week sprints from Monday 2047-01-07, which nothing writes a holiday in). Everything is seeded and removed through the API (the connections first - their link goes
+  `e2e-flow-*` names (the throwaway administrator among them), **every date in 2047** (the stub's "E2E Flow Team": six two-week sprints from Monday 2047-01-07, which nothing writes a holiday in). Everything is seeded and removed through the API (the connections first - their link goes
   with them - then the team, the person and the users) in the beforeAll/afterAll, the afterAll even after a failed beforeAll or test. The `flow-test` tally of the file is **2 per worker start** (the beforeAll's and the first scenario's), of the 30 a minute
   the e2e stacks allow (`FLOW_TEST_RATE_LIMIT_PER_MINUTE`); a 429 in the beforeAll waits the minute out once. The file runs serially: the third scenario reuses the link the second made (or makes its own through the API when it runs alone).
   It **never flips a scenario of the stub** (`flow-day2`, `flow-outage`): the beforeAll reads the stub's admin API (`E2E_FLOW_STUB_URL`, default `http://localhost:8097`) and fails fast, naming the scenario, if one is not at `Started`. It never presses "Link all

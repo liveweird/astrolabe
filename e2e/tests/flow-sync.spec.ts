@@ -13,6 +13,7 @@ import { randomUUID } from "node:crypto";
 import { type APIRequestContext, type Locator, type Page } from "@playwright/test";
 import {
   apiAsAdmin,
+  apiAsThrowawayAdmin,
   axeViolations,
   bindFlowTeamViaApi,
   deleteViaApi,
@@ -25,6 +26,7 @@ import {
   seedFlowConnection,
   test,
   testFlowConnectionViaApi,
+  type ThrowawayAdmin,
   uniqueText,
 } from "./helpers";
 
@@ -68,9 +70,12 @@ async function seedUser(api: APIRequestContext, label: string): Promise<{ id: nu
   return { id, account };
 }
 
+// The administrator that asks for the file's API run: a run rides a per-user bucket, so the file asks as its own account (the one button press below stays the seed administrator's: one a run).
+let runner: ThrowawayAdmin;
 test.beforeAll(async () => {
   test.setTimeout(180_000); // the Test connection call may wait a 429 out (one minute)
   await expectFlowStubOnDayOne();
+  runner = await apiAsThrowawayAdmin("e2e-flow-runner");
   const { api } = await apiAsAdmin();
   try {
     const manager = await seedUser(api, "manager");
@@ -82,14 +87,18 @@ test.beforeAll(async () => {
     const sharedName = uniqueText("e2e-flow-shared");
     const sharedId = await seedFlowConnection(api, sharedName, teardown);
     await testFlowConnectionViaApi(api, sharedId);
-    await refreshFlowConnectionViaApi(api, sharedId);
+    await refreshFlowConnectionViaApi(runner.api, sharedId);
     world = { manager: manager.account, viewer: viewer.account, team, teamId, shared: { id: sharedId, name: sharedName } };
   } finally {
     await api.dispose();
   }
 });
 test.afterAll(async () => {
-  await deleteViaApi(teardown.splice(0).reverse());
+  try {
+    await deleteViaApi(teardown.splice(0).reverse());
+  } finally {
+    await runner?.dispose();
+  }
 });
 
 /** The team's Flow panel as the administrator reads it (`GET /teams/{id}/flow`). */

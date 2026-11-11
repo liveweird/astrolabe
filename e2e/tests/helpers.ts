@@ -216,7 +216,60 @@ export async function apiAsAdmin(): Promise<{ api: APIRequestContext; userId: nu
   return { api, userId };
 }
 
-/** The pause a 429 asks for: the answer's `Retry-After` when it carries one (the app's own 429 does not, a registered gap), else the minute the bucket is counted in. */
+/** A throwaway ADMINISTRATOR of a spec file's own: its request context (signed in as it), its credentials (for a browser's `login`) and the `dispose()` that deletes it. */
+export interface ThrowawayAdmin {
+  api: APIRequestContext;
+  userId: number;
+  account: { email: string; password: string };
+  /** Disposes the context and deletes the user (through a fresh seed-administrator session: an account cannot delete itself). Safe to call from a `finally` or an afterAll. */
+  dispose: () => Promise<void>;
+}
+
+/**
+ * A request context signed in as an administrator made for the caller alone (unique `${prefix}-…` name, email under `astrolabe.local`): the seed administrator creates it with the
+ * `ADMIN` role. A manual sync run rides a per-USER rate bucket, so a spec file that asks for runs does it as its own administrator and never shares the seed administrator's bucket
+ * with the files running beside it (`e2e/README.md`). Make it in the file's beforeAll, `dispose()` it in the afterAll.
+ */
+export async function apiAsThrowawayAdmin(prefix: string): Promise<ThrowawayAdmin> {
+  const { api: seed } = await apiAsAdmin();
+  const name = uniqueText(prefix);
+  const account = { email: `${name.toLowerCase()}@astrolabe.local`, password: randomUUID().replace(/-/g, "") };
+  let userId: number;
+  try {
+    const created = await seed.post("/api/v1/users", { data: { name, email: account.email, password: account.password, roles: ["ADMIN"] } });
+    expect(created.status(), await created.text()).toBe(201);
+    userId = ((await created.json()) as { id: number }).id;
+  } finally {
+    await seed.dispose();
+  }
+  const anonymous = await playwrightRequest.newContext({ baseURL: BASE_URL });
+  let token: string;
+  try {
+    const signedIn = await anonymous.post("/api/v1/login", { data: account });
+    expect(signedIn.ok(), await signedIn.text()).toBeTruthy();
+    token = ((await signedIn.json()) as { token: string }).token;
+  } catch (failure) {
+    await deleteViaApi([`/api/v1/users/${userId}`]);
+    throw failure;
+  } finally {
+    await anonymous.dispose();
+  }
+  const api = await playwrightRequest.newContext({ baseURL: BASE_URL, extraHTTPHeaders: { Authorization: `Bearer ${token}` } });
+  return {
+    api,
+    userId,
+    account,
+    dispose: async () => {
+      try {
+        await api.dispose();
+      } finally {
+        await deleteViaApi([`/api/v1/users/${userId}`]);
+      }
+    },
+  };
+}
+
+/** The pause a 429 asks for: the answer's `Retry-After` when it carries one (a rate-bucket 429 does: API-RATE-001), else the minute the bucket is counted in. */
 const retryAfterMs = (retryAfter: string | undefined): number => (retryAfter !== undefined && Number(retryAfter) > 0 ? Number(retryAfter) * 1000 : 61_000);
 
 /**
@@ -234,6 +287,27 @@ export async function testJiraConnectionViaApi(api: APIRequestContext, connectio
   expect(tested.status(), await tested.text()).toBe(200);
   const result = (await tested.json()) as { rows: { name: string; ok: boolean }[] };
   expect(result.rows.filter((row) => !row.ok)).toEqual([]);
+}
+
+/** One manual run of a Jira connection, awaited by a bounded poll on the runs API (never a fixed sleep): a NEW run exists and ends SUCCEEDED (a failed one fails at once). The run rides the caller's per-user `sync-run` bucket: pass the file's own administrator (`apiAsThrowawayAdmin`). */
+export async function refreshJiraConnectionViaApi(api: APIRequestContext, connectionId: number): Promise<void> {
+  const runsPath = `/api/v1/integrations/sync/runs?kind=JIRA&connectionId=${connectionId}`;
+  const runs = async () => ((await (await api.get(runsPath)).json()) as { items: { outcome: string | null }[] }).items;
+  const before = (await runs()).length;
+  const requested = await api.post("/api/v1/integrations/sync/runs", { data: { kind: "JIRA", connectionId } });
+  expect(requested.status(), await requested.text()).toBe(202);
+  let outcome = "not started";
+  await expect
+    .poll(
+      async () => {
+        const items = await runs();
+        outcome = items.length > before ? (items[0]?.outcome ?? "running") : "not started";
+        return outcome === "not started" || outcome === "running";
+      },
+      { message: "the Jira connection's manual run to finish", timeout: 60_000 },
+    )
+    .toBe(false);
+  expect(outcome, "the Jira connection's manual run ended").toBe("SUCCEEDED");
 }
 
 /** Flow's address as the APP reaches the built-in Flow stub (the compose service on the compose network): the only origin its `FLOW_INSECURE_ORIGINS` lists. */
@@ -309,7 +383,7 @@ export async function testFlowConnectionViaApi(api: APIRequestContext, connectio
   expect(result.rows.filter((row) => !row.ok)).toEqual([]);
 }
 
-/** One manual run of a Flow connection, awaited by a bounded poll on the runs API (never a fixed sleep): a NEW run exists and ends SUCCEEDED, the mirror then holds the stub's document. */
+/** One manual run of a Flow connection, awaited by a bounded poll on the runs API (never a fixed sleep): a NEW run exists and ends SUCCEEDED, the mirror then holds the stub's document. Rides the caller's per-user `sync-run` bucket: pass the file's own administrator (`apiAsThrowawayAdmin`). */
 export async function refreshFlowConnectionViaApi(api: APIRequestContext, connectionId: number): Promise<void> {
   const runsPath = `/api/v1/integrations/sync/runs?kind=FLOW&connectionId=${connectionId}`;
   const runs = async () => ((await (await api.get(runsPath)).json()) as { items: { outcome: string | null }[] }).items;

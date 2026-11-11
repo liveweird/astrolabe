@@ -11,7 +11,7 @@
 // state): the afterAll puts it back even after a failure, and the beforeAll starts from a known state.
 import { randomUUID } from "node:crypto";
 import { type APIRequestContext, type Locator, type Page, request as playwrightRequest } from "@playwright/test";
-import { apiAsAdmin, axeViolations, deleteViaApi, expect, login, openFilters, test, testJiraConnectionViaApi, uniqueText } from "./helpers";
+import { apiAsAdmin, apiAsThrowawayAdmin, axeViolations, deleteViaApi, expect, login, openFilters, test, testJiraConnectionViaApi, type ThrowawayAdmin, uniqueText } from "./helpers";
 
 /** The stub's admin API: the same WireMock that answers the app's outbound calls, on the host port compose publishes. */
 const STUB_URL = process.env.E2E_JIRA_STUB_URL ?? "http://localhost:8096";
@@ -37,9 +37,12 @@ async function setStubState(state: "Started" | "day2"): Promise<void> {
 let linking: Connection;
 let uiConnection: Connection | undefined;
 const linkingTeardown: string[] = [];
+// The administrator whose browser presses Refresh now (`refreshAsAdmin`): a run rides a per-user bucket, so the file asks as its own account, not the seed administrator's.
+let runner: ThrowawayAdmin;
 test.beforeAll(async () => {
   test.setTimeout(180_000); // the Test connection call may wait a 429 out (one minute)
   await setStubState("Started");
+  runner = await apiAsThrowawayAdmin("e2e-jira-runner");
   const { api } = await apiAsAdmin();
   try {
     linking = await seedTestedConnection(api, "link", linkingTeardown);
@@ -52,7 +55,11 @@ test.afterAll(async () => {
   try {
     await deleteViaApi(linkingTeardown.splice(0).reverse());
   } finally {
-    await setStubState("Started");
+    try {
+      await runner?.dispose();
+    } finally {
+      await setStubState("Started");
+    }
   }
 });
 
@@ -184,11 +191,11 @@ const rowOf = (page: Page, text: string) => page.getByRole("table", { name: "Dif
 const sourceRow = (page: Page, connection: Connection) => page.getByRole("table", { name: "Data from Jira" }).getByRole("row").filter({ hasText: connection.name });
 
 /**
- * The administrator presses Refresh now on the Deviations page for one connection and waits, as long as a run takes, for what the page then shows
+ * The file's own administrator (`runner`) presses Refresh now on the Deviations page for one connection and waits, as long as a run takes, for what the page then shows
  * (`done`: the run's own outcome, or the change it makes to a row) - the page re-reads by itself while the run is going, never a fixed sleep.
  */
 async function refreshAsAdmin(page: Page, connection: Connection, projectId: number, done: (page: Page) => Locator): Promise<void> {
-  await login(page);
+  await login(page, runner.account.email, runner.account.password);
   await page.goto(`/deviations?projectId=${projectId}`);
   await page.getByRole("button", { name: `Refresh now: ${connection.name}` }).click();
   await expect(done(page)).toBeVisible({ timeout: 30_000 });

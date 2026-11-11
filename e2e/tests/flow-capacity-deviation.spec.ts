@@ -14,6 +14,7 @@ import { type APIRequestContext, type Page, request as playwrightRequest } from 
 import { BASE_URL } from "../playwright.config";
 import {
   apiAsAdmin,
+  apiAsThrowawayAdmin,
   axeViolations,
   bindFlowTeamViaApi,
   deleteViaApi,
@@ -27,6 +28,7 @@ import {
   seedFlowConnection,
   test,
   testFlowConnectionViaApi,
+  type ThrowawayAdmin,
   uniqueText,
 } from "./helpers";
 
@@ -77,10 +79,13 @@ async function setStubState(state: string): Promise<void> {
   }
 }
 
+// The administrator that asks for the file's runs: a run rides a per-user bucket, so the file asks as its own account, not the seed administrator's.
+let runner: ThrowawayAdmin;
 test.beforeAll(async () => {
   test.setTimeout(180_000); // the Test connection call may wait a 429 out (one minute)
   await setStubState("Started"); // a crashed earlier run may have left day two on; day one's figures are what this file starts from
   await expectFlowStubOnDayOne(); // ... and the other scenario (an outage left by a manual walk) is not ours to reset
+  runner = await apiAsThrowawayAdmin("e2e-capdev-runner");
   const { api } = await apiAsAdmin();
   try {
     const name = uniqueText("e2e-capdev-manager");
@@ -95,7 +100,7 @@ test.beforeAll(async () => {
     const connectionName = uniqueText("e2e-capdev-connection");
     const connectionId = await seedFlowConnection(api, connectionName, teardown);
     await testFlowConnectionViaApi(api, connectionId);
-    await refreshFlowConnectionViaApi(api, connectionId);
+    await refreshFlowConnectionViaApi(runner.api, connectionId);
     const teamBindingId = await bindFlowTeamViaApi(api, connectionId, teamId, E2E_TEAM);
     await bindFlowTeamViaApi(api, connectionId, goneTeamId, GONE_TEAM);
     world = { manager: account, team, teamId, teamBindingId, goneTeam, goneTeamId, connection: { id: connectionId, name: connectionName } };
@@ -107,7 +112,11 @@ test.afterAll(async () => {
   try {
     await deleteViaApi(teardown.splice(0).reverse());
   } finally {
-    await setStubState("Started");
+    try {
+      await runner?.dispose();
+    } finally {
+      await setStubState("Started");
+    }
   }
 });
 
@@ -268,17 +277,12 @@ test("after the stub's day two the imported team has more capacity than Flow for
   };
 
   await ensureImported();
-  const { api } = await apiAsAdmin();
+  // Day two: Flow lowers one sprint and raises another, and drops "Billing" from its document. The flip is undone as soon as the mirror has read it (and the afterAll does it again).
+  await setStubState(flowStub().scenarios.day2State);
   try {
-    // Day two: Flow lowers one sprint and raises another, and drops "Billing" from its document. The flip is undone as soon as the mirror has read it (and the afterAll does it again).
-    await setStubState(flowStub().scenarios.day2State);
-    try {
-      await refreshFlowConnectionViaApi(api, world.connection.id);
-    } finally {
-      await setStubState("Started");
-    }
+    await refreshFlowConnectionViaApi(runner.api, world.connection.id);
   } finally {
-    await api.dispose();
+    await setStubState("Started");
   }
   await login(page, world.manager.email, world.manager.password);
 

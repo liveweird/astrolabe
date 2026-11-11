@@ -19,6 +19,7 @@ import {
   accountMenu,
   ADMIN,
   apiAsAdmin,
+  apiAsThrowawayAdmin,
   axeViolations,
   bindFlowTeamViaApi,
   deleteViaApi,
@@ -28,12 +29,14 @@ import {
   login,
   openFilters,
   refreshFlowConnectionViaApi,
+  refreshJiraConnectionViaApi,
   rowOperation,
   seedFlowConnection,
   type Scheme,
   test,
   testFlowConnectionViaApi,
   testJiraConnectionViaApi,
+  type ThrowawayAdmin,
   uniqueText,
   updateRankingViaApi,
 } from "./helpers";
@@ -906,6 +909,7 @@ test.describe("a baseline on the plan", () => {
 // `e2e-axe-jira-*` names, dated in 2044), created and deleted via the API in the beforeAll/afterAll (the connection first: its binding goes with it).
 test.describe("the Jira pages", () => {
   let api: APIRequestContext;
+  let runner: ThrowawayAdmin; // asks for the block's one run: a run rides a per-user bucket, so the block asks as its own administrator
   let connectionId: number;
   let connectionName: string;
   let programId: number;
@@ -925,6 +929,7 @@ test.describe("the Jira pages", () => {
 
   test.beforeAll(async () => {
     test.setTimeout(180_000); // the Test connection call may wait a 429 out (one minute)
+    runner = await apiAsThrowawayAdmin("e2e-axe-jira-runner");
     ({ api } = await apiAsAdmin());
     const teamId = await create("/api/v1/teams", { name: uniqueText("e2e-axe-jira-team") }, "/api/v1/teams");
     const personId = await create("/api/v1/people", { name: uniqueText("e2e-axe-jira-owner") }, "/api/v1/people");
@@ -949,23 +954,17 @@ test.describe("the Jira pages", () => {
     expect(bound.status(), await bound.text()).toBe(201);
     bindingId = ((await bound.json()) as { id: number }).id;
     // One manual run, awaited: the connection page, the Deviations page's "Data from Jira" and the telemetry panel then show the status Current.
-    const requested = await api.post("/api/v1/integrations/sync/runs", { data: { kind: "JIRA", connectionId } });
-    expect(requested.status(), await requested.text()).toBe(202);
-    await expect
-      .poll(
-        async () => {
-          const runs = await api.get(`/api/v1/integrations/sync/runs?kind=JIRA&connectionId=${connectionId}`);
-          return ((await runs.json()) as { items: { outcome: string | null }[] }).items[0]?.outcome ?? "running";
-        },
-        { message: "the fixture connection's one manual run", timeout: 30_000 },
-      )
-      .toBe("SUCCEEDED");
+    await refreshJiraConnectionViaApi(runner.api, connectionId);
   });
   test.afterAll(async () => {
     try {
       await deleteViaApi(paths.splice(0).reverse());
     } finally {
-      await api?.dispose();
+      try {
+        await api?.dispose();
+      } finally {
+        await runner?.dispose();
+      }
     }
   });
 
@@ -1157,6 +1156,7 @@ test.describe("the Jira pages", () => {
 // Owns: that connection (`e2e-axe-flow-connection-*`), the team (`e2e-axe-flow-team-*`) and its link, created and deleted via the API (the connection first: its link goes with it).
 test.describe("the Flow pages", () => {
   let api: APIRequestContext;
+  let runner: ThrowawayAdmin; // asks for the block's one run (a per-user bucket): the block's own administrator
   let connectionId: number;
   let connectionName: string;
   let teamId: number;
@@ -1166,6 +1166,7 @@ test.describe("the Flow pages", () => {
 
   test.beforeAll(async () => {
     test.setTimeout(180_000); // the Test connection call may wait a 429 out (one minute)
+    runner = await apiAsThrowawayAdmin("e2e-axe-flow-runner");
     ({ api } = await apiAsAdmin());
     teamName = uniqueText("e2e-axe-flow-team");
     const created = await api.post("/api/v1/teams", { data: { name: teamName } });
@@ -1175,14 +1176,18 @@ test.describe("the Flow pages", () => {
     connectionName = uniqueText("e2e-axe-flow-connection");
     connectionId = await seedFlowConnection(api, connectionName, paths);
     await testFlowConnectionViaApi(api, connectionId);
-    await refreshFlowConnectionViaApi(api, connectionId);
+    await refreshFlowConnectionViaApi(runner.api, connectionId);
     await bindFlowTeamViaApi(api, connectionId, teamId, axeTeam);
   });
   test.afterAll(async () => {
     try {
       await deleteViaApi(paths.splice(0).reverse());
     } finally {
-      await api?.dispose();
+      try {
+        await api?.dispose();
+      } finally {
+        await runner?.dispose();
+      }
     }
   });
 

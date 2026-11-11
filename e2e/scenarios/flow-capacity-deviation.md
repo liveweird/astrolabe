@@ -1,11 +1,12 @@
 # Flow capacity deviation (the Deviations page's "Capacity from Flow" section and the team page's "Capacity vs Flow" fact)
 
 - **Spec**: [tests/flow-capacity-deviation.spec.ts](../tests/flow-capacity-deviation.spec.ts)
-- **Actors**: the seed administrator (the API seeding, the connection's test and refresh, the teardown), a throwaway TEAM MANAGER login (a user with no administrator right, linked to a person who manages both world teams) who reads the pages and
+- **Actors**: the seed administrator (the API seeding, the connection's test, the teardown), a throwaway ADMINISTRATOR of the file's own (`e2e-capdev-runner-*`, made in the beforeAll and deleted in the afterAll)
+  who asks for every connection refresh through the API (a manual run rides a per-USER `sync-run` bucket, 10 a minute, so the file asks as its own account), a throwaway TEAM MANAGER login (a user with no administrator right, linked to a person who manages both world teams) who reads the pages and
   imports the capacity through the API.
 - **Owns** (exclusive server-side state): ONE Flow connection (`e2e-capdev-connection-*`, base URL `E2E_FLOW_STUB_ORIGIN`, the stub's one public service token from `sample-data/flow/expected.json`, `Europe/Warsaw`, **manual only**, made through the API, tested
   once - one call of the per-IP `flow-test` bucket per worker start - and refreshed once in the beforeAll); a throwaway world (the manager login, its person, the team `e2e-capdev-team-*` linked to the stub's "E2E Flow Team" and the team `e2e-capdev-gone-*`
-  linked to the stub's "Billing", both through that connection, so no other spec's connection ever meets their Flow-team uniqueness); the six capacity periods the import writes (they go with the team); and the stub's **`flow-day2` SCENARIO**, which this
+  linked to the stub's "Billing", both through that connection, so no other spec's connection ever meets their Flow-team uniqueness); the six capacity periods the import writes (they go with the team); the throwaway administrator (deleted in the afterAll); and the stub's **`flow-day2` SCENARIO**, which this
   file flips, as does `flow-capacity-acknowledge.spec.ts` (the stub is one process with one state; they take turns). It holds the Playwright lock **`flow-stub-scenario`**, shared with `flow-sync.spec.ts` (whose figures are day one's) and that spec. The beforeAll puts the scenario back to `Started` (and fails fast naming
   `flow-outage` if a walk left that one on); the afterAll resets it even after a failure; the second scenario resets it as soon as the mirror has read day two. Everything is removed through the API (the connection first - the links go with it - then the teams, the
   person and the user). **Every date is in 2047** ("E2E Flow Team": six two-week sprints from Monday 2047-01-07, ten working days each; nothing writes a holiday there). The section lists every linked team of the stack, so each page is narrowed to the spec's own team

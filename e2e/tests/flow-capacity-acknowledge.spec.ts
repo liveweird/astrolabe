@@ -19,6 +19,7 @@ import { type APIRequestContext, type Locator, type Page, request as playwrightR
 import { BASE_URL } from "../playwright.config";
 import {
   apiAsAdmin,
+  apiAsThrowawayAdmin,
   axeViolations,
   bindFlowTeamViaApi,
   deleteViaApi,
@@ -33,6 +34,7 @@ import {
   seedFlowConnection,
   test,
   testFlowConnectionViaApi,
+  type ThrowawayAdmin,
   uniqueText,
 } from "./helpers";
 
@@ -123,10 +125,13 @@ async function importCapacity(api: APIRequestContext): Promise<void> {
   expect(outcome.created).toHaveLength(items.length);
 }
 
+// The administrator that asks for the file's runs: a run rides a per-user bucket, so the file asks as its own account, not the seed administrator's.
+let runner: ThrowawayAdmin;
 test.beforeAll(async () => {
   test.setTimeout(180_000); // the Test connection call may wait a 429 out (one minute)
   await setStubState("Started"); // a crashed earlier run may have left day two on; the import below needs day one's document
   await expectFlowStubOnDayOne(); // ... and the other scenario (an outage left by a manual walk) is not ours to reset
+  runner = await apiAsThrowawayAdmin("e2e-capack-runner");
   const { api } = await apiAsAdmin();
   try {
     const name = uniqueText("e2e-capack-manager");
@@ -151,7 +156,7 @@ test.beforeAll(async () => {
     const connectionName = uniqueText("e2e-capack-connection");
     const connectionId = await seedFlowConnection(api, connectionName, teardown);
     await testFlowConnectionViaApi(api, connectionId);
-    await refreshFlowConnectionViaApi(api, connectionId);
+    await refreshFlowConnectionViaApi(runner.api, connectionId);
     const teamBindingId = await bindFlowTeamViaApi(api, connectionId, teamId, E2E_TEAM);
     const goneBindingId = await bindFlowTeamViaApi(api, connectionId, goneTeamId, GONE_TEAM);
     world = { manager: account, managerPerson, team, teamId, teamBindingId, goneTeam, goneTeamId, goneBindingId, connection: { id: connectionId, name: connectionName } };
@@ -164,7 +169,7 @@ test.beforeAll(async () => {
     }
     await setStubState(flowStub().scenarios.day2State);
     try {
-      await refreshFlowConnectionViaApi(api, connectionId);
+      await refreshFlowConnectionViaApi(runner.api, connectionId);
     } finally {
       await setStubState("Started");
     }
@@ -176,7 +181,11 @@ test.afterAll(async () => {
   try {
     await deleteViaApi(teardown.splice(0).reverse());
   } finally {
-    await setStubState("Started");
+    try {
+      await runner?.dispose();
+    } finally {
+      await setStubState("Started");
+    }
   }
 });
 
@@ -555,28 +564,24 @@ test("an acknowledged sprint that comes back in line loses its acknowledgement, 
   } finally {
     await manager.dispose();
   }
-  const { api } = await apiAsAdmin();
+  const api = runner.api; // the file's own administrator: the runs ride its bucket
+  // Day one again (the stub at `Started`) and the connection read: every sprint is in line, so the team has no row and sprint 3's acknowledgement - its row left the list - is deleted with it.
+  await setStubState("Started"); // day one: already the state the beforeAll leaves before its flip, set again so this scenario does not depend on it
+  await refreshFlowConnectionViaApi(api, world.connection.id);
+  const inLine = await api.get(`/api/v1/views/capacity-deviations?teamId=${world.teamId}`);
+  expect(inLine.status(), await inLine.text()).toBe(200);
+  expect(((await inLine.json()) as { items: unknown[] }).items, "day one: the team is in line, so the view lists no item for it").toEqual([]);
+  // Day two again and the connection read once more: the SAME difference returns.
   try {
-    // Day one again (the stub at `Started`) and the connection read: every sprint is in line, so the team has no row and sprint 3's acknowledgement - its row left the list - is deleted with it.
-    await setStubState("Started"); // day one: already the state the beforeAll leaves before its flip, set again so this scenario does not depend on it
+    await setStubState(flowStub().scenarios.day2State);
     await refreshFlowConnectionViaApi(api, world.connection.id);
-    const inLine = await api.get(`/api/v1/views/capacity-deviations?teamId=${world.teamId}`);
-    expect(inLine.status(), await inLine.text()).toBe(200);
-    expect(((await inLine.json()) as { items: unknown[] }).items, "day one: the team is in line, so the view lists no item for it").toEqual([]);
-    // Day two again and the connection read once more: the SAME difference returns.
-    try {
-      await setStubState(flowStub().scenarios.day2State);
-      await refreshFlowConnectionViaApi(api, world.connection.id);
-    } finally {
-      await setStubState("Started"); // the mirror holds day two, as the beforeAll leaves it
-    }
-    const { rows } = await rowsOf(api, world.teamId);
-    const returned = rows.find((row) => row.detail.sprintId === less.id);
-    expect(returned, "sprint 3's row is listed again on day two").toBeDefined();
-    expect(returned?.acknowledgement ?? null, "sprint 3's acknowledgement went when the sprint came back in line").toBeNull();
   } finally {
-    await api.dispose();
+    await setStubState("Started"); // the mirror holds day two, as the beforeAll leaves it
   }
+  const { rows } = await rowsOf(api, world.teamId);
+  const returned = rows.find((row) => row.detail.sprintId === less.id);
+  expect(returned, "sprint 3's row is listed again on day two").toBeDefined();
+  expect(returned?.acknowledgement ?? null, "sprint 3's acknowledgement went when the sprint came back in line").toBeNull();
   await login(page, world.manager.email, world.manager.password);
 
   // Sprint 3 reads the same sentence as before (the plan has 44.00, Flow 48.00), open: no "Acknowledged by", the Acknowledge button back; sprint 2 is open beside it.

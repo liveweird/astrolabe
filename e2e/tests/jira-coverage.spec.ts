@@ -7,10 +7,24 @@
 // and COV-10 are never bound), one run of it (plus one more in the last test), and a throwaway world (a person, a team, a work stream, a program, a project
 // `e2e-cov-project-*` and three milestones, unique `e2e-cov-*` names, every date in **2046**, which nothing writes a holiday in), all seeded and removed through the
 // API (the bindings, then the connection, then the project, whose milestones go with it, and the rest). It never flips the stub's `jira-day2` scenario
-// (`COV` is untouched by day 2), needs no lock, and acts as the seed administrator: no new guard exists to prove.
+// (`COV` is untouched by day 2), needs no lock, and binds and works as the seed administrator (its runs ride a throwaway administrator, the per-user `sync-run` bucket): no new guard exists to prove.
 import { randomUUID } from "node:crypto";
 import { type APIRequestContext, type Locator, type Page } from "@playwright/test";
-import { apiAsAdmin, axeViolations, deleteViaApi, expect, expectScheme, login, test, testJiraConnectionViaApi, uniqueText, type Scheme } from "./helpers";
+import {
+  apiAsAdmin,
+  apiAsThrowawayAdmin,
+  axeViolations,
+  deleteViaApi,
+  expect,
+  expectScheme,
+  login,
+  refreshJiraConnectionViaApi,
+  test,
+  testJiraConnectionViaApi,
+  uniqueText,
+  type Scheme,
+  type ThrowawayAdmin,
+} from "./helpers";
 
 // One world, read by three tests in order (the third acknowledges what the second read): a serial group, and a failed test stops the rest. Each test ends
 // in a light and a dark axe scan of a full timeline page, which takes most of a minute on a CI runner: 120 s each, as jira-import has.
@@ -68,29 +82,11 @@ async function declareHalfManDayPerPoint(api: APIRequestContext, connectionId: n
   expect(saved.status(), await saved.text()).toBe(204);
 }
 
-/** One manual run, awaited (a bounded poll on the runs API, never a fixed sleep): a NEW run exists, and once its outcome is terminal it must be SUCCEEDED (a failed one fails at once). */
-async function refreshAndAwait(api: APIRequestContext, connectionId: number): Promise<void> {
-  const runsPath = `/api/v1/integrations/sync/runs?kind=JIRA&connectionId=${connectionId}`;
-  const runs = async () => ((await (await api.get(runsPath)).json()) as { items: { outcome: string | null }[] }).items;
-  const before = (await runs()).length;
-  const requested = await api.post("/api/v1/integrations/sync/runs", { data: { kind: "JIRA", connectionId } });
-  expect(requested.status(), await requested.text()).toBe(202);
-  let outcome = "not started";
-  await expect
-    .poll(
-      async () => {
-        const items = await runs();
-        outcome = items.length > before ? (items[0]?.outcome ?? "running") : "not started";
-        return outcome === "not started" || outcome === "running";
-      },
-      { message: "the connection's manual run to finish", timeout: 60_000 },
-    )
-    .toBe(false);
-  expect(outcome, "the connection's manual run ended").toBe("SUCCEEDED");
-}
-
+// The administrator that asks for the file's runs: a run rides a per-user bucket, so the file asks as its own account, not the seed administrator's.
+let runner: ThrowawayAdmin;
 test.beforeAll(async () => {
   test.setTimeout(180_000); // the Test connection call may wait a 429 out (one minute)
+  runner = await apiAsThrowawayAdmin("e2e-cov-runner");
   const { api } = await apiAsAdmin();
   try {
     const owner = await create(api, "/api/v1/people", { name: uniqueText("e2e-cov-owner") }, "/api/v1/people");
@@ -112,14 +108,18 @@ test.beforeAll(async () => {
     await bind(api, connectionId, "PROJECT", projectId, "COV-2");
     await bind(api, connectionId, "MILESTONE", epicOne.id, "COV-3");
     await bind(api, connectionId, "MILESTONE", epicTwo.id, "COV-4");
-    await refreshAndAwait(api, connectionId);
+    await refreshJiraConnectionViaApi(runner.api, connectionId);
     world = { programId, project, projectId, epicOne: epicOne.name, epicTwo: epicTwo.name, unlinked: unlinked.name, connection: { id: connectionId, name } };
   } finally {
     await api.dispose();
   }
 });
 test.afterAll(async () => {
-  await deleteViaApi(teardown.splice(0).reverse());
+  try {
+    await deleteViaApi(teardown.splice(0).reverse());
+  } finally {
+    await runner?.dispose();
+  }
 });
 
 const SENTENCE_ONE = "4 child issues in Jira, done: 2, story points: 13";
@@ -257,7 +257,7 @@ test("acknowledging the coverage deviation silences the flag", async ({ page }) 
     await expect(page.getByRole("link", { name: "COV-4 (opens in Jira)" })).toBeVisible();
 
     // A new run reads the same coverage again: the acknowledgement was of exactly these deviations, so nothing is reopened.
-    await refreshAndAwait(api, world.connection.id);
+    await refreshJiraConnectionViaApi(runner.api, world.connection.id);
     await page.goto(`/deviations?projectId=${world.projectId}&all=false`);
     await expect(rowOfKey(page, "COV-3")).toHaveCount(1);
     await expect(rowOfKey(page, "COV-2")).toHaveCount(0);

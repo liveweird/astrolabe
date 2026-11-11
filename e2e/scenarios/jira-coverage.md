@@ -1,13 +1,14 @@
 # Jira coverage (story roll-ups, work Jira has that the plan does not, children all done, acknowledge)
 
 - **Spec**: [tests/jira-coverage.spec.ts](../tests/jira-coverage.spec.ts)
-- **Actors**: the seed administrator (seeds and tears down through the API, binds, refreshes, and works in the browser). No new guard exists to prove, so no
-  second actor.
+- **Actors**: the seed administrator (seeds and tears down through the API, binds and works in the browser) and a throwaway ADMINISTRATOR of the file's own (`e2e-cov-runner-*`,
+  made in the beforeAll and deleted in the afterAll) who asks for both runs through the API: a manual run rides a per-USER `sync-run` bucket (10 a minute), so the file asks as its own
+  account and never spends the seed administrator's. No new guard exists to prove, so no other actor.
 - **Owns** (exclusive server-side state): ONE Jira connection (`e2e-cov-connection-*`, scoped to the stub's `COV` project ONLY on a unique throwaway site
   `https://stub-e2ecov<random>.atlassian.net`, manual only - `pollIntervalMinutes: null`, so the scheduler never touches it - and given 0.5 man-days per story point through
   the API), tested ONCE per worker start of the file through the API in the beforeAll (**one call** of the per-IP Test connection bucket, shared with the other Jira
   specs; a 429 there waits the minute out once), its three bindings (the project to `COV-2`, the milestones to `COV-3` and `COV-4`; `COV-5` and `COV-10` are never bound),
-  its runs (one in the beforeAll, one more in the third scenario, both through the API), and a throwaway world - a person, a team, a work stream, a program, a project
+  its runs (one in the beforeAll, one more in the third scenario, both through the API as the throwaway administrator, which it owns too), and a throwaway world - a person, a team, a work stream, a program, a project
   `e2e-cov-project-*` and three milestones `e2e-cov-epic-one-*` (Mon 2046-03-05..Wed 03-14), `e2e-cov-epic-two-*` (Mon 03-19..Fri 03-23) and `e2e-cov-unlinked-*`
   (Mon 04-02..Fri 04-06), unique `e2e-cov-*` names, every date in **2046** (2046-01-01 is a Monday; nothing writes a holiday there). Everything is seeded and
   removed through the API (the bindings first, then the connection, then the project, whose milestones go with it, then the rest) in the beforeAll/afterAll, the

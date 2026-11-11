@@ -1,13 +1,14 @@
 # Jira sync (connect, map, link, deviations, unlink, gone, flags, acknowledge)
 
 - **Spec**: [tests/jira-sync.spec.ts](../tests/jira-sync.spec.ts)
-- **Actors**: the seed administrator (creates, tests and maps connections in the UI, acts through the API to seed and to link, and presses Refresh now in a
-  browser of its own); one throwaway project-owner login per linking test, seeded through the API (a regular user with no administrator right, linked to
+- **Actors**: the seed administrator (creates, tests and maps connections in the UI and acts through the API to seed and to link); a throwaway ADMINISTRATOR of the file's own
+  (`e2e-jira-runner-*`, made in the beforeAll and deleted in the afterAll) who presses Refresh now in a browser of its own (a manual run rides a per-USER `sync-run` bucket, 10 a
+  minute, so the file asks as its own account, never as the seed administrator); one throwaway project-owner login per linking test, seeded through the API (a regular user with no administrator right, linked to
   the person who owns the project)
 - **Owns** (exclusive server-side state): its Jira connections (unique `e2e-jira-*` names, each scoped to the stub's `E2E` project ONLY - any scope the stub does not list
   falls through to the stub's 401 catch-all - and each given a unique throwaway site `https://stub-e2ejira<random>.atlassian.net`, which the server routes to the stub (the `stub-` prefix is
   the rule: any other site would reach Atlassian), so no binding of another spec or of the user's own connections ever meets one of these: a Jira item is bound once per site), their bindings,
-  and a throwaway world per linking test (the owner login, people, a team, a work stream, a program, a project and milestones, unique `e2e-jira-*` names,
+  the throwaway administrator above, and a throwaway world per linking test (the owner login, people, a team, a work stream, a program, a project and milestones, unique `e2e-jira-*` names,
   every date in **2044**, which nothing writes a holiday in: 2044-01-04 is a Monday, so the working-day figures below hold). Everything is removed by the
   spec through the API (a test's own rows in its afterEach, the connections the first scenario created and the linking tests share, in the afterAll; a connection's delete unlinks its
   bindings). **It alone flips the stub's `jira-day2` WireMock scenario** (`PUT $E2E_JIRA_STUB_URL/__admin/scenarios/jira-day2/state`, default
