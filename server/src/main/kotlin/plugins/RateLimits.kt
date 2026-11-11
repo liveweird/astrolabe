@@ -102,8 +102,9 @@ object RateLimits {
     /**
      * `POST /api/v1/integrations/jira/connections/{id}/import-preview` (and, with the apply, `…/import`; `jira/JiraImportRoutes.kt`):
      * 5/min per SIGNED-IN USER in every mode, ONE bucket for both. Each call browses the connection's whole scope (up to 200 search
-     * pages) with the stored token on behalf of any plan-node owner, so the shared Jira quota is bounded per account; it rides the route
-     * node, so it runs before the guard. It limits the RATE, not the concurrency: see `security.md`.
+     * pages, plus up to 200 by-id parent reads under a filter) with the stored token on behalf of any plan-node owner, so the shared
+     * Jira quota is bounded per account; it rides the route node, so it runs before the guard. It limits the RATE, not the concurrency:
+     * see `security.md`.
      */
     const val JIRA_IMPORT = "jira-import"
     /**

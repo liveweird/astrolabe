@@ -45,7 +45,8 @@ class JiraImportApplyRoute(val parent: JiraConnectionsRoute.Id)
  * chains (`404`: the work stream, `defaults.programId`, `defaults.projectId`) -> `403` for a login that owns no plan node at all, then
  * the guard on each named DEFAULT (`403`) -> THE TOKEN'S DECRYPT (`readForBind`: a caller refused by the checks above never reaches
  * it; the resolved-target `403` below still follows it and the browse; the `404` above reads the connection's state and touches no
- * token) -> the shape (`400`; the filter's day count is checked here, so a `403` always wins over it) -> the connection enabled (`400`),
+ * token) -> the shape (`400`; the filter's day count is checked here, so the up-front `403`s win over it; the resolved-target `403`
+ * comes after the browse) -> the connection enabled (`400`),
  * its token (`409`), discovery (`409`) and mapping (`409`) -> ONE paged browse of the scope, outside any transaction (`502`; under an
  * active filter it narrows the query and adds the by-id reads of the parents the filter left out, each round preceded by a short read of
  * the bindings in its own snapshot, none across a Jira call) -> ONE read-only snapshot ->

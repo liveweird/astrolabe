@@ -67,15 +67,16 @@ private sealed interface Fetched {
     /** A readable issue that is no parent for this import (another project or level): its child is the orphan it would be today. */
     data object Dropped : Fetched
 
-    /** `404` or `403`, or a `200` that is not the issue asked for: the parent exists but cannot be read. */
+    /** `404` (deleted, or not visible to the connection's account), or a `200` that is not the issue asked for: it cannot be read. */
     data object Unreadable : Fetched
 }
 
 /**
  * The parent reads of ONE browse: at most [MAX_IMPORT_PARENT_READS] by id, one after the other, [beforeRead] (the connection's liveness)
  * before each; the rows (what the search kept plus every parent kept) never pass [cap]. Past either bound [readInto] answers `true` and
- * the browse is truncated. A `404` or `403` flags the child ([ImportBrowsedIssue.parentUnreadable]) and is never retried; any other
- * failure leaves as the [FetchException] the route answers `502`. A fetched document is used only when its `id` is the one asked for,
+ * the browse is truncated. A `404` flags the child ([ImportBrowsedIssue.parentUnreadable]) and is never retried; any other failure
+ * (a `403` included: it says nothing of the one issue, the account's scope is wrong) leaves as the [FetchException] the route answers
+ * `502`. A fetched document is used only when its `id` is the one asked for,
  * its key is inside [keys] and its level is the wanted one of a child that named it.
  */
 internal class ParentReads(
@@ -103,7 +104,11 @@ internal class ParentReads(
             val added = ArrayList<ImportBrowsedIssue>()
             val wanted = candidates.groupBy({ it.parentId }, { it.wanted })
             for (parentId in parentsToRead(candidates, linked, tried)) {
-                if (reads >= MAX_IMPORT_PARENT_READS || rows.size >= cap) return true
+                if (reads >= MAX_IMPORT_PARENT_READS || rows.size >= cap) {
+                    // The 404s of this round are real verdicts: their children are flagged even though the browse is cut here.
+                    flagUnreadable(candidates, linked, rows)
+                    return true
+                }
                 beforeRead()
                 reads++
                 tried += parentId
@@ -126,8 +131,8 @@ internal class ParentReads(
         val document = try {
             client.issue(id, fields)
         } catch (failure: FetchException) {
-            // 404 and 403 are the gone probe's verdicts (`goneReasonFor`): the issue is not readable by this connection.
-            if (goneReasonFor(failure.code) != null) return Fetched.Unreadable else throw failure
+            // Only a 404 is a verdict on this one issue; a 403 (FORBIDDEN_SCOPE) says the account lacks the scope, as for the search.
+            if (goneReasonFor(failure.code) == GONE_DELETED) return Fetched.Unreadable else throw failure
         }
         return kept(document, id, wanted)
     }

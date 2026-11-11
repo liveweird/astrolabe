@@ -66,7 +66,10 @@ enum class JiraImportInfo {
     /** The filter would have left this item out, but an item that is read sits under it: it was fetched by id and kept (1.13.2). */
     KEPT_AS_PARENT,
 
-    /** Its Jira parent exists inside the import's projects and the connection could not read it (deleted, or not visible): 1.13.2. */
+    /**
+     * Its parent in Jira could not be read with the connection's account (Jira answered `404` by id: that it does not exist or is not
+     * visible): 1.13.2.
+     */
     PARENT_UNREADABLE,
 }
 

@@ -101,7 +101,11 @@ export default function JiraImportScopeStep({
         />
         <Switch
           label={t("jira.import.scope.excludeDone")}
-          description={t("jira.import.scope.excludeDoneHint")}
+          description={
+            <>
+              <span>{t("jira.import.scope.excludeDoneHint")}</span> <span>{t("jira.import.scope.filterNote")}</span>
+            </>
+          }
           checked={form.excludeDone}
           onChange={(event) => onChange({ excludeDone: event.currentTarget.checked })}
           disabled={reading}
@@ -120,9 +124,6 @@ export default function JiraImportScopeStep({
           disabled={reading}
           error={updatedWithinOf(form.updatedWithinDays) === null ? t("jira.import.scope.updatedWithinInvalid") : undefined}
         />
-        <Text size="sm" c="dimmed">
-          {t("jira.import.scope.filterNote")}
-        </Text>
         <Switch
           label={t("jira.import.scope.copyDates")}
           description={t("jira.import.scope.copyDatesHint")}

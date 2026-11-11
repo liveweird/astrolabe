@@ -37,7 +37,7 @@ describe("infoText", () => {
   test("says why a row was kept as a parent, and why its own parent could not be read", () => {
     expect(infoText("KEPT_AS_PARENT", t)).toBe("Kept as a parent of an item shown here");
     expect(infoText("PARENT_UNREADABLE", t)).toBe(
-      "Its parent in Jira could not be read (deleted, or not visible to the connection's account)",
+      "Its parent in Jira could not be read with the connection's account (Jira answered that it does not exist or is not visible)",
     );
   });
 });

@@ -176,16 +176,64 @@ class JiraImportBrowseTest {
     }
 
     @Test
-    fun `a 404 and a 403 flag the child, are read once however many children name them, and are never retried`() {
+    fun `a 404 flags the child, is read once however many children name it, and is never retried`() {
         val site = ScriptedSite(
             searchPage(doc(1, 1, parent = 20), doc(2, 1, parent = 21), doc(3, 1, parent = 20), doc(4, 1)),
-            issues = mapOf("21" to answer("""{"errorMessages":["no"]}""", 403)),
+            issues = mapOf("21" to answer("""{"errorMessages":["no"]}""", 404)),
         )
         val result = browse(site, filter = Filter().holder, now = today)
         assertEquals(listOf("20", "21"), site.issueReads)
         assertEquals(listOf("1", "2", "3", "4"), ids(result), "nothing was added")
         assertEquals(listOf(true, true, true, false), result.issues.map { it.parentUnreadable })
         assertFalse(result.truncated)
+    }
+
+    @Test
+    fun `a 401, a 429 and a 403 on a parent read end the browse as the transport's failure and mark no parent unreadable`() {
+        for ((status, code) in listOf(401 to "AUTHENTICATION_FAILED", 429 to "RATE_LIMITED", 403 to "FORBIDDEN_SCOPE")) {
+            val site = ScriptedSite(
+                searchPage(doc(1, 1, parent = 20), doc(2, 1, parent = 21)),
+                issues = mapOf("20" to answer("""{"errorMessages":["no"]}""", status)),
+            )
+            val failure = assertFailsWith<FetchException>("$status") { browse(site, filter = Filter().holder, now = today) }
+            assertEquals(code, failure.code, "$status")
+            assertEquals(listOf("20"), site.issueReads, "$status: the browse ended at the first read, nothing was retried or skipped over")
+        }
+    }
+
+    @Test
+    fun `a truncated round still flags the children of the parents that already answered 404`() {
+        // cap 4: three search rows; parent 20 answers 404 (flags child 1), 21 is kept (the 4th row), the read of 22 would pass the cap.
+        val site = ScriptedSite(
+            searchPage(doc(1, 1, parent = 20), doc(2, 1, parent = 21), doc(3, 1, parent = 22)),
+            issues = mapOf("21" to answer(doc(21, 2, done = true)), "22" to answer(doc(22, 2, done = true))),
+        )
+        val result = browse(site, cap = 4, filter = Filter().holder, now = today)
+        assertTrue(result.truncated)
+        assertEquals(listOf("20", "21"), site.issueReads, "the third parent is never sent")
+        val children = result.issues.filter { it.observation.issueId in setOf("1", "2", "3") }
+        assertEquals(listOf(true, false, false), children.map { it.parentUnreadable })
+    }
+
+    @Test
+    fun `a hostile parent id is never sent as a by-id request`() {
+        val hostile = listOf("../admin", "1/../2", "12x", "%2e%2e", "1?fields=all", "", " 7", "9".repeat(40))
+        val entries = hostile.mapIndexed { index, id ->
+            doc(index + 1, 1).replace(""""status":""", """"parent":{"id":"$id"},"status":""")
+        }
+        val site = ScriptedSite(searchPage(*entries.toTypedArray()))
+        val result = browse(site, filter = Filter().holder, now = today)
+        assertTrue(site.issueRequests.isEmpty(), "no by-id request: ${site.issueReads}")
+        assertEquals(hostile.size, result.issues.size)
+    }
+
+    @Test
+    fun `the by-id reads carry the token only in the Authorization header`() {
+        val site = ScriptedSite(searchPage(doc(1, 1, parent = 20)), issues = mapOf("20" to answer(doc(20, 2, done = true))))
+        browse(site, filter = Filter().holder, now = today)
+        val request = site.issueRequests.single()
+        assertTrue(token !in request.url.toString(), "the token never rides the URL")
+        assertTrue(request.headers[HttpHeaders.Authorization].orEmpty().startsWith("Basic "))
     }
 
     @Test

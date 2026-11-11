@@ -1021,12 +1021,12 @@ a BIND carries `nodeId`, a milestone CREATE the `teamId` the row showed; a per-r
 apply sends the SCOPE the preview was read under. `totals.truncated` disables Import (narrow the keys or the filter). **The filter (1.13.2)**: right under the keys, a
 Switch "Leave out done items" (ON when the dialog opens) and a NumberInput "Updated within (days)" (365; `PollingFields`' idiom: `clampBehavior="none"`, bounds
 `MIN/MAX_IMPORT_UPDATED_DAYS` 1..3,650 mirroring the server's, a value outside them shows the sentence under the field and disables Preview, `toScope` answers
-null; EMPTY = no time limit; 0 is refused), a dimmed line saying a parent of an item that is read is always kept. `toScope` adds `filter{excludeDone,
+null; EMPTY = no time limit; 0 is refused), the Switch's description carries two sentences: what "done" means and that a done or older parent of an item that is read is read as well when it is in the selected Jira projects (not "always kept": a parent outside them, past the 200-read cap or unreadable is not). `toScope` adds `filter{excludeDone,
 updatedWithinDays}` only when a control is on (`{excludeDone: true}` with the field empty; NO member with both off = the request of before the filter), and
 since the apply spreads the preview's scope it sends the SAME filter. The preview step reads `preview.scope.filter` (the filter the rows were read under, never the
-form): one `role="note"` line "Left out: …" in three wordings (done / window / both, plural on the days; none without a filter, and no count - the server does not report
+form): one `role="note"` line "Left out: … Their parents in the selected projects are still read." in three wordings (done / window / both, plural on the days; none without a filter, and no count - the server does not report
 one), the too-large alert names both causes (over 2,000 issues, over 200 parents read one by one) and the filter as the lever, an empty preview under a filter says
-the filter may be why; a kept parent and a child whose parent could not be read show `KEPT_AS_PARENT` / `PARENT_UNREADABLE` among the row's notes (`infoText`).
+the filter may be why (or that the projects have none); a kept parent and a child whose parent could not be read show `KEPT_AS_PARENT` / `PARENT_UNREADABLE` among the row's notes (`infoText`).
 Tests: `JiraImportModal.filter.test.tsx`. **Time**: each call owns an `AbortController` that
 aborts at `IMPORT_TIMEOUT_MS` (180 s, over the server's 170 s browse), the visible wait has a Stop for a preview, one request at a time, and an apply is never
 aborted by the client: the dialog cannot be closed over it, and leaving the page (Back, the palette) does not cancel it either (only an unmount mid-PREVIEW

@@ -2373,12 +2373,13 @@ export interface paths {
          *     (`403`).
          *
          *     **The filter** (`filter{excludeDone, updatedWithinDays}`, 1.13.2): `updatedWithinDays` must be a whole number from 1 to
-         *     3,650 (`400` otherwise, after every `403`). An active filter narrows the read of every mapped level inside the search query (the
+         *     3,650 (`400` otherwise, after the up-front `403`s; the resolved-target `403` comes after the browse). An active filter narrows the read of every mapped level inside the search query (the
          *     window is sent in minutes) and the server also applies the rule to every entry it receives. The direct parent of each item that
          *     is read, when the filter left it out and no plan node is linked to it, is then fetched from Jira by id, two rounds at most (a
          *     milestone's project, then its program), and kept (`KEPT_AS_PARENT`); at most 200 such reads, each inside the same 170-second
-         *     read and preceded by the connection's liveness check. A parent that answers `404` or `403` makes its child `NO_PARENT` with
-         *     `PARENT_UNREADABLE`, never the default parent; any other failure is the `502`. No count of what was left out is reported.
+         *     read and preceded by the connection's liveness check. A parent that answers `404` (deleted, or not visible to the connection's account)
+         *     makes its child `NO_PARENT` with `PARENT_UNREADABLE`, never the default parent; any other failure, a `401`, a `403` (the account's scope
+         *     is wrong, as for the search) or a `429` that outlasted the transport's retries included, ends the browse as the `502`. No count of what was left out is reported.
          *
          *     Answers, per Jira item and top-down (programs, projects, milestones; Jira ids ascending inside a level), whether it would be
          *     created, bound to an unbound same-name node, or skipped and why. Nothing is stored and nothing is audited (a read). The
@@ -6159,8 +6160,8 @@ export interface components {
         /**
          * @description What an import's browse leaves out, per request (nothing is stored): done items and items not updated for a while. Every mapped
          *     level is narrowed inside the search query, so a project with long history fits under the 2,000-issue cap. The direct parent of
-         *     every item that is read is fetched from Jira BY ID when the filter left it out, and kept (marked `KEPT_AS_PARENT`), so nothing
-         *     lands under the wrong parent. Both members off (or the object absent) reads everything. Only the import reads through it: the
+         *     every item that is read is fetched from Jira BY ID when the filter left it out, and kept (marked `KEPT_AS_PARENT`) - when it is inside
+         *     the import's projects, within the 200-read cap and readable by the connection's account. Both members off (or the object absent) reads everything. Only the import reads through it: the
          *     sync run, the Deviations view and the roll-ups read everything. The answer does not say how many items were left out.
          */
         JiraImportFilter: {
@@ -6253,8 +6254,8 @@ export interface components {
             scheduled: boolean;
             /**
              * @description `KEPT_AS_PARENT` (1.13.2): the filter would have left this item out, but an item that is read sits under it, so it was fetched by id and
-             *     kept. `PARENT_UNREADABLE`: its Jira parent exists inside the import's projects and the connection could not read it (`404` or `403`
-             *     by id: deleted, or not visible to the connection's account); the row is skipped `NO_PARENT` and is never put under a default parent.
+             *     kept. `PARENT_UNREADABLE`: its parent in Jira could not be read with the connection's account (Jira answered `404` by id: that it does not
+             *     exist or is not visible); the row is skipped `NO_PARENT` and is never put under a default parent.
              */
             infos: ("NAME_TRUNCATED" | "ESTIMATE_NOT_CONVERTED" | "DATES_NOT_COPIED" | "DATES_INVALID" | "NO_WORKING_DAY" | "KEPT_AS_PARENT" | "PARENT_UNREADABLE")[];
         };

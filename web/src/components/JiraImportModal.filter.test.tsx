@@ -45,12 +45,12 @@ async function previewUnder(setup: (user: User) => Promise<void> = async () => {
 }
 
 describe("JiraImportModal: the import filter controls", () => {
-  test("open with done items left out and 365 days, and say that a parent is always kept", () => {
+  test("open with done items left out and 365 days, and say which parents are read as well", () => {
     open();
     expect(doneSwitch()).toBeChecked();
     expect(daysField()).toHaveValue("365");
-    expect(screen.getByText("Items whose Jira status is in the Done category are not read.")).toBeInTheDocument();
-    expect(screen.getByText("A parent of an item that is read is always kept, so nothing lands under the wrong parent.")).toBeInTheDocument();
+    expect(screen.getByText("Items whose Jira status is in the Done category are left out, unless an item that is read sits under them.")).toBeInTheDocument();
+    expect(screen.getByText("A done or older parent of an item that is read is read as well, when it is in the selected Jira projects.")).toBeInTheDocument();
     expect(screen.queryByText(INVALID)).not.toBeInTheDocument();
   });
 
@@ -65,6 +65,45 @@ describe("JiraImportModal: the import filter controls", () => {
     await user.click(screen.getByRole("button", { name: /^Import \(\d+\)$/ }));
     await screen.findByRole("heading", { level: 3, name: "Import finished" });
     expect(api.applies()).toEqual([expect.objectContaining({ filter })]);
+  });
+
+  test("the apply and Preview again carry the filter of the LATEST preview, not the one the form held before or holds now", async () => {
+    const user = userEvent.setup();
+    // The apply reports a CHANGED row, which is what offers "Preview again" on the outcome.
+    api = installImportApi({
+      preview: () => previewResponse(),
+      apply: () => jsonResponse(200, { revision: 13, created: [], bound: [], skipped: [{ jiraId: "7", issueKey: "IMP-26", reason: "CHANGED" }] }),
+    });
+    open();
+    await previewScope(user);
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    await user.click(doneSwitch());
+    await user.clear(daysField());
+    await user.type(daysField(), "30");
+    await user.click(previewButton());
+    await screen.findByRole("heading", { level: 3, name: "What the import would do" });
+    const filter = { excludeDone: false, updatedWithinDays: 30 };
+    expect(api.previews()[1]).toEqual(expect.objectContaining({ filter }));
+    await user.click(screen.getByRole("button", { name: /^Import \(\d+\)$/ }));
+    await screen.findByRole("heading", { level: 3, name: "Import finished" });
+    expect(api.applies()).toEqual([expect.objectContaining({ filter })]);
+    await user.click(screen.getByRole("button", { name: "Preview again" }));
+    await screen.findByRole("heading", { level: 3, name: "What the import would do" });
+    expect(api.previews()).toHaveLength(3);
+    expect(api.previews()[2]).toEqual(api.previews()[1]);
+  });
+
+  test("going Back and editing the filter without previewing again sends nothing", async () => {
+    const user = userEvent.setup();
+    open();
+    await previewScope(user);
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    await user.click(doneSwitch());
+    await user.clear(daysField());
+    await user.type(daysField(), "30");
+    expect(api.previews()).toHaveLength(1);
+    expect(api.applies()).toEqual([]);
+    expect(api.previews()[0]).toEqual(expect.objectContaining({ filter: { excludeDone: true, updatedWithinDays: 365 } }));
   });
 
   test("an empty days field sends no updatedWithinDays", async () => {
@@ -100,12 +139,12 @@ describe("JiraImportModal: the import filter controls", () => {
 describe("JiraImportModal: what the preview says about the filter", () => {
   test("both controls on: the line names done items and the window", async () => {
     await previewUnder();
-    expect(screen.getByText("Left out: done items, and items not updated for more than 365 days. Parents of the items shown are kept.")).toBeInTheDocument();
+    expect(screen.getByText("Left out: done items, and items not updated for more than 365 days. Their parents in the selected projects are still read.")).toBeInTheDocument();
   });
 
   test("done items only", async () => {
     await previewUnder((user) => user.clear(daysField()));
-    expect(screen.getByText("Left out: done items. Parents of the items shown are kept.")).toBeInTheDocument();
+    expect(screen.getByText("Left out: done items. Their parents in the selected projects are still read.")).toBeInTheDocument();
   });
 
   test("the window only, in the singular for one day", async () => {
@@ -114,13 +153,13 @@ describe("JiraImportModal: what the preview says about the filter", () => {
       await user.clear(daysField());
       await user.type(daysField(), "1");
     });
-    expect(screen.getByText("Left out: items not updated for more than 1 day. Parents of the items shown are kept.")).toBeInTheDocument();
+    expect(screen.getByText("Left out: items not updated for more than 1 day. Their parents in the selected projects are still read.")).toBeInTheDocument();
   });
 
   test("a filtered scope that finds nothing says the filter is why", async () => {
     previewResponse = () => jsonResponse(200, previewOf([]));
     await previewUnder();
-    expect(screen.getByText("Nothing to import: no issue at the mapped levels passes the filter. Go back and widen it.")).toBeInTheDocument();
+    expect(screen.getByText("Nothing to import: no issue at the mapped levels passes the filter, or the projects have none. Go back and widen it.")).toBeInTheDocument();
   });
 
   test("an unfiltered scope that finds nothing keeps the old sentence", async () => {
@@ -151,7 +190,7 @@ describe("JiraImportModal: what the preview says about the filter", () => {
     const kept = within(table).getByRole("checkbox", { name: "Import IMP-1" }).closest("tr")!;
     expect(within(kept).getByText(/Kept as a parent of an item shown here/)).toBeInTheDocument();
     const skipped = screen.getByRole("link", { name: /IMP-8/ }).closest("tr")!;
-    expect(within(skipped).getByText(/Its parent in Jira could not be read \(deleted, or not visible to the connection's account\)/)).toBeInTheDocument();
+    expect(within(skipped).getByText(/Its parent in Jira could not be read with the connection's account \(Jira answered that it does not exist or is not visible\)/)).toBeInTheDocument();
     expect(within(skipped).queryByRole("checkbox")).not.toBeInTheDocument();
   });
 });

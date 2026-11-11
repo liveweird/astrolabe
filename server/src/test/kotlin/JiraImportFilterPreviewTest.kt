@@ -7,12 +7,14 @@ import ch.nokillswit.jira.JiraImportInfo
 import ch.nokillswit.jira.JiraImportParentKind
 import ch.nokillswit.jira.JiraImportPreview
 import ch.nokillswit.jira.JiraImportReason
+import ch.nokillswit.jira.JiraImportScope
 import ch.nokillswit.jira.JiraLevel
 import com.github.tomakehurst.wiremock.client.MappingBuilder
 import com.github.tomakehurst.wiremock.client.WireMock.aResponse
 import com.github.tomakehurst.wiremock.client.WireMock.get
 import com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor
 import com.github.tomakehurst.wiremock.client.WireMock.urlPathMatching
+import io.ktor.client.HttpClient
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.testing.testApplication
@@ -60,8 +62,8 @@ class JiraImportFilterPreviewTest {
         )
     }
 
-    private fun failingIssue(key: Int): MappingBuilder =
-        get(urlPathMatching(".*/rest/api/3/issue/${98_000 + key}")).atPriority(1).willReturn(aResponse().withStatus(500))
+    private fun failingIssue(key: Int, status: Int = 500): MappingBuilder =
+        get(urlPathMatching(".*/rest/api/3/issue/${98_000 + key}")).atPriority(1).willReturn(aResponse().withStatus(status))
 
     private fun keysOf(preview: JiraImportPreview) = preview.items.map { it.issueKey }.sortedBy { it.substringAfter('-').toInt() }
 
@@ -88,6 +90,20 @@ class JiraImportFilterPreviewTest {
     fun `each filter shows its rows, keeps the parents it needs and reads them by id in the order of the chain`() = testApplication {
         val f = importFixture("jif1", keys = listOf("IMF"))
         val admin = f.w.admin.client
+        val root = LogCapture("ROOT")
+        try {
+            checkTable(f, admin)
+            assertTrue(root.events.none { f.token in it.formattedMessage }, "the token never reaches a log line of a filtered preview")
+            val reads = JiraStubServer.requests(getRequestedFor(issuePattern))
+            assertTrue(reads.isNotEmpty(), "the last filter read parents by id")
+            assertTrue(reads.all { f.token !in it.url }, "the token never rides a by-id URL")
+            assertTrue(reads.all { it.getHeader("Authorization").startsWith("Basic ") }, "the token rides the header only")
+        } finally {
+            root.detach()
+        }
+    }
+
+    private suspend fun checkTable(f: ImportFixture, admin: HttpClient) {
         for (figures in table) {
             JiraStubServer.resetRequests()
             val preview = admin.preview(f.connectionId, f.scope(filter = figures.filter)).previewBody()
@@ -165,6 +181,50 @@ class JiraImportFilterPreviewTest {
             JiraStubServer.removeOverride(override)
         }
     }
+
+    @Test
+    fun `a parent read that answers 401, 429 or 403 is the 502 with the transport's code, never an unreadable parent`() = testApplication {
+        val f = importFixture("jif7", keys = listOf("IMF"))
+        val admin = f.w.admin.client
+        val codes = mapOf(401 to "AUTHENTICATION_FAILED", 429 to "RATE_LIMITED", 403 to "FORBIDDEN_SCOPE")
+        for ((status, code) in codes) {
+            val override = JiraStubServer.addOverride(failingIssue(3, status))
+            try {
+                val response = admin.preview(f.connectionId, f.scope(filter = both))
+                val body = response.bodyAsText()
+                assertEquals(HttpStatusCode.BadGateway, response.status, "$status: $body")
+                val problem = jbJson.decodeFromString<ch.nokillswit.plugins.ProblemDetail>(body)
+                assertEquals("urn:astrolabe:problem:jira-upstream", problem.type, "$status")
+                assertEquals("Jira did not answer ($code)", problem.detail, "$status")
+                assertTrue("PARENT_UNREADABLE" !in body && f.token !in body, "$status: nothing of the upstream reaches the client")
+            } finally {
+                JiraStubServer.removeOverride(override)
+            }
+        }
+    }
+
+    @Test
+    fun `a non-admin owner's filtered preview loses KEPT_AS_PARENT and PARENT_UNREADABLE on the rows it skips, an ADMIN keeps them`() =
+        testApplication {
+            val a = importFixture("jif8a", keys = listOf("IMF"))
+            val b = planWorld("jif8b", teams = true)
+            // IMF-1 is held by A's program: in B's stream everything below it skips, the kept parent IMF-4 included.
+            a.w.admin.client.jbBind(a.connectionId, JiraLevel.PROGRAM, a.w.programId, "IMF-1").jbBinding()
+            val scope = JiraImportScope(b.streamId, b.streamOwner.personId!!, null, null, true, both)
+            val asAdmin = a.w.admin.client.preview(a.connectionId, scope).previewBody().byKey()
+            val keptRow = asAdmin.getValue("IMF-4")
+            assertEquals(JiraImportAction.SKIP, keptRow.action)
+            assertEquals(listOf(JiraImportInfo.KEPT_AS_PARENT), keptRow.infos)
+            assertEquals(listOf(JiraImportInfo.PARENT_UNREADABLE), asAdmin.getValue("IMF-15").infos)
+
+            val asOwner = b.streamOwner.client.preview(a.connectionId, scope).previewBody().byKey()
+            for (key in listOf("IMF-4", "IMF-15")) {
+                val row = asOwner.getValue(key)
+                assertEquals(JiraImportAction.SKIP, row.action, key)
+                assertTrue(row.infos.isEmpty() && row.summary == "", "$key: the redaction rule strips the filter's infos: ${row.infos}")
+            }
+            assertEquals(JiraImportReason.NO_PARENT, asOwner.getValue("IMF-15").reason, "the outcome itself stays observable")
+        }
 
     @Test
     fun `an apply of the filtered preview writes its rows, and a second preview reads one parent only`() = testApplication {
