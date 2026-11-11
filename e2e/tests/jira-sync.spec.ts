@@ -429,23 +429,28 @@ test("an owner links a milestone to a Jira epic and the Deviations page shows it
   await expect(row).toContainText("Estimate is 3.00 man-days in the plan and 2.50 man-days in Jira");
 });
 
-test("unlinking the milestone removes its deviation, and a deleted Jira item reads as gone", async ({ page, browser }) => {
+test("unlinking the milestone removes its deviation, a deleted Jira item reads as gone and one moved out of the connection's projects reads as moved out of scope", async ({ page, browser }) => {
   const world = await seedWorld();
   // `moved` is linked to E2E-4 (Mon 2044-01-04 to Fri 01-08) and ends three working days later; `kept` is linked to E2E-6 (Sun 2044-02-14 to Thu 02-18,
-  // which the stub deletes on day 2) and has the same days.
+  // which the stub deletes on day 2) and has the same days; `relocated` is linked to E2E-10 (Mon 2044-03-14 to Fri 03-18, which the stub moves to OUT-6, a
+  // project outside the connection's keys, on day 2) and has the same days.
   const moved = await seedMilestone(world, "moved", 3, "2044-01-04", "2044-01-13");
   const kept = await seedMilestone(world, "kept", 3, "2044-02-14", "2044-02-18");
   await bindNode(world.api, linking, "MILESTONE", moved.id, "E2E-4");
   await bindNode(world.api, linking, "MILESTONE", kept.id, "E2E-6");
+  const relocated = await seedMilestone(world, "relocated", 3, "2044-03-14", "2044-03-18");
+  await bindNode(world.api, linking, "MILESTONE", relocated.id, "E2E-10");
   await world.api.dispose();
 
-  // The owner reads the project's links: one deviating, one in line.
+  // The owner reads the project's links: one deviating, two in line (their names differ from Jira's, nothing else).
   await login(page, world.owner.email, world.owner.password);
   await page.goto(`/deviations?projectId=${world.projectId}`);
   await expect(page.getByRole("heading", { level: 2, name: "Deviations" })).toBeVisible();
   await expect(rowOf(page, moved.name)).toContainText("Ends 3 working days later than Jira");
   await expect(rowOf(page, kept.name)).toContainText("Jira 2044-02-14 → 2044-02-18"); // the same days as the plan's: only the name differs
   await expect(rowOf(page, kept.name)).not.toContainText("working day");
+  await expect(rowOf(page, relocated.name)).toContainText("Jira 2044-03-14 → 2044-03-18");
+  await expect(rowOf(page, relocated.name)).not.toContainText("working day");
 
   // They unlink the first from its row menu on the project page, behind the confirmation (nothing changes in Jira).
   await page.goto(`/projects/${world.projectId}`);
@@ -462,13 +467,17 @@ test("unlinking the milestone removes its deviation, and a deleted Jira item rea
   await expect(rowOf(page, kept.name)).toHaveCount(1);
   await expect(rowOf(page, moved.name)).toHaveCount(0);
 
-  // Day 2 on the stub: E2E-6 is deleted in Jira. Until now nothing says so; after the administrator's refresh the owner's page reads it as gone. The stub
-  // goes back to day 1 as soon as the run has been read (the afterAll is only the backstop).
+  // Day 2 on the stub: E2E-6 is deleted in Jira and E2E-10 is moved to OUT-6. Until now nothing says so; after the administrator's refresh the owner's page reads
+  // them as gone. The administrator waits for BOTH probes' answers (the run's gone probe asks Jira by id after the sweep flags them: a 404 for E2E-6, a 200 with
+  // the key OUT-6 for E2E-10) before the stub goes back to day 1 (the afterAll is only the backstop): by then it would answer the probe with E2E-10 again, in scope.
   await expect(rowOf(page, kept.name).getByText("Gone from Jira")).toHaveCount(0);
+  await expect(rowOf(page, relocated.name).getByText("Moved out of scope")).toHaveCount(0);
   const adminContext = await browser.newContext();
   try {
     await setStubState("day2");
-    await refreshAsAdmin(await adminContext.newPage(), linking, world.projectId, (admin) => rowOf(admin, kept.name).getByText("Gone from Jira", { exact: true }));
+    const admin = await adminContext.newPage();
+    await refreshAsAdmin(admin, linking, world.projectId, (adminPage) => rowOf(adminPage, relocated.name).getByText("Moved out of scope", { exact: true }));
+    await expect(rowOf(admin, kept.name)).toContainText("Deleted in Jira", { timeout: 30_000 });
   } finally {
     await setStubState("Started");
     await adminContext.close();
@@ -477,12 +486,23 @@ test("unlinking the milestone removes its deviation, and a deleted Jira item rea
   const gone = rowOf(page, kept.name);
   await expect(gone.getByText("Gone from Jira", { exact: true })).toBeVisible();
   await expect(gone).toContainText("E2E-6");
-  await expect(page.getByText("1 gone from Jira")).toBeVisible();
+  // The header splits the two readings: E2E-6 is gone (deleted), E2E-10 is still in Jira but outside the connection's projects.
+  await expect(page.getByText("1 gone from Jira", { exact: true })).toBeVisible();
+  await expect(page.getByText("1 still in Jira, out of scope", { exact: true })).toBeVisible();
   await expect(gone).toContainText("Warning: Gone");
   await expect(gone).toContainText("Deleted in Jira (or no longer visible to the connection's account)"); // the probe's 404 on the stub's day 2
   // The "Data as of" cell (the fifth and last: Plan item, Jira item, Dates, Deviations, Data as of; the acknowledgements sit per line in the Deviations cell
   // since 1.12): what the row shows is what was last read, not a current figure.
   await expect(gone.getByRole("cell").nth(4)).toHaveText(/ · stale$/);
+
+  // The moved item: the badge, its sentence, and the link under its CURRENT key (the probe's 200 carried OUT-6; the binding follows it), not E2E-10.
+  const movedOut = rowOf(page, relocated.name);
+  await expect(movedOut.getByText("Moved out of scope", { exact: true })).toBeVisible();
+  await expect(movedOut).toContainText("Moved out of the connection's projects (Jira still has it)");
+  const outLink = movedOut.getByRole("link", { name: "OUT-6 (opens in Jira)" });
+  await expect(outLink).toBeVisible();
+  await expect(outLink).toHaveAttribute("href", /\/browse\/OUT-6$/);
+  await expect(movedOut).not.toContainText("E2E-10");
 });
 
 test("the owner's milestone deviation shows as a flag and a Jira bar on the project page and on the roadmap; acknowledging it clears the flag, and the Jira item's deletion brings it back", async ({ page, browser }) => {

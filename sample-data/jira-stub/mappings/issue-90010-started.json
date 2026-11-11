@@ -15,5 +15,7 @@
       "Content-Type": "application/json"
     },
     "bodyFileName": "issue-90010-11fd48b8c6.json"
-  }
+  },
+  "scenarioName": "jira-day2",
+  "requiredScenarioState": "Started"
 }

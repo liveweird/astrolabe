@@ -285,7 +285,7 @@ export function buildWorld(plan, milestones, teams, seed = 42) {
   };
 }
 
-/** The isolated e2e project: a Program, two Initiatives, seven Epics, all in 2044 (offsets from E2E_ANCHOR). */
+/** The isolated e2e project: a Program, two Initiatives, seven Epics, all in 2044 (offsets from E2E_ANCHOR); E2E-6 is deleted and E2E-10 moved to OUT-6 on day 2. */
 function buildE2e() {
   const issues = [];
   const add = (n, fields) => issues.push({
@@ -305,7 +305,9 @@ function buildE2e() {
   add(9, { level: "milestone", summary: "E2E Epic Six", parentId: id(3), start: null, end: null, points: 1, team });
   add(10, { level: "milestone", summary: "E2E Epic Seven", parentId: id(3), start: 70, end: 74, points: 13, team });
   const byKey = (k) => issues.find((i) => i.key === k);
-  return { issues, recent: [byKey("E2E-5"), byKey("E2E-7")], deleted: [byKey("E2E-6")] };
+  // Day 2: E2E-6 is deleted and E2E-10 moves to the day-2 destination project OUT as OUT-6 (after the five sample epics' OUT-1..OUT-5), so a spec
+  // can bind a moved issue and flip the scenario (the 1.13 "moved E2E issue": a by-id 200 carrying a key outside the connection's `E2E`).
+  return { issues, recent: [byKey("E2E-5"), byKey("E2E-7")], deleted: [byKey("E2E-6")], movedOut: [{ issue: byKey("E2E-10"), movedKey: "OUT-6" }] };
 }
 
 /**

@@ -35,7 +35,7 @@
     "headers": {
       "Content-Type": "application/json"
     },
-    "bodyFileName": "search-issues-5c032a7efc.json"
+    "bodyFileName": "search-issues-4996017a5f.json"
   },
   "scenarioName": "jira-day2",
   "requiredScenarioState": "day2"

@@ -127,7 +127,7 @@ export function buildStub(world) {
   const { issueDoc, all } = makeDocs(world);
   const scopes = [...scopesOf(world), ...keyScopesOf(world)];
   const deletedIds = new Set([...world.day2.deleted, ...world.e2e.deleted].map((i) => i.id));
-  const movedIds = new Map(world.day2.movedOut.map((m) => [m.issue.id, m]));
+  const movedIds = new Map([...world.day2.movedOut, ...world.e2e.movedOut].map((m) => [m.issue.id, m]));
   const counts = {}; // "<scope>/<shape>/<types|any>/<state>" -> { issues, pages }
 
   const addBody = (prefix, text) => {

@@ -88,21 +88,25 @@ read "2"). The stub's own figure for its E2E data (`endLaterWorkingDays: 3`) is 
      2044-01-13", "Jira 2044-01-04 → 2044-01-08", "Ends 3 working days later than Jira" and, the connection declaring 0.5 man-days per point against `E2E-4`'s 5 points,
      "Estimate is 3.00 man-days in the plan and 2.50 man-days in Jira".
 
-## Scenario: unlinking the milestone removes its deviation, and a deleted Jira item reads as gone
+## Scenario: unlinking the milestone removes its deviation, a deleted Jira item reads as gone and one moved out of the connection's projects reads as moved out of scope
 
-1. Two milestones of one project are linked to the connection through the API: `moved` (Mon 2044-01-04 to Wed 2044-01-13) to `E2E-4`, `kept` (Sun 2044-02-14 to Thu
-   2044-02-18, the days of `E2E-6`) to `E2E-6`. The project owner opens `/deviations?projectId=<id>`.
-   - *Expected*: `moved` reads "Ends 3 working days later than Jira"; `kept` has the same dates on both sides and no working-day sentence.
+1. Three milestones of one project are linked to the connection through the API: `moved` (Mon 2044-01-04 to Wed 2044-01-13) to `E2E-4`, `kept` (Sun 2044-02-14 to Thu
+   2044-02-18, the days of `E2E-6`) to `E2E-6`, `relocated` (Mon 2044-03-14 to Fri 2044-03-18, the days of `E2E-10`) to `E2E-10`. The project owner opens `/deviations?projectId=<id>`.
+   - *Expected*: `moved` reads "Ends 3 working days later than Jira"; `kept` and `relocated` have the same dates on both sides and no working-day sentence.
 2. The owner opens the project page and, from `moved`'s row menu, chooses **Unlink from Jira: E2E-4** and confirms.
    - *Expected*: the confirmation names the milestone and E2E-4 and says nothing changes in Jira; the dialog closes.
 3. They open the Deviations page again.
    - *Expected*: `kept` is listed, `moved` is not: its deviation went with the link.
-4. `kept`'s row does not say "Gone from Jira" yet. The stub moves to day 2 (E2E-6 deleted); the administrator, in a browser of their own, presses **Refresh now:
-   <connection>** and waits for `kept`'s row to show "Gone from Jira". The stub goes back to day 1 at once (in a `finally`), before anything else is read.
+4. Neither `kept`'s row says "Gone from Jira" nor `relocated`'s row "Moved out of scope" yet. The stub moves to day 2 (E2E-6 deleted, E2E-10 moved to OUT-6, a project outside the
+   connection's `E2E`); the administrator, in a browser of their own, presses **Refresh now: <connection>** and waits for `relocated`'s row to show "Moved out of scope" and `kept`'s
+   to say "Deleted in Jira" (the run's gone probe has answered both: a 404, and a 200 carrying the key OUT-6). The stub goes back to day 1 at once (in a `finally`), before anything
+   else is read.
 5. The owner reloads the page.
    - *Expected*: `kept`'s row shows E2E-6, the badge "Gone from Jira", the warning "Gone" with "Deleted in Jira (or no longer visible to the connection's
      account)" (the run's probe of E2E-6 got the stub's 404) and its "Data as of" cell ends in "· stale" (what a row shows is what was last read); the totals read "1 gone from
-     Jira".
+     Jira" and "1 still in Jira, out of scope" (the header splits the deleted item from the moved one).
+   - *Expected*: `relocated`'s row shows the badge "Moved out of scope", the sentence "Moved out of the connection's projects (Jira still has it)" and a link named "OUT-6 (opens in
+     Jira)" whose href ends in `/browse/OUT-6` (the binding follows the key the probe's 200 carried); the row no longer says E2E-10.
 6. The afterAll puts the stub back to `Started` once more, as the backstop.
    - *Expected*: nothing of this test's state remains - the connection (and with it the bindings), the plan rows and the logins are deleted.
 

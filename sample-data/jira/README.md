@@ -21,10 +21,10 @@ One site (`cloudId` `b3f1a2c4-5d6e-4f7a-8b9c-0d1e2f3a4b5c`, answered by the unau
 | Project | Content |
 |---|---|
 | one per work stream: `CE` (Customer Experience), `PF`, `CG`, `DI`, `OE` | 20 Programs, 100 Initiatives, 1,000 Epics in all, parents following the plan (`Epic -> Initiative -> Program`); issue numbers are assigned in id order per project (programs, then initiatives, then epics) |
-| `E2E` | the small isolated project only the e2e spec binds: 1 Program, 2 Initiatives, 7 Epics, every date in **2044** (a holiday-free year), `E2E-5` is the epic whose end reads 3 working days later than the spec's milestone, `E2E-6` is deleted on day 2, `E2E-9` is undated |
+| `E2E` | the small isolated project only the e2e spec binds: 1 Program, 2 Initiatives, 7 Epics, every date in **2044** (a holiday-free year), `E2E-5` is the epic whose end reads 3 working days later than the spec's milestone, `E2E-6` is deleted on day 2, `E2E-9` is undated, `E2E-10` moves to `OUT-6` on day 2 (1.13; only `jira-sync.spec.ts` binds it) |
 | `IMP` | the import's isolated project (v1.2.0): 1 Program, 2 Initiatives, 6 Epics, every date in **2045** (anchor Monday 2045-01-02), every issue To Do and untouched by day 2; only the import's e2e spec imports it (table below) |
 | `COV` | the coverage project (v1.4.0): 1 Program, 1 Initiative, 4 Epics and 6 children, every date in **2046** (anchor Monday 2046-03-05), untouched by day 2; only the coverage e2e spec binds it (table below) |
-| `OUT` | where day 2 moves five epics (`OUT-1`..`OUT-5`); no scope lists it |
+| `OUT` | where day 2 moves five epics (`OUT-1`..`OUT-5`) and `E2E-10` (`OUT-6`); no scope lists it |
 
 `IMP` (ids 95001..95009, team "IMP Team"; the stub does not filter `fields`, so an issue carries every field below):
 
@@ -100,7 +100,7 @@ The stub does **not** filter `fields` (documents carry a superset) and ignores `
 
 The `jira-day2` WireMock scenario starts at `Started`; flip it with `PUT /__admin/scenarios/jira-day2/state` and body `{"state":"day2"}` (back with `Started`, or
 `POST /__admin/scenarios/reset`). On day 2: 12 epics are deleted (`/issue/...` 404, absent from every search), 5 epics are moved to project `OUT` (`/issue/{id}` answers the
-moved document with its `OUT-n` key, the old key 404s, absent from every scope), and `E2E-6` is deleted. The sweep for a sample scope therefore shrinks by 17. The stories, `IMP` and `COV` are untouched by day 2 (the epics deleted or moved have no stories: the child level's sweep and typed read are the same on both days).
+moved document with its `OUT-n` key, the old key 404s, absent from every scope), and `E2E-6` is deleted; `E2E-10` is moved like them (`/issue/{id}` and `/issue/OUT-6` answer 200 with key `OUT-6` in project `OUT`, `E2E-10` 404s, absent from the `E2E` scopes: the `E2E` sweep shrinks by 2). The sweep for a sample scope therefore shrinks by 17. The stories, `IMP` and `COV` are untouched by day 2 (the epics deleted or moved have no stories: the child level's sweep and typed read are the same on both days).
 
 ## Planted deviations (the counts are in `expected.json`)
 

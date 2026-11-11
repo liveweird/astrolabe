@@ -136,7 +136,10 @@ test("the paging figures: 100 per page, the last page closes the chain", () => {
   assert.equal(expected.search["sample/full/any/started"].pages, Math.ceil((1120 + expected.totals.stories) / 100));
   assert.equal(expected.search["sample/full/any/day2"].issues, 1120 + expected.totals.stories - PLANTED.deleted - PLANTED.movedOut);
   assert.equal(expected.search["sample/sweep/e/started"].issues, 1000);
-  assert.equal(expected.search["e2e/full/any/day2"].issues, 9);
+  // The E2E project: ten issues, minus E2E-6 (deleted) and E2E-10 (moved to OUT-6) on day 2.
+  assert.equal(expected.search["e2e/full/any/started"].issues, 10);
+  assert.equal(expected.search["e2e/full/any/day2"].issues, 8);
+  assert.deepEqual(expected.e2e.movedOnDay2, [{ key: "E2E-10", movedKey: "OUT-6", id: "90010" }]);
 });
 
 const matches = (pattern, text) => new RegExp(`^(?:${pattern})$`).test(text);

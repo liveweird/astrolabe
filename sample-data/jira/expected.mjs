@@ -124,6 +124,7 @@ export function buildExpected(world, counts, stub) {
       linkedEpic: { key: linked.key, jira: dates(linked), planEnd: isoDateAt(E2E_ANCHOR, 34), endLaterWorkingDays: 3, note: "a plan milestone ending 2044-02-07 against this epic reads 3 working days later in Jira" },
       unscheduled: e2e.issues.filter((i) => i.start === null).map((i) => i.key),
       deletedOnDay2: e2e.deleted.map((i) => i.key),
+      movedOnDay2: e2e.movedOut.map((m) => ({ key: m.issue.key, movedKey: m.movedKey, id: m.issue.id })),
       recent: e2e.recent.map((i) => i.key),
     },
   };
