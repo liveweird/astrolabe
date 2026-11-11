@@ -81,6 +81,7 @@ ch.nokillswit.FlywayConnectRetriesTest	1.2
 ch.nokillswit.FlywayLogTest	0.1
 ch.nokillswit.ForkWarmup1Test	0.2
 ch.nokillswit.ForwardedHeadersTest	0.3
+ch.nokillswit.GoneProbeDamperTest	0.0
 ch.nokillswit.GuardsTest	0.0
 ch.nokillswit.HealthTest	0.1
 ch.nokillswit.HolidayPresetTest	0.4
@@ -105,6 +106,7 @@ ch.nokillswit.JiraDiscoveryTest	0.0
 ch.nokillswit.JiraEffectiveMappingTest	0.0
 ch.nokillswit.JiraFlagSourceTest	2.3
 ch.nokillswit.JiraFlagsScaleTest	7.4
+ch.nokillswit.JiraGoneProbeBackoffRunTest	3.0
 ch.nokillswit.JiraGoneProbeRunTest	1.0
 ch.nokillswit.JiraGoneProbeTest	0.0
 ch.nokillswit.JiraHeapFitTest	0.0

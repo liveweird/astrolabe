@@ -14,7 +14,8 @@ internal const val RUN_CHUNK = 100
 
 /**
  * The `gone_reason` a sweep writes: absent from the in-scope listing (deleted, moved out and unreadable are indistinguishable). The
- * run's probe (`probeGone`) refines it to `DELETED` or `FORBIDDEN` for a gone binding Jira has not yet answered for.
+ * run's probe (`probeGone`) refines it to `DELETED` or `FORBIDDEN` for a gone binding it asks Jira about: one not yet answered for, or a
+ * readable one (a 200) it asks again (1.13: once per `jira.censusHours` on scheduled runs, on every Refresh now).
  */
 internal const val GONE_OUT_OF_SCOPE = "OUT_OF_SCOPE"
 

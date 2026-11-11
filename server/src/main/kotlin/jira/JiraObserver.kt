@@ -16,7 +16,6 @@ import ch.nokillswit.sync.SyncCounts
 import ch.nokillswit.sync.SyncKind
 import ch.nokillswit.sync.SyncResult
 import ch.nokillswit.sync.SyncRunService
-import ch.nokillswit.sync.SyncTrigger
 import io.ktor.server.plugins.BadRequestException
 import io.ktor.util.AttributeKey
 import kotlinx.coroutines.withContext
@@ -69,7 +68,8 @@ private sealed interface ReadPlan {
 /**
  * The Jira connector's run (§3.6 "One run"): the node sweep, an incremental (or, with no usable watermark, full) read of the bound issues
  * into observations, then a sweep of the ids still in scope that flags the vanished ones `gone` (each gone binding is then probed by id
- * until Jira answers: 404 `DELETED`, 403 `FORBIDDEN`, 200 stays `OUT_OF_SCOPE` and is asked again once a day; [probeGone]). It OBSERVES:
+ * until Jira answers: 404 `DELETED`, 403 `FORBIDDEN`, 200 stays `OUT_OF_SCOPE` and is asked again once per `jira.censusHours` on
+ * scheduled runs, and on every Refresh now; a probe that keeps getting no answer backs off, `GoneProbeDamper`; [probeGone]). It OBSERVES:
  * nothing is ever written to Jira, no plan lock is taken, no plan revision moves. Every database write is a short transaction of at most
  * [RUN_CHUNK] bindings ([JiraRunStore]); no transaction is open across a Jira call; a failure part-way leaves whole chunks written and
  * nothing half-written.
@@ -93,6 +93,9 @@ class JiraObserver internal constructor(
 
     /** The census loop guard: in-memory per-connection counts, shared by this process's concurrent runs (`CensusLoopGuard`). */
     private val loopGuard = CensusLoopGuard()
+
+    /** The gone probe's back-off: in-memory per-connection streaks of runs that got no answer (`GoneProbeDamper`). */
+    private val goneDamper = GoneProbeDamper()
 
     override suspend fun requireRunnable(connectionId: UInt) {
         if (!connections.isRunnable(connectionId)) throw BadRequestException(UNKNOWN_CONNECTION)
@@ -155,7 +158,10 @@ class JiraObserver internal constructor(
         val sweepTypes = sweepTypeIds(mapping, discovery)
             ?: throw RunProblem("MAPPING_INVALID", "A mapped level has no issue type in the discovery snapshot")
         val bound = store.snapshot(run.connectionId)
-        if (bound.isEmpty()) return
+        if (bound.isEmpty()) {
+            goneDamper.forget(run.connectionId) // nothing bound, nothing to probe: a stale streak must not outlive the bindings
+            return
+        }
         progress.beforePage = {
             when (connections.runnableState(run.connectionId)) {
                 RunnableState.RUNNABLE -> Unit
@@ -190,9 +196,8 @@ class JiraObserver internal constructor(
             page.forEach { entry -> idOf(entry)?.let(inScope::add) }
         }
         val flagged = reconcile(run, bound, sweepTypes.toSet(), inScope, observed, progress)
-        val manual = run.trigger == SyncTrigger.MANUAL
         probeGone(
-            run.id, client, flagged, store, now, probeCap, manual, connector.censusHours, { progress.beforePage() }, { progress.calls++ },
+            run, client, flagged, store, goneDamper, now, probeCap, connector.censusHours, { progress.beforePage() }, { progress.calls++ },
         )
         // The census after the reconcile: the mapped levels' prune, the children (a full read or a due sweep), the stamp.
         val censusSearch: CensusSearch = { jql, censusFields, onPage -> search(client, jql, censusFields, progress, onPage) }
@@ -215,8 +220,12 @@ class JiraObserver internal constructor(
         censusAt: Long?,
     ): ReadPlan {
         val lastStart = runs.lastSucceededStart(SyncKind.JIRA, run.connectionId)
-        // A config change forces the full read anyway: it also lifts the census loop guard, so a mapping fix untrips at once.
-        if (lastStart != null && maxOf(discovery.discoveredAt, changedAt) > lastStart) loopGuard.forget(run.connectionId)
+        // A config change forces the full read anyway: it also lifts the census loop guard and the gone probe's back-off (a new token
+        // or account may read what the old one could not), so a fix untrips at once.
+        if (lastStart != null && maxOf(discovery.discoveredAt, changedAt) > lastStart) {
+            loopGuard.forget(run.connectionId)
+            goneDamper.forget(run.connectionId)
+        }
         val trustable = lastStart != null && censusAt != null && bound.all { it.observed } &&
             maxOf(discovery.discoveredAt, changedAt) <= lastStart
         return if (lastStart != null && trustable) ReadPlan.Incremental(lastStart) else ReadPlan.Full
@@ -309,9 +318,10 @@ class JiraObserver internal constructor(
         return gone
     }
 
-    /** The run's failure for a connection that no longer exists; the loop guard drops its entry. */
+    /** The run's failure for a connection that no longer exists; the loop guard and the gone probe's damper drop their entries. */
     private fun connectionGone(connectionId: UInt): RunProblem {
         loopGuard.forget(connectionId)
+        goneDamper.forget(connectionId)
         return RunProblem("CONNECTION_GONE", "The Jira connection no longer exists")
     }
 

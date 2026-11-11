@@ -109,4 +109,68 @@ class JiraGoneProbeTest {
         assertEquals(listOf(3), queue(*rows, manual = true, cap = 1))
         assertEquals(emptyList(), queue(*rows, manual = true, cap = 0))
     }
+
+    @Test
+    fun `the least recently tried goes first within a rank - a failed read queues behind the others`() {
+        val stuck = arrayOf(bound(1), bound(2), bound(3))
+        val fresh = arrayOf(bound(4), bound(5))
+        val tried = mapOf(1u to 500L, 2u to 100L, 3u to 300L)
+        fun order(rows: Array<BoundIssue>) =
+            goneProbeQueue(rows.toList(), false, now, 24, 100, tried).map { it.bindingId.toInt() }
+        assertEquals(listOf(4, 5, 2, 3, 1), order(stuck + fresh), "never tried first (by id), then the oldest failed read")
+        // Rank still decides first: a newly flagged binding goes ahead of an older failed one.
+        assertEquals(listOf(6, 4, 5, 2, 3, 1), order(stuck + fresh + bound(6, gone = false)))
+        // Rank 2 (readable, due): the failed re-ask queues behind the others due, whatever the age of its answer.
+        val readable = arrayOf(bound(1, hoursAgo = 90), bound(2, hoursAgo = 30), bound(3, hoursAgo = 60))
+        assertEquals(
+            listOf(3, 2, 1),
+            goneProbeQueue(readable.toList(), true, now, 24, 100, mapOf(1u to now)).map { it.bindingId.toInt() },
+            "1 failed just now: after 3 (answered 60 h ago) and 2 (30 h ago)",
+        )
+        assertEquals(
+            listOf(1, 3, 2),
+            goneProbeQueue(readable.toList(), true, now, 24, 100).map { it.bindingId.toInt() },
+            "without the memory: the oldest answer first",
+        )
+        assertEquals(
+            listOf(4, 5),
+            goneProbeQueue((stuck + fresh).toList(), false, now, 24, 2, tried).map { it.bindingId.toInt() },
+            "the cap keeps the rotation's front: the stuck ones wait for a later run",
+        )
+    }
+
+    @Test
+    fun `rows whose read failed queue behind every row not yet tried, across ranks 1 and 2 alike`() {
+        val rows = arrayOf(
+            bound(1), bound(2), bound(3), // rank 1, all stuck
+            bound(4, hoursAgo = 30), // rank 2, never failed
+            bound(5, hoursAgo = 90), // rank 2, stuck
+            bound(6, gone = false), // rank 0
+            bound(7), // rank 1, never tried
+        )
+        val tried = mapOf(1u to 500L, 2u to 100L, 3u to 300L, 5u to 200L)
+        fun order(cap: Int = 100) = goneProbeQueue(rows.toList(), false, now, 24, cap, tried).map { it.bindingId.toInt() }
+        assertEquals(
+            listOf(6, 7, 4, 2, 5, 3, 1),
+            order(),
+            "rank 0, untried rank 1, untried rank 2, then every failed row by the time of its failure, rank ignored",
+        )
+        assertEquals(listOf(6, 7, 4), order(cap = 3), "three stuck rank-1 rows do not keep the due re-ask out of a cap that would fit it")
+        val tie = arrayOf(bound(9), bound(8), bound(10, hoursAgo = 40))
+        assertEquals(
+            listOf(8, 9, 10),
+            goneProbeQueue(tie.toList(), false, now, 24, 100, mapOf(8u to 7L, 9u to 7L, 10u to 7L)).map { it.bindingId.toInt() },
+            "equal failure times: by id",
+        )
+    }
+
+    @Test
+    fun `without retries only the newly flagged bindings are queued, a manual run included`() {
+        val rows = arrayOf(bound(1), bound(2, hoursAgo = 50), bound(3, gone = false), bound(4, gone = false))
+        fun order(manual: Boolean, retries: Boolean) =
+            goneProbeQueue(rows.toList(), manual, now, 24, 100, retries = retries).map { it.bindingId.toInt() }
+        assertEquals(listOf(3, 4), order(manual = false, retries = false), "a tripped scheduled run")
+        assertEquals(listOf(3, 4), order(manual = true, retries = false), "the flag is the caller's to lift for a manual run")
+        assertEquals(listOf(3, 4, 1, 2), order(manual = true, retries = true))
+    }
 }
