@@ -3,6 +3,8 @@ package ch.nokillswit
 import ch.nokillswit.authz.ConflictException
 import ch.nokillswit.infra.fetch.FetchException
 import ch.nokillswit.jira.ImportBrowse
+import ch.nokillswit.jira.ImportBrowseFilter
+import ch.nokillswit.jira.JiraImportFilter
 import ch.nokillswit.jira.JiraAuthScheme
 import ch.nokillswit.jira.JiraBindContext
 import ch.nokillswit.jira.JiraLevelFields
@@ -43,8 +45,232 @@ class JiraImportBrowseTest {
         cap: Int = 2_000,
         beforePage: suspend () -> Unit = {},
         deadlineMillis: Long = 60_000,
+        filter: ImportBrowseFilter? = null,
+        now: Long = 1L,
     ): ImportBrowse = runBlocking {
-        browseScope(site.connector, context, token, listOf("IMP"), mapping, IMPORT_DISCOVERY, 1L, beforePage, cap, deadlineMillis)
+        browseScope(site.connector, context, token, listOf("IMP"), mapping, IMPORT_DISCOVERY, now, beforePage, cap, deadlineMillis, filter)
+    }
+
+    // ---- the import filter (1.13.2): the query, the in-memory rule and the parents read by id -----------------------------------------
+
+    private val today = java.time.Instant.parse("2026-11-11T00:00:00Z").toEpochMilli()
+    private val recent = "2026-11-01T10:00:00.000+0000"
+    private val quiet = "2025-01-01T10:00:00.000+0000"
+
+    /** An issue entry at Jira level [level] (1 epic, 2 initiative, 3 program) under [parent] (one level up), with a status and a stamp. */
+    private fun doc(
+        id: Int,
+        level: Int,
+        parent: Int? = null,
+        done: Boolean = false,
+        updated: String = recent,
+        key: String = "IMP-$id",
+        docId: String = "$id",
+    ): String {
+        fun type(at: Int) = """{"id":"${10003 + at}","name":"L$at","subtask":false,"hierarchyLevel":$at}"""
+        val category = if (done) "done" else "indeterminate"
+        val parentMember = parent?.let { ""","parent":{"id":"$it","key":"IMP-$it","fields":{"issuetype":${type(level + 1)}}}""" }.orEmpty()
+        return """{"id":"$docId","key":"$key","fields":{"summary":"Issue $key","issuetype":${type(level)},""" +
+            """"status":{"name":"S","statusCategory":{"key":"$category"}},"updated":"$updated"$parentMember}}"""
+    }
+
+    private fun answer(body: String, status: Int = 200) = ScriptedIssue(status, body)
+
+    /** A filter that leaves done items out and keeps what [live] holds (what the plan side says is linked), recording every ask. */
+    private class Filter(
+        val filter: JiraImportFilter = JiraImportFilter(excludeDone = true, updatedWithinDays = 365),
+        val live: Set<String> = emptySet(),
+    ) {
+        val asked = mutableListOf<Set<String>>()
+        val holder = ImportBrowseFilter(filter) { ids ->
+            asked += ids.toSet()
+            ids.filterTo(HashSet()) { it in live }
+        }
+    }
+
+    private fun ids(browse: ImportBrowse) = browse.issues.map { it.observation.issueId }
+
+    @Test
+    fun `an active filter narrows the query - done only, window only, both - and an absent or inactive one sends the plain full read`() {
+        val types = "10006,10005,10004"
+        val expected = mapOf(
+            JiraImportFilter(excludeDone = true, updatedWithinDays = 365) to
+                """project in ("IMP") AND issuetype in ($types) AND statusCategory != Done AND updated >= "-525600m" ORDER BY id ASC""",
+            JiraImportFilter(excludeDone = true) to
+                """project in ("IMP") AND issuetype in ($types) AND statusCategory != Done ORDER BY id ASC""",
+            JiraImportFilter(updatedWithinDays = 30) to
+                """project in ("IMP") AND issuetype in ($types) AND updated >= "-43200m" ORDER BY id ASC""",
+            JiraImportFilter() to """project in ("IMP") AND issuetype in ($types) ORDER BY id ASC""",
+        )
+        for ((filter, jql) in expected) {
+            val site = ScriptedSite(searchPage(doc(1, 1)))
+            browse(site, filter = Filter(filter).holder, now = today)
+            assertEquals(jql, site.searches.single().url.parameters["jql"], filter.toString())
+        }
+        val plain = ScriptedSite(searchPage(doc(1, 1, parent = 20)))
+        browse(plain, filter = null)
+        assertEquals("""project in ("IMP") AND issuetype in ($types) ORDER BY id ASC""", plain.searches.single().url.parameters["jql"])
+    }
+
+    @Test
+    fun `without an active filter no parent is ever read by id, even when a parent is missing`() {
+        for (filter in listOf(null, Filter(JiraImportFilter()).holder)) {
+            val site = ScriptedSite(searchPage(doc(1, 1, parent = 20)))
+            val result = browse(site, filter = filter, now = today)
+            assertEquals(listOf("1"), ids(result))
+            assertTrue(site.issueRequests.isEmpty(), "no by-id request: ${site.issueReads}")
+        }
+    }
+
+    @Test
+    fun `an entry the rule does not admit is dropped at once and never counts toward the cap`() {
+        // The site ignored the clauses (as the stub does): the server's own rule filters. cap 2, four entries, two admitted.
+        val site = ScriptedSite(searchPage(doc(1, 1, done = true), doc(2, 1), doc(3, 1, updated = quiet), doc(4, 1)))
+        val result = browse(site, cap = 2, filter = Filter().holder, now = today)
+        assertEquals(listOf("2", "4"), ids(result))
+        assertFalse(result.truncated, "what was dropped never counted")
+    }
+
+    @Test
+    fun `a missing parent is read by id with the search's fields, kept as a parent, and its own missing parent in a second round only`() {
+        val filter = Filter()
+        val site = ScriptedSite(
+            searchPage(doc(1, 1, parent = 20)),
+            issues = mapOf(
+                "20" to answer(doc(20, 2, parent = 30, done = true)),
+                "30" to answer(doc(30, 3, parent = 40, updated = quiet)),
+                "40" to answer(doc(40, 3)),
+            ),
+        )
+        val result = browse(site, filter = filter.holder, now = today)
+        assertEquals(listOf("20", "30"), site.issueReads, "one read per missing parent, a program is the top: its parent is never read")
+        assertEquals(listOf("1", "20", "30"), ids(result))
+        assertEquals(listOf(false, true, true), result.issues.map { it.keptAsParent })
+        assertFalse(result.truncated)
+        val fields = site.searches.single().url.parameters["fields"]
+        assertTrue(!fields.isNullOrBlank())
+        assertTrue(site.issueRequests.all { it.url.parameters["fields"] == fields }, "the by-id reads carry the search's fields")
+        assertEquals(2, filter.asked.size, "one short read of the bindings per round, never a third")
+    }
+
+    @Test
+    fun `a parent two items name is read once, and ascending`() {
+        val site = ScriptedSite(
+            searchPage(doc(1, 1, parent = 100), doc(2, 1, parent = 9), doc(3, 1, parent = 100)),
+            issues = mapOf("100" to answer(doc(100, 2, done = true)), "9" to answer(doc(9, 2, done = true))),
+        )
+        browse(site, filter = Filter().holder, now = today)
+        assertEquals(listOf("9", "100"), site.issueReads)
+    }
+
+    @Test
+    fun `a linked child or a linked parent costs no read, and an unlinked pair does`() {
+        val filter = Filter(live = setOf("1", "21"))
+        val site = ScriptedSite(
+            searchPage(doc(1, 1, parent = 20), doc(2, 1, parent = 21), doc(3, 1, parent = 22)),
+            issues = mapOf("22" to answer(doc(22, 2, done = true))),
+        )
+        browse(site, filter = filter.holder, now = today)
+        assertEquals(listOf("22"), site.issueReads)
+        assertTrue(filter.asked.first().containsAll(setOf("1", "20", "21", "22")), "the round asks about children and parents alike")
+    }
+
+    @Test
+    fun `a 404 and a 403 flag the child, are read once however many children name them, and are never retried`() {
+        val site = ScriptedSite(
+            searchPage(doc(1, 1, parent = 20), doc(2, 1, parent = 21), doc(3, 1, parent = 20), doc(4, 1)),
+            issues = mapOf("21" to answer("""{"errorMessages":["no"]}""", 403)),
+        )
+        val result = browse(site, filter = Filter().holder, now = today)
+        assertEquals(listOf("20", "21"), site.issueReads)
+        assertEquals(listOf("1", "2", "3", "4"), ids(result), "nothing was added")
+        assertEquals(listOf(true, true, true, false), result.issues.map { it.parentUnreadable })
+        assertFalse(result.truncated)
+    }
+
+    @Test
+    fun `a parent failure that says nothing about the issue is the FetchException, not a flag`() {
+        val site = ScriptedSite(
+            searchPage(doc(1, 1, parent = 20)),
+            issues = mapOf("20" to answer("""{"message":"boom"}""", 500)),
+        )
+        val failure = assertFailsWith<FetchException> { browse(site, filter = Filter().holder, now = today) }
+        assertTrue(failure.code != "NOT_FOUND" && failure.code != "FORBIDDEN_SCOPE", failure.code)
+    }
+
+    @Test
+    fun `a 200 of another id is unreadable, one outside the keys or at another level is dropped and flags nothing`() {
+        val site = ScriptedSite(
+            searchPage(doc(1, 1, parent = 20), doc(2, 1, parent = 21), doc(3, 1, parent = 22), doc(4, 1, parent = 23)),
+            issues = mapOf(
+                "20" to answer(doc(20, 2, docId = "999")),
+                "21" to answer(doc(21, 2, key = "OTHER-21")),
+                "22" to answer(doc(22, 1)),
+                "23" to answer(doc(23, 2, done = true)),
+            ),
+        )
+        val result = browse(site, filter = Filter().holder, now = today)
+        assertEquals(listOf("20", "21", "22", "23"), site.issueReads)
+        assertEquals(listOf("1", "2", "3", "4", "23"), ids(result), "only the good parent joined")
+        val flagged = result.issues.filter { it.parentUnreadable }.map { it.observation.issueId }
+        assertEquals(listOf("1"), flagged, "another id is unreadable; the other two are orphans as today")
+    }
+
+    @Test
+    fun `the 201st parent truncates the browse, 200 do not`() {
+        fun site(count: Int) = ScriptedSite(searchPage(*(1..count).map { doc(it, 1, parent = 1000 + it) }.toTypedArray()))
+        val exact = site(200)
+        assertFalse(browse(exact, filter = Filter().holder, now = today).truncated)
+        assertEquals(200, exact.issueReads.size)
+        val over = site(201)
+        assertTrue(browse(over, filter = Filter().holder, now = today).truncated)
+        assertEquals(200, over.issueReads.size, "the 201st is never sent")
+    }
+
+    @Test
+    fun `the rows with the fetched parents count against the cap`() {
+        val issues = mapOf("20" to answer(doc(20, 2, done = true)), "21" to answer(doc(21, 2, done = true)))
+        val over = ScriptedSite(searchPage(doc(1, 1, parent = 20), doc(2, 1, parent = 21)), issues = issues)
+        val result = browse(over, cap = 3, filter = Filter().holder, now = today)
+        assertTrue(result.truncated)
+        assertEquals(listOf("20"), over.issueReads, "the second parent would be the 4th row")
+        val fits = ScriptedSite(searchPage(doc(1, 1, parent = 20), doc(2, 1, parent = 21)), issues = issues)
+        assertFalse(browse(fits, cap = 4, filter = Filter().holder, now = today).truncated)
+    }
+
+    @Test
+    fun `a search that itself passed the cap reads no parent`() {
+        val site = ScriptedSite(searchPage(doc(1, 1, parent = 20), doc(2, 1, parent = 21)))
+        val result = browse(site, cap = 1, filter = Filter().holder, now = today)
+        assertTrue(result.truncated)
+        assertTrue(site.issueRequests.isEmpty())
+    }
+
+    @Test
+    fun `the connection's stop runs before every by-id read`() {
+        val site = ScriptedSite(
+            searchPage(doc(1, 1, parent = 20), doc(2, 1, parent = 21)),
+            issues = mapOf("20" to answer(doc(20, 2, done = true)), "21" to answer(doc(21, 2, done = true))),
+        )
+        val asked = AtomicInteger()
+        val stopped = assertFailsWith<IllegalStateException> {
+            // call 1 is the search page, call 2 the first by-id read, call 3 the second
+            val stop: suspend () -> Unit = { if (asked.incrementAndGet() == 3) error("the connection went away") }
+            browse(site, beforePage = stop, filter = Filter().holder, now = today)
+        }
+        assertEquals("the connection went away", stopped.message)
+        assertEquals(listOf("20"), site.issueReads, "the second read was never sent")
+    }
+
+    @Test
+    fun `a slow parent read is the browse's TIMEOUT`() {
+        val site = ScriptedSite(
+            searchPage(doc(1, 1, parent = 20)),
+            issues = mapOf("20" to answer(doc(20, 2, done = true))),
+            onIssue = { delay(5_000) },
+        )
+        val failure = assertFailsWith<FetchException> { browse(site, deadlineMillis = 300, filter = Filter().holder, now = today) }
+        assertEquals("TIMEOUT", failure.code)
     }
 
     @Test

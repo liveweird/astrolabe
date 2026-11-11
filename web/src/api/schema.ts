@@ -2372,11 +2372,20 @@ export interface paths {
          *     is read ends the preview with `404` / `400`) -> one read-only snapshot of the plan -> the pure rules -> the resolved-target guards
          *     (`403`).
          *
+         *     **The filter** (`filter{excludeDone, updatedWithinDays}`, 1.13.2): `updatedWithinDays` must be a whole number from 1 to
+         *     3,650 (`400` otherwise, after every `403`). An active filter narrows the read of every mapped level inside the search query (the
+         *     window is sent in minutes) and the server also applies the rule to every entry it receives. The direct parent of each item that
+         *     is read, when the filter left it out and no plan node is linked to it, is then fetched from Jira by id, two rounds at most (a
+         *     milestone's project, then its program), and kept (`KEPT_AS_PARENT`); at most 200 such reads, each inside the same 170-second
+         *     read and preceded by the connection's liveness check. A parent that answers `404` or `403` makes its child `NO_PARENT` with
+         *     `PARENT_UNREADABLE`, never the default parent; any other failure is the `502`. No count of what was left out is reported.
+         *
          *     Answers, per Jira item and top-down (programs, projects, milestones; Jira ids ascending inside a level), whether it would be
          *     created, bound to an unbound same-name node, or skipped and why. Nothing is stored and nothing is audited (a read). The
          *     caller's right to schedule shows only in `canSchedule` (a milestone's dates are copied only where the caller may schedule the
-         *     team) - never as a refusal. `totals.truncated` = more than 2,000 issues were in scope: narrow `projectKeys` (an apply refuses a
-         *     truncated scope). The whole read is bounded to 170 seconds (`502`, code `TIMEOUT`).
+         *     team) - never as a refusal. `totals.truncated` = more than 2,000 issues were in scope (the parents read by id count), or more than 200
+         *     parents would have to be read: narrow `projectKeys` or the filter (an apply refuses a truncated scope). The whole read is bounded to
+         *     170 seconds (`502`, code `TIMEOUT`).
          *
          *     **For a caller who is not ADMIN, a skipped row other than `ALREADY_BOUND` carries no Jira text:** `summary` is empty, `name` is the
          *     issue key and `infos` is empty (key, level, type name, `reason` and parent keys stay; `totals` and the order are the full ones), and
@@ -2416,8 +2425,9 @@ export interface paths {
          *     **Order:** the same checks as the preview up to and including the browse (the per-USER `jira-import` bucket, shared with the
          *     preview, then the connection `404`, the body, the named targets `404`/`403`, the shape `400` - which also covers the items: each
          *     `jiraId` a numeric Jira id named once, 1 to 2,000 items, and every `overrides.teamId` an active team - then the connection state
-         *     `400`/`409`, then the browse `502`); a browse that stopped at the 2,000-issue cap is a `400` before any write, because a parent cut
-         *     away by the cap cannot be told from an orphan. Then ONE plan write that takes the plan lock, the bind lock, the connection row and
+         *     `400`/`409`, then the browse `502`); a browse that stopped at the 2,000-issue cap, or at the 200 parent reads of a filtered browse, is a
+         *     `400` before any write, because a parent cut away cannot be told from an orphan. The apply re-browses and re-reads the parents under
+         *     ITS request's `filter` (the one its preview was read under): an item the filter now leaves out is `CHANGED`, nothing is re-homed. Then ONE plan write that takes the plan lock, the bind lock, the connection row and
          *     the caller's person, re-reads the plan and re-runs every guard under them (a connection deleted meanwhile is `404`, disabled or
          *     out of scope `400`, its mapping or discovery changed `409`; an ownership revoked meanwhile `403`), recomputes the rows with the preview's rules
          *     over rows read under the lock, and writes. The lock is never held while Jira is called.
@@ -6143,6 +6153,27 @@ export interface components {
              * @default true
              */
             copyDates: boolean;
+            /** @description What the browse leaves out (1.13.2); null or absent reads everything, as before. The apply must carry the filter its preview was read under. */
+            filter?: components["schemas"]["JiraImportFilter"] | null;
+        };
+        /**
+         * @description What an import's browse leaves out, per request (nothing is stored): done items and items not updated for a while. Every mapped
+         *     level is narrowed inside the search query, so a project with long history fits under the 2,000-issue cap. The direct parent of
+         *     every item that is read is fetched from Jira BY ID when the filter left it out, and kept (marked `KEPT_AS_PARENT`), so nothing
+         *     lands under the wrong parent. Both members off (or the object absent) reads everything. Only the import reads through it: the
+         *     sync run, the Deviations view and the roll-ups read everything. The answer does not say how many items were left out.
+         */
+        JiraImportFilter: {
+            /**
+             * @description Leave out the items whose Jira status category is Done.
+             * @default false
+             */
+            excludeDone: boolean;
+            /**
+             * Format: int32
+             * @description Read only the items Jira updated within this many days; null or absent = any age.
+             */
+            updatedWithinDays?: number | null;
         };
         /** @description Where a CREATE row lands (absent for a program, which lands under the picked work stream). */
         JiraImportParent: {
@@ -6220,7 +6251,12 @@ export interface components {
             canSchedule: boolean;
             /** @description What WILL happen: the milestone is created with Jira's dates (`copyDates`, the caller may schedule, a valid span with a working day). */
             scheduled: boolean;
-            infos: ("NAME_TRUNCATED" | "ESTIMATE_NOT_CONVERTED" | "DATES_NOT_COPIED" | "DATES_INVALID" | "NO_WORKING_DAY")[];
+            /**
+             * @description `KEPT_AS_PARENT` (1.13.2): the filter would have left this item out, but an item that is read sits under it, so it was fetched by id and
+             *     kept. `PARENT_UNREADABLE`: its Jira parent exists inside the import's projects and the connection could not read it (`404` or `403`
+             *     by id: deleted, or not visible to the connection's account); the row is skipped `NO_PARENT` and is never put under a default parent.
+             */
+            infos: ("NAME_TRUNCATED" | "ESTIMATE_NOT_CONVERTED" | "DATES_NOT_COPIED" | "DATES_INVALID" | "NO_WORKING_DAY" | "KEPT_AS_PARENT" | "PARENT_UNREADABLE")[];
         };
         JiraImportTotals: {
             /** Format: int32 */
@@ -6231,7 +6267,7 @@ export interface components {
             bind: number;
             /** Format: int32 */
             skip: number;
-            /** @description More than 2,000 issues were in scope; the rows are the lowest ids. Narrow `projectKeys`. */
+            /** @description What is shown is incomplete and cannot be imported: more than 2,000 issues were in scope (the parents read by id count), or, under a filter, more than 200 parents would have to be read one by one. Narrow `projectKeys` or the filter. */
             truncated: boolean;
         };
         JiraImportPreview: {

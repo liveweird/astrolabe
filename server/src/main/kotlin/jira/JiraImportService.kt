@@ -146,6 +146,16 @@ class JiraImportService(
         }
 
     /**
+     * Which of [issueIds] are held by a LIVE binding of any active connection of [siteUrl] (1.13.2): what the filtered browse asks before
+     * each round of by-id parent reads, so a linked child or parent costs no read. Its own short read-only snapshot, no lock; the browse
+     * calls it between Jira calls, never inside one.
+     */
+    suspend fun liveHeldIssueIds(siteUrl: String, issueIds: Collection<String>): Set<String> =
+        suspendTransaction(database, SNAPSHOT, readOnly = true) {
+            readHolders(siteUrl, issueIds).filter { it.live }.mapTo(HashSet()) { it.issueId }
+        }
+
+    /**
      * The reads of [read], inside the CALLER's transaction: the snapshot's, or (the apply) the plan-locked one, where they are exact.
      * [canScheduleTeamIds] = the teams the caller may schedule, null = every team. Null when the work stream is gone.
      */

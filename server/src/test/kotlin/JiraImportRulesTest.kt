@@ -7,6 +7,7 @@ import ch.nokillswit.jira.JiraImportApplyItem
 import ch.nokillswit.jira.JiraImportApplyRequest
 import ch.nokillswit.jira.JiraImportExpected
 import ch.nokillswit.jira.JiraImportExpectedParent
+import ch.nokillswit.jira.JiraImportFilter
 import ch.nokillswit.jira.JiraImportParentKind
 import ch.nokillswit.jira.JiraImportKernels
 import ch.nokillswit.jira.JiraImportScope
@@ -157,6 +158,22 @@ class JiraImportRulesTest {
         assertEquals(50, validateImportScope(scope(many.take(MAX_IMPORT_PROJECT_KEYS)), many).size)
     }
 
+    @Test
+    fun `the filter's day count is 1 to 3650 or absent, and anything else is a 400`() {
+        fun scoped(filter: JiraImportFilter?) = JiraImportScope(1u, 2u, null, null, true, filter)
+        for (days in listOf(0, -1, 3_651, Int.MIN_VALUE, Int.MAX_VALUE)) {
+            val refused = assertFailsWith<BadRequestException>("$days") {
+                validateImportScope(scoped(JiraImportFilter(excludeDone = true, updatedWithinDays = days)), keys)
+            }
+            assertEquals("filter.updatedWithinDays must be between 1 and 3650", refused.message)
+        }
+        val passing = listOf(null, JiraImportFilter(), JiraImportFilter(true, 1), JiraImportFilter(false, 3_650), JiraImportFilter(true))
+        for (filter in passing) assertEquals(keys, validateImportScope(scoped(filter), keys), "$filter")
+        // The keys' own refusals come first; the day count is the last check.
+        val badKeys = JiraImportScope(1u, 2u, listOf("ZZZ"), null, true, JiraImportFilter())
+        assertFailsWith<BadRequestException> { validateImportScope(badKeys, keys) }
+    }
+
     // ---- validateApplyItems -----------------------------------------------------------------------------------------------------
 
     private fun create(id: String, parent: String? = null) =
@@ -213,6 +230,16 @@ class JiraImportRulesTest {
         assertEquals(9u, scope.defaults!!.teamId)
         assertNull(scope.projectKeys)
         assertTrue(scope.copyDates, "dates are copied unless the caller says not")
+        assertNull(scope.filter, "no filter member is no filter")
         assertEquals(JiraLevel.PROGRAM, request.items.single().expected.level)
+    }
+
+    @Test
+    fun `the apply request carries its filter into the scope`() {
+        val request = Json.decodeFromString<JiraImportApplyRequest>(
+            """{"workStreamId":3,"ownerPersonId":4,"filter":{"excludeDone":true,"updatedWithinDays":90},""" +
+                """"items":[{"jiraId":"1","expected":{"action":"CREATE","level":"PROGRAM"}}]}""",
+        )
+        assertEquals(JiraImportFilter(excludeDone = true, updatedWithinDays = 90), request.scope().filter)
     }
 }

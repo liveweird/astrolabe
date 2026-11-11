@@ -4,6 +4,7 @@ import ch.nokillswit.jira.JiraEstimateMapping
 import ch.nokillswit.jira.JiraEstimateUnit
 import ch.nokillswit.jira.JiraImportAction
 import ch.nokillswit.jira.JiraImportDefaults
+import ch.nokillswit.jira.JiraImportFilter
 import ch.nokillswit.jira.JiraImportInfo
 import ch.nokillswit.jira.JiraImportParentKind
 import ch.nokillswit.jira.JiraImportPreview
@@ -242,14 +243,16 @@ class ImportFixture(val w: PlanWorld, val connectionId: UInt, val site: String, 
         defaults: JiraImportDefaults? = JiraImportDefaults(teamId = defaultTeam),
         copyDates: Boolean = true,
         keys: List<String>? = null,
-    ) = JiraImportScope(w.streamId, w.streamOwner.personId!!, keys, defaults, copyDates)
+        filter: JiraImportFilter? = null,
+    ) = JiraImportScope(w.streamId, w.streamOwner.personId!!, keys, defaults, copyDates, filter)
 }
 
-internal suspend fun ApplicationTestBuilder.importFixture(prefix: String): ImportFixture {
+/** [keys]: the connection's project keys (`IMP` by default; `IMF` for the filter's own project). */
+internal suspend fun ApplicationTestBuilder.importFixture(prefix: String, keys: List<String> = listOf("IMP")): ImportFixture {
     configureApp("jira.stubBaseUrl" to JiraStubFixture.warm(), "jira.maxRetries" to "0")
     startApplication()
     val w = planWorld(prefix, teams = true)
-    val request = jbRequest(keys = listOf("IMP"))
+    val request = jbRequest(keys = keys)
     return ImportFixture(w, w.admin.client.jbConnection(request).id, request.siteUrl, checkNotNull(request.apiToken))
 }
 

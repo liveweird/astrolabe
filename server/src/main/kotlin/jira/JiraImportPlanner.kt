@@ -24,7 +24,7 @@ private class ParentLookup(val parent: Parent?, val skipped: Boolean = false)
 private class DatesVerdict(val span: MilestoneSpan?, val info: JiraImportInfo?)
 
 /** The numeric Jira ids order as numbers (never lexicographically): shorter first, then by digits. */
-private val ID_ORDER: Comparator<String> = compareBy<String>({ it.length }, { it })
+internal val ID_ORDER: Comparator<String> = compareBy<String>({ it.length }, { it })
 
 /**
  * One run of the kernel (`JiraImportKernels.plan`); the state is the claims the earlier rows of the batch have made.
@@ -161,7 +161,7 @@ internal class ImportPlanner(private val input: ImportInput) {
             JiraImportInfo.NAME_TRUNCATED.takeIf { name.truncated },
             JiraImportInfo.ESTIMATE_NOT_CONVERTED.takeIf { estimate.notConverted },
             dates.info,
-        )
+        ) + browseInfos(issue)
         val item = base(issue, JiraLevel.MILESTONE, name).copy(
             action = JiraImportAction.CREATE,
             parent = parent?.toWire(),
@@ -193,9 +193,15 @@ internal class ImportPlanner(private val input: ImportInput) {
             name = name.text,
             canSchedule = false,
             scheduled = false,
-            infos = listOfNotNull(JiraImportInfo.NAME_TRUNCATED.takeIf { name.truncated }),
+            infos = listOfNotNull(JiraImportInfo.NAME_TRUNCATED.takeIf { name.truncated }) + browseInfos(issue),
         )
     }
+
+    /** The infos the filter's browse gives a row whatever its action: kept as a parent, its own parent unreadable. */
+    private fun browseInfos(issue: ImportBrowsedIssue): List<JiraImportInfo> = listOfNotNull(
+        JiraImportInfo.KEPT_AS_PARENT.takeIf { issue.keptAsParent },
+        JiraImportInfo.PARENT_UNREADABLE.takeIf { issue.parentUnreadable },
+    )
 
     private fun skip(
         issue: ImportBrowsedIssue,
@@ -213,6 +219,9 @@ internal class ImportPlanner(private val input: ImportInput) {
     // ---- the parent ------------------------------------------------------------------------------------------------------------
 
     private fun parentOf(issue: ImportBrowsedIssue, level: JiraLevel): ParentLookup {
+        // The filter's browse read the parent by id and could not read it: it exists inside the import's projects, so the default parent
+        // (for a genuine orphan) is not its home either.
+        if (issue.parentUnreadable) return ParentLookup(null)
         val wanted = if (level == JiraLevel.MILESTONE) JiraLevel.PROJECT else JiraLevel.PROGRAM
         val parentId = parentAtLevel(issue, wanted)
         if (parentId != null) {

@@ -33,6 +33,13 @@ describe("infoText", () => {
     expect(infoText("DATES_INVALID", t)).toMatch(/unscheduled/);
     expect(infoText("NO_WORKING_DAY", t)).toMatch(/working day/);
   });
+
+  test("says why a row was kept as a parent, and why its own parent could not be read", () => {
+    expect(infoText("KEPT_AS_PARENT", t)).toBe("Kept as a parent of an item shown here");
+    expect(infoText("PARENT_UNREADABLE", t)).toBe(
+      "Its parent in Jira could not be read (deleted, or not visible to the connection's account)",
+    );
+  });
 });
 
 describe("importFailure", () => {

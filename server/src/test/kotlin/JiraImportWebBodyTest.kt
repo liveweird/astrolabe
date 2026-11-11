@@ -4,6 +4,7 @@ import ch.nokillswit.jira.ImportApply
 import ch.nokillswit.jira.ImportTree
 import ch.nokillswit.jira.JiraImportApplyRequest
 import ch.nokillswit.jira.JiraImportDefaults
+import ch.nokillswit.jira.JiraImportFilter
 import ch.nokillswit.jira.JiraImportReason
 import ch.nokillswit.jira.JiraLevel
 import io.ktor.serialization.kotlinx.json.DefaultJson
@@ -113,6 +114,27 @@ class JiraImportWebBodyTest {
         )
         assertApplied(milestone, json("""{"jiraId":"300",
 "expected":{"action":"BIND","level":"MILESTONE","parentJiraId":"200","nodeId":9}}"""))
+    }
+
+    @Test
+    fun `a body with the filter member decodes through the strict deserialization, and so does one without it`() {
+        val item = """{"jiraId":"100","expected":{"action":"CREATE","level":"PROGRAM"}}"""
+        val withFilter = DefaultJson.decodeFromString<JiraImportApplyRequest>(
+            """{"workStreamId":3,"ownerPersonId":8,"copyDates":true,""" +
+                """"filter":{"excludeDone":true,"updatedWithinDays":365},"items":[$item]}""",
+        )
+        assertEquals(JiraImportFilter(excludeDone = true, updatedWithinDays = 365), withFilter.filter)
+        val onlyDone = DefaultJson.decodeFromString<JiraImportApplyRequest>(
+            """{"workStreamId":3,"ownerPersonId":8,"filter":{"excludeDone":true},"items":[$item]}""",
+        )
+        assertEquals(JiraImportFilter(excludeDone = true, updatedWithinDays = null), onlyDone.filter)
+        val without = DefaultJson.decodeFromString<JiraImportApplyRequest>("""{"workStreamId":3,"ownerPersonId":8,"items":[$item]}""")
+        assertEquals(null, without.filter)
+        assertFailsWith<SerializationException>("a member the server does not know stays a 400") {
+            DefaultJson.decodeFromString<JiraImportApplyRequest>(
+                """{"workStreamId":3,"ownerPersonId":8,"filter":{"excludeDone":true,"statusCategory":"done"},"items":[$item]}""",
+            )
+        }
     }
 
     @Test

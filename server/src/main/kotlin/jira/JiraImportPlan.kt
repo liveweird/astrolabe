@@ -12,16 +12,22 @@ import java.math.BigDecimal
  * from that level's fields). [parentTypeId] and [parentTypeHierarchyLevel] are the issue type of its Jira `parent` member
  * (`fields.parent.fields.issuetype`): `JiraObservation` does not keep them, and the level of a parent that is not itself browsed
  * is resolved from them through the discovery, never from `hierarchyLevel` alone (a site may omit it on the type object).
+ * [keptAsParent] (1.13.2): the import's filter would have left it out, and it was fetched by id because an item that is read sits under
+ * it. [parentUnreadable]: its direct Jira parent was read by id and the connection could not read it; the planner skips it `NO_PARENT`,
+ * never under a default parent.
  */
-class ImportBrowsedIssue(
+data class ImportBrowsedIssue(
     val observation: JiraObservation,
     val parentTypeId: String? = null,
     val parentTypeHierarchyLevel: Int? = null,
+    val keptAsParent: Boolean = false,
+    val parentUnreadable: Boolean = false,
 )
 
 /**
- * The issues one browse produced; [truncated] = the browse stopped at the cap, so more were in scope. A truncated browse cannot tell
- * a parent that was cut away from a genuine orphan, so the caller (the apply) MUST refuse it with a `400` before any write.
+ * The issues one browse produced; [truncated] = the browse stopped at the cap (or at the bound of the parents it reads by id), so more
+ * were in scope. A truncated browse cannot tell a parent that was cut away from a genuine orphan, so the caller (the apply) MUST refuse
+ * it with a `400` before any write.
  */
 class ImportBrowse(val issues: List<ImportBrowsedIssue>, val truncated: Boolean = false)
 

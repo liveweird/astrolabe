@@ -50,6 +50,42 @@ class JiraJqlTest {
     }
 
     @Test
+    fun `importBrowse narrows the typed full read by the done clause and a window in minutes, to the character`() {
+        val keys = listOf("IMF")
+        val types = listOf("10006", "10005", "10004")
+        assertEquals(
+            """project in ("IMF") AND issuetype in (10006,10005,10004) AND statusCategory != Done """ +
+                """AND updated >= "-525600m" ORDER BY id ASC""",
+            JiraJql.importBrowse(keys, types, excludeDone = true, updatedWithinDays = 365),
+        )
+        assertEquals(
+            """project in ("IMF") AND issuetype in (10006,10005,10004) AND statusCategory != Done ORDER BY id ASC""",
+            JiraJql.importBrowse(keys, types, excludeDone = true, updatedWithinDays = null),
+        )
+        assertEquals(
+            """project in ("IMF","IMP") AND issuetype in (10006,10005,10004) AND updated >= "-1440m" ORDER BY id ASC""",
+            JiraJql.importBrowse(listOf("IMF", "IMP"), types, excludeDone = false, updatedWithinDays = 1),
+        )
+        assertEquals(
+            """project in ("IMF") AND issuetype in (10006,10005,10004) AND updated >= "-5256000m" ORDER BY id ASC""",
+            JiraJql.importBrowse(keys, types, excludeDone = false, updatedWithinDays = 3_650),
+        )
+    }
+
+    @Test
+    fun `importBrowse refuses a window outside 1 to 3650 days, no type, a bad type id, a bad key and neither narrowing`() {
+        val keys = listOf("IMF")
+        val types = listOf("10004")
+        assertFailsWith<IllegalArgumentException> { JiraJql.importBrowse(keys, types, true, 0) }
+        assertFailsWith<IllegalArgumentException> { JiraJql.importBrowse(keys, types, true, 3_651) }
+        assertFailsWith<IllegalArgumentException> { JiraJql.importBrowse(keys, types, true, -1) }
+        assertFailsWith<IllegalArgumentException> { JiraJql.importBrowse(keys, emptyList(), true, 30) }
+        assertFailsWith<IllegalArgumentException> { JiraJql.importBrowse(keys, listOf("1) OR project = X"), true, 30) }
+        assertFailsWith<IllegalArgumentException> { JiraJql.importBrowse(listOf("bad"), types, true, 30) }
+        assertFailsWith<IllegalArgumentException> { JiraJql.importBrowse(keys, types, excludeDone = false, updatedWithinDays = null) }
+    }
+
+    @Test
     fun `incremental rejects a negative minute window`() {
         assertFailsWith<IllegalArgumentException> { JiraJql.incremental(listOf("ENG"), -1) }
     }

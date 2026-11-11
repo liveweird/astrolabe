@@ -986,6 +986,56 @@ class JiraImportKernelsTest {
         assertEquals(3, stopped.rows.size)
     }
 
+    // ---- The filter's browse (1.13.2): a parent kept by id, a parent that could not be read ------------------------------------------
+
+    @Test
+    fun `a kept parent's CREATE, BIND and SKIP rows all carry KEPT_AS_PARENT, and nothing else does`() {
+        val issues = listOf(
+            issue("100", JIRA_PROGRAM, "Platform program").copy(keptAsParent = true),
+            issue("200", JIRA_PROJECT, "Existing project", parent = "100").copy(keptAsParent = true),
+            issue("201", JIRA_PROJECT, "Brand new project", parent = "100").copy(keptAsParent = true),
+            issue("202", JIRA_PROJECT, "Linked project", parent = "100").copy(keptAsParent = true),
+            issue("300", JIRA_EPIC, "Epic A", parent = "201"),
+        )
+        val tree = ImportTree(
+            listOf(node(7u, "Platform program")), listOf(node(7u, "Existing project", parentId = 7u)), emptyList(),
+        )
+        val holders = listOf(holder("202", JiraLevel.PROJECT, 8u, "Linked project"))
+        val preview = ImportCase(issues, tree = tree, holders = holders).plan()
+        assertEquals(JiraImportAction.BIND, preview.row("100").item.action, "the program binds the unbound same-name program")
+        assertEquals(JiraImportAction.BIND, preview.row("200").item.action)
+        assertEquals(JiraImportAction.CREATE, preview.row("201").item.action)
+        assertEquals(JiraImportReason.ALREADY_BOUND, preview.row("202").item.reason)
+        for (id in listOf("100", "200", "201", "202")) {
+            assertTrue(JiraImportInfo.KEPT_AS_PARENT in preview.row(id).item.infos, id)
+        }
+        assertFalse(JiraImportInfo.KEPT_AS_PARENT in preview.row("300").item.infos, "the item that was read is not a kept parent")
+    }
+
+    @Test
+    fun `a child of an unreadable parent is NO_PARENT with its info even with every default, and what is under it is PARENT_SKIPPED`() {
+        val issues = listOf(
+            issue("200", JIRA_PROJECT, "Initiative A", parent = "100").copy(parentUnreadable = true),
+            issue("300", JIRA_EPIC, "Epic A", parent = "200"),
+            issue("301", JIRA_EPIC, "Epic B", parent = "201").copy(parentUnreadable = true),
+            issue("302", JIRA_EPIC, "Epic C"),
+        )
+        val everyDefault = JiraImportDefaults(programId = 7u, projectId = 7u, teamId = 10u)
+        val case = ImportCase(issues, tree = stream, defaults = everyDefault)
+        val preview = case.plan()
+        assertEquals(JiraImportReason.NO_PARENT, preview.row("200").item.reason, "not the default program")
+        assertEquals(listOf(JiraImportInfo.PARENT_UNREADABLE), preview.row("200").item.infos)
+        assertEquals(JiraImportReason.PARENT_SKIPPED, preview.row("300").item.reason)
+        assertTrue(preview.row("300").item.infos.isEmpty())
+        assertEquals(JiraImportReason.NO_PARENT, preview.row("301").item.reason, "not the default project")
+        assertTrue(JiraImportInfo.PARENT_UNREADABLE in preview.row("301").item.infos)
+        assertEquals(JiraImportAction.CREATE, preview.row("302").item.action, "a genuine orphan still takes the default project")
+        // Ticks taken from such a preview apply with no CHANGED: only the row that was ticked is written.
+        val applied = case.applyAll()
+        assertEquals(ImportApply.Write, applied.row("302").apply)
+        assertTrue(applied.skips.none { it.reason == JiraImportReason.CHANGED }, "nothing in the preview is stale")
+    }
+
     @Test
     fun `the as-of instant passes through untouched`() {
         assertEquals(42L, ImportCase(emptyList()).plan().asOf)

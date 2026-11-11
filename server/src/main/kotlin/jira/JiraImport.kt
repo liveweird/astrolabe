@@ -12,6 +12,21 @@ const val MAX_IMPORT_ITEMS = 2_000
 /** The most project keys a scope may name (a connection holds at most as many). */
 const val MAX_IMPORT_PROJECT_KEYS = 50
 
+/** The shortest and the longest window of `filter.updatedWithinDays` (ten years): the day count reaches a JQL, so it is bounded twice. */
+const val MIN_IMPORT_UPDATED_DAYS = 1
+const val MAX_IMPORT_UPDATED_DAYS = 3_650
+
+/** The most Jira issues one browse reads BY ID besides its search pages: the direct parents a filter left out (`JiraImportParents.kt`). */
+const val MAX_IMPORT_PARENT_READS = 200
+
+/**
+ * What an import's browse leaves out (1.13.2): [excludeDone] the items whose Jira status category is Done, [updatedWithinDays] the items
+ * Jira last updated longer ago than that many days ([MIN_IMPORT_UPDATED_DAYS]..[MAX_IMPORT_UPDATED_DAYS]; null = any age). Both off is
+ * the same as no filter. Per request, never stored; only the import reads through it.
+ */
+@Serializable
+data class JiraImportFilter(val excludeDone: Boolean = false, val updatedWithinDays: Int? = null)
+
 /** The parent of an orphan project (`programId`) or orphan milestone (`projectId`), and the team of a milestone with no name match. */
 @Serializable
 data class JiraImportDefaults(val programId: UInt? = null, val projectId: UInt? = null, val teamId: UInt? = null)
@@ -19,7 +34,7 @@ data class JiraImportDefaults(val programId: UInt? = null, val projectId: UInt? 
 /**
  * What both requests share: the picked [workStreamId] (every target lies under it), the [ownerPersonId] of every created program and
  * project, an optional subset of the connection's [projectKeys] (default: all), the [defaults] and whether Jira's milestone dates are
- * copied (only where the caller may schedule the milestone's team).
+ * copied (only where the caller may schedule the milestone's team). The optional [filter] narrows what the browse reads (absent = all).
  */
 @Serializable
 data class JiraImportScope(
@@ -28,6 +43,7 @@ data class JiraImportScope(
     val projectKeys: List<String>? = null,
     val defaults: JiraImportDefaults? = null,
     val copyDates: Boolean = true,
+    val filter: JiraImportFilter? = null,
 )
 
 /** What an item does: the preview proposes [CREATE], [BIND] (to an unbound same-name node) or [SKIP]; an apply expects the first two. */
@@ -44,7 +60,15 @@ enum class JiraImportReason { ALREADY_BOUND, NO_PARENT, NAME_TAKEN, LEVEL_UNMAPP
 
 /** Something worth a gray word beside a row; none of them stops a row. */
 @Serializable
-enum class JiraImportInfo { NAME_TRUNCATED, ESTIMATE_NOT_CONVERTED, DATES_NOT_COPIED, DATES_INVALID, NO_WORKING_DAY }
+enum class JiraImportInfo {
+    NAME_TRUNCATED, ESTIMATE_NOT_CONVERTED, DATES_NOT_COPIED, DATES_INVALID, NO_WORKING_DAY,
+
+    /** The filter would have left this item out, but an item that is read sits under it: it was fetched by id and kept (1.13.2). */
+    KEPT_AS_PARENT,
+
+    /** Its Jira parent exists inside the import's projects and the connection could not read it (deleted, or not visible): 1.13.2. */
+    PARENT_UNREADABLE,
+}
 
 /** Where a created row lands: an [EXISTING] node, the new node of another row ([NEW_ROW]) or the level's [DEFAULT] parent. */
 @Serializable
@@ -101,7 +125,10 @@ data class JiraImportItem(
     val infos: List<JiraImportInfo>,
 )
 
-/** [truncated]: more issues were in scope than [MAX_IMPORT_ITEMS] (the user narrows `projectKeys`). */
+/**
+ * [truncated]: what is shown is incomplete and cannot be imported (the user narrows `projectKeys` or the filter): more issues were in
+ * scope than [MAX_IMPORT_ITEMS] (the parents read by id count), or more than [MAX_IMPORT_PARENT_READS] parents would have to be read.
+ */
 @Serializable
 data class JiraImportTotals(val items: Int, val create: Int, val bind: Int, val skip: Int, val truncated: Boolean)
 
@@ -152,8 +179,9 @@ data class JiraImportApplyRequest(
     val defaults: JiraImportDefaults? = null,
     val copyDates: Boolean = true,
     val items: List<JiraImportApplyItem>,
+    val filter: JiraImportFilter? = null,
 ) {
-    fun scope(): JiraImportScope = JiraImportScope(workStreamId, ownerPersonId, projectKeys, defaults, copyDates)
+    fun scope(): JiraImportScope = JiraImportScope(workStreamId, ownerPersonId, projectKeys, defaults, copyDates, filter)
 }
 
 @Serializable
@@ -185,9 +213,19 @@ data class JiraImportResult(
 
 /**
  * The project keys an import browses: [JiraImportScope.projectKeys] (1 to [MAX_IMPORT_PROJECT_KEYS], distinct, each one of the
- * connection's [connectionKeys]), else all of them. A `400` on a client bug; the route AND the service both call it.
+ * connection's [connectionKeys]), else all of them; then the filter's day count, a whole number from [MIN_IMPORT_UPDATED_DAYS] to
+ * [MAX_IMPORT_UPDATED_DAYS] (it reaches a query, so nothing else passes). A `400` on a client bug; the route AND the service both call it.
  */
 fun validateImportScope(scope: JiraImportScope, connectionKeys: List<String>): List<String> {
+    val keys = validatedKeys(scope, connectionKeys)
+    val days = scope.filter?.updatedWithinDays
+    if (days != null && days !in MIN_IMPORT_UPDATED_DAYS..MAX_IMPORT_UPDATED_DAYS) {
+        throw BadRequestException("filter.updatedWithinDays must be between $MIN_IMPORT_UPDATED_DAYS and $MAX_IMPORT_UPDATED_DAYS")
+    }
+    return keys
+}
+
+private fun validatedKeys(scope: JiraImportScope, connectionKeys: List<String>): List<String> {
     val requested = scope.projectKeys ?: return connectionKeys
     if (requested.isEmpty() || requested.size > MAX_IMPORT_PROJECT_KEYS) {
         throw BadRequestException("projectKeys must list between 1 and $MAX_IMPORT_PROJECT_KEYS keys")

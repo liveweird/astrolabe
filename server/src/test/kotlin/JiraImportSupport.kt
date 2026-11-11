@@ -155,17 +155,32 @@ fun ImportPlan.row(id: String): ImportRow = rows.single { it.item.jiraId == id }
 
 fun ImportPlan.ids(): List<String> = rows.map { it.item.jiraId }
 
+/** One scripted by-id answer (`GET /issue/{id}`): the HTTP [status] and its [body]. */
+class ScriptedIssue(val status: Int, val body: String)
+
 /**
  * A scripted Jira site: a Ktor `MockEngine` under the real `HttpJiraClient` and transport, answering [pages] in order, one per search
  * request. [onSearch] runs (suspending) with the request's index BEFORE its page is answered: a test flips database rows or stalls there.
- * [searches] is every search request that reached the site. Reads no stub, so it may live outside a `*Test.kt` file.
+ * [issues] answers `GET /issue/{id}` by id (any other id is a `404`), [onIssue] runs with the id BEFORE that answer. [searches] is every
+ * search request that reached the site, [issueReads] the ids read by id, in order. Reads no stub, so it may live outside a `*Test.kt` file.
  */
-class ScriptedSite(vararg pages: String, onSearch: suspend (Int) -> Unit = {}) {
+class ScriptedSite(
+    vararg pages: String,
+    onSearch: suspend (Int) -> Unit = {},
+    issues: Map<String, ScriptedIssue> = emptyMap(),
+    onIssue: suspend (String) -> Unit = {},
+) {
     private val next = java.util.concurrent.atomic.AtomicInteger()
     val engine = io.ktor.client.engine.mock.MockEngine { request ->
         val headers = io.ktor.http.headersOf(io.ktor.http.HttpHeaders.ContentType, "application/json")
-        if (request.url.encodedPath.endsWith("/_edge/tenant_info")) {
+        val path = request.url.encodedPath
+        if (path.endsWith("/_edge/tenant_info")) {
             respond("""{"cloudId":"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"}""", io.ktor.http.HttpStatusCode.OK, headers)
+        } else if (path.contains("/rest/api/3/issue/")) {
+            val id = path.substringAfterLast('/')
+            onIssue(id)
+            val answer = issues[id] ?: ScriptedIssue(404, """{"errorMessages":["Issue does not exist"],"errors":{}}""")
+            respond(answer.body, io.ktor.http.HttpStatusCode.fromValue(answer.status), headers)
         } else {
             val index = next.getAndIncrement()
             onSearch(index)
@@ -173,6 +188,8 @@ class ScriptedSite(vararg pages: String, onSearch: suspend (Int) -> Unit = {}) {
         }
     }
     val searches get() = engine.requestHistory.filter { it.url.encodedPath.endsWith("/search/jql") }
+    val issueRequests get() = engine.requestHistory.filter { it.url.encodedPath.contains("/rest/api/3/issue/") }
+    val issueReads get() = issueRequests.map { it.url.encodedPath.substringAfterLast('/') }
     val connector: ch.nokillswit.jira.JiraConnector
 
     init {

@@ -4,6 +4,7 @@ import com.github.tomakehurst.wiremock.WireMockServer
 import com.github.tomakehurst.wiremock.client.MappingBuilder
 import com.github.tomakehurst.wiremock.client.WireMock
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration
+import com.github.tomakehurst.wiremock.verification.LoggedRequest
 import com.github.tomakehurst.wiremock.matching.RequestPatternBuilder
 import com.github.tomakehurst.wiremock.stubbing.StubMapping
 import java.io.File
@@ -64,6 +65,12 @@ open class StubServer(private val stubDirectory: String) {
 
     /** How many requests the journal holds for [pattern] (at most [JOURNAL_ENTRIES] are kept, newest first). */
     fun countRequests(pattern: RequestPatternBuilder): Int = client.find(pattern).size
+
+    /**
+     * The journal's requests for [pattern], oldest first (the journal is newest first; a tie on the millisecond keeps that order
+     * reversed): a test that asserts WHAT was asked and in what order. Call [resetRequests] just before the interaction.
+     */
+    fun requests(pattern: RequestPatternBuilder): List<LoggedRequest> = client.find(pattern).reversed().sortedBy { it.loggedDate }
 
     private companion object {
         const val JOURNAL_ENTRIES = 50

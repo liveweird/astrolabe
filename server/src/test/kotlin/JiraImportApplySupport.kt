@@ -25,7 +25,9 @@ import kotlin.test.assertEquals
 internal suspend fun HttpClient.applyImport(id: UInt, scope: JiraImportScope, items: List<JiraImportApplyItem>): HttpResponse =
     postJson(
         "$JB_CONNECTIONS/$id/import",
-        JiraImportApplyRequest(scope.workStreamId, scope.ownerPersonId, scope.projectKeys, scope.defaults, scope.copyDates, items),
+        JiraImportApplyRequest(
+            scope.workStreamId, scope.ownerPersonId, scope.projectKeys, scope.defaults, scope.copyDates, items, scope.filter,
+        ),
     )
 
 internal suspend fun HttpResponse.applyBody(): JiraImportResult {

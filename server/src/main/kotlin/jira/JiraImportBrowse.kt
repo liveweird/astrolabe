@@ -9,7 +9,9 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonObject
 
 // The Jira import's browse (1.2): ONE paged read of the connection's scope, with the run's own full-read JQL, outside any transaction,
-// turned into the kernel's `ImportBrowse`. It reads and calls Jira only: nothing here touches the plan or stores anything.
+// turned into the kernel's `ImportBrowse`. It reads and calls Jira only: nothing here touches the plan or stores anything. With an
+// active filter (1.13.2) the query is narrowed, the server's own rule drops what it does not admit, and the missing direct parents of
+// what is kept are fetched by id (`JiraImportParents.kt`); an absent or inactive filter is the plain full read, request for request.
 
 private const val MAX_TYPE_ID = 20
 
@@ -51,6 +53,11 @@ internal fun browseGuard(connections: JiraConnectionService, connectionId: UInt)
  * request, a browse past [deadlineMillis] (`TIMEOUT`) and the rest are the [ch.nokillswit.infra.fetch.FetchException] the route answers
  * `502`. The token is only ever the client's
  * `Authorization` value. A mapped level without a usable issue type id is a `409 jira-mapping-invalid` before any request.
+ *
+ * An active [filter] (1.13.2) narrows the query (`JiraJql.importBrowse`), puts every entry to [JiraImportFilter.admits] as it streams
+ * (one it does not admit is dropped at once and never counts toward [cap]), then reads the missing direct parents by id
+ * ([ParentReads]; at most [MAX_IMPORT_PARENT_READS], the rows with them still under [cap], [beforePage] before each read), all inside
+ * the one [deadlineMillis]. A search that itself passed [cap] reads no parent. Past either bound the browse is `truncated`.
  */
 internal suspend fun browseScope(
     connector: JiraConnector,
@@ -63,13 +70,17 @@ internal suspend fun browseScope(
     beforePage: suspend () -> Unit,
     cap: Int = MAX_IMPORT_ITEMS,
     deadlineMillis: Long = IMPORT_BROWSE_DEADLINE_MILLIS,
+    filter: ImportBrowseFilter? = null,
 ): ImportBrowse {
     val typeIds = sweepTypeIds(mapping, discovery) ?: throw ConflictException(
         "The connection's mapping no longer fits the site (a mapped level has no issue type) - ask an administrator to update it",
         JIRA_MAPPING_INVALID_PROBLEM,
     )
     // `withTimeoutOrNull` handles ONLY its own deadline (null); a real cancellation of the caller, or another scope's timeout, propagates.
-    return withTimeoutOrNull(deadlineMillis) { read(connector, context, token, keys, typeIds, mapping, discovery, now, beforePage, cap) }
+    val active = filter?.takeIf { it.filter.isActive() }
+    return withTimeoutOrNull(deadlineMillis) {
+        read(connector, context, token, keys, typeIds, mapping, discovery, now, beforePage, cap, active)
+    }
         ?: throw FetchException(JIRA_SOURCE, "TIMEOUT", null, "/rest/api/3/search/jql", "the browse passed its deadline")
 }
 
@@ -84,6 +95,7 @@ private suspend fun read(
     now: Long,
     beforePage: suspend () -> Unit,
     cap: Int,
+    filter: ImportBrowseFilter?,
 ): ImportBrowse {
     val client = connector.clientFor(context.target, token)
     client.resolveCloudId()
@@ -91,9 +103,10 @@ private suspend fun read(
     val issues = LinkedHashMap<String, ImportBrowsedIssue>()
     var truncated = false
     try {
-        searchPages(client, { JiraJql.full(keys, typeIds) }, observationFields(mapping), connector.pageSize, beforePage, {}) { page ->
+        searchPages(client, { queryOf(keys, typeIds, filter) }, observationFields(mapping), connector.pageSize, beforePage, {}) { page ->
             for (entry in page) {
                 val browsed = (entry as? JsonObject)?.let { browsedIssue(it, mapping, discovery, now) } ?: continue
+                if (filter != null && !filter.filter.admits(browsed.observation, now)) continue
                 if (browsed.observation.issueId in issues) continue
                 if (issues.size >= cap) throw BrowseCapReached()
                 issues[browsed.observation.issueId] = browsed
@@ -102,11 +115,18 @@ private suspend fun read(
     } catch (_: BrowseCapReached) {
         truncated = true
     }
+    if (filter != null && !truncated) {
+        truncated = ParentReads(client, filter, mapping, discovery, keys, now, beforePage, cap).readInto(issues)
+    }
     return ImportBrowse(issues.values.toList(), truncated)
 }
 
+/** The plain typed full read, or (an active filter) the same read narrowed by its clauses. */
+private fun queryOf(keys: List<String>, typeIds: List<String>, filter: ImportBrowseFilter?): String =
+    filter?.filter?.let { JiraJql.importBrowse(keys, typeIds, it.excludeDone, it.updatedWithinDays) } ?: JiraJql.full(keys, typeIds)
+
 /** One search entry as the kernel's issue: read at its own plan level, plus its parent's type. Null without a usable id or key. */
-private fun browsedIssue(issue: JsonObject, mapping: JiraMapping, discovery: JiraDiscovery, now: Long): ImportBrowsedIssue? {
+internal fun browsedIssue(issue: JsonObject, mapping: JiraMapping, discovery: JiraDiscovery, now: Long): ImportBrowsedIssue? {
     val first = JiraObservation.of(issue, mapping, discovery, JiraLevel.MILESTONE, now) ?: return null
     val own = mapping.levelAt(first.hierarchyLevel)
     val observation = when (own) {

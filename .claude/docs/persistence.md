@@ -505,7 +505,9 @@ function (`deleteCapacityPeriodsOf`, `removeFromRanking`, …) counts as the cal
   name rule), `teams` (active; the caller's managed teams through `TeamService.activeManagedTeamIds`, which reuses this transaction) and `jira_bindings` /
   `jira_connections` (the active bindings of the browsed issues on every active connection of the site, with `liveNodeIds`/`describeNodes`); `requireShape` and
   `namedChains` are plain short reads of `people`, `teams`, `programs`, `projects` and the owner chains (`workStreamChain`, `programChain`, `projectChain`). The
-  browse (`JiraImportBrowse.kt`) calls Jira outside every transaction. **The apply (1.2; `JiraImportApply.kt`, `JiraImportService.apply`) is the ONE Jira write
+  browse (`JiraImportBrowse.kt`) calls Jira outside every transaction. **Under an active filter (1.13.2)** the browse also makes one short read of
+  `jira_bindings` / `jira_connections` per round of by-id parent reads (`liveHeldIssueIds`: its own read-only snapshot, no lock, which of a list of issue ids a
+  live binding of the site holds), BETWEEN Jira calls, never inside one. **The apply (1.2; `JiraImportApply.kt`, `JiraImportService.apply`) is the ONE Jira write
   that moves the plan**, and WRITES in ONE `withPlanWrite` (one bump, also when everything is skipped): `programs`, `projects`, `milestones` through
   `PlanNodeInserts.kt` (the services' own insert blocks; milestones inserted with `schedule_revision = revision + 1`),
   `milestones.start_date/end_date/schedule_revision/updated_at` through `writeSchedules` at `revision + 1` for the scheduled ones (**the third writer of those

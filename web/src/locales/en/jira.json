@@ -415,7 +415,9 @@
       "estimateNotConverted": "Estimate not converted (0 man-days)",
       "datesNotManaged": "Dates not copied: you do not manage the team",
       "datesInvalid": "Jira's dates are missing or invalid: created unscheduled",
-      "noWorkingDay": "Jira's dates hold no working day: created unscheduled"
+      "noWorkingDay": "Jira's dates hold no working day: created unscheduled",
+      "keptAsParent": "Kept as a parent of an item shown here",
+      "parentUnreadable": "Its parent in Jira could not be read (deleted, or not visible to the connection's account)"
     },
     "outcome": {
       "title": "Import finished",

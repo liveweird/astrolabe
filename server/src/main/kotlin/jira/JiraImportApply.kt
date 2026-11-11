@@ -30,7 +30,9 @@ import org.jetbrains.exposed.v1.r2dbc.transactions.TransactionManager
 // steps below run inside it, in the order the kdoc of [LockedApply.run] fixes.
 
 /** The word for an apply over a scope the browse could not read whole (a parent cut by the cap cannot be told from an orphan). */
-internal const val IMPORT_TRUNCATED = "More than $MAX_IMPORT_ITEMS issues are in scope - narrow projectKeys and preview again"
+internal const val IMPORT_TRUNCATED =
+    "More than $MAX_IMPORT_ITEMS issues are in scope, or more than $MAX_IMPORT_PARENT_READS parents would have to be read one by one - " +
+        "narrow projectKeys or the filter and preview again"
 
 /**
  * What the route hands the apply, all of it resolved BEFORE the lock: the request, the browse (the one HTTP act, already done), the

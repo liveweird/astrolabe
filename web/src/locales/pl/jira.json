@@ -425,7 +425,9 @@
       "estimateNotConverted": "Szacunek nieprzeliczony (0 osobodni)",
       "datesNotManaged": "Daty nie zostaną skopiowane: nie zarządzasz tym zespołem",
       "datesInvalid": "Daty z Jiry są puste lub błędne: powstanie bez terminu",
-      "noWorkingDay": "W datach z Jiry nie ma dnia roboczego: powstanie bez terminu"
+      "noWorkingDay": "W datach z Jiry nie ma dnia roboczego: powstanie bez terminu",
+      "keptAsParent": "Zostaje jako rodzic pokazanego tu elementu",
+      "parentUnreadable": "Nie udało się odczytać jego rodzica w Jirze (usunięty albo niewidoczny dla konta połączenia)"
     },
     "outcome": {
       "title": "Import zakończony",

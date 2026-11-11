@@ -45,8 +45,10 @@ class JiraImportApplyRoute(val parent: JiraConnectionsRoute.Id)
  * chains (`404`: the work stream, `defaults.programId`, `defaults.projectId`) -> `403` for a login that owns no plan node at all, then
  * the guard on each named DEFAULT (`403`) -> THE TOKEN'S DECRYPT (`readForBind`: a caller refused by the checks above never reaches
  * it; the resolved-target `403` below still follows it and the browse; the `404` above reads the connection's state and touches no
- * token) -> the shape (`400`) -> the connection enabled (`400`), its token (`409`),
- * discovery (`409`) and mapping (`409`) -> ONE paged browse of the scope, outside any transaction (`502`) -> ONE read-only snapshot ->
+ * token) -> the shape (`400`; the filter's day count is checked here, so a `403` always wins over it) -> the connection enabled (`400`),
+ * its token (`409`), discovery (`409`) and mapping (`409`) -> ONE paged browse of the scope, outside any transaction (`502`; under an
+ * active filter it narrows the query and adds the by-id reads of the parents the filter left out, each round preceded by a short read of
+ * the bindings in its own snapshot, none across a Jira call) -> ONE read-only snapshot ->
  * the pure kernel -> the guard on the RESOLVED targets (`403`, naming the first one the caller does not own) -> `200`. The picked work
  * stream is a target only when a program would be created (a program owner may import under their program), so it is guarded there,
  * not up front; a caller who owns neither it, any target nor any node of its tree is refused too. It stores nothing and audits
@@ -79,7 +81,7 @@ internal fun Route.jiraImportRoutes(
             val admitted = admit(caller, personOf(caller), connections, route.parent.id, scope, null, imports)
             val context = admitted.context
             val now = nowMillis()
-            val browse = browseOrBadGateway(connections, connector, route.parent.id, context, admitted, now) ?: return@post
+            val browse = browseOrBadGateway(connections, connector, imports, route.parent.id, context, admitted, now) ?: return@post
             val issueIds = issueIdsOf(browse)
             val managerUserId = if (caller.isAdmin()) null else caller.userId
             val read = imports.read(scope.workStreamId, context.target.siteUrl, issueIds, managerUserId).orNotFound("Work stream")
@@ -110,13 +112,13 @@ internal fun Route.jiraImportRoutes(
             val admitted = admit(caller, personOf(caller), connections, route.parent.id, request.scope(), request.items, imports)
             val context = admitted.context
             val now = nowMillis()
-            val browse = browseOrBadGateway(connections, connector, route.parent.id, context, admitted, now) ?: return@post
+            val browse = browseOrBadGateway(connections, connector, imports, route.parent.id, context, admitted, now) ?: return@post
             val applied = ApplyContext(
                 route.parent.id, request, admitted.keys, browse, admitted.ready.mapping, admitted.ready.discovery,
                 context.mappingChangedAt, caller, { lockedPersonOf(caller) }, now,
             )
             val outcome = imports.apply(applied)
-            auditImportApplied(caller, route.parent.id, request.workStreamId, outcome)
+            auditImportApplied(caller, route.parent.id, request, outcome)
             call.respond(HttpStatusCode.OK, outcome.result)
         }
     }
@@ -129,6 +131,7 @@ private class Admitted(
     val named: List<OwnerChain>,
     val keys: List<String>,
     val ready: ImportPreflight,
+    val filter: JiraImportFilter?,
 )
 
 /**
@@ -166,20 +169,26 @@ private suspend fun admit(
     items?.let(::validateApplyItems)
     val keys = validateImportScope(scope, context.target.projectKeys)
     imports.requireShape(scope, items.orEmpty().mapNotNull { it.overrides?.teamId })
-    return Admitted(context, personId, named, keys, importPreflight(context))
+    return Admitted(context, personId, named, keys, importPreflight(context), scope.filter)
 }
 
 /** The ONE paged browse, outside any transaction; null after answering `502` (the failure code only, never the upstream's text). */
 private suspend fun RoutingContext.browseOrBadGateway(
     connections: JiraConnectionService,
     connector: JiraConnector,
+    imports: JiraImportService,
     connectionId: UInt,
     context: JiraBindContext,
     admitted: Admitted,
     now: Long,
 ): ImportBrowse? = try {
     val stop = browseGuard(connections, connectionId)
-    browseScope(connector, context, admitted.ready.token, admitted.keys, admitted.ready.mapping, admitted.ready.discovery, now, stop)
+    // ONE place builds the query and reads the parents, for the preview AND the apply: both come here with their request's own filter.
+    val filter = admitted.filter?.takeIf { it.isActive() }?.let { active ->
+        ImportBrowseFilter(active) { ids -> imports.liveHeldIssueIds(context.target.siteUrl, ids) }
+    }
+    val ready = admitted.ready
+    browseScope(connector, context, ready.token, admitted.keys, ready.mapping, ready.discovery, now, stop, filter = filter)
 } catch (failure: FetchException) {
     // The code only: the exception's text names an endpoint; nothing of the upstream body or the credentials reaches a client.
     call.respondProblem(HttpStatusCode.BadGateway, "Jira did not answer (${failure.code})", type = JIRA_UPSTREAM_PROBLEM)
@@ -187,7 +196,7 @@ private suspend fun RoutingContext.browseOrBadGateway(
 }
 
 /** After the commit (a line inside the transaction could describe a rollback): the released holders first, as the bind does. */
-private fun auditImportApplied(caller: CallerPrincipal, connectionId: UInt, workStreamId: UInt, outcome: ImportOutcome) {
+private fun auditImportApplied(caller: CallerPrincipal, connectionId: UInt, request: JiraImportApplyRequest, outcome: ImportOutcome) {
     outcome.released.forEach { released ->
         audit(
             "jira.binding_released",
@@ -207,7 +216,7 @@ private fun auditImportApplied(caller: CallerPrincipal, connectionId: UInt, work
         "jira.import_applied",
         "byUserId" to caller.userId.toLong(),
         "connectionId" to connectionId.toLong(),
-        "workStreamId" to workStreamId.toLong(),
+        "workStreamId" to request.workStreamId.toLong(),
         "revisionTo" to result.revision,
         "createdCount" to result.created.size,
         "boundCount" to result.bound.size,
@@ -217,6 +226,8 @@ private fun auditImportApplied(caller: CallerPrincipal, connectionId: UInt, work
         "milestoneIds" to created(JiraLevel.MILESTONE),
         "scheduledIds" to ids(result.created.filter { it.scheduled }.map { it.id }),
         "bindingIds" to ids(result.created.map { it.bindingId } + result.bound.map { it.bindingId }),
+        "excludeDone" to (request.filter?.excludeDone ?: false),
+        "updatedWithinDays" to request.filter?.updatedWithinDays,
     )
 }
 

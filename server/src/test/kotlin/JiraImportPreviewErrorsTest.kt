@@ -5,6 +5,7 @@ import ch.nokillswit.jira.JiraConnectionResponse
 import ch.nokillswit.jira.JiraConnectionServiceKey
 import ch.nokillswit.jira.JiraImportAction
 import ch.nokillswit.jira.JiraImportDefaults
+import ch.nokillswit.jira.JiraImportFilter
 import ch.nokillswit.jira.browseGuard
 import ch.nokillswit.jira.browseScope
 import ch.nokillswit.jira.effectiveMapping
@@ -116,6 +117,33 @@ class JiraImportPreviewErrorsTest {
             assertTrue("disabled" in disabled.jbProblem().detail.orEmpty())
         }
     }
+
+    @Test
+    fun `an out-of-range filter day count is a 403 for a login owning nothing, a 400 for an admin, and nothing is read from Jira`() =
+        testApplication {
+            val f = importFixture("jipefl")
+            val admin = f.w.admin.client
+            failingJira {
+                for ((name, caller) in f.w.outsiders) {
+                    val refused = caller.client.preview(f.connectionId, f.scope(filter = JiraImportFilter(true, 0)))
+                    assertEquals(HttpStatusCode.Forbidden, refused.status, name)
+                }
+                for (days in listOf(0, 3_651)) {
+                    val refused = admin.preview(f.connectionId, f.scope(filter = JiraImportFilter(true, days)))
+                    assertEquals(HttpStatusCode.BadRequest, refused.status, "$days")
+                    assertEquals("filter.updatedWithinDays must be between 1 and 3650", refused.jbProblem().detail)
+                }
+                val head = """{"workStreamId":${f.w.streamId},"ownerPersonId":${f.w.streamOwner.personId},"filter":{"updatedWithinDays":"""
+                // (The decoder is lenient about a QUOTED number, "30"; a word is no number.)
+                for (literal in listOf("1.5", "\"many\"")) {
+                    val raw = admin.post("$JB_CONNECTIONS/${f.connectionId}/import-preview") {
+                        contentType(ContentType.Application.Json)
+                        setBody("$head$literal}}")
+                    }
+                    assertEquals(HttpStatusCode.BadRequest, raw.status, "$literal is the decoder's 400")
+                }
+            }
+        }
 
     @Test
     fun `a connection never tested, an unreadable token and a mapping the site outgrew are 409 and nothing is read or rewritten`() =
