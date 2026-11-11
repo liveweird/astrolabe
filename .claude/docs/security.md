@@ -296,6 +296,8 @@ The per-IP `flow-test` bucket (both Flow Test-connection routes; its OWN bucket,
 `RateLimitResponseTest` and `LoginTest` pin the value to `10` explicitly, since tests run in
 development mode.
 
+**No budget headers.** Every bucket, per-IP or per-USER, speaks `Retry-After` (the wait rounded UP to whole seconds, 1..60, as Ktor's default) on its `429` and nothing else: Ktor's default `X-RateLimit-Limit/-Remaining/-Reset` on admitted answers is never added, by the one `retryAfterOnly()` policy that both registration loops in `plugins/RateLimits.kt` apply (a new bucket inherits it; API-RATE-001, the spec declares none). `RateLimitHeadersTest` walks every registered bucket (`perIpBuckets()`, `perUserBuckets()`) plus real routes.
+
 **Per-USER telemetry bucket** (`telemetry`, a fixed 30/min in every mode, `RateLimits.TELEMETRY`) -- keyed by the verified user id, not the client IP, so a NAT'd office is not one bucket -- for
 `GET /api/v1/telemetry/current` and `/history` (ADMIN only): `configureTelemetryRoutes` mounts `rateLimit(RateLimitName(RateLimits.TELEMETRY))`
 once INSIDE `authenticate {}` around both reads, so the key is the verified user id (`TelemetryRoutesTest`). The panel polls `current` once a

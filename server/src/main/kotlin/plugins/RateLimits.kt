@@ -2,10 +2,13 @@ package ch.nokillswit.plugins
 
 import ch.nokillswit.authz.caller
 import ch.nokillswit.infra.config.requireConfigInt
+import io.ktor.http.HttpHeaders
 import io.ktor.server.application.*
 import io.ktor.server.plugins.origin
 import io.ktor.server.plugins.ratelimit.RateLimit
 import io.ktor.server.plugins.ratelimit.RateLimitName
+import io.ktor.server.plugins.ratelimit.RateLimitProviderConfig
+import io.ktor.server.plugins.ratelimit.RateLimiter
 import io.ktor.util.AttributeKey
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Duration.Companion.seconds
@@ -192,31 +195,13 @@ object RateLimits {
  * before the feature modules, so any route may ride any bucket regardless of module order.
  */
 fun Application.configureRateLimits() {
-    val buckets = with(RateLimits) {
-        mapOf(
-            LOGIN to loginLimit(),
-            REFRESH to refreshLimit(),
-            PASSWORD_RESET to passwordResetLimit(),
-            MFA to mfaLimit(),
-            PASSWORD_RESET_CONFIRM to passwordResetConfirmLimit(),
-            JIRA_TEST to jiraTestLimit(),
-            FLOW_TEST to flowTestLimit(),
-            READY to readyLimit(),
-        )
-    }
-    val perUserBuckets = with(RateLimits) {
-        mapOf(
-            TELEMETRY to telemetryLimit(),
-            JIRA_BIND to jiraBindLimit(),
-            JIRA_IMPORT to jiraImportLimit(),
-            PASSWORD_CHANGE to passwordChangeLimit(),
-            SYNC_RUN to syncRunLimit(),
-        )
-    }
+    val buckets = perIpBuckets()
+    val perUserBuckets = perUserBuckets()
     install(RateLimit) {
         buckets.forEach { (name, limit) ->
             register(RateLimitName(name)) {
                 rateLimiter(limit = limit, refillPeriod = 60.seconds)
+                retryAfterOnly()
                 requestKey { call ->
                     // The plugin gives its 429 no handle on the bucket, but it computes this key right before
                     // rejecting, so the name stamped here is the rejecting bucket's (the `rate_limit.exceeded` audit).
@@ -233,6 +218,7 @@ fun Application.configureRateLimits() {
         perUserBuckets.forEach { (name, limit) ->
             register(RateLimitName(name)) {
                 rateLimiter(limit = limit, refillPeriod = 60.seconds)
+                retryAfterOnly()
                 requestKey { call ->
                     call.attributes.put(RateLimitBucketKey, name)
                     val userId = call.caller().userId
@@ -243,3 +229,48 @@ fun Application.configureRateLimits() {
         }
     }
 }
+
+/** The per-IP buckets and their per-minute limits: ONE list, read by [configureRateLimits] and by the tests that walk every bucket. */
+internal fun Application.perIpBuckets(): Map<String, Int> = with(RateLimits) {
+    mapOf(
+        LOGIN to loginLimit(),
+        REFRESH to refreshLimit(),
+        PASSWORD_RESET to passwordResetLimit(),
+        MFA to mfaLimit(),
+        PASSWORD_RESET_CONFIRM to passwordResetConfirmLimit(),
+        JIRA_TEST to jiraTestLimit(),
+        FLOW_TEST to flowTestLimit(),
+        READY to readyLimit(),
+    )
+}
+
+/** The per-USER buckets and their per-minute limits (the [perIpBuckets] twin). */
+internal fun Application.perUserBuckets(): Map<String, Int> = with(RateLimits) {
+    mapOf(
+        TELEMETRY to telemetryLimit(),
+        JIRA_BIND to jiraBindLimit(),
+        JIRA_IMPORT to jiraImportLimit(),
+        PASSWORD_CHANGE to passwordChangeLimit(),
+        SYNC_RUN to syncRunLimit(),
+    )
+}
+
+/**
+ * The ONE response policy of every bucket, applied by both registration loops of [configureRateLimits] so a new bucket inherits it.
+ * Ktor's default `modifyResponse` adds `X-RateLimit-Limit/-Remaining/-Reset` to every admitted answer and `Retry-After` to a refusal;
+ * the API speaks no budget headers (API-RATE-001; the spec declares none), so an admitted answer is left untouched and the refusal
+ * keeps exactly the default's `Retry-After`: the wait ROUNDED UP to whole seconds ([retryAfterSeconds]), set only if nothing set it first.
+ */
+private fun RateLimitProviderConfig.retryAfterOnly() = modifyResponse { call, state ->
+    if (state is RateLimiter.State.Exhausted && !call.response.headers.contains(HttpHeaders.RetryAfter)) {
+        call.response.headers.append(HttpHeaders.RetryAfter, retryAfterSeconds(state.toWait.inWholeMilliseconds).toString())
+    }
+}
+
+/**
+ * Ktor 3.6's own `formatHeaderSeconds`: a wait of 1..60,000 ms answers 1..60, never 0 (a client honouring `Retry-After: 0` would retry
+ * at once into the same refusal).
+ */
+internal fun retryAfterSeconds(waitMillis: Long): Long = (waitMillis + MILLIS_PER_SECOND - 1) / MILLIS_PER_SECOND
+
+private const val MILLIS_PER_SECOND = 1_000L
