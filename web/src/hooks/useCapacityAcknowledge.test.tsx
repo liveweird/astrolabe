@@ -12,6 +12,7 @@ const ROW_3 = differsRow({ sprintId: 90003, sprintName: "E2E Flow Sprint 3", sta
 const ROW_4 = missingRow(90004, "2047-02-18", "2047-03-01");
 const URL_5 = "/api/v1/integrations/flow/team-bindings/5/acknowledge";
 const URL_ALL = "/api/v1/integrations/flow/team-bindings/5/acknowledge-all";
+const URL_UNACK_ALL = "/api/v1/integrations/flow/team-bindings/5/unacknowledge-all";
 const STALE = { type: "urn:astrolabe:problem:stale-deviations", title: "Conflict", status: 409, detail: "changed" };
 
 /** Three buttons that write (each names its neighbours as a list does) and the hook's state in text, so the machine is read the way a list reads it. */
@@ -33,6 +34,9 @@ function Harness({ scope = "a" }: { scope?: string }) {
       <button onClick={() => ack.run({ kind: "acknowledge", bindingId: 6, row: GONE_ROW }, [])}>ack gone</button>
       <button data-ack-for="5:all" onClick={() => ack.run({ kind: "acknowledgeAll", bindingId: 5, rows: [ROW_2, ROW_4] }, ["5:90002", "5:90003", "5:90004"])}>
         ack all
+      </button>
+      <button onClick={() => ack.run({ kind: "unacknowledgeAll", bindingId: 5, rows: [acknowledgedRow(ROW_2), acknowledgedRow(ROW_3)] }, ["5:90002", "5:90003"])}>
+        unack all
       </button>
       <output data-testid="busy">{ack.busyKey ?? "idle"}</output>
       <output data-testid="notice">{ack.notice === null ? "none" : `${ack.notice.key} ${ack.notice.kind}${ack.notice.kind === "failure" ? `: ${ack.notice.text}` : ""}`}</output>
@@ -225,6 +229,41 @@ describe("useCapacityAcknowledge", () => {
     await userEvent.click(screen.getByRole("button", { name: "ack all" }));
     await waitFor(() => expect(screen.getByTestId("notice")).toHaveTextContent("5:all failure: Only the team's manager or an administrator can acknowledge its capacity differences."));
     expect(invalidated).toEqual([["flow", "teams"], ["flow", "team"], ["flow", "deviations"]]);
+  });
+
+  test("withdraw all is ONE POST naming every row by sprint only, keyed by the binding, with the same re-read (the 204 has no body)", async () => {
+    mockFetch.mockImplementation(() => Promise.resolve(new Response(null, { status: 204 })));
+    renderHarness();
+    await userEvent.click(screen.getByRole("button", { name: "unack all" }));
+    await waitFor(() => expect(invalidated).toEqual([["flow", "deviations"], ["plan"]]));
+    expect(writes()).toHaveLength(1);
+    expect(writes()[0][0]).toBe(URL_UNACK_ALL);
+    expect(writes()[0][1].method).toBe("POST");
+    expect(JSON.parse(writes()[0][1].body as string)).toEqual({ items: [{ sprintId: 90002 }, { sprintId: 90003 }] });
+    expect(screen.getByTestId("notice")).toHaveTextContent("none");
+  });
+
+  test("while a withdraw-all runs the busy key is the binding's all-key and every other write is ignored", async () => {
+    let finish: (response: Response) => void = () => {};
+    mockFetch.mockImplementation(() => new Promise<Response>((resolve) => (finish = resolve)));
+    renderHarness();
+    await userEvent.click(screen.getByRole("button", { name: "unack all" }));
+    await waitFor(() => expect(screen.getByTestId("busy")).toHaveTextContent("5:all"));
+    await userEvent.click(screen.getByRole("button", { name: "ack all" }));
+    expect(writes()).toHaveLength(1);
+    await act(async () => finish(new Response(null, { status: 204 })));
+    await waitFor(() => expect(screen.getByTestId("busy")).toHaveTextContent("idle"));
+  });
+
+  test("a withdraw-all's 409 stale-deviations is the same note tied to the all-key, a 404 the plain 'link no longer exists' refusal", async () => {
+    mockFetch.mockResolvedValue(jsonResponse(409, STALE));
+    renderHarness();
+    await userEvent.click(screen.getByRole("button", { name: "unack all" }));
+    await waitFor(() => expect(screen.getByTestId("notice")).toHaveTextContent("5:all stale"));
+    expect(invalidated).toEqual([["flow", "deviations"], ["plan"]]);
+    mockFetch.mockResolvedValue(jsonResponse(404, { title: "Not Found", status: 404 }));
+    await userEvent.click(screen.getByRole("button", { name: "unack all" }));
+    await waitFor(() => expect(screen.getByTestId("notice")).toHaveTextContent("5:all failure: This link no longer exists. The list has been read again."));
   });
 
   test("after a batch the focus the browser dropped on body goes to the first neighbour still there", async () => {

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { acknowledgeCapacityDeviation, acknowledgeCapacityDeviations, unacknowledgeCapacityDeviation, type CapacityDeviation } from "../api/capacityDeviations";
+import { acknowledgeCapacityDeviation, acknowledgeCapacityDeviations, unacknowledgeCapacityDeviation, unacknowledgeCapacityDeviations, type CapacityDeviation } from "../api/capacityDeviations";
 import { isStaleDeviations } from "../api/deviations";
 import { ApiError } from "../api/http";
 import { capacityAckAllKey, capacityAckKey } from "../utils/capacityDeviations";
@@ -11,9 +11,12 @@ import { showSuccessToast } from "../utils/toast";
 
 /**
  * What a write asks for: acknowledge ONE sprint's deviation as the page read it (the row's fingerprint), withdraw its acknowledgement, or acknowledge
- * every open row of a team at once (`acknowledgeAll`: the rows the list shows as open, each with the fingerprint the page read; keyed by the binding).
+ * every open row of a team at once (`acknowledgeAll`: the rows the list shows as open, each with the fingerprint the page read; keyed by the binding), or
+ * (1.11) withdraw every acknowledged row the list shows (`unacknowledgeAll`: the rows by sprint; the same binding key).
  */
-type AckRequest = { kind: "acknowledge" | "unacknowledge"; bindingId: number; row: CapacityDeviation } | { kind: "acknowledgeAll"; bindingId: number; rows: readonly CapacityDeviation[] };
+type AckRequest =
+  | { kind: "acknowledge" | "unacknowledge"; bindingId: number; row: CapacityDeviation }
+  | { kind: "acknowledgeAll" | "unacknowledgeAll"; bindingId: number; rows: readonly CapacityDeviation[] };
 
 /** The message a write left, tied to its row's key: `stale` = the 409 note (the list is re-read), `failure` = a refusal already in words (inline, red). */
 type CapacityAckNotice = { key: string; kind: "stale" } | { key: string; kind: "failure"; text: string };
@@ -30,13 +33,17 @@ export type CapacityAcknowledge = {
 /** The button of a row's action cell (`CapacityAckCell` marks both of its buttons with the row's key). */
 const buttonOf = (key: string) => document.querySelector<HTMLElement>(`[data-ack-for="${key}"]`);
 
-const keyOf = (request: AckRequest) => (request.kind === "acknowledgeAll" ? capacityAckAllKey(request.bindingId) : capacityAckKey(request.bindingId, request.row.detail.sprintId));
+const keyOf = (request: AckRequest) => ("rows" in request ? capacityAckAllKey(request.bindingId) : capacityAckKey(request.bindingId, request.row.detail.sprintId));
+
+/** A write that withdraws (one row or all): the "withdrawn" toast. */
+const withdraws = (request: AckRequest) => request.kind === "unacknowledge" || request.kind === "unacknowledgeAll";
 
 /**
  * Acknowledging a sprint's capacity deviation (or, since 1.10, all of a team's open rows at once), from the Deviations page's Capacity from Flow section and from the team page's Flow section:
- * `POST` / `DELETE /integrations/flow/team-bindings/{id}/acknowledge`, and (1.10) all of a team's open rows in one `POST …/acknowledge-all`. The state
- * machine of the Jira `useAcknowledge`, keyed by the row (binding + sprint) instead of the binding; a batch is keyed by the binding (`<id>:all`). A batch
- * is all or nothing, so its `409 stale-deviations` is the same note (the list is read again, nothing was stored) and its success the same toast.
+ * `POST` / `DELETE /integrations/flow/team-bindings/{id}/acknowledge`, and (1.10) all of a team's open rows in one `POST …/acknowledge-all`, and (1.11)
+ * all of its acknowledged rows in one `POST …/unacknowledge-all`. The state machine of the Jira `useAcknowledge`, keyed by the row (binding + sprint)
+ * instead of the binding; a batch of either kind is keyed by the binding (`<id>:all`). A batch is all or nothing, so its `409 stale-deviations` is the
+ * same note (the list is read again, nothing was stored or deleted) and its success the same toast ("withdrawn" for the withdrawal; its 404 can only be the binding).
  *
  * **What is refreshed.** A success re-reads the capacity deviations and the plan's views (`refreshCapacityAcknowledgements`: the team view's flag
  * and markers follow the open rows). A `409 stale-deviations` is a normal state, not an error: the sprint's figures changed since the list was read (or the
@@ -91,14 +98,16 @@ export function useCapacityAcknowledge(fallback: RefObject<HTMLElement | null>, 
   type Variables = { request: AckRequest; neighbours: readonly string[]; scope: string };
   const mutation = useMutation({
     mutationFn: async ({ request }: Variables) => {
-      if (request.kind === "acknowledgeAll") await acknowledgeCapacityDeviations(request.bindingId, request.rows.map((row) => ({ sprintId: row.detail.sprintId, fingerprint: row.fingerprint })));
-      else if (request.kind === "acknowledge") await acknowledgeCapacityDeviation(request.bindingId, { sprintId: request.row.detail.sprintId, fingerprint: request.row.fingerprint });
+      if ("rows" in request) {
+        if (request.kind === "acknowledgeAll") await acknowledgeCapacityDeviations(request.bindingId, request.rows.map((row) => ({ sprintId: row.detail.sprintId, fingerprint: row.fingerprint })));
+        else await unacknowledgeCapacityDeviations(request.bindingId, request.rows.map((row) => ({ sprintId: row.detail.sprintId })));
+      } else if (request.kind === "acknowledge") await acknowledgeCapacityDeviation(request.bindingId, { sprintId: request.row.detail.sprintId, fingerprint: request.row.fingerprint });
       else await unacknowledgeCapacityDeviation(request.bindingId, request.row.detail.sprintId);
     },
     onMutate: () => setNotice(null),
     onSuccess: async (_result, { request, neighbours, scope: writtenOn }) => {
       if (writtenOn === latestScope.current) pending.current = [keyOf(request), ...neighbours];
-      showSuccessToast(t(request.kind === "unacknowledge" ? "deviations.ack.toast.withdrawn" : "deviations.ack.toast.acknowledged"));
+      showSuccessToast(t(withdraws(request) ? "deviations.ack.toast.withdrawn" : "deviations.ack.toast.acknowledged"));
       await refresh(() => refreshCapacityAcknowledgements(queryClient));
     },
     onError: async (err, { request, neighbours, scope: writtenOn }) => {

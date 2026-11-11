@@ -29,6 +29,11 @@ class CapacityAcknowledgeRoute(val parent: FlowTeamBindingsRoute.Id)
 @Resource("acknowledge-all")
 class CapacityAcknowledgeAllRoute(val parent: FlowTeamBindingsRoute.Id)
 
+/** `POST …/team-bindings/{id}/unacknowledge-all` (1.11): the batch withdrawal of the rows the client lists as acknowledged. */
+@Serializable
+@Resource("unacknowledge-all")
+class CapacityUnacknowledgeAllRoute(val parent: FlowTeamBindingsRoute.Id)
+
 private const val BINDING = "Flow team binding"
 
 /** The audit value of a row's sprint: the Flow sprint id, or `none` for the team's own row. */
@@ -44,7 +49,9 @@ private fun sprintAuditValue(sprintId: Long?): Any = sprintId ?: "none"
  * the commit; a refused request writes none of its own. The acknowledge also prunes the binding's stored rows that are no longer listed
  * (1.10, under the same lock) and then audits `flow.capacity_acknowledgements_cleared` after its own line. No rate bucket: nothing
  * here calls Flow. The batch (1.10) follows the same order; its audit is one `flow.capacity_deviations_acknowledged` line, one single-write
- * line per row (the same fields, in the request's order) and then the cleared line.
+ * line per row (the same fields, in the request's order) and then the cleared line. The batch withdrawal (1.11) is the same order with
+ * the sprint list in the body's place: one `flow.capacity_deviations_unacknowledged` line, then the single withdrawal's line per row;
+ * it answers 204, recomputes nothing and prunes nothing.
  */
 internal fun Route.capacityAcknowledgeRoutes(
     acknowledgements: CapacityAcknowledgeService,
@@ -77,6 +84,36 @@ internal fun Route.capacityAcknowledgeRoutes(
         }
         call.respond(HttpStatusCode.OK, outcome.acknowledgement)
     }
+    delete<CapacityAcknowledgeRoute> { route ->
+        val caller = call.caller()
+        val id = route.parent.id
+        val teamId = bindings.teamIdOf(id).orNotFound(BINDING)
+        requireTeamManagerOrAdmin(caller, teamId, teams::isActiveManager)
+        val sprintId = call.request.queryParameters.optionalLong("sprintId")
+        val outcome = acknowledgements.unacknowledge(id, sprintId) { guarded ->
+            requireTeamManagerOrAdmin(caller, guarded, teams::lockedIsActiveManager)
+        }
+        audit(
+            "flow.capacity_deviation_unacknowledged",
+            "byUserId" to caller.userId.toLong(),
+            "bindingId" to id.toLong(),
+            "connectionId" to outcome.connectionId.toLong(),
+            "teamId" to outcome.teamId.toLong(),
+            "flowTeamId" to outcome.flowTeamId.toLong(),
+            "sprintId" to sprintAuditValue(sprintId),
+            "fingerprint" to outcome.fingerprint,
+        )
+        call.respond(HttpStatusCode.NoContent)
+    }
+    capacityBatchAcknowledgeRoutes(acknowledgements, bindings, teams)
+}
+
+/** The 1.10 batch acknowledge and the 1.11 batch withdrawal (split off [capacityAcknowledgeRoutes] for the method-length rule). */
+private fun Route.capacityBatchAcknowledgeRoutes(
+    acknowledgements: CapacityAcknowledgeService,
+    bindings: FlowTeamBindingService,
+    teams: TeamService,
+) {
     post<CapacityAcknowledgeAllRoute> { route ->
         // The single acknowledge's order: binding 404 (every caller), guard 403 (whatever the body), body 400, then the locked write.
         val caller = call.caller()
@@ -111,25 +148,31 @@ internal fun Route.capacityAcknowledgeRoutes(
         }
         call.respond(HttpStatusCode.OK, CapacityAcknowledgeBatch(outcome.rows.map { it.acknowledgement }))
     }
-    delete<CapacityAcknowledgeRoute> { route ->
+    post<CapacityUnacknowledgeAllRoute> { route ->
+        // The batch acknowledge's order: binding 404 (every caller), guard 403 (whatever the body), body 400, then the locked write.
         val caller = call.caller()
         val id = route.parent.id
         val teamId = bindings.teamIdOf(id).orNotFound(BINDING)
         requireTeamManagerOrAdmin(caller, teamId, teams::isActiveManager)
-        val sprintId = call.request.queryParameters.optionalLong("sprintId")
-        val outcome = acknowledgements.unacknowledge(id, sprintId) { guarded ->
+        val request = validateCapacityUnacknowledgeAll(call.receive<CapacityUnacknowledgeAllRequest>())
+        val outcome = acknowledgements.unacknowledgeAll(id, request.items.map { it.sprintId }) { guarded ->
             requireTeamManagerOrAdmin(caller, guarded, teams::lockedIsActiveManager)
         }
-        audit(
-            "flow.capacity_deviation_unacknowledged",
+        val common = arrayOf(
             "byUserId" to caller.userId.toLong(),
             "bindingId" to id.toLong(),
             "connectionId" to outcome.connectionId.toLong(),
             "teamId" to outcome.teamId.toLong(),
             "flowTeamId" to outcome.flowTeamId.toLong(),
-            "sprintId" to sprintAuditValue(sprintId),
-            "fingerprint" to outcome.fingerprint,
         )
+        audit(
+            "flow.capacity_deviations_unacknowledged", *common,
+            "count" to outcome.rows.size,
+            "sprintIds" to outcome.rows.joinToString(",") { sprintAuditValue(it.first).toString() },
+        )
+        for ((sprintId, fingerprint) in outcome.rows) {
+            audit("flow.capacity_deviation_unacknowledged", *common, "sprintId" to sprintAuditValue(sprintId), "fingerprint" to fingerprint)
+        }
         call.respond(HttpStatusCode.NoContent)
     }
 }

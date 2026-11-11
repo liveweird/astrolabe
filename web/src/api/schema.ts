@@ -1532,7 +1532,8 @@ export interface paths {
          *     login's active person's name, else its display name, never the email, null once that login is deleted - and `current`, false
          *     when the row was acknowledged and its figures CHANGED since, which makes it open again). Each item carries `can.acknowledge`
          *     (the team's active manager, or ADMIN: the capacity import's arithmetic; false for everyone else). The writes are `POST` and
-         *     `DELETE /integrations/flow/team-bindings/{id}/acknowledge`, or `POST …/acknowledge-all` for the rows the caller names at once.
+         *     `DELETE /integrations/flow/team-bindings/{id}/acknowledge`, or `POST …/acknowledge-all` and `POST …/unacknowledge-all` for the
+         *     rows the caller names at once.
          *     The unit is the sprint row, so a team's other LISTED rows are not touched.
          *
          *     **Items.** Only linked teams with at least one deviation (after the filters) are listed. A DISABLED, FAILED or STALE
@@ -2945,6 +2946,38 @@ export interface paths {
          *     (the batch), `flow.capacity_deviation_acknowledged` per row, then `flow.capacity_acknowledgements_cleared` when rows were pruned.
          */
         post: operations["acknowledgeCapacityDeviations"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/integrations/flow/team-bindings/{id}/unacknowledge-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Withdraw several of a team's capacity acknowledgements at once, all or nothing
+         * @description The batch of the single withdrawal (`DELETE …/acknowledge`), for "Withdraw all": `items` are the rows the client lists as
+         *     acknowledged, each by its `sprintId` (`null` = the team's own `TEAM_GONE` row), 1 to 2,000 of them, no row named twice (`400`).
+         *     The audience, the order and the lock are the batch acknowledge's: `404` for EVERY caller when the binding is unknown, unlinked or
+         *     its team was deleted, then `403` (the binding's team's ACTIVE manager or ADMIN; whatever the body is), then the body (`400`); the
+         *     write locks the binding row ONCE, re-reads the binding and its team ACTIVE and runs the guard AGAIN. **All or nothing:** a named
+         *     row that has no stored acknowledgement (never acknowledged, or already withdrawn or pruned since the client read the list) is
+         *     `409` `urn:astrolabe:problem:stale-deviations` and NOTHING is deleted (the client reads the view again). Otherwise every named
+         *     row's acknowledgement is deleted, current or stale, and only the named rows: another acknowledged row stays acknowledged.
+         *     Nothing is recomputed and nothing pruned. Not plan state: no plan lock, no revision bump, no rate bucket (nothing calls Flow,
+         *     nothing is written to Flow). Audited `flow.capacity_deviations_unacknowledged` (the batch), then
+         *     `flow.capacity_deviation_unacknowledged` per row.
+         */
+        post: operations["unacknowledgeCapacityDeviations"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6963,6 +6996,16 @@ export interface components {
         CapacityAcknowledgeBatch: {
             /** @description The stored acknowledgements, in the request's order; all stamped with one time and login. */
             acknowledged: components["schemas"]["CapacityAcknowledgement"][];
+        };
+        CapacityUnacknowledgeAllRequest: {
+            /** @description The rows whose acknowledgement is withdrawn; no row (`sprintId`) twice. */
+            items: {
+                /**
+                 * Format: int64
+                 * @description Flow's id of the sprint (the row's `detail.sprintId`); null names the binding's own `TEAM_GONE` row. REQUIRED: an absent key is a `400`.
+                 */
+                sprintId: number | null;
+            }[];
         };
         /** @description An ACTIVE Flow connection, enabled or not - never a base URL, token or time zone. */
         CapacityDeviationConnection: {
@@ -11074,6 +11117,38 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["CapacityAcknowledgeBatch"];
                 };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    unacknowledgeCapacityDeviations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CapacityUnacknowledgeAllRequest"];
+            };
+        };
+        responses: {
+            /** @description Withdrawn */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];

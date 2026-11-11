@@ -57,6 +57,13 @@
 3. They press the button.
    - *Expected*: both lines read "Acknowledged by <the manager's person> on <date>" with their Unacknowledge buttons; the fact reads "No open difference" and "2 acknowledged"; the header has no flag; no strip cell carries `data-flow-capacity`; the batch button is gone.
 
+## Scenario: the team's manager withdraws every acknowledgement of the team in one click
+
+1. (Setup) Sprint 3's capacity period is put back to the import's figure and every acknowledgement of the team is withdrawn, then the manager acknowledges sprint 2 and sprint 3, all through the API. The manager opens `/teams/<team>`.
+   - *Expected*: the fact reads "No open difference" and the header has no flag; the head of the "Capacity differences from Flow" list has ONE button, visible text "Withdraw all (2)", accessible name "Withdraw all (2) acknowledged differences of <team>".
+2. They press the button.
+   - *Expected*: both lines are open again, each with its Acknowledge button and no "Acknowledged by"; the fact reads "Differs from Flow for 2 sprints"; the header flag reads "Capacity differs from Flow: 2 open differences" and the strip's marked weeks are back; the Withdraw all button is gone and "Acknowledge all (2) open differences of <team>" is offered.
+
 ## Scenario: an acknowledged sprint that comes back in line loses its acknowledgement, so the same difference is open when it returns
 
 1. (Setup) Sprint 3's capacity period is put back to the import's figure and every acknowledgement of the team is withdrawn, then the manager acknowledges sprint 3, all through the API. The administrator puts the stub back on day one (`Started`) and refreshes the connection through the API.

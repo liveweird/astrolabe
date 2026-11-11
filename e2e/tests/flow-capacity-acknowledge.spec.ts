@@ -508,6 +508,43 @@ test("the team's manager acknowledges every open difference of the team in one c
   await expect(allButton).toHaveCount(0);
 });
 
+test("the team's manager withdraws every acknowledgement of the team in one click", async ({ page }) => {
+  const { more, less } = daySprints();
+  const manager = await apiAsManager();
+  try {
+    await restoreSprintThreeCapacity(manager);
+    await withdrawAll(manager, world.teamId);
+    await acknowledgeViaApi(manager, world.teamId, more.id);
+    await acknowledgeViaApi(manager, world.teamId, less.id);
+  } finally {
+    await manager.dispose();
+  }
+  await login(page, world.manager.email, world.manager.password);
+
+  // Both sprints are acknowledged: the list's head offers ONE button for both (visible text with the count, accessible name with the team), and no open difference remains.
+  const withdrawButton = page.getByRole("button", { name: `Withdraw all (2) acknowledged differences of ${world.team}`, exact: true });
+  await openTeamPage(page, world.teamId, world.team);
+  await expect(factsOf(page)).toContainText("No open difference");
+  await expect(headerFlag(page)).toHaveCount(0);
+  await expect(withdrawButton).toBeVisible();
+  await expect(withdrawButton).toHaveText("Withdraw all (2)");
+  await expect(page.getByRole("button", { name: /^Acknowledge all/ })).toHaveCount(0);
+
+  // One click: both lines are open again with their Acknowledge buttons, the fact counts two open differences, the header flag is back and so are the marked weeks; the button gives way to Acknowledge all.
+  await withdrawButton.click();
+  const lines = page.getByRole("list", { name: "Capacity differences from Flow" });
+  const warningLine = lines.getByRole("listitem").filter({ hasText: sentence(more, more.plan, more.flow) });
+  const infoLine = lines.getByRole("listitem").filter({ hasText: sentence(less, less.plan, less.flow) });
+  await expect(acknowledgeButton(warningLine, more.name)).toBeVisible();
+  await expect(acknowledgeButton(infoLine, less.name)).toBeVisible();
+  await expect(lines).not.toContainText("Acknowledged by");
+  await expect(factsOf(page)).toContainText("Differs from Flow for 2 sprints");
+  await expect(headerFlag(page)).toHaveText("Capacity differs from Flow: 2 open differences");
+  await expect(page.locator("[data-flow-capacity]")).not.toHaveCount(0);
+  await expect(withdrawButton).toHaveCount(0);
+  await expect(page.getByRole("button", { name: `Acknowledge all (2) open differences of ${world.team}`, exact: true })).toBeVisible();
+});
+
 test("an acknowledged sprint that comes back in line loses its acknowledgement, so the same difference is open when it returns", async ({ page }) => {
   const { more, less } = daySprints();
   const manager = await apiAsManager();

@@ -185,3 +185,58 @@ describe("CapacityDeviationList: Acknowledge all", () => {
     expect(screen.getAllByText(/The deviations changed since you looked/)).toHaveLength(1);
   });
 });
+
+describe("CapacityDeviationList: Withdraw all", () => {
+  const WITHDRAW = { name: /^Withdraw all/ };
+  const THIRD = differsRow({ sprintId: 90004, sprintName: "E2E Flow Sprint 4", planMd: 20 });
+  const FOURTH = differsRow({ sprintId: 90005, sprintName: "E2E Flow Sprint 5", planMd: 21 });
+
+  test("with two acknowledged rows the head of the list offers Withdraw all (N), named by its count and team, and hands the hook every acknowledged row", async () => {
+    const context = ack();
+    renderWithProviders(<CapacityDeviationList deviations={[acknowledgedRow(ROW_2), acknowledgedRow(ROW_3)]} ack={context} />);
+    const button = screen.getByRole("button", { name: "Withdraw all (2) acknowledged differences of Platform" });
+    expect(button).toHaveTextContent("Withdraw all (2)");
+    expect(button).toHaveAttribute("data-ack-for", "5:all");
+    expect(button.compareDocumentPosition(screen.getAllByRole("listitem")[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await userEvent.click(button);
+    expect(context.hook.run).toHaveBeenCalledWith({ kind: "unacknowledgeAll", bindingId: 5, rows: [acknowledgedRow(ROW_2), acknowledgedRow(ROW_3)] }, ["5:90002", "5:90003"]);
+  });
+
+  test("N counts the currently acknowledged rows only: an open or a stale one is neither counted nor sent, and the folded acknowledged sprints count one each", async () => {
+    const context = ack();
+    renderWithProviders(<CapacityDeviationList deviations={[acknowledgedRow(ROW_2), ROW_3, staleAcknowledgedRow(THIRD), ...missingRows(3, [0, 1])]} ack={context} />);
+    await userEvent.click(screen.getByRole("button", { name: "Withdraw all (3) acknowledged differences of Platform" }));
+    const request = vi.mocked(context.hook.run).mock.calls[0][0];
+    expect(request.kind === "unacknowledgeAll" && request.rows.map((row) => row.detail.sprintId)).toEqual([90002, 90010, 90011]);
+  });
+
+  test("it sits beside Acknowledge all when the list has both, and is not offered for a single acknowledged row", () => {
+    const view = renderWithProviders(<CapacityDeviationList deviations={[ROW_2, ROW_3, acknowledgedRow(THIRD), acknowledgedRow(FOURTH)]} ack={ack()} />);
+    expect(screen.getByRole("button", { name: /^Acknowledge all \(2\)/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Withdraw all \(2\)/ })).toBeInTheDocument();
+    view.rerender(<CapacityDeviationList deviations={[ROW_2, acknowledgedRow(ROW_3)]} ack={ack()} />);
+    expect(screen.queryByRole("button", WITHDRAW)).not.toBeInTheDocument();
+  });
+
+  test("no button without can.acknowledge, without the acknowledge context, or when the acknowledgements are stale", () => {
+    const view = renderWithProviders(<CapacityDeviationList deviations={[acknowledgedRow(ROW_2), acknowledgedRow(ROW_3)]} ack={ack({ can: { acknowledge: false } })} />);
+    expect(screen.queryByRole("button", WITHDRAW)).not.toBeInTheDocument();
+    view.rerender(<CapacityDeviationList deviations={[acknowledgedRow(ROW_2), acknowledgedRow(ROW_3)]} />);
+    expect(screen.queryByRole("button", WITHDRAW)).not.toBeInTheDocument();
+    view.rerender(<CapacityDeviationList deviations={[staleAcknowledgedRow(ROW_2), staleAcknowledgedRow(ROW_3)]} ack={ack()} />);
+    expect(screen.queryByRole("button", WITHDRAW)).not.toBeInTheDocument();
+  });
+
+  test("while any write runs the button is aria-disabled and never `disabled`", () => {
+    renderWithProviders(<CapacityDeviationList deviations={[acknowledgedRow(ROW_2), acknowledgedRow(ROW_3)]} ack={ack({ hook: { busyKey: "5:all", notice: null, run: vi.fn() } })} />);
+    const button = screen.getByRole("button", WITHDRAW);
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button).toHaveAttribute("data-disabled", "true");
+    expect(button).not.toBeDisabled();
+  });
+
+  test("the notice a batch left (the all-key) shows once at the head of the list, whichever batch it was", () => {
+    renderWithProviders(<CapacityDeviationList deviations={[acknowledgedRow(ROW_2), acknowledgedRow(ROW_3)]} ack={ack({ hook: { busyKey: null, notice: { key: "5:all", kind: "stale" }, run: vi.fn() } })} />);
+    expect(screen.getAllByText(/The deviations changed since you looked/)).toHaveLength(1);
+  });
+});

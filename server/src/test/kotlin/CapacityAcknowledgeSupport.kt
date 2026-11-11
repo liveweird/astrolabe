@@ -6,6 +6,8 @@ import ch.nokillswit.flow.CapacityAcknowledgeRequest
 import ch.nokillswit.flow.CapacityAcknowledgement
 import ch.nokillswit.flow.CapacityDeviation
 import ch.nokillswit.flow.CapacityDeviationView
+import ch.nokillswit.flow.CapacityUnacknowledgeAllRequest
+import ch.nokillswit.flow.CapacityUnacknowledgeItem
 import ch.nokillswit.sync.SyncTrigger
 import io.ktor.client.HttpClient
 import io.ktor.client.request.delete
@@ -44,6 +46,18 @@ suspend fun HttpClient.capAckAll(bindingId: UInt, vararg items: Pair<Long?, Stri
 
 /** `POST …/acknowledge-all` with a raw body (a malformed one). */
 suspend fun HttpClient.capAckAllRaw(bindingId: UInt, body: String): HttpResponse = post(capAckAllUrl(bindingId)) {
+    contentType(ContentType.Application.Json)
+    setBody(body)
+}
+
+fun capUnackAllUrl(bindingId: UInt) = "$FB_BINDINGS/$bindingId/unacknowledge-all"
+
+/** `POST …/unacknowledge-all` naming [sprintIds] (null = the team's own row), in this order. */
+suspend fun HttpClient.capUnackAll(bindingId: UInt, vararg sprintIds: Long?): HttpResponse =
+    postJson(capUnackAllUrl(bindingId), CapacityUnacknowledgeAllRequest(sprintIds.map(::CapacityUnacknowledgeItem)))
+
+/** `POST …/unacknowledge-all` with a raw body (a malformed one). */
+suspend fun HttpClient.capUnackAllRaw(bindingId: UInt, body: String): HttpResponse = post(capUnackAllUrl(bindingId)) {
     contentType(ContentType.Application.Json)
     setBody(body)
 }

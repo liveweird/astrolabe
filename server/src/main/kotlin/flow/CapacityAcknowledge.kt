@@ -7,7 +7,7 @@ import kotlinx.serialization.Serializable
 /*
  * The per-sprint acknowledge of a capacity deviation (1.9): the wire DTOs and the shape rule. The write is
  * [CapacityAcknowledgeService], the routes `CapacityAcknowledgeRoutes.kt`, the document `flow-sync.md` "Acknowledge (1.9)"; 1.10 adds
- * the batch.
+ * the batch, 1.11 the batch withdrawal.
  */
 
 /**
@@ -52,6 +52,31 @@ fun validateCapacityAcknowledgeAll(request: CapacityAcknowledgeAllRequest): Capa
 /** What `POST …/acknowledge-all` answers: the stored acknowledgements, in the request's order. */
 @Serializable
 data class CapacityAcknowledgeBatch(val acknowledged: List<CapacityAcknowledgement>)
+
+/** One row of an unacknowledge-all: the Flow sprint id, `null` naming the team's own `TEAM_GONE` row (nothing is compared). */
+@Serializable
+data class CapacityUnacknowledgeItem(val sprintId: Long?)
+
+/**
+ * `POST /integrations/flow/team-bindings/{id}/unacknowledge-all` (1.11): the rows the client lists as acknowledged, each by its sprint.
+ * All or nothing: a row with no stored acknowledgement is the shared `409` and nothing is deleted.
+ */
+@Serializable
+data class CapacityUnacknowledgeAllRequest(val items: List<CapacityUnacknowledgeItem>)
+
+/** The shape rules of [CapacityUnacknowledgeAllRequest]: 1..[MAX_CAPACITY_ACKNOWLEDGE_ROWS] items, no row twice. */
+fun validateCapacityUnacknowledgeAll(request: CapacityUnacknowledgeAllRequest): CapacityUnacknowledgeAllRequest {
+    if (request.items.isEmpty() || request.items.size > MAX_CAPACITY_ACKNOWLEDGE_ROWS) {
+        throw BadRequestException("items must hold 1 to $MAX_CAPACITY_ACKNOWLEDGE_ROWS rows")
+    }
+    if (request.items.any { it.sprintId != null && it.sprintId < 1 }) {
+        throw BadRequestException("sprintId must be a positive number or null for the team's own row")
+    }
+    if (request.items.mapTo(HashSet()) { it.sprintId }.size != request.items.size) {
+        throw BadRequestException("items must name each row once")
+    }
+    return request
+}
 
 /**
  * The stored acknowledgement the POST answers: the Jira `Acknowledgement` plus the row's [sprintId] (null = the team's own row).

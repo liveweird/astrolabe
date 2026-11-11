@@ -55,6 +55,15 @@ export async function acknowledgeCapacityDeviations(bindingId: number, items: re
   return jsonRequest<Schemas["CapacityAcknowledgeBatch"]>(`${acknowledgePath(bindingId)}-all`, { method: "POST", body: JSON.stringify({ items }) });
 }
 
+/**
+ * Withdraws the acknowledgement of SEVERAL sprints of one team in one call (`POST …/unacknowledge-all`, 1.11): the rows the client lists as acknowledged,
+ * each by its `sprintId` (null = the team's own row, always sent). All or nothing - a row with no stored acknowledgement is the shared 409
+ * `stale-deviations` and nothing is deleted. Answers 204.
+ */
+export async function unacknowledgeCapacityDeviations(bindingId: number, items: readonly { sprintId: number | null }[]): Promise<void> {
+  await voidRequest(`/api/v1/integrations/flow/team-bindings/${bindingId}/unacknowledge-all`, { method: "POST", body: JSON.stringify({ items }) });
+}
+
 /** Withdraws one sprint's acknowledgement, current or stale (`sprintId` null = the team's own row, sent as no parameter; a 404 when none is stored). */
 export async function unacknowledgeCapacityDeviation(bindingId: number, sprintId: number | null): Promise<void> {
   const params = buildQuery({ sprintId });

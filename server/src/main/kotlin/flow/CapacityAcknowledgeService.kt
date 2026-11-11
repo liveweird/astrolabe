@@ -8,7 +8,6 @@ import ch.nokillswit.infra.db.insertRows
 import ch.nokillswit.infra.db.lockActiveForWrite
 import ch.nokillswit.infra.db.nowMillis
 import ch.nokillswit.infra.time.WorkingCalendar
-import ch.nokillswit.planning.DeviationSeverity
 import ch.nokillswit.planning.creatorsOf
 import ch.nokillswit.planning.loadWorkingCalendar
 import ch.nokillswit.sync.STALE_DEVIATIONS_PROBLEM
@@ -27,46 +26,6 @@ import org.slf4j.LoggerFactory
 val CapacityAcknowledgeServiceKey = AttributeKey<CapacityAcknowledgeService>("CapacityAcknowledgeService")
 
 private val log = LoggerFactory.getLogger(CapacityAcknowledgeService::class.java)
-
-/** What a committed acknowledge leaves for the route's audit line (written AFTER the commit): the binding, its Flow team and the row. */
-class CapacityAcknowledgeOutcome(
-    val acknowledgement: CapacityAcknowledgement,
-    val connectionId: UInt,
-    val teamId: UInt,
-    val flowTeamId: Int,
-    val kind: CapacityDeviationKind,
-    val severity: DeviationSeverity,
-    /** The Flow sprint ids (null = the team's own row) of the binding's stored rows the write pruned because they were no longer listed. */
-    val cleared: List<Long?>,
-)
-
-/** One row an acknowledge-all stored: its [acknowledgement] and the row's [kind] and [severity] (the per-row audit line's fields). */
-class AcknowledgedCapacityRow(
-    val acknowledgement: CapacityAcknowledgement,
-    val kind: CapacityDeviationKind,
-    val severity: DeviationSeverity,
-)
-
-/** What a committed acknowledge-all leaves for the route's audit lines: the binding, its Flow team, the rows (request order), the prune. */
-class CapacityAcknowledgeAllOutcome(
-    val rows: List<AcknowledgedCapacityRow>,
-    val connectionId: UInt,
-    val teamId: UInt,
-    val flowTeamId: Int,
-    /** As [CapacityAcknowledgeOutcome.cleared]. */
-    val cleared: List<Long?>,
-)
-
-/** What a prune removed from ONE binding: the Flow sprint ids of the deleted rows, `null` standing for the team's own `TEAM_GONE` row. */
-class ClearedCapacityAcks(val bindingId: UInt, val sprintIds: List<Long?>)
-
-/** What a committed un-acknowledge leaves for the audit line: the binding and the fingerprint that was cleared. */
-class CapacityUnacknowledgeOutcome(
-    val connectionId: UInt,
-    val teamId: UInt,
-    val flowTeamId: Int,
-    val fingerprint: String,
-)
 
 /** A stored acknowledgement row: the fingerprint it was made on, when, and the acknowledging login's id. */
 internal class StoredCapacityAck(val fingerprint: String, val at: Long, val byUserId: UInt)
@@ -90,6 +49,7 @@ internal class StoredCapacityAck(val fingerprint: String, val at: Long, val byUs
  * (it still clears a returned team's own row, an unlinked binding's rows and a dead team's).
  *
  * The batch [acknowledgeAll] (1.10) is the same protocol over a list of rows: all or nothing, one lock, one stamp, one prune.
+ * [unacknowledgeAll] (1.11) is the batch of the withdrawal: the same lock and guard, no recompute, no prune.
  *
  * Both single writes run in ONE short transaction in the Jira acknowledge's order: the binding row `FOR NO KEY UPDATE`
  * ([lockActiveForWrite]; gone = `404`), the binding re-read with its team ACTIVE (a dead team = `404`), the caller's [TeamGuard] run
@@ -223,12 +183,7 @@ class CapacityAcknowledgeService(
         }
         val cleared = pruneUnlisted(binding, rows)
         val stamp = nowMillis()
-        val keys = items.map { it.sprintId }
-        val sprints = keys.filterNotNull()
-        val teamRow = if (null in keys) Acknowledgements.sprintId.isNull() else Op.FALSE
-        Acknowledgements.deleteWhere {
-            (Acknowledgements.bindingId eq bindingId) and ((Acknowledgements.sprintId inList sprints) or teamRow)
-        }
+        deleteKeys(bindingId, items.map { it.sprintId })
         Acknowledgements.insertRows(items) { item ->
             this[Acknowledgements.bindingId] = bindingId
             this[Acknowledgements.sprintId] = item.sprintId
@@ -244,6 +199,36 @@ class CapacityAcknowledgeService(
             },
             binding.connectionId, binding.teamId, binding.flowTeamId, cleared,
         )
+    }
+
+    /**
+     * The batch of [unacknowledge] (1.11): deletes the stored acknowledgement of every row named in [sprintIds] (null = the team's own
+     * row), current or stale, in ONE transaction under the binding row lock and the guard run again. **All or nothing**: a named row with
+     * no stored acknowledgement is `409` [STALE_DEVIATIONS_PROBLEM] (the list changed since the client read it) and nothing is deleted.
+     * Nothing is recomputed and nothing pruned: a withdrawal compares no figure.
+     */
+    suspend fun unacknowledgeAll(bindingId: UInt, sprintIds: List<Long?>, guard: TeamGuard): CapacityUnacknowledgeAllOutcome =
+        suspendTransaction(database) {
+            validateCapacityUnacknowledgeAll(CapacityUnacknowledgeAllRequest(sprintIds.map(::CapacityUnacknowledgeItem)))
+            val binding = lockedBinding(bindingId, guard)
+            val stored = Acknowledgements.select(Acknowledgements.sprintId, Acknowledgements.fingerprint)
+                .where { Acknowledgements.bindingId eq bindingId }.toList()
+                .associate { it[Acknowledgements.sprintId] to it[Acknowledgements.fingerprint] }
+            val cleared = sprintIds.map { sprint ->
+                val what = sprint?.let { "Sprint $it" } ?: "The team's own row"
+                sprint to (stored[sprint] ?: throw ConflictException("$what has no acknowledgement to withdraw", STALE_DEVIATIONS_PROBLEM))
+            }
+            deleteKeys(bindingId, sprintIds)
+            CapacityUnacknowledgeAllOutcome(cleared, binding.connectionId, binding.teamId, binding.flowTeamId)
+        }
+
+    /** Deletes the stored rows of [keys] (null = the team's own row) of [bindingId] in one statement; the caller holds the binding lock. */
+    private suspend fun deleteKeys(bindingId: UInt, keys: List<Long?>) {
+        val sprints = keys.filterNotNull()
+        val teamRow = if (null in keys) Acknowledgements.sprintId.isNull() else Op.FALSE
+        Acknowledgements.deleteWhere {
+            (Acknowledgements.bindingId eq bindingId) and ((Acknowledgements.sprintId inList sprints) or teamRow)
+        }
     }
 
     /** Clears the acknowledgement of [sprintId]'s row (null = the team's own) of [bindingId], current or stale; `404` if none. */

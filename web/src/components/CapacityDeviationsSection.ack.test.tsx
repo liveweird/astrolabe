@@ -13,6 +13,7 @@ const VIEW_URL = "/api/v1/views/capacity-deviations";
 const TEAMS_URL = "/api/v1/integrations/flow/teams?connectionId=1";
 const ACK_URL = "/api/v1/integrations/flow/team-bindings/5/acknowledge";
 const ALL_URL = `${ACK_URL}-all`;
+const UNACK_ALL_URL = "/api/v1/integrations/flow/team-bindings/5/unacknowledge-all";
 const NOW = CAPACITY_CONNECTION.teamsAt! + 5 * 60_000;
 type FetchMock = ReturnType<typeof vi.fn>;
 
@@ -183,6 +184,21 @@ describe("CapacityDeviationsSection: the acknowledge", () => {
           { sprintId: 90003, fingerprint: sprint3().fingerprint },
         ],
       });
+      await waitFor(() => expect(viewCalls().length).toBeGreaterThan(1));
+    });
+
+    test("Withdraw all (N) sends the acknowledged rows by sprint to unacknowledge-all and the document is read again", async () => {
+      doc = capacityView({ items: [capacityItem({ can: { acknowledge: true }, deviations: [acknowledgedRow(differsRow()), acknowledgedRow(sprint3())] })] });
+      mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+        if (url.startsWith(VIEW_URL)) return Promise.resolve(jsonResponse(200, doc));
+        if (url === UNACK_ALL_URL && init?.method === "POST") return Promise.resolve(new Response(null, { status: 204 }));
+        return Promise.resolve(jsonResponse(404, { title: "x", status: 404 }));
+      });
+      renderSection({ acknowledged: true });
+      await userEvent.click(await screen.findByRole("button", { name: "Withdraw all (2) acknowledged differences of Payments" }));
+      const posts = () => mockFetch.mock.calls.filter(([url, init]) => url === UNACK_ALL_URL && (init as RequestInit | undefined)?.method === "POST");
+      await waitFor(() => expect(posts()).toHaveLength(1));
+      expect(JSON.parse((posts()[0][1] as RequestInit).body as string)).toEqual({ items: [{ sprintId: 90002 }, { sprintId: 90003 }] });
       await waitFor(() => expect(viewCalls().length).toBeGreaterThan(1));
     });
 

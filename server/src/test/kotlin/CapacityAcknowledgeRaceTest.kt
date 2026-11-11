@@ -214,6 +214,47 @@ class CapacityAcknowledgeRaceTest {
         }
 
     @Test
+    fun `an unacknowledge-all waits for the binding row - a manager cleared meanwhile is 403, a row withdrawn meanwhile is 409`() =
+        testApplication {
+            val world = dayTwo("capackr13")
+            with(world) {
+                val warning = w.admin.client.rowOf(2).fingerprint
+                val info = w.admin.client.rowOf(3).fingerprint
+                assertEquals(HttpStatusCode.OK, w.admin.client.capAckAll(bindingId, 2L to warning, 3L to info).status)
+                val successor = w.requireTeams().otherManager.personId!!.toInt()
+                val refused = heldAt(
+                    bindingLock, bindingId, "FOR NO KEY UPDATE", { manager.client.capUnackAll(bindingId, 2, 3) },
+                ) { it.exec("UPDATE teams SET manager_person_id = ? WHERE id = ?", successor, teamId.toInt()) }.single()
+                assertEquals(HttpStatusCode.Forbidden, refused.status, "the guard ran again under the lock")
+                assertEquals(2, capAckStored(bindingId))
+
+                val stale = heldAt(
+                    bindingLock, bindingId, "FOR NO KEY UPDATE", { w.admin.client.capUnackAll(bindingId, 2, 3) },
+                ) { it.exec("DELETE FROM flow_capacity_acknowledgements WHERE binding_id = ? AND sprint_id = 3", bindingId.toInt()) }
+                    .single()
+                assertEquals(HttpStatusCode.Conflict, stale.status, "the stored rows were read under the lock")
+                assertEquals(STALE_DEVIATIONS_PROBLEM, stale.jbProblem().type)
+                assertEquals(1, capAckStored(bindingId), "all or nothing: sprint 2's row was still stored, and was not deleted")
+
+                // The binding unlinked, or its team deleted, while the request waits: 404 under the lock, no row deleted.
+                // (The step above moved team 1 to the other manager, so the first request is the admin's: it must pass the outer guard.)
+                val billing = w.admin.client.rowOf(null, billingBindingId).fingerprint
+                val otherManager = w.requireTeams().otherManager
+                assertEquals(HttpStatusCode.OK, otherManager.client.capAck(billingBindingId, null, billing).status)
+                val unlinked = heldAt(
+                    bindingLock, bindingId, "FOR NO KEY UPDATE", { w.admin.client.capUnackAll(bindingId, 2) },
+                ) { it.exec("UPDATE flow_team_bindings SET marked_as_deleted = TRUE WHERE id = ?", bindingId.toInt()) }.single()
+                assertEquals(HttpStatusCode.NotFound, unlinked.status, "the row is re-read active under the lock")
+                assertEquals(1, capAckStored(bindingId), "nothing was deleted")
+                val deleted = heldAt(
+                    bindingLock, billingBindingId, "FOR NO KEY UPDATE", { otherManager.client.capUnackAll(billingBindingId, null) },
+                ) { it.exec("UPDATE teams SET marked_as_deleted = TRUE WHERE id = ?", w.requireTeams().otherTeamId.toInt()) }.single()
+                assertEquals(HttpStatusCode.NotFound, deleted.status, "a dead team is a missing binding")
+                assertEquals(1, capAckStored(billingBindingId), "nothing was deleted")
+            }
+        }
+
+    @Test
     fun `a run waits for a binding row another session holds, then completes and prunes`() =
         testApplication {
             val world = dayTwo("capackr8")

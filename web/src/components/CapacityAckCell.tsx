@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
-import { Button, Stack, Text } from "@mantine/core";
+import { Button, Group, Stack, Text } from "@mantine/core";
 import type { CapacityDeviation, CapacityDeviationCan } from "../api/capacityDeviations";
 import type { CapacityAcknowledge } from "../hooks/useCapacityAcknowledge";
 import { capacityAckAllKey, capacityAckKey, isOpen } from "../utils/capacityDeviations";
@@ -71,22 +71,37 @@ export default function CapacityAckCell({ row, ack, neighbours }: { row: Capacit
  * open (one open row has its own button). It is `aria-disabled` while any write runs, never `disabled` (the cell's rule: the focus stays). `order` is the
  * list's row keys, the neighbours the focus falls back on. A note or refusal the batch left (its key is the binding's all-key) shows under the button,
  * whether or not the button is still there; with the team's row off the list, `CapacityAckOrphanNotice` shows it instead.
+ *
+ * **Withdraw all (N)** (1.11) sits beside it: one request (`unacknowledgeAll`) for every row the list shows as currently ACKNOWLEDGED (`!isOpen`; a stale
+ * acknowledgement is open and not sent), offered with `can.acknowledge` and only when at least two rows are acknowledged. It shares the all-key
+ * (`data-ack-for`, busy, notice) and every other rule of Acknowledge all; the success toast is the single withdrawal's.
  */
 export function CapacityAckAll({ deviations, ack, order }: { deviations: readonly CapacityDeviation[]; ack: CapacityAckContext; order: readonly string[] }) {
   const { t } = useTranslation();
   const { bindingId, can, hook, team } = ack;
   const key = capacityAckAllKey(bindingId);
   const open = deviations.filter(isOpen);
+  const acknowledged = deviations.filter((row) => !isOpen(row));
   const notice = hook.notice?.key === key ? hook.notice : null;
   const offered = can.acknowledge && open.length >= 2;
-  if (!offered && notice === null) return null;
+  const withdrawable = can.acknowledge && acknowledged.length >= 2;
+  if (!offered && !withdrawable && notice === null) return null;
   const busy = hook.busyKey !== null;
   return (
     <Stack gap={6} align="flex-start">
-      {offered && (
-        <Button size="compact-sm" variant="default" data-ack-for={key} aria-label={t("deviations.capacity.ack.acknowledgeAllAria", { count: open.length, team })} aria-disabled={busy || undefined} data-disabled={busy || undefined} onClick={() => hook.run({ kind: "acknowledgeAll", bindingId, rows: open }, order)}>
-          {t("deviations.capacity.ack.acknowledgeAll", { count: open.length })}
-        </Button>
+      {(offered || withdrawable) && (
+        <Group gap="xs">
+          {offered && (
+            <Button size="compact-sm" variant="default" data-ack-for={key} aria-label={t("deviations.capacity.ack.acknowledgeAllAria", { count: open.length, team })} aria-disabled={busy || undefined} data-disabled={busy || undefined} onClick={() => hook.run({ kind: "acknowledgeAll", bindingId, rows: open }, order)}>
+              {t("deviations.capacity.ack.acknowledgeAll", { count: open.length })}
+            </Button>
+          )}
+          {withdrawable && (
+            <Button size="compact-sm" variant="default" data-ack-for={key} aria-label={t("deviations.capacity.ack.withdrawAllAria", { count: acknowledged.length, team })} aria-disabled={busy || undefined} data-disabled={busy || undefined} onClick={() => hook.run({ kind: "unacknowledgeAll", bindingId, rows: acknowledged }, order)}>
+              {t("deviations.capacity.ack.withdrawAll", { count: acknowledged.length })}
+            </Button>
+          )}
+        </Group>
       )}
       {notice !== null && <AckNoticeAlert notice={notice} />}
     </Stack>
