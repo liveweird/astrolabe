@@ -131,6 +131,11 @@ class PackageBoundaryTest {
             "users", "auth",
             "password hashing and limits: hashPassword, verifyPassword, exceedsBcryptLimit, MAX_PASSWORD_BYTES, LoginThrottle",
         ),
+        FeatureEdge(
+            "users", "people",
+            "PersonService.create, PersonCreateRequest: POST /users' alsoCreatePerson writes the linked person " +
+                "in the account's transaction",
+        ),
         FeatureEdge("users", "authz", "the guards and typed errors: requireAdmin, requireSelfOrAdmin, caller, NotFound/Conflict/Forbidden"),
     )
 

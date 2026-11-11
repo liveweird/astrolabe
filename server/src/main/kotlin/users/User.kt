@@ -62,6 +62,8 @@ data class User(
     // Per-user permissions (V11) — the GRANT set, empty = none. Informational on the domain object (what the
     // admin sees in UserResponse); a guard never reads it, it asks UserService.hasPermission in the database.
     val permissions: Set<Permission> = emptySet(),
+    // The id of the ACTIVE person linked to this login (people.user_id), read with the account; null = none. Informational only.
+    val personId: UInt? = null,
 ) {
     // The bcrypt hash is a credential in its own right (offline cracking), so it never renders.
     override fun toString(): String =
@@ -88,10 +90,15 @@ data class UserCreateRequest(
     val roles: List<UserRole>? = null,
     /** Create-only (the whole-user PUT never touches it); omitted = English. */
     val language: String? = null,
+    /**
+     * Create-only: true also creates a person with this login's name and email, linked to it, in the same transaction
+     * (the people directory's own rules apply: a clash on the person side fails the whole request). Omitted = false.
+     */
+    val alsoCreatePerson: Boolean? = null,
 ) {
     override fun toString(): String =
         "UserCreateRequest(name=$name, email=$email, password=${maskedSecret(password)}, roles=$roles, " +
-            "language=$language)"
+            "language=$language, alsoCreatePerson=$alsoCreatePerson)"
 }
 
 @Serializable
@@ -114,6 +121,8 @@ data class UserResponse(
     val language: String,
     /** Per-user permissions (V11) — the granted set; empty = none. */
     val permissions: List<Permission>,
+    /** The id of the ACTIVE person linked to this login (`people.user_id`); null when there is none. */
+    val personId: UInt? = null,
 )
 
 fun User.toResponse(id: UInt) = UserResponse(
@@ -124,6 +133,7 @@ fun User.toResponse(id: UInt) = UserResponse(
     disabledFeatures = disabledFeatures.sortedBy { it.name },
     language = language,
     permissions = permissions.sortedBy { it.name },
+    personId = personId,
 )
 
 /** Body of PUT /users/{id}/language (target user or ADMIN — the switcher's save). */

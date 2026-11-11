@@ -107,7 +107,7 @@ with `hasKeyValue` from `TestEnvironment.kt`). Emitted today:
 - `user.created` (byUserId/newUserId/email/roles — roles as STORED, i.e. the folded
   additional-roles set) / `user.updated` (name/email deltas, only when changed) /
   `user.roles_changed` (rolesFrom/rolesTo, both as stored) / `user.deleted`
-  (byUserId/targetUserId) — the user events (`/api/v1/users`),
+  (byUserId/targetUserId) — the user events (`/api/v1/users`); a `POST /users` with `alsoCreatePerson` also emits `person.created` (below), after `user.created`, only once the shared transaction has committed,
 - `person.created` (byUserId/personId/name/userId, nullable) / `person.updated` (byUserId/personId/name) / `person.link_changed`
   (byUserId/personId/userFrom/userTo, nullable user ids as STORED — only when a PUT actually changes the login link; a login link is a
   rights path, so it is its own trail line, the `team.manager_changed` precedent; it also transfers every team-manager grant — and, from V12, the ownership — the person holds to the new login) / `person.deleted` (byUserId/personId) — every

@@ -127,23 +127,31 @@ export async function deleteUserRow(page: Page, name: string): Promise<void> {
  * Create a throwaway user through the real UI (an admin must be signed in) and capture the
  * generated password from the one-time reveal modal. Never mutate seeded accounts — use this.
  * The id comes from the POST response; the password from the dialog after "Show password".
+ * The form's "Also create a linked person" switch is on by default; this helper turns it OFF unless `alsoCreatePerson` is
+ * asked for, so a throwaway login leaves no person behind (and specs that link their own person to it still can); with it
+ * on, the response's `personId` comes back for the caller's teardown.
  */
 export async function createUserViaUi(
   page: Page,
   namePrefix = "E2E User",
-): Promise<{ id: number; name: string; email: string; password: string }> {
+  options: { alsoCreatePerson?: boolean } = {},
+): Promise<{ id: number; name: string; email: string; password: string; personId: number | null }> {
   const name = uniqueText(namePrefix);
   const email = `${name.toLowerCase().replace(/[^a-z0-9-]/g, "-")}@astrolabe.local`;
   await page.goto("/users/new");
   await page.getByRole("textbox", { name: "Name" }).fill(name);
   await page.getByRole("textbox", { name: "Email" }).fill(email);
+  const personSwitch = page.getByRole("switch", { name: /^Also create a linked person/ });
+  await expect(personSwitch).toBeChecked();
+  if (!options.alsoCreatePerson) await personSwitch.uncheck();
   const [created] = await Promise.all([
     page.waitForResponse(
       (r) => r.url().endsWith("/api/v1/users") && r.request().method() === "POST" && r.ok(),
     ),
     page.getByRole("button", { name: "Create" }).click(),
   ]);
-  const id: number = (await created.json()).id;
+  const body = (await created.json()) as { id: number; personId?: number | null };
+  const id = body.id;
   const dialog = page.getByRole("dialog");
   // Masked as "*" until revealed — click the eye toggle first.
   await dialog.getByRole("button", { name: "Show password" }).click();
@@ -154,7 +162,7 @@ export async function createUserViaUi(
   // Mantine renders both a header X and the footer button named Close.
   await dialog.getByRole("button", { name: "Close", exact: true }).last().click();
   await expect(page).toHaveURL(/\/users$/);
-  return { id, name, email, password };
+  return { id, name, email, password, personId: body.personId ?? null };
 }
 
 /** Collision-free text so specs never depend on absolute counts or clean state. */

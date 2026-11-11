@@ -1425,6 +1425,14 @@ in `App.tsx` (`auth.tsx`, beside `RequireAuth` — a regular user is sent home),
 so a redirected caller fires no request. UX only — the server's `requireAdmin` is the rule. The pages live under `/users` (`utils/userLinks.ts` is the one place
 the family is spelled out; Flow's `/flow-users` rename and its legacy `/users…` redirect do not exist here).
 
+**Login and person in one step (unreleased, after 1.13.2).** The new-login form (`CreateUser.tsx` only, not the shared `UserFormFields`, so the edit page has none) has a `Switch`
+"Also create a linked person", ON by default (a page-local `useState`), posted as `alsoCreatePerson`; the server creates the person (the login's name and email, linked) in
+the same transaction, and the create refreshes `["users"]` and `["people"]`. A 409 whose problem `detail` names a person gets its own message (`users.personAlreadyExists`),
+the plain 409 stays the email-in-use one; a refused person means no login. The Users row menu offers "Create a person" (`POST /people` with the login's name, email and
+`userId`, success toast `users.toast.personCreated`, a failure inline) only when the row's `personId` is null (`UserResponse.personId`: the id of the ACTIVE person linked to the login, read by the server with every list and detail
+read); a success refreshes `["people"]` and `["users"]`. The inline failure belongs to the view it happened in (a filter, sort or page change drops it) and is cleared when
+another row action starts. The person 409 is told from the user 409 by the problem `detail` text (no distinct problem type: the 23505 handler maps constraints to details only). e2e: the helper `createUserViaUi` turns the switch OFF unless asked, so a throwaway login leaves no person behind.
+
 ### Feature flags (`pages/FeatureFlags.tsx`, `pages/UserFeatures.tsx`)
 
 Lettuce's per-user flag surfaces, ported with the MFA feature: `hasFeature()` (`api/session.ts`, reading the `astrolabe.auth.disabledFeatures` localStorage set

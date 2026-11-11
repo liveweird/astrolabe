@@ -1,5 +1,5 @@
 import { BASE_URL } from "../playwright.config";
-import { createUserViaUi, deleteUserRow, expect, login, loginViaForm, openFilters, signOut, test, uniqueText } from "./helpers";
+import { createUserViaUi, deleteUserRow, deleteViaApi, expect, login, loginViaForm, openFilters, signOut, test, uniqueText } from "./helpers";
 
 // The whole account lifecycle on a throwaway user (its email carries the e2e marker):
 // create via the one-time reveal → the new user's limited view → self password change →
@@ -128,4 +128,35 @@ test("an admin's demotion and deletion reach a signed-in user on their next requ
     if (!deleted) await deleteUserRow(page, throwaway.name);
   }
   await signOut(page);
+});
+
+// "Also create a linked person" (on by default on the new-login form): one submit makes the login AND its person, named and
+// mailed like the login and linked to it, and the person is offered as an owner at once. Owns the person it creates (deleted
+// through the API in the finally, before the login's row).
+test("a new login with the linked-person switch on also creates the person, offered as an owner", async ({ page }) => {
+  await login(page);
+  const account = await createUserViaUi(page, "E2E Linked Owner", { alsoCreatePerson: true });
+  try {
+    expect(account.personId, "the create answer names the person it made").not.toBeNull();
+
+    // The People list shows the person with the login's name and email, linked to the login.
+    await page.goto("/people");
+    await openFilters(page);
+    await page.getByLabel("Name", { exact: true }).fill(account.name);
+    await expect(page.getByRole("link", { name: `Open person ${account.name}` })).toBeVisible();
+    await expect(page.getByRole("row", { name: new RegExp(account.name) })).toContainText(account.email);
+
+    // ... and the plan's owner picker offers them (no work stream is created: the dialog is dismissed).
+    await page.goto("/plan");
+    await page.getByRole("button", { name: "New work stream" }).click();
+    const dialog = page.getByRole("dialog");
+    const owner = dialog.getByRole("combobox", { name: "Owner" });
+    await owner.click();
+    await owner.fill(account.name);
+    await expect(page.getByRole("option", { name: account.name })).toBeVisible();
+    await page.keyboard.press("Escape");
+  } finally {
+    if (account.personId !== null) await deleteViaApi([`/api/v1/people/${account.personId}`]);
+    await deleteUserRow(page, account.name);
+  }
 });

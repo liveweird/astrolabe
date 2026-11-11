@@ -64,6 +64,14 @@ describe("EditUser page", () => {
     localStorage.clear();
   });
 
+  test("the linked-person switch belongs to the create form only", async () => {
+    mockGetAndPut(mockFetch);
+    renderEdit();
+
+    await screen.findByLabelText("Administrator");
+    expect(screen.queryByRole("switch", { name: /^Also create a linked person/ })).not.toBeInTheDocument();
+  });
+
   test("pre-fills the form, PUTs the edited user with roles, and navigates back", async () => {
     mockGetAndPut(mockFetch);
     const user = userEvent.setup();

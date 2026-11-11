@@ -89,6 +89,7 @@ describe("CreateUser page", () => {
       password: expect.stringMatching(PASSWORD_RE),
       roles: [],
       language: "en",
+      alsoCreatePerson: true,
     });
     const password = body.password as string;
 
@@ -139,6 +140,47 @@ describe("CreateUser page", () => {
     await fillAndSubmit(user);
     expect(await screen.findByText(/already used by another account/i)).toBeInTheDocument();
     expect(screen.queryByTestId("probe")).not.toBeInTheDocument();
+  });
+
+  test("the linked-person switch is on by default, describes itself, and posts alsoCreatePerson", async () => {
+    mockPost(mockFetch);
+    const user = userEvent.setup();
+    renderCreate();
+
+    const toggle = screen.getByRole("switch", { name: /^Also create a linked person/ });
+    expect(toggle).toBeChecked();
+    expect(screen.getByText("Lets this login be picked as an owner or a team manager.")).toBeInTheDocument();
+
+    await fillAndSubmit(user);
+    await screen.findByText("User created");
+    expect(postBodyOf(mockFetch).alsoCreatePerson).toBe(true);
+  });
+
+  test("switching it off posts alsoCreatePerson false", async () => {
+    mockPost(mockFetch);
+    const user = userEvent.setup();
+    renderCreate();
+
+    await user.click(screen.getByRole("switch", { name: /^Also create a linked person/ }));
+    await fillAndSubmit(user);
+    await screen.findByText("User created");
+    expect(postBodyOf(mockFetch).alsoCreatePerson).toBe(false);
+  });
+
+  test("a 409 from the people directory says so, not that the email is used by another account", async () => {
+    mockFetch.mockImplementation((url: string, init?: RequestInit) =>
+      Promise.resolve(
+        (init?.method ?? "GET") === "POST" && url === "/api/v1/users"
+          ? jsonResponse(409, { title: "Conflict", status: 409, detail: "A person with this email already exists" })
+          : jsonResponse(404, {}),
+      ),
+    );
+    const user = userEvent.setup();
+    renderCreate();
+
+    await fillAndSubmit(user);
+    expect(await screen.findByText(/A person with this email already exists, so nothing was created/)).toBeInTheDocument();
+    expect(screen.queryByText(/already used by another account/i)).not.toBeInTheDocument();
   });
 
   test("client-side validation blocks an empty submission", async () => {

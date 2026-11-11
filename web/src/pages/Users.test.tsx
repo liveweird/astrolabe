@@ -26,7 +26,7 @@ const SEED_USERS = [
   { id: 2, name: "Bob Basic", email: "bob@example.com", roles: [] },
 ];
 
-function usersPage(items: typeof SEED_USERS, total = items.length) {
+function usersPage(items: Array<(typeof SEED_USERS)[number] & { personId?: number | null }>, total = items.length) {
   return jsonResponse(200, { items, page: 1, pageSize: 20, total });
 }
 
@@ -276,6 +276,89 @@ describe("Users page", () => {
     expect(within(dialog).getByText("Reset failed (500)")).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: /^cancel$/i })).toBeEnabled();
     expect(screen.queryByText("Password reset")).not.toBeInTheDocument();
+  });
+
+  test("Create a person is offered only for a login no person links to, and posts the login's name, email and id", async () => {
+    const toast = vi.spyOn(notifications, "show").mockReturnValue("id");
+    // The list rows say it: Alice has an active person (personId), Bob has none until the POST lands.
+    let bobPersonId: number | null = null;
+    mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+      const method = init?.method ?? "GET";
+      if (method === "POST" && url === "/api/v1/people") {
+        bobPersonId = 8;
+        return Promise.resolve(
+          jsonResponse(201, { id: 8, name: "Bob Basic", email: "bob@example.com", userId: 2, userEmail: "bob@example.com" }),
+        );
+      }
+      if (url.startsWith("/api/v1/users?")) {
+        return Promise.resolve(
+          usersPage([
+            { ...SEED_USERS[0], personId: 7 },
+            { ...SEED_USERS[1], personId: bobPersonId },
+          ]),
+        );
+      }
+      return Promise.resolve(jsonResponse(404, {}));
+    });
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByText("Bob Basic");
+    // Alice already has a person: the item is hidden. Bob has none: it is offered.
+    await user.click(screen.getByRole("button", { name: "Operations for Alice Admin" }));
+    await screen.findByRole("menuitem", { name: "Edit Alice Admin" });
+    expect(screen.queryByRole("menuitem", { name: "Create a person for Alice Admin" })).not.toBeInTheDocument();
+    await user.keyboard("{Escape}");
+
+    await user.click(screen.getByRole("button", { name: "Operations for Bob Basic" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Create a person for Bob Basic" }));
+
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ message: "Person created", color: "green" })),
+    );
+    const post = mockFetch.mock.calls.find(
+      ([url, init]) => (init as RequestInit | undefined)?.method === "POST" && url === "/api/v1/people",
+    );
+    expect(JSON.parse((post![1] as RequestInit).body as string)).toEqual({
+      name: "Bob Basic",
+      email: "bob@example.com",
+      userId: 2,
+    });
+
+    // The users list was refetched: Bob's row now carries a personId and no longer offers the action.
+    await user.click(screen.getByRole("button", { name: "Operations for Bob Basic" }));
+    await screen.findByRole("menuitem", { name: "Edit Bob Basic" });
+    await waitFor(() =>
+      expect(screen.queryByRole("menuitem", { name: "Create a person for Bob Basic" })).not.toBeInTheDocument(),
+    );
+    toast.mockRestore();
+  });
+
+  test("a refused Create a person shows the failure inline and no toast", async () => {
+    const toast = vi.spyOn(notifications, "show").mockReturnValue("id");
+    mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+      const method = init?.method ?? "GET";
+      if (method === "POST" && url === "/api/v1/people") {
+        return Promise.resolve(jsonResponse(409, { title: "Conflict", status: 409 }));
+      }
+      if (url.startsWith("/api/v1/users?")) return Promise.resolve(usersPage(SEED_USERS));
+      return Promise.resolve(jsonResponse(404, {}));
+    });
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Operations for Bob Basic" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Create a person for Bob Basic" }));
+
+    expect(await screen.findByText("Failed to create the person")).toBeInTheDocument();
+    expect(screen.getByText(/Link the existing person to this login on the People page/)).toBeInTheDocument();
+    expect(toast).not.toHaveBeenCalled();
+
+    // Another row action clears the failure.
+    await user.click(screen.getByRole("button", { name: "Operations for Bob Basic" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Reset password for Bob Basic" }));
+    await waitFor(() => expect(screen.queryByText("Failed to create the person")).not.toBeInTheDocument());
+    toast.mockRestore();
   });
 
   test("shows the load-failure alert", async () => {

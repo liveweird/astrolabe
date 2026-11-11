@@ -1,20 +1,27 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
-import { Button, Group, Paper, Stack } from "@mantine/core";
+import { Button, Group, Paper, Stack, Switch } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { useQueryClient } from "@tanstack/react-query";
 import { IconMail } from "@tabler/icons-react";
+import { ApiError } from "../api/http";
 import { createUser } from "../api/users";
 import OneTimePasswordModal from "../components/OneTimePasswordModal";
 import UserFormFields from "../components/UserFormFields";
 import { generatePassword } from "../utils/password";
 import { EMPTY_USER_FORM, rolesOf, userFormValidation, type UserFormValues } from "../utils/userForm";
 import { saveErrorMessage } from "../utils/saveError";
+import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import PageHeader from "../components/PageHeader";
 import { FORM_MAX_WIDTH } from "../utils/layout";
 import { usersPath } from "../utils/userLinks";
 import FormErrorAlert from "../components/FormErrorAlert";
+
+/** The create's 409 that came from the people directory (an active person already has this email). */
+function isPersonConflict(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 409 && (err.detail?.toLowerCase().includes("person") ?? false);
+}
 
 export default function CreateUser() {
   const { t } = useTranslation();
@@ -27,6 +34,10 @@ export default function CreateUser() {
   const [created, setCreated] = useState<{ name: string; email: string; password: string } | null>(
     null,
   );
+
+  // ON by default: a login that signs in is usually also an owner or a team manager. Not part of the shared user form
+  // (the edit page has no such field).
+  const [alsoCreatePerson, setAlsoCreatePerson] = useState(true);
 
   const form = useForm<UserFormValues>({
     initialValues: EMPTY_USER_FORM,
@@ -45,13 +56,15 @@ export default function CreateUser() {
         password,
         roles: rolesOf(values),
         language: values.language,
+        alsoCreatePerson,
       });
-      await queryClient.invalidateQueries({ queryKey: ["users"] });
+      await refreshQueriesAfterMutation(queryClient, ["users"], ["people"]);
       setCreated({ name: values.name.trim(), email: values.email.trim().toLowerCase(), password });
     } catch (err) {
       setError(
         saveErrorMessage(err, t, {
-          conflict: "users.emailAlreadyInUse",
+          // A 409 is the login's email or, with the switch on, the person's: the problem's detail names which.
+          conflict: isPersonConflict(err) ? "users.personAlreadyExists" : "users.emailAlreadyInUse",
           failedStatus: "common.error.createFailedStatus",
           failed: "common.error.createFailedNetwork",
         }),
@@ -88,6 +101,12 @@ export default function CreateUser() {
           <Stack>
             {/* No password field: it is generated on submit and revealed exactly once. */}
             <UserFormFields form={form} />
+            <Switch
+              label={t("users.alsoCreatePerson")}
+              description={t("users.alsoCreatePersonHint")}
+              checked={alsoCreatePerson}
+              onChange={(e) => setAlsoCreatePerson(e.currentTarget.checked)}
+            />
             {error && (
               <FormErrorAlert>
                 {error}

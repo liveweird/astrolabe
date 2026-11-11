@@ -41,10 +41,27 @@
    - *Expected*: the user's next navigation cannot refresh either: it lands on the sign-in page with "You've been
      signed out."
 
+## Scenario: a new login with the linked-person switch on also creates the person, offered as an owner
+
+- **Actors**: the seed administrator; one throwaway login created through the UI with the **Also create a linked
+  person** switch on (the form's default; every other spec's `createUserViaUi` turns it off, so a throwaway login leaves no
+  person behind).
+- **Owns**: the throwaway login and the person the create made (the person deleted through the API, then the login's row,
+  in a `finally`).
+
+1. The admin creates the login on `/users/new` with the switch on.
+   - *Expected*: the create answer carries a `personId`.
+2. The admin opens the People list filtered to the login's name.
+   - *Expected*: a person with that name is listed, showing the login's email.
+3. The admin opens **New work stream** on the Plan page and searches the Owner picker for the name.
+   - *Expected*: the person is offered as an owner (the dialog is then dismissed; nothing is created).
+
 ## Not covered here (and why)
 
 - **The last-administrator 409s and the self-delete 403** — pinned exhaustively by the server
   suite (`UserRoutesTest`, with `TestUsers.withSoloAdmins`) and the page unit tests; e2e keeps
   to the happy lifecycle.
+- **The row action "Create a person"** and the switch-off / person-conflict paths — pinned by the server suite
+  (`UserCreatePersonTest`) and the page unit tests (`Users.test.tsx`, `CreateUser.test.tsx`).
 - **The admin Reset-password reveal** — unit-tested (`Users.test.tsx`); the create-flow reveal
   covered here exercises the same component.

@@ -392,6 +392,11 @@ paths:
         shown to the admin exactly once — the server stores only the bcrypt hash and no
         response ever carries plaintext. The email is canonicalized (trimmed + lowercased);
         a duplicate among active accounts is a `409` (a soft-deleted account frees its email).
+        `alsoCreatePerson: true` also creates a person with the login's name and email, linked to it
+        (`people.user_id`), in the SAME transaction through the people directory's own rules; the
+        response then carries `personId`. A clash on the person side (an active person already has
+        this email, or a name/email the people rules refuse) fails the whole request with the people
+        route's own status (`409` / `400`) and creates no login.
       requestBody:
         required: true
         content:
@@ -411,7 +416,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/UserResponse'
         '400':
-          description: Validation error (blank/too-long name or email, password rules)
+          description: Validation error (blank/too-long name or email, password rules, or the person's rules when alsoCreatePerson)
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/ProblemDetail' }
@@ -4635,6 +4640,12 @@ components:
           allOf: [{ $ref: '#/components/schemas/Language' }]
           nullable: true
           description: Create-only (the whole-user PUT never touches it); omitted = en.
+        alsoCreatePerson:
+          type: boolean
+          nullable: true
+          description: >-
+            Create-only: true also creates a linked person (the login's name and email) in the same
+            transaction; omitted or false = the login alone.
 
     UserUpdateRequest:
       type: object
@@ -4667,6 +4678,15 @@ components:
           type: array
           items: { $ref: '#/components/schemas/Permission' }
           description: Per-user permissions - the GRANTED set (read from the database per request, not a token claim); empty = none.
+        personId:
+          type: integer
+          format: int32
+          minimum: 0
+          nullable: true
+          description: >-
+            The id of the ACTIVE person linked to this login (`people.user_id`), on every read of a
+            user (list, detail, and the create answer); null when none is linked (a soft-deleted
+            person does not count).
 
     UserPage:
       type: object

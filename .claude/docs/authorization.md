@@ -86,7 +86,10 @@ Layered RBAC. Implemented in the `server/src/main/kotlin/authz/` package.
 - **Resource rules**:
   - `/api/v1/users` (list/create) and `PUT`/`DELETE /api/v1/users/{id}` → **ADMIN only** — the
     whole management surface is admin-gated (the list included; regular users keep only the self
-    password change). `GET /users/{id}` → target user or ADMIN, **guard-before-read** (an
+    password change). `POST /users` with `alsoCreatePerson: true` (the SPA's default) also creates the login's person (name, email, linked
+    through `people.user_id`) in the SAME transaction via `PersonService.create`, under the SAME `requireAdmin` (no new guard, nothing a
+    non-admin can reach); a people-side clash (an active person with that email, `409`) fails the whole request and creates no login
+    (`UserCreatePersonTest`). `GET /users/{id}` → target user or ADMIN, **guard-before-read** (an
     unauthorized caller 403s uniformly whether or not the id exists). Two protections with a
     deliberate 403/409 split: **self-delete is a `ForbiddenException` (403)** — a
     permissions-shaped rule about WHO acts — while **deleting or demoting the LAST active

@@ -78,7 +78,15 @@ class UserService(private val database: R2dbcDatabase) {
         override val primaryKey = PrimaryKey(userId, permission)
     }
 
-    suspend fun create(user: User): UInt = suspendTransaction(database) {
+    /**
+     * Inserts the account. [alsoInTransaction], when given, runs with the new id INSIDE the same transaction (after the
+     * MFA row), so a companion write (`POST /users`' linked person) commits with the account or not at all: whatever
+     * it throws rolls the account back too.
+     */
+    suspend fun create(
+        user: User,
+        alsoInTransaction: (suspend (id: UInt) -> Unit)? = null,
+    ): UInt = suspendTransaction(database) {
         // Re-checked service-side so direct callers stay guarded (the feature-template rule);
         // the plaintext-password rules can't apply here — only the bcrypt hash arrives.
         validateNameAndEmail(user.name, user.email)
@@ -98,6 +106,7 @@ class UserService(private val database: R2dbcDatabase) {
             it[UserDisabledFeatures.userId] = id
             it[UserDisabledFeatures.feature] = Feature.MFA.name
         }
+        alsoInTransaction?.invoke(id)
         id
     }
 
@@ -106,7 +115,10 @@ class UserService(private val database: R2dbcDatabase) {
             .where { (Users.id eq id) and Users.active() }
             .toList()
             .singleOrNull()
-            ?.let { it.toUser(featuresOf(it[Users.id].value), permissionsOf(it[Users.id].value)) }
+            ?.let {
+                val id = it[Users.id].value
+                it.toUser(featuresOf(id), permissionsOf(id), linkedPersonIds(listOf(id))[id])
+            }
     }
 
     suspend fun findWithIdByEmail(email: String): Pair<UInt, User>? = suspendTransaction(database) {
@@ -148,9 +160,11 @@ class UserService(private val database: R2dbcDatabase) {
             val ids = rows.map { it[Users.id].value }
             val featuresByUser = disabledFeaturesByUserIds(ids)
             val permissionsByUser = permissionsByUserIds(ids)
+            val personByUser = linkedPersonIds(ids)
             val items = rows.map { row ->
                 val id = row[Users.id].value
-                row.toUser(featuresByUser[id].orEmpty().toSet(), permissionsByUser[id].orEmpty().toSet()).toResponse(id)
+                row.toUser(featuresByUser[id].orEmpty().toSet(), permissionsByUser[id].orEmpty().toSet(), personByUser[id])
+                    .toResponse(id)
             }
             UserListResult(items = items, total = total)
         }
@@ -339,6 +353,7 @@ class UserService(private val database: R2dbcDatabase) {
     private fun ResultRow.toUser(
         disabledFeatures: Set<Feature> = emptySet(),
         permissions: Set<Permission> = emptySet(),
+        personId: UInt? = null,
     ): User = User(
         name = this[Users.name],
         email = this[Users.email],
@@ -349,6 +364,7 @@ class UserService(private val database: R2dbcDatabase) {
         credentialRevision = this[Users.credentialRevision],
         language = this[Users.language],
         permissions = permissions,
+        personId = personId,
     )
 }
 

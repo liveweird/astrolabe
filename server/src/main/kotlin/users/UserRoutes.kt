@@ -20,6 +20,9 @@ import ch.nokillswit.infra.paging.parsePaging
 import ch.nokillswit.infra.paging.toPage
 import ch.nokillswit.infra.validation.canonicalEmail
 import ch.nokillswit.infra.validation.sanitizeSingleLine
+import ch.nokillswit.people.PersonCreateRequest
+import ch.nokillswit.people.PersonService
+import ch.nokillswit.people.PersonServiceKey
 import ch.nokillswit.plugins.RateLimits
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
@@ -106,12 +109,13 @@ class Users {
 
 fun Application.configureUserRoutes() {
     val userService = attributes[UserServiceKey]
+    val personService = attributes[PersonServiceKey]
     attributes.put(PasswordChangeThrottleKey, passwordChangeThrottle())
 
     routing {
         authenticate {
             userList(userService)
-            userCreate(userService)
+            userCreate(userService, personService)
             userReadUpdateDelete(userService)
             userPassword(userService)
             userFeaturesAndLanguage(userService)
@@ -145,7 +149,7 @@ private fun Route.userList(userService: UserService) {
     }
 }
 
-private fun Route.userCreate(userService: UserService) {
+private fun Route.userCreate(userService: UserService, personService: PersonService) {
     post<Users> {
         val caller = call.caller()
         // Guarded BEFORE the body decodes — the guard needs nothing from the payload,
@@ -168,7 +172,13 @@ private fun Route.userCreate(userService: UserService) {
             role = role,
             language = req.language ?: DEFAULT_LANGUAGE,
         )
-        val id = userService.create(user)
+        // alsoCreatePerson: the person rides the account's transaction through the people service's own create (its
+        // validation, its 409s): a clash there rolls the account back and answers the people route's own problem.
+        var personId: UInt? = null
+        val alsoPerson: (suspend (UInt) -> Unit)? = if (req.alsoCreatePerson == true) {
+            { newId -> personId = personService.create(PersonCreateRequest(name, email, newId)) }
+        } else null
+        val id = userService.create(user, alsoInTransaction = alsoPerson)
         audit(
             "user.created",
             *buildList<Pair<String, Any?>> {
@@ -180,6 +190,10 @@ private fun Route.userCreate(userService: UserService) {
                 if (user.language != DEFAULT_LANGUAGE) add("language" to user.language)
             }.toTypedArray(),
         )
+        personId?.let {
+            audit("person.created", "byUserId" to caller.userId.toLong(), "personId" to it.toLong(), "name" to name,
+                "userId" to id.toLong())
+        }
         call.response.header(HttpHeaders.Location, call.application.href(Users.Id(id = id)))
         // Re-read for the response: create() seeds the inverted-default MFA-disabled
         // row (V5 semantics), which the in-memory `user` object doesn't carry.

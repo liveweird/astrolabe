@@ -270,6 +270,11 @@ export interface paths {
          *     shown to the admin exactly once — the server stores only the bcrypt hash and no
          *     response ever carries plaintext. The email is canonicalized (trimmed + lowercased);
          *     a duplicate among active accounts is a `409` (a soft-deleted account frees its email).
+         *     `alsoCreatePerson: true` also creates a person with the login's name and email, linked to it
+         *     (`people.user_id`), in the SAME transaction through the people directory's own rules; the
+         *     response then carries `personId`. A clash on the person side (an active person already has
+         *     this email, or a name/email the people rules refuse) fails the whole request with the people
+         *     route's own status (`409` / `400`) and creates no login.
          */
         post: operations["createUser"];
         delete?: never;
@@ -3232,6 +3237,8 @@ export interface components {
             roles?: components["schemas"]["UserRole"][];
             /** @description Create-only (the whole-user PUT never touches it); omitted = en. */
             language?: components["schemas"]["Language"] | null;
+            /** @description Create-only: true also creates a linked person (the login's name and email) in the same transaction; omitted or false = the login alone. */
+            alsoCreatePerson?: boolean | null;
         };
         UserUpdateRequest: {
             name: string;
@@ -3250,6 +3257,11 @@ export interface components {
             language: components["schemas"]["Language"];
             /** @description Per-user permissions - the GRANTED set (read from the database per request, not a token claim); empty = none. */
             permissions: components["schemas"]["Permission"][];
+            /**
+             * Format: int32
+             * @description The id of the ACTIVE person linked to this login (`people.user_id`), on every read of a user (list, detail, and the create answer); null when none is linked (a soft-deleted person does not count).
+             */
+            personId?: number | null;
         };
         UserPage: {
             items: components["schemas"]["UserResponse"][];
@@ -7689,7 +7701,7 @@ export interface operations {
                     "application/json": components["schemas"]["UserResponse"];
                 };
             };
-            /** @description Validation error (blank/too-long name or email, password rules) */
+            /** @description Validation error (blank/too-long name or email, password rules, or the person's rules when alsoCreatePerson) */
             400: {
                 headers: {
                     [name: string]: unknown;

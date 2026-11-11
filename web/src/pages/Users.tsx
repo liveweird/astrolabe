@@ -1,10 +1,20 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink } from "react-router-dom";
 import { Badge, Button, Group, Menu, Select, Stack, Table, Text } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
-import { IconKey, IconPencil, IconPlus, IconShieldCheck, IconToggleLeft, IconTrash, IconUsers } from "@tabler/icons-react";
+import {
+  IconKey,
+  IconPencil,
+  IconPlus,
+  IconShieldCheck,
+  IconToggleLeft,
+  IconTrash,
+  IconUserPlus,
+  IconUsers,
+} from "@tabler/icons-react";
+import { createPerson } from "../api/people";
 import { deleteUser, listUsers, type UserResponse } from "../api/users";
 import { getUserId } from "../api/session";
 import { useAdmin } from "../auth";
@@ -25,6 +35,7 @@ import { useDialogFocus } from "../hooks/useDialogFocus";
 import { useResetPassword } from "../hooks/useResetPassword";
 import { isString, useStoredState } from "../hooks/useStoredState";
 import { saveErrorMessage } from "../utils/saveError";
+import { showSuccessToast } from "../utils/toast";
 import PageHeader from "../components/PageHeader";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { editUserPath, newUserPath, userFeaturesPath, userPermissionsPath } from "../utils/userLinks";
@@ -70,6 +81,36 @@ export default function Users() {
     placeholderData: keepPreviousData,
     enabled: admin,
   });
+
+  // "Create a person" is offered for a login whose row says no ACTIVE person links to it (`personId`, read with the list).
+  // The failure is inline, tied to the view it happened in (a filter, sort or page change drops it) and cleared when
+  // another row action starts.
+  const viewKey = JSON.stringify([page, pageSize, sortParam, debouncedName, debouncedEmail, roleFilter]);
+  const [personFailure, setPersonFailure] = useState<{ message: string; viewKey: string } | null>(null);
+  const personError = personFailure?.viewKey === viewKey ? personFailure.message : null;
+  const [creatingPersonFor, setCreatingPersonFor] = useState<number | null>(null);
+
+  async function createPersonFor(user: UserResponse) {
+    if (creatingPersonFor !== null) return;
+    setPersonFailure(null);
+    setCreatingPersonFor(user.id);
+    try {
+      await createPerson({ name: user.name, email: user.email, userId: user.id });
+      await refreshQueriesAfterMutation(queryClient, ["people"], ["users"]);
+      showSuccessToast(t("users.toast.personCreated"));
+    } catch (err) {
+      setPersonFailure({
+        viewKey,
+        message: saveErrorMessage(err, t, {
+          conflict: "users.createPersonConflict",
+          failedStatus: "users.createPersonFailedStatus",
+          failed: "users.createPersonFailedNetwork",
+        }),
+      });
+    } finally {
+      setCreatingPersonFor(null);
+    }
+  }
 
   const titleRef = useRef<HTMLHeadingElement>(null);
   const deleteConfirm = useDeleteConfirm<UserResponse>({
@@ -130,6 +171,7 @@ export default function Users() {
       </FilterPanel>
 
       {isError && <ErrorAlert error={error} title={t("users.loadFailed")} />}
+      {personError && <FormErrorAlert title={t("users.createPersonFailedTitle")}>{personError}</FormErrorAlert>}
 
       <Table aria-label={t("users.title")}>
         <Table.Thead>
@@ -212,6 +254,15 @@ export default function Users() {
                       >
                         {t("users.permissionsAction")}
                       </Menu.Item>
+                      {user.personId == null && (
+                        <Menu.Item
+                          leftSection={<IconUserPlus size={14} />}
+                          onClick={() => void createPersonFor(user)}
+                          aria-label={t("users.createPersonAria", { name: user.name })}
+                        >
+                          {t("users.createPerson")}
+                        </Menu.Item>
+                      )}
                       {/* Own row: no reset (self-change needs the current password — the
                           Change password page) and no delete (the server 403s it anyway). */}
                       {!self && (
@@ -219,14 +270,20 @@ export default function Users() {
                           <Menu.Divider />
                           <Menu.Item
                             leftSection={<IconKey size={14} />}
-                            onClick={() => reset.request(user)}
+                            onClick={() => {
+                              setPersonFailure(null);
+                              reset.request(user);
+                            }}
                             aria-label={t("users.resetPasswordAria", { name: user.name })}
                           >
                             {t("users.resetPassword")}
                           </Menu.Item>
                           <DestructiveMenuItem
                             leftSection={<IconTrash size={14} />}
-                            onClick={() => deleteConfirm.requestDelete(user)}
+                            onClick={() => {
+                              setPersonFailure(null);
+                              deleteConfirm.requestDelete(user);
+                            }}
                             aria-label={t("common.action.deleteAria", { name: user.name })}
                           >
                             {t("common.action.delete")}
