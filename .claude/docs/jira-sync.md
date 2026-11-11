@@ -10,14 +10,14 @@ Related: schema `persistence.md` "The Jira sync tables (V21)"; outbound guard `s
 | Call | Guard |
 |---|---|
 | `…/integrations/jira/connections` (CRUD), `…/connections/test`, `…/{id}/test`, `…/{id}/discovery`, `…/{id}/mapping`, `…/{id}/peek` | ADMIN, `requireAdmin` BEFORE the body (guard-before-read) |
-| `POST /integrations/sync/runs {kind, connectionId}` (Refresh now) | ADMIN; `202` with the unfinished run |
+| `POST /integrations/sync/runs {kind, connectionId}` (Refresh now) | ADMIN; `202` with the unfinished run; `429` past 10 a minute per user (the `sync-run` bucket, 1.13.1: both kinds together, before the guard) |
 | `POST /integrations/jira/bindings`, `DELETE …/bindings/{id}` | the node's owner chain or ADMIN (`requireOwnerOrAdmin`), read-before-guard; a link writes no dates, so the team-manager rule does not apply |
 | `POST`/`DELETE …/bindings/{id}/acknowledge` (1.3) | the node's owner chain or ADMIN, like the bind, plus (1.12) the ACTIVE manager of a MILESTONE's team; the binding's live audience read first (404), the guard again under the binding's row lock; no rate bucket (`## Acknowledge (1.3)`) |
 | `POST …/connections/{id}/import-preview` (1.2) | ADMIN, or an owner of every target (`requireOwnerOrAdmin` on the named defaults before the browse, on the resolved targets after it); read-before-guard, a read; the token is decrypted after the up-front `403`s (no plan node owned, a named default not owned), before the resolved-target `403` |
 | `POST …/connections/{id}/import` (1.2) | ADMIN, or an owner of EVERY ticked CREATE/BIND row's target, re-run under the plan lock; not the preview's rule (an owner may apply rows on their own targets where a full preview would be a 403); the one Jira write that moves the plan (`### The apply`); the token is decrypted after the up-front `403`s, before the under-the-lock `403` |
 | `GET …/bindings`, `GET …/sync/runs`, `GET /views/deviations` | any authenticated user |
 
-Rate buckets: `jira-test` 10/min per IP by default, `JIRA_TEST_RATE_LIMIT_PER_MINUTE` (1..100; the e2e stacks pin 30) (Test connection, ad hoc or stored, and Peek); `jira-bind` 30/min per user (spent before the guard, so a 403 costs a token too); `jira-import` 5/min per user, shared by the import preview and apply (each browses the whole scope; spent before the guard).
+Rate buckets: `jira-test` 10/min per IP by default, `JIRA_TEST_RATE_LIMIT_PER_MINUTE` (1..100; the e2e stacks pin 30) (Test connection, ad hoc or stored, and Peek); `jira-bind` 30/min per user (spent before the guard, so a 403 costs a token too); `jira-import` 5/min per user, shared by the import preview and apply (each browses the whole scope; spent before the guard); `sync-run` 10/min per user, Refresh now, shared with Flow, spent before the guard.
 
 ## The transport and the gateway
 
@@ -102,7 +102,7 @@ Deleting a connection soft-deletes its bindings in the same transaction (**D2**)
 `TODO|IN_PROGRESS|DONE`, anything else `UNKNOWN`), parent id/key, start, end, estimate and unit, team name, `gone`. `JiraObservation.of` is pure and clamps every value to its column (a figure
 that cannot fit `NUMERIC(12,2)` reads as null) so one odd issue cannot fail a chunk and wedge every later run.
 
-**Refresh now** → `POST /integrations/sync/runs`: `requireRunnable` (the connection is active and enabled, else `400`), `SyncRunService.claim` (in ONE transaction: lock the connection row `FOR SHARE` through `Connector.lockActiveInTransaction` - a delete racing the claim serializes with it, and a claim that meets a deleted connection is a `400` that writes nothing, so no orphan `sync_runs` row outlives its connection, which the delete otherwise purges; abandon any unfinished run of the connection older than
+**Refresh now** → `POST /integrations/sync/runs` (behind the per-USER `sync-run` bucket, 10 a minute, `429` + `Retry-After`; the scheduler rides none): `requireRunnable` (the connection is active and enabled, else `400`), `SyncRunService.claim` (in ONE transaction: lock the connection row `FOR SHARE` through `Connector.lockActiveInTransaction` - a delete racing the claim serializes with it, and a claim that meets a deleted connection is a `400` that writes nothing, so no orphan `sync_runs` row outlives its connection, which the delete otherwise purges; abandon any unfinished run of the connection older than
 `sync.maxRunMinutes`, prune the finished ones to 50, INSERT the unfinished row; a `23505` on **`uq_sync_runs_running`** is `409 run-in-progress`: the claim IS the unique index, so replicas cannot double-run),
 audit `jira.sync_requested`, `202`, and the run executes on the application's background scope (`SyncRunner`). The page polls `GET /integrations/sync/runs?kind=JIRA&connectionId=` (≤ 50, newest first).
 Outcomes are `SUCCEEDED|FAILED|ABANDONED`; a run's own deadline is `maxRunMinutes − 1` (never under 30 s) → `FAILED/RUN_DEADLINE`, so a live run is never abandoned under itself.

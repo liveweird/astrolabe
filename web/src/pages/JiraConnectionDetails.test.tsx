@@ -232,6 +232,14 @@ describe("Jira connection page", () => {
     expect(screen.getByRole("button", { name: "Refresh now" })).toBeDisabled();
   });
 
+  test("a refresh past the per-user bucket (429) reads in words, not as a bare status", async () => {
+    serve(mockFetch, { claim: () => jsonResponse(429, { title: "Too Many Requests", status: 429 }) });
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Refresh now" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Too many requests. Wait a minute and try again.");
+  });
+
   test("Refresh now is disabled while a run is running (the polled list's verdict) and comes back when it ends, re-reading the connection", async () => {
     const world = serve(mockFetch, { runs: [run({ id: 5, outcome: null, finishedAt: null, running: true })] });
     renderPage();

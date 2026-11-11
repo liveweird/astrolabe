@@ -3080,7 +3080,11 @@ export interface paths {
         put?: never;
         /**
          * Start a sync run now
-         * @description ADMIN only, guarded before the body decodes (a non-admin's malformed body is still `403`). Claims the run (an unfinished row in
+         * @description ADMIN only, guarded before the body decodes (a non-admin's malformed body is still `403`). The per-USER `sync-run` bucket
+         *     allows 10 presses per fixed 60-second window per account, both kinds together (Ktor refills the whole window at once, so a burst
+         *     across a window edge can admit up to 20): the eleventh answers `429` with `Retry-After`, before the guard, and a refused press
+         *     spends a token too. Each press is one run, bounded by its page ceilings, the probe cap and the one-unfinished-run-per-connection
+         *     claim. Scheduled runs and the list below are not limited. Claims the run (an unfinished row in
          *     the registry), then answers `202` with that row while the run executes in the background: poll `GET /integrations/sync/runs`.
          *     The run OBSERVES - a `JIRA` run reads the bound issues from Jira and records what they look like, a `FLOW` run reads Flow's teams,
          *     members and sprints into the mirror; it writes nothing upstream, takes no plan lock and bumps no plan revision. A connection that is
@@ -7258,7 +7262,7 @@ export interface components {
                 "application/problem+json": components["schemas"]["ProblemDetail"];
             };
         };
-        /** @description Throttled — either the per-IP rate-limit bucket is exhausted (generic detail), on a telemetry read (`/api/v1/telemetry/**`) the per-USER telemetry bucket is exhausted (30/min), on a Jira bind or import the per-USER `jira-bind` (30/min) or `jira-import` (5/min) bucket is exhausted, on a password change (`PUT /api/v1/users/{id}/password`) the per-USER password-change bucket is exhausted (10/min), or, on /login, the per-account lockout is active (account-specific detail), or, on the self password change, the per-user wrong-current-password lock is active. All carry a ProblemDetail body. Every rate-bucket 429 (the per-IP buckets and the per-user buckets) carries `Retry-After`; the account-lockout and password-change-lock 429s do not (the wait is not a bucket window). */
+        /** @description Throttled — either the per-IP rate-limit bucket is exhausted (generic detail), on a telemetry read (`/api/v1/telemetry/**`) the per-USER telemetry bucket is exhausted (30/min), on a Jira bind or import the per-USER `jira-bind` (30/min) or `jira-import` (5/min) bucket is exhausted, on Refresh now (`POST /api/v1/integrations/sync/runs`) the per-USER `sync-run` bucket is exhausted (10/min, both kinds together), on a password change (`PUT /api/v1/users/{id}/password`) the per-USER password-change bucket is exhausted (10/min), or, on /login, the per-account lockout is active (account-specific detail), or, on the self password change, the per-user wrong-current-password lock is active. All carry a ProblemDetail body. Every rate-bucket 429 (the per-IP buckets and the per-user buckets) carries `Retry-After`; the account-lockout and password-change-lock 429s do not (the wait is not a bucket window). */
         TooManyRequests: {
             headers: {
                 "Retry-After": components["headers"]["RetryAfter"];
@@ -11317,6 +11321,7 @@ export interface operations {
             409: components["responses"]["Conflict"];
             413: components["responses"]["PayloadTooLarge"];
             415: components["responses"]["UnsupportedMediaType"];
+            429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalServerError"];
         };
     };

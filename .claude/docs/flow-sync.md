@@ -9,7 +9,7 @@ Related: schema `persistence.md` ("The Flow sync tables (V24)"); outbound guard 
 |---|---|
 | `…/integrations/flow/connections` (CRUD), `…/connections/test`, `…/{id}/test` | ADMIN, `requireAdmin` BEFORE the body (guard-before-read); reads included (a connection names a credential-bearing Flow) |
 | `GET …/integrations/flow/origins` (1.5.1) | ADMIN, `requireAdmin` FIRST; a read, no audit: the operator's origin list as `{items}` (below, "The transport and origins") |
-| `POST /integrations/sync/runs {kind: FLOW, connectionId}` (Refresh now) | ADMIN; `202` with the unfinished run; `400` for an unknown, deleted or disabled connection; audited `flow.sync_requested` |
+| `POST /integrations/sync/runs {kind: FLOW, connectionId}` (Refresh now) | ADMIN; `202` with the unfinished run; `400` for an unknown, deleted or disabled connection; `429` past 10 a minute per user (the shared `sync-run` bucket, 1.13.1); audited `flow.sync_requested` |
 | `GET /integrations/sync/runs?kind=FLOW&connectionId=` | any authenticated user (a run names no secret) |
 | `GET /integrations/flow/teams?connectionId=`, `GET /teams/{id}/flow` | any authenticated user (Flow team names, counts and the roster's display names; never a base URL, token, account id or email); the panel also lists every ACTIVE connection's `{id, name, enabled}`, the manager's way to a `connectionId` (the registry itself is ADMIN-only) |
 | `GET /views/capacity-deviations` (1.6; 1.9 adds `acknowledgement`, `can{acknowledge}`, the filters `acknowledged`/`all`) | any authenticated user, a read (no audit, no lock, no revision): the team's own `planMd` is already readable (`GET /teams/{id}/capacity`), but Flow's per-sprint `flowMd`/`flowTotalMd` and the connection's `zone` are a NEW, accepted disclosure to every login (the preview that shows them is the manager's); team and Flow team names and the connection's name and status are already in the panel; never a base URL, token or account id (`authorization.md`; "Deviations (1.6.0)") |
@@ -22,7 +22,7 @@ Related: schema `persistence.md` ("The Flow sync tables (V24)"); outbound guard 
 | `POST /integrations/flow/team-bindings/{id}/unacknowledge-all` (1.11) | the batch acknowledge's order with `items[1..2,000]` of `{sprintId}` (no row twice, `400`); all or nothing: one row with no stored acknowledgement = `409` `stale-deviations`, nothing deleted; `204` |
 | `DELETE …/team-bindings/{id}/acknowledge?sprintId=` (1.9) | the same order with the query parameter in the body's place (`400`: repeated, malformed, below 1; absent = the team's own `TEAM_GONE` row); nothing stored = `404` under the lock → `204` |
 
-Rate bucket: `flow-test` 10/min per IP (`FLOW_TEST_RATE_LIMIT_PER_MINUTE`, 1..100; the e2e stacks pin 30), Test connection only, its own bucket (a Flow test never spends a Jira one). A run, a poll and a refresh ride no bucket (one call, serialised by the claim).
+Rate bucket: `flow-test` 10/min per IP (`FLOW_TEST_RATE_LIMIT_PER_MINUTE`, 1..100; the e2e stacks pin 30), Test connection only, its own bucket (a Flow test never spends a Jira one). A scheduled run and a poll ride no bucket (one call, serialised by the claim); the MANUAL refresh rides the per-USER `sync-run` bucket (10/min, shared with Jira's, 1.13.1).
 
 ## The transport and origins
 

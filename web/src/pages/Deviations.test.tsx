@@ -379,6 +379,16 @@ describe("Deviations page - Refresh now (ADMIN only)", () => {
     expect(screen.queryByText("The refresh could not be started")).not.toBeInTheDocument();
   });
 
+  test("a refresh past the per-user bucket (429) reads in words, not as a bare status", async () => {
+    localStorage.setItem(ROLES_KEY, JSON.stringify(["ADMIN"]));
+    claim = jsonResponse(429, { title: "Too Many Requests", status: 429 });
+    doc = view({ connections: [{ ...DEV_CONNECTION, lastRun: { ...DEV_CONNECTION.lastRun!, outcome: null, finishedAt: null, running: false } }] });
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Refresh now: Acme Jira" }));
+    expect(await screen.findByText("Too many requests. Wait a minute and try again.")).toBeInTheDocument();
+  });
+
   test("a disabled connection cannot be refreshed", async () => {
     localStorage.setItem(ROLES_KEY, JSON.stringify(["ADMIN"]));
     doc = view({ connections: [{ ...DEV_CONNECTION, enabled: false }] });

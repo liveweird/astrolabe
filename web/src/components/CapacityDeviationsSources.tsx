@@ -59,7 +59,7 @@ export default function CapacityDeviationsSources({ connections, admin, readAt }
     onSuccess: () => showSuccessToast(t("deviations.sources.refreshStarted")),
     // A 409 run-in-progress is a normal state: the page re-reads below and its status line says a refresh is running; no error, no extra note.
     onError: (err) => {
-      if (!isRunInProgress(err)) setRefreshError(saveErrorMessage(err, t, { forbidden: "deviations.sources.refreshForbidden", notFound: "deviations.sources.refreshInvalid", invalid: "deviations.sources.refreshInvalid", failedStatus: "common.error.actionFailedStatus", failed: "deviations.sources.refreshFailed" }));
+      if (!isRunInProgress(err)) setRefreshError(saveErrorMessage(err, t, { tooManyRequests: "common.error.tooManyRequests", forbidden: "deviations.sources.refreshForbidden", notFound: "deviations.sources.refreshInvalid", invalid: "deviations.sources.refreshInvalid", failedStatus: "common.error.actionFailedStatus", failed: "deviations.sources.refreshFailed" }));
     },
     // Either way the registry now holds a run: re-read the section's data, and its own polling takes over while a run is going.
     onSettled: () => refreshQueriesAfterMutation(queryClient, ["flow"]),

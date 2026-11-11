@@ -311,6 +311,14 @@ describe("CapacityDeviationsSection", () => {
       expect(await screen.findByText("Only administrators can refresh")).toBeInTheDocument();
     });
 
+    test("a refresh past the per-user bucket (429) reads in words, not as a bare status", async () => {
+      localStorage.setItem("astrolabe.auth.roles", JSON.stringify(["ADMIN"]));
+      claim = jsonResponse(429, { title: "Too Many Requests", status: 429 });
+      renderSection({}, true);
+      await userEvent.click(await screen.findByRole("button", { name: "Refresh now: Acme Flow" }));
+      expect(await screen.findByText("Too many requests. Wait a minute and try again.")).toBeInTheDocument();
+    });
+
     test("a run the server says is running is told, and Refresh now waits for it", async () => {
       localStorage.setItem("astrolabe.auth.roles", JSON.stringify(["ADMIN"]));
       doc = capacityView({ connections: [{ ...CAPACITY_CONNECTION, status: { ...CAPACITY_CONNECTION.status, lastRun: { ...CAPACITY_CONNECTION.status.lastRun!, outcome: null, finishedAt: null, running: true } } }] });

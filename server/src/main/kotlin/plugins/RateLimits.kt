@@ -59,8 +59,8 @@ internal class RateLimitAuditThrottle(
 }
 
 /**
- * Every token bucket the routes ride (per client IP, except [TELEMETRY], [JIRA_BIND], [JIRA_IMPORT] and [PASSWORD_CHANGE]: per
- * signed-in user), named in one place so a feature module never has to know another's constant (the auth module used to import
+ * Every token bucket the routes ride (per client IP, except [TELEMETRY], [JIRA_BIND], [JIRA_IMPORT], [PASSWORD_CHANGE] and [SYNC_RUN]:
+ * per signed-in user), named in one place so a feature module never has to know another's constant (the auth module used to import
  * the try-it bucket's name — a layering inversion the checkup removed). Route files reference these names; only this plugin
  * installs them.
  */
@@ -115,6 +115,14 @@ object RateLimits {
      * tries (a typo in the current password, a refused new one) and the wrong-current lock (5 attempts) is the guess budget, not this.
      */
     const val PASSWORD_CHANGE = "password-change"
+    /**
+     * `POST /api/v1/integrations/sync/runs` (Refresh now, `sync/SyncRoutes.kt`): per SIGNED-IN USER in every mode, ONE bucket for both
+     * kinds (a Flow press and a Jira press count together; the list GET and the scheduler ride none). 10 presses per fixed 60-second
+     * window per account (Ktor refills the whole window at once, so a burst across a window edge can admit up to 20); each press is one
+     * run, bounded by its page ceilings, the probe cap (100 by-id reads since 1.13) and the one-unfinished-run-per-connection claim (the
+     * security audit's L1). It rides the route node, so it runs before the guard and a refused press spends a token too.
+     */
+    const val SYNC_RUN = "sync-run"
 
     const val DEFAULT_REFRESH_PER_MINUTE = 30
     /**
@@ -128,6 +136,7 @@ object RateLimits {
     private const val JIRA_BIND_PER_MINUTE = 30
     private const val JIRA_IMPORT_PER_MINUTE = 5
     private const val PASSWORD_CHANGE_PER_MINUTE = 10
+    private const val SYNC_RUN_PER_MINUTE = 10
     private const val MFA_PER_MINUTE = 10
     private const val PASSWORD_RESET_CONFIRM_PER_MINUTE = 10
     private const val JIRA_TEST_PER_MINUTE = 10
@@ -162,6 +171,7 @@ object RateLimits {
     internal fun jiraBindLimit() = JIRA_BIND_PER_MINUTE
     internal fun jiraImportLimit() = JIRA_IMPORT_PER_MINUTE
     internal fun passwordChangeLimit() = PASSWORD_CHANGE_PER_MINUTE
+    internal fun syncRunLimit() = SYNC_RUN_PER_MINUTE
     internal fun mfaLimit() = MFA_PER_MINUTE
     internal fun passwordResetConfirmLimit() = PASSWORD_RESET_CONFIRM_PER_MINUTE
     /** The shipped manifests keep 10; the e2e stacks (compose, the OrbStack overlay) pin 30. Capped at 100: each call fans out to Jira. */
@@ -175,7 +185,7 @@ object RateLimits {
 
 /**
  * The buckets (see application.yaml `security.rateLimit` and security.md): per IP, except the per-USER buckets (telemetry,
- * jira-bind, jira-import, password-change). Login and password-reset follow the mode — production keeps them tight, development
+ * jira-bind, jira-import, password-change, sync-run). Login and password-reset follow the mode — production keeps them tight, development
  * lifts them so one host driving the e2e suite is not throttled (the per-account lockout and the per-email throttle are the
  * abuse defences in both modes); refresh, ready, MFA and the password-reset confirm are the same in every mode. Installed here,
  * before the feature modules, so any route may ride any bucket regardless of module order.
@@ -199,6 +209,7 @@ fun Application.configureRateLimits() {
             JIRA_BIND to jiraBindLimit(),
             JIRA_IMPORT to jiraImportLimit(),
             PASSWORD_CHANGE to passwordChangeLimit(),
+            SYNC_RUN to syncRunLimit(),
         )
     }
     install(RateLimit) {
@@ -213,9 +224,8 @@ fun Application.configureRateLimits() {
                 }
             }
         }
-        // The per-USER buckets (telemetry, jira-bind, jira-import, password-change). The routes mount them INSIDE `authenticate {}`
-        // (telemetry/TelemetryRoutes.kt,
-        // jira/JiraBindingRoutes.kt, users/UserRoutes.kt), so this key
+        // The per-USER buckets (telemetry, jira-bind, jira-import, password-change, sync-run). The routes mount them INSIDE
+        // `authenticate {}` (telemetry/TelemetryRoutes.kt, jira/JiraBindingRoutes.kt, users/UserRoutes.kt, sync/SyncRoutes.kt), so this key
         // runs only for a verified token: an anonymous call is a 401 that never reaches it
         // and never creates a limiter. The plugin keeps one limiter per key and drops it after its refill period, so memory is
         // bounded by the accounts active within a minute.

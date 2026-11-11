@@ -78,7 +78,7 @@ export default function FlowConnectionSection({ connection, readAt }: { connecti
     onSuccess: () => showSuccessToast(t("flow.toast.refreshStarted")),
     onError: (err) => {
       if (isRunInProgress(err)) setAlreadyRunningNoted(true);
-      else setRefreshError(saveErrorMessage(err, t, { forbidden: "flow.saveForbidden", notFound: "flow.saveGone", invalid: "flow.refresh.invalid", failedStatus: "common.error.actionFailedStatus", failed: "common.error.actionFailed" }));
+      else setRefreshError(saveErrorMessage(err, t, { tooManyRequests: "common.error.tooManyRequests", forbidden: "flow.saveForbidden", notFound: "flow.saveGone", invalid: "flow.refresh.invalid", failedStatus: "common.error.actionFailedStatus", failed: "common.error.actionFailed" }));
     },
     // Either way the registry now holds a run: re-read it, and the list's own polling takes over while it is unfinished.
     // The connection's status and the registry moved with it too (a run that finished before the first poll never shows as live).

@@ -85,7 +85,7 @@ export default function JiraConnectionSection({ connection, readAt }: { connecti
     onSuccess: () => showSuccessToast(t("jira.toast.refreshStarted")),
     onError: (err) => {
       if (isRunInProgress(err)) setAlreadyRunningNoted(true);
-      else setRefreshError(saveErrorMessage(err, t, { forbidden: "jira.saveForbidden", notFound: "jira.saveGone", invalid: "jira.refresh.invalid", failedStatus: "common.error.actionFailedStatus", failed: "common.error.actionFailed" }));
+      else setRefreshError(saveErrorMessage(err, t, { tooManyRequests: "common.error.tooManyRequests", forbidden: "jira.saveForbidden", notFound: "jira.saveGone", invalid: "jira.refresh.invalid", failedStatus: "common.error.actionFailedStatus", failed: "common.error.actionFailed" }));
     },
     // Either way the registry now holds a run: re-read it, and the list's own polling takes over while it is unfinished.
     // The connection's status and the registry moved with it too (a run that finished before the first poll never shows as live).
