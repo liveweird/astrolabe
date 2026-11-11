@@ -16,7 +16,7 @@ import kotlin.test.assertTrue
 
 /**
  * 1.10: an acknowledgement lives only while its row is listed. The run's prune (inside the mirror replace), the acknowledge's own prune,
- * the capacity write's prune (1.14: a manual period or the import, through the `teams/` listener seam, after the write's commit) and
+ * the capacity write's prune (1.13.1: a manual period or the import, through the `teams/` listener seam, after the write's commit) and
  * the connection delete, over the same scripted world as `CapacityAcknowledgeTest` (three 2049 sprints; day two: S2 a WARNING, S3 an
  * INFO, Billing gone). The predicate per binding state - listed row kept, in line / left the document / zero sprints pruned, an ABSENT
  * team and a sprints-truncated document pruning nothing, an unlinked binding and a dead team pruned whole - is pinned here; the lock
@@ -308,7 +308,7 @@ class CapacityAcknowledgePruneTest {
         }
     }
 
-    // 1.14: the plan-side writes. Day two says S2 30 (15 a week) and S3 48 (24 a week); the plan keeps 18 and 22 a week.
+    // 1.13.1: the plan-side writes. Day two says S2 30 (15 a week) and S3 48 (24 a week); the plan keeps 18 and 22 a week.
 
     private fun clearedLines(audit: LogCapture) = audit.events.filter { it.message == "flow.capacity_acknowledgements_cleared" }
 

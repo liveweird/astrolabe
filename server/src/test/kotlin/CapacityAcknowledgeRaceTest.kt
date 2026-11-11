@@ -326,7 +326,7 @@ class CapacityAcknowledgeRaceTest {
             }
         }
 
-    // 1.14: the prune after a capacity write (a transaction of its own, after the write's commit).
+    // 1.13.1: the prune after a capacity write (a transaction of its own, after the write's commit).
 
     @Test
     fun `the prune after a capacity write waits for a held binding row, then completes - the write was already committed`() =

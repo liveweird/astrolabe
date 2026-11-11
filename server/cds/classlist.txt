@@ -154,6 +154,7 @@ ch/nokillswit/flow/CapacityAcknowledgeRoutesKt$capacityBatchAcknowledgeRoutes$2
 ch/nokillswit/flow/CapacityAcknowledgeService
 ch/nokillswit/flow/CapacityAcknowledgeService$Acknowledgements
 ch/nokillswit/flow/CapacityAcknowledgeService$Companion
+ch/nokillswit/flow/CapacityAcknowledgeService$pruneAfterCapacityWrite$2
 ch/nokillswit/flow/CapacityAcknowledgeService$pruneConnectionInTransaction$1
 ch/nokillswit/flow/CapacityAcknowledgeServiceKt
 ch/nokillswit/flow/CapacityAction
@@ -318,6 +319,8 @@ ch/nokillswit/flow/FlowKt$buildGuardedFlowHttpClient$okHttpClient$1
 ch/nokillswit/flow/FlowKt$buildGuardedFlowHttpClient$okHttpClient$2
 ch/nokillswit/flow/FlowKt$buildGuardedFlowHttpClient$okHttpClient$3
 ch/nokillswit/flow/FlowKt$buildGuardedFlowHttpClient$okHttpClient$4
+ch/nokillswit/flow/FlowKt$configureFlow$2
+ch/nokillswit/flow/FlowKt$configureFlow$2$capacityWritten-t3GQkyU$1
 ch/nokillswit/flow/FlowMe
 ch/nokillswit/flow/FlowMe$$serializer
 ch/nokillswit/flow/FlowMe$Companion
@@ -1591,10 +1594,10 @@ ch/nokillswit/sync/SyncResult$Companion
 ch/nokillswit/sync/SyncRoutesKt
 ch/nokillswit/sync/SyncRoutesKt$syncRoutes$$inlined$get$1
 ch/nokillswit/sync/SyncRoutesKt$syncRoutes$$inlined$get$1$1
-ch/nokillswit/sync/SyncRoutesKt$syncRoutes$$inlined$post$1
-ch/nokillswit/sync/SyncRoutesKt$syncRoutes$$inlined$post$1$1
 ch/nokillswit/sync/SyncRoutesKt$syncRoutes$1
-ch/nokillswit/sync/SyncRoutesKt$syncRoutes$2
+ch/nokillswit/sync/SyncRoutesKt$syncRoutes$2$1
+ch/nokillswit/sync/SyncRoutesKt$syncRoutes$lambda$0$$inlined$post$1
+ch/nokillswit/sync/SyncRoutesKt$syncRoutes$lambda$0$$inlined$post$1$1
 ch/nokillswit/sync/SyncRunList
 ch/nokillswit/sync/SyncRunList$$serializer
 ch/nokillswit/sync/SyncRunList$Companion
@@ -1663,6 +1666,10 @@ ch/nokillswit/teams/CapacityPeriodsRoute$Id
 ch/nokillswit/teams/CapacityPeriodsRoute$Id$$serializer
 ch/nokillswit/teams/CapacityPeriodsRoute$Id$Companion
 ch/nokillswit/teams/CapacitySource
+ch/nokillswit/teams/CapacityWriteListener
+ch/nokillswit/teams/CapacityWriteListeners
+ch/nokillswit/teams/CapacityWriteListeners$written$1
+ch/nokillswit/teams/TeamCapacityListenersKt
 ch/nokillswit/teams/TeamCapacityRoute
 ch/nokillswit/teams/TeamCapacityRoute$$serializer
 ch/nokillswit/teams/TeamCapacityRoute$$serializer$annotationImpl$io_ktor_resources_Resource$0
@@ -3729,9 +3736,6 @@ io/ktor/server/engine/internal/CallableUtilsKt$callFunctionWithInjection$1
 io/ktor/server/engine/internal/CallableUtilsKt$executeModuleFunction$1
 io/ktor/server/engine/internal/EngineUtilsJvmKt
 io/ktor/server/engine/internal/ReloadingException
-io/ktor/server/http/HttpRequestLifecycleConfig
-io/ktor/server/http/HttpRequestLifecycleKt
-io/ktor/server/http/HttpRequestLifecycleKt$HttpRequestLifecycle$1
 io/ktor/server/http/content/CachedStaticFile
 io/ktor/server/http/content/CompressedFileType
 io/ktor/server/http/content/DefaultContentTypesKt
@@ -6800,8 +6804,6 @@ java/text/FieldPosition
 java/text/Format
 java/text/Format$Field
 java/text/Format$FieldDelegate
-java/text/MessageFormat
-java/text/MessageFormat$Field
 java/text/Normalizer
 java/text/Normalizer$Form
 java/text/NumberFormat
@@ -7074,7 +7076,6 @@ java/util/Locale$Cache
 java/util/Locale$Category
 java/util/Map
 java/util/Map$Entry
-java/util/MissingResourceException
 java/util/NavigableMap
 java/util/NavigableSet
 java/util/NoSuchElementException
@@ -7093,15 +7094,9 @@ java/util/RegularEnumSet$EnumSetIterator
 java/util/ResourceBundle
 java/util/ResourceBundle$1
 java/util/ResourceBundle$2
-java/util/ResourceBundle$BundleReference
-java/util/ResourceBundle$CacheKey
-java/util/ResourceBundle$CacheKeyReference
 java/util/ResourceBundle$Control
-java/util/ResourceBundle$Control$2
 java/util/ResourceBundle$Control$CandidateListCache
-java/util/ResourceBundle$KeyElementReference
 java/util/ResourceBundle$NoFallbackControl
-java/util/ResourceBundle$ResourceBundleControlProviderHolder
 java/util/ResourceBundle$ResourceBundleProviderHelper
 java/util/ResourceBundle$SingleFormatControl
 java/util/ReverseOrderListView
@@ -7398,7 +7393,6 @@ java/util/spi/CalendarDataProvider
 java/util/spi/CurrencyNameProvider
 java/util/spi/LocaleNameProvider
 java/util/spi/LocaleServiceProvider
-java/util/spi/ResourceBundleControlProvider
 java/util/spi/TimeZoneNameProvider
 java/util/stream/AbstractPipeline
 java/util/stream/AbstractSpinedBuffer
@@ -10635,10 +10629,6 @@ org/flywaydb/core/internal/exception/FlywayMigrateException
 org/flywaydb/core/internal/exception/FlywayRollbackFailedException
 org/flywaydb/core/internal/exception/FlywaySqlException
 org/flywaydb/core/internal/exception/FlywayUnknownMigrationTypeException
-org/flywaydb/core/internal/exception/sqlExceptions/FlywaySqlErrorCode
-org/flywaydb/core/internal/exception/sqlExceptions/FlywaySqlNoDriversForInteractiveAuthException
-org/flywaydb/core/internal/exception/sqlExceptions/FlywaySqlNoIntegratedAuthException
-org/flywaydb/core/internal/exception/sqlExceptions/FlywaySqlServerUntrustedCertificateSqlException
 org/flywaydb/core/internal/exception/sqlExceptions/FlywaySqlUnableToConnectToDbException
 org/flywaydb/core/internal/info/AppliedMigrationAttributes
 org/flywaydb/core/internal/info/MigrationConfigPrinter
@@ -10773,7 +10763,6 @@ org/flywaydb/core/internal/util/BomStrippingReader
 org/flywaydb/core/internal/util/ClassUtils
 org/flywaydb/core/internal/util/CloseableIterator
 org/flywaydb/core/internal/util/DataUnits
-org/flywaydb/core/internal/util/ExceptionUtils
 org/flywaydb/core/internal/util/FeatureDetector
 org/flywaydb/core/internal/util/FileUtils
 org/flywaydb/core/internal/util/FlywayDbWebsiteLinks
@@ -11363,7 +11352,6 @@ org/postgresql/util/ByteStreamWriter
 org/postgresql/util/ByteStreamWriter$ByteStreamTarget
 org/postgresql/util/CanEstimateSize
 org/postgresql/util/ClassLoaderStrategy
-org/postgresql/util/GT
 org/postgresql/util/Gettable
 org/postgresql/util/HostSpec
 org/postgresql/util/IntList
@@ -11386,7 +11374,6 @@ org/postgresql/util/PGPropertyUtil
 org/postgresql/util/PGmoney
 org/postgresql/util/PGobject
 org/postgresql/util/PSQLException
-org/postgresql/util/PSQLState
 org/postgresql/util/PSQLWarning
 org/postgresql/util/ReaderInputStream
 org/postgresql/util/SharedTimer
@@ -12097,7 +12084,6 @@ sun/net/spi/DefaultProxySelector$3
 sun/net/spi/DefaultProxySelector$NonProxyInfo
 sun/net/util/IPAddressUtil
 sun/net/util/IPAddressUtil$MASKS
-sun/net/util/SocketExceptions
 sun/net/util/URLUtil
 sun/net/www/MessageHeader
 sun/net/www/ParseUtil
@@ -12660,6 +12646,7 @@ sun/util/spi/CalendarProvider
 @lambda-proxy ch/nokillswit/flow/CapacityAcknowledgeService invoke (Lch/nokillswit/flow/FlowTeamBindingService$Bindings;I)Lkotlin/jvm/functions/Function0; ()Ljava/lang/Object; REF_invokeStatic ch/nokillswit/flow/CapacityAcknowledgeService pruneConnectionInTransaction_OzbTU_A$lambda$0 (Lch/nokillswit/flow/FlowTeamBindingService$Bindings;I)Lorg/jetbrains/exposed/v1/core/Op; ()Lorg/jetbrains/exposed/v1/core/Op;
 @lambda-proxy ch/nokillswit/flow/CapacityAcknowledgeService$Acknowledgements invoke (Lch/nokillswit/flow/FlowTeamBindingService$Bindings;I)Lkotlin/jvm/functions/Function0; ()Ljava/lang/Object; REF_invokeStatic ch/nokillswit/flow/CapacityAcknowledgeService$Acknowledgements deleteForConnectionInTransaction_qim9Vi0$lambda$0$0 (Lch/nokillswit/flow/FlowTeamBindingService$Bindings;I)Lorg/jetbrains/exposed/v1/core/Op; ()Lorg/jetbrains/exposed/v1/core/Op;
 @lambda-proxy ch/nokillswit/flow/CapacityAcknowledgeService$Acknowledgements invoke (Lch/nokillswit/flow/FlowTeamBindingService$Bindings;I)Lkotlin/jvm/functions/Function1; (Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic ch/nokillswit/flow/CapacityAcknowledgeService$Acknowledgements deleteForConnectionInTransaction_qim9Vi0$lambda$0 (Lch/nokillswit/flow/FlowTeamBindingService$Bindings;ILch/nokillswit/flow/CapacityAcknowledgeService$Acknowledgements;)Lorg/jetbrains/exposed/v1/core/Op; (Lch/nokillswit/flow/CapacityAcknowledgeService$Acknowledgements;)Lorg/jetbrains/exposed/v1/core/Op;
+@lambda-proxy ch/nokillswit/flow/CapacityAcknowledgeService$pruneAfterCapacityWrite$2 invoke (Lch/nokillswit/flow/FlowTeamBindingService$Bindings;I)Lkotlin/jvm/functions/Function0; ()Ljava/lang/Object; REF_invokeStatic ch/nokillswit/flow/CapacityAcknowledgeService$pruneAfterCapacityWrite$2 invokeSuspend$lambda$0 (Lch/nokillswit/flow/FlowTeamBindingService$Bindings;I)Lorg/jetbrains/exposed/v1/core/Op; ()Lorg/jetbrains/exposed/v1/core/Op;
 @lambda-proxy ch/nokillswit/flow/CapacityAction invoke ()Lkotlin/jvm/functions/Function0; ()Ljava/lang/Object; REF_invokeStatic ch/nokillswit/flow/CapacityAction _init_$_anonymous_ ()Lkotlinx/serialization/KSerializer; ()Lkotlinx/serialization/KSerializer;
 @lambda-proxy ch/nokillswit/flow/CapacityApplyExpected invoke ()Lkotlin/jvm/functions/Function0; ()Ljava/lang/Object; REF_invokeStatic ch/nokillswit/flow/CapacityApplyExpected _childSerializers$_anonymous_ ()Lkotlinx/serialization/KSerializer; ()Lkotlinx/serialization/KSerializer;
 @lambda-proxy ch/nokillswit/flow/CapacityApplyRequest invoke ()Lkotlin/jvm/functions/Function0; ()Ljava/lang/Object; REF_invokeStatic ch/nokillswit/flow/CapacityApplyRequest _childSerializers$_anonymous_ ()Lkotlinx/serialization/KSerializer; ()Lkotlinx/serialization/KSerializer;
@@ -12681,8 +12668,8 @@ sun/util/spi/CalendarProvider
 @lambda-proxy ch/nokillswit/flow/CapacityPreview invoke ()Lkotlin/jvm/functions/Function0; ()Ljava/lang/Object; REF_invokeStatic ch/nokillswit/flow/CapacityPreview _childSerializers$_anonymous_ ()Lkotlinx/serialization/KSerializer; ()Lkotlinx/serialization/KSerializer;
 @lambda-proxy ch/nokillswit/flow/CapacityPreview invoke ()Lkotlin/jvm/functions/Function0; ()Ljava/lang/Object; REF_invokeStatic ch/nokillswit/flow/CapacityPreview _childSerializers$_anonymous_$0 ()Lkotlinx/serialization/KSerializer; ()Lkotlinx/serialization/KSerializer;
 @lambda-proxy ch/nokillswit/flow/CapacitySkipReason invoke ()Lkotlin/jvm/functions/Function0; ()Ljava/lang/Object; REF_invokeStatic ch/nokillswit/flow/CapacitySkipReason _init_$_anonymous_ ()Lkotlinx/serialization/KSerializer; ()Lkotlinx/serialization/KSerializer;
-@lambda-proxy ch/nokillswit/flow/FlowConnectionRoutesKt invoke (Lch/nokillswit/flow/FlowConnectionService;Lch/nokillswit/flow/FlowConnector;Lch/nokillswit/infra/outbound/FlowOrigins;Lch/nokillswit/flow/FlowTeamBindingService;Lch/nokillswit/flow/FlowTeamService;Lch/nokillswit/teams/TeamService;Lch/nokillswit/flow/CapacityImportService;Lch/nokillswit/flow/CapacityAcknowledgeService;Lch/nokillswit/flow/CapacityDeviationService;)Lkotlin/jvm/functions/Function1; (Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic ch/nokillswit/flow/FlowConnectionRoutesKt configureFlowRoutes$lambda$0 (Lch/nokillswit/flow/FlowConnectionService;Lch/nokillswit/flow/FlowConnector;Lch/nokillswit/infra/outbound/FlowOrigins;Lch/nokillswit/flow/FlowTeamBindingService;Lch/nokillswit/flow/FlowTeamService;Lch/nokillswit/teams/TeamService;Lch/nokillswit/flow/CapacityImportService;Lch/nokillswit/flow/CapacityAcknowledgeService;Lch/nokillswit/flow/CapacityDeviationService;Lio/ktor/server/routing/Routing;)Lkotlin/Unit; (Lio/ktor/server/routing/Routing;)Lkotlin/Unit;
-@lambda-proxy ch/nokillswit/flow/FlowConnectionRoutesKt invoke (Lch/nokillswit/flow/FlowConnectionService;Lch/nokillswit/flow/FlowConnector;Lch/nokillswit/infra/outbound/FlowOrigins;Lch/nokillswit/flow/FlowTeamBindingService;Lch/nokillswit/flow/FlowTeamService;Lch/nokillswit/teams/TeamService;Lch/nokillswit/flow/CapacityImportService;Lch/nokillswit/flow/CapacityAcknowledgeService;Lch/nokillswit/flow/CapacityDeviationService;)Lkotlin/jvm/functions/Function1; (Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic ch/nokillswit/flow/FlowConnectionRoutesKt configureFlowRoutes$lambda$0$0 (Lch/nokillswit/flow/FlowConnectionService;Lch/nokillswit/flow/FlowConnector;Lch/nokillswit/infra/outbound/FlowOrigins;Lch/nokillswit/flow/FlowTeamBindingService;Lch/nokillswit/flow/FlowTeamService;Lch/nokillswit/teams/TeamService;Lch/nokillswit/flow/CapacityImportService;Lch/nokillswit/flow/CapacityAcknowledgeService;Lch/nokillswit/flow/CapacityDeviationService;Lio/ktor/server/routing/Route;)Lkotlin/Unit; (Lio/ktor/server/routing/Route;)Lkotlin/Unit;
+@lambda-proxy ch/nokillswit/flow/FlowConnectionRoutesKt invoke (Lch/nokillswit/flow/FlowConnectionService;Lch/nokillswit/flow/FlowConnector;Lch/nokillswit/infra/outbound/FlowOrigins;Lch/nokillswit/flow/FlowTeamBindingService;Lch/nokillswit/flow/FlowTeamService;Lch/nokillswit/teams/TeamService;Lch/nokillswit/flow/CapacityImportService;Lch/nokillswit/teams/CapacityWriteListeners;Lch/nokillswit/flow/CapacityAcknowledgeService;Lch/nokillswit/flow/CapacityDeviationService;)Lkotlin/jvm/functions/Function1; (Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic ch/nokillswit/flow/FlowConnectionRoutesKt configureFlowRoutes$lambda$0 (Lch/nokillswit/flow/FlowConnectionService;Lch/nokillswit/flow/FlowConnector;Lch/nokillswit/infra/outbound/FlowOrigins;Lch/nokillswit/flow/FlowTeamBindingService;Lch/nokillswit/flow/FlowTeamService;Lch/nokillswit/teams/TeamService;Lch/nokillswit/flow/CapacityImportService;Lch/nokillswit/teams/CapacityWriteListeners;Lch/nokillswit/flow/CapacityAcknowledgeService;Lch/nokillswit/flow/CapacityDeviationService;Lio/ktor/server/routing/Routing;)Lkotlin/Unit; (Lio/ktor/server/routing/Routing;)Lkotlin/Unit;
+@lambda-proxy ch/nokillswit/flow/FlowConnectionRoutesKt invoke (Lch/nokillswit/flow/FlowConnectionService;Lch/nokillswit/flow/FlowConnector;Lch/nokillswit/infra/outbound/FlowOrigins;Lch/nokillswit/flow/FlowTeamBindingService;Lch/nokillswit/flow/FlowTeamService;Lch/nokillswit/teams/TeamService;Lch/nokillswit/flow/CapacityImportService;Lch/nokillswit/teams/CapacityWriteListeners;Lch/nokillswit/flow/CapacityAcknowledgeService;Lch/nokillswit/flow/CapacityDeviationService;)Lkotlin/jvm/functions/Function1; (Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic ch/nokillswit/flow/FlowConnectionRoutesKt configureFlowRoutes$lambda$0$0 (Lch/nokillswit/flow/FlowConnectionService;Lch/nokillswit/flow/FlowConnector;Lch/nokillswit/infra/outbound/FlowOrigins;Lch/nokillswit/flow/FlowTeamBindingService;Lch/nokillswit/flow/FlowTeamService;Lch/nokillswit/teams/TeamService;Lch/nokillswit/flow/CapacityImportService;Lch/nokillswit/teams/CapacityWriteListeners;Lch/nokillswit/flow/CapacityAcknowledgeService;Lch/nokillswit/flow/CapacityDeviationService;Lio/ktor/server/routing/Route;)Lkotlin/Unit; (Lio/ktor/server/routing/Route;)Lkotlin/Unit;
 @lambda-proxy ch/nokillswit/flow/FlowConnectionService$create$2 invoke (Lch/nokillswit/flow/FlowConnectionRequest;Lch/nokillswit/flow/FlowConnectionService;Ljava/lang/String;J)Lkotlin/jvm/functions/Function2; (Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic ch/nokillswit/flow/FlowConnectionService$create$2 invokeSuspend$lambda$1 (Lch/nokillswit/flow/FlowConnectionRequest;Lch/nokillswit/flow/FlowConnectionService;Ljava/lang/String;JLch/nokillswit/flow/FlowConnectionService$Connections;Lorg/jetbrains/exposed/v1/core/statements/InsertStatement;)Lkotlin/Unit; (Lch/nokillswit/flow/FlowConnectionService$Connections;Lorg/jetbrains/exposed/v1/core/statements/InsertStatement;)Lkotlin/Unit;
 @lambda-proxy ch/nokillswit/flow/FlowConnectionService$deleteInTransaction$2 invoke (I)Lkotlin/jvm/functions/Function0; ()Ljava/lang/Object; REF_invokeStatic ch/nokillswit/flow/FlowConnectionService$deleteInTransaction$2 invokeSuspend$lambda$0 (I)Lorg/jetbrains/exposed/v1/core/Op; ()Lorg/jetbrains/exposed/v1/core/Op;
 @lambda-proxy ch/nokillswit/flow/FlowConnectionService$deleteInTransaction$2 invoke (I)Lkotlin/jvm/functions/Function0; ()Ljava/lang/Object; REF_invokeStatic ch/nokillswit/flow/FlowConnectionService$deleteInTransaction$2 invokeSuspend$lambda$1 (I)Lorg/jetbrains/exposed/v1/core/Op; ()Lorg/jetbrains/exposed/v1/core/Op;
@@ -13038,6 +13025,7 @@ sun/util/spi/CalendarProvider
 @lambda-proxy ch/nokillswit/sync/SyncKt invoke (Lch/nokillswit/sync/SyncRunner;)Lkotlin/jvm/functions/Function1; (Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic ch/nokillswit/sync/SyncKt configureSync$lambda$0 (Lch/nokillswit/sync/SyncRunner;Lio/ktor/server/application/Application;)Lkotlin/Unit; (Lio/ktor/server/application/Application;)Lkotlin/Unit;
 @lambda-proxy ch/nokillswit/sync/SyncLastRun invoke ()Lkotlin/jvm/functions/Function0; ()Ljava/lang/Object; REF_invokeStatic ch/nokillswit/sync/SyncLastRun _childSerializers$_anonymous_ ()Lkotlinx/serialization/KSerializer; ()Lkotlinx/serialization/KSerializer;
 @lambda-proxy ch/nokillswit/sync/SyncLastRun invoke ()Lkotlin/jvm/functions/Function0; ()Ljava/lang/Object; REF_invokeStatic ch/nokillswit/sync/SyncLastRun _childSerializers$_anonymous_$0 ()Lkotlinx/serialization/KSerializer; ()Lkotlinx/serialization/KSerializer;
+@lambda-proxy ch/nokillswit/sync/SyncRoutesKt invoke (Lch/nokillswit/sync/SyncConnectors;Lch/nokillswit/sync/SyncRunService;Lch/nokillswit/sync/SyncRunner;)Lkotlin/jvm/functions/Function1; (Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic ch/nokillswit/sync/SyncRoutesKt syncRoutes$lambda$0 (Lch/nokillswit/sync/SyncConnectors;Lch/nokillswit/sync/SyncRunService;Lch/nokillswit/sync/SyncRunner;Lio/ktor/server/routing/Route;)Lkotlin/Unit; (Lio/ktor/server/routing/Route;)Lkotlin/Unit;
 @lambda-proxy ch/nokillswit/sync/SyncRunList invoke ()Lkotlin/jvm/functions/Function0; ()Ljava/lang/Object; REF_invokeStatic ch/nokillswit/sync/SyncRunList _childSerializers$_anonymous_ ()Lkotlinx/serialization/KSerializer; ()Lkotlinx/serialization/KSerializer;
 @lambda-proxy ch/nokillswit/sync/SyncRunRequest invoke ()Lkotlin/jvm/functions/Function0; ()Ljava/lang/Object; REF_invokeStatic ch/nokillswit/sync/SyncRunRequest _childSerializers$_anonymous_ ()Lkotlinx/serialization/KSerializer; ()Lkotlinx/serialization/KSerializer;
 @lambda-proxy ch/nokillswit/sync/SyncRunResponse invoke ()Lkotlin/jvm/functions/Function0; ()Ljava/lang/Object; REF_invokeStatic ch/nokillswit/sync/SyncRunResponse _childSerializers$_anonymous_ ()Lkotlinx/serialization/KSerializer; ()Lkotlinx/serialization/KSerializer;
@@ -13065,8 +13053,8 @@ sun/util/spi/CalendarProvider
 @lambda-proxy ch/nokillswit/teams/TeamCapacityService$periodsOf$2 invoke (I)Lkotlin/jvm/functions/Function0; ()Ljava/lang/Object; REF_invokeStatic ch/nokillswit/teams/TeamCapacityService$periodsOf$2 invokeSuspend$lambda$0 (I)Lorg/jetbrains/exposed/v1/core/Op; ()Lorg/jetbrains/exposed/v1/core/Op;
 @lambda-proxy ch/nokillswit/teams/TeamCapacityServiceKt invoke ()Lkotlin/jvm/functions/Function2; (Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic ch/nokillswit/teams/TeamCapacityServiceKt deleteCapacityPeriodsOf_qim9Vi0$lambda$1 (Lch/nokillswit/teams/TeamCapacityService$CapacityPeriods;Lorg/jetbrains/exposed/v1/core/statements/UpdateStatement;)Lkotlin/Unit; (Lch/nokillswit/teams/TeamCapacityService$CapacityPeriods;Lorg/jetbrains/exposed/v1/core/statements/UpdateStatement;)Lkotlin/Unit;
 @lambda-proxy ch/nokillswit/teams/TeamCapacityServiceKt invoke (Lch/nokillswit/teams/TeamCapacityService$CapacityPeriods;I)Lkotlin/jvm/functions/Function0; ()Ljava/lang/Object; REF_invokeStatic ch/nokillswit/teams/TeamCapacityServiceKt deleteCapacityPeriodsOf_qim9Vi0$lambda$0 (Lch/nokillswit/teams/TeamCapacityService$CapacityPeriods;I)Lorg/jetbrains/exposed/v1/core/Op; ()Lorg/jetbrains/exposed/v1/core/Op;
-@lambda-proxy ch/nokillswit/teams/TeamRoutesKt invoke (Lch/nokillswit/teams/TeamService;Lch/nokillswit/teams/TeamCapacityService;)Lkotlin/jvm/functions/Function1; (Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic ch/nokillswit/teams/TeamRoutesKt configureTeamRoutes$lambda$0 (Lch/nokillswit/teams/TeamService;Lch/nokillswit/teams/TeamCapacityService;Lio/ktor/server/routing/Routing;)Lkotlin/Unit; (Lio/ktor/server/routing/Routing;)Lkotlin/Unit;
-@lambda-proxy ch/nokillswit/teams/TeamRoutesKt invoke (Lch/nokillswit/teams/TeamService;Lch/nokillswit/teams/TeamCapacityService;)Lkotlin/jvm/functions/Function1; (Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic ch/nokillswit/teams/TeamRoutesKt configureTeamRoutes$lambda$0$0 (Lch/nokillswit/teams/TeamService;Lch/nokillswit/teams/TeamCapacityService;Lio/ktor/server/routing/Route;)Lkotlin/Unit; (Lio/ktor/server/routing/Route;)Lkotlin/Unit;
+@lambda-proxy ch/nokillswit/teams/TeamRoutesKt invoke (Lch/nokillswit/teams/TeamService;Lch/nokillswit/teams/TeamCapacityService;Lch/nokillswit/teams/CapacityWriteListeners;)Lkotlin/jvm/functions/Function1; (Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic ch/nokillswit/teams/TeamRoutesKt configureTeamRoutes$lambda$0 (Lch/nokillswit/teams/TeamService;Lch/nokillswit/teams/TeamCapacityService;Lch/nokillswit/teams/CapacityWriteListeners;Lio/ktor/server/routing/Routing;)Lkotlin/Unit; (Lio/ktor/server/routing/Routing;)Lkotlin/Unit;
+@lambda-proxy ch/nokillswit/teams/TeamRoutesKt invoke (Lch/nokillswit/teams/TeamService;Lch/nokillswit/teams/TeamCapacityService;Lch/nokillswit/teams/CapacityWriteListeners;)Lkotlin/jvm/functions/Function1; (Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic ch/nokillswit/teams/TeamRoutesKt configureTeamRoutes$lambda$0$0 (Lch/nokillswit/teams/TeamService;Lch/nokillswit/teams/TeamCapacityService;Lch/nokillswit/teams/CapacityWriteListeners;Lio/ktor/server/routing/Route;)Lkotlin/Unit; (Lio/ktor/server/routing/Route;)Lkotlin/Unit;
 @lambda-proxy ch/nokillswit/teams/TeamService invoke (Lch/nokillswit/people/PersonService$People;Ljava/util/Collection;)Lkotlin/jvm/functions/Function0; ()Ljava/lang/Object; REF_invokeStatic ch/nokillswit/teams/TeamService activePersonNames$lambda$0 (Lch/nokillswit/people/PersonService$People;Ljava/util/Collection;)Lorg/jetbrains/exposed/v1/core/Op; ()Lorg/jetbrains/exposed/v1/core/Op;
 @lambda-proxy ch/nokillswit/teams/TeamService invoke (Lch/nokillswit/people/PersonService$People;Lkotlin/UInt;)Lkotlin/jvm/functions/Function0; ()Ljava/lang/Object; REF_invokeStatic ch/nokillswit/teams/TeamService requireActiveManager_aPkLuA0$lambda$0 (Lch/nokillswit/people/PersonService$People;Lkotlin/UInt;)Lorg/jetbrains/exposed/v1/core/Op; ()Lorg/jetbrains/exposed/v1/core/Op;
 @lambda-proxy ch/nokillswit/teams/TeamService$create$2 invoke (Lch/nokillswit/teams/TeamCreateRequest;J)Lkotlin/jvm/functions/Function2; (Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic ch/nokillswit/teams/TeamService$create$2 invokeSuspend$lambda$0 (Lch/nokillswit/teams/TeamCreateRequest;JLch/nokillswit/teams/TeamService$Teams;Lorg/jetbrains/exposed/v1/core/statements/InsertStatement;)Lkotlin/Unit; (Lch/nokillswit/teams/TeamService$Teams;Lorg/jetbrains/exposed/v1/core/statements/InsertStatement;)Lkotlin/Unit;
@@ -13389,7 +13377,6 @@ sun/util/spi/CalendarProvider
 @lambda-proxy io/ktor/server/engine/internal/AutoReloadUtilsKt invoke ()Lkotlin/jvm/functions/Function1; (Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic io/ktor/server/engine/internal/AutoReloadUtilsKt bestFunction$lambda$0 (Lkotlin/reflect/KFunction;)Ljava/lang/Comparable; (Lkotlin/reflect/KFunction;)Ljava/lang/Comparable;
 @lambda-proxy io/ktor/server/engine/internal/AutoReloadUtilsKt invoke ()Lkotlin/jvm/functions/Function1; (Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic io/ktor/server/engine/internal/AutoReloadUtilsKt bestFunction$lambda$1 (Lkotlin/reflect/KFunction;)Ljava/lang/Comparable; (Lkotlin/reflect/KFunction;)Ljava/lang/Comparable;
 @lambda-proxy io/ktor/server/engine/internal/AutoReloadUtilsKt invoke ()Lkotlin/jvm/functions/Function1; (Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic io/ktor/server/engine/internal/AutoReloadUtilsKt bestFunction$lambda$2 (Lkotlin/reflect/KFunction;)Ljava/lang/Comparable; (Lkotlin/reflect/KFunction;)Ljava/lang/Comparable;
-@lambda-proxy io/ktor/server/http/HttpRequestLifecycleKt invoke ()Lkotlin/jvm/functions/Function1; (Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic io/ktor/server/http/HttpRequestLifecycleKt HttpRequestLifecycle$lambda$0 (Lio/ktor/server/application/RouteScopedPluginBuilder;)Lkotlin/Unit; (Lio/ktor/server/application/RouteScopedPluginBuilder;)Lkotlin/Unit;
 @lambda-proxy io/ktor/server/http/content/SinglePageApplicationKt invoke (Lio/ktor/server/http/content/SPAConfig;)Lkotlin/jvm/functions/Function1; (Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic io/ktor/server/http/content/SinglePageApplicationKt singlePageApplication$lambda$2 (Lio/ktor/server/http/content/SPAConfig;Lio/ktor/server/http/content/StaticContentConfig;)Lkotlin/Unit; (Lio/ktor/server/http/content/StaticContentConfig;)Lkotlin/Unit;
 @lambda-proxy io/ktor/server/http/content/StaticContentConfig invoke ()Lkotlin/jvm/functions/Function1; (Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic io/ktor/server/http/content/StaticContentConfig cacheControl$lambda$0 (Ljava/lang/Object;)Ljava/util/List; (Ljava/lang/Object;)Ljava/util/List;
 @lambda-proxy io/ktor/server/http/content/StaticContentConfig invoke ()Lkotlin/jvm/functions/Function1; (Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic io/ktor/server/http/content/StaticContentConfig defaultContentType$lambda$0 (Ljava/lang/Object;)Lio/ktor/http/ContentType; (Ljava/lang/Object;)Lio/ktor/http/ContentType;
@@ -13949,9 +13936,6 @@ sun/util/spi/CalendarProvider
 @lambda-proxy java/time/format/DateTimeFormatterBuilder queryFrom ()Ljava/time/temporal/TemporalQuery; (Ljava/time/temporal/TemporalAccessor;)Ljava/lang/Object; REF_invokeStatic java/time/format/DateTimeFormatterBuilder lambda$static$0 (Ljava/time/temporal/TemporalAccessor;)Ljava/time/ZoneId; (Ljava/time/temporal/TemporalAccessor;)Ljava/time/ZoneId;
 @lambda-proxy java/time/temporal/TemporalAdjusters adjustInto (I)Ljava/time/temporal/TemporalAdjuster; (Ljava/time/temporal/Temporal;)Ljava/time/temporal/Temporal; REF_invokeStatic java/time/temporal/TemporalAdjusters lambda$nextOrSame$10 (ILjava/time/temporal/Temporal;)Ljava/time/temporal/Temporal; (Ljava/time/temporal/Temporal;)Ljava/time/temporal/Temporal;
 @lambda-proxy java/util/Collections$UnmodifiableMap$UnmodifiableEntrySet accept (Ljava/util/function/Consumer;)Ljava/util/function/Consumer; (Ljava/lang/Object;)V REF_invokeStatic java/util/Collections$UnmodifiableMap$UnmodifiableEntrySet lambda$entryConsumer$0 (Ljava/util/function/Consumer;Ljava/util/Map$Entry;)V (Ljava/util/Map$Entry;)V
-@lambda-proxy java/util/ResourceBundle run (Ljava/lang/Module;)Ljava/security/PrivilegedAction; ()Ljava/lang/Object; REF_invokeVirtual java/lang/Module getClassLoader ()Ljava/lang/ClassLoader; ()Ljava/lang/ClassLoader;
-@lambda-proxy java/util/ResourceBundle$ResourceBundleControlProviderHolder apply ()Ljava/util/function/Function; (Ljava/lang/Object;)Ljava/lang/Object; REF_invokeInterface java/util/ServiceLoader$Provider get ()Ljava/lang/Object; (Ljava/util/ServiceLoader$Provider;)Ljava/util/spi/ResourceBundleControlProvider;
-@lambda-proxy java/util/ResourceBundle$ResourceBundleControlProviderHolder run ()Ljava/security/PrivilegedAction; ()Ljava/lang/Object; REF_invokeStatic java/util/ResourceBundle$ResourceBundleControlProviderHolder lambda$static$0 ()Ljava/util/List; ()Ljava/util/List;
 @lambda-proxy java/util/ResourceBundle$ResourceBundleProviderHelper run (Ljava/lang/reflect/Constructor;)Ljava/security/PrivilegedAction; ()Ljava/lang/Object; REF_invokeStatic java/util/ResourceBundle$ResourceBundleProviderHelper lambda$newResourceBundle$0 (Ljava/lang/reflect/Constructor;)Ljava/lang/Void; ()Ljava/lang/Void;
 @lambda-proxy java/util/function/Consumer accept (Ljava/util/function/Consumer;Ljava/util/function/Consumer;)Ljava/util/function/Consumer; (Ljava/lang/Object;)V REF_invokeInterface java/util/function/Consumer lambda$andThen$0 (Ljava/util/function/Consumer;Ljava/lang/Object;)V (Ljava/lang/Object;)V
 @lambda-proxy java/util/function/Function apply ()Ljava/util/function/Function; (Ljava/lang/Object;)Ljava/lang/Object; REF_invokeStatic java/util/function/Function lambda$identity$2 (Ljava/lang/Object;)Ljava/lang/Object; (Ljava/lang/Object;)Ljava/lang/Object;
@@ -14759,7 +14743,7 @@ sun/util/spi/CalendarProvider
 @lambda-form-invoker [LF_RESOLVE] java.lang.invoke.DirectMethodHandle$Holder invokeVirtual LL_J
 @lambda-form-invoker [LF_RESOLVE] java.lang.invoke.DirectMethodHandle$Holder invokeVirtual LL_L
 @lambda-form-invoker [LF_RESOLVE] java.lang.invoke.DirectMethodHandle$Holder invokeVirtual LL_V
-@lambda-form-invoker [LF_RESOLVE] java.lang.invoke.DirectMethodHandle$Holder newInvokeSpecial L10_L
+@lambda-form-invoker [LF_RESOLVE] java.lang.invoke.DirectMethodHandle$Holder newInvokeSpecial L11_L
 @lambda-form-invoker [LF_RESOLVE] java.lang.invoke.DirectMethodHandle$Holder newInvokeSpecial L3ILJ_L
 @lambda-form-invoker [LF_RESOLVE] java.lang.invoke.DirectMethodHandle$Holder newInvokeSpecial L3IL_L
 @lambda-form-invoker [LF_RESOLVE] java.lang.invoke.DirectMethodHandle$Holder newInvokeSpecial L3I_L

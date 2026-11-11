@@ -17,6 +17,32 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.13.1",
+    date: "2026-11-11",
+    en: `**Astrolabe 1.13.1: Refresh now is limited to 10 a minute per user, a changed holiday no longer refuses a proposal's accept needlessly, and a capacity edit that brings a sprint in line clears its acknowledgement.**
+
+- Refresh now (Jira and Flow connections, the Deviations page): one account can start at most 10 refreshes a minute; past that the page says "Too many requests. Wait a minute and try again." Scheduled polling is not limited.
+- Capacity against Flow: an acknowledged sprint that a capacity import or a hand-edited capacity period brings in line with Flow loses its acknowledgement at once, so the same difference is open if it returns. Until now only a refresh or another acknowledge cleared it.
+- Schedule proposals (a team's and the cross-team run): a public holiday added or removed while a proposal is open no longer refuses its accept, unless it changes a date being accepted; then the page proposes again, as before.
+- Keyboard: closing a row's Delete dialog with Escape while the list refreshes returns the focus to the row's menu button.
+- API (\`/api/v1\`): \`POST /integrations/sync/runs\` can answer \`429\` with \`Retry-After\`; \`scopeHash\` is still 64 hexadecimal characters to send back unchanged, and a proposal open during the upgrade is proposed again once.
+- The sample-plan loader: a reload over existing holidays works; a sample milestone whose days all fall on public holidays is extended to its next working day.
+- Nothing is written to Jira or Flow.
+- Proven against a built-in Jira stub; not yet tested against a real Jira site.
+- Proven against the built-in Flow stub; not yet compared with a real Flow.`,
+    pl: `**Astrolabe 1.13.1: „Odśwież teraz” ma limit 10 na minutę na konto, zmieniony dzień wolny nie odrzuca już niepotrzebnie przyjęcia propozycji, a zmiana przepustowości, która doprowadza sprint do zgodności, czyści jego potwierdzenie.**
+
+- „Odśwież teraz” (połączenia Jiry i Flow, strona Odchylenia): jedno konto może uruchomić najwyżej 10 odświeżeń na minutę; powyżej strona pokazuje „Zbyt wiele żądań. Odczekaj minutę i spróbuj ponownie.” Odpytywanie według harmonogramu nie ma limitu.
+- Przepustowość a Flow: potwierdzony sprint, który import przepustowości lub ręcznie zmieniony okres przepustowości doprowadza do zgodności z Flow, od razu traci potwierdzenie, więc ta sama różnica jest otwarta, jeśli wróci. Dotąd czyściło je tylko odświeżenie lub kolejne potwierdzenie.
+- Propozycje harmonogramu (zespołu i przebiegu dla wielu zespołów): dzień wolny dodany lub usunięty, gdy propozycja jest otwarta, nie odrzuca już jej przyjęcia, chyba że zmienia przyjmowaną datę; wtedy strona proponuje ponownie, jak dotąd.
+- Klawiatura: zamknięcie okna usuwania z wiersza klawiszem Escape podczas odświeżania listy oddaje fokus przyciskowi menu wiersza.
+- API (\`/api/v1\`): \`POST /integrations/sync/runs\` może odpowiedzieć \`429\` z nagłówkiem \`Retry-After\`; \`scopeHash\` nadal ma 64 znaki szesnastkowe do odesłania bez zmian, a propozycja otwarta podczas aktualizacji zostanie zaproponowana ponownie jeden raz.
+- Skrypt wczytujący przykładowy plan: ponowne wczytanie przy istniejących dniach wolnych działa; przykładowy kamień milowy, którego wszystkie dni wypadają w dni wolne, jest przedłużany do najbliższego dnia roboczego.
+- Niczego nie zapisujemy w Jirze ani we Flow.
+- Sprawdzone na wbudowanej atrapie Jiry; jeszcze nie przetestowane na prawdziwej witrynie Jira.
+- Sprawdzone na wbudowanej atrapie Flow; jeszcze nie porównane z prawdziwym Flow.`,
+  },
+  {
     version: "1.13.0",
     date: "2026-11-11",
     en: `**Astrolabe 1.13.0: a Jira item moved to another project shows its current key, the Deviations header tells "gone" from "still in Jira", and a Jira probe that gets no answer stops repeating its warnings.**

@@ -38,8 +38,8 @@ Each increment gets its own plan (architect) before implementation. The domain s
 
 - [new] **The Flow capacity flag on the roadmap and programs project rows (1.9 Q3: team view only).** A project whose milestones sit on a team with a disputed capacity could carry a roll-up; today the Deviations page is the overview.
 - [new] **A disabled Flow connection's acknowledged rows (1.9).** The team view raises no flag through a disabled connection (the Jira Q8a rule) while the Deviations page lists and acknowledges its rows; if the rule proves confusing, make the flag follow the list.
-- [new] **A capacity acknowledgement survives an "in line and back" through a holiday or the connection's time zone (1.14).** A capacity write prunes since 1.14; a holiday write and a connection's `timeZone` edit also change the comparison and tell nobody.
-- [new] **The capacity write's prune runs after the commit (1.14).** Two concurrent capacity writes of one team can still leave an in-line-and-back acknowledged; closing it means locking the binding row before the team row in every capacity write.
+- [new] **A capacity acknowledgement survives an "in line and back" through a holiday or the connection's time zone (1.13.1).** A capacity write prunes since 1.13.1; a holiday write and a connection's `timeZone` edit also change the comparison and tell nobody.
+- [new] **The capacity write's prune runs after the commit (1.13.1).** Two concurrent capacity writes of one team can still leave an in-line-and-back acknowledged; closing it means locking the binding row before the team row in every capacity write.
 - [new] **Show the key a moved item was linked with (1.13).** The binding's key follows the probe's answer, so the old key shows nowhere but `observation.issueKey` in the bindings list.
 - [new] **Ask again about a deleted or forbidden gone item (1.13).** Only a 200 is asked again; a 404 or 403 stays final until the item returns to scope.
 - [new] **Persist the gone-probe back-off (1.13).** It lives in memory per process: a restart or a second replica starts the count over.
