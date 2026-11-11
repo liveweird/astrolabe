@@ -12,9 +12,9 @@ data class PlanActor(val isAdmin: Boolean, val personId: UInt?, val roadmapEdito
 
 /**
  * The `can:{…}` flags of the plan view as a pure kernel (no I/O), computed from the SAME arithmetic as the route guards in
- * `authz/Guards.kt` — `requireAdmin`, `requireOwnerOrAdmin`, `requireTargetWindowEditorOrAdmin` and `requireTeamManagerOrAdmin` — so
- * the UI never offers what the server refuses. `PlanPermissionsTest` pins the agreement table-driven against the guards themselves;
- * change a guard and that test turns red until this kernel follows.
+ * `authz/Guards.kt` — `requireAdmin`, `requireOwnerOrAdmin`, `requireTargetWindowEditorOrAdmin`, `requireTeamManagerOrAdmin` and
+ * `requireOwnerOrTeamManagerOrAdmin` — so the UI never offers what the server refuses. `PlanPermissionsTest` pins the agreement
+ * table-driven against the guards themselves; change a guard and that test turns red until this kernel follows.
  */
 object PlanPermissions {
     /** `POST /work-streams`: ADMIN only (`requireAdmin`). */
@@ -33,6 +33,14 @@ object PlanPermissions {
      */
     fun canEditTargetWindow(actor: PlanActor, projectChain: OwnerChain): Boolean =
         actor.isAdmin || (actor.personId != null && actor.personId in projectChain.ancestors.owners) || actor.roadmapEditor
+
+    /**
+     * `POST`/`DELETE /integrations/jira/bindings/{id}/acknowledge` (the item's `can.acknowledge`): [canManage] on the bound node's
+     * [chain], or the ACTIVE manager of the milestone's STORED [teamId] (`requireOwnerOrTeamManagerOrAdmin`). [teamId] is null above the
+     * milestone level, where only the chain counts.
+     */
+    fun canAcknowledgeDeviations(actor: PlanActor, chain: OwnerChain, teamId: UInt?): Boolean =
+        canManage(actor, chain) || (teamId != null && teamId in actor.managedTeamIds)
 
     /**
      * `POST /projects/{id}/move` and `POST /programs/{id}/move`, the SOURCE side: ADMIN, or the caller's person owns something ABOVE the

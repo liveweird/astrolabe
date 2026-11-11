@@ -135,7 +135,9 @@ internal class World(
             deviations = shown,
             fingerprint = fingerprint,
             acknowledgement = ack,
-            can = DeviationCan(acknowledge = actor?.let { PlanPermissions.canManage(it, node.chain) } == true),
+            can = DeviationCan(
+                acknowledge = actor?.let { PlanPermissions.canAcknowledgeDeviations(it, node.chain, node.teamId) } == true,
+            ),
         )
         return Candidate(item, node, row.id, all, shown, currentAck = ack?.current == true, rollup = rollup)
     }

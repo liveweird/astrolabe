@@ -6,6 +6,7 @@ import ch.nokillswit.authz.OwnerChain
 import ch.nokillswit.authz.requireAdmin
 import ch.nokillswit.authz.requireAncestorOwnerOrAdmin
 import ch.nokillswit.authz.requireOwnerOrAdmin
+import ch.nokillswit.authz.requireOwnerOrTeamManagerOrAdmin
 import ch.nokillswit.authz.requireRoadmapEditorOrAdmin
 import ch.nokillswit.authz.requireTargetWindowEditorOrAdmin
 import ch.nokillswit.authz.requireTeamManagerOfAllOrAdmin
@@ -228,6 +229,26 @@ class PlanPermissionsTest {
         assertTrue(PlanPermissions.canSchedule(ownerAndManager, teamA))
         assertFalse(PlanPermissions.canSchedule(ownerAndManager, teamB), "only the managed team")
         assertTrue(PlanPermissions.canSchedule(actors.first { it.label == "admin" }.asPlanActor(), teamC), "ADMIN schedules every team")
+    }
+
+    @Test
+    fun `the acknowledge flag equals requireOwnerOrTeamManagerOrAdmin for every actor, chain and team - a manager counts on a team only`() {
+        var cells = 0
+        for (actor in actors) for ((level, chain) in chains) for (team in listOf(null, teamA, teamB, teamC)) {
+            val lookup: suspend (UInt, UInt) -> Boolean = { teamId, userId -> userId == actor.caller.userId && teamId in actor.managed }
+            val guard = allowed {
+                runBlocking { requireOwnerOrTeamManagerOrAdmin(actor.caller, actor.personId, chain, team, lookup) }
+            }
+            val flag = PlanPermissions.canAcknowledgeDeviations(actor.asPlanActor(), chain, team)
+            assertEquals(guard, flag, "${actor.label} at the $level, team $team")
+            cells++
+        }
+        assertEquals(actors.size * chains.size * 4, cells)
+        val projectChain = chains.first { it.first == "project" }.second
+        val manager = actors.first { it.label == "manager of team A, no person" }.asPlanActor()
+        assertTrue(PlanPermissions.canAcknowledgeDeviations(manager, projectChain, teamA), "the milestone's team manager")
+        assertFalse(PlanPermissions.canAcknowledgeDeviations(manager, projectChain, teamB), "another team's manager")
+        assertFalse(PlanPermissions.canAcknowledgeDeviations(manager, projectChain, null), "a program or project binding has no team")
     }
 
     @Test

@@ -39,6 +39,12 @@ class UnacknowledgeOutcome(
     val fingerprint: String,
 )
 
+/**
+ * Who may acknowledge a binding, as the acknowledge reads it from the plan: the [owners] of the node's ACTIVE chain and, for a
+ * MILESTONE binding only, the milestone's STORED [teamId] (its team manager may acknowledge too, 1.12; null for a program or project).
+ */
+class AckAudience(val owners: OwnerChain, val teamId: UInt?)
+
 /** A binding row as the acknowledge reads it under its lock. */
 private class LockedBinding(
     val connectionId: UInt,
@@ -54,9 +60,10 @@ private class LockedBinding(
  * deviations computation. **No plan lock and no revision bump**: an acknowledgement is not plan state (like a binding).
  *
  * Both writes run in ONE short transaction in this order: the binding row `FOR NO KEY UPDATE` ([lockActiveForWrite]; gone = `404`),
- * the node's chain re-read ACTIVE (dead = `404`) and the caller's [guard] run AGAIN against it (the route passes
- * `requireOwnerOrAdmin` with the person re-resolved `FOR SHARE`: a request can be held open between its outer guard and this lock,
- * so only this verdict authorizes the write), and then - for [acknowledge] - the binding's deviations RECOMPUTED here
+ * the node's audience re-read ACTIVE (dead = `404`; a milestone's STORED team included) and the caller's [guard] run AGAIN against it
+ * (the route passes `requireOwnerOrTeamManagerOrAdmin` with the person re-resolved `FOR SHARE` and, for a non-owner on a milestone, the
+ * team and its manager's person locked `FOR SHARE` too: a request can be held open between its outer guard and this lock, so only
+ * this verdict authorizes the write), and then - for [acknowledge] - the binding's deviations RECOMPUTED here
  * ([DeviationViewService.computeBindingInTransaction]) and compared with the fingerprint the client saw. The row lock excludes the
  * run's observation write for this binding (it locks the row first), so the Jira side cannot move under the compare; the plan side
  * is read statement by statement (READ COMMITTED), so an edit landing in between can make the compare a `409` (the client reads
@@ -66,9 +73,9 @@ private class LockedBinding(
 class JiraAcknowledgeService(private val database: R2dbcDatabase, private val deviations: DeviationViewService) {
     private val bindings = JiraBindingService.Bindings
 
-    /** The ACTIVE chain of [bindingId]'s node (read-before-guard): null when it is unknown, unbound, or its node or an ancestor is gone. */
-    suspend fun chainOf(bindingId: UInt): OwnerChain? = suspendTransaction(database) {
-        readBinding(bindingId)?.let { activeChain(it.level, it.nodeId) }
+    /** The ACTIVE audience of [bindingId]'s node (read-before-guard): null when unknown, unbound, or its node or an ancestor is gone. */
+    suspend fun audienceOf(bindingId: UInt): AckAudience? = suspendTransaction(database) {
+        readBinding(bindingId)?.let { activeAudience(it.level, it.nodeId) }
     }
 
     /**
@@ -80,7 +87,7 @@ class JiraAcknowledgeService(private val database: R2dbcDatabase, private val de
         bindingId: UInt,
         fingerprint: String,
         byUserId: UInt,
-        guard: suspend (OwnerChain) -> Unit,
+        guard: suspend (AckAudience) -> Unit,
     ): AcknowledgeOutcome = suspendTransaction(database) {
         validateAcknowledge(AcknowledgeRequest(fingerprint))
         val binding = lockedBinding(bindingId, guard)
@@ -104,7 +111,7 @@ class JiraAcknowledgeService(private val database: R2dbcDatabase, private val de
     }
 
     /** Clears the acknowledgement of [bindingId] (current or stale alike); `404` when none is stored. */
-    suspend fun unacknowledge(bindingId: UInt, guard: suspend (OwnerChain) -> Unit): UnacknowledgeOutcome = suspendTransaction(database) {
+    suspend fun unacknowledge(bindingId: UInt, guard: suspend (AckAudience) -> Unit): UnacknowledgeOutcome = suspendTransaction(database) {
         val binding = lockedBinding(bindingId, guard)
         val cleared = binding.ackFingerprint ?: throw NotFoundException("Acknowledgement not found")
         bindings.update({ (bindings.id eq bindingId) and bindings.active() }) {
@@ -116,11 +123,11 @@ class JiraAcknowledgeService(private val database: R2dbcDatabase, private val de
         UnacknowledgeOutcome(binding.connectionId, binding.level, binding.nodeId, binding.issueKey, cleared)
     }
 
-    /** Locks binding [bindingId] (`404` once gone), re-reads its node's ACTIVE chain (`404` when dead) and runs [guard] against it. */
-    private suspend fun lockedBinding(bindingId: UInt, guard: suspend (OwnerChain) -> Unit): LockedBinding {
+    /** Locks binding [bindingId] (`404` once gone), re-reads its node's ACTIVE audience (`404` when dead) and runs [guard] against it. */
+    private suspend fun lockedBinding(bindingId: UInt, guard: suspend (AckAudience) -> Unit): LockedBinding {
         if (!bindings.lockActiveForWrite(bindingId)) throw NotFoundException(NOT_FOUND)
         val binding = readBinding(bindingId) ?: throw NotFoundException(NOT_FOUND)
-        guard(activeChain(binding.level, binding.nodeId) ?: throw NotFoundException(NOT_FOUND))
+        guard(activeAudience(binding.level, binding.nodeId) ?: throw NotFoundException(NOT_FOUND))
         return binding
     }
 

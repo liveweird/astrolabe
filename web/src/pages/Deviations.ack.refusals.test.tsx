@@ -34,7 +34,7 @@ describe("Deviations page - acknowledge refusals", () => {
     });
 
     test.each([
-      [403, "Only the owner of this plan item or an administrator can acknowledge its deviations."],
+      [403, "Only the owner of this plan item, the manager of the milestone's team or an administrator can acknowledge its deviations."],
       [404, "This link no longer exists. The list has been read again."],
       [500, "Action failed (500)"],
     ])("a %i is an inline red message, never a toast and never the stale note", async (status, text) => {
@@ -72,7 +72,7 @@ describe("Deviations page - acknowledge refusals", () => {
       renderPage("/deviations?severity=INFO");
       h.doc = view({ items: [row(1, "E2E-3")] });
       await user.click(await screen.findByRole("button", { name: "Acknowledge E2E-3" }));
-      expect(await screen.findByRole("alert")).toHaveTextContent("Only the owner of this plan item or an administrator can acknowledge its deviations.");
+      expect(await screen.findByRole("alert")).toHaveTextContent("Only the owner of this plan item, the manager of the milestone's team or an administrator can acknowledge its deviations.");
       await user.click(await screen.findByRole("button", { name: "Clear the filters" }));
       await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
       expect(screen.getByTestId("where")).toHaveTextContent(/^\/deviations$/);

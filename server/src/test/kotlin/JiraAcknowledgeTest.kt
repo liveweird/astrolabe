@@ -29,6 +29,7 @@ class JiraAcknowledgeTest {
         val callers: List<Pair<String, PlanCaller>> = listOf(
             "admin" to w.admin, "stream owner" to w.streamOwner, "program owner" to w.programOwner, "project owner" to w.projectOwner,
             "stranger" to w.stranger, "personless" to w.personless, "editor" to w.editor, "team manager" to w.requireTeams().manager,
+            "other manager" to w.requireTeams().otherManager,
         )
 
         suspend fun fingerprint(binding: UInt) = w.admin.client.ackItem(connectionId, binding).fingerprint
@@ -41,13 +42,13 @@ class JiraAcknowledgeTest {
     }
 
     @Test
-    fun `the node's owner chain and ADMIN acknowledge at every level, everyone else is 403 and nothing is stored`() = testApplication {
+    fun `the owner chain and ADMIN acknowledge at every level, a team manager on a milestone only, others 403`() = testApplication {
         val f = fixture("ack1")
         val w = f.w
         val cases = listOf(
             Triple(JiraLevel.PROGRAM, w.programId, setOf("admin", "stream owner", "program owner")),
             Triple(JiraLevel.PROJECT, w.projectId, setOf("admin", "stream owner", "program owner", "project owner")),
-            Triple(JiraLevel.MILESTONE, f.milestone, setOf("admin", "stream owner", "program owner", "project owner")),
+            Triple(JiraLevel.MILESTONE, f.milestone, setOf("admin", "stream owner", "program owner", "project owner", "team manager")),
         )
         for ((level, node, allowed) in cases) {
             val binding = deviatingBinding(f.connectionId, level, node)
@@ -65,6 +66,33 @@ class JiraAcknowledgeTest {
             }
         }
     }
+
+    @Test
+    fun `a milestone's team manager and an owner withdraw each other's stamps, another team's manager neither`() =
+        testApplication {
+            val f = fixture("ack11")
+            val w = f.w
+            val teams = w.requireTeams()
+            val binding = deviatingBinding(f.connectionId, JiraLevel.MILESTONE, f.milestone)
+            val fingerprint = f.fingerprint(binding)
+
+            w.projectOwner.client.ack(binding, fingerprint).acknowledgement()
+            assertEquals(HttpStatusCode.Forbidden, teams.otherManager.client.unack(binding).status, "another team's manager")
+            assertNotNull(w.admin.client.ackItem(f.connectionId, binding).acknowledgement, "the refused withdrawal changed nothing")
+            assertEquals(HttpStatusCode.NoContent, teams.manager.client.unack(binding).status, "the manager withdraws the owner's stamp")
+            assertNull(w.admin.client.ackItem(f.connectionId, binding).acknowledgement)
+
+            val managerName = TestPlan.scalar("SELECT name FROM people WHERE id = ${teams.manager.personId}") { it.getString(1) }
+            assertEquals(managerName, teams.manager.client.ack(binding, fingerprint).acknowledgement().acknowledgedBy)
+            assertEquals(HttpStatusCode.Forbidden, teams.otherManager.client.ack(binding, fingerprint).status)
+            assertEquals(HttpStatusCode.NoContent, w.projectOwner.client.unack(binding).status, "the owner withdraws the manager's stamp")
+
+            // The check is on the milestone's STORED team: once it moves, the old team's manager is out and the new one is in.
+            teams.manager.client.ack(binding, fingerprint).acknowledgement()
+            jbSql("UPDATE milestones SET team_id = ? WHERE id = ?", teams.otherTeamId.toInt(), f.milestone.toInt())
+            assertEquals(HttpStatusCode.Forbidden, teams.manager.client.unack(binding).status, "no longer the milestone's team")
+            assertEquals(HttpStatusCode.NoContent, teams.otherManager.client.unack(binding).status, "the new team's manager")
+        }
 
     @Test
     fun `an unknown, unbound or dead-node binding is 404 for EVERY caller, before the guard and before the body`() = testApplication {

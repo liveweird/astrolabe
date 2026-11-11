@@ -75,7 +75,10 @@ class PackageBoundaryTest {
             "the connector contract, the run registry and the acknowledge vocabulary: Connector, SyncRunService, Acknowledge.kt",
         ),
         FeatureEdge("flow", "teams", "team bindings and the capacity import write through TeamService, TeamCapacityService, TeamGuard"),
-        FeatureEdge("jira", "authz", "the guards and typed errors: requireAdmin, requireOwnerOrAdmin, caller, OwnerChain"),
+        FeatureEdge(
+            "jira", "authz",
+            "the guards and typed errors: requireAdmin, requireOwnerOrAdmin, requireOwnerOrTeamManagerOrAdmin, caller, OwnerChain",
+        ),
         FeatureEdge("jira", "people", "PersonService: the caller's person for the owner-chain guards and the import's owner lookups"),
         FeatureEdge(
             "jira", "planning",
@@ -85,7 +88,10 @@ class PackageBoundaryTest {
             "jira", "sync",
             "the connector contract, the run registry and the acknowledge vocabulary: Connector, SyncRunService, Acknowledge.kt",
         ),
-        FeatureEdge("jira", "teams", "TeamService: the team names of the deviation rows and the import's team lookups"),
+        FeatureEdge(
+            "jira", "teams",
+            "TeamService: the team names of the deviation rows, the import's team lookups and the milestone acknowledge's manager guard",
+        ),
         FeatureEdge("jira", "users", "UserService.Users: the binding's created_by / ack_by_user_id references"),
         FeatureEdge("people", "authz", "the guards and typed errors: requireAdmin, caller, ConflictException"),
         FeatureEdge(

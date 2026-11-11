@@ -8,6 +8,7 @@ import ch.nokillswit.authz.requireAdmin
 import ch.nokillswit.authz.requireFeatureEnabled
 import ch.nokillswit.authz.requireAncestorOwnerOrAdmin
 import ch.nokillswit.authz.requireOwnerOrAdmin
+import ch.nokillswit.authz.requireOwnerOrTeamManagerOrAdmin
 import ch.nokillswit.authz.requireRoadmapEditorOrAdmin
 import ch.nokillswit.authz.requireTargetWindowEditorOrAdmin
 import ch.nokillswit.authz.requireSelfOrAdmin
@@ -131,6 +132,47 @@ class GuardsTest {
         assertFailsWith<ForbiddenException> { requireOwnerOrAdmin(user, callerPersonId = null, chain = chain) }
         assertFailsWith<ForbiddenException> { requireOwnerOrAdmin(user, callerPersonId = 99u, chain = chain) }
         assertFailsWith<ForbiddenException> { requireOwnerOrAdmin(user, callerPersonId = 10u, chain = OwnerChain(emptyList())) }
+    }
+
+    @Test
+    fun `requireOwnerOrTeamManagerOrAdmin - admin, an owner and the team's manager pass, the lookup is asked only when it can matter`() =
+        runBlocking<Unit> {
+            val chain = OwnerChain(listOf(10u, 20u, 30u))
+            val asked = mutableListOf<Pair<UInt, UInt>>()
+            val managerOfTeam7: suspend (UInt, UInt) -> Boolean = { team, who ->
+                asked += team to who
+                team == 7u && who == user.userId
+            }
+            requireOwnerOrTeamManagerOrAdmin(admin, null, chain, 7u, managerOfTeam7)
+            requireOwnerOrTeamManagerOrAdmin(user, 20u, chain, 7u, managerOfTeam7) // an owner above
+            requireOwnerOrTeamManagerOrAdmin(user, 30u, chain, null, managerOfTeam7) // the node's own owner, no team
+            assertEquals(emptyList(), asked, "an admin and an owner never reach the lookup")
+
+            // The manager of the milestone's team, with no person or an unrelated one.
+            requireOwnerOrTeamManagerOrAdmin(user, null, chain, 7u, managerOfTeam7)
+            requireOwnerOrTeamManagerOrAdmin(user, 99u, chain, 7u, managerOfTeam7)
+            assertEquals(listOf(7u to user.userId, 7u to user.userId), asked)
+
+            // A program or project binding has no team: the manager as such is refused and the lookup is not asked.
+            assertFailsWith<ForbiddenException> { requireOwnerOrTeamManagerOrAdmin(user, null, chain, null, managerOfTeam7) }
+            assertEquals(2, asked.size, "no team, no question")
+            // Another team's manager, and a stranger who manages nothing.
+            assertFailsWith<ForbiddenException> { requireOwnerOrTeamManagerOrAdmin(user, 99u, chain, 8u, managerOfTeam7) }
+            val stranger = CallerPrincipal(userId = 9u, email = "stranger@test", roles = emptySet())
+            assertFailsWith<ForbiddenException> { requireOwnerOrTeamManagerOrAdmin(stranger, 99u, chain, 7u, managerOfTeam7) }
+            assertFailsWith<ForbiddenException> { requireOwnerOrTeamManagerOrAdmin(stranger, null, chain, 7u, managerOfTeam7) }
+        }
+
+    @Test
+    fun `requireOwnerOrTeamManagerOrAdmin fails closed - a lookup failure propagates for a caller who owns nothing`() = runBlocking<Unit> {
+        val chain = OwnerChain(listOf(10u, 20u, 30u))
+        val broken: suspend (UInt, UInt) -> Boolean = { _, _ -> error("database unavailable") }
+        requireOwnerOrTeamManagerOrAdmin(admin, null, chain, 7u, broken)
+        requireOwnerOrTeamManagerOrAdmin(user, 10u, chain, 7u, broken)
+        // No team: nothing to ask, so the verdict is the owner arithmetic's own 403, not the failure.
+        assertFailsWith<ForbiddenException> { requireOwnerOrTeamManagerOrAdmin(user, 99u, chain, null, broken) }
+        val failure = assertFailsWith<IllegalStateException> { requireOwnerOrTeamManagerOrAdmin(user, 99u, chain, 7u, broken) }
+        assertEquals("database unavailable", failure.message)
     }
 
     @Test

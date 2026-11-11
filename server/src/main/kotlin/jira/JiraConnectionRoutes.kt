@@ -9,6 +9,7 @@ import ch.nokillswit.infra.db.orVanished
 import ch.nokillswit.infra.paging.parsePaging
 import ch.nokillswit.infra.paging.toPage
 import ch.nokillswit.people.PersonServiceKey
+import ch.nokillswit.teams.TeamServiceKey
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.resources.Resource
@@ -51,6 +52,7 @@ fun Application.configureJiraRoutes() {
     val routing = attributes[JiraStubRoutingKey]
     val bindings = attributes[JiraBindingServiceKey]
     val people = attributes[PersonServiceKey]
+    val teams = attributes[TeamServiceKey]
     val imports = attributes[JiraImportServiceKey]
     val acknowledgements = attributes[JiraAcknowledgeServiceKey]
     val bindWaitKey = "jira.bindPermitWaitMillis"
@@ -62,7 +64,7 @@ fun Application.configureJiraRoutes() {
             jiraMappingRoutes(connections, mappings, connector)
             jiraBindingRoutes(connections, bindings, people, connector, bindPermitWaitMillis)
             jiraImportRoutes(connections, imports, people, connector)
-            jiraAcknowledgeRoutes(acknowledgements, people)
+            jiraAcknowledgeRoutes(acknowledgements, people, teams)
             get<JiraConnectionsRoute> {
                 requireAdmin(call.caller())
                 val paging = call.parsePaging(sortable = JIRA_CONNECTION_SORT_FIELDS)

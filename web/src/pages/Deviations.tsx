@@ -147,7 +147,7 @@ function OrphanNotice({ notice }: { notice: AckNotice }) {
  * The Deviations page (`/deviations`, everyone): where the plan and the linked Jira items disagree, from `GET /views/deviations`. The filters
  * live in the URL (`?projectId=7&severity=WARNING`), so a chip's link, a reload and Back all restore them. It says how current the figures are
  * (the connections' newest runs, a failed one never reads as fresh), refetches on window focus and while a run is running. The owner of a linked
- * item (or an ADMIN) acknowledges its deviations in the last column (`useAcknowledge`: that write, unlike the Jira reads, re-reads the timeline
+ * item (or, on a milestone, its team's manager, or an ADMIN) acknowledges its deviations in the last column (`useAcknowledge`: that write, unlike the Jira reads, re-reads the timeline
  * views too); a 409 `stale-deviations` is the inline note under the filters. Refresh now is the ADMIN's, per connection. After the Jira list comes **Capacity from Flow**, its own document and section (`CapacityDeviationsSection`; hidden without a Flow connection).
  */
 export default function Deviations() {

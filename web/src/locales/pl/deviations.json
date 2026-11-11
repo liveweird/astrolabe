@@ -284,7 +284,7 @@
     "stale": "Potwierdzone przez {{name}} dnia {{date}} · zmieniono od tego czasu",
     "staleUnknown": "Potwierdzone dnia {{date}} · zmieniono od tego czasu",
     "staleNote": "Odchylenia zmieniły się od ostatniego odczytu. Listę odczytano ponownie: sprawdź ją i potwierdź jeszcze raz, jeśli nadal ma to sens.",
-    "forbidden": "Odchylenia może potwierdzić tylko właściciel/ka tego elementu planu lub administrator/ka.",
+    "forbidden": "Odchylenia może potwierdzić tylko właściciel/ka tego elementu planu, kierownik/czka zespołu kamienia milowego lub administrator/ka.",
     "notFound": "To powiązanie już nie istnieje. Listę odczytano ponownie.",
     "notFoundWithdrawn": "To potwierdzenie zostało już cofnięte. Listę odczytano ponownie.",
     "failed": "Nie udało się zapisać zmiany",

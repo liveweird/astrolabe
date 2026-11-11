@@ -1447,8 +1447,8 @@ export interface paths {
          *     filter and stable across reads while nothing changes), `acknowledgement` (null until someone acknowledges; `at`, `by` - the
          *     acknowledging login's active person's name, else its display name, never the email, null once that login is deleted - and
          *     `current`, false when the binding was acknowledged and its deviations CHANGED since, which makes it open again) and `can.acknowledge`
-         *     (the owner chain of the bound node, or ADMIN: the same arithmetic as the bind; false for everyone else). The writes are
-         *     `POST` and `DELETE /integrations/jira/bindings/{id}/acknowledge`.
+         *     (the owner chain of the bound node, ADMIN, or - on a MILESTONE binding only, since 1.12 - the ACTIVE manager of the milestone's
+         *     team; false for everyone else). The writes are `POST` and `DELETE /integrations/jira/bindings/{id}/acknowledge`.
          *
          *     **Deviations** (WARNING unless noted; `detail.days` is in WORKING days on the live calendar, POSITIVE = the plan is later):
          *     `GONE` (the issue is gone; it is raised ALONE - a gone issue's dates are stale; `detail.jira` is the reason, `MOVED_OUT` when a by-id probe still read the issue); `LEVEL_MISMATCH` (the observed hierarchy level
@@ -2523,12 +2523,14 @@ export interface paths {
         /**
          * Acknowledge a binding's deviations until they change
          * @description The owner chain of the bound node (the work stream's, the program's or the project's owner; a milestone has the project's chain)
-         *     or ADMIN, the bind's guard; a team manager as such, a roadmap editor, a person-less login and a stranger are `403`.
+         *     or ADMIN, the bind's guard; since 1.12 also, on a MILESTONE binding only, the ACTIVE manager of the milestone's team (its STORED
+         *     team, whoever stamped the acknowledgement). A team manager on a program or project binding, a manager of another team, a roadmap
+         *     editor, a person-less login and a stranger are `403`.
          *     **Read-before-guard**: the binding is in the PATH, so its node's ACTIVE chain is read first and an unknown or unbound binding,
          *     or one whose node or any ancestor was deleted, is `404` for EVERY caller; then the guard (`403`, whatever the body is); then the
          *     body (`400`: `fingerprint` is 64 lower-case hexadecimal characters). The write runs in ONE short transaction: the binding row is
-         *     locked, the node's chain re-read and the guard run AGAIN against it (a request can be held open, so only this verdict
-         *     authorizes the write), and the binding's deviations are RECOMPUTED in that transaction: `409`
+         *     locked, the node's chain and a milestone's stored team re-read and the guard run AGAIN against them (a request can be held open,
+         *     so only this verdict authorizes the write), and the binding's deviations are RECOMPUTED in that transaction: `409`
          *     `urn:astrolabe:problem:stale-deviations` when the fingerprint is not the one of the deviations now (the plan or Jira moved since
          *     the client read) or when the binding has none, otherwise the fingerprint, the time and the login are stored. Acknowledging again
          *     restamps. An acknowledgement lasts while the deviation list is byte-identical: any change on either side that alters a deviation
@@ -2539,7 +2541,8 @@ export interface paths {
         /**
          * Withdraw a binding's acknowledgement
          * @description The same audience and order as the acknowledge (`404` for every caller when the binding is unknown, unbound or its node is
-         *     gone, then `403`; the binding row is locked and the guard run again in the transaction). Clears the acknowledgement, current or
+         *     gone, then `403`; the binding row is locked and the guard run again in the transaction; since 1.12 a milestone's team manager may
+         *     withdraw too). Clears the acknowledgement, current or
          *     stale; `404` when none is stored (decided under the lock, after the guard). Audited `jira.deviation_unacknowledged`.
          */
         delete: operations["unacknowledgeJiraDeviations"];
@@ -4923,7 +4926,7 @@ export interface components {
             current: boolean;
         };
         DeviationCan: {
-            /** @description The caller may acknowledge and unacknowledge this binding: ADMIN, or the person owning the bound node or anything above it. */
+            /** @description The caller may acknowledge and unacknowledge this binding: ADMIN, the person owning the bound node or anything above it, or - on a milestone binding only - the active manager of the milestone's team. */
             acknowledge: boolean;
         };
         AcknowledgeRequest: {

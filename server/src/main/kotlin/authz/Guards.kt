@@ -107,6 +107,27 @@ fun requireOwnerOrAdmin(caller: CallerPrincipal, callerPersonId: UInt?, chain: O
 }
 
 /**
+ * [requireOwnerOrAdmin], or the ACTIVE manager of [teamId] (the Jira deviation acknowledge on a MILESTONE binding, 1.12): the milestone's
+ * team manager may acknowledge and withdraw every deviation of a milestone of their team, whoever stamped it. [teamId] is the node's
+ * STORED team (null for a program or project binding, where only the owner chain and ADMIN count: nothing changes there). The cheap
+ * person-id check runs before the [isManager] lookup, so an owner never reaches it; a lookup failure propagates (fails closed). DB-free
+ * like its siblings; run TWICE by the acknowledge routes: outside with `TeamService.isActiveManager`, and inside the binding's row lock
+ * against the re-read audience with `TeamService.lockedIsActiveManager` (team and manager's person `FOR SHARE`).
+ */
+suspend fun requireOwnerOrTeamManagerOrAdmin(
+    caller: CallerPrincipal,
+    callerPersonId: UInt?,
+    chain: OwnerChain,
+    teamId: UInt?,
+    isManager: suspend (teamId: UInt, userId: UInt) -> Boolean,
+) {
+    if (caller.isAdmin()) return
+    if (callerPersonId != null && callerPersonId in chain.owners) return
+    if (teamId != null && isManager(teamId, caller.userId)) return
+    throw ForbiddenException("Owner, team manager or admin role required")
+}
+
+/**
  * ADMIN, or the caller's person owns something ABOVE the node ([OwnerChain.ancestors] of [chain], the node's own owner dropped): the
  * SOURCE side of a move — only a parent's owner may take a node out of where it is (the node's own owner alone may not; the ancestors
  * can always take a node back). It takes the node's FULL [chain] and slices it itself, like [requireTargetWindowEditorOrAdmin], so a

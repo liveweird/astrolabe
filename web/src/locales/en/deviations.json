@@ -242,7 +242,7 @@
     "stale": "Acknowledged on {{date}} by {{name}} · changed since",
     "staleUnknown": "Acknowledged on {{date}} · changed since",
     "staleNote": "The deviations changed since you looked. The list has been read again: check it, and acknowledge again if it still applies.",
-    "forbidden": "Only the owner of this plan item or an administrator can acknowledge its deviations.",
+    "forbidden": "Only the owner of this plan item, the manager of the milestone's team or an administrator can acknowledge its deviations.",
     "notFound": "This link no longer exists. The list has been read again.",
     "notFoundWithdrawn": "That acknowledgement was already withdrawn. The list has been read again.",
     "failed": "The change could not be saved",

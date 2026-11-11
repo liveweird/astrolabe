@@ -129,7 +129,7 @@ class DeviationViewAckTest {
     }
 
     @Test
-    fun `can acknowledge follows the bind's guard for every kind of caller and level`() = testApplication {
+    fun `can acknowledge follows the acknowledge guard for every caller and level, a team manager on the milestone`() = testApplication {
         val f = fixture("dva5")
         val w = f.w
         val milestone = TestPlan.milestone(w.projectId, f.team)
@@ -144,7 +144,8 @@ class DeviationViewAckTest {
             "stranger" to (w.stranger to listOf(false, false, false)),
             "personless" to (w.personless to listOf(false, false, false)),
             "editor" to (w.editor to listOf(false, false, false)),
-            "team manager" to (w.requireTeams().manager to listOf(false, false, false)),
+            "team manager" to (w.requireTeams().manager to listOf(true, false, false)),
+            "other team's manager" to (w.requireTeams().otherManager to listOf(false, false, false)),
         )
         for ((who, pair) in expected) {
             val items = pair.first.client.dvView("connectionId=${f.c}").byBinding()

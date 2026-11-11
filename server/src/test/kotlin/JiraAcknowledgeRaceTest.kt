@@ -165,6 +165,66 @@ class JiraAcknowledgeRaceTest {
         assertNotNull(f.w.admin.client.ackItem(f.connectionId, binding).acknowledgement, "still acknowledged")
     }
 
+    private suspend fun Fixture.managedMilestoneBinding(): UInt = deviatingBinding(connectionId, JiraLevel.MILESTONE, managedMilestone())
+
+    private suspend fun Fixture.managedMilestone(): UInt = TestPlan.milestone(w.projectId, w.requireTeams().teamId)
+
+    private fun Fixture.setManager(teamId: UInt, personId: UInt?): (Connection) -> Unit = {
+        it.exec("UPDATE teams SET manager_person_id = ? WHERE id = ?", personId!!.toInt(), teamId.toInt())
+    }
+
+    @Test
+    fun `a team manager replaced while the milestone acknowledge waits for the row is refused 403, nothing stored`() =
+        testApplication {
+            val f = fixture("ackr8")
+            val teams = f.w.requireTeams()
+            val binding = f.managedMilestoneBinding()
+            val fingerprint = f.w.admin.client.ackItem(f.connectionId, binding).fingerprint
+            withAuditCapture { audit ->
+                val response = heldAt(
+                    bindingLock, binding, "FOR NO KEY UPDATE",
+                    { teams.manager.client.ack(binding, fingerprint) },
+                    f.setManager(teams.teamId, teams.otherManager.personId),
+                )
+                assertEquals(HttpStatusCode.Forbidden, response.status, "the manager guard ran again under the binding's row lock")
+                assertNull(f.w.admin.client.ackItem(f.connectionId, binding).acknowledgement)
+                val written = audit.events.filter { it.message == "jira.deviation_acknowledged" }
+                assertTrue(written.none { it.hasKeyValue("bindingId", binding.toLong()) })
+            }
+        }
+
+    @Test
+    fun `a team manager replaced while the withdrawal waits at the team lock is refused 403 and the acknowledgement stays`() =
+        testApplication {
+            val f = fixture("ackr9")
+            val teams = f.w.requireTeams()
+            val binding = f.managedMilestoneBinding()
+            f.w.admin.client.ack(binding, f.w.admin.client.ackItem(f.connectionId, binding).fingerprint).acknowledgement()
+            val response = heldAt(
+                "SELECT id FROM teams WHERE id = ? FOR NO KEY UPDATE", teams.teamId, "FOR SHARE",
+                { teams.manager.client.unack(binding) },
+                f.setManager(teams.teamId, teams.otherManager.personId),
+            )
+            assertEquals(HttpStatusCode.Forbidden, response.status, "the team and its manager are read FOR SHARE, fresh")
+            assertNotNull(f.w.admin.client.ackItem(f.connectionId, binding).acknowledgement, "still acknowledged")
+        }
+
+    @Test
+    fun `a milestone moved to another team while the acknowledge waits is judged on the team it has now`() = testApplication {
+        val f = fixture("ackr10")
+        val teams = f.w.requireTeams()
+        val milestone = f.managedMilestone()
+        val binding = deviatingBinding(f.connectionId, JiraLevel.MILESTONE, milestone)
+        val fingerprint = f.w.admin.client.ackItem(f.connectionId, binding).fingerprint
+        val response = heldAt(
+            bindingLock, binding, "FOR NO KEY UPDATE",
+            { teams.manager.client.ack(binding, fingerprint) },
+        ) { it.exec("UPDATE milestones SET team_id = ? WHERE id = ?", teams.otherTeamId.toInt(), milestone.toInt()) }
+        assertEquals(HttpStatusCode.Forbidden, response.status, "the old team's manager no longer manages the milestone's team")
+        assertNull(f.w.admin.client.ackItem(f.connectionId, binding).acknowledgement)
+        assertEquals(HttpStatusCode.OK, teams.otherManager.client.ack(binding, fingerprint).status, "the new team's manager is")
+    }
+
     @Test
     fun `an acknowledgement takes no plan lock - it completes while another session holds plan_state`() = testApplication {
         val f = fixture("ackr7")

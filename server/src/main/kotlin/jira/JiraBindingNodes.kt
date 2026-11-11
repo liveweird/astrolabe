@@ -34,6 +34,15 @@ internal suspend fun activeChain(level: JiraLevel, nodeId: UInt): OwnerChain? = 
 }
 
 /**
+ * The acknowledge's [AckAudience] of a node: [activeChain]'s owners, and for a MILESTONE its STORED team (`milestoneChain` reads it
+ * with the owners in one statement), so the guard judges the team the milestone has NOW, never one named by the request.
+ */
+internal suspend fun activeAudience(level: JiraLevel, nodeId: UInt): AckAudience? = when (level) {
+    JiraLevel.MILESTONE -> milestoneChain(nodeId)?.let { AckAudience(it.owners, it.teamId) }
+    else -> activeChain(level, nodeId)?.let { AckAudience(it, null) }
+}
+
+/**
  * Locks the ACTIVE node row `FOR SHARE`, which conflicts with the `UPDATE` of its soft delete and of its owner change: a delete racing a
  * bind either commits first (false here: 404) or waits for the bind's commit (the binding is then released by the run's sweep). Only the
  * node's own row is locked, never its ancestors', so this cannot close a lock cycle with a plan writer that updates a chain top-down.
