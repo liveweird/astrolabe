@@ -84,14 +84,14 @@ catalog). Resolved Gradle dependencies use strict locking and SHA-256 verificati
 
 ### Server bootstrap model
 
-`server/src/main/kotlin/main.kt` just delegates to `io.ktor.server.netty.EngineMain`. The
+`server/src/main/kotlin/main.kt` is `EngineMain` plus `rearmReadTimeout`. The
 application is wired declaratively in `server/src/main/resources/application.yaml` under
 `ktor.application.modules` — each entry is a fully-qualified extension function on `Application`
 (`ch.nokillswit.plugins.HttpKt.configureHttp`). **Module order is load-bearing**: base plugins
 (Http → SecurityHeaders → Monitoring → Serialization → Security → RateLimits → ErrorHandling → OpenTelemetry → AutoHeadResponse → Resources) →
 infra (Mail → Crypto → Flyway → Database → Bootstrap → Health) → Telemetry (the sampler) → feature route modules (users, people, teams, planning, `configureJira` → `configureFlow` → `configureSync` → the Jira, Flow and deviation routes, auth, password reset, telemetry reads) →
 `RoutingKt.configureRouting` strictly last (the SPA catch-all). `configureDatabase` publishes the services into `Application.attributes` via `AttributeKey`s. To add a cross-cutting concern,
-create a `configureXxx()` extension under `plugins/` and register it in `application.yaml`; do not call it from `main.kt`. There is no DI framework — services travel via `attributes`.
+create a `configureXxx()` extension under `plugins/` and register it in `application.yaml`, not `main.kt` (whose one addition is the engine-level `rearmReadTimeout`). There is no DI framework — services travel via `attributes`.
 There is no role switch (Flow's `FLOW_ROLE` split is not ported; `product.md` "Donors").
 
 ### Package layout
@@ -99,7 +99,7 @@ There is no role switch (Flow's `FLOW_ROLE` split is not ported; `product.md` "D
 Source files sit flat under `server/src/main/kotlin/<area>/` but declare `package ch.nokillswit.<area>`
 (no `ch/nokillswit` directory nesting — the deliberate `InvalidPackageDeclaration` detekt override). One line per package; `ls` gives the files. **Layering is one-way (`PackageBoundaryTest`):** `infra/` imports no feature package except the composition root (`infra/db/Database.kt`, `Bootstrap.kt`); `telemetry/` is imported by nothing; `sync/` imports no connector (`jira/`, `flow/` register themselves); `planning/` reads nothing of `jira/`.
 
-- `plugins/` — cross-cutting Ktor wiring (`configureXxx` that only `install` plugins; Security = JWT, ErrorHandling = RFC 7807). `Routing` (the SPA catch-all) is registered strictly last; `Health` (`/api/v1/health`, `/api/v1/ready`) is registered after Database; `RateLimits` holds every per-IP bucket (and the per-user `telemetry` one); `ResponseValidators` is the `ETag` seam for future view GETs.
+- `plugins/` — cross-cutting Ktor wiring (`configureXxx` that only `install` plugins; Security = JWT, ErrorHandling = RFC 7807; `ReadTimeout` = Netty pipeline code, not a module). `Routing` (the SPA catch-all) is registered strictly last; `Health` (`/api/v1/health`, `/api/v1/ready`) is registered after Database; `RateLimits` holds every per-IP bucket (and the per-user `telemetry` one); `ResponseValidators` is the `ETag` seam for future view GETs.
 - `infra/mail/` — outbound email (Lettuce's, ported): `MAIL_TRANSPORT` log/smtp/disabled; the `log` transport is refused in production (fail-closed); a null mailer = email features answer 503.
 - `infra/crypto/` — encryption at rest (Lettuce's, ported): `FieldCipher` (AES-256-GCM `enc:v1:` envelopes, a fresh nonce per value, current + rotation key), `configureCrypto` (`DATA_ENCRYPTION_KEY`; a burned key fails startup closed), `EncryptedAtRest`/`Reencrypt` (the boot backfill).
 - `infra/db/` — Flyway bootstrap, the R2DBC composition root, the seed bootstrap (admin rotation, prod fail-closed), `SoftDelete.kt` (`SoftDeletable`: ONE `active()` predicate, `nowMillis()`, `lockActiveForWrite`), `Sql.kt` (`containsNormalized` — the only substring filter), `Jsonb.kt`, `LocalDateColumn.kt` (the `DATE` column), `MultiRowInsert.kt` (`insertRows`/`upsertRows`/…), `StatementTimeoutCache.kt` (only `queryTimeout` sets `STATEMENT_TIMEOUT`), `LeakedSocketGuard.kt`, `DetachingConnectionFactory.kt` (pool hygiene, `persistence.md`).

@@ -42,7 +42,8 @@ buildscript {
 
 
 application {
-    mainClass = "io.ktor.server.netty.EngineMain"
+    // `MainKt` = `EngineMain` plus the repeating read timeout (`plugins/ReadTimeout.kt`, `security.md` "Slow requests").
+    mainClass = "ch.nokillswit.MainKt"
     // Footprint tuning for this small, I/O-bound, low-traffic service. Baked into the installDist
     // launcher (bin/server -> the Docker image) and `:server:run`; `test` is unaffected. Measured
     // (in Lettuce, the same stack) on a 512 MiB Linux container: baseline G1 drifts ~345->410 MiB

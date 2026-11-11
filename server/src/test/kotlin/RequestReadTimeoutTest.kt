@@ -1,6 +1,5 @@
 package ch.nokillswit
 
-import io.ktor.server.netty.EngineMain
 import io.ktor.server.testing.testApplication
 import java.net.Socket
 import java.net.SocketTimeoutException
@@ -13,8 +12,9 @@ import kotlinx.coroutines.runBlocking
 /**
  * The Netty request-read timeout (`ktor.deployment.requestReadTimeoutSeconds`, `$REQUEST_READ_TIMEOUT_SECONDS`;
  * `.claude/docs/security.md` "Slow requests"). `testApplication` never runs Netty, so the behaviour tests boot the REAL
- * application through `EngineMain.createServer` (the shipped `mainClass`), which is what reads the key from
- * `application.yaml` — on an ephemeral port with a one-second timeout, and speak raw HTTP over a socket.
+ * application through `createServer` (`main.kt`, the shipped `mainClass`: `EngineMain.createServer` plus the re-armed
+ * timeout), which reads the key from `application.yaml` — on an ephemeral port with a one-second timeout, and speak raw
+ * HTTP over a socket.
  */
 class RequestReadTimeoutTest {
 
@@ -76,20 +76,35 @@ class RequestReadTimeoutTest {
     }
 
     /**
-     * KNOWN LIMITATION, pinned: Ktor's `KtorReadTimeoutHandler` fires its exception ONCE per connection. If the connection sits
-     * idle past the timeout with no request open, that one firing is spent, and a request that then stalls on the same
-     * connection is never cut. If Ktor fixes this the test fails: update `security.md` "Slow requests" and drop the BACKLOG item.
+     * Ktor's own `KtorReadTimeoutHandler` fires ONCE per connection: a connection that idled past the timeout with no request open
+     * spent that firing, and a request that then stalled on it was never cut (the old KNOWN LIMITATION). `main.kt`'s
+     * `rearmReadTimeout` swaps in a handler that reports on every firing, so the stall is answered 408 like any other, and the
+     * idle firings leave no WARN behind.
      */
     @Test
-    fun `known limitation - a request stalled after the connection idled past the timeout is not cut`() {
+    fun `a request stalled after the connection idled past the timeout is still cut with 408, without error noise`() {
         withRealEngine(timeoutSeconds = 1) { port ->
-            Socket("127.0.0.1", port).use { socket ->
-                socket.soTimeout = SOCKET_WAIT_MS
-                socket.send("GET /api/v1/health HTTP/1.1\r\nHost: localhost\r\n\r\n")
-                assertTrue(socket.readResponse().startsWith("HTTP/1.1 200"))
-                Thread.sleep(IDLE_AFTER_FIRST_MS)
-                socket.send(slowBodyHead().replace("Connection: close\r\n", "") + "{\"em")
-                assertNull(socket.pollReply(STALL_OBSERVE_MS), "Ktor now cuts a stall after an idle period: update security.md")
+            val logs = LogCapture(org.slf4j.Logger.ROOT_LOGGER_NAME)
+            try {
+                Socket("127.0.0.1", port).use { socket ->
+                    socket.soTimeout = SOCKET_WAIT_MS
+                    socket.send("GET /api/v1/health HTTP/1.1\r\nHost: localhost\r\n\r\n")
+                    assertTrue(socket.readResponse().startsWith("HTTP/1.1 200"))
+                    // Two timeouts of silence with no request open: two firings reach the tail, neither closes the connection.
+                    Thread.sleep(IDLE_MS)
+                    socket.send(slowBodyHead().replace("Connection: close\r\n", "") + "{\"em")
+                    val startedAt = System.nanoTime()
+                    val reply = socket.readUntilClosed()
+                    val elapsedMs = (System.nanoTime() - startedAt) / NANOS_PER_MS
+                    assertTrue(reply.startsWith("HTTP/1.1 408"), "expected 408 after an idle period, got: ${reply.take(MAX_ECHO)}")
+                    assertTrue(elapsedMs in MIN_FIRE_MS..MAX_FIRE_MS, "answered after $elapsedMs ms, expected about 1000")
+                }
+                val info = runBlocking { logs.awaitEvent { it.formattedMessage.startsWith("Request timed out waiting for bytes (408)") } }
+                assertTrue(info != null && info.level == ch.qos.logback.classic.Level.INFO, "the timeout's INFO line is missing")
+                val loud = logs.events.filter { it.level.isGreaterOrEqual(ch.qos.logback.classic.Level.WARN) }
+                assertTrue(loud.isEmpty(), "an idle firing or its 408 logged: ${loud.map { it.formattedMessage.take(MAX_ECHO) }}")
+            } finally {
+                logs.detach()
             }
         }
     }
@@ -106,6 +121,18 @@ class RequestReadTimeoutTest {
                     socket.send("x")
                     assertNull(socket.pollReply(), "the connection was cut during a trickle that never idled for the timeout")
                 }
+            }
+        }
+    }
+
+    @Test
+    fun `with the timeout off (0) there is no handler and an ordinary request is unaffected`() {
+        withRealEngine(timeoutSeconds = 0) { port ->
+            Socket("127.0.0.1", port).use { socket ->
+                socket.soTimeout = SOCKET_WAIT_MS
+                socket.send("GET /api/v1/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+                val reply = socket.readUntilClosed()
+                assertTrue(reply.startsWith("HTTP/1.1 200"), "expected 200, got: ${reply.take(MAX_ECHO)}")
             }
         }
     }
@@ -194,7 +221,7 @@ class RequestReadTimeoutTest {
             "-P:telemetry.enabled=false",
             "-P:sync.scheduler.enabled=false",
         )
-        val server = EngineMain.createServer(args)
+        val server = createServer(args)
         server.start(wait = false)
         try {
             block(runBlocking { server.engine.resolvedConnectors() }.first().port)
@@ -213,8 +240,6 @@ class RequestReadTimeoutTest {
         const val TRICKLE_BYTES = 8
         const val TRICKLE_GAP_MS = 300L
         const val TRICKLE_TIMEOUT_SECONDS = 2
-        const val IDLE_AFTER_FIRST_MS = 1_500L
-        const val STALL_OBSERVE_MS = 2_500
         const val POLL_MS = 50
         const val IDLE_MS = 2_200L
         const val MAX_ECHO = 200
