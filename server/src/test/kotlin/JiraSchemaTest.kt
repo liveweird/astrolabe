@@ -10,6 +10,7 @@ import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /**
  * The V21 tables at the database (raw JDBC, no routes: only the connection registry has code in 1.1.0 step C2; bindings, observations
@@ -121,36 +122,33 @@ class JiraSchemaTest {
     }
 
     @Test
-    fun `an acknowledgement is a 64-hex fingerprint with its time, and an acknowledger needs both`() = runBlocking {
+    fun `V30 dropped the acknowledgement columns and their constraints, and only the creator foreign key to users remains`() {
         PostgresTestSupport.ensureMigrated()
-        val owner = TestPeople.seed(unique("owner"))
-        val program = TestPlan.program(TestPlan.workStream(owner), owner)
-        val c = newConnection()
-        val binding = PostgresTestSupport.connect().use { conn ->
+        fun strings(sql: String): List<String> = PostgresTestSupport.connect().use { conn ->
             conn.createStatement().use { st ->
-                st.executeQuery(
-                    "INSERT INTO jira_bindings (connection_id, level, program_id, jira_issue_id, jira_issue_key, created_at, updated_at) " +
-                        "VALUES ($c, 'PROGRAM', $program, '88', 'SP-88', 1, 1) RETURNING id",
-                ).use { rs -> rs.next(); rs.getInt(1) }
+                st.executeQuery(sql).use { rs -> generateSequence { if (rs.next()) rs.getString(1) else null }.toList() }
             }
         }
-        val hex = "ab".repeat(32)
-        fun ack(set: String) = sqlState("UPDATE jira_bindings SET $set WHERE id = $binding")
-
-        assertEquals(CHECK, ack("ack_fingerprint = '${hex.dropLast(1)}', ack_at = 5"), "a 63-character fingerprint")
-        assertEquals(TOO_LONG, ack("ack_fingerprint = '${hex}0', ack_at = 5"), "a 65-character fingerprint overflows the column")
-        assertEquals(CHECK, ack("ack_fingerprint = '${hex.uppercase()}', ack_at = 5"), "lower-case hex only")
-        assertEquals(CHECK, ack("ack_fingerprint = '${"g".repeat(64)}', ack_at = 5"), "hex only")
-        assertEquals(CHECK, ack("ack_fingerprint = NULL, ack_at = 5"), "ack_at without a fingerprint")
-        assertEquals(CHECK, ack("ack_fingerprint = '$hex', ack_at = NULL"), "a fingerprint without ack_at")
-        assertNull(ack("ack_fingerprint = '$hex', ack_at = 5"), "a login-less acknowledgement is valid (the user was deleted or never set)")
-        assertEquals(FOREIGN_KEY, ack("ack_by_user_id = 999999999"), "ack_by_user_id references users")
-        val user = TestUsers.seed(uniqueEmail("schema"), "schema-pass-1")
-        assertNull(ack("ack_fingerprint = NULL, ack_at = NULL, ack_by_user_id = NULL"), "an un-acknowledge clears all three columns")
-        assertEquals(CHECK, ack("ack_by_user_id = $user"), "an acknowledger needs an acknowledgement (ack_at is NULL here)")
-        assertNull(ack("ack_fingerprint = '$hex', ack_at = 5, ack_by_user_id = $user"), "the full acknowledgement")
-        assertEquals(CHECK, ack("ack_fingerprint = NULL, ack_at = NULL"), "clearing only two of the three leaves a user without ack_at")
-        assertNull(ack("ack_fingerprint = NULL, ack_at = NULL, ack_by_user_id = NULL"), "an un-acknowledge clears all three columns")
+        val columns = strings("SELECT column_name FROM information_schema.columns WHERE table_name = 'jira_bindings'")
+        assertEquals(
+            emptyList(),
+            columns.filter { it in setOf("ack_fingerprint", "ack_at", "ack_by_user_id") },
+            "V22's three acknowledgement columns are dropped",
+        )
+        assertTrue("created_by_user_id" in columns, "the other columns stay")
+        val constraints = strings("SELECT conname FROM pg_constraint WHERE conrelid = 'jira_bindings'::regclass")
+        val dropped = setOf(
+            "ck_jira_bindings_ack_fingerprint",
+            "ck_jira_bindings_ack",
+            "ck_jira_bindings_ack_by",
+            "jira_bindings_ack_by_user_id_fkey",
+        )
+        assertEquals(emptyList(), constraints.filter { it in dropped }, "the columns' CHECKs and foreign key went with them")
+        val usersForeignKeys = strings(
+            "SELECT conname FROM pg_constraint " +
+                "WHERE conrelid = 'jira_bindings'::regclass AND contype = 'f' AND confrelid = 'users'::regclass",
+        )
+        assertEquals(listOf("jira_bindings_created_by_user_id_fkey"), usersForeignKeys, "the creator is the one foreign key to users left")
     }
 
     @Test

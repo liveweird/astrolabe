@@ -87,8 +87,8 @@ class JiraBindingService(private val database: R2dbcDatabase) {
         val jiraIssueKey = varchar("jira_issue_key", length = 50)
         val createdByUserId = reference("created_by_user_id", UserService.Users).nullable()
 
-        // V22's three whole-binding acknowledgement columns are LEGACY since 1.12: neither declared nor read nor written (the
-        // acknowledgements are per line, `JiraAcknowledgeService.Acknowledgements`).
+        // V22's three whole-binding acknowledgement columns are gone (dropped by V30): the acknowledgements are per line,
+        // `JiraAcknowledgeService.Acknowledgements`.
         val createdAt = long("created_at")
         val updatedAt = long("updated_at")
         override val markedAsDeleted = bool("marked_as_deleted").default(false)

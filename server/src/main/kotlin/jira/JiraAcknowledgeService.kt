@@ -70,7 +70,7 @@ private class LockedBinding(val connectionId: UInt, val level: JiraLevel, val no
 
 /**
  * The acknowledgement of a binding's deviations, "until changed", PER LINE since 1.12 (V28 `jira_deviation_acknowledgements`; 1.3's
- * whole-binding `jira_bindings` columns are legacy, unread and unwritten): the service OWNS the table and reads `planning`'s chains
+ * whole-binding `jira_bindings` columns were dropped by V30): the service OWNS the table and reads `planning`'s chains
  * and, through [DeviationViewService], the whole deviations computation. The key is (binding, [DeviationKind]) - the kernel raises
  * each kind at most once per binding. Rows are HARD: a withdrawal deletes, a re-acknowledge rewrites the stamp; the stored per-line
  * fingerprint is compared with the line's on every read, so a changed line reads `current = false` (open again). **No pruning

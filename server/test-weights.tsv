@@ -78,6 +78,7 @@ ch.nokillswit.FlowTeamMatchTest	0.6
 ch.nokillswit.FlowTeamPanelTest	1.3
 ch.nokillswit.FlowTestConnectionTest	6.1
 ch.nokillswit.FlywayConnectRetriesTest	1.2
+ch.nokillswit.FlywayFutureMigrationsTest	0.5
 ch.nokillswit.FlywayLogTest	0.1
 ch.nokillswit.ForkWarmup1Test	0.2
 ch.nokillswit.ForwardedHeadersTest	0.3

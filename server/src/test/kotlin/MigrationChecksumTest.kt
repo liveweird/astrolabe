@@ -51,6 +51,7 @@ class MigrationChecksumTest {
         "V27__jira_gone_probe_marker.sql" to -99972177,
         "V28__jira_deviation_acknowledgements.sql" to -998312972,
         "V29__jira_gone_probed_key.sql" to 1806262247,
+        "V30__drop_jira_binding_ack_columns.sql" to -159218806,
     )
 
     @Test

@@ -42,6 +42,9 @@ the same commit. Gradle and npm package versions are separate.
 5. When deployment is in scope, build from the recorded commit using the
    [run-stack playbook](../skills/run-stack/SKILL.md), verify the displayed version and SHA,
    and preserve existing data. Publishing a GitHub release does not itself deploy containers.
+   Take a `pg_dump -Fc` of every database the release will migrate BEFORE it starts: a migration
+   that drops data (V30, 1.13) is recoverable only from that dump, and an older build can run on
+   the newer schema only as far as `persistence.md` says (`FlywayFutureMigrationsTest`).
 
 Documentation and test-only changes may retain the app version. They do not create another
 release with the same version or move its tag; the displayed commit identifies the newer build.
