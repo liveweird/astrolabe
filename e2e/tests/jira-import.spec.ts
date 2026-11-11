@@ -4,12 +4,16 @@
 // it (a default project); the modal's three steps pass an axe scan, light and dark; so does a five-key preview of about 1,100 rows (the virtualised table) and so
 // does the outcome's skipped-rows table, made to appear by a plan row created through the API between the preview and the apply (IMP-8 turns CHANGED);
 // and a NON-admin who owns a throwaway work stream imports from the Plan page's work-stream menu (1.10; the connection picked from the deviations view's list).
+// 1.13.2 adds the import filter (the dialog opens with "Leave out done items" on and 365 days): the IMP scenarios run under those defaults, the 1,100-row preview
+// switches the filter off, and the stub's `IMF` project (done and quiet items, a two-round chain of left-out parents, a parent the connection cannot read) is
+// previewed and imported at the defaults and previewed with the filter off or half off.
 // Owns: ONE Jira connection (`e2e-import-connection-*`, scoped to the stub's `IMP` project on a unique throwaway site, tested once in the beforeAll; the
-// five-key preview test makes, tests and deletes one more, `e2e-import-scale-*`, and never imports through it. Test
+// five-key preview test makes, tests and deletes one more, `e2e-import-scale-*`, and never imports through it; each IMF filter test does the same with an
+// `e2e-import-filter-*` scoped to `IMF`, the first importing through its own. Test
 // connection shares a per-IP bucket (10 a minute by default, 30 on the e2e stacks) with the other Jira specs) and, per test, an administrator login (the preview and the apply share a
 // 5-a-minute bucket PER USER, so a throwaway login keeps every test inside it), a person, a team, a work stream (unique `e2e-import-*` names) and what
 // the import creates under that stream - the stub's own names, "IMP Program", "IMP Initiative Alpha/Beta" and the epics. Program names are global, so
-// this is the only spec that may import `IMP`, and it holds the Playwright lock `jira-import-stub`. Nothing here ever applies into an existing work
+// this is the only spec that may import `IMP` or `IMF` ("IMF Program", "IMF Program Old"), and it holds the Playwright lock `jira-import-stub`. Nothing here ever applies into an existing work
 // stream, and the dates are the stub's (2045): 2045-01-06 (IMP-4's end) is Polish Epiphany, harmless while no spec loads 2045 holidays.
 // Teardown (afterEach, even after a failure, through the API): the test's bindings, then its projects (their milestones go with them), programs, work
 // stream, team, person and login; the afterAll deletes the connection. The beforeAll sweeps what a crashed earlier run left: connections named
@@ -25,6 +29,8 @@ test.describe.configure({ lock: "jira-import-stub", timeout: 120_000 });
 
 const MARK = "e2e-import-";
 const PROGRAM_NAME = "IMP Program";
+/** The program names the stub's two imported projects create (global names): the guard fails fast on any of them under a work stream that is not ours. */
+const STUB_PROGRAM_NAMES = [PROGRAM_NAME, "IMF Program", "IMF Program Old"];
 
 interface Account {
   email: string;
@@ -60,6 +66,8 @@ let connection: { id: number; name: string };
 // Registered in creation order; deleted in reverse (the test's own rows, after the walk of the stream's tree).
 const teardown: string[] = [];
 let streamId: number | undefined;
+// The connections of the running test that hold bindings besides the file's own (the IMF test's): their bindings are removed before the stream's tree.
+const extraConnectionIds: number[] = [];
 
 async function create(api: APIRequestContext, path: string, data: object, tear: string): Promise<number> {
   const response = await api.post(path, { data });
@@ -106,9 +114,10 @@ async function sweepStale(api: APIRequestContext): Promise<void> {
   await deleteViaApi(ours(await listAll(api, `/api/v1/teams?name=${MARK}`)).map((row) => `/api/v1/teams/${row.id}`));
   await deleteViaApi(ours(await listAll(api, `/api/v1/people?name=${MARK}`)).map((row) => `/api/v1/people/${row.id}`));
   await deleteViaApi(ours(await listAll(api, `/api/v1/users?name=${MARK}`)).map((row) => `/api/v1/users/${row.id}`));
-  const taken = (await planStreams(api)).find((stream) => stream.programs.some((program) => program.name.trim().toLowerCase() === PROGRAM_NAME.toLowerCase()));
+  const names = STUB_PROGRAM_NAMES.map((name) => name.toLowerCase());
+  const taken = (await planStreams(api)).find((stream) => stream.programs.some((program) => names.includes(program.name.trim().toLowerCase())));
   if (taken) {
-    throw new Error(`a program named "${PROGRAM_NAME}" exists under the work stream "${taken.name}", which this spec did not create: it is not touched, and the import cannot run until it is renamed or deleted`);
+    throw new Error(`a program named like one the stub's IMP or IMF import creates (${STUB_PROGRAM_NAMES.join(", ")}) exists under the work stream "${taken.name}", which this spec did not create: it is not touched, and the import cannot run until it is renamed or deleted`);
   }
 }
 
@@ -140,8 +149,10 @@ test.afterEach(async () => {
   try {
     ({ api } = await apiAsAdmin());
     // The bindings first (unlinked while their plan items are alive), then the stream's tree, whatever the test got to create.
-    const bindings = await api.get(`/api/v1/integrations/jira/bindings?connectionId=${connection.id}&pageSize=100`);
-    if (bindings.ok()) paths.push(...((await bindings.json()) as { items: { id: number }[] }).items.map((item) => `/api/v1/integrations/jira/bindings/${item.id}`));
+    for (const connectionId of [connection.id, ...extraConnectionIds.splice(0)]) {
+      const bindings = await api.get(`/api/v1/integrations/jira/bindings?connectionId=${connectionId}&pageSize=100`);
+      if (bindings.ok()) paths.push(...((await bindings.json()) as { items: { id: number }[] }).items.map((item) => `/api/v1/integrations/jira/bindings/${item.id}`));
+    }
     const stream = streamId === undefined ? undefined : (await planStreams(api)).find((candidate) => candidate.id === streamId);
     if (stream) {
       const own = treePaths(stream);
@@ -231,7 +242,10 @@ async function pick(page: Page, field: Locator, search: string, option = search)
   await page.getByRole("option", { name: option, exact: true }).click();
 }
 
-/** The Scope phase: the world's stream, owner and default team (and the default project when given); the Jira project IMP is preselected and the dates are copied. */
+/**
+ * The Scope phase: the world's stream, owner and default team (and the default project when given); the Jira project IMP is preselected, the dates are copied and
+ * the import filter is at the dialog's defaults (done items left out, updated within 365 days).
+ */
 async function fillScope(page: Page, world: World, defaultProject?: { project: string; program: string }): Promise<void> {
   const dialog = modal(page);
   await pick(page, dialog.getByRole("combobox", { name: "Work stream" }), world.streamName);
@@ -239,7 +253,23 @@ async function fillScope(page: Page, world: World, defaultProject?: { project: s
   await pick(page, dialog.getByRole("combobox", { name: "Default team" }), world.teamName);
   if (defaultProject) await pick(page, dialog.getByRole("combobox", { name: "Default project" }), defaultProject.project, `${defaultProject.project} · ${defaultProject.program}`);
   await expect(dialog.getByRole("switch", { name: "Copy Jira's dates" })).toBeChecked();
+  await expect(doneSwitch(page)).toBeChecked();
+  await expect(daysField(page)).toHaveValue("365");
 }
+
+const doneSwitch = (page: Page) => modal(page).getByRole("switch", { name: /^Leave out done items/ });
+const daysField = (page: Page) => modal(page).getByRole("textbox", { name: "Updated within (days)" });
+
+/** Sets the import filter's two controls on the Scope step: the done switch and the days field (an empty string = no time limit). */
+async function setFilter(page: Page, filter: { excludeDone: boolean; days: string }): Promise<void> {
+  if (filter.excludeDone) await doneSwitch(page).check();
+  else await doneSwitch(page).uncheck();
+  await daysField(page).fill(filter.days);
+  await expect(daysField(page)).toHaveValue(filter.days);
+}
+
+/** The preview's "Left out: …" note, found by its words; the note is absent without a filter or with both controls off. */
+const leftOutNote = (page: Page): Locator => modal(page).getByRole("note").filter({ hasText: "Left out:" });
 
 /** Signs in as the world's administrator and opens the modal on the connection's page (the spec's IMP connection unless another is given). */
 async function openImport(page: Page, world: World, on: { id: number; name: string } = connection): Promise<void> {
@@ -558,20 +588,27 @@ test.describe("dark scheme (skipped rows)", () => {
 /** The stub's five work-stream projects: about 1,120 items, far above the table's 80-row virtualisation threshold. Previewed only, never imported. */
 const SCALE_KEYS = ["CE", "PF", "CG", "DI", "OE"];
 
-/** A second connection, scoped to the five keys on a unique throwaway site and tested once (one more call of the per-IP Test bucket (10 a minute by default, 30 on the e2e stacks)); the afterEach deletes it. */
-async function seedScaleConnection(): Promise<{ id: number; name: string }> {
+/**
+ * A further connection, scoped to the given Jira projects on a unique throwaway site and tested once (one more call of the per-IP Test bucket (10 a minute by
+ * default, 30 on the e2e stacks)); the afterEach deletes it. Its bindings (a test that imports through it) are removed first, with the file's own connection's.
+ */
+async function seedConnection(prefix: string, projectKeys: string[]): Promise<{ id: number; name: string }> {
   const { api } = await apiAsAdmin();
   try {
-    const name = uniqueText(`${MARK}scale`);
+    const name = uniqueText(`${MARK}${prefix}`);
     const site = `https://stub-e2eimport${randomUUID().replace(/-/g, "").slice(0, 12)}.atlassian.net`;
-    const body = { name, siteUrl: site, email: "e2e-import@astrolabe.local", apiToken: "e2e-import-token", authScheme: "BASIC", projectKeys: SCALE_KEYS, enabled: true, pollIntervalMinutes: null };
+    const body = { name, siteUrl: site, email: "e2e-import@astrolabe.local", apiToken: "e2e-import-token", authScheme: "BASIC", projectKeys, enabled: true, pollIntervalMinutes: null };
     const id = await create(api, "/api/v1/integrations/jira/connections", body, "/api/v1/integrations/jira/connections");
+    extraConnectionIds.push(id);
     await testJiraConnectionViaApi(api, id);
     return { id, name };
   } finally {
     await api.dispose();
   }
 }
+
+const seedScaleConnection = () => seedConnection("scale", SCALE_KEYS);
+const seedFilterConnection = () => seedConnection("filter", ["IMF"]);
 
 /** Scrolls the preview's own scroller to the middle and waits until the rows mounted there are a window far from the top. */
 async function scrollPreviewToMiddle(page: Page): Promise<void> {
@@ -594,8 +631,12 @@ test("a preview of about 1,100 rows (the virtualised table) has no WCAG A/AA vio
   const dialog = modal(page);
   // The default team too: the milestone rows then carry their checkbox and team select, the cells the scan most needs to see.
   await fillScope(page, world);
+  // The filter off: the sample projects are stamped in 2026, so under the 365-day default window their row count would start to fall in late August 2027.
+  // Both controls off is also the proof that the request then carries no filter (1.13.1's, byte for byte): the preview reads everything and has no "Left out" note.
+  await setFilter(page, { excludeDone: false, days: "" });
   await modal(page).getByRole("button", { name: "Preview", exact: true }).click();
   await expect(dialog.getByRole("heading", { level: 3, name: "What the import would do" })).toBeVisible({ timeout: 190_000 });
+  await expect(leftOutNote(page)).toHaveCount(0);
   const rowCount = Number(await previewTable(page).getAttribute("aria-rowcount"));
   expect(rowCount).toBeGreaterThan(1_000);
   // Virtualised: only a window of the rows is in the DOM, and it is mounted (the virtualiser measures its scroller first) before the first scan.
@@ -613,4 +654,97 @@ test("a preview of about 1,100 rows (the virtualised table) has no WCAG A/AA vio
   });
   await expect(previewTable(page).locator("tbody tr[aria-rowindex]").first()).toHaveAttribute("aria-rowindex", "2");
   await scan(page);
+});
+
+/** The stub's `IMF` project (`sample-data/jira/expected.json` `imf`): 15 issues in the listings and one hidden parent, IMF-16, that the connection cannot read. */
+const KEPT_NOTE = "Kept as a parent of an item shown here";
+const UNREADABLE_NOTE = "Its parent in Jira could not be read with the connection's account";
+
+// 1.13.2: the import filter on the stub's IMF project. The stub does not evaluate the filter (its listings hold the done and quiet issues too): the server's rule drops
+// them, reads the parents it needs by id (IMF-3, 4, 13, 16 - a 404 - and 12) and keeps them as parents. At the defaults: 11 rows, 10 created, IMF-15 skipped.
+test("the import filter leaves out done and quiet items and keeps the parents of what it reads", async ({ page }) => {
+  const filterConnection = await seedFilterConnection();
+  const world = await seedWorld();
+  await openImport(page, world, filterConnection);
+  const dialog = modal(page);
+  await fillScope(page, world);
+  await preview(page);
+
+  // 11 rows: 15 issues less the four left out (IMF-5 and IMF-9, IMF-10 done; IMF-11 quiet); 10 would be created, IMF-15 is skipped.
+  await expectTotals(page, { found: 11, create: 10, bind: 0, skip: 1 });
+  await expect(dialog.getByText("10 of 10 selected")).toBeVisible();
+  await expect(leftOutNote(page)).toHaveText("Left out: done items, and items not updated for more than 365 days. Their parents in the selected projects are still read.");
+  for (const key of ["IMF-5", "IMF-9", "IMF-10", "IMF-11"]) await expect(rowOf(page, key)).toHaveCount(0);
+  // The parents the filter would have dropped but an item that is read sits under: a done and a quiet initiative, and the two-round chain (IMF-14 under IMF-13 under IMF-12).
+  for (const key of ["IMF-3", "IMF-4", "IMF-12", "IMF-13"]) await expect(rowOf(page, key)).toContainText(KEPT_NOTE);
+  for (const key of ["IMF-1", "IMF-2", "IMF-6", "IMF-7", "IMF-8", "IMF-14"]) {
+    await expect(rowOf(page, key)).toHaveCount(1);
+    await expect(rowOf(page, key)).not.toContainText(KEPT_NOTE);
+  }
+  await expect(rowOf(page, "IMF-7")).toContainText("Under new IMF Initiative Done");
+  await expect(rowOf(page, "IMF-14")).toContainText("Under new IMF Initiative Old");
+  // IMF-15's parent (IMF-16) answers 404 by id: the child is skipped and says why, the kept-parent mark is not on it.
+  await expect(rowOf(page, "IMF-15")).toContainText("Nowhere to put it");
+  await expect(rowOf(page, "IMF-15")).toContainText(UNREADABLE_NOTE);
+  await expect(rowOf(page, "IMF-15").getByRole("checkbox")).toHaveCount(0);
+
+  // The ticked rows are imported under the SAME filter (the apply re-reads the parents): 2 programs, 4 projects, 4 milestones, all four milestones dated.
+  await importAll(page, 10);
+  const outcome = dialog.getByRole("status");
+  await expect(outcome).toContainText("Created: 10");
+  await expect(outcome).toContainText("Linked: 0");
+  await expect(outcome).toContainText("Scheduled: 4");
+  await expect(outcome).toContainText("Skipped: 0");
+  await expect(dialog.getByRole("table", { name: "Skipped rows" })).toHaveCount(0);
+  await dialog.getByRole("button", { name: "Close", exact: true }).last().click();
+  await expect(dialog).toHaveCount(0);
+
+  // Ten links, none for what was left out or skipped.
+  const links = page.getByRole("table", { name: "Links to plan items" }).getByRole("row");
+  await expect(links.filter({ hasText: "IMF-" })).toHaveCount(10);
+  for (const key of ["IMF-5", "IMF-9", "IMF-10", "IMF-11", "IMF-15"]) await expect(links.filter({ hasText: new RegExp(`${key}(?!\\d)`) })).toHaveCount(0);
+
+  // The plan holds exactly the kept parents and what they carry, with the stub's names and dates (2045).
+  const planned = await planOf(world);
+  expect([...planned.programs].sort()).toEqual(["IMF Program", "IMF Program Old"]);
+  expect(planned.projects.map((project) => project.name)).toEqual(["IMF Initiative Done", "IMF Initiative Old", "IMF Initiative Open", "IMF Initiative Quiet"]);
+  expect(planned.projects.map((project) => project.scheduled)).toEqual([
+    [["IMF Epic Under Done", "2045-01-23", "2045-01-27"]],
+    [["IMF Epic Under Old", "2045-03-06", "2045-03-10"]],
+    [["IMF Epic Open", "2045-01-02", "2045-01-06"]],
+    [["IMF Epic Under Quiet", "2045-02-06", "2045-02-10"]],
+  ]);
+  expect(planned.projects.flatMap((project) => project.unscheduled)).toEqual([]);
+});
+
+test("with the filter off the whole IMF project previews and no parent is read; with only the done switch on the quiet items stay", async ({ page }) => {
+  const filterConnection = await seedFilterConnection();
+  const world = await seedWorld();
+  await openImport(page, world, filterConnection);
+  const dialog = modal(page);
+  await fillScope(page, world);
+
+  // Both controls off: 15 rows, 14 would be created, no "Left out" note, nothing marked as kept, and IMF-15 (nothing was read, so nothing is known about its parent)
+  // is skipped without the unreadable-parent note.
+  await setFilter(page, { excludeDone: false, days: "" });
+  await preview(page);
+  await expectTotals(page, { found: 15, create: 14, bind: 0, skip: 1 });
+  await expect(leftOutNote(page)).toHaveCount(0);
+  for (const key of ["IMF-5", "IMF-9", "IMF-10", "IMF-11"]) await expect(rowOf(page, key)).toHaveCount(1);
+  await expect(previewTable(page)).not.toContainText(KEPT_NOTE);
+  await expect(rowOf(page, "IMF-15")).toContainText("Nowhere to put it");
+  await expect(rowOf(page, "IMF-15")).not.toContainText(UNREADABLE_NOTE);
+
+  // Back (the choices are kept), only the done switch on, the field still empty: the done items go, the quiet IMF-11 stays and IMF-4 is a real row again.
+  await dialog.getByRole("button", { name: "Back", exact: true }).click();
+  await setFilter(page, { excludeDone: true, days: "" });
+  await preview(page);
+  await expectTotals(page, { found: 12, create: 11, bind: 0, skip: 1 });
+  await expect(leftOutNote(page)).toHaveText("Left out: done items. Their parents in the selected projects are still read.");
+  for (const key of ["IMF-5", "IMF-9", "IMF-10"]) await expect(rowOf(page, key)).toHaveCount(0);
+  await expect(rowOf(page, "IMF-11")).toHaveCount(1);
+  for (const key of ["IMF-3", "IMF-12", "IMF-13"]) await expect(rowOf(page, key)).toContainText(KEPT_NOTE);
+  await expect(rowOf(page, "IMF-4")).not.toContainText(KEPT_NOTE);
+  await expect(rowOf(page, "IMF-15")).toContainText(UNREADABLE_NOTE);
+  // Nothing was imported, so no IMF program is ever created.
 });

@@ -10,13 +10,23 @@
   Every date is the stub's, in **2045** (IMP-4 ends on 2045-01-06, Polish Epiphany: harmless while no spec loads 2045 holidays). Nothing ever applies into an existing
   work stream. Teardown is the afterEach, even after a failure: the connection's bindings (unlinked while their items are alive), then the stream's projects (their milestones
   go with them), programs and the stream, then the team, the person and the login; the afterAll deletes the connection. The beforeAll first sweeps a crashed run's residue,
-  found by the `e2e-import-` prefix and nothing else, over ALL pages (connections, the trees of work streams, then teams, people and logins); an "IMP Program" under any OTHER work stream is not ours and is never deleted: the run fails
+  found by the `e2e-import-` prefix and nothing else, over ALL pages (connections, the trees of work streams, then teams, people and logins); an "IMP Program", "IMF Program" or "IMF Program Old" under any OTHER work stream is not ours and is never deleted: the run fails
   fast naming it.
+  1.13.2 adds, per IMF test, one more connection (`e2e-import-filter-*`, scoped to the stub's `IMF` project ONLY, on a unique throwaway site, tested through the API: one more call of the Test bucket
+  each); the first IMF test IMPORTS through it, so its bindings are removed (with the file's own connection's) before the stream's tree, and the stub's other names it creates
+  ("IMF Program", "IMF Program Old", the "IMF Initiative ..." projects and four "IMF Epic ..." milestones, dated 2045) go with the stream. `IMF` is imported by this spec alone too (same lock).
 
 The stub's `IMP` project (`sample-data/jira/world.mjs`): IMP-1 the Program "IMP Program"; IMP-2/IMP-3 the Initiatives "IMP Initiative Alpha/Beta" under it; epics IMP-4 "IMP Epic One"
 (Mon 2045-01-02..Fri 01-06, 5 points) and IMP-5 "IMP Epic Two" (01-16..01-20, no Jira team) under Alpha, IMP-6 "IMP Epic Three" (undated), IMP-7 (a 110-character summary, dated) and
 IMP-9 "IMP Epic Six" (01-30..02-03) under Beta, IMP-8 (dated) straight under the program, so it has no project to land in. The epics' Jira team is "IMP Team", which matches no team
 here: every milestone takes the default team.
+
+Since 1.13.2 the dialog's Scope step opens with the import filter on: **Leave out done items** ticked and **Updated within (days)** 365 (`fillScope` asserts both). The stub does not
+evaluate the filter (its listings hold the done and quiet issues too); the server's rule drops them and reads the parents it needs by id. `IMP`'s nine issues are all open and stamped
+2044, so every IMP scenario below keeps its figures at the defaults. The stub's `IMF` project (`sample-data/jira/world.mjs`, `expected.json` `imf`; the figures below are its
+`byFilter`): 15 issues in the listings, dated 2045 - IMF-1 Program "IMF Program"; Initiatives IMF-2 Open, IMF-3 Done (status Done), IMF-4 Quiet (stamped 2010), IMF-5 Closed (Done), IMF-13 Old (Done, 2010) under
+IMF-12 the Program "IMF Program Old" (Done, 2010); Epics IMF-6 under IMF-2, IMF-7 under IMF-3, IMF-8 under IMF-4, IMF-9 and IMF-10 (Done), IMF-11 (stamped 2010), IMF-14 under IMF-13, and IMF-15
+under IMF-16, an Initiative that is in no listing and answers 404 by id (the parent the connection cannot read). The epics' Jira team "IMF Team" matches no team here.
 
 ## Scenario: admin imports the stub's IMP project tree and a re-import creates nothing
 
@@ -77,7 +87,8 @@ here: every milestone takes the default team.
 
 1. A second connection, scoped to the stub's five work-stream projects (`CE`, `PF`, `CG`, `DI`, `OE`) on its own throwaway site, is created and tested through the API (one more
    call of the shared Test bucket (10 a minute by default, 30 on the e2e stacks); a 429 waits the minute out once); the administrator opens its import modal, picks the throwaway work stream, the owner and the default team, and presses
-   **Preview**. Nothing is imported.
+   **Preview**. Nothing is imported. Before the preview the filter is switched OFF (**Leave out done items** unticked, the days field emptied): the sample projects are stamped in 2026, so
+   under the 365-day default window their row count would start to fall in late August 2027; both controls off also proves the request then carries no filter (1.13.1's), so the preview has no "Left out" note.
    - *Expected*: the table's `aria-rowcount` is above 1,000, the first mounted row is row 2 and fewer than 200 rows are in the DOM (the virtual path); axe reports zero violations in the dialog.
 2. The preview's scroller is scrolled to the middle.
    - *Expected*: the first mounted row's `aria-rowindex` is above 100; axe reports zero violations.
@@ -101,6 +112,30 @@ here: every milestone takes the default team.
 
 1. The same walk with the dark scheme emulated.
    - *Expected*: the page renders in the dark scheme, the outcome is the same, and axe reports zero violations.
+
+## Scenario: the import filter leaves out done and quiet items and keeps the parents of what it reads
+
+1. A connection scoped to the stub's `IMF` project alone is created and tested through the API (one more call of the shared Test bucket; a 429 waits the minute out once). The administrator
+   opens its import modal, picks the throwaway work stream, the owner and the default team, leaves the filter at its defaults (the switch ticked, 365; no default project) and presses **Preview**.
+   - *Expected*: the totals read "Jira items: 11", "To create: 10", "To link: 0", "Skipped: 1" and "10 of 10 selected"; the note reads "Left out: done items, and items not updated for more than 365
+     days. Their parents in the selected projects are still read."; there is no row for IMF-5, IMF-9, IMF-10 or IMF-11; the rows of IMF-3 (a done parent), IMF-4 (a quiet parent), IMF-12 and IMF-13
+     (the two-round chain, both left out by every filter) read "Kept as a parent of an item shown here" and IMF-1, 2, 6, 7, 8, 14 do not; IMF-7 reads "Under new IMF Initiative Done" and IMF-14
+     "Under new IMF Initiative Old"; IMF-15 says "Nowhere to put it", reads "Its parent in Jira could not be read with the connection's account" (its parent IMF-16 answers 404 by id) and has no checkbox.
+2. They press **Import (10)** (the apply re-reads the same parents under the same filter).
+   - *Expected*: the outcome reads "Created: 10" (2 programs, 4 projects, 4 milestones), "Linked: 0", "Scheduled: 4" and "Skipped: 0", with no skipped-rows table. They close the dialog.
+3. The connection page and the plan are read.
+   - *Expected*: the "Links to plan items" table has 10 rows with an IMF key and none for IMF-5, 9, 10, 11 or 15; the work stream holds exactly "IMF Program" and "IMF Program Old" with the projects
+     "IMF Initiative Done", "IMF Initiative Old", "IMF Initiative Open" and "IMF Initiative Quiet", each with its one milestone scheduled in 2045 (Under Done 01-23..01-27, Under Old 03-06..03-10, Open 01-02..01-06,
+     Under Quiet 02-06..02-10) and nothing in any tray.
+
+## Scenario: with the filter off the whole IMF project previews and no parent is read; with only the done switch on the quiet items stay
+
+1. A connection scoped to `IMF` as above; the administrator fills the scope, unticks **Leave out done items**, empties **Updated within (days)** and presses **Preview**.
+   - *Expected*: "Jira items: 15", "To create: 14", "To link: 0", "Skipped: 1"; no "Left out" note; IMF-5, 9, 10 and 11 each have a row; no row reads "Kept as a parent of an item shown here"; IMF-15 says
+     "Nowhere to put it" and does NOT read "Its parent in Jira could not be read" (nothing was read, so nothing is known about its parent).
+2. They press **Back** (the choices are kept), tick **Leave out done items** again (the field stays empty) and press **Preview**.
+   - *Expected*: "Jira items: 12", "To create: 11", "Skipped: 1"; the note reads "Left out: done items. Their parents in the selected projects are still read."; IMF-5, 9 and 10 have no row, the quiet IMF-11
+     does; IMF-3, 12 and 13 read "Kept as a parent of an item shown here" and IMF-4 (a real row now) does not; IMF-15 reads "Its parent in Jira could not be read". Nothing is imported, so no IMF program is ever created.
 
 ## Not covered here (and why)
 
