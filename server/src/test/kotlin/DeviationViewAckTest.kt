@@ -195,6 +195,29 @@ class DeviationViewAckTest {
     }
 
     @Test
+    fun `stillInJira counts open moved-out and not-listed gone issues only, and is 0 once they are acknowledged`() = testApplication {
+        val f = fixture("dva4b")
+        suspend fun bind(issue: Int, reason: String, probedKey: String?): UInt {
+            val id = TestPlan.milestone(f.w.projectId, f.team, planName("sij$issue"))
+            val probedAt = if (probedKey == null) null else 5L
+            val obs = DvObs("stale", 0, gone = true, goneReason = reason, goneProbedAt = probedAt, goneProbedKey = probedKey)
+            return dvBind(f.c, JiraLevel.MILESTONE, id, issue.toString(), "ACK-$issue", obs)
+        }
+        val movedOut = bind(71011, "OUT_OF_SCOPE", "OUT-3") // the connection's keys are E2E
+        val notListed = bind(71012, "OUT_OF_SCOPE", "E2E-3")
+        bind(71013, "DELETED", null)
+        bind(71014, "OUT_OF_SCOPE", null) // not probed yet
+        val before = f.view().totals
+        assertEquals(listOf(4, 2), listOf(before.gone, before.stillInJira))
+        for (binding in listOf(movedOut, notListed)) {
+            f.w.admin.client.ack(binding, f.w.admin.client.ackItem(f.c, binding).fingerprint).acknowledgement()
+        }
+        val after = f.view().totals
+        assertEquals(listOf(2, 0), listOf(after.gone, after.stillInJira), "acknowledged lines leave both figures, on the same basis")
+        assertTrue(after.stillInJira <= after.gone)
+    }
+
+    @Test
     fun `can acknowledge follows the acknowledge guard for every caller and level, a team manager on the milestone`() = testApplication {
         val f = fixture("dva5")
         val w = f.w

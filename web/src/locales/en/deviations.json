@@ -41,6 +41,8 @@
     "infos_other": "{{count}} infos",
     "gone_one": "{{count}} gone from Jira",
     "gone_other": "{{count}} gone from Jira",
+    "stillInJira_one": "{{count}} still in Jira, out of scope",
+    "stillInJira_other": "{{count}} still in Jira, out of scope",
     "acknowledged_one": "{{count}} acknowledged",
     "acknowledged_other": "{{count}} acknowledged",
     "shown_one": "{{count}} item shown",

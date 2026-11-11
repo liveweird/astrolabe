@@ -20,7 +20,7 @@ const TOKEN_KEY = "astrolabe.auth.token";
 function homeViews(input: RequestInfo | URL): Promise<Response> | undefined {
   const url = String(input);
   if (url.startsWith("/api/v1/views/deviations")) {
-    return Promise.resolve(jsonResponse(200, { revision: 1, asOf: "2026-11-10", connections: [], totals: { warnings: 0, infos: 0, bindings: 0, gone: 0, acknowledged: 0 }, items: [], truncated: false }));
+    return Promise.resolve(jsonResponse(200, { revision: 1, asOf: "2026-11-10", connections: [], totals: { warnings: 0, infos: 0, bindings: 0, gone: 0, stillInJira: 0, acknowledged: 0 }, items: [], truncated: false }));
   }
   if (url.startsWith("/api/v1/views/capacity-deviations")) {
     return Promise.resolve(jsonResponse(200, { asOf: "2026-11-10", connections: [], totals: { warnings: 0, infos: 0, gone: 0, acknowledged: 0, teams: 0 }, items: [], truncated: false }));

@@ -56,12 +56,20 @@ data class DeviationConnection(
 /**
  * Across the bindings matching every filter but the acknowledgement state (`acknowledged`, and the default that hides acknowledged
  * ones), before the cap: [warnings] and [infos] count the OPEN LINES (a deviation without a current acknowledgement, 1.12) of the
- * open bindings, [gone] the open bindings whose issue is gone, and [acknowledged] the BINDINGS with at least one currently
- * acknowledged line, so both are known whatever the list shows (on `acknowledged=true` the open counts are what the Open filter would
- * list). [bindings] is the exception: the number of bindings the list actually answers.
+ * open bindings, [gone] the open bindings whose issue is gone, [stillInJira] those of them whose reason is `MOVED_OUT` or `NOT_LISTED`
+ * (1.13: the issue exists in Jira, outside the connection's scope; part of [gone], never more), and [acknowledged] the BINDINGS with
+ * at least one currently acknowledged line, so both are known whatever the list shows (on `acknowledged=true` the open counts are
+ * what the Open filter would list). [bindings] is the exception: the number of bindings the list actually answers.
  */
 @Serializable
-data class DeviationTotals(val warnings: Int, val infos: Int, val bindings: Int, val gone: Int, val acknowledged: Int)
+data class DeviationTotals(
+    val warnings: Int,
+    val infos: Int,
+    val bindings: Int,
+    val gone: Int,
+    val stillInJira: Int,
+    val acknowledged: Int,
+)
 
 /**
  * The bound node and where it sits: the id and name of every level from the work stream down to the node itself (a program has no

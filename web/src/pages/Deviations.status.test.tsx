@@ -86,7 +86,7 @@ describe("Deviations page - the Status filter, totals and empty Open list", () =
 
   describe("the totals and the empty Open list", () => {
     test("the totals gain 'N acknowledged' (gray), and a list that can show more than the open items says the figures are open-only", async () => {
-      h.doc = view({ items: [row(1, "E2E-3")], totals: { warnings: 1, infos: 0, bindings: 1, gone: 0, acknowledged: 2 } });
+      h.doc = view({ items: [row(1, "E2E-3")], totals: { warnings: 1, infos: 0, bindings: 1, gone: 0, stillInJira: 0, acknowledged: 2 } });
       renderPage();
       expect(await screen.findByText("2 acknowledged")).toBeInTheDocument();
       expect(screen.queryByText(/count open items only/)).not.toBeInTheDocument();
@@ -95,7 +95,7 @@ describe("Deviations page - the Status filter, totals and empty Open list", () =
     });
 
     test("with every deviation acknowledged the Open list says nothing is open and where the hidden ones are - not the dated 'no deviations' claim", async () => {
-      h.doc = view({ items: [], totals: { warnings: 0, infos: 0, bindings: 0, gone: 0, acknowledged: 2 } });
+      h.doc = view({ items: [], totals: { warnings: 0, infos: 0, bindings: 0, gone: 0, stillInJira: 0, acknowledged: 2 } });
       renderPage();
       expect(await screen.findByText("Nothing is open.")).toBeInTheDocument();
       expect(screen.getByText(/2 acknowledged items are hidden/)).toBeInTheDocument();
@@ -103,7 +103,7 @@ describe("Deviations page - the Status filter, totals and empty Open list", () =
     });
 
     test("an acknowledged filter that matches nothing is not 'nothing here is linked', even under a scope that implies all", async () => {
-      h.doc = view({ items: [], totals: { warnings: 0, infos: 0, bindings: 0, gone: 0, acknowledged: 0 } });
+      h.doc = view({ items: [], totals: { warnings: 0, infos: 0, bindings: 0, gone: 0, stillInJira: 0, acknowledged: 0 } });
       renderPage("/deviations?projectId=7&acknowledged=true");
       expect(await screen.findByText("No items match the filters.")).toBeInTheDocument();
       expect(screen.queryByText("Nothing here is linked to Jira yet.")).not.toBeInTheDocument();

@@ -103,6 +103,7 @@ export function view(over: Partial<DeviationView> = {}): DeviationView {
       infos: deviations.filter((d) => d.severity === "INFO").length,
       bindings: items.length,
       gone: items.filter((i) => i.jira.gone).length,
+      stillInJira: items.filter((i) => i.jira.gone && i.deviations.some((d) => d.kind === "GONE" && (d.detail.jira === "MOVED_OUT" || d.detail.jira === "NOT_LISTED"))).length,
       acknowledged: items.filter((i) => i.deviations.some((line) => line.acknowledgement?.current)).length,
     },
     items,

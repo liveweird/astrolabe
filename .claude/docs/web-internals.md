@@ -953,7 +953,7 @@ gone; a `BACKLOG.md` item brings it back with a per-site status on `jiraSites`).
 page and the connection pages only.
 
 **Counting words**: the totals badges are the server's `warnings`/`infos` over every match before the cap (orange / gray, the roadmap flag vocabulary; red is
-never used), "N items shown" is `items.length`, `truncated` is an orange note; **`totals.bindings` is never worded as "how many are linked"** - it counts only
+never used); **the gone figure is split (1.13)**: "N gone from Jira" shows `totals.gone - totals.stillInJira` and a second gray "N still in Jira, out of scope" shows `totals.stillInJira` (`deviations.totals.stillInJira_*`), each hidden at 0; "N items shown" is `items.length`, `truncated` is an orange note; **`totals.bindings` is never worded as "how many are linked"** - it counts only
 deviating bindings unless `all` applies. The empty list is told apart: no connection (an ADMIN gets the link to Administration, Jira; anyone else "an
 administrator has to add one"), nothing linked (asked by `GET /integrations/jira/bindings?pageSize=1` `total`, only when it decides the wording), the filters
 match nothing (+ "Clear the filters"), an empty list is a claim about a READ and is DATED: "No deviations in the data read at 2026-11-06 10:01 (UTC)"

@@ -4790,7 +4790,7 @@ export interface components {
             lastRun: components["schemas"]["SyncLastRun"] | null;
             status: components["schemas"]["SyncStatus"];
         };
-        /** @description Before the 2,000-item cap. `bindings` counts what the list answers; `warnings`, `infos`, `gone` and `acknowledged` share one basis, the bindings matching every filter but the acknowledgement state. */
+        /** @description Before the 2,000-item cap. `bindings` counts what the list answers; `warnings`, `infos`, `gone`, `stillInJira` and `acknowledged` share one basis, the bindings matching every filter but the acknowledgement state. */
         DeviationTotals: {
             /**
              * Format: int32
@@ -4812,6 +4812,11 @@ export interface components {
              * @description The OPEN bindings (matching every filter but the acknowledgement state) whose issue is gone.
              */
             gone: number;
+            /**
+             * Format: int32
+             * @description Part of `gone` (never more), on the same basis: the open gone bindings whose `goneReason` is `MOVED_OUT` or `NOT_LISTED`, i.e. the issue still exists in Jira but outside the connection's scope.
+             */
+            stillInJira: number;
             /**
              * Format: int32
              * @description The bindings with at least one CURRENTLY acknowledged line among those matching every filter but `acknowledged` (and the default that hides them).

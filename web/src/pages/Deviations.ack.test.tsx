@@ -18,7 +18,7 @@ describe("Deviations page - acknowledge and unacknowledge", () => {
       const cancel = vi.spyOn(h.queryClient, "cancelQueries");
       const invalidate = vi.spyOn(h.queryClient, "invalidateQueries");
       h.onWrite = () => {
-        h.doc = view({ items: [], totals: { warnings: 0, infos: 0, bindings: 0, gone: 0, acknowledged: 1 } });
+        h.doc = view({ items: [], totals: { warnings: 0, infos: 0, bindings: 0, gone: 0, stillInJira: 0, acknowledged: 1 } });
         return jsonResponse(200, { bindingId: 1, fingerprint: "1".repeat(64), acknowledgedAt: AT, acknowledgedBy: "Ada Lovelace" });
       };
       const user = userEvent.setup();

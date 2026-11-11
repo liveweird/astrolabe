@@ -73,6 +73,10 @@ internal class Candidate(
 
     val open: Boolean get() = shown.any { it.open }
 
+    /** The wire reason of a gone binding ([wireGoneReason]) says the issue is still in Jira, out of scope: `MOVED_OUT` or `NOT_LISTED`. */
+    val stillInJira: Boolean
+        get() = all.any { it.kind == DeviationKind.GONE && (it.detail.jira == GONE_MOVED_OUT || it.detail.jira == GONE_NOT_LISTED) }
+
     /**
      * At least one LISTED line is currently acknowledged: what `acknowledged=true` lists and `totals.acknowledged` counts. Decided on
      * [shown], not on the full list: a hidden `ESTIMATE_NOT_COMPARABLE` stamp does not make a binding whose every visible line is open

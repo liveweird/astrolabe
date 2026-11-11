@@ -9,7 +9,7 @@ const FLOW_URL = "/api/v1/views/capacity-deviations?acknowledged=true";
 
 /** The two views as the server answers `acknowledged=true`: the OPEN totals, the acknowledged items only (none here), the connections listed. */
 function jiraView(warnings: number, infos: number, connections = 1) {
-  return { revision: 1, asOf: "2026-11-10", connections: Array.from({ length: connections }, (_, id) => ({ id: id + 1, name: "Jira" })), totals: { warnings, infos, bindings: 0, gone: 0, acknowledged: 0 }, items: [], truncated: false };
+  return { revision: 1, asOf: "2026-11-10", connections: Array.from({ length: connections }, (_, id) => ({ id: id + 1, name: "Jira" })), totals: { warnings, infos, bindings: 0, gone: 0, stillInJira: 0, acknowledged: 0 }, items: [], truncated: false };
 }
 function flowView(warnings: number, infos: number, connections = 1) {
   return { asOf: "2026-11-10", connections: Array.from({ length: connections }, (_, id) => ({ id: id + 1, name: "Flow" })), totals: { warnings, infos, gone: 0, acknowledged: 0, teams: 0 }, items: [], truncated: false };

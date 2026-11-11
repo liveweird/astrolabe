@@ -84,7 +84,7 @@ function EmptyList({ view, filter, onClear }: { view: DeviationView; filter: Dev
   );
 }
 
-/** The totals under the heading: warnings (orange), infos (gray), gone and acknowledged items (gray) counted over every match, how many items are listed and, when the server cut the list, the note that says so. */
+/** The totals under the heading: warnings (orange), infos (gray), gone (not readable, and still in Jira but out of scope: two badges) and acknowledged items (gray) counted over every match, how many items are listed and, when the server cut the list, the note that says so. */
 function Totals({ view, filter }: { view: DeviationView; filter: DeviationFilter }) {
   const { t } = useTranslation();
   const { totals } = view;
@@ -97,9 +97,14 @@ function Totals({ view, filter }: { view: DeviationView; filter: DeviationFilter
         <Badge color="gray" variant="light" tt="none">
           {t("deviations.totals.infos", { count: totals.infos })}
         </Badge>
-        {totals.gone > 0 && (
+        {totals.gone - totals.stillInJira > 0 && (
           <Badge color="gray" variant="light" tt="none">
-            {t("deviations.totals.gone", { count: totals.gone })}
+            {t("deviations.totals.gone", { count: totals.gone - totals.stillInJira })}
+          </Badge>
+        )}
+        {totals.stillInJira > 0 && (
+          <Badge color="gray" variant="light" tt="none">
+            {t("deviations.totals.stillInJira", { count: totals.stillInJira })}
           </Badge>
         )}
         <Badge color="gray" variant="light" tt="none">

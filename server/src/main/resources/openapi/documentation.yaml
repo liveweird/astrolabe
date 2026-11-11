@@ -6173,13 +6173,14 @@ components:
         status: { $ref: '#/components/schemas/SyncStatus' }
     DeviationTotals:
       type: object
-      description: Before the 2,000-item cap. `bindings` counts what the list answers; `warnings`, `infos`, `gone` and `acknowledged` share one basis, the bindings matching every filter but the acknowledgement state.
-      required: [warnings, infos, bindings, gone, acknowledged]
+      description: Before the 2,000-item cap. `bindings` counts what the list answers; `warnings`, `infos`, `gone`, `stillInJira` and `acknowledged` share one basis, the bindings matching every filter but the acknowledgement state.
+      required: [warnings, infos, bindings, gone, stillInJira, acknowledged]
       properties:
         warnings: { type: integer, format: int32, minimum: 0, description: "The OPEN WARNING lines (listed deviations without a current acknowledgement, 1.12) of the open bindings matching every filter but the acknowledgement state." }
         infos: { type: integer, format: int32, minimum: 0, description: "The OPEN INFO lines of the open bindings matching every filter but the acknowledgement state." }
         bindings: { type: integer, format: int32, minimum: 0, description: "The bindings the list answers (the open ones by default), before the cap." }
         gone: { type: integer, format: int32, minimum: 0, description: "The OPEN bindings (matching every filter but the acknowledgement state) whose issue is gone." }
+        stillInJira: { type: integer, format: int32, minimum: 0, description: "Part of `gone` (never more), on the same basis: the open gone bindings whose `goneReason` is `MOVED_OUT` or `NOT_LISTED`, i.e. the issue still exists in Jira but outside the connection's scope." }
         acknowledged: { type: integer, format: int32, minimum: 0, description: "The bindings with at least one CURRENTLY acknowledged line among those matching every filter but `acknowledged` (and the default that hides them)." }
     DeviationNode:
       type: object

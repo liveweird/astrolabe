@@ -71,6 +71,7 @@ class DeviationViewService(
                     infos = openLines.count { it.deviation.severity == DeviationSeverity.INFO },
                     bindings = listed.size,
                     gone = open.count { it.item.jira.gone },
+                    stillInJira = open.count { it.item.jira.gone && it.stillInJira },
                     acknowledged = inScope.count { it.hasCurrentAck },
                 ),
                 items = listed.take(maxItems).map { it.item },

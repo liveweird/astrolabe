@@ -207,6 +207,33 @@ describe("Deviations page", () => {
     expect(within(table).getByText(/No longer readable in Jira: deleted, moved out/)).toBeInTheDocument();
   });
 
+  describe("the gone totals split (1.13)", () => {
+    const goneItem = (bindingId: number, reason: "MOVED_OUT" | "NOT_LISTED" | "OUT_OF_SCOPE" | "DELETED") =>
+      item({ bindingId, node: { ...item().node, id: 10 + bindingId, name: `Gone ${bindingId}` }, jira: { ...item().jira, key: `OLD-${bindingId}`, gone: true }, deviations: [{ kind: "GONE", severity: "WARNING", detail: detail({ jira: reason }), acknowledgement: null }] });
+
+    test("one badge for the items Jira cannot show, one for the ones still in Jira out of scope", async () => {
+      doc = view({ items: [goneItem(1, "MOVED_OUT"), goneItem(2, "NOT_LISTED"), goneItem(3, "OUT_OF_SCOPE"), goneItem(4, "DELETED")] });
+      expect(doc.totals).toMatchObject({ gone: 4, stillInJira: 2 });
+      renderPage();
+      expect(await screen.findByText("2 gone from Jira")).toBeInTheDocument();
+      expect(screen.getByText("2 still in Jira, out of scope")).toBeInTheDocument();
+    });
+
+    test("the first badge is hidden when every gone item is still in Jira, with the singular form", async () => {
+      doc = view({ items: [goneItem(1, "MOVED_OUT")] });
+      renderPage();
+      expect(await screen.findByText("1 still in Jira, out of scope")).toBeInTheDocument();
+      expect(screen.queryByText(/gone from Jira/)).not.toBeInTheDocument();
+    });
+
+    test("the second badge is hidden at 0", async () => {
+      doc = view({ items: [goneItem(1, "DELETED")] });
+      renderPage();
+      expect(await screen.findByText("1 gone from Jira")).toBeInTheDocument();
+      expect(screen.queryByText(/still in Jira/)).not.toBeInTheDocument();
+    });
+  });
+
   test("a truncated list says so, and does not claim its totals are the number of links", async () => {
     doc = { ...view(), truncated: true };
     renderPage();
@@ -434,7 +461,7 @@ describe("Deviations page - empty states", () => {
   });
 
   test("a project scope with nothing linked says 'nothing here is linked', not 'no items match'", async () => {
-    doc = view({ items: [], totals: { warnings: 0, infos: 0, bindings: 0, gone: 0, acknowledged: 0 } });
+    doc = view({ items: [], totals: { warnings: 0, infos: 0, bindings: 0, gone: 0, stillInJira: 0, acknowledged: 0 } });
     renderPage("/deviations?projectId=7");
     expect(await screen.findByText("Nothing here is linked to Jira yet.")).toBeInTheDocument();
     expect(screen.queryByText("No items match the filters.")).not.toBeInTheDocument();

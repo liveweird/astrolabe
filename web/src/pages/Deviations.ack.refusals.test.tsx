@@ -65,7 +65,7 @@ describe("Deviations page - acknowledge refusals", () => {
 
     test("a message for a row that has left the list is shown above the table instead, and 'Clear the filters' drops it", async () => {
       h.onWrite = () => {
-        h.doc = view({ items: [], totals: { warnings: 0, infos: 0, bindings: 0, gone: 0, acknowledged: 0 } });
+        h.doc = view({ items: [], totals: { warnings: 0, infos: 0, bindings: 0, gone: 0, stillInJira: 0, acknowledged: 0 } });
         return jsonResponse(403, { title: "x", status: 403 });
       };
       const user = userEvent.setup();

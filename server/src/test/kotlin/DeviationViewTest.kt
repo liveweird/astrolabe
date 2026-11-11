@@ -70,6 +70,10 @@ class DeviationViewTest {
             "no key reads moved out (1.12's inference), a key outside the connection's keys moved out, one inside not listed",
         )
         assertEquals(6, view.totals.gone, "a moved-out or not-listed item still counts as gone from Jira")
+        assertEquals(
+            3, view.totals.stillInJira,
+            "the three moved-out or not-listed ones (a key-less probe included) are still in Jira, not the deleted, forbidden or unprobed",
+        )
     }
 
     @Test
