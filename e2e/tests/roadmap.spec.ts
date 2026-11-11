@@ -404,6 +404,15 @@ test("a roadmap editor who owns nothing drags the band, draws a window, sets one
   await expect(rowOf(page, moved.name).locator("[data-flags]")).toHaveAttribute("data-flags", "1,1");
   await page.getByRole("button", { name: /^Show the \d+ flags?$/ }).click();
   await expect(page.getByRole("table", { name: "Flags of the projects shown" })).toContainText("Ends 10 days after the target");
+  // The severity filter shortens the list, never the row icons: Infos hides the warning's sentence, Warnings keeps it, All brings the rest back.
+  const flagTable = page.getByRole("table", { name: "Flags of the projects shown" });
+  const severityFilter = page.getByRole("radiogroup", { name: "Filter the flags by severity" });
+  await severityFilter.getByText(/^Infos \(\d+\)$/).click();
+  await expect(flagTable).not.toContainText("Ends 10 days after the target");
+  await expect(rowOf(page, moved.name).locator("[data-flags]")).toHaveAttribute("data-flags", "1,1");
+  await severityFilter.getByText(/^Warnings \(\d+\)$/).click();
+  await expect(flagTable).toContainText("Ends 10 days after the target");
+  await severityFilter.getByText(/^All \(\d+\)$/).click();
 
   // Draw a window across the project that has none, pressing on its span bar: ten days from the day the pointer went down.
   const [drawPut] = await Promise.all([windowPut(page, bare.id), dragAcross(page, span(bare.name, "2026-04-06", "2026-04-24"), 30)]);

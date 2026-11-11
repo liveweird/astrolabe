@@ -78,7 +78,15 @@
     "severity": "Severity",
     "flag": "Flag",
     "WARNING": "Warning",
-    "INFO": "Info"
+    "INFO": "Info",
+    "filterAria": "Filter the flags by severity",
+    "filter": {
+      "ALL": "All ({{count}})",
+      "WARNING": "Warnings ({{count}})",
+      "INFO": "Infos ({{count}})"
+    },
+    "noWarnings": "No warnings among the flags shown.",
+    "noInfos": "No infos among the flags shown."
   },
   "flag": {
     "endLate_one": "Ends {{count}} day after the target",

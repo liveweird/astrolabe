@@ -70,6 +70,8 @@
    - *Expected*: the page PUTs `/projects/{id}/target-window` (204) with 2026-01-19 to 2026-03-17 - the pointer went through the span to the
      window - and the band is named "…2026-01-19 to 2026-03-17"; after the refetch the row carries one warning and one info icon (the window now
      ends before the span: the server's drift flags) and the open flag panel says "Ends 10 days after the target".
+   - The panel's severity filter (All / Warnings / Infos, each with its count) shortens the list: **Infos** hides "Ends 10 days after the target",
+     **Warnings** shows it, **All** restores the list; the row's icons keep their one warning and one info throughout.
 4. They press the middle of bare's span bar and drag 30 px to the right.
    - *Expected*: the PUT carries a window ten days long that starts on a day of the span; bare's row has the band and no draw surface any more.
 5. From the keyboard they open **Operations for <moved>**, move to **Edit target window of <moved>** and press Enter.

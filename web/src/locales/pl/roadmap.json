@@ -86,7 +86,15 @@
     "severity": "Waga",
     "flag": "Flaga",
     "WARNING": "Ostrzeżenie",
-    "INFO": "Informacja"
+    "INFO": "Informacja",
+    "filterAria": "Filtruj flagi według wagi",
+    "filter": {
+      "ALL": "Wszystkie ({{count}})",
+      "WARNING": "Ostrzeżenia ({{count}})",
+      "INFO": "Informacje ({{count}})"
+    },
+    "noWarnings": "Brak ostrzeżeń wśród pokazanych flag.",
+    "noInfos": "Brak informacji wśród pokazanych flag."
   },
   "flag": {
     "noWorkingDay": "Nie obejmuje żadnego dnia roboczego: tylko weekendy lub święta",

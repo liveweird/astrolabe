@@ -192,7 +192,7 @@ the same commit** — this list is the coverage map, the scenario file is the de
   it), drags a row by its pointer handle inside the ranking and below the divider (= Unrank), unranks from the menu, and meets the "roadmap changed in the
   meantime" notice and reload when the ranking revision moved under the open page; a plain user reads the rows with no handle, read-only bars and no
   ranking item in the row menu. The target window (one test, an API-seeded ROADMAP_EDITOR who owns nothing): the editor drags the band by pressing on
-  the span bar over it (the pointer goes through the span, and the server's drift flag appears in the panel), draws a window across a row that has
+  the span bar over it (the pointer goes through the span, and the server's drift flag appears in the panel, whose severity filter Infos / Warnings / All narrows the list and never the row icons), draws a window across a row that has
   none, sets one from the keyboard through the row menu's "Edit target window…" dialog (focus returns to the menu button) and clears it from the menu;
   the project's own owner, without a grant, reads the band read-only and gets no window item in the menu. The ranking is shared state and `--repeat-each`
   copies of the file race on it: its change helper retries stale answers up to 30 times (run it with `E2E_WORKERS=1` to take the contention away).

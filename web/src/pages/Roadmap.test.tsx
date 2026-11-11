@@ -527,6 +527,48 @@ describe("Roadmap page: flags", () => {
     expect(focused).toHaveAttribute("data-grid-pos");
   });
 
+  test("the severity filter narrows the list with counts in its labels, leaves the row icons alone, and an empty slice says so", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Roadmap />);
+    await screen.findByRole("grid", { name: "Roadmap timeline" });
+    await user.click(screen.getByRole("button", { name: "Show the 4 flags" }));
+    const filter = await screen.findByRole("radiogroup", { name: "Filter the flags by severity" });
+    expect(within(filter).getAllByRole("radio").map((radio) => (radio as HTMLInputElement).labels?.[0]?.textContent)).toEqual(["All (4)", "Warnings (2)", "Infos (2)"]);
+    expect(within(filter).getByRole("radio", { name: "All (4)" })).toBeChecked();
+    const severities = () =>
+      within(screen.getByRole("table", { name: "Flags of the projects shown" }))
+        .getAllByRole("row")
+        .slice(1)
+        .map((row) => within(row).getAllByRole("cell")[0].textContent);
+    expect(severities()).toEqual(["Warning", "Warning", "Info", "Info"]);
+    await user.click(within(filter).getByRole("radio", { name: "Warnings (2)" }));
+    expect(severities()).toEqual(["Warning", "Warning"]);
+    await user.click(within(filter).getByRole("radio", { name: "Infos (2)" }));
+    expect(severities()).toEqual(["Info", "Info"]);
+    // The icons on the rows and the disclosure's own count are not the filter's business.
+    expect(rowOf("Invoices").querySelector("[data-flags]")).toHaveAttribute("data-flags", "1,1");
+    expect(rowOf("Taxes").querySelector("[data-flags]")).toHaveAttribute("data-flags", "1,0");
+    expect(rowOf("Audit").querySelector("[data-flags]")).toHaveAttribute("data-flags", "0,1");
+    expect(screen.getByRole("button", { name: "Hide the flags" })).toBeInTheDocument();
+    await user.click(within(filter).getByRole("radio", { name: "All (4)" }));
+    expect(severities()).toHaveLength(4);
+  });
+
+  test("a severity with no flags shows a short line instead of an empty table", async () => {
+    view = viewOf({ ranked: [{ position: 1, project: TAXES }], unranked: [] });
+    const user = userEvent.setup();
+    renderWithProviders(<Roadmap />);
+    await screen.findByRole("grid", { name: "Roadmap timeline" });
+    await user.click(screen.getByRole("button", { name: "Show the 1 flag" }));
+    const filter = await screen.findByRole("radiogroup", { name: "Filter the flags by severity" });
+    await user.click(within(filter).getByRole("radio", { name: "Infos (0)" }));
+    expect(screen.getByText("No infos among the flags shown.")).toBeInTheDocument();
+    expect(screen.queryByRole("table", { name: "Flags of the projects shown" })).toBeNull();
+    await user.click(within(filter).getByRole("radio", { name: "Warnings (1)" }));
+    expect(screen.getByRole("table", { name: "Flags of the projects shown" })).toBeInTheDocument();
+    expect(screen.queryByText("No infos among the flags shown.")).toBeNull();
+  });
+
   test("a project with no flags anywhere says so, and the heading stays", async () => {
     view = viewOf({ ranked: [{ position: 1, project: LEDGER }], unranked: [] });
     renderWithProviders(<Roadmap />);

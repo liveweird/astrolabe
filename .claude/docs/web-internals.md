@@ -633,7 +633,7 @@ bars.
 "2 warnings, 1 info"); the facts line under the title ("N ranked", "M unranked", an ORANGE "K warnings" badge, a gray "J infos" badge) counts the VISIBLE rows;
 `components/RoadmapFlagPanel.tsx` (h3 "Flags", behind `TableDisclosure`) is their accessible surface — one table row per flag, severity in words (never colour
 alone), the project link, the sentence by kind (plural keys: "Ends 10 days after the target", "Ranked below X, but starts 7 days earlier on Team", …) and a
-"Show in timeline" button that calls `timelineRef.current.focusRow(projectId)` (the row-header cell, revealed, mounted or not). **Filters**
+"Show in timeline" button that calls `timelineRef.current.focusRow(projectId)` (the row-header cell, revealed, mounted or not). A `SegmentedControl` above the open table (a labelled radiogroup: All / Warnings / Infos, each label with its count, default All) filters the LIST by severity: panel-local state, never stored or in the URL; the row icons and the disclosure's count stay total, and an empty slice says "No warnings/infos among the flags shown." instead of an empty table (the Programs page has no flag panel). **Filters**
 (`components/RoadmapFilters.tsx` in a `FilterPanel`, stored `roadmap.filter.*` through `hooks/useRoadmapFilters.ts`): work stream, team (a project matches when
 `teamIds` has it), owner, flagged only, and the **program pick** (a `MultiSelect`, empty = all; ONE stored key `planning.programPick` through
 `hooks/useProgramPick.ts`, shared with the programs page) — applied client-side by `utils/roadmapRows.ts` (`visibleProjects`; a stored id the view no longer has
