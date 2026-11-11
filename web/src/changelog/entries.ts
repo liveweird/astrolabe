@@ -17,6 +17,30 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.10.1",
+    date: "2026-11-11",
+    en: `**Astrolabe 1.10.1: an "All teams" shortcut on Schedule proposals, the theme in the account menu as menu items, and tighter limits on password changes and outbound calls.**
+
+- Schedule proposals: an administrator can tick every team at once with "All teams" (a run takes at most 50 teams, so it ticks the first 50 listed).
+- Account menu: the theme is now three items, Light, Dark and System, with a check mark on the chosen one, like the languages; the menu stays open while you switch. Tab now leaves the menu from any item; the arrow keys move between the items.
+- Password change: one account can send at most 10 password changes a minute (its own, or for an administrator the resets of other users' passwords); past that the page says "Too many requests. Wait a minute and try again." The lock after too many wrong current passwords keeps its own message.
+- Security: calls the server makes to Jira and Flow also refuse the obsolete IPv4-translated IPv6 range (::ffff:0:0:0/96).
+- A refresh that starts while its Jira or Flow connection is being deleted no longer leaves a stray run behind.
+- Nothing is written to Jira or Flow.
+- Proven against a built-in Jira stub; not yet tested against a real Jira site.
+- Proven against the built-in Flow stub; not yet compared with a real Flow.`,
+    pl: `**Astrolabe 1.10.1: skrót „Wszystkie zespoły” w propozycjach harmonogramu, motyw w menu konta jako pozycje menu oraz ściślejsze limity zmian hasła i wywołań wychodzących.**
+
+- Propozycje harmonogramu: administrator/ka może zaznaczyć wszystkie zespoły naraz przyciskiem „Wszystkie zespoły” (przebieg obejmuje najwyżej 50 zespołów, więc zaznacza pierwszych 50 z listy).
+- Menu konta: motyw to teraz trzy pozycje, Jasny, Ciemny i Systemowy, ze znacznikiem przy wybranej, tak jak języki; menu zostaje otwarte podczas przełączania. Tab zamyka teraz menu z każdej pozycji; strzałki przechodzą między pozycjami.
+- Zmiana hasła: jedno konto może wysłać najwyżej 10 zmian hasła na minutę (własnego albo, w przypadku administratora/ki, resetów haseł innych osób); powyżej tego strona pokazuje „Zbyt wiele żądań. Odczekaj minutę i spróbuj ponownie.” Blokada po zbyt wielu błędnych bieżących hasłach zachowuje własny komunikat.
+- Bezpieczeństwo: wywołania, które serwer wysyła do Jiry i Flow, odrzucają też przestarzały zakres adresów IPv6 tłumaczonych z IPv4 (::ffff:0:0:0/96).
+- Odświeżenie, które startuje w chwili usuwania połączenia z Jirą lub Flow, nie zostawia już osieroconego przebiegu.
+- Niczego nie zapisujemy w Jirze ani we Flow.
+- Sprawdzone na wbudowanej atrapie Jiry; jeszcze nie przetestowane na prawdziwej witrynie Jira.
+- Sprawdzone na wbudowanej atrapie Flow; jeszcze nie porównane z prawdziwym Flow.`,
+  },
+  {
     version: "1.10.0",
     date: "2026-11-10",
     en: `**Astrolabe 1.10.0: a Home page with the open deviations, "Acknowledge all" for capacity differences from Flow, and Jira items told apart when they vanish.**
