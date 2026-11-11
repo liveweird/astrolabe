@@ -85,7 +85,25 @@ here: every milestone takes the default team.
    - *Expected*: the page renders in the dark scheme and axe reports zero violations mid-scroll and at the top (the first mounted row is row 2, after the header).
    The afterEach deletes the second connection with the rest of the test's rows.
 
+## Scenario: the outcome's skipped-rows table (a row changed since the preview) has no WCAG A/AA violations
+
+1. The work stream already holds a program with a project (seeded through the API). The administrator opens the modal, picks the stream, owner, default team and that project as the
+   **Default project**, and presses **Preview**.
+   - *Expected*: "To create: 9", no "Skipped" total, IMP-8 reads "Under default <the project>", **Import (9)** is enabled.
+2. With the modal still open, a milestone named "IMP Epic Five" (IMP-8's name) is created in that project through the API, unlinked; then they press **Import (9)**. The apply's
+   recomputation under the plan lock now finds an unlinked same-name sibling, so IMP-8 is a link where the user ticked a create: it is skipped as `CHANGED`.
+   - *Expected*: the outcome reads "Created: 8", "Linked: 0", "Skipped: 1"; the note says "1 row changed since the preview and was skipped."; the "Skipped rows" table has the header and
+     one row, IMP-8, with "Changed since the preview, in Jira or in the plan. Preview again."; axe (WCAG 2.0/2.1 A and AA, `color-contrast` included) reports zero violations in the dialog.
+3. The default project's view is read through the API.
+   - *Expected*: its only milestone is the one the test made (IMP-8 wrote nothing).
+
+## Scenario: the outcome's skipped-rows table (a row changed since the preview) has no WCAG A/AA violations in the dark scheme
+
+1. The same walk with the dark scheme emulated.
+   - *Expected*: the page renders in the dark scheme, the outcome is the same, and axe reports zero violations.
+
 ## Not covered here (and why)
 
-- The outcome's skipped-rows table is not axe-scanned in e2e: the UI never sends a row without a checkbox, so a first import has no skipped row to show.
+- Skip reasons other than `CHANGED` in the outcome's table: the stub is static and the UI never sends an unticked or kernel-skipped row, so a plan row appearing between the
+  preview and the apply (the `CHANGED` scenario above) is the one deterministic trigger; the server's `JiraImportApplyTest` pins the others.
 - A second apply (a re-import that writes): after the first import every row is `ALREADY_BOUND`, so the modal has nothing to press; the server's `JiraImportApplyTest` covers the re-import.

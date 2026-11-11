@@ -1,7 +1,8 @@
 // Import from Jira (v1.2), against the compose stack's Jira STUB and its isolated `IMP` project (a Program, two Initiatives, six Epics, every date in 2045):
 // an administrator imports the tree into a throwaway work stream through the connection page's modal (scope, preview, import), finds the milestones
 // dated in the project view and a second preview offering nothing; unticking a parent unticks what is created under it; a skipped row says how to fix
-// it (a default project); the modal's three steps pass an axe scan, light and dark; and so does a five-key preview of about 1,100 rows (the virtualised table);
+// it (a default project); the modal's three steps pass an axe scan, light and dark; so does a five-key preview of about 1,100 rows (the virtualised table) and so
+// does the outcome's skipped-rows table, made to appear by a plan row created through the API between the preview and the apply (IMP-8 turns CHANGED);
 // and a NON-admin who owns a throwaway work stream imports from the Plan page's work-stream menu (1.10; the connection picked from the deviations view's list).
 // Owns: ONE Jira connection (`e2e-import-connection-*`, scoped to the stub's `IMP` project on a unique throwaway site, tested once in the beforeAll; the
 // five-key preview test makes, tests and deletes one more, `e2e-import-scale-*`, and never imports through it. Test
@@ -176,7 +177,7 @@ async function seedWorld(): Promise<World> {
 }
 
 /** The world's own stream with an existing program and project (the default project's target), made through the API. */
-async function seedDefaultProject(world: World): Promise<{ project: string; program: string }> {
+async function seedDefaultProject(world: World): Promise<{ project: string; program: string; projectId: number }> {
   const { api } = await apiAsAdmin();
   try {
     const people = (await (await api.get(`/api/v1/people?name=${encodeURIComponent(world.ownerName)}`)).json()) as { items: { id: number }[] };
@@ -184,8 +185,8 @@ async function seedDefaultProject(world: World): Promise<{ project: string; prog
     const program = uniqueText(`${MARK}program`);
     const project = uniqueText(`${MARK}project`);
     const programId = await create(api, `/api/v1/work-streams/${world.streamId}/programs`, { name: program, ownerPersonId: ownerId }, "/api/v1/programs");
-    await create(api, `/api/v1/programs/${programId}/projects`, { name: project, ownerPersonId: ownerId }, "/api/v1/projects");
-    return { project, program };
+    const projectId = await create(api, `/api/v1/programs/${programId}/projects`, { name: project, ownerPersonId: ownerId }, "/api/v1/projects");
+    return { project, program, projectId };
   } finally {
     await api.dispose();
   }
@@ -492,6 +493,65 @@ test.describe("dark scheme", () => {
   test.use({ colorScheme: "dark" });
   test("the import modal's three steps have no WCAG A/AA violations in the dark scheme", async ({ page }) => {
     await scanThreeSteps(page, "dark");
+  });
+});
+
+/** The name of IMP-8, the stub's epic that sits straight under the program (so it lands in the default project). */
+const IMP_8_NAME = "IMP Epic Five";
+
+/**
+ * The outcome's skipped-rows table under axe. The UI sends only ticked rows, so a first import skips nothing; a row skips when the plan moves between the preview
+ * and the apply. Here IMP-8 previews as a CREATE under the default project, then (through the API, while the modal stays open) a milestone with its name is made
+ * in that project: the apply's recomputation under the lock finds an unlinked same-name sibling, so IMP-8 is now a BIND, which is not what the user ticked and
+ * is skipped as CHANGED. The other eight rows are written, so the outcome shows its counts, the note and the table.
+ */
+async function scanChangedOutcome(page: Page, scheme: Scheme): Promise<void> {
+  const world = await seedWorld();
+  const target = await seedDefaultProject(world);
+  await openImport(page, world);
+  await expectScheme(page, scheme);
+  const dialog = modal(page);
+  await fillScope(page, world, target);
+  await preview(page);
+  await expectTotals(page, { found: 9, create: 9, bind: 0, skip: null });
+  await expect(rowOf(page, "IMP-8")).toContainText(`Under default ${target.project}`);
+  await expect(dialog.getByRole("button", { name: "Import (9)" })).toBeEnabled();
+
+  // The plan moves: the same name appears, unlinked, where IMP-8 would be created.
+  const { api } = await apiAsAdmin();
+  try {
+    await create(api, `/api/v1/projects/${target.projectId}/milestones`, { name: IMP_8_NAME, teamId: world.teamId, estimateMd: 3 }, "/api/v1/milestones");
+  } finally {
+    await api.dispose();
+  }
+
+  await importAll(page, 9);
+  const outcome = dialog.getByRole("status");
+  await expect(outcome).toContainText("Created: 8");
+  await expect(outcome).toContainText("Linked: 0");
+  await expect(outcome).toContainText("Skipped: 1");
+  await expect(dialog.getByRole("note")).toContainText("1 row changed since the preview and was skipped.");
+  const skipped = dialog.getByRole("table", { name: "Skipped rows" });
+  await expect(skipped).toBeVisible();
+  const skippedRow = skipped.getByRole("row").filter({ has: page.getByRole("link", { name: /^IMP-8 \(opens in Jira\)/ }) });
+  await expect(skippedRow).toHaveCount(1);
+  await expect(skippedRow).toContainText("Changed since the preview, in Jira or in the plan. Preview again.");
+  await expect(skipped.getByRole("row")).toHaveCount(2); // the header and IMP-8
+  await scan(page);
+
+  // Nothing of IMP-8 was written: the default project holds the one milestone the test made, unlinked.
+  const planned = await planOf(world);
+  expect(planned.projects.find((project) => project.name === target.project)?.unscheduled).toEqual([IMP_8_NAME]);
+}
+
+test("the outcome's skipped-rows table (a row changed since the preview) has no WCAG A/AA violations", async ({ page }) => {
+  await scanChangedOutcome(page, "light");
+});
+
+test.describe("dark scheme (skipped rows)", () => {
+  test.use({ colorScheme: "dark" });
+  test("the outcome's skipped-rows table (a row changed since the preview) has no WCAG A/AA violations in the dark scheme", async ({ page }) => {
+    await scanChangedOutcome(page, "dark");
   });
 });
 
