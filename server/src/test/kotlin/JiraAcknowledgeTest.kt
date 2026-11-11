@@ -257,7 +257,7 @@ class JiraAcknowledgeTest {
     }
 
     @Test
-    fun `both audit lines name who, what and the kinds, after the commit - a refused request audits nothing`() = testApplication {
+    fun `the audit lines name who, what and each line, after the commit - a refused request audits nothing`() = testApplication {
         val f = fixture("ack8")
         val w = f.w
         val binding = deviatingBinding(f.connectionId, JiraLevel.MILESTONE, f.milestone)
@@ -271,6 +271,7 @@ class JiraAcknowledgeTest {
             val acknowledged = assertNotNull(
                 audit.awaitEvent { it.message == "jira.deviation_acknowledged" && it.hasKeyValue("bindingId", binding.toLong()) },
             )
+            val line = item.deviations.single()
             assertEquals(
                 listOf(true, true, true, true, true, true, true),
                 listOf(
@@ -279,16 +280,29 @@ class JiraAcknowledgeTest {
                     acknowledged.hasKeyValue("level", "MILESTONE"),
                     acknowledged.hasKeyValue("nodeId", f.milestone.toLong()),
                     acknowledged.hasKeyValue("issueKey", item.jira.key),
-                    acknowledged.hasKeyValue("kinds", item.deviations.joinToString(",") { it.kind.name }),
-                    acknowledged.hasKeyValue("fingerprint", fingerprint),
+                    acknowledged.hasKeyValue("kind", line.kind.name),
+                    acknowledged.hasKeyValue("severity", line.severity.name),
                 ),
             )
+            val stored = storedAcks(binding).getValue(line.kind.name)
+            assertTrue(acknowledged.hasKeyValue("fingerprint", stored.fingerprint), "the LINE's fingerprint")
+            val batch = assertNotNull(
+                audit.awaitEvent { it.message == "jira.deviations_acknowledged" && it.hasKeyValue("bindingId", binding.toLong()) },
+            )
+            assertTrue(batch.hasKeyValue("listFingerprint", fingerprint) && batch.hasKeyValue("count", 1))
+            assertTrue(batch.hasKeyValue("kinds", line.kind.name) && batch.hasKeyValue("bindingId", binding.toLong()))
+            assertTrue(audit.events.indexOf(batch) < audit.events.indexOf(acknowledged), "the batch line comes before the row lines")
+
             assertEquals(HttpStatusCode.NoContent, w.programOwner.client.unack(binding).status)
             val withdrawn = assertNotNull(
                 audit.awaitEvent { it.message == "jira.deviation_unacknowledged" && it.hasKeyValue("bindingId", binding.toLong()) },
             )
             assertTrue(withdrawn.hasKeyValue("byUserId", w.programOwner.userId.toLong()))
-            assertTrue(withdrawn.hasKeyValue("fingerprint", fingerprint))
+            assertTrue(withdrawn.hasKeyValue("kind", line.kind.name) && withdrawn.hasKeyValue("fingerprint", stored.fingerprint))
+            val batchWithdrawn = assertNotNull(
+                audit.awaitEvent { it.message == "jira.deviations_unacknowledged" && it.hasKeyValue("bindingId", binding.toLong()) },
+            )
+            assertTrue(batchWithdrawn.hasKeyValue("count", 1))
             assertEquals(1, audit.events.count { it.message == "jira.deviation_acknowledged" }, "the 403 and the 409 audited nothing")
             assertEquals(1, audit.events.count { it.message == "jira.deviation_unacknowledged" }, "the 404 audited nothing")
         }

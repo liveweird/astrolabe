@@ -22,12 +22,14 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
  * An acknowledgement across a REAL run over the stub: `jira-day2` makes `E2E-6` vanish from the scope, the sweep flags the bound issue
- * `gone`, and the acknowledged item - whose Jira side changed - reads `current = false` with its old stamp and is open again. Like
- * `JiraRunTest` this flips the process-wide scenario, so it resets ALL scenarios in a `finally` and once more in `@AfterClass`.
+ * `gone`, and the item's list becomes `GONE` alone: that line (never acknowledged) is open, and when the issue returns the first
+ * stamps read current again. Like `JiraRunTest` this flips the process-wide scenario, so it resets ALL scenarios in a `finally` and
+ * once more in `@AfterClass`.
  */
 class JiraAcknowledgeRunTest {
     companion object {
@@ -59,7 +61,7 @@ class JiraAcknowledgeRunTest {
     }
 
     @Test
-    fun `a run that changes the observation reopens an acknowledged item with its old stamp, and a new acknowledgement closes it again`() =
+    fun `a run that changes the list opens the new line only, and a returning identical list reads acknowledged again`() =
         testApplication {
             configureApp("jira.stubBaseUrl" to JiraStubFixture.warm(), "jira.maxRetries" to "0")
             startApplication()
@@ -80,9 +82,10 @@ class JiraAcknowledgeRunTest {
                 assertEquals(binding, reopened.bindingId)
                 assertEquals(listOf(DeviationKind.GONE), reopened.deviations.map { it.kind }, "a gone issue raises GONE alone")
                 assertFalse(reopened.fingerprint == first.fingerprint)
-                val stamp = assertNotNull(reopened.acknowledgement)
-                assertEquals(listOf(given.acknowledgedAt, given.acknowledgedBy, false), listOf(stamp.at, stamp.by, stamp.current))
+                assertNull(reopened.deviations.single().acknowledgement, "the GONE line was never acknowledged: only it is open")
+                assertNull(reopened.acknowledgement, "the deprecated summary reads the listed lines only")
                 assertEquals(1, admin.dvView("connectionId=$connection").totals.gone, "an open gone issue counts")
+                assertEquals(first.deviations.map { it.kind }.toSet(), storedAcks(binding).keys.map(DeviationKind::valueOf).toSet())
 
                 w.projectOwner.client.ack(binding, reopened.fingerprint).acknowledgement()
                 val closed = admin.dvView("connectionId=$connection")
@@ -90,11 +93,19 @@ class JiraAcknowledgeRunTest {
                 assertEquals(0, closed.totals.gone, "an acknowledged gone issue is not counted open")
                 assertEquals(1, closed.totals.acknowledged)
 
+                // The ruling that nothing is pruned: the issue comes back as it was, so the lines of the first stamp read acknowledged
+                // again (the original stamp), and the GONE stamp stays stored though the line is not raised any more.
                 JiraStubServer.resetScenarios()
                 assertEquals(SyncOutcome.SUCCEEDED, runAndAwait(admin, connection).outcome)
                 val back = admin.ackItem(connection, binding)
-                assertFalse(assertNotNull(back.acknowledgement).current, "the issue is back: the list changed again")
                 assertFalse(back.jira.gone)
+                assertEquals(first.fingerprint, back.fingerprint)
+                assertEquals(first.deviations.map { it.kind }, back.deviations.map { it.kind })
+                for (line in back.deviations) {
+                    assertEquals(given.acknowledgedAt, assertNotNull(line.acknowledgement).at, "${line.kind}: the original stamp")
+                    assertTrue(line.acknowledgement.current, "${line.kind}: identical again")
+                }
+                assertTrue(DeviationKind.GONE.name in storedAcks(binding).keys, "no pruning")
             } finally {
                 JiraStubServer.resetScenarios()
             }

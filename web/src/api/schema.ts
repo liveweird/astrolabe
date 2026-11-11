@@ -1373,9 +1373,9 @@ export interface paths {
          *
          *     Jira (1.3): a project bound to a Jira item carries `jira` (`bindingId`, `connectionId`, `issueKey` and the dates Jira was last
          *     observed to hold, null when never observed, gone or the connection is disabled) and, through an ENABLED connection, the Jira flags of its OPEN deviations - one
-         *     `JIRA_DEVIATION` per deviation (with its `deviation`) and one `JIRA_MILESTONES` roll-up of its milestones' (`count` of milestones
-         *     that raised a flag, the worst severity; never one flag per milestone). A binding is open while it deviates and its acknowledgement
-         *     is not current; `ESTIMATE_NOT_COMPARABLE` never raises a flag. A disabled connection's rows keep their `jira` (so the node reads as linked and can be unlinked) with null dates, no flag and no roll-up contribution.
+         *     `JIRA_DEVIATION` per OPEN LINE (1.12: a deviation without a current acknowledgement of its own; with its `deviation`) and one `JIRA_MILESTONES` roll-up of its milestones' (`count` of milestones
+         *     that raised a flag, the worst severity; never one flag per milestone). A line is open unless its own acknowledgement is current;
+         *     `ESTIMATE_NOT_COMPARABLE` never raises a flag. A disabled connection's rows keep their `jira` (so the node reads as linked and can be unlinked) with null dates, no flag and no roll-up contribution.
          *     `jiraSites` lists the connections the document links to (the client builds `siteUrl + "/browse/" + issueKey`); an unbound plan
          *     answers `jira: null`, no Jira flag and `jiraSites: []`. Read inside the same snapshot; `?baseline=` leaves all of it as it is.
          *
@@ -1431,24 +1431,29 @@ export interface paths {
          *     **Items.** Only bindings of an ACTIVE connection and of a LIVE node (it and every ancestor active) are listed; a binding of a
          *     deleted node or connection is hidden. A binding of a DISABLED connection is listed (it still blocks its node and its issue, so
          *     it must stay visible and unlinkable); how stale it is shows in `jira.observedAt` and the connection's `lastRun`. By default only
-         *     OPEN bindings: those WITH a deviation that are not currently acknowledged; `all=true` adds the others (clean and acknowledged), and
+         *     OPEN bindings: those with at least one listed deviation that is not currently acknowledged (an OPEN line, 1.12: the acknowledgements
+         *     are per line); `all=true` adds the others (clean and fully acknowledged), and
          *     `projectId` or `teamId` make `all` default to true (explicit `all=false` is respected). `acknowledged=true` lists only the
-         *     bindings whose acknowledgement is CURRENT, `acknowledged=false` the ones without a current one. Order: bindings with a WARNING
-         *     first, then work
+         *     bindings with at least one CURRENTLY acknowledged LISTED line (a stamp on the hidden `ESTIMATE_NOT_COMPARABLE` line alone does not count), `acknowledged=false` the open ones (plus the clean ones under `all`); a
+         *     listed binding shows EVERY listed line with its own state, whatever the status filter. Order: bindings with an OPEN WARNING
+         *     line first, then work
          *     stream, program, project, level (program, project, milestone) and name (case-insensitive), then binding id. Capped at 2,000
          *     items: `truncated` says rows were dropped, `totals` are computed BEFORE the cap. `bindings` is the number of bindings the LIST answers
          *     (the filtered ones - so only OPEN ones unless `all`, `acknowledged` or a chip applies, not the number of links). The other four
          *     share one basis, the bindings matching every filter but the acknowledgement state (`acknowledged` and the default that hides
-         *     acknowledged ones): `warnings`, `infos` and `gone` count the deviations and the gone issues of the OPEN ones among them, and
-         *     `acknowledged` the bindings with a CURRENT acknowledgement, so all four are known whichever state the list shows (on
-         *     `acknowledged=true` the open counts are what the Open list would show).
+         *     acknowledged ones): `warnings` and `infos` count the OPEN LINES (1.12) of the open bindings among them, `gone` the open bindings whose
+         *     issue is gone, and `acknowledged` the bindings with at least one CURRENT acknowledgement, so all four are known whichever state
+         *     the list shows (on `acknowledged=true` the open counts are what the Open list would show).
          *
-         *     **Acknowledge (1.3).** Each item carries `fingerprint` (the SHA-256 of the binding's full deviation list, the same for every
-         *     filter and stable across reads while nothing changes), `acknowledgement` (null until someone acknowledges; `at`, `by` - the
-         *     acknowledging login's active person's name, else its display name, never the email, null once that login is deleted - and
-         *     `current`, false when the binding was acknowledged and its deviations CHANGED since, which makes it open again) and `can.acknowledge`
-         *     (the owner chain of the bound node, ADMIN, or - on a MILESTONE binding only, since 1.12 - the ACTIVE manager of the milestone's
-         *     team; false for everyone else). The writes are `POST` and `DELETE /integrations/jira/bindings/{id}/acknowledge`.
+         *     **Acknowledge (1.3, per line since 1.12).** Each item carries `fingerprint` (the SHA-256 of the binding's full deviation list, the
+         *     same for every filter and stable across reads while nothing changes: the token a client echoes to acknowledge) and
+         *     `can.acknowledge` (the owner chain of the bound node, ADMIN, or - on a MILESTONE binding only, since 1.12 - the ACTIVE manager of
+         *     the milestone's team; false for everyone else, whole-item). Each LINE in `deviations` carries its own `acknowledgement` (null until
+         *     someone acknowledges that deviation; `at`, `by` - the acknowledging login's active person's name, else its display name, never the
+         *     email, null once that login is deleted - and `current`, false when that line was acknowledged and CHANGED since, which makes it
+         *     open again). A line that leaves the list and returns identical is still acknowledged. The item-level `acknowledgement` is
+         *     DEPRECATED (a summary for readers that predate the lines). The writes are `POST` and `DELETE
+         *     /integrations/jira/bindings/{id}/acknowledge`.
          *
          *     **Deviations** (WARNING unless noted; `detail.days` is in WORKING days on the live calendar, POSITIVE = the plan is later):
          *     `GONE` (the issue is gone; it is raised ALONE - a gone issue's dates are stale; `detail.jira` is the reason, `MOVED_OUT` when a by-id probe still read the issue); `LEVEL_MISMATCH` (the observed hierarchy level
@@ -2531,19 +2536,24 @@ export interface paths {
          *     body (`400`: `fingerprint` is 64 lower-case hexadecimal characters). The write runs in ONE short transaction: the binding row is
          *     locked, the node's chain and a milestone's stored team re-read and the guard run AGAIN against them (a request can be held open,
          *     so only this verdict authorizes the write), and the binding's deviations are RECOMPUTED in that transaction: `409`
-         *     `urn:astrolabe:problem:stale-deviations` when the fingerprint is not the one of the deviations now (the plan or Jira moved since
-         *     the client read) or when the binding has none, otherwise the fingerprint, the time and the login are stored. Acknowledging again
-         *     restamps. An acknowledgement lasts while the deviation list is byte-identical: any change on either side that alters a deviation
-         *     makes the item open again (`acknowledgement.current` false in `GET /views/deviations`). Not plan state: no plan lock, no revision
-         *     bump, no rate bucket (nothing calls Jira). Audited `jira.deviation_acknowledged`.
+         *     `urn:astrolabe:problem:stale-deviations` when `fingerprint` (always the ITEM's list fingerprint) is not the one of the deviations
+         *     now (the plan or Jira moved since the client read), when the binding has none, or when `kind` names a deviation the list does not
+         *     hold now; otherwise the time and the login are stored. **Per line (1.12):** with a `kind`, that ONE line is acknowledged;
+         *     without one (every request before 1.12) the lines that have no current acknowledgement are, or every line when each has one.
+         *     Each stamped line stores ITS OWN fingerprint (never on the wire); acknowledging again restamps. A line stays acknowledged while
+         *     its own deviation is byte-identical: a change that alters it makes THAT line open again (`current` false on the line in
+         *     `GET /views/deviations`) and no other. Not plan state: no plan lock, no revision bump, no rate bucket (nothing calls Jira).
+         *     Audited `jira.deviation_acknowledged` once per stamped line; the kind-less form adds `jira.deviations_acknowledged` before them.
          */
         post: operations["acknowledgeJiraDeviations"];
         /**
          * Withdraw a binding's acknowledgement
          * @description The same audience and order as the acknowledge (`404` for every caller when the binding is unknown, unbound or its node is
          *     gone, then `403`; the binding row is locked and the guard run again in the transaction; since 1.12 a milestone's team manager may
-         *     withdraw too). Clears the acknowledgement, current or
-         *     stale; `404` when none is stored (decided under the lock, after the guard). Audited `jira.deviation_unacknowledged`.
+         *     withdraw too). With `kind` it clears that line's acknowledgement; without one it clears EVERY stored acknowledgement of the
+         *     binding, a retired kind's included (1.12). Current or stale alike; `404` when none is stored (decided under the lock, after the
+         *     guard); the `kind` parameter is parsed after the guard (`400` when unknown, blank or repeated). Audited
+         *     `jira.deviation_unacknowledged` once per cleared row; the kind-less form adds `jira.deviations_unacknowledged` before them.
          */
         delete: operations["unacknowledgeJiraDeviations"];
         options?: never;
@@ -4692,6 +4702,11 @@ export interface components {
         /** @enum {string} */
         DeviationKind: "GONE" | "LEVEL_MISMATCH" | "PARENT_MISMATCH" | "RENAMED" | "START_DIFFERS" | "END_DIFFERS" | "TARGET_DIFFERS" | "UNSCHEDULED_IN_PLAN" | "UNSCHEDULED_IN_JIRA" | "ESTIMATE_DIFFERS" | "ESTIMATE_NOT_COMPARABLE" | "PROGRESS_MISMATCH" | "UNLINKED_IN_JIRA" | "UNLINKED_IN_PLAN" | "CHILDREN_DONE";
         /**
+         * @description A `DeviationKind` or null (the validator reads a nullable enum behind an `allOf` as non-null, so the values are spelled here).
+         * @enum {string|null}
+         */
+        NullableDeviationKind: "GONE" | "LEVEL_MISMATCH" | "PARENT_MISMATCH" | "RENAMED" | "START_DIFFERS" | "END_DIFFERS" | "TARGET_DIFFERS" | "UNSCHEDULED_IN_PLAN" | "UNSCHEDULED_IN_JIRA" | "ESTIMATE_DIFFERS" | "ESTIMATE_NOT_COMPARABLE" | "PROGRESS_MISMATCH" | "UNLINKED_IN_JIRA" | "UNLINKED_IN_PLAN" | "CHILDREN_DONE" | null;
+        /**
          * @description The evidence, every member optional and text so one shape serves every kind. `GONE`: jira = the gone reason (`DELETED`, `FORBIDDEN`, `OUT_OF_SCOPE`, or `MOVED_OUT` for
          *     a probed-readable issue). `LEVEL_MISMATCH`:
          *     jira = the observed hierarchy level (`unknown` when none), plan = the mapped one. `PARENT_MISMATCH`: jira = the observed parent's
@@ -4778,12 +4793,12 @@ export interface components {
         DeviationTotals: {
             /**
              * Format: int32
-             * @description The WARNING deviations of the OPEN bindings (not currently acknowledged) matching every filter but the acknowledgement state.
+             * @description The OPEN WARNING lines (listed deviations without a current acknowledgement, 1.12) of the open bindings matching every filter but the acknowledgement state.
              */
             warnings: number;
             /**
              * Format: int32
-             * @description The INFO deviations of the OPEN bindings matching every filter but the acknowledgement state.
+             * @description The OPEN INFO lines of the open bindings matching every filter but the acknowledgement state.
              */
             infos: number;
             /**
@@ -4798,7 +4813,7 @@ export interface components {
             gone: number;
             /**
              * Format: int32
-             * @description The bindings with a CURRENT acknowledgement among those matching every filter but `acknowledged` (and the default that hides them).
+             * @description The bindings with at least one CURRENTLY acknowledged line among those matching every filter but `acknowledged` (and the default that hides them).
              */
             acknowledged: number;
         };
@@ -4906,14 +4921,26 @@ export interface components {
             node: components["schemas"]["DeviationNode"];
             jira: components["schemas"]["DeviationJira"];
             plan: components["schemas"]["DeviationPlan"];
-            /** @description WARNING first, then by kind; empty for a binding with no deviation (only with `all`). */
-            deviations: components["schemas"]["Deviation"][];
-            /** @description The SHA-256 (lower-case hex) of the canonical JSON of the binding's FULL deviation list (`ESTIMATE_NOT_COMPARABLE` included even where `deviations` hides it): what an acknowledgement is keyed on. Send it back to `POST .../acknowledge`. */
+            /** @description WARNING first, then by kind; empty for a binding with no deviation (only with `all`). Every listed line, each with the state of its own acknowledgement, whatever the status filter. */
+            deviations: components["schemas"]["DeviationLine"][];
+            /** @description The SHA-256 (lower-case hex) of the canonical JSON of the binding's FULL deviation list (`ESTIMATE_NOT_COMPARABLE` included even where `deviations` hides it): the token to send back to `POST .../acknowledge`, for one line (with `kind`) or for all. */
             fingerprint: string;
+            /**
+             * @deprecated
+             * @description DEPRECATED since 1.12 (the acknowledgements are per line, `deviations[].acknowledgement`): a summary over the listed lines for readers that predate them. Null while no listed line is stamped, else the newest stamp among them with `current` true only when EVERY listed line is currently acknowledged.
+             */
             acknowledgement: components["schemas"]["DeviationAcknowledgement"] | null;
             can: components["schemas"]["DeviationCan"];
         };
-        /** @description The binding's stored acknowledgement. */
+        /** @description One listed deviation (a `Deviation`'s members, flat) with the state of its own acknowledgement (1.12). */
+        DeviationLine: {
+            kind: components["schemas"]["DeviationKind"];
+            /** @enum {string} */
+            severity: "WARNING" | "INFO";
+            detail: components["schemas"]["DeviationDetail"];
+            acknowledgement: components["schemas"]["DeviationAcknowledgement"] | null;
+        };
+        /** @description A stored acknowledgement (of one line, or the deprecated item-level summary). */
         DeviationAcknowledgement: {
             /**
              * Format: int64
@@ -4922,20 +4949,25 @@ export interface components {
             at: number;
             /** @description The acknowledging login's ACTIVE person's name, else its display name; never the email; null once that login is deleted. */
             by: string | null;
-            /** @description True while the stored fingerprint equals the item's now. False = acknowledged, then changed since, so the item is open again. */
+            /** @description True while the stored fingerprint equals the line's now. False = acknowledged, then changed since, so the line is open again. */
             current: boolean;
         };
         DeviationCan: {
             /** @description The caller may acknowledge and unacknowledge this binding: ADMIN, the person owning the bound node or anything above it, or - on a milestone binding only - the active manager of the milestone's team. */
             acknowledge: boolean;
         };
+        /** @description `kind` (1.12, optional, nullable) is the ONE deviation to acknowledge; absent or null acknowledges the lines without a current acknowledgement (every line when each has one), the pre-1.12 call. */
         AcknowledgeRequest: {
-            /** @description The `fingerprint` of the item the client read. */
+            /** @description The `fingerprint` of the ITEM the client read (the list's, for one line or for all). */
             fingerprint: string;
+            kind?: components["schemas"]["NullableDeviationKind"];
         };
+        /** @description `kind` is the line acknowledged, null for the kind-less call. */
         Acknowledgement: {
             /** Format: int32 */
             bindingId: number;
+            kind: components["schemas"]["NullableDeviationKind"];
+            /** @description The ITEM's list fingerprint the client sent (the per-line fingerprints are stored, never returned). */
             fingerprint: string;
             /**
              * Format: int64
@@ -9373,7 +9405,9 @@ export interface operations {
             query?: {
                 connectionId?: number;
                 level?: "PROGRAM" | "PROJECT" | "MILESTONE";
+                /** @description Lists the bindings with a line of this severity IN THE SELECTED STATUS (1.12): an open line by default and under `acknowledged=false`, a currently acknowledged one under `acknowledged=true`, any listed line under `all=true` without `acknowledged`. The listed binding still shows every line. */
                 severity?: "WARNING" | "INFO";
+                /** @description Lists the bindings with a line of this kind IN THE SELECTED STATUS, as `severity` does (so Open + `END_DIFFERS` does not list a binding whose End line is acknowledged). `ESTIMATE_NOT_COMPARABLE` is listed, as a line, only when named here or under `all=true`. */
                 kind?: components["schemas"]["DeviationKind"];
                 workStreamId?: number;
                 programId?: number;
@@ -9381,7 +9415,7 @@ export interface operations {
                 teamId?: number;
                 /** @description Also list bindings with no deviation and acknowledged ones. Strictly `true` or `false`; defaults to true when `projectId` or `teamId` is given. */
                 all?: boolean;
-                /** @description `true` lists only the bindings whose acknowledgement is current, `false` those without a current one. Strictly `true` or `false`; absent, the default lists the open bindings. A repeated key is a `400`. */
+                /** @description `true` lists only the bindings with at least one currently acknowledged line, `false` the open ones (and, under `all`, the clean ones). Strictly `true` or `false`; absent, the default lists the open bindings. A repeated key is a `400`. */
                 acknowledged?: boolean;
             };
             header?: never;
@@ -10629,7 +10663,10 @@ export interface operations {
     };
     unacknowledgeJiraDeviations: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description The deviation whose acknowledgement is withdrawn; absent withdraws every acknowledgement of the binding. A repeated, blank or unknown value is a `400`. */
+                kind?: components["schemas"]["DeviationKind"];
+            };
             header?: never;
             path: {
                 id: components["parameters"]["ResourceId"];

@@ -1,5 +1,6 @@
 package ch.nokillswit
 
+import ch.nokillswit.jira.DeviationLine
 import ch.nokillswit.jira.DeviationScope
 import ch.nokillswit.jira.DeviationViewServiceKey
 import ch.nokillswit.jira.JiraLevel
@@ -8,7 +9,6 @@ import ch.nokillswit.jira.JiraMapping
 import ch.nokillswit.jira.JiraMappingLevels
 import ch.nokillswit.jira.JiraStatusCategory
 import ch.nokillswit.jira.toStoredJson
-import ch.nokillswit.planning.Deviation
 import ch.nokillswit.planning.DeviationKind
 import ch.nokillswit.planning.DeviationSeverity
 import ch.nokillswit.planning.loadWorkingCalendar
@@ -40,7 +40,7 @@ class DeviationCoverageTest {
 
     private fun nameOf(table: String, id: UInt) = TestPlan.scalar("SELECT name FROM $table WHERE id = $id") { it.getString(1) }
 
-    private fun Collection<Deviation>.of(kind: DeviationKind) = singleOrNull { it.kind == kind }
+    private fun Collection<DeviationLine>.of(kind: DeviationKind) = singleOrNull { it.kind == kind }
 
     private suspend fun ApplicationTestBuilder.world(prefix: String): PlanWorld {
         usePostgresTestcontainer()

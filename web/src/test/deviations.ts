@@ -28,7 +28,15 @@ export const DEV_CONNECTION: DeviationConnection = {
 
 export const detail = (over: Partial<Deviation["detail"]> = {}): Deviation["detail"] => ({ jira: null, plan: null, days: null, count: null, ...over });
 
-export const endLater = (days: number): Deviation => ({ kind: "END_DIFFERS", severity: days > 0 ? "WARNING" : "INFO", detail: detail({ jira: "2044-03-04", plan: "2044-03-07", days }) });
+/** A listed line of an item (1.12: a deviation with the state of its own acknowledgement); still assignable to a flag's `Deviation`. */
+type DeviationLine = DeviationItem["deviations"][number];
+
+export const endLater = (days: number): DeviationLine => ({
+  kind: "END_DIFFERS",
+  severity: days > 0 ? "WARNING" : "INFO",
+  detail: detail({ jira: "2044-03-04", plan: "2044-03-07", days }),
+  acknowledgement: null,
+});
 
 export function item(over: Partial<DeviationItem> = {}): DeviationItem {
   return {

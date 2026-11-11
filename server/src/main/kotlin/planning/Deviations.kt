@@ -5,7 +5,8 @@ import kotlinx.serialization.Serializable
 /*
  * The deviation vocabulary: how a plan node and the external item bound to it disagree. It lives in `planning` because the timeline
  * views carry it (`PlanFlag.deviation`) and `planning` may not name `jira` (`PackageBoundaryTest`); the Jira kernels, the deviations
- * view and the acknowledge import it. The serialized names are the wire contract and the acknowledgement fingerprint's input.
+ * view and the acknowledge import it. The serialized names are the wire contract and the acknowledgement fingerprints' input (the
+ * list's, and since 1.12 each line's).
  */
 
 /**

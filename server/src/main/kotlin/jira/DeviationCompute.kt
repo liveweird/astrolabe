@@ -14,8 +14,8 @@ import java.time.LocalDate
 
 /*
  * The per-binding step of the deviations computation (`DeviationViewService.computeInTransaction`), pure over what the row loaders
- * read: the kernels, the fingerprint, the acknowledgement state and the caller's `can`. Shared by the view, the acknowledge (one
- * binding, inside its locked transaction) and - from 1.3's C5 - the timeline flag fold.
+ * read: the kernels, the fingerprints, each line's acknowledgement state and the caller's `can`. Shared by the view, the acknowledge
+ * (one binding, inside its locked transaction) and - from 1.3's C5 - the timeline flag fold.
  */
 
 /**
@@ -28,23 +28,64 @@ internal fun fingerprintOf(deviations: List<Deviation>): String =
     fingerprintOf(ListSerializer(Deviation.serializer()), deviations)
 
 /**
- * A live binding's computed row. [all] is the kernel's FULL list (what [DeviationItem.fingerprint] hashes); [shown] the part the
- * item LISTS (`ESTIMATE_NOT_COMPARABLE` only on request). A binding is OPEN while it lists a deviation and its acknowledgement is not
- * [currentAck].
+ * The fingerprint of ONE deviation (1.12): the SHA-256 of its canonical JSON (`{kind, severity, detail}`, severity included), what a
+ * per-line acknowledgement is stored with and compared against. It never reaches the wire (the client echoes the LIST's).
+ */
+internal fun fingerprintOf(deviation: Deviation): String = fingerprintOf(Deviation.serializer(), deviation)
+
+/**
+ * One kernel deviation with the state of its own acknowledgement (1.12): [acknowledgement] is null until someone acknowledged THIS
+ * kind, and its `current` says whether the stored per-line fingerprint still equals the deviation's now. A line is OPEN unless its
+ * acknowledgement is current.
+ */
+internal class LineState(val deviation: Deviation, val acknowledgement: DeviationAcknowledgement?) {
+    val current: Boolean get() = acknowledgement?.current == true
+    val open: Boolean get() = !current
+
+    fun toWire() = DeviationLine(deviation.kind, deviation.severity, deviation.detail, acknowledgement)
+}
+
+/**
+ * The item-level `acknowledgement` the old web UI reads (DEPRECATED since 1.12): null while no listed line is stamped, else the newest
+ * stamp among them, `current` = every listed line is currently acknowledged.
+ */
+private fun summaryOf(shown: List<LineState>): DeviationAcknowledgement? {
+    val newest = shown.mapNotNull { it.acknowledgement }.maxByOrNull { it.at } ?: return null
+    return DeviationAcknowledgement(newest.at, newest.by, current = shown.all { it.current })
+}
+
+/**
+ * A live binding's computed row. [lines] is the kernel's FULL list with each line's acknowledgement state (what
+ * [DeviationItem.fingerprint] hashes); [shown] the part the item LISTS (`ESTIMATE_NOT_COMPARABLE` only on request). A binding is OPEN
+ * while at least one listed line is open, i.e. has no CURRENT acknowledgement (1.12: the acknowledgements are per line).
  */
 internal class Candidate(
     val item: DeviationItem,
     val node: NodeRow,
     val bindingId: UInt,
-    val all: List<Deviation>,
-    val shown: List<Deviation>,
-    val currentAck: Boolean,
+    val lines: List<LineState>,
+    val shown: List<LineState>,
     /** The epic's census roll-up (milestone bindings; null = none): what the timeline fold carries onto the link. */
     val rollup: ChildRollup?,
 ) {
-    val open: Boolean get() = shown.isNotEmpty() && !currentAck
+    /** The kernel's full list (what [DeviationItem.fingerprint] hashes), without the acknowledgement states. */
+    val all: List<Deviation> get() = lines.map { it.deviation }
 
-    /** Every filter but the acknowledgement state: what `totals.acknowledged` counts over. */
+    val open: Boolean get() = shown.any { it.open }
+
+    /**
+     * At least one LISTED line is currently acknowledged: what `acknowledged=true` lists and `totals.acknowledged` counts. Decided on
+     * [shown], not on the full list: a hidden `ESTIMATE_NOT_COMPARABLE` stamp does not make a binding whose every visible line is open
+     * an "acknowledged" one (it surfaces under `all=true` only).
+     */
+    val hasCurrentAck: Boolean get() = shown.any { it.current }
+
+    /** Whether the kind and severity chips each match one of [lines] (an unset chip matches). */
+    private fun chipsMatch(filter: DeviationFilter, lines: List<LineState>): Boolean =
+        (filter.kind == null || lines.any { it.deviation.kind == filter.kind }) &&
+            (filter.severity == null || lines.any { it.deviation.severity == filter.severity })
+
+    /** Every filter but the acknowledgement state (the chips read any listed line): what the totals count over. */
     fun matchesScope(filter: DeviationFilter): Boolean =
         (filter.connectionId == null || item.connectionId == filter.connectionId) &&
             (filter.level == null || item.level == filter.level) &&
@@ -52,24 +93,33 @@ internal class Candidate(
             (filter.programId == null || node.programId == filter.programId) &&
             (filter.projectId == null || node.projectId == filter.projectId) &&
             (filter.teamId == null || node.teamId == filter.teamId) &&
-            (filter.kind == null || shown.any { it.kind == filter.kind }) &&
-            (filter.severity == null || shown.any { it.severity == filter.severity })
+            chipsMatch(filter, shown)
 
     /**
-     * Whether the binding is listed. By default the OPEN ones; `acknowledged=true` the CURRENTLY acknowledged ones; `acknowledged=false`
-     * the ones without a current acknowledgement (the open ones, plus clean ones when everything is listed); an
-     * [includeAll][DeviationFilter.includeAll] listing without the filter keeps every state.
+     * Whether the binding is listed. By default the OPEN ones; `acknowledged=true` the ones with a CURRENTLY acknowledged line;
+     * `acknowledged=false` the open ones (plus clean ones when everything is listed); an [includeAll][DeviationFilter.includeAll]
+     * listing without the filter keeps every state. **A kind or severity chip matches the lines of the selected Status** (1.12, D11):
+     * the OPEN lines under the default and `acknowledged=false`, the CURRENTLY acknowledged ones under `acknowledged=true`, any listed
+     * line under `all` without a status. A listed binding shows EVERY listed line with its own state, whatever the filter.
      */
-    fun matches(filter: DeviationFilter): Boolean = matchesScope(filter) && when (filter.acknowledged) {
-        true -> currentAck
-        false -> !currentAck && (filter.includeAll || shown.isNotEmpty())
-        null -> filter.includeAll || open
+    fun matches(filter: DeviationFilter): Boolean {
+        val statusLines = when {
+            filter.acknowledged == true -> shown.filter { it.current }
+            filter.acknowledged == false || !filter.includeAll -> shown.filter { it.open }
+            else -> shown
+        }
+        if (!matchesScope(filter) || !chipsMatch(filter, statusLines)) return false
+        return when (filter.acknowledged) {
+            true -> hasCurrentAck
+            false -> open || (filter.includeAll && shown.isEmpty())
+            null -> filter.includeAll || open
+        }
     }
 }
 
-/** Warnings first, then work stream, program, project, level (program, project, milestone), name, binding id. */
+/** An open warning first, then work stream, program, project, level (program, project, milestone), name, binding id. */
 internal val CANDIDATE_ORDER: Comparator<Candidate> = compareBy<Candidate>(
-    { c -> if (c.shown.any { it.severity == DeviationSeverity.WARNING }) 0 else 1 },
+    { c -> if (c.shown.any { it.open && it.deviation.severity == DeviationSeverity.WARNING }) 0 else 1 },
     { it.node.workStreamName.lowercase() },
     { it.node.programName.orEmpty().lowercase() },
     { it.node.projectName.orEmpty().lowercase() },
@@ -81,7 +131,8 @@ internal val CANDIDATE_ORDER: Comparator<Candidate> = compareBy<Candidate>(
 /**
  * Everything one computation reads, so the per-binding step is a method with a short signature. [boundTo] is the plan node each
  * binding's issue is bound to, per connection ([loadBoundTo]); [actor] null = an anonymous computation (`can.acknowledge` false);
- * [creators] names the logins that acknowledged.
+ * [stored] is the per-line acknowledgements by binding and kind ([JiraAcknowledgeService.Acknowledgements.storedOf]); [creators] names
+ * the logins that acknowledged.
  */
 internal class World(
     val connections: Map<UInt, ConnectionFacts>,
@@ -92,6 +143,7 @@ internal class World(
     val calendar: WorkingCalendar,
     val asOf: LocalDate,
     private val actor: PlanActor?,
+    private val stored: Map<UInt, Map<DeviationKind, StoredLineAck>>,
     private val creators: Map<UInt, BaselineCreator>,
 ) {
     fun candidate(row: BindingRow, listNotComparable: Boolean): Candidate? {
@@ -114,9 +166,9 @@ internal class World(
             rollup = rollup,
             unlinked = coverage.unlinked[row.id],
         )
-        val shown = if (listNotComparable) all else all.filter { it.kind != DeviationKind.ESTIMATE_NOT_COMPARABLE }
+        val lines = all.map { lineOf(row.id, it) }
+        val shown = if (listNotComparable) lines else lines.filter { it.deviation.kind != DeviationKind.ESTIMATE_NOT_COMPARABLE }
         val fingerprint = fingerprintOf(all)
-        val ack = row.ack?.let { DeviationAcknowledgement(it.at, it.byUserId?.let(creators::get)?.name, it.fingerprint == fingerprint) }
         val item = DeviationItem(
             bindingId = row.id,
             connectionId = row.connectionId,
@@ -132,14 +184,21 @@ internal class World(
                 spanStart = span?.start?.toString(),
                 spanEnd = span?.end?.toString(),
             ),
-            deviations = shown,
+            deviations = shown.map(LineState::toWire),
             fingerprint = fingerprint,
-            acknowledgement = ack,
+            acknowledgement = summaryOf(shown),
             can = DeviationCan(
                 acknowledge = actor?.let { PlanPermissions.canAcknowledgeDeviations(it, node.chain, node.teamId) } == true,
             ),
         )
-        return Candidate(item, node, row.id, all, shown, currentAck = ack?.current == true, rollup = rollup)
+        return Candidate(item, node, row.id, lines, shown, rollup = rollup)
+    }
+
+    /** [deviation] with its stored acknowledgement; the line's fingerprint is hashed only when there is one to compare with. */
+    private fun lineOf(bindingId: UInt, deviation: Deviation): LineState {
+        val ack = stored[bindingId]?.get(deviation.kind) ?: return LineState(deviation, null)
+        val wire = DeviationAcknowledgement(ack.at, creators[ack.byUserId]?.name, ack.fingerprint == fingerprintOf(deviation))
+        return LineState(deviation, wire)
     }
 
     /**

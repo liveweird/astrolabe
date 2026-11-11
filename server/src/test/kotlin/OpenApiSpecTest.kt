@@ -154,4 +154,14 @@ class OpenApiSpecTest {
             "documentation.yaml info.version must equal APP_VERSION - bump both together",
         )
     }
+
+    /** The spec spells the deviation vocabulary out twice (`NullableDeviationKind` cannot `$ref` the enum): both must follow the code. */
+    @Test
+    fun `both deviation kind enums list exactly the DeviationKind entries`() {
+        val expected = ch.nokillswit.planning.DeviationKind.entries.map { it.name }
+        for (name in listOf("DeviationKind", "NullableDeviationKind")) {
+            val schema = assertNotNull(OpenApiSpec.parsed.components.schemas[name], name)
+            assertEquals(expected, schema.enum.filterNotNull().map { it.toString() }, "$name must list DeviationKind.entries in order")
+        }
+    }
 }

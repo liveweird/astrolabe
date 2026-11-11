@@ -4,6 +4,7 @@ import ch.nokillswit.jira.DeviationViewServiceKey
 import ch.nokillswit.jira.JiraFlagSource
 import ch.nokillswit.jira.JiraLevel
 import ch.nokillswit.jira.JiraStatusCategory
+import ch.nokillswit.planning.Deviation
 import ch.nokillswit.planning.DeviationKind
 import ch.nokillswit.planning.DeviationSeverity
 import ch.nokillswit.planning.ExternalFlagRequest
@@ -94,7 +95,8 @@ class JiraFlagSourceTest {
         for ((milestone, binding) in listOf(late to lateBinding, level to levelBinding)) {
             val flags = answer.milestone(milestone).flags
             val carried = flags.map { checkNotNull(it.deviation) }
-            assertEquals(oracle.getValue(binding).deviations, carried, "the flags carry the view's deviations")
+            val viewed = oracle.getValue(binding).deviations.map { Deviation(it.kind, it.severity, it.detail) }
+            assertEquals(viewed, carried, "the flags carry the view's deviations")
             assertTrue(flags.all { it.kind == FlagKind.JIRA_DEVIATION && it.days == null && it.teamId == null && it.count == null })
             assertEquals(flags.sortedWith(FLAG_ORDER), flags)
         }
@@ -175,6 +177,38 @@ class JiraFlagSourceTest {
         assertEquals(listOf(DeviationKind.RENAMED to FlagSeverity.INFO), f.shape(stale.flags), "acknowledged, then changed: open again")
         assertEquals(false, f.w.admin.client.ackItem(f.c, binding).acknowledgement?.current)
     }
+
+    @Test
+    fun `a partly acknowledged binding raises a flag per OPEN line only, and the project roll-up still counts the milestone`() =
+        testApplication {
+            val f = fixture("jfs4b")
+            val (m, binding) = f.milestone("2044-02-01", "2044-02-09") {
+                DvObs("Not the name", 1, start = "2044-02-01", end = "2044-02-04")
+            }
+            val fingerprint = f.w.admin.client.ackItem(f.c, binding).fingerprint
+            assertEquals(
+                listOf(DeviationKind.END_DIFFERS to FlagSeverity.WARNING, DeviationKind.RENAMED to FlagSeverity.INFO),
+                f.shape(ask(emptyList(), listOf(m)).milestone(m).flags),
+            )
+
+            f.w.admin.client.ack(binding, fingerprint, DeviationKind.END_DIFFERS).acknowledgement()
+            val partial = ask(listOf(f.w.projectId), listOf(m))
+            val silent = f.shape(partial.milestone(m).flags)
+            assertEquals(listOf(DeviationKind.RENAMED to FlagSeverity.INFO), silent, "the acknowledged line is silent")
+            assertEquals(binding, partial.milestone(m).jira?.bindingId)
+            val rollUp = partial.project(f.w.projectId).flags.single { it.kind == FlagKind.JIRA_MILESTONES }
+            assertEquals(1 to FlagSeverity.INFO, rollUp.count to rollUp.severity, "raised, at its open line's severity")
+
+            // The open line changes: only it is raised again; the acknowledged one stays silent.
+            jbSql("UPDATE jira_observations SET summary = 'yet another name' WHERE binding_id = ?", binding.toInt())
+            assertEquals(listOf(DeviationKind.RENAMED), ask(emptyList(), listOf(m)).milestone(m).flags.map { it.deviation?.kind })
+            // The acknowledged line changes (the plan moves its end): it is raised again beside the open one.
+            TestPlan.schedule(m, "2044-02-01", "2044-02-11")
+            assertEquals(
+                listOf(DeviationKind.END_DIFFERS, DeviationKind.RENAMED),
+                ask(emptyList(), listOf(m)).milestone(m).flags.map { it.deviation?.kind },
+            )
+        }
 
     @Test
     fun `a disabled connection raises and draws nothing but keeps its link and site, and its siblings are unaffected`() = testApplication {

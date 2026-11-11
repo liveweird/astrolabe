@@ -105,6 +105,72 @@ class DeviationViewAckTest {
         }
 
     @Test
+    fun `a partly acknowledged binding is listed under every status with each line's state, counts its open lines and ranks by them`() =
+        testApplication {
+            val f = fixture("dva9")
+            val admin = f.w.admin.client
+            val a = twoLineBinding(f.c, f.w.projectId, f.team, planName("aaa"))
+            val b = twoLineBinding(f.c, f.w.projectId, f.team, planName("zzz"))
+            val full = twoLineBinding(f.c, f.w.projectId, f.team, planName("mmm"))
+            val end = DeviationKind.END_DIFFERS
+            val renamed = DeviationKind.RENAMED
+            // A: the WARNING acknowledged (the INFO open). B: the INFO acknowledged (the WARNING open). FULL: both.
+            admin.ack(a.binding, admin.ackItem(f.c, a.binding).fingerprint, end).acknowledgement()
+            admin.ack(b.binding, admin.ackItem(f.c, b.binding).fingerprint, renamed).acknowledgement()
+            admin.ack(full.binding, admin.ackItem(f.c, full.binding).fingerprint).acknowledgement()
+
+            val open = f.view()
+            assertEquals(listOf(b.binding, a.binding), open.items.map { it.bindingId }, "an open WARNING first, the name only after that")
+            val byBinding = open.byBinding()
+            assertEquals(mapOf(end to true, renamed to null), byBinding.getValue(a.binding).lineStates(), "every line, whatever the state")
+            assertEquals(mapOf(end to null, renamed to true), byBinding.getValue(b.binding).lineStates())
+            assertEquals(listOf(1, 1, 2, 0, 3), open.totals.asList(), "the open LINES: B's WARNING, A's INFO")
+            for (item in listOf(a, b).map { byBinding.getValue(it.binding) }) {
+                assertEquals(false, assertNotNull(item.acknowledgement, "the summary").current, "not every listed line is current")
+            }
+            val summary = assertNotNull(byBinding.getValue(a.binding).acknowledgement)
+            assertEquals(byBinding.getValue(a.binding).deviations.first().acknowledgement?.at, summary.at)
+
+            assertEquals(setOf(a.binding, b.binding, full.binding), f.ids(f.view("acknowledged=true")), "a current line is enough")
+            assertEquals(setOf(a.binding, b.binding), f.ids(f.view("acknowledged=false")), "the open ones")
+            assertEquals(setOf(a.binding, b.binding, full.binding), f.ids(f.view("all=true")))
+
+            // A chip matches the lines of the selected Status (D11): the OPEN lines by default, the CURRENT ones under acknowledged=true.
+            assertEquals(setOf(b.binding), f.ids(f.view("kind=END_DIFFERS")), "Open + End differs: A's End line is acknowledged")
+            assertEquals(setOf(a.binding), f.ids(f.view("kind=RENAMED")))
+            assertEquals(setOf(b.binding), f.ids(f.view("severity=WARNING&acknowledged=false")))
+            assertEquals(setOf(a.binding, full.binding), f.ids(f.view("kind=END_DIFFERS&acknowledged=true")), "its acknowledged End lines")
+            assertEquals(setOf(b.binding, full.binding), f.ids(f.view("severity=INFO&acknowledged=true")))
+            val anyStatus = f.ids(f.view("kind=END_DIFFERS&all=true"))
+            assertEquals(setOf(a.binding, b.binding, full.binding), anyStatus, "no status: any listed line")
+            val chip = f.view("kind=END_DIFFERS")
+            assertEquals(2, chip.items.single().deviations.size, "the listed binding still shows every line")
+            assertEquals(listOf(1, 1), chip.totals.asList().take(2), "totals stay the open lines of the scope")
+        }
+
+    @Test
+    fun `a stamp on the hidden estimate noise alone does not make a binding acknowledged`() = testApplication {
+        val f = fixture("dva10")
+        val name = planName("noisy-ack")
+        val id = TestPlan.milestone(f.w.projectId, f.team, name)
+        // RENAMED (INFO, listed) plus ESTIMATE_NOT_COMPARABLE (DAYS read under a POINTS mapping: hidden unless asked for).
+        val binding = dvBind(f.c, JiraLevel.MILESTONE, id, "71010", "ACK-71010", DvObs("Other name", 1, estimate = "5.00", unit = "DAYS"))
+        val admin = f.w.admin.client
+        admin.ack(binding, admin.ackItem(f.c, binding).fingerprint).acknowledgement()
+        assertTrue(f.view().items.isEmpty(), "both lines acknowledged: not open")
+        assertEquals(setOf(binding), f.ids(f.view("acknowledged=true")))
+
+        // Jira renames again: the listed line is open, the hidden estimate stamp is still current.
+        jbSql("UPDATE jira_observations SET summary = 'Yet another name' WHERE binding_id = ?", binding.toInt())
+        val open = f.view()
+        assertEquals(setOf(binding), f.ids(open), "open")
+        assertEquals(0, open.totals.acknowledged, "no listed line is acknowledged")
+        assertTrue(f.ids(f.view("acknowledged=true")).isEmpty(), "so it is not in the Acknowledged list as well")
+        assertEquals(setOf(binding), f.ids(f.view("acknowledged=false")))
+        assertEquals(setOf(binding), f.ids(f.view("all=true&acknowledged=true")), "the noise line is listed here, and acknowledged")
+    }
+
+    @Test
     fun `acknowledged is a strict boolean - a repeated or malformed value is 400`() = testApplication {
         val f = fixture("dva3")
         val malformed = listOf("acknowledged=yes", "acknowledged=1", "acknowledged=TRUE")
@@ -184,7 +250,8 @@ class DeviationViewAckTest {
             assertEquals(listOf(DeviationKind.ESTIMATE_NOT_COMPARABLE), item.deviations.map { it.kind })
             assertTrue(f.view().items.isEmpty(), "never open: the default does not list the noise")
             f.w.admin.client.ack(binding, item.fingerprint).acknowledgement()
-            assertEquals(setOf(binding), f.ids(f.view("acknowledged=true")))
+            assertTrue(f.ids(f.view("acknowledged=true")).isEmpty(), "the hidden noise is no listed line: not 'acknowledged' by default")
+            assertEquals(setOf(binding), f.ids(f.view("all=true&acknowledged=true")), "it surfaces where the noise is listed")
         }
 
     @Test

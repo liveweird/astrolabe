@@ -29,9 +29,9 @@ import ch.nokillswit.planning.PlanFlag
  * - [JiraLink] otherwise, whatever the deviations: the observed dates are null when the item was never observed or is `gone`; a live
  *   MILESTONE link also carries its census [JiraRollup] (the deviations view's own loader, [loadRollups]; null for a project link, a
  *   disabled connection, a gone issue or an epic with no mirrored child);
- * - one [FlagKind.JIRA_DEVIATION] per deviation while the binding is OPEN (it deviates and its acknowledgement is not CURRENT; an
- *   acknowledgement that went stale raises again), at the deviation's severity; `ESTIMATE_NOT_COMPARABLE` ("a figure exists and cannot
- *   be compared") raises nothing;
+ * - one [FlagKind.JIRA_DEVIATION] per OPEN LINE (1.12: a deviation whose own acknowledgement is not CURRENT; one that went stale
+ *   raises again, an acknowledged line of the same binding raises nothing), at the deviation's severity; `ESTIMATE_NOT_COMPARABLE`
+ *   ("a figure exists and cannot be compared") raises nothing;
  * - on a PROJECT, one [FlagKind.JIRA_MILESTONES] over its milestones that raised a flag: `count` of those milestones, the worst
  *   severity among their deviations. Never one flag per milestone; the detail lives on the project view's rows.
  */
@@ -85,13 +85,10 @@ internal class JiraFlagSource(private val deviations: DeviationViewService) : Ex
         )
     }
 
-    /** The flags an OPEN binding raises, in [FLAG_ORDER]: the kernel's full list minus the estimate noise; none while acknowledged. */
+    /** The flags a binding raises, in [FLAG_ORDER]: one per open line of the kernel's full list, minus the estimate noise. */
     private fun Candidate.raised(): List<PlanFlag> =
-        if (currentAck) {
-            emptyList()
-        } else {
-            all.filter { it.kind != DeviationKind.ESTIMATE_NOT_COMPARABLE }.map { it.toFlag() }.sortedWith(FLAG_ORDER)
-        }
+        lines.filter { it.open && it.deviation.kind != DeviationKind.ESTIMATE_NOT_COMPARABLE }.map { it.deviation.toFlag() }
+            .sortedWith(FLAG_ORDER)
 
     private fun Deviation.toFlag() = PlanFlag(
         kind = FlagKind.JIRA_DEVIATION,

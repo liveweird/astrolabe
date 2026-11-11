@@ -138,14 +138,15 @@ internal suspend fun seedScaleChildren(connectionId: UInt, milestones: Int) {
 private const val SCALE_CHUNK = 500
 
 /**
- * Hard-deletes what the import wrote (bindings and observations first: they reference the nodes), found by this run's unique tag, and
- * the connection's census mirror rows ([seedScaleChildren]).
+ * Hard-deletes what the import wrote (bindings, their observations and acknowledgements first: they reference the nodes), found by
+ * this run's unique tag, and the connection's census mirror rows ([seedScaleChildren]).
  */
 internal fun removeScaleRows(connectionId: UInt, tag: String) {
     val like = "$tag %"
     val bindings = "SELECT id FROM jira_bindings WHERE connection_id = ${connectionId.toInt()}"
     jbSql("DELETE FROM jira_issues WHERE connection_id = ?", connectionId.toInt())
     jbSql("DELETE FROM jira_observations WHERE binding_id IN ($bindings)")
+    jbSql("DELETE FROM jira_deviation_acknowledgements WHERE binding_id IN ($bindings)")
     jbSql("DELETE FROM jira_bindings WHERE connection_id = ?", connectionId.toInt())
     jbSql("DELETE FROM milestones WHERE name LIKE ?", like)
     jbSql("DELETE FROM projects WHERE name LIKE ?", like)

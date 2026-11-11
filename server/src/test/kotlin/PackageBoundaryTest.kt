@@ -92,7 +92,7 @@ class PackageBoundaryTest {
             "jira", "teams",
             "TeamService: the team names of the deviation rows, the import's team lookups and the milestone acknowledge's manager guard",
         ),
-        FeatureEdge("jira", "users", "UserService.Users: the binding's created_by / ack_by_user_id references"),
+        FeatureEdge("jira", "users", "UserService.Users: the binding's created_by reference"),
         FeatureEdge("people", "authz", "the guards and typed errors: requireAdmin, caller, ConflictException"),
         FeatureEdge(
             "people", "planning",

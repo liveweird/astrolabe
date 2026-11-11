@@ -147,7 +147,7 @@ class JiraAcknowledgeRaceTest {
         ) { it.exec("UPDATE jira_bindings SET marked_as_deleted = TRUE WHERE id = ?", binding.toInt()) }
         assertEquals(HttpStatusCode.NotFound, response.status, "the row is re-read active under the lock")
         assertEquals(false, jbActive(binding))
-        val sql = "SELECT count(*) FROM jira_bindings WHERE id = ? AND ack_fingerprint IS NOT NULL"
+        val sql = "SELECT count(*) FROM jira_deviation_acknowledgements WHERE binding_id = ?"
         val stored = jbScalar(sql, binding.toInt()) { it.getLong(1) }
         assertEquals(0L, stored)
     }
@@ -242,4 +242,38 @@ class JiraAcknowledgeRaceTest {
             }
         }
     }
+
+    @Test
+    fun `a line withdrawal waiting for the row lock is decided against the rows as they are then - 404 when another session removed it`() =
+        testApplication {
+            val f = fixture("ackr11")
+            val binding = f.projectBinding()
+            f.w.admin.client.ack(binding, f.w.admin.client.ackItem(f.connectionId, binding).fingerprint).acknowledgement()
+            val kind = f.w.admin.client.ackItem(f.connectionId, binding).deviations.first().kind
+            val response = heldAt(
+                bindingLock, binding, "FOR NO KEY UPDATE",
+                { f.owner.client.unack(binding, kind) },
+            ) { it.exec("DELETE FROM jira_deviation_acknowledgements WHERE binding_id = ?", binding.toInt()) }
+            assertEquals(HttpStatusCode.NotFound, response.status, "nothing stored any more, seen under the lock")
+            assertTrue(storedAcks(binding).isEmpty())
+        }
+
+    @Test
+    fun `a line acknowledge waiting for the row lock rewrites the row another session stored meanwhile - one row, no unique violation`() =
+        testApplication {
+            val f = fixture("ackr12")
+            val binding = f.projectBinding()
+            val item = f.w.admin.client.ackItem(f.connectionId, binding)
+            val kind = item.deviations.first().kind
+            val insert = "INSERT INTO jira_deviation_acknowledgements (binding_id, kind, fingerprint, ack_at, ack_by_user_id) " +
+                "VALUES (?, '${kind.name}', repeat('a', 64), 5, ?)"
+            val response = heldAt(
+                bindingLock, binding, "FOR NO KEY UPDATE",
+                { f.owner.client.ack(binding, item.fingerprint, kind) },
+            ) { it.exec(insert, binding.toInt(), f.w.admin.userId.toInt()) }
+            assertEquals(HttpStatusCode.OK, response.status, "delete-then-insert under the lock: the backstop index is never hit")
+            val stored = storedAcks(binding).getValue(kind.name)
+            assertEquals(f.owner.userId.toLong(), stored.byUserId, "the waiting write is the last word")
+            assertEquals(1, storedAcks(binding).size)
+        }
 }

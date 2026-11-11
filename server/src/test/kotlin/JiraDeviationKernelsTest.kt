@@ -533,4 +533,43 @@ class JiraDeviationKernelsTest {
         )
         assertEquals(emptyList(), run(null, plan(), level = JiraLevel.PROJECT, unlinked = UnlinkedChildren(keys(2), emptyList())))
     }
+
+    @Test
+    fun `no kind is ever raised twice for one binding - the per-line acknowledgement is keyed on (binding, kind)`() {
+        val parent = PlanParent(PlanRef(JiraLevel.PROGRAM, 7u), "Plan parent")
+        val elsewhere = PlanRef(JiraLevel.PROGRAM, 8u)
+        val everything = listOf(
+            // A milestone that disagrees on every comparable axis at once, with a roll-up of finished children.
+            run(
+                issue(
+                    "Beta", 0, JiraStatusCategory.IN_PROGRESS, "9", "COV-9", "2027-02-01", "2027-02-05", "21.00", JiraEstimateUnit.POINTS,
+                ),
+                plan(start = "2027-02-02", end = "2027-02-08", estimate = "8.00", parent = parent),
+                parentBoundTo = elsewhere,
+                rollup = allDone,
+            ),
+            // The same under a factor (ESTIMATE_DIFFERS instead of NOT_COMPARABLE), done epic and a dated side only.
+            run(
+                issue(
+                    "Beta", 1, JiraStatusCategory.DONE, start = "2027-02-01", end = "2027-02-05", estimate = "21.00",
+                    unit = JiraEstimateUnit.POINTS,
+                ),
+                plan(start = null, end = "2027-02-12", estimate = "8.00"),
+                mapping = DeviationMapping(1, JiraEstimateUnit.POINTS, 0.5),
+            ),
+            // A project and a program with the coverage inputs and a target window.
+            run(
+                issue("Beta", 0, start = "2027-02-01", end = "2027-02-05"),
+                plan(start = "2027-02-02", end = "2027-02-08", targetStart = "2027-03-01", targetEnd = "2027-03-05", parent = parent),
+                level = JiraLevel.PROJECT, parentBoundTo = elsewhere, unlinked = UnlinkedChildren(keys(12), listOf("A", "B")),
+            ),
+            run(
+                issue("Beta", 0), plan(), level = JiraLevel.PROGRAM, mapping = DeviationMapping(3, JiraEstimateUnit.POINTS, null),
+                unlinked = UnlinkedChildren(keys(2), listOf("A")),
+            ),
+            run(issue(gone = true, goneReason = "MOVED_OUT"), plan()),
+        )
+        for (found in everything) assertEquals(found.kinds().distinct(), found.kinds(), "a kind appears at most once: $found")
+        assertTrue(everything.maxOf { it.size } >= 5, "the vectors do exercise several kinds at once")
+    }
 }

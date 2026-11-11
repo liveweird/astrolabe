@@ -212,13 +212,15 @@ class JiraFlagsScaleTest {
         private const val RUNS = 5
 
         /**
-         * The statements one [JiraFlagSource.flagsInTransaction] load sends, whole plan or one project alike (measured 2026-11-07):
+         * The statements one [JiraFlagSource.flagsInTransaction] load sends, whole plan or one project alike (measured 2026-11-07, plus the
+         * 1.12 stored acknowledgements):
          * the bindings with their latest observation (1), the connections (1), the plan nodes (the project and milestone rows, 2), the
          * derived spans (1), the bound-to map (1), the coverage reads (programs, projects, the Jira children of bound parents and the
-         * plan's milestone names: 4) and the ONE roll-up `GROUP BY (connection, parent)` (1) = 11. Every one is an `IN (...)` over the
-         * scoped ids; none is per binding. A deliberate new loader raises this figure and gets its entry here.
+         * plan's milestone names: 4), the ONE roll-up `GROUP BY (connection, parent)` (1) and, since 1.12, the per-line stored
+         * acknowledgements (`Acknowledgements.storedOf`, 1) = 12. Every one is an `IN (...)` over the scoped ids; none is per
+         * binding. A deliberate new loader raises this figure and gets its entry here.
          */
-        private const val LOADER_STATEMENTS = 11
+        private const val LOADER_STATEMENTS = 12
         private const val DISABLED_RUNS = 3
         private const val NANOS_PER_MILLI = 1_000_000.0
 

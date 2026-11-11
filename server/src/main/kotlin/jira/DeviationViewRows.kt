@@ -92,9 +92,6 @@ internal class StoredObservation(
     val observedAt: Long,
 )
 
-/** The acknowledgement columns of a binding row (all null = never acknowledged; [byUserId] is also null once nobody is recorded). */
-internal class StoredAck(val fingerprint: String, val at: Long, val byUserId: UInt?)
-
 /** An ACTIVE binding of an active connection; [observation] is null for a binding no bind or run ever observed. */
 internal class BindingRow(
     val id: UInt,
@@ -103,7 +100,6 @@ internal class BindingRow(
     val issueId: String,
     val issueKey: String,
     val observation: StoredObservation?,
-    val ack: StoredAck? = null,
 )
 
 /**
@@ -148,20 +144,16 @@ internal suspend fun loadBindings(scope: DeviationScope = DeviationScope()): Lis
         .leftJoin(observations, { bindings.id }, { observations.bindingId })
         .select(
             bindings.id, bindings.connectionId, bindings.level, bindings.programId, bindings.projectId, bindings.milestoneId,
-            bindings.jiraIssueId, bindings.jiraIssueKey, bindings.ackFingerprint, bindings.ackAt, bindings.ackByUserId,
+            bindings.jiraIssueId, bindings.jiraIssueKey,
             observations.observedAt, observations.summary, observations.typeName, observations.hierarchyLevel, observations.statusName,
             observations.statusCategory, observations.parentIssueId, observations.parentIssueKey, observations.startDate,
             observations.endDate, observations.estimate, observations.estimateUnit, observations.teamName, observations.gone,
             observations.goneReason, observations.goneProbedAt,
         )
         .where { scope.predicate() }.orderBy(bindings.id).toList().map { row ->
-            val fingerprint = row[bindings.ackFingerprint]
             BindingRow(
                 row[bindings.id].value, row[bindings.connectionId].value, row.planRef(),
                 row[bindings.jiraIssueId], row[bindings.jiraIssueKey], row.storedObservation(),
-                ack = fingerprint?.let {
-                    StoredAck(it, checkNotNull(row[bindings.ackAt]) { "ck_jira_bindings_ack" }, row[bindings.ackByUserId]?.value)
-                },
             )
         }
 

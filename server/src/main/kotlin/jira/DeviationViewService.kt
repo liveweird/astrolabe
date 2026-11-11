@@ -30,7 +30,8 @@ val DeviationViewServiceKey = AttributeKey<DeviationViewService>("DeviationViewS
  * AFTER the bindings are computed (they only feed the connections' `status`). It takes no lock, writes nothing and moves no revision
  * (observations are not plan state). Reads `jira_connections`, `jira_bindings`, `jira_observations`, `sync_runs`, the plan's tree
  * (names, the owner columns of the stream, program and project for `can.acknowledge`) and `milestones` ⋈ `teams`, `users` and `people`
- * (`creatorsOf`: who acknowledged), `public_holidays` and - for the 1.4 coverage inputs ([loadCoverage]) - `jira_issues`, the plan's
+ * (`creatorsOf`: who acknowledged), `jira_deviation_acknowledgements` (the per-line acknowledgements, 1.12), `public_holidays` and -
+ * for the 1.4 coverage inputs ([loadCoverage]) - `jira_issues`, the plan's
  * `projects`/`milestones` children and the bindings again (`persistence.md`).
  *
  * [clock] is the view's "today" (`asOf`, a UTC date) and the age of the newest run; [maxItems] the cap (a test lowers it). The
@@ -57,18 +58,20 @@ class DeviationViewService(
             val inScope = computed.candidates.filter { it.matchesScope(filter) }
             val listed = computed.candidates.filter { it.matches(filter) }.sortedWith(CANDIDATE_ORDER)
             // The open counts share `acknowledged`'s basis (every filter but the acknowledgement state): meaningful on `acknowledged=true`.
+            // They count LINES (1.12, D6): the open lines of the open bindings.
             val open = inScope.filter { it.open }
+            val openLines = open.flatMap { c -> c.shown.filter { it.open } }
             DeviationView(
                 revision = revision,
                 asOf = asOf.toString(),
                 connections = computed.connections.sortedWith(compareBy<ConnectionFacts>({ it.name.lowercase() }, { it.id }))
                     .map { it.toWire(recentRuns.getValue(it.id), now) },
                 totals = DeviationTotals(
-                    warnings = open.sumOf { c -> c.shown.count { it.severity == DeviationSeverity.WARNING } },
-                    infos = open.sumOf { c -> c.shown.count { it.severity == DeviationSeverity.INFO } },
+                    warnings = openLines.count { it.deviation.severity == DeviationSeverity.WARNING },
+                    infos = openLines.count { it.deviation.severity == DeviationSeverity.INFO },
                     bindings = listed.size,
                     gone = open.count { it.item.jira.gone },
-                    acknowledged = inScope.count { it.currentAck },
+                    acknowledged = inScope.count { it.hasCurrentAck },
                 ),
                 items = listed.take(maxItems).map { it.item },
                 truncated = listed.size > maxItems,
@@ -78,7 +81,8 @@ class DeviationViewService(
     /**
      * The deviations of the bindings in [scope], computed INSIDE the caller's transaction: the view's snapshot, or the acknowledge's
      * write, which recomputes the ONE binding it is about to stamp against the very rows it holds locked. The live nodes, their derived
-     * spans, the parents' bindings and the acknowledging logins' names are read here; [calendar] and [asOf] are the caller's (the
+     * spans, the parents' bindings, the lines' stored acknowledgements and the acknowledging logins' names are read here; [calendar]
+     * and [asOf] are the caller's (the
      * view reads them first, in its snapshot's order). A binding whose node or any ancestor is soft-deleted, or whose connection is
      * deleted, is absent from [Computed.candidates] (hidden, exactly as the view hides it).
      */
@@ -97,11 +101,12 @@ class DeviationViewService(
         }
         val nodes = loadNodes(bindings.map { it.ref })
         val live = bindings.filter { it.ref in nodes }
-        val creators = creatorsOf(live.mapNotNull { it.ack?.byUserId })
+        val stored = JiraAcknowledgeService.Acknowledgements.storedOf(live.map { it.id })
+        val creators = creatorsOf(stored.values.flatMap { byKind -> byKind.values.map { it.byUserId } })
         val facts = connections.associateBy { it.id }
         val world = World(
             facts, nodes, loadDerivedSpans(nodes.values), loadBoundTo(scope, live), loadCoverage(live, facts),
-            calendar, asOf, actor, creators,
+            calendar, asOf, actor, stored, creators,
         )
         return Computed(connections, live.mapNotNull { world.candidate(it, listNotComparable) })
     }

@@ -1,6 +1,6 @@
 package ch.nokillswit.jira
 
-import ch.nokillswit.planning.Deviation
+import ch.nokillswit.planning.DeviationDetail
 import ch.nokillswit.planning.DeviationKind
 import ch.nokillswit.planning.DeviationSeverity
 import ch.nokillswit.sync.SyncLastRun
@@ -55,9 +55,10 @@ data class DeviationConnection(
 
 /**
  * Across the bindings matching every filter but the acknowledgement state (`acknowledged`, and the default that hides acknowledged
- * ones), before the cap: [warnings], [infos] and [gone] count the OPEN ones (deviating and not currently acknowledged), and
- * [acknowledged] the ones whose acknowledgement is CURRENT, so both are known whatever the list shows (on `acknowledged=true` the open
- * counts are what the Open filter would list). [bindings] is the exception: the number of bindings the list actually answers.
+ * ones), before the cap: [warnings] and [infos] count the OPEN LINES (a deviation without a current acknowledgement, 1.12) of the
+ * open bindings, [gone] the open bindings whose issue is gone, and [acknowledged] the BINDINGS with at least one currently
+ * acknowledged line, so both are known whatever the list shows (on `acknowledged=true` the open counts are what the Open filter would
+ * list). [bindings] is the exception: the number of bindings the list actually answers.
  */
 @Serializable
 data class DeviationTotals(val warnings: Int, val infos: Int, val bindings: Int, val gone: Int, val acknowledged: Int)
@@ -133,9 +134,10 @@ data class DeviationPlan(
 
 /**
  * One binding. [fingerprint] is the SHA-256 of the binding's FULL deviation list ([fingerprintOf]; it does not depend on the filters,
- * so `ESTIMATE_NOT_COMPARABLE` counts even where [deviations] hides it): what an acknowledgement is keyed on. [acknowledgement] is
- * null until someone acknowledges; its `current` is whether the stored fingerprint still equals [fingerprint] (false = acknowledged,
- * then changed: the item is open again). [can] is the caller's right to acknowledge it.
+ * so `ESTIMATE_NOT_COMPARABLE` counts even where [deviations] hides it): the token a client echoes to acknowledge (the stored
+ * acknowledgements are per line, [DeviationLine.acknowledgement]). [acknowledgement] is DEPRECATED since 1.12 (the old web UI's
+ * summary, kept for readers that predate the lines): null while no listed line is stamped, else the newest stamp among the listed
+ * lines, `current` = every listed line is currently acknowledged. [can] is the caller's right to acknowledge it.
  */
 @Serializable
 data class DeviationItem(
@@ -145,15 +147,28 @@ data class DeviationItem(
     val node: DeviationNode,
     val jira: DeviationJira,
     val plan: DeviationPlan,
-    val deviations: List<Deviation>,
+    val deviations: List<DeviationLine>,
     val fingerprint: String,
     val acknowledgement: DeviationAcknowledgement?,
     val can: DeviationCan,
 )
 
 /**
+ * One listed deviation with the state of its own acknowledgement (1.12): the [Deviation]'s members (flat, so the wire shape of a line
+ * is the old one plus one member) and [acknowledgement], null until someone acknowledges THIS line; its `current` is whether the stored
+ * per-line fingerprint still equals the line's now (false = acknowledged, then changed: the line is open again).
+ */
+@Serializable
+data class DeviationLine(
+    val kind: DeviationKind,
+    val severity: DeviationSeverity,
+    val detail: DeviationDetail,
+    val acknowledgement: DeviationAcknowledgement?,
+)
+
+/**
  * An acknowledgement as stored: [at] epoch millis, [by] the acknowledging login's active person's name else its display name (never
- * the email; null once the login is deleted).
+ * the email; null once the login is deleted); [current] is false when the acknowledged line changed since.
  */
 @Serializable
 data class DeviationAcknowledgement(val at: Long, val by: String?, val current: Boolean)

@@ -65,4 +65,23 @@ class DeviationFingerprintTest {
             "a missing value differs from a present one",
         )
     }
+
+    @Test
+    fun `one deviation hashes to its own pinned digest, severity included, and is not the list's of one`() {
+        // Canonical JSON of {"detail":{"days":3,"jira":"2044-02-04","plan":"2044-02-09"},"kind":"END_DIFFERS","severity":"WARNING"}.
+        // If this moves, every stored per-line acknowledgement reopens (1.12).
+        assertEquals("3fa1415e313c08f1c25b36da203271e01a3e6346662a17e8779673800d267a3d", fingerprintOf(end))
+        assertEquals("922be7cd9efb19c5328cee1d136bb7c7241ca7b25cf71deedc0e7846351a3ffb", fingerprintOf(renamed))
+        assertNotEquals(fingerprintOf(end), fingerprintOf(listOf(end)), "an object is not an array of one")
+        assertNotEquals(fingerprintOf(end), fingerprintOf(end.copy(severity = DeviationSeverity.INFO)), "the severity is part of a line")
+        assertNotEquals(fingerprintOf(end), fingerprintOf(end.copy(detail = end.detail.copy(days = 4))))
+        assertEquals(fingerprintOf(end), fingerprintOf(end.copy(detail = end.detail.copy())))
+    }
+
+    @Test
+    fun `a coverage line pins its digest too - the count enters, a null count does not`() {
+        val unlinked = Deviation(DeviationKind.UNLINKED_IN_JIRA, DeviationSeverity.WARNING, DeviationDetail("COV-5", null, null, 1))
+        assertEquals("e48da6aa1cdd4ea24e2535cd503fab44e80eaeb95025c4edb11bbc474fa1434f", fingerprintOf(unlinked))
+        assertNotEquals(fingerprintOf(unlinked), fingerprintOf(unlinked.copy(detail = unlinked.detail.copy(count = null))))
+    }
 }

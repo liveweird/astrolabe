@@ -136,8 +136,8 @@ describe("Deviations page", () => {
           level: "PROJECT",
           node: { ...item().node, kind: "PROJECT", name: "Cover", teamId: null, teamName: null },
           deviations: [
-            { kind: "UNLINKED_IN_JIRA", severity: "WARNING", detail: detail({ jira: keys, count: 12 }) },
-            { kind: "UNLINKED_IN_PLAN", severity: "INFO", detail: detail({ plan: "Unlinked one", count: 1 }) },
+            { kind: "UNLINKED_IN_JIRA", severity: "WARNING", detail: detail({ jira: keys, count: 12 }), acknowledgement: null },
+            { kind: "UNLINKED_IN_PLAN", severity: "INFO", detail: detail({ plan: "Unlinked one", count: 1 }), acknowledgement: null },
           ],
         }),
       ],
@@ -179,7 +179,7 @@ describe("Deviations page", () => {
       connections: [DEV_CONNECTION, { ...DEV_CONNECTION, id: 2, name: "Old Jira", enabled: false }],
       items: [
         item({ bindingId: 1, deviations: [] }),
-        item({ bindingId: 2, connectionId: 2, node: { ...item().node, id: 12, name: "Gone one" }, jira: { ...item().jira, key: "OLD-1", gone: true }, deviations: [{ kind: "GONE", severity: "WARNING", detail: detail({ jira: "OUT_OF_SCOPE" }) }] }),
+        item({ bindingId: 2, connectionId: 2, node: { ...item().node, id: 12, name: "Gone one" }, jira: { ...item().jira, key: "OLD-1", gone: true }, deviations: [{ kind: "GONE", severity: "WARNING", detail: detail({ jira: "OUT_OF_SCOPE" }), acknowledgement: null }] }),
       ],
     });
     renderPage("/deviations?all=true");
@@ -195,7 +195,7 @@ describe("Deviations page", () => {
 
   test("a probed-readable gone item reads 'Moved out' in its sentence and badge; an unprobed one keeps the wide phrase", async () => {
     const gone = (bindingId: number, key: string, reason: "MOVED_OUT" | "OUT_OF_SCOPE") =>
-      item({ bindingId, node: { ...item().node, id: 10 + bindingId, name: `Gone ${key}` }, jira: { ...item().jira, key, gone: true }, deviations: [{ kind: "GONE", severity: "WARNING", detail: detail({ jira: reason }) }] });
+      item({ bindingId, node: { ...item().node, id: 10 + bindingId, name: `Gone ${key}` }, jira: { ...item().jira, key, gone: true }, deviations: [{ kind: "GONE", severity: "WARNING", detail: detail({ jira: reason }), acknowledgement: null }] });
     doc = view({ items: [gone(1, "OLD-1", "MOVED_OUT"), gone(2, "OLD-2", "OUT_OF_SCOPE")] });
     renderPage("/deviations?all=true");
     const table = await screen.findByRole("table", { name: "Differences between the plan and Jira" });
