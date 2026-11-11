@@ -13,7 +13,7 @@ Scale assumed: about 15 teams, 5 work streams, 20 programs, 100 projects, 1,000 
 
 ## Roadmap
 
-Each increment gets its own plan (architect) before implementation; only v0.1.0 was specified up front. **Current version: 1.10.1.**
+Each increment gets its own plan (architect) before implementation; only v0.1.0 was specified up front. **Current version: 1.11.0.**
 
 | Ver | Scope | User can test |
 |---|---|---|
@@ -225,3 +225,7 @@ indirectly through it. **Port, don't reinvent**: when Astrolabe needs a capabili
 | ~~Pure-kernel idiom~~ (ported, v0.5) | `CapacityKernels.kt` | the capacity and load kernels (`LoadKernels`, `planning/`) |
 | ~~Preview-then-apply batch~~ (ported, v0.8) | `TeamMembershipSeed*.kt`, `JiraSeedModal.tsx` | the batch accept's `{accepted, skipped}` with a per-item reason and the table of ticked rows (Flow's scheduler loop was ported later, in 1.3) |
 | ~~Fork balancing~~ (ported after 1.4.0) | `balancedCandidateOrder`, `server/test-weights.tsv`, `local-times.mjs test-weights` | `server/build.gradle.kts` + `server/test-weights.tsv` (`test-fixtures.md` "Fork balancing"; the figures: `build-times.md`) |
+
+## v1.11.0 — what shipped
+
+Overnight part 2 of 2026-11-11 (items promoted to `[next]` on the user's "go" and "add 4 and 5"; released on the user's "Feel free to release"), `1.11.0` (a minor bump: withdraw-all is a feature); no migration (V27 stays the last); nothing is written to Jira or Flow. User-visible: **withdraw all** - `POST /integrations/flow/team-bindings/{id}/unacknowledge-all` and "Withdraw all (N)" beside "Acknowledge all (N)" on both surfaces (supersedes D12's "no withdraw all"; the defaults W1-W5 in `flow-sync.md`: a sibling `POST`, sprints only, all or nothing with the `409 stale-deviations`, `204`, the button at two or more acknowledged rows); **the Netty read timeout re-armed per interval** (`main.kt`'s `createServer` + `plugins/ReadTimeout.kt`, `security.md` "Slow requests"): a stalled request is cut with `408` on a reused or once-idle connection too. Internal: a `useDialogFocus` e2e sweep (`dialog-focus.spec.ts`, one dialog per owner); axe over the import outcome's skipped table (light and dark); the flaky-`ProjectView` hunt (127 runs, no repro; probably fixed by `8a9455e`, the item stays in `BACKLOG.md` with the record); the CDS class list regenerated.

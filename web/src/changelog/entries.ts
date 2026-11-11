@@ -17,6 +17,24 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.11.0",
+    date: "2026-11-11",
+    en: `**Astrolabe 1.11.0: withdraw every acknowledgement of a team's capacity differences in one click, and a stalled request is cut on every connection.**
+
+- Capacity differences from Flow: beside "Acknowledge all (N)" a team's list now offers "Withdraw all (N)" when you may acknowledge and at least two of the listed differences are acknowledged; it withdraws the acknowledged rows the list shows (the page's filters apply), on the Deviations page and on the team page. It is all or nothing: if one of them was withdrawn meanwhile, nothing is withdrawn and the list is read again.
+- Reliability: a request whose body stops arriving is now cut after the read timeout even on a connection that was reused or sat idle before; the client gets 408 Request Timeout instead of waiting indefinitely.
+- Nothing is written to Jira or Flow.
+- Proven against a built-in Jira stub; not yet tested against a real Jira site.
+- Proven against the built-in Flow stub; not yet compared with a real Flow.`,
+    pl: `**Astrolabe 1.11.0: cofnięcie wszystkich potwierdzeń różnic przepustowości zespołu jednym kliknięciem oraz przerywanie zawieszonego żądania na każdym połączeniu.**
+
+- Różnice przepustowości względem Flow: obok „Potwierdź wszystkie (N)” lista zespołu ma teraz „Cofnij wszystkie (N)”, gdy możesz potwierdzać, a co najmniej dwie widoczne różnice są potwierdzone; przycisk cofa potwierdzenia wierszy, które pokazuje lista (filtry strony obowiązują), na stronie Odchylenia i na stronie zespołu. Działa na zasadzie wszystko albo nic: jeśli któreś potwierdzenie zostało w międzyczasie cofnięte, nic nie jest cofane, a lista jest wczytywana ponownie.
+- Niezawodność: żądanie, którego treść przestaje napływać, jest teraz przerywane po upływie limitu czasu odczytu także na połączeniu użytym ponownie lub wcześniej bezczynnym; klient dostaje 408 Request Timeout zamiast czekać bez końca.
+- Niczego nie zapisujemy w Jirze ani we Flow.
+- Sprawdzone na wbudowanej atrapie Jiry; jeszcze nie przetestowane na prawdziwej witrynie Jira.
+- Sprawdzone na wbudowanej atrapie Flow; jeszcze nie porównane z prawdziwym Flow.`,
+  },
+  {
     version: "1.10.1",
     date: "2026-11-11",
     en: `**Astrolabe 1.10.1: an "All teams" shortcut on Schedule proposals, the theme in the account menu as menu items, and tighter limits on password changes and outbound calls.**
