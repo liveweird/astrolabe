@@ -17,6 +17,34 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.13.0",
+    date: "2026-11-11",
+    en: `**Astrolabe 1.13.0: a Jira item moved to another project shows its current key, the Deviations header tells "gone" from "still in Jira", and a Jira probe that gets no answer stops repeating its warnings.**
+
+- Deviations page: a Jira item that moved to a project outside the connection's projects now shows its new key and links to it (for example OUT-6 instead of E2E-10).
+- A Jira item that is still in the connection's projects, but that Jira no longer lists, now reads "Still in the connection's projects, but Jira no longer lists it (archived, or its type changed)", with a "Not listed by Jira" badge.
+- The header splits the gone total: "N gone from Jira" counts the rest (deleted, no longer visible, or not checked yet), a new "N still in Jira, out of scope" counts the moved and unlisted ones.
+- A Jira item that is gone but still readable is checked again once a day, and at once on Refresh now, so a later deletion or a move back shows up.
+- An acknowledged "moved out" deviation reopens once if its reading changes (it now reads "not listed", or turns out deleted or no longer visible).
+- When Jira keeps not answering these checks, Astrolabe backs off: it retries once a day and on Refresh now, and the server log stops repeating its warnings on every run.
+- API (\`/api/v1\`, additive): \`totals.stillInJira\` in \`GET /views/deviations\`; the gone reason \`NOT_LISTED\`; an item's and a binding's \`key\` is its current key as Jira last answered it.
+- Migrations V29 (the key a probe answered with) and V30, which drops the whole-item acknowledgement columns unused since 1.12: versions before 1.12 can no longer run on the database; 1.12 still can.
+- Nothing is written to Jira.
+- Proven against a built-in Jira stub; not yet tested against a real Jira site.`,
+    pl: `**Astrolabe 1.13.0: element Jiry przeniesiony do innego projektu pokazuje swój obecny klucz, nagłówek Odchyleń odróżnia „zniknęło” od „nadal w Jirze”, a sprawdzenie Jiry bez odpowiedzi przestaje powtarzać ostrzeżenia.**
+
+- Strona Odchylenia: element Jiry przeniesiony do projektu spoza projektów połączenia pokazuje teraz swój nowy klucz i prowadzi do niego (na przykład OUT-6 zamiast E2E-10).
+- Element Jiry, który nadal jest w projektach połączenia, ale Jira już go nie wymienia, ma teraz opis „Nadal w projektach połączenia, ale Jira już go nie wymienia (zarchiwizowany albo zmieniono mu typ)” i plakietkę „Jira go nie wymienia”.
+- Nagłówek dzieli sumę zniknięć: „N zniknęło z Jiry” liczy pozostałe (usunięte, już niewidoczne albo jeszcze niesprawdzone), nowe „N nadal w Jirze, poza zakresem” liczy przeniesione i niewymieniane.
+- Element Jiry, który zniknął, ale nadal da się go odczytać, jest sprawdzany ponownie raz dziennie i od razu po „Odśwież teraz”, więc późniejsze usunięcie lub powrót się pokaże.
+- Potwierdzone odchylenie „przeniesiony” otworzy się ponownie raz, jeśli zmieni się jego odczyt (teraz „Jira go nie wymienia” albo okaże się usunięty lub niewidoczny).
+- Gdy Jira wciąż nie odpowiada na te sprawdzenia, Astrolabe zwalnia: ponawia raz dziennie i po „Odśwież teraz”, a dziennik serwera przestaje powtarzać ostrzeżenia przy każdym przebiegu.
+- API (\`/api/v1\`, zmiany addytywne): \`totals.stillInJira\` w \`GET /views/deviations\`; powód zniknięcia \`NOT_LISTED\`; \`key\` elementu i powiązania to jego obecny klucz, taki jak ostatnio podała Jira.
+- Migracje V29 (klucz, którym odpowiedziało sprawdzenie) i V30, która usuwa nieużywane od 1.12 kolumny dawnych potwierdzeń całych elementów: wersje starsze niż 1.12 nie mogą już działać na tej bazie; 1.12 nadal może.
+- Niczego nie zapisujemy w Jirze.
+- Sprawdzone na wbudowanej atrapie Jiry; jeszcze nie przetestowane na prawdziwej witrynie Jira.`,
+  },
+  {
     version: "1.12.0",
     date: "2026-11-11",
     en: `**Astrolabe 1.12.0: acknowledge Jira deviations one at a time, the manager of a milestone's team may acknowledge them, and a Jira item that only left the connection's projects reads "moved out".**
