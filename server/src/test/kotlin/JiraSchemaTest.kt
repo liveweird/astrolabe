@@ -21,6 +21,7 @@ class JiraSchemaTest {
         const val UNIQUE = "23505"
         const val FOREIGN_KEY = "23503"
         const val TOO_LONG = "22001"
+        const val NOT_NULL = "23502"
     }
 
     // A real envelope under the suite's key: a plaintext row would be wrapped (or fail a rotation) by the next boot in this fork.
@@ -59,6 +60,7 @@ class JiraSchemaTest {
         val mine = "SELECT id FROM jira_connections WHERE name LIKE 'schema-%'"
         val bindings = "SELECT id FROM jira_bindings WHERE connection_id IN ($mine)"
         connection.createStatement().use { st ->
+            st.executeUpdate("DELETE FROM jira_deviation_acknowledgements WHERE binding_id IN ($bindings)")
             st.executeUpdate("DELETE FROM jira_observations WHERE binding_id IN ($bindings)")
             st.executeUpdate("DELETE FROM jira_bindings WHERE connection_id IN ($mine)")
             st.executeUpdate("DELETE FROM sync_runs WHERE connection_id IN ($mine)")
@@ -149,6 +151,62 @@ class JiraSchemaTest {
         assertEquals(CHECK, ack("ack_fingerprint = NULL, ack_at = NULL"), "clearing only two of the three leaves a user without ack_at")
         assertNull(ack("ack_fingerprint = NULL, ack_at = NULL, ack_by_user_id = NULL"), "an un-acknowledge clears all three columns")
     }
+
+    @Test
+    fun `a deviation acknowledgement is one row per binding and kind, with a kind shape, a 64-hex fingerprint, both references`() =
+        runBlocking {
+            PostgresTestSupport.ensureMigrated()
+            val owner = TestPeople.seed(unique("owner"))
+            val program = TestPlan.program(TestPlan.workStream(owner), owner)
+            val c = newConnection()
+            val bindingId = PostgresTestSupport.connect().use { conn ->
+                conn.createStatement().use { st ->
+                    st.executeQuery(
+                        "INSERT INTO jira_bindings " +
+                            "(connection_id, level, program_id, jira_issue_id, jira_issue_key, created_at, updated_at) " +
+                            "VALUES ($c, 'PROGRAM', $program, '89', 'SP-89', 1, 1) RETURNING id",
+                    ).use { rs -> rs.next(); rs.getInt(1) }
+                }
+            }
+            val user = TestUsers.seed(uniqueEmail("schema"), "schema-pass-1")
+            val hex = "ab".repeat(32)
+            fun ack(
+                kind: String? = "END_MOVED",
+                fingerprint: String? = hex,
+                at: String = "5",
+                by: Any = user,
+                binding: Any = bindingId,
+            ) = sqlState(
+                "INSERT INTO jira_deviation_acknowledgements (binding_id, kind, fingerprint, ack_at, ack_by_user_id) VALUES " +
+                    "($binding, ${kind?.let { "'$it'" }}, ${fingerprint?.let { "'$it'" }}, $at, $by)",
+            )
+
+            assertNull(ack())
+            assertEquals(UNIQUE, ack(), "one acknowledgement per (binding, kind)")
+            assertEquals(UNIQUE, ack(fingerprint = "cd".repeat(32)), "whatever the fingerprint")
+            assertNull(ack(kind = "GONE"), "another kind of the same binding")
+            assertNull(ack(kind = "A"), "a one-letter kind")
+            assertNull(ack(kind = "A" + "B".repeat(31)), "the longest kind: 32 characters")
+            assertEquals(CHECK, ack(kind = "lower"), "upper-case letters and underscores only")
+            assertEquals(CHECK, ack(kind = "_LEAD"), "starts with a letter")
+            assertEquals(CHECK, ack(kind = "END MOVED"), "no spaces")
+            assertEquals(CHECK, ack(kind = "END1"), "no digits")
+            assertEquals(CHECK, ack(kind = ""), "not empty")
+            assertEquals(TOO_LONG, ack(kind = "A" + "B".repeat(32)), "a 33-character kind overflows the column")
+            assertEquals(CHECK, ack(kind = "OTHER", fingerprint = hex.dropLast(1)), "63 characters")
+            assertEquals(TOO_LONG, ack(kind = "OTHER", fingerprint = hex + "0"), "65 characters overflow the column")
+            assertEquals(CHECK, ack(kind = "OTHER", fingerprint = hex.uppercase()), "lower-case hex only")
+            assertEquals(CHECK, ack(kind = "OTHER", fingerprint = "g".repeat(64)), "hex only")
+            assertEquals(FOREIGN_KEY, ack(kind = "OTHER", binding = 999999999), "an acknowledgement needs its binding")
+            assertEquals(FOREIGN_KEY, ack(kind = "OTHER", by = 999999999), "and its acknowledger")
+            assertEquals(NOT_NULL, ack(kind = null), "kind is required")
+            assertEquals(NOT_NULL, ack(kind = "OTHER", fingerprint = null), "fingerprint is required")
+            assertEquals(NOT_NULL, ack(kind = "OTHER", at = "NULL"), "ack_at is required")
+            assertEquals(NOT_NULL, ack(kind = "OTHER", by = "NULL"), "ack_by_user_id is required")
+            assertEquals(NOT_NULL, ack(kind = "OTHER", binding = "NULL"), "binding_id is required")
+            val rows = int("SELECT count(*) FROM jira_deviation_acknowledgements WHERE binding_id = $bindingId")
+            assertEquals(4, rows, "only the valid rows landed")
+        }
 
     @Test
     fun `the database refuses a plaintext token, and a NULL one unless the connection is deleted`() {
