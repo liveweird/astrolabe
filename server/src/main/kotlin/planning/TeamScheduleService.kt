@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.toList
 import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.r2dbc.R2dbcDatabase
 import org.jetbrains.exposed.v1.r2dbc.select
+import java.time.LocalDate
 
 val TeamScheduleServiceKey = AttributeKey<TeamScheduleService>("TeamScheduleService")
 
@@ -58,8 +59,9 @@ class TeamScheduleService(private val database: R2dbcDatabase) {
      * every team of the set in ascending id order is re-read and locked `FOR SHARE` ([lockActiveTeam], gone = 404) and re-guarded by
      * [guard] (the caller as of the lock must be ADMIN or the ACTIVE manager of EVERY team: 403, nothing written, no bump) -> the
      * `expectedRevision` above the plan revision is a 409 `stale-revision` -> [requireRunScopeUnchanged] (a 409 `stale-scope`: the
-     * run's fingerprint, recomputed with the teams' CURRENT names, differs, or ANY milestone of ANY run team that is not an item was
-     * scheduled after `expectedRevision`) -> per item, in body order, the first of GONE / NOT_ON_TEAM (its STORED team is outside the
+     * run's structure digest, recomputed with the teams' CURRENT names, differs, or ANY milestone of ANY run team that is not an item
+     * was scheduled after `expectedRevision`, or only the holidays changed and the run proposed again would not give the items their
+     * dates) -> per item, in body order, the first of GONE / NOT_ON_TEAM (its STORED team is outside the
      * set) / NO_WORKING_DAY / STALE skips it and the rest are written ([decideItems], the per-team batch's rules). An all-skipped
      * accept bumps like the batch. The 409 and 403 are whole-request: the transaction rolls back.
      */
@@ -128,11 +130,12 @@ class TeamScheduleService(private val database: R2dbcDatabase) {
 
     /**
      * The scope check of a run accept ([hash] is the run's, under the plan lock, nothing written yet): the SAME [loadCrossTeamSnapshot]
-     * and [CrossTeamSnapshot.scopeHash] the run used, but with the teams' CURRENT names (the names are IN the fingerprint: a blank would
-     * never match), must still give [hash]; and no milestone of ANY run team that the accept does not name - the movable ones AND the
-     * fixed ones (started, pinned), whose spans are deliberately NOT in the run's hash - may carry a `schedule_revision` above
-     * [expectedRevision] ([reschedulesOutsideBatch]: a colleague's drag, or a new milestone). Either is a 409 `stale-scope`. A per-team
-     * hash never matches (another definition of "foreign"). Returns the snapshot (its calendar is the accept's).
+     * and [CrossTeamSnapshot.scopeDigests] the run used, but with the teams' CURRENT names (the names are IN the fingerprint: a blank
+     * would never match), must still give [hash]'s structure part; and no milestone of ANY run team that the accept does not name -
+     * the movable ones AND the fixed ones (started, pinned), whose spans are deliberately NOT in the run's hash - may carry a
+     * `schedule_revision` above [expectedRevision] ([reschedulesOutsideBatch]: a colleague's drag, or a new milestone). Either is a
+     * 409 `stale-scope`. A per-team hash never matches (another definition of "foreign"). When only the holidays part differs the
+     * check looks again ([lookedAgain]: the run once, on this very snapshot). Returns the snapshot (its calendar is the accept's).
      */
     private suspend fun requireRunScopeUnchanged(
         teamIds: List<UInt>,
@@ -144,10 +147,15 @@ class TeamScheduleService(private val database: R2dbcDatabase) {
         // Every team was locked FOR SHARE in this very transaction (acceptRun), so none can be gone: a mismatch is a bug, not a 404.
         check(names.size == teamIds.size) { "a locked run team vanished: ${teamIds.filter { it !in names }}" }
         val snapshot = loadCrossTeamSnapshot(names)
-        if (snapshot.scopeHash() != hash || reschedulesOutsideBatch(teamIds, expectedRevision, items.map { it.milestoneId })) {
+        val token = ScopeToken(hash)
+        val digests = snapshot.scopeDigests()
+        val stale = digests.structure != token.digests.structure ||
+            reschedulesOutsideBatch(teamIds, expectedRevision, items.map { it.milestoneId }) ||
+            (digests.holidays != token.digests.holidays && !lookedAgain(token, items) { asOf -> snapshot.freshSpans(asOf) })
+        if (stale) {
             throw ConflictException(
                 "The plan changed since the proposal (another milestone of one of the teams, a pin, a capacity period, a link or a " +
-                    "holiday): propose again",
+                    "holiday that moves an accepted date): propose again",
                 problemType = STALE_SCOPE_PROBLEM,
             )
         }
@@ -155,12 +163,23 @@ class TeamScheduleService(private val database: R2dbcDatabase) {
     }
 
     /**
+     * The look-again of a scope check whose holidays part differs (the structure and the sweep already passed): the proposal's `asOf`
+     * is decoded from [token] (null = a day no proposal could carry: false), [fresh] runs the kernel ONCE on the snapshot the check
+     * just loaded and answers the spans it gives by milestone id, and the items must equal them ([acceptsOnlyFreshDates]).
+     */
+    private fun lookedAgain(token: ScopeToken, items: List<ValidatedBatchItem>, fresh: (LocalDate) -> Map<UInt, DaySpan>): Boolean {
+        val asOf = token.asOf() ?: return false
+        return acceptsOnlyFreshDates(items, fresh(asOf))
+    }
+
+    /**
      * The scope check of a batch that carries the proposal's [hash] (under the plan lock, nothing written yet): the same
-     * [loadScheduleSnapshot] and [ScheduleSnapshot.scopeHash] the proposal used must still give [hash], and no OTHER milestone of the
-     * team (one the batch does not name) may carry a `schedule_revision` above [expectedRevision] - the team's own spans are not in the
-     * hash, so that sweep is what notices a colleague's drag of an unticked or in-progress milestone, while a dragged BATCH item stays
-     * the per-item STALE. Either failure is a 409 `stale-scope` and the transaction rolls back. Returns the snapshot (its calendar is
-     * the batch's).
+     * [loadScheduleSnapshot] and [ScheduleSnapshot.scopeDigests] the proposal used must still give [hash]'s structure part, and no
+     * OTHER milestone of the team (one the batch does not name) may carry a `schedule_revision` above [expectedRevision] - the team's
+     * own spans are not in the hash, so that sweep is what notices a colleague's drag of an unticked or in-progress milestone, while a
+     * dragged BATCH item stays the per-item STALE. When only the holidays part differs the check looks again ([lookedAgain]): the
+     * kernel runs once on this snapshot and the batch must hold exactly the dates it gives. Any failure is a 409 `stale-scope` and the
+     * transaction rolls back. Returns the snapshot (its calendar is the batch's).
      */
     private suspend fun requireScopeUnchanged(
         teamId: UInt,
@@ -171,11 +190,15 @@ class TeamScheduleService(private val database: R2dbcDatabase) {
         // The fingerprint reads no team name, so the rows are loaded with an empty one (the proposal's wire rows are the only readers).
         val snapshot = loadScheduleSnapshot(teamId, "")
         val batchIds = items.map { it.milestoneId }
-        val changed = snapshot.scopeHash(teamId) != hash || reschedulesOutsideBatch(listOf(teamId), expectedRevision, batchIds)
-        if (changed) {
+        val token = ScopeToken(hash)
+        val digests = snapshot.scopeDigests(teamId)
+        val stale = digests.structure != token.digests.structure ||
+            reschedulesOutsideBatch(listOf(teamId), expectedRevision, batchIds) ||
+            (digests.holidays != token.digests.holidays && !lookedAgain(token, items) { asOf -> snapshot.freshSpans(teamId, asOf) })
+        if (stale) {
             throw ConflictException(
-                "The team's plan changed since the proposal (another milestone, a pin, a capacity period, a link or a holiday): " +
-                    "propose again",
+                "The team's plan changed since the proposal (another milestone, a pin, a capacity period, a link or a holiday that " +
+                    "moves an accepted date): propose again",
                 problemType = STALE_SCOPE_PROBLEM,
             )
         }

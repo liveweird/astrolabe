@@ -9,8 +9,8 @@ import { randomUUID } from "node:crypto";
 import type { APIRequestContext, Page } from "@playwright/test";
 import { apiAsAdmin, deleteViaApi, expect, login, signOut, test, uniqueText } from "./helpers";
 
-// A cross-team proposal's scope hash covers the global holiday dictionary, which `public-holidays` writes (2040): a holiday written while a run is open
-// would stale the accept (409 `stale-scope`). The specs that write the dictionary or compare the hash never run at the same time.
+// A cross-team proposal's scope token carries the global holiday dictionary, which `public-holidays` writes (2040): a holiday written while a run is open
+// can stale the accept (409 `stale-scope`, when it changes an accepted date). The specs that write the dictionary or compare the figures never run at the same time.
 test.describe.configure({ lock: "holiday-dictionary" });
 
 // Registered in creation order; torn down in reverse (a project before its program before its stream before the teams and the people).

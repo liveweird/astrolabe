@@ -303,7 +303,7 @@ function (`deleteCapacityPeriodsOf`, `removeFromRanking`, …) counts as the cal
   ACTIVE rows only, ONE query) and `PublicHolidayService.PublicHolidays` (`loadWorkingCalendar`, under the lock like the single PUT). With a request `scopeHash`
   it also READS, under the lock, every table the auto-proposal reads (`loadScheduleSnapshot`: the team's milestones with their project and rank,
   `team_milestone_orders`, `CapacityPeriods`, every active milestone and link - the proposal's own loader, so the two fingerprints are one function over one row
-  shape) plus one `LIMIT 1` sweep of the team's milestones with `schedule_revision` above `expectedRevision` that the batch does not name. "Active" is
+  shape) plus one `LIMIT 1` sweep of the team's milestones with `schedule_revision` above `expectedRevision` that the batch does not name. When only the token's holidays part differs (1.13.1) the kernel runs once over that very snapshot (the look-again, `planning-model.md` "The scope check"): no further read, no write before it. "Active" is
   `milestoneChain`'s (the milestone and its project, program and work stream). The accepted items are written by multi-row `UPDATE … FROM (VALUES …)` statements
   (`MilestoneScheduleWrite.kt`: typed `::int`/`::date` columns so null pairs bind, chunked like `MultiRowInsert.kt` so the SQL texts stay few) instead of a
   round trip per item under the plan lock; a skipped item writes nothing; no `team_milestone_orders` / `team_order_state` row is touched.

@@ -239,7 +239,7 @@ data class ScheduleProposal(
  * for the weekend or holiday that day may skip, and the batch accept refuses a date past [LAST_PLAN_DAY] - so a later `asOf` could
  * produce a proposal that cannot be accepted.
  */
-private val LATEST_AS_OF: LocalDate = LAST_PLAN_DAY.minusWeeks(MAX_LOAD_WEEKS + 1L)
+internal val LATEST_AS_OF: LocalDate = LAST_PLAN_DAY.minusWeeks(MAX_LOAD_WEEKS + 1L)
 
 /**
  * The proposal request's rules, checked after the guard: `asOf` is an ISO date in the planning calendar's years ([parseIsoDate]) and

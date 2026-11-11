@@ -2444,13 +2444,16 @@ paths:
         schedule proposal's `revision`): a value above the current plan revision (a view from the future) is `409` with `type`
         `urn:astrolabe:problem:stale-revision` for the WHOLE batch.
 
-        `scopeHash` (optional, the proposal's) turns the call into the accept of THAT proposal: after the revision check, under the lock,
-        the team's scope is fingerprinted again from the same rows (its milestones, their estimates, projects, pins and effective order, its
-        capacity periods, the links touching it with the dates of their foreign ends, the Monday-Friday holidays) and any other milestone
-        of the team that was scheduled after `expectedRevision` and is not in the batch is looked for. A different fingerprint or such a
-        milestone is `409` with `type` `urn:astrolabe:problem:stale-scope` for the WHOLE batch: nothing is written and the revision is not
-        bumped - propose again. The dates of the batch's OWN milestones are not part of the fingerprint (they stay the per-item `STALE`
-        below). Absent = no scope check: N schedule PUTs, the contract before v0.9. A malformed value is `400`.
+        `scopeHash` (optional, the proposal's; an opaque 64-hex token to send back unchanged) turns the call into the accept of THAT
+        proposal: after the revision check, under the lock, the team's scope is fingerprinted again from the same rows (its milestones,
+        their estimates, projects, pins and effective order, its capacity periods, the links touching it with the dates of their foreign
+        ends) and any other milestone of the team that was scheduled after `expectedRevision` and is not in the batch is looked for. A
+        different fingerprint or such a milestone is `409` with `type` `urn:astrolabe:problem:stale-scope` for the WHOLE batch: nothing is
+        written and the revision is not bumped - propose again. A changed public-holiday dictionary refuses the batch only when it
+        changes an accepted date: the proposal is then computed again on the current rows under the lock, and the batch goes through
+        when every item carries exactly the dates that computation gives its milestone (an item for a milestone it does not place, or
+        another date, is the same `409`). The dates of the batch's OWN milestones are not part of the fingerprint (they stay the
+        per-item `STALE` below). Absent = no scope check: N schedule PUTs, the contract before v0.9. A malformed value is `400`.
 
         Otherwise every item is decided on its own, in body order, under the lock: the first matching `reason` skips it and the rest are
         still written - `GONE` (no active milestone has the id), `NOT_ON_TEAM` (it is, or moved to, another team), `NO_WORKING_DAY` (the
@@ -2482,7 +2485,8 @@ paths:
         '409':
           description: >-
             `expectedRevision` is above the current plan revision (`type` is `urn:astrolabe:problem:stale-revision`), or the team's plan
-            changed since the proposal `scopeHash` names (`type` is `urn:astrolabe:problem:stale-scope`); nothing was written
+            changed since the proposal `scopeHash` names - a changed holiday dictionary only when it changes an accepted date (`type` is
+            `urn:astrolabe:problem:stale-scope`); nothing was written
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/ProblemDetail' }
@@ -2567,8 +2571,9 @@ paths:
 
         `teams` lists each team's block in PLACEMENT order, in the per-team proposal's shape (`moves`, `unchanged`, `unplaced`, `pinned`,
         `weeks` at most 520, `dependencies`: the links touching that team whose verdict is or was violated over the run's final dates; a
-        link between two run teams is listed in both blocks). `scopeHash` fingerprints what the run read that the milestones' own schedule
-        revisions do not cover; "foreign" there means outside the run set, so it differs from a per-team hash by design.
+        link between two run teams is listed in both blocks). `scopeHash` is an opaque 64-hex token to send back unchanged: it fingerprints
+        what the run read that the milestones' own schedule revisions do not cover ("foreign" there means outside the run set, so it
+        differs from a per-team hash by design), the public holidays apart, and carries the run's `asOf`.
       requestBody:
         required: true
         content:
@@ -2608,13 +2613,15 @@ paths:
         for each (a manager cleared while the request was in flight is `403`, nothing written, no bump); then two `409`s for the WHOLE
         request, nothing written and the revision not bumped: `expectedRevision` above the current plan revision (`type`
         `urn:astrolabe:problem:stale-revision`), and the run's scope (`type` `urn:astrolabe:problem:stale-scope`): the run's
-        `scopeHash` - REQUIRED here - is fingerprinted again from the same rows (the teams and their names, each team's milestone set with
-        estimates, projects and pins, effective order and capacity periods, the links touching the set with the dates of their ends
-        outside the set, the Monday-Friday holidays), and ANY milestone of ANY listed team that is not an item - started or pinned ones
-        included - that was scheduled after `expectedRevision` is looked for. A different fingerprint or such a milestone refuses the
-        accept: propose again. The dates of the items' own milestones are not in the fingerprint (they stay the per-item `STALE`). A
-        per-team proposal's `scopeHash` never matches (it defines "foreign" as outside ONE team), nor does a run's `scopeHash` match the
-        per-team batch.
+        `scopeHash` - REQUIRED here, an opaque 64-hex token to send back unchanged - is fingerprinted again from the same rows (the teams
+        and their names, each team's milestone set with estimates, projects and pins, effective order and capacity periods, the links
+        touching the set with the dates of their ends outside the set), and ANY milestone of ANY listed team that is not an item -
+        started or pinned ones included - that was scheduled after `expectedRevision` is looked for. A different fingerprint or such a
+        milestone refuses the accept: propose again. A changed public-holiday dictionary refuses it only when it changes an accepted
+        date: the run is then computed again on the current rows under the lock, and the accept goes through when every item carries
+        exactly the dates that computation gives its milestone. The dates of the items' own milestones are not in the fingerprint
+        (they stay the per-item `STALE`). A per-team proposal's `scopeHash` never matches (it defines "foreign" as outside ONE team),
+        nor does a run's `scopeHash` match the per-team batch.
 
         Otherwise every item is decided on its own, in body order, with the per-team batch's rules: the first matching `reason` skips it and
         the rest are still written - `GONE`, `NOT_ON_TEAM` (its stored team is outside `teamIds`), `NO_WORKING_DAY`, `STALE`. A written
@@ -2643,7 +2650,8 @@ paths:
         '409':
           description: >-
             `expectedRevision` is above the current plan revision (`type` is `urn:astrolabe:problem:stale-revision`), or the run's plan
-            changed since the proposal `scopeHash` names (`type` is `urn:astrolabe:problem:stale-scope`); nothing was written
+            changed since the proposal `scopeHash` names - a changed holiday dictionary only when it changes an accepted date (`type` is
+            `urn:astrolabe:problem:stale-scope`); nothing was written
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/ProblemDetail' }
@@ -6745,8 +6753,9 @@ components:
           type: string
           pattern: '^[0-9a-f]{64}$'
           description: >-
-            The proposal's `scopeHash`. Present = the whole batch is refused (`409`, `stale-scope`) when the team's plan changed since that
-            proposal; absent = no scope check.
+            The proposal's `scopeHash`, an opaque token to send back unchanged. Present = the whole batch is refused (`409`, `stale-scope`)
+            when the team's plan changed since that proposal, or when a changed holiday dictionary would give an accepted milestone another
+            date; absent = no scope check.
     TeamScheduleBatchItem:
       type: object
       required: [milestoneId]
@@ -6803,8 +6812,9 @@ components:
           type: string
           pattern: '^[0-9a-f]{64}$'
           description: >-
-            A fingerprint of everything the proposal read about the team that the milestones' own schedule revisions do not cover; send it
-            back as `scopeHash` of the batch accept. Stable while the team's plan is unchanged, whatever else happens in the plan.
+            An opaque 64-hex token: a fingerprint of everything the proposal read about the team that the milestones' own schedule
+            revisions do not cover, the public holidays and `asOf` carried alongside; send it back unchanged as `scopeHash` of the batch
+            accept. Stable for one `asOf` while the team's plan and the holidays are unchanged, whatever else happens in the plan.
         asOf: { type: string, format: date, description: 'The request''s `asOf`, echoed.' }
         teamId: { type: integer, format: int32, minimum: 0 }
         moves:
@@ -6936,8 +6946,9 @@ components:
           type: string
           pattern: '^[0-9a-f]{64}$'
           description: >-
-            The run's `scopeHash`, REQUIRED. The whole accept is refused (`409`, `stale-scope`) when the plan the run read changed, or a
-            milestone of a listed team that is not an item was scheduled since.
+            The run's `scopeHash`, REQUIRED, an opaque token to send back unchanged. The whole accept is refused (`409`, `stale-scope`)
+            when the plan the run read changed, or a milestone of a listed team that is not an item was scheduled since, or a changed
+            holiday dictionary would give an accepted milestone another date.
         teamIds:
           type: array
           minItems: 1
@@ -6977,8 +6988,9 @@ components:
           type: string
           pattern: '^[0-9a-f]{64}$'
           description: >-
-            A fingerprint of everything the run read that the milestones' own schedule revisions do not cover, over the whole team set
-            ("foreign" = outside the run). Stable while the run teams' plan is unchanged, whatever else happens in the plan.
+            An opaque 64-hex token: a fingerprint of everything the run read that the milestones' own schedule revisions do not cover,
+            over the whole team set ("foreign" = outside the run), the public holidays and `asOf` carried alongside; send it back unchanged.
+            Stable for one `asOf` while the run teams' plan and the holidays are unchanged, whatever else happens in the plan.
     CrossTeamProposalTeam:
       type: object
       required: [teamId, name, moves, unchanged, unplaced, pinned, weeks, weeksTruncated, dependencies]

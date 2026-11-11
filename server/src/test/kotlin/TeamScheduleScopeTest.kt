@@ -1,5 +1,6 @@
 package ch.nokillswit
 
+import ch.nokillswit.infra.json.sha256Hex
 import ch.nokillswit.planning.DependencyType
 import ch.nokillswit.planning.MilestoneUpdateRequest
 import ch.nokillswit.planning.RankingUpdateRequest
@@ -81,8 +82,12 @@ class TeamScheduleScopeTest {
 
     private fun ScheduleProposal.items() = moves.map { TeamScheduleBatchItem(it.milestoneId, it.to.start, it.to.end) }
 
-    private suspend fun HttpClient.accept(teamId: UInt, proposal: ScheduleProposal, hash: String? = proposal.scopeHash): HttpResponse =
-        postJson("/api/v1/teams/$teamId/milestone-schedules", TeamScheduleBatchRequest(proposal.revision, proposal.items(), hash))
+    private suspend fun HttpClient.accept(
+        teamId: UInt,
+        proposal: ScheduleProposal,
+        hash: String? = proposal.scopeHash,
+        items: List<TeamScheduleBatchItem> = proposal.items(),
+    ): HttpResponse = postJson("/api/v1/teams/$teamId/milestone-schedules", TeamScheduleBatchRequest(proposal.revision, items, hash))
 
     private fun datesOf(id: UInt): Pair<String?, String?> =
         TestPlan.scalar("SELECT start_date::text, end_date::text FROM milestones WHERE id = $id") { it.getString(1) to it.getString(2) }
@@ -194,15 +199,95 @@ class TeamScheduleScopeTest {
     }
 
     @Test
-    fun `a holiday added since the proposal refuses the batch`() = testApplication {
+    fun `a holiday that changes no accepted date is accepted and the dates are written - a far-off one and a near one`() = testApplication {
         val s = scopeWorld("tss3")
         val manager = s.t.manager.client
+        // Far off: a year after everything the proposal placed. Near: a free Wednesday between the last two placements (nobody's day).
+        for (holiday in listOf("2028-08-16", "2027-03-03")) {
+            val proposal = manager.proposal(s.t.teamId)
+            assertTrue(proposal.moves.size >= 3, "x1, x2 and x3 all move: ${proposal.moves.map { it.milestoneId }}")
+            assertTrue(proposal.moves.none { holiday >= it.to.start && holiday <= it.to.end }, "$holiday is nobody's day")
+            TestHolidays.with(holiday) {
+                val revision = TestPlan.revision() // a holiday write bumps the plan revision
+                val response = manager.accept(s.t.teamId, proposal)
+                assertEquals(HttpStatusCode.OK, response.status, holiday)
+                val body: TeamScheduleBatchResponse = response.body()
+                assertEquals(proposal.moves.map { it.milestoneId }, body.accepted, holiday)
+                assertEquals(emptyList(), body.skipped, holiday)
+                assertEquals(revision + 1, body.revision, "$holiday: the one bump of the batch")
+                for (move in proposal.moves) assertEquals(move.to.start to move.to.end, datesOf(move.milestoneId), holiday)
+            }
+            // Back to the premise of the next round: the written spans leave the structure alone, but the milestones are unscheduled.
+            for (move in proposal.moves) TestPlan.schedule(move.milestoneId, null, null)
+        }
+    }
+
+    @Test
+    fun `a holiday inside an accepted span refuses the batch - for every item of it - nothing written, no bump`() = testApplication {
+        val s = scopeWorld("tss9")
+        val manager = s.t.manager.client
         val proposal = manager.proposal(s.t.teamId)
-        TestHolidays.with("2027-08-12") {
-            manager.accept(s.t.teamId, proposal).assertStaleScope()
+        assertTrue(proposal.moves.size >= 3, "x1, x2 and x3 all move: ${proposal.moves.map { it.milestoneId }}")
+        // One holiday per accepted item, on its first day: the look-again gives THAT item (at least) another date, whichever it is.
+        for (move in proposal.moves) {
+            TestHolidays.with(move.to.start) {
+                val revision = TestPlan.revision() // a holiday write bumps the plan revision
+                manager.accept(s.t.teamId, proposal).assertStaleScope()
+                assertEquals(revision, TestPlan.revision(), "${move.name}: a refusal bumps nothing")
+                assertEquals(proposal.moves.map { null to null }, proposal.moves.map { datesOf(it.milestoneId) }, "${move.name}: no write")
+            }
+        }
+        assertEquals(HttpStatusCode.OK, manager.accept(s.t.teamId, proposal).status, "the holidays removed again, the proposal stands")
+    }
+
+    @Test
+    fun `a holiday that moves only an unticked move is accepted for the ticked ones`() = testApplication {
+        val s = scopeWorld("tss10")
+        val manager = s.t.manager.client
+        val proposal = manager.proposal(s.t.teamId)
+        val unticked = proposal.moves.single { it.milestoneId == s.x1 }
+        val ticked = proposal.moves.filter { it.milestoneId != s.x1 }
+        assertTrue(ticked.size >= 2, "x2 and x3 stay: ${ticked.map { it.milestoneId }}")
+        TestHolidays.with(unticked.to.start) {
+            val items = ticked.map { TeamScheduleBatchItem(it.milestoneId, it.to.start, it.to.end) }
+            val response = manager.accept(s.t.teamId, proposal, items = items)
+            assertEquals(HttpStatusCode.OK, response.status)
+            assertEquals(ticked.map { it.milestoneId }, response.body<TeamScheduleBatchResponse>().accepted)
+            for (move in ticked) assertEquals(move.to.start to move.to.end, datesOf(move.milestoneId))
+            assertEquals(null to null, datesOf(s.x1), "the unticked one stays where it was")
+        }
+    }
+
+    @Test
+    fun `an old-layout hash is 409, and the asOf part is read only when the holidays changed`() = testApplication {
+        val s = scopeWorld("tss11")
+        val manager = s.t.manager.client
+        val proposal = manager.proposal(s.t.teamId)
+        val revision = TestPlan.revision()
+        // The 1.13 layout was one digest of everything: any other 64 hex differs in the structure part.
+        manager.accept(s.t.teamId, proposal, sha256Hex("the 1.13 token")).assertStaleScope()
+        // No code path accepts a token whose structure part differs, whatever its other parts say (the holidays part here is the real one).
+        val flipped = (if (proposal.scopeHash.first() == '0') "1" else "0") + proposal.scopeHash.drop(1)
+        manager.accept(s.t.teamId, proposal, flipped).assertStaleScope()
+        assertEquals(revision, TestPlan.revision())
+        TestHolidays.with("2028-08-16") {
+            val held = TestPlan.revision()
+            manager.accept(s.t.teamId, proposal, flipped).assertStaleScope()
+            assertEquals(held, TestPlan.revision())
+        }
+
+        // A token whose asOf part is no plan day: with the holidays unchanged it is never decoded (no kernel runs) ...
+        val badAsOf = proposal.scopeHash.take(56) + "ffffffff"
+        val ok = manager.accept(s.t.teamId, proposal, badAsOf)
+        assertEquals(HttpStatusCode.OK, ok.status, "an unchanged dictionary is the normal path")
+        for (move in proposal.moves) TestPlan.schedule(move.milestoneId, null, null)
+        // ... and with the holidays changed the look-again cannot decode it: 409, nothing written.
+        TestHolidays.with("2028-08-16") {
+            val before = TestPlan.revision()
+            manager.accept(s.t.teamId, proposal, badAsOf).assertStaleScope()
+            assertEquals(before, TestPlan.revision())
             assertEquals(null to null, datesOf(s.x1))
         }
-        assertEquals(HttpStatusCode.OK, manager.accept(s.t.teamId, proposal).status, "the holiday removed again, the proposal stands")
     }
 
     @Test

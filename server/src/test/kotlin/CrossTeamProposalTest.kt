@@ -271,6 +271,9 @@ class CrossTeamProposalTest {
         val first = admin.run(listOf(t.teamId, t.otherTeamId)).scopeHash
         assertTrue(Regex("^[0-9a-f]{64}$").matches(first), first)
         assertEquals(first, admin.run(listOf(t.otherTeamId, t.teamId)).scopeHash, "stable, whatever the request order")
+        val otherDay = admin.run(listOf(t.teamId, t.otherTeamId), "2027-01-30").scopeHash
+        assertEquals(first.take(56), otherDay.take(56), "another asOf moves no digest ...")
+        assertNotEquals(first.takeLast(8), otherDay.takeLast(8), "... only the last 8 characters")
         val soloFirst = admin.run(listOf(t.teamId)).scopeHash
         assertNotEquals(first, soloFirst, "a different team set is a different run")
 

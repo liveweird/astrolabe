@@ -1,28 +1,39 @@
 package ch.nokillswit
 
+import ch.nokillswit.infra.time.WorkingCalendar
 import ch.nokillswit.planning.CapacityPeriod
 import ch.nokillswit.planning.DaySpan
 import ch.nokillswit.planning.DependencyType
 import ch.nokillswit.planning.EndpointKind
 import ch.nokillswit.planning.EndpointRef
+import ch.nokillswit.planning.MilestoneSpan
 import ch.nokillswit.planning.OrderKey
 import ch.nokillswit.planning.PlanLinkFact
 import ch.nokillswit.planning.PlanMilestoneFact
+import ch.nokillswit.planning.ScopeDigests
+import ch.nokillswit.planning.ScopeToken
 import ch.nokillswit.planning.TeamScheduleItem
+import ch.nokillswit.planning.ValidatedBatchItem
+import ch.nokillswit.planning.acceptsOnlyFreshDates
+import ch.nokillswit.planning.holidaysDigest
+import ch.nokillswit.planning.runScope
 import ch.nokillswit.planning.scheduleScope
-import ch.nokillswit.planning.scopeFingerprint
+import ch.nokillswit.planning.structureDigest
 import java.math.BigDecimal
 import java.time.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * The schedule scope fingerprint as a pure function (`planning/ScheduleScope.kt`): the same scope in any input order hashes the same;
- * every input the kernel reads that the milestones' schedule revisions do not cover flips it; the team's OWN spans (and what is not
- * linked to the team) do not. The team is 1; its milestones are 10 and 11 (project 100), 12 (project 101); 50 and 51 are another team's
- * (project 102).
+ * The schedule scope token as a pure function (`planning/ScheduleScope.kt`): 64 hex in three parts, the structure digest (chars 0-27),
+ * the holidays digest (28-55) and `asOf` (56-63). The same scope in any input order gives the same token; every input the kernel reads
+ * that the milestones' schedule revisions do not cover flips the STRUCTURE part only; the Monday-Friday holidays flip the HOLIDAYS part
+ * only; the team's OWN spans (and what is not linked to the team) flip nothing. The team is 1; its milestones are 10 and 11 (project 100),
+ * 12 (project 101); 50 and 51 are another team's (project 102).
  */
 class ScheduleScopeTest {
     private val team = 1u
@@ -84,11 +95,17 @@ class ScheduleScopeTest {
         holidays = listOf(day("2027-04-05"), day("2027-05-03")),
     )
 
-    private fun hash(world: World = base) =
-        scopeFingerprint(scheduleScope(team, world.items, world.periods, world.plan, world.links, world.holidays))
+    private val asOf = day("2027-01-31")
+
+    private fun digests(world: World = base) = ScopeDigests(
+        structureDigest(scheduleScope(team, world.items, world.periods, world.plan, world.links)),
+        holidaysDigest(world.holidays),
+    )
+
+    private fun hash(world: World = base, on: LocalDate = asOf) = digests(world).token(on)
 
     @Test
-    fun `the hash is 64 lowercase hex digits and does not depend on the order of any input`() {
+    fun `the token is 64 lowercase hex digits and does not depend on the order of any input`() {
         assertTrue(Regex("^[0-9a-f]{64}$").matches(hash()))
         val shuffled = World(
             base.items.reversed(), base.periods.reversed(), base.plan.reversed(), base.links.reversed(), base.holidays.reversed(),
@@ -103,7 +120,7 @@ class ScheduleScopeTest {
     private fun World.withFact(id: UInt, replacement: PlanMilestoneFact) = copy(plan = plan.map { if (it.id == id) replacement else it })
 
     @Test
-    fun `each input the kernel reads flips the hash`() {
+    fun `each structural input flips the structure part only`() {
         val first = base.links.first()
         val foreign = span("2027-03-02", "2027-03-05")
         val changes = mapOf(
@@ -118,8 +135,6 @@ class ScheduleScopeTest {
             "a link's type" to base.withLink(1u, link(1u, first.predecessor, first.successor, DependencyType.SS)),
             "a link added" to base.copy(links = base.links + link(4u, milestone(11u), milestone(52u))),
             "a link removed" to base.copy(links = base.links.filter { it.id != 2u }),
-            "a holiday added" to base.copy(holidays = base.holidays + day("2027-08-16")),
-            "a holiday removed" to base.copy(holidays = listOf(day("2027-04-05"))),
             "a foreign predecessor milestone moved" to base.withFact(50u, fact(50u, 102u, 2u, foreign)),
             "a foreign predecessor milestone unscheduled" to base.withFact(50u, fact(50u, 102u, 2u)),
             "the derived span of a foreign predecessor project" to
@@ -130,7 +145,72 @@ class ScheduleScopeTest {
             "a milestone leaving the team" to base.copy(items = base.items.filter { it.id != 11u }),
         )
         val reference = hash()
-        for ((label, world) in changes) assertNotEquals(reference, hash(world), label)
+        for ((label, world) in changes) {
+            val changed = hash(world)
+            assertNotEquals(reference.take(STRUCTURE), changed.take(STRUCTURE), label)
+            assertEquals(reference.drop(STRUCTURE), changed.drop(STRUCTURE), "$label: the holidays and asOf parts stand")
+        }
+    }
+
+    @Test
+    fun `a Monday-Friday holiday flips the holidays part only, a weekend one flips nothing`() {
+        val reference = hash()
+        val changes = mapOf(
+            "a holiday added" to base.copy(holidays = base.holidays + day("2027-08-16")),
+            "a holiday removed" to base.copy(holidays = listOf(day("2027-04-05"))),
+        )
+        for ((label, world) in changes) {
+            val changed = hash(world)
+            assertEquals(reference.take(STRUCTURE), changed.take(STRUCTURE), "$label: the structure part stands")
+            assertNotEquals(reference.substring(STRUCTURE, STRUCTURE + HOLIDAYS), changed.substring(STRUCTURE, STRUCTURE + HOLIDAYS), label)
+            assertEquals(reference.takeLast(ASOF), changed.takeLast(ASOF), "$label: the asOf part stands")
+        }
+        // The calendar hands the digest its Monday-Friday dates only: a Saturday holiday leaves the token alone.
+        fun calendarToken(vararg dates: String) =
+            digests(base.copy(holidays = WorkingCalendar(dates.associate { day(it) to "h" }).offDayDates())).token(asOf)
+        assertEquals(calendarToken("2027-04-05"), calendarToken("2027-04-05", "2027-08-14"), "2027-08-14 is a Saturday")
+        assertNotEquals(calendarToken("2027-04-05"), calendarToken("2027-04-05", "2027-08-16"), "2027-08-16 is a Monday")
+    }
+
+    @Test
+    fun `asOf is the last 8 characters - days since 1900-01-01 in hex - and no other part reads it`() {
+        val other = hash(on = day("2027-02-03"))
+        assertEquals(hash().take(ASOF_AT), other.take(ASOF_AT))
+        assertNotEquals(hash().takeLast(ASOF), other.takeLast(ASOF))
+        assertEquals("00000000", hash(on = day("1900-01-01")).takeLast(ASOF))
+        assertEquals("00000001", hash(on = day("1900-01-02")).takeLast(ASOF))
+        val token = ScopeToken(hash())
+        assertEquals(asOf, token.asOf())
+        assertEquals(digests(), token.digests)
+        assertNull(ScopeToken(hash().take(ASOF_AT) + "ffffffff").asOf(), "a day beyond the latest asOf is no proposal's")
+        assertNull(ScopeToken(hash(on = day("2999-12-31"))).asOf(), "the last plan day is past the latest asOf")
+        assertEquals(day("2900-01-04"), ScopeToken(hash(on = day("2900-01-04"))).asOf(), "a late year is fine while the horizon fits")
+    }
+
+    @Test
+    fun `a team token and a run token never share a structure part`() {
+        val run = runScope(mapOf(team to base.items), mapOf(team to "Alpha"), mapOf(team to base.periods), base.plan, base.links)
+        assertNotEquals(digests().structure, structureDigest(run))
+        val renamed = runScope(mapOf(team to base.items), mapOf(team to "Beta"), mapOf(team to base.periods), base.plan, base.links)
+        assertNotEquals(structureDigest(run), structureDigest(renamed), "a run team's name is in its structure")
+    }
+
+    @Test
+    fun `the look-again accepts a batch only when every item carries both dates and equals the fresh span`() {
+        fun item(id: UInt, start: String?, end: String?) =
+            ValidatedBatchItem(id, if (start != null && end != null) MilestoneSpan(day(start), day(end)) else null)
+        val fresh = mapOf(10u to span("2027-02-01", "2027-02-02"), 11u to span("2027-02-03", "2027-02-03"))
+        val same = listOf(item(10u, "2027-02-01", "2027-02-02"), item(11u, "2027-02-03", "2027-02-03"))
+        assertTrue(acceptsOnlyFreshDates(same, fresh))
+        assertTrue(acceptsOnlyFreshDates(same.take(1), fresh), "a subset of the fresh proposal")
+        for (index in same.indices) {
+            val moved = same.mapIndexed { i, kept -> if (i == index) item(kept.milestoneId, "2027-02-04", "2027-02-05") else kept }
+            assertFalse(acceptsOnlyFreshDates(moved, fresh), "item $index carries another date")
+            val unscheduled = same.mapIndexed { i, kept -> if (i == index) item(kept.milestoneId, null, null) else kept }
+            assertFalse(acceptsOnlyFreshDates(unscheduled, fresh), "item $index is an unschedule pair")
+        }
+        assertFalse(acceptsOnlyFreshDates(same + item(12u, "2027-02-08", "2027-02-08"), fresh), "a milestone the fresh run does not hold")
+        assertFalse(acceptsOnlyFreshDates(same, fresh - 11u), "a milestone the fresh run left unplaced")
     }
 
     @Test
@@ -179,5 +259,12 @@ class ScheduleScopeTest {
             plan = withForeign.plan.map { if (it.id == 10u) fact(10u, 100u, team, span("2027-08-02", "2027-08-06")) else it },
         )
         assertEquals(hash(withForeign), hash(ownMoved), "the team's own milestone of it does not")
+    }
+
+    private companion object {
+        const val STRUCTURE = 28
+        const val HOLIDAYS = 28
+        const val ASOF = 8
+        const val ASOF_AT = STRUCTURE + HOLIDAYS
     }
 }

@@ -1,11 +1,11 @@
 package ch.nokillswit
 
+import ch.nokillswit.infra.json.sha256Hex
 import ch.nokillswit.planning.CrossTeamAcceptRequest
 import ch.nokillswit.planning.CrossTeamProposal
 import ch.nokillswit.planning.CrossTeamProposalRequest
 import ch.nokillswit.planning.MAX_RUN_SCHEDULE_ITEMS
 import ch.nokillswit.planning.MilestoneUpdateRequest
-import ch.nokillswit.planning.PublicHolidayCreateRequest
 import ch.nokillswit.planning.STALE_REVISION_PROBLEM
 import ch.nokillswit.planning.STALE_SCOPE_PROBLEM
 import ch.nokillswit.planning.ScheduleProposalRequest
@@ -354,7 +354,7 @@ class CrossTeamAcceptTest {
             refused("an unticked unscheduled milestone of the FIRST team scheduled") {
                 TestPlan.schedule(aSecond, "2027-05-03", "2027-05-04")
             }
-            // The hash sees what the spans are not: pins, sets, order, capacity, links, holidays, names.
+            // The structure digest sees what the spans are not: pins, sets, order, capacity, links, names (holidays: the test below).
             refused("a pin released") { TestPlan.pin(r.b4, pinned = false) }
             refused("a pin set") { TestPlan.pin(r.b2) }
             refused("a milestone added to a run team") { TestPlan.milestone(r.w.projectId, r.t.otherTeamId) }
@@ -368,14 +368,6 @@ class CrossTeamAcceptTest {
             refused("a link between the run's milestones") { TestPlan.dependency(milestoneRef(r.b2), milestoneRef(r.b1)) }
             TestPlan.dependency(milestoneRef(r.c1), milestoneRef(r.b2)) // before the run: now c1 is a foreign end the hash reads
             refused("an outside milestone that a link of the run binds, dated") { TestPlan.schedule(r.c1, "2027-02-08", "2027-02-12") }
-            var holiday: UInt? = null
-            try {
-                refused("a holiday") {
-                    holiday = TestHolidays.service.create(PublicHolidayCreateRequest("2027-04-14", "Test holiday")).value.id
-                }
-            } finally {
-                holiday?.let { TestHolidays.remove(it) }
-            }
             val name = TestPlan.scalar("SELECT name FROM teams WHERE id = ${r.t.otherTeamId}") { it.getString(1) }
             fun milestoneName(id: UInt) = TestPlan.scalar("SELECT name FROM milestones WHERE id = $id") { it.getString(1) }
             suspend fun update(id: UInt, teamId: UInt, estimate: Double) {
@@ -390,6 +382,50 @@ class CrossTeamAcceptTest {
             refused("a milestone moved INTO the set from a team outside it") { update(r.c1, r.t.teamId, 2.0) }
             refused("a milestone moved between two run teams") { update(r.b3, r.t.teamId, 2.0) }
         }
+
+    @Test
+    fun `a holiday changes the accept only when it changes an accepted date - far off or unused it is accepted, inside a span it is not`() =
+        testApplication {
+            val r = runWorld("cthol")
+            val admin = r.w.admin.client
+            val run = admin.run(r.both)
+            val items = run.items()
+            assertTrue(items.size >= 3, "a1, b1 and b2 move: ${items.map { it.milestoneId }}")
+            val stored = items.map { datesOf(it.milestoneId) }
+
+            // A holiday on the first day of ANY accepted span gives that item (at least) another date: refused whole, nothing written.
+            for (item in items) {
+                TestHolidays.with(requireNotNull(item.startDate)) {
+                    val revision = TestPlan.revision() // a holiday write bumps the plan revision
+                    admin.accept(run, r.both).assertConflict(STALE_SCOPE_PROBLEM)
+                    assertEquals(revision, TestPlan.revision(), "${item.milestoneId}: no bump")
+                    assertEquals(stored, items.map { datesOf(it.milestoneId) }, "${item.milestoneId}: nothing written")
+                }
+            }
+            // A far-off holiday, and a near one on a day nobody (moved, fixed or pinned) holds, change no accepted date: accepted.
+            val near = "2027-03-03"
+            assertTrue(items.none { near >= requireNotNull(it.startDate) && near <= requireNotNull(it.endDate) }, "$near is nobody's day")
+            TestHolidays.with("2028-08-16") {
+                TestHolidays.with(near) {
+                    val revision = TestPlan.revision() // two holiday writes have bumped it
+                    val response = admin.accept(run, r.both)
+                    assertEquals(ok, response.status)
+                    assertEquals(items.map { it.milestoneId }, response.result().accepted)
+                    assertEquals(revision + 1, response.result().revision)
+                    for (item in items) assertEquals(item.startDate to item.endDate, datesOf(item.milestoneId))
+                }
+            }
+        }
+
+    @Test
+    fun `a holiday removed again leaves the run's proposal standing, and an old-layout hash is refused`() = testApplication {
+        val r = runWorld("cthol2")
+        val admin = r.w.admin.client
+        val run = admin.run(r.both)
+        TestHolidays.with("2027-02-01") { admin.accept(run, r.both).assertConflict(STALE_SCOPE_PROBLEM) }
+        admin.accept(run, r.both, hash = sha256Hex("the 1.13 token")).assertConflict(STALE_SCOPE_PROBLEM)
+        assertEquals(ok, admin.accept(run, r.both).status, "the holiday removed again, the proposal stands")
+    }
 
     @Test
     fun `a change outside the run that no link of the run touches is accepted`() = testApplication {

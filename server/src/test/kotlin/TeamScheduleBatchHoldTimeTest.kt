@@ -2,6 +2,8 @@ package ch.nokillswit
 
 import ch.nokillswit.planning.MAX_BATCH_SCHEDULE_ITEMS
 import ch.nokillswit.planning.MilestoneService
+import ch.nokillswit.planning.ScheduleProposal
+import ch.nokillswit.planning.ScheduleProposalRequest
 import ch.nokillswit.planning.TeamScheduleBatchItem
 import ch.nokillswit.planning.TeamScheduleBatchRequest
 import ch.nokillswit.planning.TeamScheduleBatchResponse
@@ -31,6 +33,10 @@ import kotlin.test.assertTrue
  * shared suite state is as it was; the request itself is the only plan write the test makes (one revision bump per batch). It prints
  * the request time of the first batch (cold for this JVM when no earlier class ran one) and of a second, warm one
  * (`ScaleFigures`) and asserts a loose tripwire on both.
+ *
+ * It also prints the time of the accept's LOOK-AGAIN path (1.13.1, `planning-model.md`): a proposal over the same team (with a capacity
+ * period), a far-off holiday added after it, then the accept of its moves with the proposal's token - the holidays part differs, so
+ * the kernel runs once under the plan lock before the write. No gate: the figure is the cost of that rare path at the batch cap.
  */
 class TeamScheduleBatchHoldTimeTest {
     private val monday = LocalDate.parse("2027-02-01")
@@ -51,6 +57,26 @@ class TeamScheduleBatchHoldTimeTest {
         val elapsedMs = (System.nanoTime() - started) / NANOS_PER_MILLI
         assertEquals(HttpStatusCode.OK, response.status)
         return response.body<TeamScheduleBatchResponse>() to elapsedMs
+    }
+
+    /** Prints the wall time of an accept that takes the look-again path: the proposal's own moves, its token, a holiday added since it. */
+    private suspend fun lookAgain(client: HttpClient, teamId: UInt) {
+        TestPlan.capacityPeriod(teamId, "2027-01-04", 10.0)
+        val request = ScheduleProposalRequest("2027-01-31")
+        val proposal: ScheduleProposal = client.postJson("/api/v1/teams/$teamId/schedule-proposal", request).body()
+        assertTrue(proposal.moves.isNotEmpty(), "the capacity period gives the team something to move")
+        val moves = proposal.moves.map { TeamScheduleBatchItem(it.milestoneId, it.to.start, it.to.end) }
+        TestHolidays.with("2045-08-16") {
+            val started = System.nanoTime()
+            val response = client.postJson(
+                "/api/v1/teams/$teamId/milestone-schedules",
+                TeamScheduleBatchRequest(proposal.revision, moves, proposal.scopeHash),
+            )
+            val elapsedMs = (System.nanoTime() - started) / NANOS_PER_MILLI
+            assertEquals(HttpStatusCode.OK, response.status, "a far-off holiday changes no accepted date")
+            assertEquals(moves.map { it.milestoneId }, response.body<TeamScheduleBatchResponse>().accepted)
+            ScaleFigures.print("batch accept look-again path, ${moves.size} items (a holiday added since the proposal)", elapsedMs)
+        }
     }
 
     private suspend fun seedMilestones(projectId: UInt, teamId: UInt, prefix: String): List<UInt> {
@@ -90,6 +116,7 @@ class TeamScheduleBatchHoldTimeTest {
             ScaleFigures.print("batch accept $MAX_BATCH_SCHEDULE_ITEMS items, second request", secondMs)
             assertTrue(firstMs <= TRIPWIRE_MS, "the first batch took $firstMs ms")
             assertTrue(secondMs <= TRIPWIRE_MS, "the second batch took $secondMs ms")
+            lookAgain(admin.client, teamId)
         } finally {
             // NonCancellable: a test cancelled by the 60 s limit must still take its 1,000 rows out of the shared plan.
             withContext(NonCancellable) {

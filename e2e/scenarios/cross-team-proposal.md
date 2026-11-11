@@ -10,8 +10,8 @@
   its own teams, so tests never share a mutable row. Every date is in **2048**, a year no spec writes a holiday in (`public-holidays` owns 2040,
   `critical-path` 2041, `schedule-proposal` 2042, `baselines` 2043, `jira-sync` 2044, `jira-import` 2045, `jira-coverage` 2046, `flow-sync` and
   `flow-capacity-deviation` 2047): the real clock is the run's `asOf`, each team's first capacity period starts on Monday 2048-01-06, and a proposal cannot
-  place anything before the first day with capacity, so the dates do not depend on today. A cross-team proposal's scope hash covers the global holiday
-  dictionary, which `public-holidays.spec.ts` writes (2040): a holiday written while a run is open would stale the accept (409 `stale-scope`), so this file
+  place anything before the first day with capacity, so the dates do not depend on today. A cross-team proposal's scope token carries the global holiday
+  dictionary, which `public-holidays.spec.ts` writes (2040): a holiday written while a run is open can stale the accept (409 `stale-scope`, when it changes an accepted date; the lock stays, these files compare working-day figures), so this file
   takes the Playwright lock `holiday-dictionary` with `public-holidays` and `schedule-proposal` and never runs at the same time as they do.
 
 **The world.** Team X and team Y (names `e2e-ct-teamx-*`, `e2e-ct-teamy-*`), each from Monday 2048-01-06 at 10 man-days a week and no WIP limit, i.e. 2 man-days

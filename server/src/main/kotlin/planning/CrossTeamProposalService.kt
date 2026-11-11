@@ -60,7 +60,7 @@ class CrossTeamProposalService(private val database: R2dbcDatabase) {
                         dependencies = proposalLinks(snapshot.links, check),
                     )
                 },
-                scopeHash = snapshot.scopeHash(),
+                scopeHash = snapshot.scopeDigests().token(asOf),
             )
         }
 

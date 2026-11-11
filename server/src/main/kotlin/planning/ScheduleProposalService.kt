@@ -43,7 +43,7 @@ class ScheduleProposalService(private val database: R2dbcDatabase) {
             weeksTruncated = check.weeksTruncated,
             dependencies = proposalLinks(inputs.links, check),
             pinned = lists.pinned,
-            scopeHash = snapshot.scopeHash(teamId),
+            scopeHash = snapshot.scopeDigests(teamId).token(asOf),
         )
     }
 }

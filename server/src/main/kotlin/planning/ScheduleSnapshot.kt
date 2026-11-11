@@ -12,7 +12,7 @@ import java.time.LocalDate
  * The rows one team's schedule proposal reads, loaded ONCE inside the caller's transaction: the working calendar, the team's
  * milestones with their order keys, its capacity periods, every active milestone and every active link of the plan. The proposal
  * (a read-only snapshot) and the batch accept's scope check (under the plan lock) both build it through [loadScheduleSnapshot] and take
- * the [scopeHash] from it, so the two hashes are one function over one row shape.
+ * the digests from it ([scopeDigests]), so the two hashes are one function over one row shape.
  */
 internal class ScheduleSnapshot(
     val calendar: WorkingCalendar,
@@ -34,9 +34,12 @@ internal class ScheduleSnapshot(
         calendar = calendar,
     )
 
-    /** The scope fingerprint of [teamId] (`ScheduleScope.kt`). */
-    fun scopeHash(teamId: UInt): String =
-        scopeFingerprint(scheduleScope(teamId, team, periods, plan, links, calendar.offDayDates()))
+    /** The spans a proposal of [teamId] as of [asOf] gives on these very rows, by milestone id (the accept's look-again). */
+    fun freshSpans(teamId: UInt, asOf: LocalDate): Map<UInt, DaySpan> = ScheduleKernels.propose(inputs(teamId, asOf)).spansAfter
+
+    /** The two digests of [teamId]'s scope (`ScheduleScope.kt`): the structure and the Monday-Friday holidays. */
+    fun scopeDigests(teamId: UInt) =
+        ScopeDigests(structureDigest(scheduleScope(teamId, team, periods, plan, links)), holidaysDigest(calendar.offDayDates()))
 }
 
 /**
@@ -65,7 +68,7 @@ internal class TeamSnapshot(val teamId: UInt, val name: String, val rows: List<T
  * The rows a cross-team run reads (1.8.0), loaded ONCE inside the caller's transaction: the working calendar, every run team's
  * [teams] (milestones with their order keys, capacity periods), and the plan-wide [plan] (every active milestone) and [links] (every
  * active link) read once, not once per team. The run (a read-only snapshot) and the accept's scope check (under the plan lock) both
- * build it through [loadCrossTeamSnapshot] and take the [scopeHash] from it - one function over one row shape, like [ScheduleSnapshot].
+ * build it through [loadCrossTeamSnapshot] and take the digests from it - one function over one row shape, like [ScheduleSnapshot].
  */
 internal class CrossTeamSnapshot(
     val calendar: WorkingCalendar,
@@ -88,16 +91,22 @@ internal class CrossTeamSnapshot(
     /** The kernel's input for [ScheduleKernels.checkMany] (the check endpoint reads no `asOf`). */
     fun checkInputs() = CheckInputs(teams.map { TeamRun(it.teamId, it.name, it.items, it.periods) }, plan, links, calendar)
 
-    /** The run's scope fingerprint (`ScheduleScope.kt` [runScope]): "foreign" is every team OUTSIDE the run. */
-    fun scopeHash(): String = scopeFingerprint(
-        runScope(
-            teamsById = teams.associate { it.teamId to it.items },
-            names = teams.associate { it.teamId to it.name },
-            periodsById = teams.associate { it.teamId to it.periods },
-            plan = plan,
-            links = links,
-            holidays = calendar.offDayDates(),
+    /** The spans a run as of [asOf] gives on these very rows, by milestone id (a milestone is on one team): the accept's look-again. */
+    fun freshSpans(asOf: LocalDate): Map<UInt, DaySpan> =
+        ScheduleKernels.proposeMany(inputs(asOf)).byTeam.values.flatMap { it.spansAfter.entries }.associate { it.key to it.value }
+
+    /** The run's two digests (`ScheduleScope.kt` [runScope]): "foreign" is every team OUTSIDE the run; the holidays are the calendar's. */
+    fun scopeDigests() = ScopeDigests(
+        structureDigest(
+            runScope(
+                teamsById = teams.associate { it.teamId to it.items },
+                names = teams.associate { it.teamId to it.name },
+                periodsById = teams.associate { it.teamId to it.periods },
+                plan = plan,
+                links = links,
+            ),
         ),
+        holidaysDigest(calendar.offDayDates()),
     )
 }
 

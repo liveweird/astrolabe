@@ -513,6 +513,14 @@ The accept's hold time under the plan lock with 15 teams was not measured (about
 
 **NOT measured** (NON-BINDING section, so no figure is invented). The one cost the release adds is the team view's Flow capacity flag, which on a linked team is six reads inside the view's snapshot (the connections select, the binding, the team's periods, the mirror's team and sprints, the stored acknowledgements and the acknowledging logins' names) plus the pure kernel over the team's sprints; an unlinked team pays one binding read, and the other three views pay nothing (the Flow source answers empty without a team id). Measuring it honestly needs a Flow-linked team with a mirrored document in the `JiraFlagsScaleTest` world or on a loaded stack, which is not a cheap addition to a release commit; the plan's expectation (well under 2 ms) stays an expectation. What the suite does pin: the other three views stay byte-identical and the team view's 500 KB gate holds (`TimelineJiraFlagsTest`, `JiraFlagsScaleTest`), both green in the release gate. If a measurement is wanted, the method of v0.9 (`curl` over loopback, two warm-ups then ten calls) on a throwaway stack with the Flow stub in its `flow-day2` state is the cheap one.
 
+#### Measured figures (1.13.1)
+
+One-off, **NON-BINDING**, this machine only (Apple M5 Max, in-process `testApplication` against the Postgres container; re-measure rather than quote). The accept's look-again path (`planning-model.md` "The scope check": a holiday changed under an open proposal, the kernel runs once under the plan lock before the write), printed by `TeamScheduleBatchHoldTimeTest` (no gate).
+
+| Figure | Measured |
+|---|---|
+| `POST /teams/{id}/milestone-schedules` with the proposal's token after a far-off holiday was added: one team of 1,000 milestones, the proposal's own moves, the kernel run plus the multi-row write | **about 160 ms** (159.1 and 162.8 ms in two runs, all 1,000 milestones moved; the same world's plain 1,000-item batch without the token: 182.9-201.1 ms first, 121.3-124.6 ms second, so the kernel run adds about 40 ms; a 15-team run's own kernel is the 1.8 figure above, about 300 ms) |
+
 #### Deliberate departures from the bootstrap sketch
 
 A div grid instead of a `<table>` (virtual rows); `top` instead of `translateY` for virtual rows (stacking); the tray's drag is pointer-only with an explicit Schedule button; the row handle is pointer-only like the tray's (the row menu's Move items are the keyboard path); dnd-kit's live region is the single announcer for drags (the page's polite region announces only non-drag changes).

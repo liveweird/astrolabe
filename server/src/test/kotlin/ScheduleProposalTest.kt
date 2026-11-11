@@ -20,6 +20,7 @@ import io.ktor.server.testing.testApplication
 import kotlin.test.Test
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -425,7 +426,9 @@ class ScheduleProposalTest {
             TestPlan.schedule(theirs, "2027-06-01", "2027-06-04")
             val unrelated = t.manager.client.proposal(t.teamId, "2027-01-30")
             assertTrue(unrelated.revision > first.revision)
-            assertEquals(first.scopeHash, unrelated.scopeHash, "an unlinked foreign milestone and a new asOf do not move the hash")
+            assertEquals(first.scopeHash.take(56), unrelated.scopeHash.take(56), "an unlinked foreign milestone moves no digest")
+            assertNotEquals(first.scopeHash.takeLast(8), unrelated.scopeHash.takeLast(8), "another asOf differs in the last 8 characters")
+            assertEquals(first.scopeHash, t.manager.client.proposal(t.teamId).scopeHash, "the same asOf after that write: the same token")
 
             // The team's OWN span is not in the hash (the schedule revision covers it).
             TestPlan.schedule(own, "2027-03-01", "2027-03-02")
