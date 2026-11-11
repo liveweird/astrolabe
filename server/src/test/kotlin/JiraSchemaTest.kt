@@ -354,6 +354,22 @@ class JiraSchemaTest {
         assertNull(sqlState("$update gone = TRUE, gone_reason = 'OUT_OF_SCOPE', gone_probed_at = 5 WHERE binding_id = $binding"))
         assertEquals(CHECK, sqlState("$update gone = FALSE WHERE binding_id = $binding"), "clearing gone must clear the stamp")
         assertNull(sqlState("$update gone = FALSE, gone_reason = NULL, gone_probed_at = NULL WHERE binding_id = $binding"))
+
+        // V29: the key a probe's 200 answered with is a nullable VARCHAR(50) and, unlike the stamp, has NO CHECK tying it to `gone` (a 1.12
+        // build clears gone without knowing the column), so a non-gone row may hold it; the readers are what ignore it.
+        assertEquals(
+            1,
+            int(
+                "SELECT count(*) FROM information_schema.columns WHERE table_name = 'jira_observations' " +
+                    "AND column_name = 'gone_probed_key' AND data_type = 'character varying' AND character_maximum_length = 50 " +
+                    "AND is_nullable = 'YES'",
+            ),
+            "gone_probed_key is a nullable VARCHAR(50)",
+        )
+        assertNull(sqlState("$update gone_probed_key = 'OUT-3' WHERE binding_id = $binding"), "a non-gone row may hold the key (no CHECK)")
+        val tooLong = "A".repeat(51)
+        assertEquals(TOO_LONG, sqlState("$update gone_probed_key = '$tooLong' WHERE binding_id = $binding"), "51 characters overflow")
+        assertNull(sqlState("$update gone_probed_key = NULL WHERE binding_id = $binding"))
     }
 
     @Test

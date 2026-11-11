@@ -50,6 +50,7 @@ class MigrationChecksumTest {
         "V26__flow_capacity_acknowledgements.sql" to 1641040429,
         "V27__jira_gone_probe_marker.sql" to -99972177,
         "V28__jira_deviation_acknowledgements.sql" to -998312972,
+        "V29__jira_gone_probed_key.sql" to 1806262247,
     )
 
     @Test
