@@ -401,8 +401,10 @@ class SyncSchedulerTest {
         val release = CompletableDeferred<Unit>()
         val fake = FakeConnector().apply {
             rows = listOf(conn(id))
-            // Each instance has decided "due" and passed its last look; neither claims before the other has got here.
-            check = {
+            // Each instance has decided "due", passed its last look (stillDue, which reads the runs) and opened its claim
+            // transaction; neither inserts before the other has got here. A barrier any earlier (at requireRunnable) lets the
+            // winner commit before the loser's last look, which then skips quietly instead of meeting the unique index.
+            lock = {
                 if (arrivals.incrementAndGet() == 2) bothAtTheClaim.complete(Unit)
                 bothAtTheClaim.await()
             }
