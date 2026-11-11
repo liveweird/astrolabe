@@ -1,9 +1,9 @@
 import { useTranslation } from "react-i18next";
-import { Button, Group, MultiSelect, Select, Stack, Switch, Text } from "@mantine/core";
+import { Button, Group, MultiSelect, NumberInput, Select, Stack, Switch, Text } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
 import { getPlanView } from "../api/plan";
 import type { ImportFailure } from "../utils/jiraImportText";
-import { toScope, type ImportConnection, type ImportSource, type ScopeForm } from "../utils/jiraImport";
+import { MAX_IMPORT_UPDATED_DAYS, MIN_IMPORT_UPDATED_DAYS, toScope, updatedWithinOf, type ImportConnection, type ImportSource, type ScopeForm } from "../utils/jiraImport";
 import ErrorAlert from "./ErrorAlert";
 import JiraImportConnectionField from "./JiraImportConnectionField";
 import JiraImportFailureAlert from "./JiraImportFailureAlert";
@@ -99,6 +99,30 @@ export default function JiraImportScopeStep({
           disabled={reading}
           error={form.keys.length === 0 ? t("jira.import.scope.keysRequired") : undefined}
         />
+        <Switch
+          label={t("jira.import.scope.excludeDone")}
+          description={t("jira.import.scope.excludeDoneHint")}
+          checked={form.excludeDone}
+          onChange={(event) => onChange({ excludeDone: event.currentTarget.checked })}
+          disabled={reading}
+        />
+        {/* PollingFields' idiom: a value outside the bounds is refused with a sentence, never clamped (an empty field = any age). */}
+        <NumberInput
+          label={t("jira.import.scope.updatedWithin")}
+          description={t("jira.import.scope.updatedWithinHint")}
+          min={MIN_IMPORT_UPDATED_DAYS}
+          max={MAX_IMPORT_UPDATED_DAYS}
+          clampBehavior="none"
+          allowDecimal={false}
+          allowNegative={false}
+          value={form.updatedWithinDays}
+          onChange={(updatedWithinDays) => onChange({ updatedWithinDays })}
+          disabled={reading}
+          error={updatedWithinOf(form.updatedWithinDays) === null ? t("jira.import.scope.updatedWithinInvalid") : undefined}
+        />
+        <Text size="sm" c="dimmed">
+          {t("jira.import.scope.filterNote")}
+        </Text>
         <Switch
           label={t("jira.import.scope.copyDates")}
           description={t("jira.import.scope.copyDatesHint")}

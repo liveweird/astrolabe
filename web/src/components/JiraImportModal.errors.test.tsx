@@ -44,7 +44,7 @@ describe("the preview call", () => {
     await act(() => vi.advanceTimersByTimeAsync(179_000));
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     await act(() => vi.advanceTimersByTimeAsync(1_000));
-    expect(screen.getByRole("alert")).toHaveTextContent("Reading Jira took longer than 3 minutes and was stopped. Narrow the Jira projects and try again.");
+    expect(screen.getByRole("alert")).toHaveTextContent("Reading Jira took longer than 3 minutes and was stopped. Narrow the Jira projects or leave more out, then try again.");
     expect(screen.queryByText(/Reading Jira… a large scope/)).not.toBeInTheDocument();
     expect(api.previews()).toHaveLength(1);
     expect(screen.getByRole("button", { name: "Preview" })).toBeEnabled();

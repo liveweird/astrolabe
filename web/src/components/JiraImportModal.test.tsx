@@ -61,7 +61,7 @@ describe("JiraImportModal: the scope and the preview", () => {
     await previewScope(user);
     expect(screen.getByText("Step 2 of 3: review the preview")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 3, name: "What the import would do" })).toHaveFocus();
-    expect(api.previews()).toEqual([{ workStreamId: 3, ownerPersonId: 8, copyDates: true }]);
+    expect(api.previews()).toEqual([{ workStreamId: 3, ownerPersonId: 8, copyDates: true, filter: { excludeDone: true, updatedWithinDays: 365 } }]);
   });
 
   test("the defaults, a narrowed key list and the dates switch go into the preview scope", async () => {
@@ -83,7 +83,7 @@ describe("JiraImportModal: the scope and the preview", () => {
     await user.click(screen.getByRole("button", { name: "Preview" }));
     await screen.findByRole("table", { name: "Import preview" });
     expect(api.previews()).toEqual([
-      { workStreamId: 3, ownerPersonId: 8, projectKeys: ["E2E"], defaults: { programId: 4, projectId: 9, teamId: 6 }, copyDates: false },
+      { workStreamId: 3, ownerPersonId: 8, projectKeys: ["E2E"], defaults: { programId: 4, projectId: 9, teamId: 6 }, copyDates: false, filter: { excludeDone: true, updatedWithinDays: 365 } },
     ]);
   });
 
@@ -121,12 +121,13 @@ describe("JiraImportModal: the scope and the preview", () => {
     for (const cell of within(row).getAllByRole("cell")) expect((cell.textContent ?? "").trim()).not.toBe("");
   });
 
-  test("a preview with more than 2,000 issues cannot be imported: it asks to narrow the project keys", async () => {
+  test("a preview with more than 2,000 issues cannot be imported: it names the filter and the keys as the levers", async () => {
     const user = userEvent.setup();
     previewResponse = () => jsonResponse(200, previewOf(PREVIEW_ITEMS, { totals: { items: 2000, create: 6, bind: 1, skip: 2, truncated: true } }));
     open();
     await previewScope(user);
-    expect(screen.getByText(/More than 2,000 issues are in scope/)).toBeInTheDocument();
+    expect(screen.getByText(/The scope is too large to import: more than 2,000 issues, or more than 200 parents/)).toBeInTheDocument();
+    expect(screen.getByText(/narrow the Jira projects or change what is left out/)).toBeInTheDocument();
     expect(importButton()).toBeDisabled();
     expect(screen.getByRole("button", { name: "Select all" })).toBeDisabled();
   });
@@ -223,6 +224,7 @@ describe("JiraImportModal: the apply", () => {
         workStreamId: 3,
         ownerPersonId: 8,
         copyDates: true,
+        filter: { excludeDone: true, updatedWithinDays: 365 },
         items: [
           { jiraId: "95001", expected: { action: "CREATE", level: "PROGRAM" } },
           { jiraId: "95002", expected: { action: "CREATE", level: "PROJECT", parentJiraId: "95001", parent: { kind: "NEW_ROW" } } },

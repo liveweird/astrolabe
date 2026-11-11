@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { allSelectable, blockingParent, emptyScope, indexItems, tickRow, toApplyRequest, toScope, unscheduledForRights } from "./jiraImport";
+import { allSelectable, blockingParent, emptyScope, indexItems, tickRow, toApplyRequest, toScope, unscheduledForRights, updatedWithinOf } from "./jiraImport";
 import { PREVIEW_ITEMS } from "../test/jiraImport";
 
 const SCOPE = { workStreamId: 3, ownerPersonId: 8, copyDates: true };
@@ -51,12 +51,54 @@ describe("the scope", () => {
     expect(toScope(emptyScope(keys), keys)).toBeNull();
     const form = { ...emptyScope(keys), workStreamId: "3", owner: { value: "8", label: "Ola" } };
     expect(toScope({ ...form, keys: [] }, keys)).toBeNull();
-    expect(toScope(form, keys)).toEqual({ ...SCOPE });
+    expect(toScope(form, keys)).toEqual({ ...SCOPE, filter: { excludeDone: true, updatedWithinDays: 365 } });
   });
 
   test("a subset of the keys and the defaults are sent; all keys are not", () => {
     const form = { ...emptyScope(keys), workStreamId: "3", owner: { value: "8", label: "Ola" }, keys: ["IMP"], programId: "4", projectId: "9", team: { value: "5", label: "T" }, copyDates: false };
-    expect(toScope(form, keys)).toEqual({ workStreamId: 3, ownerPersonId: 8, projectKeys: ["IMP"], defaults: { programId: 4, projectId: 9, teamId: 5 }, copyDates: false });
+    expect(toScope(form, keys)).toEqual({ workStreamId: 3, ownerPersonId: 8, projectKeys: ["IMP"], defaults: { programId: 4, projectId: 9, teamId: 5 }, copyDates: false, filter: { excludeDone: true, updatedWithinDays: 365 } });
+  });
+});
+
+describe("the import filter", () => {
+  const keys = ["IMP"];
+  const ready = { ...emptyScope(keys), workStreamId: "3", owner: { value: "8", label: "Ola" } };
+
+  test("opens with done items left out and a 365-day window", () => {
+    expect(emptyScope(keys)).toMatchObject({ excludeDone: true, updatedWithinDays: 365 });
+  });
+
+  test.each([
+    ["both on", true, 30, { excludeDone: true, updatedWithinDays: 30 }],
+    ["done only (the field emptied)", true, "", { excludeDone: true }],
+    ["the window only", false, 90, { excludeDone: false, updatedWithinDays: 90 }],
+    ["the upper bound", true, 3650, { excludeDone: true, updatedWithinDays: 3650 }],
+    ["the lower bound", true, 1, { excludeDone: true, updatedWithinDays: 1 }],
+  ])("%s sends the filter the controls say", (_name, excludeDone, updatedWithinDays, filter) => {
+    expect(toScope({ ...ready, excludeDone, updatedWithinDays }, keys)).toEqual({ ...SCOPE, filter });
+  });
+
+  test("both off and an empty field send no filter at all", () => {
+    const scope = toScope({ ...ready, excludeDone: false, updatedWithinDays: "" }, keys);
+    expect(scope).toEqual(SCOPE);
+    expect(scope).not.toHaveProperty("filter");
+  });
+
+  test.each([0, 3651, 1.5, -5, "abc"])("a days value of %j the server would refuse is no scope", (value) => {
+    expect(updatedWithinOf(value)).toBeNull();
+    expect(toScope({ ...ready, updatedWithinDays: value }, keys)).toBeNull();
+  });
+
+  test("a blank field is no time limit", () => {
+    expect(updatedWithinOf("")).toEqual({ days: null });
+    expect(updatedWithinOf("  ")).toEqual({ days: null });
+  });
+
+  test("the apply body carries the scope's filter as the preview read it", () => {
+    const scope = toScope(ready, keys)!;
+    const body = toApplyRequest(scope, PREVIEW_ITEMS, allSelectable(PREVIEW_ITEMS), new Map());
+    expect(body.filter).toEqual({ excludeDone: true, updatedWithinDays: 365 });
+    expect(toApplyRequest(SCOPE, PREVIEW_ITEMS, allSelectable(PREVIEW_ITEMS), new Map())).not.toHaveProperty("filter");
   });
 });
 

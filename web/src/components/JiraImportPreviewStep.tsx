@@ -10,6 +10,12 @@ import JiraImportFailureAlert from "./JiraImportFailureAlert";
 import JiraImportRow, { IMPORT_ROW_HEIGHT, type TeamOption } from "./JiraImportRow";
 import JiraImportVirtualTable from "./JiraImportVirtualTable";
 
+/** The "what was left out" line's key for the filter the rows were read under; null when the filter leaves nothing out. */
+function leftOutKeyOf(excludeDone: boolean, days: number | null) {
+  if (excludeDone) return days === null ? "jira.import.preview.leftOutDone" : "jira.import.preview.leftOutBoth";
+  return days === null ? null : "jira.import.preview.leftOutQuiet";
+}
+
 /** The second phase: what the import would do, with a tickbox per row that would be written. The ticks and the per-row team overrides are this component's state. */
 export default function JiraImportPreviewStep({
   connection,
@@ -44,6 +50,8 @@ export default function JiraImportPreviewStep({
   const notable = items.some((item) => item.action === "SKIP" && item.reason !== "ALREADY_BOUND");
   const rights = unscheduledForRights(items, ticks, scope.copyDates);
   const truncated = totals.truncated;
+  const filter = scope.filter ?? null;
+  const leftOutKey = filter === null ? null : leftOutKeyOf(filter.excludeDone, filter.updatedWithinDays ?? null);
   const none = ticks.size === 0;
   const applying = busy === "apply";
   const locked = busy !== null;
@@ -81,6 +89,11 @@ export default function JiraImportPreviewStep({
           </Badge>
         )}
       </Group>
+      {filter !== null && leftOutKey !== null && (
+        <Text size="sm" role="note">
+          {t(leftOutKey, { count: filter.updatedWithinDays ?? 0 })}
+        </Text>
+      )}
       {truncated && (
         <Alert color="orange" variant="light" role="note">
           {t("jira.import.preview.truncated")}
@@ -111,7 +124,7 @@ export default function JiraImportPreviewStep({
       </Group>
       {items.length === 0 ? (
         <Text size="sm" role="note">
-          {t("jira.import.preview.empty")}
+          {t(filter === null ? "jira.import.preview.empty" : "jira.import.preview.emptyFiltered")}
         </Text>
       ) : (
         <JiraImportVirtualTable

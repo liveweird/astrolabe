@@ -49,7 +49,7 @@ describe("JiraImportModal: where the connection comes from", () => {
     expect(preview()).toBeEnabled();
     await user.click(preview());
     await screen.findByRole("heading", { level: 3, name: "What the import would do" });
-    expect(api.previews()).toEqual([{ workStreamId: 3, ownerPersonId: 8, copyDates: true }]);
+    expect(api.previews()).toEqual([{ workStreamId: 3, ownerPersonId: 8, copyDates: true, filter: { excludeDone: true, updatedWithinDays: 365 } }]);
   });
 
   test("several connections and none picked: the field says to choose one", () => {
@@ -120,6 +120,6 @@ describe("JiraImportModal: where the connection comes from", () => {
     await user.click(await screen.findByRole("option", { name: "Ola Owner" }));
     await user.click(preview());
     await screen.findByRole("heading", { level: 3, name: "What the import would do" });
-    expect(api.previews()).toEqual([{ workStreamId: 3, ownerPersonId: 8, copyDates: true }]);
+    expect(api.previews()).toEqual([{ workStreamId: 3, ownerPersonId: 8, copyDates: true, filter: { excludeDone: true, updatedWithinDays: 365 } }]);
   });
 });

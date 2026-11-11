@@ -1010,7 +1010,7 @@ items, so a row is not always there and the list may differ from a connection de
 **The import modal** (1.2, `components/JiraImportModal.tsx`; two entry points since 1.10: "Import from Jira…" beside "Link a node…" in the bindings section - ADMIN's
 page, disabled until the connection is enabled and has a stored discovery - and the Plan page's work-stream menu, below): ONE wide `Modal` (title = the h2, phases are h3) in three phases, state in
 `hooks/useJiraImport.ts`, pure model in `utils/jiraImport.ts` (ticks, scope, body), sentences in `utils/jiraImportText.ts`. **Scope** (`JiraImportScopeStep`:
-work stream from `["plan","view"]`, owner, Jira project keys all preselected, "Copy Jira's dates", default team / program / project - the last two offered only
+work stream from `["plan","view"]`, owner, Jira project keys all preselected, **the import filter (1.13.2)**, "Copy Jira's dates", default team / program / project - the last two offered only
 from the picked stream, the server's own rule) -> `POST …/import-preview`; **Preview** (`JiraImportPreviewStep`: totals, notes, "N of M selected", a virtualised
 table - `JiraImportVirtualTable`, TanStack Virtual above 80 rows, fixed row height, `aria-rowcount`/`aria-rowindex`, shared with the outcome's skipped list -, a
 checkbox per CREATE/BIND row, SKIP rows say why in words) -> `POST …/import`; **Outcome** (counts created / linked / scheduled / skipped, every skipped row with
@@ -1018,7 +1018,16 @@ its reason, "Preview again" when rows read `CHANGED`). **Ticks keep the dependen
 `parent.rowJiraId`; the server would answer `PARENT_SKIPPED`), the rows show "Not imported: its parent X is not ticked" and a polite status says how many moved;
 ticking a row ticks the rows it lands under. **The body is strict**: `expected.parent` is projected to `{kind, nodeId}` (never the preview's `parent` verbatim),
 a BIND carries `nodeId`, a milestone CREATE the `teamId` the row showed; a per-row team `NativeSelect` goes to `overrides.teamId` and never into `expected`; the
-apply sends the SCOPE the preview was read under. `totals.truncated` disables Import (narrow the keys). **Time**: each call owns an `AbortController` that
+apply sends the SCOPE the preview was read under. `totals.truncated` disables Import (narrow the keys or the filter). **The filter (1.13.2)**: right under the keys, a
+Switch "Leave out done items" (ON when the dialog opens) and a NumberInput "Updated within (days)" (365; `PollingFields`' idiom: `clampBehavior="none"`, bounds
+`MIN/MAX_IMPORT_UPDATED_DAYS` 1..3,650 mirroring the server's, a value outside them shows the sentence under the field and disables Preview, `toScope` answers
+null; EMPTY = no time limit; 0 is refused), a dimmed line saying a parent of an item that is read is always kept. `toScope` adds `filter{excludeDone,
+updatedWithinDays}` only when a control is on (`{excludeDone: true}` with the field empty; NO member with both off = the request of before the filter), and
+since the apply spreads the preview's scope it sends the SAME filter. The preview step reads `preview.scope.filter` (the filter the rows were read under, never the
+form): one `role="note"` line "Left out: …" in three wordings (done / window / both, plural on the days; none without a filter, and no count - the server does not report
+one), the too-large alert names both causes (over 2,000 issues, over 200 parents read one by one) and the filter as the lever, an empty preview under a filter says
+the filter may be why; a kept parent and a child whose parent could not be read show `KEPT_AS_PARENT` / `PARENT_UNREADABLE` among the row's notes (`infoText`).
+Tests: `JiraImportModal.filter.test.tsx`. **Time**: each call owns an `AbortController` that
 aborts at `IMPORT_TIMEOUT_MS` (180 s, over the server's 170 s browse), the visible wait has a Stop for a preview, one request at a time, and an apply is never
 aborted by the client: the dialog cannot be closed over it, and leaving the page (Back, the palette) does not cancel it either (only an unmount mid-PREVIEW
 aborts) - it finishes and still refreshes the plan; an answer that leaves the write in doubt (the 180 s abort, no server answer, a 5xx other than the server's
