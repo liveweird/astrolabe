@@ -6,7 +6,7 @@
 // below (the project first - its milestones and link go with it - then program, work stream, teams, people, users). Every date it pins is in 2048,
 // which no other spec writes a holiday in; the real clock is the proposal's `asOf`, and nothing can land before a team's first capacity period.
 import { randomUUID } from "node:crypto";
-import type { APIRequestContext, Page } from "@playwright/test";
+import type { APIRequestContext, Page, Response } from "@playwright/test";
 import { apiAsAdmin, deleteViaApi, expect, login, signOut, test, uniqueText } from "./helpers";
 
 // A cross-team proposal's scope token carries the global holiday dictionary, which `public-holidays` writes (2040): a holiday written while a run is open
@@ -112,8 +112,14 @@ const acceptButton = (page: Page, count: number) => page.getByRole("button", { n
 const sectionTable = (page: Page, team: string) => page.getByRole("table", { name: `Proposed moves of ${team}` });
 const row = (page: Page, team: string, milestone: Milestone) => sectionTable(page, team).getByRole("row").filter({ hasText: milestone.name });
 const note = (page: Page, text: string) => page.getByRole("note").filter({ hasText: text });
-const isApi = (method: string, suffix: string) => (r: { request(): { method(): string }; url(): string; ok(): boolean }) =>
-  r.request().method() === method && r.url().endsWith(`/api/v1/schedule-proposals${suffix}`) && r.ok();
+// Matches the call whatever its status; each caller asserts the 200 with `expectOk`, so a refused call fails at once with its problem body
+// instead of timing out with nothing (the 2026-11-02 flake of the single-team accept).
+const isApi = (method: string, suffix: string) => (r: { request(): { method(): string }; url(): string }) =>
+  r.request().method() === method && r.url().endsWith(`/api/v1/schedule-proposals${suffix}`);
+async function expectOk(response: Response): Promise<Response> {
+  expect(response.status(), await response.text()).toBe(200);
+  return response;
+}
 
 async function openPage(page: Page): Promise<void> {
   await page.goto("/schedule-proposals");
@@ -130,6 +136,7 @@ async function pickTeams(page: Page, ...names: string[]): Promise<void> {
 /** Press Propose and wait for the run; returns its plan revision. */
 async function propose(page: Page): Promise<number> {
   const [response] = await Promise.all([page.waitForResponse(isApi("POST", "")), proposeButton(page).click()]);
+  await expectOk(response);
   await expect(page.getByRole("button", { name: "Discard", exact: true })).toBeVisible();
   return ((await response.json()) as { revision: number }).revision;
 }
@@ -163,6 +170,7 @@ test("the manager of two teams runs a cross-team proposal: the second team's mil
 
   // ONE accept writes both teams' moves.
   const [accepted] = await Promise.all([page.waitForResponse(isApi("POST", "/accept")), acceptButton(page, 2).click()]);
+  await expectOk(accepted);
   const body = (await accepted.json()) as { revision: number; accepted: unknown[]; skipped: unknown[] };
   expect(body.accepted).toHaveLength(2);
   expect(body.skipped).toHaveLength(0);
@@ -195,7 +203,8 @@ test("unticking the first team's move keeps it in March, and the check turns the
   await expect(sectionTable(page, world.teamY).getByText("Conflict", { exact: true })).toHaveCount(0);
 
   // Untick x1: it stays in March (ends 03-03), so y1 at 01-08 would start before its predecessor ends. The check answers for the ticked subset.
-  await Promise.all([page.waitForResponse(isApi("POST", "/check")), page.getByRole("checkbox", { name: `Accept ${world.x1.name}` }).uncheck()]);
+  const [checked] = await Promise.all([page.waitForResponse(isApi("POST", "/check")), page.getByRole("checkbox", { name: `Accept ${world.x1.name}` }).uncheck()]);
+  await expectOk(checked);
   await expect(acceptButton(page, 1)).toBeVisible();
   const y1 = row(page, world.teamY, world.y1);
   await expect(y1.getByText("Conflict", { exact: true })).toBeVisible();

@@ -122,22 +122,27 @@ async function openTeam(page: Page, world: World): Promise<void> {
   await settled(page);
 }
 
-/** Press Propose schedule, wait for the answer and for the Proposed schedule section. */
+/**
+ * Press Propose schedule, wait for the answer and for the Proposed schedule section. The wait takes the answer WHATEVER its status and then
+ * asserts the 200, so a refused call fails at once with its problem body instead of timing out with nothing (the 2026-11-02 flake).
+ */
 async function propose(page: Page): Promise<void> {
-  await Promise.all([
-    page.waitForResponse((r) => r.request().method() === "POST" && /\/api\/v1\/teams\/\d+\/schedule-proposal$/.test(r.url()) && r.ok()),
+  const [response] = await Promise.all([
+    page.waitForResponse((r) => r.request().method() === "POST" && /\/api\/v1\/teams\/\d+\/schedule-proposal$/.test(r.url())),
     proposeButton(page).click(),
   ]);
+  expect(response.status(), await response.text()).toBe(200);
   await expect(page.getByRole("heading", { level: 3, name: "Proposed schedule" })).toBeVisible();
   await expect(proposalTable(page)).toBeVisible();
 }
 
-/** Press the accept button (named by the selected count) and wait for the batch. */
+/** Press the accept button (named by the selected count) and wait for the batch; any answer, then the 200 asserted (as `propose`). */
 async function accept(page: Page, count: number): Promise<void> {
-  await Promise.all([
-    page.waitForResponse((r) => r.request().method() === "POST" && /\/api\/v1\/teams\/\d+\/milestone-schedules$/.test(r.url()) && r.ok()),
+  const [response] = await Promise.all([
+    page.waitForResponse((r) => r.request().method() === "POST" && /\/api\/v1\/teams\/\d+\/milestone-schedules$/.test(r.url())),
     page.getByRole("button", { name: `Accept selected (${count})` }).click(),
   ]);
+  expect(response.status(), await response.text()).toBe(200);
   await expect(proposalTable(page)).toHaveCount(0);
 }
 
