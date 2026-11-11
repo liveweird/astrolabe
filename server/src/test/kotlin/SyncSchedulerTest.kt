@@ -28,7 +28,6 @@ import ch.nokillswit.sync.SyncState
 import ch.nokillswit.sync.SyncStatusKernels
 import ch.nokillswit.sync.SyncTrigger
 import ch.nokillswit.sync.failureJitterFraction
-import ch.nokillswit.teams.TeamCapacityService
 import io.ktor.server.plugins.BadRequestException
 import java.util.concurrent.ThreadLocalRandom
 import java.util.concurrent.atomic.AtomicInteger
@@ -203,7 +202,7 @@ class SyncSchedulerTest {
         val mirror = FlowMirrorStore(database)
         val flowBindings = FlowTeamBindingService(database)
         val acknowledgements = CapacityAcknowledgeService(
-            database, CapacityDeviationService(database, flowBindings, mirror, TeamCapacityService(database), runs), flowBindings, mirror,
+            database, CapacityDeviationService(database, flowBindings, mirror, capacityService(database), runs), flowBindings, mirror,
         )
         val observer = FlowObserver(
             FlowConnector({ _, _ -> client }, sprintsSinceDays = 365), connections, mirror, flowBindings, acknowledgements,

@@ -20,7 +20,6 @@ import ch.nokillswit.infra.outbound.SelfManagedHosts
 import ch.nokillswit.planning.DeviationSeverity
 import ch.nokillswit.sync.SyncOutcome
 import ch.nokillswit.sync.SyncState
-import ch.nokillswit.teams.TeamCapacityService
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
@@ -105,7 +104,7 @@ class CapacityDeviationViewTest {
         harness: FlowRunHarness = stubHarness,
         maxItems: Int = MAX_CAPACITY_DEVIATION_ITEMS,
         clock: () -> Long = System::currentTimeMillis,
-    ) = CapacityDeviationService(database, harness.bindings, harness.mirror, TeamCapacityService(database), harness.runs, clock, maxItems)
+    ) = CapacityDeviationService(database, harness.bindings, harness.mirror, capacityService(database), harness.runs, clock, maxItems)
 
     private fun instant(text: String) = { Instant.parse(text).toEpochMilli() }
 
@@ -124,7 +123,7 @@ class CapacityDeviationViewTest {
 
     /** Imports every CREATE/UPDATE row of the team's preview (what the page's Import capacity does), through the services. */
     private suspend fun importAll(bound: Bound, firstRows: Int = Int.MAX_VALUE) {
-        val imports = CapacityImportService(database, stubHarness.bindings, stubHarness.mirror, TeamCapacityService(database))
+        val imports = CapacityImportService(database, stubHarness.bindings, stubHarness.mirror, capacityService(database))
         val preview = checkNotNull(imports.preview(bound.bindingId, null, includeClosed = false))
         val rows = preview.items.filter { it.action == CapacityAction.CREATE || it.action == CapacityAction.UPDATE }.take(firstRows).map {
             CapacityApplyRow(it.sprintId, it.action, LocalDate.parse(it.effectiveFrom), BigDecimal.valueOf(checkNotNull(it.mdPerWeek)))
@@ -504,7 +503,7 @@ class CapacityDeviationViewTest {
                 "WHERE team_id = ? AND effective_from = ?::date AND NOT marked_as_deleted",
             world.teamId.toInt(), secondStart,
         )
-        val imports = CapacityImportService(database, stubHarness.bindings, stubHarness.mirror, TeamCapacityService(database))
+        val imports = CapacityImportService(database, stubHarness.bindings, stubHarness.mirror, capacityService(database))
         val preview = checkNotNull(imports.preview(world.bindingId, null, includeClosed = false))
         val view = service().view(CapacityDeviationFilter(connectionId = world.connectionId))
         val deviating = view.items.flatMap { it.deviations }.mapNotNull { it.detail.sprintId }.toSet()

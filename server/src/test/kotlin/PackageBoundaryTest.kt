@@ -77,7 +77,8 @@ class PackageBoundaryTest {
         FeatureEdge(
             "flow", "teams",
             "team bindings and the capacity import write through TeamService, TeamCapacityService, TeamGuard; " +
-                "the capacity-write listener seam (CapacityWriteListeners: flow registers, the capacity routes call)",
+                "the capacity-write listener seam (CapacityWriteListener, CapacityWriteTrail: flow registers, " +
+                "the capacity service calls it inside the write)",
         ),
         FeatureEdge(
             "jira", "authz",

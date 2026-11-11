@@ -5,6 +5,7 @@ import ch.nokillswit.infra.db.active
 import ch.nokillswit.infra.db.nowMillis
 import ch.nokillswit.planning.loadWorkingCalendar
 import ch.nokillswit.teams.CapacityImportApplied
+import ch.nokillswit.teams.CapacityWriteTrail
 import ch.nokillswit.teams.TeamCapacityService
 import ch.nokillswit.teams.TeamGuard
 import io.ktor.util.AttributeKey
@@ -62,21 +63,28 @@ class CapacityImportService(
         }
 
     /**
-     * The apply (`POST …/capacity-import`): [TeamCapacityService.applyImport] locks the team row (404 when it is gone), re-runs [guard]
-     * under it (403: a manager cleared while this waited), shows this block the team's ACTIVE periods read under the lock, and this block
-     * re-runs [CapacityImportKernels.plan] over the mirror rows read NOW (with the request's echoed `from` and `includeClosed`) and lets
-     * [CapacityApplyKernels.decide] compare every requested row with that plan. Only rows the plan still confirms are written; the rest
-     * are skipped `CHANGED`. A binding unlinked while the apply waited is a 404 and nothing is written. Writes nothing to Flow and takes
-     * no plan lock: capacity periods are team data.
+     * The apply (`POST …/capacity-import`): [TeamCapacityService.applyImport] first lets the capacity-write listeners lock the team's
+     * binding row (1.13.2: [CapacityAcknowledgeService.lockBindingsBeforeCapacityWrite], the acknowledge's order), then locks the team
+     * row (404 when it is gone), re-runs [guard] under it (403: a manager cleared while this waited), shows this block the team's ACTIVE
+     * periods read under the lock, and this block re-runs [CapacityImportKernels.plan] over the mirror rows read NOW (with the request's
+     * echoed `from` and `includeClosed`) and lets [CapacityApplyKernels.decide] compare every requested row with that plan. Only rows
+     * the plan still confirms are written; the rest are skipped `CHANGED`. A binding unlinked while the apply waited is a 404 and
+     * nothing is written. Writes nothing to Flow and takes no plan lock: capacity periods are team data.
      *
      * The Flow team and its sprints come from ONE statement ([FlowMirrorStore.teamSprintsOf]), so a mirror refresh that drops the team
      * reads as "not in the mirror" (an empty plan, everything skipped), never as a team with no sprints (which would offer every Flow
-     * period for removal). The binding is re-read in the transaction but NOT locked: an unlink committed before that read is a 404, one
-     * committed after it is not noticed.
+     * period for removal). The binding is re-read in the transaction UNDER the binding row lock the listeners took (an unlink committed
+     * before that lock is a 404; none can commit after it). A write that changed a period also settles the team's acknowledgements
+     * in this transaction (queued audit on [trail]).
      */
-    suspend fun apply(bindingId: UInt, command: CapacityApplyCommand, guard: TeamGuard): CapacityImportOutcome {
+    suspend fun apply(
+        bindingId: UInt,
+        command: CapacityApplyCommand,
+        trail: CapacityWriteTrail = CapacityWriteTrail(),
+        guard: TeamGuard,
+    ): CapacityImportOutcome {
         val binding = bindings.bindingOf(bindingId) ?: throw NotFoundException(BINDING_NOT_FOUND)
-        val applied = capacity.applyImport(binding.teamId, guard) { periods ->
+        val applied = capacity.applyImport(binding.teamId, guard, trail) { periods ->
             bindings.bindingOf(bindingId)?.takeIf { it.teamId == binding.teamId } ?: throw NotFoundException(BINDING_NOT_FOUND)
             val zone = zoneOrUtc(zoneIdOf(binding.connectionId) ?: throw NotFoundException(BINDING_NOT_FOUND))
             val calendar = loadWorkingCalendar()

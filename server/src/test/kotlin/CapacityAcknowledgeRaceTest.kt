@@ -2,6 +2,8 @@ package ch.nokillswit
 
 import ch.nokillswit.flow.CapacityAcknowledgeServiceKey
 import ch.nokillswit.sync.STALE_DEVIATIONS_PROBLEM
+import ch.nokillswit.teams.CapacityPeriodRequest
+import ch.nokillswit.teams.CapacityWriteTrail
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
@@ -326,72 +328,218 @@ class CapacityAcknowledgeRaceTest {
             }
         }
 
-    // 1.13.1: the prune after a capacity write (a transaction of its own, after the write's commit).
+    // 1.13.2: a capacity write takes the team's binding row BEFORE the team row and prunes inside its own transaction.
+
+    private val periodSql = "SELECT md_per_week::text FROM team_capacity_periods WHERE id = ?"
+
+    /** Whether another session can NOT take the binding row right now (a `NOWAIT` that fails with `55P03`: somebody holds it). */
+    private fun bindingIsLocked(id: UInt): Boolean = PostgresTestSupport.connect().use { c ->
+        c.autoCommit = false
+        try {
+            c.prepareStatement("SELECT id FROM flow_team_bindings WHERE id = ? FOR NO KEY UPDATE NOWAIT").use { st ->
+                st.setInt(1, id.toInt())
+                st.executeQuery().close()
+            }
+            false
+        } catch (e: java.sql.SQLException) {
+            e.sqlState == LOCK_NOT_AVAILABLE
+        } finally {
+            c.rollback()
+        }
+    }
+
+    /** Takes the team row `FOR UPDATE NOWAIT` on [raw]: throws when somebody else (a write, a link's `FOR SHARE`) holds it. */
+    private fun requireTeamRowFree(raw: Connection, teamId: UInt) {
+        raw.prepareStatement("SELECT id FROM teams WHERE id = ? FOR UPDATE NOWAIT").use { st ->
+            st.setInt(1, teamId.toInt())
+            st.executeQuery().close()
+        }
+    }
 
     @Test
-    fun `the prune after a capacity write waits for a held binding row, then completes - the write was already committed`() =
+    fun `a capacity write queues at a held binding row before it writes or locks the team, then prunes in the same transaction`() =
         testApplication {
             val world = dayTwo("capackr14")
             with(world) {
                 val admin = w.admin.client
                 admin.capAck(bindingId, 3, admin.rowOf(3).fingerprint).capAcknowledgement()
                 val s3 = capAckPeriod(teamId, 3)
-                val response = heldAt(bindingLock, bindingId, "FOR NO KEY UPDATE", { manager.client.capAckEdit(s3, 24.0) }) {
-                    val sql = "SELECT md_per_week::text FROM team_capacity_periods WHERE id = ?"
-                    val stored = jbScalar(sql, s3.id.toInt()) { it.getString(1) }
-                    assertEquals("24.00", stored, "the write committed before the prune asked for the binding row")
-                    assertNotNull(capAckRow(bindingId, 3), "the prune has not run yet")
+                val response = heldAt(bindingLock, bindingId, "FOR NO KEY UPDATE", { manager.client.capAckEdit(s3, 24.0) }) { raw ->
+                    val stored = jbScalar(periodSql, s3.id.toInt()) { it.getString(1) }
+                    assertEquals("22.00", stored, "nothing is written while the binding row is held")
+                    assertNotNull(capAckRow(bindingId, 3), "and nothing is pruned")
+                    requireTeamRowFree(raw, teamId) // the write holds no team lock yet: binding first, team second
                 }.single()
                 assertEquals(HttpStatusCode.NoContent, response.status)
-                assertNull(capAckRow(bindingId, 3), "the prune resumed after the release and cleared the row, before the answer")
+                assertEquals("24.00", jbScalar(periodSql, s3.id.toInt()) { it.getString(1) })
+                assertNull(capAckRow(bindingId, 3), "the prune committed with the write, before the answer")
             }
         }
 
     @Test
-    fun `the prune after a capacity write takes no team lock - it completes while another session holds the team row`() = testApplication {
-        val world = dayTwo("capackr15")
+    fun `two capacity writes of one team meeting at its binding row leave an in-line-and-back acknowledgement pruned`() = testApplication {
+        val world = dayTwo("capackr17")
         with(world) {
             val admin = w.admin.client
             admin.capAck(bindingId, 3, admin.rowOf(3).fingerprint).capAcknowledgement()
-            // The write the prune follows, done by hand (the routes call the prune AFTER the write's commit, so no team lock is held).
-            jbSql("UPDATE team_capacity_periods SET md_per_week = 24 WHERE team_id = ? AND flow_sprint_id = 3", teamId.toInt())
-            val service = application.attributes[CapacityAcknowledgeServiceKey]
+            val s3 = capAckPeriod(teamId, 3)
             PostgresTestSupport.connect().use { raw ->
                 raw.autoCommit = false
-                // FOR UPDATE: it conflicts with every lock the guard's team read (FOR SHARE) or a write (FOR NO KEY UPDATE) could take.
-                raw.prepareStatement("SELECT id FROM teams WHERE id = ? FOR UPDATE").use { st ->
-                    st.setInt(1, teamId.toInt())
+                raw.prepareStatement(bindingLock).use { st ->
+                    st.setInt(1, bindingId.toInt())
                     st.executeQuery().close()
                 }
                 try {
-                    val pruned = withTimeout(30_000) { service.pruneAfterCapacityWrite(teamId) }
-                    assertEquals(listOf(3L), pruned?.sprintIds)
+                    val (inLine, back) = coroutineScope {
+                        // The first write brings sprint 3 in line (22 -> 24), the second puts it back (24 -> 22). Before 1.13.2 both
+                        // committed and BOTH prunes then read the final, deviating state: the acknowledgement stood.
+                        val inLine = async { manager.client.capAckEdit(s3, 24.0) }
+                        awaitLockWait("FOR NO KEY UPDATE", 1)
+                        val back = async { admin.capAckEdit(s3, 22.0) }
+                        awaitLockWait("FOR NO KEY UPDATE", 2)
+                        assertFalse(inLine.isCompleted || back.isCompleted, "both writes are held at the binding row")
+                        raw.commit()
+                        inLine.await() to back.await()
+                    }
+                    assertEquals(HttpStatusCode.NoContent, inLine.status)
+                    assertEquals(HttpStatusCode.NoContent, back.status)
                 } finally {
                     raw.rollback()
                 }
             }
-            assertNull(capAckRow(bindingId, 3))
+            assertEquals("22.00", jbScalar(periodSql, s3.id.toInt()) { it.getString(1) }, "the second write ran last: the figure is back")
+            assertNull(capAckRow(bindingId, 3), "the first write's prune saw the in-line state, whatever the second did next")
+            assertNull(admin.rowOf(3).acknowledgement, "the same difference is OPEN again")
         }
     }
 
     @Test
-    fun `a team without stored rows takes no binding lock - its capacity write answers while every binding is held`() = testApplication {
-        val world = dayTwo("capackr16")
+    fun `a capacity write that waits for the team row has the binding row - an acknowledge queues behind it, nothing deadlocks`() =
+        testApplication {
+            val world = dayTwo("capackr15")
+            with(world) {
+                val admin = w.admin.client
+                val fingerprint = admin.rowOf(3).fingerprint
+                val s3 = capAckPeriod(teamId, 3)
+                val (write, acknowledge) = PostgresTestSupport.connect().use { raw ->
+                    raw.autoCommit = false
+                    raw.prepareStatement("SELECT id FROM teams WHERE id = ? FOR UPDATE").use { st ->
+                        st.setInt(1, teamId.toInt())
+                        st.executeQuery().close()
+                    }
+                    try {
+                        coroutineScope {
+                            val write = async { manager.client.capAckEdit(s3, 24.0) }
+                            awaitLockWait("FROM teams")
+                            assertTrue(bindingIsLocked(bindingId), "the write took the binding row first and now waits for the team row")
+                            val acknowledge = async { admin.capAck(bindingId, 3, fingerprint) }
+                            awaitLockWait("FROM flow_team_bindings")
+                            assertFalse(write.isCompleted || acknowledge.isCompleted, "write on the team, acknowledge on the write")
+                            raw.commit()
+                            write.await() to acknowledge.await()
+                        }
+                    } finally {
+                        raw.rollback()
+                    }
+                }
+                assertEquals(HttpStatusCode.NoContent, write.status)
+                assertEquals(HttpStatusCode.Conflict, acknowledge.status, "recomputed AFTER the write: sprint 3 is in line, no row")
+                assertEquals(STALE_DEVIATIONS_PROBLEM, acknowledge.jbProblem().type)
+                assertEquals(0, capAckStored(bindingId))
+            }
+        }
+
+    @Test
+    fun `an acknowledge queued ahead of a capacity write stamps first and the write then prunes it - both succeed`() = testApplication {
+        val world = dayTwo("capackr18")
         with(world) {
-            assertEquals(0, capAckStored(bindingId) + capAckStored(billingBindingId))
+            val admin = w.admin.client
+            val fingerprint = admin.rowOf(3).fingerprint
             val s3 = capAckPeriod(teamId, 3)
             PostgresTestSupport.connect().use { raw ->
                 raw.autoCommit = false
-                raw.prepareStatement("SELECT id FROM flow_team_bindings WHERE connection_id = ? FOR NO KEY UPDATE").use { st ->
-                    st.setInt(1, mirror.connectionId.toInt())
+                raw.prepareStatement(bindingLock).use { st ->
+                    st.setInt(1, bindingId.toInt())
                     st.executeQuery().close()
                 }
                 try {
-                    assertEquals(HttpStatusCode.NoContent, withTimeout(30_000) { manager.client.capAckEdit(s3, 24.0) }.status)
+                    val (acknowledge, write) = coroutineScope {
+                        val acknowledge = async { admin.capAck(bindingId, 3, fingerprint) }
+                        awaitLockWait("FOR NO KEY UPDATE", 1)
+                        val write = async { manager.client.capAckEdit(s3, 24.0) }
+                        awaitLockWait("FOR NO KEY UPDATE", 2)
+                        raw.commit()
+                        acknowledge.await() to write.await()
+                    }
+                    assertEquals(HttpStatusCode.OK, acknowledge.status)
+                    assertEquals(HttpStatusCode.NoContent, write.status)
                 } finally {
                     raw.rollback()
                 }
             }
+            assertNull(capAckRow(bindingId, 3), "the acknowledgement was stamped, then the write brought the sprint in line and ended it")
+        }
+    }
+
+    @Test
+    fun `a bound team's capacity write queues behind its binding row even with no stored rows - another team's write does not`() =
+        testApplication {
+            val world = dayTwo("capackr16")
+            with(world) {
+                assertEquals(0, capAckStored(bindingId) + capAckStored(billingBindingId))
+                val s3 = capAckPeriod(teamId, 3)
+                val edit = heldAt(bindingLock, bindingId, "FOR NO KEY UPDATE", { manager.client.capAckEdit(s3, 24.0) }).single()
+                assertEquals(HttpStatusCode.NoContent, edit.status, "an acknowledge in flight could store a row: the write waits for it")
+
+                PostgresTestSupport.connect().use { raw ->
+                    raw.autoCommit = false
+                    raw.prepareStatement(bindingLock).use { st ->
+                        st.setInt(1, bindingId.toInt())
+                        st.executeQuery().close()
+                    }
+                    try {
+                        val other = w.requireTeams().otherTeamId
+                        val body = CapacityPeriodRequest("2049-05-03", 5.0)
+                        val created = withTimeout(30_000) { w.admin.client.postJson("/api/v1/teams/$other/capacity", body) }
+                        assertEquals(HttpStatusCode.Created, created.status, "another team's binding is not the held one")
+                    } finally {
+                        raw.rollback()
+                    }
+                }
+            }
+        }
+
+    @Test
+    fun `the capacity write's prune touches only the bindings its lock step locked - none passed, nothing pruned`() = testApplication {
+        val world = dayTwo("capackr20")
+        with(world) {
+            val admin = w.admin.client
+            admin.capAck(bindingId, 3, admin.rowOf(3).fingerprint).capAcknowledgement()
+            // The write the prune follows, done by hand: sprint 3 is in line now, so its row is prunable.
+            jbSql("UPDATE team_capacity_periods SET md_per_week = 24 WHERE team_id = ? AND flow_sprint_id = 3", teamId.toInt())
+            val service = application.attributes[CapacityAcknowledgeServiceKey]
+            val none = CapacityWriteTrail()
+            service.pruneInCapacityWrite(teamId, emptyList(), none)
+            none.told(manager.userId)
+            assertNotNull(capAckRow(bindingId, 3), "a binding this write never locked (linked since) is not pruned")
+            val other = CapacityWriteTrail()
+            service.pruneInCapacityWrite(teamId, listOf(billingBindingId), other)
+            assertNotNull(capAckRow(bindingId, 3), "nor is another team's binding id taken for this team's")
+            service.pruneInCapacityWrite(teamId, listOf(bindingId), CapacityWriteTrail())
+            assertNull(capAckRow(bindingId, 3), "the locked binding is pruned")
+        }
+    }
+
+    @Test
+    fun `a link of an already-linked team queues at its binding row without holding the team row, then is refused 409`() = testApplication {
+        val world = dayTwo("capackr19")
+        with(world) {
+            val bind = suspend { w.admin.client.fbBind(mirror.connectionId, 1, teamId) }
+            val link = heldAt(bindingLock, bindingId, "FOR NO KEY UPDATE", bind) { raw ->
+                // A link that held the team FOR SHARE while it waited would close a cycle with a capacity write (binding, then team).
+                requireTeamRowFree(raw, teamId)
+            }.single()
+            assertEquals(HttpStatusCode.Conflict, link.status)
         }
     }
 
@@ -414,3 +562,6 @@ class CapacityAcknowledgeRaceTest {
         }
     }
 }
+
+/** SQLSTATE of a `NOWAIT` that found the row locked. */
+private const val LOCK_NOT_AVAILABLE = "55P03"

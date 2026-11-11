@@ -62,14 +62,18 @@ private class Holder(
  * transaction, and every read ([bindingsOf], [teamIdOf], the panel) filters on ACTIVE teams.
  * [FlowConnectionService.delete] soft-deletes a connection's bindings in its own transaction through [Bindings].
  *
- * Lock order of a link or a match: the bind lock, the connection row `FOR SHARE` (a connection delete or a run's mirror replace waits, or
- * has won and this is a 404/400), the team row(s) `FOR SHARE`, the manager guard (its own `FOR SHARE` on the team and the manager's
- * person), then the binding rows `FOR NO KEY UPDATE`, then the inserts. A connection delete takes the connection row, then writes the
- * bindings. [unbind] is the one path that takes a binding row FIRST (it is addressed by the binding): the binding row `FOR NO KEY
- * UPDATE`, then the guard's team and person rows `FOR SHARE`, then the soft delete. It takes neither the bind lock nor the connection
- * row, and a `FOR SHARE` on the team never waits for a binding row (a team delete locks the team row and touches no binding), so no
- * lock cycle exists between it and a link, a match, a connection delete or a team delete. [CapacityAcknowledgeService] (1.9) is the second
- * binding-first path, in the same shape and with the same argument (binding row, then the guard's rows, then its own acknowledgement rows).
+ * Lock order of a link: the bind lock, the connection row `FOR SHARE` (a connection delete or a run's mirror replace waits, or has won
+ * and this is a 404/400), the link's OWN team's binding rows `FOR NO KEY UPDATE` (1.13.2: before the team row, see below), the team
+ * row `FOR SHARE`, the manager guard (its own `FOR SHARE` on the team and the manager's person), then the Flow team's holder binding
+ * rows `FOR NO KEY UPDATE`, then the inserts. A match takes the connection's binding rows right after the connection row, then the
+ * candidate teams `FOR SHARE`. A connection delete takes the connection row, then writes the bindings. [unbind] is the one path that
+ * takes a binding row FIRST (it is addressed by the binding): the binding row `FOR NO KEY UPDATE`, then the guard's team and person rows
+ * `FOR SHARE`, then the soft delete. It takes neither the bind lock nor the connection row. [CapacityAcknowledgeService] (1.9) is the
+ * second binding-first path, in the same shape (binding row, then the guard's rows, then its own acknowledgement rows), and since 1.13.2
+ * every capacity write is a third: the team's binding rows, then the team row `FOR NO KEY UPDATE` (the one team lock that conflicts
+ * with a link's `FOR SHARE`), then the guard's rows. So a binding row is always taken BEFORE the team row it belongs to, and a link
+ * that waits for a binding row holds no lock on that binding's team; the only binding rows a link locks after a team share are other
+ * teams' holders of the Flow team, whose own capacity write waits for THEIR team row, which this link does not hold.
  * The run's prune of those rows (1.10, [CapacityAcknowledgeService.pruneConnectionInTransaction], inside the mirror replace) is a third
  * path that takes binding rows: AFTER the connection row, in id order, then the acknowledgement rows - the link's order (connection,
  * then bindings), so nobody goes binding -> connection.
@@ -153,12 +157,15 @@ class FlowTeamBindingService(private val database: R2dbcDatabase) {
         val flowName = FlowTeams.select(FlowTeams.name)
             .where { (FlowTeams.connectionId eq command.connectionId) and (FlowTeams.flowTeamId eq command.flowTeamId) }
             .toList().singleOrNull()?.get(FlowTeams.name) ?: throw BadRequestException(UNKNOWN_FLOW_TEAM)
+        // The team's OWN binding row comes BEFORE the team row (1.13.2): a capacity write takes the binding, then the team row
+        // `FOR NO KEY UPDATE`, so a link holding the team `FOR SHARE` while it waited for that binding would close a lock cycle.
+        val own = lockedHolders(Bindings.teamId eq command.teamId)
         val teams = TeamService.Teams
         val teamName = teams.select(teams.name).where { (teams.id eq command.teamId) and teams.active() }
             .forUpdate(ForUpdateOption.PostgreSQL.ForShare).toList().singleOrNull()?.get(teams.name)
             ?: throw NotFoundException(TEAM_NOT_FOUND)
         guard(command.teamId)
-        lockedHolders(Bindings.teamId eq command.teamId).firstOrNull()?.let { other ->
+        own.firstOrNull()?.let { other ->
             throw ConflictException("Team $teamName is already linked to Flow team ${other.flowTeamName}", FLOW_ALREADY_BOUND_PROBLEM)
         }
         val released = lockedHolders(

@@ -9,7 +9,6 @@ import ch.nokillswit.infra.outbound.FlowOrigins
 import ch.nokillswit.infra.outbound.Origin
 import ch.nokillswit.infra.outbound.SelfManagedHosts
 import ch.nokillswit.sync.SyncOutcome
-import ch.nokillswit.teams.TeamCapacityService
 import io.ktor.client.HttpClient
 import io.ktor.client.request.delete
 import io.ktor.client.request.post
@@ -400,7 +399,7 @@ class CapacityImportPreviewTest {
             )
             m.harness.bind(PREFIX, m.connectionId, 1, "FT")
             val bindingId = m.harness.bindings.bindingsOf(m.connectionId).single().id
-            val service = CapacityImportService(database, m.harness.bindings, m.harness.mirror, TeamCapacityService(database)) { now }
+            val service = CapacityImportService(database, m.harness.bindings, m.harness.mirror, capacityService(database)) { now }
             return checkNotNull(service.preview(bindingId, from, includeClosed = false)).items.map { it.name }
         }
 

@@ -7,7 +7,6 @@ import ch.nokillswit.flow.CapacityDeviationTotals
 import ch.nokillswit.flow.CapacityDeviationView
 import ch.nokillswit.planning.DeviationSeverity
 import ch.nokillswit.planning.loadWorkingCalendar
-import ch.nokillswit.teams.TeamCapacityService
 import ch.nokillswit.teams.TeamService
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
@@ -208,7 +207,7 @@ class CapacityDeviationAckViewTest {
             manager.client.capAck(bindingId, 3, admin.rowOf(3).fingerprint).capAcknowledgement()
             val db = sharedDatabaseForTests()
             val capped = CapacityDeviationService(
-                db, mirror.harness.bindings, mirror.harness.mirror, TeamCapacityService(db), mirror.harness.runs, maxItems = 1,
+                db, mirror.harness.bindings, mirror.harness.mirror, capacityService(db), mirror.harness.runs, maxItems = 1,
             )
             fun filter(all: Boolean?) = CapacityDeviationFilter(connectionId = mirror.connectionId, all = all)
 
@@ -243,7 +242,7 @@ class CapacityDeviationAckViewTest {
             val world = dayTwo("capack-v6")
             with(world) {
                 val service = CapacityDeviationService(
-                    sharedDatabaseForTests(), mirror.harness.bindings, mirror.harness.mirror, TeamCapacityService(sharedDatabaseForTests()),
+                    sharedDatabaseForTests(), mirror.harness.bindings, mirror.harness.mirror, capacityService(sharedDatabaseForTests()),
                     mirror.harness.runs,
                 )
                 val calendar = suspendTransaction(sharedDatabaseForTests()) { loadWorkingCalendar() }

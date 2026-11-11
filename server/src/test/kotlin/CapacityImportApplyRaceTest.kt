@@ -41,13 +41,19 @@ class CapacityImportApplyRaceTest {
         ScriptedFlowMirror(PREFIX).connect().refresh(flowTeamDoc(1, flowName, sprints = sprints)).also { mirrors += it }
 
     /**
-     * Holds the team row `FOR NO KEY UPDATE` on a raw session, starts [requests] one after the other (each is waited to its wait on that
-     * lock before the next starts, so the queue order is the list order), runs [change] on the raw session, commits, and answers them all.
+     * Holds [lockSql] (default: the team row `FOR NO KEY UPDATE`) on a raw session, starts [requests] one after the other (each is waited
+     * to its wait on a lock before the next starts, so the queue order is the list order), runs [change] on the raw session, commits,
+     * and answers them all.
      */
-    private suspend fun <T> queuedAtTeamLock(teamId: UInt, requests: List<suspend () -> T>, change: (Connection) -> Unit): List<T> {
+    private suspend fun <T> queuedAtTeamLock(
+        teamId: UInt,
+        requests: List<suspend () -> T>,
+        lockSql: String = "SELECT id FROM teams WHERE id = $teamId FOR NO KEY UPDATE",
+        change: (Connection) -> Unit,
+    ): List<T> {
         PostgresTestSupport.connect().use { raw ->
             raw.autoCommit = false
-            raw.createStatement().use { it.executeQuery("SELECT id FROM teams WHERE id = $teamId FOR NO KEY UPDATE").close() }
+            raw.createStatement().use { it.executeQuery(lockSql).close() }
             try {
                 return coroutineScope {
                     val pending = mutableListOf<Deferred<T>>()
@@ -102,9 +108,11 @@ class CapacityImportApplyRaceTest {
             val binding = w.admin.client.fbBind(m.connectionId, 1, t.teamId).fbBinding()
             val body = ciBodyOf(t.manager.client.ciPreviewOf(binding.id))
 
+            // An unlink takes the BINDING row first (1.13.2: so does the apply, before the team row): the session holds that one.
             val unlinked = queuedAtTeamLock(
                 t.teamId,
                 listOf { t.manager.client.ciApply(binding.id, body) },
+                lockSql = "SELECT id FROM flow_team_bindings WHERE id = ${binding.id} FOR NO KEY UPDATE",
             ) { it.exec("UPDATE flow_team_bindings SET marked_as_deleted = TRUE WHERE id = ?", binding.id.toInt()) }.single()
             assertEquals(HttpStatusCode.NotFound, unlinked.status, "the binding is re-read under the lock")
             assertEquals(emptyList(), ciTeamRows(t.teamId))

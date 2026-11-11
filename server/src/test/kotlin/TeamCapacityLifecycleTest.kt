@@ -152,7 +152,7 @@ class TeamCapacityLifecycleTest {
 
     @Test
     fun `the service re-validates typed values - a direct caller gets a 400, never a CHECK violation`() {
-        val service = ch.nokillswit.teams.TeamCapacityService(sharedDatabaseForTests())
+        val service = capacityService(sharedDatabaseForTests())
         kotlinx.coroutines.runBlocking {
             val teamId = TestTeams.seed(planName("capsvc"))
             val id = TestPlan.capacityPeriod(teamId, "2027-02-01", 10.0)

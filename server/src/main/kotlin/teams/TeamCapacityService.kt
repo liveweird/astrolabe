@@ -39,12 +39,17 @@ private const val PERIOD_NOT_FOUND = "Capacity period not found"
 typealias TeamGuard = suspend (teamId: UInt) -> Unit
 
 /**
- * Team capacity periods (V16). Team data, not plan state: every write is ONE transaction of its own that first locks the team row
- * (`FOR NO KEY UPDATE`, so a team delete racing it either commits first — 404 — or waits and then cascades the new period too), then
- * re-runs the manager guard against the locked state, then writes. No plan lock and no plan-revision bump. A period start date is
- * unique among a team's ACTIVE periods (`uq_team_capacity_periods_team_from_active`, 409).
+ * Team capacity periods (V16). Team data, not plan state: every write is ONE transaction of its own that first lets the
+ * [listeners] take a connector's row locks for the team (1.13.2: a connector's rows come BEFORE the team row, the order its own paths
+ * use), then locks the team row (`FOR NO KEY UPDATE`, so a team delete racing it either commits first — 404 — or waits and then
+ * cascades the new period too), re-runs the manager guard against the locked state, writes, and lets the listeners settle what the
+ * write changed (inside the same transaction, so it commits with the write). No plan lock and no plan-revision bump. A period start
+ * date is unique among a team's ACTIVE periods (`uq_team_capacity_periods_team_from_active`, 409).
  */
-class TeamCapacityService(private val database: R2dbcDatabase) {
+class TeamCapacityService(
+    private val database: R2dbcDatabase,
+    private val listeners: CapacityWriteListeners,
+) {
     object CapacityPeriods : UIntIdTable("team_capacity_periods"), SoftDeletable {
         val teamId = reference("team_id", TeamService.Teams)
 
@@ -101,15 +106,22 @@ class TeamCapacityService(private val database: R2dbcDatabase) {
 
     /**
      * Adds a period to [teamId]: the team is locked (gone = 404), [guard] re-run, then the insert; a start date another ACTIVE period of
-     * the team already holds is the partial index's 409. 
-     * [values] are re-validated here ([requireValidCapacity]: a direct caller gets a 400).
+     * the team already holds is the partial index's 409.
+     * [values] are re-validated here ([requireValidCapacity]: a direct caller gets a 400). The listeners' after-commit follow-ups
+     * are queued on [trail] (the caller tells them once the write committed).
      */
-    suspend fun create(teamId: UInt, values: CapacityPeriodValues, guard: TeamGuard): UInt = suspendTransaction(database) {
+    suspend fun create(
+        teamId: UInt,
+        values: CapacityPeriodValues,
+        trail: CapacityWriteTrail = CapacityWriteTrail(),
+        guard: TeamGuard,
+    ): UInt = suspendTransaction(database) {
         requireValidCapacity(values)
+        val locks = listeners.lockBeforeTeam(teamId)
         if (!TeamService.Teams.lockActiveForWrite(teamId)) throw NotFoundException(TEAM_NOT_FOUND)
         guard(teamId)
         val stamp = nowMillis()
-        CapacityPeriods.insert {
+        val id = CapacityPeriods.insert {
             it[this.teamId] = teamId
             it[effectiveFrom] = values.effectiveFrom
             it[mdPerWeek] = values.mdPerWeek
@@ -118,13 +130,21 @@ class TeamCapacityService(private val database: R2dbcDatabase) {
             it[createdAt] = stamp
             it[updatedAt] = stamp
         }[CapacityPeriods.id].value
+        listeners.settle(teamId, locks, trail)
+        id
     }
 
     /**
      * Full replace of a period (an absent limit CLEARS it): the team is locked, the period re-read under the lock (gone = 404), [guard]
-     * re-run, then the write. A same-values PUT writes nothing. Moving onto another ACTIVE period's date is the partial index's 409.
+     * re-run, then the write. A same-values PUT writes nothing (and settles nothing). Moving onto another ACTIVE period's date is the
+     * partial index's 409. [trail] as in [create].
      */
-    suspend fun update(id: UInt, values: CapacityPeriodValues, guard: TeamGuard): CapacityUpdateOutcome = suspendTransaction(database) {
+    suspend fun update(
+        id: UInt,
+        values: CapacityPeriodValues,
+        trail: CapacityWriteTrail = CapacityWriteTrail(),
+        guard: TeamGuard,
+    ): CapacityUpdateOutcome = suspendTransaction(database) {
         requireValidCapacity(values)
         val locked = lockedPeriod(id, guard)
         val outcome = CapacityUpdateOutcome(locked.teamId, locked.values, values, locked.source)
@@ -139,18 +159,20 @@ class TeamCapacityService(private val database: R2dbcDatabase) {
                 it[flowSprintName] = null
                 it[updatedAt] = nowMillis()
             }
+            listeners.settle(locked.teamId, locked.locks, trail)
         }
         outcome
     }
 
-    /** Soft-deletes a period (its date is free again): the team locked, the period re-read (gone = 404), [guard] re-run. */
-    suspend fun delete(id: UInt, guard: TeamGuard) {
+    /** Soft-deletes a period (its date is free again): the team locked, the period re-read, [guard] re-run; [trail] as in [create]. */
+    suspend fun delete(id: UInt, trail: CapacityWriteTrail = CapacityWriteTrail(), guard: TeamGuard) {
         suspendTransaction(database) {
-            lockedPeriod(id, guard)
+            val locked = lockedPeriod(id, guard)
             CapacityPeriods.update({ (CapacityPeriods.id eq id) and CapacityPeriods.active() }) {
                 it[markedAsDeleted] = true
                 it[updatedAt] = nowMillis()
             }
+            listeners.settle(locked.teamId, locked.locks, trail)
         }
     }
 
@@ -212,13 +234,16 @@ class TeamCapacityService(private val database: R2dbcDatabase) {
      * **A MANUAL period is never written, whatever [decide] returns**: every update and delete is checked against the locked rows (FLOW,
      * ACTIVE, this team) and again in its own `WHERE`, and a violation aborts the whole transaction (an invariant bug, a 500, nothing
      * written). Order: deletes, then updates, then the creates (`insertRows`, one multi-row statement per chunk), so a freed date can be
-     * taken again under `uq_team_capacity_periods_team_from_active`. Updates set the figure and the sprint and KEEP the WIP limit.
+     * taken again under `uq_team_capacity_periods_team_from_active`. Updates set the figure and the sprint and KEEP the WIP limit. The
+     * listeners settle only a batch that wrote a period (an all-skipped one changed nothing); [trail] as in [create].
      */
     suspend fun <S> applyImport(
         teamId: UInt,
         guard: TeamGuard,
+        trail: CapacityWriteTrail = CapacityWriteTrail(),
         decide: suspend (periods: List<CapacityPeriodRow>) -> Pair<CapacityImportWrites, S>,
     ): CapacityImportApplied<S> = suspendTransaction(database) {
+        val locks = listeners.lockBeforeTeam(teamId)
         if (!TeamService.Teams.lockActiveForWrite(teamId)) throw NotFoundException(TEAM_NOT_FOUND)
         guard(teamId)
         val locked = importRowsOf(teamId)
@@ -228,6 +253,7 @@ class TeamCapacityService(private val database: R2dbcDatabase) {
         deleteImported(teamId, writes.deletes, stamp)
         val updated = writes.updates.map { updateImported(teamId, locked.single { row -> row.id == it.periodId }, it, stamp) }
         val created = createImported(teamId, writes.creates, stamp)
+        if (created.isNotEmpty() || updated.isNotEmpty() || writes.deletes.isNotEmpty()) listeners.settle(teamId, locks, trail)
         CapacityImportApplied(created, updated, writes.deletes, extra)
     }
 
@@ -288,23 +314,29 @@ class TeamCapacityService(private val database: R2dbcDatabase) {
         (CapacityPeriods.teamId eq teamId) and CapacityPeriods.active() and (CapacityPeriods.capacitySource eq CapacitySource.FLOW.name)
 
     /** A period re-read under its team's row lock: the team it belongs to, its STORED values and its source. */
-    private class LockedPeriod(val teamId: UInt, val values: CapacityPeriodValues, val source: CapacitySource)
+    private class LockedPeriod(
+        val teamId: UInt,
+        val values: CapacityPeriodValues,
+        val source: CapacitySource,
+        val locks: CapacityWriteLocks,
+    )
 
     /**
-     * The shared head of [update] and [delete]: the period's team is read, LOCKED (gone = 404), the period re-read under that lock
-     * (gone = 404) and [guard] re-run against the locked state (403).
+     * The shared head of [update] and [delete]: the period's team is read, the listeners take their locks for it, then the team row is
+     * LOCKED (gone = 404), the period re-read under that lock (gone = 404) and [guard] re-run against the locked state (403).
      */
     private suspend fun lockedPeriod(id: UInt, guard: TeamGuard): LockedPeriod {
         val teamId = CapacityPeriods.select(CapacityPeriods.teamId)
             .where { (CapacityPeriods.id eq id) and CapacityPeriods.active() }
             .toList().singleOrNull()?.get(CapacityPeriods.teamId)?.value
             ?: throw NotFoundException(PERIOD_NOT_FOUND)
+        val locks = listeners.lockBeforeTeam(teamId)
         if (!TeamService.Teams.lockActiveForWrite(teamId)) throw NotFoundException(PERIOD_NOT_FOUND)
         val row = CapacityPeriods.selectAll().where { (CapacityPeriods.id eq id) and CapacityPeriods.active() }
             .toList().singleOrNull() ?: throw NotFoundException(PERIOD_NOT_FOUND)
         guard(teamId)
         val values = CapacityPeriodValues(row[CapacityPeriods.effectiveFrom], row[CapacityPeriods.mdPerWeek], row[CapacityPeriods.wipLimit])
-        return LockedPeriod(teamId, values, CapacitySource.valueOf(row[CapacityPeriods.capacitySource]))
+        return LockedPeriod(teamId, values, CapacitySource.valueOf(row[CapacityPeriods.capacitySource]), locks)
     }
 
     private fun ResultRow.toResponse() = CapacityPeriodResponse(

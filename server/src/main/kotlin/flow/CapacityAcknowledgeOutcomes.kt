@@ -37,7 +37,7 @@ class CapacityAcknowledgeAllOutcome(
 /** What a prune removed from ONE binding: the Flow sprint ids of the deleted rows, `null` standing for the team's own `TEAM_GONE` row. */
 class ClearedCapacityAcks(val bindingId: UInt, val sprintIds: List<Long?>)
 
-/** What [CapacityAcknowledgeService.pruneAfterCapacityWrite] removed (null when nothing went): the binding, its connection and the rows. */
+/** What [CapacityAcknowledgeService.pruneInCapacityWrite] removed (null when nothing went): the binding, its connection and the rows. */
 class CapacityWritePruneOutcome(val bindingId: UInt, val connectionId: UInt, val sprintIds: List<Long?>)
 
 /** What a committed un-acknowledge leaves for the audit line: the binding and the fingerprint that was cleared. */

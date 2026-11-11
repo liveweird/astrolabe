@@ -15,7 +15,6 @@ import ch.nokillswit.sync.SyncKind
 import ch.nokillswit.sync.SyncResult
 import ch.nokillswit.sync.SyncRunService
 import ch.nokillswit.sync.SyncTrigger
-import ch.nokillswit.teams.TeamCapacityService
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.MockRequestHandleScope
@@ -83,7 +82,7 @@ class FlowRunHarness(clients: FlowClientFactory, sprintsSinceDays: Int = 365, no
     val connections = FlowConnectionService(database, flowTestCipher, runs, anyFlowOrigin)
     val mirror = FlowMirrorStore(database)
     val bindings = FlowTeamBindingService(database)
-    private val capacity = TeamCapacityService(database)
+    private val capacity = capacityService(database)
 
     /** The deviation computation of the run's prune, on the harness's OWN clock (a clock-injected test must prune against its "today"). */
     val deviations = CapacityDeviationService(database, bindings, mirror, capacity, runs, now)

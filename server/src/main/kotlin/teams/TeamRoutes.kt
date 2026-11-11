@@ -35,7 +35,6 @@ class TeamsRoute {
 fun Application.configureTeamRoutes() {
     val teamService = attributes[TeamServiceKey]
     val capacityService = attributes[TeamCapacityServiceKey]
-    val capacityListeners = attributes[CapacityWriteListenersKey]
 
     routing {
         authenticate {
@@ -111,7 +110,7 @@ fun Application.configureTeamRoutes() {
                 call.respond(HttpStatusCode.NoContent)
             }
             // The team's capacity periods: the second routes file of `teams/` (the manager guard differs from the ADMIN-only registry).
-            teamCapacityRoutes(teamService, capacityService, capacityListeners)
+            teamCapacityRoutes(teamService, capacityService)
         }
     }
 }

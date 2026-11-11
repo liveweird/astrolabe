@@ -45,11 +45,11 @@ private const val PERIOD = "Capacity period"
  * All READ-BEFORE-GUARD (team ids are sequential and every signed-in user reads the plan): the team (or the period's team) is
  * resolved first — missing or deleted = 404 for every caller — then the guard (403), then the body (a forbidden caller's malformed
  * body stays 403), then the validation (400). The service re-runs the guard under the team row lock
- * (`TeamService.lockedIsActiveManager`), so only that inner verdict authorizes the write. A committed write then tells the
- * [CapacityWriteListeners] (after its audit line, before the response, outside any transaction); a refused write and a same-values PUT
- * tell nobody.
+ * (`TeamService.lockedIsActiveManager`), so only that inner verdict authorizes the write. The connector's part in the write (the
+ * [CapacityWriteListeners]) ran inside its transaction; a committed write then tells the [CapacityWriteTrail] it handed the service
+ * (after its audit line, before the response, outside any transaction); a refused write and a same-values PUT leave it empty.
  */
-internal fun Route.teamCapacityRoutes(teams: TeamService, capacity: TeamCapacityService, listeners: CapacityWriteListeners) {
+internal fun Route.teamCapacityRoutes(teams: TeamService, capacity: TeamCapacityService) {
     // The write guard the service re-runs inside its transaction, after the team row is locked.
     fun guard(caller: CallerPrincipal): TeamGuard = { teamId ->
         requireTeamManagerOrAdmin(caller, teamId, teams::lockedIsActiveManager)
@@ -65,7 +65,8 @@ internal fun Route.teamCapacityRoutes(teams: TeamService, capacity: TeamCapacity
         if (!teams.exists(teamId)) throw NotFoundException("$TEAM not found")
         requireTeamManagerOrAdmin(caller, teamId, teams::isActiveManager)
         val values = validateCapacityPeriod(call.receive<CapacityPeriodRequest>())
-        val id = capacity.create(teamId, values, guard(caller))
+        val trail = CapacityWriteTrail()
+        val id = capacity.create(teamId, values, trail, guard(caller))
         audit(
             "team.capacity_period_created",
             "byUserId" to caller.userId.toLong(),
@@ -75,7 +76,7 @@ internal fun Route.teamCapacityRoutes(teams: TeamService, capacity: TeamCapacity
             "mdPerWeek" to values.mdPerWeek.toDouble(),
             "wipLimit" to (values.wipLimit ?: NO_LIMIT),
         )
-        listeners.written(teamId, caller.userId)
+        trail.told(caller.userId)
         call.response.header(HttpHeaders.Location, call.application.href(CapacityPeriodsRoute.Id(id = id)))
         call.respond(HttpStatusCode.Created, capacity.read(id).orVanished(PERIOD, id))
     }
@@ -88,7 +89,8 @@ internal fun Route.teamCapacityRoutes(teams: TeamService, capacity: TeamCapacity
         val teamId = capacity.teamIdOf(route.id).orNotFound(PERIOD)
         requireTeamManagerOrAdmin(caller, teamId, teams::isActiveManager)
         val values = validateCapacityPeriod(call.receive<CapacityPeriodRequest>())
-        val outcome = capacity.update(route.id, values, guard(caller))
+        val trail = CapacityWriteTrail()
+        val outcome = capacity.update(route.id, values, trail, guard(caller))
         // A same-values PUT is a 204 and writes (and audits) nothing.
         if (outcome.changed) {
             audit(
@@ -106,7 +108,7 @@ internal fun Route.teamCapacityRoutes(teams: TeamService, capacity: TeamCapacity
                 "sourceFrom" to outcome.sourceBefore.name,
                 "sourceTo" to CapacitySource.MANUAL.name,
             )
-            listeners.written(outcome.teamId, caller.userId)
+            trail.told(caller.userId)
         }
         call.respond(HttpStatusCode.NoContent)
     }
@@ -114,14 +116,15 @@ internal fun Route.teamCapacityRoutes(teams: TeamService, capacity: TeamCapacity
         val caller = call.caller()
         val teamId = capacity.teamIdOf(route.id).orNotFound(PERIOD)
         requireTeamManagerOrAdmin(caller, teamId, teams::isActiveManager)
-        capacity.delete(route.id, guard(caller))
+        val trail = CapacityWriteTrail()
+        capacity.delete(route.id, trail, guard(caller))
         audit(
             "team.capacity_period_deleted",
             "byUserId" to caller.userId.toLong(),
             "teamId" to teamId.toLong(),
             "periodId" to route.id.toLong(),
         )
-        listeners.written(teamId, caller.userId)
+        trail.told(caller.userId)
         call.respond(HttpStatusCode.NoContent)
     }
 }

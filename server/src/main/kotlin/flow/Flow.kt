@@ -11,7 +11,9 @@ import ch.nokillswit.infra.outbound.loadCaBundleTrust
 import ch.nokillswit.infra.outbound.parseFlowInsecureOrigins
 import ch.nokillswit.infra.outbound.parseSelfManagedHosts
 import ch.nokillswit.sync.SyncConnectorsKey
+import ch.nokillswit.teams.CapacityWriteListener
 import ch.nokillswit.teams.CapacityWriteListenersKey
+import ch.nokillswit.teams.CapacityWriteTrail
 import io.ktor.client.HttpClient
 import io.ktor.server.application.*
 import io.ktor.util.AttributeKey
@@ -79,14 +81,18 @@ fun Application.configureFlow() {
     )
     attributes.put(FlowObserverKey, observer)
     attributes[SyncConnectorsKey].register(observer)
-    // A committed capacity write (a manual period, the import) clears the acknowledgements of the sprints it brought in line: told by the
-    // capacity ROUTES after the commit, so the prune is a transaction of its own (`teams/` names nothing of `flow/`; this is the seam).
+    // A capacity write (a manual period, the import) takes the team's binding row BEFORE the team row and clears the acknowledgements of
+    // the sprints it brought in line INSIDE its own transaction (`teams/` names nothing of `flow/`; this is the seam). The audit line of
+    // what went is queued for after the commit.
     val acknowledgements = attributes[CapacityAcknowledgeServiceKey]
-    attributes[CapacityWriteListenersKey].register { teamId, byUserId ->
-        acknowledgements.pruneAfterCapacityWrite(teamId)?.let {
-            auditCapacityAcksCleared(it.bindingId, it.sprintIds, it.connectionId, byUserId, via = "capacity")
-        }
-    }
+    attributes[CapacityWriteListenersKey].register(
+        object : CapacityWriteListener {
+            override suspend fun lockBeforeTeam(teamId: UInt) = acknowledgements.lockBindingsBeforeCapacityWrite(teamId)
+
+            override suspend fun settle(teamId: UInt, locked: List<UInt>, trail: CapacityWriteTrail) =
+                acknowledgements.pruneInCapacityWrite(teamId, locked, trail)
+        },
+    )
     // Counts only: never a host, an origin or a path.
     log.info(
         "Flow outbound wired ({} allowed host(s), {} development origin(s), {})",

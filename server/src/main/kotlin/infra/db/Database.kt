@@ -318,10 +318,11 @@ suspend fun Application.configureDatabase() {
     attributes.put(PersonServiceKey, PersonService(database))
     val teamService = TeamService(database)
     attributes.put(TeamServiceKey, teamService)
-    val teamCapacity = TeamCapacityService(database)
+    // Empty: a connector's module (`configureFlow`) registers its part in a capacity write (the lock before the team row, the settle).
+    val capacityListeners = CapacityWriteListeners()
+    attributes.put(CapacityWriteListenersKey, capacityListeners)
+    val teamCapacity = TeamCapacityService(database, capacityListeners)
     attributes.put(TeamCapacityServiceKey, teamCapacity)
-    // Empty: a connector's module (`configureFlow`) registers what it wants told after a committed capacity write.
-    attributes.put(CapacityWriteListenersKey, CapacityWriteListeners())
     attributes.put(WorkStreamServiceKey, WorkStreamService(database))
     attributes.put(ProgramServiceKey, ProgramService(database))
     attributes.put(ProjectServiceKey, ProjectService(database))

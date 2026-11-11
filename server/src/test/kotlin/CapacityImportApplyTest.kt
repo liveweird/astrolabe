@@ -4,8 +4,9 @@ import ch.nokillswit.teams.CapacityImportCreate
 import ch.nokillswit.teams.CapacityImportUpdate
 import ch.nokillswit.teams.CapacityImportWrites
 import ch.nokillswit.teams.CapacityPeriodRequest
+import ch.nokillswit.teams.CapacityWriteListener
 import ch.nokillswit.teams.CapacityWriteListenersKey
-import ch.nokillswit.teams.TeamCapacityService
+import ch.nokillswit.teams.CapacityWriteTrail
 import io.ktor.client.request.delete
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
@@ -300,11 +301,19 @@ class CapacityImportApplyTest {
     }
 
     @Test
-    fun `an apply that writes tells the capacity listeners once - an all-skipped or refused apply tells nobody`() =
+    fun `an apply that writes settles the capacity listeners once and tells once - an all-skipped or refused apply settles nobody`() =
         testApplication {
             usePostgresTestcontainer()
             val told = CopyOnWriteArrayList<Pair<UInt, UInt>>()
-            application.attributes[CapacityWriteListenersKey].register { teamId, byUserId -> told += teamId to byUserId }
+            val settled = CopyOnWriteArrayList<UInt>()
+            application.attributes[CapacityWriteListenersKey].register(object : CapacityWriteListener {
+                override suspend fun lockBeforeTeam(teamId: UInt) = emptyList<UInt>()
+
+                override suspend fun settle(teamId: UInt, locked: List<UInt>, trail: CapacityWriteTrail) {
+                    settled += teamId
+                    trail.afterCommit { byUserId -> told += teamId to byUserId }
+                }
+            })
             val w = planWorld("capa7", teams = true)
             val t = w.requireTeams()
             val m = mirrorOf(planName("capa-flow"), threeSprints())
@@ -314,16 +323,18 @@ class CapacityImportApplyTest {
 
             assertEquals(HttpStatusCode.Forbidden, t.otherManager.client.ciApply(binding.id, body).status)
             assertEquals(HttpStatusCode.BadRequest, t.manager.client.ciApply(binding.id, "{ not json").status)
-            assertTrue(told.isEmpty(), "a refused or malformed apply tells nobody")
+            assertTrue(settled.isEmpty() && told.isEmpty(), "a refused or malformed apply settles and tells nobody")
 
             assertEquals(HttpStatusCode.OK, t.manager.client.ciApply(binding.id, body).status)
-            assertEquals(listOf(t.teamId to t.manager.userId), told.toList(), "one apply, one call, however many periods it wrote")
+            assertEquals(listOf(t.teamId), settled.toList(), "one apply, one settle, however many periods it wrote")
+            assertEquals(listOf(t.teamId to t.manager.userId), told.toList(), "and one follow-up after the commit")
 
             // The same request again: every row is UNCHANGED or gone, so each is skipped CHANGED and nothing is written.
             val again = t.manager.client.ciApply(binding.id, body).bodyAsText().fbObject()
             assertEquals(listOf(0, 0, 0), listOf("created", "updated", "deleted").map { again.getValue(it).jsonArray.size })
             assertEquals(HttpStatusCode.OK, w.admin.client.ciApply(binding.id, ciBody(FAR_FROM, emptyList())).status)
-            assertEquals(1, told.size, "an apply that wrote nothing tells nobody")
+            assertEquals(1, settled.size, "an apply that wrote nothing settles nothing")
+            assertEquals(1, told.size, "and tells nobody")
         }
 
     @Test
@@ -401,7 +412,7 @@ class CapacityImportApplyTest {
     @Test
     fun `the service re-checks the writes it is handed - only FLOW periods change, a freed date is free, a bad batch writes nothing`() =
         runBlocking {
-            val capacity = TeamCapacityService(sharedDatabaseForTests())
+            val capacity = capacityService(sharedDatabaseForTests())
             val team = TestTeams.seed(planName("capa-svc"))
             try {
                 val manual = TestPlan.capacityPeriod(team, "2049-01-05", 10.0)

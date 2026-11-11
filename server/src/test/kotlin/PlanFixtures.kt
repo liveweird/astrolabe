@@ -21,6 +21,7 @@ import ch.nokillswit.planning.TeamOrderUpdateRequest
 import ch.nokillswit.planning.WorkStreamCreateRequest
 import ch.nokillswit.planning.WorkStreamService
 import ch.nokillswit.teams.CapacityPeriodValues
+import ch.nokillswit.teams.CapacityWriteListeners
 import ch.nokillswit.teams.TeamCapacityService
 import ch.nokillswit.users.Permission
 import ch.nokillswit.users.UserRole
@@ -147,7 +148,7 @@ object TestPlan {
     private val projects by lazy { ProjectService(sharedDatabaseForTests()) }
     private val milestones by lazy { MilestoneService(sharedDatabaseForTests()) }
     private val dependencies by lazy { DependencyService(sharedDatabaseForTests()) }
-    private val capacity by lazy { TeamCapacityService(sharedDatabaseForTests()) }
+    private val capacity by lazy { capacityService(sharedDatabaseForTests()) }
     private val teamOrders by lazy { TeamOrderService(sharedDatabaseForTests()) }
     private val baselines by lazy { BaselineService(sharedDatabaseForTests()) }
     private val seedAdminId by lazy { scalar("SELECT id FROM users WHERE email = 'admin@astrolabe.local'") { it.getInt(1) }.toUInt() }
@@ -303,3 +304,7 @@ fun Connection.exec(sql: String, vararg ints: Int) {
         st.executeUpdate()
     }
 }
+
+/** A [TeamCapacityService] with NO listeners (the Flow module's are on the app's own instance): for direct service use. */
+fun capacityService(database: org.jetbrains.exposed.v1.r2dbc.R2dbcDatabase): TeamCapacityService =
+    TeamCapacityService(database, CapacityWriteListeners())
