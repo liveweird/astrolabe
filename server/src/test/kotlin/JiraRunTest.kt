@@ -254,7 +254,7 @@ class JiraRunTest {
     }
 
     @Test
-    fun `a 200 probe is final, a failed probe never fails the run and is retried, a 404 then classifies it`() =
+    fun `a 200 probe is asked again on a manual run, a failed probe never fails the run and is retried, a 404 then classifies it`() =
         testApplication {
             val f = fixture("jrprobe")
             val admin = f.w.admin.client
@@ -283,10 +283,12 @@ class JiraRunTest {
                 assertTrue(probeStamped(vanishing.id), "the 200 is an answer: it stamps gone_probed_at")
                 assertEquals("OUT-1", admin.binding(vanishing.id).issueKey, "the binding follows the key the 200 carried")
 
-                // (a2) A 200 is final for that vanish: the next run, still flagged, sends NO probe.
+                // (a2) A readable gone item is asked about again (1.13): a manual refresh sends one probe, the row still reads MOVED_OUT.
+                // (A scheduled run waits a day: `JiraGoneProbeRunTest`.)
                 JiraStubServer.resetRequests()
                 assertEquals(SyncOutcome.SUCCEEDED, runAndAwait(admin, f.connectionId).outcome)
-                assertEquals(0, JiraStubServer.countRequests(getRequestedFor(issuePath)), "answered once, not probed again")
+                assertEquals(1, JiraStubServer.countRequests(getRequestedFor(issuePath)), "a manual refresh asks again")
+                assertEquals("MOVED_OUT", admin.binding(vanishing.id).observation?.goneReason)
 
                 // (b) Back in scope, then vanished again with the probe answering 500: the run succeeds, the row stays OUT_OF_SCOPE.
                 JiraStubServer.resetScenarios()

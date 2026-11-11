@@ -19,9 +19,9 @@ internal const val RUN_CHUNK = 100
 internal const val GONE_OUT_OF_SCOPE = "OUT_OF_SCOPE"
 
 /**
- * One ACTIVE binding of the connection as the run starts: [observed] whether it has an observation row at all, [gone] and [typeId] as that
- * row holds them ([typeId] null when unknown). The run works from this list (≤ 1,200): a binding created after it was
- * read waits for the next run, and one deleted after it is filtered out again by every write.
+ * One ACTIVE binding of the connection as the run starts: [observed] whether it has an observation row at all, [gone], [goneReason] (the
+ * STORED reason), [probedAt] and [typeId] as that row holds them ([typeId] null when unknown). The run works from this list (≤ 1,200): a
+ * binding created after it was read waits for the next run, and one deleted after it is filtered out again by every write.
  */
 internal class BoundIssue(
     val bindingId: UInt,
@@ -31,8 +31,9 @@ internal class BoundIssue(
     val observed: Boolean,
     val gone: Boolean,
     val typeId: String?,
-    /** The by-id probe has answered for the vanish the row is flagged with (`gone_probed_at`); meaningless unless [gone]. */
-    val probed: Boolean,
+    val goneReason: String?,
+    /** When the by-id probe last ANSWERED for the vanish the row is flagged with (`gone_probed_at`); null unless [gone] and answered. */
+    val probedAt: Long?,
 )
 
 /**
@@ -50,7 +51,7 @@ internal class JiraRunStore(private val database: R2dbcDatabase) {
         bindings.leftJoin(JiraObservations, { bindings.id }, { JiraObservations.bindingId })
             .select(
                 bindings.id, bindings.level, bindings.jiraIssueId, bindings.jiraIssueKey,
-                JiraObservations.observedAt, JiraObservations.gone, JiraObservations.typeId,
+                JiraObservations.observedAt, JiraObservations.gone, JiraObservations.goneReason, JiraObservations.typeId,
                 JiraObservations.goneProbedAt,
             )
             .where { (bindings.connectionId eq connectionId) and bindings.active() }
@@ -63,7 +64,8 @@ internal class JiraRunStore(private val database: R2dbcDatabase) {
                     observed = it.getOrNull(JiraObservations.observedAt) != null,
                     gone = it.getOrNull(JiraObservations.gone) == true,
                     typeId = it.getOrNull(JiraObservations.typeId),
-                    probed = it.getOrNull(JiraObservations.goneProbedAt) != null,
+                    goneReason = it.getOrNull(JiraObservations.goneReason),
+                    probedAt = it.getOrNull(JiraObservations.goneProbedAt),
                 )
             }
     }

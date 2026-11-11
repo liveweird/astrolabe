@@ -4,7 +4,9 @@ import ch.nokillswit.infra.db.R2dbcDatabaseKey
 import ch.nokillswit.jira.JiraBindingResponse
 import ch.nokillswit.jira.JiraLevel
 import ch.nokillswit.jira.JiraRunStore
+import ch.nokillswit.planning.DeviationKind
 import ch.nokillswit.sync.SyncOutcome
+import ch.nokillswit.sync.SyncTrigger
 import io.ktor.client.request.HttpRequestData
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
@@ -51,6 +53,9 @@ class JiraGoneProbeRunTest {
     private fun HttpRequestData.isIssueRead() = url.encodedPath.contains("/rest/api/3/issue/")
 
     private fun HttpRequestData.issueId() = url.encodedPath.substringAfterLast('/')
+
+    private fun probedAtOf(binding: JiraBindingResponse): Long =
+        jbScalar("SELECT gone_probed_at FROM jira_observations WHERE binding_id = ?", binding.id.toInt()) { it.getLong(1) }
 
     private fun probed(binding: JiraBindingResponse): Boolean =
         jbScalar("SELECT gone_probed_at IS NOT NULL FROM jira_observations WHERE binding_id = ?", binding.id.toInt()) { it.getBoolean(1) }
@@ -329,4 +334,70 @@ class JiraGoneProbeRunTest {
         assertEquals(true to "DELETED", reasonOf(planted))
         assertTrue(probed(planted))
     }
+
+    @Test
+    fun `a scheduled run asks again about a readable gone item once a day, a manual run at once, and a 404 then reads DELETED`() =
+        testApplication {
+            val f = fixture("jrpagain")
+            val item = f.bound[0]
+            val others = f.bound.drop(1).map { it.issueId }.toTypedArray()
+            var offset = 0L
+            var answer = HttpStatusCode.OK
+            var key = "OUT-71"
+            val mock = MockJiraRun(application, now = { System.currentTimeMillis() + offset }) { request ->
+                when {
+                    request.isIssueRead() ->
+                        if (answer == HttpStatusCode.OK) jsonOk("""{"id":"${request.issueId()}","key":"$key"}""") else failure(answer)
+                    // The sweep lists the other four; the child level's id listing (stories) lists nothing.
+                    request.url.parameters["fields"] == "id" ->
+                        jsonOk(if ("10001,10002,10003" in request.url.parameters["jql"].orEmpty()) idsPage() else idsPage(*others))
+                    else -> jsonOk(searchPage())
+                }
+            }
+            suspend fun run(hours: Long, trigger: SyncTrigger): Int {
+                offset = hours * 3_600_000L
+                val before = mock.requests.size
+                val result = mock.run(f.connectionId, trigger)
+                assertEquals(SyncOutcome.SUCCEEDED, result.outcome, result.errorDetail)
+                return mock.requests.drop(before).count { it.isIssueRead() }
+            }
+
+            // Newly flagged: probed at once, a 200 under a key outside the connection's keys.
+            assertEquals(1, run(0, SyncTrigger.SCHEDULED))
+            assertEquals("MOVED_OUT", apiRow(f, item).third)
+            assertEquals("OUT-71", keyOf(item))
+            val admin = f.w.admin.client
+            val ackItem = admin.ackItem(f.connectionId, item.id)
+            admin.ack(item.id, ackItem.fingerprint, DeviationKind.GONE).acknowledgement()
+            assertEquals(true, admin.ackItem(f.connectionId, item.id).lineStates()[DeviationKind.GONE])
+
+            // Refresh now asks again at once (a manual run), however young the answer.
+            assertEquals(1, run(0, SyncTrigger.MANUAL))
+            // A scheduled run within the day does not; a request to Jira costs, and the answer is not a day old.
+            assertEquals(0, run(23, SyncTrigger.SCHEDULED), "23 hours of 24 since the answer")
+            assertEquals(0, run(0, SyncTrigger.SCHEDULED))
+            val stamped = probedAtOf(item)
+
+            // A day after the answer, the scheduled run asks again: a 200 restamps and refreshes the key (the binding follows it).
+            key = "OUT-72"
+            assertEquals(1, run(25, SyncTrigger.SCHEDULED))
+            assertEquals("OUT-72", keyOf(item))
+            assertEquals("OUT-72", bindingKeyOf(item))
+            assertTrue(probedAtOf(item) >= stamped + 24 * 3_600_000L, "restamped with the run's clock")
+            assertEquals(0, run(48, SyncTrigger.SCHEDULED), "23 hours since the restamp")
+
+            // The next ask finds the issue deleted: DELETED, the key cleared (the binding keeps the one it followed), and the
+            // acknowledged MOVED_OUT line is no longer the current reading.
+            answer = HttpStatusCode.NotFound
+            assertEquals(1, run(50, SyncTrigger.SCHEDULED))
+            assertEquals(true to "DELETED", reasonOf(item))
+            assertNull(keyOf(item))
+            assertEquals("DELETED", apiRow(f, item).third)
+            assertEquals("OUT-72", bindingKeyOf(item))
+            assertEquals(false, admin.ackItem(f.connectionId, item.id).lineStates()[DeviationKind.GONE], "acknowledged, not current")
+
+            // A verdict is final: neither a scheduled run a week on nor a manual run asks again.
+            assertEquals(0, run(200, SyncTrigger.SCHEDULED))
+            assertEquals(0, run(200, SyncTrigger.MANUAL))
+        }
 }

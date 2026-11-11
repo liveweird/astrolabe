@@ -258,6 +258,8 @@ jira:
   incrementalOverlapMinutes: "$JIRA_INCREMENTAL_OVERLAP_MINUTES:10"
   # Hours between a run's id-only re-listing of the child level (the stories whose roll-ups the census keeps, `jira/JiraCensus.kt`), 1..168. A
   # full read lists the children in full anyway; between sweeps a story deleted or moved out of scope stays in a roll-up for up to this long.
+  # Also the hours between two scheduled asks about a gone item Jira still answered for (`jira/JiraGoneProbe.kt`): it may have been deleted
+  # since; Refresh now asks again at once.
   censusHours: "$JIRA_CENSUS_HOURS:24"
 
 flow:
