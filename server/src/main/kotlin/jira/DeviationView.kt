@@ -173,7 +173,10 @@ data class DeviationLine(
 @Serializable
 data class DeviationAcknowledgement(val at: Long, val by: String?, val current: Boolean)
 
-/** What the caller may do with the item: [acknowledge] is the node's owner chain or ADMIN (false for an anonymous computation). */
+/**
+ * What the caller may do with the item: [acknowledge] is the node's owner chain, ADMIN or - on a milestone - its team's manager
+ * (false for an anonymous computation).
+ */
 @Serializable
 data class DeviationCan(val acknowledge: Boolean)
 

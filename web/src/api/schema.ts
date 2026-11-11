@@ -2552,7 +2552,8 @@ export interface paths {
          *     gone, then `403`; the binding row is locked and the guard run again in the transaction; since 1.12 a milestone's team manager may
          *     withdraw too). With `kind` it clears that line's acknowledgement; without one it clears EVERY stored acknowledgement of the
          *     binding, a retired kind's included (1.12). Current or stale alike; `404` when none is stored (decided under the lock, after the
-         *     guard); the `kind` parameter is parsed after the guard (`400` when unknown, blank or repeated). Audited
+         *     guard); the `kind` parameter is parsed after the guard (`400` when unknown, blank or repeated; and `400` for a query parameter of any
+         *     other NAME, e.g. a misspelt `kinds` or `kind[]`, which would otherwise withdraw every acknowledgement). Audited
          *     `jira.deviation_unacknowledged` once per cleared row; the kind-less form adds `jira.deviations_unacknowledged` before them.
          */
         delete: operations["unacknowledgeJiraDeviations"];
@@ -10664,7 +10665,7 @@ export interface operations {
     unacknowledgeJiraDeviations: {
         parameters: {
             query?: {
-                /** @description The deviation whose acknowledgement is withdrawn; absent withdraws every acknowledgement of the binding. A repeated, blank or unknown value is a `400`. */
+                /** @description The deviation whose acknowledgement is withdrawn; absent withdraws every acknowledgement of the binding. A repeated, blank or unknown value is a `400`, and so is any other query parameter name (the request fails closed rather than withdrawing everything). */
                 kind?: components["schemas"]["DeviationKind"];
             };
             header?: never;

@@ -169,11 +169,100 @@ class JiraAcknowledgeLinesTest {
         val two = f.two()
         f.owner.ack(two.binding, f.item(two.binding).fingerprint).acknowledgement()
         assertEquals(HttpStatusCode.NotFound, f.owner.unackRaw(999_999u, "kind=NOT_A_KIND").status)
+        assertEquals(HttpStatusCode.NotFound, f.owner.unackRaw(999_999u, "kinds=RENAMED").status, "an unknown name is no exception")
         assertEquals(HttpStatusCode.Forbidden, f.w.stranger.client.unackRaw(two.binding, "kind=NOT_A_KIND").status)
+        assertEquals(HttpStatusCode.Forbidden, f.w.stranger.client.unackRaw(two.binding, "kinds=RENAMED").status, "403 before the 400")
         for (query in listOf("kind=NOT_A_KIND", "kind=", "kind", "kind=RENAMED&kind=END_DIFFERS", "kind=renamed")) {
             assertEquals(HttpStatusCode.BadRequest, f.owner.unackRaw(two.binding, query).status, query)
         }
         assertEquals(setOf(end.name, renamed.name), storedAcks(two.binding).keys, "nothing was withdrawn")
+    }
+
+    @Test
+    fun `a query parameter of any other name fails closed with a 400 and withdraws nothing`() = testApplication {
+        val f = fixture("akl6b")
+        val two = f.two()
+        f.owner.ack(two.binding, f.item(two.binding).fingerprint).acknowledgement()
+        val misspelt = listOf("kinds=RENAMED", "kind[]=RENAMED", "Kind=RENAMED", "kinds", "force=true", "kind=RENAMED&kinds=END_DIFFERS")
+        for (query in misspelt) {
+            for (caller in listOf(f.owner, f.admin)) {
+                val response = caller.unackRaw(two.binding, query)
+                assertEquals(HttpStatusCode.BadRequest, response.status, query)
+                assertTrue(response.jbProblem().detail.orEmpty().contains("query parameter"), query)
+            }
+        }
+        assertEquals(setOf(end.name, renamed.name), storedAcks(two.binding).keys, "every acknowledgement is still stored")
+        assertEquals(HttpStatusCode.NoContent, f.owner.unackRaw(two.binding, "kind=RENAMED").status, "the right name still works")
+        assertEquals(setOf(end.name), storedAcks(two.binding).keys)
+    }
+
+    @Test
+    fun `the per-line forms audit exactly one row line and no batch line, the kind-less forms a batch line before the row lines`() =
+        testApplication {
+            val f = fixture("akl9")
+            val two = f.two()
+            val fingerprint = f.item(two.binding).fingerprint
+            withAuditCapture { audit ->
+                fun lines(name: String) = audit.events.filter { it.message == name && it.hasKeyValue("bindingId", two.binding.toLong()) }
+
+                f.owner.ack(two.binding, fingerprint, end).acknowledgement()
+                val stamped = assertNotNull(audit.awaitEvent { it.message == "jira.deviation_acknowledged" })
+                assertEquals(listOf(stamped), lines("jira.deviation_acknowledged"), "exactly one row line")
+                assertTrue(stamped.hasKeyValue("kind", end.name) && stamped.hasKeyValue("byUserId", f.w.projectOwner.userId.toLong()))
+                assertTrue(lines("jira.deviations_acknowledged").isEmpty(), "a per-line POST writes no batch line")
+
+                assertEquals(HttpStatusCode.NoContent, f.owner.unack(two.binding, end).status)
+                val cleared = lines("jira.deviation_unacknowledged").single()
+                assertTrue(cleared.hasKeyValue("kind", end.name) && cleared.hasKeyValue("byUserId", f.w.projectOwner.userId.toLong()))
+                assertTrue(lines("jira.deviations_unacknowledged").isEmpty(), "a per-line DELETE writes no batch line")
+
+                f.admin.ack(two.binding, fingerprint).acknowledgement()
+                val batch = lines("jira.deviations_acknowledged").single()
+                val rows = lines("jira.deviation_acknowledged").drop(1)
+                assertEquals(setOf(end.name, renamed.name), rows.map { it.keyValuePairs.first { kv -> kv.key == "kind" }.value }.toSet())
+                assertTrue(batch.hasKeyValue("count", 2) && batch.hasKeyValue("listFingerprint", fingerprint))
+                assertTrue(batch.hasKeyValue("byUserId", f.w.admin.userId.toLong()))
+                val rowKinds = rows.joinToString(",") { it.keyValuePairs.first { kv -> kv.key == "kind" }.value.toString() }
+                assertTrue(batch.hasKeyValue("kinds", rowKinds), "the batch line names the row lines' kinds in order")
+                assertTrue(rows.all { audit.events.indexOf(batch) < audit.events.indexOf(it) }, "the batch line comes first")
+
+                assertEquals(HttpStatusCode.NoContent, f.owner.unack(two.binding).status)
+                val batchCleared = lines("jira.deviations_unacknowledged").single()
+                val clearedRows = lines("jira.deviation_unacknowledged").drop(1)
+                assertEquals(2, clearedRows.size)
+                assertTrue(batchCleared.hasKeyValue("count", 2) && batchCleared.hasKeyValue("byUserId", f.w.projectOwner.userId.toLong()))
+                val clearedKinds = clearedRows.joinToString(",") { it.keyValuePairs.first { kv -> kv.key == "kind" }.value.toString() }
+                assertTrue(batchCleared.hasKeyValue("kinds", clearedKinds))
+                assertEquals(setOf(end.name, renamed.name), clearedKinds.split(",").toSet())
+                assertTrue(clearedRows.all { audit.events.indexOf(batchCleared) < audit.events.indexOf(it) }, "the batch line comes first")
+            }
+        }
+
+    @Test
+    fun `a refused acknowledge or withdrawal at the outer guard is the central authz_denied and no acknowledge line`() = testApplication {
+        val f = fixture("akl10")
+        val two = f.two()
+        val fingerprint = f.item(two.binding).fingerprint
+        val stranger = f.w.stranger
+        withAuditCapture { audit ->
+            assertEquals(HttpStatusCode.Forbidden, stranger.client.ack(two.binding, fingerprint, end).status)
+            val denied = assertNotNull(
+                audit.awaitEvent { it.message == "authz.denied" && it.hasKeyValue("path", ackUrl(two.binding)) },
+                "the refused POST",
+            )
+            assertTrue(denied.hasKeyValue("method", "POST") && denied.hasKeyValue("byUserId", stranger.userId.toLong()))
+            assertEquals(HttpStatusCode.Forbidden, stranger.client.unack(two.binding, end).status)
+            val deniedDelete = assertNotNull(
+                audit.awaitEvent {
+                    it.message == "authz.denied" && it.hasKeyValue("method", "DELETE") && it.hasKeyValue("path", ackUrl(two.binding))
+                },
+                "the refused DELETE",
+            )
+            assertTrue(deniedDelete.hasKeyValue("byUserId", stranger.userId.toLong()), "the path carries no query string")
+            val acknowledgeLines = audit.events.filter { it.message.orEmpty().startsWith("jira.deviation") }
+            assertTrue(acknowledgeLines.none { it.hasKeyValue("bindingId", two.binding.toLong()) }, "a refused request writes no line")
+        }
+        assertTrue(storedAcks(two.binding).isEmpty())
     }
 
     @Test

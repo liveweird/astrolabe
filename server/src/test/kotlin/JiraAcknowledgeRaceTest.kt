@@ -190,6 +190,11 @@ class JiraAcknowledgeRaceTest {
                 assertNull(f.w.admin.client.ackItem(f.connectionId, binding).acknowledgement)
                 val written = audit.events.filter { it.message == "jira.deviation_acknowledged" }
                 assertTrue(written.none { it.hasKeyValue("bindingId", binding.toLong()) })
+                val denied = assertNotNull(
+                    audit.awaitEvent { it.message == "authz.denied" && it.hasKeyValue("path", ackUrl(binding)) },
+                    "a refusal under the lock is the central authz.denied too",
+                )
+                assertTrue(denied.hasKeyValue("method", "POST") && denied.hasKeyValue("byUserId", teams.manager.userId.toLong()))
             }
         }
 

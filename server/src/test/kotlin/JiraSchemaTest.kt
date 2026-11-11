@@ -2,6 +2,7 @@ package ch.nokillswit
 
 import ch.nokillswit.infra.crypto.DEV_DATA_ENCRYPTION_KEY
 import ch.nokillswit.infra.crypto.FieldCipher
+import ch.nokillswit.planning.DeviationKind
 import kotlinx.coroutines.runBlocking
 import java.sql.SQLException
 import java.util.UUID
@@ -207,6 +208,14 @@ class JiraSchemaTest {
             val rows = int("SELECT count(*) FROM jira_deviation_acknowledgements WHERE binding_id = $bindingId")
             assertEquals(4, rows, "only the valid rows landed")
         }
+
+    @Test
+    fun `every DeviationKind name fits V28's kind CHECK and column, so a stored acknowledgement can never be refused`() {
+        // The CHECK pins the SHAPE only (a kind added later needs no migration), so a name that broke it would 500 on the first stamp.
+        val shape = Regex("^[A-Z][A-Z_]{0,31}$")
+        val misfits = DeviationKind.entries.map { it.name }.filterNot { shape.matches(it) }
+        assertEquals(emptyList(), misfits, "kind names outside the V28 CHECK")
+    }
 
     @Test
     fun `the database refuses a plaintext token, and a NULL one unless the connection is deleted`() {

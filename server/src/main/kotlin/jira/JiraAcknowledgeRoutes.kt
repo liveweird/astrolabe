@@ -47,8 +47,13 @@ private class AcknowledgeGuards(private val people: PersonService, private val t
         requireOwnerOrTeamManagerOrAdmin(caller, lockedPersonOf(caller), audience.owners, audience.teamId, teams::lockedIsActiveManager)
 }
 
-/** The `?kind=` of the DELETE: absent = every row; present, it must be a [DeviationKind] name (a blank or unknown value is a `400`). */
+/**
+ * The `?kind=` of the DELETE: absent = every row; present, it must be a [DeviationKind] name (a blank or unknown value is a `400`).
+ * Fails closed: a query parameter of any other NAME (a misspelt `kinds`, `kind[]`) is a `400` too, because ignoring it would withdraw
+ * every stored acknowledgement of the binding. The name is not echoed.
+ */
 private fun Parameters.kindParameter(): DeviationKind? {
+    if (names().any { it != "kind" }) throw BadRequestException("Unknown query parameter (the only one accepted is kind)")
     val kind = optionalEnum<DeviationKind>("kind")
     if (kind == null && contains("kind")) {
         throw BadRequestException("Unknown kind (allowed: ${DeviationKind.entries.joinToString { it.name }})")
