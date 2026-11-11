@@ -82,7 +82,8 @@ test("dismissing a delete, edit or new-team dialog with Escape returns the focus
   await page.goto("/teams");
   await openFilters(page);
   // Wait for the debounced filter's own answer: in three CI failures it landed while the Delete dialog was closing and the kebab never got
-  // the focus back (not reproduced locally; BACKLOG). This test is about Escape, so the list is settled first.
+  // the focus back. That hole is fixed in 1.13.1 (a focus parked in the closing menu no longer ends the focus return; unit-tested); the wait
+  // stays because this test is about Escape, so the list is settled first.
   const filtered = page.waitForResponse((r) => /\/api\/v1\/teams\?/.test(r.url()) && new URL(r.url()).searchParams.get("name") === teamName && r.ok());
   await page.getByLabel("Name", { exact: true }).fill(teamName);
   await filtered;

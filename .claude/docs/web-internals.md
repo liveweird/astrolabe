@@ -235,11 +235,14 @@ The template and its rules: `web/CLAUDE.md` "Shared list-page building blocks". 
   (`useFocusMainOnNavigation` owns the focus; the hook unmounts with the page, so they never fight). The kebab and the dialog's Delete button are both gone, and
   the browser would leave the focus on `body`; the hook tries the target at every render and when the modal has exited (`ConfirmDeleteModal` wires
   `onExitTransitionEnd`; the hook keeps looking for up to half a second while the leaving dialog still holds the focus) by one rule: focus on `body` -> take it,
-  inside a `[role="dialog"]` (still fading) -> wait, anywhere else -> leave. A failed delete never arms it (the modal stays open with its error). **A cancel**
+  inside a `[role="dialog"]` (still fading) or a `[role="menu"]` (Mantine's return focus puts it back on the menu item that opened the dialog, which stays mounted while its dropdown fades, about 150 ms, and then drops it to `body`) -> wait, anywhere else -> leave; the predicate is `utils/focusTransit.ts` `isFocusInTransit`, shared with `useDialogFocus`. A failed delete never arms it (the modal stays open with its error). **A cancel**
   (Escape, Cancel, X, click outside) goes through the same rule: a dialog opened from a row menu has lost its opener (the unmounted menu item), so
   `requestDelete` takes the menu's trigger from the shared `utils/menuOpener.ts` memory (`RowActionsMenu` remembers the kebab on a click inside its menu; it
   expires at the end of the click) and a focus left on `body` returns to that kebab if still connected, else to the same target; a focus anywhere else is left
-  alone.
+  alone. **The 1.13.1 fix (history):** until then only a focus inside a dialog counted as in transit, so a list render (the debounced filter's request) in
+  the window between Mantine's return focus (the menu item) and the dropdown's unmount dropped the pending move and the kebab lost the focus; three CI
+  failures were the only sighting until a browser repro on the unfixed build failed 48 of 50 runs (a list request fired inside the closing window; a control
+  without the request passed 20 of 20). `useDeleteConfirm.focus.test.tsx` and `useDialogFocus.test.tsx` pin it (the first was proven red on master).
 - **`ConfirmActionModal`** is the non-destructive sibling (Lettuce's, ported with the feature-flags bulk actions) — a message plus a neutral cancel and a
   confirm button whose `loading` blocks cancel/close while the action runs; labels arrive already translated.
 - **An entity's NAME is the way into its detail page** — a `RouterLink` `Anchor` with an interpolated accessible name (`common.action.editAria` = "Edit
@@ -256,7 +259,8 @@ The template and its rules: `web/CLAUDE.md` "Shared list-page building blocks". 
   {{name}} to top": axe `label-content-name-mismatch`). **A dialog mounted with `opened` already true (`{editor && <XModal ... />}`) calls
   `useDialogFocus(open)`** in its owner (`hooks/useDialogFocus.ts`): Mantine records no opener for it, so without the hook the focus lands on `body`. Focus
   returns to the opener when it closes (the kebab for a row-menu item, else the button that held the focus); for 5 seconds after that a refetch cannot lose it
-  (a focus blurred to `body` by a row moving in the DOM goes back to the opener, or to `#main-content` if the opener is gone); a dialog that opens only after an
+  (a focus blurred to `body` by a row moving in the DOM goes back to the opener, or to `#main-content` if the opener is gone; a focus parked in a closing
+  menu or dialog is in transit and does not end the watch); a dialog that opens only after an
   await wraps the awaited promise in the returned `claim(...)` (Teams' Edit).
 
 ### Registries and forms

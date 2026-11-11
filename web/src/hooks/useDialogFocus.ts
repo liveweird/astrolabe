@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { isFocusInTransit } from "../utils/focusTransit";
 import { takeMenuTrigger } from "../utils/menuOpener";
 
 /** How long after a close the hook keeps the focus safe from the refetch that follows a save. */
@@ -11,7 +12,7 @@ function focusIsOnBody(): boolean {
 /** The element holding the focus, unless that is `body`, a dialog's own content or a closing menu's item (which is about to unmount). */
 function focusedOpener(): HTMLElement | null {
   const active = document.activeElement;
-  return active instanceof HTMLElement && active !== document.body && active.closest('[role="dialog"], [role="menu"]') === null ? active : null;
+  return active instanceof HTMLElement && active !== document.body && !isFocusInTransit(active) ? active : null;
 }
 
 /**
@@ -25,7 +26,8 @@ function focusedOpener(): HTMLElement | null {
  * Closing puts the focus on the opener at once (the modal's focus trap is released; a fading dialog does not matter). For a few seconds after
  * that the save's refetch cannot lose it: a browser blurs a row React moves in the DOM (a rename that re-sorts it), so a focus on `body` goes back
  * to the opener, and if the opener is gone (a move refetched its row away) to the shell's `#main-content` (the `useFocusMainOnNavigation` target).
- * A focus the user has put on another element after the close is left alone and ends the watch.
+ * A focus the user has put on another element after the close is left alone and ends the watch; a focus parked in a closing menu or dialog
+ * (`utils/focusTransit.ts`) does not end it: the dropdown unmounts a moment later and the next render finds the focus on `body`.
  *
  * Pass "either is open" for a flow of several dialogs (a confirm followed by a reveal), so the focus returns after the last one.
  *
@@ -56,7 +58,8 @@ export function useDialogFocus(opened: boolean): { claim: <T>(pending: Promise<T
       if (focusIsOnBody()) document.getElementById("main-content")?.focus({ preventScroll: true });
     } else if (closing || focusIsOnBody()) {
       trigger.focus();
-    } else if (document.activeElement !== trigger) {
+    } else if (document.activeElement !== trigger && !isFocusInTransit(document.activeElement)) {
+      // Somewhere the user chose: the watch ends. A focus parked in a closing menu or dialog is in transit and keeps it.
       opener.current = null;
     }
   });

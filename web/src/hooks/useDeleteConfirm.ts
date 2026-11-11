@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { useDisclosure } from "@mantine/hooks";
 import { useMutation, type UseMutationResult } from "@tanstack/react-query";
+import { isFocusInTransit } from "../utils/focusTransit";
 import { takeMenuTrigger } from "../utils/menuOpener";
 import { showSuccessToast } from "../utils/toast";
 
@@ -30,7 +31,7 @@ export type DeleteConfirm<T> = {
  * page navigates away and `useFocusMainOnNavigation` owns the focus (the hook is unmounted with the page, so the two never fight; navigation wins).
  * The order of the three events (the modal closing, Mantine returning the focus to the kebab 10 ms later, the refetch removing the row) is
  * not fixed, so the target is tried at every render and again when the modal has finished closing (`onExited`, which keeps looking every 25 ms for up to half a second while the leaving dialog still holds the focus, then drops the move), by one rule:
- * the active element is `body` -> focus the target; it is inside a dialog (the modal is still fading) -> wait; anywhere else (the user, or
+ * the active element is `body` -> focus the target; it is inside a dialog (the modal is still fading) or a menu (Mantine's return focus put it back on the menu item that opened the dialog, which stays mounted while its dropdown fades) -> wait; anywhere else (the user, or
  * Mantine, put it somewhere real) -> leave it. A failed delete never arms this: the modal stays open with its error and the focus in it.
  *
  * **Focus after a cancel** (Escape, Cancel, the X, a click outside). A dialog opened from a row menu has no opener to go back to: the menu item
@@ -61,7 +62,7 @@ export function useDeleteConfirm<T>({
     const reason = pending.current;
     if (reason === null) return false;
     const active = document.activeElement;
-    if (active !== null && active !== document.body && active.closest('[role="dialog"]') !== null) return true;
+    if (isFocusInTransit(active)) return true;
     pending.current = null;
     if (active !== null && active !== document.body) return false;
     if (reason === "cancelled" && opener.current?.isConnected) {

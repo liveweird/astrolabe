@@ -167,6 +167,24 @@ describe("useDialogFocus", () => {
     expect(kebab).not.toHaveFocus();
   });
 
+  test("a focus parked in a closing menu does not end the watch: a later render with the focus on body returns it to the kebab", () => {
+    const { kebab, item, inside } = scaffold();
+    const hook = mount();
+    openFromMenu(hook, item);
+    inside.focus();
+    act(() => hook.rerender({ opened: false }));
+    expect(kebab).toHaveFocus();
+    // Mantine's return focus lands on the menu item, which stays mounted while its dropdown fades; a render (the list refresh) finds it there.
+    item.focus();
+    act(() => hook.rerender({ opened: false }));
+    expect(item).toHaveFocus();
+    // The dropdown unmounts, the focus falls to body, and the next render hands it back.
+    item.closest('[role="menu"]')!.remove();
+    expect(document.activeElement).toBe(document.body);
+    act(() => hook.rerender({ opened: false }));
+    expect(kebab).toHaveFocus();
+  });
+
   test("a plain button clicked while a claimed fetch is pending: its dialog returns to the button, not the claimed kebab", () => {
     const { other, kebab, item, inside } = scaffold();
     const hook = mount();

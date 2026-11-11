@@ -9,7 +9,7 @@ vi.mock("../utils/toast", () => ({ showSuccessToast: vi.fn() }));
 
 type Row = { id: number };
 
-function mount(target: "heading" | null, mutationFn: () => Promise<unknown>) {
+function mountWith(target: "heading" | null, mutationFn: () => Promise<unknown>) {
   const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
   const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   return renderHook(
@@ -21,7 +21,11 @@ function mount(target: "heading" | null, mutationFn: () => Promise<unknown>) {
         focusAfterDelete: target === null ? null : { get current() { return document.getElementById("heading"); } },
       }),
     { wrapper },
-  ).result;
+  );
+}
+
+function mount(target: "heading" | null, mutationFn: () => Promise<unknown>) {
+  return mountWith(target, mutationFn).result;
 }
 
 /** A heading that can take the focus, and a dialog with a button in it, both outside React. */
@@ -147,6 +151,27 @@ describe("useDeleteConfirm focus after a successful delete", () => {
       expect(els.inside).toHaveFocus();
       els.inside.remove();
       await waitFor(() => expect(els.kebab).toHaveFocus());
+    });
+
+    test("the focus is parked in the closing menu while the page renders (the list refresh): the kebab still takes it once the menu is gone", async () => {
+      const els = scaffold();
+      const { result, rerender } = mountWith("heading", () => Promise.resolve());
+      // Opened from the menu item; the menu stays mounted for its exit fade, so Mantine's return focus lands on the item after the cancel.
+      els.item.focus();
+      rememberMenuTrigger(els.item);
+      act(() => result.current.requestDelete({ id: 1 }));
+      els.inside.focus();
+      act(() => result.current.cancelDelete());
+      els.inside.remove();
+      els.item.focus();
+      // The debounced list request starts: a render of the host runs the settle while the focus is in the closing menu.
+      rerender();
+      expect(els.item).toHaveFocus();
+      // The dropdown unmounts, the focus falls to body, and Mantine reports the end of the dialog's exit.
+      els.item.closest('[role="menu"]')!.remove();
+      act(() => result.current.onExited());
+      await waitFor(() => expect(els.kebab).toHaveFocus());
+      expect(els.heading).not.toHaveFocus();
     });
 
     test("the kebab is gone (its row left): the heading takes it", async () => {
