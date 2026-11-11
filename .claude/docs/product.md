@@ -13,7 +13,7 @@ Scale assumed: about 15 teams, 5 work streams, 20 programs, 100 projects, 1,000 
 
 ## Roadmap
 
-Each increment gets its own plan (architect) before implementation; only v0.1.0 was specified up front. **Current version: 1.11.0.**
+Each increment gets its own plan (architect) before implementation; only v0.1.0 was specified up front. **Current version: 1.12.0.**
 
 | Ver | Scope | User can test |
 |---|---|---|
@@ -229,3 +229,7 @@ indirectly through it. **Port, don't reinvent**: when Astrolabe needs a capabili
 ## v1.11.0 — what shipped
 
 Overnight part 2 of 2026-11-11 (items promoted to `[next]` on the user's "go" and "add 4 and 5"; released on the user's "Feel free to release"), `1.11.0` (a minor bump: withdraw-all is a feature); no migration (V27 stays the last); nothing is written to Jira or Flow. User-visible: **withdraw all** - `POST /integrations/flow/team-bindings/{id}/unacknowledge-all` and "Withdraw all (N)" beside "Acknowledge all (N)" on both surfaces (supersedes D12's "no withdraw all"; the defaults W1-W5 in `flow-sync.md`: a sibling `POST`, sprints only, all or nothing with the `409 stale-deviations`, `204`, the button at two or more acknowledged rows); **the Netty read timeout re-armed per interval** (`main.kt`'s `createServer` + `plugins/ReadTimeout.kt`, `security.md` "Slow requests"): a stalled request is cut with `408` on a reused or once-idle connection too. Internal: a `useDialogFocus` e2e sweep (`dialog-focus.spec.ts`, one dialog per owner); axe over the import outcome's skipped table (light and dark); the flaky-`ProjectView` hunt (127 runs, no repro; probably fixed by `8a9455e`, the item stays in `BACKLOG.md` with the record); the CDS class list regenerated.
+
+## v1.12.0 — what shipped
+
+The Jira deviation polish (the three items the user promoted to `[next]` on 2026-11-11; plan by the architect, released on the user's "push and release 1.12.0"), `1.12.0` (a minor bump); **V28** `jira_deviation_acknowledgements`; nothing is written to Jira. **The user's answers:** Q2 a milestone's team manager may acknowledge and withdraw every deviation of a milestone binding of their team, whoever stamped it (project and program bindings, bind/unbind unchanged; reverses 1.3 Q4 in part); Q3 the earlier whole-list acknowledgements are **reset** by the upgrade (V22's `jira_bindings.ack_*` columns stay, unread; a `[new]` item drops them); Q4 per line plus "Acknowledge all (N)" / "Withdraw all (N)" (Flow's list idiom; reverses 1.3 Q3's whole-list key); Q5 a line that leaves and returns identical stays acknowledged (no pruning; a `[new]` item would port Flow's 1.10 rule). **Defaults taken** (`jira-sync.md`): Q1 `MOVED_OUT` is a wire reason derived from the stored `OUT_OF_SCOPE` plus the internal `gone_probed_at` (reopens 1.10 D1; known over-claim after a type change or a false-empty sweep); D1-D10 of the plan (the API stays additive: `kind` optional on the existing POST/DELETE; the list fingerprint stays the token; the kind-less POST stamps the open lines, the kind-less DELETE clears every row; totals count open lines; the `kind` CHECK pins the shape only) and D11 (a kind/severity chip matches the lines in the selected Status). After the security audit the DELETE refuses any query parameter but `kind` (fail closed). Proven against a built-in Jira stub; not yet tested against a real Jira site.

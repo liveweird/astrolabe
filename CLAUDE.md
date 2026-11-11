@@ -13,7 +13,7 @@ milestones) → milestone (start/end, man-day estimate, exactly one team, no own
 (its milestones against capacity), the **roadmap** (projects by one global rank, and in time) and the **programs** view. **Planning flow:** build the hierarchy and rank the projects; the
 team manager schedules milestones (manual drag/resize, or accept a server proposal); dependencies (FS/SS/FF/SF + lag) and capacity overload only ever **warn**, never move anything.
 
-**Roadmap:** 0.1.0 foundation · 0.2.0 plan · 0.3.0 timeline · 0.4.0 dependencies · 0.5.0 team view · 0.6.0 roadmap · 0.7.0 calendar · 0.8.0 auto-proposal · 0.9.0 baselines · 1.0.0 checkup · 1.1.0 Jira sync · 1.2.0 import · 1.3.0 polling · 1.4.0 coverage · 1.5.1 Flow · 1.6.0 capacity · 1.7.0 planning · 1.8.0 cross-team run · 1.9.0 Flow follow-ups · 1.10.0 sync follow-ups · 1.10.1 fixes · **1.11.0 (current)** withdraw all · next 1.12. Per-version scope, domain decisions, assumptions: `.claude/docs/product.md`. Open items: `BACKLOG.md`.
+**Roadmap:** 0.1.0 foundation · 0.2.0 plan · 0.3.0 timeline · 0.4.0 dependencies · 0.5.0 team view · 0.6.0 roadmap · 0.7.0 calendar · 0.8.0 auto-proposal · 0.9.0 baselines · 1.0.0 checkup · 1.1.0 Jira sync · 1.2.0 import · 1.3.0 polling · 1.4.0 coverage · 1.5.1 Flow · 1.6.0 capacity · 1.7.0 planning · 1.8.0 cross-team run · 1.9.0 Flow follow-ups · 1.10.0 sync follow-ups · 1.10.1 fixes · 1.11.0 withdraw all · **1.12.0 (current)** per-line acknowledge · next 1.13. Per-version scope, domain decisions, assumptions: `.claude/docs/product.md`. Open items: `BACKLOG.md`.
 
 Brand: deep cyan (the `astrolabe` colour tuple in `web/src/theme.ts`, `primaryShade: { light: 8, dark: 9 }`); the logo is a stylised astrolabe.
 
@@ -111,7 +111,7 @@ Source files sit flat under `server/src/main/kotlin/<area>/` but declare `packag
 - `infra/config/` — `requireConfigInt`/`requireConfigLong`, boot-validated numeric config (Lettuce's).
 - `infra/Failures.kt` — `catchingFailures` (keeps the failure without swallowing cancellation).
 - `audit/` — the security audit trail: `audit(event, fields…)` → AUDIT-marked structured logs.
-- `authz/` — `CallerPrincipal`, the guards (`requireAdmin`, `requireSelfOrAdmin`, `requireTeamManagerOrAdmin` (the milestone schedule PUT), `requireRoadmapEditorOrAdmin`, the owner-chain pair) and the typed HTTP exceptions (401/403/404/409/429).
+- `authz/` — `CallerPrincipal`, the guards (`requireAdmin`, `requireSelfOrAdmin`, `requireTeamManagerOrAdmin`, `requireRoadmapEditorOrAdmin`, the owner-chain pair) and the typed HTTP exceptions (401/403/404/409/429).
 - `auth/` — login (+ the email-MFA second step), refresh, logout, self-service password reset, token minting, password hashing, the revoked-token blocklist; in-memory auth state is capacity-bounded with audited 429 saturation.
 - `users/` — the user domain (Astrolabe's own login accounts, REST `/api/v1/users`): ADMIN-only CRUD (self-delete 403, last-admin 409), per-user feature flags (`Feature` enum, the V5 disabled-set model; MFA is the inverted-default login-scoped flag), per-user permissions (`Permission`, the V11 grant set read per request, never a token claim), the ONE synced UI+email language (`Languages.kt`: the `SUPPORTED_LANGUAGES` whitelist).
 - `people/` — the people directory (V10; REST `/api/v1/people`): GET any authenticated (emails included), POST/PUT/DELETE ADMIN only; optional email and login link (`people.user_id`), the owners and managers of the plan.

@@ -17,6 +17,28 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.12.0",
+    date: "2026-11-11",
+    en: `**Astrolabe 1.12.0: acknowledge Jira deviations one at a time, the manager of a milestone's team may acknowledge them, and a Jira item that only left the connection's projects reads "moved out".**
+
+- Deviations page: each Jira deviation now has its own Acknowledge / Unacknowledge button and its own note of who acknowledged it and when; a row with at least two open deviations also offers "Acknowledge all (N)", one with at least two acknowledged deviations "Withdraw all (N)". A change in Jira or in the plan reopens only the deviation that changed; a deviation that disappears and comes back unchanged stays acknowledged. The separate acknowledgement column is gone.
+- This upgrade withdraws every earlier acknowledgement of a Jira deviation: each acknowledged item reads open once and can be acknowledged again, one deviation at a time or all at once.
+- The manager of a milestone's team may now acknowledge and withdraw that milestone's Jira deviations, besides the plan item's owners and the administrators.
+- A Jira item gone from the connection's projects that Jira can still read now says "Moved out of the connection's projects (Jira still has it)", with a "Moved out of scope" badge, instead of "deleted, moved out of the connection's projects, or no longer visible".
+- Filters: a kind or severity filter now looks at the deviations in the selected status (Open with "End" lists only items whose End deviation is open); the warning and info totals count open deviations.
+- Nothing is written to Jira.
+- Proven against a built-in Jira stub; not yet tested against a real Jira site.`,
+    pl: `**Astrolabe 1.12.0: potwierdzanie odchyleń od Jiry pojedynczo, potwierdzanie przez kierownika/czkę zespołu kamienia milowego oraz opis „przeniesiony” dla elementu Jiry, który tylko opuścił projekty połączenia.**
+
+- Strona Odchylenia: każde odchylenie od Jiry ma teraz własny przycisk Potwierdź / Cofnij potwierdzenie i własną informację, kto i kiedy je potwierdził; wiersz z co najmniej dwoma otwartymi odchyleniami ma też „Potwierdź wszystkie (N)”, a z co najmniej dwoma potwierdzonymi „Cofnij wszystkie (N)”. Zmiana w Jirze lub w planie otwiera ponownie tylko to odchylenie, które się zmieniło; odchylenie, które zniknie i wróci bez zmian, pozostaje potwierdzone. Osobna kolumna potwierdzeń zniknęła.
+- Ta aktualizacja cofa wszystkie wcześniejsze potwierdzenia odchyleń od Jiry: każdy potwierdzony element raz pokaże się jako otwarty i można go potwierdzić ponownie, pojedynczo albo wszystkie naraz.
+- Kierownik/czka zespołu kamienia milowego może teraz potwierdzać i cofać potwierdzenia odchyleń od Jiry tego kamienia milowego, obok właścicieli/ek elementu planu i administratorów/ek.
+- Element Jiry, który zniknął z projektów połączenia, ale Jira nadal go odczytuje, ma teraz opis „Przeniesiony poza projekty połączenia (Jira nadal go ma)” i plakietkę „Przeniesiony poza zakres” zamiast „usunięto go, przeniesiono poza projekty połączenia albo konto połączenia już go nie widzi”.
+- Filtry: filtr rodzaju lub ważności dotyczy teraz odchyleń w wybranym statusie (Otwarte z „Koniec” pokazuje tylko elementy z otwartym odchyleniem końca); sumy ostrzeżeń i informacji liczą otwarte odchylenia.
+- Niczego nie zapisujemy w Jirze.
+- Sprawdzone na wbudowanej atrapie Jiry; jeszcze nie przetestowane na prawdziwej witrynie Jira.`,
+  },
+  {
     version: "1.11.0",
     date: "2026-11-11",
     en: `**Astrolabe 1.11.0: withdraw every acknowledgement of a team's capacity differences in one click, and a stalled request is cut on every connection.**
