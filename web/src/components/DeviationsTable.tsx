@@ -7,7 +7,7 @@ import { ageText, deviationKindLabel, deviationSentence, goneBadge, isLineOpen, 
 import { formatDateTime } from "../utils/formatDate";
 import { projectPath } from "../utils/planLinks";
 import DeviationAckCell, { DeviationAckAll } from "./DeviationAckCell";
-import JiraKeyLink from "./JiraKeyLink";
+import JiraKeyWithPrevious from "./JiraKeyWithPrevious";
 import JiraRollupText from "./JiraRollupText";
 import ScrollRegion from "./ScrollRegion";
 import SeverityBadge from "./SeverityBadge";
@@ -58,9 +58,7 @@ function JiraCell({ item, connection, showConnection }: { item: DeviationItem; c
   const badge = goneBadge(item.deviations.find((deviation) => deviation.kind === "GONE")?.detail.jira);
   return (
     <>
-      <Text size="sm" fw={500}>
-        <JiraKeyLink issueKey={jira.key} siteUrl={connection?.siteUrl} underline="always" />
-      </Text>
+      <JiraKeyWithPrevious issueKey={jira.key} previousKey={jira.previousKey} siteUrl={connection?.siteUrl} underline="always" />
       {jira.summary && (
         <Text size="xs" lineClamp={2} title={jira.summary}>
           {jira.summary}

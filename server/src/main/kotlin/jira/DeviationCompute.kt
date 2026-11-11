@@ -262,6 +262,7 @@ private fun BindingRow.toJira(siteUrl: String, rollup: ChildRollup?): DeviationJ
     return DeviationJira(
         issueId = issueId,
         key = issueKey,
+        previousKey = seen?.observedKey?.takeIf { it != issueKey },
         url = "$siteUrl/browse/$issueKey",
         summary = issue?.summary,
         typeName = seen?.typeName,

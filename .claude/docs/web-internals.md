@@ -1536,7 +1536,7 @@ for each NOT found, plus a gray line for a legacy Epic/Parent Link field.
 so a save or a new test hides it while the typed key stays; the raw values are arbitrary JSON and are rendered as TEXT NODES only (a string as is, anything else
 as clamped JSON). 400 / 404 / 409 / 429 / 502 show inline (the 400 with the server's sentence, the 502 with Jira's failure code put in words).
 **`components/JiraKeyLink.tsx`** (Flow's, ported; C9 uses it too) takes the connection's `siteUrl`: an external link `{site}/browse/{KEY}`,
-`target="_blank" rel="noopener noreferrer"`, plain text when the site is not `https://`. Strings: `jira.*` (the `errorCode.*` table is shared by the probe rows
+`target="_blank" rel="noopener noreferrer"`, plain text when the site is not `https://`. **`components/JiraKeyWithPrevious.tsx`** (1.13) is the key cell of the connection page's bindings list (`observation.issueKey`) and of the Deviations Jira cell (`jira.previousKey`): the current key as the link and, only when the key the issue was last read under differs (a moved item), a muted "was OLD-1" / "wcześniej OLD-1" beside it, the pair a `role="group"` named "NEW-1, was OLD-1"; the timeline chips show the current key only. Strings: `jira.*` (`jira.link.was`, `jira.link.keyWas`) (the `errorCode.*` table is shared by the probe rows
 and the runs). Tests: `JiraConnections.test.tsx`, `JiraConnectionDetails.test.tsx`, `JiraConnectionEditorModal.test.tsx`, `ConnectionTestResults.test.tsx`,
 `ConnectionTestStatus.test.tsx`, `SyncRunsTable.test.tsx`, `JiraMappingEditor.test.tsx`, `JiraDiscoveryReport.test.tsx`, `JiraPeek.test.tsx`,
 `useSyncRuns.test.tsx` (fake timers, incl. a second claim after the bound), `SyncStatusBadge.test.tsx`, `useNow.test.tsx`,

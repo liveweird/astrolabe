@@ -106,7 +106,9 @@
   },
   "link": {
     "opensInJira": "(opens in Jira)",
-    "openKeyInJira": "Open {{key}} in Jira"
+    "openKeyInJira": "Open {{key}} in Jira",
+    "was": "was {{key}}",
+    "keyWas": "{{key}}, was {{previous}}"
   },
   "report": {
     "title": "Discovery report",

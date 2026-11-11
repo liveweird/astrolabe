@@ -509,7 +509,10 @@ test("unlinking the milestone removes its deviation, a deleted Jira item reads a
   const outLink = movedOut.getByRole("link", { name: "OUT-6 (opens in Jira)" });
   await expect(outLink).toBeVisible();
   await expect(outLink).toHaveAttribute("href", /\/browse\/OUT-6$/);
-  await expect(movedOut).not.toContainText("E2E-10");
+  // The key it was linked with stays visible as text, not as a link: "was E2E-10" (1.13), named together with the current key.
+  await expect(movedOut.getByText("was E2E-10", { exact: true })).toBeVisible();
+  await expect(movedOut.getByRole("group", { name: "OUT-6, was E2E-10" })).toBeVisible();
+  await expect(movedOut.getByRole("link", { name: /E2E-10/ })).toHaveCount(0);
 });
 
 test("the owner's milestone deviation shows as a flag and a Jira bar on the project page and on the roadmap; acknowledging it clears the flag, and the Jira item's deletion brings it back", async ({ page, browser }) => {

@@ -4892,6 +4892,8 @@ export interface components {
             issueId: string;
             /** @description The issue's current key as Jira last answered it: after a run's by-id probe read a gone issue, the key that answer carried (an issue moved to another project, possibly one outside the connection's project keys, shows its new key). */
             key: string;
+            /** @description The key the issue was last READ under (usually the one it was linked with; an issue renamed in scope is read under its new key) when a probe has since followed it to the current `key` (a moved issue); null when the two are equal or the binding was never observed. The same value the bindings list carries as `observation.issueKey`. */
+            previousKey: string | null;
             /** @description `<site>/browse/<key>`, under the current key. */
             url: string;
             summary: string | null;

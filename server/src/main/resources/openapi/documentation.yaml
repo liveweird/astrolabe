@@ -6238,10 +6238,11 @@ components:
     DeviationJira:
       type: object
       description: Jira's side as last observed; everything after `url` is null for a binding never observed (`rollup` also for a binding that is not a milestone or whose issue has no mirrored child).
-      required: [issueId, key, url, summary, typeName, hierarchyLevel, statusName, statusCategory, start, end, estimate, estimateUnit, parentKey, teamName, observedAt, gone, rollup]
+      required: [issueId, key, previousKey, url, summary, typeName, hierarchyLevel, statusName, statusCategory, start, end, estimate, estimateUnit, parentKey, teamName, observedAt, gone, rollup]
       properties:
         issueId: { type: string }
         key: { type: string, pattern: '^[A-Z][A-Z0-9_]{1,9}-[0-9]{1,10}$', maxLength: 21, description: "The issue's current key as Jira last answered it: after a run's by-id probe read a gone issue, the key that answer carried (an issue moved to another project, possibly one outside the connection's project keys, shows its new key)." }
+        previousKey: { type: string, nullable: true, description: "The key the issue was last READ under (usually the one it was linked with; an issue renamed in scope is read under its new key) when a probe has since followed it to the current `key` (a moved issue); null when the two are equal or the binding was never observed. The same value the bindings list carries as `observation.issueKey`." }
         url: { type: string, description: "`<site>/browse/<key>`, under the current key." }
         summary: { type: string, nullable: true, maxLength: 255 }
         typeName: { type: string, nullable: true }

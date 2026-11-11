@@ -91,6 +91,8 @@ internal class StoredObservation(
     val issue: ObservedIssue,
     val goneProbedAt: Long?,
     val goneProbedKey: String?,
+    /** `issue_key`: the key the issue was last READ under; differs from the binding's key once a probe followed a move (1.13). */
+    val observedKey: String?,
     val typeName: String?,
     val statusName: String?,
     val teamName: String?,
@@ -153,7 +155,7 @@ internal suspend fun loadBindings(scope: DeviationScope = DeviationScope()): Lis
             observations.observedAt, observations.summary, observations.typeName, observations.hierarchyLevel, observations.statusName,
             observations.statusCategory, observations.parentIssueId, observations.parentIssueKey, observations.startDate,
             observations.endDate, observations.estimate, observations.estimateUnit, observations.teamName, observations.gone,
-            observations.goneReason, observations.goneProbedAt, observations.goneProbedKey,
+            observations.goneReason, observations.goneProbedAt, observations.goneProbedKey, observations.issueKey,
         )
         .where { scope.predicate() }.orderBy(bindings.id).toList().map { row ->
             BindingRow(
@@ -208,7 +210,7 @@ private fun ResultRow.storedObservation(): StoredObservation? {
         goneReason = getOrNull(observations.goneReason),
     )
     return StoredObservation(
-        issue, getOrNull(observations.goneProbedAt), getOrNull(observations.goneProbedKey),
+        issue, getOrNull(observations.goneProbedAt), getOrNull(observations.goneProbedKey), getOrNull(observations.issueKey),
         getOrNull(observations.typeName), getOrNull(observations.statusName), getOrNull(observations.teamName), observedAt,
     )
 }

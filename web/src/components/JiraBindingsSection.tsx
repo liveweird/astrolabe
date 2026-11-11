@@ -16,7 +16,7 @@ import { refreshJiraAndTimelines } from "../utils/queryRefresh";
 import ClearableTextInput from "./ClearableTextInput";
 import JiraBindDialog from "./JiraBindDialog";
 import JiraImportModal from "./JiraImportModal";
-import JiraKeyLink from "./JiraKeyLink";
+import JiraKeyWithPrevious from "./JiraKeyWithPrevious";
 import JiraUnlinkModal from "./JiraUnlinkModal";
 import RegistryListTable from "./RegistryListTable";
 import SortHeader from "./SortHeader";
@@ -169,9 +169,7 @@ export default function JiraBindingsSection({ connection }: { connection: JiraCo
             </Table.Td>
             <Table.Td>
               <Group gap="xs" wrap="nowrap">
-                <Text size="sm" fw={500}>
-                  <JiraKeyLink issueKey={row.issueKey} siteUrl={connection.siteUrl} />
-                </Text>
+                <JiraKeyWithPrevious issueKey={row.issueKey} previousKey={row.observation?.issueKey} siteUrl={connection.siteUrl} />
                 {row.observation?.gone && (
                   <Badge color="orange" variant="light" tt="none">
                     {t(GONE_BADGE[goneBadge(row.observation.goneReason)])}

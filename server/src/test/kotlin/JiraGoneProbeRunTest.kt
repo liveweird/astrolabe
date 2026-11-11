@@ -115,6 +115,20 @@ class JiraGoneProbeRunTest {
         assertEquals("MOVED_OUT", apiRow(f, malformed).third)
         assertEquals("DELETED", apiRow(f, deleted).third)
 
+        // The old key: the Deviations row and the bindings list both keep the key the issue was last read under;
+        // an unmoved binding has none.
+        val rows = f.w.admin.client.dvView("connectionId=${f.connectionId}").byBinding()
+        assertEquals(
+            listOf("OUT-7", "E2E-90", "E2E-6", "E2E-7", "E2E-8"), f.bound.map { assertNotNull(rows[it.id]).jira.key },
+            "the Deviations row shows the key the binding followed",
+        )
+        assertEquals(
+            listOf("E2E-4", "E2E-5", null, null, null), f.bound.map { assertNotNull(rows[it.id]).jira.previousKey },
+            "a moved binding answers the key it was read under, an unmoved one null",
+        )
+        val listRow = jbJson.decodeFromString<JiraBindingResponse>(f.w.admin.client.get("$JB_BINDINGS/${moved.id}").bodyAsText())
+        assertEquals("E2E-4", assertNotNull(listRow.observation).issueKey, "the bindings list carries the old key as observation.issueKey")
+
         // The sweep lists everything again: every flag is cleared and so is the key; the binding keeps the key it followed.
         val relist = MockJiraRun(application) { request ->
             if (request.url.parameters["fields"] == "id") {

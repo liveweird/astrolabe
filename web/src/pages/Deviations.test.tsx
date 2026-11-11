@@ -207,6 +207,17 @@ describe("Deviations page", () => {
     expect(within(table).getByText(/No longer readable in Jira: deleted, moved out/)).toBeInTheDocument();
   });
 
+  test("a moved item's row links the current key and says 'was' the old one; an unmoved row says nothing", async () => {
+    const moved = item({ bindingId: 1, node: { ...item().node, id: 11, name: "Moved one" }, jira: { ...item().jira, key: "OUT-6", previousKey: "E2E-10", url: "https://acme.atlassian.net/browse/OUT-6" } });
+    const still = item({ bindingId: 2, node: { ...item().node, id: 12, name: "Still one" } });
+    doc = view({ items: [moved, still] });
+    renderPage("/deviations?all=true");
+    const table = await screen.findByRole("table", { name: "Differences between the plan and Jira" });
+    expect(await within(table).findByRole("group", { name: "OUT-6, was E2E-10" })).toBeInTheDocument();
+    expect(within(table).getByRole("link", { name: "OUT-6 (opens in Jira)" })).toBeInTheDocument();
+    expect(within(table).getAllByText(/^was /)).toHaveLength(1);
+  });
+
   describe("the gone totals split (1.13)", () => {
     const goneItem = (bindingId: number, reason: "MOVED_OUT" | "NOT_LISTED" | "OUT_OF_SCOPE" | "DELETED") =>
       item({ bindingId, node: { ...item().node, id: 10 + bindingId, name: `Gone ${bindingId}` }, jira: { ...item().jira, key: `OLD-${bindingId}`, gone: true }, deviations: [{ kind: "GONE", severity: "WARNING", detail: detail({ jira: reason }), acknowledgement: null }] });

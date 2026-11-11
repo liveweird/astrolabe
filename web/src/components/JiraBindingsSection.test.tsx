@@ -60,6 +60,19 @@ describe("JiraBindingsSection", () => {
     expect(within(table).queryByText("Gone from Jira")).not.toBeInTheDocument();
   });
 
+  test("a moved link shows its current key as the link and 'was' the key it was last read under; an unmoved one shows no 'was'", async () => {
+    rows = [
+      binding(1, { issueKey: "OUT-6", url: "https://acme.atlassian.net/browse/OUT-6", observation: { observedAt: 1, statusCategory: "IN_PROGRESS", summary: "Epic 1", issueKey: "E2E-10", gone: true, goneReason: "MOVED_OUT" } }),
+      binding(2, { observation: { observedAt: 1, statusCategory: "IN_PROGRESS", summary: "Epic 2", issueKey: "E2E-2", gone: false } }),
+    ];
+    renderWithProviders(<JiraBindingsSection connection={CONNECTION} />);
+    const table = await screen.findByRole("table", { name: "Links to plan items" });
+    expect(await within(table).findByRole("group", { name: "OUT-6, was E2E-10" })).toBeInTheDocument();
+    expect(within(table).getByRole("link", { name: "OUT-6 (opens in Jira)" })).toHaveAttribute("href", "https://acme.atlassian.net/browse/OUT-6");
+    expect(within(table).getByText("was E2E-10")).toBeInTheDocument();
+    expect(within(table).getAllByText(/^was /)).toHaveLength(1);
+  });
+
   test("a gone link whose probe found the issue inside the connection's projects wears the 'Not listed by Jira' badge", async () => {
     rows = [binding(1, { observation: { observedAt: 1, statusCategory: "IN_PROGRESS", summary: "Epic 1", gone: true, goneReason: "NOT_LISTED" } })];
     renderWithProviders(<JiraBindingsSection connection={CONNECTION} />);

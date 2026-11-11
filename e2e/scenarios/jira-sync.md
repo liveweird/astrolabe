@@ -107,7 +107,7 @@ read "2"). The stub's own figure for its E2E data (`endLaterWorkingDays: 3`) is 
      account)" (the run's probe of E2E-6 got the stub's 404) and its "Data as of" cell ends in "· stale" (what a row shows is what was last read); the totals read "1 gone from
      Jira" and "1 still in Jira, out of scope" (the header splits the deleted item from the moved one).
    - *Expected*: `relocated`'s row shows the badge "Moved out of scope", the sentence "Moved out of the connection's projects (Jira still has it)" and a link named "OUT-6 (opens in
-     Jira)" whose href ends in `/browse/OUT-6` (the binding follows the key the probe's 200 carried); the row no longer says E2E-10.
+     Jira)" whose href ends in `/browse/OUT-6` (the binding follows the key the probe's 200 carried); beside it a muted "was E2E-10" (not a link: the key the milestone was linked with), the pair named "OUT-6, was E2E-10".
 6. The afterAll puts the stub back to `Started` once more, as the backstop.
    - *Expected*: nothing of this test's state remains - the connection (and with it the bindings), the plan rows and the logins are deleted.
 

@@ -66,6 +66,7 @@ export function item(over: Partial<DeviationItem> = {}): DeviationItem {
     jira: {
       issueId: "10001",
       key: "E2E-3",
+      previousKey: null,
       url: "https://acme.atlassian.net/browse/E2E-3",
       summary: "Checkout page epic",
       typeName: "Epic",

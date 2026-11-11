@@ -108,7 +108,9 @@
   },
   "link": {
     "opensInJira": "(otwiera się w Jirze)",
-    "openKeyInJira": "Otwórz {{key}} w Jirze"
+    "openKeyInJira": "Otwórz {{key}} w Jirze",
+    "was": "wcześniej {{key}}",
+    "keyWas": "{{key}}, wcześniej {{previous}}"
   },
   "report": {
     "title": "Raport z wykrywania",

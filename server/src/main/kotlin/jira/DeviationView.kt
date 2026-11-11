@@ -91,7 +91,8 @@ data class DeviationNode(
 )
 
 /**
- * Jira's side as last observed. Everything after [url] is null for a binding never observed (none exists normally: the bind writes the
+ * Jira's side as last observed. [previousKey] is the key the issue was last read under when a probe has since followed it to another
+ * key (a moved issue), else null. Everything after [url] is null for a binding never observed (none exists normally: the bind writes the
  * first observation). Dates are ISO; [estimate] is in [estimateUnit]; [observedAt] is epoch millis. [rollup] is always present, null =
  * none.
  */
@@ -99,6 +100,7 @@ data class DeviationNode(
 data class DeviationJira(
     val issueId: String,
     val key: String,
+    val previousKey: String?,
     val url: String,
     val summary: String?,
     val typeName: String?,
