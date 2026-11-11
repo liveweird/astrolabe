@@ -33,6 +33,7 @@ Each increment gets its own plan (architect) before implementation. The domain s
 - [new] **Persist a cross-team run so a second manager can read it (1.8).** A run is page state, lost on navigation; sharing needs a stored proposal, the v0.8 alternative's "proposals that persist".
 - [new] **Ghost bars for the other sections' proposed dates on the team page (1.8).** The cross-team page has no timeline; the team page shows one team.
 - [new] **A plan-scoped hold-time measurement of the cross-team accept (1.8 C3 review).** About 5 queries per team under the plan lock; record it in `timeline.md` if 50-team runs appear.
+- [new] **Create a login and its person in one step.** Logins (access) and people (plan owners, team managers) are separate by design (v0.2), so an owner who also signs in takes two forms: a login under Users, then a person under People linked to it; until the person exists the owner picker cannot offer them (met on 2026-11-11 after the stack was cleared: a new login, an empty owner list). Options: an "also create a linked person" switch on the new-login form, a "create a person from this login" action on the login's row, or both; the person takes the login's name and email.
 
 ## Integrations (1.x)
 
