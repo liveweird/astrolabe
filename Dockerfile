@@ -41,7 +41,9 @@ FROM eclipse-temurin:21.0.13_9-jre-noble@sha256:0eda5830ed7b669abc246a8dc520ea8a
 # The reviewed Temurin index still ships older Noble revisions of these packages.
 # Upgrade them from Ubuntu's signed repositories and enforce the security floors; exact
 # revision pins would stop clean rebuilds when Ubuntu supersedes them in the live index.
-RUN apt-get update && apt-get install -y --no-install-recommends --only-upgrade \
+# Error-Mode=any: an index that cannot be fetched fails HERE with the real cause (by default apt only warns, and the
+# build then failed at a floor below as a version mismatch against the base image's stale index - CI, 2026-11-11).
+RUN apt-get -o APT::Update::Error-Mode=any update && apt-get install -y --no-install-recommends --only-upgrade \
       libexpat1 libsqlite3-0 perl-base libssl3t64 libbrotli1 apt libapt-pkg6.0t64 \
     && dpkg --compare-versions "$(dpkg-query -W -f='${Version}' apt)" ge 2.8.4ubuntu0.1 \
     && dpkg --compare-versions "$(dpkg-query -W -f='${Version}' libapt-pkg6.0t64)" ge 2.8.4ubuntu0.1 \
