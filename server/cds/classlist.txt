@@ -11929,6 +11929,7 @@ reactor/netty/channel/ChannelOperations
 reactor/netty/channel/ChannelOperations$DisposedChannel
 reactor/netty/channel/ChannelOperations$DisposedChannel$DisposedChannelUnsafe
 reactor/netty/channel/ChannelOperations$DisposedChannelConfig
+reactor/netty/channel/ChannelOperations$DisposedChannelId
 reactor/netty/channel/ChannelOperations$DisposedConnection
 reactor/netty/channel/ChannelOperations$OnSetup
 reactor/netty/channel/ChannelOperationsHandler

@@ -17,6 +17,34 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.13.2",
+    date: "2026-11-11",
+    en: `**Astrolabe 1.13.2: the Jira import can leave out done items and items nobody has touched for a while, so a large Jira project can be imported.**
+
+- Import from Jira: the first step has two new settings, both on when the dialog opens. "Leave out done items" skips items whose Jira status is in the Done category. "Updated within (days)" reads only items updated in Jira within that many days: 365 to start with, from 1 to 3,650; leave it empty to read items of any age. Nothing is stored: the settings belong to that one import, and its apply uses the same ones as its preview.
+- What it is for: a Jira project with more than 2,000 items at the mapped levels could not be imported at all. With the settings it can. The message for a scope that is still too large now says to "change what is left out" as well as to narrow the Jira projects.
+- The preview names what was left out ("Left out: done items. Their parents in the selected projects are still read."), but not how many items that was.
+- A parent is kept: a done or long-untouched parent of an item that is read is read from Jira on its own, when it is in the selected Jira projects, and shown with the note "Kept as a parent of an item shown here", so nothing lands under the wrong parent. At most 200 such parents are read per import; past that the preview says the scope is too large and Import stays disabled.
+- An item whose parent Jira answers that it does not exist or is not visible is skipped, and its row says "Its parent in Jira could not be read with the connection's account (Jira answered that it does not exist or is not visible)"; it is not put under the default parent. Any other failure of that read (Jira refuses the connection's account, limits the requests or is down) fails the preview with the Jira error instead.
+- Only the import reads through these settings. Refresh now, the Deviations page and the story roll-ups read everything as before, and an item imported earlier that later becomes done stays linked. An open item that the time window left out shows as "Not in plan" on its parent's row of the Deviations page.
+- As before: an item renamed in Jira still previews as a new one, an existing plan item is never overwritten, and dates are copied only where you manage the team.
+- API (\`/api/v1\`, additive): \`POST /integrations/jira/connections/{id}/import-preview\` and \`…/import\` take an optional \`filter\` with \`excludeDone\` and \`updatedWithinDays\` (absent means everything, as before); rows can carry the infos \`KEPT_AS_PARENT\` and \`PARENT_UNREADABLE\`; \`totals.truncated\` is also true when more than 200 parents would have to be read.
+- Nothing is written to Jira.
+- Proven against a built-in Jira stub; not yet tested against a real Jira site.`,
+    pl: `**Astrolabe 1.13.2: import z Jiry może pomijać elementy zakończone i takie, których dawno nikt nie ruszał, więc można zaimportować duży projekt Jiry.**
+
+- Import z Jiry: pierwszy krok ma dwa nowe ustawienia, oba włączone po otwarciu okna. „Pomiń zakończone elementy” pomija elementy, których status w Jirze należy do kategorii „Gotowe” (Done). „Zaktualizowane w ciągu (dni)” wczytuje tylko elementy zaktualizowane w Jirze w ciągu tylu dni: na początku 365, od 1 do 3650; puste pole oznacza elementy bez względu na wiek. Niczego nie zapamiętujemy: ustawienia należą do jednego importu, a jego zastosowanie używa tych samych co podgląd.
+- Po co: projekt Jiry z ponad 2000 elementów na zmapowanych poziomach nie dawał się w ogóle zaimportować. Z tymi ustawieniami się da. Komunikat o zakresie, który nadal jest za duży, podpowiada teraz, żeby oprócz zawężenia projektów Jiry zmienić to, co jest pomijane.
+- Podgląd mówi, co pominięto („Pominięte: elementy zakończone. Ich rodzice w wybranych projektach są nadal wczytywani.”), ale nie ile to elementów.
+- Rodzic zostaje: zakończony lub od dawna nieruszany rodzic wczytanego elementu jest wczytywany z Jiry osobno, o ile leży w wybranych projektach Jiry, i pokazany z uwagą „Zostaje jako rodzic pokazanego tu elementu”, więc nic nie ląduje pod niewłaściwym rodzicem. Wczytujemy najwyżej 200 takich rodziców na import; powyżej podgląd informuje, że zakres jest za duży, a przycisk Importuj pozostaje wyłączony.
+- Element, którego rodzica Jira nie widzi albo który nie istnieje, jest pomijany, a jego wiersz mówi: „Nie udało się odczytać jego rodzica w Jirze kontem połączenia (Jira odpowiedziała, że nie istnieje albo nie jest widoczny)”; nie trafia pod domyślnego rodzica. Każda inna porażka tego odczytu (Jira odrzuca konto połączenia, ogranicza liczbę żądań albo nie działa) kończy podgląd błędem Jiry.
+- Tylko import czyta przez te ustawienia. „Odśwież teraz”, strona Odchylenia i podsumowania historyjek czytają wszystko jak dotąd, a element zaimportowany wcześniej, który później zostanie zakończony, pozostaje powiązany. Otwarty element pominięty przez okno czasowe widać jako „Brak w planie” w wierszu jego rodzica na stronie Odchylenia.
+- Jak dotąd: element przemianowany w Jirze nadal pojawia się w podglądzie jako nowy, istniejący element planu nigdy nie jest nadpisywany, a daty są kopiowane tylko tam, gdzie zarządzasz zespołem.
+- API (\`/api/v1\`, tylko dodatki): \`POST /integrations/jira/connections/{id}/import-preview\` i \`…/import\` przyjmują opcjonalny obiekt \`filter\` z polami \`excludeDone\` i \`updatedWithinDays\` (brak oznacza wszystko, jak dotąd); wiersze mogą nieść informacje \`KEPT_AS_PARENT\` i \`PARENT_UNREADABLE\`; \`totals.truncated\` jest też prawdziwe, gdy trzeba by wczytać ponad 200 rodziców.
+- Niczego nie zapisujemy w Jirze.
+- Sprawdzone na wbudowanej atrapie Jiry; jeszcze nie przetestowane na prawdziwej witrynie Jira.`,
+  },
+  {
     version: "1.13.1",
     date: "2026-11-11",
     en: `**Astrolabe 1.13.1: Refresh now is limited to 10 a minute per user, a changed holiday no longer refuses a proposal's accept needlessly, and a capacity edit that brings a sprint in line clears its acknowledgement.**
