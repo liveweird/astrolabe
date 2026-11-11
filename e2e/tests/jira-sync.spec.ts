@@ -480,8 +480,8 @@ test("unlinking the milestone removes its deviation, and a deleted Jira item rea
   await expect(page.getByText("1 gone from Jira")).toBeVisible();
   await expect(gone).toContainText("Warning: Gone");
   await expect(gone).toContainText("Deleted in Jira (or no longer visible to the connection's account)"); // the probe's 404 on the stub's day 2
-  // The "Data as of" cell (the fifth: Plan item, Jira item, Dates, Deviations, Data as of, Acknowledgement): what the row shows is what was last read,
-  // not a current figure.
+  // The "Data as of" cell (the fifth and last: Plan item, Jira item, Dates, Deviations, Data as of; the acknowledgements sit per line in the Deviations cell
+  // since 1.12): what the row shows is what was last read, not a current figure.
   await expect(gone.getByRole("cell").nth(4)).toHaveText(/ · stale$/);
 });
 
@@ -526,18 +526,21 @@ test("the owner's milestone deviation shows as a flag and a Jira bar on the proj
   await expect(flags).toContainText("Jira E2E-2: Ends 3 working days later than Jira");
   await expect(jiraBars).toHaveCount(1);
 
-  // Acknowledge: the row leaves the Open list and the Acknowledged status lists it, with who and when. (A project scope alone implies "all": `all=false` is the
-  // Open list under a scope, which is what the Status select's Open sends.)
+  // Acknowledge (1.12: per line; the milestone raises three lines - End, Estimate and Renamed - so the batch button takes them together): the row leaves the Open list
+  // and the Acknowledged status lists it, with who and when. (A project scope alone implies "all": `all=false` is the Open list under a scope, which is what the
+  // Status select's Open sends.)
   await page.goto(`/deviations?projectId=${world.projectId}&all=false`);
   const row = rowOf(page, milestone.name);
   await expect(row).toContainText("Ends 3 working days later than Jira");
-  await row.getByRole("button", { name: "Acknowledge E2E-6" }).click();
+  await row.getByRole("button", { name: "Acknowledge all (3) open deviations of E2E-6", exact: true }).click();
   await expect(row).toHaveCount(0);
   await openFilters(page);
   await page.getByRole("combobox", { name: "Status" }).click();
   await page.getByRole("option", { name: "Acknowledged", exact: true }).click();
   await expect(row).toContainText("Acknowledged by");
-  await expect(row.getByRole("button", { name: "Unacknowledge E2E-6" })).toBeVisible();
+  // The substring trap: "Acknowledge E2E-6: End" is part of "Unacknowledge E2E-6: End", so every per-line name is matched in full.
+  await expect(row.getByRole("button", { name: "Unacknowledge E2E-6: End", exact: true })).toBeVisible();
+  await expect(row.getByRole("button", { name: "Withdraw all (3) acknowledged deviations of E2E-6", exact: true })).toBeVisible();
 
   // The project page's flag is gone (the link stays, and so does the bar: it shows the Jira dates, not the deviation); so is the roadmap's roll-up entry.
   await page.goto(`/projects/${world.projectId}`);
@@ -548,7 +551,8 @@ test("the owner's milestone deviation shows as a flag and a Jira bar on the proj
   await expect(flags).toContainText("Jira E2E-2: Ends 3 working days later than Jira");
   await expect(flags).not.toContainText("deviates from Jira");
 
-  // Day 2: E2E-6 is deleted in Jira. After the administrator's refresh the item is open again - the acknowledgement was of what the deviations were - as GONE.
+  // Day 2: E2E-6 is deleted in Jira. After the administrator's refresh the item reads as GONE - alone: a gone item's dates are stale, so the End, Estimate and Renamed lines
+  // are not listed any more, and the GONE line was never acknowledged, so it is OPEN (no "changed since": that marks a stored stamp whose line changed).
   const adminContext = await browser.newContext();
   try {
     await setStubState("day2");
@@ -560,8 +564,8 @@ test("the owner's milestone deviation shows as a flag and a Jira bar on the proj
   await page.goto(`/deviations?projectId=${world.projectId}&all=false`);
   const gone = rowOf(page, milestone.name);
   await expect(gone.getByText("Gone from Jira", { exact: true })).toBeVisible();
-  await expect(gone).toContainText("· changed since");
-  await expect(gone.getByRole("button", { name: "Acknowledge E2E-6" })).toBeVisible();
+  await expect(gone).not.toContainText("· changed since");
+  await expect(gone.getByRole("button", { name: "Acknowledge E2E-6: Gone", exact: true })).toBeVisible();
   await page.goto(`/projects/${world.projectId}`);
   await expect(page.locator('[data-flags][title*="Jira E2E-6: Deleted in Jira"]')).toHaveCount(1); // the flag is back, now with the "gone" sentence
   flags = await roadmapFlags();

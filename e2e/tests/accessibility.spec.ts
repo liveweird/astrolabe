@@ -1094,7 +1094,10 @@ test.describe("the Jira pages", () => {
       await page.goto(`/deviations?projectId=${projectId}&all=false`);
       await expect(page.getByRole("heading", { level: 2, name: "Deviations" })).toBeVisible();
       const row = page.getByRole("table", { name: "Differences between the plan and Jira" }).getByRole("row").filter({ hasText: milestoneName });
-      await expect(row.getByRole("button", { name: "Acknowledge E2E-4" })).toBeVisible();
+      // Per line (1.12): the milestone ends later than Jira's (End) and is named differently (Renamed), so each line has its button and the head offers the batch one.
+      await expect(row.getByRole("button", { name: "Acknowledge E2E-4: End", exact: true })).toBeVisible();
+      await expect(row.getByRole("button", { name: "Acknowledge E2E-4: Renamed", exact: true })).toBeVisible();
+      await expect(row.getByRole("button", { name: "Acknowledge all (2) open deviations of E2E-4", exact: true })).toBeVisible();
       // The run-state badge of "Data from Jira" (the one manual run succeeded) and the totals badges.
       // Scoped to the fixture connection's row: the table lists EVERY Jira connection, and parallel specs' connections carry "Succeeded" badges too.
       await expect(page.getByRole("table", { name: "Data from Jira" }).getByRole("row").filter({ hasText: connectionName }).getByText("Succeeded", { exact: true })).toBeVisible();
@@ -1109,12 +1112,13 @@ test.describe("the Jira pages", () => {
       try {
         await page.goto(`/deviations?projectId=${projectId}&all=false`);
         const table = page.getByRole("table", { name: "Differences between the plan and Jira" });
-        await table.getByRole("row").filter({ hasText: milestoneName }).getByRole("button", { name: "Acknowledge E2E-4" }).click();
+        await table.getByRole("row").filter({ hasText: milestoneName }).getByRole("button", { name: "Acknowledge all (2) open deviations of E2E-4", exact: true }).click();
         await expect(table.getByRole("row").filter({ hasText: milestoneName })).toHaveCount(0);
         await page.goto(`/deviations?projectId=${projectId}&acknowledged=true`);
         const row = table.getByRole("row").filter({ hasText: milestoneName });
         await expect(row).toContainText("Acknowledged by");
-        await expect(row.getByRole("button", { name: "Unacknowledge E2E-4" })).toBeVisible();
+        await expect(row.getByRole("button", { name: "Unacknowledge E2E-4: End", exact: true })).toBeVisible();
+        await expect(row.getByRole("button", { name: "Withdraw all (2) acknowledged deviations of E2E-4", exact: true })).toBeVisible();
         await openFilters(page);
         await expect(page.getByRole("combobox", { name: "Status" })).toHaveValue("Acknowledged");
         await expectScheme(page, scheme);

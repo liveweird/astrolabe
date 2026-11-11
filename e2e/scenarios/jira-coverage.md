@@ -54,7 +54,7 @@
 
 ## Scenario: acknowledging the coverage deviation silences the flag
 
-1. The administrator opens the Open list `/deviations?projectId=<id>&all=false`, finds `COV-2`'s row with the "Not in plan" sentence and presses **Acknowledge COV-2**.
+1. The administrator opens the Open list `/deviations?projectId=<id>&all=false`, finds `COV-2`'s row with the "Not in plan" sentence and presses its **Acknowledge all (N)** (since 1.12 every line has its own button, and the batch one takes all of the binding's open lines - the roadmap raises one flag per open line, so all of them must go).
    - *Expected*: the row leaves the Open list; the rows of `COV-3` and `COV-4` stay (the acknowledgement is the binding's alone), `COV-4` still reading "Children done".
 2. They open the roadmap narrowed to the world's program, with the flag panel open.
    - *Expected*: the panel no longer holds an entry "Jira COV-2:" (the milestones' own flags remain, so the panel still opens).

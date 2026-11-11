@@ -99,12 +99,12 @@ states, so nothing here depends on `jira-sync.spec.ts`'s flips or rows. Each tes
 ## Scenario: /deviations with the Acknowledge button and the status badges has no WCAG A/AA violations
 
 1. The administrator opens `/deviations?projectId=<fixture project>&all=false` (the Open list) with the Filters panel open.
-   - *Expected*: the milestone's row offers **Acknowledge E2E-4**; "Data from Jira" shows the connection's "Succeeded" badge (the fixture connection ran once, manually, in the beforeAll); the Status select reads Open; zero violations.
+   - *Expected*: the milestone's row (two lines since 1.12: End and Renamed) offers **Acknowledge E2E-4: End**, **Acknowledge E2E-4: Renamed** and the head's **Acknowledge all (2)**; "Data from Jira" shows the connection's "Succeeded" badge (the fixture connection ran once, manually, in the beforeAll); the Status select reads Open; zero violations.
 
 ## Scenario: /deviations with an acknowledged item has no WCAG A/AA violations
 
-1. The administrator presses **Acknowledge E2E-4** (the row leaves the Open list), then opens `/deviations?projectId=<fixture project>&acknowledged=true`.
-   - *Expected*: the row reads "Acknowledged by …" and offers **Unacknowledge E2E-4**; the Status select reads Acknowledged; zero violations. A `finally` withdraws the acknowledgement through the API whatever happened, so the other scans meet the item open.
+1. The administrator presses **Acknowledge all (2)** (both lines; the row leaves the Open list), then opens `/deviations?projectId=<fixture project>&acknowledged=true`.
+   - *Expected*: the row reads "Acknowledged by …" on each line and offers **Unacknowledge E2E-4: End** (and Renamed) and **Withdraw all (2)**; the Status select reads Acknowledged; zero violations. A `finally` withdraws the acknowledgement through the API whatever happened, so the other scans meet the item open.
 
 ## Scenario: the telemetry panel's Sync section has no WCAG A/AA violations
 

@@ -119,18 +119,20 @@ It spends no Test connection call (the shared `linking` connection is already te
 2. They open the roadmap, narrowed to the world's own program (the program pick is a browser setting), and press **Show the N flags**.
    - *Expected*: the **Jira dates** toggle is on; the flag table reads "1 milestone deviates from Jira" and "Jira E2E-2: Ends 3 working days later than Jira" for the
      project; the project's own dashed Jira bar is drawn (one `[data-tone="jira"]`).
-3. They open `/deviations?projectId=<id>&all=false` (the Open list under a project scope), see the milestone's row ("Ends 3 working days later than Jira") and press
-   **Acknowledge E2E-6**.
-   - *Expected*: the row leaves the Open list. They open Filters and choose Status **Acknowledged**: the row is back, "Acknowledged by …", with **Unacknowledge E2E-6**.
+3. They open `/deviations?projectId=<id>&all=false` (the Open list under a project scope), see the milestone's row ("Ends 3 working days later than Jira") and press **Acknowledge
+   all (3) open deviations of E2E-6** (since 1.12 each line has its own button - End, Estimate and Renamed here - and the batch button takes the three together; buttons are
+   matched by their FULL accessible name, because "Acknowledge E2E-6: End" is a substring of "Unacknowledge E2E-6: End").
+   - *Expected*: the row leaves the Open list. They open Filters and choose Status **Acknowledged**: the row is back, "Acknowledged by …", with **Unacknowledge E2E-6: End** and
+     **Withdraw all (3) acknowledged deviations of E2E-6**.
 4. They open the project page and the roadmap again.
    - *Expected*: the key link stays, the flag icon is gone (no `data-flags` for the row), the Jira bar stays (it shows Jira's dates, not the deviation); the roadmap's flag
      table still has the project's "Jira E2E-2" sentence and no longer says "deviates from Jira".
 5. The stub moves to day 2 (`E2E-6` deleted); the administrator, in a browser of their own, presses **Refresh now: <connection>** on the Deviations page and waits for the
    milestone's row to show "Gone from Jira". The stub goes back to day 1 at once (in a `finally`).
 6. The owner opens the Open list again (`&all=false`).
-   - *Expected*: the milestone is listed again, "Gone from Jira", its acknowledgement cell reads "… · changed since" (the acknowledgement was of the deviations as they
-     were) with **Acknowledge E2E-6** offered anew; the project page's row has its flag icon back (the "gone" sentence), and the roadmap's flag table says "1 milestone
-     deviates from Jira" again.
+   - *Expected*: the milestone is listed again, "Gone from Jira", now as ONE line: a gone item raises GONE alone, so the End, Estimate and Renamed lines (and their stamps) are no longer
+     listed, and the GONE line was never acknowledged - it is open, its acknowledgement block does not say "· changed since" (that marks a stored stamp whose line changed) and
+     **Acknowledge E2E-6: Gone** is offered; the project page's row has its flag icon back (the "gone" sentence), and the roadmap's flag table says "1 milestone deviates from Jira" again.
 7. The afterEach removes the bindings and the world; the afterAll puts the stub back to `Started`, as the backstop.
 
 ## Not covered here (and why)

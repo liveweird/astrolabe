@@ -243,7 +243,8 @@ test("acknowledging the coverage deviation silences the flag", async ({ page }) 
     await expect(page.getByRole("heading", { level: 2, name: "Deviations" })).toBeVisible();
     const project = rowOfKey(page, "COV-2");
     await expect(project).toContainText("1 Jira item is not in the plan: COV-5");
-    await project.getByRole("button", { name: "Acknowledge COV-2" }).click();
+    // Since 1.12 each line has its own button and the batch one takes every open line of the binding (the roadmap's flag entries are per open line, so all of them go).
+    await project.getByRole("button", { name: /^Acknowledge all \(\d+\) open deviations of COV-2$/ }).click();
     await expect(project).toHaveCount(0); // the row leaves the Open list; the other bindings' rows stay (nothing else was acknowledged)
     await expect(rowOfKey(page, "COV-3")).toHaveCount(1);
     await expect(rowOfKey(page, "COV-4")).toContainText("Children done");
