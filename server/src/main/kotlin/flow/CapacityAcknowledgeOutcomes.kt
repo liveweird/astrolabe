@@ -1,5 +1,6 @@
 package ch.nokillswit.flow
 
+import ch.nokillswit.audit.audit
 import ch.nokillswit.planning.DeviationSeverity
 
 // What each committed write of `CapacityAcknowledgeService` leaves for the route's audit lines (written AFTER the commit).
@@ -36,6 +37,9 @@ class CapacityAcknowledgeAllOutcome(
 /** What a prune removed from ONE binding: the Flow sprint ids of the deleted rows, `null` standing for the team's own `TEAM_GONE` row. */
 class ClearedCapacityAcks(val bindingId: UInt, val sprintIds: List<Long?>)
 
+/** What [CapacityAcknowledgeService.pruneAfterCapacityWrite] removed (null when nothing went): the binding, its connection and the rows. */
+class CapacityWritePruneOutcome(val bindingId: UInt, val connectionId: UInt, val sprintIds: List<Long?>)
+
 /** What a committed un-acknowledge leaves for the audit line: the binding and the fingerprint that was cleared. */
 class CapacityUnacknowledgeOutcome(
     val connectionId: UInt,
@@ -51,3 +55,29 @@ class CapacityUnacknowledgeAllOutcome(
     val teamId: UInt,
     val flowTeamId: Int,
 )
+
+/**
+ * `flow.capacity_acknowledgements_cleared` (after the commit): the stored rows of binding [bindingId] that lost their acknowledgement
+ * because they are no longer listed. [via] = `run` (the mirror replace: [byUserId] is the login that asked for the run, null for a
+ * scheduled one, and [runId] the run), `acknowledge` (the caller) or `capacity` (the login whose capacity write brought the rows in
+ * line). `sprintIds` is ascending, `none` for the team's own row.
+ */
+internal fun auditCapacityAcksCleared(
+    bindingId: UInt,
+    sprintIds: List<Long?>,
+    connectionId: UInt,
+    byUserId: UInt?,
+    via: String,
+    runId: UInt? = null,
+) {
+    val fields = mutableListOf<Pair<String, Any?>>(
+        "byUserId" to byUserId?.toLong(),
+        "bindingId" to bindingId.toLong(),
+        "connectionId" to connectionId.toLong(),
+        "count" to sprintIds.size,
+        "sprintIds" to sprintIds.joinToString(",") { it?.toString() ?: "none" },
+        "via" to via,
+    )
+    if (runId != null) fields += "runId" to runId.toLong()
+    audit("flow.capacity_acknowledgements_cleared", *fields.toTypedArray())
+}

@@ -4,6 +4,7 @@ import ch.nokillswit.teams.CapacityImportCreate
 import ch.nokillswit.teams.CapacityImportUpdate
 import ch.nokillswit.teams.CapacityImportWrites
 import ch.nokillswit.teams.CapacityPeriodRequest
+import ch.nokillswit.teams.CapacityWriteListenersKey
 import ch.nokillswit.teams.TeamCapacityService
 import io.ktor.client.request.delete
 import io.ktor.client.statement.bodyAsText
@@ -16,6 +17,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
 import java.math.BigDecimal
 import java.time.LocalDate
+import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -296,6 +298,33 @@ class CapacityImportApplyTest {
         // The manager, on the now-UNCHANGED plan: an empty (but valid) apply is a 200.
         assertEquals(HttpStatusCode.OK, t.manager.client.ciApply(binding.id, ciBody(FAR_FROM, emptyList())).status)
     }
+
+    @Test
+    fun `an apply that writes tells the capacity listeners once - an all-skipped or refused apply tells nobody`() =
+        testApplication {
+            usePostgresTestcontainer()
+            val told = CopyOnWriteArrayList<Pair<UInt, UInt>>()
+            application.attributes[CapacityWriteListenersKey].register { teamId, byUserId -> told += teamId to byUserId }
+            val w = planWorld("capa7", teams = true)
+            val t = w.requireTeams()
+            val m = mirrorOf(planName("capa-flow"), threeSprints())
+            val binding = w.admin.client.fbBind(m.connectionId, 1, t.teamId).fbBinding()
+            val removable = ciSeedFlowPeriod(t.teamId, "2049-07-05", "9.00", 99, "Gone sprint")
+            val body = ciBodyOf(t.manager.client.ciPreviewOf(binding.id), removals = listOf(removable))
+
+            assertEquals(HttpStatusCode.Forbidden, t.otherManager.client.ciApply(binding.id, body).status)
+            assertEquals(HttpStatusCode.BadRequest, t.manager.client.ciApply(binding.id, "{ not json").status)
+            assertTrue(told.isEmpty(), "a refused or malformed apply tells nobody")
+
+            assertEquals(HttpStatusCode.OK, t.manager.client.ciApply(binding.id, body).status)
+            assertEquals(listOf(t.teamId to t.manager.userId), told.toList(), "one apply, one call, however many periods it wrote")
+
+            // The same request again: every row is UNCHANGED or gone, so each is skipped CHANGED and nothing is written.
+            val again = t.manager.client.ciApply(binding.id, body).bodyAsText().fbObject()
+            assertEquals(listOf(0, 0, 0), listOf("created", "updated", "deleted").map { again.getValue(it).jsonArray.size })
+            assertEquals(HttpStatusCode.OK, w.admin.client.ciApply(binding.id, ciBody(FAR_FROM, emptyList())).status)
+            assertEquals(1, told.size, "an apply that wrote nothing tells nobody")
+        }
 
     @Test
     fun `the order is binding 404 for every caller, then guard 403, then body 400 - and the 400s`() = testApplication {

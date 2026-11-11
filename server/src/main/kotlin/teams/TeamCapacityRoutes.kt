@@ -45,9 +45,11 @@ private const val PERIOD = "Capacity period"
  * All READ-BEFORE-GUARD (team ids are sequential and every signed-in user reads the plan): the team (or the period's team) is
  * resolved first — missing or deleted = 404 for every caller — then the guard (403), then the body (a forbidden caller's malformed
  * body stays 403), then the validation (400). The service re-runs the guard under the team row lock
- * (`TeamService.lockedIsActiveManager`), so only that inner verdict authorizes the write.
+ * (`TeamService.lockedIsActiveManager`), so only that inner verdict authorizes the write. A committed write then tells the
+ * [CapacityWriteListeners] (after its audit line, before the response, outside any transaction); a refused write and a same-values PUT
+ * tell nobody.
  */
-internal fun Route.teamCapacityRoutes(teams: TeamService, capacity: TeamCapacityService) {
+internal fun Route.teamCapacityRoutes(teams: TeamService, capacity: TeamCapacityService, listeners: CapacityWriteListeners) {
     // The write guard the service re-runs inside its transaction, after the team row is locked.
     fun guard(caller: CallerPrincipal): TeamGuard = { teamId ->
         requireTeamManagerOrAdmin(caller, teamId, teams::lockedIsActiveManager)
@@ -73,6 +75,7 @@ internal fun Route.teamCapacityRoutes(teams: TeamService, capacity: TeamCapacity
             "mdPerWeek" to values.mdPerWeek.toDouble(),
             "wipLimit" to (values.wipLimit ?: NO_LIMIT),
         )
+        listeners.written(teamId, caller.userId)
         call.response.header(HttpHeaders.Location, call.application.href(CapacityPeriodsRoute.Id(id = id)))
         call.respond(HttpStatusCode.Created, capacity.read(id).orVanished(PERIOD, id))
     }
@@ -103,6 +106,7 @@ internal fun Route.teamCapacityRoutes(teams: TeamService, capacity: TeamCapacity
                 "sourceFrom" to outcome.sourceBefore.name,
                 "sourceTo" to CapacitySource.MANUAL.name,
             )
+            listeners.written(outcome.teamId, caller.userId)
         }
         call.respond(HttpStatusCode.NoContent)
     }
@@ -117,6 +121,7 @@ internal fun Route.teamCapacityRoutes(teams: TeamService, capacity: TeamCapacity
             "teamId" to teamId.toLong(),
             "periodId" to route.id.toLong(),
         )
+        listeners.written(teamId, caller.userId)
         call.respond(HttpStatusCode.NoContent)
     }
 }

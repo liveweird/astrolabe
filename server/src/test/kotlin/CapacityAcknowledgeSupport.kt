@@ -9,6 +9,7 @@ import ch.nokillswit.flow.CapacityDeviationView
 import ch.nokillswit.flow.CapacityUnacknowledgeAllRequest
 import ch.nokillswit.flow.CapacityUnacknowledgeItem
 import ch.nokillswit.sync.SyncTrigger
+import ch.nokillswit.teams.CapacityPeriodRequest
 import io.ktor.client.HttpClient
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
@@ -90,6 +91,27 @@ fun capAckRow(bindingId: UInt, sprintId: Long?): String? = PostgresTestSupport.c
         st.executeQuery().use { rs -> if (rs.next()) rs.getString(1) else null }
     }
 }
+
+/** An imported capacity period of the E2E team: its id and start date (a capacity PUT's body needs both; a PUT drops the sprint id). */
+class CapAckPeriod(val id: UInt, val from: String)
+
+/** The period [sprintId]'s import created: look it up BEFORE the first PUT, which makes it MANUAL and forgets the sprint. */
+fun capAckPeriod(teamId: UInt, sprintId: Long): CapAckPeriod = PostgresTestSupport.connect().use { c ->
+    c.prepareStatement(
+        "SELECT id, effective_from::text FROM team_capacity_periods WHERE team_id = ? AND flow_sprint_id = ? AND NOT marked_as_deleted",
+    ).use { st ->
+        st.setInt(1, teamId.toInt())
+        st.setLong(2, sprintId)
+        st.executeQuery().use { rs ->
+            check(rs.next()) { "no period of sprint $sprintId" }
+            CapAckPeriod(rs.getInt(1).toUInt(), rs.getString(2))
+        }
+    }
+}
+
+/** `PUT /capacity-periods/{id}` to [mdPerWeek] a week on the period's own date: the plan-side edit (in line with Flow, or not). */
+suspend fun HttpClient.capAckEdit(period: CapAckPeriod, mdPerWeek: Double): HttpResponse =
+    putJson("/api/v1/capacity-periods/${period.id}", CapacityPeriodRequest(period.from, mdPerWeek))
 
 private fun capAckSprints(dayTwo: Boolean, s2Name: String) = listOf(
     ciSprint(1, "S1", "2049-03-01", "2049-03-12", "40"),

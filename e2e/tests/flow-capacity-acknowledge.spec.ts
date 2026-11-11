@@ -11,7 +11,7 @@
 // link is ever met; a login-less owner's work stream / program / project holding ONE milestone of the team scheduled 2047-01-07..2047-02-15, so the team view's `weeks[]` cover sprints 1-3), the six capacity
 // periods the import writes (they go with the team), the acknowledgements it makes (they go with the binding) and the stub's `flow-day2` SCENARIO, which this file flips too - the second flipper, one at a time
 // under the Playwright lock `flow-stub-scenario` shared with `flow-sync` and `flow-capacity-deviation`; the beforeAll puts the scenario back to `Started`, flips it only to refresh the connection's mirror once
-// and the afterAll resets it even after a failure. The last two scenarios (1.10) start by putting sprint 3's period back to the import's figure (the one before them raised it); the last flips the scenario again (day one, then day two, a refresh after each, reset in a `finally`). Everything is removed through the API (the connection first - the links and the acknowledgements go with it - then the plan, the teams, the people and the user).
+// and the afterAll resets it even after a failure. The last four scenarios (1.10, 1.14) start by putting sprint 3's period back to the import's figure (the one before them raised it); the last one flips the scenario again (day one, then day two, a refresh after each, reset in a `finally`). Everything is removed through the API (the connection first - the links and the acknowledgements go with it - then the plan, the teams, the people and the user).
 // The Deviations page lists EVERY linked team of the stack, so each page is narrowed to the spec's own team with the `teamId` filter and every assertion is about that team's rows. Each scenario starts by
 // withdrawing every acknowledgement of the world through the API, so none depends on what an earlier one left.
 import { randomUUID } from "node:crypto";
@@ -467,15 +467,20 @@ test("a capacity change in the plan reopens only the sprint it touches", async (
   await expectUnmarked(page, ["2047-01-21", "2047-01-28"]);
 });
 
-/** Puts sprint 3's capacity period back to the day-one import's figure (the previous scenario raised it by one man-day a week), so the sentences below read the day-two figures. */
-async function restoreSprintThreeCapacity(api: APIRequestContext): Promise<void> {
+/** Writes sprint 3's capacity period (the one the import made, found by its start date) through the API as the manager: a plan-side edit, which makes the period MANUAL. */
+async function setSprintThreeCapacity(api: APIRequestContext, mdPerWeek: number): Promise<void> {
   const { less } = daySprints();
   const periods = await api.get(`/api/v1/teams/${world.teamId}/capacity`);
   expect(periods.status(), await periods.text()).toBe(200);
   const period = ((await periods.json()) as { items: { id: number; effectiveFrom: string }[] }).items.find((item) => item.effectiveFrom === less.start);
   expect(period, `the import wrote the period starting ${less.start}`).toBeDefined();
-  const restored = await api.put(`/api/v1/capacity-periods/${period?.id}`, { data: { effectiveFrom: less.start, mdPerWeek: less.plan / 2 } });
-  expect(restored.status(), await restored.text()).toBe(204);
+  const written = await api.put(`/api/v1/capacity-periods/${period?.id}`, { data: { effectiveFrom: less.start, mdPerWeek } });
+  expect(written.status(), await written.text()).toBe(204);
+}
+
+/** Puts sprint 3's capacity period back to the day-one import's figure (the previous scenario raised it by one man-day a week), so the sentences below read the day-two figures. */
+async function restoreSprintThreeCapacity(api: APIRequestContext): Promise<void> {
+  await setSprintThreeCapacity(api, daySprints().less.plan / 2);
 }
 
 test("the team's manager acknowledges every open difference of the team in one click", async ({ page }) => {
@@ -552,6 +557,42 @@ test("the team's manager withdraws every acknowledgement of the team in one clic
   await expect(page.locator("[data-flow-capacity]")).not.toHaveCount(0);
   await expect(withdrawButton).toHaveCount(0);
   await expect(page.getByRole("button", { name: `Acknowledge all (2) open differences of ${world.team}`, exact: true })).toBeVisible();
+});
+
+test("an acknowledged sprint that a capacity edit brings in line loses its acknowledgement, so the same difference is open when the figure is put back", async ({ page }) => {
+  const { more, less } = daySprints();
+  const manager = await apiAsManager();
+  try {
+    await restoreSprintThreeCapacity(manager);
+    await withdrawAll(manager, world.teamId);
+    await acknowledgeViaApi(manager, world.teamId, less.id);
+    // The manager edits sprint 3's period to Flow's day-two figure (`less.flow` man-days over two weeks): the sprint is in line, so its row leaves the list (which holds whether or not its acknowledgement went; the proof of the clearing is the read after the figure is put back).
+    await setSprintThreeCapacity(manager, less.flow / 2);
+    const { rows: inLine } = await rowsOf(manager, world.teamId);
+    expect(
+      inLine.map((row) => row.detail.sprintId),
+      "sprint 3 is in line: only sprint 2's row is listed",
+    ).toEqual([more.id]);
+    // The figure put back: the SAME difference returns, and it is OPEN.
+    await restoreSprintThreeCapacity(manager);
+    const { rows: returned } = await rowsOf(manager, world.teamId);
+    const row = returned.find((candidate) => candidate.detail.sprintId === less.id);
+    expect(row, "sprint 3's row is listed again").toBeDefined();
+    expect(row?.acknowledgement ?? null, "sprint 3's acknowledgement went when the edit brought it in line").toBeNull();
+  } finally {
+    await manager.dispose();
+  }
+  await login(page, world.manager.email, world.manager.password);
+
+  // Sprint 3 reads the same sentence as before (the plan has 44.00, Flow 48.00), open: no "Acknowledged", the Acknowledge button offered; sprint 2 is open beside it.
+  await openTeamPage(page, world.teamId, world.team);
+  const lines = page.getByRole("list", { name: "Capacity differences from Flow" });
+  const infoLine = lines.getByRole("listitem").filter({ hasText: sentence(less, less.plan, less.flow) });
+  await expect(infoLine).toBeVisible();
+  await expect(infoLine).not.toContainText("Acknowledged");
+  await expect(acknowledgeButton(infoLine, less.name)).toBeVisible();
+  await expect(factsOf(page)).toContainText("Differs from Flow for 2 sprints");
+  await expect(headerFlag(page)).toHaveText("Capacity differs from Flow: 2 open differences");
 });
 
 test("an acknowledged sprint that comes back in line loses its acknowledgement, so the same difference is open when it returns", async ({ page }) => {

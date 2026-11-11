@@ -8,6 +8,7 @@ import ch.nokillswit.infra.db.orVanished
 import ch.nokillswit.infra.outbound.FlowBaseUrlVerdict
 import ch.nokillswit.infra.paging.parsePaging
 import ch.nokillswit.infra.paging.toPage
+import ch.nokillswit.teams.CapacityWriteListenersKey
 import ch.nokillswit.teams.TeamServiceKey
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
@@ -54,12 +55,13 @@ fun Application.configureFlowRoutes() {
     val capacityDeviations = attributes[CapacityDeviationServiceKey]
     val capacityAcknowledgements = attributes[CapacityAcknowledgeServiceKey]
     val teams = attributes[TeamServiceKey]
+    val capacityListeners = attributes[CapacityWriteListenersKey]
 
     routing {
         authenticate {
             flowTestRoutes(connections, connector, origins)
             flowTeamBindingRoutes(bindings, flowTeams, teams)
-            capacityImportRoutes(capacityImport, bindings, teams)
+            capacityImportRoutes(capacityImport, bindings, teams, capacityListeners)
             capacityAcknowledgeRoutes(capacityAcknowledgements, bindings, teams)
             capacityDeviationRoutes(capacityDeviations, teams)
             get<FlowOriginsRoute> {

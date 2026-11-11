@@ -2,6 +2,7 @@ package ch.nokillswit
 
 import ch.nokillswit.flow.CapacityDeviationKind
 import ch.nokillswit.sync.SyncTrigger
+import ch.nokillswit.teams.CapacityPeriodRequest
 import io.ktor.client.request.delete
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.testing.ApplicationTestBuilder
@@ -14,8 +15,9 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * 1.10: an acknowledgement lives only while its row is listed. The run's prune (inside the mirror replace), the acknowledge's own prune
- * and the connection delete, over the same scripted world as `CapacityAcknowledgeTest` (three 2049 sprints; day two: S2 a WARNING, S3 an
+ * 1.10: an acknowledgement lives only while its row is listed. The run's prune (inside the mirror replace), the acknowledge's own prune,
+ * the capacity write's prune (1.14: a manual period or the import, through the `teams/` listener seam, after the write's commit) and
+ * the connection delete, over the same scripted world as `CapacityAcknowledgeTest` (three 2049 sprints; day two: S2 a WARNING, S3 an
  * INFO, Billing gone). The predicate per binding state - listed row kept, in line / left the document / zero sprints pruned, an ABSENT
  * team and a sprints-truncated document pruning nothing, an unlinked binding and a dead team pruned whole - is pinned here; the lock
  * order and the waits are `CapacityAcknowledgeRaceTest`'s.
@@ -144,7 +146,7 @@ class CapacityAcknowledgePruneTest {
                 // Day two says 48 for sprint 3 (24 a week over ten working days): the plan is brought in line by a manual edit.
                 jbSql("UPDATE team_capacity_periods SET md_per_week = 24 WHERE team_id = ? AND flow_sprint_id = 3", teamId.toInt())
                 assertEquals(listOf(2L), admin.rowsOf().map { it.detail.sprintId }, "sprint 3 is in line: its row left the list")
-                assertEquals(2, capAckStored(bindingId), "no run and no acknowledge yet: the row is still stored (the plan-side residual)")
+                assertEquals(2, capAckStored(bindingId), "no run, no acknowledge yet: still stored (raw SQL: no route told the listeners)")
 
                 withAuditCapture { audit ->
                     assertEquals(HttpStatusCode.OK, manager.client.capAck(bindingId, 2, s2.fingerprint).status)
@@ -302,6 +304,174 @@ class CapacityAcknowledgePruneTest {
                 keyValues(
                     audit.events.single { it.message == "flow.capacity_acknowledgements_cleared" }, "count" to 3, "sprintIds" to "none,2,3",
                 )
+            }
+        }
+    }
+
+    // 1.14: the plan-side writes. Day two says S2 30 (15 a week) and S3 48 (24 a week); the plan keeps 18 and 22 a week.
+
+    private fun clearedLines(audit: LogCapture) = audit.events.filter { it.message == "flow.capacity_acknowledgements_cleared" }
+
+    @Test
+    fun `a capacity PUT that brings an acknowledged sprint in line clears its row, via capacity - the figure put back reads OPEN`() =
+        testApplication {
+            val world = dayTwo("capackp13")
+            with(world) {
+                val admin = w.admin.client
+                acknowledgeBoth()
+                val s3 = capAckPeriod(teamId, 3)
+                withAuditCapture { audit ->
+                    assertEquals(HttpStatusCode.NoContent, manager.client.capAckEdit(s3, 24.0).status)
+                    assertNull(capAckRow(bindingId, 3), "sprint 3 is in line: its acknowledgement went before the answer")
+                    assertNotNull(capAckRow(bindingId, 2), "sprint 2 is still listed")
+                    val names = audit.events.map { it.message }
+                        .filter { it == "team.capacity_period_updated" || it.startsWith("flow.capacity_") }
+                    assertEquals(listOf("team.capacity_period_updated", "flow.capacity_acknowledgements_cleared"), names)
+                    val cleared = clearedLines(audit).single()
+                    keyValues(
+                        cleared,
+                        "byUserId" to manager.userId.toLong(), "bindingId" to bindingId.toLong(),
+                        "connectionId" to mirror.connectionId.toLong(), "count" to 1, "sprintIds" to "3", "via" to "capacity",
+                    )
+                    assertTrue(cleared.keyValuePairs.none { it.key == "runId" }, "runId is a run's field only")
+                }
+                assertEquals(listOf(2L), admin.rowsOf().map { it.detail.sprintId }, "sprint 3 lists no row")
+
+                assertEquals(HttpStatusCode.NoContent, manager.client.capAckEdit(s3, 22.0).status)
+                assertNull(admin.rowOf(3).acknowledgement, "the same difference is OPEN, not acknowledged")
+                assertEquals(1, capAckStored(bindingId))
+            }
+        }
+
+    @Test
+    fun `the capacity import's apply clears what it brings in line, one cleared line - a DELETE and a POST tell it too`() =
+        testApplication {
+            val world = dayTwo("capackp14")
+            with(world) {
+                val admin = w.admin.client
+                acknowledgeBoth()
+                val s2 = capAckPeriod(teamId, 2)
+                val s3 = capAckPeriod(teamId, 3)
+                val preview = manager.client.ciPreviewOf(bindingId)
+                assertEquals(listOf("UNCHANGED", "UPDATE", "UPDATE"), preview.ciRows("items").map { it.ciText("action") })
+                withAuditCapture { audit ->
+                    assertEquals(HttpStatusCode.OK, manager.client.ciApply(bindingId, ciBodyOf(preview)).status)
+                    assertEquals(0, capAckStored(bindingId), "both sprints are in line now")
+                    val names = audit.events.map { it.message }.filter { it == "team.capacity_imported" || it.startsWith("flow.capacity_") }
+                    assertEquals(listOf("team.capacity_imported", "flow.capacity_acknowledgements_cleared"), names)
+                    keyValues(
+                        clearedLines(audit).single(),
+                        "byUserId" to manager.userId.toLong(), "bindingId" to bindingId.toLong(), "count" to 2, "sprintIds" to "2,3",
+                        "via" to "capacity",
+                    )
+                }
+                assertTrue(admin.rowsOf().isEmpty(), "nothing deviates")
+                // Back to the old figures by hand: the same differences are OPEN.
+                assertEquals(HttpStatusCode.NoContent, manager.client.capAckEdit(s2, 18.0).status)
+                assertEquals(HttpStatusCode.NoContent, manager.client.capAckEdit(s3, 22.0).status)
+                assertEquals(listOf(null, null), listOf(2L, 3L).map { admin.rowOf(it).acknowledgement })
+
+                // A DELETE and a POST are capacity writes too: with its period gone sprint 3 still deviates (its acknowledgement stays,
+                // stale), and a period that brings it in line from its first day clears the acknowledgement.
+                admin.capAck(bindingId, 3, admin.rowOf(3).fingerprint).capAcknowledgement()
+                withAuditCapture { audit ->
+                    assertEquals(HttpStatusCode.NoContent, manager.client.delete("/api/v1/capacity-periods/${s3.id}").status)
+                    assertNotNull(capAckRow(bindingId, 3), "the sprint is still listed without its period")
+                    assertTrue(clearedLines(audit).isEmpty())
+                    val created = manager.client.postJson("/api/v1/teams/$teamId/capacity", CapacityPeriodRequest(s3.from, 24.0))
+                    assertEquals(HttpStatusCode.Created, created.status)
+                    assertNull(capAckRow(bindingId, 3), "the new period brings sprint 3 in line")
+                    keyValues(clearedLines(audit).single(), "sprintIds" to "3", "via" to "capacity")
+                }
+            }
+        }
+
+    @Test
+    fun `a capacity figure that only moves keeps its acknowledgement STALE - nothing is cleared or audited`() = testApplication {
+        val world = dayTwo("capackp15")
+        with(world) {
+            val admin = w.admin.client
+            acknowledgeBoth()
+            withAuditCapture { audit ->
+                assertEquals(HttpStatusCode.NoContent, manager.client.capAckEdit(capAckPeriod(teamId, 3), 17.0).status)
+                assertTrue(clearedLines(audit).isEmpty())
+            }
+            assertEquals(2, capAckStored(bindingId))
+            assertEquals(false, admin.rowOf(3).acknowledgement?.current, "still listed, its figures moved: stale")
+            assertEquals(true, admin.rowOf(2).acknowledgement?.current)
+        }
+    }
+
+    @Test
+    fun `a sprint missing from the mirror and a team absent from the document lose nothing to a capacity write`() = testApplication {
+        val world = dayTwo("capackp16")
+        with(world) {
+            val admin = w.admin.client
+            acknowledgeBoth()
+            val s2 = capAckPeriod(teamId, 2)
+            val s3 = capAckPeriod(teamId, 3)
+            // Sprint 3 is not in the mirror (a truncated run keeps its row): the write judges sprint 2, which IS in the mirror, only.
+            refreshOnly(1, 2, truncated = true)
+            assertEquals(HttpStatusCode.NoContent, manager.client.capAckEdit(s2, 15.0).status)
+            assertNull(capAckRow(bindingId, 2), "in the mirror and in line")
+            assertNotNull(capAckRow(bindingId, 3), "missing from the mirror: 'gone from the document' is the run's call")
+
+            refresh()
+            assertEquals(HttpStatusCode.NoContent, manager.client.capAckEdit(s2, 18.0).status)
+            admin.capAck(bindingId, 2, admin.rowOf(2).fingerprint).capAcknowledgement()
+            assertEquals(2, capAckStored(bindingId))
+            mirror.refresh(flowTeamDoc(2, "Billing")) // Flow team 1 is absent: nothing can be judged while it is gone
+            withAuditCapture { audit ->
+                assertEquals(HttpStatusCode.NoContent, manager.client.capAckEdit(s3, 24.0).status)
+                assertTrue(clearedLines(audit).isEmpty())
+            }
+            assertEquals(2, capAckStored(bindingId))
+            assertEquals(CapacityDeviationKind.TEAM_GONE, admin.rowsOf().single().kind)
+        }
+    }
+
+    @Test
+    fun `a capacity write clears the own row of a team that is present`() = testApplication {
+        val world = dayTwo("capackp17")
+        with(world) {
+            // The state a failed prune could leave: a TEAM_GONE acknowledgement stored while the team is listed (the run clears it).
+            jbSql(
+                "INSERT INTO flow_capacity_acknowledgements (binding_id, sprint_id, fingerprint, ack_at, ack_by_user_id) " +
+                    "VALUES (?, NULL, ?, 1, ?)",
+                bindingId.toInt(), "a".repeat(64), w.admin.userId.toLong(),
+            )
+            assertEquals(1, capAckStored(bindingId))
+            withAuditCapture { audit ->
+                assertEquals(HttpStatusCode.NoContent, manager.client.capAckEdit(capAckPeriod(teamId, 1), 21.0).status)
+                keyValues(clearedLines(audit).single(), "count" to 1, "sprintIds" to "none", "via" to "capacity")
+            }
+            assertEquals(0, capAckStored(bindingId))
+        }
+    }
+
+    @Test
+    fun `a write on an unlinked team, or on a bound team without stored rows, audits nothing`() = testApplication {
+        val world = dayTwo("capackp18")
+        with(world) {
+            val admin = w.admin.client
+            val s3 = capAckPeriod(teamId, 3)
+            withAuditCapture { audit ->
+                // Bound, no stored row at all: nothing to prune and no lock to take.
+                assertEquals(HttpStatusCode.NoContent, manager.client.capAckEdit(s3, 24.0).status)
+                assertEquals(
+                    HttpStatusCode.Created,
+                    admin.postJson("/api/v1/teams/${w.requireTeams().otherTeamId}/capacity", CapacityPeriodRequest("2049-05-03", 5.0))
+                        .status,
+                )
+                assertTrue(clearedLines(audit).isEmpty())
+
+                // Unlinked: its rows stay for the run (1.9's rule) and the write names no binding.
+                assertEquals(HttpStatusCode.NoContent, manager.client.capAckEdit(s3, 22.0).status)
+                admin.capAck(bindingId, 3, admin.rowOf(3).fingerprint).capAcknowledgement()
+                assertEquals(HttpStatusCode.NoContent, admin.delete("$FB_BINDINGS/$bindingId").status)
+                assertEquals(HttpStatusCode.NoContent, manager.client.capAckEdit(s3, 24.0).status)
+                assertEquals(1, capAckStored(bindingId), "the unlinked binding's row is the run's to remove")
+                assertTrue(clearedLines(audit).isEmpty())
             }
         }
     }

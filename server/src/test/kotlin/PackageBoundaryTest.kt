@@ -74,7 +74,11 @@ class PackageBoundaryTest {
             "flow", "sync",
             "the connector contract, the run registry and the acknowledge vocabulary: Connector, SyncRunService, Acknowledge.kt",
         ),
-        FeatureEdge("flow", "teams", "team bindings and the capacity import write through TeamService, TeamCapacityService, TeamGuard"),
+        FeatureEdge(
+            "flow", "teams",
+            "team bindings and the capacity import write through TeamService, TeamCapacityService, TeamGuard; " +
+                "the capacity-write listener seam (CapacityWriteListeners: flow registers, the capacity routes call)",
+        ),
         FeatureEdge(
             "jira", "authz",
             "the guards and typed errors: requireAdmin, requireOwnerOrAdmin, requireOwnerOrTeamManagerOrAdmin, caller, OwnerChain",

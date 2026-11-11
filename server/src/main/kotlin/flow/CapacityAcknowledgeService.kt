@@ -1,9 +1,9 @@
 package ch.nokillswit.flow
 
-import ch.nokillswit.audit.audit
 import ch.nokillswit.authz.ConflictException
 import ch.nokillswit.authz.NotFoundException
 import ch.nokillswit.infra.catchingFailures
+import ch.nokillswit.infra.db.active
 import ch.nokillswit.infra.db.insertRows
 import ch.nokillswit.infra.db.lockActiveForWrite
 import ch.nokillswit.infra.db.nowMillis
@@ -39,12 +39,14 @@ internal class StoredCapacityAck(val fingerprint: String, val at: Long, val byUs
  * **An acknowledgement lives only while its row is listed (1.10).** A row that is no longer listed - the sprint is in line, closed,
  * skipped or gone from Flow's document, the team is back (its `TEAM_GONE` row), the binding is unlinked or its team deleted - loses its
  * acknowledgement, so a difference that returns is OPEN. A STALE acknowledgement (the row is still listed, its figures moved) stays: it
- * reads `current = false`. Two places prune: [pruneConnectionInTransaction], inside the mirror replace of a run (connection-wide), and
- * [acknowledge], for the binding it locks - which judges only a sprint that is STILL IN THE MIRROR but unlisted, and the returned
+ * reads `current = false`. Three places prune: [pruneConnectionInTransaction], inside the mirror replace of a run (connection-wide),
+ * [acknowledge], for the binding it locks, and [pruneAfterCapacityWrite], the plan-side edit (a manual period or the capacity import)
+ * AFTER its commit, for the team's binding - the last two judge only a sprint that is STILL IN THE MIRROR but unlisted, and the returned
  * team's own row; "gone from the document" is the run's call, because only it knows whether the document was sprints-truncated. The
  * connection delete removes every row ([Acknowledgements.deleteForConnectionInTransaction]).
- * Nothing prunes at a plan-side edit (the capacity import, a manual period): a sprint brought in line AND back to the same figures by
- * edits alone, with no run and no acknowledge in between, still reads acknowledged (`flow-sync.md` "Acknowledge"). A team ABSENT from
+ * The capacity write's prune is a transaction of its own, never inside the write's (the team row lock would meet the binding row lock
+ * in the opposite order of the acknowledge's guard): two capacity writes that both commit before either prune has read can still leave
+ * an "in line and back" acknowledged, and a holiday or time-zone edit prunes nobody (`flow-sync.md` "Acknowledge"). A team ABSENT from
  * Flow's document keeps its sprint rows (nothing can be judged while it is gone) and a sprints-truncated document judges no sprint key
  * (it still clears a returned team's own row, an unlinked binding's rows and a dead team's).
  *
@@ -69,7 +71,8 @@ internal class StoredCapacityAck(val fingerprint: String, val at: Long, val byUs
  * rows `FOR SHARE`, then the acknowledgement rows; it takes neither the bind lock nor the connection row. The run's prune is the
  * connection-first path: the connection row (the replace's `FOR NO KEY UPDATE`), then the binding rows `FOR NO KEY UPDATE` in id order,
  * then the acknowledgement rows - the link's, the match's and the connection delete's order (connection, then bindings). Nobody goes
- * binding -> connection, so there is no cycle.
+ * binding -> connection, so there is no cycle. The capacity write's prune ([pruneAfterCapacityWrite]) takes the binding row only, after
+ * the write's own transaction has committed (so no team row is held), then the acknowledgement rows: a prefix of the acknowledge's order.
  */
 class CapacityAcknowledgeService(
     private val database: R2dbcDatabase,
@@ -284,6 +287,24 @@ class CapacityAcknowledgeService(
     }
 
     /**
+     * The prune after a committed capacity write of [teamId] (a manual period, the capacity import: the ROUTES call it through the
+     * `teams/` listener seam, outside the write's transaction). ONE short transaction of its own: one read for the team's ACTIVE binding
+     * that HAS stored rows (none: nothing is locked, the run's rule), then that binding row `FOR NO KEY UPDATE` and nothing else (no team,
+     * person or connection lock: the capacity write's own guard is the acknowledge's, so nobody clears what they could not withdraw),
+     * then [pruneUnlisted] unchanged. Lock order: the binding row, then its acknowledgement rows - a prefix of the acknowledge's. Answers
+     * what went, null when nothing did (an unlinked binding or a deleted team since the read, nothing to compare, every row still listed).
+     */
+    suspend fun pruneAfterCapacityWrite(teamId: UInt): CapacityWritePruneOutcome? = suspendTransaction(database) {
+        val owned = FlowTeamBindingService.Bindings
+        val bound = Acknowledgements.innerJoin(owned).select(Acknowledgements.bindingId)
+            .where { (owned.teamId eq teamId) and owned.active() }.limit(1).toList().singleOrNull()?.get(Acknowledgements.bindingId)?.value
+        val binding = bound?.takeIf { owned.lockActiveForWrite(it) }?.let { bindings.bindingOf(it) }
+        val listed = binding?.let { deviations.computeBindingInTransaction(it) }
+        val cleared = if (binding == null || listed == null) emptyList() else pruneUnlisted(binding, listed)
+        if (binding == null || cleared.isEmpty()) null else CapacityWritePruneOutcome(binding.id, binding.connectionId, cleared)
+    }
+
+    /**
      * [binding]'s listed keys; null when nothing may be pruned: nothing to compare, the team is gone, or a non-database failure (WARN).
      * A failure with an R2dbcException/ExposedSQLException in its cause chain is RETHROWN: it aborted the Postgres transaction, and
      * swallowing it would let the replace commit as a silent rollback while the run reports WRITTEN - never narrow that check.
@@ -338,29 +359,4 @@ class CapacityAcknowledgeService(
         const val NOT_FOUND = "Flow team binding not found"
         const val FINGERPRINT_WIDTH = 64
     }
-}
-
-/**
- * `flow.capacity_acknowledgements_cleared` (after the commit): the stored rows of binding [bindingId] that lost their acknowledgement
- * because they are no longer listed. [via] = `run` (the mirror replace: [byUserId] is the login that asked for the run, null for a
- * scheduled one, and [runId] the run) or `acknowledge` (the caller). `sprintIds` is ascending, `none` for the team's own row.
- */
-internal fun auditCapacityAcksCleared(
-    bindingId: UInt,
-    sprintIds: List<Long?>,
-    connectionId: UInt,
-    byUserId: UInt?,
-    via: String,
-    runId: UInt? = null,
-) {
-    val fields = mutableListOf<Pair<String, Any?>>(
-        "byUserId" to byUserId?.toLong(),
-        "bindingId" to bindingId.toLong(),
-        "connectionId" to connectionId.toLong(),
-        "count" to sprintIds.size,
-        "sprintIds" to sprintIds.joinToString(",") { it?.toString() ?: "none" },
-        "via" to via,
-    )
-    if (runId != null) fields += "runId" to runId.toLong()
-    audit("flow.capacity_acknowledgements_cleared", *fields.toTypedArray())
 }

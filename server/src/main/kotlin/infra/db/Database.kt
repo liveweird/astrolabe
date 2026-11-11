@@ -82,6 +82,8 @@ import ch.nokillswit.sync.SyncConnectors
 import ch.nokillswit.sync.SyncConnectorsKey
 import ch.nokillswit.sync.SyncRunService
 import ch.nokillswit.sync.SyncRunServiceKey
+import ch.nokillswit.teams.CapacityWriteListeners
+import ch.nokillswit.teams.CapacityWriteListenersKey
 import ch.nokillswit.teams.TeamCapacityService
 import ch.nokillswit.teams.TeamCapacityServiceKey
 import ch.nokillswit.teams.TeamService
@@ -318,6 +320,8 @@ suspend fun Application.configureDatabase() {
     attributes.put(TeamServiceKey, teamService)
     val teamCapacity = TeamCapacityService(database)
     attributes.put(TeamCapacityServiceKey, teamCapacity)
+    // Empty: a connector's module (`configureFlow`) registers what it wants told after a committed capacity write.
+    attributes.put(CapacityWriteListenersKey, CapacityWriteListeners())
     attributes.put(WorkStreamServiceKey, WorkStreamService(database))
     attributes.put(ProgramServiceKey, ProgramService(database))
     attributes.put(ProjectServiceKey, ProjectService(database))

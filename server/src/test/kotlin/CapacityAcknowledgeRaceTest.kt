@@ -1,5 +1,6 @@
 package ch.nokillswit
 
+import ch.nokillswit.flow.CapacityAcknowledgeServiceKey
 import ch.nokillswit.sync.STALE_DEVIATIONS_PROBLEM
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.testing.ApplicationTestBuilder
@@ -324,6 +325,75 @@ class CapacityAcknowledgeRaceTest {
                 }
             }
         }
+
+    // 1.14: the prune after a capacity write (a transaction of its own, after the write's commit).
+
+    @Test
+    fun `the prune after a capacity write waits for a held binding row, then completes - the write was already committed`() =
+        testApplication {
+            val world = dayTwo("capackr14")
+            with(world) {
+                val admin = w.admin.client
+                admin.capAck(bindingId, 3, admin.rowOf(3).fingerprint).capAcknowledgement()
+                val s3 = capAckPeriod(teamId, 3)
+                val response = heldAt(bindingLock, bindingId, "FOR NO KEY UPDATE", { manager.client.capAckEdit(s3, 24.0) }) {
+                    val sql = "SELECT md_per_week::text FROM team_capacity_periods WHERE id = ?"
+                    val stored = jbScalar(sql, s3.id.toInt()) { it.getString(1) }
+                    assertEquals("24.00", stored, "the write committed before the prune asked for the binding row")
+                    assertNotNull(capAckRow(bindingId, 3), "the prune has not run yet")
+                }.single()
+                assertEquals(HttpStatusCode.NoContent, response.status)
+                assertNull(capAckRow(bindingId, 3), "the prune resumed after the release and cleared the row, before the answer")
+            }
+        }
+
+    @Test
+    fun `the prune after a capacity write takes no team lock - it completes while another session holds the team row`() = testApplication {
+        val world = dayTwo("capackr15")
+        with(world) {
+            val admin = w.admin.client
+            admin.capAck(bindingId, 3, admin.rowOf(3).fingerprint).capAcknowledgement()
+            // The write the prune follows, done by hand (the routes call the prune AFTER the write's commit, so no team lock is held).
+            jbSql("UPDATE team_capacity_periods SET md_per_week = 24 WHERE team_id = ? AND flow_sprint_id = 3", teamId.toInt())
+            val service = application.attributes[CapacityAcknowledgeServiceKey]
+            PostgresTestSupport.connect().use { raw ->
+                raw.autoCommit = false
+                // FOR UPDATE: it conflicts with every lock the guard's team read (FOR SHARE) or a write (FOR NO KEY UPDATE) could take.
+                raw.prepareStatement("SELECT id FROM teams WHERE id = ? FOR UPDATE").use { st ->
+                    st.setInt(1, teamId.toInt())
+                    st.executeQuery().close()
+                }
+                try {
+                    val pruned = withTimeout(30_000) { service.pruneAfterCapacityWrite(teamId) }
+                    assertEquals(listOf(3L), pruned?.sprintIds)
+                } finally {
+                    raw.rollback()
+                }
+            }
+            assertNull(capAckRow(bindingId, 3))
+        }
+    }
+
+    @Test
+    fun `a team without stored rows takes no binding lock - its capacity write answers while every binding is held`() = testApplication {
+        val world = dayTwo("capackr16")
+        with(world) {
+            assertEquals(0, capAckStored(bindingId) + capAckStored(billingBindingId))
+            val s3 = capAckPeriod(teamId, 3)
+            PostgresTestSupport.connect().use { raw ->
+                raw.autoCommit = false
+                raw.prepareStatement("SELECT id FROM flow_team_bindings WHERE connection_id = ? FOR NO KEY UPDATE").use { st ->
+                    st.setInt(1, mirror.connectionId.toInt())
+                    st.executeQuery().close()
+                }
+                try {
+                    assertEquals(HttpStatusCode.NoContent, withTimeout(30_000) { manager.client.capAckEdit(s3, 24.0) }.status)
+                } finally {
+                    raw.rollback()
+                }
+            }
+        }
+    }
 
     @Test
     fun `an acknowledgement takes no plan lock - it completes while another session holds plan_state`() = testApplication {

@@ -5,6 +5,8 @@ import ch.nokillswit.teams.CapacityPeriodList
 import ch.nokillswit.teams.CapacityPeriodRequest
 import ch.nokillswit.teams.CapacityPeriodResponse
 import ch.nokillswit.teams.CapacitySource
+import ch.nokillswit.teams.CapacityWriteListenersKey
+import ch.qos.logback.classic.Level
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.delete
@@ -17,7 +19,9 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
+import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
+import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -379,4 +383,80 @@ class TeamCapacityTest {
             assertEquals(1, mine.count { it.message == "team.capacity_period_deleted" })
         }
     }
+
+    /** Registers a listener that records (team, caller) of every capacity write the app announces, and the audit lines already written. */
+    private fun ApplicationTestBuilder.recordCapacityWrites(audit: LogCapture): MutableList<Triple<UInt, UInt, Int>> {
+        val told = CopyOnWriteArrayList<Triple<UInt, UInt, Int>>()
+        application.attributes[CapacityWriteListenersKey].register { teamId, byUserId ->
+            told += Triple(teamId, byUserId, audit.events.count { it.message.startsWith("team.capacity_period_") })
+        }
+        return told
+    }
+
+    @Test
+    fun `a committed POST, a changed PUT and a DELETE each tell the listeners once after their audit line - nothing else does`() =
+        testApplication {
+            usePostgresTestcontainer()
+            val w = planWorld("capltn", teams = true)
+            val t = w.requireTeams()
+            val client = t.manager.client
+            withAuditCapture { audit ->
+                val told = recordCapacityWrites(audit)
+                fun toldOf(teamId: UInt) = told.filter { it.first == teamId }
+
+                val created = client.add(t.teamId, "2027-02-03", 8.0, 2).body<CapacityPeriodResponse>()
+                assertEquals(listOf(Triple(t.teamId, t.manager.userId, 1)), toldOf(t.teamId), "told once, after the create's audit line")
+
+                assertEquals(HttpStatusCode.NoContent, w.admin.client.replace(created.id, "2027-02-04", 9.5).status)
+                assertEquals(listOf(t.manager.userId, w.admin.userId), toldOf(t.teamId).map { it.second }, "the changed PUT: its caller")
+                assertEquals(2, toldOf(t.teamId).last().third, "after the update's audit line")
+
+                // Nobody is told of a same-values PUT, a clash, a bad body, a forbidden caller or an unknown team or period.
+                assertEquals(HttpStatusCode.NoContent, client.replace(created.id, "2027-02-04", 9.5).status)
+                assertEquals(HttpStatusCode.Conflict, client.add(t.teamId, "2027-02-04", 1.0).status)
+                assertEquals(HttpStatusCode.BadRequest, client.add(t.teamId, "2027-05-05", -1.0).status)
+                assertEquals(forbidden, t.otherManager.client.add(t.teamId, "2027-05-05", 1.0).status)
+                assertEquals(forbidden, t.otherManager.client.replace(created.id, "2027-02-05", 1.0).status)
+                assertEquals(forbidden, t.otherManager.client.delete(period(created.id)).status)
+                assertEquals(HttpStatusCode.NotFound, client.add(999999u, "2027-05-05", 1.0).status)
+                assertEquals(HttpStatusCode.NotFound, client.replace(999999u, "2027-05-05", 1.0).status)
+                assertEquals(HttpStatusCode.NotFound, client.delete(period(999999u)).status)
+                assertEquals(2, toldOf(t.teamId).size, "the refused and no-op writes told nobody")
+
+                assertEquals(HttpStatusCode.NoContent, client.delete(period(created.id)).status)
+                assertEquals(listOf(t.manager.userId, w.admin.userId, t.manager.userId), toldOf(t.teamId).map { it.second })
+                assertEquals(3, toldOf(t.teamId).last().third, "after the delete's audit line")
+                assertEquals(HttpStatusCode.NotFound, client.delete(period(created.id)).status)
+                assertEquals(3, toldOf(t.teamId).size, "a second DELETE of the gone period told nobody")
+            }
+        }
+
+    @Test
+    fun `a listener that throws leaves the write's status and audit as they are - one WARN names the team and the exception class`() =
+        testApplication {
+            usePostgresTestcontainer()
+            val w = planWorld("capltw", teams = true)
+            val t = w.requireTeams()
+            val listeners = application.attributes[CapacityWriteListenersKey]
+            val told = CopyOnWriteArrayList<UInt>()
+            listeners.register { teamId, _ -> told += teamId }
+            listeners.register { _, _ -> error("secret detail that must not be logged") }
+            val warnings = LogCapture("ch.nokillswit.teams.CapacityWriteListeners")
+            try {
+                withAuditCapture { audit ->
+                    val created = t.manager.client.add(t.teamId, "2027-02-03", 8.0)
+                    assertEquals(HttpStatusCode.Created, created.status, "the write stands")
+                    val id = created.body<CapacityPeriodResponse>().id.toLong()
+                    assertNotNull(audit.awaitEvent { it.message == "team.capacity_period_created" && it.hasKeyValue("periodId", id) })
+                    assertEquals(listOf(t.teamId), told, "the listener registered before the failing one was told")
+                    val logged = warnings.events.filter { it.level == Level.WARN }
+                    assertEquals(1, logged.size)
+                    val line = logged.single().formattedMessage
+                    assertTrue("${t.teamId}" in line && "IllegalStateException" in line, line)
+                    assertTrue("secret" !in line, "the exception's message is never logged")
+                }
+            } finally {
+                warnings.detach()
+            }
+        }
 }

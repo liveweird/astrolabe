@@ -65,6 +65,15 @@
 2. They press the button.
    - *Expected*: both lines are open again, each with its Acknowledge button and no "Acknowledged by"; the fact reads "Differs from Flow for 2 sprints"; the header flag reads "Capacity differs from Flow: 2 open differences" and the strip's marked weeks are back; the Withdraw all button is gone and "Acknowledge all (2) open differences of <team>" is offered.
 
+## Scenario: an acknowledged sprint that a capacity edit brings in line loses its acknowledgement, so the same difference is open when the figure is put back
+
+1. (Setup) Sprint 3's capacity period is put back to the import's figure and every acknowledgement of the team is withdrawn, then the manager acknowledges sprint 3, all through the API. The manager (through the API) edits that period to Flow's day-two figure (24 man-days a week).
+   - *Expected*: sprint 3 is in line, so `GET /views/capacity-deviations?teamId=<team>` lists only sprint 2's row (an in-line sprint is unlisted whether or not its acknowledgement went, so this proves only that the sprint is in line; the proof of the clearing is step 2).
+2. The manager (through the API) puts the period back to the import's figure.
+   - *Expected*: the view lists sprint 3's row again and it carries NO acknowledgement (no run and no acknowledge came in between: the capacity write cleared it).
+3. The manager opens `/teams/<team>`.
+   - *Expected*: sprint 3's line shows the same sentence as before (the plan has 44.00 man-days, Flow 48.00 - 4.00 less in the plan), without "Acknowledged", and offers Acknowledge; the fact reads "Differs from Flow for 2 sprints" and the header flag "Capacity differs from Flow: 2 open differences".
+
 ## Scenario: an acknowledged sprint that comes back in line loses its acknowledgement, so the same difference is open when it returns
 
 1. (Setup) Sprint 3's capacity period is put back to the import's figure and every acknowledgement of the team is withdrawn, then the manager acknowledges sprint 3, all through the API. The administrator puts the stub back on day one (`Started`) and refreshes the connection through the API.
