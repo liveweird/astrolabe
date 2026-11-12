@@ -14,6 +14,7 @@ describe("the Deviations page's filters in the URL", () => {
     expect(parse("kind=UNLINKED_IN_JIRA")).toEqual({ kind: "UNLINKED_IN_JIRA" });
     expect(parse("kind=UNLINKED_IN_PLAN")).toEqual({ kind: "UNLINKED_IN_PLAN" });
     expect(parse("kind=CHILDREN_DONE")).toEqual({ kind: "CHILDREN_DONE" });
+    expect(parse("kind=CHILDREN_OPEN")).toEqual({ kind: "CHILDREN_OPEN" });
   });
 
   test("anything malformed is dropped, so a stale or hand-edited link never breaks the page", () => {

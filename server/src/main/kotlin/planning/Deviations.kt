@@ -31,6 +31,7 @@ enum class DeviationKind {
     UNLINKED_IN_JIRA,
     UNLINKED_IN_PLAN,
     CHILDREN_DONE,
+    CHILDREN_OPEN,
 }
 
 /** WARNING sorts before INFO (the roadmap flags' vocabulary). */
@@ -46,10 +47,11 @@ enum class DeviationSeverity { WARNING, INFO }
  * milestone's; `ESTIMATE_NOT_COMPARABLE` jira = the raw figure, plan = the milestone's man-days; `PROGRESS_MISMATCH` jira = the status
  * category, plan = the plan date that contradicts it; `UNSCHEDULED_*` nothing; `UNLINKED_IN_JIRA` jira = the Jira KEYS (at most 10,
  * `, `-joined, never a summary) of open items under the bound issue that no binding covers; `UNLINKED_IN_PLAN` plan = the NAMES of the
- * plan children of the bound node that no binding covers; `CHILDREN_DONE` jira = "done/children", plan = the plan end. [days] is in
- * WORKING days, POSITIVE = the plan is later. [count] is the full count behind a truncated list (`UNLINKED_*`) or the children
- * (`CHILDREN_DONE`), null for every other kind. It has NO default on purpose: the response `Json` does not encode defaults, so a
- * defaulted member would vanish from the wire; the fingerprint's serializer omits nulls, so a null [count] never enters a hash.
+ * plan children of the bound node that no binding covers; `CHILDREN_DONE` jira = "done/children", plan = the plan end;
+ * `CHILDREN_OPEN` jira = "open/children", plan = the plan end. [days] is in WORKING days, POSITIVE = the plan is later. [count] is the
+ * full count behind a truncated list (`UNLINKED_*`) or the children (`CHILDREN_DONE`, `CHILDREN_OPEN`), null for every other kind. It has
+ * NO default on purpose: the response `Json` does not encode defaults, so a defaulted member would vanish from the wire; the
+ * fingerprint's serializer omits nulls, so a null [count] never enters a hash.
  */
 @Serializable
 data class DeviationDetail(val jira: String?, val plan: String?, val days: Int?, val count: Int?)

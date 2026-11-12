@@ -88,7 +88,8 @@ object JiraDeviationKernels {
      * this level - and then neither `LEVEL_MISMATCH` nor any estimate deviation is raised. [parentBoundTo] is the plan node the observed
      * parent issue is bound to on the same connection (null = unbound: nothing is raised). A `gone` issue raises `GONE` ALONE: its dates
      * are stale. WARNING first, then the kind's declaration order. [rollup] (the epic's children) and [unlinked] (the bound node's
-     * uncovered children) are the 1.4 coverage inputs, null = no census to speak of: no `CHILDREN_DONE` / no `UNLINKED_*`.
+     * uncovered children) are the 1.4 coverage inputs, null = no census to speak of: no `CHILDREN_DONE` /
+     * `CHILDREN_OPEN` / no `UNLINKED_*`.
      */
     fun deviations(
         level: JiraLevel,
@@ -110,8 +111,12 @@ object JiraDeviationKernels {
             addAll(dates(level, issue, plan, calendar))
             if (level == JiraLevel.MILESTONE) estimate(issue, plan, mapping)?.let(::add)
             progress(issue, plan, asOf)?.let(::add)
-            if (level == JiraLevel.MILESTONE) childrenDone(issue, plan, rollup, asOf)?.let(::add)
-            else addAll(unlinkedChildren(unlinked))
+            if (level == JiraLevel.MILESTONE) {
+                childrenDone(issue, plan, rollup, asOf)?.let(::add)
+                childrenOpen(plan, rollup, asOf)?.let(::add)
+            } else {
+                addAll(unlinkedChildren(unlinked))
+            }
         }
         return found.sortedWith(compareBy<Deviation>({ it.severity }, { it.kind }))
     }
@@ -236,6 +241,21 @@ object JiraDeviationKernels {
         val end = plan.end?.takeIf { it.isAfter(asOf) } ?: return null
         val detail = DeviationDetail("${rollup.done}/${rollup.children}", end.toString(), null, rollup.children)
         return Deviation(DeviationKind.CHILDREN_DONE, DeviationSeverity.INFO, detail)
+    }
+
+    /**
+     * The mirror image of [childrenDone]: the plan has ENDED (its end is strictly before [asOf]; ending today has not ended) while some
+     * of the epic's children are still open. The epic's own status does not matter (`PROGRESS_MISMATCH` only ever speaks of a plan
+     * that ends AFTER today, so the two never say the same thing). No children, none open or an unscheduled milestone raises nothing;
+     * `jira` = `open/children` (the fingerprint's evidence: the open and total counts).
+     */
+    private fun childrenOpen(plan: PlanSide, rollup: ChildRollup?, asOf: LocalDate): Deviation? {
+        if (rollup == null || rollup.children <= 0) return null
+        val open = rollup.children - rollup.done
+        if (open <= 0) return null
+        val end = plan.end?.takeIf { it.isBefore(asOf) } ?: return null
+        val detail = DeviationDetail("$open/${rollup.children}", end.toString(), null, rollup.children)
+        return Deviation(DeviationKind.CHILDREN_OPEN, DeviationSeverity.INFO, detail)
     }
 
     /** Open Jira items the plan lacks (WARNING) and plan children Jira lacks (INFO); each lists at most [MAX_LISTED]. */

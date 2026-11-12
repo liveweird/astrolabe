@@ -26,6 +26,8 @@ describe("flagSentence", () => {
     expect(flagSentence(en, deviationFlag(unlinked), NAMES, "COV-2")).toBe("Jira COV-2: 1 Jira item is not in the plan: COV-5");
     expect(flagSentence(en, deviationFlag(done), NAMES, "COV-4")).toBe("Jira COV-4: All 2 child issues are done in Jira while the plan ends 2046-03-01");
     expect(flagSentence(pl, deviationFlag(unlinked), NAMES, "COV-2")).toBe("Jira COV-2: W planie brakuje 1 elementu Jiry: COV-5");
+    const open: Deviation = { kind: "CHILDREN_OPEN", severity: "INFO", detail: detail({ jira: "3/12", plan: "2046-03-01", count: 12 }) };
+    expect(flagSentence(en, deviationFlag(open), NAMES, "COV-4")).toBe("Jira COV-4: 3 of 12 child issues still open in Jira while the plan ended 2046-03-01");
   });
 
   test("without the evidence it degrades to the bare 'differs', and the roll-up counts milestones", () => {

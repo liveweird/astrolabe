@@ -164,6 +164,7 @@
     "UNLINKED_IN_JIRA": "Brak w planie",
     "UNLINKED_IN_PLAN": "Brak w Jirze",
     "CHILDREN_DONE": "Dzieci ukończone",
+    "CHILDREN_OPEN": "Dzieci otwarte",
     "CAPACITY_DIFFERS": "Przepustowość",
     "CAPACITY_MISSING": "Brak przepustowości",
     "TEAM_GONE": "Nie ma we Flow"
@@ -225,6 +226,10 @@
     "childrenDone_few": "Wszystkie zgłoszenia podrzędne ({{count}}) są ukończone w Jirze, a plan kończy się {{date}}",
     "childrenDone_many": "Wszystkie zgłoszenia podrzędne ({{count}}) są ukończone w Jirze, a plan kończy się {{date}}",
     "childrenDone_other": "Wszystkie zgłoszenia podrzędne ({{count}}) są ukończone w Jirze, a plan kończy się {{date}}",
+    "childrenOpen_one": "Jedyne zgłoszenie podrzędne jest nadal otwarte w Jirze, a plan zakończył się {{date}}",
+    "childrenOpen_few": "Otwartych zgłoszeń podrzędnych w Jirze: {{open}} z {{count}}, a plan zakończył się {{date}}",
+    "childrenOpen_many": "Otwartych zgłoszeń podrzędnych w Jirze: {{open}} z {{count}}, a plan zakończył się {{date}}",
+    "childrenOpen_other": "Otwartych zgłoszeń podrzędnych w Jirze: {{open}} z {{count}}, a plan zakończył się {{date}}",
     "unit": {
       "POINTS": "punkty",
       "HOURS": "godziny",

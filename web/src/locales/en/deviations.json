@@ -142,6 +142,7 @@
     "UNLINKED_IN_JIRA": "Not in plan",
     "UNLINKED_IN_PLAN": "Not in Jira",
     "CHILDREN_DONE": "Children done",
+    "CHILDREN_OPEN": "Children open",
     "CAPACITY_DIFFERS": "Capacity",
     "CAPACITY_MISSING": "No capacity",
     "TEAM_GONE": "Gone from Flow"
@@ -189,6 +190,8 @@
     "andMore": "and {{more}} more",
     "childrenDone_one": "The only child issue is done in Jira while the plan ends {{date}}",
     "childrenDone_other": "All {{count}} child issues are done in Jira while the plan ends {{date}}",
+    "childrenOpen_one": "The only child issue is still open in Jira while the plan ended {{date}}",
+    "childrenOpen_other": "{{open}} of {{count}} child issues still open in Jira while the plan ended {{date}}",
     "unit": {
       "POINTS": "points",
       "HOURS": "hours",

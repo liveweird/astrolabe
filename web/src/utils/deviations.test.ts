@@ -129,7 +129,7 @@ describe("deviationSentence - every other kind, in both languages", () => {
     const kinds: DeviationKind[] = [
       "GONE", "LEVEL_MISMATCH", "PARENT_MISMATCH", "RENAMED", "START_DIFFERS", "END_DIFFERS", "TARGET_DIFFERS",
       "UNSCHEDULED_IN_PLAN", "UNSCHEDULED_IN_JIRA", "ESTIMATE_DIFFERS", "ESTIMATE_NOT_COMPARABLE", "PROGRESS_MISMATCH",
-      "UNLINKED_IN_JIRA", "UNLINKED_IN_PLAN", "CHILDREN_DONE",
+      "UNLINKED_IN_JIRA", "UNLINKED_IN_PLAN", "CHILDREN_DONE", "CHILDREN_OPEN",
     ];
     for (const kind of kinds) {
       for (const t of [en, pl]) {
@@ -183,6 +183,22 @@ describe("deviationSentence - the coverage kinds (1.4)", () => {
   test("CHILDREN_DONE: the children and the plan's end; one child reads 'the only'", () => {
     expect(deviationSentence(coverage("CHILDREN_DONE", { jira: "2/2", plan: "2046-03-01", count: 2 }), POINTS, en)).toBe("All 2 child issues are done in Jira while the plan ends 2046-03-01");
     expect(deviationSentence(coverage("CHILDREN_DONE", { jira: "1/1", plan: "2046-03-01", count: 1 }), POINTS, en)).toBe("The only child issue is done in Jira while the plan ends 2046-03-01");
+  });
+
+  test("CHILDREN_OPEN: the open and total children and the plan's end; one child reads 'the only'", () => {
+    expect(deviationSentence(coverage("CHILDREN_OPEN", { jira: "3/12", plan: "2046-03-01", count: 12 }), POINTS, en)).toBe("3 of 12 child issues still open in Jira while the plan ended 2046-03-01");
+    expect(deviationSentence(coverage("CHILDREN_OPEN", { jira: "1/1", plan: "2046-03-01", count: 1 }), POINTS, en)).toBe("The only child issue is still open in Jira while the plan ended 2046-03-01");
+    expect(deviationSentence(coverage("CHILDREN_OPEN", { jira: "1/1", plan: "2046-03-01", count: 1 }), POINTS, pl)).toBe("Jedyne zgłoszenie podrzędne jest nadal otwarte w Jirze, a plan zakończył się 2046-03-01");
+    for (const count of [2, 5, 22]) {
+      expect(deviationSentence(coverage("CHILDREN_OPEN", { jira: `1/${count}`, plan: "2046-03-01", count }), POINTS, pl)).toBe(`Otwartych zgłoszeń podrzędnych w Jirze: 1 z ${count}, a plan zakończył się 2046-03-01`);
+    }
+  });
+
+  test("a CHILDREN_OPEN with a missing or unreadable member degrades to the plain kind label", () => {
+    expect(deviationSentence(coverage("CHILDREN_OPEN", { jira: null, plan: "2046-03-01", count: 4 }), POINTS, en)).toBe("Children open");
+    expect(deviationSentence(coverage("CHILDREN_OPEN", { jira: "x/4", plan: "2046-03-01", count: 4 }), POINTS, en)).toBe("Children open");
+    expect(deviationSentence(coverage("CHILDREN_OPEN", { jira: "2/4", plan: null, count: 4 }), POINTS, en)).toBe("Children open");
+    expect(deviationSentence(coverage("CHILDREN_OPEN", { jira: "2/4", plan: "2046-03-01", count: null }), POINTS, en)).toBe("Children open");
   });
 
   test("a missing member degrades to the plain kind label, never to an invented value", () => {

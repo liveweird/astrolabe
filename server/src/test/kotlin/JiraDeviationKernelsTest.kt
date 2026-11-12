@@ -482,6 +482,44 @@ class JiraDeviationKernelsTest {
         assertFalse(DeviationKind.CHILDREN_DONE in found)
     }
 
+    private val someOpen = ChildRollup(12, 9, BigDecimal("30"), 1L)
+
+    @Test
+    fun `CHILDREN_OPEN fires when the plan has ended and some children are still open, not otherwise`() {
+        val ended = plan(start = "2027-01-20", end = "2027-01-31")
+        val found = run(issue(status = JiraStatusCategory.IN_PROGRESS), ended, rollup = someOpen).one(DeviationKind.CHILDREN_OPEN)
+        assertEquals(DeviationSeverity.INFO, found.severity)
+        assertEquals("3/12", found.detail.jira, "open/children")
+        assertEquals("2027-01-31", found.detail.plan)
+        assertEquals(12, found.detail.count)
+
+        fun kinds(rollup: ChildRollup?, plan: PlanSide = ended, status: JiraStatusCategory = JiraStatusCategory.IN_PROGRESS) =
+            run(issue(status = status), plan, rollup = rollup).kinds().filter { it == DeviationKind.CHILDREN_OPEN }
+        assertTrue(kinds(ChildRollup(2, 2, null, 1L)).isEmpty(), "all done: nothing is open")
+        assertTrue(kinds(ChildRollup(0, 0, null, 1L)).isEmpty(), "no children")
+        assertTrue(kinds(null).isEmpty(), "no roll-up (none mirrored, or the census could not read the children)")
+        assertTrue(kinds(someOpen, plan(start = "2027-01-25", end = "2027-02-01")).isEmpty(), "ending today has not ended")
+        assertTrue(kinds(someOpen, plan(start = "2027-01-25", end = "2027-02-02")).isEmpty(), "the plan still runs")
+        assertTrue(kinds(someOpen, plan()).isEmpty(), "an unscheduled milestone has no end")
+        val doneEpic = kinds(someOpen, status = JiraStatusCategory.DONE)
+        assertEquals(listOf(DeviationKind.CHILDREN_OPEN), doneEpic, "the epic's own status does not matter")
+    }
+
+    @Test
+    fun `CHILDREN_OPEN is a milestone rule and never beside CHILDREN_DONE`() {
+        val ended = plan(start = "2027-01-20", end = "2027-01-29")
+        val projectMapping = DeviationMapping(0, JiraEstimateUnit.POINTS, null)
+        val project = run(issue(level = 0), ended, level = JiraLevel.PROJECT, mapping = projectMapping, rollup = someOpen)
+        assertFalse(DeviationKind.CHILDREN_OPEN in project.kinds())
+        for (rollup in listOf(someOpen, allDone)) {
+            val found = run(issue(status = JiraStatusCategory.IN_PROGRESS), ended, rollup = rollup).kinds()
+            assertFalse(DeviationKind.CHILDREN_DONE in found && DeviationKind.CHILDREN_OPEN in found)
+        }
+        val jira = issue(summary = "Beta", status = JiraStatusCategory.TODO, start = "2027-01-20", end = "2027-01-29")
+        val sorted = run(jira, ended, rollup = someOpen).kinds()
+        assertEquals(listOf(DeviationKind.RENAMED, DeviationKind.PROGRESS_MISMATCH, DeviationKind.CHILDREN_OPEN), sorted)
+    }
+
     @Test
     fun `the new kinds sort after PROGRESS_MISMATCH within INFO, and UNLINKED_IN_JIRA leads as the WARNING`() {
         val milestone = run(

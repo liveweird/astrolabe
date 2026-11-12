@@ -115,6 +115,16 @@ function childrenDone(detail: Deviation["detail"], t: TFunction): string {
 }
 
 /**
+ * `detail.jira` is `open/children`, `detail.count` the children, `detail.plan` the plan's end date: "3 of 12 child issues still open in Jira,
+ * while the plan ended 2046-03-01". A missing or unreadable member degrades to the plain kind label.
+ */
+function childrenOpen(detail: Deviation["detail"], t: TFunction): string {
+  const open = detail.jira === null ? NaN : Number(detail.jira.split("/")[0]);
+  if (detail.count === null || detail.count < 1 || detail.plan === null || !Number.isInteger(open) || open < 1) return t("deviations.kind.CHILDREN_OPEN");
+  return t("deviations.phrase.childrenOpen", { count: detail.count, open, date: detail.plan });
+}
+
+/**
  * One deviation as a sentence in the UI language: "Ends 3 working days later than Jira (plan 2044-03-07, Jira 2044-03-04)". Every kind of
  * `DeviationKind` has one; the evidence is the server's `detail` (`days` in WORKING days, positive = the plan is later; the member
  * meanings per kind are in the OpenAPI `DeviationDetail`). A missing member degrades to a plainer sentence, never to an invented value.
@@ -155,6 +165,8 @@ export function deviationSentence(deviation: Deviation, item: Phrased, t: TFunct
       return unlinked(deviation.kind, detail, t);
     case "CHILDREN_DONE":
       return childrenDone(detail, t);
+    case "CHILDREN_OPEN":
+      return childrenOpen(detail, t);
   }
 }
 

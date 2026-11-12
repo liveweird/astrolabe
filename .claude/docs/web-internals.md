@@ -981,7 +981,8 @@ on a different day", `TARGET_DIFFERS` (days is the end's shift, else the start's
 and `ESTIMATE_NOT_COMPARABLE` (no conversion declared, OR the figure was read under another unit than the mapping names now) names neither cause. **Coverage
 kinds (1.4):** `UNLINKED_IN_JIRA` ("3 Jira items are not in the plan: COV-5, COV-6, COV-7", `detail.jira` = the keys), `UNLINKED_IN_PLAN` ("1 plan item is not
 linked to Jira: Rollout", `detail.plan` = the names) and `CHILDREN_DONE` ("All 2 child issues are done in Jira while the plan ends 2046-03-01", `detail.count` =
-the children, `detail.plan` = the plan's end); **the "+N more" rule**: the server lists at most 10 keys/names and `detail.count` is the full figure, so the
+the children, `detail.plan` = the plan's end) with its mirror `CHILDREN_OPEN` (1.14: "3 of 12 child issues still open in Jira while the plan ended 2046-03-01", the open
+figure parsed from `detail.jira` = `open/children`; PL "Otwartych zgłoszeń podrzędnych w Jirze: 3 z 12, a plan zakończył się …"; unreadable members degrade to the label "Children open"); **the "+N more" rule**: the server lists at most 10 keys/names and `detail.count` is the full figure, so the
 sentence appends "and {N} more" (PL "i jeszcze {N}") when `count` exceeds 10 - the listed figure is `min(count, 10)`, never a split of the joined text (a plan
 name may contain ", "); a missing list, count or date degrades to the plain kind label. The roadmap panel phrases these through the same function. Severity is
 spelled in a visually hidden word before each kind badge (`components/SeverityBadge.tsx`: orange warning / gray info; the Deviations table, the Flow capacity lines and the team page's fact use it, the roadmap flag panel with `hiddenPrefix={false}`). `ageText`/`countDeviations` are in the same file; the table is `components/DeviationsTable.tsx` (plan

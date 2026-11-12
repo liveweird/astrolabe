@@ -1485,7 +1485,10 @@ export interface paths {
          *     binding covers on this or another active connection of the same site; `jira` lists their keys); `UNLINKED_IN_PLAN` (INFO,
          *     programs and projects: the node's direct plan children that have no binding; `plan` lists their names); `CHILDREN_DONE` (INFO,
          *     milestones: the bound epic has children, all of them done, while the epic itself is not DONE and the plan's end is after `asOf`;
-         *     `jira` = `done/children`, `plan` = the end date). Each kind sorts after the older ones within its severity. A milestone
+         *     `jira` = `done/children`, `plan` = the end date); `CHILDREN_OPEN` (INFO, milestones: the mirror image - the bound epic has
+         *     children, some still open, while the plan's end is before `asOf` (ending today is not ended); the epic's own status does not
+         *     matter; `jira` = `open/children`, `plan` = the end date; never raised for an unscheduled milestone or one with no mirrored
+         *     child). Each kind sorts after the older ones within its severity. A milestone
          *     item also carries the roll-up itself as `jira.rollup` (`JiraRollup`: children, done, story points, newest observation), null
          *     while the epic has no mirrored child. The Jira KEYS of unbound items (never a summary) are therefore visible to every reader of
          *     this view, like the plan names beside them.
@@ -4793,12 +4796,12 @@ export interface components {
             flags: components["schemas"]["PlanFlag"][];
         };
         /** @enum {string} */
-        DeviationKind: "GONE" | "LEVEL_MISMATCH" | "PARENT_MISMATCH" | "RENAMED" | "START_DIFFERS" | "END_DIFFERS" | "TARGET_DIFFERS" | "UNSCHEDULED_IN_PLAN" | "UNSCHEDULED_IN_JIRA" | "ESTIMATE_DIFFERS" | "ESTIMATE_NOT_COMPARABLE" | "PROGRESS_MISMATCH" | "UNLINKED_IN_JIRA" | "UNLINKED_IN_PLAN" | "CHILDREN_DONE";
+        DeviationKind: "GONE" | "LEVEL_MISMATCH" | "PARENT_MISMATCH" | "RENAMED" | "START_DIFFERS" | "END_DIFFERS" | "TARGET_DIFFERS" | "UNSCHEDULED_IN_PLAN" | "UNSCHEDULED_IN_JIRA" | "ESTIMATE_DIFFERS" | "ESTIMATE_NOT_COMPARABLE" | "PROGRESS_MISMATCH" | "UNLINKED_IN_JIRA" | "UNLINKED_IN_PLAN" | "CHILDREN_DONE" | "CHILDREN_OPEN";
         /**
          * @description A `DeviationKind` or null (the validator reads a nullable enum behind an `allOf` as non-null, so the values are spelled here).
          * @enum {string|null}
          */
-        NullableDeviationKind: "GONE" | "LEVEL_MISMATCH" | "PARENT_MISMATCH" | "RENAMED" | "START_DIFFERS" | "END_DIFFERS" | "TARGET_DIFFERS" | "UNSCHEDULED_IN_PLAN" | "UNSCHEDULED_IN_JIRA" | "ESTIMATE_DIFFERS" | "ESTIMATE_NOT_COMPARABLE" | "PROGRESS_MISMATCH" | "UNLINKED_IN_JIRA" | "UNLINKED_IN_PLAN" | "CHILDREN_DONE" | null;
+        NullableDeviationKind: "GONE" | "LEVEL_MISMATCH" | "PARENT_MISMATCH" | "RENAMED" | "START_DIFFERS" | "END_DIFFERS" | "TARGET_DIFFERS" | "UNSCHEDULED_IN_PLAN" | "UNSCHEDULED_IN_JIRA" | "ESTIMATE_DIFFERS" | "ESTIMATE_NOT_COMPARABLE" | "PROGRESS_MISMATCH" | "UNLINKED_IN_JIRA" | "UNLINKED_IN_PLAN" | "CHILDREN_DONE" | "CHILDREN_OPEN" | null;
         /**
          * @description The evidence, every member optional and text so one shape serves every kind. `GONE`: jira = the gone reason (`DELETED`, `FORBIDDEN`, `OUT_OF_SCOPE`, `MOVED_OUT` for
          *     a probed-readable issue whose current key is outside the connection's projects, `NOT_LISTED` for one inside them). `LEVEL_MISMATCH`:
@@ -4810,6 +4813,7 @@ export interface components {
          *     `UNLINKED_IN_JIRA`: jira = the Jira KEYS (at most 10, `, `-joined, ascending by issue id, never a summary) of open items under the
          *     bound issue that no binding covers. `UNLINKED_IN_PLAN`: plan = the NAMES (at most 10, `, `-joined, ascending by id) of the bound
          *     node's plan children that no binding covers. `CHILDREN_DONE`: jira = `done/children`, plan = the plan's end date.
+         *     `CHILDREN_OPEN`: jira = `open/children`, plan = the plan's end date.
          */
         DeviationDetail: {
             jira: string | null;
@@ -4821,7 +4825,7 @@ export interface components {
             days: number | null;
             /**
              * Format: int32
-             * @description The full count behind a truncated list (`UNLINKED_*`: items, at most 10 listed) or the children (`CHILDREN_DONE`); null for every other kind.
+             * @description The full count behind a truncated list (`UNLINKED_*`: items, at most 10 listed) or the children (`CHILDREN_DONE`, `CHILDREN_OPEN`); null for every other kind.
              */
             count: number | null;
         };
