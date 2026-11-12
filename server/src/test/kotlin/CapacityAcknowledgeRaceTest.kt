@@ -328,7 +328,7 @@ class CapacityAcknowledgeRaceTest {
             }
         }
 
-    // 1.13.2: a capacity write takes the team's binding row BEFORE the team row and prunes inside its own transaction.
+    // 1.13.3: a capacity write takes the team's binding row BEFORE the team row and prunes inside its own transaction.
 
     private val periodSql = "SELECT md_per_week::text FROM team_capacity_periods WHERE id = ?"
 
@@ -391,7 +391,7 @@ class CapacityAcknowledgeRaceTest {
                 }
                 try {
                     val (inLine, back) = coroutineScope {
-                        // The first write brings sprint 3 in line (22 -> 24), the second puts it back (24 -> 22). Before 1.13.2 both
+                        // The first write brings sprint 3 in line (22 -> 24), the second puts it back (24 -> 22). Before 1.13.3 both
                         // committed and BOTH prunes then read the final, deviating state: the acknowledgement stood.
                         val inLine = async { manager.client.capAckEdit(s3, 24.0) }
                         awaitLockWait("FOR NO KEY UPDATE", 1)

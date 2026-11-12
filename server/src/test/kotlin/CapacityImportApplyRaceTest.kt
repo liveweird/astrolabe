@@ -108,7 +108,7 @@ class CapacityImportApplyRaceTest {
             val binding = w.admin.client.fbBind(m.connectionId, 1, t.teamId).fbBinding()
             val body = ciBodyOf(t.manager.client.ciPreviewOf(binding.id))
 
-            // An unlink takes the BINDING row first (1.13.2: so does the apply, before the team row): the session holds that one.
+            // An unlink takes the BINDING row first (1.13.3: so does the apply, before the team row): the session holds that one.
             val unlinked = queuedAtTeamLock(
                 t.teamId,
                 listOf { t.manager.client.ciApply(binding.id, body) },

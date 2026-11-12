@@ -1010,7 +1010,7 @@ items, so a row is not always there and the list may differ from a connection de
 **The import modal** (1.2, `components/JiraImportModal.tsx`; two entry points since 1.10: "Import from Jira…" beside "Link a node…" in the bindings section - ADMIN's
 page, disabled until the connection is enabled and has a stored discovery - and the Plan page's work-stream menu, below): ONE wide `Modal` (title = the h2, phases are h3) in three phases, state in
 `hooks/useJiraImport.ts`, pure model in `utils/jiraImport.ts` (ticks, scope, body), sentences in `utils/jiraImportText.ts`. **Scope** (`JiraImportScopeStep`:
-work stream from `["plan","view"]`, owner, Jira project keys all preselected, **the import filter (1.13.2)**, "Copy Jira's dates", default team / program / project - the last two offered only
+work stream from `["plan","view"]`, owner, Jira project keys all preselected, **the import filter (1.13.3)**, "Copy Jira's dates", default team / program / project - the last two offered only
 from the picked stream, the server's own rule) -> `POST …/import-preview`; **Preview** (`JiraImportPreviewStep`: totals, notes, "N of M selected", a virtualised
 table - `JiraImportVirtualTable`, TanStack Virtual above 80 rows, fixed row height, `aria-rowcount`/`aria-rowindex`, shared with the outcome's skipped list -, a
 checkbox per CREATE/BIND row, SKIP rows say why in words) -> `POST …/import`; **Outcome** (counts created / linked / scheduled / skipped, every skipped row with
@@ -1018,7 +1018,7 @@ its reason, "Preview again" when rows read `CHANGED`). **Ticks keep the dependen
 `parent.rowJiraId`; the server would answer `PARENT_SKIPPED`), the rows show "Not imported: its parent X is not ticked" and a polite status says how many moved;
 ticking a row ticks the rows it lands under. **The body is strict**: `expected.parent` is projected to `{kind, nodeId}` (never the preview's `parent` verbatim),
 a BIND carries `nodeId`, a milestone CREATE the `teamId` the row showed; a per-row team `NativeSelect` goes to `overrides.teamId` and never into `expected`; the
-apply sends the SCOPE the preview was read under. `totals.truncated` disables Import (narrow the keys or the filter). **The filter (1.13.2)**: right under the keys, a
+apply sends the SCOPE the preview was read under. `totals.truncated` disables Import (narrow the keys or the filter). **The filter (1.13.3)**: right under the keys, a
 Switch "Leave out done items" (ON when the dialog opens) and a NumberInput "Updated within (days)" (365; `PollingFields`' idiom: `clampBehavior="none"`, bounds
 `MIN/MAX_IMPORT_UPDATED_DAYS` 1..3,650 mirroring the server's, a value outside them shows the sentence under the field and disables Preview, `toScope` answers
 null; EMPTY = no time limit; 0 is refused), the Switch's description carries two sentences: what "done" means and that a done or older parent of an item that is read is read as well when it is in the selected Jira projects (not "always kept": a parent outside them, past the 200-read cap or unreadable is not). `toScope` adds `filter{excludeDone,
@@ -1425,7 +1425,7 @@ in `App.tsx` (`auth.tsx`, beside `RequireAuth` — a regular user is sent home),
 so a redirected caller fires no request. UX only — the server's `requireAdmin` is the rule. The pages live under `/users` (`utils/userLinks.ts` is the one place
 the family is spelled out; Flow's `/flow-users` rename and its legacy `/users…` redirect do not exist here).
 
-**Login and person in one step (unreleased, after 1.13.2).** The new-login form (`CreateUser.tsx` only, not the shared `UserFormFields`, so the edit page has none) has a `Switch`
+**Login and person in one step (unreleased, after 1.13.3).** The new-login form (`CreateUser.tsx` only, not the shared `UserFormFields`, so the edit page has none) has a `Switch`
 "Also create a linked person", ON by default (a page-local `useState`), posted as `alsoCreatePerson`; the server creates the person (the login's name and email, linked) in
 the same transaction, and the create refreshes `["users"]` and `["people"]`. A 409 whose problem `detail` names a person gets its own message (`users.personAlreadyExists`),
 the plain 409 stays the email-in-use one; a refused person means no login. The Users row menu offers "Create a person" (`POST /people` with the login's name, email and

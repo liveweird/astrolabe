@@ -8,7 +8,7 @@ import java.util.concurrent.CopyOnWriteArrayList
 private val log = LoggerFactory.getLogger(CapacityWriteTrail::class.java)
 
 /**
- * A connector's part in a team's capacity write (1.13.2). `teams/` names no connector: a connector registers itself (`configureFlow`
+ * A connector's part in a team's capacity write (1.13.3). `teams/` names no connector: a connector registers itself (`configureFlow`
  * does, to keep its acknowledgements honest about the capacity rows the write brought in line). Both calls run INSIDE the write's
  * transaction, so the connector's locks and its writes commit or roll back with the capacity write itself.
  */

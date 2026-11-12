@@ -120,7 +120,7 @@ command above with the file deleted first, in a scratch copy of the tree (`git a
 then `rm gradle/verification-metadata.xml` there). Its output is the ground truth: the committed file minus what it no
 longer produces (removals only; a clean regeneration that ADDS or CHANGES a checksum for an existing coordinate is an
 integrity question, not a prune: investigate, do not take it). The 1.13.1 prune dropped 170 entries; the follow-up
-(after 1.13.2) dropped nine parent POMs/BOMs it had left (`logback-parent` 1.6.5, `error_prone_parent` 2.49.0 and 2.50.0,
+(after 1.13.3) dropped nine parent POMs/BOMs it had left (`logback-parent` 1.6.5, `error_prone_parent` 2.49.0 and 2.50.0,
 `guava-parent` 33.7.2-jre, `netty-parent` 4.2.19.Final, `flyway-parent` 13.10.3 and 13.11.1, `slf4j-bom`/`slf4j-parent`
 2.0.9), and the resulting file was byte-identical to the clean regeneration.
 

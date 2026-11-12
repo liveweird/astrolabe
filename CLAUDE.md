@@ -13,9 +13,9 @@ milestones) → milestone (start/end, man-day estimate, exactly one team, no own
 (its milestones against capacity), the **roadmap** (projects by one global rank, and in time) and the **programs** view. **Planning flow:** build the hierarchy and rank the projects; the
 team manager schedules milestones (manual drag/resize, or accept a server proposal); dependencies (FS/SS/FF/SF + lag) and capacity overload only ever **warn**, never move anything.
 
-**Roadmap:** 0.1.0 foundation · 0.2.0 plan · 0.3.0 timeline · 0.4.0 dependencies · 0.5.0 team view · 0.6.0 roadmap · 0.7.0 calendar · 0.8.0 auto-proposal · 0.9.0 baselines · 1.0.0 checkup · 1.1.0 Jira sync · 1.2.0 import · 1.3.0 polling · 1.4.0 coverage · 1.5.1 Flow · 1.6.0 capacity · 1.7.0 planning · 1.8.0 cross-team run · 1.9.0 Flow follow-ups · 1.10.0 sync follow-ups · 1.10.1 fixes · 1.11.0 withdraw all · 1.12.0 per-line acknowledge · 1.13.0 probe follow-ups · 1.13.1 fixes · **1.13.2 (current)** import filter · next 1.14. Per-version scope, domain decisions, assumptions: `.claude/docs/product.md`. Open items: `BACKLOG.md`.
+**Roadmap:** 0.1.0 foundation · 0.2.0 plan · 0.3.0 timeline · 0.4.0 dependencies · 0.5.0 team view · 0.6.0 roadmap · 0.7.0 calendar · 0.8.0 auto-proposal · 0.9.0 baselines · 1.0.0 checkup · 1.1.0 Jira sync · 1.2.0 import · 1.3.0 polling · 1.4.0 coverage · 1.5.1 Flow · 1.6.0 capacity · 1.7.0 planning · 1.8.0 cross-team run · 1.9.0 Flow follow-ups · 1.10.0 sync follow-ups · 1.10.1 fixes · 1.11.0 withdraw all · 1.12.0 per-line acknowledge · 1.13.0 probe follow-ups · 1.13.1 fixes · 1.13.2 import filter · **1.13.3 (current)** overnight fixes · next 1.14. Per-version scope, decisions, assumptions: `.claude/docs/product.md`. Open items: `BACKLOG.md`.
 
-Brand: deep cyan (the `astrolabe` colour tuple in `web/src/theme.ts`, `primaryShade: { light: 8, dark: 9 }`); the logo is a stylised astrolabe.
+Brand: deep cyan (the `astrolabe` colour tuple in `web/src/theme.ts`, `primaryShade: { light: 8, dark: 9 }`); the logo a stylised astrolabe.
 
 ## Donors
 
@@ -77,7 +77,7 @@ plus two standalone npm workspaces (Gradle never touches them):
 - **`web/`** — Vite + React + TypeScript SPA over the server's HTTP API.
 - **`e2e/`** — Playwright blackbox suite against the compose stack.
 
-Group `ch.nokillswit`, version `1.0.0-SNAPSHOT` (the donor scaffold's; renaming is out of scope). Dependency
+Group `ch.nokillswit`, version `1.0.0-SNAPSHOT` (the donor's; renaming is out of scope). Dependency
 versions are centralized in `gradle/libs.versions.toml` (every pin carries its rationale; Ktor comes from the separate `ktorLibs`
 catalog). Resolved Gradle dependencies use strict locking and SHA-256 verification; intentional updates follow
 `.claude/docs/dependency-reproducibility.md`.
@@ -131,7 +131,7 @@ Source files sit flat under `server/src/main/kotlin/<area>/` but declare `packag
 the same commit. The server suite validates every test-client `/api/` interaction against it (`OpenApiConformance.kt`,
 `-Dopenapi.conformance=fail`); the frontend derives its types from it (`npm run gen:api` → committed `web/src/api/schema.ts`,
 regenerated in the same commit). The file says `openapi: 3.1.0` but must use only 3.0-compatible constructs
-(`OpenApiSpecTest`). `AnonymousAccessTest` sweeps every operation without `security: []` for a 401 — the "401 sweep" — so a new
+(`OpenApiSpecTest`). `AnonymousAccessTest` sweeps every operation without `security: []` for a 401 (the "401 sweep"), so a new
 route is covered once its spec entry lands. `info.version` equals `APP_VERSION` (`app-releases.md`).
 
 ### Cross-cutting conventions

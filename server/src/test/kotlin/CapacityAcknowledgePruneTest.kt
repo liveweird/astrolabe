@@ -16,7 +16,7 @@ import kotlin.test.assertTrue
 
 /**
  * 1.10: an acknowledgement lives only while its row is listed. The run's prune (inside the mirror replace), the acknowledge's own prune,
- * the capacity write's prune (1.13.1; since 1.13.2 inside the write's own transaction: a manual period or the import, through the
+ * the capacity write's prune (1.13.1; since 1.13.3 inside the write's own transaction: a manual period or the import, through the
  * `teams/` listener seam) and
  * the connection delete, over the same scripted world as `CapacityAcknowledgeTest` (three 2049 sprints; day two: S2 a WARNING, S3 an
  * INFO, Billing gone). The predicate per binding state - listed row kept, in line / left the document / zero sprints pruned, an ABSENT

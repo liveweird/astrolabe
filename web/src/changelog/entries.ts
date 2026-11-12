@@ -17,6 +17,36 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.13.3",
+    date: "2026-11-12",
+    en: `**Astrolabe 1.13.3: a new login can create its person in the same step, the roadmap's flags can be filtered by severity, a moved Jira item shows the key it was linked with, and an information leak in the Jira import and a race between capacity edits are closed.**
+
+- Administration → Users: the new-login form has a switch "Also create a linked person", on by default. It creates the person (the login's name and email, linked to the login) in the same step, so the login can be picked as an owner or a team manager at once. If a person with that email already exists, nothing is created and the message says to turn the switch off and link that person on the People page.
+- Administration → Users: a login that has no person linked gets "Create a person" in its row menu. It makes the person from the login's name and email and links it; if the email is taken or the login is already linked, the message points to the People page.
+- Roadmap: the flag panel has an All / Warnings / Infos filter, with the count in each option ("All (5)", "Warnings (3)", "Infos (2)"). It narrows the list only; the row icons and the panel's count stay as they were, and it is not remembered.
+- Jira: an item that moved to another key shows the key it was linked with next to the current one ("was OLD-1"), on the connection's bindings list and on the Deviations page.
+- Jira import (security): with the import filter on, a non-administrator's preview no longer shows any detail of an item hidden from them (its key, id or parent): the row reads "Hidden". The import answers such an item exactly like one that is no longer in Jira, so ticking it, or overriding its checks, tells nothing about it. Administrators and imports without the filter are unchanged.
+- Flow capacity: two capacity edits of one team made at the same time can no longer leave an acknowledgement standing that the second edit settles. If clearing acknowledgements fails, the capacity edit now fails as a whole instead of being saved without it.
+- API (\`/api/v1\`): admitted answers no longer carry \`X-RateLimit-*\` headers; a refused request (\`429\`) carries only \`Retry-After\`, in whole seconds rounded up. \`POST /users\` takes an optional \`alsoCreatePerson\` (default false; not stored), and every user carries \`personId\` (the linked person, or null). \`DeviationJira.previousKey\` (the key the item was linked with, or null). \`JiraImportItem.issueKey\` can be null on rows hidden under the filter.
+- Under the hood: the image build fails with the real cause when Ubuntu's package index cannot be fetched, and a new check keeps the dependency verification metadata free of superseded entries.
+- Nothing is written to Jira or Flow.
+- Proven against a built-in Jira stub; not yet tested against a real Jira site.
+- Proven against the built-in Flow stub; not yet compared with a real Flow.`,
+    pl: `**Astrolabe 1.13.3: nowe konto może od razu utworzyć swoją osobę, flagi na roadmapie można filtrować według wagi, przeniesiony element Jiry pokazuje klucz, z którym go powiązano, a wyciek informacji w imporcie z Jiry i wyścig między zmianami przepustowości są zamknięte.**
+
+- Administracja → Użytkownicy/czki: formularz nowego konta ma przełącznik „Utwórz też powiązaną osobę”, domyślnie włączony. Tworzy on osobę (z nazwą i adresem e-mail konta, powiązaną z kontem) w tym samym kroku, więc konto można od razu wybrać jako właściciela/kę albo kierownika/czkę zespołu. Jeśli osoba z takim adresem e-mail już istnieje, nic nie powstaje, a komunikat mówi, żeby wyłączyć przełącznik i powiązać tę osobę na stronie Osoby.
+- Administracja → Użytkownicy/czki: konto bez powiązanej osoby ma w menu wiersza „Utwórz osobę”. Tworzy osobę z nazwy i adresu e-mail konta i ją wiąże; jeśli adres jest zajęty albo konto jest już powiązane, komunikat odsyła do strony Osoby.
+- Roadmapa: panel flag ma filtr Wszystkie / Ostrzeżenia / Informacje z liczbą przy każdej opcji („Wszystkie (5)”, „Ostrzeżenia (3)”, „Informacje (2)”). Zawęża tylko listę; ikony w wierszach i licznik panelu zostają bez zmian, a wybór nie jest zapamiętywany.
+- Jira: element przeniesiony pod inny klucz pokazuje obok bieżącego klucz, z którym go powiązano („wcześniej OLD-1”), na liście powiązań połączenia i na stronie Odchylenia.
+- Import z Jiry (bezpieczeństwo): przy włączonym filtrze importu podgląd osoby niebędącej administratorem/ką nie pokazuje już żadnych szczegółów elementu ukrytego przed nią (klucza, identyfikatora ani rodzica): wiersz mówi „Ukryty”. Import odpowiada na taki element dokładnie jak na element, którego nie ma już w Jirze, więc jego zaznaczenie ani pominięcie jego kontroli niczego o nim nie zdradza. Administratorzy/rki i importy bez filtra działają jak dotąd.
+- Przepustowość Flow: dwie jednoczesne zmiany przepustowości jednego zespołu nie mogą już zostawić potwierdzenia, które druga zmiana unieważnia. Jeśli czyszczenie potwierdzeń się nie powiedzie, zmiana przepustowości kończy się teraz błędem w całości, zamiast zapisać się bez tego.
+- API (\`/api/v1\`): przyjęte odpowiedzi nie niosą już nagłówków \`X-RateLimit-*\`; odrzucone żądanie (\`429\`) niesie tylko \`Retry-After\`, w pełnych sekundach, zaokrąglone w górę. \`POST /users\` przyjmuje opcjonalne \`alsoCreatePerson\` (domyślnie false; nie jest zapisywane), a każde konto niesie \`personId\` (powiązana osoba lub null). \`DeviationJira.previousKey\` (klucz, z którym element powiązano, lub null). \`JiraImportItem.issueKey\` może być null w wierszach ukrytych przez filtr.
+- Pod maską: budowanie obrazu kończy się błędem z prawdziwą przyczyną, gdy nie da się pobrać indeksu pakietów Ubuntu, a nowa kontrola pilnuje, żeby metadane weryfikacji zależności nie zawierały przestarzałych wpisów.
+- Niczego nie zapisujemy w Jirze ani we Flow.
+- Sprawdzone na wbudowanej atrapie Jiry; jeszcze nie przetestowane na prawdziwej witrynie Jira.
+- Sprawdzone na wbudowanej atrapie Flow; jeszcze nie porównane z prawdziwym Flow.`,
+  },
+  {
     version: "1.13.2",
     date: "2026-11-11",
     en: `**Astrolabe 1.13.2: the Jira import can leave out done items and items nobody has touched for a while, so a large Jira project can be imported.**

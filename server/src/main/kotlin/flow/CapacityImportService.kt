@@ -64,7 +64,7 @@ class CapacityImportService(
 
     /**
      * The apply (`POST …/capacity-import`): [TeamCapacityService.applyImport] first lets the capacity-write listeners lock the team's
-     * binding row (1.13.2: [CapacityAcknowledgeService.lockBindingsBeforeCapacityWrite], the acknowledge's order), then locks the team
+     * binding row (1.13.3: [CapacityAcknowledgeService.lockBindingsBeforeCapacityWrite], the acknowledge's order), then locks the team
      * row (404 when it is gone), re-runs [guard] under it (403: a manager cleared while this waited), shows this block the team's ACTIVE
      * periods read under the lock, and this block re-runs [CapacityImportKernels.plan] over the mirror rows read NOW (with the request's
      * echoed `from` and `includeClosed`) and lets [CapacityApplyKernels.decide] compare every requested row with that plan. Only rows

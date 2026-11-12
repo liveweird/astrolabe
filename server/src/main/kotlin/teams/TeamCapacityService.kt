@@ -40,7 +40,7 @@ typealias TeamGuard = suspend (teamId: UInt) -> Unit
 
 /**
  * Team capacity periods (V16). Team data, not plan state: every write is ONE transaction of its own that first lets the
- * [listeners] take a connector's row locks for the team (1.13.2: a connector's rows come BEFORE the team row, the order its own paths
+ * [listeners] take a connector's row locks for the team (1.13.3: a connector's rows come BEFORE the team row, the order its own paths
  * use), then locks the team row (`FOR NO KEY UPDATE`, so a team delete racing it either commits first — 404 — or waits and then
  * cascades the new period too), re-runs the manager guard against the locked state, writes, and lets the listeners settle what the
  * write changed (inside the same transaction, so it commits with the write). No plan lock and no plan-revision bump. A period start

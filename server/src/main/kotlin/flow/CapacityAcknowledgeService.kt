@@ -46,7 +46,7 @@ internal class StoredCapacityAck(val fingerprint: String, val at: Long, val byUs
  * INSIDE its transaction, for the team's binding - the last two judge only a sprint that is STILL IN THE MIRROR but unlisted, and the
  * returned team's own row; "gone from the document" is the run's call, because only it knows whether the document was sprints-truncated.
  * The connection delete removes every row ([Acknowledgements.deleteForConnectionInTransaction]).
- * The capacity write's prune runs in the write's own transaction (1.13.2), after the write's statements and under the binding row lock
+ * The capacity write's prune runs in the write's own transaction (1.13.3), after the write's statements and under the binding row lock
  * [lockBindingsBeforeCapacityWrite] took BEFORE the team row (the acknowledge's order): two capacity writes of one team are serialised
  * by it and the second prune sees the first's periods, so an "in line and back" cannot stay acknowledged. A holiday or time-zone edit
  * still prunes nobody (`flow-sync.md` "Acknowledge"). A team ABSENT from Flow's document keeps its sprint rows (nothing can be judged
@@ -74,7 +74,7 @@ internal class StoredCapacityAck(val fingerprint: String, val at: Long, val byUs
  * rows `FOR SHARE`, then the acknowledgement rows; it takes neither the bind lock nor the connection row. The run's prune is the
  * connection-first path: the connection row (the replace's `FOR NO KEY UPDATE`), then the binding rows `FOR NO KEY UPDATE` in id order,
  * then the acknowledgement rows - the link's, the match's and the connection delete's order (connection, then bindings). Nobody goes
- * binding -> connection, so there is no cycle. A capacity write (1.13.2) is the third binding-first path: the binding row(s)
+ * binding -> connection, so there is no cycle. A capacity write (1.13.3) is the third binding-first path: the binding row(s)
  * ([lockBindingsBeforeCapacityWrite]), then the team row `FOR NO KEY UPDATE`, then the guard's manager and person rows `FOR SHARE`, then
  * its period writes, then the acknowledgement rows ([pruneInCapacityWrite]). The one global order is connection, binding, team, person,
  * acknowledgement rows; the link takes its OWN team's binding rows before its `FOR SHARE` on the team for the same reason
@@ -293,7 +293,7 @@ class CapacityAcknowledgeService(
     }
 
     /**
-     * The capacity write's FIRST step (1.13.2), INSIDE its transaction and BEFORE the team row is locked: the team's ACTIVE binding
+     * The capacity write's FIRST step (1.13.3), INSIDE its transaction and BEFORE the team row is locked: the team's ACTIVE binding
      * row(s) `FOR NO KEY UPDATE` (id order; none = a team without a Flow link, nothing is locked). Taken whether or not the binding
      * has stored rows yet, because an acknowledge of that binding in flight could be about to store one: the lock queues the write behind
      * it, and queues a later acknowledge behind the write, which it then recomputes against. This is the acknowledge's order (binding
@@ -307,7 +307,7 @@ class CapacityAcknowledgeService(
     }
 
     /**
-     * The capacity write's LAST step (1.13.2), INSIDE its transaction after the write of [teamId]'s periods (visible to this transaction
+     * The capacity write's LAST step (1.13.3), INSIDE its transaction after the write of [teamId]'s periods (visible to this transaction
      * only): the binding row(s) [lockBindingsBeforeCapacityWrite] locked and the team row are held, so two capacity writes of one team,
      * or one and an acknowledge, are serialised and the second sees the first's committed periods - an "in line and back" ends the
      * acknowledgement at the first write. One read for the team's ACTIVE binding that HAS stored rows (none: nothing is computed), then
