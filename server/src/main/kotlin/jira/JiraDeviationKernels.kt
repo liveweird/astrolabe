@@ -245,8 +245,9 @@ object JiraDeviationKernels {
 
     /**
      * The mirror image of [childrenDone]: the plan has ENDED (its end is strictly before [asOf]; ending today has not ended) while some
-     * of the epic's children are still open. The epic's own status does not matter (`PROGRESS_MISMATCH` only ever speaks of a plan
-     * that ends AFTER today, so the two never say the same thing). No children, none open or an unscheduled milestone raises nothing;
+     * of the epic's children are still open. The epic's own status does not matter: `PROGRESS_MISMATCH` can fire beside it (a TODO
+     * epic whose plan START is past) but says a different fact (the epic's status against the start, not the children against the
+     * end); its DONE case needs an end after today. No children, none open or an unscheduled milestone raises nothing;
      * `jira` = `open/children` (the fingerprint's evidence: the open and total counts).
      */
     private fun childrenOpen(plan: PlanSide, rollup: ChildRollup?, asOf: LocalDate): Deviation? {
