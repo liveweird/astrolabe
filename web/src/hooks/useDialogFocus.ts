@@ -35,7 +35,9 @@ function isChoiceAwayFrom(trigger: HTMLElement, target: EventTarget | null): boo
  * A focus the user has put on another element after the close is left alone and ends the watch; a focus parked in a closing menu or dialog
  * (`utils/focusTransit.ts`) does not end it: the dropdown unmounts a moment later and the next render finds the focus on `body`. The render is
  * not the only witness: a `focusin` anywhere but the opener, a dialog or the opener's own menu (another row's kebab or menu) ends the watch as
- * it happens, since that row's action may drop the focus to `body` before the next render and must not be answered with the first kebab.
+ * it happens, since that row's action may drop the focus to `body` before the next render and must not be answered with the first kebab. The
+ * listener is attached whenever the dialog is closed and does nothing while no opener is held (after the watch, or before any dialog opened).
+ * Accepted limitation: a focus inside ANOTHER `[role="dialog"]` (a palette opened by a shortcut) does not end the watch, like our own fading dialog.
  *
  * Pass "either is open" for a flow of several dialogs (a confirm followed by a reveal), so the focus returns after the last one.
  *

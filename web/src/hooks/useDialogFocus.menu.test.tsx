@@ -62,7 +62,9 @@ describe("the focus around a closing editor dialog opened from a row menu", () =
     renderWithProviders(<Harness />);
     await editAndClose(user, "Alpha", how);
     await waitFor(() => expect(screen.getByRole("button", { name: "Operations for Alpha" })).toHaveFocus());
-    await new Promise((resolve) => setTimeout(resolve, 250));
+    // The menu's dropdown fades out and unmounts after the close; once it has gone the kebab must still hold the focus.
+    await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
+    act(() => refetch());
     expect(screen.getByRole("button", { name: "Operations for Alpha" })).toHaveFocus();
   });
 

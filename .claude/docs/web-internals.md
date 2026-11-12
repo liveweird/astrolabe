@@ -266,8 +266,8 @@ The template and its rules: `web/CLAUDE.md` "Shared list-page building blocks". 
   effect: the click is a discrete event, React commits it and flushes the passive effect before any timer; the kebab-return tests (click, Escape, keyboard)
   passed 100 of 100 shuffled runs and never failed, so no change was needed and the tests are the pin. (B) Reproduced: within the 5 s watch, another row's
   kebab and an action that dropped the focus to `body` (its row removed or re-sorted) was answered at the next render with the FIRST kebab. Fixed: while
-  a closed dialog's watch is live the hook listens to `focusin` and ends the watch when the focus lands anywhere but the opener, a dialog or the opener's own
-  menu (`isChoiceAwayFrom`), so the second row's kebab ends it at once. The next render finds nothing to restore.
+  the dialog is closed the hook listens to `focusin` (a no-op while no opener is held) and ends the watch when the focus lands anywhere but the opener, a dialog or the opener's own
+  menu (`isChoiceAwayFrom`), so the second row's kebab ends it at once. The next render finds nothing to restore. Accepted: a focus inside another `[role="dialog"]` (a palette) does not end the watch.
 
 ### Registries and forms
 

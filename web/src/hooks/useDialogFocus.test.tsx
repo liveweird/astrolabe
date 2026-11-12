@@ -185,6 +185,38 @@ describe("useDialogFocus", () => {
     expect(kebab).toHaveFocus();
   });
 
+  // `isChoiceAwayFrom`, the `target === trigger` branch: the hook's own `trigger.focus()` raises a focusin on the opener, which is not the user leaving it.
+  test("the focus the hook gives back to the kebab does not end the watch: a second blur inside the window is answered again", () => {
+    const { kebab, item, inside } = scaffold();
+    const hook = mount();
+    openFromMenu(hook, item);
+    inside.focus();
+    act(() => hook.rerender({ opened: false }));
+    expect(kebab).toHaveFocus();
+    kebab.blur();
+    act(() => hook.rerender({ opened: false }));
+    expect(kebab).toHaveFocus();
+    kebab.blur();
+    act(() => hook.rerender({ opened: false }));
+    expect(kebab).toHaveFocus();
+  });
+
+  // `isChoiceAwayFrom`, the `[role="dialog"]` branch: a focus inside a dialog (ours fading, or the next one) is not a choice of the user either.
+  test("a focus inside a dialog after the close does not end the watch: dropping it to body returns the focus to the kebab", () => {
+    const { kebab, item, inside } = scaffold();
+    const hook = mount();
+    openFromMenu(hook, item);
+    inside.focus();
+    act(() => hook.rerender({ opened: false }));
+    expect(kebab).toHaveFocus();
+    inside.focus(); // a focusin from inside `[role="dialog"]`
+    expect(inside).toHaveFocus();
+    inside.blur();
+    expect(document.activeElement).toBe(document.body);
+    act(() => hook.rerender({ opened: false }));
+    expect(kebab).toHaveFocus();
+  });
+
   test("a plain button clicked while a claimed fetch is pending: its dialog returns to the button, not the claimed kebab", () => {
     const { other, kebab, item, inside } = scaffold();
     const hook = mount();
