@@ -34,6 +34,10 @@ internal const val IMPORT_TRUNCATED =
     "More than $MAX_IMPORT_ITEMS issues are in scope, or more than $MAX_IMPORT_PARENT_READS parents would have to be read one by one - " +
         "narrow projectKeys or the filter and preview again"
 
+/** The rooted variant (1.14): no parent is read one by one, and projectKeys is not the lever, so it names the filter and a deeper root. */
+internal const val ROOTED_IMPORT_TRUNCATED =
+    "More than $MAX_IMPORT_ITEMS issues lie under the linked item - narrow the filter, or start from a project below it, and preview again"
+
 /**
  * What the route hands the apply, all of it resolved BEFORE the lock: the request, the browse (the one HTTP act, already done), the
  * connection's state as the browse used it ([mappingChangedAt] pins the mapping), and how to re-resolve the caller's person under the

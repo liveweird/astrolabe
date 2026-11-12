@@ -3362,7 +3362,8 @@ paths:
         (`400`) -> the named targets' chains (`404`: `Work stream not found`, `Program not found`, `Project not found`; with `root`, the root's
         own node) -> the guard on
         each named default and on the root's chain (`403`; before it, a `403` for a login that owns no active work stream, program or project) -> the shape (`400`: `projectKeys` a subset of the connection's keys, `ownerPersonId` an active person,
-        `defaults.teamId` an active team, `defaults.programId` / `defaults.projectId` and `root` under the picked work stream) -> the connection
+        `defaults.teamId` an active team, `defaults.programId` / `defaults.projectId` and `root` under the picked work stream; with `root`, no
+        `defaults.programId`, and `defaults.projectId` only a project of the root program) -> the connection
         enabled (`400`), its token (`409` `urn:astrolabe:problem:jira-token-unreadable`), discovery (`409`
         `urn:astrolabe:problem:jira-not-discovered`) and effective mapping (`409` `urn:astrolabe:problem:jira-mapping-invalid`) -> with
         `root`, the root's ACTIVE link through THIS connection (`409` `urn:astrolabe:problem:jira-root-unusable` when there is none) -> ONE
@@ -3378,8 +3379,13 @@ paths:
         (a program: its projects, then their milestones; a project: its milestones), at most 2,000 rows in all (the root counts). With `root`,
         `items` are the root's descendants only: the root is not a row, and `totals` count what is listed. Under an active filter a level that has
         children to walk is read without the filter at the source, and the server keeps a project the filter does not admit only while a kept
-        item hangs under it (`KEPT_AS_PARENT`); no parent is read by id. Everything lands under the root's own node. A milestone-level item
-        directly under a root program follows today's rule (the default project, else skipped `NO_PARENT`). The rooted read adds no right: the
+        item hangs under it (`KEPT_AS_PARENT`); no parent is read by id. What is created lands under the root's own node, with one exception: a child
+        project whose Jira item is already linked to a plan project of ANOTHER program of the same work stream is not created again, and its
+        milestones land under that project (a caller who does not own it gets the `403` naming it). The request cannot steer a row anywhere
+        else: with `root`, `defaults.programId` is a `400`, `defaults.projectId` must be a project of the root program (a `400` otherwise, and
+        always for a project root). A milestone-level item directly under a root program follows today's rule (the default project, else
+        skipped `NO_PARENT`). The whole rooted read shares ONE budget of 200 requests (the root read and every search page of every round); the
+        request past it is the `502` with code `LIMIT_EXCEEDED`. The rooted read adds no right: the
         root is one more named target, so the caller must own its chain (or be ADMIN), and the redaction of skipped rows for a non-admin is
         unchanged.
 
@@ -3393,10 +3399,12 @@ paths:
         is wrong, as for the search) or a `429` that outlasted the transport's retries included, ends the browse as the `502`. No count of what was left out is reported.
 
         Answers, per Jira item and top-down (programs, projects, milestones; Jira ids ascending inside a level), whether it would be
-        created, bound to an unbound same-name node, or skipped and why. Nothing is stored and nothing is audited (a read). The
+        created, bound to an unbound same-name node, or skipped and why. Nothing is stored and nothing is audited (a read), except that an ANSWERED rooted
+        preview audits `jira.import_previewed` (ids and the row count, no Jira text). The
         caller's right to schedule shows only in `canSchedule` (a milestone's dates are copied only where the caller may schedule the
         team) - never as a refusal. `totals.truncated` = more than 2,000 issues were in scope (the parents read by id count), or more than 200
-        parents would have to be read: narrow `projectKeys` or the filter (an apply refuses a truncated scope). The whole read is bounded to
+        parents would have to be read: narrow `projectKeys` or the filter (an apply refuses a truncated scope); with `root` more than 2,000 rows lie
+        under the linked item, and the way out is the filter or a root further down. The whole read is bounded to
         170 seconds (`502`, code `TIMEOUT`).
 
         **For a caller who is not ADMIN, a skipped row other than `ALREADY_BOUND` carries no Jira text:** `summary` is empty, `name` is the
@@ -3466,8 +3474,10 @@ paths:
         root included: its chain is read (`404`) and guarded (`403`) up front and again under the plan lock, its ACTIVE link through this
         connection must exist (`409 urn:astrolabe:problem:jira-root-unusable`), and after the recomputation under the lock the root's own row
         must still read `ALREADY_BOUND` to the root node (else the same `409`, a rollback: nothing written, no bump). Only the root's
-        descendants are browsed, so a ticked id outside its subtree is answered like a vanished one (`CHANGED`, no key). Everything is written
-        under the root's own node; no program is created.
+        descendants are browsed, so a ticked id outside its subtree is answered like a vanished one (`CHANGED`, no key). What is created is
+        written under the root's own node (the one exception is the preview's: milestones of a child project already linked to a project of
+        another program of the stream land under that project, for an owner of it); no program is created. The same `defaults` rules as the
+        preview apply (`400`).
 
         The answer lists ids, keys and reasons, plus the `name` of each created row - which IS the Jira summary (cut at 100 characters) of an issue on the caller's own target; a skipped row carries no text. `revision` is the plan
         revision after the bump.
@@ -7709,7 +7719,7 @@ components:
           description: The mapped fields' values exactly as the site sent them, keyed by field id (a field the issue lacks is absent); nothing else of the issue.
     JiraImportDefaults:
       type: object
-      description: The parent of an orphan row and the team of a milestone with no name match. Each id must lie under the picked work stream / be active.
+      description: The parent of an orphan row and the team of a milestone with no name match. Each id must lie under the picked work stream / be active. With a `root` (1.14) `programId` is a `400`, and `projectId` must be a project of the root program (a `400` for a project root).
       properties:
         programId: { type: integer, format: int32, minimum: 0, nullable: true, description: "The parent program of a project whose Jira parent is neither in the plan nor in the browse." }
         projectId: { type: integer, format: int32, minimum: 0, nullable: true, description: "The parent project of a milestone, likewise." }
@@ -7718,7 +7728,7 @@ components:
       type: object
       required: [workStreamId, ownerPersonId]
       properties:
-        workStreamId: { type: integer, format: int32, minimum: 0, description: "The picked work stream; every target lies under it (work streams are never imported). With `root` it must be the root's own work stream (`400` otherwise)." }
+        workStreamId: { type: integer, format: int32, minimum: 0, description: "The picked work stream; every target lies under it (work streams are never imported). With `root` it must be the root's own work stream: `400` for a caller who may start from the root (its owner chain or ADMIN), while a caller who may not gets the root's `403` first." }
         ownerPersonId: { type: integer, format: int32, minimum: 0, description: "The owner of every created program and project (an ACTIVE person)." }
         projectKeys:
           type: array
@@ -7749,8 +7759,9 @@ components:
       description: |
         The linked node a rooted import starts from (1.14): a program or a project of the picked work stream with an ACTIVE link through
         THIS connection. Its Jira item is read by id first; then only what Jira lists under it at the levels the connection maps below
-        the root's own (a program: its projects, then their milestones; a project: its milestones). Everything lands under the root's own
-        node, and a rooted import never creates a program. The caller must own the root's chain (the work stream's, the program's or,
+        the root's own (a program: its projects, then their milestones; a project: its milestones). What is created lands under the root's own
+        node (the one exception: milestones of a child project already linked to a plan project of ANOTHER program of the same work stream
+        land under that project), and a rooted import never creates a program. The caller must own the root's chain (the work stream's, the program's or,
         for a project, the project's owner) or be ADMIN; no other rule changes. A `MILESTONE` root does not decode (`400`).
       properties:
         level: { type: string, enum: [PROGRAM, PROJECT], description: "The plan level of the root node." }

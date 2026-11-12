@@ -92,6 +92,23 @@ class JiraImportChildrenGuardsTest {
     }
 
     @Test
+    fun `a project root under a deleted program is a 404 for every caller, on the preview and the apply`() = testApplication {
+        val f = importFixture("jcg7", keys = listOf("IMC"))
+        val root = f.linkProject()
+        val tick = listOf(createTick(imcId(5), JiraLevel.MILESTONE, imcId(2)))
+        assertEquals(HttpStatusCode.OK, f.w.projectOwner.client.preview(f.connectionId, f.scope(root = root)).status)
+        // The project itself is active, its program is not: the chain read is the named-target 404, before any 403.
+        jbSql("UPDATE programs SET marked_as_deleted = TRUE WHERE id = ?", f.w.programId.toInt())
+        for ((name, caller) in listOf("admin" to f.w.admin, "projectOwner" to f.w.projectOwner, "stranger" to f.w.stranger)) {
+            val preview = caller.client.preview(f.connectionId, f.scope(root = root))
+            assertEquals(HttpStatusCode.NotFound, preview.status, "$name: ${preview.bodyAsText()}")
+            assertEquals("Project not found", preview.jbProblem().detail, name)
+        }
+        val apply = f.w.personless.client.applyImport(f.connectionId, f.scope(root = root), tick)
+        assertEquals(HttpStatusCode.NotFound, apply.status, apply.bodyAsText())
+    }
+
+    @Test
     fun `a stranger's root outside the stream stays a 403, an owner's is a 400`() = testApplication {
         val a = importFixture("jcg4", keys = listOf("IMC"))
         val b = planWorld("jcg4b", teams = true)

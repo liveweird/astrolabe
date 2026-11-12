@@ -7,10 +7,10 @@ import kotlinx.serialization.json.JsonObject
 
 // The rooted import's browse (1.14): the read of what Jira lists UNDER one linked item, as the kernel's `ImportBrowse`. It calls Jira and
 // reads nothing of the plan: the root's identity (its issue id, the level of its plan node) comes from the caller's stored link, every
-// other id from Jira's own answers, and nothing of the request reaches a query but the filter's bounded day count. The token is only the
-// client's `Authorization` header; no log line, exception text or problem detail carries an endpoint, a key list or the upstream's text
-// (the `409` sentences name the plan node's level only). Not wired into a route yet: the preview and the apply will pick this over
-// `browseScope`.
+// other id from Jira's own answers; the request shapes a query only through the project keys it picked (a subset of the connection's own,
+// checked before) and the filter (`excludeDone` and a bounded day count). The token is only the client's `Authorization` header; no log
+// line, exception text or problem detail carries an endpoint, a key list or the upstream's text (the `409` sentences name the plan
+// node's level only). The preview and the apply pick this over `browseScope` when the scope has a root.
 
 /** `409` problem type: the linked Jira item a rooted import starts from cannot be used (gone, moved, another level, link changed). */
 internal const val JIRA_ROOT_UNUSABLE_PROBLEM = "urn:astrolabe:problem:jira-root-unusable"
@@ -52,6 +52,10 @@ internal class ChildBrowse(
  * verdict (the `409`, [JIRA_ROOT_UNUSABLE_PROBLEM]: deleted or not visible); any other failure leaves as the [FetchException] the route
  * answers `502` (a `403` is the account's scope, never a verdict on this issue). The document must be the id asked for, parse, have its
  * key inside [ChildBrowse.connectionKeys] and sit at the Jira level the mapping gives the root's plan level: each miss is the `409`.
+ *
+ * The whole browse shares ONE page budget ([MAX_SEARCH_PAGES], the whole-scope browse's own ceiling): the root read and every page of
+ * every round count against it, and the page past it is `LIMIT_EXCEEDED` (the route's `502`), so a site that ignores the parent clause
+ * and pages on stops at the budget, not at the deadline.
  *
  * Round one asks for the root's children at every mapped level below the root's; round two (a program root with the project level
  * mapped) asks for the leaf level under the projects round one held, ALL of them, in chunks of [CHILD_PARENT_CHUNK] ascending ids. The
@@ -96,6 +100,9 @@ private class ChildWalk(
     private val notAdmitted = HashSet<String>()
     private var truncated = false
 
+    /** The browse's one page budget: the root read and every page of every round. */
+    private val pages = newSearchCeiling()
+
     suspend fun run(): ImportBrowse {
         client.resolveCloudId()
         val rootIssue = readRoot()
@@ -123,6 +130,7 @@ private class ChildWalk(
 
     private suspend fun readRoot(): ImportBrowsedIssue {
         beforePage()
+        pages.next()
         val document = try {
             client.issue(root.issueId, observationFields(mapping))
         } catch (failure: FetchException) {
@@ -159,7 +167,7 @@ private class ChildWalk(
         val asked = parents.toSet()
         val held = ArrayList<ImportBrowsedIssue>()
         try {
-            searchPages(client, { jql }, observationFields(mapping), pageSize, beforePage, {}) { page ->
+            searchPages(client, { jql }, observationFields(mapping), pageSize, beforePage, {}, pages) { page ->
                 for (entry in page) {
                     val issue = (entry as? JsonObject)?.let { browsedIssue(it, mapping, discovery, now) } ?: continue
                     if (hold(issue, asked, levels)) held += issue

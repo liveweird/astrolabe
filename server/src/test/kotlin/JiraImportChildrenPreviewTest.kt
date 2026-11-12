@@ -7,6 +7,8 @@ import ch.nokillswit.jira.JiraImportInfo
 import ch.nokillswit.jira.JiraImportParentKind
 import ch.nokillswit.jira.JiraImportPreview
 import ch.nokillswit.jira.JiraImportReason
+import ch.nokillswit.jira.JiraImportRoot
+import ch.nokillswit.jira.JiraImportRootLevel
 import ch.nokillswit.jira.JiraLevel
 import com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor
 import com.github.tomakehurst.wiremock.client.WireMock.urlPathMatching
@@ -163,6 +165,51 @@ class JiraImportChildrenPreviewTest {
         assertEquals(HttpStatusCode.Forbidden, whole.status)
         assertTrue("work stream" in whole.jbProblem().detail.orEmpty())
     }
+
+    @Test
+    fun `an answered rooted preview leaves ONE jira_import_previewed line of ids, a refused one none, and no log line carries the token`() =
+        testApplication {
+            val f = importFixture("jcp5", keys = listOf("IMC"))
+            val root = f.linkProgram()
+            val owner = f.w.programOwner
+            val logs = LogCapture("ROOT")
+            try {
+                withAuditCapture { audit ->
+                    // The refusals first: a stranger (403) and an unlinked project root (409) leave no preview line.
+                    assertEquals(HttpStatusCode.Forbidden, f.w.stranger.client.preview(f.connectionId, f.scope(root = root)).status)
+                    val unlinked = JiraImportRoot(JiraImportRootLevel.PROJECT, f.w.projectId)
+                    assertEquals(HttpStatusCode.Conflict, f.w.admin.client.preview(f.connectionId, f.scope(root = unlinked)).status)
+                    assertTrue(audit.events.none { it.message == "jira.import_previewed" }, "a refused preview is not audited as a read")
+
+                    val preview = owner.client.preview(f.connectionId, f.scope(root = root)).previewBody()
+                    val lines = audit.events.filter { it.message == "jira.import_previewed" }
+                    val line = lines.single()
+                    assertTrue(line.hasKeyValue("byUserId", owner.userId.toLong()))
+                    assertTrue(line.hasKeyValue("connectionId", f.connectionId.toLong()))
+                    assertTrue(line.hasKeyValue("rootLevel", "PROGRAM"))
+                    assertTrue(line.hasKeyValue("rootNodeId", f.w.programId.toLong()))
+                    assertTrue(line.hasKeyValue("rows", preview.items.size))
+                    assertEquals(
+                        setOf("byUserId", "connectionId", "rootLevel", "rootNodeId", "rows"),
+                        line.keyValuePairs.orEmpty().map { it.key }.toSet(),
+                        "ids and a count: no key, name or summary",
+                    )
+                    val text = line.formattedMessage + line.keyValuePairs.orEmpty().joinToString { "${it.key}=${it.value}" }
+                    assertTrue(listOf("IMC", "Initiative", "Issue").none { it in text }, text)
+
+                    // The rooted apply logs its own line and still reads no Jira text into a log.
+                    owner.client.applyImport(f.connectionId, f.scope(root = root), preview.ticks()).applyBody()
+                    assertEquals(1, audit.events.count { it.message == "jira.import_applied" })
+                    assertEquals(1, audit.events.count { it.message == "jira.import_previewed" }, "the apply is not a preview")
+                }
+                val host = f.site.substringAfter("://")
+                val everything = logs.events.map { it.formattedMessage + it.keyValuePairs.orEmpty().joinToString { kv -> "${kv.value}" } }
+                assertTrue(everything.none { f.token in it }, "the token never reaches a log line")
+                assertTrue(everything.none { host in it }, "nor does the site's address")
+            } finally {
+                logs.detach()
+            }
+        }
 
     companion object {
         @JvmStatic

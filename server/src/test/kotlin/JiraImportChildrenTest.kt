@@ -7,6 +7,7 @@ import ch.nokillswit.jira.ChildBrowse
 import ch.nokillswit.jira.ImportBrowse
 import ch.nokillswit.jira.ImportRoot
 import ch.nokillswit.jira.ImportTree
+import ch.nokillswit.jira.IMPORT_TRUNCATED
 import ch.nokillswit.jira.JIRA_ROOT_UNUSABLE_PROBLEM
 import ch.nokillswit.jira.JiraAuthScheme
 import ch.nokillswit.jira.JiraBindContext
@@ -17,6 +18,7 @@ import ch.nokillswit.jira.JiraLevel
 import ch.nokillswit.jira.JiraLevelMapping
 import ch.nokillswit.jira.JiraMapping
 import ch.nokillswit.jira.JiraMappingState
+import ch.nokillswit.jira.ROOTED_IMPORT_TRUNCATED
 import ch.nokillswit.jira.JiraTestTarget
 import ch.nokillswit.jira.StoredMapping
 import ch.nokillswit.jira.browseChildren
@@ -305,6 +307,28 @@ class JiraImportChildrenTest {
         )
         assertTrue(second.truncated, "a cap passed in round two truncates too")
         assertEquals(listOf(1, 2, 5).map { id(it) }, ids(second))
+    }
+
+    @Test
+    fun `the root read and every page of every round share ONE budget of 200 requests, so a site that pages on stops at it`() {
+        // Round one: 149 empty pages that each name a next page, then the page that holds the one project (150 searches). Round two
+        // (`parent in (99002)`): pages without end. The budget is 200 requests in all, the root read included: 199 searches, then the
+        // refusal - a site that ignored the parent clause is stopped by the budget, never by the 170-second deadline.
+        val round1 = (0 until 149).map { searchPage(next = "a$it") } + searchPage(doc(2, 2, 1))
+        val round2 = (0 until 300).map { searchPage(next = "b$it") }
+        val site = ScriptedSite(*(round1 + round2).toTypedArray(), issues = rootIssues(1 to doc(1, 3)))
+        val failure = assertFailsWith<FetchException> { browse(site, deadlineMillis = 120_000) }
+        assertEquals("LIMIT_EXCEEDED", failure.code)
+        assertEquals(listOf(id(1)), site.issueReads, "the root was read once")
+        assertEquals(199, site.searches.size, "200 requests in all, the root read counting as the first")
+        assertEquals(id(2), jql(site, 150).orEmpty().substringAfter("parent in (").substringBefore(")"), "the stop came inside round two")
+    }
+
+    @Test
+    fun `a rooted apply that truncates names the filter and a deeper root, never projectKeys or parents read one by one`() {
+        assertTrue("narrow projectKeys" in IMPORT_TRUNCATED)
+        assertTrue("projectKeys" !in ROOTED_IMPORT_TRUNCATED && "one by one" !in ROOTED_IMPORT_TRUNCATED, ROOTED_IMPORT_TRUNCATED)
+        assertTrue("filter" in ROOTED_IMPORT_TRUNCATED && "2000" in ROOTED_IMPORT_TRUNCATED, ROOTED_IMPORT_TRUNCATED)
     }
 
     @Test

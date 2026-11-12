@@ -58,7 +58,8 @@ class JiraImportApplyRoute(val parent: JiraConnectionsRoute.Id)
  * the answer) -> the guard on the RESOLVED targets (`403`, naming the first one the caller does not own) -> `200`. The picked work
  * stream is a target only when a program would be created (a program owner may import under their program), so it is guarded there,
  * not up front; a caller who owns neither it, any target nor any node of its tree is refused too. It stores nothing and audits
- * nothing (a read; a `403` is the central `authz.denied`).
+ * nothing (a read; a `403` is the central `authz.denied`) - except a ROOTED preview that is answered, which audits
+ * `jira.import_previewed` (ids and the row count) because it reads a whole subtree's text for a login that linked the root itself.
  * The caller's team-schedule rights decide `canSchedule`, never a refusal.
  *
  * **The apply** runs the SAME steps through the browse (same codes; the items' shape and every `overrides.teamId` join the `400`s, and a
@@ -101,6 +102,9 @@ internal fun Route.jiraImportRoutes(
             } ?: whole
             val items = plan.rows.map { it.item }
             requireResolvedTargets(caller, admitted.personId, items, read, guardedByName = admitted.named.isNotEmpty())
+            // A rooted preview reads the text of everything under one linked item: the one preview that leaves a trace (ids only), so a
+            // bind, a rooted preview and an unbind cannot read a subtree unseen. A refused preview (any status above) emits nothing.
+            admitted.root?.let { auditRootedPreview(caller, route.parent.id, it, items.size) }
             // A non-admin sees skipped rows without Jira's text, and under an active filter without their keys (see redactForNonAdmin);
             // an ADMIN sees everything.
             val shown =
@@ -217,6 +221,18 @@ private suspend fun RoutingContext.browseOrBadGateway(
     // The code only: the exception's text names an endpoint; nothing of the upstream body or the credentials reaches a client.
     call.respondProblem(HttpStatusCode.BadGateway, "Jira did not answer (${failure.code})", type = JIRA_UPSTREAM_PROBLEM)
     null
+}
+
+/** `jira.import_previewed`: a rooted preview that was answered. Ids and a count only - never a key, a name or a summary. */
+private fun auditRootedPreview(caller: CallerPrincipal, connectionId: UInt, root: ImportRoot, rows: Int) {
+    audit(
+        "jira.import_previewed",
+        "byUserId" to caller.userId.toLong(),
+        "connectionId" to connectionId.toLong(),
+        "rootLevel" to root.level.name,
+        "rootNodeId" to root.nodeId.toLong(),
+        "rows" to rows,
+    )
 }
 
 /** After the commit (a line inside the transaction could describe a rollback): the released holders first, as the bind does. */

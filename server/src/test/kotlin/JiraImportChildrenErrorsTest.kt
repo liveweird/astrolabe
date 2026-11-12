@@ -1,5 +1,7 @@
 package ch.nokillswit
 
+import ch.nokillswit.jira.JiraImportDefaults
+import ch.nokillswit.jira.JiraLevel
 import com.github.tomakehurst.wiremock.client.MappingBuilder
 import com.github.tomakehurst.wiremock.client.WireMock.aResponse
 import com.github.tomakehurst.wiremock.client.WireMock.get
@@ -25,8 +27,9 @@ import kotlin.test.assertTrue
 /**
  * The rooted import's refusals (1.14): the `400`s of the request, the five causes of `409 urn:astrolabe:problem:jira-root-unusable`
  * (no link, a link through another connection of the site, and, through stub overrides, a by-id `404`, another id, a key outside the
- * connection's projects and another level), the `502` (a root the stub cannot list under) and the bucket's `429`. A `409` of the root's
- * read never asks Jira for a listing. Each caller makes at most five calls a minute.
+ * connection's projects and another level), the `502` (a root the stub cannot list under) and the bucket's `429`, and the `400`s of the
+ * defaults a root allows (the request cannot steer a row out of the root's subtree). A `409` of the root's read never asks Jira for a
+ * listing. Each caller makes at most five calls a minute.
  */
 class JiraImportChildrenErrorsTest {
     private val unusable = "urn:astrolabe:problem:jira-root-unusable"
@@ -155,6 +158,62 @@ class JiraImportChildrenErrorsTest {
         val problem = jbJson.decodeFromString<ch.nokillswit.plugins.ProblemDetail>(text)
         assertEquals("Jira did not answer (AUTHENTICATION_FAILED)", problem.detail)
         assertTrue(f.token !in text && "IMC-11" !in text && "99011" !in text, text)
+    }
+
+    private suspend fun HttpResponse.assertBadRequest(label: String, detail: String) {
+        val text = bodyAsText()
+        assertEquals(HttpStatusCode.BadRequest, status, "$label: $text")
+        assertTrue(detail in jbProblem().detail.orEmpty(), "$label: $text")
+    }
+
+    @Test
+    fun `with a program root defaults_programId and a project outside the root program are 400s, the 404 and the 403 come first`() =
+        testApplication {
+            val f = importFixture("jce6", keys = listOf("IMC"))
+            val root = f.linkProgram()
+            // A project of ANOTHER program of the same stream: under the stream, so only the root rule refuses it.
+            val elsewhere = TestPlan.program(f.w.streamId, f.w.stranger.personId!!)
+            val foreign = TestPlan.project(elsewhere, f.w.stranger.personId!!)
+            val admin = f.w.admin.client
+            val withProgram = JiraImportDefaults(programId = f.w.programId, teamId = f.defaultTeam)
+            admin.preview(f.connectionId, f.scope(withProgram, root = root))
+                .assertBadRequest("a default program", "defaults.programId cannot be combined with a root")
+            admin.preview(f.connectionId, f.scope(JiraImportDefaults(projectId = foreign), root = root))
+                .assertBadRequest("a foreign project", "defaults.projectId is not a project of the root program")
+            // The apply refuses the same requests (before any browse or write), on the same words.
+            val tick = listOf(createTick(imcId(2), JiraLevel.PROJECT, imcId(1)))
+            admin.applyImport(f.connectionId, f.scope(JiraImportDefaults(projectId = foreign), root = root), tick)
+                .assertBadRequest("apply, a foreign project", "not a project of the root program")
+            // The root's owner does not own the foreign project: the guard on the named default is a 403, before the 400 ...
+            val owner = f.w.programOwner.client
+            val denied = owner.preview(f.connectionId, f.scope(JiraImportDefaults(projectId = foreign), root = root))
+            assertEquals(HttpStatusCode.Forbidden, denied.status, denied.bodyAsText())
+            // ... and a project nothing has is a 404 before either.
+            val missing = owner.preview(f.connectionId, f.scope(JiraImportDefaults(projectId = 999_999u), root = root))
+            assertEquals(HttpStatusCode.NotFound, missing.status, missing.bodyAsText())
+            // A stranger is refused by the root's guard, whatever the defaults say.
+            val stranger = f.w.stranger.client.preview(f.connectionId, f.scope(withProgram, root = root))
+            assertEquals(HttpStatusCode.Forbidden, stranger.status, stranger.bodyAsText())
+        }
+
+    @Test
+    fun `a project root takes neither defaults_programId nor defaults_projectId, and nothing was read from Jira`() = testApplication {
+        val f = importFixture("jce7", keys = listOf("IMC"))
+        val root = f.linkProject()
+        val owner = f.w.projectOwner.client
+        JiraStubServer.resetRequests()
+        // The project's owner does not own the program (the guard on a named default would be a 403): the stream's owner does.
+        f.w.streamOwner.client.preview(f.connectionId, f.scope(JiraImportDefaults(programId = f.w.programId), root = root))
+            .assertBadRequest("a default program", "defaults.programId cannot be combined with a root")
+        owner.preview(f.connectionId, f.scope(JiraImportDefaults(projectId = f.w.projectId), root = root))
+            .assertBadRequest("the root's own project as a default", "defaults.projectId cannot be combined with a project root")
+        val tick = listOf(createTick(imcId(5), JiraLevel.MILESTONE, imcId(2)))
+        owner.applyImport(f.connectionId, f.scope(JiraImportDefaults(projectId = f.w.projectId), root = root), tick)
+            .assertBadRequest("apply", "cannot be combined with a project root")
+        assertEquals(emptyList(), stubSearches(), "a 400 of the shape is answered before the browse")
+        // Without those defaults the same caller previews fine.
+        val plain = owner.preview(f.connectionId, f.scope(JiraImportDefaults(teamId = f.defaultTeam), root = root))
+        assertEquals(HttpStatusCode.OK, plain.status)
     }
 
     companion object {

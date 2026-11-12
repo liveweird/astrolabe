@@ -1,7 +1,12 @@
 package ch.nokillswit
 
 import ch.nokillswit.jira.JiraImportAction
+import ch.nokillswit.jira.JiraImportDefaults
+import ch.nokillswit.jira.JiraImportFilter
+import ch.nokillswit.jira.JiraImportOverrides
 import ch.nokillswit.jira.JiraImportReason
+import ch.nokillswit.jira.JiraImportRoot
+import ch.nokillswit.jira.JiraImportRootLevel
 import ch.nokillswit.jira.JiraLevel
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
@@ -17,7 +22,10 @@ import kotlin.test.assertTrue
  * The rooted apply (1.14) against the stub's `IMC` project: the program's owner writes the root's descendants under the root's own node
  * in ONE plan write (no program is created), a re-import is all `ALREADY_BOUND`, an id outside the root's subtree is `CHANGED` with no
  * key, a root unlinked or an owner revoked while the request waits for the plan lock leaves nothing written, and a project root creates
- * its milestones unscheduled for a caller who manages no team. No global program name is created, so nothing is cleaned up.
+ * its milestones unscheduled for a caller who manages no team. The under-lock root re-guard is pinned by a caller whose only ticks are
+ * `ALREADY_BOUND` rows and who still owns another node of the tree after losing the root; ticking the root's own id is one
+ * `ALREADY_BOUND` skip; a non-admin under a filter cannot write what the same-scope preview redacts; no refusal audits an apply.
+ * No global program name is created, so nothing is cleaned up.
  */
 class JiraImportChildrenApplyTest {
     private fun count(sql: String, vararg params: Any) = jbScalar(sql, *params) { it.getInt(1) }
@@ -137,6 +145,113 @@ class JiraImportChildrenApplyTest {
         val under = "SELECT count(*) FROM milestones WHERE project_id = ? AND NOT marked_as_deleted"
         assertEquals(3, count(under, f.w.projectId.toInt()))
         assertNull(result.skipped.firstOrNull())
+    }
+
+    @Test
+    fun `a caller who loses the root while the apply waits is a 403 although every tick is ALREADY_BOUND and they own another node`() =
+        testApplication {
+            val f = importFixture("jca6", keys = listOf("IMC"))
+            val root = f.linkProgram()
+            val owner = f.w.programOwner
+            val scope = f.scope(root = root)
+            // The caller owns a project of the program too: once the program changes hands that is still a node of the tree, so the
+            // "owns something of the stream" proof and the guards on skipped rows would pass - only the re-guard of the ROOT refuses.
+            TestPlan.project(f.w.programId, owner.personId!!)
+            val admin = f.w.admin.client
+            admin.applyImport(f.connectionId, scope, admin.preview(f.connectionId, scope).previewBody().ticks()).applyBody()
+            val rows = owner.client.preview(f.connectionId, scope).previewBody().items
+            val linked = rows.filter { it.reason == JiraImportReason.ALREADY_BOUND }
+            assertEquals(8, linked.size, "everything under the root is linked now")
+            val stale = linked.map { createTick(it.jiraId, it.level, it.parentJiraId) }
+            val before = TestPlan.revision()
+            val bindings = activeBindingCount(f.connectionId)
+            val response = requestHeldAtPlanLock({ owner.client.applyImport(f.connectionId, scope, stale) }) { raw ->
+                raw.exec("UPDATE programs SET owner_person_id = ? WHERE id = ?", f.w.stranger.personId!!.toInt(), f.w.programId.toInt())
+            }
+            assertEquals(HttpStatusCode.Forbidden, response.status, response.bodyAsText())
+            assertEquals(before, TestPlan.revision(), "no bump")
+            assertEquals(bindings, activeBindingCount(f.connectionId))
+        }
+
+    @Test
+    fun `ticking the root's own id as a CREATE is one ALREADY_BOUND skip and creates no program, also under a filter for its owner`() =
+        testApplication {
+            val f = importFixture("jca7", keys = listOf("IMC"))
+            val root = f.linkProgram()
+            val tick = listOf(createTick(imcId(1), JiraLevel.PROGRAM))
+            val streamPrograms = "SELECT count(*) FROM programs WHERE work_stream_id = ? AND NOT marked_as_deleted"
+            val before = count(streamPrograms, f.w.streamId.toInt())
+            val filter = JiraImportFilter(excludeDone = true, updatedWithinDays = 365)
+            val callers = listOf(
+                Triple("admin", f.w.admin, null),
+                Triple("owner", f.w.programOwner, null),
+                Triple("owner, filtered", f.w.programOwner, filter),
+            )
+            for ((name, caller, narrowed) in callers) {
+                val result = caller.client.applyImport(f.connectionId, f.scope(filter = narrowed, root = root), tick).applyBody()
+                assertTrue(result.created.isEmpty() && result.bound.isEmpty(), name)
+                val skipped = result.skipped.single()
+                val answer = listOf(skipped.jiraId, skipped.issueKey, skipped.reason)
+                assertEquals(listOf(imcId(1), "IMC-1", JiraImportReason.ALREADY_BOUND), answer, name)
+            }
+            assertEquals(before, count(streamPrograms, f.w.streamId.toInt()), "no program was created")
+            assertEquals(1, activeBindingCount(f.connectionId), "and no second link")
+        }
+
+    @Test
+    fun `a non-admin's rooted apply under a filter answers what the preview redacts as a keyless CHANGED, an override changes nothing`() =
+        testApplication {
+            val f = importFixture("jca8", keys = listOf("IMC"))
+            val root = f.linkProgram()
+            // No default team: a milestone whose Jira team matches nothing is NO_TEAM, which the non-admin's filtered preview redacts.
+            val filter = JiraImportFilter(excludeDone = true, updatedWithinDays = 365)
+            val scope = f.scope(JiraImportDefaults(projectId = f.w.projectId), filter = filter, root = root)
+            val all = f.w.admin.client.preview(f.connectionId, scope).previewBody().items
+            val hidden = all.filter { it.reason == JiraImportReason.NO_TEAM }
+            assertTrue(hidden.isNotEmpty(), "the scope has rows only a team could turn into a CREATE")
+            val ticks = hidden.map {
+                createTick(it.jiraId, it.level, it.parentJiraId).copy(overrides = JiraImportOverrides(f.defaultTeam))
+            }
+            val before = TestPlan.revision()
+            val response = f.w.programOwner.client.applyImport(f.connectionId, scope, ticks)
+            val text = response.bodyAsText()
+            assertEquals(HttpStatusCode.OK, response.status, text)
+            val result = jbJson.decodeFromString<ch.nokillswit.jira.JiraImportResult>(text)
+            assertTrue(result.created.isEmpty() && result.bound.isEmpty(), text)
+            val answer = result.skipped.map { Triple(it.jiraId, it.issueKey, it.reason) }
+            assertEquals(hidden.map { Triple(it.jiraId, null, JiraImportReason.CHANGED) }, answer)
+            assertTrue(Regex("IMC-[0-9]+").findAll(text).none(), "no key of a redacted row: $text")
+            val milestones = "SELECT count(*) FROM milestones WHERE project_id = ? AND NOT marked_as_deleted"
+            assertEquals(0, count(milestones, f.w.projectId.toInt()), "the override wrote nothing")
+            assertEquals(before + 1, TestPlan.revision(), "the apply itself still bumps once")
+        }
+
+    @Test
+    fun `no refusal of a rooted apply audits an apply or writes anything`() = testApplication {
+        val f = importFixture("jca9", keys = listOf("IMC"))
+        val root = f.linkProgram()
+        val scope = f.scope(root = root)
+        val ticks = listOf(createTick(imcId(2), JiraLevel.PROJECT, imcId(1)))
+        val before = TestPlan.revision()
+        val absent = JiraImportRoot(JiraImportRootLevel.PROGRAM, 999_999u)
+        withAuditCapture { audit ->
+            val refused = listOf(
+                HttpStatusCode.Forbidden to f.w.stranger.client.applyImport(f.connectionId, scope, ticks),
+                HttpStatusCode.NotFound to f.w.personless.client.applyImport(f.connectionId, f.scope(root = absent), ticks),
+                HttpStatusCode.BadRequest to f.w.admin.client.applyImport(
+                    f.connectionId, f.scope(JiraImportDefaults(programId = f.w.programId), root = root), ticks,
+                ),
+            )
+            refused.forEach { (status, response) -> assertEquals(status, response.status, response.bodyAsText()) }
+            jbSql("UPDATE jira_bindings SET marked_as_deleted = TRUE WHERE connection_id = ?", f.connectionId.toInt())
+            val unlinked = f.w.admin.client.applyImport(f.connectionId, scope, ticks)
+            assertEquals(HttpStatusCode.Conflict, unlinked.status, unlinked.bodyAsText())
+            val lines = audit.events.map { it.message.orEmpty() }
+            val writes = setOf("jira.import_applied", "jira.binding_released", "jira.import_previewed")
+            assertTrue(lines.none { it in writes }, "$lines")
+        }
+        assertEquals(before, TestPlan.revision())
+        assertEquals(1, count("SELECT count(*) FROM projects WHERE program_id = ? AND NOT marked_as_deleted", f.w.programId.toInt()))
     }
 
     companion object {

@@ -9,10 +9,14 @@ private const val SEARCH_ENDPOINT = "/rest/api/3/search/jql"
 
 /**
  * The search pages ONE read may follow (200 x `jira.pageSize` issues); more is `LIMIT_EXCEEDED`, never a silent truncation. It is per
- * read, not per run: the read and the sweep each get their own 200.
+ * read, not per run: the read and the sweep each get their own 200. A caller that makes several queries ONE read (the rooted import's
+ * rounds, 1.14) passes one [newSearchCeiling] to all of them, so the 200 is shared.
  */
-private const val MAX_SEARCH_PAGES = 200
+internal const val MAX_SEARCH_PAGES = 200
 private const val CURSOR_EXPIRED = "CURSOR_EXPIRED"
+
+/** A fresh page counter of [MAX_SEARCH_PAGES]: the default of [searchPages], one per query; shared when several queries are one read. */
+internal fun newSearchCeiling() = PageCeiling(JIRA_SOURCE, SEARCH_ENDPOINT, MAX_SEARCH_PAGES)
 
 /**
  * Pages through `search/jql` for [jql]/[fields] and hands each page's issues to [onPage]; shared by the sync run and the import. Bounded
@@ -23,7 +27,8 @@ private const val CURSOR_EXPIRED = "CURSOR_EXPIRED"
  * page: the sweep would otherwise read it as "nothing is in scope" and flag every bound issue.
  *
  * [beforePage] runs before EVERY page (the run's per-page stop: its connection deleted or disabled), [onRequest] once per search request
- * actually sent (the run's call tally; not for a page the ceiling refused).
+ * actually sent (the run's call tally; not for a page the ceiling refused). [ceiling] counts the pages: one of its own per call unless
+ * the caller shares one across queries.
  */
 internal suspend fun searchPages(
     client: JiraClient,
@@ -32,9 +37,9 @@ internal suspend fun searchPages(
     pageSize: Int,
     beforePage: suspend () -> Unit,
     onRequest: () -> Unit,
+    ceiling: PageCeiling = newSearchCeiling(),
     onPage: suspend (JsonArray) -> Unit,
 ) {
-    val ceiling = PageCeiling(JIRA_SOURCE, SEARCH_ENDPOINT, MAX_SEARCH_PAGES)
     val tokens = PageTokenGuard(JIRA_SOURCE, SEARCH_ENDPOINT)
     var token: String? = null
     var restarted = false

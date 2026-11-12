@@ -353,7 +353,7 @@ class JiraObserver internal constructor(
         fields: String,
         progress: RunProgress,
         onPage: suspend (JsonArray) -> Unit,
-    ) = searchPages(client, jql, fields, connector.pageSize, { progress.beforePage() }, { progress.calls++ }, onPage)
+    ) = searchPages(client, jql, fields, connector.pageSize, { progress.beforePage() }, { progress.calls++ }, onPage = onPage)
 
     /** The latest instant the connection's reading inputs changed: its last edit or its last real mapping change. */
     private fun changedAt(context: JiraBindContext): Long = maxOf(context.target.expectedUpdatedAt ?: 0L, context.mappingChangedAt ?: 0L)

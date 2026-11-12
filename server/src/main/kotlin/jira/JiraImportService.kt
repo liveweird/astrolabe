@@ -72,7 +72,7 @@ class JiraImportService(
     internal suspend fun apply(ctx: ApplyContext): ImportOutcome {
         // The route validated these too; the service never trusts its caller for a client bug (conventions.md).
         validateApplyItems(ctx.request.items)
-        if (ctx.browse.truncated) throw BadRequestException(IMPORT_TRUNCATED)
+        if (ctx.browse.truncated) throw BadRequestException(if (ctx.root != null) ROOTED_IMPORT_TRUNCATED else IMPORT_TRUNCATED)
         val write = database.withPlanWrite { revision -> LockedApply(this, teams, bindingService, ctx, revision).run() }
         val written = write.value
         return ImportOutcome(JiraImportResult(write.revision, written.created, written.bound, written.skipped), written.released)
@@ -121,9 +121,9 @@ class JiraImportService(
 
     /**
      * The request's shape rules that need rows, after the guards (`400`): the owner an ACTIVE person, `defaults.teamId` and every
-     * apply item's `overrides.teamId` ([overrideTeamIds]) an active team,
-     * `defaults.programId` / `defaults.projectId` under the picked work stream. Plain reads, no lock (the preview writes nothing; an
-     * apply re-checks under its own locks).
+     * apply item's `overrides.teamId` ([overrideTeamIds]) an active team, `defaults.programId` / `defaults.projectId` under the picked
+     * work stream (and, with a root, [requireDefaultsUnderRoot]). Plain reads, no lock (the preview writes nothing; an apply re-checks
+     * under its own locks).
      */
     suspend fun requireShape(scope: JiraImportScope, overrideTeamIds: Collection<UInt> = emptyList()): Unit = suspendTransaction(database) {
         val people = PersonService.People
@@ -161,7 +161,25 @@ class JiraImportService(
                 projectUnder(root.nodeId, scope.workStreamId)
             }
             if (!under) throw BadRequestException("root is not a ${root.level.name.lowercase()} of the picked work stream")
+            requireDefaultsUnderRoot(scope.defaults, root)
         }
+    }
+
+    /**
+     * A rooted import lands under the root's own node, so the defaults the request can steer there are limited (`400`, after the guards
+     * and the stream rule): no `defaults.programId` (a rooted import creates no program, and its orphans have no program to fall under), no
+     * `defaults.projectId` under a project root (every milestone lands under the root), and under a program root only a project OF that
+     * program. (The planner's re-homing of a child linked to a project of another program of the stream is the documented rough edge.)
+     */
+    private suspend fun requireDefaultsUnderRoot(defaults: JiraImportDefaults?, root: JiraImportRoot) {
+        if (defaults?.programId != null) throw BadRequestException("defaults.programId cannot be combined with a root")
+        val projectId = defaults?.projectId ?: return
+        if (root.level == JiraImportRootLevel.PROJECT) {
+            throw BadRequestException("defaults.projectId cannot be combined with a project root")
+        }
+        val ofRoot = projects.select(projects.id)
+            .where { (projects.id eq projectId) and (projects.programId eq root.nodeId) and projects.active() }.toList().isNotEmpty()
+        if (!ofRoot) throw BadRequestException("defaults.projectId is not a project of the root program")
     }
 
     /** Whether the ACTIVE program [id] belongs to work stream [workStreamId] (the defaults' and the root's shape rule). */
