@@ -243,5 +243,11 @@ export function toApplyRequest(scope: JiraImportScope, items: readonly JiraImpor
 }
 
 /** The connections the Plan page offers the import: enabled, with a mapping that fits the site (otherwise the server answers 409 `jira-mapping-invalid`). */
-export const usableImportConnections = (connections: readonly (ImportConnection & { enabled: boolean; mappingOk: boolean })[]): ImportConnection[] =>
-  connections.filter((connection) => connection.enabled && connection.mappingOk);
+type OfferedConnection = ImportConnection & { enabled: boolean; mappingOk: boolean };
+const usableImportConnections = (connections: readonly OfferedConnection[]): ImportConnection[] => connections.filter((connection) => connection.enabled && connection.mappingOk);
+
+/** A deviations-view connections read (`useJiraConnections`, `useJiraProgramLinks`) as the import modal's source: only the usable connections are offered. */
+export const importSourceOf = (read: { connections: readonly OfferedConnection[] | null; failed: boolean; retry: () => void }): ImportSource => ({
+  ...read,
+  connections: read.connections === null ? null : usableImportConnections(read.connections),
+});

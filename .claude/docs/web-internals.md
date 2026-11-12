@@ -441,7 +441,7 @@ The first Timeline page (lazy). Files: `api/milestones.ts` (`getProjectView`, `c
 `ProjectTray` for the Unscheduled tray), `MilestoneEditorModal`, `MilestoneScheduleModal`, `TeamSelect` (a `SearchPicker` over `GET /teams`). `ProjectView` is
 `<ProjectPage key={id}>` so another project starts with its own range and editors. `ProjectPage` composes child components (1.6 split, `complexity` 35):
 `ProjectPageHeader` (name, meta lines, the `can`-gated actions), `ProjectViewNotices` (notes, inline write failures, the polite status region), `ProjectEditors`
-(the dialogs for the open `editor`; the union and `isJiraEditor` in `utils/projectEditor.ts`), `TimelineTitle` and `UnscheduledTraySection` (shared with the
+(the dialogs for the open `editor`; the union, `isJiraEditor` and `needsJiraConnections` in `utils/projectEditor.ts`), `TimelineTitle` and `UnscheduledTraySection` (shared with the
 team page) and `utils/seenRange.ts` `growSeenRange` (the remembered range only grows). The team page has the same shape: `TeamPageHeader`, `TeamViewNotices`,
 `TeamResetConfirm` and `TeamFlowSection`. (Files: `components/ProjectPageHeader.tsx`, `ProjectViewNotices.tsx`, `ProjectEditors.tsx`, `TimelineTitle.tsx`,
 `UnscheduledTraySection.tsx`; the team page's `TeamPageHeader.tsx`, `TeamViewNotices.tsx`, `TeamResetConfirm.tsx`, `TeamFlowSection.tsx`.) A split moves markup,
@@ -454,7 +454,8 @@ project runs later than its target, gray when ahead, nothing red). **Everything 
 chain's `can.edit`/`can.delete`/`createMilestone` give the plan-field editors (`MilestoneEditorModal`: name, description, `TeamSelect`, an estimate
 `NumberInput` step 0.25, **no dates for anyone** — a new milestone is always unscheduled), and ONLY a milestone's `can.schedule` (its team's manager or an
 ADMIN) makes its bar editable, shows its Schedule button and drag handle and its schedule menu items — the project's own owner reads read-only bars
-(`role="img"`, no handles). **One write path for dates**, `hooks/useMilestoneSchedule.ts` (a thin wrapper of the generic `hooks/useScheduleWritePath.ts`, which
+(`role="img"`, no handles). **Import from Jira… (1.14)**: a header button (`ProjectJiraImportButton`, `components/JiraChips.tsx`, beside Link/Unlink) shown with the project's `can.createMilestone` AND only while the view says the project is linked (`marks`, not a request); `Editor` gains `{kind: "jiraImport"}`, `needsJiraConnections(editor)` enables `useJiraLinks` for it as for the bind dialog (so the connections are asked only after the click), and `ProjectEditors` mounts `JiraImportModal` rooted at the project (`ImportRoot` built from the view: `project.jira`, `workStreamId`, `ownerPersonId/ownerName`; level PROJECT, so no owner field: the project's owner is sent) through `importSourceOf(links)` (`utils/jiraImport.ts`, shared with the Plan page). An apply refreshes `["plan"]` (this view included). Tests: `pages/ProjectView.jiraImport.test.tsx`.
+**One write path for dates**, `hooks/useMilestoneSchedule.ts` (a thin wrapper of the generic `hooks/useScheduleWritePath.ts`, which
 the team page runs too; the `useRoadmapRanking` shape): a drag, a resize, the tray's Schedule, "Edit schedule…" (`MilestoneScheduleModal`) and Unschedule all
 `commit(id, start, end)` — optimistic (`utils/projectViewUpdate.ts` `applySchedule`), the PUT carries the view's `revision`, success adopts the revision the PUT
 answers, any failure rolls back and AWAITS the refetch; a stale-revision 409 (THIS milestone moved) shows `project.stale`, 403/400/other an inline alert, never
@@ -1057,7 +1058,7 @@ step opens with `JiraImportConnectionField` (loading text / a failed alert with 
 `jira.bind.connection|loading|loadFailed|retry`); the modal preselects exactly one, and changing the connection resets the Jira-project keys to the new one's (the rest of the
 form stays). `useJiraImport(connectionId | null)` does nothing while null and Preview is disabled until a connection is chosen. `initialWorkStreamId` presets the stream
 (`emptyScope(keys, workStreamId)`) and the stream Select is `readOnly`. The connection of the preview and outcome phases is kept even if a later refetch drops it.
-**The Plan page's entries** (three entry points since 1.14: the connection page, the work stream's menu, a linked program's menu). The stream's (`PlanActions.importFromJira`, `PlanWorkStreamSection`): a `Menu.Item` "Import from Jira…" (aria "Import from Jira into {name}") under `can.edit`, after
+**The Plan page's entries** (four entry points since 1.14: the connection page, the work stream's menu, a linked program's menu, a linked project's page header - "Project view"). The stream's (`PlanActions.importFromJira`, `PlanWorkStreamSection`): a `Menu.Item` "Import from Jira…" (aria "Import from Jira into {name}") under `can.edit`, after
 Close/Reopen. `hooks/usePlanJiraImport.ts` holds the page's import state (`importing`: a stream OR a program with its link; `Plan.tsx` calls `useDialogFocus(jiraImport.modal !== null)`) and reads the connections with
 `useJiraConnections({workStreamId}, importing is a stream)` (`hooks/useDeviations.ts`, key `["jira","deviations","connections",filter]`; `useJiraLinks` is its one-line
 project wrapper) - the request appears only after the click. After an apply the plan page shows the imported tree (the hook refreshes `["jira"]`, `["plan"]`, `["roadmap"]`).
@@ -1647,7 +1648,7 @@ hand, descending dates, the tag and the GitHub release, which PRs bump the versi
 touches the Jira pages carries the line "Proven against a built-in Jira stub; not yet tested against a real Jira site." (PL: "Sprawdzone na wbudowanej atrapie
 Jiry; jeszcze nie przetestowane na prawdziwej witrynie Jira."); nothing on these pages promises polling or Flow before it ships. The import (1.2) is shipped and
 carries the same caveat; its release note and its pages say that a name renamed in Jira previews as a new item, that an existing plan item is never overwritten
-and that dates are copied only where the caller manages the team, and must not claim more (an owner's entry points only on the Plan page's work-stream menu (1.10) and, from 1.14, a linked program's menu, no target windows, no matching of renamed
+and that dates are copied only where the caller manages the team, and must not claim more (an owner's entry points only on the Plan page's work-stream menu (1.10) and, from 1.14, a linked program's menu and a linked project's page, no target windows, no matching of renamed
 items). **Flow (1.5, 1.6):** until a real Flow has been compared (`flow-sync.md` "First real-Flow walk-through" and its ledger), every changelog entry and
 release note that touches the Flow pages or the capacity deviation carries the same kind of line - "Proven against the built-in Flow stub; not yet compared with
 a real Flow." (PL: "Sprawdzone na wbudowanej atrapie Flow; jeszcze nie porównane z prawdziwym Flow.") - and the Deviations section and the team page's line

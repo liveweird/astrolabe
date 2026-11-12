@@ -44,7 +44,7 @@ import { localIsoDate } from "../utils/isoDate";
 import { jiraPageRange } from "../utils/jiraBars";
 import { markKey, projectMarks, type JiraMark, type JiraMarks } from "../utils/jiraMarks";
 import { planPath } from "../utils/planLinks";
-import { isJiraEditor, type Editor } from "../utils/projectEditor";
+import { needsJiraConnections, type Editor } from "../utils/projectEditor";
 import { growSeenRange, type SeenRange } from "../utils/seenRange";
 import { conflictCount, linksOfMilestone } from "../utils/projectDependencies";
 import { refreshJiraAndTimelines, refreshQueriesAfterMutation } from "../utils/queryRefresh";
@@ -135,8 +135,8 @@ function ProjectPage({ id }: { id: number }) {
   // The critical-path highlight (v0.7), remembered like the zoom: the Slack column, the bar and arrow emphasis, the badges and the Critical chain section.
   const { shown: criticalPath, setShown: setCriticalPath } = useCriticalPathPick();
   const [editor, setEditor] = useState<Editor | null>(null);
-  // What is linked comes from the view itself; the bind dialog alone needs the connections to offer, asked while it is open.
-  const links = useJiraLinks(id, isJiraEditor(editor));
+  // What is linked comes from the view itself; the bind and the import dialogs alone need the connections to offer, asked while one is open.
+  const links = useJiraLinks(id, needsJiraConnections(editor));
   const [scheduling, setScheduling] = useState<Scheduling | null>(null);
   useDialogFocus(editor !== null);
   useDialogFocus(scheduling !== null);
@@ -275,6 +275,7 @@ function ProjectPage({ id }: { id: number }) {
         onNewMilestone={() => setEditor({ kind: "create" })}
         onEdit={() => setEditor({ kind: "project" })}
         onLinkJira={() => setEditor({ kind: "jira", target: { level: "PROJECT", id: project.id, name: project.name } })}
+        onImportJira={() => setEditor({ kind: "jiraImport" })}
         onUnlinkJira={(mark) => requestUnlink(mark, project.name)}
         onDelete={() => removeProject.requestDelete({ id: project.id, name: project.name, milestones: milestoneCount, links: view.dependencies.length })}
       />

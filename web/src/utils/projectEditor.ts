@@ -12,7 +12,11 @@ export type Editor =
   | { kind: "project" }
   | { kind: "dependency"; successor: EndpointRef | null }
   | { kind: "editDependency"; dependency: ProjectDependency }
-  | { kind: "jira"; target: BindTarget };
+  | { kind: "jira"; target: BindTarget }
+  | { kind: "jiraImport" };
 
 /** The bind dialog is open (the connections it offers are asked for only then). */
 export const isJiraEditor = (editor: Editor | null): editor is Extract<Editor, { kind: "jira" }> => editor?.kind === "jira";
+
+/** A Jira dialog is open, the bind dialog or the import rooted at the project (1.14): either one asks for the connections it offers, and only then. */
+export const needsJiraConnections = (editor: Editor | null): boolean => editor?.kind === "jira" || editor?.kind === "jiraImport";

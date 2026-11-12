@@ -1,8 +1,10 @@
 import type { ProjectView as ProjectViewDocument } from "../api/milestones";
 import type { useJiraLinks } from "../hooks/useDeviations";
+import { importSourceOf, type ImportRoot } from "../utils/jiraImport";
 import { isJiraEditor, type Editor } from "../utils/projectEditor";
 import DependencyEditorModal from "./DependencyEditorModal";
 import JiraBindDialog from "./JiraBindDialog";
+import JiraImportModal from "./JiraImportModal";
 import MilestoneEditorModal from "./MilestoneEditorModal";
 import ProjectEditorModal from "./ProjectEditorModal";
 
@@ -17,9 +19,24 @@ type ProjectEditorsProps = {
   onBound: () => Promise<void>;
 };
 
-/** The dialogs the project page mounts for its open `editor` (at most one): milestone, project, dependency or Jira bind. */
+/** The rooted import's root (1.14): the project and its link; the owner is the project's own (the modal sends it, it asks for none). Null while the view holds no link. */
+function importRoot(project: ProjectViewDocument["project"]): ImportRoot | null {
+  if (project.jira === null) return null;
+  return {
+    level: "PROJECT",
+    nodeId: project.id,
+    name: project.name,
+    issueKey: project.jira.issueKey,
+    connectionId: project.jira.connectionId,
+    workStreamId: project.workStreamId,
+    owner: { value: String(project.ownerPersonId), label: project.ownerName },
+  };
+}
+
+/** The dialogs the project page mounts for its open `editor` (at most one): milestone, project, dependency, Jira bind or the import rooted at the project. */
 export default function ProjectEditors({ editor, view, links, onClose, onSaved, onBound }: ProjectEditorsProps) {
   const { project } = view;
+  const root = editor?.kind === "jiraImport" ? importRoot(project) : null;
   return (
     <>
       {editor?.kind === "create" && <MilestoneEditorModal project={project} target={null} onClose={onClose} onSaved={onSaved} />}
@@ -38,6 +55,7 @@ export default function ProjectEditors({ editor, view, links, onClose, onSaved, 
         />
       )}
       {isJiraEditor(editor) && <JiraBindDialog source={links} target={editor.target} onClose={onClose} onBound={onBound} />}
+      {root !== null && <JiraImportModal source={importSourceOf(links)} root={root} onClose={onClose} />}
     </>
   );
 }

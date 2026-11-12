@@ -1,7 +1,6 @@
 import { useState } from "react";
-import type { DeviationConnection } from "../api/deviations";
 import type { PlanProgram, PlanView, PlanWorkStream } from "../api/plan";
-import { usableImportConnections, type ImportRoot, type ImportSource } from "../utils/jiraImport";
+import { importSourceOf, type ImportRoot, type ImportSource } from "../utils/jiraImport";
 import { useJiraConnections, useJiraProgramLinks, type JiraProgramLink } from "./useDeviations";
 
 /** Which Jira import is open: a work stream's whole-scope one (its menu), or the one rooted at a linked program (1.14, its menu). */
@@ -16,11 +15,6 @@ const programRoot = (stream: PlanWorkStream, program: PlanProgram, link: JiraPro
   connectionId: link.connectionId,
   workStreamId: stream.id,
   owner: { value: String(program.ownerPersonId), label: program.ownerName },
-});
-
-const sourceOf = (read: { connections: readonly DeviationConnection[] | null; failed: boolean; retry: () => void }): ImportSource => ({
-  ...read,
-  connections: read.connections === null ? null : usableImportConnections(read.connections),
 });
 
 /** The props the Plan page hands `JiraImportModal`. */
@@ -40,8 +34,8 @@ export function usePlanJiraImport(plan: PlanView | undefined) {
   const close = () => setImporting(null);
 
   let modal: ModalProps | null = null;
-  if (importing?.kind === "stream") modal = { source: sourceOf(jira), initialWorkStreamId: importing.stream.id, onClose: close };
-  if (importing?.kind === "program") modal = { source: sourceOf(programLinks), root: programRoot(importing.stream, importing.program, importing.link), onClose: close };
+  if (importing?.kind === "stream") modal = { source: importSourceOf(jira), initialWorkStreamId: importing.stream.id, onClose: close };
+  if (importing?.kind === "program") modal = { source: importSourceOf(programLinks), root: programRoot(importing.stream, importing.program, importing.link), onClose: close };
 
   return {
     modal,

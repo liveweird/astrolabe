@@ -5,7 +5,7 @@ import { IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
 import type { ProjectView as ProjectViewDocument } from "../api/milestones";
 import { planPath } from "../utils/planLinks";
 import type { JiraMark, JiraMarks } from "../utils/jiraMarks";
-import { ProjectJiraButton } from "./JiraChips";
+import { ProjectJiraButton, ProjectJiraImportButton } from "./JiraChips";
 import PageHeader from "./PageHeader";
 
 type ProjectHeaderProps = {
@@ -15,15 +15,16 @@ type ProjectHeaderProps = {
   onNewMilestone: () => void;
   onEdit: () => void;
   onLinkJira: () => void;
+  onImportJira: () => void;
   onUnlinkJira: (mark: JiraMark) => void;
   onDelete: () => void;
 };
 
 /**
  * The project page's header: the name, the description and meta lines, and the actions the project's own `can:{…}` offers (New
- * milestone, Edit, the Jira link/unlink, Delete).
+ * milestone, Edit, the Jira link/unlink, Import from Jira, Delete).
  */
-export default function ProjectPageHeader({ project, marks, titleRef, onNewMilestone, onEdit, onLinkJira, onUnlinkJira, onDelete }: ProjectHeaderProps) {
+export default function ProjectPageHeader({ project, marks, titleRef, onNewMilestone, onEdit, onLinkJira, onImportJira, onUnlinkJira, onDelete }: ProjectHeaderProps) {
   const { t } = useTranslation();
   return (
     <PageHeader
@@ -55,6 +56,7 @@ export default function ProjectPageHeader({ project, marks, titleRef, onNewMiles
             </Button>
           )}
           <ProjectJiraButton project={project} marks={marks} onLink={onLinkJira} onUnlink={onUnlinkJira} />
+          <ProjectJiraImportButton project={project} marks={marks} onImport={onImportJira} />
           {project.can.delete && (
             <Button color="red" variant="light" leftSection={<IconTrash size={16} />} onClick={onDelete}>
               {t("common.action.delete")}

@@ -1,7 +1,7 @@
 import { Link as RouterLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Badge, Button, Group, Text } from "@mantine/core";
-import { IconBrandJira, IconLinkOff } from "@tabler/icons-react";
+import { IconBrandJira, IconFileImport, IconLinkOff } from "@tabler/icons-react";
 import { deviationsForProjectPath, deviationsForTeamPath } from "../utils/deviationLinks";
 import { markKey, type JiraMark, type JiraMarks } from "../utils/jiraMarks";
 import JiraKeyLink from "./JiraKeyLink";
@@ -74,6 +74,21 @@ export function ProjectJiraButton({ project, marks, onLink, onUnlink }: { projec
   ) : (
     <Button variant="default" leftSection={<IconLinkOff size={16} />} onClick={() => onUnlink(own)}>
       {t("deviations.link.unlink")}
+    </Button>
+  );
+}
+
+/**
+ * The project header's "Import from Jira…" (1.14): the project's milestones from what Jira lists under the project's own item. Offered with the
+ * project's `can.createMilestone` (the owner chain or ADMIN: the server's guard for creating under the project) and only while the view says the
+ * project is linked, since the import is rooted at that link.
+ */
+export function ProjectJiraImportButton({ project, marks, onImport }: { project: { id: number; can: { createMilestone: boolean } }; marks: JiraMarks; onImport: () => void }) {
+  const { t } = useTranslation();
+  if (!project.can.createMilestone || !marks.byNode.has(markKey("PROJECT", project.id))) return null;
+  return (
+    <Button variant="default" leftSection={<IconFileImport size={16} />} onClick={onImport}>
+      {t("jira.import.entry")}
     </Button>
   );
 }
