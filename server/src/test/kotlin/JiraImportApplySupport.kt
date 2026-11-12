@@ -26,7 +26,7 @@ internal suspend fun HttpClient.applyImport(id: UInt, scope: JiraImportScope, it
     postJson(
         "$JB_CONNECTIONS/$id/import",
         JiraImportApplyRequest(
-            scope.workStreamId, scope.ownerPersonId, scope.projectKeys, scope.defaults, scope.copyDates, items, scope.filter,
+            scope.workStreamId, scope.ownerPersonId, scope.projectKeys, scope.defaults, scope.copyDates, items, scope.filter, scope.root,
         ),
     )
 

@@ -47,8 +47,8 @@ class JiraImportChildrenTest {
     private val today = java.time.Instant.parse("2026-11-11T00:00:00Z").toEpochMilli()
     private val recent = "2026-11-01T10:00:00.000+0000"
     private val quiet = "2025-01-01T10:00:00.000+0000"
-    private val programRoot = ImportRoot(JiraLevel.PROGRAM, 5u, 900u, id(1))
-    private val projectRoot = ImportRoot(JiraLevel.PROJECT, 6u, 901u, id(2))
+    private val programRoot = ImportRoot(JiraLevel.PROGRAM, 5u, 900u, id(1), 5u)
+    private val projectRoot = ImportRoot(JiraLevel.PROJECT, 6u, 901u, id(2), 5u)
     private val done = JiraImportFilter(excludeDone = true, updatedWithinDays = 365)
 
     private fun id(n: Int) = "${99_000 + n}"
@@ -148,7 +148,7 @@ class JiraImportChildrenTest {
     @Test
     fun `a root with nothing under it answers the root alone, after one search`() {
         val site = ScriptedSite(searchPage(), issues = rootIssues(14 to doc(14, 3)))
-        val result = browse(site, ImportRoot(JiraLevel.PROGRAM, 5u, 900u, id(14)))
+        val result = browse(site, ImportRoot(JiraLevel.PROGRAM, 5u, 900u, id(14), 5u))
         assertEquals(listOf(id(14)), ids(result))
         assertEquals(1, site.searches.size, "no project held, so no second round")
         assertFalse(result.truncated)
@@ -275,6 +275,20 @@ class JiraImportChildrenTest {
         assertFalse(result.issues.single().keptAsParent)
     }
 
+    @Test
+    fun `a truncated read under an active filter still drops the not-admitted projects nothing hangs under`() {
+        val site = ScriptedSite(
+            searchPage(doc(2, 2, 1), doc(3, 2, 1, isDone = true), doc(4, 2, 1, isDone = true)),
+            searchPage(doc(8, 1, 4, isDone = true), doc(5, 1, 2)),
+            issues = rootIssues(1 to doc(1, 3)),
+        )
+        // Cap 4 = the root and the three projects: the first open leaf of round two is the row beyond it.
+        val result = browse(site, filter = done, cap = 4)
+        assertTrue(result.truncated)
+        assertEquals(listOf(1, 2).map { id(it) }, ids(result), "the done projects held before the cap are pruned, not plain rows")
+        assertTrue(result.issues.none { it.keptAsParent })
+    }
+
     // ---- the bounds -------------------------------------------------------------------------------------------------------------
 
     @Test
@@ -332,7 +346,7 @@ class JiraImportChildrenTest {
     @Test
     fun `a root that answers 404 is the jira-root-unusable 409 naming the plan level only`() {
         unusable(ScriptedSite(searchPage()))
-        val failure = unusable(ScriptedSite(searchPage()), ImportRoot(JiraLevel.PROJECT, 6u, 901u, id(2)))
+        val failure = unusable(ScriptedSite(searchPage()), ImportRoot(JiraLevel.PROJECT, 6u, 901u, id(2), 5u))
         assertTrue("project" in failure.message.orEmpty())
     }
 
@@ -355,12 +369,12 @@ class JiraImportChildrenTest {
         unusable(ScriptedSite(searchPage(), issues = rootIssues(1 to doc(1, 2))))
         unusable(ScriptedSite(searchPage(), issues = rootIssues(1 to """{"id":"${id(1)}"}""")))
         // The root's level is the one the MAPPING gives the type: a project-level root document under a program root is the 409 too.
-        unusable(ScriptedSite(searchPage(), issues = rootIssues(2 to doc(2, 2))), ImportRoot(JiraLevel.PROGRAM, 5u, 900u, id(2)))
+        unusable(ScriptedSite(searchPage(), issues = rootIssues(2 to doc(2, 2))), ImportRoot(JiraLevel.PROGRAM, 5u, 900u, id(2), 5u))
     }
 
     @Test
     fun `a milestone cannot be a root`() {
-        assertFailsWith<IllegalArgumentException> { ImportRoot(JiraLevel.MILESTONE, 1u, 1u, id(5)) }
+        assertFailsWith<IllegalArgumentException> { ImportRoot(JiraLevel.MILESTONE, 1u, 1u, id(5), 5u) }
     }
 
     @Test
@@ -390,8 +404,8 @@ class JiraImportChildrenTest {
     fun `a hostile root id is never sent as a by-id request`() {
         for (hostile in listOf("../admin", "1/../2", "12x", "%2e%2e", "1?fields=all", "", " 7", "9".repeat(40))) {
             val site = ScriptedSite(searchPage())
-            val failure = assertFailsWith<FetchException>(hostile) { browse(site, ImportRoot(JiraLevel.PROGRAM, 5u, 900u, hostile)) }
-            assertEquals("INVALID_RESPONSE", failure.code)
+            // The root refuses a non-numeric id at construction, so no such id can reach the client or a query at all.
+            assertFailsWith<IllegalArgumentException>(hostile) { ImportRoot(JiraLevel.PROGRAM, 5u, 900u, hostile, 5u) }
             assertTrue(site.issueRequests.isEmpty() && site.searches.isEmpty(), hostile)
         }
     }
@@ -410,7 +424,7 @@ class JiraImportChildrenTest {
     @Test
     fun `requireRootRow passes for the root's own ALREADY_BOUND row and its children land under the root node`() {
         val plan = planOf(listOf(holder("1", JiraLevel.PROGRAM, 5u, "Root program")))
-        val root = ImportRoot(JiraLevel.PROGRAM, 5u, 905u, "1")
+        val root = ImportRoot(JiraLevel.PROGRAM, 5u, 905u, "1", 5u)
         plan.requireRootRow(root)
         assertEquals(JiraImportReason.ALREADY_BOUND, plan.row("1").reason())
         assertEquals(5u, plan.row("2").item.parent?.nodeId, "the child lands under the root's node")
@@ -420,12 +434,14 @@ class JiraImportChildrenTest {
     fun `requireRootRow is the 409 for another node, another kind, an unbound root and an absent row`() {
         val bound = planOf(listOf(holder("1", JiraLevel.PROGRAM, 5u, "Root program")))
         val refused = listOf(
-            bound to ImportRoot(JiraLevel.PROGRAM, 6u, 1u, "1"), // the issue is bound to another node
-            bound to ImportRoot(JiraLevel.PROJECT, 5u, 1u, "1"), // program 5 is not project 5
-            planOf(emptyList()) to ImportRoot(JiraLevel.PROGRAM, 5u, 1u, "1"), // the link is gone: a CREATE row
-            planOf(listOf(holder("1", JiraLevel.PROGRAM, 5u, "Root program", live = false))) to ImportRoot(JiraLevel.PROGRAM, 5u, 1u, "1"),
-            planOf(emptyList(), withRoot = false) to ImportRoot(JiraLevel.PROGRAM, 5u, 1u, "1"), // not in the browse at all
-            bound to ImportRoot(JiraLevel.PROGRAM, 5u, 1u, "2"), // the named issue is another row
+            bound to ImportRoot(JiraLevel.PROGRAM, 6u, 1u, "1", 5u), // the issue is bound to another node
+            bound to ImportRoot(JiraLevel.PROJECT, 5u, 1u, "1", 5u), // program 5 is not project 5
+            planOf(emptyList()) to ImportRoot(JiraLevel.PROGRAM, 5u, 1u, "1", 5u), // the link is gone: a CREATE row
+            planOf(listOf(holder("1", JiraLevel.PROGRAM, 5u, "Root program", live = false))) to
+                ImportRoot(JiraLevel.PROGRAM, 5u, 1u, "1", 5u),
+            planOf(emptyList(), withRoot = false) to ImportRoot(JiraLevel.PROGRAM, 5u, 1u, "1", 5u), // not in the browse at all
+            bound to ImportRoot(JiraLevel.PROGRAM, 5u, 1u, "2", 5u), // the named issue is another row
+            bound to ImportRoot(JiraLevel.PROGRAM, 5u, 1u, "1", 6u), // the link is held through ANOTHER connection (the holder's is 5)
         )
         for ((plan, root) in refused) {
             val failure = assertFailsWith<ConflictException> { plan.requireRootRow(root) }

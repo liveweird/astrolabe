@@ -22,11 +22,13 @@ private const val SEARCH_ENDPOINT = "/rest/api/3/search/jql"
 
 /**
  * The linked item a rooted import starts from: the plan node ([nodeId] of [level], a program or a project) and its ACTIVE binding
- * ([bindingId]) on this connection, whose Jira issue is [issueId] (the stored numeric id). The root is never a preview row.
+ * ([bindingId]) through connection [connectionId], whose Jira issue is [issueId] (the stored numeric id, which joins a request path and
+ * a query, so it must match [ISSUE_ID_PATTERN]). The root is never a preview row.
  */
-internal class ImportRoot(val level: JiraLevel, val nodeId: UInt, val bindingId: UInt, val issueId: String) {
+internal class ImportRoot(val level: JiraLevel, val nodeId: UInt, val bindingId: UInt, val issueId: String, val connectionId: UInt) {
     init {
         require(level != JiraLevel.MILESTONE) { "a milestone has no children to import" }
+        require(ISSUE_ID_PATTERN.matches(issueId)) { "the root's Jira issue id is not a numeric id" }
     }
 }
 
@@ -110,7 +112,8 @@ private class ChildWalk(
                 if (truncated) break
             }
         }
-        if (filter != null && !truncated) pruneNotAdmitted()
+        // Also when truncated: a not-admitted project held before the cap must not read as a plain row of a truncated filtered preview.
+        if (filter != null) pruneNotAdmitted()
         return ImportBrowse(rows.values.toList(), truncated)
     }
 
@@ -204,14 +207,15 @@ private class ChildWalk(
 
 /**
  * The root's own row must be what the browse promised: the row of [root]'s issue is `ALREADY_BOUND` to the root's node (id AND kind: a
- * program's id 3 is not a project's id 3). Otherwise the link changed after the browse read it (or the plan side no longer holds it), the
+ * program's id 3 is not a project's id 3) THROUGH the root's own connection (an active link through THIS connection, as the route's
+ * read of the link says). Otherwise the link changed after the browse read it (or the plan side no longer holds it), the
  * `409` [JIRA_ROOT_UNUSABLE_PROBLEM]; nothing was written, so the caller just previews again.
  */
 internal fun ImportPlan.requireRootRow(root: ImportRoot) {
     val item = rows.firstOrNull { it.item.jiraId == root.issueId }?.item
     val target = item?.target
     val bound = item != null && item.action == JiraImportAction.SKIP && item.reason == JiraImportReason.ALREADY_BOUND &&
-        target != null && target.nodeId == root.nodeId && target.nodeKind == root.level
+        target != null && target.nodeId == root.nodeId && target.nodeKind == root.level && target.connectionId == root.connectionId
     if (!bound) {
         throw ConflictException(
             "The Jira link of this ${root.level.name.lowercase()} changed while the import was read - preview again",

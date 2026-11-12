@@ -31,10 +31,26 @@ data class JiraImportFilter(val excludeDone: Boolean = false, val updatedWithinD
 @Serializable
 data class JiraImportDefaults(val programId: UInt? = null, val projectId: UInt? = null, val teamId: UInt? = null)
 
+/** The plan levels an import can start from (1.14): a milestone has no children, so `MILESTONE` does not decode (the central `400`). */
+@Serializable
+enum class JiraImportRootLevel { PROGRAM, PROJECT }
+
+/**
+ * The linked node a rooted import starts from (1.14): the [nodeId] of the program or project of [level], which must lie under the
+ * picked work stream and hold an ACTIVE binding through this connection. The import then reads only what Jira lists under that item.
+ */
+@Serializable
+data class JiraImportRoot(val level: JiraImportRootLevel, val nodeId: UInt) {
+    /** The plan level, for the code that speaks [JiraLevel]. */
+    fun jiraLevel(): JiraLevel = JiraLevel.valueOf(level.name)
+}
+
 /**
  * What both requests share: the picked [workStreamId] (every target lies under it), the [ownerPersonId] of every created program and
  * project, an optional subset of the connection's [projectKeys] (default: all), the [defaults] and whether Jira's milestone dates are
  * copied (only where the caller may schedule the milestone's team). The optional [filter] narrows what the browse reads (absent = all).
+ * The optional [root] (1.14; absent = the whole scope) limits the import to what Jira lists under that linked node: its descendants
+ * only, never a row for the root itself.
  */
 @Serializable
 data class JiraImportScope(
@@ -44,6 +60,7 @@ data class JiraImportScope(
     val defaults: JiraImportDefaults? = null,
     val copyDates: Boolean = true,
     val filter: JiraImportFilter? = null,
+    val root: JiraImportRoot? = null,
 )
 
 /** What an item does: the preview proposes [CREATE], [BIND] (to an unbound same-name node) or [SKIP]; an apply expects the first two. */
@@ -189,8 +206,9 @@ data class JiraImportApplyRequest(
     val copyDates: Boolean = true,
     val items: List<JiraImportApplyItem>,
     val filter: JiraImportFilter? = null,
+    val root: JiraImportRoot? = null,
 ) {
-    fun scope(): JiraImportScope = JiraImportScope(workStreamId, ownerPersonId, projectKeys, defaults, copyDates, filter)
+    fun scope(): JiraImportScope = JiraImportScope(workStreamId, ownerPersonId, projectKeys, defaults, copyDates, filter, root)
 }
 
 @Serializable

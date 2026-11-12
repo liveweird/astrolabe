@@ -2367,15 +2367,29 @@ export interface paths {
          *
          *     **Order** (the plan's read-before-guard): the per-USER bucket (`jira-import`, 5 a minute, shared with the apply, spent BEFORE
          *     everything else, so an over-limit caller gets `429` whatever the request would have answered) -> the connection (`404`) -> the body
-         *     (`400`) -> the named targets' chains (`404`: `Work stream not found`, `Program not found`, `Project not found`) -> the guard on
-         *     each named default (`403`; before it, a `403` for a login that owns no active work stream, program or project) -> the shape (`400`: `projectKeys` a subset of the connection's keys, `ownerPersonId` an active person,
-         *     `defaults.teamId` an active team, `defaults.programId` / `defaults.projectId` under the picked work stream) -> the connection
+         *     (`400`) -> the named targets' chains (`404`: `Work stream not found`, `Program not found`, `Project not found`; with `root`, the root's
+         *     own node) -> the guard on
+         *     each named default and on the root's chain (`403`; before it, a `403` for a login that owns no active work stream, program or project) -> the shape (`400`: `projectKeys` a subset of the connection's keys, `ownerPersonId` an active person,
+         *     `defaults.teamId` an active team, `defaults.programId` / `defaults.projectId` and `root` under the picked work stream) -> the connection
          *     enabled (`400`), its token (`409` `urn:astrolabe:problem:jira-token-unreadable`), discovery (`409`
-         *     `urn:astrolabe:problem:jira-not-discovered`) and effective mapping (`409` `urn:astrolabe:problem:jira-mapping-invalid`) -> ONE
+         *     `urn:astrolabe:problem:jira-not-discovered`) and effective mapping (`409` `urn:astrolabe:problem:jira-mapping-invalid`) -> with
+         *     `root`, the root's ACTIVE link through THIS connection (`409` `urn:astrolabe:problem:jira-root-unusable` when there is none) -> ONE
          *     paged read of the connection's scope from the site with the stored token, outside any transaction, stopped at 2,000 issues
          *     (`502` `urn:astrolabe:problem:jira-upstream`, the detail names the failure code only; a connection deleted or disabled while it
-         *     is read ends the preview with `404` / `400`) -> one read-only snapshot of the plan -> the pure rules -> the resolved-target guards
-         *     (`403`).
+         *     is read ends the preview with `404` / `400`) -> one read-only snapshot of the plan -> the pure rules -> with `root`, the root's own
+         *     row must read `ALREADY_BOUND` to the root node (else the same `409 jira-root-unusable`: the link changed, preview again) -> the
+         *     resolved-target guards (`403`).
+         *
+         *     **A rooted preview** (`root{level, nodeId}`, 1.14) reads the root's Jira item by id (a `404` of that read, another id, a key outside the
+         *     connection's projects, or a Jira level the mapping does not give the root's plan level is the `409 urn:astrolabe:problem:jira-root-unusable`;
+         *     any other failure is the `502`) and then only what Jira lists under it by `parent`, at the levels the connection maps below the root's
+         *     (a program: its projects, then their milestones; a project: its milestones), at most 2,000 rows in all (the root counts). With `root`,
+         *     `items` are the root's descendants only: the root is not a row, and `totals` count what is listed. Under an active filter a level that has
+         *     children to walk is read without the filter at the source, and the server keeps a project the filter does not admit only while a kept
+         *     item hangs under it (`KEPT_AS_PARENT`); no parent is read by id. Everything lands under the root's own node. A milestone-level item
+         *     directly under a root program follows today's rule (the default project, else skipped `NO_PARENT`). The rooted read adds no right: the
+         *     root is one more named target, so the caller must own its chain (or be ADMIN), and the redaction of skipped rows for a non-admin is
+         *     unchanged.
          *
          *     **The filter** (`filter{excludeDone, updatedWithinDays}`, 1.13.2): `updatedWithinDays` must be a whole number from 1 to
          *     3,650 (`400` otherwise, after the up-front `403`s; the resolved-target `403` comes after the browse). An active filter narrows the read of every mapped level inside the search query (the
@@ -2445,6 +2459,13 @@ export interface paths {
          *     `copyDates` is on, its dates are valid, the caller manages its team (ADMIN: any) and the span holds a working day; otherwise it is
          *     created unscheduled. A dead-node holder of a written item's issue (this connection or another of the same site) is released and
          *     audited. A uniqueness violation that still escapes is the whole-request `409`.
+         *
+         *     **A rooted apply** (`root{level, nodeId}`, 1.14) carries the root its preview was read under and runs the preview's checks, the
+         *     root included: its chain is read (`404`) and guarded (`403`) up front and again under the plan lock, its ACTIVE link through this
+         *     connection must exist (`409 urn:astrolabe:problem:jira-root-unusable`), and after the recomputation under the lock the root's own row
+         *     must still read `ALREADY_BOUND` to the root node (else the same `409`, a rollback: nothing written, no bump). Only the root's
+         *     descendants are browsed, so a ticked id outside its subtree is answered like a vanished one (`CHANGED`, no key). Everything is written
+         *     under the root's own node; no program is created.
          *
          *     The answer lists ids, keys and reasons, plus the `name` of each created row - which IS the Jira summary (cut at 100 characters) of an issue on the caller's own target; a skipped row carries no text. `revision` is the plan
          *     revision after the bump.
@@ -6152,7 +6173,7 @@ export interface components {
         JiraImportScope: {
             /**
              * Format: int32
-             * @description The picked work stream; every target lies under it (work streams are never imported).
+             * @description The picked work stream; every target lies under it (work streams are never imported). With `root` it must be the root's own work stream (`400` otherwise).
              */
             workStreamId: number;
             /**
@@ -6170,6 +6191,27 @@ export interface components {
             copyDates: boolean;
             /** @description What the browse leaves out (1.13.2); null or absent reads everything, as before. The apply must carry the filter its preview was read under. */
             filter?: components["schemas"]["JiraImportFilter"] | null;
+            /** @description Start the import from one linked node (1.14): only what Jira lists under that node's Jira item is read, and the root itself is never a row. Null or absent = the whole scope, as before. The apply must carry the root its preview was read under. */
+            root?: components["schemas"]["JiraImportRoot"] | null;
+        };
+        /**
+         * @description The linked node a rooted import starts from (1.14): a program or a project of the picked work stream with an ACTIVE link through
+         *     THIS connection. Its Jira item is read by id first; then only what Jira lists under it at the levels the connection maps below
+         *     the root's own (a program: its projects, then their milestones; a project: its milestones). Everything lands under the root's own
+         *     node, and a rooted import never creates a program. The caller must own the root's chain (the work stream's, the program's or,
+         *     for a project, the project's owner) or be ADMIN; no other rule changes. A `MILESTONE` root does not decode (`400`).
+         */
+        JiraImportRoot: {
+            /**
+             * @description The plan level of the root node.
+             * @enum {string}
+             */
+            level: "PROGRAM" | "PROJECT";
+            /**
+             * Format: int32
+             * @description The id of the program or project; it must lie under `workStreamId`.
+             */
+            nodeId: number;
         };
         /**
          * @description What an import's browse leaves out, per request (nothing is stored): done items and items not updated for a while. Every mapped

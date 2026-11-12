@@ -38,7 +38,8 @@ internal const val IMPORT_TRUNCATED =
  * What the route hands the apply, all of it resolved BEFORE the lock: the request, the browse (the one HTTP act, already done), the
  * connection's state as the browse used it ([mappingChangedAt] pins the mapping), and how to re-resolve the caller's person under the
  * lock ([lockedPerson]: null for an ADMIN, else the person row locked `FOR SHARE`). [guardedByName] = the request names a default
- * program or project (so its guard ran, and a caller who owns nothing else still proved ownership).
+ * program or project (so its guard ran, and a caller who owns nothing else still proved ownership). [root] (1.14) is the rooted
+ * import's stored link, null for a whole-scope import; the request's own `root` names the node, this holds what the browse used.
  */
 internal class ApplyContext(
     val connectionId: UInt,
@@ -51,6 +52,7 @@ internal class ApplyContext(
     val caller: CallerPrincipal,
     val lockedPerson: suspend () -> UInt?,
     val asOf: Long,
+    val root: ImportRoot? = null,
 )
 
 /** What an apply wrote: the answer (without its revision, known only after the commit) and the dead holders it released. */
@@ -89,9 +91,11 @@ internal class LockedApply(
     /**
      * The order (the plan's lock order, `persistence.md`): the plan lock (the caller's) -> the advisory bind lock -> the connection row
      * `FOR SHARE` (gone = `404`, disabled or its scope or mapping changed = `400`/`409`) -> the caller's person `FOR SHARE` -> the named
-     * defaults re-read and guarded (`403`) -> the owner and every named team active (`400`, rows locked `FOR SHARE`) -> the caller's
+     * defaults and the root re-read and guarded (`403`) -> the owner and every named team active (`400`, rows locked `FOR SHARE`) -> the
+     * caller's
      * managed teams, each locked (`lockedIsActiveManager`) -> the plan side re-read (the tree, names, holders, calendar) -> the kernel over
-     * THOSE rows with the client's ticks -> the guard on every ticked CREATE/BIND row's target (`403`) -> the dead holders to release
+     * THOSE rows with the client's ticks -> the root's own row must still be `ALREADY_BOUND` to the root node (`409`, nothing written) ->
+     * the guard on every ticked CREATE/BIND row's target (`403`) -> the dead holders to release
      * locked in id order ([lockReleases]) -> the milestones' teams locked active -> the inserts top-down -> the dates -> the bindings (the
      * dead holders released) -> the lists. The caller's commit bumps once.
      */
@@ -111,6 +115,7 @@ internal class LockedApply(
         val plan = JiraImportKernels.plan(
             ImportInput(ctx.browse, ctx.mapping, ctx.discovery, read.snapshot, defaults, request.copyDates, ctx.asOf, ticks),
         )
+        ctx.root?.let(plan::requireRootRow)
         val ticked = plan.rows.filter { it.apply != null && it.apply != ImportApply.NotRequested }.map { it.item }
         requireResolvedTargets(caller, person, ticked, read, guardedByName = named > 0)
         lockReleases(plan.releases.map { it.bindingId })
@@ -176,11 +181,12 @@ internal class LockedApply(
         return LockedConnection(row[connections.siteUrl], keys)
     }
 
-    /** Re-reads and guards the chains of the named defaults (a gone one is `404`); the number guarded. */
+    /** Re-reads and guards the chains of the named defaults and the root (a gone one is `404`); the number guarded. */
     private suspend fun guardNamedDefaults(person: UInt?): Int {
         val chains = listOfNotNull(
             defaults.programId?.let { programChain(it) ?: throw NotFoundException("Program not found") },
             defaults.projectId?.let { projectChain(it) ?: throw NotFoundException("Project not found") },
+            request.root?.let { rootChain(it) },
         )
         chains.forEach { requireOwnerOrAdmin(caller, person, it) }
         return chains.size

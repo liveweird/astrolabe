@@ -42,15 +42,20 @@ class JiraImportApplyRoute(val parent: JiraConnectionsRoute.Id)
  * The Jira import's routes (1.2). **The preview** is open to ADMIN or an owner of every target, in the order the plan fixed: the
  * per-USER `jira-import` bucket (spent BEFORE everything below, so a refused caller learns nothing and a `429` wins over any other
  * answer) -> the connection's existence (`404`; public through `GET /views/deviations`) -> the body (`400`) -> the NAMED targets'
- * chains (`404`: the work stream, `defaults.programId`, `defaults.projectId`) -> `403` for a login that owns no plan node at all, then
- * the guard on each named DEFAULT (`403`) -> THE TOKEN'S DECRYPT (`readForBind`: a caller refused by the checks above never reaches
+ * chains (`404`: the work stream, `defaults.programId`, `defaults.projectId` and, 1.14, the rooted import's `root`) -> `403` for a login
+ * that owns no plan node at all, then the guard on each named DEFAULT and on the ROOT's chain (`403`) -> THE TOKEN'S DECRYPT
+ * (`readForBind`: a caller refused by the checks above never reaches
  * it; the resolved-target `403` below still follows it and the browse; the `404` above reads the connection's state and touches no
- * token) -> the shape (`400`; the filter's day count is checked here, so the up-front `403`s win over it; the resolved-target `403`
- * comes after the browse) -> the connection enabled (`400`),
- * its token (`409`), discovery (`409`) and mapping (`409`) -> ONE paged browse of the scope, outside any transaction (`502`; under an
+ * token) -> the shape (`400`; the filter's day count is checked here, so the up-front `403`s win over it; the root lies under the
+ * picked work stream; the resolved-target `403` comes after the browse) -> the connection enabled (`400`),
+ * its token (`409`), discovery (`409`) and mapping (`409`) -> the root's ACTIVE link through THIS connection (`409 jira-root-unusable`)
+ * -> ONE paged browse of the scope, outside any transaction (`502`; under an
  * active filter it narrows the query and adds the by-id reads of the parents the filter left out, each round preceded by a short read of
- * the bindings in its own snapshot, none across a Jira call) -> ONE read-only snapshot ->
- * the pure kernel -> the guard on the RESOLVED targets (`403`, naming the first one the caller does not own) -> `200`. The picked work
+ * the bindings in its own snapshot, none across a Jira call; with a `root` the browse is [browseChildren]: the root read by id - a
+ * `404`, another id, a key outside the connection's projects or another level are the `409` - and then only what Jira lists under it)
+ * -> ONE read-only snapshot ->
+ * the pure kernel -> the root's own row must read `ALREADY_BOUND` to the root node (`409 jira-root-unusable`; the root is never a row of
+ * the answer) -> the guard on the RESOLVED targets (`403`, naming the first one the caller does not own) -> `200`. The picked work
  * stream is a target only when a program would be created (a program owner may import under their program), so it is guarded there,
  * not up front; a caller who owns neither it, any target nor any node of its tree is refused too. It stores nothing and audits
  * nothing (a read; a `403` is the central `authz.denied`).
@@ -88,7 +93,12 @@ internal fun Route.jiraImportRoutes(
             val read = imports.read(scope.workStreamId, context.target.siteUrl, issueIds, managerUserId).orNotFound("Work stream")
             val defaults = scope.defaults ?: JiraImportDefaults()
             val input = ImportInput(browse, admitted.ready.mapping, admitted.ready.discovery, read.snapshot, defaults, scope.copyDates, now)
-            val plan = JiraImportKernels.plan(input)
+            val whole = JiraImportKernels.plan(input)
+            // A rooted import: the root's own row must be what the browse promised, and it is never a row of the answer (1.14).
+            val plan = admitted.root?.let { root ->
+                whole.requireRootRow(root)
+                whole.withoutRow(root.issueId)
+            } ?: whole
             val items = plan.rows.map { it.item }
             requireResolvedTargets(caller, admitted.personId, items, read, guardedByName = admitted.named.isNotEmpty())
             // A non-admin sees skipped rows without Jira's text, and under an active filter without their keys (see redactForNonAdmin);
@@ -118,7 +128,7 @@ internal fun Route.jiraImportRoutes(
             val browse = browseOrBadGateway(connections, connector, imports, route.parent.id, context, admitted, now) ?: return@post
             val applied = ApplyContext(
                 route.parent.id, request, admitted.keys, browse, admitted.ready.mapping, admitted.ready.discovery,
-                context.mappingChangedAt, caller, { lockedPersonOf(caller) }, now,
+                context.mappingChangedAt, caller, { lockedPersonOf(caller) }, now, admitted.root,
             )
             val outcome = imports.apply(applied)
             auditImportApplied(caller, route.parent.id, request, outcome)
@@ -135,6 +145,8 @@ private class Admitted(
     val keys: List<String>,
     val ready: ImportPreflight,
     val filter: JiraImportFilter?,
+    /** The rooted import's stored link (1.14), null for a whole-scope import. */
+    val root: ImportRoot?,
 )
 
 /**
@@ -147,11 +159,11 @@ private suspend fun requireConnection(connections: JiraConnectionService, connec
 
 /**
  * The checks of both routes before the browse, in order: the NAMED targets' chains (`404`), `403` for a login that owns no plan node
- * (the bind's rule), the guard on each named default (`403`) - and ONLY THEN the decrypting read of the connection
+ * (the bind's rule), the guard on each named default and on the root's chain (`403`) - and ONLY THEN the decrypting read of the connection
  * ([JiraConnectionService.readForBind]; `404` if it vanished meanwhile), so a refused caller never makes the server decrypt the
  * stored token - the apply items' shape ([items]; `400`), the project keys, the shape that needs rows (the owner, the default team and
- * every override team active, the defaults under the stream: `400`), then the connection's state (`400`/`409`). Plain reads, no lock:
- * the apply repeats what matters under its own.
+ * every override team active, the defaults and the root under the stream: `400`), then the connection's state (`400`/`409`), then the
+ * root's active link through this connection (`409`). Plain reads, no lock: the apply repeats what matters under its own.
  */
 private suspend fun admit(
     caller: CallerPrincipal,
@@ -172,7 +184,9 @@ private suspend fun admit(
     items?.let(::validateApplyItems)
     val keys = validateImportScope(scope, context.target.projectKeys)
     imports.requireShape(scope, items.orEmpty().mapNotNull { it.overrides?.teamId })
-    return Admitted(context, personId, named, keys, importPreflight(context), scope.filter)
+    val ready = importPreflight(context)
+    val root = scope.root?.let { imports.resolveRoot(connectionId, it) }
+    return Admitted(context, personId, named, keys, ready, scope.filter, root)
 }
 
 /** The ONE paged browse, outside any transaction; null after answering `502` (the failure code only, never the upstream's text). */
@@ -186,12 +200,19 @@ private suspend fun RoutingContext.browseOrBadGateway(
     now: Long,
 ): ImportBrowse? = try {
     val stop = browseGuard(connections, connectionId)
-    // ONE place builds the query and reads the parents, for the preview AND the apply: both come here with their request's own filter.
-    val filter = admitted.filter?.takeIf { it.isActive() }?.let { active ->
-        ImportBrowseFilter(active) { ids -> imports.liveHeldIssueIds(context.target.siteUrl, ids) }
-    }
     val ready = admitted.ready
-    browseScope(connector, context, ready.token, admitted.keys, ready.mapping, ready.discovery, now, stop, filter = filter)
+    val root = admitted.root
+    if (root != null) {
+        // A rooted import (1.14): the root by id, then what Jira lists under it. The filter is the request's own, judged by the server.
+        val spec = ChildBrowse(admitted.keys, context.target.projectKeys, root, admitted.filter)
+        browseChildren(connector, context, ready.token, spec, ready.mapping, ready.discovery, now, stop)
+    } else {
+        // ONE place builds the query and reads the parents, for the preview AND the apply: both come here with their request's own filter.
+        val filter = admitted.filter?.takeIf { it.isActive() }?.let { active ->
+            ImportBrowseFilter(active) { ids -> imports.liveHeldIssueIds(context.target.siteUrl, ids) }
+        }
+        browseScope(connector, context, ready.token, admitted.keys, ready.mapping, ready.discovery, now, stop, filter = filter)
+    }
 } catch (failure: FetchException) {
     // The code only: the exception's text names an endpoint; nothing of the upstream body or the credentials reaches a client.
     call.respondProblem(HttpStatusCode.BadGateway, "Jira did not answer (${failure.code})", type = JIRA_UPSTREAM_PROBLEM)
@@ -231,6 +252,8 @@ private fun auditImportApplied(caller: CallerPrincipal, connectionId: UInt, requ
         "bindingIds" to ids(result.created.map { it.bindingId } + result.bound.map { it.bindingId }),
         "excludeDone" to (request.filter?.excludeDone ?: false),
         "updatedWithinDays" to request.filter?.updatedWithinDays,
+        "rootLevel" to request.root?.level?.name,
+        "rootNodeId" to request.root?.nodeId?.toLong(),
     )
 }
 

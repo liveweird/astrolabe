@@ -6,6 +6,8 @@ import ch.nokillswit.jira.JiraImportApplyRequest
 import ch.nokillswit.jira.JiraImportDefaults
 import ch.nokillswit.jira.JiraImportFilter
 import ch.nokillswit.jira.JiraImportReason
+import ch.nokillswit.jira.JiraImportRoot
+import ch.nokillswit.jira.JiraImportRootLevel
 import ch.nokillswit.jira.JiraLevel
 import io.ktor.serialization.kotlinx.json.DefaultJson
 import kotlinx.serialization.SerializationException
@@ -134,6 +136,32 @@ class JiraImportWebBodyTest {
             DefaultJson.decodeFromString<JiraImportApplyRequest>(
                 """{"workStreamId":3,"ownerPersonId":8,"filter":{"excludeDone":true,"statusCategory":"done"},"items":[$item]}""",
             )
+        }
+    }
+
+    @Test
+    fun `a rooted body decodes through the strict deserialization, and a root that is not a program or project does not`() {
+        val item = """{"jiraId":"100","expected":{"action":"CREATE","level":"PROGRAM"}}"""
+        val rooted = DefaultJson.decodeFromString<JiraImportApplyRequest>(
+            """{"workStreamId":3,"ownerPersonId":8,"copyDates":true,"filter":{"excludeDone":true,"updatedWithinDays":365},""" +
+                """"root":{"level":"PROGRAM","nodeId":7},"items":[$item]}""",
+        )
+        assertEquals(JiraImportRoot(JiraImportRootLevel.PROGRAM, 7u), rooted.root)
+        assertEquals(rooted.root, rooted.scope().root, "the scope carries it to the preview's rules")
+        val project = DefaultJson.decodeFromString<JiraImportApplyRequest>(
+            """{"workStreamId":3,"ownerPersonId":8,"root":{"level":"PROJECT","nodeId":9},"items":[$item]}""",
+        )
+        assertEquals(JiraImportRoot(JiraImportRootLevel.PROJECT, 9u), project.root)
+        val without = DefaultJson.decodeFromString<JiraImportApplyRequest>("""{"workStreamId":3,"ownerPersonId":8,"items":[$item]}""")
+        assertEquals(null, without.root, "a whole-scope body is unchanged")
+        for (bad in listOf(
+            """"root":{"level":"MILESTONE","nodeId":7}""",
+            """"root":{"level":"PROGRAM"}""",
+            """"root":{"level":"PROGRAM","nodeId":7,"key":"IMC-1"}""",
+        )) {
+            assertFailsWith<SerializationException>(bad) {
+                DefaultJson.decodeFromString<JiraImportApplyRequest>("""{"workStreamId":3,"ownerPersonId":8,$bad,"items":[$item]}""")
+            }
         }
     }
 

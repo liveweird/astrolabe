@@ -1,5 +1,6 @@
 package ch.nokillswit.jira
 
+import ch.nokillswit.authz.ConflictException
 import ch.nokillswit.authz.NotFoundException
 import ch.nokillswit.authz.OwnerChain
 import ch.nokillswit.infra.db.active
@@ -29,6 +30,10 @@ private val projects = ProjectService.Projects
 private val milestones = MilestoneService.Milestones
 private val bindings = JiraBindingService.Bindings
 private val connections = JiraConnectionService.Connections
+
+/** The owner chain of the rooted import's node, inside the caller's transaction: a missing or deleted one is the named-target `404`. */
+internal suspend fun rootChain(root: JiraImportRoot): OwnerChain =
+    activeChain(root.jiraLevel(), root.nodeId) ?: throw NotFoundException("${root.jiraLevel().title()} not found")
 
 val JiraImportServiceKey = AttributeKey<JiraImportService>("JiraImportService")
 
@@ -75,16 +80,40 @@ class JiraImportService(
 
     /**
      * The targets the request NAMES, for the checks that precede the browse (read-before-guard): the picked work stream must exist, and
-     * so must `defaults.programId` and `defaults.projectId` - the first one that is missing or deleted is a `404` - and the answer is the
-     * owner chains of the two defaults (the stream itself is a target only when a program would be created, so it is guarded after the
-     * kernel; a chain of a program or project includes the stream's owner).
+     * so must `defaults.programId`, `defaults.projectId` and (1.14) the rooted import's `root` - the first one that is missing or deleted
+     * is a `404` - and the answer is the owner chains of those (the stream itself is a target only when a program would be created, so
+     * it is guarded after the kernel; a chain of a program or project includes the stream's owner). The root is one more named target:
+     * its owner chain (or ADMIN) may start the import.
      */
     suspend fun namedChains(scope: JiraImportScope): List<OwnerChain> = suspendTransaction(database) {
         workStreamChain(scope.workStreamId) ?: throw NotFoundException("Work stream not found")
         listOfNotNull(
             scope.defaults?.programId?.let { programChain(it) ?: throw NotFoundException("Program not found") },
             scope.defaults?.projectId?.let { projectChain(it) ?: throw NotFoundException("Project not found") },
+            scope.root?.let { rootChain(it) },
         )
+    }
+
+    /**
+     * The rooted import's stored link (1.14): the root node's ACTIVE binding through connection [connectionId], as the browse's
+     * [ImportRoot] (the numeric Jira id comes from the STORED binding, never from the request). No active link through THIS connection is
+     * the `409` [JIRA_ROOT_UNUSABLE_PROBLEM]. One short read, no lock: the apply re-reads the holders under the plan lock and the root's
+     * row must still be bound to the root node there.
+     */
+    internal suspend fun resolveRoot(connectionId: UInt, root: JiraImportRoot): ImportRoot = suspendTransaction(database) {
+        val column = if (root.level == JiraImportRootLevel.PROGRAM) bindings.programId else bindings.projectId
+        val row = bindings.select(bindings.id, bindings.jiraIssueId)
+            .where {
+                bindings.active() and (bindings.connectionId eq connectionId) and (bindings.level eq root.level.name) and
+                    (column eq root.nodeId)
+            }
+            .toList().singleOrNull()
+            ?: throw ConflictException(
+                "This ${root.level.name.lowercase()} is not linked to Jira through this connection - the import cannot start from it. " +
+                    "See the Deviations page.",
+                JIRA_ROOT_UNUSABLE_PROBLEM,
+            )
+        ImportRoot(root.jiraLevel(), root.nodeId, row[bindings.id].value, row[bindings.jiraIssueId], connectionId)
     }
 
     /** Whether [personId] owns any active work stream, program or project: a login that owns nothing has no business previewing. */
@@ -108,27 +137,43 @@ class JiraImportService(
                 .map { it[activeTeams.id].value }.toSet()
             if (!active.containsAll(wanted)) throw BadRequestException("overrides.teamId is not an active team")
         }
-        val defaults = scope.defaults ?: return@suspendTransaction
-        defaults.teamId?.let { teamId ->
-            if (activeTeams.select(activeTeams.id).where { (activeTeams.id eq teamId) and activeTeams.active() }.toList().isEmpty()) {
-                throw BadRequestException("defaults.teamId is not an active team")
+        scope.defaults?.let { defaults ->
+            defaults.teamId?.let { teamId ->
+                if (activeTeams.select(activeTeams.id).where { (activeTeams.id eq teamId) and activeTeams.active() }.toList().isEmpty()) {
+                    throw BadRequestException("defaults.teamId is not an active team")
+                }
+            }
+            defaults.programId?.let { id ->
+                if (!programUnder(id, scope.workStreamId)) {
+                    throw BadRequestException("defaults.programId is not a program of the picked work stream")
+                }
+            }
+            defaults.projectId?.let { id ->
+                if (!projectUnder(id, scope.workStreamId)) {
+                    throw BadRequestException("defaults.projectId is not a project of the picked work stream")
+                }
             }
         }
-        defaults.programId?.let { programId ->
-            val under = programs.select(programs.id)
-                .where { (programs.id eq programId) and (programs.workStreamId eq scope.workStreamId) and programs.active() }
-                .toList()
-            if (under.isEmpty()) throw BadRequestException("defaults.programId is not a program of the picked work stream")
-        }
-        defaults.projectId?.let { projectId ->
-            val under = projects.innerJoin(programs, { projects.programId }, { programs.id }).select(projects.id)
-                .where {
-                    (projects.id eq projectId) and projects.active() and programs.active() and
-                        (programs.workStreamId eq scope.workStreamId)
-                }.toList()
-            if (under.isEmpty()) throw BadRequestException("defaults.projectId is not a project of the picked work stream")
+        scope.root?.let { root ->
+            val under = if (root.level == JiraImportRootLevel.PROGRAM) {
+                programUnder(root.nodeId, scope.workStreamId)
+            } else {
+                projectUnder(root.nodeId, scope.workStreamId)
+            }
+            if (!under) throw BadRequestException("root is not a ${root.level.name.lowercase()} of the picked work stream")
         }
     }
+
+    /** Whether the ACTIVE program [id] belongs to work stream [workStreamId] (the defaults' and the root's shape rule). */
+    private suspend fun programUnder(id: UInt, workStreamId: UInt): Boolean =
+        programs.select(programs.id).where { (programs.id eq id) and (programs.workStreamId eq workStreamId) and programs.active() }
+            .toList().isNotEmpty()
+
+    /** Whether the ACTIVE project [id], under an active program, belongs to work stream [workStreamId]. */
+    private suspend fun projectUnder(id: UInt, workStreamId: UInt): Boolean =
+        projects.innerJoin(programs, { projects.programId }, { programs.id }).select(projects.id)
+            .where { (projects.id eq id) and projects.active() and programs.active() and (programs.workStreamId eq workStreamId) }
+            .toList().isNotEmpty()
 
     /**
      * The preview's snapshot: ONE `READ ONLY REPEATABLE READ` transaction (the views' protocol) that reads the plan revision FIRST, then

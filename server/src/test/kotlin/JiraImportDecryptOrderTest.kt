@@ -3,6 +3,8 @@ package ch.nokillswit
 import ch.nokillswit.jira.JiraImportDefaults
 import ch.nokillswit.jira.JiraImportScope
 import ch.nokillswit.jira.JiraLevel
+import com.github.tomakehurst.wiremock.client.WireMock.anyRequestedFor
+import com.github.tomakehurst.wiremock.client.WireMock.anyUrl
 import io.ktor.client.HttpClient
 import io.ktor.client.request.delete
 import io.ktor.client.statement.HttpResponse
@@ -11,6 +13,7 @@ import io.ktor.server.testing.testApplication
 import org.junit.BeforeClass
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /**
  * The import routes decrypt the stored token only AFTER the up-front checks: a login that owns no plan node, or names a default it
@@ -59,6 +62,45 @@ class JiraImportDecryptOrderTest {
         } finally {
             root.detach()
             // The deleted row holds NULL: no undecryptable envelope is left in the shared table for a later rotation test.
+            admin.delete("$JB_CONNECTIONS/${unreadable.id}")
+        }
+    }
+
+    @Test
+    fun `a caller refused by the root's guard decrypts nothing and calls Jira never, on either route`() = testApplication {
+        val f = importFixture("jidecr", keys = listOf("IMC"))
+        val admin = f.w.admin.client
+        val root = f.linkProgram()
+        val unreadable = admin.jbConnection(jbRequest(keys = listOf("IMC")))
+        jbSql("UPDATE jira_connections SET api_token = 'enc:v1:not-a-real-envelope' WHERE id = ?", unreadable.id.toInt())
+        val log = LogCapture("ROOT")
+        try {
+            fun decrypts() = log.events.count { "connection ${unreadable.id} cannot be decrypted" in it.formattedMessage }
+            val refused = listOf("projectOwner" to f.w.projectOwner) + f.w.outsiders
+            JiraStubServer.resetRequests()
+            for (route in listOf("preview", "apply")) {
+                for ((name, caller) in refused) {
+                    // Neither the connection whose token cannot be read nor the readable one is touched by a refused caller.
+                    for (id in listOf(unreadable.id, f.connectionId)) {
+                        val answer = caller.client.importCall(route, id, f.scope(root = root))
+                        assertEquals(HttpStatusCode.Forbidden, answer.status, "$route $name $id")
+                    }
+                }
+            }
+            assertEquals(0, decrypts(), "no refused request decrypted the token")
+            assertEquals(0, JiraStubServer.countRequests(anyRequestedFor(anyUrl())), "no refused request called Jira")
+
+            // The positive controls: the root's owner reaches the decrypt on the unreadable connection, and Jira on the readable one.
+            for (route in listOf("preview", "apply")) {
+                val admitted = f.w.programOwner.client.importCall(route, unreadable.id, f.scope(root = root))
+                assertEquals(HttpStatusCode.Conflict, admitted.status, route)
+                assertEquals("urn:astrolabe:problem:jira-token-unreadable", admitted.jbProblem().type, route)
+            }
+            assertEquals(2, decrypts(), "an admitted caller decrypts once per request")
+            assertEquals(HttpStatusCode.OK, f.w.programOwner.client.preview(f.connectionId, f.scope(root = root)).status)
+            assertTrue(JiraStubServer.countRequests(anyRequestedFor(anyUrl())) > 0, "an admitted caller's rooted read reaches Jira")
+        } finally {
+            log.detach()
             admin.delete("$JB_CONNECTIONS/${unreadable.id}")
         }
     }

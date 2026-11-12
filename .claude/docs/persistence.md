@@ -513,7 +513,7 @@ function (`deleteCapacityPeriodsOf`, `removeFromRanking`, …) counts as the cal
   (`programs`, `projects ⋈ programs`, `milestones ⋈ projects ⋈ programs`, with each node's owner for the guards' chains), ALL active `programs.name` (the global
   name rule), `teams` (active; the caller's managed teams through `TeamService.activeManagedTeamIds`, which reuses this transaction) and `jira_bindings` /
   `jira_connections` (the active bindings of the browsed issues on every active connection of the site, with `liveNodeIds`/`describeNodes`); `requireShape` and
-  `namedChains` are plain short reads of `people`, `teams`, `programs`, `projects` and the owner chains (`workStreamChain`, `programChain`, `projectChain`). The
+  `namedChains` are plain short reads of `people`, `teams`, `programs`, `projects` and the owner chains (`workStreamChain`, `programChain`, `projectChain`); since 1.14 `namedChains` also reads the rooted import's node through `activeChain`, `requireShape` its place under the picked stream, and `resolveRoot` the node's active `jira_bindings` row on the connection (a short read, no lock). The
   browse (`JiraImportBrowse.kt`) calls Jira outside every transaction. **Under an active filter (1.13.2)** the browse also makes one short read of
   `jira_bindings` / `jira_connections` per round of by-id parent reads (`liveHeldIssueIds`: its own read-only snapshot, no lock, which of a list of issue ids a
   live binding of the site holds), BETWEEN Jira calls, never inside one. **The apply (1.2; `JiraImportApply.kt`, `JiraImportService.apply`) is the ONE Jira write
@@ -525,14 +525,14 @@ function (`deleteCapacityPeriodsOf`, `removeFromRanking`, …) counts as the cal
   `jira_observations` through `JiraBindingService.insertBoundLocked` (the dead-node holders it finds are soft-deleted: the binding's own release). **Lock order,
   which nothing may invert:** the plan lock (`plan_state FOR UPDATE`) -> `pg_advisory_xact_lock(BIND_LOCK_KEY)` -> the connection row `FOR SHARE` (gone `404`,
   disabled `400`, project keys moved since the browse `400`, `mapping_changed_at` or `discovered_at` moved `409`) -> the caller's person `FOR SHARE` -> the
-  named defaults' chains -> the owner (`requireActiveOwner`) and every named team (`requireActiveTeam`) `FOR SHARE` -> the caller's managed teams
+  named defaults' chains (and, since 1.14, the rooted import's chain, re-read and guarded the same way) -> the owner (`requireActiveOwner`) and every named team (`requireActiveTeam`) `FOR SHARE` -> the caller's managed teams
   (`lockedIsActiveManager`, `FOR SHARE OF teams, people`) -> the plan side re-read (tree, names, holders, calendar: plain reads, exact under the lock) -> the
-  kernel over THOSE rows -> the guard on every ticked CREATE/BIND row's target -> the dead holders to release locked `FOR NO KEY UPDATE` in ONE `ORDER BY id`
+  kernel over THOSE rows -> (a rooted import: the root's own row must be `ALREADY_BOUND` to the root node through this connection, else the `409`) -> the guard on every ticked CREATE/BIND row's target -> the dead holders to release locked `FOR NO KEY UPDATE` in ONE `ORDER BY id`
   statement (the run's sweep updates in id order) -> each written milestone's team `FOR SHARE` -> top-down, per row, the insert of a CREATE's node or
   `lockNodeShared` on a BIND's target -> `writeSchedules` -> per written row `insertBoundLocked`. A bind holds the advisory lock and waits only on node, person
   and binding rows; node rows are held by plan writers (never concurrent with the import, which holds the plan lock), person rows by person writers, binding
   rows by an unbind or the run's sweep - none of which waits for the advisory lock - and the import takes the advisory lock before touching any row, so there is
-  no cycle (`JiraImportApplyRaceTest` races one against the other and pins that an import waiting for the plan lock holds no advisory lock). The Jira browse
+  no cycle (`JiraImportApplyRaceTest` races one against the other and pins that an import waiting for the plan lock holds no advisory lock). A rooted import adds NO lock: the root's state under the lock is its row's own verdict from the holders the plan side re-reads there; **accepted:** a root unlinked by someone else in the instant after those holders are read still gets its children under the root NODE (an unbind does not wait for the bind's advisory lock), and a root moved to another work stream meanwhile leaves every ticked row `NO_PARENT`. The Jira browse
   happens BEFORE the transaction: the plan lock is never held across HTTP. **`NAME_TAKEN` is decided in Kotlin** from the names read under the plan lock
   (programs: every active `LOWER(name)`; projects per parent program; milestones per parent project) plus the batch's own earlier rows: exact because every
   creator of these rows holds the plan lock. The `uq_*` indexes stay the backstop: a `23505` aborts the whole transaction (it cannot be caught per row) and is

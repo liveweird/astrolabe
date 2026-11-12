@@ -9,6 +9,7 @@ import ch.nokillswit.jira.JiraImportInfo
 import ch.nokillswit.jira.JiraImportParentKind
 import ch.nokillswit.jira.JiraImportPreview
 import ch.nokillswit.jira.JiraImportReason
+import ch.nokillswit.jira.JiraImportRoot
 import ch.nokillswit.jira.JiraImportScope
 import ch.nokillswit.jira.JiraImportTeamRule
 import ch.nokillswit.jira.JiraLevel
@@ -244,7 +245,8 @@ class ImportFixture(val w: PlanWorld, val connectionId: UInt, val site: String, 
         copyDates: Boolean = true,
         keys: List<String>? = null,
         filter: JiraImportFilter? = null,
-    ) = JiraImportScope(w.streamId, w.streamOwner.personId!!, keys, defaults, copyDates, filter)
+        root: JiraImportRoot? = null,
+    ) = JiraImportScope(w.streamId, w.streamOwner.personId!!, keys, defaults, copyDates, filter, root)
 }
 
 /** [keys]: the connection's project keys (`IMP` by default; `IMF` for the filter's own project). */
