@@ -81,6 +81,23 @@ describe("PersonSelect", () => {
     expect(onChange).toHaveBeenLastCalledWith(null);
   });
 
+  test("clearable={false} offers no clear button even with a pick", () => {
+    renderWithProviders(
+      <PersonSelect label="Owner" placeholder="Search people…" clearLabel="Clear the owner" picked={{ value: "3", label: "Anna Nowak" }} onPick={() => {}} clearable={false} />,
+    );
+    expect(screen.getByRole("combobox", { name: "Owner" })).toHaveValue("Anna Nowak");
+    expect(screen.queryByLabelText("Clear the owner")).not.toBeInTheDocument();
+  });
+
+  test("a failed search in a compact cell marks the field invalid and renders no alert (a fixed-height row cannot grow)", async () => {
+    mockFetch.mockImplementation(() => Promise.resolve(jsonResponse(500, { title: "x", status: 500 })));
+    renderWithProviders(
+      <PersonSelect compact label="Owner for X-1" placeholder="Search people…" clearLabel="Clear the owner" picked={null} onPick={() => {}} />,
+    );
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Owner for X-1" })).toBeInvalid());
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   test("a disabled picker is read-only, and a field error is shown on it", () => {
     renderWithProviders(
       <PersonSelect

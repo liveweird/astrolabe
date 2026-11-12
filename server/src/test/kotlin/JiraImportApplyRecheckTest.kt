@@ -137,6 +137,14 @@ class JiraImportApplyRecheckTest {
         val team = fresh.held(ticks = overridden) { it.exec("UPDATE teams SET marked_as_deleted = TRUE WHERE id = ?", other.toInt()) }
         fresh.refused(team, HttpStatusCode.BadRequest)
         assertTrue("team" in team.jbProblem().detail.orEmpty())
+
+        // A per-row owner (1.14) deleted while the apply waits: the shape check passed before the lock, the re-check under it refuses.
+        val chosen = TestPeople.seed(planName("jiarc4-row-owner"))
+        val named = fresh.ticks.map { if (it.jiraId == "95003") it.copy(overrides = JiraImportOverrides(ownerPersonId = chosen)) else it }
+        val again = Ready(f, f.scope(), fresh.ticks, TestPlan.revision())
+        val person = again.held(ticks = named) { it.exec("UPDATE people SET marked_as_deleted = TRUE WHERE id = ?", chosen.toInt()) }
+        again.refused(person, HttpStatusCode.BadRequest)
+        assertTrue("owner" in person.jbProblem().detail.orEmpty() && "$chosen" in person.jbProblem().detail.orEmpty())
     }
 
     @Test

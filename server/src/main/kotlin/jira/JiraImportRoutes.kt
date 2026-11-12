@@ -232,7 +232,7 @@ private fun auditRootedPreview(caller: CallerPrincipal, connectionId: UInt, root
         "connectionId" to connectionId.toLong(),
         "rootLevel" to root.level.name,
         "rootNodeId" to root.nodeId.toLong(),
-        "rows" to rows,
+        "rowCount" to rows,
     )
 }
 
@@ -253,11 +253,17 @@ private fun auditImportApplied(caller: CallerPrincipal, connectionId: UInt, requ
     val result = outcome.result
     fun ids(ids: List<UInt>) = ids.sorted().joinToString(",")
     fun created(level: JiraLevel) = ids(result.created.filter { it.kind == level }.map { it.id })
+    // The per-row owners (1.14) actually applied: only to a created PROGRAM or PROJECT (the others ignore the field). An ownership grant
+    // hands rights over a subtree, so the people it named are on the line.
+    val ownerOverrides = request.items.mapNotNull { item -> item.overrides?.ownerPersonId?.let { item.jiraId to it } }.toMap()
+    val appliedOwners = result.created.filter { it.kind != JiraLevel.MILESTONE }.mapNotNull { ownerOverrides[it.jiraId] }.distinct()
     audit(
         "jira.import_applied",
         "byUserId" to caller.userId.toLong(),
         "connectionId" to connectionId.toLong(),
         "workStreamId" to request.workStreamId.toLong(),
+        "ownerPersonId" to request.ownerPersonId.toLong(),
+        "ownerOverridePersonIds" to ids(appliedOwners),
         "revisionTo" to result.revision,
         "createdCount" to result.created.size,
         "boundCount" to result.bound.size,

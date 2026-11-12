@@ -295,6 +295,23 @@ describe("JiraImportModal: the apply", () => {
     expect(items.filter((item) => item.overrides !== undefined)).toHaveLength(1);
   });
 
+  test("a row with no pick of its own offers no clear button (it would only blank the box); after a pick it does, and clearing restores the dialog's owner", async () => {
+    const user = userEvent.setup();
+    open();
+    await previewScope(user);
+    const clear = () => within(rowOf("IMP-2")).queryByRole("button", { name: "Use the owner chosen in the first step" });
+    expect(clear()).not.toBeInTheDocument();
+    await user.click(within(rowOf("IMP-2")).getByRole("combobox", { name: "Owner for IMP-2" }));
+    await user.click(await screen.findByRole("option", { name: "Pat Planner" }));
+    await user.click(clear()!);
+    expect(within(rowOf("IMP-2")).getByRole("combobox", { name: "Owner for IMP-2" })).toHaveValue("Ola Owner");
+    expect(clear()).not.toBeInTheDocument();
+    await user.click(importButton());
+    await screen.findByRole("heading", { level: 3, name: "Import finished" });
+    const items = (api.applies()[0] as { items: { overrides?: unknown }[] }).items;
+    expect(items.filter((item) => item.overrides !== undefined)).toHaveLength(0);
+  });
+
   test("a second click while the import runs sends nothing more, and the dialog cannot be closed meanwhile", async () => {
     const user = userEvent.setup();
     const gate: { release?: (response: Response) => void } = {};

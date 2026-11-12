@@ -72,7 +72,7 @@ class JiraImportService(
     internal suspend fun apply(ctx: ApplyContext): ImportOutcome {
         // The route validated these too; the service never trusts its caller for a client bug (conventions.md).
         validateApplyItems(ctx.request.items)
-        if (ctx.browse.truncated) throw BadRequestException(if (ctx.root != null) ROOTED_IMPORT_TRUNCATED else IMPORT_TRUNCATED)
+        if (ctx.browse.truncated) throw BadRequestException(ctx.root?.let(::rootedImportTruncated) ?: IMPORT_TRUNCATED)
         val write = database.withPlanWrite { revision -> LockedApply(this, teams, bindingService, ctx, revision).run() }
         val written = write.value
         return ImportOutcome(JiraImportResult(write.revision, written.created, written.bound, written.skipped), written.released)
@@ -123,7 +123,9 @@ class JiraImportService(
      * The request's shape rules that need rows, after the guards (`400`): the owner and every apply item's `overrides.ownerPersonId`
      * ([overrides]) an ACTIVE person, `defaults.teamId` and every `overrides.teamId` an active team, `defaults.programId` /
      * `defaults.projectId` under the picked work stream (and, with a root, [requireDefaultsUnderRoot]). Plain reads, no lock (the preview
-     * writes nothing; an apply re-checks under its own locks).
+     * writes nothing). The apply repeats what a plan write can change under ITS locks: the owners and teams (`LockedApply.run`), the
+     * defaults under a root ([requireDefaultsUnderRoot], from `guardNamedDefaults`), and the defaults under the stream by the kernel's own
+     * lookup in the stream's tree read under the lock (a default outside it is no parent at all).
      */
     suspend fun requireShape(scope: JiraImportScope, overrides: Collection<JiraImportOverrides> = emptyList()): Unit =
         suspendTransaction(database) {
@@ -184,7 +186,7 @@ class JiraImportService(
      * `defaults.projectId` under a project root (every milestone lands under the root), and under a program root only a project OF that
      * program. (The planner's re-homing of a child linked to a project of another program of the stream is the documented rough edge.)
      */
-    private suspend fun requireDefaultsUnderRoot(defaults: JiraImportDefaults?, root: JiraImportRoot) {
+    internal suspend fun requireDefaultsUnderRoot(defaults: JiraImportDefaults?, root: JiraImportRoot) {
         if (defaults?.programId != null) throw BadRequestException("defaults.programId cannot be combined with a root")
         val projectId = defaults?.projectId ?: return
         if (root.level == JiraImportRootLevel.PROJECT) {

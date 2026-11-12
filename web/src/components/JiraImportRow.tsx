@@ -74,6 +74,7 @@ function DetailsCell({
   teamId,
   onTeam,
   owner,
+  ownerPicked,
   onOwner,
   t,
 }: {
@@ -83,6 +84,7 @@ function DetailsCell({
   teamId: number | null;
   onTeam: (teamId: number) => void;
   owner: PickedOption | null;
+  ownerPicked: boolean;
   onOwner: (owner: PickedOption | null) => void;
   t: TFunction;
 }) {
@@ -110,6 +112,7 @@ function DetailsCell({
       {owner !== null && hasOwnerChoice(item) && (
         <PersonSelect
           compact
+          clearable={ownerPicked}
           label={t("jira.import.row.ownerAria", { key: item.issueKey })}
           placeholder={t("plan.pickOwner")}
           clearLabel={t("jira.import.row.ownerReset")}
@@ -153,6 +156,7 @@ export default function JiraImportRow({
   onTick,
   onTeam,
   owner,
+  ownerPicked,
   onOwner,
   rowProps,
 }: {
@@ -166,6 +170,8 @@ export default function JiraImportRow({
   onTick: (on: boolean) => void;
   onTeam: (teamId: number) => void;
   owner: PickedOption | null;
+  /** The row has its OWN pick (so there is something to clear); otherwise it shows the dialog's owner and offers no clear button. */
+  ownerPicked: boolean;
   onOwner: (owner: PickedOption | null) => void;
   rowProps: VirtualRowProps;
 }) {
@@ -208,7 +214,7 @@ export default function JiraImportRow({
         <ActionCell item={item} blocker={blocker} t={t} />
       </Table.Td>
       <Table.Td w={280}>
-        <DetailsCell item={item} copyDates={copyDates} teams={teams} teamId={teamId} onTeam={onTeam} owner={owner} onOwner={onOwner} t={t} />
+        <DetailsCell item={item} copyDates={copyDates} teams={teams} teamId={teamId} onTeam={onTeam} owner={owner} ownerPicked={ownerPicked} onOwner={onOwner} t={t} />
       </Table.Td>
     </Table.Tr>
   );

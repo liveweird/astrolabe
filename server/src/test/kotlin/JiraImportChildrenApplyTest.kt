@@ -227,6 +227,26 @@ class JiraImportChildrenApplyTest {
         }
 
     @Test
+    fun `a default project moved out of the root program while the apply waits for the lock is a 400, nothing written, no bump`() =
+        testApplication {
+            val f = importFixture("jca10", keys = listOf("IMC"))
+            val root = f.linkProgram()
+            val admin = f.w.admin.client
+            val scope = f.scope(JiraImportDefaults(projectId = f.w.projectId, teamId = f.defaultTeam), root = root)
+            val ticks = admin.preview(f.connectionId, scope).previewBody().ticks()
+            val elsewhere = TestPlan.program(f.w.streamId, f.w.stranger.personId!!)
+            val before = TestPlan.revision()
+            val response = requestHeldAtPlanLock({ admin.applyImport(f.connectionId, scope, ticks) }) { raw ->
+                raw.exec("UPDATE projects SET program_id = ? WHERE id = ?", elsewhere.toInt(), f.w.projectId.toInt())
+            }
+            assertEquals(HttpStatusCode.BadRequest, response.status, response.bodyAsText())
+            assertTrue("not a project of the root program" in response.jbProblem().detail.orEmpty())
+            assertEquals(before, TestPlan.revision(), "no bump")
+            assertEquals(1, activeBindingCount(f.connectionId), "only the root's link")
+            assertEquals(0, count("SELECT count(*) FROM milestones WHERE project_id = ? AND NOT marked_as_deleted", f.w.projectId.toInt()))
+        }
+
+    @Test
     fun `no refusal of a rooted apply audits an apply or writes anything`() = testApplication {
         val f = importFixture("jca9", keys = listOf("IMC"))
         val root = f.linkProgram()

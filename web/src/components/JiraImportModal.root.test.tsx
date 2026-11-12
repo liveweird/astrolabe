@@ -171,6 +171,27 @@ describe("JiraImportModal: the rooted preview", () => {
     expect(importButton()).toBeDisabled();
   });
 
+  test("a truncated preview under a program root names the filter and a project below, never the Jira projects", async () => {
+    previewHandler = () => jsonResponse(200, previewOf(PREVIEW_ITEMS, { totals: { items: 2000, create: 6, bind: 1, skip: 2, truncated: true } }));
+    const user = userEvent.setup();
+    open(PROGRAM_ROOT);
+    await previewScope(user, true);
+    expect(await screen.findByText(/more than 2,000 issues lie under the linked item/)).toHaveTextContent(/narrow the filter .*start the import from a project below this program/);
+    expect(screen.queryByText(/narrow the Jira projects/)).not.toBeInTheDocument();
+    expect(importButton()).toBeDisabled();
+  });
+
+  test("a truncated preview under a project root names the filter only", async () => {
+    previewHandler = () => jsonResponse(200, previewOf(PREVIEW_ITEMS, { totals: { items: 2000, create: 6, bind: 1, skip: 2, truncated: true } }));
+    const user = userEvent.setup();
+    open(PROJECT_ROOT);
+    await previewScope(user, true);
+    const note = await screen.findByText(/more than 2,000 issues lie under the linked item/);
+    expect(note).toHaveTextContent(/narrow the filter/);
+    expect(note).not.toHaveTextContent(/project below/);
+    expect(screen.queryByText(/narrow the Jira projects/)).not.toBeInTheDocument();
+  });
+
   test("with the filter off the filter sentence is left out", async () => {
     previewHandler = () => jsonResponse(200, previewOf([]));
     const user = userEvent.setup();

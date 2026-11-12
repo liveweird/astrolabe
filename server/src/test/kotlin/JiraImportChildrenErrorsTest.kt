@@ -216,6 +216,35 @@ class JiraImportChildrenErrorsTest {
         assertEquals(HttpStatusCode.OK, plain.status)
     }
 
+    @Test
+    fun `a rooted apply over more than 2000 children is a 400 that names the filter and, under a program root, a project below`() =
+        testApplication {
+            val f = importFixture("jce8", keys = listOf("IMC"))
+            val admin = f.w.admin.client
+            val docs = (1..2_001).map {
+                val id = 200_000 + it
+                issueDoc("$id", "IMC-$id", "10005", "Initiative", 2, fields = """"parent":{"id":"99001"}""")
+            }
+            val search = get(searchPattern).atPriority(1)
+                .willReturn(
+                    aResponse().withStatus(200).withHeader("Content-Type", "application/json").withBody(searchPage(*docs.toTypedArray())),
+                )
+            val revision = TestPlan.revision()
+            val tick = listOf(createTick("200001", JiraLevel.PROJECT, imcId(1)))
+            val program = f.linkProgram()
+            val override = JiraStubServer.addOverride(search)
+            try {
+                val refused = admin.applyImport(f.connectionId, f.scope(root = program), tick)
+                val detail = refused.jbProblem().detail.orEmpty()
+                assertEquals(HttpStatusCode.BadRequest, refused.status, detail)
+                assertTrue("narrow the filter" in detail && "start from a project below it" in detail && "projectKeys" !in detail, detail)
+            } finally {
+                JiraStubServer.removeOverride(override)
+            }
+            assertEquals(revision, TestPlan.revision(), "nothing was written")
+            assertEquals(1, jbScalar("SELECT count(*) FROM jira_bindings WHERE connection_id = ?", f.connectionId.toInt()) { it.getInt(1) })
+        }
+
     companion object {
         @JvmStatic
         @BeforeClass

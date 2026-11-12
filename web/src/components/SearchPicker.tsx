@@ -26,6 +26,7 @@ export default function SearchPicker({
   picked,
   onPick,
   compact = false,
+  clearable = true,
 }: {
   label: string;
   description?: string;
@@ -46,8 +47,17 @@ export default function SearchPicker({
   onPick: (picked: PickedOption | null) => void;
   /** An inline cell (a table row): the small size, and the label is the control's accessible name, not a visible caption. */
   compact?: boolean;
+  /** Whether the clear button is offered (default). A caller whose empty pick means "nothing chosen yet" shows it only once there is one. */
+  clearable?: boolean;
 }) {
   const [searchValue, setSearchValue] = useState(picked?.label ?? "");
+  // The caller may change the pick without a choice here (clearing a row's own owner hands it back the dialog's): the box follows the
+  // pick's label, the derived-state pattern (set during render, no effect), else it would show the old label for a value it no longer holds.
+  const [seenLabel, setSeenLabel] = useState(picked?.label ?? "");
+  if ((picked?.label ?? "") !== seenLabel) {
+    setSeenLabel(picked?.label ?? "");
+    setSearchValue(picked?.label ?? "");
+  }
   // Choosing an option makes Mantine put its label into the search box — that is not a search term.
   const term = picked !== null && searchValue === picked.label ? "" : searchValue.trim();
   const [debounced] = useDebouncedValue(term, 300);
@@ -75,7 +85,7 @@ export default function SearchPicker({
         placeholder={placeholder}
         data={options}
         searchable
-        clearable
+        clearable={clearable}
         clearButtonProps={{ "aria-label": clearLabel }}
         searchValue={searchValue}
         onSearchChange={setSearchValue}
@@ -83,10 +93,11 @@ export default function SearchPicker({
         onChange={(value, option) => onPick(value !== null && option ? { value: option.value, label: option.label } : null)}
         nothingFoundMessage={loading || results.isError || settling ? undefined : noMatchLabel}
         disabled={disabled}
-        error={error}
+        // A compact cell has a fixed height: a failed search is the red border (no message under it, no alert after it).
+        error={error ?? (compact && results.isError ? true : undefined)}
         aria-busy={loading}
       />
-      {results.isError && <ErrorAlert error={results.error} />}
+      {results.isError && !compact && <ErrorAlert error={results.error} />}
     </>
   );
 }

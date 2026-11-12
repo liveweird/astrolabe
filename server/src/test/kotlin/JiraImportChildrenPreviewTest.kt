@@ -188,9 +188,9 @@ class JiraImportChildrenPreviewTest {
                     assertTrue(line.hasKeyValue("connectionId", f.connectionId.toLong()))
                     assertTrue(line.hasKeyValue("rootLevel", "PROGRAM"))
                     assertTrue(line.hasKeyValue("rootNodeId", f.w.programId.toLong()))
-                    assertTrue(line.hasKeyValue("rows", preview.items.size))
+                    assertTrue(line.hasKeyValue("rowCount", preview.items.size))
                     assertEquals(
-                        setOf("byUserId", "connectionId", "rootLevel", "rootNodeId", "rows"),
+                        setOf("byUserId", "connectionId", "rootLevel", "rootNodeId", "rowCount"),
                         line.keyValuePairs.orEmpty().map { it.key }.toSet(),
                         "ids and a count: no key, name or summary",
                     )

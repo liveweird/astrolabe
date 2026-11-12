@@ -18,6 +18,7 @@ export default function PersonSelect({
   disabled,
   error,
   compact,
+  clearable,
 }: {
   label: string;
   description?: string;
@@ -30,6 +31,8 @@ export default function PersonSelect({
   error?: ReactNode;
   /** A table-row cell: small, the label as the accessible name only (`SearchPicker`). */
   compact?: boolean;
+  /** Passed to `SearchPicker`: false hides the clear button (default true). */
+  clearable?: boolean;
 }) {
   const { t } = useTranslation();
   return (
@@ -49,6 +52,7 @@ export default function PersonSelect({
       disabled={disabled}
       error={error}
       compact={compact}
+      clearable={clearable}
     />
   );
 }

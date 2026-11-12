@@ -392,6 +392,8 @@
       "leftOutBoth_one": "Left out: done items, and items not updated for more than {{count}} day. Their parents in the selected projects are still read.",
       "leftOutBoth_other": "Left out: done items, and items not updated for more than {{count}} days. Their parents in the selected projects are still read.",
       "truncated": "The scope is too large to import: more than 2,000 issues, or more than 200 parents that would have to be read one by one. What is shown is incomplete and nothing can be imported. Go back and narrow the Jira projects or change what is left out, then preview again.",
+      "truncatedRootProgram": "The scope is too large to import: more than 2,000 issues lie under the linked item. What is shown is incomplete and nothing can be imported. Go back and narrow the filter (leave out done items, or fewer days), or start the import from a project below this program, then preview again.",
+      "truncatedRootProject": "The scope is too large to import: more than 2,000 issues lie under the linked item. What is shown is incomplete and nothing can be imported. Go back and narrow the filter (leave out done items, or fewer days), then preview again.",
       "unscheduledRights": "{{n}} of {{of}} milestones with dates will be created unscheduled: you do not manage their teams.",
       "unmatchedTeams": "Jira teams that match no team here: {{names}}. Their milestones use the default team, or are skipped without one.",
       "selectAll": "Select all",

@@ -402,6 +402,8 @@
       "leftOutBoth_many": "Pominięte: elementy zakończone oraz nieaktualizowane od ponad {{count}} dni. Ich rodzice w wybranych projektach są nadal wczytywani.",
       "leftOutBoth_other": "Pominięte: elementy zakończone oraz nieaktualizowane od ponad {{count}} dni. Ich rodzice w wybranych projektach są nadal wczytywani.",
       "truncated": "Zakres jest za duży, żeby go zaimportować: ponad 2000 zgłoszeń albo ponad 200 rodziców, których trzeba by wczytać pojedynczo. Lista jest niepełna i nic nie można zaimportować. Wróć i zawęź projekty Jiry albo zmień to, co jest pomijane, a potem pokaż podgląd ponownie.",
+      "truncatedRootProgram": "Zakres jest za duży, żeby go zaimportować: pod powiązanym elementem jest ponad 2000 zgłoszeń. Lista jest niepełna i nic nie można zaimportować. Wróć i zawęź filtr (pomiń zakończone elementy albo zmniejsz liczbę dni) albo zacznij import od projektu pod tym programem, a potem pokaż podgląd ponownie.",
+      "truncatedRootProject": "Zakres jest za duży, żeby go zaimportować: pod powiązanym elementem jest ponad 2000 zgłoszeń. Lista jest niepełna i nic nie można zaimportować. Wróć i zawęź filtr (pomiń zakończone elementy albo zmniejsz liczbę dni), a potem pokaż podgląd ponownie.",
       "unscheduledRights": "{{n}} z {{of}} kamieni milowych z datami powstanie bez terminu: nie zarządzasz ich zespołami.",
       "unmatchedTeams": "Zespoły z Jiry bez odpowiednika tutaj: {{names}}. Ich kamienie milowe trafią do zespołu domyślnego albo zostaną pominięte, gdy go nie ma.",
       "selectAll": "Zaznacz wszystko",

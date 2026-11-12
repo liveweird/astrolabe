@@ -34,9 +34,10 @@ internal const val IMPORT_TRUNCATED =
     "More than $MAX_IMPORT_ITEMS issues are in scope, or more than $MAX_IMPORT_PARENT_READS parents would have to be read one by one - " +
         "narrow projectKeys or the filter and preview again"
 
-/** The rooted variant (1.14): no parent is read one by one, and projectKeys is not the lever, so it names the filter and a deeper root. */
-internal const val ROOTED_IMPORT_TRUNCATED =
-    "More than $MAX_IMPORT_ITEMS issues lie under the linked item - narrow the filter, or start from a project below it, and preview again"
+/** The rooted variant (1.14): no parent is read one by one and projectKeys is no lever: the filter, and for a program a project below. */
+internal fun rootedImportTruncated(root: ImportRoot): String =
+    "More than $MAX_IMPORT_ITEMS issues lie under the linked item - narrow the filter" +
+        (if (root.level == JiraLevel.PROGRAM) ", or start from a project below it," else "") + " and preview again"
 
 /**
  * What the route hands the apply, all of it resolved BEFORE the lock: the request, the browse (the one HTTP act, already done), the
@@ -198,6 +199,9 @@ internal class LockedApply(
             request.root?.let { rootChain(it) },
         )
         chains.forEach { requireOwnerOrAdmin(caller, person, it) }
+        // The shape rule of the rooted import, again under the lock: a default project moved to another program during the browse would
+        // write the root's direct milestones outside the root's subtree (the guards above are on the chains, not on this rule).
+        request.root?.let { imports.requireDefaultsUnderRoot(request.defaults, it) }
         return chains.size
     }
 

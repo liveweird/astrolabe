@@ -525,7 +525,7 @@ function (`deleteCapacityPeriodsOf`, `removeFromRanking`, …) counts as the cal
   `jira_observations` through `JiraBindingService.insertBoundLocked` (the dead-node holders it finds are soft-deleted: the binding's own release). **Lock order,
   which nothing may invert:** the plan lock (`plan_state FOR UPDATE`) -> `pg_advisory_xact_lock(BIND_LOCK_KEY)` -> the connection row `FOR SHARE` (gone `404`,
   disabled `400`, project keys moved since the browse `400`, `mapping_changed_at` or `discovered_at` moved `409`) -> the caller's person `FOR SHARE` -> the
-  named defaults' chains (and, since 1.14, the rooted import's chain, re-read and guarded the same way) -> the owner (`requireActiveOwner`) and every named team (`requireActiveTeam`) `FOR SHARE` -> the caller's managed teams
+  named defaults' chains (and, since 1.14, the rooted import's chain, re-read and guarded the same way) -> the owner (`requireActiveOwner`), then every `overrides.ownerPersonId` (1.14; distinct, ascending, after the dialog's owner, each `requireActiveOwner`) and every named team (`requireActiveTeam`) `FOR SHARE` -> the caller's managed teams
   (`lockedIsActiveManager`, `FOR SHARE OF teams, people`) -> the plan side re-read (tree, names, holders, calendar: plain reads, exact under the lock) -> the
   kernel over THOSE rows -> (a rooted import: the root's own row must be `ALREADY_BOUND` to the root node through this connection, else the `409`) -> the guard on every ticked CREATE/BIND row's target -> the dead holders to release locked `FOR NO KEY UPDATE` in ONE `ORDER BY id`
   statement (the run's sweep updates in id order) -> each written milestone's team `FOR SHARE` -> top-down, per row, the insert of a CREATE's node or

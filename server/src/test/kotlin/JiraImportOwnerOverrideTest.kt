@@ -12,6 +12,7 @@ import io.ktor.server.testing.testApplication
 import org.junit.BeforeClass
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /**
@@ -42,8 +43,17 @@ class JiraImportOwnerOverrideTest {
                 val ticks = admin.preview(f.connectionId, scope).previewBody().ticks()
                 val programOwner = f.w.projectOwner.personId!!
                 val projectOwner = f.w.stranger.personId!!
-                val overridden = ticks.overriding("95001" to programOwner, "95003" to projectOwner, "95004" to projectOwner)
-                val result = admin.applyImport(f.connectionId, scope, overridden).applyBody()
+                // The milestone's override names a third person: ignored, so it must not reach the audit line either.
+                val ignored = f.w.programOwner.personId!!
+                val overridden = ticks.overriding("95001" to programOwner, "95003" to projectOwner, "95004" to ignored)
+                val result = withAuditCapture { audit ->
+                    val applied = admin.applyImport(f.connectionId, scope, overridden).applyBody()
+                    val event = assertNotNull(audit.awaitEvent { it.message == "jira.import_applied" })
+                    assertTrue(event.hasKeyValue("ownerPersonId", f.w.streamOwner.personId!!.toLong()))
+                    val granted = listOf(programOwner, projectOwner).sorted().joinToString(",")
+                    assertTrue(event.hasKeyValue("ownerOverridePersonIds", granted), "only the created program's and project's owners")
+                    applied
+                }
                 assertEquals(9, result.created.size)
                 val byKey = result.created.associateBy { it.issueKey }
                 assertEquals(programOwner.toInt(), ownerOf("programs", byKey.getValue("IMP-1").id))

@@ -18,7 +18,7 @@ import ch.nokillswit.jira.JiraLevel
 import ch.nokillswit.jira.JiraLevelMapping
 import ch.nokillswit.jira.JiraMapping
 import ch.nokillswit.jira.JiraMappingState
-import ch.nokillswit.jira.ROOTED_IMPORT_TRUNCATED
+import ch.nokillswit.jira.rootedImportTruncated
 import ch.nokillswit.jira.JiraTestTarget
 import ch.nokillswit.jira.StoredMapping
 import ch.nokillswit.jira.browseChildren
@@ -325,10 +325,16 @@ class JiraImportChildrenTest {
     }
 
     @Test
-    fun `a rooted apply that truncates names the filter and a deeper root, never projectKeys or parents read one by one`() {
+    fun `a rooted truncation names the filter, a program root also a project below, never projectKeys or one-by-one reads`() {
         assertTrue("narrow projectKeys" in IMPORT_TRUNCATED)
-        assertTrue("projectKeys" !in ROOTED_IMPORT_TRUNCATED && "one by one" !in ROOTED_IMPORT_TRUNCATED, ROOTED_IMPORT_TRUNCATED)
-        assertTrue("filter" in ROOTED_IMPORT_TRUNCATED && "2000" in ROOTED_IMPORT_TRUNCATED, ROOTED_IMPORT_TRUNCATED)
+        val program = rootedImportTruncated(ImportRoot(JiraLevel.PROGRAM, 1u, 1u, "99001", 1u))
+        val project = rootedImportTruncated(ImportRoot(JiraLevel.PROJECT, 1u, 1u, "99002", 1u))
+        for (text in listOf(program, project)) {
+            assertTrue("projectKeys" !in text && "one by one" !in text, text)
+            assertTrue("filter" in text && "2000" in text, text)
+        }
+        assertTrue("project below" in program, program)
+        assertTrue("project below" !in project, project)
     }
 
     @Test

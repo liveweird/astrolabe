@@ -18,6 +18,12 @@ function leftOutKeyOf(excludeDone: boolean, days: number | null) {
   return days === null ? null : "jira.import.preview.leftOutQuiet";
 }
 
+/** The truncation sentence: a rooted scope has no project picker, so it names the filter (and, below a program, a project to start from). */
+function truncatedKeyFor(root: ImportRoot | undefined) {
+  if (root === undefined) return "jira.import.preview.truncated";
+  return root.level === "PROGRAM" ? "jira.import.preview.truncatedRootProgram" : "jira.import.preview.truncatedRootProject";
+}
+
 /** A row's owner pick put into (or, for a cleared picker, taken out of) the map: no pick means the dialog's owner. */
 function withPick(previous: ReadonlyMap<string, PickedOption>, id: string, pick: PickedOption | null): ReadonlyMap<string, PickedOption> {
   const next = new Map(previous);
@@ -68,6 +74,7 @@ export default function JiraImportPreviewStep({
   const notable = items.some((item) => item.action === "SKIP" && item.reason !== "ALREADY_BOUND");
   const rights = unscheduledForRights(items, ticks, scope.copyDates);
   const truncated = totals.truncated;
+  const truncatedKey = truncatedKeyFor(root);
   const filter = scope.filter ?? null;
   const leftOutKey = filter === null ? null : leftOutKeyOf(filter.excludeDone, filter.updatedWithinDays ?? null);
   // The search only HIDES rows: the ticks, the overrides and the global counts below never look at it. Select all / none and the header checkbox act on what is shown.
@@ -120,7 +127,7 @@ export default function JiraImportPreviewStep({
       )}
       {truncated && (
         <Alert color="orange" variant="light" role="note">
-          {t("jira.import.preview.truncated")}
+          {t(truncatedKey)}
         </Alert>
       )}
       {rights.count > 0 && (
@@ -219,6 +226,7 @@ export default function JiraImportPreviewStep({
                 onTick={(on) => tick(item.jiraId, on)}
                 onTeam={(teamId) => setOverrides((previous) => new Map(previous).set(item.jiraId, teamId))}
                 owner={owner === null ? null : (ownerPicks.get(item.jiraId) ?? owner)}
+                ownerPicked={ownerPicks.has(item.jiraId)}
                 onOwner={(pick) => setOwnerPicks((previous) => withPick(previous, item.jiraId, pick))}
                 rowProps={rowProps}
               />

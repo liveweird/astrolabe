@@ -381,8 +381,10 @@ test("admin imports the stub's IMP project tree and a re-import creates nothing"
   // A per-row owner (1.14): the projects and the program have an owner picker (the dialog's owner preselected), a milestone has none; IMP-2 is given someone else.
   const otherOwner = uniqueText(`${MARK}other`);
   await createPerson(otherOwner);
-  await expect(rowOf(page, "IMP-2").getByRole("combobox", { name: "Owner for IMP-2" })).toHaveValue(world.ownerName);
-  await expect(rowOf(page, "IMP-4").getByRole("combobox", { name: "Owner for IMP-4" })).toHaveCount(0);
+  for (const key of ["IMP-1", "IMP-2", "IMP-3"]) {
+    await expect(rowOf(page, key).getByRole("combobox", { name: `Owner for ${key}` })).toHaveValue(world.ownerName);
+  }
+  await expect(rowOf(page, "IMP-4").getByRole("combobox", { name: /^Owner for/ })).toHaveCount(0);
   await pick(page, rowOf(page, "IMP-2").getByRole("combobox", { name: "Owner for IMP-2" }), otherOwner);
 
   // Import: 1 + 2 + 5 created; the four with dates (IMP-4, 5, 7, 9) scheduled - IMP-6 is undated.
