@@ -185,6 +185,11 @@ Flow's batch-by-batch bump log (2026-09 .. 2026-10) is not carried over: Astrola
 Jira/GitLab-only clients), and its own rounds are recorded below, newest first, as they happen. The v0.1.0 lockfiles and `gradle/verification-metadata.xml` were
 regenerated from an empty `GRADLE_USER_HOME` per `dependency-reproducibility.md`.
 
+- 2026-11 (1.14, kotlinx-datetime skew): `kotlinx-datetime` is transitive only and resolved to 0.7.1-0.6.x-compat on the compile classpath but 0.8.0-0.6.x-compat at runtime. Cause: Exposed 1.6.0 declares
+  `kotlinx-datetime-jvm` 0.7.1 in its API scope, while `ktor-openapi-schema` 3.6.1 (via `ktor-serialization-kotlinx`) declares 0.8.0 in its runtime scope only, so only the runtime graph sees the higher request. Fixed with a
+  `server` `implementation` constraint on both coordinates (`kotlinx-datetime`, `kotlinx-datetime-jvm`) at the 0.8.0 the runtime already ran (catalog key `kotlinx-datetime`, rationale there), and `checkDependencyAlignment`
+  now has a kotlinx-datetime family checked across the compile AND runtime classpaths (the only family that reads both). The lock diff is the two `server/gradle.lockfile` lines collapsing into one and the metadata diff is the dropped 0.7.1 `kotlinx-datetime-jvm` entry (the file equals a clean regeneration from an empty `GRADLE_USER_HOME`). Drop the constraint once Exposed asks for 0.8.0+.
+  Lock regeneration note: `--write-locks` also re-resolves the unlocked server buildscript classpath, which now picks `commons-lang3` 3.22.0 (3.21.0 locked): that unrelated drift was left out of this change (`git checkout server/buildscript-gradle.lockfile`).
 - 2026-11 (v1.1.0 C1, the Jira sync's transport and stub): two **test-only** dependencies added to `server/` (`testImplementation`): `org.wiremock:wiremock-standalone` 3.13.2 (catalog key `wiremock`, `libs.wiremock.standalone`) and
   `io.ktor:ktor-client-mock` 3.6.0 (`ktorLibs.client.mock`, the Ktor catalog's version). Locks and `gradle/verification-metadata.xml` were regenerated from an empty `GRADLE_USER_HOME` (the dependency-report tasks of the
   command above with `--write-locks` and `--write-verification-metadata sha256` together, then the documented build-driven pass and the strict check from a second empty home); the lock diff is exactly the three

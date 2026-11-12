@@ -63,6 +63,12 @@ scram = "3.4"
 # swagger-core 1.6.16 (the OpenAPI request validator) which asks for the 32.1.3-android flavour. The constraint
 # lifts every flavour to the -jre fix; server/build.gradle.kts carries the matching buildscript constraint.
 guava = "33.8.0-jre"
+# Compile/runtime skew (found 2026-11-12): kotlinx-datetime is transitive only. Exposed 1.6.0 declares kotlinx-datetime-jvm 0.7.1-0.6.x-compat in its
+# API scope (the compile classpath), while ktor-openapi-schema 3.6.1 (ktor-server-routing-openapi, via ktor-serialization-kotlinx) declares 0.8.0-0.6.x-compat
+# in its RUNTIME scope only - so compileClasspath resolved 0.7.1 and runtimeClasspath 0.8.0. The runtime already ran 0.8.0, so the constraint pins that
+# (the `-0.6.x-compat` build keeps the 0.6.x API Exposed was compiled against); `checkDependencyAlignment` now fails when the two classpaths disagree.
+# Revisit when Exposed moves: drop the constraint once Exposed itself asks for 0.8.0 or later.
+kotlinx-datetime = "0.8.0-0.6.x-compat"
 
 # Jackson 2.22.2; the jackson-bom platform pins the whole com.fasterxml.jackson family to it and
 # checkDependencyAlignment guards the family. (Flyway 13 itself rides Jackson 3 — a separate
@@ -104,6 +110,8 @@ testcontainers-postgresql = { module = "org.testcontainers:testcontainers-postgr
 wiremock-standalone = { module = "org.wiremock:wiremock-standalone", version.ref = "wiremock" }
 guava = { module = "com.google.guava:guava", version.ref = "guava" }
 scram-client = { module = "com.ongres.scram:scram-client", version.ref = "scram" }
+kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "kotlinx-datetime" }
+kotlinx-datetime-jvm = { module = "org.jetbrains.kotlinx:kotlinx-datetime-jvm", version.ref = "kotlinx-datetime" }
 scram-common = { module = "com.ongres.scram:scram-common", version.ref = "scram" }
 
 [plugins]

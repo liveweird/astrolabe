@@ -147,6 +147,10 @@ dependencies {
         implementation(libs.scram.common)
         // Security floor for Guava (jwks-rsa at runtime, swagger-core in tests): see the catalog note.
         implementation(libs.guava)
+        // One kotlinx-datetime on the compile AND runtime classpaths (Exposed's api asks 0.7.1, Ktor's openapi-schema asks 0.8.0 at
+        // runtime only): see the catalog note. Both coordinates, the module and its -jvm variant; guarded by checkDependencyAlignment.
+        implementation(libs.kotlinx.datetime)
+        implementation(libs.kotlinx.datetime.jvm)
     }
     implementation(project(":core"))
     implementation(ktorLibs.serialization.kotlinx.json)
@@ -627,8 +631,14 @@ val checkDependencyAlignment = tasks.register("checkDependencyAlignment") {
     group = "verification"
     description = "Asserts one version per aligned dependency family (Reactor: the BOM's versions) on the server runtime classpath."
     val runtimeClasspath = configurations.runtimeClasspath
+    val compileClasspath = configurations.compileClasspath
     doLast {
         val ids = runtimeClasspath.get().resolvedConfiguration.resolvedArtifacts.map { it.moduleVersion.id }
+        // kotlinx-datetime is the one family checked across BOTH classpaths: Exposed's api and Ktor's runtime-only dependency once
+        // resolved it to 0.7.1 (compile) and 0.8.0 (runtime) - see the catalog note.
+        val datetimeVersions = (ids + compileClasspath.get().resolvedConfiguration.resolvedArtifacts.map { it.moduleVersion.id })
+            .filter { it.group == "org.jetbrains.kotlinx" && it.name.startsWith("kotlinx-datetime") }
+            .map { it.version }.toSortedSet()
         // The Reactor modules are the exception to one-version-per-family (reactor-core, reactor-pool
         // and reactor-netty legitimately carry different version numbers as ONE release train), so
         // they are checked against the Reactor BOM's own constraints instead — upstream's pairing
@@ -687,9 +697,13 @@ val checkDependencyAlignment = tasks.register("checkDependencyAlignment") {
                 "$label: " + versions.entries.joinToString("; ") { (v, names) -> "$v -> ${names.sorted()}" }
             }
         }
-        check(drift.isEmpty() && reactorDrift.isEmpty()) {
+        val datetimeDrift = when (datetimeVersions.size) {
+            1 -> null.also { logger.lifecycle("kotlinx-datetime aligned at ${datetimeVersions.single()} (compile + runtime)") }
+            else -> "kotlinx-datetime (compile + runtime): $datetimeVersions"
+        }
+        check(drift.isEmpty() && reactorDrift.isEmpty() && datetimeDrift == null) {
             "Dependency families must resolve to ONE version each on the runtime classpath, and Reactor modules " +
-                "to the reactor-bom's versions — " + (drift + reactorDrift).joinToString(" | ")
+                "to the reactor-bom's versions — " + (drift + reactorDrift + listOfNotNull(datetimeDrift)).joinToString(" | ")
         }
         // Jackson 3 (tools.jackson, a different Java package from com.fasterxml.jackson) rides in
         // through Flyway 13 and coexists with the Jackson 2 line the validators use — the two never
