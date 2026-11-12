@@ -10,6 +10,7 @@ import ClearableTextInput from "./ClearableTextInput";
 import JiraImportFailureAlert from "./JiraImportFailureAlert";
 import JiraImportRow, { IMPORT_ROW_HEIGHT, type TeamOption } from "./JiraImportRow";
 import JiraImportVirtualTable from "./JiraImportVirtualTable";
+import type { PickedOption } from "./SearchPicker";
 
 /** The "what was left out" line's key for the filter the rows were read under; null when the filter leaves nothing out. */
 function leftOutKeyOf(excludeDone: boolean, days: number | null) {
@@ -17,10 +18,19 @@ function leftOutKeyOf(excludeDone: boolean, days: number | null) {
   return days === null ? null : "jira.import.preview.leftOutQuiet";
 }
 
+/** A row's owner pick put into (or, for a cleared picker, taken out of) the map: no pick means the dialog's owner. */
+function withPick(previous: ReadonlyMap<string, PickedOption>, id: string, pick: PickedOption | null): ReadonlyMap<string, PickedOption> {
+  const next = new Map(previous);
+  if (pick === null) next.delete(id);
+  else next.set(id, pick);
+  return next;
+}
+
 /** The second phase: what the import would do, with a tickbox per row that would be written. The ticks and the per-row team overrides are this component's state. */
 export default function JiraImportPreviewStep({
   connection,
   root,
+  owner,
   preview,
   busy,
   failure,
@@ -29,12 +39,14 @@ export default function JiraImportPreviewStep({
   onPreviewAgain,
 }: {
   connection: ImportConnection;
+  /** The dialog's owner, which every program and project row gets unless its own picker says otherwise (null: no per-row owner picker). */
+  owner: PickedOption | null;
   /** A rooted import (1.14): an empty preview says what Jira listed under the root's key, not that the scope is empty. */
   root?: ImportRoot;
   preview: PreviewState;
   busy: "preview" | "apply" | null;
   failure: ImportFailure | null;
-  onApply: (ticks: ReadonlySet<string>, teamOverrides: ReadonlyMap<string, number>) => void;
+  onApply: (ticks: ReadonlySet<string>, teamOverrides: ReadonlyMap<string, number>, ownerOverrides: ReadonlyMap<string, number>) => void;
   onBack: () => void;
   onPreviewAgain: () => void;
 }) {
@@ -47,6 +59,7 @@ export default function JiraImportPreviewStep({
   const selectable = useMemo(() => items.filter(isSelectable).length, [items]);
   const [ticks, setTicks] = useState<ReadonlySet<string>>(() => allSelectable(items));
   const [overrides, setOverrides] = useState<ReadonlyMap<string, number>>(new Map());
+  const [ownerPicks, setOwnerPicks] = useState<ReadonlyMap<string, PickedOption>>(new Map());
   const [announcement, setAnnouncement] = useState("");
   const [query, setQuery] = useState("");
   const teams = useQuery({ queryKey: ["teams", "picker", "import"], queryFn: () => listTeams({ page: 1, pageSize: 100, sort: "name" }) });
@@ -205,6 +218,8 @@ export default function JiraImportPreviewStep({
                 teamId={override ?? item.team?.id ?? null}
                 onTick={(on) => tick(item.jiraId, on)}
                 onTeam={(teamId) => setOverrides((previous) => new Map(previous).set(item.jiraId, teamId))}
+                owner={owner === null ? null : (ownerPicks.get(item.jiraId) ?? owner)}
+                onOwner={(pick) => setOwnerPicks((previous) => withPick(previous, item.jiraId, pick))}
                 rowProps={rowProps}
               />
             );
@@ -227,7 +242,7 @@ export default function JiraImportPreviewStep({
             {t("jira.import.previewAgain")}
           </Button>
         </Group>
-        <Button onClick={() => onApply(ticks, overrides)} loading={applying} disabled={none || truncated || locked}>
+        <Button onClick={() => onApply(ticks, overrides, new Map([...ownerPicks].map(([id, pick]) => [id, Number(pick.value)])))} loading={applying} disabled={none || truncated || locked}>
           {t("jira.import.preview.import", { n: ticks.size })}
         </Button>
       </Group>

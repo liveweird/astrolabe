@@ -17,6 +17,7 @@ export default function PersonSelect({
   onPick,
   disabled,
   error,
+  compact,
 }: {
   label: string;
   description?: string;
@@ -27,6 +28,8 @@ export default function PersonSelect({
   disabled?: boolean;
   /** A field error (a validation or a server conflict the form maps onto this control). */
   error?: ReactNode;
+  /** A table-row cell: small, the label as the accessible name only (`SearchPicker`). */
+  compact?: boolean;
 }) {
   const { t } = useTranslation();
   return (
@@ -45,6 +48,7 @@ export default function PersonSelect({
       onPick={onPick}
       disabled={disabled}
       error={error}
+      compact={compact}
     />
   );
 }

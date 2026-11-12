@@ -101,10 +101,11 @@ export default function JiraImportModal({
             key={preview.data.asOf}
             connection={connection}
             root={root}
+            owner={form.owner?.value === String(preview.scope.ownerPersonId) ? form.owner : null}
             preview={preview}
             busy={run.busy}
             failure={run.failure}
-            onApply={(ticks, overrides) => void run.runApply(toApplyRequest(preview.scope, preview.data.items, ticks, overrides))}
+            onApply={(ticks, teams, owners) => void run.runApply(toApplyRequest(preview.scope, preview.data.items, ticks, teams, owners))}
             onBack={run.back}
             onPreviewAgain={previewAgain}
           />

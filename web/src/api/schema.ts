@@ -2483,7 +2483,7 @@ export interface paths {
          *
          *     **Order:** the same checks as the preview up to and including the browse (the per-USER `jira-import` bucket, shared with the
          *     preview, then the connection `404`, the body, the named targets `404`/`403`, the shape `400` - which also covers the items: each
-         *     `jiraId` a numeric Jira id named once, 1 to 2,000 items, and every `overrides.teamId` an active team - then the connection state
+         *     `jiraId` a numeric Jira id named once, 1 to 2,000 items, and every `overrides.teamId` an active team and every `overrides.ownerPersonId` an active person - then the connection state
          *     `400`/`409`, then the browse `502`); a browse that stopped at the 2,000-issue cap, or at the 200 parent reads of a filtered browse, is a
          *     `400` before any write, because a parent cut away cannot be told from an orphan. The apply re-browses and re-reads the parents under
          *     ITS request's `filter` (the one its preview was read under): an item the filter now leaves out is `CHANGED`, nothing is re-homed. Then ONE plan write that takes the plan lock, the bind lock, the connection row and
@@ -6469,9 +6469,14 @@ export interface components {
         JiraImportOverrides: {
             /**
              * Format: int32
-             * @description The team of this milestone; an ACTIVE team, else 400.
+             * @description The team of this milestone; an ACTIVE team, else 400. Ignored on a program or project row.
              */
             teamId?: number | null;
+            /**
+             * Format: int32
+             * @description The owner of this program or project when the apply CREATES it, instead of the request's `ownerPersonId`; an ACTIVE person, else 400 (checked wherever it is sent). Ignored on a milestone row, a BIND row and a skipped row; the dialog-level owner rules apply to it unchanged (no extra guard).
+             */
+            ownerPersonId?: number | null;
         };
         JiraImportApplyItem: {
             /** @description The numeric Jira issue id, named once per request. */

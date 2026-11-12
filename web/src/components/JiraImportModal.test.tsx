@@ -279,6 +279,22 @@ describe("JiraImportModal: the apply", () => {
     expect(items.filter((item) => item.overrides !== undefined)).toHaveLength(1);
   });
 
+  test("a program or project row has its own owner picker, sent as overrides.ownerPersonId only when it differs; a milestone, a BIND and a skipped row have none", async () => {
+    const user = userEvent.setup();
+    open();
+    await previewScope(user);
+    for (const key of ["IMP-1", "IMP-2", "IMP-3"]) expect(within(rowOf(key)).getByRole("combobox", { name: `Owner for ${key}` })).toHaveValue("Ola Owner");
+    for (const key of ["IMP-4", "IMP-9", "IMP-10"]) expect(within(rowOf(key)).queryByRole("combobox", { name: `Owner for ${key}` })).not.toBeInTheDocument();
+    await user.click(within(rowOf("IMP-2")).getByRole("combobox", { name: "Owner for IMP-2" }));
+    await user.click(await screen.findByRole("option", { name: "Pat Planner" }));
+    expect(within(rowOf("IMP-2")).getByRole("combobox", { name: "Owner for IMP-2" })).toHaveValue("Pat Planner");
+    await user.click(importButton());
+    await screen.findByRole("heading", { level: 3, name: "Import finished" });
+    const items = (api.applies()[0] as { items: { jiraId: string; overrides?: unknown }[] }).items;
+    expect(items.find((item) => item.jiraId === "95002")!.overrides).toEqual({ ownerPersonId: 9 });
+    expect(items.filter((item) => item.overrides !== undefined)).toHaveLength(1);
+  });
+
   test("a second click while the import runs sends nothing more, and the dialog cannot be closed meanwhile", async () => {
     const user = userEvent.setup();
     const gate: { release?: (response: Response) => void } = {};

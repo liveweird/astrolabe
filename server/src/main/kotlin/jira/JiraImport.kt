@@ -190,8 +190,13 @@ data class JiraImportExpected(
     val teamId: UInt? = null,
 )
 
+/**
+ * A ticked row's own choices over the dialog's: [teamId] the team of a milestone CREATE, [ownerPersonId] (1.14) the owner of a PROGRAM or
+ * PROJECT CREATE (instead of the scope's `ownerPersonId`). Each must name an ACTIVE team / person (`400`) wherever it is sent; on a row
+ * it does not apply to (a milestone for the owner, a program or project for the team, a BIND, a skipped row) it is ignored.
+ */
 @Serializable
-data class JiraImportOverrides(val teamId: UInt? = null)
+data class JiraImportOverrides(val teamId: UInt? = null, val ownerPersonId: UInt? = null)
 
 @Serializable
 data class JiraImportApplyItem(val jiraId: String, val expected: JiraImportExpected, val overrides: JiraImportOverrides? = null)
@@ -270,8 +275,9 @@ private const val MAX_KEY_ECHO = 20
  * [MAX_IMPORT_ITEMS] items, each Jira id a numeric id named once, `expected.action` CREATE or BIND (a BIND carries its node, a CREATE
  * does not), `expected.parentJiraId` a numeric id when present, `expected.parent` present for a CREATE below a program. A `400` names
  * the failing item's index.
- * It cannot see teams: the caller must ALSO refuse (`400`) an `overrides.teamId` that is not an active team before the kernel
- * runs (the kernel's NO_TEAM for an unknown override is only a backstop).
+ * It cannot see teams or people: the caller must ALSO refuse (`400`) an `overrides.teamId` that is not an active team and an
+ * `overrides.ownerPersonId` that is not an active person before the kernel runs (the kernel's NO_TEAM for an unknown team override
+ * is only a backstop).
  */
 fun validateApplyItems(items: List<JiraImportApplyItem>) {
     if (items.isEmpty()) throw BadRequestException("items must list at least one Jira item")

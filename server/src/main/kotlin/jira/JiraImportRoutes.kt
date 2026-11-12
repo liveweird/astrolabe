@@ -62,8 +62,9 @@ class JiraImportApplyRoute(val parent: JiraConnectionsRoute.Id)
  * `jira.import_previewed` (ids and the row count) because it reads a whole subtree's text for a login that linked the root itself.
  * The caller's team-schedule rights decide `canSchedule`, never a refusal.
  *
- * **The apply** runs the SAME steps through the browse (same codes; the items' shape and every `overrides.teamId` join the `400`s, and a
- * browse truncated at the cap is a `400` before any write), then ONE plan write that re-reads and re-guards everything under the locks
+ * **The apply** runs the SAME steps through the browse (same codes; the items' shape and every `overrides.teamId` and
+ * `overrides.ownerPersonId` join the `400`s, and a browse truncated at the cap is a `400` before any write), then ONE plan write that
+ * re-reads and re-guards everything under the locks
  * ([JiraImportService.apply]). After the commit it audits `jira.import_applied` (one line, id lists) and `jira.binding_released` per dead
  * holder it released; a refused or rolled-back apply emits nothing of its own (a `403` is the central `authz.denied`). The answer
  * carries ids, keys and reasons only - no Jira text beyond what the caller's own preview showed.
@@ -166,8 +167,8 @@ private suspend fun requireConnection(connections: JiraConnectionService, connec
  * (the bind's rule), the guard on each named default and on the root's chain (`403`) - and ONLY THEN the decrypting read of the connection
  * ([JiraConnectionService.readForBind]; `404` if it vanished meanwhile), so a refused caller never makes the server decrypt the
  * stored token - the apply items' shape ([items]; `400`), the project keys, the shape that needs rows (the owner, the default team and
- * every override team active, the defaults and the root under the stream: `400`), then the connection's state (`400`/`409`), then the
- * root's active link through this connection (`409`). Plain reads, no lock: the apply repeats what matters under its own.
+ * every override team and owner active, the defaults and the root under the stream: `400`), then the connection's state (`400`/`409`),
+ * then the root's active link through this connection (`409`). Plain reads, no lock: the apply repeats what matters under its own.
  */
 private suspend fun admit(
     caller: CallerPrincipal,
@@ -187,7 +188,7 @@ private suspend fun admit(
     val context = connections.readForBind(connectionId).orNotFound("Jira connection")
     items?.let(::validateApplyItems)
     val keys = validateImportScope(scope, context.target.projectKeys)
-    imports.requireShape(scope, items.orEmpty().mapNotNull { it.overrides?.teamId })
+    imports.requireShape(scope, items.orEmpty().mapNotNull { it.overrides })
     val ready = importPreflight(context)
     val root = scope.root?.let { imports.resolveRoot(connectionId, it) }
     return Admitted(context, personId, named, keys, ready, scope.filter, root)

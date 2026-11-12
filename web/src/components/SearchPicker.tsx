@@ -25,6 +25,7 @@ export default function SearchPicker({
   error,
   picked,
   onPick,
+  compact = false,
 }: {
   label: string;
   description?: string;
@@ -43,6 +44,8 @@ export default function SearchPicker({
   error?: ReactNode;
   picked: PickedOption | null;
   onPick: (picked: PickedOption | null) => void;
+  /** An inline cell (a table row): the small size, and the label is the control's accessible name, not a visible caption. */
+  compact?: boolean;
 }) {
   const [searchValue, setSearchValue] = useState(picked?.label ?? "");
   // Choosing an option makes Mantine put its label into the search box — that is not a search term.
@@ -65,7 +68,9 @@ export default function SearchPicker({
   return (
     <>
       <Select
-        label={label}
+        label={compact ? undefined : label}
+        aria-label={compact ? label : undefined}
+        size={compact ? "xs" : undefined}
         description={description}
         placeholder={placeholder}
         data={options}

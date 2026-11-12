@@ -3,8 +3,11 @@ import { Badge, Checkbox, NativeSelect, Table, Text } from "@mantine/core";
 import type { TFunction } from "i18next";
 import type { JiraImportItem } from "../api/jira";
 import { infoText, reasonText } from "../utils/jiraImportText";
+import { hasOwnerChoice } from "../utils/jiraImport";
 import JiraKeyLink from "./JiraKeyLink";
 import type { VirtualRowProps } from "./JiraImportVirtualTable";
+import PersonSelect from "./PersonSelect";
+import type { PickedOption } from "./SearchPicker";
 
 /**
  * One fixed height for every preview row (the virtualiser's contract). The tallest cell is the details one: a 30 px team select, a dates line
@@ -70,6 +73,8 @@ function DetailsCell({
   teams,
   teamId,
   onTeam,
+  owner,
+  onOwner,
   t,
 }: {
   item: JiraImportItem;
@@ -77,6 +82,8 @@ function DetailsCell({
   teams: readonly TeamOption[] | null;
   teamId: number | null;
   onTeam: (teamId: number) => void;
+  owner: PickedOption | null;
+  onOwner: (owner: PickedOption | null) => void;
   t: TFunction;
 }) {
   const figures = figuresText(item, t, copyDates);
@@ -98,6 +105,16 @@ function DetailsCell({
           data={teamOptions as TeamOption[]}
           value={String(teamId ?? item.team?.id)}
           onChange={(event) => onTeam(Number(event.currentTarget.value))}
+        />
+      )}
+      {owner !== null && hasOwnerChoice(item) && (
+        <PersonSelect
+          compact
+          label={t("jira.import.row.ownerAria", { key: item.issueKey })}
+          placeholder={t("plan.pickOwner")}
+          clearLabel={t("jira.import.row.ownerReset")}
+          picked={owner}
+          onPick={onOwner}
         />
       )}
       {teamOptions === null && item.team && (
@@ -122,7 +139,8 @@ function DetailsCell({
  * parent says so (`blocker`) before the user submits. The name falls back to the key: a non-admin's SKIP row arrives with an empty summary
  * and `name` = key, and a cell must never be blank. Under an active import filter a non-admin's SKIP row arrives with NO key (null, a blank
  * name and a synthetic `hidden-n` id): the key cell shows a "Hidden" placeholder and the name cell a dash. A milestone's team is a `NativeSelect` (the row's own override, sent as
- * `overrides.teamId`); everything is clamped to the fixed row height.
+ * `overrides.teamId`); a program or project row that would be CREATED has a compact owner picker (`owner`: the row's own pick, else the dialog's
+ * owner; sent as `overrides.ownerPersonId` only when it differs; clearing it goes back to the dialog's owner); everything is clamped to the fixed row height.
  */
 export default function JiraImportRow({
   item,
@@ -134,6 +152,8 @@ export default function JiraImportRow({
   teamId,
   onTick,
   onTeam,
+  owner,
+  onOwner,
   rowProps,
 }: {
   item: JiraImportItem;
@@ -145,6 +165,8 @@ export default function JiraImportRow({
   teamId: number | null;
   onTick: (on: boolean) => void;
   onTeam: (teamId: number) => void;
+  owner: PickedOption | null;
+  onOwner: (owner: PickedOption | null) => void;
   rowProps: VirtualRowProps;
 }) {
   const { t } = useTranslation();
@@ -186,7 +208,7 @@ export default function JiraImportRow({
         <ActionCell item={item} blocker={blocker} t={t} />
       </Table.Td>
       <Table.Td w={280}>
-        <DetailsCell item={item} copyDates={copyDates} teams={teams} teamId={teamId} onTeam={onTeam} t={t} />
+        <DetailsCell item={item} copyDates={copyDates} teams={teams} teamId={teamId} onTeam={onTeam} owner={owner} onOwner={onOwner} t={t} />
       </Table.Td>
     </Table.Tr>
   );

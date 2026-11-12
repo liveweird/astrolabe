@@ -34,12 +34,12 @@ under IMF-16, an Initiative that is in no listing and answers 404 by id (the par
    "Copy Jira's dates" is on, no default project) and presses **Preview**.
    - *Expected*: the totals read "Jira items: 9", "To create: 8", "To link: 0", "Skipped: 1" and "8 of 8 selected"; the note names the unmatched Jira team "IMP Team"; IMP-8 says
      "Nowhere to put it", IMP-6 "Jira's dates are missing or invalid: created unscheduled", IMP-7 "Name cut to 100 characters"; IMP-5's team select holds the default team.
-2. They press **Import (8)**.
+2. They give IMP-2 another owner: its row (like the program's and IMP-3's) has an owner picker preselected with the dialog's owner, IMP-4's row has none, and they pick a second throwaway person on IMP-2's picker. Then they press **Import (8)**.
    - *Expected*: the outcome reads "Created: 8" (1 program, 2 projects, 5 milestones), "Linked: 0", "Scheduled: 4" (IMP-4, 5, 7, 9) and "Skipped: 0": IMP-8 has no checkbox, so it is not sent and the outcome has no skipped-rows table.
 3. They close the dialog.
    - *Expected*: the connection page's "Links to plan items" table has 8 rows with an IMP key.
 4. The plan is read through the API and the project page is opened.
-   - *Expected*: the work stream holds exactly "IMP Program" with "IMP Initiative Alpha" and "IMP Initiative Beta"; Alpha's scheduled milestones are IMP Epic One 2045-01-02..2045-01-06
+   - *Expected*: IMP Initiative Alpha is owned by the person picked on IMP-2's row and IMP Initiative Beta by the dialog's owner; the work stream holds exactly "IMP Program" with "IMP Initiative Alpha" and "IMP Initiative Beta"; Alpha's scheduled milestones are IMP Epic One 2045-01-02..2045-01-06
      and IMP Epic Two 2045-01-16..2045-01-20; Beta has IMP-7 (its 110-character summary cut at the 100-character name limit) 2045-01-23..2045-01-27 and IMP Epic Six 2045-01-30..2045-02-03 scheduled and IMP Epic Three in the tray; the project page shows Alpha's heading and its first milestone.
 5. They open the modal again, fill the same scope and press **Preview**.
    - *Expected*: "To create: 0", "To link: 0", "Skipped: 9", "0 of 0 selected"; IMP-4 reads "Already linked", IMP-8 still "Nowhere to put it", **Import (0)** is disabled (there is nothing to

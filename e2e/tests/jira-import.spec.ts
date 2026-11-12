@@ -335,6 +335,27 @@ async function planOf(world: World): Promise<{ programs: string[]; projects: Pla
   }
 }
 
+/** A throwaway person (removed by the teardown) for a per-row owner pick. */
+async function createPerson(name: string): Promise<void> {
+  const { api } = await apiAsAdmin();
+  try {
+    await create(api, "/api/v1/people", { name }, "/api/v1/people");
+  } finally {
+    await api.dispose();
+  }
+}
+
+async function projectOwnerName(projectId: number): Promise<string> {
+  const { api } = await apiAsAdmin();
+  try {
+    const response = await api.get(`/api/v1/projects/${projectId}`);
+    expect(response.ok(), await response.text()).toBeTruthy();
+    return ((await response.json()) as { ownerName: string }).ownerName;
+  } finally {
+    await api.dispose();
+  }
+}
+
 async function scan(page: Page): Promise<void> {
   expect(await axeViolations(page, '[role="dialog"]')).toEqual([]);
 }
@@ -356,6 +377,13 @@ test("admin imports the stub's IMP project tree and a re-import creates nothing"
   await expect(rowOf(page, "IMP-6")).toContainText("Jira's dates are missing or invalid: created unscheduled");
   await expect(rowOf(page, "IMP-7")).toContainText("Name cut to 100 characters");
   await expect(rowOf(page, "IMP-5").getByRole("combobox", { name: "Team for IMP-5" })).toHaveValue(String(world.teamId));
+
+  // A per-row owner (1.14): the projects and the program have an owner picker (the dialog's owner preselected), a milestone has none; IMP-2 is given someone else.
+  const otherOwner = uniqueText(`${MARK}other`);
+  await createPerson(otherOwner);
+  await expect(rowOf(page, "IMP-2").getByRole("combobox", { name: "Owner for IMP-2" })).toHaveValue(world.ownerName);
+  await expect(rowOf(page, "IMP-4").getByRole("combobox", { name: "Owner for IMP-4" })).toHaveCount(0);
+  await pick(page, rowOf(page, "IMP-2").getByRole("combobox", { name: "Owner for IMP-2" }), otherOwner);
 
   // Import: 1 + 2 + 5 created; the four with dates (IMP-4, 5, 7, 9) scheduled - IMP-6 is undated.
   await importAll(page, 8);
@@ -389,6 +417,9 @@ test("admin imports the stub's IMP project tree and a re-import creates nothing"
   ]);
   expect(TRUNCATED_NAME).toHaveLength(99);
   expect(beta.unscheduled).toEqual(["IMP Epic Three"]);
+  // Alpha (IMP-2) went to the owner picked on its row, Beta (IMP-3) to the dialog's owner.
+  expect(await projectOwnerName(alpha.id)).toBe(otherOwner);
+  expect(await projectOwnerName(beta.id)).toBe(world.ownerName);
   await page.goto(`/projects/${alpha.id}`);
   await expect(page.getByRole("heading", { level: 2, name: "IMP Initiative Alpha" })).toBeVisible();
   await expect(page.getByText("IMP Epic One").first()).toBeVisible();

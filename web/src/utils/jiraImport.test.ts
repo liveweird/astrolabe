@@ -217,6 +217,16 @@ describe("the apply body", () => {
     expect(body.items.find((i) => i.jiraId === "95005")!.overrides).toBeUndefined();
   });
 
+  test("an owner override goes in overrides.ownerPersonId on a program or project CREATE, only where it differs from the dialog's owner", () => {
+    const owners = new Map([["95001", 9], ["95002", 8], ["95004", 9], ["95009", 9]]);
+    const body = toApplyRequest(SCOPE, PREVIEW_ITEMS, allSelectable(PREVIEW_ITEMS), new Map([["95004", 6]]), owners);
+    const overrides = (id: string) => body.items.find((i) => i.jiraId === id)!.overrides;
+    expect(overrides("95001")).toEqual({ ownerPersonId: 9 });
+    expect(overrides("95002")).toBeUndefined(); // the dialog's own owner: nothing to send
+    expect(overrides("95004")).toEqual({ teamId: 6 }); // a milestone has no owner: the pick is dropped, the team override stays
+    expect(overrides("95009")).toBeUndefined(); // a BIND never changes the node's owner
+  });
+
   test("only ticked rows are sent, in preview order", () => {
     const body = toApplyRequest(SCOPE, PREVIEW_ITEMS, new Set(["95010", "95001", "95008"]), new Map());
     expect(body.items.map((i) => i.jiraId)).toEqual(["95001", "95010"]);

@@ -120,48 +120,61 @@ class JiraImportService(
     suspend fun ownsAnyNode(personId: UInt): Boolean = suspendTransaction(database) { ownsActivePlanNode(personId) }
 
     /**
-     * The request's shape rules that need rows, after the guards (`400`): the owner an ACTIVE person, `defaults.teamId` and every
-     * apply item's `overrides.teamId` ([overrideTeamIds]) an active team, `defaults.programId` / `defaults.projectId` under the picked
-     * work stream (and, with a root, [requireDefaultsUnderRoot]). Plain reads, no lock (the preview writes nothing; an apply re-checks
-     * under its own locks).
+     * The request's shape rules that need rows, after the guards (`400`): the owner and every apply item's `overrides.ownerPersonId`
+     * ([overrides]) an ACTIVE person, `defaults.teamId` and every `overrides.teamId` an active team, `defaults.programId` /
+     * `defaults.projectId` under the picked work stream (and, with a root, [requireDefaultsUnderRoot]). Plain reads, no lock (the preview
+     * writes nothing; an apply re-checks under its own locks).
      */
-    suspend fun requireShape(scope: JiraImportScope, overrideTeamIds: Collection<UInt> = emptyList()): Unit = suspendTransaction(database) {
+    suspend fun requireShape(scope: JiraImportScope, overrides: Collection<JiraImportOverrides> = emptyList()): Unit =
+        suspendTransaction(database) {
+            val people = PersonService.People
+            if (people.select(people.id).where { (people.id eq scope.ownerPersonId) and people.active() }.toList().isEmpty()) {
+                throw BadRequestException("Unknown or deleted owner ids: ${scope.ownerPersonId}")
+            }
+            requireOverridesActive(overrides)
+            val activeTeams = TeamService.Teams
+            scope.defaults?.let { defaults ->
+                defaults.teamId?.let { teamId ->
+                    val found = activeTeams.select(activeTeams.id).where { (activeTeams.id eq teamId) and activeTeams.active() }.toList()
+                    if (found.isEmpty()) throw BadRequestException("defaults.teamId is not an active team")
+                }
+                defaults.programId?.let { id ->
+                    if (!programUnder(id, scope.workStreamId)) {
+                        throw BadRequestException("defaults.programId is not a program of the picked work stream")
+                    }
+                }
+                defaults.projectId?.let { id ->
+                    if (!projectUnder(id, scope.workStreamId)) {
+                        throw BadRequestException("defaults.projectId is not a project of the picked work stream")
+                    }
+                }
+            }
+            scope.root?.let { root ->
+                val under = if (root.level == JiraImportRootLevel.PROGRAM) {
+                    programUnder(root.nodeId, scope.workStreamId)
+                } else {
+                    projectUnder(root.nodeId, scope.workStreamId)
+                }
+                if (!under) throw BadRequestException("root is not a ${root.level.name.lowercase()} of the picked work stream")
+                requireDefaultsUnderRoot(scope.defaults, root)
+            }
+        }
+
+    /** The overrides' rules that need rows (`400`): every `ownerPersonId` an active person, every `teamId` an active team. */
+    private suspend fun requireOverridesActive(overrides: Collection<JiraImportOverrides>) {
         val people = PersonService.People
-        if (people.select(people.id).where { (people.id eq scope.ownerPersonId) and people.active() }.toList().isEmpty()) {
-            throw BadRequestException("Unknown or deleted owner ids: ${scope.ownerPersonId}")
+        val owners = overrides.mapNotNull { it.ownerPersonId }.toSet()
+        if (owners.isNotEmpty()) {
+            val active = people.select(people.id).where { (people.id inList owners) and people.active() }.toList()
+                .map { it[people.id].value }.toSet()
+            if (!active.containsAll(owners)) throw BadRequestException("overrides.ownerPersonId is not an active person")
         }
-        val activeTeams = TeamService.Teams
-        val wanted = overrideTeamIds.toSet()
+        val teams = TeamService.Teams
+        val wanted = overrides.mapNotNull { it.teamId }.toSet()
         if (wanted.isNotEmpty()) {
-            val active = activeTeams.select(activeTeams.id).where { (activeTeams.id inList wanted) and activeTeams.active() }.toList()
-                .map { it[activeTeams.id].value }.toSet()
+            val active = teams.select(teams.id).where { (teams.id inList wanted) and teams.active() }.toList()
+                .map { it[teams.id].value }.toSet()
             if (!active.containsAll(wanted)) throw BadRequestException("overrides.teamId is not an active team")
-        }
-        scope.defaults?.let { defaults ->
-            defaults.teamId?.let { teamId ->
-                if (activeTeams.select(activeTeams.id).where { (activeTeams.id eq teamId) and activeTeams.active() }.toList().isEmpty()) {
-                    throw BadRequestException("defaults.teamId is not an active team")
-                }
-            }
-            defaults.programId?.let { id ->
-                if (!programUnder(id, scope.workStreamId)) {
-                    throw BadRequestException("defaults.programId is not a program of the picked work stream")
-                }
-            }
-            defaults.projectId?.let { id ->
-                if (!projectUnder(id, scope.workStreamId)) {
-                    throw BadRequestException("defaults.projectId is not a project of the picked work stream")
-                }
-            }
-        }
-        scope.root?.let { root ->
-            val under = if (root.level == JiraImportRootLevel.PROGRAM) {
-                programUnder(root.nodeId, scope.workStreamId)
-            } else {
-                projectUnder(root.nodeId, scope.workStreamId)
-            }
-            if (!under) throw BadRequestException("root is not a ${root.level.name.lowercase()} of the picked work stream")
-            requireDefaultsUnderRoot(scope.defaults, root)
         }
     }
 

@@ -227,18 +227,36 @@ function expectedOf(item: JiraImportItem): JiraImportApplyItem["expected"] {
   };
 }
 
-/** The apply body: the preview's own scope plus the ticked rows, in preview order; an override team is sent only where it differs from the row's. */
-export function toApplyRequest(scope: JiraImportScope, items: readonly JiraImportItem[], ticks: ReadonlySet<string>, teamOverrides: ReadonlyMap<string, number>): JiraImportApplyRequest {
+/** Whether the apply would CREATE this row as a program or a project: the only rows with an owner a per-row override can set (a milestone has none). */
+export const hasOwnerChoice = (item: JiraImportItem): boolean => item.action === "CREATE" && item.level !== "MILESTONE";
+
+/**
+ * The apply body: the preview's own scope plus the ticked rows, in preview order. A per-row override is sent only where it differs from what the row
+ * shows: a team override on a milestone, an owner override (`ownerOverrides`: person ids) on a program or project CREATE and only when it names
+ * someone other than the dialog's owner.
+ */
+export function toApplyRequest(
+  scope: JiraImportScope,
+  items: readonly JiraImportItem[],
+  ticks: ReadonlySet<string>,
+  teamOverrides: ReadonlyMap<string, number>,
+  ownerOverrides: ReadonlyMap<string, number> = new Map(),
+): JiraImportApplyRequest {
   return {
     ...scope,
     items: items
       .filter((item) => ticks.has(item.jiraId) && isSelectable(item))
       .map((item) => {
-        const override = teamOverrides.get(item.jiraId);
+        const team = teamOverrides.get(item.jiraId);
+        const owner = ownerOverrides.get(item.jiraId);
+        const overrides = {
+          ...(team !== undefined && team !== item.team?.id ? { teamId: team } : {}),
+          ...(owner !== undefined && hasOwnerChoice(item) && owner !== scope.ownerPersonId ? { ownerPersonId: owner } : {}),
+        };
         return {
           jiraId: item.jiraId,
           expected: expectedOf(item),
-          ...(override !== undefined && override !== item.team?.id ? { overrides: { teamId: override } } : {}),
+          ...(Object.keys(overrides).length > 0 ? { overrides } : {}),
         };
       }),
   };

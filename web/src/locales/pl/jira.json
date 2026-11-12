@@ -459,6 +459,8 @@
       "noDates": "Bez dat",
       "estimate": "{{n}} osobodni",
       "teamAria": "Zespół dla {{key}}",
+      "ownerAria": "Właściciel/ka dla {{key}}",
+      "ownerReset": "Użyj właściciela/ki z pierwszego kroku",
       "teamMatched": "{{name}} (z Jiry)",
       "teamDefault": "{{name}} (domyślny)",
       "parentUnticked": "Jego rodzic {{key}} nie jest zaznaczony, więc ten element nie zostanie zaimportowany.",

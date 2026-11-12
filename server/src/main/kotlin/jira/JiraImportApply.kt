@@ -92,13 +92,17 @@ internal class LockedApply(
     private val defaults = request.defaults ?: JiraImportDefaults()
     private val caller = ctx.caller
 
+    /** The per-row owners (1.14) by Jira id: used only for a PROGRAM or PROJECT the apply CREATES, ignored on every other row. */
+    private val ownerOverrides: Map<String, UInt> =
+        request.items.mapNotNull { item -> item.overrides?.ownerPersonId?.let { item.jiraId to it } }.toMap()
+
     /**
      * The order (the plan's lock order, `persistence.md`): the plan lock (the caller's) -> the advisory bind lock -> the connection row
      * `FOR SHARE` (gone = `404`, disabled or its scope or mapping changed = `400`/`409`) -> the caller's person `FOR SHARE` -> the named
-     * defaults and the root re-read and guarded (`403`) -> the owner and every named team active (`400`, rows locked `FOR SHARE`) -> the
-     * caller's
-     * managed teams, each locked (`lockedIsActiveManager`) -> the plan side re-read (the tree, names, holders, calendar) -> the kernel over
-     * THOSE rows with the client's ticks -> the root's own row must still be `ALREADY_BOUND` to the root node (`409`, nothing written) ->
+     * defaults and the root re-read and guarded (`403`) -> the owner, every per-row owner and every named team active (`400`, rows
+     * locked `FOR SHARE`) -> the caller's managed teams, each locked (`lockedIsActiveManager`) -> the plan side re-read (the tree, names,
+     * holders, calendar) -> the kernel over THOSE rows with the client's ticks -> the root's own row must still be `ALREADY_BOUND` to the
+     * root node (`409`, nothing written) ->
      * the guard on every ticked CREATE/BIND row's target (`403`) -> the dead holders to release
      * locked in id order ([lockReleases]) -> the milestones' teams locked active -> the inserts top-down -> the dates -> the bindings (the
      * dead holders released) -> the lists. The caller's commit bumps once.
@@ -109,6 +113,7 @@ internal class LockedApply(
         val person = ctx.lockedPerson()
         val named = guardNamedDefaults(person)
         requireActiveOwner(request.ownerPersonId)
+        ownerOverrides.values.distinct().sorted().forEach { requireActiveOwner(it) }
         namedTeamIds().forEach { requireActiveTeam(it) }
         val read = imports.loadPlanSide(
             request.workStreamId, connection.siteUrl, issueIdsOf(ctx.browse), canSchedule(), revision,
@@ -234,9 +239,9 @@ internal class LockedApply(
         val item = row.item
         val parent = item.parent?.let { it.nodeId ?: ids.getValue(checkNotNull(it.rowJiraId) { "a new-row parent names its row" }) }
         return when (item.level) {
-            JiraLevel.PROGRAM -> insertProgramRow(request.workStreamId, item.name, null, request.ownerPersonId, stamp)
+            JiraLevel.PROGRAM -> insertProgramRow(request.workStreamId, item.name, null, ownerOf(item), stamp)
             JiraLevel.PROJECT -> insertProjectRow(
-                checkNotNull(parent) { "a project has a parent" }, item.name, null, request.ownerPersonId, null, stamp,
+                checkNotNull(parent) { "a project has a parent" }, item.name, null, ownerOf(item), null, stamp,
             )
             JiraLevel.MILESTONE -> insertMilestoneRow(
                 checkNotNull(parent) { "a milestone has a parent" }, checkNotNull(item.team) { "a milestone has a team" }.id,
@@ -245,6 +250,9 @@ internal class LockedApply(
             )
         }
     }
+
+    /** The owner of a created program or project: the row's own override, else the dialog's owner. */
+    private fun ownerOf(item: JiraImportItem): UInt = ownerOverrides[item.jiraId] ?: request.ownerPersonId
 
     /**
      * The answer's `skipped[]`: the visible skips in row order (a key and the kernel's reason). For a non-admin under an active filter

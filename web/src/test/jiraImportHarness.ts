@@ -19,7 +19,15 @@ const PLAN = {
   ],
 } as unknown as PlanView;
 
-const PEOPLE = { items: [{ id: 8, name: "Ola Owner", email: null, userId: null, userEmail: null, createdAt: 1, updatedAt: 2 }], page: 1, pageSize: 50, total: 1 };
+const PEOPLE = {
+  items: [
+    { id: 8, name: "Ola Owner", email: null, userId: null, userEmail: null, createdAt: 1, updatedAt: 2 },
+    { id: 9, name: "Pat Planner", email: null, userId: null, userEmail: null, createdAt: 1, updatedAt: 2 },
+  ],
+  page: 1,
+  pageSize: 50,
+  total: 2,
+};
 const TEAMS = {
   items: [
     { id: 5, name: "IMP Team", description: null, managerPersonId: null, managerName: null, createdAt: 1, updatedAt: 2 },

@@ -441,6 +441,8 @@
       "noDates": "No dates",
       "estimate": "{{n}} man-days",
       "teamAria": "Team for {{key}}",
+      "ownerAria": "Owner for {{key}}",
+      "ownerReset": "Use the owner chosen in the first step",
       "teamMatched": "{{name}} (from Jira)",
       "teamDefault": "{{name}} (default)",
       "parentUnticked": "Its parent {{key}} is not ticked, so this is not imported.",
