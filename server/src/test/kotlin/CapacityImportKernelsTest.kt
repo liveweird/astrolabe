@@ -358,27 +358,27 @@ class CapacityImportKernelsTest {
     }
 
     @Test
-    fun `a real sprint - 50 MD planned to 07-14, completed 07-13 - reads 10 working days and 25 00, the next one holds from 07-15`() {
-        // The exact shape of a real Flow sprint (Europe/Warsaw): started in 2026-07-01, endAt 2026-07-14, completeAt 2026-07-13.
-        // The 1.5.0 min rule read 9 working days / 27.78.
+    fun `a sprint completed a day early - planned to 09-15, completed 09-14 - reads 10 working days and 20 00, next holds from 09-16`() {
+        // A sprint completed the day before its planned end (Europe/Warsaw): started 2026-09-02, endAt 2026-09-15, completeAt 2026-09-14.
+        // The 1.5.0 min rule read 9 working days / 22.22.
         val real = FlowMirrorSprint(
-            12424, 1, "Sprint A", "closed", at("2026-07-01", "10:00"), at("2026-07-14", "10:00"), at("2026-07-13", "16:00"),
-            true, BigDecimal("50"), "CALENDAR",
+            801, 1, "Sprint A", "closed", at("2026-09-02", "10:00"), at("2026-09-15", "10:00"), at("2026-09-14", "16:00"),
+            true, BigDecimal("40"), "CALENDAR",
         )
-        // The next sprint starts on 07-14 (the shared day): it holds 07-15..07-28 - W 10, 50 x 5 / 10 = 25.00.
-        val next = sprint(12425, at("2026-07-14", "10:00"), at("2026-07-28", "10:00"), "50")
-        val result = plan(listOf(real, next), today = LocalDate.of(2026, 6, 1))
+        // The next sprint starts on 09-15 (the shared day): it holds 09-16..09-29 - W 10, 40 x 5 / 10 = 20.00.
+        val next = sprint(802, at("2026-09-15", "10:00"), at("2026-09-29", "10:00"), "40")
+        val result = plan(listOf(real, next), today = LocalDate.of(2026, 8, 1))
 
         val first = result.items[0]
-        assertEquals("2026-07-01", first.start)
-        assertEquals("2026-07-14", first.end)
+        assertEquals("2026-09-02", first.start)
+        assertEquals("2026-09-15", first.end)
         assertEquals(10, first.workingDays)
-        assertEquals(25.0, first.mdPerWeek)
+        assertEquals(20.0, first.mdPerWeek)
         val second = result.items[1]
-        assertEquals("2026-07-15", second.effectiveFrom)
-        assertEquals("2026-07-28", second.end)
+        assertEquals("2026-09-16", second.effectiveFrom)
+        assertEquals("2026-09-29", second.end)
         assertEquals(10, second.workingDays)
-        assertEquals(25.0, second.mdPerWeek)
+        assertEquals(20.0, second.mdPerWeek)
     }
 
     @Test
@@ -400,20 +400,20 @@ class CapacityImportKernelsTest {
 
     @Test
     fun `a sprint over Flow's 60-day cap carries LONG_WINDOW, is unticked, and claims last - the days no other sprint holds`() {
-        // The shape of the user's real "planned to end 2027-09-08" sprint: 677 calendar days, 483 working days, 2,790 MD.
-        val long = sprint(1, at("2025-11-01"), at("2027-09-08", "17:00"), "2790")
+        // A sprint whose planned end was mistyped a year and more out: 669 calendar days, 477 working days, 2,500 MD.
+        val long = sprint(1, at("2025-11-01"), at("2027-08-31", "17:00"), "2500")
         val inside = span(2, "2025-12-01", "2025-12-12", "30")
         val result = plan(listOf(long, inside), today = LocalDate.of(2025, 10, 1))
 
-        // The sprint inside it holds its own days (12-01..12-12: 10 working days), so the long one keeps 483 - 10 = 473 of them.
+        // The sprint inside it holds its own days (12-01..12-12: 10 working days), so the long one keeps 477 - 10 = 467 of them.
         val item = result.items[0]
-        val days = WorkingCalendar.MON_FRI.workingDaysBetween(LocalDate.of(2025, 11, 1), LocalDate.of(2027, 9, 8))
-        assertEquals(483L, days)
-        assertEquals(473, item.workingDays)
+        val days = WorkingCalendar.MON_FRI.workingDaysBetween(LocalDate.of(2025, 11, 1), LocalDate.of(2027, 8, 31))
+        assertEquals(477L, days)
+        assertEquals(467, item.workingDays)
         assertEquals("2025-11-01", item.effectiveFrom, "the first day no other sprint holds (a Saturday: a period may start on any date)")
-        val exact = BigDecimal("5").multiply(BigDecimal("2790")).divide(BigDecimal(473), 2, RoundingMode.HALF_UP)
+        val exact = BigDecimal("5").multiply(BigDecimal("2500")).divide(BigDecimal(467), 2, RoundingMode.HALF_UP)
         assertEquals(exact.toDouble(), item.mdPerWeek)
-        assertEquals(29.49, item.mdPerWeek)
+        assertEquals(26.77, item.mdPerWeek)
         assertEquals(CapacityAction.CREATE, item.action)
         assertEquals(listOf(CapacityInfoCode.LONG_WINDOW), item.infos.map { it.code })
         assertNull(item.infos.single().date)
@@ -446,28 +446,28 @@ class CapacityImportKernelsTest {
     }
 
     @Test
-    fun `the user's real case - a mistyped 2027 end claims last, so the two-week sprints inside it keep their days`() {
-        // Sprint 5173 (DEFAULT, 1,332 MD, Tue 2025-10-28..Wed 2027-09-08) is followed by two-week DEFAULT sprints; Flow 1.57.1 lets them
+    fun `a mistyped far end claims last, so the two-week sprints inside it keep their days`() {
+        // Sprint 701 (DEFAULT, 1,200 MD, Tue 2025-10-21..Wed 2027-08-25) is followed by two-week DEFAULT sprints; Flow 1.57.1 lets them
         // claim first. The calendar has 11-11 in both years (2025-11-11, 2026-11-11), nothing else.
         val calendar = WorkingCalendar(
             mapOf(LocalDate.of(2025, 11, 11) to "Independence Day", LocalDate.of(2026, 11, 11) to "Independence Day"),
         )
-        val long = sprint(5173, at("2025-10-28"), at("2027-09-08", "17:00"), "1332", source = "DEFAULT")
-        val first = sprint(5174, at("2025-11-13"), at("2025-12-03", "17:00"), "75", source = "DEFAULT")
-        val active = sprint(16613, at("2026-11-05"), at("2026-11-18", "17:00"), "54", source = "DEFAULT")
+        val long = sprint(701, at("2025-10-21"), at("2027-08-25", "17:00"), "1200", source = "DEFAULT")
+        val first = sprint(702, at("2025-11-13"), at("2025-12-03", "17:00"), "60", source = "DEFAULT")
+        val active = sprint(703, at("2026-11-05"), at("2026-11-18", "17:00"), "45", source = "DEFAULT")
         val result = plan(listOf(active, first, long), calendar = calendar, today = LocalDate.of(2025, 10, 1))
 
-        assertEquals(listOf(5173L, 5174L, 16613L), result.items.map { it.sprintId })
+        assertEquals(listOf(701L, 702L, 703L), result.items.map { it.sprintId })
         val (l, a, b) = result.items
-        // 5174: Thu 11-13..Wed 12-03 is 15 working days, 5 x 75 / 15 = 25.00.
-        assertEquals(listOf("2025-11-13", 15, 25.0, null), listOf(a.effectiveFrom, a.workingDays, a.mdPerWeek, a.reason))
-        // 16613: Thu 11-05..Wed 11-18 is 9 working days (11-11 is a holiday), 5 x 54 / 9 = 30.00.
-        assertEquals(listOf("2026-11-05", 9, 30.0, null), listOf(b.effectiveFrom, b.workingDays, b.mdPerWeek, b.reason))
+        // 702: Thu 11-13..Wed 12-03 is 15 working days, 5 x 60 / 15 = 20.00.
+        assertEquals(listOf("2025-11-13", 15, 20.0, null), listOf(a.effectiveFrom, a.workingDays, a.mdPerWeek, a.reason))
+        // 703: Thu 11-05..Wed 11-18 is 9 working days (11-11 is a holiday), 5 x 45 / 9 = 25.00.
+        assertEquals(listOf("2026-11-05", 9, 25.0, null), listOf(b.effectiveFrom, b.workingDays, b.mdPerWeek, b.reason))
         assertTrue(a.ticked && b.ticked && a.infos.isEmpty() && b.infos.isEmpty())
-        // 5173: 485 working days in its window (2 holidays), less the 15 and 9 the others hold: 461; 5 x 1,332 / 461 = 14.45. That figure
-        // is SYNTHETIC: only two of the real team's 24 later sprints are in this vector, so the real one is lower.
-        assertEquals(485L, calendar.workingDaysBetween(LocalDate.of(2025, 10, 28), LocalDate.of(2027, 9, 8)))
-        assertEquals(listOf("2025-10-28", 461, 14.45, null), listOf(l.effectiveFrom, l.workingDays, l.mdPerWeek, l.reason))
+        // 701: 480 working days in its window (2 holidays), less the 15 and 9 the others hold: 456; 5 x 1,200 / 456 = 13.16. With more
+        // two-week sprints inside the window the long one would keep fewer days.
+        assertEquals(480L, calendar.workingDaysBetween(LocalDate.of(2025, 10, 21), LocalDate.of(2027, 8, 25)))
+        assertEquals(listOf("2025-10-21", 456, 13.16, null), listOf(l.effectiveFrom, l.workingDays, l.mdPerWeek, l.reason))
         assertEquals(listOf(CapacityInfoCode.LONG_WINDOW), l.infos.map { it.code })
         assertEquals(CapacityAction.CREATE, l.action)
         assertFalse(l.ticked)
@@ -905,7 +905,7 @@ class CapacityImportKernelsTest {
     fun `every listed sprint owns its old Flow periods - a weekend sprint after a long window, a moved sprint on a manual period`() {
         // L (long window, Sat 2025-11-01..Fri 2027-08-27) claims last and covers nothing. P (Mon 08-23..Fri 09-03, no capacity) is refused,
         // so it covers nothing either. X (Thu 09-02..Sun 09-05) holds only 09-04..09-05: NO_WORKING_DAY; its period at 09-02 is stale.
-        val long = sprint(1, at("2025-11-01"), at("2027-08-27", "17:00"), "2790")
+        val long = sprint(1, at("2025-11-01"), at("2027-08-27", "17:00"), "2500")
         val earlier = span(3, "2027-08-23", "2027-09-03", null)
         val weekend = sprint(2, at("2027-09-02"), at("2027-09-05", "17:00"), "5")
         val atStart = listOf(period(1, "2027-09-02", "5", CapacitySource.FLOW, 2, "Sprint 2"))
@@ -929,9 +929,9 @@ class CapacityImportKernelsTest {
     @Test
     fun `a long window does not cover its span - a hidden sprint's Flow period inside it is not offered for removal`() {
         // Sprint 2 (2025-12-01..12-12) is closed and hidden (today 12-20); its FLOW period (12-02, not its own first day, so no refused
-        // row keeps it) lies inside the 677-day sprint 1: rule (b) does not apply to a long window, and a hidden sprint owns nothing.
+        // row keeps it) lies inside the 669-day sprint 1: rule (b) does not apply to a long window, and a hidden sprint owns nothing.
         // Listed (includeClosed), it owns its period.
-        val long = sprint(1, at("2025-11-01"), at("2027-09-08", "17:00"), "2790")
+        val long = sprint(1, at("2025-11-01"), at("2027-08-31", "17:00"), "2500")
         val inner = span(2, "2025-12-01", "2025-12-12", null)
         val inside = listOf(period(1, "2025-12-02", "5", CapacitySource.FLOW, 2, "Sprint 2"))
         val today = LocalDate.of(2025, 12, 20)

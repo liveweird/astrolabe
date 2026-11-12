@@ -36,7 +36,7 @@ internal const val FLOW_MAX_CALENDAR_DAYS = 60
  *    instead of Flow's one-day `?: start` fallback - a recorded, deliberate difference (the sprint still HOLDS its start day, as in
  *    Flow's `sprintSpan`: `end ?: complete ?: start`).
  * 2. The 1.5.0 rule `minOf(endAt, completeAt)` - WRONG against Flow (it shortened a sprint completed early and inflated its weekly
- *    figure: the user's real 50 MD sprint planned to 07-14, completed 07-13, read 9 working days / 27.78 where Flow counts 10 / 25.00).
+ *    figure: a 40 MD sprint planned to 09-15 and completed 09-14 read 9 working days / 22.22 where Flow counts 10 / 20.00).
  * 3. Flow's candidate (b), not adopted: `if (state == closed && completeAt < endAt) completeAt else (endAt ?: completeAt)`.
  */
 internal fun spanEndOf(sprint: FlowMirrorSprint): Long? = sprint.endAt ?: sprint.completeAt
