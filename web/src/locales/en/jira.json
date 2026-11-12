@@ -101,7 +101,8 @@
     },
     "notSynced": "Not synced yet",
     "mappingUnusable": "The mapping does not name the levels yet, so nothing can be counted. Save a mapping above.",
-    "asOf": "Counted from the census of {{when}} (UTC).",
+    "mappingChanged": "The mapping changed since the last synchronisation, so the new levels are not counted yet. Use Refresh now to count them.",
+    "asOf": "Counted as of the last successful synchronisation, {{when}} (UTC).",
     "loadFailed": "Could not load the coverage"
   },
   "details": {

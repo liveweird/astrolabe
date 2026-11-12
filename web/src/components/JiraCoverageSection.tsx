@@ -9,10 +9,18 @@ import LoadingBlock from "./LoadingBlock";
 
 const levelWord = (kind: JiraCoverage["levels"][number]["level"]) => `jira.mapping.level.${kind.toLowerCase() as "program" | "project" | "milestone"}` as const;
 
+/** The note that stands in for the table in each state without counts. */
+const NO_COUNTS_NOTE = {
+  NOT_SYNCED: "jira.coverage.notSynced",
+  MAPPING_UNUSABLE: "jira.coverage.mappingUnusable",
+  MAPPING_CHANGED: "jira.coverage.mappingChanged",
+} as const;
+
 /**
  * The connection page's Coverage section (1.14): per mapped level, how many of the site's issues are in scope (the census the runs keep), how
  * many an active binding links and how many are open and unlinked. Counts only, read from the server at request time; before the first
- * synchronisation (or while the mapping cannot name the levels) it says so instead of showing zeros.
+ * synchronisation, while the mapping cannot name the levels, or after a mapping change no run has read yet, it says so instead of showing
+ * zeros. The counts are labelled with when the last successful run finished.
  */
 export default function JiraCoverageSection({ connection }: { connection: JiraConnection }) {
   const { t } = useTranslation();
@@ -29,7 +37,7 @@ export default function JiraCoverageSection({ connection }: { connection: JiraCo
   } else if (data.state !== "READY") {
     body = (
       <Alert color="gray" variant="light" role="note" icon={<IconInfoCircle size={16} />}>
-        {data.state === "NOT_SYNCED" ? t("jira.coverage.notSynced") : t("jira.coverage.mappingUnusable")}
+        {t(NO_COUNTS_NOTE[data.state])}
       </Alert>
     );
   } else {
@@ -57,9 +65,9 @@ export default function JiraCoverageSection({ connection }: { connection: JiraCo
             ))}
           </Table.Tbody>
         </Table>
-        {data.censusAt !== null && (
+        {data.readAt !== null && (
           <Text size="xs" c="dimmed">
-            {t("jira.coverage.asOf", { when: formatDateTime(data.censusAt) })}
+            {t("jira.coverage.asOf", { when: formatDateTime(data.readAt) })}
           </Text>
         )}
       </>

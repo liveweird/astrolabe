@@ -52,6 +52,10 @@ internal class ConnectionFacts(
     val levels: Map<JiraLevel, DeviationMapping>?,
     /** The poll facts the status derives from (`SyncStatusKernels`). */
     val connector: ConnectorConnection,
+    /** V23: when the child level was last censused (null = never, or cleared for a re-seed); the coverage summary's "anything censused". */
+    val censusAt: Long?,
+    /** When a mapping PUT last changed the canonical document (null = never): the coverage summary compares it with the last read. */
+    val mappingChangedAt: Long?,
 )
 
 /**
@@ -62,7 +66,7 @@ internal suspend fun loadConnections(onlyId: UInt? = null, onlyIds: Collection<U
     if (onlyIds?.isEmpty() == true) emptyList() else connections.select(
         connections.id, connections.name, connections.siteUrl, connections.enabled, connections.projectKeys, connections.mapping,
         connections.discovery, connections.pollIntervalMinutes, connections.mappingChangedAt, connections.updatedAt,
-        connections.discoveredAt,
+        connections.discoveredAt, connections.censusAt,
     ).where {
         val one = onlyId?.let { connections.id eq it } ?: Op.TRUE
         val several = onlyIds?.let { connections.id inList it } ?: Op.TRUE
@@ -75,6 +79,7 @@ internal suspend fun loadConnections(onlyId: UInt? = null, onlyIds: Collection<U
             ConnectionFacts(
                 row[connections.id].value, row[connections.name], row[connections.siteUrl], row[connections.enabled],
                 parseStringArray(row[connections.projectKeys]), levels, row.toConnectorConnection(),
+                row[connections.censusAt], row[connections.mappingChangedAt],
             )
         }
 

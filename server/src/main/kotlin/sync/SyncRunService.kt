@@ -171,6 +171,18 @@ class SyncRunService(
             .orderBy(Runs.startedAt to SortOrder.DESC).limit(1).toList().singleOrNull()?.get(Runs.startedAt)
     }
 
+    /**
+     * The newest SUCCEEDED run of the (kind, connection) - its start and finish - read INSIDE the caller's open transaction (it opens
+     * none); null before the first success (or once the retention of [MAX_LISTED_RUNS] has pruned every one). What a connector's stored
+     * data is "as of": the run's last write is its finish.
+     */
+    suspend fun lastSucceededInTransaction(kind: SyncKind, connectionId: UInt): RunFact? =
+        Runs.select(Runs.id, Runs.trigger, Runs.startedAt, Runs.finishedAt, Runs.outcome, Runs.errorCode)
+            .where {
+                (Runs.kind eq kind.name) and (Runs.connectionId eq connectionId.toInt()) and (Runs.outcome eq SyncOutcome.SUCCEEDED.name)
+            }
+            .orderBy(Runs.startedAt to SortOrder.DESC, Runs.id to SortOrder.DESC).limit(1).toList().singleOrNull()?.toRunFact()
+
     /** The newest runs first, at most [MAX_LISTED_RUNS]; each filter is optional. */
     suspend fun list(kind: SyncKind?, connectionId: UInt?): List<SyncRunResponse> = suspendTransaction(database) {
         var predicate: Op<Boolean> = Op.TRUE
@@ -193,13 +205,13 @@ class SyncRunService(
         Runs.select(Runs.id, Runs.trigger, Runs.startedAt, Runs.finishedAt, Runs.outcome, Runs.errorCode)
             .where { (Runs.kind eq kind.name) and (Runs.connectionId eq id.toInt()) }
             .orderBy(Runs.startedAt to SortOrder.DESC, Runs.id to SortOrder.DESC).limit(limit).toList()
-            .map {
-                RunFact(
-                    it[Runs.startedAt], it[Runs.finishedAt], it[Runs.outcome]?.let(SyncOutcome::valueOf),
-                    it[Runs.id].value, SyncTrigger.valueOf(it[Runs.trigger]), it[Runs.errorCode],
-                )
-            }
+            .map { it.toRunFact() }
     }
+
+    private fun ResultRow.toRunFact() = RunFact(
+        this[Runs.startedAt], this[Runs.finishedAt], this[Runs.outcome]?.let(SyncOutcome::valueOf),
+        this[Runs.id].value, SyncTrigger.valueOf(this[Runs.trigger]), this[Runs.errorCode],
+    )
 
     /**
      * [recentRunsInTransaction] in a transaction of its own: one snapshot for the whole batch of connections, under a statement budget of

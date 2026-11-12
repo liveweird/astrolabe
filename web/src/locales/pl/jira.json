@@ -103,7 +103,8 @@
     },
     "notSynced": "Jeszcze nie zsynchronizowano",
     "mappingUnusable": "Mapowanie nie wskazuje jeszcze poziomów, więc nic nie można policzyć. Zapisz mapowanie powyżej.",
-    "asOf": "Liczone ze spisu z {{when}} (UTC).",
+    "mappingChanged": "Mapowanie zmieniło się od ostatniej synchronizacji, więc nowe poziomy nie są jeszcze policzone. Użyj Odśwież teraz, aby je policzyć.",
+    "asOf": "Liczone według ostatniej udanej synchronizacji, {{when}} (UTC).",
     "loadFailed": "Nie udało się wczytać pokrycia"
   },
   "details": {

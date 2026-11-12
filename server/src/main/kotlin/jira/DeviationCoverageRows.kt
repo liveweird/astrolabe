@@ -106,16 +106,33 @@ internal suspend fun loadUnlinkedJira(live: List<BindingRow>, facts: Map<UInt, C
 
 /**
  * The correlated subquery of the ACTIVE bindings, on an ACTIVE connection of the SAME site (D1), that name the mirror row in the outer
- * query ([JiraIssues] joined to its own `connections` row): the one "linked" rule of the unlinked-in-Jira coverage and the connection's
- * coverage summary. Node liveness of the binding is not re-checked.
+ * query ([JiraIssues] joined to its own `connections` row): the "linked" rule of the unlinked-in-Jira coverage. Node liveness of the
+ * binding is not re-checked. The connection's coverage summary reads the same rule as a set ([linkedIssueIdsOnSite]); both go through
+ * [peerBindings] and [onActivePeer], so there is one rule.
  */
 internal fun bindingOnSameSite(): Query {
     val peer = connections.alias("peer")
-    return bindings.innerJoin(peer, { bindings.connectionId }, { peer[connections.id] }).select(bindings.id).where {
-        (bindings.jiraIssueId eq JiraIssues.issueId) and bindings.active() and (peer[connections.markedAsDeleted] eq false) and
-            (peer[connections.siteUrl] eq connections.siteUrl)
+    return peerBindings(peer).select(bindings.id).where {
+        (bindings.jiraIssueId eq JiraIssues.issueId) and onActivePeer(peer) and (peer[connections.siteUrl] eq connections.siteUrl)
     }
 }
+
+/**
+ * The "linked" rule of [bindingOnSameSite] as a set, for ONE site: the DISTINCT issue ids an ACTIVE binding of an ACTIVE connection of
+ * [siteUrl] names (D1). A statement that needs the verdict for many mirror rows joins this once (a hash join) instead of running the
+ * correlated subquery per row and per use.
+ */
+internal fun linkedIssueIdsOnSite(siteUrl: String): Query {
+    val peer = connections.alias("peer")
+    return peerBindings(peer).select(bindings.jiraIssueId).withDistinct()
+        .where { onActivePeer(peer) and (peer[connections.siteUrl] eq siteUrl) }
+}
+
+private fun peerBindings(peer: Alias<JiraConnectionService.Connections>) =
+    bindings.innerJoin(peer, { bindings.connectionId }, { peer[connections.id] })
+
+private fun onActivePeer(peer: Alias<JiraConnectionService.Connections>): Op<Boolean> =
+    bindings.active() and (peer[connections.markedAsDeleted] eq false)
 
 /**
  * The names of the direct plan children (a program's projects, a project's milestones; active) of each bound PROGRAM or PROJECT that

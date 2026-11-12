@@ -2294,8 +2294,9 @@ export interface paths {
          *     mapped plan level: the issues of its hierarchy level in the connection's project keys (`inScope`), those an active binding names on
          *     the same site (`linked`) and those not in the Done status category and not linked (`openUnlinked`: the issues the Deviations page
          *     lists as "Not in plan" under a bound parent, and those under no bound parent). Counts only: no key, name or summary. `state`
-         *     `NOT_SYNCED` while no run ever censused the site and `MAPPING_UNUSABLE` while the mapping cannot name the levels: `levels` is
-         *     empty in both.
+         *     `NOT_SYNCED` while no run ever censused the site, `MAPPING_UNUSABLE` while the mapping cannot name the levels and
+         *     `MAPPING_CHANGED` when the mapping was saved after the last successful run began (the mirror holds nothing for a newly mapped
+         *     level until a run reads under it; Refresh now): `levels` is empty in all three. `readAt` is when the last successful run finished.
          */
         get: operations["getJiraCoverage"];
         put?: never;
@@ -6180,15 +6181,15 @@ export interface components {
         };
         JiraCoverageResponse: {
             /**
-             * @description `NOT_SYNCED`: no run ever censused the site (no counts). `MAPPING_UNUSABLE`: the effective mapping is missing, unreadable or no longer fits the discovery, so the mapped levels are unknown (no counts). `READY`: `levels` holds the counts.
+             * @description `NOT_SYNCED`: no run ever censused the site (no counts). `MAPPING_UNUSABLE`: the effective mapping is missing, unreadable or no longer fits the discovery, so the mapped levels are unknown (no counts). `MAPPING_CHANGED`: the mapping was saved after the last successful run began, so the mirror may not hold the mapped levels yet (no counts until the next run). `READY`: `levels` holds the counts.
              * @enum {string}
              */
-            state: "NOT_SYNCED" | "MAPPING_UNUSABLE" | "READY";
+            state: "NOT_SYNCED" | "MAPPING_UNUSABLE" | "MAPPING_CHANGED" | "READY";
             /**
              * Format: int64
-             * @description Epoch millis of the run that last completed a census; null while never stamped (or cleared for a re-seed).
+             * @description Epoch millis when the connection's last SUCCESSFUL run finished: the counted rows are as of then (a run upserts and prunes the mapped levels every time). Null before any success (or once the run history no longer holds one).
              */
-            censusAt: number | null;
+            readAt: number | null;
             /** @description The mapped levels, top down (program, project, milestone); empty unless `state` is `READY`. */
             levels: components["schemas"]["JiraCoverageLevel"][];
         };

@@ -98,15 +98,21 @@ export default function JiraConnectionSection({ connection, readAt }: { connecti
   // re-read every IDLE_REFRESH_MS even after the fast poll's safety net stopped, so a run the server no longer calls running frees the
   // button within one period (and a 409 "already running" covers the gap).
   const running = runs === undefined ? connection.status.lastRun?.running === true : live;
-  // When the run that was going ends, the status, last success and next poll moved: re-read the connection and the registry.
-  const wasRunning = useRef(false);
+  // When a run ends, the status, last success and next poll moved, and so did the census the Coverage section counts: re-read the
+  // connection, the registry and the coverage. Two signs, either one: the live -> idle edge (the fast poll saw the run end), and the NEWEST
+  // run's identity or finish moving (a short run that began and ended between two idle polls was never seen as live).
+  const newestRun = runs?.[0];
+  const newestStamp = runs === undefined ? null : `${newestRun?.id ?? 0}:${newestRun?.finishedAt ?? ""}`;
+  const seen = useRef<{ live: boolean; stamp: string | null }>({ live: false, stamp: null });
   useEffect(() => {
-    // The finished run also moved the census the Coverage section counts.
-    if (wasRunning.current && !live) {
+    const before = seen.current;
+    const ended = before.live && !live;
+    const moved = before.stamp !== null && newestStamp !== null && before.stamp !== newestStamp;
+    if (ended || moved) {
       void refreshQueriesAfterMutation(queryClient, ["jira", "connection", connection.id], ["jira", "list"], ["jira", "coverage", connection.id]);
     }
-    wasRunning.current = live;
-  }, [live, queryClient, connection.id]);
+    seen.current = { live, stamp: newestStamp ?? before.stamp };
+  }, [live, newestStamp, queryClient, connection.id]);
 
   return (
     <Stack gap="md">

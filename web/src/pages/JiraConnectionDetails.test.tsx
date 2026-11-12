@@ -33,7 +33,7 @@ function serve(mockFetch: FetchMock, overrides: Partial<World> = {}) {
     if (url.startsWith("/api/v1/integrations/jira/bindings") && method === "GET") return Promise.resolve(jsonResponse(200, { items: [], page: 1, pageSize: 20, total: 0 }));
     if (url === `${BASE}/discovery`) return Promise.resolve(jsonResponse(200, DISCOVERY));
     if (url === `${BASE}/mapping`) return Promise.resolve(jsonResponse(200, MAPPING_DEFAULTS_ONLY));
-    if (url === `${BASE}/coverage`) return Promise.resolve(jsonResponse(200, { state: "NOT_SYNCED", censusAt: null, levels: [] }));
+    if (url === `${BASE}/coverage`) return Promise.resolve(jsonResponse(200, { state: "NOT_SYNCED", readAt: null, levels: [] }));
     if (url === `${BASE}/test` && method === "POST") return Promise.resolve(world.test());
     if (url.startsWith("/api/v1/integrations/sync/runs") && method === "GET") return Promise.resolve(jsonResponse(200, { items: world.runs }));
     if (url === "/api/v1/integrations/sync/runs" && method === "POST") {
@@ -277,6 +277,30 @@ describe("Jira connection page", () => {
       expect(await within(screen.getByRole("table", { name: "Recent runs" })).findByText("Scheduled")).toBeInTheDocument();
       expect(within(screen.getByRole("table", { name: "Connection facts" })).getByRole("rowheader", { name: "Status" }).closest("tr")).toHaveTextContent("Current");
       expect(within(screen.getByRole("table", { name: "Connection facts" })).getByRole("rowheader", { name: "Last success (UTC)" }).closest("tr")).toHaveTextContent("2026-11-06 11:00");
+    });
+
+    test("a run that began and ended between two idle polls (never seen as live) still re-reads the coverage counts", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      vi.setSystemTime(T0);
+      const world = serve(mockFetch);
+      const coverageReads = () => mockFetch.mock.calls.filter(([url]) => url === `${BASE}/coverage`).length;
+      renderPage();
+      await screen.findByRole("table", { name: "Connection facts" });
+      await waitFor(() => expect(coverageReads()).toBe(1));
+      // Nothing moved: an idle poll that sees the same newest run (none) does not re-read the counts.
+      await advance(IDLE_REFRESH_MS + 100);
+      expect(coverageReads()).toBe(1);
+      // A run was claimed and finished between two polls: the list only ever shows it finished.
+      world.runs = [run(scheduled)];
+      await advance(IDLE_REFRESH_MS + 100);
+      await waitFor(() => expect(coverageReads()).toBe(2));
+      // The same run again (identity and finish unchanged): no further re-read.
+      await advance(IDLE_REFRESH_MS + 100);
+      expect(coverageReads()).toBe(2);
+      // A newer run after it, again finished before the next poll: the counts are re-read once more.
+      world.runs = [run({ ...scheduled, id: 9, startedAt: T0 + 60_000, finishedAt: T0 + 65_000 }), run(scheduled)];
+      await advance(IDLE_REFRESH_MS + 100);
+      await waitFor(() => expect(coverageReads()).toBe(3));
     });
 
     test("a connection that became due mid-minute reads 'due now' alone, with no clock time, not 'next poll in 1 min' against the older tick", async () => {

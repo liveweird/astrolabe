@@ -96,7 +96,7 @@ fun Application.configureJira() {
     )
     attributes.put(JiraObserverKey, observer)
     // The connection page's coverage summary (1.14): a read over the mirror the runs wrote, no Jira call.
-    attributes.put(JiraCoverageServiceKey, JiraCoverageService(attributes[R2dbcDatabaseKey]))
+    attributes.put(JiraCoverageServiceKey, JiraCoverageService(attributes[R2dbcDatabaseKey], attributes[SyncRunServiceKey]))
     attributes[SyncConnectorsKey].register(observer)
     // The host only, never the URL.
     log.info("Jira outbound wired (gateway {}{})", "api.atlassian.com", stubHost?.let { ", development stub host $it" }.orEmpty())
