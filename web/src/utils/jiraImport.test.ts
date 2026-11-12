@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { allSelectable, blockingParent, emptyScope, indexItems, tickRow, toApplyRequest, toScope, unscheduledForRights, updatedWithinOf } from "./jiraImport";
+import { allSelectable, blockingParent, emptyScope, indexItems, searchItems, tickRow, tickShown, toApplyRequest, toScope, unscheduledForRights, updatedWithinOf } from "./jiraImport";
 import { PREVIEW_ITEMS } from "../test/jiraImport";
 
 const SCOPE = { workStreamId: 3, ownerPersonId: 8, copyDates: true };
@@ -42,6 +42,55 @@ describe("ticks", () => {
     expect(unscheduledForRights(PREVIEW_ITEMS, all, true)).toEqual({ count: 1, of: 2 });
     expect(unscheduledForRights(PREVIEW_ITEMS, new Set([...all].filter((id) => id !== "95005")), true)).toEqual({ count: 0, of: 1 });
     expect(unscheduledForRights(PREVIEW_ITEMS, all, false)).toEqual({ count: 0, of: 0 });
+  });
+});
+
+describe("the preview search", () => {
+  const keys = (rows: readonly { issueKey: string | null }[]) => rows.map((row) => row.issueKey);
+  const redacted = PREVIEW_ITEMS.map((item) => (item.issueKey === "IMP-11" ? { ...item, jiraId: "hidden-11", issueKey: null, name: "", summary: "" } : item));
+
+  test("a blank or whitespace query keeps every row, in order", () => {
+    expect(searchItems(PREVIEW_ITEMS, "")).toBe(PREVIEW_ITEMS);
+    expect(searchItems(PREVIEW_ITEMS, "   ")).toBe(PREVIEW_ITEMS);
+  });
+
+  test("matches the key, the id, the summary and the name as a substring, ignoring case and accents", () => {
+    expect(keys(searchItems(PREVIEW_ITEMS, " imp-4 "))).toEqual(["IMP-4"]);
+    expect(keys(searchItems(PREVIEW_ITEMS, "95009"))).toEqual(["IMP-9"]);
+    expect(keys(searchItems(PREVIEW_ITEMS, "EXISTING"))).toEqual(["IMP-9"]);
+    const accented = PREVIEW_ITEMS.map((item) => (item.issueKey === "IMP-5" ? { ...item, summary: "Zażółć gęślą jaźń" } : item));
+    expect(keys(searchItems(accented, "ZAZOLC GESLA"))).toEqual(["IMP-5"]);
+    expect(keys(searchItems(accented, "zazolc jazn x"))).toEqual([]);
+    expect(keys(searchItems(accented, "zazolc gesla"))).toEqual(["IMP-5"]);
+  });
+
+  test("a redacted row (no key) never matches a non-empty query, and is kept for a blank one", () => {
+    expect(searchItems(redacted, "hidden")).toEqual([]);
+    expect(searchItems(redacted, "hidden-11")).toEqual([]);
+    expect(searchItems(redacted, "11")).toEqual([]);
+    expect(searchItems(redacted, "")).toHaveLength(PREVIEW_ITEMS.length);
+  });
+
+  test("tickShown ticks the shown selectable rows and what they are created under, and counts only the rows outside the shown ones", () => {
+    const shown = searchItems(PREVIEW_ITEMS, "Epic");
+    const result = tickShown(index, new Set(), shown, true);
+    expect(ids(result.ticks)).toEqual(["95001", "95002", "95004", "95005", "95010"]);
+    expect(result.alsoChanged).toBe(2);
+  });
+
+  test("tickShown unticks the shown rows and what is created under them, shown or not; other rows are untouched", () => {
+    const all = allSelectable(PREVIEW_ITEMS);
+    const result = tickShown(index, all, searchItems(PREVIEW_ITEMS, "Initiative Alpha"), false);
+    expect(ids(result.ticks)).toEqual(["95001", "95003", "95009", "95010"]);
+    expect(result.alsoChanged).toBe(2);
+    expect(tickShown(index, all, PREVIEW_ITEMS, false)).toMatchObject({ alsoChanged: 0, ticks: new Set() });
+    expect(ids(tickShown(index, new Set(), PREVIEW_ITEMS, true).ticks)).toEqual(ids(all));
+  });
+
+  test("tickShown skips a SKIP row and reports nothing moved when the shown rows are already as asked", () => {
+    const all = allSelectable(PREVIEW_ITEMS);
+    expect(tickShown(index, all, searchItems(PREVIEW_ITEMS, "IMP-8"), true)).toEqual({ ticks: all, alsoChanged: 0 });
+    expect(tickShown(index, all, searchItems(PREVIEW_ITEMS, "IMP-4"), true)).toEqual({ ticks: all, alsoChanged: 0 });
   });
 });
 

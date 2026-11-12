@@ -1,5 +1,6 @@
 import type { JiraImportApplyItem, JiraImportApplyRequest, JiraImportItem, JiraImportScope } from "../api/jira";
 import type { PickedOption } from "../components/SearchPicker";
+import { foldDiacritics } from "./text";
 
 // The import modal's pure model (1.2): the ticks and their dependencies, the scope form, and the apply body. No React, no i18n.
 
@@ -60,6 +61,38 @@ export function tickRow(index: ImportIndex, ticks: ReadonlySet<string>, id: stri
     else next.delete(other);
   }
   return { ticks: next, alsoChanged: related.length };
+}
+
+/**
+ * The preview search (1.13.4): the rows whose Jira key, Jira id, summary or plan name contain the query, case- and accent-insensitive
+ * (`foldDiacritics`, the rule of `foldedOptionsFilter`); a blank query keeps every row. A row redacted for a non-admin (no key) NEVER matches
+ * a non-empty query: its id is a synthetic `hidden-n` placeholder and its name is blank, and a search must not probe what the key withholds.
+ */
+export function searchItems(items: readonly JiraImportItem[], query: string): readonly JiraImportItem[] {
+  const needle = foldDiacritics(query.trim());
+  if (needle === "") return items;
+  return items.filter((item) => item.issueKey !== null && [item.issueKey, item.jiraId, item.summary, item.name].some((field) => foldDiacritics(field).includes(needle)));
+}
+
+/**
+ * Ticks or unticks every selectable row of `shown` ("Tick shown" / "Untick shown"; with no search, "Select all" / "Select none"), keeping the
+ * dependencies true exactly as `tickRow` does per row: ticking also ticks the rows each one is created under, unticking also unticks what is
+ * created under each, whether or not those are shown. Rows outside `shown` are otherwise untouched. `alsoChanged` is how many rows OUTSIDE
+ * `shown` moved with them, for the polite announcement.
+ */
+export function tickShown(index: ImportIndex, ticks: ReadonlySet<string>, shown: readonly JiraImportItem[], on: boolean): { ticks: Set<string>; alsoChanged: number } {
+  const next = new Set(ticks);
+  const direct = new Set<string>();
+  for (const item of shown) {
+    if (!isSelectable(item)) continue;
+    direct.add(item.jiraId);
+    for (const id of [item.jiraId, ...(on ? ancestors(index, item.jiraId) : descendants(index, item.jiraId))]) {
+      if (on) next.add(id);
+      else next.delete(id);
+    }
+  }
+  const moved = [...next].filter((id) => !ticks.has(id)).concat([...ticks].filter((id) => !next.has(id)));
+  return { ticks: next, alsoChanged: moved.filter((id) => !direct.has(id)).length };
 }
 
 /** The nearest unticked row an unticked row lands under: it explains "not imported because its parent is not". */

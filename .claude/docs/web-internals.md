@@ -1027,7 +1027,16 @@ since the apply spreads the preview's scope it sends the SAME filter. The previe
 form): one `role="note"` line "Left out: … Their parents in the selected projects are still read." in three wordings (done / window / both, plural on the days; none without a filter, and no count - the server does not report
 one), the too-large alert names both causes (over 2,000 issues, over 200 parents read one by one) and the filter as the lever, an empty preview under a filter says
 the filter may be why (or that the projects have none); a kept parent and a child whose parent could not be read show `KEPT_AS_PARENT` / `PARENT_UNREADABLE` among the row's notes (`infoText`).
-Tests: `JiraImportModal.filter.test.tsx`. **Time**: each call owns an `AbortController` that
+Tests: `JiraImportModal.filter.test.tsx`.
+**The preview search (1.13.4)**: a `ClearableTextInput` "Search the preview" above the table (page state, nothing stored, no API change) filters the rows by a trimmed,
+case- and accent-insensitive substring (`foldDiacritics`, the rule of `foldedOptionsFilter`) over the Jira key, the Jira id, the summary and the plan name
+(`searchItems` in `utils/jiraImport.ts`); a blank query shows every row. A row with no Jira key (a non-admin's row redacted under an active filter: a `hidden-n` placeholder
+id, a blank name) NEVER matches a non-empty query. The search only HIDES rows: ticks and team overrides are untouched, "N of M selected" and **Import (n)** stay global, and
+the apply sends every ticked row. While a query is active an always-mounted `role="status"` line says "Showing X of Y", Select all / Select none become "Tick shown" /
+"Untick shown" and, with the header checkbox (its checked / indeterminate state too), act on the SHOWN selectable rows only through `tickShown` (`tickRow`'s
+parent/child rules per shown row: ticking also ticks what a shown row is created under, unticking also unticks what is created under it, shown or not; the
+existing live region says "Also ticked / unticked N items outside the search …", cleared when the search changes). No match: a `role="note"` "No rows match “…”." replaces the table, the box stays.
+Tests: `JiraImportModal.search.test.tsx`, `utils/jiraImport.test.ts`. **Time**: each call owns an `AbortController` that
 aborts at `IMPORT_TIMEOUT_MS` (180 s, over the server's 170 s browse), the visible wait has a Stop for a preview, one request at a time, and an apply is never
 aborted by the client: the dialog cannot be closed over it, and leaving the page (Back, the palette) does not cancel it either (only an unmount mid-PREVIEW
 aborts) - it finishes and still refreshes the plan; an answer that leaves the write in doubt (the 180 s abort, no server answer, a 5xx other than the server's

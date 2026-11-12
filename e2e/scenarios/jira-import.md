@@ -65,6 +65,19 @@ under IMF-16, an Initiative that is in no listing and answers 404 by id (the par
 3. They tick IMP-4.
    - *Expected*: IMP-2 is ticked again (what it is created under), **Import (7)**, IMP-5 stays "Not imported".
 
+## Scenario: searching the preview cherry-picks one item to import
+
+1. The administrator previews the same scope (one preview call).
+   - *Expected*: "8 of 8 selected".
+2. They press **Select none**, type "IMP-1" in **Search the preview**, and press **Tick shown**.
+   - *Expected*: "Showing 1 of 9", the table holds only IMP-1 (the header and one row), **Import (1)** is enabled and "1 of 8 selected".
+3. They search "epic one" and press **Tick shown**.
+   - *Expected*: "Showing 1 of 9" with IMP-4 only; the polite sentence "Also ticked 1 item outside the search that the shown rows are created under." (IMP-2); **Import (3)**.
+4. They search "no such item", then press **Clear the search**.
+   - *Expected*: the note "No rows match “no such item”." and no table while the query is active; after clearing, all 9 rows are back with IMP-1, IMP-2, IMP-4 ticked and IMP-3, IMP-5, IMP-9 not.
+5. They press **Import (3)**.
+   - *Expected*: "Created: 3"; the plan read through the API holds "IMP Program" with the one project "IMP Initiative Alpha" and its milestone "IMP Epic One" dated 2045-01-02..2045-01-06.
+
 ## Scenario: a skipped row says how to fix it, and a default project makes it importable
 
 1. The work stream already holds a program with a project (seeded through the API). The administrator previews with no default project.

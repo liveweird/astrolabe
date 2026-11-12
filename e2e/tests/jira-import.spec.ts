@@ -478,6 +478,54 @@ test("unticking a parent leaves its children out of the import, with the reason 
   await expect(rowOf(page, "IMP-5")).not.toContainText("Not imported");
 });
 
+// 1.13.4: the preview's search box. It hides rows without touching a tick; "Tick shown" ticks what a shown row is created under, and the Import count stays global.
+test("searching the preview cherry-picks one item to import", async ({ page }) => {
+  const world = await seedWorld();
+  await openImport(page, world);
+  const dialog = modal(page);
+  await fillScope(page, world);
+  await preview(page);
+  await expect(dialog.getByText("8 of 8 selected")).toBeVisible();
+
+  // Untick everything, then find the Program by its key: only its row is shown, and ticking it makes the count read 1.
+  await dialog.getByRole("button", { name: "Select none" }).click();
+  await expect(dialog.getByRole("button", { name: "Import (0)" })).toBeDisabled();
+  const search = dialog.getByRole("textbox", { name: "Search the preview" });
+  await search.fill("IMP-1");
+  await expect(dialog.getByText("Showing 1 of 9")).toBeVisible();
+  await expect(previewTable(page).getByRole("row")).toHaveCount(2); // the header and IMP-1
+  await expect(rowOf(page, "IMP-1")).toBeVisible();
+  await dialog.getByRole("button", { name: "Tick shown", exact: true }).click();
+  await expect(dialog.getByRole("button", { name: "Import (1)" })).toBeEnabled();
+  await expect(dialog.getByText("1 of 8 selected")).toBeVisible();
+
+  // An epic by its summary: ticking it also ticks the Initiative it is created under (shown or not), and the count stays global.
+  await search.fill("epic one");
+  await expect(rowOf(page, "IMP-4")).toBeVisible();
+  await expect(rowOf(page, "IMP-1")).toHaveCount(0);
+  await expect(dialog.getByText("Showing 1 of 9")).toBeVisible();
+  await dialog.getByRole("button", { name: "Tick shown", exact: true }).click();
+  await expect(dialog.getByText("Also ticked 1 item outside the search that the shown rows are created under.")).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Import (3)" })).toBeEnabled();
+
+  // No match: a note instead of the table; clearing the search brings every row back with the ticks as they were.
+  await search.fill("no such item");
+  await expect(dialog.getByText("No rows match “no such item”.")).toBeVisible();
+  await expect(previewTable(page)).toHaveCount(0);
+  await dialog.getByRole("button", { name: "Clear the search" }).click();
+  await expect(previewTable(page).getByRole("row")).toHaveCount(10); // the header and 9 rows
+  for (const key of ["IMP-1", "IMP-2", "IMP-4"]) await expect(rowOf(page, key).getByRole("checkbox", { name: `Import ${key}` })).toBeChecked();
+  for (const key of ["IMP-3", "IMP-5", "IMP-9"]) await expect(rowOf(page, key).getByRole("checkbox", { name: `Import ${key}` })).not.toBeChecked();
+
+  // The apply sends the three ticked rows, shown or not: the Program, Alpha and its first epic.
+  await importAll(page, 3);
+  await expect(dialog.getByRole("status")).toContainText("Created: 3");
+  const planned = await planOf(world);
+  expect(planned.programs).toEqual([PROGRAM_NAME]);
+  expect(planned.projects.map((project) => project.name)).toEqual(["IMP Initiative Alpha"]);
+  expect(planned.projects[0].scheduled).toEqual([["IMP Epic One", "2045-01-02", "2045-01-06"]]);
+});
+
 test("a skipped row says how to fix it, and a default project makes it importable", async ({ page }) => {
   const world = await seedWorld();
   const target = await seedDefaultProject(world);

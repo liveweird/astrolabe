@@ -4,8 +4,9 @@ import { Alert, Badge, Button, Checkbox, Group, Loader, Stack, Table, Text, Titl
 import { useQuery } from "@tanstack/react-query";
 import { listTeams } from "../api/teams";
 import type { PreviewState } from "../hooks/useJiraImport";
-import { allSelectable, blockingParent, type ImportConnection, indexItems, isSelectable, tickRow, unscheduledForRights } from "../utils/jiraImport";
+import { allSelectable, blockingParent, type ImportConnection, indexItems, isSelectable, searchItems, tickRow, tickShown, unscheduledForRights } from "../utils/jiraImport";
 import type { ImportFailure } from "../utils/jiraImportText";
+import ClearableTextInput from "./ClearableTextInput";
 import JiraImportFailureAlert from "./JiraImportFailureAlert";
 import JiraImportRow, { IMPORT_ROW_HEIGHT, type TeamOption } from "./JiraImportRow";
 import JiraImportVirtualTable from "./JiraImportVirtualTable";
@@ -44,6 +45,7 @@ export default function JiraImportPreviewStep({
   const [ticks, setTicks] = useState<ReadonlySet<string>>(() => allSelectable(items));
   const [overrides, setOverrides] = useState<ReadonlyMap<string, number>>(new Map());
   const [announcement, setAnnouncement] = useState("");
+  const [query, setQuery] = useState("");
   const teams = useQuery({ queryKey: ["teams", "picker", "import"], queryFn: () => listTeams({ page: 1, pageSize: 100, sort: "name" }) });
   const teamOptions: TeamOption[] | null = teams.data ? teams.data.items.map((team) => ({ value: String(team.id), label: team.name })) : null;
   // Orange only when a skip needs a look: rows that are simply already linked are fine.
@@ -52,6 +54,11 @@ export default function JiraImportPreviewStep({
   const truncated = totals.truncated;
   const filter = scope.filter ?? null;
   const leftOutKey = filter === null ? null : leftOutKeyOf(filter.excludeDone, filter.updatedWithinDays ?? null);
+  // The search only HIDES rows: the ticks, the overrides and the global counts below never look at it. Select all / none and the header checkbox act on what is shown.
+  const searching = query.trim() !== "";
+  const shown = useMemo(() => searchItems(items, query), [items, query]);
+  const shownSelectable = useMemo(() => shown.filter(isSelectable), [shown]);
+  const shownTicked = shownSelectable.filter((item) => ticks.has(item.jiraId)).length;
   const none = ticks.size === 0;
   const applying = busy === "apply";
   const locked = busy !== null;
@@ -63,9 +70,10 @@ export default function JiraImportPreviewStep({
     setAnnouncement(result.alsoChanged === 0 ? "" : t(on ? "jira.import.preview.alsoTicked" : "jira.import.preview.alsoUnticked", { key, count: result.alsoChanged }));
   }
 
-  function setAll(on: boolean) {
-    setTicks(on ? allSelectable(items) : new Set());
-    setAnnouncement("");
+  function setShown(on: boolean) {
+    const result = tickShown(index, ticks, shown, on);
+    setTicks(result.ticks);
+    setAnnouncement(result.alsoChanged === 0 ? "" : t(on ? "jira.import.preview.alsoTickedShown" : "jira.import.preview.alsoUntickedShown", { count: result.alsoChanged }));
   }
 
   return (
@@ -109,12 +117,31 @@ export default function JiraImportPreviewStep({
           {t("jira.import.preview.unmatchedTeams", { names: data.unmatchedTeams.join(", ") })}
         </Text>
       )}
+      {items.length > 0 && (
+        <Group gap="sm" align="flex-end">
+          <ClearableTextInput
+            label={t("jira.import.preview.searchLabel")}
+            placeholder={t("jira.import.preview.searchPlaceholder")}
+            clearLabel={t("jira.import.preview.searchClear")}
+            value={query}
+            onChange={(value) => {
+              setQuery(value);
+              // A "… outside the search" sentence is about the search it was made under.
+              setAnnouncement("");
+            }}
+          />
+          {/* Always mounted (so a change is announced); empty without a search. */}
+          <Text size="sm" role="status" pb={6}>
+            {searching ? t("jira.import.preview.showing", { shown: shown.length, total: items.length }) : ""}
+          </Text>
+        </Group>
+      )}
       <Group gap="sm" align="center">
-        <Button variant="default" size="compact-sm" onClick={() => setAll(true)} disabled={truncated || selectable === 0 || locked}>
-          {t("jira.import.preview.selectAll")}
+        <Button variant="default" size="compact-sm" onClick={() => setShown(true)} disabled={truncated || shownSelectable.length === 0 || locked}>
+          {t(searching ? "jira.import.preview.tickShown" : "jira.import.preview.selectAll")}
         </Button>
-        <Button variant="default" size="compact-sm" onClick={() => setAll(false)} disabled={none || locked}>
-          {t("jira.import.preview.selectNone")}
+        <Button variant="default" size="compact-sm" onClick={() => setShown(false)} disabled={shownTicked === 0 || locked}>
+          {t(searching ? "jira.import.preview.untickShown" : "jira.import.preview.selectNone")}
         </Button>
         <Text size="sm">{t("jira.import.preview.selected", { ticked: ticks.size, total: selectable })}</Text>
         {/* The live region stays mounted (so a change is announced) but sits in this row: empty, it reserves no height of its own. */}
@@ -126,10 +153,14 @@ export default function JiraImportPreviewStep({
         <Text size="sm" role="note">
           {t(filter === null ? "jira.import.preview.empty" : "jira.import.preview.emptyFiltered")}
         </Text>
+      ) : shown.length === 0 ? (
+        <Text size="sm" role="note">
+          {t("jira.import.preview.noMatch", { query: query.trim() })}
+        </Text>
       ) : (
         <JiraImportVirtualTable
           label={t("jira.import.preview.tableAria")}
-          count={items.length}
+          count={shown.length}
           rowHeight={IMPORT_ROW_HEIGHT}
           minWidth={940}
           maxHeight={460}
@@ -138,11 +169,11 @@ export default function JiraImportPreviewStep({
             <Table.Tr aria-rowindex={1}>
               <Table.Th w={44}>
                 <Checkbox
-                  aria-label={t("jira.import.preview.selectAllAria")}
-                  checked={selectable > 0 && ticks.size === selectable}
-                  indeterminate={ticks.size > 0 && ticks.size < selectable}
-                  disabled={truncated || selectable === 0 || locked}
-                  onChange={(event) => setAll(event.currentTarget.checked)}
+                  aria-label={t(searching ? "jira.import.preview.selectShownAria" : "jira.import.preview.selectAllAria")}
+                  checked={shownSelectable.length > 0 && shownTicked === shownSelectable.length}
+                  indeterminate={shownTicked > 0 && shownTicked < shownSelectable.length}
+                  disabled={truncated || shownSelectable.length === 0 || locked}
+                  onChange={(event) => setShown(event.currentTarget.checked)}
                 />
               </Table.Th>
               <Table.Th>{t("jira.import.preview.column.item")}</Table.Th>
@@ -152,7 +183,7 @@ export default function JiraImportPreviewStep({
             </Table.Tr>
           }
           renderRow={(row, rowProps) => {
-            const item = items[row];
+            const item = shown[row];
             const override = overrides.get(item.jiraId);
             return (
               <JiraImportRow
