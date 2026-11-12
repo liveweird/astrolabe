@@ -310,6 +310,35 @@ class JiraStubFixtureTest {
     }
 
     @Test
+    fun `the server's own children builder emits the texts the stub's family answers - every set, with and without the filter's clauses`() {
+        val initiative = typeId("initiative")
+        val epic = typeId("epic")
+        val idOf = figure("imc", "issues").jsonArray.associate { it.str("key") to it.str("id") }
+        for (set in figure("imc", "childSets").jsonArray) {
+            val parentKeys = set.jsonObject.getValue("parents").jsonArray.map { it.jsonPrimitive.content }
+            val parentIds = parentKeys.map { idOf.getValue(it) }
+            // The rooted browse asks round one for the project and milestone types (top down), round two for the milestone type only.
+            for (types in listOf(listOf(initiative, epic), listOf(epic))) {
+                val variants = listOf(
+                    Triple(false, null, ""),
+                    Triple(true, null, " AND statusCategory != Done"),
+                    Triple(false, 365, " AND updated >= \"-525600m\""),
+                    Triple(true, 365, " AND statusCategory != Done AND updated >= \"-525600m\""),
+                )
+                for ((excludeDone, days, clauses) in variants) {
+                    val built = ch.nokillswit.jira.JiraJql.children(listOf("IMC"), types, parentIds, excludeDone, days)
+                    assertEquals(childrenJql(types, parentIds, clauses), built, "${set.str("name")} $types$clauses")
+                    val (found, _) = search(built, fullFields)
+                    assertEquals(expectedChildren(parentKeys, types), found.map { it.str("key") }, "${set.str("name")} $types$clauses")
+                }
+            }
+        }
+        // A set the builder could name but the stub does not know is its 401 (a rooted read of an unprepared root reads as a 502).
+        val unknown = ch.nokillswit.jira.JiraJql.children(listOf("IMC"), listOf(initiative, epic), listOf(idOf.getValue("IMC-11")))
+        assertEquals(401, api("/search/jql", mapOf("jql" to unknown, "fields" to fullFields)).status)
+    }
+
+    @Test
     fun `an unknown parent set is a 401, a children query needs the scheme and fields, and the rejected token is refused`() {
         val initiative = typeId("initiative")
         val epic = typeId("epic")

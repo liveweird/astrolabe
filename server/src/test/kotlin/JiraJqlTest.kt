@@ -86,6 +86,62 @@ class JiraJqlTest {
     }
 
     @Test
+    fun `children names the parent ids between the type clause and the order, to the character`() {
+        val keys = listOf("IMC")
+        assertEquals(
+            """project in ("IMC") AND issuetype in (10005,10004) AND parent in (99001) ORDER BY id ASC""",
+            JiraJql.children(keys, listOf("10005", "10004"), listOf("99001")),
+        )
+        assertEquals(
+            """project in ("IMC") AND issuetype in (10004) AND parent in (99002,99003,99004) AND statusCategory != Done """ +
+                """AND updated >= "-525600m" ORDER BY id ASC""",
+            JiraJql.children(keys, listOf("10004"), listOf("99002", "99003", "99004"), excludeDone = true, updatedWithinDays = 365),
+        )
+        assertEquals(
+            """project in ("IMC") AND issuetype in (10004) AND parent in (99002) AND statusCategory != Done ORDER BY id ASC""",
+            JiraJql.children(keys, listOf("10004"), listOf("99002"), excludeDone = true),
+        )
+        assertEquals(
+            """project in ("IMC","IMP") AND issuetype in (10004) AND parent in (99002) AND updated >= "-1440m" ORDER BY id ASC""",
+            JiraJql.children(listOf("IMC", "IMP"), listOf("10004"), listOf("99002"), updatedWithinDays = 1),
+        )
+    }
+
+    @Test
+    fun `children and importBrowse spell their done and window clauses the same way`() {
+        val keys = listOf("IMC")
+        val types = listOf("10004")
+        for ((done, days) in listOf(true to 365, true to null, false to 30, false to 3_650)) {
+            // importBrowse is "<scope and types><clauses> ORDER BY id ASC": the rooted read is the same clauses behind its parent clause.
+            val clauses = JiraJql.importBrowse(keys, types, done, days).substringAfter(JiraJql.scopeAndTypes(keys, types))
+            assertEquals(
+                "${JiraJql.scopeAndTypes(keys, types)} AND parent in (7)$clauses",
+                JiraJql.children(keys, types, listOf("7"), done, days),
+                "$done/$days",
+            )
+        }
+    }
+
+    @Test
+    fun `children refuses no parent, more than fifty, a non-numeric or oversized id, a bad window and a bad key or type`() {
+        val keys = listOf("IMC")
+        val types = listOf("10004")
+        assertFailsWith<IllegalArgumentException> { JiraJql.children(keys, types, emptyList()) }
+        assertFailsWith<IllegalArgumentException> { JiraJql.children(keys, types, (1..51).map { "$it" }) }
+        val fifty = JiraJql.children(keys, types, (1..50).map { "$it" })
+        assertEquals(50, fifty.substringAfter("parent in (").substringBefore(")").split(",").size)
+        for (hostile in listOf("IMC-1", "1) OR project = X", "", " 7", "7 ", "-1", "1.5", "9".repeat(21), "1,2")) {
+            assertFailsWith<IllegalArgumentException>(hostile) { JiraJql.children(keys, types, listOf(hostile)) }
+        }
+        assertFailsWith<IllegalArgumentException> { JiraJql.children(keys, types, listOf("1"), true, 0) }
+        assertFailsWith<IllegalArgumentException> { JiraJql.children(keys, types, listOf("1"), true, 3_651) }
+        assertFailsWith<IllegalArgumentException> { JiraJql.children(keys, emptyList(), listOf("1")) }
+        assertFailsWith<IllegalArgumentException> { JiraJql.children(keys, listOf("Epic"), listOf("1")) }
+        assertFailsWith<IllegalArgumentException> { JiraJql.children(listOf("bad"), types, listOf("1")) }
+        assertFailsWith<IllegalArgumentException> { JiraJql.children(emptyList(), types, listOf("1")) }
+    }
+
+    @Test
     fun `incremental rejects a negative minute window`() {
         assertFailsWith<IllegalArgumentException> { JiraJql.incremental(listOf("ENG"), -1) }
     }

@@ -26,7 +26,7 @@ internal const val IMPORT_BROWSE_DEADLINE_MILLIS = 170_000L
 internal const val CONNECTION_DISABLED = "The Jira connection is disabled - enable it first"
 
 /** Ends the browse once the cap is passed; carries no stack (it is control flow, caught in [browseScope]). */
-private class BrowseCapReached : RuntimeException(null, null, false, false)
+internal class BrowseCapReached : RuntimeException(null, null, false, false)
 
 /**
  * The per-page stop of a browse (the run's, `JiraObserver`): a connection deleted meanwhile is the `404` of the route (its token is
@@ -40,6 +40,16 @@ internal fun browseGuard(connections: JiraConnectionService, connectionId: UInt)
         RunnableState.DISABLED -> throw BadRequestException(CONNECTION_DISABLED)
     }
 }
+
+/**
+ * The type ids of every mapped level (what the browse's `issuetype in (...)` names); a mapped level without a usable issue type id is a
+ * `409 jira-mapping-invalid` before any request. Shared by the whole-scope browse and the rooted one (`JiraImportChildren.kt`).
+ */
+internal fun requireSweepTypeIds(mapping: JiraMapping, discovery: JiraDiscovery): List<String> =
+    sweepTypeIds(mapping, discovery) ?: throw ConflictException(
+        "The connection's mapping no longer fits the site (a mapped level has no issue type) - ask an administrator to update it",
+        JIRA_MAPPING_INVALID_PROBLEM,
+    )
 
 /**
  * Reads every issue of [keys] at the mapped levels' types (`JiraJql.full`, the `fields` of the run: the system fields and every mapped
@@ -72,10 +82,7 @@ internal suspend fun browseScope(
     deadlineMillis: Long = IMPORT_BROWSE_DEADLINE_MILLIS,
     filter: ImportBrowseFilter? = null,
 ): ImportBrowse {
-    val typeIds = sweepTypeIds(mapping, discovery) ?: throw ConflictException(
-        "The connection's mapping no longer fits the site (a mapped level has no issue type) - ask an administrator to update it",
-        JIRA_MAPPING_INVALID_PROBLEM,
-    )
+    val typeIds = requireSweepTypeIds(mapping, discovery)
     // `withTimeoutOrNull` handles ONLY its own deadline (null); a real cancellation of the caller, or another scope's timeout, propagates.
     val active = filter?.takeIf { it.filter.isActive() }
     return withTimeoutOrNull(deadlineMillis) {
