@@ -28,6 +28,19 @@ export const scopesOf = (world) => [
   { name: "imp", keys: ["IMP"] },
   { name: "cov", keys: ["COV"] },
   { name: "imf", keys: ["IMF"] },
+  { name: "imc", keys: ["IMC"] },
+];
+
+/**
+ * The parent sets the stub answers a `parent in (...)` read for (1.14.0: the import from a linked node, the IMC project; ids of world.mjs).
+ * `root` = the program's children, `projects` = round two of a program import (its three Initiatives), `north` = a project import's one
+ * parent, `empty` = a program with nothing under it. Any other set is refused by `search-children-refused-401`. Add a line for another set.
+ */
+export const CHILD_SETS = [
+  { scope: "imc", name: "root", parents: [99001] },
+  { scope: "imc", name: "projects", parents: [99002, 99003, 99004] },
+  { scope: "imc", name: "north", parents: [99002] },
+  { scope: "imc", name: "empty", parents: [99014] },
 ];
 
 /**
@@ -62,6 +75,7 @@ export function listClause(clause, items) {
 }
 const UPDATED_CLAUSE = '[\\s\\S]*\\bupdated >= "-\\d+m"[\\s\\S]*';
 const FIELDS_CARRY_SUMMARY = "(?=[\\s\\S]*\\bsummary\\b)(?=[\\s\\S]*\\bissuetype\\b)[\\s\\S]*";
+export const PARENT_IN_CLAUSE = "[\\s\\S]*\\bparent in \\([\\s\\S]*"; // any `parent in (...)` text
 const ORDER_BY_ID = "[\\s\\S]* ORDER BY id ASC"; // the full read, the sweep and the import's browse end like this; the incremental read orders by `updated`
 
 /**
@@ -72,7 +86,12 @@ const ORDER_BY_ID = "[\\s\\S]* ORDER BY id ASC"; // the full read, the sweep and
  *   - importWindow (1.13.2): the import's filtered browse WITH a window, `... AND updated >= "-Nm" ORDER BY id ASC`, naming the three mapped
  *     types; the stub does not evaluate the filter, so it answers with the typed read's own listing (pages and bodies);
  *   - importWindowRefusal: the same windowed browse over ANY OTHER type set (a connection whose saved mapping has one or two levels): the 401
- *     an unmapped shape gets, never the incremental mapping's wrong rows. It excludes the family by the three-type clause.
+ *     an unmapped shape gets, never the incremental mapping's wrong rows. It excludes the family by the three-type clause;
+ *   - children (1.14.0): the rooted import's read, `project in (...) AND issuetype in (...) AND parent in (<ids>) [AND <filter clauses>] ORDER BY id
+ *     ASC`, one parent set at a time (CHILD_SETS); the stub evaluates none of the filter clauses (the typed read's listing rule), so with or
+ *     without them the same listing answers. Priority 1 (a typed read or a window family would also fit): a `parent in` text is answered by this
+ *     family or by childrenRefusal, never by those;
+ *   - childrenRefusal: a `parent in (...)` text whose id set is none of CHILD_SETS: the 401 an unmapped shape gets.
  * A done-only filtered browse (`statusCategory != Done` and no window) is the typed read's shape already (its pattern ignores that clause).
  */
 export const JQL_SHAPES = {
@@ -82,6 +101,10 @@ export const JQL_SHAPES = {
   sweep: (keys, typeIds) => ({ matches: [listClause("project", keys), listClause("issuetype", typeIds)], doesNotMatch: [] }),
   importWindow: (keys, typeIds) => ({ matches: [listClause("project", keys), listClause("issuetype", typeIds), UPDATED_CLAUSE, ORDER_BY_ID], doesNotMatch: [] }),
   importWindowRefusal: (typeIds) => ({ matches: [UPDATED_CLAUSE, ORDER_BY_ID], doesNotMatch: [listClause("issuetype", typeIds)] }),
+  children: (keys, typeIds, parentIds) => ({
+    matches: [listClause("project", keys), listClause("issuetype", typeIds), listClause("parent", parentIds), ORDER_BY_ID], doesNotMatch: [],
+  }),
+  childrenRefusal: (parentSets) => ({ matches: [PARENT_IN_CLAUSE], doesNotMatch: parentSets.map((ids) => listClause("parent", ids)) }),
 };
 /** A shape as the WireMock `and` of its clauses (matches first, then doesNotMatch). */
 export const andOf = (shape) => ({ and: [...shape.matches.map((matches) => ({ matches })), ...shape.doesNotMatch.map((doesNotMatch) => ({ doesNotMatch }))] });
@@ -109,7 +132,9 @@ const typeObject = (issue) => {
 const date = (issue, offset) => (offset === null ? null : isoDateAt(issue.anchor, offset));
 
 export function makeDocs(world) {
-  const all = [...world.issues, ...world.stories, ...world.e2e.issues, ...world.imp.issues, ...world.cov.issues, ...world.imf.issues];
+  const all = [
+    ...world.issues, ...world.stories, ...world.e2e.issues, ...world.imp.issues, ...world.cov.issues, ...world.imf.issues, ...world.imc.issues,
+  ];
   // The hidden parent (IMF-16) is known to the document that names it as its `parent`, never listed and never mapped: `all` excludes it.
   const byId = new Map([...all, ...world.imf.hidden].map((i) => [i.id, i]));
   const projectOf = new Map(world.projectRows.map((p) => [p.key, p]));
@@ -266,6 +291,36 @@ export function buildStub(world) {
     get("/search/jql", { queryParameters: { jql: andOf(JQL_SHAPES.importWindowRefusal(IMPORT_TYPE_IDS)), fields: { matches: FIELDS_CARRY_SUMMARY } } }),
     json(401, "auth-401.json"),
     { priority: 2 },
+  );
+
+  // The children family (1.14.0): per parent set, per issue-type set, per day, ONE group listing the in-scope issues of those types whose
+  // `parent` is in the set (an empty listing is one page with no issues). Priority 1, so the typed read and the window family (2) never answer
+  // a `parent in` text; the header demands the scheme AND not the rejected token, so that token still meets only `auth-wrong-token-401` (1).
+  const childAuth = { Authorization: { and: [{ matches: AUTH_HEADER_PATTERN }, { doesNotMatch: wrongTokenPattern() }] } };
+  for (const set of CHILD_SETS) {
+    const scope = scopesOf(world).find((s) => s.name === set.scope);
+    const parents = new Set(set.parents.map(String));
+    for (const state of STATES) {
+      for (const types of TYPE_SETS) {
+        const typeIds = types.types.map((t) => t.id);
+        addPages(
+          `${scope.name}/children-${set.name}/${types.name}/${state}`,
+          inScope(scope, state).filter((i) => i.parentId !== null && parents.has(i.parentId) && typeIds.includes(typeOf(i).id)),
+          get("/search/jql", {
+            headers: childAuth,
+            queryParameters: { jql: andOf(JQL_SHAPES.children(scope.keys, typeIds, set.parents.map(String))), fields: { matches: FIELDS_CARRY_SUMMARY } },
+          }),
+          { idsOnly: false, state, priority: 1 },
+        );
+      }
+    }
+  }
+  // Any other `parent in (...)` set: the unmapped-shape 401 (priority 1 like the family; the two never fit the same text).
+  addMapping(
+    "search-children-refused-401",
+    get("/search/jql", { headers: childAuth, queryParameters: { jql: andOf(JQL_SHAPES.childrenRefusal(CHILD_SETS.map((set) => set.parents.map(String)))) } }),
+    json(401, "auth-401.json"),
+    { priority: 1 },
   );
 
   for (const scope of scopes) {

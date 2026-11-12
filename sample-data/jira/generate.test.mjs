@@ -7,7 +7,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { generate } from "./generate.mjs";
-import { IMPORT_TYPE_IDS, JQL_SHAPES, listClause, wrongTokenPattern } from "./mappings.mjs";
+import { CHILD_SETS, IMPORT_TYPE_IDS, JQL_SHAPES, listClause, wrongTokenPattern } from "./mappings.mjs";
 import { PLANTED } from "./world.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -56,7 +56,7 @@ test("the hierarchy and the planted sets have the documented sizes", () => {
   assert.ok(expected.planted.endEarlier.items.every((i) => i.days <= -1 && i.days >= -10));
   const { world } = first;
   const ids = new Set();
-  for (const issue of [...world.issues, ...world.stories, ...world.e2e.issues, ...world.imp.issues, ...world.cov.issues]) {
+  for (const issue of [...world.issues, ...world.stories, ...world.e2e.issues, ...world.imp.issues, ...world.cov.issues, ...world.imf.issues, ...world.imc.issues]) {
     assert.ok(!ids.has(issue.id), `duplicate id ${issue.id}`);
     ids.add(issue.id);
     assert.match(issue.projectKey, /^[A-Z][A-Z0-9_]{1,9}$/);
@@ -66,7 +66,7 @@ test("the hierarchy and the planted sets have the documented sizes", () => {
     const parentLevel = { program: null, project: "program", milestone: "project" }[issue.level];
     assert.equal(issue.parentId === null ? null : byId.get(issue.parentId).level, parentLevel, issue.key);
   }
-  assert.deepEqual(expected.projects.map((p) => p.key), ["CE", "PF", "CG", "DI", "OE", "E2E", "OUT", "IMP", "COV", "IMF"]);
+  assert.deepEqual(expected.projects.map((p) => p.key), ["CE", "PF", "CG", "DI", "OE", "E2E", "OUT", "IMP", "COV", "IMF", "IMC"]);
   assert.deepEqual(expected.scopes.cov, ["COV"]);
   assert.deepEqual(expected.e2e.issues.map((i) => i.level), ["program", "project", "project", ...Array(7).fill("milestone")]);
   assert.ok(expected.e2e.issues.filter((i) => i.start !== null).every((i) => i.start.startsWith("2044") && i.end.startsWith("2044")));
@@ -266,4 +266,127 @@ test("the importwindow family sits at priority 2 beside the refusal, above the i
   // Every family page reuses a body of the typed read's listing: no new body per scope.
   const bodyOf = (name) => JSON.parse(first.mappings.get(name)).response.bodyFileName;
   for (const name of family) assert.equal(bodyOf(name), bodyOf(name.replace("-importwindow-", "-fulltypes-")), name);
+});
+
+test("the IMC project: the fourteen issues and what the server makes of a rooted browse of them (1.14.0)", () => {
+  const { imc } = expected;
+  assert.equal(imc.project, "IMC");
+  assert.equal(imc.issues.length, 14);
+  assert.deepEqual(imc.issues.map((i) => i.key), Array.from({ length: 14 }, (_, n) => `IMC-${n + 1}`));
+  assert.deepEqual(imc.issues.map((i) => i.id), Array.from({ length: 14 }, (_, n) => String(99001 + n)));
+  assert.deepEqual(imc.issues.map((i) => [i.level, i.parent ?? "null", i.status, i.updated.startsWith("2010") ? "stale" : "fresh"].join("/")), [
+    "program/null/todo/fresh", "project/IMC-1/doing/fresh", "project/IMC-1/done/fresh", "project/IMC-1/done/fresh",
+    "milestone/IMC-2/todo/fresh", "milestone/IMC-2/done/fresh", "milestone/IMC-3/doing/fresh", "milestone/IMC-4/done/fresh",
+    "milestone/IMC-1/todo/fresh", "milestone/IMC-2/todo/stale",
+    "program/null/todo/fresh", "project/IMC-11/todo/fresh", "milestone/IMC-12/todo/fresh", "program/null/todo/fresh",
+  ]);
+  assert.ok(imc.issues.filter((i) => i.start !== null).every((i) => i.start.startsWith("2045") && i.end.startsWith("2045")));
+  assert.equal(expected.projects.find((p) => p.key === "IMC").issues, 14);
+  assert.deepEqual(expected.projects.find((p) => p.key === "IMC").id, "10010");
+  assert.deepEqual(expected.scopes.imc, ["IMC"]);
+  assert.deepEqual(imc.neverListed, ["IMC-11", "IMC-12", "IMC-13"]);
+  // The table of the plan (§3.6): [rows, create, skipped, leftOut, keptAsParent] per root and filter.
+  const table = {
+    "IMC-1": {
+      none: [["IMC-2", "IMC-3", "IMC-4", "IMC-5", "IMC-6", "IMC-7", "IMC-8", "IMC-9", "IMC-10"], 8, ["IMC-9"], [], []],
+      doneAndWindow: [["IMC-2", "IMC-3", "IMC-5", "IMC-7", "IMC-9"], 4, ["IMC-9"], ["IMC-4", "IMC-6", "IMC-8", "IMC-10"], ["IMC-3"]],
+      doneOnly: [["IMC-2", "IMC-3", "IMC-5", "IMC-7", "IMC-9", "IMC-10"], 5, ["IMC-9"], ["IMC-4", "IMC-6", "IMC-8"], ["IMC-3"]],
+      windowOnly: [["IMC-2", "IMC-3", "IMC-4", "IMC-5", "IMC-6", "IMC-7", "IMC-8", "IMC-9"], 7, ["IMC-9"], ["IMC-10"], []],
+    },
+    "IMC-2": {
+      none: [["IMC-5", "IMC-6", "IMC-10"], 3, [], [], []],
+      doneAndWindow: [["IMC-5"], 1, [], ["IMC-6", "IMC-10"], []],
+    },
+    "IMC-14": { none: [[], 0, [], [], []], doneAndWindow: [[], 0, [], [], []], doneOnly: [[], 0, [], [], []], windowOnly: [[], 0, [], [], []] },
+  };
+  for (const [root, filters] of Object.entries(table)) {
+    for (const [filter, [rowKeys, create, skipped, leftOut, keptAsParent]] of Object.entries(filters)) {
+      const outcome = imc.byRoot[root][filter];
+      assert.deepEqual([outcome.rowKeys, outcome.rows, outcome.create, outcome.skipped, outcome.skip, outcome.leftOut, outcome.keptAsParent],
+        [rowKeys, rowKeys.length, create, skipped, skipped.length, leftOut, keptAsParent], `${root} ${filter}`);
+    }
+  }
+  // The searches a rooted read sends: a program root two (the second only when a project came back), a project root one.
+  const ask = (outcome) => outcome.searches.map((s) => `${s.parents.join(",")} over ${s.types.join("+")}`);
+  assert.deepEqual(ask(imc.byRoot["IMC-1"].none), ["IMC-1 over Initiative+Epic", "IMC-2,IMC-3,IMC-4 over Epic"]);
+  assert.deepEqual(ask(imc.byRoot["IMC-2"].none), ["IMC-2 over Epic"]);
+  assert.deepEqual(ask(imc.byRoot["IMC-14"].none), ["IMC-14 over Initiative+Epic"]);
+  // IMC-11..13 hang under no served parent set, so no children body lists them; no body lists a root either (a root is a by-id read only).
+  for (const [name, text] of first.mappings) {
+    if (!name.startsWith("search-imc-children-")) continue;
+    const body = JSON.parse(first.files.get(JSON.parse(text).response.bodyFileName));
+    assert.ok(!body.issues.some((i) => ["IMC-1", "IMC-11", "IMC-12", "IMC-13", "IMC-14"].includes(i.key)), `${name} lists a root or an issue under no served set`);
+    assert.equal(body.isLast, true, name);
+  }
+  assert.deepEqual(expected.search["imc/children-root/ei/started"], { issues: 4, pages: 1 });
+  assert.deepEqual(expected.search["imc/children-projects/e/started"], { issues: 5, pages: 1 });
+  assert.deepEqual(expected.search["imc/children-north/e/started"], { issues: 3, pages: 1 });
+  assert.deepEqual(expected.search["imc/children-empty/ei/started"], { issues: 0, pages: 1 });
+});
+
+// The children family of 1.14.0, against the exact texts the rooted browse sends (JiraJql.children, C2).
+const CHILD_FILTER = ' AND statusCategory != Done AND updated >= "-525600m"';
+const childText = (types, parents, extra = "") => `project in ("IMC") AND issuetype in (${types}) AND parent in (${parents})${extra} ORDER BY id ASC`;
+const CHILD_TEXTS = [
+  ["ei", "10005,10004", "99001", "root"],
+  ["e", "10004", "99002,99003,99004", "projects"],
+  ["e", "10004", "99002", "north"],
+  ["ei", "10005,10004", "99014", "empty"],
+];
+const priorityOf = (name) => JSON.parse(first.mappings.get(name)).priority;
+
+test("the children family: each text is accepted by exactly one children shape, with and without the filter's clauses", () => {
+  const shapes = CHILD_SETS.flatMap((set) => [
+    ["ei", "10005,10004"], ["e", "10004"], ["eip", "10006,10005,10004"], ["s", "10001,10002,10003"],
+  ].map(([types, ids]) => ({ name: `${set.name}/${types}`, shape: JQL_SHAPES.children(["IMC"], ids.split(","), set.parents.map(String)) })));
+  for (const [types, ids, parents, set] of CHILD_TEXTS) {
+    for (const extra of ["", CHILD_FILTER, ' AND updated >= "-525600m"', " AND statusCategory != Done"]) {
+      const who = shapes.filter(({ shape }) => accepts(shape, childText(ids, parents, extra))).map(({ name }) => name);
+      assert.deepEqual(who, [`${set}/${types}`], `${parents} over ${ids}${extra}`);
+    }
+  }
+  // Ids in any order, quoted or not, still name the same set (the regex is the clause family's).
+  assert.ok(accepts(JQL_SHAPES.children(["IMC"], ["10004"], ["99002", "99003", "99004"]), childText("10004", "99004, 99002,99003")));
+  // A scope other than IMC, or a text without ` ORDER BY id ASC`, is no children text.
+  assert.ok(!accepts(JQL_SHAPES.children(["IMC"], ["10004"], ["99002"]), 'project in ("IMF") AND issuetype in (10004) AND parent in (99002) ORDER BY id ASC'));
+  assert.ok(!accepts(JQL_SHAPES.children(["IMC"], ["10004"], ["99002"]), 'project in ("IMC") AND issuetype in (10004) AND parent in (99002)'));
+  // A text without `parent in` is accepted by no children shape and not by the refusal.
+  const refusal = JQL_SHAPES.childrenRefusal(CHILD_SETS.map((set) => set.parents.map(String)));
+  for (const jql of [
+    'project in ("IMC") AND issuetype in (10005,10004) ORDER BY id ASC', 'project in ("IMC") AND issuetype in (10005,10004,10006) AND updated >= "-525600m" ORDER BY id ASC',
+    'project in ("IMC") AND updated >= "-15m" ORDER BY updated ASC', 'project in ("IMC") AND issuetype in (10004)',
+  ]) {
+    assert.ok(!shapes.some(({ shape }) => accepts(shape, jql)), jql);
+    assert.ok(!accepts(refusal, jql), jql);
+  }
+});
+
+test("the children refusal accepts an unknown parent set and no known one", () => {
+  const refusal = JQL_SHAPES.childrenRefusal(CHILD_SETS.map((set) => set.parents.map(String)));
+  for (const [types, ids, parents] of CHILD_TEXTS) assert.ok(!accepts(refusal, childText(ids, parents)), `${parents} is a known set`);
+  for (const parents of ["99011", "99002,99003", "99001,99002", "99002,99003,99004,99014", "99005", "1"]) {
+    for (const extra of ["", CHILD_FILTER]) assert.ok(accepts(refusal, childText("10004", parents, extra)), `${parents}${extra}`);
+  }
+});
+
+test("every children mapping and the refusal sit at priority 1, demand the scheme and refuse the rejected token", () => {
+  const family = [...first.mappings].filter(([name]) => name.startsWith("search-imc-children-") || name === "search-children-refused-401.json");
+  // 4 sets x 4 type sets x 2 days (one page each) and the refusal.
+  assert.equal(family.length, CHILD_SETS.length * 4 * 2 + 1);
+  assert.ok(family.every(([name]) => priorityOf(name) === 1), "priority 1");
+  assert.equal(JSON.parse(first.mappings.get("search-children-refused-401.json")).response.status, 401);
+  for (const [name, text] of family) {
+    const header = JSON.parse(text).request.headers.Authorization.and;
+    assert.deepEqual(header.map((part) => Object.keys(part)[0]), ["matches", "doesNotMatch"], name);
+    assert.ok(matches(header[0].matches, "Bearer good-token") && !matches(header[0].matches, "Token abc"), name);
+    // The `doesNotMatch` regex IS the rejected token's pattern: the mapping steps aside for it (auth-wrong-token-401 answers it) and for nothing else.
+    assert.ok(!matches(header[1].doesNotMatch, "Bearer good-token"), name);
+    assert.ok(matches(header[1].doesNotMatch, "Bearer wrong-token"), `${name} steps aside for the rejected token`);
+    assert.ok(matches(header[1].doesNotMatch, `Basic ${Buffer.from("a@b.c:wrong-token").toString("base64")}`), `${name} steps aside for the Basic form`);
+  }
+  // The refused token still has its own priority-1 mapping, and only it (the family excludes the token).
+  assert.equal(priorityOf("auth-wrong-token-401.json"), 1);
+  // The other shapes stay where they were: the typed read and the window family at 2, the refusal of the window at 2.
+  assert.equal(priorityOf("search-imc-fulltypes-ei-started-page-1.json"), 2);
+  assert.equal(priorityOf("search-imc-importwindow-eip-started-page-1.json"), 2);
 });

@@ -14,11 +14,13 @@ export const E2E_ANCHOR = "2044-01-04"; // a Monday in the e2e suite's own holid
 export const IMP_ANCHOR = "2045-01-02"; // a Monday in the import e2e's own year (the next unused after 2044)
 export const COV_ANCHOR = "2046-03-05"; // a Monday in the coverage e2e's own year (the next unused after 2045); March, so COV-10's "past" is still 2046
 export const IMF_ANCHOR = IMP_ANCHOR; // the import-filter project (1.13.2) shares the import's year; it is its own project, so no key or id collides
+export const IMC_ANCHOR = IMP_ANCHOR; // the import-children project (1.14.0) shares it too
 const FIRST_ID = 20_001;
 const E2E_FIRST_ID = 90_001;
 const IMP_FIRST_ID = 95_001;
 const COV_FIRST_ID = 97_001;
 const IMF_FIRST_ID = 98_001;
+const IMC_FIRST_ID = 99_001;
 const IMF_STALE = "2010-03-01T10:00:00.000+0000"; // outside every allowed window, whatever the clock
 const STORY_POINTS = [1, 2, 3, 5, 8];
 const MS = 1000;
@@ -255,6 +257,8 @@ export function buildWorld(plan, milestones, teams, seed = 42) {
   const cov = buildCov();
   // --- the IMF project (1.13.2): fixed, draws none ------------------------------------------------------------------------------------
   const imf = buildImf();
+  // --- the IMC project (1.14.0): fixed, draws none -------------------------------------------------------------------------------------
+  const imc = buildImc();
 
   // Hierarchy-level presence on the issue's own type object: omitted on every third id so the client's /issuetype fallback is exercised too.
   issues.forEach((i) => {
@@ -272,7 +276,10 @@ export function buildWorld(plan, milestones, teams, seed = 42) {
   [...imf.issues, ...imf.hidden].forEach((i) => {
     i.anchor = IMF_ANCHOR;
   });
-  [...issues, ...stories, ...e2e.issues, ...imp.issues, ...cov.issues, ...imf.issues, ...imf.hidden].forEach((i) => {
+  imc.issues.forEach((i) => {
+    i.anchor = IMC_ANCHOR;
+  });
+  [...issues, ...stories, ...e2e.issues, ...imp.issues, ...cov.issues, ...imf.issues, ...imf.hidden, ...imc.issues].forEach((i) => {
     i.omitLevel = Number(i.id) % 3 === 0;
   });
 
@@ -281,7 +288,7 @@ export function buildWorld(plan, milestones, teams, seed = 42) {
     movedOut: planted.movedOut.map((x, n) => ({ issue: milestoneIssue.get(x.m.ref), movedKey: `OUT-${n + 1}` })),
   };
   return {
-    seed, keys, streams, programs, projects, milestones, issues, stories, e2e, imp, cov, imf, recent, day2, planted, tags, programIssue, projectIssue, milestoneIssue,
+    seed, keys, streams, programs, projects, milestones, issues, stories, e2e, imp, cov, imf, imc, recent, day2, planted, tags, programIssue, projectIssue, milestoneIssue,
     projectsTargetLater, projectsRenamed, programsShifted, typeOf,
     projectRows: [
       ...streams.map((w, n) => ({ id: String(10_000 + n), key: keys[n], name: w.name })),
@@ -290,6 +297,7 @@ export function buildWorld(plan, milestones, teams, seed = 42) {
       { id: "10007", key: "IMP", name: "Astrolabe import" },
       { id: "10008", key: "COV", name: "Astrolabe coverage" },
       { id: "10009", key: "IMF", name: "Astrolabe import filter" },
+      { id: "10010", key: "IMC", name: "Astrolabe import children" },
     ],
   };
 }
@@ -411,4 +419,36 @@ function buildImf() {
     updated: fresh, status: "todo", start: 70, end: 74,
   }];
   return { issues, hidden };
+}
+
+/**
+ * The import-children project (1.14.0): fourteen issues in 2045 (offsets from IMC_ANCHOR), untouched by day 2, that exercise the import from a
+ * linked node (a rooted browse: `parent in (...)` reads). IMC-1 is the root of a program import and IMC-2 of a project import; IMC-14 is a root
+ * with nothing under it; IMC-11..13 hang under another program and are listed by no rooted read. "fresh" is stamped a week before the anchor,
+ * "stale" in 2010 (no figure depends on the clock). The stub does not evaluate the filter; the server's own rule drops what it does not admit
+ * (the cases: sample-data/jira/README.md and expected.json `imc`).
+ */
+function buildImc() {
+  const issues = [];
+  const add = (n, fields) => issues.push({
+    id: String(IMC_FIRST_ID + n - 1), key: `IMC-${n}`, projectKey: "IMC", points: null, team: null, parentId: null, decoy: false, ref: null,
+    updated: `${isoDateAt(IMC_ANCHOR, -7)}T10:00:00.000+0000`, status: "todo", ...fields,
+  });
+  const id = (n) => String(IMC_FIRST_ID + n - 1);
+  const team = { id: teamUuid(905), name: "IMC Team" };
+  add(1, { level: "program", summary: "IMC Program", start: 0, end: 60 });
+  add(2, { level: "project", summary: "IMC Initiative North", parentId: id(1), start: 0, end: 18, status: "doing" });
+  add(3, { level: "project", summary: "IMC Initiative South", parentId: id(1), start: 21, end: 32, status: "done" });
+  add(4, { level: "project", summary: "IMC Initiative East", parentId: id(1), start: 35, end: 46, status: "done" });
+  add(5, { level: "milestone", summary: "IMC Epic One", parentId: id(2), start: 0, end: 4, points: 5, team });
+  add(6, { level: "milestone", summary: "IMC Epic Two", parentId: id(2), start: 7, end: 11, points: 3, team, status: "done" });
+  add(7, { level: "milestone", summary: "IMC Epic Three", parentId: id(3), start: 21, end: 25, points: 3, team, status: "doing" });
+  add(8, { level: "milestone", summary: "IMC Epic Four", parentId: id(4), start: 35, end: 39, points: 2, team, status: "done" });
+  add(9, { level: "milestone", summary: "IMC Epic Five", parentId: id(1), start: 49, end: 53, points: 1, team });
+  add(10, { level: "milestone", summary: "IMC Epic Six", parentId: id(2), start: 14, end: 18, points: 3, team, updated: IMF_STALE });
+  add(11, { level: "program", summary: "IMC Program Other", start: 63, end: 88 });
+  add(12, { level: "project", summary: "IMC Initiative Elsewhere", parentId: id(11), start: 63, end: 81 });
+  add(13, { level: "milestone", summary: "IMC Epic Elsewhere", parentId: id(12), start: 63, end: 67, points: 5, team });
+  add(14, { level: "program", summary: "IMC Program Empty", start: 91, end: 95 });
+  return { issues };
 }

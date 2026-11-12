@@ -7,7 +7,7 @@
   "scenario": "jira-day2",
   "pageSize": 100,
   "note": "Dates are absolute for the anchor Monday; statuses are relative to it. Working-day figures are holiday-free (Mon-Fri).",
-  "stub": { "mappings": 2402, "bodies": 2232 },
+  "stub": { "mappings": 2473, "bodies": 2258 },
   "issueTypes": {
     "subtask": { "id": "10000", "hierarchyLevel": -1 },
     "story": { "id": "10001", "hierarchyLevel": 0 },
@@ -23,7 +23,8 @@
     "all": ["CE", "PF", "CG", "DI", "OE", "E2E"],
     "imp": ["IMP"],
     "cov": ["COV"],
-    "imf": ["IMF"]
+    "imf": ["IMF"],
+    "imc": ["IMC"]
   },
   "importScopes": {
     "ce": ["CE"],
@@ -43,7 +44,8 @@
     { "key": "OUT", "id": "10006", "name": "Archive (out of scope)", "issues": 0 },
     { "key": "IMP", "id": "10007", "name": "Astrolabe import", "issues": 9 },
     { "key": "COV", "id": "10008", "name": "Astrolabe coverage", "issues": 12 },
-    { "key": "IMF", "id": "10009", "name": "Astrolabe import filter", "issues": 15 }
+    { "key": "IMF", "id": "10009", "name": "Astrolabe import filter", "issues": 15 },
+    { "key": "IMC", "id": "10010", "name": "Astrolabe import children", "issues": 14 }
   ],
   "keys": {
     "programs": [
@@ -547,6 +549,38 @@
     "inScopeDelta": 17
   },
   "search": {
+    "imc/children-root/e/started": { "issues": 1, "pages": 1 },
+    "imc/children-root/ei/started": { "issues": 4, "pages": 1 },
+    "imc/children-root/eip/started": { "issues": 4, "pages": 1 },
+    "imc/children-root/s/started": { "issues": 0, "pages": 1 },
+    "imc/children-root/e/day2": { "issues": 1, "pages": 1 },
+    "imc/children-root/ei/day2": { "issues": 4, "pages": 1 },
+    "imc/children-root/eip/day2": { "issues": 4, "pages": 1 },
+    "imc/children-root/s/day2": { "issues": 0, "pages": 1 },
+    "imc/children-projects/e/started": { "issues": 5, "pages": 1 },
+    "imc/children-projects/ei/started": { "issues": 5, "pages": 1 },
+    "imc/children-projects/eip/started": { "issues": 5, "pages": 1 },
+    "imc/children-projects/s/started": { "issues": 0, "pages": 1 },
+    "imc/children-projects/e/day2": { "issues": 5, "pages": 1 },
+    "imc/children-projects/ei/day2": { "issues": 5, "pages": 1 },
+    "imc/children-projects/eip/day2": { "issues": 5, "pages": 1 },
+    "imc/children-projects/s/day2": { "issues": 0, "pages": 1 },
+    "imc/children-north/e/started": { "issues": 3, "pages": 1 },
+    "imc/children-north/ei/started": { "issues": 3, "pages": 1 },
+    "imc/children-north/eip/started": { "issues": 3, "pages": 1 },
+    "imc/children-north/s/started": { "issues": 0, "pages": 1 },
+    "imc/children-north/e/day2": { "issues": 3, "pages": 1 },
+    "imc/children-north/ei/day2": { "issues": 3, "pages": 1 },
+    "imc/children-north/eip/day2": { "issues": 3, "pages": 1 },
+    "imc/children-north/s/day2": { "issues": 0, "pages": 1 },
+    "imc/children-empty/e/started": { "issues": 0, "pages": 1 },
+    "imc/children-empty/ei/started": { "issues": 0, "pages": 1 },
+    "imc/children-empty/eip/started": { "issues": 0, "pages": 1 },
+    "imc/children-empty/s/started": { "issues": 0, "pages": 1 },
+    "imc/children-empty/e/day2": { "issues": 0, "pages": 1 },
+    "imc/children-empty/ei/day2": { "issues": 0, "pages": 1 },
+    "imc/children-empty/eip/day2": { "issues": 0, "pages": 1 },
+    "imc/children-empty/s/day2": { "issues": 0, "pages": 1 },
     "e2e/full/any/started": { "issues": 10, "pages": 1 },
     "e2e/fulltypes/e/started": { "issues": 7, "pages": 1 },
     "e2e/fulltypes/ei/started": { "issues": 9, "pages": 1 },
@@ -685,6 +719,29 @@
     "imf/sweep/eip/day2": { "issues": 15, "pages": 1 },
     "imf/sweep/s/day2": { "issues": 0, "pages": 1 },
     "imf/probe/any/any": { "issues": 1, "pages": 1 },
+    "imc/full/any/started": { "issues": 14, "pages": 1 },
+    "imc/fulltypes/e/started": { "issues": 7, "pages": 1 },
+    "imc/fulltypes/ei/started": { "issues": 11, "pages": 1 },
+    "imc/fulltypes/eip/started": { "issues": 14, "pages": 1 },
+    "imc/fulltypes/s/started": { "issues": 0, "pages": 1 },
+    "imc/importwindow/eip/started": { "issues": 14, "pages": 1 },
+    "imc/incremental/any/started": { "issues": 0, "pages": 1 },
+    "imc/sweep/e/started": { "issues": 7, "pages": 1 },
+    "imc/sweep/ei/started": { "issues": 11, "pages": 1 },
+    "imc/sweep/eip/started": { "issues": 14, "pages": 1 },
+    "imc/sweep/s/started": { "issues": 0, "pages": 1 },
+    "imc/full/any/day2": { "issues": 14, "pages": 1 },
+    "imc/fulltypes/e/day2": { "issues": 7, "pages": 1 },
+    "imc/fulltypes/ei/day2": { "issues": 11, "pages": 1 },
+    "imc/fulltypes/eip/day2": { "issues": 14, "pages": 1 },
+    "imc/fulltypes/s/day2": { "issues": 0, "pages": 1 },
+    "imc/importwindow/eip/day2": { "issues": 14, "pages": 1 },
+    "imc/incremental/any/day2": { "issues": 0, "pages": 1 },
+    "imc/sweep/e/day2": { "issues": 7, "pages": 1 },
+    "imc/sweep/ei/day2": { "issues": 11, "pages": 1 },
+    "imc/sweep/eip/day2": { "issues": 14, "pages": 1 },
+    "imc/sweep/s/day2": { "issues": 0, "pages": 1 },
+    "imc/probe/any/any": { "issues": 1, "pages": 1 },
     "ce/fulltypes/e/started": { "issues": 200, "pages": 2 },
     "ce/fulltypes/ei/started": { "issues": 220, "pages": 3 },
     "ce/fulltypes/eip/started": { "issues": 224, "pages": 3 },
@@ -853,6 +910,251 @@
           { "key": "IMF-16", "answer": 404 },
           { "key": "IMF-12", "answer": 200 }
         ]
+      }
+    }
+  },
+  "imc": {
+    "project": "IMC",
+    "anchor": "2045-01-02",
+    "issues": [
+      { "key": "IMC-1", "id": "99001", "level": "program", "summary": "IMC Program", "parent": null, "status": "todo", "updated": "2044-12-26T10:00:00.000+0000", "team": null, "points": null, "start": "2045-01-02", "end": "2045-03-03" },
+      { "key": "IMC-2", "id": "99002", "level": "project", "summary": "IMC Initiative North", "parent": "IMC-1", "status": "doing", "updated": "2044-12-26T10:00:00.000+0000", "team": null, "points": null, "start": "2045-01-02", "end": "2045-01-20" },
+      { "key": "IMC-3", "id": "99003", "level": "project", "summary": "IMC Initiative South", "parent": "IMC-1", "status": "done", "updated": "2044-12-26T10:00:00.000+0000", "team": null, "points": null, "start": "2045-01-23", "end": "2045-02-03" },
+      { "key": "IMC-4", "id": "99004", "level": "project", "summary": "IMC Initiative East", "parent": "IMC-1", "status": "done", "updated": "2044-12-26T10:00:00.000+0000", "team": null, "points": null, "start": "2045-02-06", "end": "2045-02-17" },
+      { "key": "IMC-5", "id": "99005", "level": "milestone", "summary": "IMC Epic One", "parent": "IMC-2", "status": "todo", "updated": "2044-12-26T10:00:00.000+0000", "team": "IMC Team", "points": 5, "start": "2045-01-02", "end": "2045-01-06" },
+      { "key": "IMC-6", "id": "99006", "level": "milestone", "summary": "IMC Epic Two", "parent": "IMC-2", "status": "done", "updated": "2044-12-26T10:00:00.000+0000", "team": "IMC Team", "points": 3, "start": "2045-01-09", "end": "2045-01-13" },
+      { "key": "IMC-7", "id": "99007", "level": "milestone", "summary": "IMC Epic Three", "parent": "IMC-3", "status": "doing", "updated": "2044-12-26T10:00:00.000+0000", "team": "IMC Team", "points": 3, "start": "2045-01-23", "end": "2045-01-27" },
+      { "key": "IMC-8", "id": "99008", "level": "milestone", "summary": "IMC Epic Four", "parent": "IMC-4", "status": "done", "updated": "2044-12-26T10:00:00.000+0000", "team": "IMC Team", "points": 2, "start": "2045-02-06", "end": "2045-02-10" },
+      { "key": "IMC-9", "id": "99009", "level": "milestone", "summary": "IMC Epic Five", "parent": "IMC-1", "status": "todo", "updated": "2044-12-26T10:00:00.000+0000", "team": "IMC Team", "points": 1, "start": "2045-02-20", "end": "2045-02-24" },
+      { "key": "IMC-10", "id": "99010", "level": "milestone", "summary": "IMC Epic Six", "parent": "IMC-2", "status": "todo", "updated": "2010-03-01T10:00:00.000+0000", "team": "IMC Team", "points": 3, "start": "2045-01-16", "end": "2045-01-20" },
+      { "key": "IMC-11", "id": "99011", "level": "program", "summary": "IMC Program Other", "parent": null, "status": "todo", "updated": "2044-12-26T10:00:00.000+0000", "team": null, "points": null, "start": "2045-03-06", "end": "2045-03-31" },
+      { "key": "IMC-12", "id": "99012", "level": "project", "summary": "IMC Initiative Elsewhere", "parent": "IMC-11", "status": "todo", "updated": "2044-12-26T10:00:00.000+0000", "team": null, "points": null, "start": "2045-03-06", "end": "2045-03-24" },
+      { "key": "IMC-13", "id": "99013", "level": "milestone", "summary": "IMC Epic Elsewhere", "parent": "IMC-12", "status": "todo", "updated": "2044-12-26T10:00:00.000+0000", "team": "IMC Team", "points": 5, "start": "2045-03-06", "end": "2045-03-10" },
+      { "key": "IMC-14", "id": "99014", "level": "program", "summary": "IMC Program Empty", "parent": null, "status": "todo", "updated": "2044-12-26T10:00:00.000+0000", "team": null, "points": null, "start": "2045-04-03", "end": "2045-04-07" }
+    ],
+    "childSets": [
+      {
+        "name": "root",
+        "parents": ["IMC-1"]
+      },
+      {
+        "name": "projects",
+        "parents": ["IMC-2", "IMC-3", "IMC-4"]
+      },
+      {
+        "name": "north",
+        "parents": ["IMC-2"]
+      },
+      {
+        "name": "empty",
+        "parents": ["IMC-14"]
+      }
+    ],
+    "roots": ["IMC-1", "IMC-2", "IMC-14"],
+    "neverListed": ["IMC-11", "IMC-12", "IMC-13"],
+    "note": "a ROOTED browse: the stub answers `parent in (<set>)` only for the childSets (any other set is a 401) and evaluates no filter; byRoot is what the SERVER makes of the listing (rows exclude the root), with a default team and no default project",
+    "byRoot": {
+      "IMC-1": {
+        "none": {
+          "rows": 9,
+          "create": 8,
+          "skip": 1,
+          "skipped": ["IMC-9"],
+          "leftOut": [],
+          "keptAsParent": [],
+          "rowKeys": ["IMC-2", "IMC-3", "IMC-4", "IMC-5", "IMC-6", "IMC-7", "IMC-8", "IMC-9", "IMC-10"],
+          "searches": [
+            {
+              "parents": ["IMC-1"],
+              "types": ["Initiative", "Epic"]
+            },
+            {
+              "parents": ["IMC-2", "IMC-3", "IMC-4"],
+              "types": ["Epic"]
+            }
+          ]
+        },
+        "doneAndWindow": {
+          "rows": 5,
+          "create": 4,
+          "skip": 1,
+          "skipped": ["IMC-9"],
+          "leftOut": ["IMC-4", "IMC-6", "IMC-8", "IMC-10"],
+          "keptAsParent": ["IMC-3"],
+          "rowKeys": ["IMC-2", "IMC-3", "IMC-5", "IMC-7", "IMC-9"],
+          "searches": [
+            {
+              "parents": ["IMC-1"],
+              "types": ["Initiative", "Epic"]
+            },
+            {
+              "parents": ["IMC-2", "IMC-3", "IMC-4"],
+              "types": ["Epic"]
+            }
+          ]
+        },
+        "doneOnly": {
+          "rows": 6,
+          "create": 5,
+          "skip": 1,
+          "skipped": ["IMC-9"],
+          "leftOut": ["IMC-4", "IMC-6", "IMC-8"],
+          "keptAsParent": ["IMC-3"],
+          "rowKeys": ["IMC-2", "IMC-3", "IMC-5", "IMC-7", "IMC-9", "IMC-10"],
+          "searches": [
+            {
+              "parents": ["IMC-1"],
+              "types": ["Initiative", "Epic"]
+            },
+            {
+              "parents": ["IMC-2", "IMC-3", "IMC-4"],
+              "types": ["Epic"]
+            }
+          ]
+        },
+        "windowOnly": {
+          "rows": 8,
+          "create": 7,
+          "skip": 1,
+          "skipped": ["IMC-9"],
+          "leftOut": ["IMC-10"],
+          "keptAsParent": [],
+          "rowKeys": ["IMC-2", "IMC-3", "IMC-4", "IMC-5", "IMC-6", "IMC-7", "IMC-8", "IMC-9"],
+          "searches": [
+            {
+              "parents": ["IMC-1"],
+              "types": ["Initiative", "Epic"]
+            },
+            {
+              "parents": ["IMC-2", "IMC-3", "IMC-4"],
+              "types": ["Epic"]
+            }
+          ]
+        }
+      },
+      "IMC-2": {
+        "none": {
+          "rows": 3,
+          "create": 3,
+          "skip": 0,
+          "skipped": [],
+          "leftOut": [],
+          "keptAsParent": [],
+          "rowKeys": ["IMC-5", "IMC-6", "IMC-10"],
+          "searches": [
+            {
+              "parents": ["IMC-2"],
+              "types": ["Epic"]
+            }
+          ]
+        },
+        "doneAndWindow": {
+          "rows": 1,
+          "create": 1,
+          "skip": 0,
+          "skipped": [],
+          "leftOut": ["IMC-6", "IMC-10"],
+          "keptAsParent": [],
+          "rowKeys": ["IMC-5"],
+          "searches": [
+            {
+              "parents": ["IMC-2"],
+              "types": ["Epic"]
+            }
+          ]
+        },
+        "doneOnly": {
+          "rows": 2,
+          "create": 2,
+          "skip": 0,
+          "skipped": [],
+          "leftOut": ["IMC-6"],
+          "keptAsParent": [],
+          "rowKeys": ["IMC-5", "IMC-10"],
+          "searches": [
+            {
+              "parents": ["IMC-2"],
+              "types": ["Epic"]
+            }
+          ]
+        },
+        "windowOnly": {
+          "rows": 2,
+          "create": 2,
+          "skip": 0,
+          "skipped": [],
+          "leftOut": ["IMC-10"],
+          "keptAsParent": [],
+          "rowKeys": ["IMC-5", "IMC-6"],
+          "searches": [
+            {
+              "parents": ["IMC-2"],
+              "types": ["Epic"]
+            }
+          ]
+        }
+      },
+      "IMC-14": {
+        "none": {
+          "rows": 0,
+          "create": 0,
+          "skip": 0,
+          "skipped": [],
+          "leftOut": [],
+          "keptAsParent": [],
+          "rowKeys": [],
+          "searches": [
+            {
+              "parents": ["IMC-14"],
+              "types": ["Initiative", "Epic"]
+            }
+          ]
+        },
+        "doneAndWindow": {
+          "rows": 0,
+          "create": 0,
+          "skip": 0,
+          "skipped": [],
+          "leftOut": [],
+          "keptAsParent": [],
+          "rowKeys": [],
+          "searches": [
+            {
+              "parents": ["IMC-14"],
+              "types": ["Initiative", "Epic"]
+            }
+          ]
+        },
+        "doneOnly": {
+          "rows": 0,
+          "create": 0,
+          "skip": 0,
+          "skipped": [],
+          "leftOut": [],
+          "keptAsParent": [],
+          "rowKeys": [],
+          "searches": [
+            {
+              "parents": ["IMC-14"],
+              "types": ["Initiative", "Epic"]
+            }
+          ]
+        },
+        "windowOnly": {
+          "rows": 0,
+          "create": 0,
+          "skip": 0,
+          "skipped": [],
+          "leftOut": [],
+          "keptAsParent": [],
+          "rowKeys": [],
+          "searches": [
+            {
+              "parents": ["IMC-14"],
+              "types": ["Initiative", "Epic"]
+            }
+          ]
+        }
       }
     }
   },

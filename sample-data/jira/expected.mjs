@@ -2,8 +2,8 @@
 // mappings (so they cannot drift) and rendered with short arrays on one line (the key lists are 1,000 entries).
 import { isoDateAt } from "../../scripts/sample-plan/days.mjs";
 import { TYPE, typeOf } from "./catalog.mjs";
-import { ANCHOR, COV_ANCHOR, E2E_ANCHOR, IMF_ANCHOR, IMP_ANCHOR, PLANTED } from "./world.mjs";
-import { PAGE_SIZE, SCENARIO, keyScopesOf, scopesOf } from "./mappings.mjs";
+import { ANCHOR, COV_ANCHOR, E2E_ANCHOR, IMC_ANCHOR, IMF_ANCHOR, IMP_ANCHOR, PLANTED } from "./world.mjs";
+import { CHILD_SETS, PAGE_SIZE, SCENARIO, keyScopesOf, scopesOf } from "./mappings.mjs";
 import { REJECTED_TOKEN, CLOUD_ID } from "./catalog.mjs";
 
 const isPrimitive = (v) => v === null || typeof v !== "object";
@@ -89,8 +89,63 @@ function imfOutcome(imf, { excludeDone, window }) {
   };
 }
 
+const IMC_ROOTS = ["IMC-1", "IMC-2", "IMC-14"]; // the program root, the project root, the program with nothing under it
+/** Whether `issue` hangs (at any depth) under the issue keyed `rootKey`. */
+function isUnder(list, issue, rootKey) {
+  for (let parent = list.find((i) => i.id === issue.parentId); parent !== undefined; parent = list.find((i) => i.id === parent.parentId)) {
+    if (parent.key === rootKey) return true;
+  }
+  return false;
+}
+const LEVEL_RANK = { program: 0, project: 1, milestone: 2 };
+const LEVEL_TYPE = { project: "Initiative", milestone: "Epic" };
+const byNumber = (a, b) => Number(a.slice(4)) - Number(b.slice(4));
+
+/**
+ * What the server makes of a ROOTED browse of the IMC project (1.14.0: the import from a linked node), computed from the world by the SAME rules the
+ * server applies (the stub evaluates no filter): the root is read by id and is never a row; round one asks for its children at every mapped level
+ * below it; round two (a program root only) asks for the milestones under ALL of round one's projects, ids ascending; a milestone is held only when the
+ * filter admits it; a project is always held (it is a parent to walk) and, when the filter does not admit it, is kept ONLY if a held row hangs under it
+ * (`keptAsParent`). `skipped` = the held milestones hanging straight under a root program (no default project given: NO_PARENT); the default team is
+ * given, so nothing else is skipped. `searches` are the stub's children groups the walk reads, `parents` as keys.
+ */
+function imcOutcome(imc, rootKey, { excludeDone, window }) {
+  const stale = (i) => i.updated.startsWith("2010");
+  const admitted = (i) => !(excludeDone && i.status === "done") && !(window && stale(i));
+  const root = imc.issues.find((i) => i.key === rootKey);
+  const childrenOf = (parents) => imc.issues.filter((i) => parents.some((p) => p.id === i.parentId) && LEVEL_RANK[i.level] > LEVEL_RANK[root.level]);
+  const searches = [];
+  const listed = [];
+  const search = (parents, levels) => {
+    const found = childrenOf(parents).filter((i) => levels.includes(i.level));
+    searches.push({ parents: parents.map((p) => p.key), types: levels.map((l) => LEVEL_TYPE[l]) });
+    listed.push(...found);
+    return found;
+  };
+  const round = search([root], root.level === "program" ? ["project", "milestone"] : ["milestone"]);
+  if (root.level === "program") {
+    const projects = round.filter((i) => i.level === "project");
+    if (projects.length > 0) search(projects, ["milestone"]);
+  }
+  const held = listed.filter((i) => i.level === "project" || admitted(i));
+  const hasHeldChild = (i) => held.some((h) => h.parentId === i.id);
+  const rows = held.filter((i) => i.level === "milestone" || admitted(i) || hasHeldChild(i));
+  const skipped = root.level === "program" ? rows.filter((i) => i.level === "milestone" && i.parentId === root.id).map((i) => i.key) : [];
+  const keys = (list) => list.map((i) => i.key).sort(byNumber);
+  return {
+    rows: rows.length,
+    create: rows.length - skipped.length,
+    skip: skipped.length,
+    skipped,
+    leftOut: keys(listed.filter((i) => !rows.includes(i))),
+    keptAsParent: keys(rows.filter((i) => i.level === "project" && !admitted(i))),
+    rowKeys: keys(rows),
+    searches,
+  };
+}
+
 export function buildExpected(world, counts, stub) {
-  const { issues, stories, planted, milestoneIssue, e2e, imp, cov, imf } = world;
+  const { issues, stories, planted, milestoneIssue, e2e, imp, cov, imf, imc } = world;
   const childrenOf = (list, epic) => list.filter((s) => s.parentId === epic.id);
   const level = (name) => issues.filter((i) => i.level === name);
   const items = (name, extra = () => ({})) => ({
@@ -116,7 +171,7 @@ export function buildExpected(world, counts, stub) {
     totals: { programs: level("program").length, projects: level("project").length, milestones: level("milestone").length, issues: issues.length, e2eIssues: e2e.issues.length, stories: stories.length },
     projects: world.projectRows.map((p) => ({
       key: p.key, id: p.id, name: p.name,
-      issues: [...issues, ...stories, ...e2e.issues, ...imp.issues, ...cov.issues, ...imf.issues].filter((i) => i.projectKey === p.key).length,
+      issues: [...issues, ...stories, ...e2e.issues, ...imp.issues, ...cov.issues, ...imf.issues, ...imc.issues].filter((i) => i.projectKey === p.key).length,
     })),
     keys: {
       programs: level("program").map((i) => i.key),
@@ -182,6 +237,24 @@ export function buildExpected(world, counts, stub) {
         doneOnly: imfOutcome(imf, { excludeDone: true, window: false }),
         windowOnly: imfOutcome(imf, { excludeDone: false, window: true }),
       },
+    },
+    imc: {
+      project: "IMC",
+      anchor: IMC_ANCHOR,
+      issues: imc.issues.map((i) => ({
+        key: i.key, id: i.id, level: i.level, summary: i.summary, parent: i.parentId === null ? null : imc.issues.find((p) => p.id === i.parentId).key,
+        status: i.status, updated: i.updated, team: i.team?.name ?? null, points: i.points, ...dates(i),
+      })),
+      childSets: CHILD_SETS.map((set) => ({ name: set.name, parents: set.parents.map((id) => imc.issues.find((i) => i.id === String(id)).key) })),
+      roots: IMC_ROOTS,
+      neverListed: imc.issues.filter((i) => !IMC_ROOTS.includes(i.key) && !IMC_ROOTS.some((r) => isUnder(imc.issues, i, r))).map((i) => i.key),
+      note: "a ROOTED browse: the stub answers `parent in (<set>)` only for the childSets (any other set is a 401) and evaluates no filter; byRoot is what the SERVER makes of the listing (rows exclude the root), with a default team and no default project",
+      byRoot: Object.fromEntries(IMC_ROOTS.map((root) => [root, {
+        none: imcOutcome(imc, root, { excludeDone: false, window: false }),
+        doneAndWindow: imcOutcome(imc, root, { excludeDone: true, window: true }),
+        doneOnly: imcOutcome(imc, root, { excludeDone: true, window: false }),
+        windowOnly: imcOutcome(imc, root, { excludeDone: false, window: true }),
+      }])),
     },
     e2e: {
       project: "E2E",

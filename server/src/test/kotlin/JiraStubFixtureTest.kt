@@ -137,7 +137,7 @@ class JiraStubFixtureTest {
         assertEquals(mapOf("Sub-task" to -1, "Story" to 0, "Task" to 0, "Bug" to 0, "Epic" to 1, "Initiative" to 2, "Program" to 3), types)
 
         val projects = api("/project/search").obj.getValue("values").jsonArray.map { it.str("key") }
-        assertEquals(listOf("CE", "PF", "CG", "DI", "OE", "E2E", "OUT", "IMP", "COV", "IMF"), projects)
+        assertEquals(listOf("CE", "PF", "CG", "DI", "OE", "E2E", "OUT", "IMP", "COV", "IMF", "IMC"), projects)
     }
 
     @Test
@@ -231,6 +231,114 @@ class JiraStubFixtureTest {
         }
         // The parent member carries what the import classifies a parent outside its set by: the issue type.
         assertEquals("Initiative", api("/issue/IMF-15").obj.str("fields", "parent", "fields", "issuetype", "name"))
+    }
+
+    /** The keys the stub lists for a children read: the IMC issues of `typeIds` whose parent is one of `parentKeys`, in id order. */
+    private fun expectedChildren(parentKeys: List<String>, typeIds: List<String>): List<String> =
+        figure("imc", "issues").jsonArray.filter { issue ->
+            val parent = issue.jsonObject.getValue("parent")
+            parent !is JsonNull && parent.jsonPrimitive.content in parentKeys &&
+                typeId(if (issue.str("level") == "project") "initiative" else "epic") in typeIds
+        }.map { it.str("key") }
+
+    private fun childrenJql(typeIds: List<String>, parentIds: List<String>, clauses: String = "") =
+        "project in (\"IMC\") AND issuetype in (${typeIds.joinToString(",")}) " +
+            "AND parent in (${parentIds.joinToString(",")})$clauses ORDER BY id ASC"
+
+    /** The status of a children query read with the observation `fields` (the typed read's shape), under the given Authorization. */
+    private fun childrenStatus(jql: String, authorization: String? = GOOD): Int =
+        api("/search/jql", mapOf("jql" to jql, "fields" to fullFields), authorization).status
+
+    @Test
+    fun `IMC lists fourteen issues and the four parent sets are replayed with and without the filter's clauses`() {
+        val program = typeId("program")
+        val initiative = typeId("initiative")
+        val epic = typeId("epic")
+        val listed = search("project in (\"IMC\") AND issuetype in ($program,$initiative,$epic) ORDER BY id ASC", fullFields).first
+        val issues = figure("imc", "issues").jsonArray
+        assertEquals(issues.map { it.str("key") }, listed.map { it.str("key") })
+        assertEquals(14, int("search", "imc/full/any/started", "issues"))
+        for ((entry, issue) in listed.zip(issues)) {
+            val key = issue.str("key")
+            val category = entry.str("fields", "status", "statusCategory", "key")
+            assertEquals(issue.str("status") == "done", category == "done", "$key: the status category")
+            assertEquals(issue.str("updated"), entry.str("fields", "updated"), "$key: the stamp")
+            assertEquals(entry.str("id"), api("/issue/$key").obj.str("id"), "$key by key")
+            assertEquals(key, api("/issue/${entry.str("id")}").obj.str("key"), "$key by id")
+        }
+        val idOf = issues.associate { it.str("key") to it.str("id") }
+        val clauseVariants = listOf(
+            "",
+            " AND statusCategory != Done",
+            " AND updated >= \"-525600m\"",
+            " AND statusCategory != Done AND updated >= \"-525600m\"",
+        )
+        // The four sets of the children family (expected.json imc.childSets) over the type sets the rooted browse sends; the stub evaluates
+        // no clause, so every variant lists the SAME issues, in id order, in the pages expected.json counts.
+        for (set in figure("imc", "childSets").jsonArray) {
+            val parentKeys = set.jsonObject.getValue("parents").jsonArray.map { it.jsonPrimitive.content }
+            for ((typeSet, types) in mapOf("ei" to listOf(initiative, epic), "e" to listOf(epic))) {
+                val want = expectedChildren(parentKeys, types)
+                for (clauses in clauseVariants) {
+                    val (found, pages) = search(childrenJql(types, parentKeys.map { idOf.getValue(it) }, clauses), fullFields)
+                    assertEquals(want, found.map { it.str("key") }, "${set.str("name")}/$typeSet$clauses")
+                    assertEquals(int("search", "imc/children-${set.str("name")}/$typeSet/started", "pages"), pages)
+                    assertTrue(found.all { it.str("fields", "parent", "key") in parentKeys }, "only the named parents' children")
+                }
+                assertEquals(want.size, int("search", "imc/children-${set.str("name")}/$typeSet/started", "issues"))
+            }
+        }
+        // The rooted walks end in the rows expected.json promises: the program root's two reads together hold every row of the unfiltered
+        // outcome, and IMC-11..13 (under another program) appear in no children answer at all.
+        val rootOnes = expectedChildren(listOf("IMC-1"), listOf(initiative, epic))
+        val rootTwos = expectedChildren(listOf("IMC-2", "IMC-3", "IMC-4"), listOf(epic))
+        val walked = (rootOnes + rootTwos).distinct()
+        val rows = figure("imc", "byRoot", "IMC-1", "none", "rowKeys").jsonArray.map { it.jsonPrimitive.content }
+        assertEquals(rows.toSet(), walked.toSet())
+        assertEquals(rows.size, walked.size, "no issue is read twice")
+        val never = figure("imc", "neverListed").jsonArray.map { it.jsonPrimitive.content }
+        assertEquals(listOf("IMC-11", "IMC-12", "IMC-13"), never)
+        assertTrue(never.none { it in walked })
+        assertEquals(
+            figure("imc", "byRoot", "IMC-2", "none", "rowKeys").jsonArray.map { it.jsonPrimitive.content },
+            expectedChildren(listOf("IMC-2"), listOf(epic)),
+        )
+        // A root with nothing under it: one page, no issues (not a 401).
+        assertEquals(0, search(childrenJql(listOf(initiative, epic), listOf(idOf.getValue("IMC-14"))), fullFields).first.size)
+        // The root's by-id read carries the type the kernel classifies it by.
+        assertEquals("Program", api("/issue/IMC-1").obj.str("fields", "issuetype", "name"))
+    }
+
+    @Test
+    fun `an unknown parent set is a 401, a children query needs the scheme and fields, and the rejected token is refused`() {
+        val initiative = typeId("initiative")
+        val epic = typeId("epic")
+        val known = childrenJql(listOf(initiative, epic), listOf("99001"))
+        assertEquals(200, childrenStatus(known))
+        // Another set - an unlisted id, a subset, a superset - is the unmapped-shape 401, never the typed read's listing.
+        for (parents in listOf("99011", "99002,99003", "99001,99002", "99002,99003,99004,99014", "99005")) {
+            val jql = childrenJql(listOf(initiative, epic), parents.split(","))
+            val answer = api("/search/jql", mapOf("jql" to jql, "fields" to fullFields))
+            assertEquals(401, answer.status, parents)
+            assertTrue("issues" !in answer.body, "$parents: no listing leaks through")
+        }
+        // The filter's clauses do not change which sets are known, nor does the type set's order.
+        assertEquals(401, childrenStatus(childrenJql(listOf(epic), listOf("99011"), " AND statusCategory != Done")))
+        assertEquals(200, childrenStatus(childrenJql(listOf(epic, initiative), listOf("99001"))), "type order is free")
+        // The scheme is demanded, and `fields` must carry summary and issuetype (a request without them fails a client that forgot them).
+        assertEquals(401, childrenStatus(known, authorization = null))
+        assertEquals(401, childrenStatus(known, authorization = "Token abc"))
+        assertEquals(401, api("/search/jql", mapOf("jql" to known)).status)
+        // The rejected token meets only auth-wrong-token-401 on a children query (the family's header `and` steps aside), in each
+        // form; right after it the good token still reads the same set.
+        val rejected = expected.str("rejectedToken")
+        val north = childrenJql(listOf(epic), listOf("99002"))
+        for (authorization in listOf("Bearer $rejected", basic("e2e-jira@astrolabe.local", rejected), basic("a@b.c", rejected))) {
+            assertEquals(401, childrenStatus(known, authorization), authorization.take(12))
+            assertEquals(401, childrenStatus(north, authorization), authorization.take(12))
+            assertEquals(401, api("/issue/IMC-1", authorization = authorization).status)
+        }
+        assertEquals(200, childrenStatus(known))
     }
 
     @Test
