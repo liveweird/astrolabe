@@ -2275,6 +2275,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/integrations/jira/connections/{id}/coverage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * The coverage summary of a Jira connection (per mapped level)
+         * @description ADMIN only, guard before the id lookup (like the connection page's other reads). Computed at request time from what the runs already
+         *     stored (the census mirror, the bindings and the effective mapping); nothing is fetched from Jira, written or locked. For each
+         *     mapped plan level: the issues of its hierarchy level in the connection's project keys (`inScope`), those an active binding names on
+         *     the same site (`linked`) and those not in the Done status category and not linked (`openUnlinked`: the issues the Deviations page
+         *     lists as "Not in plan" under a bound parent, and those under no bound parent). Counts only: no key, name or summary. `state`
+         *     `NOT_SYNCED` while no run ever censused the site and `MAPPING_UNUSABLE` while the mapping cannot name the levels: `levels` is
+         *     empty in both.
+         */
+        get: operations["getJiraCoverage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/integrations/jira/connections/{id}/mapping": {
         parameters: {
             query?: never;
@@ -6110,6 +6138,45 @@ export interface components {
             discoveredAt: number | null;
             /** @description Why the stored `mapping` no longer fits the discovery as it is now (a later Test connection can replace the snapshot: a level the site lost, a field that changed type) or cannot be read at all. Empty when it fits or none is saved. Nothing is rewritten: save a corrected mapping. */
             problems: string[];
+        };
+        /** @description One mapped plan level's counts over the connection's census mirror. Counts only; never a key, name or summary. */
+        JiraCoverageLevel: {
+            /** @enum {string} */
+            level: "PROGRAM" | "PROJECT" | "MILESTONE";
+            /**
+             * Format: int32
+             * @description The Jira hierarchy level the plan level is mapped to.
+             */
+            hierarchyLevel: number;
+            /**
+             * Format: int32
+             * @description The level's issues in the connection's project keys (the census mirror).
+             */
+            inScope: number;
+            /**
+             * Format: int32
+             * @description Of those, the ones an active binding names (same site).
+             */
+            linked: number;
+            /**
+             * Format: int32
+             * @description Of those, the ones not in the Done status category and not linked.
+             */
+            openUnlinked: number;
+        };
+        JiraCoverageResponse: {
+            /**
+             * @description `NOT_SYNCED`: no run ever censused the site (no counts). `MAPPING_UNUSABLE`: the effective mapping is missing, unreadable or no longer fits the discovery, so the mapped levels are unknown (no counts). `READY`: `levels` holds the counts.
+             * @enum {string}
+             */
+            state: "NOT_SYNCED" | "MAPPING_UNUSABLE" | "READY";
+            /**
+             * Format: int64
+             * @description Epoch millis of the run that last completed a census; null while never stamped (or cleared for a re-seed).
+             */
+            censusAt: number | null;
+            /** @description The mapped levels, top down (program, project, milestone); empty unless `state` is `READY`. */
+            levels: components["schemas"]["JiraCoverageLevel"][];
         };
         JiraPeekIssue: {
             id: string;
@@ -10446,6 +10513,33 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    getJiraCoverage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The coverage summary */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JiraCoverageResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
             500: components["responses"]["InternalServerError"];
         };
     };

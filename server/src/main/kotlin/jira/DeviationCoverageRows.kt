@@ -95,17 +95,26 @@ internal suspend fun loadUnlinkedJira(live: List<BindingRow>, facts: Map<UInt, C
         Triple(row, row.connectionId, level)
     }
     val predicate = mirrorPredicate(asked.groupBy({ it.second to it.third }) { it.first.issueId }) ?: return emptyMap()
-    val peer = connections.alias("peer")
-    val linked = bindings.innerJoin(peer, { bindings.connectionId }, { peer[connections.id] }).select(bindings.id).where {
-        (bindings.jiraIssueId eq JiraIssues.issueId) and bindings.active() and (peer[connections.markedAsDeleted] eq false) and
-            (peer[connections.siteUrl] eq connections.siteUrl)
-    }
+    val linked = bindingOnSameSite()
     val open = JiraIssues.innerJoin(connections, { JiraIssues.connectionId }, { connections.id })
         .select(JiraIssues.connectionId, JiraIssues.parentIssueId, JiraIssues.issueId, JiraIssues.issueKey)
         .where { predicate and (JiraIssues.statusCategory neq DONE) and notExists(linked) }.toList()
         .sortedWith(compareBy({ it[JiraIssues.issueId].length }, { it[JiraIssues.issueId] }))
         .groupBy({ it[JiraIssues.connectionId].value to it[JiraIssues.parentIssueId] }) { it[JiraIssues.issueKey] }
     return asked.mapNotNull { (row, connection, _) -> open[connection to row.issueId]?.let { row.id to it } }.toMap()
+}
+
+/**
+ * The correlated subquery of the ACTIVE bindings, on an ACTIVE connection of the SAME site (D1), that name the mirror row in the outer
+ * query ([JiraIssues] joined to its own `connections` row): the one "linked" rule of the unlinked-in-Jira coverage and the connection's
+ * coverage summary. Node liveness of the binding is not re-checked.
+ */
+internal fun bindingOnSameSite(): Query {
+    val peer = connections.alias("peer")
+    return bindings.innerJoin(peer, { bindings.connectionId }, { peer[connections.id] }).select(bindings.id).where {
+        (bindings.jiraIssueId eq JiraIssues.issueId) and bindings.active() and (peer[connections.markedAsDeleted] eq false) and
+            (peer[connections.siteUrl] eq connections.siteUrl)
+    }
 }
 
 /**

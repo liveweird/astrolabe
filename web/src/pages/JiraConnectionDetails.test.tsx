@@ -33,6 +33,7 @@ function serve(mockFetch: FetchMock, overrides: Partial<World> = {}) {
     if (url.startsWith("/api/v1/integrations/jira/bindings") && method === "GET") return Promise.resolve(jsonResponse(200, { items: [], page: 1, pageSize: 20, total: 0 }));
     if (url === `${BASE}/discovery`) return Promise.resolve(jsonResponse(200, DISCOVERY));
     if (url === `${BASE}/mapping`) return Promise.resolve(jsonResponse(200, MAPPING_DEFAULTS_ONLY));
+    if (url === `${BASE}/coverage`) return Promise.resolve(jsonResponse(200, { state: "NOT_SYNCED", censusAt: null, levels: [] }));
     if (url === `${BASE}/test` && method === "POST") return Promise.resolve(world.test());
     if (url.startsWith("/api/v1/integrations/sync/runs") && method === "GET") return Promise.resolve(jsonResponse(200, { items: world.runs }));
     if (url === "/api/v1/integrations/sync/runs" && method === "POST") {
@@ -89,6 +90,7 @@ describe("Jira connection page", () => {
       [4, "Discovery report"],
       [4, "Field mapping"],
       [4, "Peek at an issue"],
+      [3, "Coverage"],
       [3, "Links to plan items"],
     ]);
     const facts = screen.getByRole("table", { name: "Connection facts" });
@@ -135,6 +137,7 @@ describe("Jira connection page", () => {
       [3, "Connection"],
       [4, "Recent runs"],
       [3, "Mapping"],
+      [3, "Coverage"],
       [3, "Links to plan items"],
     ]);
   });

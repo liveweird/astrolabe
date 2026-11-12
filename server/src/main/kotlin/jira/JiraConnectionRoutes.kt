@@ -31,7 +31,12 @@ import kotlinx.serialization.Serializable
 class JiraConnectionsRoute {
     @Serializable
     @Resource("{id}")
-    class Id(val parent: JiraConnectionsRoute = JiraConnectionsRoute(), val id: UInt)
+    class Id(val parent: JiraConnectionsRoute = JiraConnectionsRoute(), val id: UInt) {
+        /** `GET …/{id}/coverage` (1.14): the per-level coverage counts over the census mirror, ADMIN only like the rest of the page. */
+        @Serializable
+        @Resource("coverage")
+        class Coverage(val parent: Id)
+    }
 }
 
 private const val MIN_BIND_WAIT_MILLIS = 100L
@@ -55,6 +60,7 @@ fun Application.configureJiraRoutes() {
     val teams = attributes[TeamServiceKey]
     val imports = attributes[JiraImportServiceKey]
     val acknowledgements = attributes[JiraAcknowledgeServiceKey]
+    val coverage = attributes[JiraCoverageServiceKey]
     val bindWaitKey = "jira.bindPermitWaitMillis"
     val bindPermitWaitMillis = requireConfigLong(environment.config, bindWaitKey, MIN_BIND_WAIT_MILLIS, MAX_BIND_WAIT_MILLIS)
 
@@ -88,6 +94,10 @@ fun Application.configureJiraRoutes() {
                 )
                 call.response.header(HttpHeaders.Location, call.application.href(JiraConnectionsRoute.Id(id = id)))
                 call.respond(HttpStatusCode.Created, connections.read(id).orVanished("Jira connection", id).withStubRouting(routing))
+            }
+            get<JiraConnectionsRoute.Id.Coverage> { route ->
+                requireAdmin(call.caller())
+                call.respond(HttpStatusCode.OK, coverage.read(route.parent.id).orNotFound("Jira connection"))
             }
             get<JiraConnectionsRoute.Id> { route ->
                 requireAdmin(call.caller())

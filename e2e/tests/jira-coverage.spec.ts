@@ -267,3 +267,20 @@ test("acknowledging the coverage deviation silences the flag", async ({ page }) 
     await api.dispose();
   }
 });
+
+test("the connection page counts the site's coverage per mapped level", async ({ page }) => {
+  await login(page);
+  await page.goto(`/integrations/jira/${world.connection.id}`);
+  await expect(page.getByRole("heading", { level: 2, name: world.connection.name })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 3, name: "Coverage" })).toBeVisible();
+
+  // The COV project holds one program issue (COV-1, open, unbound), one initiative (COV-2, bound to the project) and four epics (COV-3 and COV-4 bound, COV-5
+  // open and unbound, COV-10 done and unbound): in scope, linked, and open and unlinked per level. Counts only: no key or summary is on the table.
+  const table = page.getByRole("table", { name: "Coverage per level" });
+  await expect(table).toBeVisible();
+  const cells = (level: string) => table.getByRole("row").filter({ has: page.getByRole("rowheader", { name: level, exact: true }) }).getByRole("cell").allTextContents();
+  expect(await cells("Program")).toEqual(["1", "0", "1"]);
+  expect(await cells("Project")).toEqual(["1", "1", "0"]);
+  expect(await cells("Milestone")).toEqual(["4", "2", "1"]);
+  await expect(table).not.toContainText("COV-");
+});

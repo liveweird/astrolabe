@@ -18,6 +18,7 @@ export type JiraMapping = Schemas["JiraMapping"];
 export type JiraLevelMapping = Schemas["JiraLevelMapping"];
 export type JiraMappingResponse = Schemas["JiraMappingResponse"];
 export type JiraPeekResponse = Schemas["JiraPeekResponse"];
+export type JiraCoverage = Schemas["JiraCoverageResponse"];
 export type JiraBindingPage = Schemas["JiraBindingPage"];
 export type JiraBinding = Schemas["JiraBinding"];
 export type JiraBindRequest = Schemas["JiraBindRequest"];
@@ -114,6 +115,11 @@ export async function getJiraDiscovery(id: number): Promise<JiraDiscovery> {
 /** Never 409: before a discovery the defaults and the effective mapping are null. */
 export async function getJiraMapping(id: number): Promise<JiraMappingResponse> {
   return jsonRequest<JiraMappingResponse>(`/api/v1/integrations/jira/connections/${id}/mapping`);
+}
+
+/** The per-level coverage counts over the census mirror (1.14, ADMIN only): `state` says whether there are any (`READY`). */
+export async function getJiraCoverage(id: number): Promise<JiraCoverage> {
+  return jsonRequest<JiraCoverage>(`/api/v1/integrations/jira/connections/${id}/coverage`);
 }
 
 /** A full replace of the document; the server checks it against the stored discovery (400 per violation, 409 `jira-not-discovered`). */

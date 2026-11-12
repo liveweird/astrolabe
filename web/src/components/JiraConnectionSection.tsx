@@ -101,7 +101,10 @@ export default function JiraConnectionSection({ connection, readAt }: { connecti
   // When the run that was going ends, the status, last success and next poll moved: re-read the connection and the registry.
   const wasRunning = useRef(false);
   useEffect(() => {
-    if (wasRunning.current && !live) void refreshQueriesAfterMutation(queryClient, ["jira", "connection", connection.id], ["jira", "list"]);
+    // The finished run also moved the census the Coverage section counts.
+    if (wasRunning.current && !live) {
+      void refreshQueriesAfterMutation(queryClient, ["jira", "connection", connection.id], ["jira", "list"], ["jira", "coverage", connection.id]);
+    }
     wasRunning.current = live;
   }, [live, queryClient, connection.id]);
 

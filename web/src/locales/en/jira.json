@@ -89,6 +89,21 @@
     "alreadyRunning": "A refresh is already running for this connection. Its progress shows in the table below.",
     "running": "A refresh is running. The table below updates by itself."
   },
+  "coverage": {
+    "title": "Coverage",
+    "intro": "How much of this site the plan covers, counted from the last synchronisation. Open means not in the Done status category.",
+    "tableAria": "Coverage per level",
+    "column": {
+      "level": "Level",
+      "inScope": "In scope",
+      "linked": "Linked",
+      "openUnlinked": "Open and unlinked"
+    },
+    "notSynced": "Not synced yet",
+    "mappingUnusable": "The mapping does not name the levels yet, so nothing can be counted. Save a mapping above.",
+    "asOf": "Counted from the census of {{when}} (UTC).",
+    "loadFailed": "Could not load the coverage"
+  },
   "details": {
     "factsAria": "Connection facts",
     "connection": "Connection",

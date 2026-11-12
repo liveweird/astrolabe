@@ -91,6 +91,21 @@
     "alreadyRunning": "Odświeżanie tego połączenia już trwa. Jego postęp widać w tabeli poniżej.",
     "running": "Trwa odświeżanie. Tabela poniżej aktualizuje się sama."
   },
+  "coverage": {
+    "title": "Pokrycie",
+    "intro": "Ile z tej instancji obejmuje plan, liczone z ostatniej synchronizacji. Otwarte to nie w kategorii statusu Gotowe.",
+    "tableAria": "Pokrycie według poziomu",
+    "column": {
+      "level": "Poziom",
+      "inScope": "W zakresie",
+      "linked": "Powiązane",
+      "openUnlinked": "Otwarte i niepowiązane"
+    },
+    "notSynced": "Jeszcze nie zsynchronizowano",
+    "mappingUnusable": "Mapowanie nie wskazuje jeszcze poziomów, więc nic nie można policzyć. Zapisz mapowanie powyżej.",
+    "asOf": "Liczone ze spisu z {{when}} (UTC).",
+    "loadFailed": "Nie udało się wczytać pokrycia"
+  },
   "details": {
     "factsAria": "Dane połączenia",
     "connection": "Połączenie",

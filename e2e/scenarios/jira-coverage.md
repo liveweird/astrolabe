@@ -64,6 +64,13 @@
 4. Through the API they request one more manual run and wait (bounded, 30 s) for it to succeed; they reload the Open list and the roadmap panel.
    - *Expected*: the same coverage was read again, so the acknowledgement stands: `COV-2` is still not in the Open list and the panel still has no "Jira COV-2:" entry.
 
+## Scenario: the connection page counts the site's coverage per mapped level
+
+1. The administrator opens the connection's page `/integrations/jira/<id>` (after the earlier scenarios' runs; no new call, the counts are read from the census the runs stored).
+   - *Expected*: an h3 **Coverage** with a table "Coverage per level" (a real table: column headers, the level as the row header).
+2. They read the three rows.
+   - *Expected*: Program `1 / 0 / 1` (`COV-1`, open, unbound), Project `1 / 1 / 0` (`COV-2`, bound), Milestone `4 / 2 / 1` (`COV-3`..`COV-5` and `COV-10` in scope; `COV-3` and `COV-4` linked; `COV-5` open and unlinked, the done `COV-10` excluded) - in scope, linked, open and unlinked; and no Jira key appears in the table (counts only).
+
 ## Not covered here (and why)
 
 - The coverage deviations appearing, growing and clearing as Jira changes (a new child, a child done, an epic bound): the server's kernel, census and view tests; the stub

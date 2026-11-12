@@ -3218,6 +3218,33 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/integrations/jira/connections/{id}/coverage:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    get:
+      tags: [jira]
+      operationId: getJiraCoverage
+      summary: The coverage summary of a Jira connection (per mapped level)
+      description: |
+        ADMIN only, guard before the id lookup (like the connection page's other reads). Computed at request time from what the runs already
+        stored (the census mirror, the bindings and the effective mapping); nothing is fetched from Jira, written or locked. For each
+        mapped plan level: the issues of its hierarchy level in the connection's project keys (`inScope`), those an active binding names on
+        the same site (`linked`) and those not in the Done status category and not linked (`openUnlinked`: the issues the Deviations page
+        lists as "Not in plan" under a bound parent, and those under no bound parent). Counts only: no key, name or summary. `state`
+        `NOT_SYNCED` while no run ever censused the site and `MAPPING_UNUSABLE` while the mapping cannot name the levels: `levels` is
+        empty in both.
+      responses:
+        '200':
+          description: The coverage summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JiraCoverageResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   /api/v1/integrations/jira/connections/{id}/mapping:
     parameters:
       - $ref: '#/components/parameters/ResourceId'
@@ -7618,6 +7645,37 @@ components:
             Why the stored `mapping` no longer fits the discovery as it is now (a later Test connection can replace the snapshot: a level the
             site lost, a field that changed type) or cannot be read at all. Empty when it fits or none is saved. Nothing is rewritten: save a
             corrected mapping.
+    JiraCoverageLevel:
+      type: object
+      description: One mapped plan level's counts over the connection's census mirror. Counts only; never a key, name or summary.
+      required: [level, hierarchyLevel, inScope, linked, openUnlinked]
+      properties:
+        level: { type: string, enum: [PROGRAM, PROJECT, MILESTONE] }
+        hierarchyLevel: { type: integer, format: int32, minimum: 0, description: "The Jira hierarchy level the plan level is mapped to." }
+        inScope: { type: integer, format: int32, minimum: 0, description: "The level's issues in the connection's project keys (the census mirror)." }
+        linked: { type: integer, format: int32, minimum: 0, description: "Of those, the ones an active binding names (same site)." }
+        openUnlinked: { type: integer, format: int32, minimum: 0, description: "Of those, the ones not in the Done status category and not linked." }
+    JiraCoverageResponse:
+      type: object
+      required: [state, censusAt, levels]
+      properties:
+        state:
+          type: string
+          enum: [NOT_SYNCED, MAPPING_UNUSABLE, READY]
+          description: >-
+            `NOT_SYNCED`: no run ever censused the site (no counts). `MAPPING_UNUSABLE`: the effective mapping is missing, unreadable or no
+            longer fits the discovery, so the mapped levels are unknown (no counts). `READY`: `levels` holds the counts.
+        censusAt:
+          type: integer
+          format: int64
+          nullable: true
+          description: Epoch millis of the run that last completed a census; null while never stamped (or cleared for a re-seed).
+        levels:
+          type: array
+          maxItems: 3
+          description: The mapped levels, top down (program, project, milestone); empty unless `state` is `READY`.
+          items:
+            $ref: '#/components/schemas/JiraCoverageLevel'
     JiraPeekIssue:
       type: object
       required: [id, key, statusCategory]
