@@ -261,7 +261,13 @@ The template and its rules: `web/CLAUDE.md` "Shared list-page building blocks". 
   returns to the opener when it closes (the kebab for a row-menu item, else the button that held the focus); for 5 seconds after that a refetch cannot lose it
   (a focus blurred to `body` by a row moving in the DOM goes back to the opener, or to `#main-content` if the opener is gone; a focus parked in a closing
   menu or dialog is in transit and does not end the watch); a dialog that opens only after an
-  await wraps the awaited promise in the returned `claim(...)` (Teams' Edit).
+  await wraps the awaited promise in the returned `claim(...)` (Teams' Edit). **The two paths the 1.13.1 review left open are settled (after 1.13.4,
+  `useDialogFocus.menu.test.tsx`: the real `RowActionsMenu` + Mantine `Modal` harness).** (A) `menuOpener.ts`'s `setTimeout(0)` expiry cannot beat the hook's
+  effect: the click is a discrete event, React commits it and flushes the passive effect before any timer; the kebab-return tests (click, Escape, keyboard)
+  passed 100 of 100 shuffled runs and never failed, so no change was needed and the tests are the pin. (B) Reproduced: within the 5 s watch, another row's
+  kebab and an action that dropped the focus to `body` (its row removed or re-sorted) was answered at the next render with the FIRST kebab. Fixed: while
+  a closed dialog's watch is live the hook listens to `focusin` and ends the watch when the focus lands anywhere but the opener, a dialog or the opener's own
+  menu (`isChoiceAwayFrom`), so the second row's kebab ends it at once. The next render finds nothing to restore.
 
 ### Registries and forms
 
