@@ -7705,8 +7705,8 @@ components:
       type: object
       required: [jiraId, issueKey, summary, level, action, name, canSchedule, scheduled, infos]
       properties:
-        jiraId: { type: string, description: The numeric Jira issue id. }
-        issueKey: { type: string }
+        jiraId: { type: string, description: "The numeric Jira issue id; `hidden-<row position>` on a row redacted for a non-admin under an active filter." }
+        issueKey: { type: string, nullable: true, description: "Null on a row redacted for a non-admin under an active `filter` (the filter is a probe; a key is the handle): such a row also has a blank `name` and no parent id or key, and comes after every other row. A visible row whose Jira parent is such a row has no parent id or key either. Always set otherwise." }
         summary: { type: string }
         typeName: { type: string, nullable: true }
         hierarchyLevel: { type: integer, format: int32, nullable: true }
@@ -7727,7 +7727,7 @@ components:
           allOf:
             - $ref: '#/components/schemas/JiraImportTarget'
           nullable: true
-        name: { type: string, maxLength: 100, description: "The plan name: the summary with control characters and runs of whitespace collapsed, cut at 100 characters; the issue key when blank." }
+        name: { type: string, maxLength: 100, description: "The plan name: the summary with control characters and runs of whitespace collapsed, cut at 100 characters; the issue key when blank. Blank (\"\") on a row redacted for a non-admin under an active `filter`, whose key is withheld." }
         estimateMd: { type: number, format: double, nullable: true, description: "A milestone's converted man-days (0 when none or not convertible)." }
         startDate: { type: string, format: date, nullable: true, description: "Jira's start, shown when `copyDates` is on (it is written only if `scheduled`)." }
         endDate: { type: string, format: date, nullable: true }
@@ -7847,7 +7847,7 @@ components:
       required: [jiraId, reason]
       properties:
         jiraId: { type: string }
-        issueKey: { type: string, nullable: true, description: "Null for an item the re-browse no longer finds." }
+        issueKey: { type: string, nullable: true, description: "Null for an item the re-browse no longer finds and, for a non-admin under an active `filter`, for a ticked id the same-scope preview redacts (answered `CHANGED`, exactly like an absent id)." }
         reason: { type: string, enum: [ALREADY_BOUND, NO_PARENT, NAME_TAKEN, LEVEL_UNMAPPED, NO_TEAM, PARENT_SKIPPED, CHANGED] }
     JiraImportResult:
       type: object
@@ -7856,7 +7856,7 @@ components:
         revision: { type: integer, format: int64, description: "The plan revision after the ONE bump (also when everything was skipped)." }
         created: { type: array, items: { $ref: '#/components/schemas/JiraImportCreated' } }
         bound: { type: array, items: { $ref: '#/components/schemas/JiraImportBound' } }
-        skipped: { type: array, items: { $ref: '#/components/schemas/JiraImportSkipped' } }
+        skipped: { type: array, items: { $ref: '#/components/schemas/JiraImportSkipped' }, description: "The ticked items that were not written: the visible skips first, in row order; for a non-admin under an active `filter` every other one after them (CHANGED, no key), in the order ticked." }
     JiraBindRequest:
       type: object
       required: [connectionId, level, nodeId, issueKey]

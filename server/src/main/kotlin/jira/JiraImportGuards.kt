@@ -44,7 +44,7 @@ internal fun requireResolvedTargets(
 
 /** The node [item] touches that needs a guard, or null (a skipped row, a program-less parent, a parent created in the batch). */
 private fun targetOf(item: JiraImportItem, read: ImportRead): Target? {
-    val created = "under which ${item.issueKey} would be created"
+    val created = "under which ${item.key()} would be created"
     return when {
         item.action == JiraImportAction.CREATE && item.level == JiraLevel.PROGRAM -> Target(read.streamChain, "the work stream", created)
         item.action == JiraImportAction.CREATE -> {
@@ -57,7 +57,7 @@ private fun targetOf(item: JiraImportItem, read: ImportRead): Target? {
         }
         item.action == JiraImportAction.BIND -> item.target?.let { target ->
             val what = "${item.level.label()} ${target.nodeName}"
-            Target(chainOf(read, item.level, target.nodeId), what, "which ${item.issueKey} would be bound to")
+            Target(chainOf(read, item.level, target.nodeId), what, "which ${item.key()} would be bound to")
         }
         else -> null
     }

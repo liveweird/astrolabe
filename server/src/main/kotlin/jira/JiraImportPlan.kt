@@ -141,7 +141,7 @@ class ImportPlan(
     /** Every ticked item that is not written, in row order, then the vanished ones. */
     val skips: List<ImportSkip>
         get() = rows.mapNotNull { row ->
-            (row.apply as? ImportApply.Skipped)?.let { ImportSkip(row.item.jiraId, row.item.issueKey, it.reason) }
+            (row.apply as? ImportApply.Skipped)?.let { ImportSkip(row.item.jiraId, row.item.key(), it.reason) }
         } + vanished.map { ImportSkip(it, null, JiraImportReason.CHANGED) }
 
     fun totals(): JiraImportTotals {

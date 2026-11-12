@@ -53,7 +53,7 @@ class JiraImportFilterPreviewTest {
 
     private fun JiraImportPreview.byKey() = items.associateBy { it.issueKey }
 
-    private fun JiraImportPreview.infoKeys(info: JiraImportInfo) = items.filter { info in it.infos }.map { it.issueKey }.sorted()
+    private fun JiraImportPreview.infoKeys(info: JiraImportInfo) = items.filter { info in it.infos }.map { it.key() }.sorted()
 
     private fun deleteImfPrograms() {
         jbSql(
@@ -65,7 +65,7 @@ class JiraImportFilterPreviewTest {
     private fun failingIssue(key: Int, status: Int = 500): MappingBuilder =
         get(urlPathMatching(".*/rest/api/3/issue/${98_000 + key}")).atPriority(1).willReturn(aResponse().withStatus(status))
 
-    private fun keysOf(preview: JiraImportPreview) = preview.items.map { it.issueKey }.sortedBy { it.substringAfter('-').toInt() }
+    private fun keysOf(preview: JiraImportPreview) = preview.items.map { it.key() }.sortedBy { it.substringAfter('-').toInt() }
 
     private fun left(vararg numbers: Int) = numbers.map { "IMF-$it" }
 
@@ -211,19 +211,27 @@ class JiraImportFilterPreviewTest {
             // IMF-1 is held by A's program: in B's stream everything below it skips, the kept parent IMF-4 included.
             a.w.admin.client.jbBind(a.connectionId, JiraLevel.PROGRAM, a.w.programId, "IMF-1").jbBinding()
             val scope = JiraImportScope(b.streamId, b.streamOwner.personId!!, null, null, true, both)
-            val asAdmin = a.w.admin.client.preview(a.connectionId, scope).previewBody().byKey()
+            val adminRows = a.w.admin.client.preview(a.connectionId, scope).previewBody().items
+            val asAdmin = adminRows.associateBy { it.issueKey }
             val keptRow = asAdmin.getValue("IMF-4")
             assertEquals(JiraImportAction.SKIP, keptRow.action)
             assertEquals(listOf(JiraImportInfo.KEPT_AS_PARENT), keptRow.infos)
             assertEquals(listOf(JiraImportInfo.PARENT_UNREADABLE), asAdmin.getValue("IMF-15").infos)
 
-            val asOwner = b.streamOwner.client.preview(a.connectionId, scope).previewBody().byKey()
+            // The same rows; the redacted ones come last with their keys withheld (JiraImportFilterRedactionTest pins that).
+            val ownerRows = b.streamOwner.client.preview(a.connectionId, scope).previewBody().items
+            assertEquals(adminRows.size, ownerRows.size)
+            // They are listed by what they still show (level, reason, type), not by id: align the ADMIN's rows the same way.
+            val adminRedacted = adminRows.filter { it.action == JiraImportAction.SKIP && it.reason != JiraImportReason.ALREADY_BOUND }
+                .sortedWith(SHOWN_ORDER)
+            val ownerRedacted = ownerRows.filter { it.issueKey == null }
+            assertEquals(adminRedacted.size, ownerRedacted.size)
             for (key in listOf("IMF-4", "IMF-15")) {
-                val row = asOwner.getValue(key)
+                val row = ownerRedacted[adminRedacted.indexOf(asAdmin.getValue(key))]
                 assertEquals(JiraImportAction.SKIP, row.action, key)
                 assertTrue(row.infos.isEmpty() && row.summary == "", "$key: the redaction rule strips the filter's infos: ${row.infos}")
+                assertEquals(asAdmin.getValue(key).reason, row.reason, "$key: the outcome itself stays observable")
             }
-            assertEquals(JiraImportReason.NO_PARENT, asOwner.getValue("IMF-15").reason, "the outcome itself stays observable")
         }
 
     @Test

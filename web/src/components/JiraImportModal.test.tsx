@@ -121,6 +121,24 @@ describe("JiraImportModal: the scope and the preview", () => {
     for (const cell of within(row).getAllByRole("cell")) expect((cell.textContent ?? "").trim()).not.toBe("");
   });
 
+  test("a row redacted under an active filter has no key: a Hidden placeholder, its reason, no link, no checkbox, no blank cell", async () => {
+    const user = userEvent.setup();
+    const hidden = PREVIEW_ITEMS.map((item) =>
+      item.issueKey === "IMP-11" ? { ...item, jiraId: "hidden-11", issueKey: null, name: "", parentJiraId: null, parentIssueKey: null } : item,
+    );
+    previewResponse = () => jsonResponse(200, previewOf(hidden));
+    open();
+    await previewScope(user);
+    const placeholder = within(table()).getByText("Hidden");
+    const row = placeholder.closest("tr")!;
+    expect(within(row).queryByRole("link")).not.toBeInTheDocument();
+    expect(within(row).queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(within(row).getByText(/already exists here/)).toBeInTheDocument();
+    for (const cell of within(row).getAllByRole("cell")) expect((cell.textContent ?? "").trim()).not.toBe("");
+    expect(table()).toHaveAttribute("aria-rowcount", "10");
+    expect(within(table()).queryByText(/IMP-11/)).not.toBeInTheDocument();
+  });
+
   test("a preview with more than 2,000 issues cannot be imported: it names the filter and the keys as the levers", async () => {
     const user = userEvent.setup();
     previewResponse = () => jsonResponse(200, previewOf(PREVIEW_ITEMS, { totals: { items: 2000, create: 6, bind: 1, skip: 2, truncated: true } }));

@@ -120,7 +120,8 @@ function DetailsCell({
 /**
  * One preview row. A SKIP row has no checkbox (a dash stands in) and says why in words; an unticked row that lands under an unticked
  * parent says so (`blocker`) before the user submits. The name falls back to the key: a non-admin's SKIP row arrives with an empty summary
- * and `name` = key, and a cell must never be blank. A milestone's team is a `NativeSelect` (the row's own override, sent as
+ * and `name` = key, and a cell must never be blank. Under an active import filter a non-admin's SKIP row arrives with NO key (null, a blank
+ * name and a synthetic `hidden-n` id): the key cell shows a "Hidden" placeholder and the name cell a dash. A milestone's team is a `NativeSelect` (the row's own override, sent as
  * `overrides.teamId`); everything is clamped to the fixed row height.
  */
 export default function JiraImportRow({
@@ -147,7 +148,7 @@ export default function JiraImportRow({
   rowProps: VirtualRowProps;
 }) {
   const { t } = useTranslation();
-  const name = item.name.trim() === "" ? item.issueKey : item.name;
+  const name = item.name.trim() === "" ? (item.issueKey ?? "—") : item.name;
   const landing = landingText(item, t);
   const typeLevel = item.typeName ? t("jira.import.row.typeAs", { type: item.typeName, level: t(levelKey(item.level)).toLowerCase() }) : t(levelKey(item.level));
   return (
@@ -161,7 +162,13 @@ export default function JiraImportRow({
       </Table.Td>
       <Table.Td w={150}>
         <Text size="sm" fw={500}>
-          <JiraKeyLink issueKey={item.issueKey} siteUrl={siteUrl} />
+          {item.issueKey === null ? (
+            <Text span c="dimmed" title={t("jira.import.row.keyHiddenHint")}>
+              {t("jira.import.row.keyHidden")}
+            </Text>
+          ) : (
+            <JiraKeyLink issueKey={item.issueKey} siteUrl={siteUrl} />
+          )}
         </Text>
         <Text size="xs" c="dimmed" lineClamp={1} title={typeLevel}>
           {typeLevel}

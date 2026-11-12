@@ -6224,9 +6224,10 @@ export interface components {
             rule: "MATCHED" | "DEFAULT";
         };
         JiraImportItem: {
-            /** @description The numeric Jira issue id. */
+            /** @description The numeric Jira issue id; `hidden-<row position>` on a row redacted for a non-admin under an active filter. */
             jiraId: string;
-            issueKey: string;
+            /** @description Null on a row redacted for a non-admin under an active `filter` (the filter is a probe; a key is the handle): such a row also has a blank `name` and no parent id or key, and comes after every other row. A visible row whose Jira parent is such a row has no parent id or key either. Always set otherwise. */
+            issueKey: string | null;
             summary: string;
             typeName?: string | null;
             /** Format: int32 */
@@ -6247,7 +6248,7 @@ export interface components {
             reason?: "ALREADY_BOUND" | "NO_PARENT" | "NAME_TAKEN" | "LEVEL_UNMAPPED" | "NO_TEAM" | "PARENT_SKIPPED" | null;
             parent?: components["schemas"]["JiraImportParent"] | null;
             target?: components["schemas"]["JiraImportTarget"] | null;
-            /** @description The plan name: the summary with control characters and runs of whitespace collapsed, cut at 100 characters; the issue key when blank. */
+            /** @description The plan name: the summary with control characters and runs of whitespace collapsed, cut at 100 characters; the issue key when blank. Blank ("") on a row redacted for a non-admin under an active `filter`, whose key is withheld. */
             name: string;
             /**
              * Format: double
@@ -6389,7 +6390,7 @@ export interface components {
         };
         JiraImportSkipped: {
             jiraId: string;
-            /** @description Null for an item the re-browse no longer finds. */
+            /** @description Null for an item the re-browse no longer finds and, for a non-admin under an active `filter`, for a ticked id the same-scope preview redacts (answered `CHANGED`, exactly like an absent id). */
             issueKey?: string | null;
             /** @enum {string} */
             reason: "ALREADY_BOUND" | "NO_PARENT" | "NAME_TAKEN" | "LEVEL_UNMAPPED" | "NO_TEAM" | "PARENT_SKIPPED" | "CHANGED";
@@ -6402,6 +6403,7 @@ export interface components {
             revision: number;
             created: components["schemas"]["JiraImportCreated"][];
             bound: components["schemas"]["JiraImportBound"][];
+            /** @description The ticked items that were not written: the visible skips first, in row order; for a non-admin under an active `filter` every other one after them (CHANGED, no key), in the order ticked. */
             skipped: components["schemas"]["JiraImportSkipped"][];
         };
         JiraBindRequest: {

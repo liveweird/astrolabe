@@ -91,8 +91,10 @@ internal fun Route.jiraImportRoutes(
             val plan = JiraImportKernels.plan(input)
             val items = plan.rows.map { it.item }
             requireResolvedTargets(caller, admitted.personId, items, read, guardedByName = admitted.named.isNotEmpty())
-            // A non-admin sees skipped rows without Jira's text (see redactForNonAdmin); an ADMIN sees everything.
-            val shown = if (caller.isAdmin()) RedactedPreview(items, plan.unmatchedTeams) else redactForNonAdmin(plan)
+            // A non-admin sees skipped rows without Jira's text, and under an active filter without their keys (see redactForNonAdmin);
+            // an ADMIN sees everything.
+            val shown =
+                if (caller.isAdmin()) RedactedPreview(items, plan.unmatchedTeams) else redactForNonAdmin(plan, scope.filter.isActive())
             call.respond(
                 HttpStatusCode.OK,
                 JiraImportPreview(

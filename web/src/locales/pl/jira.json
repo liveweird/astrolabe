@@ -407,6 +407,8 @@
       }
     },
     "row": {
+      "keyHidden": "Ukryty",
+      "keyHiddenHint": "Przy włączonym filtrze klucze pominiętych elementów widzi tylko administrator/ka.",
       "linksTo": "Powiąże z istniejącym: {{name}}",
       "underStream": "W strumieniu pracy",
       "underNew": "Pod nowym: {{name}}",

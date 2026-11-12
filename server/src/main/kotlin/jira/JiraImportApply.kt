@@ -105,19 +105,33 @@ internal class LockedApply(
         val read = imports.loadPlanSide(
             request.workStreamId, connection.siteUrl, issueIdsOf(ctx.browse), canSchedule(), revision,
         ) ?: throw NotFoundException("Work stream not found")
+        val preview = ImportInput(ctx.browse, ctx.mapping, ctx.discovery, read.snapshot, defaults, request.copyDates, ctx.asOf)
+        val withheld = withheldIds(preview)
+        val ticks = request.items.filter { it.jiraId !in withheld }
         val plan = JiraImportKernels.plan(
-            ImportInput(ctx.browse, ctx.mapping, ctx.discovery, read.snapshot, defaults, request.copyDates, ctx.asOf, request.items),
+            ImportInput(ctx.browse, ctx.mapping, ctx.discovery, read.snapshot, defaults, request.copyDates, ctx.asOf, ticks),
         )
         val ticked = plan.rows.filter { it.apply != null && it.apply != ImportApply.NotRequested }.map { it.item }
         requireResolvedTargets(caller, person, ticked, read, guardedByName = named > 0)
         lockReleases(plan.releases.map { it.bindingId })
         val writes = plan.writes
         writes.mapNotNull { it.item.team?.id }.distinct().forEach { requireActiveTeam(it) }
-        writes.forEach { requireInScope(it.item.issueKey, connection.keys) }
+        writes.forEach { requireInScope(it.item.key(), connection.keys) }
         val nodeIds = insertNodes(writes)
         val dated = writes.filter { it.span != null }.map { ValidatedBatchItem(nodeIds.getValue(it.item.jiraId), it.span) }
         writeSchedules(dated, revision + 1)
-        return bind(writes, nodeIds, siteConnectionIds(connection.siteUrl), plan)
+        return bind(writes, nodeIds, siteConnectionIds(connection.siteUrl), plan, withheld)
+    }
+
+    /**
+     * The ids a non-admin's apply under an active filter must treat as if the browse did not hold them (1.13.2 audit LOW-1): the rows the
+     * SAME-SCOPE PREVIEW (no ticks, so no `overrides.teamId`) redacts. Judging the apply's own recomputation instead would let an override
+     * turn a redacted NO_TEAM row into a CREATE, which reaches the target guard and is written: a `403` naming the key, or a new row. They
+     * are dropped from the ticks before the kernel runs, so no guard looks at them; [skippedAnswer] reports them as `CHANGED`, no key.
+     */
+    private fun withheldIds(preview: ImportInput): Set<String> {
+        if (caller.isAdmin() || !request.filter.isActive()) return emptySet()
+        return JiraImportKernels.plan(preview).rows.filter { it.item.isRedactedSkip() }.mapTo(HashSet()) { it.item.jiraId }
     }
 
     private suspend fun takeBindLock() {
@@ -222,12 +236,29 @@ internal class LockedApply(
         }
     }
 
+    /**
+     * The answer's `skipped[]`: the visible skips in row order (a key and the kernel's reason). For a non-admin under an active filter
+     * every other ticked id - one the preview redacts ([withheld]) and one the browse does not hold - follows as `CHANGED` with no key, in
+     * the order the caller ticked them, so the two cannot be told apart: the apply would otherwise be a bulk probe for the keys the
+     * preview withholds. Everyone else gets the plain list (the vanished ones last, as the kernel reports them).
+     */
+    private fun skippedAnswer(skips: List<ImportSkip>, withheld: Set<String>): List<JiraImportSkipped> {
+        val plain = skips.map { JiraImportSkipped(it.jiraId, it.issueKey, it.reason) }
+        if (caller.isAdmin() || !request.filter.isActive()) return plain
+        val ticked = request.items.map { it.jiraId }
+        val concealed = withheld + skips.filter { it.issueKey == null }.map { it.jiraId }
+        // Every concealed id is a tick (duplicates are a 400), so filtering the ticks keeps their order in one pass under the plan lock.
+        return plain.filter { it.issueKey != null } +
+            ticked.filter { it in concealed }.map { JiraImportSkipped(it, null, JiraImportReason.CHANGED) }
+    }
+
     /** One binding (and first observation) per written row, in row order; the dead holders it releases are the plan's `releases`. */
     private suspend fun bind(
         writes: List<ImportRow>,
         nodeIds: Map<String, UInt>,
         siteConnectionIds: List<UInt>,
         plan: ImportPlan,
+        withheld: Set<String>,
     ): ImportWritten {
         val created = ArrayList<JiraImportCreated>()
         val bound = ArrayList<JiraImportBound>()
@@ -240,14 +271,13 @@ internal class LockedApply(
             )
             released += inserted.released
             if (item.action == JiraImportAction.BIND) {
-                bound += JiraImportBound(item.jiraId, item.issueKey, item.level, nodeId, inserted.bindingId)
+                bound += JiraImportBound(item.jiraId, item.key(), item.level, nodeId, inserted.bindingId)
             } else {
                 val scheduled = row.span != null
-                created += JiraImportCreated(item.jiraId, item.issueKey, item.level, nodeId, inserted.bindingId, item.name, scheduled)
+                created += JiraImportCreated(item.jiraId, item.key(), item.level, nodeId, inserted.bindingId, item.name, scheduled)
             }
         }
-        val skipped = plan.skips.map { JiraImportSkipped(it.jiraId, it.issueKey, it.reason) }
-        return ImportWritten(created, bound, skipped, released)
+        return ImportWritten(created, bound, skippedAnswer(plan.skips, withheld), released)
     }
 }
 

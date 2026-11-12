@@ -393,6 +393,8 @@
       }
     },
     "row": {
+      "keyHidden": "Hidden",
+      "keyHiddenHint": "With a filter on, only an administrator sees the keys of skipped items.",
       "linksTo": "Links to the existing {{name}}",
       "underStream": "In the work stream",
       "underNew": "Under new {{name}}",

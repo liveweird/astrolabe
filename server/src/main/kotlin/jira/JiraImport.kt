@@ -107,7 +107,7 @@ data class JiraImportTeam(val id: UInt, val name: String, val rule: JiraImportTe
 @Serializable
 data class JiraImportItem(
     val jiraId: String,
-    val issueKey: String,
+    val issueKey: String?,
     val summary: String,
     val typeName: String? = null,
     val hierarchyLevel: Int? = null,
@@ -126,7 +126,13 @@ data class JiraImportItem(
     val canSchedule: Boolean,
     val scheduled: Boolean,
     val infos: List<JiraImportInfo>,
-)
+) {
+    /**
+     * The Jira key of an unredacted row (every row the kernel and the apply handle). Only the route's redaction of a non-admin's preview
+     * under an active filter withholds it ([issueKey] null, `JiraImportRedaction.kt`), after the guards and never on an apply's row.
+     */
+    fun key(): String = checkNotNull(issueKey) { "a row that is not redacted has its issue key" }
+}
 
 /**
  * [truncated]: what is shown is incomplete and cannot be imported (the user narrows `projectKeys` or the filter): more issues were in
