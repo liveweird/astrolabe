@@ -1,6 +1,9 @@
 package ch.nokillswit
 
+import ch.nokillswit.jira.DeviationItem
 import ch.nokillswit.jira.JiraLevel
+import ch.nokillswit.jira.JiraStatusCategory
+import ch.nokillswit.planning.DeviationKind
 import ch.nokillswit.sync.STALE_DEVIATIONS_PROBLEM
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.testing.ApplicationTestBuilder
@@ -341,4 +344,40 @@ class JiraAcknowledgeTest {
         assertTrue(admin.dvView("connectionId=${f.connectionId}").items.any { it.bindingId == binding }, "and the item is open again")
         assertEquals(HttpStatusCode.Conflict, admin.ack(binding, item.fingerprint).status, "the old fingerprint is stale now")
     }
+
+    @Test
+    fun `a CHILDREN_OPEN acknowledgement reopens when the open or total child count changes, the stored row surviving`() =
+        testApplication {
+            val f = fixture("ack12")
+            val admin = f.w.admin.client
+            val name = planName("ended")
+            val epic = TestPlan.milestone(f.w.projectId, f.w.requireTeams().teamId, name)
+            TestPlan.schedule(epic, "2024-02-01", "2024-02-09") // the plan ended long ago
+            val binding = dvBind(
+                f.connectionId, JiraLevel.MILESTONE, epic, "81000", "ACK-81000", DvObs(name, 1, start = "2024-02-01", end = "2024-02-09"),
+            )
+            (1..12).forEach { n ->
+                val status = if (n <= 3) JiraStatusCategory.IN_PROGRESS else JiraStatusCategory.DONE
+                dvMirror(f.connectionId, "81%03d".format(n), level = 0, parent = "81000", status = status)
+            }
+            fun DeviationItem.childrenOpen() = deviations.single { it.kind == DeviationKind.CHILDREN_OPEN }
+
+            val first = admin.ackItem(f.connectionId, binding)
+            assertEquals(setOf(DeviationKind.CHILDREN_OPEN), first.kindSet())
+            assertEquals("3/12", first.childrenOpen().detail.jira)
+            assertTrue(admin.dvView("connectionId=${f.connectionId}").byBinding().containsKey(binding), "open by default")
+
+            admin.ack(binding, first.fingerprint).acknowledgement()
+            val stamp = storedAcks(binding).getValue(DeviationKind.CHILDREN_OPEN.name)
+            assertEquals(true, admin.ackItem(f.connectionId, binding).childrenOpen().acknowledgement?.current)
+            assertTrue(admin.dvView("connectionId=${f.connectionId}").items.none { it.bindingId == binding }, "acknowledged: not open")
+
+            // The first child turns done: 2 of 12 are open. The row stays; the line reads changed-since and the item is open again.
+            dvMirror(f.connectionId, "81001", level = 0, parent = "81000", status = JiraStatusCategory.DONE)
+            val reopened = admin.ackItem(f.connectionId, binding)
+            assertEquals("2/12", reopened.childrenOpen().detail.jira)
+            assertEquals(false, reopened.childrenOpen().acknowledgement?.current)
+            assertEquals(stamp.fingerprint, storedAcks(binding).getValue(DeviationKind.CHILDREN_OPEN.name).fingerprint, "row survives")
+            assertTrue(admin.dvView("connectionId=${f.connectionId}").byBinding().containsKey(binding), "open again")
+        }
 }
