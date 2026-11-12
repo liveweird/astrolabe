@@ -3,7 +3,7 @@ import { Button, Group, MultiSelect, NumberInput, Select, Stack, Switch, Text } 
 import { useQuery } from "@tanstack/react-query";
 import { getPlanView } from "../api/plan";
 import type { ImportFailure } from "../utils/jiraImportText";
-import { MAX_IMPORT_UPDATED_DAYS, MIN_IMPORT_UPDATED_DAYS, toScope, updatedWithinOf, type ImportConnection, type ImportSource, type ScopeForm } from "../utils/jiraImport";
+import { MAX_IMPORT_UPDATED_DAYS, MIN_IMPORT_UPDATED_DAYS, toScope, updatedWithinOf, type ImportConnection, type ImportRoot, type ImportSource, type ScopeForm } from "../utils/jiraImport";
 import ErrorAlert from "./ErrorAlert";
 import JiraImportConnectionField from "./JiraImportConnectionField";
 import JiraImportFailureAlert from "./JiraImportFailureAlert";
@@ -17,10 +17,14 @@ import TeamSelect from "./TeamSelect";
  * and projects come from the plan view (`["plan","view"]`, shared with the Plan page): the defaults are offered only from the picked stream,
  * which is the server's own rule (a default elsewhere is a 400). The connection comes from the modal's source (`JiraImportConnectionField`);
  * Preview waits for one. `streamLocked` (opened from a work stream's own menu on the Plan page) shows the preset stream read-only.
+ * With a `root` (1.14, a linked program) the step opens with a note naming what is read and where it lands; the work stream, the Jira projects
+ * and the default program are not asked (the stream is the root's, every key of the connection is read, a rooted import creates no program),
+ * the owner only for a program root, and the "default project" becomes the root program's own projects, for the items Jira lists straight under it.
  */
 export default function JiraImportScopeStep({
   source,
   connection,
+  root,
   streamLocked,
   form,
   failure,
@@ -32,6 +36,7 @@ export default function JiraImportScopeStep({
 }: {
   source: ImportSource;
   connection: ImportConnection | null;
+  root?: ImportRoot;
   streamLocked: boolean;
   form: ScopeForm;
   failure: ImportFailure | null;
@@ -49,8 +54,10 @@ export default function JiraImportScopeStep({
   const projects = (stream?.programs ?? []).flatMap((program) =>
     program.projects.map((project) => ({ value: String(project.id), label: t("jira.import.scope.projectOption", { name: project.name, program: program.name }) })),
   );
+  const rootProjects = (stream?.programs.find((program) => program.id === root?.nodeId)?.projects ?? []).map((project) => ({ value: String(project.id), label: project.name }));
   const keys = connection?.projectKeys ?? [];
-  const ready = connection !== null && toScope(form, keys) !== null;
+  const ready = connection !== null && toScope(form, keys, root) !== null;
+  const connectionUnusable = root !== undefined && source.connections !== null && source.connections.length === 0;
 
   return (
     <form
@@ -61,44 +68,62 @@ export default function JiraImportScopeStep({
       }}
     >
       <Stack>
-        <Text size="sm" c="dimmed">
-          {t("jira.import.scope.intro")}
-        </Text>
-        <JiraImportConnectionField source={source} selected={connection} disabled={reading} onPick={onPickConnection} />
+        {root === undefined ? (
+          <Text size="sm" c="dimmed">
+            {t("jira.import.scope.intro")}
+          </Text>
+        ) : (
+          <Text size="sm" role="note">
+            {t(root.level === "PROGRAM" ? "jira.import.scope.rootProgram" : "jira.import.scope.rootProject", { key: root.issueKey, name: root.name })}
+          </Text>
+        )}
+        {connectionUnusable ? (
+          <Text size="sm" role="note">
+            {t("jira.import.scope.rootConnectionUnusable")}
+          </Text>
+        ) : (
+          <JiraImportConnectionField source={source} selected={connection} disabled={reading} onPick={onPickConnection} />
+        )}
         {plan.isError && <ErrorAlert error={plan.error} title={t("jira.import.scope.planFailed")} />}
-        <Select
-          label={t("jira.import.scope.workStream")}
-          description={t("jira.import.scope.workStreamHint")}
-          placeholder={t("jira.import.scope.pickWorkStream")}
-          data={streams.map((candidate) => ({ value: String(candidate.id), label: candidate.endDate ? t("jira.import.scope.closedName", { name: candidate.name }) : candidate.name }))}
-          value={form.workStreamId}
-          onChange={(value) => onChange({ workStreamId: value, programId: null, projectId: null })}
-          searchable
-          withAsterisk
-          allowDeselect={false}
-          nothingFoundMessage={t("jira.import.scope.noWorkStreams")}
-          readOnly={streamLocked}
-          disabled={reading}
-        />
-        <PersonSelect
-          label={t("jira.import.scope.owner")}
-          description={t("jira.import.scope.ownerHint")}
-          placeholder={t("plan.pickOwner")}
-          clearLabel={t("plan.clearOwner")}
-          picked={form.owner}
-          onPick={(owner) => onChange({ owner })}
-          disabled={reading}
-        />
-        <MultiSelect
-          label={t("jira.import.scope.keys")}
-          description={t("jira.import.scope.keysHint")}
-          data={[...keys]}
-          value={form.keys}
-          onChange={(keys) => onChange({ keys })}
-          withAsterisk
-          disabled={reading}
-          error={form.keys.length === 0 ? t("jira.import.scope.keysRequired") : undefined}
-        />
+        {root === undefined && (
+          <Select
+            label={t("jira.import.scope.workStream")}
+            description={t("jira.import.scope.workStreamHint")}
+            placeholder={t("jira.import.scope.pickWorkStream")}
+            data={streams.map((candidate) => ({ value: String(candidate.id), label: candidate.endDate ? t("jira.import.scope.closedName", { name: candidate.name }) : candidate.name }))}
+            value={form.workStreamId}
+            onChange={(value) => onChange({ workStreamId: value, programId: null, projectId: null })}
+            searchable
+            withAsterisk
+            allowDeselect={false}
+            nothingFoundMessage={t("jira.import.scope.noWorkStreams")}
+            readOnly={streamLocked}
+            disabled={reading}
+          />
+        )}
+        {root?.level !== "PROJECT" && (
+          <PersonSelect
+            label={t("jira.import.scope.owner")}
+            description={t("jira.import.scope.ownerHint")}
+            placeholder={t("plan.pickOwner")}
+            clearLabel={t("plan.clearOwner")}
+            picked={form.owner}
+            onPick={(owner) => onChange({ owner })}
+            disabled={reading}
+          />
+        )}
+        {root === undefined && (
+          <MultiSelect
+            label={t("jira.import.scope.keys")}
+            description={t("jira.import.scope.keysHint")}
+            data={[...keys]}
+            value={form.keys}
+            onChange={(keys) => onChange({ keys })}
+            withAsterisk
+            disabled={reading}
+            error={form.keys.length === 0 ? t("jira.import.scope.keysRequired") : undefined}
+          />
+        )}
         <Switch
           label={t("jira.import.scope.excludeDone")}
           description={
@@ -138,24 +163,40 @@ export default function JiraImportScopeStep({
           onPick={(team) => onChange({ team })}
           disabled={reading}
         />
-        <Group grow align="flex-start">
+        {root === undefined && (
+          <Group grow align="flex-start">
+            <Select
+              label={t("jira.import.scope.program")}
+              description={t("jira.import.scope.programHint")}
+              placeholder={t("jira.import.scope.none")}
+              data={programs}
+              value={form.programId}
+              onChange={(programId) => onChange({ programId })}
+              searchable
+              clearable
+              clearButtonProps={{ "aria-label": t("jira.import.scope.clearProgram") }}
+              disabled={reading || stream === undefined}
+            />
+            <Select
+              label={t("jira.import.scope.project")}
+              description={t("jira.import.scope.projectHint")}
+              placeholder={t("jira.import.scope.none")}
+              data={projects}
+              value={form.projectId}
+              onChange={(projectId) => onChange({ projectId })}
+              searchable
+              clearable
+              clearButtonProps={{ "aria-label": t("jira.import.scope.clearProject") }}
+              disabled={reading || stream === undefined}
+            />
+          </Group>
+        )}
+        {root?.level === "PROGRAM" && (
           <Select
-            label={t("jira.import.scope.program")}
-            description={t("jira.import.scope.programHint")}
+            label={t("jira.import.scope.directProject", { key: root.issueKey })}
+            description={t("jira.import.scope.directProjectHint", { key: root.issueKey })}
             placeholder={t("jira.import.scope.none")}
-            data={programs}
-            value={form.programId}
-            onChange={(programId) => onChange({ programId })}
-            searchable
-            clearable
-            clearButtonProps={{ "aria-label": t("jira.import.scope.clearProgram") }}
-            disabled={reading || stream === undefined}
-          />
-          <Select
-            label={t("jira.import.scope.project")}
-            description={t("jira.import.scope.projectHint")}
-            placeholder={t("jira.import.scope.none")}
-            data={projects}
+            data={rootProjects}
             value={form.projectId}
             onChange={(projectId) => onChange({ projectId })}
             searchable
@@ -163,7 +204,7 @@ export default function JiraImportScopeStep({
             clearButtonProps={{ "aria-label": t("jira.import.scope.clearProject") }}
             disabled={reading || stream === undefined}
           />
-        </Group>
+        )}
         {failure && <JiraImportFailureAlert failure={failure} />}
         <Group justify="flex-end" gap="sm">
           <Button type="button" variant="default" onClick={onClose} disabled={reading}>

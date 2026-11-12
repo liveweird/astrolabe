@@ -23,6 +23,7 @@ export type JiraBinding = Schemas["JiraBinding"];
 export type JiraBindRequest = Schemas["JiraBindRequest"];
 export type JiraLevel = JiraBindRequest["level"];
 export type JiraImportScope = Schemas["JiraImportScope"];
+export type JiraImportRoot = Schemas["JiraImportRoot"];
 export type JiraImportPreview = Schemas["JiraImportPreview"];
 export type JiraImportItem = Schemas["JiraImportItem"];
 export type JiraImportApplyItem = Schemas["JiraImportApplyItem"];
@@ -42,6 +43,9 @@ const ALREADY_BOUND_TYPE = "urn:astrolabe:problem:already-bound";
 /** … of the 409 when the connection's mapping no longer fits the site: an administrator has to fix it. */
 const MAPPING_INVALID_TYPE = "urn:astrolabe:problem:jira-mapping-invalid";
 
+/** … of the 409 when a rooted import's linked node cannot be read from (no usable link, the Jira item gone, moved out of the connection's projects or at another level). */
+const ROOT_UNUSABLE_TYPE = "urn:astrolabe:problem:jira-root-unusable";
+
 /** A 409 telling the node or the issue is already linked to something else. */
 export function isAlreadyBound(err: unknown): boolean {
   return err instanceof ApiError && err.status === 409 && err.type === ALREADY_BOUND_TYPE;
@@ -60,6 +64,11 @@ export function isJiraNotDiscovered(err: unknown): boolean {
 /** A 409 telling the stored token cannot be decrypted: edit the connection and enter the token again. */
 export function isJiraTokenUnreadable(err: unknown): boolean {
   return err instanceof ApiError && err.status === 409 && err.type === TOKEN_UNREADABLE_TYPE;
+}
+
+/** A 409 telling a rooted import (1.14) cannot start from the linked node: see the Deviations page. */
+export function isJiraRootUnusable(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 409 && err.type === ROOT_UNUSABLE_TYPE;
 }
 
 type JiraConnectionListQuery = { page: number; pageSize: number; sort?: string };

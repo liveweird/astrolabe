@@ -5,7 +5,8 @@ import Plan from "./Plan";
 import type { PlanProgram, PlanProject, PlanView, PlanWorkStream } from "../api/plan";
 import { QueryClient } from "@tanstack/react-query";
 import { headingOutline } from "../test/headings";
-import { DEV_CONNECTION, view as deviationsOf } from "../test/deviations";
+import { DEV_CONNECTION, item as deviationItem, view as deviationsOf } from "../test/deviations";
+import type { DeviationItem } from "../api/deviations";
 import { jsonResponse } from "../test/http";
 import { renderWithProviders } from "../test/render";
 
@@ -81,6 +82,9 @@ const PEOPLE = {
 
 let view: PlanView;
 let connections = [DEV_CONNECTION];
+// What the program-links read (`level=PROGRAM&all=true`) answers; a status other than 200 makes that read fail.
+let programItems: DeviationItem[] = [];
+let programLinksStatus = 200;
 
 function serve(mockFetch: FetchMock, mutations: Record<string, { status: number; body?: unknown }> = {}) {
   mockFetch.mockImplementation((url: string, init?: RequestInit) => {
@@ -88,6 +92,9 @@ function serve(mockFetch: FetchMock, mutations: Record<string, { status: number;
     const m = mutations[`${method} ${url}`];
     if (m) return Promise.resolve(m.body === undefined ? new Response(null, { status: m.status }) : jsonResponse(m.status, m.body));
     if (method === "GET" && url === "/api/v1/views/plan") return Promise.resolve(jsonResponse(200, view));
+    if (method === "GET" && url.startsWith("/api/v1/views/deviations?level=PROGRAM")) {
+      return Promise.resolve(programLinksStatus === 200 ? jsonResponse(200, deviationsOf({ connections, items: programItems })) : jsonResponse(programLinksStatus, { title: "x", status: programLinksStatus }));
+    }
     if (method === "GET" && url.startsWith("/api/v1/views/deviations")) return Promise.resolve(jsonResponse(200, deviationsOf({ connections, items: [] })));
     if (method === "GET" && url.startsWith("/api/v1/people?")) return Promise.resolve(jsonResponse(200, PEOPLE));
     return Promise.resolve(jsonResponse(404, { title: "x", status: 404 }));
@@ -527,6 +534,18 @@ describe("Plan page and the roadmap", () => {
   });
 });
 
+const LINKS_URL = "/api/v1/views/deviations?level=PROGRAM&all=true";
+/** The deviations item of a program linked to `key` through connection 1. */
+const programLink = (id: number, name: string, key: string): DeviationItem =>
+  deviationItem({
+    bindingId: 70 + id,
+    connectionId: 1,
+    level: "PROGRAM",
+    node: { kind: "PROGRAM", id, name, projectId: null, projectName: null, programId: id, programName: name, workStreamId: 1, workStreamName: "Platform", teamId: null, teamName: null },
+    jira: { ...deviationItem().jira, key },
+    deviations: [],
+  });
+
 describe("Plan page: Import from Jira", () => {
   const deviationCalls = (mockFetch: FetchMock) => mockFetch.mock.calls.map(([u]) => String(u)).filter((u) => u.startsWith("/api/v1/views/deviations"));
   let mockFetch: FetchMock;
@@ -534,6 +553,8 @@ describe("Plan page: Import from Jira", () => {
   beforeEach(() => {
     view = VIEW;
     connections = [DEV_CONNECTION];
+    programItems = [];
+    programLinksStatus = 200;
     mockFetch = vi.fn();
     vi.stubGlobal("fetch", mockFetch);
     localStorage.setItem("astrolabe.auth.token", "fake-token");
@@ -545,15 +566,15 @@ describe("Plan page: Import from Jira", () => {
     localStorage.clear();
   });
 
-  test("the entry is in the stream's menu under can.edit only, and the connections are asked for only after the click", async () => {
+  test("the entry is in the stream's menu under can.edit only, and the stream's connections are asked for only after the click (the program links are the page's own read)", async () => {
     const user = userEvent.setup();
     renderWithProviders(<Plan />);
     await screen.findByRole("heading", { level: 3, name: "Platform" });
-    expect(deviationCalls(mockFetch)).toEqual([]);
+    await waitFor(() => expect(deviationCalls(mockFetch)).toEqual([LINKS_URL]));
     await user.click(screen.getByRole("button", { name: "Operations for Platform" }));
     await user.click(await screen.findByRole("menuitem", { name: "Import from Jira into Platform" }));
     expect(await screen.findByRole("heading", { level: 2, name: "Import from Jira" })).toBeInTheDocument();
-    expect(deviationCalls(mockFetch)).toEqual(["/api/v1/views/deviations?workStreamId=1"]);
+    expect(deviationCalls(mockFetch)).toEqual([LINKS_URL, "/api/v1/views/deviations?workStreamId=1"]);
   });
 
   test("the dialog opens with the stream preset and read-only and the one usable connection preselected", async () => {
@@ -586,6 +607,106 @@ describe("Plan page: Import from Jira", () => {
     await screen.findByRole("heading", { level: 3, name: "Platform" });
     expect(screen.queryByRole("button", { name: "Operations for Platform" })).not.toBeInTheDocument();
     expect(deviationCalls(mockFetch)).toEqual([]);
+  });
+});
+
+describe("Plan page: Import from a linked program (1.14)", () => {
+  const deviationCalls = (mockFetch: FetchMock) => mockFetch.mock.calls.map(([u]) => String(u)).filter((u) => u.startsWith("/api/v1/views/deviations"));
+  const ENTRY = "Import what Jira lists under Billing";
+  let mockFetch: FetchMock;
+
+  beforeEach(() => {
+    view = VIEW;
+    connections = [DEV_CONNECTION];
+    programItems = [programLink(10, "Billing", "IMC-1")];
+    programLinksStatus = 200;
+    mockFetch = vi.fn();
+    vi.stubGlobal("fetch", mockFetch);
+    localStorage.setItem("astrolabe.auth.token", "fake-token");
+    serve(mockFetch);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    localStorage.clear();
+  });
+
+  test("a linked program with can.createProject has the entry; an unlinked one does not", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Plan />);
+    await user.click(await screen.findByRole("button", { name: "Operations for Billing" }));
+    expect(await screen.findByRole("menuitem", { name: ENTRY })).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("button", { name: "Operations for Identity" }));
+    await screen.findByRole("menuitem", { name: "Edit Identity" });
+    expect(screen.queryByRole("menuitem", { name: "Import what Jira lists under Identity" })).not.toBeInTheDocument();
+  });
+
+  test("a linked program without can.createProject has no entry, and a view without any such program asks nothing", async () => {
+    view = {
+      revision: 1,
+      can: { createWorkStream: true },
+      workStreams: [stream({ id: 1, name: "Platform", programs: [program({ id: 10, name: "Billing", can: { edit: true, delete: true, createProject: false, move: true } })] })],
+    };
+    const user = userEvent.setup();
+    renderWithProviders(<Plan />);
+    await user.click(await screen.findByRole("button", { name: "Operations for Billing" }));
+    await screen.findByRole("menuitem", { name: "Edit Billing" });
+    expect(screen.queryByRole("menuitem", { name: ENTRY })).not.toBeInTheDocument();
+    expect(deviationCalls(mockFetch)).toEqual([]);
+  });
+
+  test("the program's kebab appears for the entry alone", async () => {
+    view = {
+      revision: 1,
+      can: { createWorkStream: false },
+      workStreams: [
+        stream({
+          id: 1,
+          name: "Platform",
+          can: { edit: false, delete: false, createProgram: false },
+          programs: [program({ id: 10, name: "Billing", can: { edit: false, delete: false, createProject: true, move: false } })],
+        }),
+      ],
+    };
+    const user = userEvent.setup();
+    renderWithProviders(<Plan />);
+    await user.click(await screen.findByRole("button", { name: "Operations for Billing" }));
+    expect(await screen.findByRole("menuitem", { name: ENTRY })).toBeInTheDocument();
+  });
+
+  test("the dialog opens rooted at the program with no second connections read", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Plan />);
+    await waitFor(() => expect(deviationCalls(mockFetch)).toEqual([LINKS_URL]));
+    await openMenu(user, "Billing", ENTRY);
+    const dialog = await screen.findByRole("dialog");
+    expect(await within(dialog).findByText("Importing what Jira lists under IMC-1 into the program “Billing”: its projects and their milestones.")).toBeInTheDocument();
+    expect(within(dialog).getByRole("combobox", { name: /^Jira connection/ })).toHaveValue("Acme Jira");
+    expect(within(dialog).queryByRole("combobox", { name: /^Work stream/ })).not.toBeInTheDocument();
+    await waitFor(() => expect(within(dialog).getByRole("combobox", { name: "Owner of the new items" })).toHaveValue("Pola Program"));
+    expect(deviationCalls(mockFetch)).toEqual([LINKS_URL]);
+  });
+
+  test("a failed links read hides the entry and shows no error on the page", async () => {
+    programLinksStatus = 500;
+    const user = userEvent.setup();
+    renderWithProviders(<Plan />);
+    await user.click(await screen.findByRole("button", { name: "Operations for Billing" }));
+    await screen.findByRole("menuitem", { name: "Edit Billing" });
+    await waitFor(() => expect(deviationCalls(mockFetch)).toEqual([LINKS_URL]));
+    expect(screen.queryByRole("menuitem", { name: ENTRY })).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  test("a link through a connection that is not usable still shows the entry; the dialog says an administrator has to fix it", async () => {
+    connections = [{ ...DEV_CONNECTION, enabled: false }];
+    const user = userEvent.setup();
+    renderWithProviders(<Plan />);
+    await openMenu(user, "Billing", ENTRY);
+    const dialog = await screen.findByRole("dialog");
+    expect(await within(dialog).findByText(/disabled or no longer fits its site/)).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Preview" })).toBeDisabled();
   });
 });
 

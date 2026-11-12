@@ -312,6 +312,7 @@
     "title": "Import from Jira",
     "entry": "Import from Jira…",
     "entryAria": "Import from Jira into {{name}}",
+    "entryRootAria": "Import what Jira lists under {{name}}",
     "step": "Step {{n}} of 3: {{name}}",
     "stepName": {
       "scope": "choose what to import",
@@ -354,7 +355,12 @@
       "none": "None",
       "clearProgram": "Clear the default program",
       "clearProject": "Clear the default project",
-      "preview": "Preview"
+      "preview": "Preview",
+      "rootProgram": "Importing what Jira lists under {{key}} into the program “{{name}}”: its projects and their milestones.",
+      "rootProject": "Importing what Jira lists under {{key}} into the project “{{name}}”: its milestones.",
+      "rootConnectionUnusable": "This item is linked through a connection that is disabled or no longer fits its site: an administrator has to enable and test it.",
+      "directProject": "Project for items directly under {{key}}",
+      "directProjectHint": "Milestone-level items that Jira lists straight under {{key}} have no project to go to. Pick one of this program's projects for them, or they are skipped. Optional."
     },
     "preview": {
       "title": "What the import would do",
@@ -391,6 +397,9 @@
       "tableAria": "Import preview",
       "empty": "Nothing in scope: the selected Jira projects have no issues at the mapped levels.",
       "emptyFiltered": "Nothing to import: no issue at the mapped levels passes the filter, or the projects have none. Go back and widen it.",
+      "rootEmpty": "Jira lists nothing under {{key}} at the levels this connection maps.",
+      "rootEmptyFilter": "The filter may be why: go back and switch “Leave out done items” off or widen the days.",
+      "rootEmptyCheck": "If {{key}} has child items in Jira, search Jira for parent = {{key}}.",
       "alsoTicked_one": "Ticked {{key}} and the item it is created under.",
       "alsoTicked_other": "Ticked {{key}} and the {{count}} items it is created under.",
       "alsoUnticked_one": "Unticked {{key}} and the {{count}} item created under it: it would be skipped.",
@@ -471,6 +480,7 @@
       "mappingInvalid": "The connection's mapping no longer fits the Jira site. An administrator has to fix it on the connection page.",
       "notDiscovered": "This connection has not been tested yet. Test it first.",
       "tokenUnreadable": "The connection's token cannot be read. Enter it again by editing the connection.",
+      "rootUnusable": "The Jira link of this item cannot be used to import from: the Jira item was deleted or is no longer visible, moved outside the connection's projects, changed its level, or the link was removed. See the Deviations page.",
       "invalid": "The import was refused:",
       "forbidden": "You may not import here:",
       "gone": "Something the import refers to no longer exists:",

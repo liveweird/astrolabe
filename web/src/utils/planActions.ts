@@ -8,6 +8,10 @@ export type PlanActions = {
   setWorkStreamClosed: (stream: PlanWorkStream, closed: boolean) => void;
   /** Open the Jira import for this stream (a stream's owner or ADMIN; the stream is preset in the dialog). */
   importFromJira: (stream: PlanWorkStream) => void;
+  /** Open the Jira import rooted at this LINKED program (1.14: only what Jira lists under its item; the program's owner chain or ADMIN). */
+  importChildren: (stream: PlanWorkStream, program: PlanProgram) => void;
+  /** Whether the program offers it: its own `can.createProject` AND a Jira link (the Plan page reads the links once). */
+  canImportChildren: (program: PlanProgram) => boolean;
   newProgram: (stream: PlanWorkStream) => void;
   editProgram: (stream: PlanWorkStream, program: PlanProgram) => void;
   deleteProgram: (program: PlanProgram) => void;

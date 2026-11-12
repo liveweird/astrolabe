@@ -1,5 +1,5 @@
 import { Anchor, Box, Button, Group, Menu, Stack, Table, Text, Title } from "@mantine/core";
-import { IconArrowsExchange, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconArrowsExchange, IconFileImport, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink } from "react-router-dom";
 import type { PlanProgram, PlanWorkStream } from "../api/plan";
@@ -25,6 +25,7 @@ export default function PlanProgramBlock({
   const { t } = useTranslation();
   const { can } = program;
   const canMoveProgram = actions.canMoveProgram(program);
+  const canImportChildren = actions.canImportChildren(program);
   const tableLabel = t("plan.projectsTableAria", { name: program.name });
   return (
     <Stack gap="xs">
@@ -50,7 +51,7 @@ export default function PlanProgramBlock({
               {t("plan.newProject")}
             </Button>
           )}
-          {(can.edit || canMoveProgram || can.delete) && (
+          {(can.edit || canMoveProgram || canImportChildren || can.delete) && (
             <RowActionsMenu label={t("common.table.operationsAria", { name: program.name })}>
               {can.edit && (
                 <Menu.Item
@@ -70,7 +71,16 @@ export default function PlanProgramBlock({
                   {t("plan.move.action")}
                 </Menu.Item>
               )}
-              {(can.edit || canMoveProgram) && can.delete && <Menu.Divider />}
+              {canImportChildren && (
+                <Menu.Item
+                  leftSection={<IconFileImport size={14} />}
+                  onClick={() => actions.importChildren(workStream, program)}
+                  aria-label={t("jira.import.entryRootAria", { name: program.name })}
+                >
+                  {t("jira.import.entry")}
+                </Menu.Item>
+              )}
+              {(can.edit || canMoveProgram || canImportChildren) && can.delete && <Menu.Divider />}
               {can.delete && (
                 <DestructiveMenuItem
                   leftSection={<IconTrash size={14} />}

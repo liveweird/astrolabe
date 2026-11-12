@@ -4,7 +4,7 @@ import { Alert, Badge, Button, Checkbox, Group, Loader, Stack, Table, Text, Titl
 import { useQuery } from "@tanstack/react-query";
 import { listTeams } from "../api/teams";
 import type { PreviewState } from "../hooks/useJiraImport";
-import { allSelectable, blockingParent, type ImportConnection, indexItems, isSelectable, searchItems, tickRow, tickShown, unscheduledForRights } from "../utils/jiraImport";
+import { allSelectable, blockingParent, type ImportConnection, type ImportRoot, indexItems, isSelectable, searchItems, tickRow, tickShown, unscheduledForRights } from "../utils/jiraImport";
 import type { ImportFailure } from "../utils/jiraImportText";
 import ClearableTextInput from "./ClearableTextInput";
 import JiraImportFailureAlert from "./JiraImportFailureAlert";
@@ -20,6 +20,7 @@ function leftOutKeyOf(excludeDone: boolean, days: number | null) {
 /** The second phase: what the import would do, with a tickbox per row that would be written. The ticks and the per-row team overrides are this component's state. */
 export default function JiraImportPreviewStep({
   connection,
+  root,
   preview,
   busy,
   failure,
@@ -28,6 +29,8 @@ export default function JiraImportPreviewStep({
   onPreviewAgain,
 }: {
   connection: ImportConnection;
+  /** A rooted import (1.14): an empty preview says what Jira listed under the root's key, not that the scope is empty. */
+  root?: ImportRoot;
   preview: PreviewState;
   busy: "preview" | "apply" | null;
   failure: ImportFailure | null;
@@ -149,7 +152,13 @@ export default function JiraImportPreviewStep({
           {announcement}
         </Text>
       </Group>
-      {items.length === 0 ? (
+      {items.length === 0 && root !== undefined ? (
+        <Stack gap={4} role="note">
+          <Text size="sm">{t("jira.import.preview.rootEmpty", { key: root.issueKey })}</Text>
+          {filter !== null && <Text size="sm">{t("jira.import.preview.rootEmptyFilter")}</Text>}
+          <Text size="sm">{t("jira.import.preview.rootEmptyCheck", { key: root.issueKey })}</Text>
+        </Stack>
+      ) : items.length === 0 ? (
         <Text size="sm" role="note">
           {t(filter === null ? "jira.import.preview.empty" : "jira.import.preview.emptyFiltered")}
         </Text>

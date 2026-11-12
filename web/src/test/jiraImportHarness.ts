@@ -71,9 +71,9 @@ export async function fillScope(user: User) {
   await user.click(await screen.findByRole("option", { name: "Ola Owner" }));
 }
 
-/** Fills the scope step and previews; resolves once the preview phase is on screen. */
-export async function previewScope(user: User) {
-  await fillScope(user);
+/** Fills the scope step and previews; resolves once the preview phase is on screen. A rooted dialog (1.14) has both required fields preset (`rooted`: nothing to fill). */
+export async function previewScope(user: User, rooted = false) {
+  if (!rooted) await fillScope(user);
   await user.click(screen.getByRole("button", { name: "Preview" }));
   await waitFor(() => expect(screen.getByRole("heading", { level: 3, name: "What the import would do" })).toBeInTheDocument());
 }

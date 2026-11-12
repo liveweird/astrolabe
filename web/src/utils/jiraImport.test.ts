@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { allSelectable, blockingParent, emptyScope, indexItems, searchItems, tickRow, tickShown, toApplyRequest, toScope, unscheduledForRights, updatedWithinOf } from "./jiraImport";
+import { allSelectable, blockingParent, emptyScope, indexItems, searchItems, tickRow, tickShown, toApplyRequest, toScope, unscheduledForRights, updatedWithinOf, type ImportRoot } from "./jiraImport";
 import { PREVIEW_ITEMS } from "../test/jiraImport";
 
 const SCOPE = { workStreamId: 3, ownerPersonId: 8, copyDates: true };
@@ -106,6 +106,51 @@ describe("the scope", () => {
   test("a subset of the keys and the defaults are sent; all keys are not", () => {
     const form = { ...emptyScope(keys), workStreamId: "3", owner: { value: "8", label: "Ola" }, keys: ["IMP"], programId: "4", projectId: "9", team: { value: "5", label: "T" }, copyDates: false };
     expect(toScope(form, keys)).toEqual({ workStreamId: 3, ownerPersonId: 8, projectKeys: ["IMP"], defaults: { programId: 4, projectId: 9, teamId: 5 }, copyDates: false, filter: { excludeDone: true, updatedWithinDays: 365 } });
+  });
+});
+
+describe("a rooted scope (1.14)", () => {
+  const keys = ["IMC", "OUT"];
+  const owner = { value: "8", label: "Ola" };
+  const root = (level: ImportRoot["level"]): ImportRoot => ({ level, nodeId: 4, name: "Billing", issueKey: "IMC-1", connectionId: 1, workStreamId: 3, owner });
+  const FILTER = { excludeDone: true, updatedWithinDays: 365 };
+
+  test("the form opens at the preset stream and owner", () => {
+    expect(emptyScope(keys, 3, owner)).toMatchObject({ workStreamId: "3", owner });
+    expect(emptyScope(keys)).toMatchObject({ workStreamId: null, owner: null });
+  });
+
+  test("carries root {level, nodeId} and nothing else of it, and never projectKeys or the default program", () => {
+    const form = { ...emptyScope(keys, 3, owner), keys: ["IMC"], programId: "4", projectId: "9", team: { value: "5", label: "T" } };
+    expect(toScope(form, keys, root("PROGRAM"))).toEqual({
+      workStreamId: 3,
+      ownerPersonId: 8,
+      defaults: { projectId: 9, teamId: 5 },
+      copyDates: true,
+      filter: FILTER,
+      root: { level: "PROGRAM", nodeId: 4 },
+    });
+  });
+
+  test("a project root sends no default project either, and the owner is the preset one", () => {
+    const form = { ...emptyScope(keys, 3, owner), projectId: "9" };
+    expect(toScope(form, keys, root("PROJECT"))).toEqual({ workStreamId: 3, ownerPersonId: 8, copyDates: true, filter: FILTER, root: { level: "PROJECT", nodeId: 4 } });
+  });
+
+  test("the keys are not asked for: none ticked is still a scope under a root, and none without one is not", () => {
+    const form = { ...emptyScope(keys, 3, owner), keys: [] };
+    expect(toScope(form, keys, root("PROGRAM"))).not.toBeNull();
+    expect(toScope(form, keys)).toBeNull();
+  });
+
+  test("a whole-scope scope never has a root member, and the apply body repeats the root the preview was read under", () => {
+    expect(toScope(emptyScope(keys, 3, owner), keys)).not.toHaveProperty("root");
+    const scope = toScope(emptyScope(keys, 3, owner), keys, root("PROGRAM"))!;
+    expect(toApplyRequest(scope, PREVIEW_ITEMS, allSelectable(PREVIEW_ITEMS), new Map()).root).toEqual({ level: "PROGRAM", nodeId: 4 });
+  });
+
+  test("the days field is still checked", () => {
+    expect(toScope({ ...emptyScope(keys, 3, owner), updatedWithinDays: 0 }, keys, root("PROGRAM"))).toBeNull();
   });
 });
 

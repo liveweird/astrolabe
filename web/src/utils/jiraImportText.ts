@@ -1,6 +1,6 @@
 import type { TFunction } from "i18next";
 import { ApiError } from "../api/http";
-import { isJiraMappingInvalid, isJiraNotDiscovered, isJiraTokenUnreadable, type JiraImportItem, type JiraImportSkipReason } from "../api/jira";
+import { isJiraMappingInvalid, isJiraNotDiscovered, isJiraRootUnusable, isJiraTokenUnreadable, type JiraImportItem, type JiraImportSkipReason } from "../api/jira";
 import { upstreamCode } from "./jiraBind";
 
 // The import modal's sentences: every skip reason and info in words (never the raw enum), and every failure of the two calls.
@@ -71,6 +71,7 @@ export function importFailure(err: unknown, t: TFunction, ctx: { apply: boolean;
   if (isJiraMappingInvalid(err)) return { message: t(ctx.apply ? "jira.import.error.mappingChanged" : "jira.import.error.mappingInvalid"), detail: err.detail, repreview: ctx.apply };
   if (isJiraNotDiscovered(err)) return { message: t("jira.import.error.notDiscovered"), repreview: false };
   if (isJiraTokenUnreadable(err)) return { message: t("jira.import.error.tokenUnreadable"), repreview: false };
+  if (isJiraRootUnusable(err)) return { message: t("jira.import.error.rootUnusable"), repreview: false };
   switch (err.status) {
     case 400:
       return { message: t("jira.import.error.invalid"), detail: err.detail, repreview: ctx.apply };

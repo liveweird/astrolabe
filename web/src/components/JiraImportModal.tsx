@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button, Group, Loader, Modal, Stack, Text } from "@mantine/core";
 import { useJiraImport } from "../hooks/useJiraImport";
-import { emptyScope, toApplyRequest, toScope, type ImportConnection, type ImportSource, type ScopeForm } from "../utils/jiraImport";
+import { emptyScope, toApplyRequest, toScope, type ImportConnection, type ImportRoot, type ImportSource, type ScopeForm } from "../utils/jiraImport";
 import JiraImportOutcomeStep from "./JiraImportOutcomeStep";
 import JiraImportPreviewStep from "./JiraImportPreviewStep";
 import JiraImportScopeStep from "./JiraImportScopeStep";
@@ -17,18 +17,24 @@ const PHASE_NUMBER = { scope: 1, preview: 2, outcome: 3 } as const;
  * Two entry points: the connection page (ADMIN; `source` is its one connection, the stream is a free pick) and the Plan page's work-stream menu
  * (a stream's owner; `source` is the usable connections of the deviations view, `initialWorkStreamId` presets the stream, read-only). The
  * connection is preselected when exactly one is offered (the bind dialog's rule); changing it resets the Jira projects to the new one's keys.
+ * A third (1.14): with a `root` (a linked program, from the Plan page's program menu) it imports only what Jira lists under that node's item: the
+ * stream is the root's own, the connection is the one the link goes through (the only one offered; not among the usable ones, the scope step says
+ * an administrator has to fix it), the owner opens at the node's own, and the request carries `root` instead of the keys and the default program.
  */
 export default function JiraImportModal({
   source,
   initialWorkStreamId,
+  root,
   onClose,
 }: {
   source: ImportSource;
   initialWorkStreamId?: number;
+  root?: ImportRoot;
   onClose: () => void;
 }) {
   const { t } = useTranslation();
-  const offered = source.connections ?? [];
+  const offered = (source.connections ?? []).filter((candidate) => root === undefined || candidate.id === root.connectionId);
+  const scopeSource: ImportSource = root === undefined || source.connections === null ? source : { ...source, connections: offered };
   const [chosen, setChosen] = useState<string | null>(null);
   // A chosen id that left the list (a refetch dropped it) is ignored: the single remaining connection is auto-picked again, several wait for a pick.
   const chosenId = offered.some((candidate) => String(candidate.id) === chosen) ? chosen : offered.length === 1 ? String(offered[0].id) : null;
@@ -38,7 +44,7 @@ export default function JiraImportModal({
   if (picked !== null && picked !== known) setKnown(picked);
   const connection = picked ?? known;
   const run = useJiraImport(connection?.id ?? null);
-  const [form, setForm] = useState<ScopeForm>(() => emptyScope(connection?.projectKeys ?? [], initialWorkStreamId));
+  const [form, setForm] = useState<ScopeForm>(() => emptyScope(connection?.projectKeys ?? [], root?.workStreamId ?? initialWorkStreamId, root?.owner));
   const [keysOf, setKeysOf] = useState<number | null>(connection?.id ?? null);
   if (picked !== null && picked.id !== keysOf) {
     setKeysOf(picked.id);
@@ -48,7 +54,7 @@ export default function JiraImportModal({
   const { phase, preview } = run;
 
   function previewScope() {
-    const scope = connection === null ? null : toScope(form, connection.projectKeys);
+    const scope = connection === null ? null : toScope(form, connection.projectKeys, root);
     if (scope !== null) void run.runPreview(scope);
   }
 
@@ -75,8 +81,9 @@ export default function JiraImportModal({
         </Text>
         {phase === "scope" && (
           <JiraImportScopeStep
-            source={source}
+            source={scopeSource}
             connection={picked}
+            root={root}
             streamLocked={initialWorkStreamId !== undefined}
             form={form}
             failure={run.failure}
@@ -91,6 +98,7 @@ export default function JiraImportModal({
           <JiraImportPreviewStep
             key={preview.data.asOf}
             connection={connection}
+            root={root}
             preview={preview}
             busy={run.busy}
             failure={run.failure}

@@ -318,6 +318,7 @@
     "title": "Import z Jiry",
     "entry": "Importuj z Jiry…",
     "entryAria": "Importuj z Jiry do: {{name}}",
+    "entryRootAria": "Importuj z Jiry elementy podrzędne: {{name}}",
     "step": "Krok {{n}} z 3: {{name}}",
     "stepName": {
       "scope": "wybierz, co zaimportować",
@@ -360,7 +361,12 @@
       "none": "Brak",
       "clearProgram": "Wyczyść domyślny program",
       "clearProject": "Wyczyść domyślny projekt",
-      "preview": "Podgląd"
+      "preview": "Podgląd",
+      "rootProgram": "Importujesz to, co Jira wymienia pod {{key}}, do programu „{{name}}”: jego projekty i ich kamienie milowe.",
+      "rootProject": "Importujesz to, co Jira wymienia pod {{key}}, do projektu „{{name}}”: jego kamienie milowe.",
+      "rootConnectionUnusable": "Ten element jest powiązany przez połączenie, które jest wyłączone albo przestało pasować do swojej witryny: administrator/ka musi je włączyć i przetestować.",
+      "directProject": "Projekt dla elementów bezpośrednio pod {{key}}",
+      "directProjectHint": "Elementy na poziomie kamieni milowych, które Jira wymienia bezpośrednio pod {{key}}, nie mają projektu docelowego. Wybierz dla nich jeden z projektów tego programu albo zostaną pominięte. Opcjonalne."
     },
     "preview": {
       "title": "Co zrobi import",
@@ -404,6 +410,9 @@
       "rowAria": "Importuj {{key}}",
       "tableAria": "Podgląd importu",
       "empty": "Zakres jest pusty: wybrane projekty Jiry nie mają zgłoszeń na zmapowanych poziomach.",
+      "rootEmpty": "Jira nie wymienia niczego pod {{key}} na poziomach zmapowanych w tym połączeniu.",
+      "rootEmptyFilter": "Przyczyną może być filtr: wróć i wyłącz „Pomiń zakończone elementy” albo zwiększ liczbę dni.",
+      "rootEmptyCheck": "Jeśli {{key}} ma w Jirze elementy podrzędne, wyszukaj w Jirze: parent = {{key}}.",
       "emptyFiltered": "Nie ma czego importować: żadne zgłoszenie na zmapowanych poziomach nie przechodzi filtra albo projekty żadnych nie mają. Wróć i go poszerz.",
       "alsoTicked_one": "Zaznaczono {{key}} i element, pod którym powstaje.",
       "alsoTicked_few": "Zaznaczono {{key}} i {{count}} elementy, pod którymi powstaje.",
@@ -491,6 +500,7 @@
       "mappingInvalid": "Mapowanie połączenia nie pasuje już do witryny Jiry. Administrator/ka musi je poprawić na stronie połączenia.",
       "notDiscovered": "To połączenie nie było jeszcze testowane. Najpierw je przetestuj.",
       "tokenUnreadable": "Nie można odczytać tokenu połączenia. Wpisz go ponownie, edytując połączenie.",
+      "rootUnusable": "Powiązania tego elementu z Jirą nie da się użyć do importu: element w Jirze został usunięty lub przestał być widoczny, trafił poza projekty połączenia, zmienił poziom albo powiązanie usunięto. Zobacz stronę Odchylenia.",
       "invalid": "Import został odrzucony:",
       "forbidden": "Nie możesz tu importować:",
       "gone": "Coś, do czego odwołuje się import, już nie istnieje:",

@@ -1,4 +1,4 @@
-import type { JiraImportApplyItem, JiraImportApplyRequest, JiraImportItem, JiraImportScope } from "../api/jira";
+import type { JiraImportApplyItem, JiraImportApplyRequest, JiraImportItem, JiraImportRoot, JiraImportScope } from "../api/jira";
 import type { PickedOption } from "../components/SearchPicker";
 import { foldDiacritics } from "./text";
 
@@ -140,10 +140,13 @@ export function updatedWithinOf(value: number | string): { days: number | null }
   return Number.isInteger(days) && days >= MIN_IMPORT_UPDATED_DAYS && days <= MAX_IMPORT_UPDATED_DAYS ? { days } : null;
 }
 
-/** `workStreamId` presets the stream (the Plan page's work-stream menu: the stream is the intent, so the scope step shows it read-only). */
-export const emptyScope = (allKeys: readonly string[], workStreamId?: number): ScopeForm => ({
+/**
+ * `workStreamId` presets the stream (the Plan page's work-stream menu: the stream is the intent, so the scope step shows it read-only);
+ * `owner` presets the owner (a rooted import opens at the linked node's own owner).
+ */
+export const emptyScope = (allKeys: readonly string[], workStreamId?: number, owner: PickedOption | null = null): ScopeForm => ({
   workStreamId: workStreamId === undefined ? null : String(workStreamId),
-  owner: null,
+  owner,
   team: null,
   programId: null,
   projectId: null,
@@ -163,26 +166,44 @@ export type ImportConnection = { id: number; name: string; siteUrl: string; proj
 export type ImportSource = { connections: readonly ImportConnection[] | null; failed: boolean; retry: () => void };
 
 /**
+ * What a rooted import (1.14) starts from: a LINKED program (or project) of the plan, whose Jira item the server reads the children of. The
+ * name and the key are for the dialog's sentences; the connection is the one the link goes through, the stream the node's own, the owner the
+ * node's own owner (an ACTIVE person: the server refuses to delete one who owns a node).
+ */
+export type ImportRoot = {
+  level: JiraImportRoot["level"];
+  nodeId: number;
+  name: string;
+  issueKey: string;
+  connectionId: number;
+  workStreamId: number;
+  owner: PickedOption;
+};
+
+/**
  * The request scope; null while the work stream, the owner or the keys are missing, or the days field holds a value the server would refuse. All keys
  * ticked = no `projectKeys` (the server's default: every key of the connection). `filter` is sent only when a control is on (both off = the request of
- * before the filter existed); an empty days field sends no `updatedWithinDays`.
+ * before the filter existed); an empty days field sends no `updatedWithinDays`. With a `root` the keys and the default program are never sent (the
+ * server reads every key of the connection and never creates a program; the default project only makes sense under a root program) and `root`
+ * carries `{level, nodeId}` only.
  */
-export function toScope(form: ScopeForm, allKeys: readonly string[]): JiraImportScope | null {
-  if (form.workStreamId === null || form.owner === null || form.keys.length === 0) return null;
+export function toScope(form: ScopeForm, allKeys: readonly string[], root?: ImportRoot): JiraImportScope | null {
+  if (form.workStreamId === null || form.owner === null || (root === undefined && form.keys.length === 0)) return null;
   const within = updatedWithinOf(form.updatedWithinDays);
   if (within === null) return null;
   const defaults = {
-    ...(form.programId === null ? {} : { programId: Number(form.programId) }),
-    ...(form.projectId === null ? {} : { projectId: Number(form.projectId) }),
+    ...(root !== undefined || form.programId === null ? {} : { programId: Number(form.programId) }),
+    ...(form.projectId === null || root?.level === "PROJECT" ? {} : { projectId: Number(form.projectId) }),
     ...(form.team === null ? {} : { teamId: Number(form.team.value) }),
   };
   return {
     workStreamId: Number(form.workStreamId),
     ownerPersonId: Number(form.owner.value),
-    ...(form.keys.length < allKeys.length ? { projectKeys: form.keys } : {}),
+    ...(root === undefined && form.keys.length < allKeys.length ? { projectKeys: form.keys } : {}),
     ...(Object.keys(defaults).length > 0 ? { defaults } : {}),
     copyDates: form.copyDates,
     ...(form.excludeDone || within.days !== null ? { filter: { excludeDone: form.excludeDone, ...(within.days === null ? {} : { updatedWithinDays: within.days }) } } : {}),
+    ...(root === undefined ? {} : { root: { level: root.level, nodeId: root.nodeId } }),
   };
 }
 

@@ -42,6 +42,23 @@ describe("infoText", () => {
   });
 });
 
+describe("importFailure: a rooted import's 409", () => {
+  const unusable = problem(409, { type: "urn:astrolabe:problem:jira-root-unusable", detail: "The Jira item was deleted" });
+
+  test("says the link cannot be used and points at the Deviations page, never the server's text, in the preview and in the apply", () => {
+    for (const apply of [false, true]) {
+      const failure = importFailure(unusable, t, { ...ctx, apply });
+      expect(failure).toEqual({ message: expect.stringMatching(/The Jira link of this item cannot be used to import from:.*See the Deviations page\.$/), repreview: false });
+      expect(failure).not.toHaveProperty("detail");
+    }
+  });
+
+  test("any other 409 keeps the generic sentence", () => {
+    expect(importFailure(problem(409), t, ctx)?.message).toMatch(/changed while importing/);
+    expect(importFailure(problem(409, { type: "urn:astrolabe:problem:something-else" }), t, ctx)?.message).toMatch(/changed while importing/);
+  });
+});
+
 describe("importFailure", () => {
   test("a cancelled preview says nothing; an abort at the deadline says so, and for an apply that it may have landed", () => {
     expect(importFailure(new DOMException("x", "AbortError"), t, { ...ctx, cancelled: true })).toBeNull();

@@ -28,9 +28,8 @@ import ProjectEditorModal from "../components/ProjectEditorModal";
 import WorkStreamEditorModal from "../components/WorkStreamEditorModal";
 import { useDeleteConfirm } from "../hooks/useDeleteConfirm";
 import { useDialogFocus } from "../hooks/useDialogFocus";
-import { useJiraConnections } from "../hooks/useDeviations";
+import { usePlanJiraImport } from "../hooks/usePlanJiraImport";
 import { todayIsoDate } from "../utils/isoDate";
-import { usableImportConnections, type ImportSource } from "../utils/jiraImport";
 import type { PlanActions } from "../utils/planActions";
 import { canMoveProgram, canMoveProject, findProgram, findProject, programMoveTargets, projectMoveTargets } from "../utils/planMove";
 import { planSaveErrorMessage } from "../utils/planForm";
@@ -79,14 +78,12 @@ export default function Plan() {
   const { data, isLoading, isError, error } = useQuery({ queryKey: ["plan", "view"], queryFn: getPlanView });
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [moving, setMoving] = useState<MoveState | null>(null);
-  // The Jira import of one work stream (its menu entry). The usable connections are read from the deviations view only while the dialog is open.
-  const [importing, setImporting] = useState<PlanWorkStream | null>(null);
-  const jira = useJiraConnections({ workStreamId: importing?.id }, importing !== null);
-  const importSource: ImportSource = { ...jira, connections: jira.connections === null ? null : usableImportConnections(jira.connections) };
+  // The Jira imports: a work stream's whole-scope one and a linked program's rooted one (hooks/usePlanJiraImport.ts).
+  const jiraImport = usePlanJiraImport(data);
   // Two hooks: an editor and a move dialog are never open together, but each remembers its own opener.
   useDialogFocus(editor !== null);
   useDialogFocus(moving !== null);
-  useDialogFocus(importing !== null);
+  useDialogFocus(jiraImport.modal !== null);
 
   // A project created, renamed, re-owned, re-windowed or deleted changes the roadmap too.
   const refresh = () => refreshQueriesAfterMutation(queryClient, ["plan"], ["roadmap"]);
@@ -119,7 +116,9 @@ export default function Plan() {
     editWorkStream: (stream) => setEditor({ kind: "workStream", target: stream }),
     deleteWorkStream: (stream) => remove.requestDelete({ level: "workStream", id: stream.id, name: stream.name }),
     setWorkStreamClosed: (stream, closed) => closing.mutate({ stream, closed }),
-    importFromJira: (stream) => setImporting(stream),
+    importFromJira: jiraImport.importFromJira,
+    importChildren: jiraImport.importChildren,
+    canImportChildren: jiraImport.canImportChildren,
     newProgram: (stream) => setEditor({ kind: "program", workStream: stream, target: null }),
     editProgram: (stream, program) => setEditor({ kind: "program", workStream: stream, target: program }),
     deleteProgram: (program) => remove.requestDelete({ level: "program", id: program.id, name: program.name }),
@@ -209,7 +208,7 @@ export default function Plan() {
         />
       )}
 
-      {importing !== null && <JiraImportModal source={importSource} initialWorkStreamId={importing.id} onClose={() => setImporting(null)} />}
+      {jiraImport.modal !== null && <JiraImportModal {...jiraImport.modal} />}
 
       <ConfirmDeleteModal
         confirm={remove}
