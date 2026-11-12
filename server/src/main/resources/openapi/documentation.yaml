@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: astrolabe-api
-  version: 1.13.3
+  version: 1.13.4
   description: |
     JWT-authenticated REST API for Astrolabe — a planning and roadmapping tool. It serves the Astrolabe web app and is
     versioned by its `/api/v1` path prefix. This foundation exposes the accounts, teams, feature-flag and operational

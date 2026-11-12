@@ -13,7 +13,7 @@ Scale assumed: about 15 teams, 5 work streams, 20 programs, 100 projects, 1,000 
 
 ## Roadmap
 
-Each increment gets its own plan (architect) before implementation; only v0.1.0 was specified up front. **Current version: 1.13.3.**
+Each increment gets its own plan (architect) before implementation; only v0.1.0 was specified up front. **Current version: 1.13.4.**
 
 | Ver | Scope | User can test |
 |---|---|---|
@@ -245,6 +245,10 @@ The fixes batch planned as 1.14 (the `[next]` items the user promoted on 2026-11
 ## v1.13.2 — what shipped
 
 The Jira import's filter (the user's request of 2026-11-11: leave out done items and items updated longer ago than a configurable number of days; plan by the architect, released on the user's word), `1.13.2` (a patch bump: no migration; the additive `filter` request member and two row infos are the only `/api/v1` change); nothing is written to Jira. It exists because a Jira project with more than 2,000 items at the mapped levels could not be imported at all (the browse stops at 2,000). **The user's answers:** Q1 the filter narrows EVERY mapped level inside the search query, and a left-out direct parent of an item that is read is fetched by id and kept (`KEPT_AS_PARENT`; at most 200 reads a browse, past that the preview is `truncated`); a parent Jira answers `404` for skips its child (`PARENT_UNREADABLE`), while a `403`, `401`, `429` or `5xx` on that read fails the preview as the `502` Jira upstream error; Q2 the filter is set per import in the dialog (Leave out done items on, Updated within 365 days, 1..3,650, empty = no limit), nothing stored and no migration; Q3 the version is **1.13.2**. **Only the import reads through the filter** (Refresh, the Deviations page and the roll-ups read everything; an item imported earlier that later becomes done stays linked). **Defaults taken** (`jira-sync.md`): the window is sent in minutes (`updated >= "-<N x 1440>m"`), the preview does not count what was left out, the stub does not evaluate the filter (a new isolated `IMF` project proves the by-id read and the `404`), `jira.import_applied` carries `excludeDone` and `updatedWithinDays`; ledger rows A16 (the JQL clauses) and A17 (the by-id read) stay stub-only. Proven against a built-in Jira stub; not yet tested against a real Jira site.
+
+## v1.13.4 — what shipped
+
+The import preview's search (the user's request of 2026-11-12, after a first real import: "a search box where I could search by ID or text - this dialog can be used to cherry pick a specific item"; released on the user's word), `1.13.4` (a patch bump: web only, no migration, no `/api/v1` change); nothing is written to Jira. A box above the preview table filters the rows by a case- and accent-insensitive substring of the Jira key, id, summary or plan name; hiding a row never changes its tick or team override, and the selected count, **Import (n)** and the apply stay global. While a query is active "Tick shown" / "Untick shown" and the header checkbox act on the shown rows through the existing parent/child rules (a parent outside the search is ticked with its child; a hidden child is unticked with its parent; the live region says how many). **Defaults taken (not asked):** match over key, id, summary AND plan name; a row with no Jira key (a non-admin's row redacted under an active filter) never matches; the search is page state, not remembered; changing the search clears the "outside the search" sentence. Mechanics: `web-internals.md` "The preview search (1.13.4)". **Proven against the built-in Jira stub only.**
 
 ## v1.13.3 — what shipped
 

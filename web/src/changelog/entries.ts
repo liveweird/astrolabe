@@ -17,6 +17,26 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.13.4",
+    date: "2026-11-12",
+    en: `**Astrolabe 1.13.4: the Jira import's preview can be searched, so one item can be picked out of a long list.**
+
+- Import from Jira: the preview has a search box above the list. It shows only the rows whose Jira key, id or name contains what you type (upper and lower case and Polish letters match either way), with "Showing X of Y" next to it.
+- Searching only hides rows: what is ticked stays ticked, "N of M selected" and the Import button still count every ticked row, and the import brings in every ticked row, shown or not.
+- While a search is on, the buttons read "Tick shown" and "Untick shown" and act on the shown rows only (so does the checkbox in the header). Ticking an item still ticks the parent it is created under, and unticking one still unticks what is created under it, even when those rows are not shown; a line says so.
+- To import one item: press "Select none", search for its key, press "Tick shown", then Import.
+- Nothing is written to Jira or Flow.
+- Proven against a built-in Jira stub; not yet tested against a real Jira site.`,
+    pl: `**Astrolabe 1.13.4: podgląd importu z Jiry można przeszukiwać, więc z długiej listy da się wybrać jeden element.**
+
+- Import z Jiry: nad listą w podglądzie jest pole wyszukiwania. Pokazuje tylko wiersze, których klucz Jiry, identyfikator albo nazwa zawiera wpisany tekst (wielkość liter i polskie znaki nie mają znaczenia), a obok widać „Pokazano X z Y”.
+- Wyszukiwanie tylko ukrywa wiersze: zaznaczone zostają zaznaczone, „N z M zaznaczonych” i przycisk Importuj nadal liczą każdy zaznaczony wiersz, a import obejmuje każdy zaznaczony wiersz, widoczny czy nie.
+- Podczas wyszukiwania przyciski mówią „Zaznacz widoczne” i „Odznacz widoczne” i działają tylko na widocznych wierszach (tak samo pole wyboru w nagłówku). Zaznaczenie elementu nadal zaznacza rodzica, pod którym powstanie, a odznaczenie nadal odznacza to, co powstałoby pod nim, nawet jeśli te wiersze nie są widoczne; mówi o tym osobny wiersz.
+- Żeby zaimportować jeden element: kliknij „Odznacz wszystko”, wyszukaj jego klucz, kliknij „Zaznacz widoczne”, a potem Importuj.
+- Niczego nie zapisujemy w Jirze ani we Flow.
+- Sprawdzone na wbudowanej atrapie Jiry; jeszcze nie przetestowane na prawdziwej witrynie Jira.`,
+  },
+  {
     version: "1.13.3",
     date: "2026-11-12",
     en: `**Astrolabe 1.13.3: a new login can create its person in the same step, the roadmap's flags can be filtered by severity, a moved Jira item shows the key it was linked with, and an information leak in the Jira import and a race between capacity edits are closed.**
