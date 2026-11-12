@@ -75,6 +75,21 @@ describe("JiraImportModal: the rooted scope step", () => {
     expect(directProject("IMC-1")).toHaveValue("Invoices");
   });
 
+  test("the owner hint of a program root says only projects are created", () => {
+    open(PROGRAM_ROOT);
+    expect(screen.getByText("Every project that is created gets this owner.")).toBeInTheDocument();
+    expect(screen.queryByText("Every program and project that is created gets this owner.")).not.toBeInTheDocument();
+  });
+
+  test("a root known gone says its link cannot be used up front and Preview is disabled, with no request", async () => {
+    const user = userEvent.setup();
+    open({ ...PROGRAM_ROOT, gone: true });
+    expect(screen.getByText(/^The Jira link of this item cannot be used to import from/)).toBeInTheDocument();
+    expect(previewButton()).toBeDisabled();
+    await user.click(previewButton());
+    expect(api.previews()).toEqual([]);
+  });
+
   test("a project root has no owner and no default project: the project's owner is sent", () => {
     open(PROJECT_ROOT);
     expect(ownerField()).not.toBeInTheDocument();

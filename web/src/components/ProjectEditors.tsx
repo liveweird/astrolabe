@@ -55,7 +55,7 @@ export default function ProjectEditors({ editor, view, links, onClose, onSaved, 
         />
       )}
       {isJiraEditor(editor) && <JiraBindDialog source={links} target={editor.target} onClose={onClose} onBound={onBound} />}
-      {root !== null && <JiraImportModal source={importSourceOf(links)} root={root} onClose={onClose} />}
+      {root !== null && <JiraImportModal key={`project:${project.id}`} source={importSourceOf(links)} root={root} onClose={onClose} />}
     </>
   );
 }

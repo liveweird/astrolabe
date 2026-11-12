@@ -168,7 +168,8 @@ export type ImportSource = { connections: readonly ImportConnection[] | null; fa
 /**
  * What a rooted import (1.14) starts from: a LINKED program (or project) of the plan, whose Jira item the server reads the children of. The
  * name and the key are for the dialog's sentences; the connection is the one the link goes through, the stream the node's own, the owner the
- * node's own owner (an ACTIVE person: the server refuses to delete one who owns a node).
+ * node's own owner (an ACTIVE person: the server refuses to delete one who owns a node). `gone` = the deviations read already says the linked Jira
+ * item is gone: the dialog says the link cannot be used up front and Preview stays disabled (no Jira round trip). Absent = not known to be gone.
  */
 export type ImportRoot = {
   level: JiraImportRoot["level"];
@@ -178,6 +179,7 @@ export type ImportRoot = {
   connectionId: number;
   workStreamId: number;
   owner: PickedOption;
+  gone?: boolean;
 };
 
 /**

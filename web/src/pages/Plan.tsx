@@ -208,7 +208,7 @@ export default function Plan() {
         />
       )}
 
-      {jiraImport.modal !== null && <JiraImportModal {...jiraImport.modal} />}
+      {jiraImport.modal !== null && <JiraImportModal key={jiraImport.modalKey} {...jiraImport.modal} />}
 
       <ConfirmDeleteModal
         confirm={remove}

@@ -10,6 +10,30 @@ import JiraImportFailureAlert from "./JiraImportFailureAlert";
 import PersonSelect from "./PersonSelect";
 import TeamSelect from "./TeamSelect";
 
+/** The step's lead lines: the intro, or for a root the note naming what is read and where it lands, plus the "cannot be used" note when the root is known gone. */
+function ScopeNotes({ root }: { root?: ImportRoot }) {
+  const { t } = useTranslation();
+  if (root === undefined) {
+    return (
+      <Text size="sm" c="dimmed">
+        {t("jira.import.scope.intro")}
+      </Text>
+    );
+  }
+  return (
+    <>
+      <Text size="sm" role="note">
+        {t(root.level === "PROGRAM" ? "jira.import.scope.rootProgram" : "jira.import.scope.rootProject", { key: root.issueKey, name: root.name })}
+      </Text>
+      {root.gone === true && (
+        <Text size="sm" role="note">
+          {t("jira.import.error.rootUnusable")}
+        </Text>
+      )}
+    </>
+  );
+}
+
 /**
  * The first phase: what to import and where. One work stream is picked (work streams are never imported; every created item lands under
  * it), the owner of what is created, an optional default team / program / project for the orphans, the Jira projects to read (all of
@@ -19,7 +43,8 @@ import TeamSelect from "./TeamSelect";
  * Preview waits for one. `streamLocked` (opened from a work stream's own menu on the Plan page) shows the preset stream read-only.
  * With a `root` (1.14, a linked program) the step opens with a note naming what is read and where it lands; the work stream, the Jira projects
  * and the default program are not asked (the stream is the root's, every key of the connection is read, a rooted import creates no program),
- * the owner only for a program root, and the "default project" becomes the root program's own projects, for the items Jira lists straight under it.
+ * the owner only for a program root (its hint says only projects are created), and the "default project" becomes the root program's own projects, for the items
+ * Jira lists straight under it. A root already known gone (`root.gone`) adds the "cannot be used" note and keeps Preview disabled: no Jira round trip.
  */
 export default function JiraImportScopeStep({
   source,
@@ -56,7 +81,8 @@ export default function JiraImportScopeStep({
   );
   const rootProjects = (stream?.programs.find((program) => program.id === root?.nodeId)?.projects ?? []).map((project) => ({ value: String(project.id), label: project.name }));
   const keys = connection?.projectKeys ?? [];
-  const ready = connection !== null && toScope(form, keys, root) !== null;
+  const rootGone = root?.gone === true;
+  const ready = connection !== null && !rootGone && toScope(form, keys, root) !== null;
   const connectionUnusable = root !== undefined && source.connections !== null && source.connections.length === 0;
 
   return (
@@ -68,15 +94,7 @@ export default function JiraImportScopeStep({
       }}
     >
       <Stack>
-        {root === undefined ? (
-          <Text size="sm" c="dimmed">
-            {t("jira.import.scope.intro")}
-          </Text>
-        ) : (
-          <Text size="sm" role="note">
-            {t(root.level === "PROGRAM" ? "jira.import.scope.rootProgram" : "jira.import.scope.rootProject", { key: root.issueKey, name: root.name })}
-          </Text>
-        )}
+        <ScopeNotes root={root} />
         {connectionUnusable ? (
           <Text size="sm" role="note">
             {t("jira.import.scope.rootConnectionUnusable")}
@@ -104,7 +122,7 @@ export default function JiraImportScopeStep({
         {root?.level !== "PROJECT" && (
           <PersonSelect
             label={t("jira.import.scope.owner")}
-            description={t("jira.import.scope.ownerHint")}
+            description={t(root === undefined ? "jira.import.scope.ownerHint" : "jira.import.scope.ownerHintRoot")}
             placeholder={t("plan.pickOwner")}
             clearLabel={t("plan.clearOwner")}
             picked={form.owner}

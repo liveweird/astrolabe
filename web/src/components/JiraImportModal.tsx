@@ -14,12 +14,14 @@ const PHASE_NUMBER = { scope: 1, preview: 2, outcome: 3 } as const;
  * is written before the third. Reading Jira can take minutes, so that wait is visible and stoppable (a preview only: an apply is never
  * cancelled, so the dialog cannot be closed while one runs). Every failure is inline; the caller refreshes the plan after an apply
  * (`useJiraImport`). The owner opens it with `opened` already true and calls `useDialogFocus(open)`, so the focus returns to its button.
- * Two entry points: the connection page (ADMIN; `source` is its one connection, the stream is a free pick) and the Plan page's work-stream menu
- * (a stream's owner; `source` is the usable connections of the deviations view, `initialWorkStreamId` presets the stream, read-only). The
- * connection is preselected when exactly one is offered (the bind dialog's rule); changing it resets the Jira projects to the new one's keys.
- * A third (1.14): with a `root` (a linked program, from the Plan page's program menu) it imports only what Jira lists under that node's item: the
- * stream is the root's own, the connection is the one the link goes through (the only one offered; not among the usable ones, the scope step says
- * an administrator has to fix it), the owner opens at the node's own, and the request carries `root` instead of the keys and the default program.
+ * Four entry points: the connection page (ADMIN; `source` is its one connection, the stream is a free pick), the Plan page's work-stream menu
+ * (a stream's owner; `source` is the usable connections of the deviations view, `initialWorkStreamId` presets the stream, read-only) and, new in
+ * 1.14, the two ROOTED ones: with a `root` (a linked program from the Plan page's program menu, or a linked project from the project page's header)
+ * it imports only what Jira lists under that node's item: the stream is the root's own, the connection is the one the link goes through (the only
+ * one offered; not among the usable ones, the scope step says an administrator has to fix it; a root known gone says so up front), the owner opens
+ * at the node's own, and the request carries `root` instead of the keys and the default program. The connection is preselected when exactly one is
+ * offered (the bind dialog's rule); changing it resets the Jira projects to the new one's keys. Each mount site keys the modal by its source
+ * (`stream:<id>`, `program:<id>`, `project:<id>`), so the state below starts afresh for every import.
  */
 export default function JiraImportModal({
   source,

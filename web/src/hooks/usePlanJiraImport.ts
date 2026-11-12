@@ -15,6 +15,7 @@ const programRoot = (stream: PlanWorkStream, program: PlanProgram, link: JiraPro
   connectionId: link.connectionId,
   workStreamId: stream.id,
   owner: { value: String(program.ownerPersonId), label: program.ownerName },
+  gone: link.gone,
 });
 
 /** The props the Plan page hands `JiraImportModal`. */
@@ -24,7 +25,7 @@ type ModalProps = { source: ImportSource; initialWorkStreamId?: number; root?: I
  * The Plan page's two Jira imports. A work stream's (1.10) reads the usable connections from the deviations view only after the click. A linked
  * program's (1.14) is rooted: ONE small read of every linked program (`useJiraProgramLinks`) serves the menu entry's visibility AND the dialog's
  * connection, so opening it asks for nothing more; it is asked only while the plan view holds a program the caller may add a project to, and a
- * failed read just leaves the entry out. `modal` is null while no dialog is open.
+ * failed read just leaves the entry out. `modal` (and its `modalKey`, `stream:<id>` / `program:<id>`) is null while no dialog is open.
  */
 export function usePlanJiraImport(plan: PlanView | undefined) {
   const [importing, setImporting] = useState<ImportState | null>(null);
@@ -37,8 +38,12 @@ export function usePlanJiraImport(plan: PlanView | undefined) {
   if (importing?.kind === "stream") modal = { source: importSourceOf(jira), initialWorkStreamId: importing.stream.id, onClose: close };
   if (importing?.kind === "program") modal = { source: importSourceOf(programLinks), root: programRoot(importing.stream, importing.program, importing.link), onClose: close };
 
+  // The modal's `key` follows its source, so its form state (`useState` initialisers) never carries over from one import to another.
+  const modalKey = importing === null ? null : `${importing.kind}:${importing.kind === "stream" ? importing.stream.id : importing.program.id}`;
+
   return {
     modal,
+    modalKey,
     importFromJira: (stream: PlanWorkStream) => setImporting({ kind: "stream", stream }),
     importChildren: (stream: PlanWorkStream, program: PlanProgram) => {
       const link = programLinks.links.get(program.id);

@@ -318,7 +318,7 @@
     "title": "Import z Jiry",
     "entry": "Importuj z Jiry…",
     "entryAria": "Importuj z Jiry do: {{name}}",
-    "entryRootAria": "Importuj z Jiry elementy podrzędne: {{name}}",
+    "entryRootAria": "Importuj z Jiry to, co jest wymienione pod {{name}}",
     "step": "Krok {{n}} z 3: {{name}}",
     "stepName": {
       "scope": "wybierz, co zaimportować",
@@ -340,6 +340,7 @@
       "noConnection": "Żadne połączenie z Jirą nie może teraz importować: administrator/ka musi je dodać, włączyć i przetestować.",
       "owner": "Właściciel/ka nowych elementów",
       "ownerHint": "Każdy utworzony program i projekt dostanie tę osobę jako właściciela/kę.",
+      "ownerHintRoot": "Każdy utworzony projekt dostanie tę osobę jako właściciela/kę.",
       "keys": "Projekty Jiry",
       "keysHint": "Wczytane zostaną wszystkie wybrane. Ponad 2000 zgłoszeń nie da się zaimportować naraz: zawęź wybór albo pomiń więcej poniżej.",
       "keysRequired": "Wybierz co najmniej jeden projekt Jiry",

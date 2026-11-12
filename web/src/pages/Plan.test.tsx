@@ -535,14 +535,15 @@ describe("Plan page and the roadmap", () => {
 });
 
 const LINKS_URL = "/api/v1/views/deviations?level=PROGRAM&all=true";
+const LINKS_KEY = ["jira", "deviations", "links", { level: "PROGRAM" }];
 /** The deviations item of a program linked to `key` through connection 1. */
-const programLink = (id: number, name: string, key: string): DeviationItem =>
+const programLink = (id: number, name: string, key: string, gone = false): DeviationItem =>
   deviationItem({
     bindingId: 70 + id,
     connectionId: 1,
     level: "PROGRAM",
     node: { kind: "PROGRAM", id, name, projectId: null, projectName: null, programId: id, programName: name, workStreamId: 1, workStreamName: "Platform", teamId: null, teamName: null },
-    jira: { ...deviationItem().jira, key },
+    jira: { ...deviationItem().jira, key, gone },
     deviations: [],
   });
 
@@ -612,7 +613,7 @@ describe("Plan page: Import from Jira", () => {
 
 describe("Plan page: Import from a linked program (1.14)", () => {
   const deviationCalls = (mockFetch: FetchMock) => mockFetch.mock.calls.map(([u]) => String(u)).filter((u) => u.startsWith("/api/v1/views/deviations"));
-  const ENTRY = "Import what Jira lists under Billing";
+  const ENTRY = "Import from Jira what is listed under Billing";
   let mockFetch: FetchMock;
 
   beforeEach(() => {
@@ -639,7 +640,7 @@ describe("Plan page: Import from a linked program (1.14)", () => {
     await user.keyboard("{Escape}");
     await user.click(screen.getByRole("button", { name: "Operations for Identity" }));
     await screen.findByRole("menuitem", { name: "Edit Identity" });
-    expect(screen.queryByRole("menuitem", { name: "Import what Jira lists under Identity" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Import from Jira what is listed under Identity" })).not.toBeInTheDocument();
   });
 
   test("a linked program without can.createProject has no entry, and a view without any such program asks nothing", async () => {
@@ -688,15 +689,66 @@ describe("Plan page: Import from a linked program (1.14)", () => {
     expect(deviationCalls(mockFetch)).toEqual([LINKS_URL]);
   });
 
-  test("a failed links read hides the entry and shows no error on the page", async () => {
+  test("a failed links read hides the entry and shows no error on the page (asserted once the read has errored, never while it is pending)", async () => {
     programLinksStatus = 500;
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const user = userEvent.setup();
-    renderWithProviders(<Plan />);
+    renderWithProviders(<Plan />, { queryClient });
+    await screen.findByRole("heading", { level: 3, name: "Platform" });
+    await waitFor(() => expect(queryClient.getQueryState(LINKS_KEY)?.status).toBe("error"));
+    expect(deviationCalls(mockFetch)).toEqual([LINKS_URL]);
     await user.click(await screen.findByRole("button", { name: "Operations for Billing" }));
     await screen.findByRole("menuitem", { name: "Edit Billing" });
-    await waitFor(() => expect(deviationCalls(mockFetch)).toEqual([LINKS_URL]));
     expect(screen.queryByRole("menuitem", { name: ENTRY })).not.toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  test("the links read is the costly one: kept fresh for five minutes and not re-read on window focus", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    renderWithProviders(<Plan />, { queryClient });
+    await waitFor(() => expect(queryClient.getQueryState(LINKS_KEY)?.status).toBe("success"));
+    const options = queryClient.getQueryCache().find({ queryKey: LINKS_KEY })?.observers[0].options;
+    expect(options?.staleTime).toBe(5 * 60_000);
+    expect(options?.refetchOnWindowFocus).toBe(false);
+  });
+
+  test("a link whose Jira item is known gone keeps the entry; the dialog says the link cannot be used and Preview is disabled, with no Jira call", async () => {
+    programItems = [programLink(10, "Billing", "IMC-1", true)];
+    const user = userEvent.setup();
+    renderWithProviders(<Plan />);
+    await openMenu(user, "Billing", ENTRY);
+    const dialog = await screen.findByRole("dialog");
+    expect(await within(dialog).findByText(/^The Jira link of this item cannot be used to import from/)).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Preview" })).toBeDisabled();
+    expect(mockFetch.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === "POST")).toEqual([]);
+  });
+
+  test("the rooted owner hint says only projects are created", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Plan />);
+    await openMenu(user, "Billing", ENTRY);
+    const dialog = await screen.findByRole("dialog");
+    expect(await within(dialog).findByText("Every project that is created gets this owner.")).toBeInTheDocument();
+    expect(within(dialog).queryByText("Every program and project that is created gets this owner.")).not.toBeInTheDocument();
+  });
+
+  test("a stream's import and then a program's import in one page start from their own state: the second opens rooted, at the program's owner", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Plan />);
+    await openMenu(user, "Platform", "Import from Jira into Platform");
+    let dialog = await screen.findByRole("dialog");
+    const owner = await within(dialog).findByRole("combobox", { name: "Owner of the new items" });
+    await user.click(owner);
+    await user.type(owner, "Nina");
+    await user.click(await screen.findByRole("option", { name: "Nina New (nina@example.com)" }));
+    await waitFor(() => expect(owner).toHaveValue("Nina New (nina@example.com)"));
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await openMenu(user, "Billing", ENTRY);
+    dialog = await screen.findByRole("dialog");
+    expect(await within(dialog).findByText(/^Importing what Jira lists under IMC-1 into the program/)).toBeInTheDocument();
+    expect(within(dialog).queryByRole("combobox", { name: /^Work stream/ })).not.toBeInTheDocument();
+    await waitFor(() => expect(within(dialog).getByRole("combobox", { name: "Owner of the new items" })).toHaveValue("Pola Program"));
   });
 
   test("a link through a connection that is not usable still shows the entry; the dialog says an administrator has to fix it", async () => {
