@@ -5,8 +5,9 @@ import Plan from "./Plan";
 import type { PlanProgram, PlanProject, PlanView, PlanWorkStream } from "../api/plan";
 import { QueryClient } from "@tanstack/react-query";
 import { headingOutline } from "../test/headings";
-import { DEV_CONNECTION, item as deviationItem, view as deviationsOf } from "../test/deviations";
-import type { DeviationItem } from "../api/deviations";
+import { DEV_CONNECTION, view as deviationsOf } from "../test/deviations";
+import { LINK_CONNECTION, linksView, nodeLink } from "../test/jiraLinks";
+import type { JiraLinksView, JiraNodeLink } from "../api/jira";
 import { jsonResponse } from "../test/http";
 import { renderWithProviders } from "../test/render";
 
@@ -80,11 +81,18 @@ const PEOPLE = {
   total: 2,
 };
 
+const LINKS_URL = "/api/v1/views/jira-links";
+const LINKS_KEY = ["jira", "links"];
+const urlsOf = (mockFetch: FetchMock) => mockFetch.mock.calls.map(([u]) => String(u));
+const deviationCalls = (mockFetch: FetchMock) => urlsOf(mockFetch).filter((u) => u.startsWith("/api/v1/views/deviations"));
+const linkCalls = (mockFetch: FetchMock) => urlsOf(mockFetch).filter((u) => u === LINKS_URL);
+
 let view: PlanView;
 let connections = [DEV_CONNECTION];
-// What the program-links read (`level=PROGRAM&all=true`) answers; a status other than 200 makes that read fail.
-let programItems: DeviationItem[] = [];
-let programLinksStatus = 200;
+// What the links read (`GET /views/jira-links`) answers; a status other than 200 makes that read fail.
+let links: JiraNodeLink[] = [];
+let linkConnections: JiraLinksView["connections"] = [LINK_CONNECTION];
+let linksStatus = 200;
 
 function serve(mockFetch: FetchMock, mutations: Record<string, { status: number; body?: unknown }> = {}) {
   mockFetch.mockImplementation((url: string, init?: RequestInit) => {
@@ -92,8 +100,8 @@ function serve(mockFetch: FetchMock, mutations: Record<string, { status: number;
     const m = mutations[`${method} ${url}`];
     if (m) return Promise.resolve(m.body === undefined ? new Response(null, { status: m.status }) : jsonResponse(m.status, m.body));
     if (method === "GET" && url === "/api/v1/views/plan") return Promise.resolve(jsonResponse(200, view));
-    if (method === "GET" && url.startsWith("/api/v1/views/deviations?level=PROGRAM")) {
-      return Promise.resolve(programLinksStatus === 200 ? jsonResponse(200, deviationsOf({ connections, items: programItems })) : jsonResponse(programLinksStatus, { title: "x", status: programLinksStatus }));
+    if (method === "GET" && url === LINKS_URL) {
+      return Promise.resolve(linksStatus === 200 ? jsonResponse(200, linksView({ connections: linkConnections, links })) : jsonResponse(linksStatus, { title: "x", status: linksStatus }));
     }
     if (method === "GET" && url.startsWith("/api/v1/views/deviations")) return Promise.resolve(jsonResponse(200, deviationsOf({ connections, items: [] })));
     if (method === "GET" && url.startsWith("/api/v1/people?")) return Promise.resolve(jsonResponse(200, PEOPLE));
@@ -534,28 +542,15 @@ describe("Plan page and the roadmap", () => {
   });
 });
 
-const LINKS_URL = "/api/v1/views/deviations?level=PROGRAM&all=true";
-const LINKS_KEY = ["jira", "deviations", "links", { level: "PROGRAM" }];
-/** The deviations item of a program linked to `key` through connection 1. */
-const programLink = (id: number, name: string, key: string, gone = false): DeviationItem =>
-  deviationItem({
-    bindingId: 70 + id,
-    connectionId: 1,
-    level: "PROGRAM",
-    node: { kind: "PROGRAM", id, name, projectId: null, projectName: null, programId: id, programName: name, workStreamId: 1, workStreamName: "Platform", teamId: null, teamName: null },
-    jira: { ...deviationItem().jira, key, gone },
-    deviations: [],
-  });
-
 describe("Plan page: Import from Jira", () => {
-  const deviationCalls = (mockFetch: FetchMock) => mockFetch.mock.calls.map(([u]) => String(u)).filter((u) => u.startsWith("/api/v1/views/deviations"));
   let mockFetch: FetchMock;
 
   beforeEach(() => {
     view = VIEW;
     connections = [DEV_CONNECTION];
-    programItems = [];
-    programLinksStatus = 200;
+    links = [];
+    linkConnections = [LINK_CONNECTION];
+    linksStatus = 200;
     mockFetch = vi.fn();
     vi.stubGlobal("fetch", mockFetch);
     localStorage.setItem("astrolabe.auth.token", "fake-token");
@@ -567,15 +562,16 @@ describe("Plan page: Import from Jira", () => {
     localStorage.clear();
   });
 
-  test("the entry is in the stream's menu under can.edit only, and the stream's connections are asked for only after the click (the program links are the page's own read)", async () => {
+  test("the entry is in the stream's menu under can.edit only, and the stream's connections are asked for only after the click (the links view is the page's own read, never the deviations view)", async () => {
     const user = userEvent.setup();
     renderWithProviders(<Plan />);
     await screen.findByRole("heading", { level: 3, name: "Platform" });
-    await waitFor(() => expect(deviationCalls(mockFetch)).toEqual([LINKS_URL]));
+    await waitFor(() => expect(linkCalls(mockFetch)).toEqual([LINKS_URL]));
+    expect(deviationCalls(mockFetch)).toEqual([]);
     await user.click(screen.getByRole("button", { name: "Operations for Platform" }));
     await user.click(await screen.findByRole("menuitem", { name: "Import from Jira into Platform" }));
     expect(await screen.findByRole("heading", { level: 2, name: "Import from Jira" })).toBeInTheDocument();
-    expect(deviationCalls(mockFetch)).toEqual([LINKS_URL, "/api/v1/views/deviations?workStreamId=1"]);
+    expect(deviationCalls(mockFetch)).toEqual(["/api/v1/views/deviations?workStreamId=1"]);
   });
 
   test("the dialog opens with the stream preset and read-only and the one usable connection preselected", async () => {
@@ -608,19 +604,20 @@ describe("Plan page: Import from Jira", () => {
     await screen.findByRole("heading", { level: 3, name: "Platform" });
     expect(screen.queryByRole("button", { name: "Operations for Platform" })).not.toBeInTheDocument();
     expect(deviationCalls(mockFetch)).toEqual([]);
+    expect(linkCalls(mockFetch)).toEqual([]);
   });
 });
 
 describe("Plan page: Import from a linked program (1.14)", () => {
-  const deviationCalls = (mockFetch: FetchMock) => mockFetch.mock.calls.map(([u]) => String(u)).filter((u) => u.startsWith("/api/v1/views/deviations"));
   const ENTRY = "Import from Jira what is listed under Billing";
   let mockFetch: FetchMock;
 
   beforeEach(() => {
     view = VIEW;
     connections = [DEV_CONNECTION];
-    programItems = [programLink(10, "Billing", "IMC-1")];
-    programLinksStatus = 200;
+    links = [nodeLink("PROGRAM", 10, "IMC-1")];
+    linkConnections = [LINK_CONNECTION];
+    linksStatus = 200;
     mockFetch = vi.fn();
     vi.stubGlobal("fetch", mockFetch);
     localStorage.setItem("astrolabe.auth.token", "fake-token");
@@ -654,6 +651,7 @@ describe("Plan page: Import from a linked program (1.14)", () => {
     await user.click(await screen.findByRole("button", { name: "Operations for Billing" }));
     await screen.findByRole("menuitem", { name: "Edit Billing" });
     expect(screen.queryByRole("menuitem", { name: ENTRY })).not.toBeInTheDocument();
+    expect(linkCalls(mockFetch)).toEqual([]);
     expect(deviationCalls(mockFetch)).toEqual([]);
   });
 
@@ -679,41 +677,42 @@ describe("Plan page: Import from a linked program (1.14)", () => {
   test("the dialog opens rooted at the program with no second connections read", async () => {
     const user = userEvent.setup();
     renderWithProviders(<Plan />);
-    await waitFor(() => expect(deviationCalls(mockFetch)).toEqual([LINKS_URL]));
+    await waitFor(() => expect(linkCalls(mockFetch)).toEqual([LINKS_URL]));
     await openMenu(user, "Billing", ENTRY);
     const dialog = await screen.findByRole("dialog");
     expect(await within(dialog).findByText("Importing what Jira lists under IMC-1 into the program “Billing”: its projects and their milestones.")).toBeInTheDocument();
     expect(within(dialog).getByRole("combobox", { name: /^Jira connection/ })).toHaveValue("Acme Jira");
     expect(within(dialog).queryByRole("combobox", { name: /^Work stream/ })).not.toBeInTheDocument();
     await waitFor(() => expect(within(dialog).getByRole("combobox", { name: "Owner of the new items" })).toHaveValue("Pola Program"));
-    expect(deviationCalls(mockFetch)).toEqual([LINKS_URL]);
+    expect(linkCalls(mockFetch)).toEqual([LINKS_URL]);
+    expect(deviationCalls(mockFetch)).toEqual([]);
   });
 
   test("a failed links read hides the entry and shows no error on the page (asserted once the read has errored, never while it is pending)", async () => {
-    programLinksStatus = 500;
+    linksStatus = 500;
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const user = userEvent.setup();
     renderWithProviders(<Plan />, { queryClient });
     await screen.findByRole("heading", { level: 3, name: "Platform" });
     await waitFor(() => expect(queryClient.getQueryState(LINKS_KEY)?.status).toBe("error"));
-    expect(deviationCalls(mockFetch)).toEqual([LINKS_URL]);
+    expect(linkCalls(mockFetch)).toEqual([LINKS_URL]);
     await user.click(await screen.findByRole("button", { name: "Operations for Billing" }));
     await screen.findByRole("menuitem", { name: "Edit Billing" });
     expect(screen.queryByRole("menuitem", { name: ENTRY })).not.toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
-  test("the links read is the costly one: kept fresh for five minutes and not re-read on window focus", async () => {
+  test("the links read is cheap: kept fresh for 30 seconds and re-read on window focus", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     renderWithProviders(<Plan />, { queryClient });
     await waitFor(() => expect(queryClient.getQueryState(LINKS_KEY)?.status).toBe("success"));
     const options = queryClient.getQueryCache().find({ queryKey: LINKS_KEY })?.observers[0].options;
-    expect(options?.staleTime).toBe(5 * 60_000);
-    expect(options?.refetchOnWindowFocus).toBe(false);
+    expect(options?.staleTime).toBe(30_000);
+    expect(options?.refetchOnWindowFocus).not.toBe(false);
   });
 
   test("a link whose Jira item is known gone keeps the entry; the dialog says the link cannot be used and Preview is disabled, with no Jira call", async () => {
-    programItems = [programLink(10, "Billing", "IMC-1", true)];
+    links = [nodeLink("PROGRAM", 10, "IMC-1", { gone: true })];
     const user = userEvent.setup();
     renderWithProviders(<Plan />);
     await openMenu(user, "Billing", ENTRY);
@@ -752,13 +751,184 @@ describe("Plan page: Import from a linked program (1.14)", () => {
   });
 
   test("a link through a connection that is not usable still shows the entry; the dialog says an administrator has to fix it", async () => {
-    connections = [{ ...DEV_CONNECTION, enabled: false }];
+    linkConnections = [{ ...LINK_CONNECTION, enabled: false }];
     const user = userEvent.setup();
     renderWithProviders(<Plan />);
     await openMenu(user, "Billing", ENTRY);
     const dialog = await screen.findByRole("dialog");
     expect(await within(dialog).findByText(/disabled or no longer fits its site/)).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "Preview" })).toBeDisabled();
+  });
+});
+
+describe("Plan page: Import from a linked project (1.15)", () => {
+  const ENTRY = "Import from Jira what is listed under Taxes";
+  let mockFetch: FetchMock;
+
+  beforeEach(() => {
+    view = VIEW;
+    links = [nodeLink("PROJECT", 101, "IMC-7")];
+    linkConnections = [LINK_CONNECTION];
+    linksStatus = 200;
+    mockFetch = vi.fn();
+    vi.stubGlobal("fetch", mockFetch);
+    localStorage.setItem("astrolabe.auth.token", "fake-token");
+    serve(mockFetch);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    localStorage.clear();
+  });
+
+  test("a linked project with can.createMilestone has the entry after Move to…; an unlinked one, and one the caller may not add a milestone to, do not", async () => {
+    links = [nodeLink("PROJECT", 101, "IMC-7"), nodeLink("PROJECT", 102, "IMC-8")];
+    const user = userEvent.setup();
+    renderWithProviders(<Plan />);
+    await user.click(await screen.findByRole("button", { name: "Operations for Taxes" }));
+    const items = await screen.findAllByRole("menuitem");
+    expect(items.map((el) => el.getAttribute("aria-label"))).toEqual(["Edit Taxes", "Move Taxes to another program", ENTRY]);
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("button", { name: "Operations for Audit" }));
+    await screen.findByRole("menuitem", { name: "Edit Audit" });
+    expect(screen.queryByRole("menuitem", { name: "Import from Jira what is listed under Audit" })).not.toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("button", { name: "Operations for Invoices" }));
+    await screen.findByRole("menuitem", { name: "Edit Invoices" });
+    expect(screen.queryByRole("menuitem", { name: "Import from Jira what is listed under Invoices" })).not.toBeInTheDocument();
+  });
+
+  test("a program's link of the same id is not a project's link", async () => {
+    links = [nodeLink("PROGRAM", 101, "IMC-1")];
+    const user = userEvent.setup();
+    renderWithProviders(<Plan />);
+    await waitFor(() => expect(linkCalls(mockFetch)).toEqual([LINKS_URL]));
+    await user.click(await screen.findByRole("button", { name: "Operations for Taxes" }));
+    await screen.findByRole("menuitem", { name: "Edit Taxes" });
+    expect(screen.queryByRole("menuitem", { name: ENTRY })).not.toBeInTheDocument();
+  });
+
+  test("the project's kebab appears for the entry alone, and the links are asked for although no program offers New project", async () => {
+    view = {
+      revision: 1,
+      can: { createWorkStream: false },
+      workStreams: [
+        stream({
+          id: 1,
+          name: "Platform",
+          can: { edit: false, delete: false, createProgram: false },
+          programs: [
+            program({
+              id: 10,
+              name: "Billing",
+              can: { edit: false, delete: false, createProject: false, move: false },
+              projects: [project({ id: 101, name: "Taxes", can: { edit: false, delete: false, editTargetWindow: false, move: false, createMilestone: true } })],
+            }),
+          ],
+        }),
+      ],
+    };
+    const user = userEvent.setup();
+    renderWithProviders(<Plan />);
+    await user.click(await screen.findByRole("button", { name: "Operations for Taxes" }));
+    expect(await screen.findByRole("menuitem", { name: ENTRY })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Operations for Billing" })).not.toBeInTheDocument();
+  });
+
+  test("a view without a program or project to use a link asks nothing", async () => {
+    view = {
+      revision: 1,
+      can: { createWorkStream: false },
+      workStreams: [
+        stream({
+          id: 1,
+          name: "Platform",
+          can: { edit: false, delete: false, createProgram: false },
+          programs: [
+            program({
+              id: 10,
+              name: "Billing",
+              can: { edit: false, delete: false, createProject: false, move: false },
+              projects: [project({ id: 101, name: "Taxes", can: { edit: true, delete: false, editTargetWindow: false, move: false, createMilestone: false } })],
+            }),
+          ],
+        }),
+      ],
+    };
+    renderWithProviders(<Plan />);
+    await screen.findByRole("heading", { level: 3, name: "Platform" });
+    await screen.findByRole("link", { name: "Open Taxes" });
+    expect(linkCalls(mockFetch)).toEqual([]);
+    expect(deviationCalls(mockFetch)).toEqual([]);
+  });
+
+  test("the dialog opens rooted at the project with its note and its own owner, and asks for nothing more", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Plan />);
+    await waitFor(() => expect(linkCalls(mockFetch)).toEqual([LINKS_URL]));
+    await openMenu(user, "Taxes", ENTRY);
+    const dialog = await screen.findByRole("dialog");
+    expect(await within(dialog).findByText("Importing what Jira lists under IMC-7 into the project “Taxes”: its milestones.")).toBeInTheDocument();
+    expect(within(dialog).getByRole("combobox", { name: /^Jira connection/ })).toHaveValue("Acme Jira");
+    expect(within(dialog).queryByRole("combobox", { name: /^Work stream/ })).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("combobox", { name: "Owner of the new items" })).not.toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Preview" })).toBeEnabled();
+    expect(linkCalls(mockFetch)).toEqual([LINKS_URL]);
+    expect(deviationCalls(mockFetch)).toEqual([]);
+  });
+
+  test("a link known gone keeps the entry; the dialog says the link cannot be used and Preview is disabled, with no Jira call", async () => {
+    links = [nodeLink("PROJECT", 101, "IMC-7", { gone: true })];
+    const user = userEvent.setup();
+    renderWithProviders(<Plan />);
+    await openMenu(user, "Taxes", ENTRY);
+    const dialog = await screen.findByRole("dialog");
+    expect(await within(dialog).findByText(/^The Jira link of this item cannot be used to import from/)).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Preview" })).toBeDisabled();
+    expect(mockFetch.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === "POST")).toEqual([]);
+  });
+
+  test("a link through a connection that is not usable still shows the entry; the dialog says an administrator has to fix it", async () => {
+    linkConnections = [{ ...LINK_CONNECTION, mappingOk: false }];
+    const user = userEvent.setup();
+    renderWithProviders(<Plan />);
+    await openMenu(user, "Taxes", ENTRY);
+    const dialog = await screen.findByRole("dialog");
+    expect(await within(dialog).findByText(/disabled or no longer fits its site/)).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Preview" })).toBeDisabled();
+  });
+
+  test("a failed links read hides both entries and shows no error on the page", async () => {
+    linksStatus = 500;
+    links = [nodeLink("PROGRAM", 10, "IMC-1"), nodeLink("PROJECT", 101, "IMC-7")];
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const user = userEvent.setup();
+    renderWithProviders(<Plan />, { queryClient });
+    await screen.findByRole("heading", { level: 3, name: "Platform" });
+    await waitFor(() => expect(queryClient.getQueryState(LINKS_KEY)?.status).toBe("error"));
+    await user.click(await screen.findByRole("button", { name: "Operations for Taxes" }));
+    await screen.findByRole("menuitem", { name: "Edit Taxes" });
+    expect(screen.queryByRole("menuitem", { name: ENTRY })).not.toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("button", { name: "Operations for Billing" }));
+    await screen.findByRole("menuitem", { name: "Edit Billing" });
+    expect(screen.queryByRole("menuitem", { name: "Import from Jira what is listed under Billing" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  test("a project's import after a program's starts from its own state (rooted at the project, no owner field)", async () => {
+    links = [nodeLink("PROGRAM", 10, "IMC-1"), nodeLink("PROJECT", 101, "IMC-7")];
+    const user = userEvent.setup();
+    renderWithProviders(<Plan />);
+    await openMenu(user, "Billing", "Import from Jira what is listed under Billing");
+    let dialog = await screen.findByRole("dialog");
+    expect(await within(dialog).findByText(/^Importing what Jira lists under IMC-1 into the program/)).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await openMenu(user, "Taxes", ENTRY);
+    dialog = await screen.findByRole("dialog");
+    expect(await within(dialog).findByText(/^Importing what Jira lists under IMC-7 into the project/)).toBeInTheDocument();
+    expect(within(dialog).queryByRole("combobox", { name: "Owner of the new items" })).not.toBeInTheDocument();
   });
 });
 

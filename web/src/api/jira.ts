@@ -23,6 +23,8 @@ export type JiraBindingPage = Schemas["JiraBindingPage"];
 export type JiraBinding = Schemas["JiraBinding"];
 export type JiraBindRequest = Schemas["JiraBindRequest"];
 export type JiraLevel = JiraBindRequest["level"];
+export type JiraLinksView = Schemas["JiraLinksView"];
+export type JiraNodeLink = Schemas["JiraNodeLink"];
 export type JiraImportScope = Schemas["JiraImportScope"];
 export type JiraImportRoot = Schemas["JiraImportRoot"];
 export type JiraImportPreview = Schemas["JiraImportPreview"];
@@ -165,4 +167,12 @@ export async function previewJiraImport(id: number, body: JiraImportScope, signa
 /** Writes the ticked rows in ONE plan write (the one Jira call that moves the plan). The body is strict: `expected.parent` takes only `{kind, nodeId}`. */
 export async function applyJiraImport(id: number, body: JiraImportApplyRequest, signal: AbortSignal): Promise<JiraImportResult> {
   return jsonRequest<JiraImportResult>(`/api/v1/integrations/jira/connections/${id}/import`, { method: "POST", body: JSON.stringify(body), signal });
+}
+
+/**
+ * Every link of a live program or project and the connections (1.15, any signed-in user; two statements on the server, no deviation computation).
+ * Milestone links are not listed; `truncated` = the server's 2,000-link cap dropped some.
+ */
+export async function getJiraLinks(): Promise<JiraLinksView> {
+  return jsonRequest<JiraLinksView>("/api/v1/views/jira-links");
 }

@@ -266,7 +266,7 @@ export function toApplyRequest(
 type OfferedConnection = ImportConnection & { enabled: boolean; mappingOk: boolean };
 const usableImportConnections = (connections: readonly OfferedConnection[]): ImportConnection[] => connections.filter((connection) => connection.enabled && connection.mappingOk);
 
-/** A deviations-view connections read (`useJiraConnections`, `useJiraProgramLinks`) as the import modal's source: only the usable connections are offered. */
+/** A deviations-view connections read (`useJiraConnections`) or the links view's (`useJiraPlanLinks`) as the import modal's source: only the usable connections are offered. */
 export const importSourceOf = (read: { connections: readonly OfferedConnection[] | null; failed: boolean; retry: () => void }): ImportSource => ({
   ...read,
   connections: read.connections === null ? null : usableImportConnections(read.connections),

@@ -9,9 +9,13 @@ export type PlanActions = {
   /** Open the Jira import for this stream (a stream's owner or ADMIN; the stream is preset in the dialog). */
   importFromJira: (stream: PlanWorkStream) => void;
   /** Open the Jira import rooted at this LINKED program (1.14: only what Jira lists under its item; the program's owner chain or ADMIN). */
-  importChildren: (stream: PlanWorkStream, program: PlanProgram) => void;
+  importChildren: (program: PlanProgram) => void;
   /** Whether the program offers it: its own `can.createProject` AND a Jira link (the Plan page reads the links once). */
   canImportChildren: (program: PlanProgram) => boolean;
+  /** Open the Jira import rooted at this LINKED project (1.15: only what Jira lists under its item; the project's owner chain or ADMIN). */
+  importMilestones: (project: PlanProject) => void;
+  /** Whether the project row offers it: its own `can.createMilestone` AND a Jira link. */
+  canImportMilestones: (project: PlanProject) => boolean;
   newProgram: (stream: PlanWorkStream) => void;
   editProgram: (stream: PlanWorkStream, program: PlanProgram) => void;
   deleteProgram: (program: PlanProgram) => void;

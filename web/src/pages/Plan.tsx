@@ -78,7 +78,7 @@ export default function Plan() {
   const { data, isLoading, isError, error } = useQuery({ queryKey: ["plan", "view"], queryFn: getPlanView });
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [moving, setMoving] = useState<MoveState | null>(null);
-  // The Jira imports: a work stream's whole-scope one and a linked program's rooted one (hooks/usePlanJiraImport.ts).
+  // The Jira imports: a work stream's whole-scope one and the rooted ones of a linked program and of a linked project (hooks/usePlanJiraImport.ts).
   const jiraImport = usePlanJiraImport(data);
   // Two hooks: an editor and a move dialog are never open together, but each remembers its own opener.
   useDialogFocus(editor !== null);
@@ -119,6 +119,8 @@ export default function Plan() {
     importFromJira: jiraImport.importFromJira,
     importChildren: jiraImport.importChildren,
     canImportChildren: jiraImport.canImportChildren,
+    importMilestones: jiraImport.importMilestones,
+    canImportMilestones: jiraImport.canImportMilestones,
     newProgram: (stream) => setEditor({ kind: "program", workStream: stream, target: null }),
     editProgram: (stream, program) => setEditor({ kind: "program", workStream: stream, target: program }),
     deleteProgram: (program) => remove.requestDelete({ level: "program", id: program.id, name: program.name }),

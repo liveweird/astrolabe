@@ -74,7 +74,7 @@ export default function PlanProgramBlock({
               {canImportChildren && (
                 <Menu.Item
                   leftSection={<IconFileImport size={14} />}
-                  onClick={() => actions.importChildren(workStream, program)}
+                  onClick={() => actions.importChildren(program)}
                   aria-label={t("jira.import.entryRootAria", { name: program.name })}
                 >
                   {t("jira.import.entry")}
@@ -135,7 +135,7 @@ export default function PlanProgramBlock({
                     )}
                   </Table.Td>
                   <Table.Td style={{ width: 1 }} ta="right">
-                    {(project.can.edit || project.can.editTargetWindow || actions.canMoveProject(project) || project.can.delete) && (
+                    {(project.can.edit || project.can.editTargetWindow || actions.canMoveProject(project) || actions.canImportMilestones(project) || project.can.delete) && (
                       <RowActionsMenu label={t("common.table.operationsAria", { name: project.name })}>
                         {(project.can.edit || project.can.editTargetWindow) && (
                           <Menu.Item
@@ -155,7 +155,18 @@ export default function PlanProgramBlock({
                             {t("plan.move.action")}
                           </Menu.Item>
                         )}
-                        {(project.can.edit || project.can.editTargetWindow || actions.canMoveProject(project)) && project.can.delete && <Menu.Divider />}
+                        {actions.canImportMilestones(project) && (
+                          <Menu.Item
+                            leftSection={<IconFileImport size={14} />}
+                            onClick={() => actions.importMilestones(project)}
+                            aria-label={t("jira.import.entryRootAria", { name: project.name })}
+                          >
+                            {t("jira.import.entry")}
+                          </Menu.Item>
+                        )}
+                        {(project.can.edit || project.can.editTargetWindow || actions.canMoveProject(project) || actions.canImportMilestones(project)) && project.can.delete && (
+                          <Menu.Divider />
+                        )}
                         {project.can.delete && (
                           <DestructiveMenuItem
                             leftSection={<IconTrash size={14} />}
