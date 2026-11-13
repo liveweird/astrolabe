@@ -124,4 +124,29 @@ class JiraImportRedactionTest {
         assertEquals(listOf("Elsewhere", "Skipped Team"), redactForNonAdmin(withDefault).unmatchedTeams, "both rows are created now")
         assertTrue(withDefault.row("500").item.action == JiraImportAction.CREATE)
     }
+
+    @Test
+    fun `an OUTSIDE_ROOT row is redacted like every skip but ALREADY_BOUND - no summary, and under a filter no key or id`() {
+        val rooted = ImportCase(
+            listOf(
+                issue("100", JIRA_PROGRAM, "Root program"),
+                issue("200", JIRA_PROJECT, "Child project", parent = "100"),
+                issue("300", JIRA_EPIC, "Secret summary", parent = "200", team = "Platform"),
+            ),
+            tree = ImportTree(
+                listOf(node(1u, "Root program"), node(2u, "Other program")),
+                listOf(node(10u, "Own project", 1u), node(20u, "Other project", 2u)),
+                emptyList(),
+            ),
+            holders = listOf(holder("100", JiraLevel.PROGRAM, 1u, "Root program"), holder("200", JiraLevel.PROJECT, 20u, "Other project")),
+            root = ch.nokillswit.jira.ImportRootNode(JiraLevel.PROGRAM, 1u),
+        ).plan()
+        assertEquals(JiraImportReason.OUTSIDE_ROOT, rooted.row("300").item.reason)
+        val plain = redactForNonAdmin(rooted).items.single { it.jiraId == "300" }
+        assertEquals(listOf("", "IMP-300", "IMP-300"), listOf(plain.summary, plain.name, plain.issueKey))
+        val filtered = redactForNonAdmin(rooted, filterActive = true).items.single { it.reason == JiraImportReason.OUTSIDE_ROOT }
+        assertEquals(listOf(null, "", ""), listOf(filtered.issueKey, filtered.summary, filtered.name))
+        assertTrue(filtered.jiraId.startsWith("hidden-"), filtered.jiraId)
+        assertEquals(JiraImportReason.ALREADY_BOUND, redactForNonAdmin(rooted).items.single { it.jiraId == "200" }.reason)
+    }
 }

@@ -17,7 +17,9 @@ private class Target(val chain: OwnerChain, val owned: String, val reason: Strin
  * import that only skips rows (a re-import: every row `ALREADY_BOUND`) still proves ownership. The chains come from the snapshot (the
  * picked stream's tree). The preview passes every row; the apply passes
  * the rows the client TICKED (CREATE or BIND after the recomputation, written or not), under the plan lock, so a ticked row cannot
- * probe a subtree the caller does not own.
+ * probe a subtree the caller does not own. A ROOTED import (1.14) can no longer reach the `403` for a target outside the root: the
+ * kernel skips such a row `OUTSIDE_ROOT` (1.15), so every CREATE lands under the root node or a project of it and the root's chain is
+ * part of each target's chain; the guard stays as defence in depth.
  */
 internal fun requireResolvedTargets(
     caller: CallerPrincipal,

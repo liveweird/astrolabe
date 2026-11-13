@@ -247,6 +247,34 @@ class JiraImportChildrenApplyTest {
         }
 
     @Test
+    fun `an ADMIN's ticks for what hangs under a project of another program are each skipped OUTSIDE_ROOT, nothing is created there`() =
+        testApplication {
+            val f = importFixture("jca11", keys = listOf("IMC"))
+            val root = f.linkProgram()
+            val elsewhere = TestPlan.program(f.w.streamId, f.w.stranger.personId!!)
+            val north = TestPlan.project(elsewhere, f.w.stranger.personId, "IMC Initiative North")
+            f.w.admin.client.jbBind(f.connectionId, JiraLevel.PROJECT, north, "IMC-2").jbBinding()
+            // The 1.14 client's ticks: the WHOLE-SCOPE preview of the same world shows IMC-5, IMC-6 and IMC-10 as CREATEs under the
+            // existing project north (no root), and the 1.14 dialog ticked exactly what it showed.
+            val unrooted = f.w.admin.client.preview(f.connectionId, f.scope()).previewBody()
+            val seen = unrooted.items.filter { it.key() in setOf("IMC-5", "IMC-6", "IMC-10") }
+            assertEquals(3, seen.size)
+            val landsNorth = seen.all { it.action == JiraImportAction.CREATE && it.parent?.nodeId == north }
+            assertTrue(landsNorth, "the unrooted plan lands them there")
+            val ticks = seen.map { it.tick() }
+            val before = TestPlan.revision()
+            val result = f.w.admin.client.applyImport(f.connectionId, f.scope(root = root), ticks).applyBody()
+            assertEquals(before + 1, result.revision, "the apply itself bumps once")
+            assertTrue(result.created.isEmpty() && result.bound.isEmpty(), "nothing is written")
+            assertEquals(
+                listOf("IMC-10", "IMC-5", "IMC-6") to listOf(JiraImportReason.OUTSIDE_ROOT),
+                result.skipped.map { it.issueKey }.sortedBy { it }.map { it.orEmpty() } to result.skipped.map { it.reason }.distinct(),
+            )
+            assertEquals(0, count("SELECT count(*) FROM milestones WHERE project_id = ? AND NOT marked_as_deleted", north.toInt()))
+            assertEquals(2, activeBindingCount(f.connectionId), "the root's link and the other program's project")
+        }
+
+    @Test
     fun `no refusal of a rooted apply audits an apply or writes anything`() = testApplication {
         val f = importFixture("jca9", keys = listOf("IMC"))
         val root = f.linkProgram()

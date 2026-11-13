@@ -485,6 +485,7 @@
       "levelUnmapped": "Jego typ w Jirze nie jest zmapowany na żaden poziom planu.",
       "noTeam": "Brak zespołu: zespół z Jiry nie pasuje do żadnego tutaj i nie ustawiono zespołu domyślnego.",
       "parentSkipped": "Jego rodzic jest pominięty, więc on też.",
+      "outsideRoot": "Należy do projektu z innego programu, więc importuje go stamtąd właściciel/ka tego projektu albo administrator/ka.",
       "changed": "Zmienił się od czasu podglądu, w Jirze lub w planie. Pokaż podgląd ponownie."
     },
     "info": {

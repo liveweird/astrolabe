@@ -72,6 +72,9 @@ class ImportSnapshot(
     val calendar: WorkingCalendar,
 )
 
+/** The node a rooted import (1.14) starts from: the kernel lands a row only under it (`OUTSIDE_ROOT` otherwise); never a milestone. */
+class ImportRootNode(val level: JiraLevel, val nodeId: UInt)
+
 /**
  * REQUIREMENT ON THE CALLER (preview route and apply): refuse a `defaults.teamId` or an `overrides.teamId` that is not an ACTIVE team
  * with a `400` BEFORE the kernel runs (and under the lock in an apply). The kernel's own handling of an unknown override (the row
@@ -87,6 +90,8 @@ class ImportInput(
     val asOf: Long,
     /** The apply's ticked items; null = a preview (nothing is ticked, no row carries an [ImportRow.apply]). */
     val ticks: List<JiraImportApplyItem>? = null,
+    /** A rooted import's root (1.14); null = a whole-scope import, whose rows the kernel plans as before. */
+    val root: ImportRootNode? = null,
 )
 
 /** What an apply does with a row. */

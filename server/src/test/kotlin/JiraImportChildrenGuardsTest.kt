@@ -1,7 +1,9 @@
 package ch.nokillswit
 
+import ch.nokillswit.jira.JiraImportAction
 import ch.nokillswit.jira.JiraImportDefaults
 import ch.nokillswit.jira.JiraImportFilter
+import ch.nokillswit.jira.JiraImportPreview
 import ch.nokillswit.jira.JiraImportReason
 import ch.nokillswit.jira.JiraImportRoot
 import ch.nokillswit.jira.JiraImportRootLevel
@@ -138,7 +140,7 @@ class JiraImportChildrenGuardsTest {
         // Under a filter: the handle goes too.
         val filtered = owner.preview(f.connectionId, f.scope(filter = both, root = root))
         val body = filtered.bodyAsText()
-        val preview = jbJson.decodeFromString<ch.nokillswit.jira.JiraImportPreview>(body)
+        val preview = jbJson.decodeFromString<JiraImportPreview>(body)
         val hidden = preview.items.single { it.action == ch.nokillswit.jira.JiraImportAction.SKIP }
         assertEquals(listOf(null, "", ""), listOf(hidden.issueKey, hidden.name, hidden.summary))
         assertTrue(hidden.jiraId.startsWith("hidden-"), hidden.jiraId)
@@ -146,21 +148,78 @@ class JiraImportChildrenGuardsTest {
         assertEquals(listOf("IMC-2", "IMC-3", "IMC-5", "IMC-7"), preview.items.filter { it.issueKey != null }.map { it.issueKey })
     }
 
+    /** The world's stream with a SECOND program holding a project linked to `IMC-2`: what hangs under it (IMC-5, 6, 10) is outside. */
+    private suspend fun ImportFixture.linkNorthElsewhere() {
+        val elsewhere = TestPlan.program(w.streamId, w.stranger.personId!!)
+        val project = TestPlan.project(elsewhere, w.stranger.personId, "IMC Initiative North")
+        w.admin.client.jbBind(connectionId, JiraLevel.PROJECT, project, "IMC-2").jbBinding()
+    }
+
     @Test
-    fun `a child project linked to a project of ANOTHER program of the stream is a 403 naming it, for an owner of the root only`() =
+    fun `what hangs under a child project linked to another program's project is OUTSIDE_ROOT, redacted, and a 200 for the owner`() =
         testApplication {
             val f = importFixture("jcg6", keys = listOf("IMC"))
             val root = f.linkProgram()
-            val elsewhere = TestPlan.program(f.w.streamId, f.w.stranger.personId!!)
-            val project = TestPlan.project(elsewhere, f.w.stranger.personId, "IMC Initiative North")
-            f.w.admin.client.jbBind(f.connectionId, JiraLevel.PROJECT, project, "IMC-2").jbBinding()
-            // IMC-5 now lands under that project, which the root program's owner does not own.
-            val denied = f.w.programOwner.client.preview(f.connectionId, f.scope(root = root))
-            assertEquals(HttpStatusCode.Forbidden, denied.status, denied.bodyAsText())
-            assertTrue("IMC-5" in denied.jbProblem().detail.orEmpty(), denied.jbProblem().detail)
-            assertEquals(HttpStatusCode.OK, f.w.streamOwner.client.preview(f.connectionId, f.scope(root = root)).status)
-            assertEquals(HttpStatusCode.OK, f.w.admin.client.preview(f.connectionId, f.scope(root = root)).status)
+            f.linkNorthElsewhere()
+            val owner = f.w.programOwner.client
+            val plain = owner.preview(f.connectionId, f.scope(root = root)).previewBody()
+            val bound = plain.items.single { it.issueKey == "IMC-2" }
+            assertEquals(listOf(JiraImportAction.SKIP, JiraImportReason.ALREADY_BOUND), listOf(bound.action, bound.reason))
+            assertEquals("IMC Initiative North", bound.target?.nodeName, "the holder is named, as for any ALREADY_BOUND row")
+            val outside = plain.items.filter { it.reason == JiraImportReason.OUTSIDE_ROOT }
+            assertEquals(listOf("IMC-10", "IMC-5", "IMC-6"), outside.map { it.key() }.sorted())
+            // Redacted like every skip but ALREADY_BOUND: no summary, the key as the name, nothing lands anywhere.
+            assertTrue(outside.all { it.summary.isEmpty() && it.name == it.key() && it.parent == null })
+            assertTrue(outside.all { it.action == JiraImportAction.SKIP })
+            // Under a filter the handle goes too: no key, no Jira id.
+            val body = owner.preview(f.connectionId, f.scope(filter = both, root = root)).bodyAsText()
+            val filtered = jbJson.decodeFromString<JiraImportPreview>(body)
+            val hidden = filtered.items.filter { it.reason == JiraImportReason.OUTSIDE_ROOT }
+            assertEquals(1, hidden.size, "IMC-6 is done and IMC-10 is old: the filter leaves only IMC-5 under IMC-2")
+            assertEquals(listOf(null, "", ""), listOf(hidden.single().issueKey, hidden.single().summary, hidden.single().name))
+            assertTrue(listOf("IMC-5", imcId(5)).none { it in body }, "no handle of the redacted row: $body")
+            // ADMIN sees the same verdicts in full.
+            val admin = f.w.admin.client.preview(f.connectionId, f.scope(root = root)).previewBody()
+            val adminOutside = admin.items.filter { it.reason == JiraImportReason.OUTSIDE_ROOT }
+            assertEquals(listOf("IMC Epic One", "IMC Epic Six", "IMC Epic Two"), adminOutside.map { it.summary }.sorted())
+            assertEquals(JiraImportReason.ALREADY_BOUND, admin.items.single { it.issueKey == "IMC-2" }.reason)
         }
+
+    /** Whoever passes the root's guard gets a 200; everyone else a 403 from that guard, never the resolved-target one. */
+    private fun assertRootGuardOnly(f: ImportFixture, root: JiraImportRoot, passers: Set<String>, filter: JiraImportFilter? = null) {
+        val answers = kotlinx.coroutines.runBlocking {
+            everyone(f).associate { (name, caller) -> name to caller.client.preview(f.connectionId, f.scope(filter = filter, root = root)) }
+        }
+        for ((name, response) in answers) {
+            if (name in passers) {
+                assertEquals(HttpStatusCode.OK, response.status, "$name: ${kotlinx.coroutines.runBlocking { response.bodyAsText() }}")
+            } else {
+                assertEquals(HttpStatusCode.Forbidden, response.status, name)
+                val detail = kotlinx.coroutines.runBlocking { response.jbProblem().detail.orEmpty() }
+                assertTrue("You do not own" !in detail, "$name: refused by the root's guard, not by a target")
+            }
+        }
+    }
+
+    @Test
+    fun `no caller who passes a program root's guard ever meets the resolved-target 403, whatever is linked elsewhere, filtered or not`() =
+        testApplication {
+            val f = importFixture("jcg7", keys = listOf("IMC"))
+            val root = f.linkProgram()
+            f.linkNorthElsewhere()
+            val passers = setOf("admin", "streamOwner", "programOwner")
+            assertRootGuardOnly(f, root, passers)
+            assertRootGuardOnly(f, root, passers, filter = both)
+        }
+
+    @Test
+    fun `no caller who passes a project root's guard ever meets the resolved-target 403, filtered or not`() = testApplication {
+        val f = importFixture("jcg8", keys = listOf("IMC"))
+        val root = f.linkProject()
+        val passers = setOf("admin", "streamOwner", "programOwner", "projectOwner")
+        assertRootGuardOnly(f, root, passers)
+        assertRootGuardOnly(f, root, passers, filter = both)
+    }
 
     companion object {
         @JvmStatic

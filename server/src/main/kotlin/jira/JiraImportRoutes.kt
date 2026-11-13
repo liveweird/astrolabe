@@ -94,7 +94,10 @@ internal fun Route.jiraImportRoutes(
             val managerUserId = if (caller.isAdmin()) null else caller.userId
             val read = imports.read(scope.workStreamId, context.target.siteUrl, issueIds, managerUserId).orNotFound("Work stream")
             val defaults = scope.defaults ?: JiraImportDefaults()
-            val input = ImportInput(browse, admitted.ready.mapping, admitted.ready.discovery, read.snapshot, defaults, scope.copyDates, now)
+            val input = ImportInput(
+                browse, admitted.ready.mapping, admitted.ready.discovery, read.snapshot, defaults, scope.copyDates, now,
+                root = admitted.root?.node,
+            )
             val whole = JiraImportKernels.plan(input)
             // A rooted import: the root's own row must be what the browse promised, and it is never a row of the answer (1.14).
             val plan = admitted.root?.let { root ->

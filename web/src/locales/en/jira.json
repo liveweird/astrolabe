@@ -467,6 +467,7 @@
       "levelUnmapped": "Its Jira type is not mapped to a plan level.",
       "noTeam": "No team: its Jira team matches none here and no default team is set.",
       "parentSkipped": "Its parent is skipped, so it is skipped too.",
+      "outsideRoot": "It belongs under a project of another program, so it is imported from there, by that project's owner or an administrator.",
       "changed": "Changed since the preview, in Jira or in the plan. Preview again."
     },
     "info": {

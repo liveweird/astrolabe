@@ -68,12 +68,14 @@ data class JiraImportScope(
 enum class JiraImportAction { CREATE, BIND, SKIP }
 
 /**
- * Why a row is not written. The first six are the kernel's own verdicts (a preview shows these; [PARENT_SKIPPED] = the Jira parent is in
- * the browse and its row is skipped, or, in an apply, left out by the client); [CHANGED] (what the client saw is no longer what the
+ * Why a row is not written. The first seven are the kernel's own verdicts (a preview shows these; [PARENT_SKIPPED] = the Jira parent is in
+ * the browse and its row is skipped, or, in an apply, left out by the client; [OUTSIDE_ROOT] = a rooted import (1.14) would land the
+ * row outside the root's subtree, under a plan item of another program: it is skipped, whoever asks - an import started from a linked
+ * item writes only under that item); [CHANGED] (what the client saw is no longer what the
  * site and the plan say) exists only in an apply.
  */
 @Serializable
-enum class JiraImportReason { ALREADY_BOUND, NO_PARENT, NAME_TAKEN, LEVEL_UNMAPPED, NO_TEAM, PARENT_SKIPPED, CHANGED }
+enum class JiraImportReason { ALREADY_BOUND, NO_PARENT, NAME_TAKEN, LEVEL_UNMAPPED, NO_TEAM, PARENT_SKIPPED, OUTSIDE_ROOT, CHANGED }
 
 /** Something worth a gray word beside a row; none of them stops a row. */
 @Serializable

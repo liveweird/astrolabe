@@ -15,6 +15,7 @@ describe("reasonText", () => {
     ["LEVEL_UNMAPPED", /not mapped to a plan level/],
     ["NO_TEAM", /No team/],
     ["PARENT_SKIPPED", /parent is skipped/],
+    ["OUTSIDE_ROOT", /belongs under a project of another program/],
     ["CHANGED", /Preview again/],
   ] as const)("%s reads in words", (reason, pattern) => {
     expect(reasonText(reason, t)).toMatch(pattern);

@@ -184,7 +184,8 @@ class JiraImportService(
      * A rooted import lands under the root's own node, so the defaults the request can steer there are limited (`400`, after the guards
      * and the stream rule): no `defaults.programId` (a rooted import creates no program, and its orphans have no program to fall under), no
      * `defaults.projectId` under a project root (every milestone lands under the root), and under a program root only a project OF that
-     * program. (The planner's re-homing of a child linked to a project of another program of the stream is the documented rough edge.)
+     * program. (A child project linked to a project of ANOTHER program of the stream is not re-homed: the kernel skips what hangs under it
+     * `OUTSIDE_ROOT`, so no rooted import plans a write outside the root.)
      */
     internal suspend fun requireDefaultsUnderRoot(defaults: JiraImportDefaults?, root: JiraImportRoot) {
         if (defaults?.programId != null) throw BadRequestException("defaults.programId cannot be combined with a root")

@@ -11,8 +11,11 @@ private class Parent(val kind: JiraImportParentKind, val nodeId: UInt?, val node
     fun toWire() = JiraImportParent(kind, nodeId, nodeName, rowJiraId)
 }
 
-/** The parent search's answer: a [parent], or none ([skipped] = the Jira parent is in the browse and its row was skipped). */
-private class ParentLookup(val parent: Parent?, val skipped: Boolean = false)
+/**
+ * The parent search's answer: a [parent], or none ([skipped] = the Jira parent is in the browse and its row was skipped; [outsideRoot] =
+ * the parent is an existing plan node outside a rooted import's subtree).
+ */
+private class ParentLookup(val parent: Parent?, val skipped: Boolean = false, val outsideRoot: Boolean = false)
 
 /** The numeric Jira ids order as numbers (never lexicographically): shorter first, then by digits. */
 internal val ID_ORDER: Comparator<String> = compareBy<String>({ it.length }, { it })
@@ -27,6 +30,10 @@ internal val ID_ORDER: Comparator<String> = compareBy<String>({ it.length }, { i
  * and mapped levels are never adjacent to a browsed one in between, so walking further up could never find the wanted level.)
  * A direct parent that IS in the browse but has no usable row (any skip but ALREADY_BOUND, whatever the ids' order) makes the child
  * PARENT_SKIPPED, never a default. In an apply only a WRITTEN row keeps its [ImportRow.releases] (use [ImportPlan.releases]).
+ *
+ * THE ROOT RULE (1.15, [ImportInput.root]): an import started from a linked item writes only under that item, for every caller. Whenever
+ * a row's resolved parent is an EXISTING plan node outside the root's subtree (see [isOutsideRoot]) the row is OUTSIDE_ROOT, never
+ * created or bound there. A parent that is a NEW row of the batch needs no check (that row was checked).
  */
 internal class ImportPlanner(private val input: ImportInput) {
     private val mapping = input.mapping
@@ -56,6 +63,9 @@ internal class ImportPlanner(private val input: ImportInput) {
     private val naturalTeams = HashMap<String, UInt?>()
     private val tickRules = ImportTicks(ticks, naturalTeams)
     private val projectsByParent = tree.projects.groupBy { it.parentId }
+    /** The projects of a PROGRAM root (a milestone may land only under one of them). */
+    private val rootProjectIds: Set<UInt> = input.root?.takeIf { it.level == JiraLevel.PROGRAM }
+        ?.let { root -> tree.projects.filter { it.parentId == root.nodeId }.mapTo(HashSet()) { it.id } }.orEmpty()
     private val milestonesByParent = tree.milestones.groupBy { it.parentId }
     private val nodeIdsByLevel = mapOf(
         JiraLevel.PROGRAM to tree.programs.mapTo(HashSet()) { it.id },
@@ -93,6 +103,7 @@ internal class ImportPlanner(private val input: ImportInput) {
             return skip(issue, level, name, JiraImportReason.ALREADY_BOUND, target)
         }
         val lookup = if (level == JiraLevel.PROGRAM) null else parentOf(issue, level)
+        if (lookup?.outsideRoot == true) return skip(issue, level, name, JiraImportReason.OUTSIDE_ROOT)
         if (lookup?.skipped == true) return skip(issue, level, name, JiraImportReason.PARENT_SKIPPED)
         if (lookup != null && lookup.parent == null) return skip(issue, level, name, JiraImportReason.NO_PARENT)
         return decide(issue, level, name, lookup?.parent, held.filterNot { it.live })
@@ -230,10 +241,29 @@ internal class ImportPlanner(private val input: ImportInput) {
         val wanted = if (level == JiraLevel.MILESTONE) JiraLevel.PROJECT else JiraLevel.PROGRAM
         val parentId = parentAtLevel(issue, wanted)
         if (parentId != null) {
-            ancestorParent(parentId, wanted)?.let { return ParentLookup(it) }
+            ancestorParent(parentId, wanted)?.let { return lookupOf(it, wanted) }
             if (skippedAncestor(parentId)) return ParentLookup(null, skipped = true)
         }
-        return ParentLookup(defaultParent(wanted))
+        return defaultParent(wanted)?.let { lookupOf(it, wanted) } ?: ParentLookup(null)
+    }
+
+    /** The one place the root rule is applied: [parent] (a level-[wanted] node) as the answer, or the OUTSIDE_ROOT verdict. */
+    private fun lookupOf(parent: Parent, wanted: JiraLevel): ParentLookup =
+        if (isOutsideRoot(parent, wanted)) ParentLookup(null, outsideRoot = true) else ParentLookup(parent)
+
+    /**
+     * Whether an EXISTING [parent] at plan level [wanted] lies outside the rooted import's subtree: a project-level row must sit under the
+     * root program itself, a milestone-level row under a project of the root program (PROGRAM root) or under the root project (PROJECT
+     * root). A project-level row under a PROJECT root has no valid parent. Always false for a whole-scope import and for a new row.
+     */
+    private fun isOutsideRoot(parent: Parent, wanted: JiraLevel): Boolean {
+        val root = input.root ?: return false
+        val nodeId = parent.nodeId ?: return false
+        return when {
+            wanted == JiraLevel.PROGRAM -> root.level != JiraLevel.PROGRAM || nodeId != root.nodeId
+            root.level == JiraLevel.PROGRAM -> nodeId !in rootProjectIds
+            else -> nodeId != root.nodeId
+        }
     }
 
     /**

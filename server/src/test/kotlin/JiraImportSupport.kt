@@ -9,6 +9,7 @@ import ch.nokillswit.jira.ImportHolder
 import ch.nokillswit.jira.ImportInput
 import ch.nokillswit.jira.ImportPlan
 import ch.nokillswit.jira.ImportPlanNode
+import ch.nokillswit.jira.ImportRootNode
 import ch.nokillswit.jira.ImportRow
 import ch.nokillswit.jira.ImportSnapshot
 import ch.nokillswit.jira.ImportTeam
@@ -125,12 +126,13 @@ class ImportCase(
     private val copyDates: Boolean = true,
     private val mapping: JiraMapping = importMapping(),
     private val browseTruncated: Boolean = false,
+    private val root: ImportRootNode? = null,
 ) {
     fun plan(ticks: List<JiraImportApplyItem>? = null): ImportPlan = JiraImportKernels.plan(
         ImportInput(
             ImportBrowse(issues, browseTruncated), mapping, IMPORT_DISCOVERY,
             ImportSnapshot(tree, programNames, holders, teams, canSchedule, calendar),
-            defaults, copyDates, asOf = 42, ticks = ticks,
+            defaults, copyDates, asOf = 42, ticks = ticks, root = root,
         ),
     )
 

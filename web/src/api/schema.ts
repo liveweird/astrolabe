@@ -2419,9 +2419,10 @@ export interface paths {
          *     (a program: its projects, then their milestones; a project: its milestones), at most 2,000 rows in all (the root counts). With `root`,
          *     `items` are the root's descendants only: the root is not a row, and `totals` count what is listed. Under an active filter a level that has
          *     children to walk is read without the filter at the source, and the server keeps a project the filter does not admit only while a kept
-         *     item hangs under it (`KEPT_AS_PARENT`); no parent is read by id. What is created lands under the root's own node, with one exception: a child
-         *     project whose Jira item is already linked to a plan project of ANOTHER program of the same work stream is not created again, and its
-         *     milestones land under that project (a caller who does not own it gets the `403` naming it). The request cannot steer a row anywhere
+         *     item hangs under it (`KEPT_AS_PARENT`); no parent is read by id. What is created lands under the root's own node, and only there: a child
+         *     project whose Jira item is already linked to a plan project of ANOTHER program of the same work stream is not created again
+         *     (`ALREADY_BOUND`), and what hangs under it is skipped `OUTSIDE_ROOT` for every caller (ADMIN and the work stream's owner included;
+         *     they import those milestones from that project). The request cannot steer a row anywhere
          *     else: with `root`, `defaults.programId` is a `400`, `defaults.projectId` must be a project of the root program (a `400` otherwise, and
          *     always for a project root). A milestone-level item directly under a root program follows today's rule (the default project, else
          *     skipped `NO_PARENT`). The whole rooted read shares ONE budget of 200 requests (the root read and every search page of every round); the
@@ -2505,8 +2506,8 @@ export interface paths {
          *     connection must exist (`409 urn:astrolabe:problem:jira-root-unusable`), and after the recomputation under the lock the root's own row
          *     must still read `ALREADY_BOUND` to the root node (else the same `409`, a rollback: nothing written, no bump). Only the root's
          *     descendants are browsed, so a ticked id outside its subtree is answered like a vanished one (`CHANGED`, no key). What is created is
-         *     written under the root's own node (the one exception is the preview's: milestones of a child project already linked to a project of
-         *     another program of the stream land under that project, for an owner of it); no program is created. The same `defaults` rules as the
+         *     written under the root's own node and nowhere else (a row the kernel finds outside the root's subtree is skipped `OUTSIDE_ROOT`, in an
+         *     apply as in the preview: a project moved out of the root program meanwhile turns its ticked rows into such skips); no program is created. The same `defaults` rules as the
          *     preview apply (`400`).
          *
          *     The answer lists ids, keys and reasons, plus the `name` of each created row - which IS the Jira summary (cut at 100 characters) of an issue on the caller's own target; a skipped row carries no text. `revision` is the plan
@@ -6280,8 +6281,8 @@ export interface components {
          * @description The linked node a rooted import starts from (1.14): a program or a project of the picked work stream with an ACTIVE link through
          *     THIS connection. Its Jira item is read by id first; then only what Jira lists under it at the levels the connection maps below
          *     the root's own (a program: its projects, then their milestones; a project: its milestones). What is created lands under the root's own
-         *     node (the one exception: milestones of a child project already linked to a plan project of ANOTHER program of the same work stream
-         *     land under that project), and a rooted import never creates a program. The caller must own the root's chain (the work stream's, the program's or,
+         *     node and only there (what hangs under a child project already linked to a plan project of ANOTHER program of the same work stream is
+         *     skipped `OUTSIDE_ROOT`, for every caller), and a rooted import never creates a program. The caller must own the root's chain (the work stream's, the program's or,
          *     for a project, the project's owner) or be ADMIN; no other rule changes. A `MILESTONE` root does not decode (`400`).
          */
         JiraImportRoot: {
@@ -6367,10 +6368,10 @@ export interface components {
             /** @enum {string} */
             action: "CREATE" | "BIND" | "SKIP";
             /**
-             * @description SKIP rows only. PARENT_SKIPPED: the Jira parent is in the browse and its row is skipped (never re-homed under a default).
+             * @description SKIP rows only. PARENT_SKIPPED: the Jira parent is in the browse and its row is skipped (never re-homed under a default). OUTSIDE_ROOT (a rooted import): the row would land under a plan item outside the root's subtree - skipped for every caller.
              * @enum {string|null}
              */
-            reason?: "ALREADY_BOUND" | "NO_PARENT" | "NAME_TAKEN" | "LEVEL_UNMAPPED" | "NO_TEAM" | "PARENT_SKIPPED" | null;
+            reason?: "ALREADY_BOUND" | "NO_PARENT" | "NAME_TAKEN" | "LEVEL_UNMAPPED" | "NO_TEAM" | "PARENT_SKIPPED" | "OUTSIDE_ROOT" | null;
             parent?: components["schemas"]["JiraImportParent"] | null;
             target?: components["schemas"]["JiraImportTarget"] | null;
             /** @description The plan name: the summary with control characters and runs of whitespace collapsed, cut at 100 characters; the issue key when blank. Blank ("") on a row redacted for a non-admin under an active `filter`, whose key is withheld. */
@@ -6528,7 +6529,7 @@ export interface components {
             /** @description Null for an item the re-browse no longer finds and, for a non-admin under an active `filter`, for a ticked id the same-scope preview redacts (answered `CHANGED`, exactly like an absent id). */
             issueKey?: string | null;
             /** @enum {string} */
-            reason: "ALREADY_BOUND" | "NO_PARENT" | "NAME_TAKEN" | "LEVEL_UNMAPPED" | "NO_TEAM" | "PARENT_SKIPPED" | "CHANGED";
+            reason: "ALREADY_BOUND" | "NO_PARENT" | "NAME_TAKEN" | "LEVEL_UNMAPPED" | "NO_TEAM" | "PARENT_SKIPPED" | "OUTSIDE_ROOT" | "CHANGED";
         };
         JiraImportResult: {
             /**

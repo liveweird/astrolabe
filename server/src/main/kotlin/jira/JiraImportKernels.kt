@@ -28,6 +28,8 @@ class EstimateConversion(val manDays: BigDecimal, val notConverted: Boolean)
  *   preview as in an apply, and never re-homed; an ALREADY_BOUND ancestor stays usable through its bound node (under the stream).
  *   The same reason covers a parent row the CLIENT left out of an apply (unticked, or itself PARENT_SKIPPED/CHANGED) - the rows
  *   are decided in full first and the ticks applied after, so claims never depend on ticks.
+ * - A ROOTED import (1.15, [ImportInput.root]) writes only under its root, for every caller: a row whose parent resolves to an
+ *   EXISTING node outside the root's subtree is OUTSIDE_ROOT (a skip, in a preview as in an apply), never created or bound there.
  * - Names are compared case-insensitively with Kotlin's `lowercase()`; the unique indexes use PostgreSQL's `LOWER()`. They agree for
  *   every real name; an exotic mismatch is caught by the indexes as a whole-request `409`, never as a wrong row.
  * - An apply computes every row with the client's team overrides, then compares each ticked row with its `expected` block. A ticked row

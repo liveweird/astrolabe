@@ -30,6 +30,9 @@ internal class ImportRoot(val level: JiraLevel, val nodeId: UInt, val bindingId:
         require(level != JiraLevel.MILESTONE) { "a milestone has no children to import" }
         require(ISSUE_ID_PATTERN.matches(issueId)) { "the root's Jira issue id is not a numeric id" }
     }
+
+    /** What the kernel is told: a row lands only under this node. */
+    val node: ImportRootNode get() = ImportRootNode(level, nodeId)
 }
 
 /**

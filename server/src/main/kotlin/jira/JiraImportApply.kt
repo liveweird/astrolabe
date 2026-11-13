@@ -119,11 +119,16 @@ internal class LockedApply(
         val read = imports.loadPlanSide(
             request.workStreamId, connection.siteUrl, issueIdsOf(ctx.browse), canSchedule(), revision,
         ) ?: throw NotFoundException("Work stream not found")
-        val preview = ImportInput(ctx.browse, ctx.mapping, ctx.discovery, read.snapshot, defaults, request.copyDates, ctx.asOf)
+        val rootNode = ctx.root?.node
+        val preview = ImportInput(
+            ctx.browse, ctx.mapping, ctx.discovery, read.snapshot, defaults, request.copyDates, ctx.asOf, root = rootNode,
+        )
         val withheld = withheldIds(preview)
         val ticks = request.items.filter { it.jiraId !in withheld }
         val plan = JiraImportKernels.plan(
-            ImportInput(ctx.browse, ctx.mapping, ctx.discovery, read.snapshot, defaults, request.copyDates, ctx.asOf, ticks),
+            ImportInput(
+                ctx.browse, ctx.mapping, ctx.discovery, read.snapshot, defaults, request.copyDates, ctx.asOf, ticks, rootNode,
+            ),
         )
         ctx.root?.let(plan::requireRootRow)
         val ticked = plan.rows.filter { it.apply != null && it.apply != ImportApply.NotRequested }.map { it.item }

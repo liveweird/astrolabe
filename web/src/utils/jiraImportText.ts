@@ -20,6 +20,8 @@ export function reasonText(reason: JiraImportSkipReason, t: TFunction, holder?: 
       return t("jira.import.reason.noTeam");
     case "PARENT_SKIPPED":
       return t("jira.import.reason.parentSkipped");
+    case "OUTSIDE_ROOT":
+      return t("jira.import.reason.outsideRoot");
     case "CHANGED":
       return t("jira.import.reason.changed");
   }
