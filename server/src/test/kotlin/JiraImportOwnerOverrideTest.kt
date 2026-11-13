@@ -67,6 +67,23 @@ class JiraImportOwnerOverrideTest {
         }
 
     @Test
+    fun `an apply with no override writes the audit field as an empty list`() = testApplication {
+        val f = importFixture("jiao0")
+        val admin = f.w.admin.client
+        try {
+            val scope = f.scope(JiraImportDefaults(projectId = f.w.projectId, teamId = f.defaultTeam))
+            val ticks = admin.preview(f.connectionId, scope).previewBody().ticks()
+            withAuditCapture { audit ->
+                admin.applyImport(f.connectionId, scope, ticks).applyBody()
+                val event = assertNotNull(audit.awaitEvent { it.message == "jira.import_applied" })
+                assertTrue(event.hasKeyValue("ownerOverridePersonIds", ""), "no override: present, and empty")
+            }
+        } finally {
+            deleteImpProgram()
+        }
+    }
+
+    @Test
     fun `the override is ignored on a BIND row and on a row the kernel skips, and counts on a row that is created`() = testApplication {
         val f = importFixture("jiao2")
         val admin = f.w.admin.client

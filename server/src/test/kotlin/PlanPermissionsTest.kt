@@ -99,6 +99,22 @@ class PlanPermissionsTest {
     }
 
     @Test
+    fun `whoever may manage a program may edit the target window of any project created under it - the import's no-check premise`() {
+        val programChain = chains.first { it.first == "program" }.second
+        var implied = 0
+        for (actor in actors) {
+            val planActor = actor.asPlanActor()
+            if (!PlanPermissions.canManage(planActor, programChain)) continue
+            for (owner in listOf(project, program, stream, outsider)) {
+                val projectChain = OwnerChain(programChain.owners + owner)
+                assertTrue(PlanPermissions.canEditTargetWindow(planActor, projectChain), "${actor.label}, project owned by $owner")
+                implied++
+            }
+        }
+        assertTrue(implied > 0)
+    }
+
+    @Test
     fun `the create-work-stream flag equals requireAdmin`() {
         for (actor in actors) {
             assertEquals(allowed { requireAdmin(actor.caller) }, PlanPermissions.canCreateWorkStream(actor.asPlanActor()), actor.label)

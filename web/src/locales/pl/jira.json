@@ -367,7 +367,7 @@
       "updatedWithinInvalid": "Wpisz całkowitą liczbę dni od 1 do 3650 albo zostaw pole puste.",
       "filterNote": "Zakończony lub starszy rodzic wczytanego elementu też jest wczytywany, jeśli należy do wybranych projektów Jiry.",
       "copyDates": "Kopiuj daty z Jiry",
-      "copyDatesHint": "Daty trafią tylko do kamieni milowych zespołów, którymi zarządzasz; pozostałe powstaną bez terminu. Nowy projekt dostanie daty rozpoczęcia i zakończenia z Jiry jako okno docelowe, jeśli ma obie.",
+      "copyDatesHint": "Daty trafią tylko do kamieni milowych zespołów, którymi zarządzasz; pozostałe powstaną bez terminu. Nowy projekt dostanie jako okno docelowe daty rozpoczęcia i zakończenia, na które zmapowano jego poziom (domyślnie Target start i Target end z Jiry), jeśli ma obie.",
       "team": "Domyślny zespół",
       "teamHint": "Dla kamieni milowych, których zespół z Jiry nie pasuje do żadnego zespołu tutaj. Bez niego takie kamienie milowe są pomijane.",
       "program": "Domyślny program",

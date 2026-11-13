@@ -361,7 +361,7 @@
       "updatedWithinInvalid": "Enter a whole number of days from 1 to 3,650, or leave it empty.",
       "filterNote": "A done or older parent of an item that is read is read as well, when it is in the selected Jira projects.",
       "copyDates": "Copy Jira's dates",
-      "copyDatesHint": "Dates are copied only to milestones whose team you manage; the others are created unscheduled. A new project gets Jira's start and due dates as its target window, when it has both.",
+      "copyDatesHint": "Dates are copied only to milestones whose team you manage; the others are created unscheduled. A new project gets the start and end dates its level is mapped to (by default Jira's Target start and Target end) as its target window, when it has both.",
       "team": "Default team",
       "teamHint": "For milestones whose Jira team matches no team here. Without one, those milestones are skipped.",
       "program": "Default program",

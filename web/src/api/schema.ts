@@ -6267,7 +6267,7 @@ export interface components {
             projectKeys?: string[] | null;
             defaults?: components["schemas"]["JiraImportDefaults"] | null;
             /**
-             * @description Copy Jira's dates to a milestone - only where the caller may schedule the milestone's team.
+             * @description Copy Jira's dates: to a milestone, only where the caller may schedule the milestone's team; to a project the import creates, as its target window (both dates or neither; the caller, who may always set it as ADMIN or the stream's or program's owner, needs no further check).
              * @default true
              */
             copyDates: boolean;

@@ -429,7 +429,7 @@ test("admin imports the stub's IMP project tree and a re-import creates nothing"
   // Alpha (IMP-2) went to the owner picked on its row, Beta (IMP-3) to the dialog's owner.
   expect(await projectOwnerName(alpha.id)).toBe(otherOwner);
   expect(await projectOwnerName(beta.id)).toBe(world.ownerName);
-  // ... and each was created WITH its target window, the Jira item's start and due dates.
+  // ... and each was created WITH its target window, the start and end dates its level is mapped to (Target start / Target end by default).
   const [alphaProject, betaProject] = [await projectOf(alpha.id), await projectOf(beta.id)];
   expect([alphaProject.targetStart, alphaProject.targetEnd]).toEqual(["2045-01-02", "2045-01-20"]);
   expect([betaProject.targetStart, betaProject.targetEnd]).toEqual(["2045-01-23", "2045-02-03"]);

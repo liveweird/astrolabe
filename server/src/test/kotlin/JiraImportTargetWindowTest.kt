@@ -68,20 +68,32 @@ class JiraImportTargetWindowTest {
         }
     }
 
-    /** [pick] chooses the non-admin caller of a world; the IMP program is bound to the world's own, so the projects land under it. */
-    private suspend fun ApplicationTestBuilder.ownerApplies(mark: String, pick: (PlanWorld) -> PlanCaller) {
+    /**
+     * [pick] chooses the non-admin caller of a world; with [bindProgram] the IMP program is bound to the world's own, so the projects
+     * land under it, else the import creates the program in the same batch (guarded through the stream) and they land under that.
+     */
+    private suspend fun ApplicationTestBuilder.ownerApplies(mark: String, bindProgram: Boolean = true, pick: (PlanWorld) -> PlanCaller) {
         val f = importFixture(mark)
-        f.bindImpProgram()
+        if (bindProgram) f.bindImpProgram()
         val caller = pick(f.w)
         val scope = f.scope()
         val preview = caller.client.preview(f.connectionId, scope).previewBody()
         val projects = preview.items.filter { it.level == JiraLevel.PROJECT && it.action == JiraImportAction.CREATE }
         assertTrue(projects.isNotEmpty() && projects.all { it.startDate != null }, "the preview shows the windows")
-        val result = caller.client.applyImport(f.connectionId, scope, preview.ticks()).applyBody()
-        val ids = result.created.filter { it.kind == JiraLevel.PROJECT }
-        assertEquals(projects.size, ids.size)
-        assertTrue(ids.all { windowOf(it.id) != null }, "the apply writes them")
+        try {
+            val result = caller.client.applyImport(f.connectionId, scope, preview.ticks()).applyBody()
+            val ids = result.created.filter { it.kind == JiraLevel.PROJECT }
+            assertEquals(projects.size, ids.size)
+            assertTrue(ids.all { windowOf(it.id) != null }, "the apply writes them")
+            if (!bindProgram) assertEquals(2, ids.size, "both projects, whose program was created in the same batch")
+        } finally {
+            if (!bindProgram) deleteImpProgram()
+        }
     }
+
+    @Test
+    fun `the stream's owner gets both windows when the program is created in the same batch`() =
+        testApplication { ownerApplies("jitw3c", bindProgram = false) { it.streamOwner } }
 
     @Test
     fun `a program owner who is no admin gets the windows`() = testApplication { ownerApplies("jitw3a") { it.programOwner } }

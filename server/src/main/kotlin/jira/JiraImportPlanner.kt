@@ -338,6 +338,8 @@ internal class ImportPlanner(private val input: ImportInput) {
         }
     }
 
+    // Defence in depth: the observation's dates come from `isoDateOrNull`, which already reads an out-of-range or unparseable date as
+    // missing, so real data never reaches this check; it keeps `windowFor` safe if a caller ever hands it a date the plan cannot hold.
     private fun inPlanYears(date: LocalDate): Boolean = date.year in FIRST_PLAN_YEAR..LAST_PLAN_DAY.year
 
     // ---- the apply: ticks over the decided rows --------------------------------------------------------------------------------
