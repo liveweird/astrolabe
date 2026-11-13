@@ -1,14 +1,7 @@
 package ch.nokillswit.jira
 
-import ch.nokillswit.infra.validation.LAST_PLAN_DAY
-import ch.nokillswit.planning.MilestoneSpan
-import ch.nokillswit.planning.TargetWindow
-import java.time.LocalDate
 import java.util.Locale
 import kotlin.math.abs
-
-/** The first year a plan date may have (`parseIsoDate`'s calendar: 1900-2999). */
-private const val FIRST_PLAN_YEAR = 1900
 
 /** Where a created row lands. [nodeId] is null for the new node of another row; [rowJiraId] names the batch row a parent depends on. */
 private class Parent(val kind: JiraImportParentKind, val nodeId: UInt?, val nodeName: String, val rowJiraId: String?) {
@@ -20,12 +13,6 @@ private class Parent(val kind: JiraImportParentKind, val nodeId: UInt?, val node
 
 /** The parent search's answer: a [parent], or none ([skipped] = the Jira parent is in the browse and its row was skipped). */
 private class ParentLookup(val parent: Parent?, val skipped: Boolean = false)
-
-/** A milestone's dates after the rules: the span to write (null = unscheduled) and the one info that says why. */
-private class DatesVerdict(val span: MilestoneSpan?, val info: JiraImportInfo?)
-
-/** A created project's window verdict (1.14): the [window] to write, else the [info] saying why not (none when Jira has no dates). */
-private class WindowVerdict(val window: TargetWindow?, val info: JiraImportInfo?)
 
 /** The numeric Jira ids order as numbers (never lexicographically): shorter first, then by digits. */
 internal val ID_ORDER: Comparator<String> = compareBy<String>({ it.length }, { it })
@@ -56,13 +43,18 @@ internal class ImportPlanner(private val input: ImportInput) {
     private val teamsByFold = snapshot.teams.sortedBy { it.id }
         .groupBy { JiraImportKernels.foldName(it.name) }.mapValues { it.value.first() }
     private val programNames = snapshot.allProgramNames.mapTo(HashSet()) { it.lowercase(Locale.ROOT) }
-    private val milestoneHasDateFields = mapping.levels.milestone.fields.let { it.start != null || it.end != null }
+    private val dateRules = ImportDateRules(
+        input.copyDates,
+        mapping.levels.milestone.fields.let { it.start != null || it.end != null },
+        snapshot.calendar,
+    )
 
     private val rowsById = LinkedHashMap<String, ImportRow>()
     private val claimedNodes = HashSet<Pair<JiraLevel, UInt>>()
     private val takenNames = HashSet<Pair<String, String>>()
     private val unmatchedTeams = HashSet<String>()
     private val naturalTeams = HashMap<String, UInt?>()
+    private val tickRules = ImportTicks(ticks, naturalTeams)
     private val projectsByParent = tree.projects.groupBy { it.parentId }
     private val milestonesByParent = tree.milestones.groupBy { it.parentId }
     private val nodeIdsByLevel = mapOf(
@@ -77,7 +69,7 @@ internal class ImportPlanner(private val input: ImportInput) {
         )
         val planned = ordered.map(::planRow)
         val vanished = ticks.keys.filter { it !in rowsById }
-        val rows = if (input.ticks == null) planned else applyTicks(planned)
+        val rows = if (input.ticks == null) planned else tickRules.applyTicks(planned)
         // Sorted, then one entry per fold ("Zulu" and "zulu" are one name): the first spelling in sort order is kept.
         val unmatched = unmatchedTeams.sorted().distinctBy(JiraImportKernels::foldName)
         return ImportPlan(input.asOf, rows, truncated, unmatched, vanished)
@@ -151,7 +143,7 @@ internal class ImportPlanner(private val input: ImportInput) {
         parent: Parent?,
         releases: List<ImportHolder>,
     ): ImportRow {
-        val verdict = if (level == JiraLevel.PROJECT) windowFor(issue.observation) else WindowVerdict(null, null)
+        val verdict = if (level == JiraLevel.PROJECT) dateRules.windowFor(issue.observation) else WindowVerdict(null, null)
         val base = base(issue, level, name)
         val item = base.copy(
             action = JiraImportAction.CREATE,
@@ -169,7 +161,7 @@ internal class ImportPlanner(private val input: ImportInput) {
         val team = teamFor(issue) ?: return skip(issue, JiraLevel.MILESTONE, name, JiraImportReason.NO_TEAM)
         val canSchedule = snapshot.canScheduleTeamIds?.contains(team.id) ?: true
         val estimate = JiraImportKernels.convertEstimate(obs.estimate, mapping.estimate)
-        val dates = datesFor(obs, canSchedule)
+        val dates = dateRules.datesFor(obs, canSchedule)
         val infos = listOfNotNull(
             JiraImportInfo.NAME_TRUNCATED.takeIf { name.truncated },
             JiraImportInfo.ESTIMATE_NOT_CONVERTED.takeIf { estimate.notConverted },
@@ -288,7 +280,7 @@ internal class ImportPlanner(private val input: ImportInput) {
         return nodes.firstOrNull { it.id == id }?.let { Parent(JiraImportParentKind.DEFAULT, it.id, it.name, null) }
     }
 
-    // ---- team, dates -----------------------------------------------------------------------------------------------------------
+    // ---- team -----------------------------------------------------------------------------------------------------------
 
     /**
      * An apply override wins (an unknown team is NO_TEAM, never another one); else the name match; else the default team. The team
@@ -305,76 +297,4 @@ internal class ImportPlanner(private val input: ImportInput) {
         if (override != null) return teamsById[override]?.let { JiraImportTeam(it.id, it.name, JiraImportTeamRule.DEFAULT) }
         return natural
     }
-
-    private fun datesFor(obs: JiraObservation, canSchedule: Boolean): DatesVerdict {
-        if (!input.copyDates) return DatesVerdict(null, null)
-        val start = obs.startDate
-        val end = obs.endDate
-        if (start == null || end == null) {
-            return DatesVerdict(null, JiraImportInfo.DATES_INVALID.takeIf { milestoneHasDateFields })
-        }
-        return when {
-            end.isBefore(start) || !inPlanYears(start) || !inPlanYears(end) -> DatesVerdict(null, JiraImportInfo.DATES_INVALID)
-            !canSchedule -> DatesVerdict(null, JiraImportInfo.DATES_NOT_COPIED)
-            !snapshot.calendar.containsWorkingDay(start, end) -> DatesVerdict(null, JiraImportInfo.NO_WORKING_DAY)
-            else -> DatesVerdict(MilestoneSpan(start, end), null)
-        }
-    }
-
-    /**
-     * A created project's target window from Jira's dates (1.14): BOTH dates, in order and inside the plan's years, else none and the
-     * row is created all the same. A Jira item with no dates at all says nothing (a project often has none); a lone date or a
-     * reversed pair says [JiraImportInfo.TARGET_NOT_COPIED]. Who may set it is not asked here: whoever may create the project is the
-     * stream's or the program's owner (or ADMIN), the project chain's ancestors, which `requireTargetWindowEditorOrAdmin` admits.
-     */
-    private fun windowFor(obs: JiraObservation): WindowVerdict {
-        val start = obs.startDate
-        val end = obs.endDate
-        return when {
-            !input.copyDates || (start == null && end == null) -> WindowVerdict(null, null)
-            start == null || end == null || end.isBefore(start) || !inPlanYears(start) || !inPlanYears(end) ->
-                WindowVerdict(null, JiraImportInfo.TARGET_NOT_COPIED)
-            else -> WindowVerdict(TargetWindow(start, end), null)
-        }
-    }
-
-    // Defence in depth: the observation's dates come from `isoDateOrNull`, which already reads an out-of-range or unparseable date as
-    // missing, so real data never reaches this check; it keeps `windowFor` safe if a caller ever hands it a date the plan cannot hold.
-    private fun inPlanYears(date: LocalDate): Boolean = date.year in FIRST_PLAN_YEAR..LAST_PLAN_DAY.year
-
-    // ---- the apply: ticks over the decided rows --------------------------------------------------------------------------------
-
-    private fun applyTicks(planned: List<ImportRow>): List<ImportRow> {
-        val outcomes = HashMap<String, ImportApply>()
-        return planned.map { row ->
-            val tick = ticks[row.item.jiraId]
-            val apply = if (tick == null) ImportApply.NotRequested else outcomeOf(row, tick, outcomes)
-            outcomes[row.item.jiraId] = apply
-            // Only a written row releases anything: nothing else may carry a release for a flatMap to find.
-            row.copy(apply = apply, releases = row.releases.takeIf { apply == ImportApply.Write }.orEmpty())
-        }
-    }
-
-    /** The kernel's own skip first, then a changed expectation, then a parent the client left out; else the row is written. */
-    private fun outcomeOf(row: ImportRow, tick: JiraImportApplyItem, outcomes: Map<String, ImportApply>): ImportApply {
-        val item = row.item
-        item.reason?.let { return ImportApply.Skipped(it) }
-        if (!matches(tick.expected, item)) return ImportApply.Skipped(JiraImportReason.CHANGED)
-        val dependsOn = item.parent?.rowJiraId
-        if (dependsOn != null && outcomes[dependsOn] != ImportApply.Write) return ImportApply.Skipped(JiraImportReason.PARENT_SKIPPED)
-        return ImportApply.Write
-    }
-
-    private fun matches(expected: JiraImportExpected, item: JiraImportItem): Boolean =
-        expected.action == item.action && expected.level == item.level && expected.parentJiraId == item.parentJiraId &&
-            expected.nodeId == item.target?.nodeId && landsWhereSeen(expected, item) && teamAsSeen(expected, item)
-
-    /** A milestone CREATE keeps the team the preview showed (the natural one, before any override); other rows have no team. */
-    private fun teamAsSeen(expected: JiraImportExpected, item: JiraImportItem): Boolean =
-        item.action != JiraImportAction.CREATE || item.level != JiraLevel.MILESTONE || expected.teamId == naturalTeams[item.jiraId]
-
-    /** A CREATE lands under the parent the client saw: the same kind and, for an existing node, the same node. A BIND lands nowhere. */
-    private fun landsWhereSeen(expected: JiraImportExpected, item: JiraImportItem): Boolean =
-        item.action != JiraImportAction.CREATE ||
-            (expected.parent?.kind == item.parent?.kind && expected.parent?.nodeId == item.parent?.nodeId)
 }
