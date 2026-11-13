@@ -6382,10 +6382,13 @@ export interface components {
             estimateMd?: number | null;
             /**
              * Format: date
-             * @description Jira's start, shown when `copyDates` is on (it is written only if `scheduled`).
+             * @description A milestone: Jira's start, shown when `copyDates` is on (it is written only if `scheduled`). A project that would be CREATED (1.14): the start of the TARGET WINDOW it will be created with - present only when `copyDates` is on and Jira gives both dates in order (else null with the `TARGET_NOT_COPIED` info, or no dates at all); never on a BIND or skipped project.
              */
             startDate?: string | null;
-            /** Format: date */
+            /**
+             * Format: date
+             * @description As `startDate`: a milestone's Jira end, or the end of a created project's target window.
+             */
             endDate?: string | null;
             team?: components["schemas"]["JiraImportTeam"] | null;
             /** @description The caller may schedule the milestone's team (ADMIN: always). */
@@ -6393,11 +6396,13 @@ export interface components {
             /** @description What WILL happen: the milestone is created with Jira's dates (`copyDates`, the caller may schedule, a valid span with a working day). */
             scheduled: boolean;
             /**
-             * @description `KEPT_AS_PARENT` (1.13.2): the filter would have left this item out, but an item that is read sits under it, so it was fetched by id and
+             * @description `TARGET_NOT_COPIED` (1.14, a PROJECT that would be created, `copyDates` on): Jira gives only one of its two dates, or an end before
+             *     the start, so the project is created WITHOUT a target window (the target window is both dates or neither); the row is not refused.
+             *     `KEPT_AS_PARENT` (1.13.2): the filter would have left this item out, but an item that is read sits under it, so it was fetched by id and
              *     kept. `PARENT_UNREADABLE`: its parent in Jira could not be read with the connection's account (Jira answered `404` by id: that it does not
              *     exist or is not visible); the row is skipped `NO_PARENT` and is never put under a default parent.
              */
-            infos: ("NAME_TRUNCATED" | "ESTIMATE_NOT_CONVERTED" | "DATES_NOT_COPIED" | "DATES_INVALID" | "NO_WORKING_DAY" | "KEPT_AS_PARENT" | "PARENT_UNREADABLE")[];
+            infos: ("NAME_TRUNCATED" | "ESTIMATE_NOT_CONVERTED" | "DATES_NOT_COPIED" | "DATES_INVALID" | "NO_WORKING_DAY" | "TARGET_NOT_COPIED" | "KEPT_AS_PARENT" | "PARENT_UNREADABLE")[];
         };
         JiraImportTotals: {
             /** Format: int32 */

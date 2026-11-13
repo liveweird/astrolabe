@@ -80,6 +80,9 @@ enum class JiraImportReason { ALREADY_BOUND, NO_PARENT, NAME_TAKEN, LEVEL_UNMAPP
 enum class JiraImportInfo {
     NAME_TRUNCATED, ESTIMATE_NOT_CONVERTED, DATES_NOT_COPIED, DATES_INVALID, NO_WORKING_DAY,
 
+    /** A created PROJECT's Jira dates are not both set, or not a valid window: it is created without a target window (1.14). */
+    TARGET_NOT_COPIED,
+
     /** The filter would have left this item out, but an item that is read sits under it: it was fetched by id and kept (1.13.2). */
     KEPT_AS_PARENT,
 

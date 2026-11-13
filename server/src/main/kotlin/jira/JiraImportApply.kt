@@ -245,7 +245,7 @@ internal class LockedApply(
         return when (item.level) {
             JiraLevel.PROGRAM -> insertProgramRow(request.workStreamId, item.name, null, ownerOf(item), stamp)
             JiraLevel.PROJECT -> insertProjectRow(
-                checkNotNull(parent) { "a project has a parent" }, item.name, null, ownerOf(item), null, stamp,
+                checkNotNull(parent) { "a project has a parent" }, item.name, null, ownerOf(item), row.window, stamp,
             )
             JiraLevel.MILESTONE -> insertMilestoneRow(
                 checkNotNull(parent) { "a milestone has a parent" }, checkNotNull(item.team) { "a milestone has a team" }.id,

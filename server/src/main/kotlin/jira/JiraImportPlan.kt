@@ -2,6 +2,7 @@ package ch.nokillswit.jira
 
 import ch.nokillswit.infra.time.WorkingCalendar
 import ch.nokillswit.planning.MilestoneSpan
+import ch.nokillswit.planning.TargetWindow
 import java.math.BigDecimal
 
 // The input and output types of `JiraImportKernels.plan`. Plain data: the service (C4 preview, C5 apply) builds the input from the
@@ -113,6 +114,8 @@ data class ImportRow(
     val span: MilestoneSpan?,
     val releases: List<ImportHolder>,
     val apply: ImportApply?,
+    /** A created PROJECT's target window, copied from Jira's dates (1.14): both dates valid and `copyDates` on; else null. */
+    val window: TargetWindow? = null,
 )
 
 /** A ticked item an apply does not write: [issueKey] is null when the re-browse no longer finds the issue. */

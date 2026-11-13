@@ -1054,7 +1054,7 @@ apply). Failures are inline (`importFailure`), a 409 in the apply offers "Previe
 `["plan"]` (plan, project and team views) and `["roadmap"]` (roadmap and programs) - the one Jira mutation that does. A non-admin's redacted SKIP row (empty
 summary, the key as its name) renders the key, never a blank cell. The rows are one fixed 88 px (`IMPORT_ROW_HEIGHT`; clamped text keeps its full text in the
 DOM and a `title`), there is no Level column (the cell under the key reads "Epic → milestone"), and the Skipped badge is orange only when some skip is not
-`ALREADY_BOUND`. The "N of M milestones created unscheduled" note counts ticked rows the SERVER marked `DATES_NOT_COPIED`. Tests: `JiraImportModal.test.tsx`,
+`ALREADY_BOUND`. A created PROJECT row's dates cell reads "Target window a to b" (the window the server will write: 1.14; the same `copyDates` switch, hint included), and its info `TARGET_NOT_COPIED` says "created without a target window" when Jira gives one date or a reversed pair. The "N of M milestones created unscheduled" note counts ticked rows the SERVER marked `DATES_NOT_COPIED`. Tests: `JiraImportModal.test.tsx`,
 `.errors.test.tsx`, `.virtual.test.tsx` (the 2,000-row cap), `.source.test.tsx` (the connection source), `hooks/useJiraImport.test.tsx` (the in-flight guard, unmount),
 `utils/jiraImport|jiraImportText.test.ts`, harness `test/jiraImportHarness.ts`; the server pins the same bodies in `JiraImportWebBodyTest.kt` (literal JSON
 through the real deserialization and the kernel).
@@ -1656,7 +1656,7 @@ hand, descending dates, the tag and the GitHub release, which PRs bump the versi
 touches the Jira pages carries the line "Proven against a built-in Jira stub; not yet tested against a real Jira site." (PL: "Sprawdzone na wbudowanej atrapie
 Jiry; jeszcze nie przetestowane na prawdziwej witrynie Jira."); nothing on these pages promises polling or Flow before it ships. The import (1.2) is shipped and
 carries the same caveat; its release note and its pages say that a name renamed in Jira previews as a new item, that an existing plan item is never overwritten
-and that dates are copied only where the caller manages the team, and must not claim more (an owner's entry points only on the Plan page's work-stream menu (1.10) and, from 1.14, a linked program's menu and a linked project's page, no target windows, no matching of renamed
+and that dates are copied only where the caller manages the team, and must not claim more (an owner's entry points only on the Plan page's work-stream menu (1.10) and, from 1.14, a linked program's menu and a linked project's page, a new project's target window only from Jira's two dates, no matching of renamed
 items). **Flow (1.5, 1.6):** until a real Flow has been compared (`flow-sync.md` "First real-Flow walk-through" and its ledger), every changelog entry and
 release note that touches the Flow pages or the capacity deviation carries the same kind of line - "Proven against the built-in Flow stub; not yet compared with
 a real Flow." (PL: "Sprawdzone na wbudowanej atrapie Flow; jeszcze nie porównane z prawdziwym Flow.") - and the Deviations section and the team page's line

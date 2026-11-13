@@ -345,15 +345,19 @@ async function createPerson(name: string): Promise<void> {
   }
 }
 
-async function projectOwnerName(projectId: number): Promise<string> {
+async function projectOf(projectId: number): Promise<{ ownerName: string; targetStart: string | null; targetEnd: string | null }> {
   const { api } = await apiAsAdmin();
   try {
     const response = await api.get(`/api/v1/projects/${projectId}`);
     expect(response.ok(), await response.text()).toBeTruthy();
-    return ((await response.json()) as { ownerName: string }).ownerName;
+    return (await response.json()) as { ownerName: string; targetStart: string | null; targetEnd: string | null };
   } finally {
     await api.dispose();
   }
+}
+
+async function projectOwnerName(projectId: number): Promise<string> {
+  return (await projectOf(projectId)).ownerName;
 }
 
 async function scan(page: Page): Promise<void> {
@@ -377,6 +381,9 @@ test("admin imports the stub's IMP project tree and a re-import creates nothing"
   await expect(rowOf(page, "IMP-6")).toContainText("Jira's dates are missing or invalid: created unscheduled");
   await expect(rowOf(page, "IMP-7")).toContainText("Name cut to 100 characters");
   await expect(rowOf(page, "IMP-5").getByRole("combobox", { name: "Team for IMP-5" })).toHaveValue(String(world.teamId));
+  // 1.14: a project that would be created shows the target window Jira's two dates give it ("Copy Jira's dates" is on).
+  await expect(rowOf(page, "IMP-2")).toContainText("Target window 2045-01-02 to 2045-01-20");
+  await expect(rowOf(page, "IMP-3")).toContainText("Target window 2045-01-23 to 2045-02-03");
 
   // A per-row owner (1.14): the projects and the program have an owner picker (the dialog's owner preselected), a milestone has none; IMP-2 is given someone else.
   const otherOwner = uniqueText(`${MARK}other`);
@@ -422,6 +429,10 @@ test("admin imports the stub's IMP project tree and a re-import creates nothing"
   // Alpha (IMP-2) went to the owner picked on its row, Beta (IMP-3) to the dialog's owner.
   expect(await projectOwnerName(alpha.id)).toBe(otherOwner);
   expect(await projectOwnerName(beta.id)).toBe(world.ownerName);
+  // ... and each was created WITH its target window, the Jira item's start and due dates.
+  const [alphaProject, betaProject] = [await projectOf(alpha.id), await projectOf(beta.id)];
+  expect([alphaProject.targetStart, alphaProject.targetEnd]).toEqual(["2045-01-02", "2045-01-20"]);
+  expect([betaProject.targetStart, betaProject.targetEnd]).toEqual(["2045-01-23", "2045-02-03"]);
   await page.goto(`/projects/${alpha.id}`);
   await expect(page.getByRole("heading", { level: 2, name: "IMP Initiative Alpha" })).toBeVisible();
   await expect(page.getByText("IMP Epic One").first()).toBeVisible();

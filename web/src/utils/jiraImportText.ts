@@ -40,6 +40,8 @@ export function infoText(info: Info, t: TFunction): string {
       return t("jira.import.info.datesInvalid");
     case "NO_WORKING_DAY":
       return t("jira.import.info.noWorkingDay");
+    case "TARGET_NOT_COPIED":
+      return t("jira.import.info.targetNotCopied");
     case "KEPT_AS_PARENT":
       return t("jira.import.info.keptAsParent");
     case "PARENT_UNREADABLE":

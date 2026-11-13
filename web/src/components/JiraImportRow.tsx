@@ -31,7 +31,10 @@ function landingText(item: JiraImportItem, t: TFunction): string | null {
 /** Dates and the converted estimate on one line; "—" when the row has neither (a redacted or non-milestone row), so no cell is ever blank. */
 function figuresText(item: JiraImportItem, t: TFunction, copyDates: boolean): string {
   const parts: string[] = [];
-  if (item.startDate && item.endDate) parts.push(t("jira.import.row.dates", { start: item.startDate, end: item.endDate }));
+  if (item.startDate && item.endDate) {
+    // A project row's dates are the target window it will be created with (1.14), a milestone's the span it will be scheduled on.
+    parts.push(t(item.level === "PROJECT" ? "jira.import.row.targetWindow" : "jira.import.row.dates", { start: item.startDate, end: item.endDate }));
+  }
   else if (item.level === "MILESTONE" && item.action === "CREATE") parts.push(t(copyDates ? "jira.import.row.noDates" : "jira.import.row.datesOff"));
   if (item.action === "CREATE" && item.level === "MILESTONE" && item.estimateMd != null) parts.push(t("jira.import.row.estimate", { n: item.estimateMd }));
   return parts.length > 0 ? parts.join(" · ") : "—";

@@ -189,6 +189,15 @@ discovery / mapping (`409`, the bind's resolution), then:
    else the level's default parent, else `NO_PARENT`; a child of a skipped parent in the browse is `PARENT_SKIPPED`; names compare case-insensitively (BIND to an unbound same-name sibling, `NAME_TAKEN`
    otherwise; program names against every active program); team by folded name, then `defaults.teamId`, else `NO_TEAM`; estimates convert only with a declared unit or factor (`ESTIMATE_NOT_CONVERTED`);
    a milestone's dates are copied only where the caller may schedule its team (`DATES_NOT_COPIED`) and are valid (`DATES_INVALID`, `NO_WORKING_DAY`).
+   **A created PROJECT's target window (1.14, `windowFor`)** rides the same `copyDates` switch: the Jira item's start and due dates (the observation's `startDate` / `endDate`, the fields `TARGET_DIFFERS` reads)
+   become the window the project is CREATED with (`ImportRow.window`, written by `insertProjectRow`; no second write, no extra revision), **both or neither**: only one date, an end before the start or a date outside the plan's years
+   (1900-2999) gives no window and the info `TARGET_NOT_COPIED` (the row is created all the same, never refused); no dates at all says nothing (a project often has none; a milestone's missing dates do say
+   `DATES_INVALID`). The row's `startDate` / `endDate` show the window that WILL be written (null otherwise; the web labels it "Target window"). A BIND, an `ALREADY_BOUND` row, a program and a milestone never
+   carry one, so a bound existing project's window is never overwritten. **Who may:** the guard of a target-window write is `requireTargetWindowEditorOrAdmin` (ADMIN, an owner ABOVE the project, or the roadmap-editor
+   grant); a project the import creates sits under a program (existing, guarded up front and under the lock) or one created in the same batch (guarded through the stream), so every caller who passes the create
+   guards is the stream's or the program's owner, or ADMIN - exactly the ancestors that guard admits. The check is therefore met by construction and the kernel does not ask it (no per-row note, no `403`);
+   a future guard that is stricter than the create's has to add the check here. The audit line is unchanged (the created project ids are on it). Tests: `JiraImportTargetWindowKernelTest` (the verdicts),
+   `JiraImportTargetWindowTest` (the routes: admin, program owner, stream owner, a rooted import, a BIND's window kept, `copyDates` off).
 4. **The resolved targets' guards**, then the redaction for a non-admin (a skipped row other than `ALREADY_BOUND` loses its summary, name and infos, and under an ACTIVE filter also its key (`issueKey` null, `jiraId` `hidden-<n>`, no parent id or key, listed after every visible row; the apply answers a tick of such a row like a vanished id); `unmatchedTeams` counts the created rows only: `authorization.md`), then `200`: `{connectionId, workStreamId, revision, asOf, totals{items, create, bind, skip, truncated}, unmatchedTeams[], items[]}`, unpaged, at most 2,000 rows.
    `truncated` is only reported here; the apply refuses a truncated scope.
 

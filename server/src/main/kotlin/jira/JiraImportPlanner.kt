@@ -2,6 +2,7 @@ package ch.nokillswit.jira
 
 import ch.nokillswit.infra.validation.LAST_PLAN_DAY
 import ch.nokillswit.planning.MilestoneSpan
+import ch.nokillswit.planning.TargetWindow
 import java.time.LocalDate
 import java.util.Locale
 import kotlin.math.abs
@@ -22,6 +23,9 @@ private class ParentLookup(val parent: Parent?, val skipped: Boolean = false)
 
 /** A milestone's dates after the rules: the span to write (null = unscheduled) and the one info that says why. */
 private class DatesVerdict(val span: MilestoneSpan?, val info: JiraImportInfo?)
+
+/** A created project's window verdict (1.14): the [window] to write, else the [info] saying why not (none when Jira has no dates). */
+private class WindowVerdict(val window: TargetWindow?, val info: JiraImportInfo?)
 
 /** The numeric Jira ids order as numbers (never lexicographically): shorter first, then by digits. */
 internal val ID_ORDER: Comparator<String> = compareBy<String>({ it.length }, { it })
@@ -147,8 +151,17 @@ internal class ImportPlanner(private val input: ImportInput) {
         parent: Parent?,
         releases: List<ImportHolder>,
     ): ImportRow {
-        val item = base(issue, level, name).copy(action = JiraImportAction.CREATE, parent = parent?.toWire())
-        return register(ImportRow(item, issue.observation, null, null, releases, null))
+        val verdict = if (level == JiraLevel.PROJECT) windowFor(issue.observation) else WindowVerdict(null, null)
+        val base = base(issue, level, name)
+        val item = base.copy(
+            action = JiraImportAction.CREATE,
+            parent = parent?.toWire(),
+            // The window that WILL be written, shown the way a milestone's dates are; none when it is not copied.
+            startDate = verdict.window?.start?.toString(),
+            endDate = verdict.window?.end?.toString(),
+            infos = base.infos + listOfNotNull(verdict.info),
+        )
+        return register(ImportRow(item, issue.observation, null, null, releases, null, verdict.window))
     }
 
     private fun createMilestone(issue: ImportBrowsedIssue, name: ImportName, parent: Parent?, releases: List<ImportHolder>): ImportRow {
@@ -305,6 +318,23 @@ internal class ImportPlanner(private val input: ImportInput) {
             !canSchedule -> DatesVerdict(null, JiraImportInfo.DATES_NOT_COPIED)
             !snapshot.calendar.containsWorkingDay(start, end) -> DatesVerdict(null, JiraImportInfo.NO_WORKING_DAY)
             else -> DatesVerdict(MilestoneSpan(start, end), null)
+        }
+    }
+
+    /**
+     * A created project's target window from Jira's dates (1.14): BOTH dates, in order and inside the plan's years, else none and the
+     * row is created all the same. A Jira item with no dates at all says nothing (a project often has none); a lone date or a
+     * reversed pair says [JiraImportInfo.TARGET_NOT_COPIED]. Who may set it is not asked here: whoever may create the project is the
+     * stream's or the program's owner (or ADMIN), the project chain's ancestors, which `requireTargetWindowEditorOrAdmin` admits.
+     */
+    private fun windowFor(obs: JiraObservation): WindowVerdict {
+        val start = obs.startDate
+        val end = obs.endDate
+        return when {
+            !input.copyDates || (start == null && end == null) -> WindowVerdict(null, null)
+            start == null || end == null || end.isBefore(start) || !inPlanYears(start) || !inPlanYears(end) ->
+                WindowVerdict(null, JiraImportInfo.TARGET_NOT_COPIED)
+            else -> WindowVerdict(TargetWindow(start, end), null)
         }
     }
 

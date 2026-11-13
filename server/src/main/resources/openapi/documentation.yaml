@@ -7845,8 +7845,8 @@ components:
           nullable: true
         name: { type: string, maxLength: 100, description: "The plan name: the summary with control characters and runs of whitespace collapsed, cut at 100 characters; the issue key when blank. Blank (\"\") on a row redacted for a non-admin under an active `filter`, whose key is withheld." }
         estimateMd: { type: number, format: double, nullable: true, description: "A milestone's converted man-days (0 when none or not convertible)." }
-        startDate: { type: string, format: date, nullable: true, description: "Jira's start, shown when `copyDates` is on (it is written only if `scheduled`)." }
-        endDate: { type: string, format: date, nullable: true }
+        startDate: { type: string, format: date, nullable: true, description: "A milestone: Jira's start, shown when `copyDates` is on (it is written only if `scheduled`). A project that would be CREATED (1.14): the start of the TARGET WINDOW it will be created with - present only when `copyDates` is on and Jira gives both dates in order (else null with the `TARGET_NOT_COPIED` info, or no dates at all); never on a BIND or skipped project." }
+        endDate: { type: string, format: date, nullable: true, description: "As `startDate`: a milestone's Jira end, or the end of a created project's target window." }
         team:
           allOf:
             - $ref: '#/components/schemas/JiraImportTeam'
@@ -7855,8 +7855,10 @@ components:
         scheduled: { type: boolean, description: "What WILL happen: the milestone is created with Jira's dates (`copyDates`, the caller may schedule, a valid span with a working day)." }
         infos:
           type: array
-          items: { type: string, enum: [NAME_TRUNCATED, ESTIMATE_NOT_CONVERTED, DATES_NOT_COPIED, DATES_INVALID, NO_WORKING_DAY, KEPT_AS_PARENT, PARENT_UNREADABLE] }
+          items: { type: string, enum: [NAME_TRUNCATED, ESTIMATE_NOT_CONVERTED, DATES_NOT_COPIED, DATES_INVALID, NO_WORKING_DAY, TARGET_NOT_COPIED, KEPT_AS_PARENT, PARENT_UNREADABLE] }
           description: |
+            `TARGET_NOT_COPIED` (1.14, a PROJECT that would be created, `copyDates` on): Jira gives only one of its two dates, or an end before
+            the start, so the project is created WITHOUT a target window (the target window is both dates or neither); the row is not refused.
             `KEPT_AS_PARENT` (1.13.2): the filter would have left this item out, but an item that is read sits under it, so it was fetched by id and
             kept. `PARENT_UNREADABLE`: its parent in Jira could not be read with the connection's account (Jira answered `404` by id: that it does not
             exist or is not visible); the row is skipped `NO_PARENT` and is never put under a default parent.

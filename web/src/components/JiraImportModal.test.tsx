@@ -295,6 +295,22 @@ describe("JiraImportModal: the apply", () => {
     expect(items.filter((item) => item.overrides !== undefined)).toHaveLength(1);
   });
 
+  test("a project row shows the target window it will be created with, and says why when Jira's dates give none; a milestone keeps its plain dates", async () => {
+    const user = userEvent.setup();
+    const items = PREVIEW_ITEMS.map((item) => {
+      if (item.jiraId === "95002") return { ...item, startDate: "2045-01-02", endDate: "2045-01-20" };
+      if (item.jiraId === "95003") return { ...item, infos: ["TARGET_NOT_COPIED" as const] };
+      return item;
+    });
+    previewResponse = () => jsonResponse(200, previewOf(items));
+    open();
+    await previewScope(user);
+    expect(within(rowOf("IMP-2")).getByText("Target window 2045-01-02 to 2045-01-20")).toBeInTheDocument();
+    expect(within(rowOf("IMP-3")).getByText("Jira gives one date or an end before the start: created without a target window")).toBeInTheDocument();
+    expect(within(rowOf("IMP-3")).queryByText(/Target window/)).not.toBeInTheDocument();
+    expect(within(rowOf("IMP-4")).getByText("2045-01-02 to 2045-01-06 · 5 man-days")).toBeInTheDocument();
+  });
+
   test("a row with no pick of its own offers no clear button (it would only blank the box); after a pick it does, and clearing restores the dialog's owner", async () => {
     const user = userEvent.setup();
     open();

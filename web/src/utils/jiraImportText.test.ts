@@ -32,6 +32,7 @@ describe("infoText", () => {
     expect(infoText("ESTIMATE_NOT_CONVERTED", t)).toMatch(/Estimate/);
     expect(infoText("DATES_INVALID", t)).toMatch(/unscheduled/);
     expect(infoText("NO_WORKING_DAY", t)).toMatch(/working day/);
+    expect(infoText("TARGET_NOT_COPIED", t)).toBe("Jira gives one date or an end before the start: created without a target window");
   });
 
   test("says why a row was kept as a parent, and why its own parent could not be read", () => {
