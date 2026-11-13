@@ -23,9 +23,6 @@ import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
-import org.jetbrains.exposed.v1.core.statements.StatementContext
-import org.jetbrains.exposed.v1.r2dbc.R2dbcTransaction
-import org.jetbrains.exposed.v1.r2dbc.statements.SuspendStatementInterceptor
 import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
 import org.junit.BeforeClass
 import kotlin.test.Test
@@ -87,15 +84,6 @@ class JiraFlagsScaleTest {
         ScaleFigures.print("flags roadmap service with the Jira source median", p50 { RoadmapViewService(db, jira).view(actor) })
         ScaleFigures.print("flags team service without a source median", p50 { TeamViewService(db).view(platform, actor) })
         ScaleFigures.print("flags team service with the Jira source median", p50 { TeamViewService(db, jira).view(platform, actor) })
-    }
-
-    /** Records every statement one transaction sends (Flow's `InsertCounter` shape: a per-transaction `SuspendStatementInterceptor`). */
-    private class StatementCounter : SuspendStatementInterceptor {
-        val sql = mutableListOf<String>()
-
-        override suspend fun beforeExecution(transaction: R2dbcTransaction, context: StatementContext) {
-            sql += context.sql(transaction)
-        }
     }
 
     /** The statements [JiraFlagSource.flagsInTransaction] sends for [projectIds]/[milestoneIds] (both null = the whole plan). */

@@ -2195,6 +2195,36 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/views/jira-links:
+    get:
+      tags: [jira]
+      operationId: getJiraLinksView
+      summary: Which programs and projects are linked to which Jira items, and through which connections
+      description: |
+        Any authenticated user, a read with no parameter (an unknown query parameter name is ignored). The narrow read behind the Plan
+        page's "Import from Jira..." entries: it answers from TWO statements inside one read-only `REPEATABLE READ` snapshot whatever
+        the size of the plan, and computes no deviation (the deviations view does, over every binding). It takes no lock, writes
+        nothing, is not audited and moves no revision; it has no `revision` and no `can` (links are not plan state; what a caller may do
+        with a node is the plan view's `can`).
+
+        **Nothing here is new to a login.** A link's node, binding, connection id, issue key and `gone` flag are already readable through
+        `GET /integrations/jira/bindings`; a connection's id, name, site, `enabled`, project keys and `mappingOk` through
+        `GET /views/deviations` (`connections[]`). The rows hidden there are hidden here: a binding of a deleted node, of a node under
+        a deleted ancestor or of a deleted connection. Never the email, token, mapping, discovery or a run.
+
+        **`connections`** lists EVERY active connection, enabled or not, with or without links, by name (case-insensitive) then id.
+        **`links`** lists one entry per ACTIVE binding of an ACTIVE connection on a LIVE program or project, programs first, then
+        projects, each by node id; a link through a DISABLED connection is listed (its connection says `enabled: false`). A
+        milestone binding is never listed. Capped at 2,000: `truncated` says links were dropped.
+      responses:
+        '200':
+          description: The connections and the links
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JiraLinksView'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   /api/v1/views/capacity-deviations:
     get:
       tags: [flow]
@@ -5758,12 +5788,13 @@ components:
         updatedAt: { type: integer, format: int64 }
         can:
           type: object
-          required: [edit, delete, editTargetWindow, move]
+          required: [edit, delete, editTargetWindow, move, createMilestone]
           properties:
             edit: { type: boolean }
             delete: { type: boolean, description: 'A rights flag: the caller may delete the node. The server can still answer 409 while it has active children.' }
             editTargetWindow: { type: boolean, description: 'The caller may set the target window (ADMIN, an owner above the project, or a roadmap editor).' }
             move: { type: boolean, description: 'The caller may move this project to another program (ADMIN, or an owner of its program or work stream - the project''s own owner alone may not); offer the programs whose `createProject` is set.' }
+            createMilestone: { type: boolean, description: 'The caller may add milestones to this project (ADMIN, or an owner of its chain, the project''s own owner included): the project view''s flag of the same name, and the guard of a rooted Jira import under it.' }
 
     ProjectView:
       type: object
@@ -6261,6 +6292,42 @@ components:
         lastSucceededAt: { type: integer, format: int64, nullable: true, description: "Epoch millis the newest SUCCEEDED run STARTED (the data is as of then); null before the first." }
         consecutiveFailures: { type: integer, format: int32, minimum: 0, description: "The trailing finished runs that failed or were abandoned (an interrupted newest run adds one), back to the last success." }
         nextPollAt: { type: integer, format: int64, nullable: true, description: "Epoch millis the scheduler claims next (now when due); null for a disabled, untested, manual-only or running connection. Computed by the scheduler's own rule, back-off and the per-connection retry jitter after a failure included." }
+    JiraLinksView:
+      type: object
+      required: [connections, links, truncated]
+      properties:
+        connections:
+          type: array
+          items: { $ref: '#/components/schemas/JiraLinkConnection' }
+        links:
+          type: array
+          maxItems: 2000
+          items: { $ref: '#/components/schemas/JiraNodeLink' }
+        truncated: { type: boolean, description: "True when the 2,000-link cap dropped links." }
+    JiraLinkConnection:
+      type: object
+      description: A connection as the links view shows it - exactly the members `GET /views/deviations` `connections[]` already shows every login.
+      required: [id, name, siteUrl, enabled, projectKeys, mappingOk]
+      properties:
+        id: { type: integer, format: int32, minimum: 0 }
+        name: { type: string }
+        siteUrl: { type: string }
+        enabled: { type: boolean, description: "An import or a bind goes through an enabled connection only; a disabled one is listed because its links are." }
+        projectKeys:
+          type: array
+          maxItems: 50
+          items: { type: string }
+        mappingOk: { type: boolean, description: "False when the effective mapping cannot be resolved against the discovery now." }
+    JiraNodeLink:
+      type: object
+      required: [level, nodeId, bindingId, connectionId, issueKey, gone]
+      properties:
+        level: { type: string, enum: [PROGRAM, PROJECT] }
+        nodeId: { type: integer, format: int32, minimum: 0, description: "The program or project the binding sits on." }
+        bindingId: { type: integer, format: int32, minimum: 0 }
+        connectionId: { type: integer, format: int32, minimum: 0 }
+        issueKey: { type: string }
+        gone: { type: boolean, description: "The binding's observation says the issue is gone from Jira (false when never observed)." }
     DeviationConnection:
       type: object
       required: [id, name, siteUrl, enabled, projectKeys, mappingOk, lastRun, status]

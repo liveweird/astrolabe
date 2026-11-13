@@ -24,7 +24,7 @@ const project = (id: number, name: string, programId: number, over: Partial<Plan
   targetEnd: null,
   createdAt: 1,
   updatedAt: 2,
-  can: { edit: true, delete: true, editTargetWindow: true, move: true, ...over },
+  can: { edit: true, delete: true, editTargetWindow: true, move: true, createMilestone: true, ...over },
 });
 
 const program = (id: number, name: string, workStreamId: number, projects: PlanProject[] = [], over: Partial<PlanProgram["can"]> = {}): PlanProgram => ({

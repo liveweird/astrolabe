@@ -83,7 +83,7 @@ work streams/programs (the plan view is the read surface); `GET /projects` is th
 `ownerName`; a project also carries `workStreamId`.
 
 **The plan view** (`GET /views/plan`, any authenticated user; the documented view-endpoint shape exception of `list-endpoints.md`, bounded by the scale ≈5 streams / 20 programs / 100 projects):
-`{revision, can{createWorkStream}, workStreams[]{…, can{edit, delete, createProgram}, programs[]{…, can{edit, delete, createProject, move}, projects[]{…, can{edit, delete, editTargetWindow, move}}}}}`, open work streams
+`{revision, can{createWorkStream}, workStreams[]{…, can{edit, delete, createProgram}, programs[]{…, can{edit, delete, createProject, move}, projects[]{…, can{edit, delete, editTargetWindow, move, createMilestone}}}}}`, open work streams
 first then closed ones, each level by name (case-insensitive, then id).
 
 **Moves** (v0.3.0; `ProjectService.move`, `ProgramService.move`, bodies `{programId}` / `{workStreamId}`, `204`): a node changes parent only here. The caller must be ADMIN or own something ABOVE the node (its program's / stream's

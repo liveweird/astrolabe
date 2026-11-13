@@ -70,4 +70,11 @@ data class PlanProject(
 )
 
 @Serializable
-data class PlanProjectCan(val edit: Boolean, val delete: Boolean, val editTargetWindow: Boolean, val move: Boolean)
+data class PlanProjectCan(
+    val edit: Boolean,
+    val delete: Boolean,
+    val editTargetWindow: Boolean,
+    val move: Boolean,
+    /** 1.15: `POST /projects/{id}/milestones` (the project view's `can.createMilestone`, the same kernel function). */
+    val createMilestone: Boolean,
+)

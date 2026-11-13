@@ -34,7 +34,8 @@ val DeviationViewServiceKey = AttributeKey<DeviationViewService>("DeviationViewS
  * for the 1.4 coverage inputs ([loadCoverage]) - `jira_issues`, the plan's
  * `projects`/`milestones` children and the bindings again (`persistence.md`).
  *
- * [clock] is the view's "today" (`asOf`, a UTC date) and the age of the newest run; [maxItems] the cap (a test lowers it). The
+ * [clock] is the view's "today" (`asOf`, a UTC date) and the age of the newest run; [maxItems] the cap and [maxLinks] the links view's
+ * (a test lowers either). The
  * computation itself ([computeInTransaction]) runs in whatever transaction the caller holds, which is how the acknowledge (1.3)
  * recomputes one binding inside its own write.
  */
@@ -43,6 +44,7 @@ class DeviationViewService(
     private val runs: SyncRunService,
     private val clock: () -> Long = ::nowMillis,
     private val maxItems: Int = MAX_DEVIATION_ITEMS,
+    private val maxLinks: Int = MAX_JIRA_LINKS,
 ) {
     /** [actor] null = an anonymous reader (every `can.acknowledge` false); the route resolves it once per request. */
     suspend fun view(filter: DeviationFilter, actor: PlanActor? = null): DeviationView =
@@ -78,6 +80,20 @@ class DeviationViewService(
                 truncated = listed.size > maxItems,
             )
         }
+
+    /**
+     * The links document (`GET /views/jira-links`, 1.15; `JiraLinksView.kt`): ONE read-only snapshot, TWO statements whatever the size of
+     * the plan - the active connections ([loadConnections]) and the program and project links ([loadNodeLinks]) - and none of the
+     * deviation computation (no revision, calendar, runs, acknowledgements or coverage).
+     */
+    suspend fun links(): JiraLinksView = suspendTransaction(database, SNAPSHOT, readOnly = true) { linksInTransaction() }
+
+    /** The links document read in the caller's transaction (the route's whole code path, so a test can count its statements). */
+    internal suspend fun linksInTransaction(): JiraLinksView {
+        val facts = loadConnections()
+        val links = loadNodeLinks(maxLinks)
+        return JiraLinksView(facts.toLinkConnections(), links.take(maxLinks), truncated = links.size > maxLinks)
+    }
 
     /**
      * The deviations of the bindings in [scope], computed INSIDE the caller's transaction: the view's snapshot, or the acknowledge's

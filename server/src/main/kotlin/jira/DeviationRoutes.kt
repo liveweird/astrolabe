@@ -24,6 +24,18 @@ import kotlinx.serialization.Serializable
 class DeviationViewRoute
 
 /**
+ * `GET /views/jira-links` (1.15, served by [configureDeviationRoutes] beside the deviations view): any authenticated user, a read with
+ * no parameter - the active connections and the program and project links, every member already public through
+ * `GET /views/deviations` and `GET /integrations/jira/bindings` (`authorization.md`). No audit event, no lock, no revision, no `404`;
+ * unknown query parameter names are ignored.
+ */
+@Serializable
+@Resource("/api/v1/views/jira-links")
+class JiraLinksViewRoute
+
+/**
+ * Registers BOTH views of this file: `GET /views/jira-links` (class KDoc above) and `GET /views/deviations`, below.
+ *
  * `GET /views/deviations`: any authenticated user (the plan, the bindings' node names and the issue data of a binding are already
  * readable by every login; the `connections` block lists every active connection with its NAME - the id and the site of a BOUND one
  * were already in `GET /bindings`, a binding-less one is new - so a non-admin owner's bind dialog can pick one; never the email,
@@ -38,6 +50,10 @@ fun Application.configureDeviationRoutes() {
     val teams = attributes[TeamServiceKey]
     routing {
         authenticate {
+            get<JiraLinksViewRoute> {
+                call.caller()
+                call.respond(HttpStatusCode.OK, deviations.links())
+            }
             get<DeviationViewRoute> {
                 val caller = call.caller()
                 val query = call.request.queryParameters

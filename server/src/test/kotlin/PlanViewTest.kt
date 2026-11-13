@@ -4,6 +4,7 @@ import ch.nokillswit.planning.PlanView
 import ch.nokillswit.planning.PlanWorkStream
 import ch.nokillswit.planning.ProgramUpdateRequest
 import ch.nokillswit.planning.ProjectUpdateRequest
+import ch.nokillswit.planning.ProjectView
 import ch.nokillswit.planning.TargetWindowRequest
 import ch.nokillswit.planning.WorkStreamUpdateRequest
 import io.ktor.client.call.body
@@ -150,5 +151,25 @@ class PlanViewTest {
             )
         }
         assertFalse(w.projectOwner.view().stream(w.streamId).programs.single().projects.single().can.editTargetWindow)
+    }
+
+    @Test
+    fun `createMilestone equals the project view's flag of the same project for every caller`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("pcm", teams = true)
+        val t = w.requireTeams()
+        val everyone = listOf(
+            "admin" to w.admin, "stream owner" to w.streamOwner, "program owner" to w.programOwner,
+            "project owner" to w.projectOwner, "team manager" to t.manager, "stranger" to w.stranger,
+            "personless" to w.personless, "editor" to w.editor,
+        )
+        for ((label, caller) in everyone) {
+            val planFlag = caller.view().stream(w.streamId).programs.single { it.id == w.programId }.projects
+                .single { it.id == w.projectId }.can.createMilestone
+            val projectFlag = caller.client.get("/api/v1/views/project/${w.projectId}").body<ProjectView>().project.can.createMilestone
+            assertEquals(projectFlag, planFlag, "$label: the plan view's createMilestone is the project view's")
+        }
+        assertTrue(w.projectOwner.view().stream(w.streamId).programs.single().projects.single().can.createMilestone)
+        assertFalse(w.stranger.view().stream(w.streamId).programs.single().projects.single().can.createMilestone)
     }
 }

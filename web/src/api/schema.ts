@@ -1506,6 +1506,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/views/jira-links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Which programs and projects are linked to which Jira items, and through which connections
+         * @description Any authenticated user, a read with no parameter (an unknown query parameter name is ignored). The narrow read behind the Plan
+         *     page's "Import from Jira..." entries: it answers from TWO statements inside one read-only `REPEATABLE READ` snapshot whatever
+         *     the size of the plan, and computes no deviation (the deviations view does, over every binding). It takes no lock, writes
+         *     nothing, is not audited and moves no revision; it has no `revision` and no `can` (links are not plan state; what a caller may do
+         *     with a node is the plan view's `can`).
+         *
+         *     **Nothing here is new to a login.** A link's node, binding, connection id, issue key and `gone` flag are already readable through
+         *     `GET /integrations/jira/bindings`; a connection's id, name, site, `enabled`, project keys and `mappingOk` through
+         *     `GET /views/deviations` (`connections[]`). The rows hidden there are hidden here: a binding of a deleted node, of a node under
+         *     a deleted ancestor or of a deleted connection. Never the email, token, mapping, discovery or a run.
+         *
+         *     **`connections`** lists EVERY active connection, enabled or not, with or without links, by name (case-insensitive) then id.
+         *     **`links`** lists one entry per ACTIVE binding of an ACTIVE connection on a LIVE program or project, programs first, then
+         *     projects, each by node id; a link through a DISABLED connection is listed (its connection says `enabled: false`). A
+         *     milestone binding is never listed. Capped at 2,000: `truncated` says links were dropped.
+         */
+        get: operations["getJiraLinksView"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/views/capacity-deviations": {
         parameters: {
             query?: never;
@@ -4380,6 +4414,8 @@ export interface components {
                 editTargetWindow: boolean;
                 /** @description The caller may move this project to another program (ADMIN, or an owner of its program or work stream - the project's own owner alone may not); offer the programs whose `createProject` is set. */
                 move: boolean;
+                /** @description The caller may add milestones to this project (ADMIN, or an owner of its chain, the project's own owner included): the project view's flag of the same name, and the guard of a rooted Jira import under it. */
+                createMilestone: boolean;
             };
         };
         ProjectView: {
@@ -4873,6 +4909,40 @@ export interface components {
              * @description Epoch millis the scheduler claims next (now when due); null for a disabled, untested, manual-only or running connection. Computed by the scheduler's own rule, back-off and the per-connection retry jitter after a failure included.
              */
             nextPollAt: number | null;
+        };
+        JiraLinksView: {
+            connections: components["schemas"]["JiraLinkConnection"][];
+            links: components["schemas"]["JiraNodeLink"][];
+            /** @description True when the 2,000-link cap dropped links. */
+            truncated: boolean;
+        };
+        /** @description A connection as the links view shows it - exactly the members `GET /views/deviations` `connections[]` already shows every login. */
+        JiraLinkConnection: {
+            /** Format: int32 */
+            id: number;
+            name: string;
+            siteUrl: string;
+            /** @description An import or a bind goes through an enabled connection only; a disabled one is listed because its links are. */
+            enabled: boolean;
+            projectKeys: string[];
+            /** @description False when the effective mapping cannot be resolved against the discovery now. */
+            mappingOk: boolean;
+        };
+        JiraNodeLink: {
+            /** @enum {string} */
+            level: "PROGRAM" | "PROJECT";
+            /**
+             * Format: int32
+             * @description The program or project the binding sits on.
+             */
+            nodeId: number;
+            /** Format: int32 */
+            bindingId: number;
+            /** Format: int32 */
+            connectionId: number;
+            issueKey: string;
+            /** @description The binding's observation says the issue is gone from Jira (false when never observed). */
+            gone: boolean;
         };
         DeviationConnection: {
             /** Format: int32 */
@@ -9642,6 +9712,28 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    getJiraLinksView: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The connections and the links */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JiraLinksView"];
+                };
+            };
             401: components["responses"]["Unauthorized"];
             500: components["responses"]["InternalServerError"];
         };
