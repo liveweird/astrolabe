@@ -1013,10 +1013,16 @@ page only (`BACKLOG.md`).
 **The bindings list** (`components/JiraBindingsSection.tsx`, the connection page's third h3 section): `GET /integrations/jira/bindings?connectionId=` paged
 (sort `issueKey`/`createdAt`), a level filter and the `q` name filter, a gone mark ("Gone from Jira", "Moved out of scope" from `observation.goneReason === "MOVED_OUT"`, or "Not listed by Jira" from `NOT_LISTED`, through `goneBadge`; the key shown is the binding's current one), **Unlink** through `useDeleteConfirm` + `ConfirmDeleteModal`
 (`confirmLabel`; focus returns to the section's h3) and "Link a node…" (disabled while the connection is disabled). The server hides bindings of deleted plan
-items, so a row is not always there and the list may differ from a connection delete's count by those.
+items, so a row is not always there and the list may differ from a connection delete's count by those. **"Import from Jira…" on a program or project row (1.15)**: an inline `Button`
+(`variant="subtle"`, `size="compact-sm"`, aria `jira.import.entryRootAria` = "Import from Jira what is listed under {name}": it never contains the section button's "Import from Jira…", so a Playwright substring match finds one)
+before "Unlink", in the same `Group`; shown only while the section's `canImport` holds (enabled, stored discovery) AND the plan view knows the node. The plan view is read under the Plan page's own key
+`["plan","view"]` (`getPlanView`), enabled only while the list shows a program or project row and `canImport` (a milestone-only page asks nothing), and a failed read just leaves the buttons out. The root is
+`rootOfBinding(plan, row, connection.id)` (`utils/jiraImportRoot.ts`: `findProgram`/`findProject` for the work stream and the owner the binding's node lacks, then `rootOf` with the row's `issueKey` and
+`observation.gone`; null for a milestone row, an unread view or a node the plan no longer holds). A second `JiraImportModal` is mounted for it (`key` = `<level>:<nodeId>`, `source` = this connection only,
+`useDialogFocus` covers it); the section's whole-scope modal is unchanged. Tests: `JiraBindingsSection.test.tsx`, `utils/jiraImportRoot.test.ts`.
 
 **The import modal** (1.2, `components/JiraImportModal.tsx`; entry points: since 1.10 "Import from Jira…" beside "Link a node…" in the bindings section - ADMIN's
-page, disabled until the connection is enabled and has a stored discovery - and the Plan page's work-stream menu, and since 1.14 a linked program's menu, below): ONE wide `Modal` (title = the h2, phases are h3) in three phases, state in
+page, disabled until the connection is enabled and has a stored discovery - and the Plan page's work-stream menu, since 1.14 a linked program's menu and a linked project's page header, and since 1.15 a linked project's Plan row and the connection page's program and project rows, below): ONE wide `Modal` (title = the h2, phases are h3) in three phases, state in
 `hooks/useJiraImport.ts`, pure model in `utils/jiraImport.ts` (ticks, scope, body), sentences in `utils/jiraImportText.ts`. **Scope** (`JiraImportScopeStep`:
 work stream from `["plan","view"]`, owner, Jira project keys all preselected, **the import filter (1.13.3)**, "Copy Jira's dates", default team / program / project - the last two offered only
 from the picked stream, the server's own rule) -> `POST …/import-preview`; **Preview** (`JiraImportPreviewStep`: totals, notes, "N of M selected", a virtualised
@@ -1065,7 +1071,7 @@ step opens with `JiraImportConnectionField` (loading text / a failed alert with 
 `jira.bind.connection|loading|loadFailed|retry`); the modal preselects exactly one, and changing the connection resets the Jira-project keys to the new one's (the rest of the
 form stays). `useJiraImport(connectionId | null)` does nothing while null and Preview is disabled until a connection is chosen. `initialWorkStreamId` presets the stream
 (`emptyScope(keys, workStreamId)`) and the stream Select is `readOnly`. The connection of the preview and outcome phases is kept even if a later refetch drops it.
-**The Plan page's entries** (five entry points since 1.15: the connection page, the work stream's menu, a linked program's menu, a linked project's row menu, a linked project's page header - "Project view"). The stream's (`PlanActions.importFromJira`, `PlanWorkStreamSection`): a `Menu.Item` "Import from Jira…" (aria "Import from Jira into {name}") under `can.edit`, after
+**The Plan page's entries** (six entry points since 1.15: the connection page's button and its program and project rows, the work stream's menu, a linked program's menu, a linked project's row menu, a linked project's page header - "Project view"). The stream's (`PlanActions.importFromJira`, `PlanWorkStreamSection`): a `Menu.Item` "Import from Jira…" (aria "Import from Jira into {name}") under `can.edit`, after
 Close/Reopen. `hooks/usePlanJiraImport.ts` holds the page's import state (`importing`: a stream, a program with its link OR a project with its link; `Plan.tsx` calls `useDialogFocus(jiraImport.modal !== null)`) and reads the connections with
 `useJiraConnections({workStreamId}, importing is a stream)` (`hooks/useDeviations.ts`, key `["jira","deviations","connections",filter]`; `useJiraLinks` is its one-line
 project wrapper) - the request appears only after the click. After an apply the plan page shows the imported tree (the hook refreshes `["jira"]`, `["plan"]`, `["roadmap"]`).
@@ -1656,7 +1662,7 @@ hand, descending dates, the tag and the GitHub release, which PRs bump the versi
 touches the Jira pages carries the line "Proven against a built-in Jira stub; not yet tested against a real Jira site." (PL: "Sprawdzone na wbudowanej atrapie
 Jiry; jeszcze nie przetestowane na prawdziwej witrynie Jira."); nothing on these pages promises polling or Flow before it ships. The import (1.2) is shipped and
 carries the same caveat; its release note and its pages say that a name renamed in Jira previews as a new item, that an existing plan item is never overwritten
-and that dates are copied only where the caller manages the team, and must not claim more (an owner's entry points only on the Plan page's work-stream menu (1.10) and, from 1.14, a linked program's menu and a linked project's page, a new project's target window only from Jira's two dates, no matching of renamed
+and that dates are copied only where the caller manages the team, and must not claim more (an owner's entry points only on the Plan page's work-stream menu (1.10) and, from 1.14, a linked program's menu and a linked project's page, from 1.15 also a linked project's Plan row and the connection page's program and project rows, a new project's target window only from Jira's two dates, no matching of renamed
 items). **Flow (1.5, 1.6):** until a real Flow has been compared (`flow-sync.md` "First real-Flow walk-through" and its ledger), every changelog entry and
 release note that touches the Flow pages or the capacity deviation carries the same kind of line - "Proven against the built-in Flow stub; not yet compared with
 a real Flow." (PL: "Sprawdzone na wbudowanej atrapie Flow; jeszcze nie porównane z prawdziwym Flow.") - and the Deviations section and the team page's line

@@ -5,12 +5,15 @@ import { Anchor, Badge, Button, Group, Select, Stack, Table, Text, Title } from 
 import { IconFileImport, IconLink, IconLinkOff } from "@tabler/icons-react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { DeviationConnection } from "../api/deviations";
+import { getPlanView } from "../api/plan";
 import { listJiraBindings, type JiraBinding, type JiraConnection, type JiraLevel } from "../api/jira";
 import { useJiraUnlink } from "../hooks/useJiraUnlink";
 import { useDialogFocus } from "../hooks/useDialogFocus";
 import { useRegistryListControls } from "../hooks/useRegistryListControls";
 import { goneBadge } from "../utils/deviations";
 import { formatDateTime } from "../utils/formatDate";
+import type { ImportRoot } from "../utils/jiraImport";
+import { rootOfBinding } from "../utils/jiraImportRoot";
 import { projectPath } from "../utils/planLinks";
 import { refreshJiraAndTimelines } from "../utils/queryRefresh";
 import ClearableTextInput from "./ClearableTextInput";
@@ -68,9 +71,20 @@ function NodeCell({ binding }: { binding: JiraBinding }) {
   );
 }
 
+/** "Import from Jira…" on a program or project row (1.15): only when the row has a root (the connection can import and the plan view knows the node). */
+function RowImportButton({ row, root, onImport }: { row: JiraBinding; root: ImportRoot | null; onImport: (root: ImportRoot) => void }) {
+  const { t } = useTranslation();
+  if (root === null) return null;
+  return (
+    <Button variant="subtle" size="compact-sm" leftSection={<IconFileImport size={14} />} onClick={() => onImport(root)} aria-label={t("jira.import.entryRootAria", { name: row.node.name })}>
+      {t("jira.import.entry")}
+    </Button>
+  );
+}
+
 /**
  * The connection page's third section: the paged list of the plan items linked through this connection (any signed-in user may read it; this
- * page is ADMIN's), a level filter and a name filter (`q`), Unlink behind a confirmation and "Link a node…" (the bind dialog, locked to this
+ * page is ADMIN's), a level filter and a name filter (`q`), "Import from Jira…" on a program or project row (the import rooted at it), Unlink behind a confirmation and "Link a node…" (the bind dialog, locked to this
  * connection). The list hides bindings of deleted plan items (the server's rule), so a delete's count and this table may differ by those.
  */
 export default function JiraBindingsSection({ connection }: { connection: JiraConnection }) {
@@ -89,11 +103,16 @@ export default function JiraBindingsSection({ connection }: { connection: JiraCo
 
   const [binding, setBinding] = useState(false);
   const [importing, setImporting] = useState(false);
-  useDialogFocus(binding || importing);
+  const [rooted, setRooted] = useState<ImportRoot | null>(null);
+  useDialogFocus(binding || importing || rooted !== null);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const unlink = useJiraUnlink(titleRef);
   const filtered = level !== null || q !== "";
   const canImport = connection.enabled && connection.discoveredAt != null;
+  // A program or project row's own import (1.15) builds its root from the plan view (the binding's node has no work stream and no owner); the
+  // view is read only while the list shows such a row, and a failed read just leaves the buttons out.
+  const showsRootable = canImport && (data?.items.some((row) => row.node.kind !== "MILESTONE") ?? false);
+  const plan = useQuery({ queryKey: ["plan", "view"], queryFn: getPlanView, enabled: showsRootable });
 
   return (
     <Stack gap="md">
@@ -189,9 +208,12 @@ export default function JiraBindingsSection({ connection }: { connection: JiraCo
               <Text size="sm">{row.createdBy?.name ?? "—"}</Text>
             </Table.Td>
             <Table.Td style={{ width: 1 }} ta="right">
-              <Button variant="subtle" size="compact-sm" color="gray" onClick={() => unlink.requestDelete({ bindingId: row.id, key: row.issueKey, name: row.node.name })} aria-label={t("jira.bindings.unlinkAria", { name: row.node.name })}>
-                {t("jira.bindings.unlink")}
-              </Button>
+              <Group gap="xs" wrap="nowrap" justify="flex-end">
+                <RowImportButton row={row} root={showsRootable ? rootOfBinding(plan.data, row, connection.id) : null} onImport={setRooted} />
+                <Button variant="subtle" size="compact-sm" color="gray" onClick={() => unlink.requestDelete({ bindingId: row.id, key: row.issueKey, name: row.node.name })} aria-label={t("jira.bindings.unlinkAria", { name: row.node.name })}>
+                  {t("jira.bindings.unlink")}
+                </Button>
+              </Group>
             </Table.Td>
           </Table.Tr>
         ))}
@@ -217,6 +239,9 @@ export default function JiraBindingsSection({ connection }: { connection: JiraCo
         />
       )}
       {importing && <JiraImportModal source={{ connections: [connection], failed: false, retry: () => undefined }} onClose={() => setImporting(false)} />}
+      {rooted !== null && (
+        <JiraImportModal key={`${rooted.level}:${rooted.nodeId}`} source={{ connections: [connection], failed: false, retry: () => undefined }} root={rooted} onClose={() => setRooted(null)} />
+      )}
       <JiraUnlinkModal confirm={unlink} />
     </Stack>
   );
