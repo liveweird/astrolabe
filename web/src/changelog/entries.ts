@@ -17,6 +17,34 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.14.0",
+    date: "2026-11-13",
+    en: `**Astrolabe 1.14.0: import what Jira lists under a linked program or project, see how much of a Jira site the plan covers, choose an owner per row and copy a new project's target window in the import, and a new "Children open" deviation.**
+
+- Import from Jira under a linked item: a program linked to Jira has "Import from Jira…" in its menu on the Plan page, and a linked project has an "Import from Jira…" button on its page. The import reads only what Jira lists under that item (for a program its projects and their milestones, for a project its milestones), with the same preview, filter and checks as before, and everything it creates lands under that item. It can be started by whoever owns the item or anything above it, or by an administrator.
+- Jira connection page (administrators): a new **Coverage** table says, per mapped level, how many of the site's issues are in scope, how many are linked to the plan and how many are open and unlinked, counted as of the last successful synchronisation. After the mapping changes it says so until the next synchronisation counts the new levels.
+- Import from Jira: each program or project the import creates has its own owner picker in the preview. By default every row gets the owner chosen in the first step; "Use the owner chosen in the first step" puts a row back.
+- Import from Jira: with "Copy Jira's dates" on, a project the import creates also gets its target window from Jira (by default Target start and Target end). It needs both dates; otherwise the project is still created, without a window, and the row says why. A project that already exists is never changed. Because the window comes from Jira, a newly imported project can show date flags against its milestones straight away.
+- Deviations: a new info, **Children open**: a milestone whose plan has ended while some of its Jira child issues are still open ("2 of 5 child issues still open in Jira while the plan ended …"). It can be acknowledged; the acknowledgement ends when the counts change.
+- Keyboard: after a dialog or menu closes, focus no longer jumps back to the row it was opened from if you have already moved to another row.
+- API (\`/api/v1\`): the import's preview and apply take an optional \`root {level, nodeId}\`, and an unusable root answers \`409\` \`urn:astrolabe:problem:jira-root-unusable\`; \`overrides.ownerPersonId\` per item; the warning \`ROOTED_IMPORT_TRUNCATED\`; the row note \`TARGET_NOT_COPIED\`; \`GET /integrations/jira/connections/{id}/coverage\` (administrators); the deviation kind \`CHILDREN_OPEN\`.
+- Under the hood: one version of the date library is used everywhere, and a check keeps it that way.
+- Nothing is written to Jira or Flow.
+- Proven against a built-in Jira stub; not yet tested against a real Jira site.`,
+    pl: `**Astrolabe 1.14.0: import tego, co Jira ma pod powiązanym programem lub projektem, podgląd, ile z instancji Jiry obejmuje plan, wybór właściciela/ki dla każdego wiersza i kopiowanie okna docelowego nowego projektu w imporcie oraz nowe odchylenie „Dzieci otwarte”.**
+
+- Import z Jiry spod powiązanego elementu: program powiązany z Jirą ma w swoim menu na stronie Plan pozycję „Importuj z Jiry…”, a powiązany projekt ma na swojej stronie przycisk „Importuj z Jiry…”. Import czyta tylko to, co Jira ma pod tym elementem (dla programu jego projekty i ich kamienie milowe, dla projektu jego kamienie milowe), z tym samym podglądem, filtrem i sprawdzeniami co dotąd, a wszystko, co tworzy, trafia pod ten element. Może go uruchomić właściciel/ka tego elementu albo czegokolwiek nad nim lub administrator/ka.
+- Strona połączenia z Jirą (administratorzy/ki): nowa tabela **Pokrycie** pokazuje dla każdego zmapowanego poziomu, ile zgłoszeń z instancji jest w zakresie, ile jest powiązanych z planem, a ile otwartych i niepowiązanych, według ostatniej udanej synchronizacji. Po zmianie mapowania mówi o tym, dopóki następna synchronizacja nie policzy nowych poziomów.
+- Import z Jiry: każdy program i projekt, który import tworzy, ma w podglądzie własny wybór właściciela/ki. Domyślnie każdy wiersz dostaje właściciela/kę wybranego/ą w pierwszym kroku; „Użyj właściciela/ki z pierwszego kroku” przywraca to dla wiersza.
+- Import z Jiry: przy włączonym „Kopiuj daty z Jiry” projekt, który import tworzy, dostaje też okno docelowe z Jiry (domyślnie Target start i Target end). Potrzebne są obie daty; inaczej projekt i tak powstaje, ale bez okna, a wiersz mówi dlaczego. Istniejący projekt nigdy się nie zmienia. Ponieważ okno pochodzi z Jiry, nowo zaimportowany projekt może od razu pokazać flagi dat względem swoich kamieni milowych.
+- Odchylenia: nowa informacja **Dzieci otwarte**: kamień milowy, którego plan się zakończył, a część jego zgłoszeń podrzędnych w Jirze jest nadal otwarta („Otwartych zgłoszeń podrzędnych w Jirze: 2 z 5, a plan zakończył się …”). Można ją potwierdzić; potwierdzenie wygasa, gdy liczby się zmienią.
+- Klawiatura: po zamknięciu okna dialogowego lub menu fokus nie wraca już do wiersza, z którego je otwarto, jeśli przeszedłeś/aś już do innego wiersza.
+- API (\`/api/v1\`): podgląd i zastosowanie importu przyjmują opcjonalny \`root {level, nodeId}\`, a nieużywalny korzeń odpowiada \`409\` \`urn:astrolabe:problem:jira-root-unusable\`; \`overrides.ownerPersonId\` dla elementu; ostrzeżenie \`ROOTED_IMPORT_TRUNCATED\`; uwaga wiersza \`TARGET_NOT_COPIED\`; \`GET /integrations/jira/connections/{id}/coverage\` (administratorzy/ki); rodzaj odchylenia \`CHILDREN_OPEN\`.
+- Pod maską: wszędzie używana jest jedna wersja biblioteki dat, a sprawdzenie pilnuje, żeby tak zostało.
+- Niczego nie zapisujemy w Jirze ani we Flow.
+- Sprawdzone na wbudowanej atrapie Jiry; jeszcze nie przetestowane na prawdziwej witrynie Jira.`,
+  },
+  {
     version: "1.13.4",
     date: "2026-11-12",
     en: `**Astrolabe 1.13.4: the Jira import's preview can be searched, so one item can be picked out of a long list.**
