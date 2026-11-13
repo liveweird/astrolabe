@@ -2,17 +2,20 @@
 // Initiatives and the Epics under them, every date in 2045; `IMC-14` a Program with nothing under it): the owner of a linked program - a NON-admin who owns the
 // program and nothing above it - opens the Plan page's program menu, imports the projects and milestones Jira lists under the link, and the owner of a linked project
 // does the same from the project page. A program linked to an item with nothing under it says so. The dialog (scope note, preview, empty note) passes axe, light and dark.
+// 1.15 adds the other two entries - the Plan page's PROJECT row (the project's owner) and the connection page's program row (an administrator) - and the skip: an item whose
+// Jira parent is linked to a project of ANOTHER program is skipped (`OUTSIDE_ROOT`) while the rest of the preview stays and imports.
 // Owns: ONE Jira connection (`e2e-impchild-connection-*`, scoped to the stub's `IMC` project ONLY on a unique throwaway site, tested once per worker start of the file
 // through the API in the beforeAll: one call of the shared per-IP Test bucket) and, per test, a throwaway NON-admin login with its person, a second person who owns the
 // work stream, a team, the work stream, one or two programs (and a project) and ONE binding made through the API as the administrator (the program to `IMC-1` or `IMC-14`,
-// or the project to `IMC-2`), unique `e2e-impchild-*` names, plus what the import creates under the program with the stub's own names ("IMC Initiative North/South", the
+// or the project to `IMC-2`; the "outside" world adds a second program owned by the other person with a project linked to `IMC-2`), unique `e2e-impchild-*` names, plus what the import creates under the program with the stub's own names ("IMC Initiative North/South", the
 // epics), dated 2045 (the milestones are created unscheduled: the login manages no team). A rooted import creates no program, so there is no global name to guard
-// and no Playwright lock. The preview and the apply share a 5-a-minute bucket PER USER: every test has its own login and spends at most three calls.
+// and no Playwright lock. The preview and the apply share a 5-a-minute bucket PER USER: every test has its own login and spends at most three calls (the connection page's test
+// signs in as a throwaway ADMINISTRATOR of its own, never the shared one, and spends one).
 // Teardown (afterEach, even after a failure, through the API): the connection's bindings, then the tree (projects, programs, the stream), the team, the people and the
 // login; the afterAll deletes the connection. The beforeAll sweeps what a crashed earlier run left, found by the `e2e-impchild-` prefix and nothing else.
 import { randomUUID } from "node:crypto";
 import { type APIRequestContext, type Locator, type Page } from "@playwright/test";
-import { apiAsAdmin, axeViolations, deleteViaApi, expect, expectScheme, login, test, testJiraConnectionViaApi, uniqueText, type Scheme } from "./helpers";
+import { apiAsAdmin, apiAsThrowawayAdmin, axeViolations, deleteViaApi, expect, expectScheme, login, test, testJiraConnectionViaApi, uniqueText, type Scheme } from "./helpers";
 
 // The Test connection call of the beforeAll may wait a 429 out, and the longest inner wait (the apply's 60 s) needs room to fire before the test's own timeout.
 test.describe.configure({ timeout: 120_000 });
@@ -34,11 +37,16 @@ interface World {
   streamName: string;
   programId: number;
   programName: string;
-  /** A second program of the same stream, owned by the login too and linked to nothing (the programs test only). */
+  /** A sibling owned by the login too and linked to nothing: a second program (the "program" worlds) or a second project of the project's program (`siblingProject`). */
   siblingName: string | null;
   projectId: number | null;
   projectName: string | null;
+  /** The "outside" world's second program, owned by the OTHER person, with a project linked to `IMC-2`. */
+  other: { programId: number; projectId: number; projectName: string } | null;
 }
+
+/** "program": the login owns a linked program (and an unlinked sibling); "project": a linked project of a program the OTHER person owns; "outside": a linked program the login owns, beside a program of the other person whose project is linked to `IMC-2`. */
+type Kind = "program" | "project" | "outside";
 
 interface PlanProject {
   id: number;
@@ -147,9 +155,11 @@ test.afterEach(async () => {
 /**
  * A throwaway NON-admin login linked to a person, a second person who owns the work stream, a team (no manager: the milestones are created unscheduled) and the stream.
  * `kind: "program"` adds a program owned by the login's person (linked to `issueKey`) and an unlinked sibling program owned by them too; `kind: "project"` adds a program
- * owned by the OTHER person and a project in it owned by the login's person (linked to `issueKey`). The link is made through the API as the administrator.
+ * owned by the OTHER person and a project in it owned by the login's person (linked to `issueKey`), plus an unlinked sibling project the login owns when `siblingProject`;
+ * `kind: "outside"` adds the "program" world's linked program (no sibling) and a second program owned by the OTHER person with a project linked to `IMC-2`.
+ * The links are made through the API as the administrator.
  */
-async function seedWorld(kind: "program" | "project", issueKey: string): Promise<World> {
+async function seedWorld(kind: Kind, issueKey: string, siblingProject = false): Promise<World> {
   const { api } = await apiAsAdmin();
   try {
     const name = uniqueText(`${MARK}owner`);
@@ -164,22 +174,36 @@ async function seedWorld(kind: "program" | "project", issueKey: string): Promise
     const id = await create(api, "/api/v1/work-streams", { name: streamName, ownerPersonId: streamOwnerId, startDate: "2045-01-02" }, "/api/v1/work-streams");
     streamId = id;
     const programName = uniqueText(`${MARK}program`);
-    const programId = await create(api, `/api/v1/work-streams/${id}/programs`, { name: programName, ownerPersonId: kind === "program" ? ownerId : streamOwnerId }, "/api/v1/programs");
+    const programId = await create(api, `/api/v1/work-streams/${id}/programs`, { name: programName, ownerPersonId: kind === "project" ? streamOwnerId : ownerId }, "/api/v1/programs");
+    const link = async (level: "PROGRAM" | "PROJECT", nodeId: number, key: string) => {
+      const linked = await api.post("/api/v1/integrations/jira/bindings", { data: { connectionId: connection.id, level, nodeId, issueKey: key } });
+      expect(linked.status(), await linked.text()).toBe(201);
+    };
     let siblingName: string | null = null;
     let projectId: number | null = null;
     let projectName: string | null = null;
+    let other: World["other"] = null;
     if (kind === "program") {
       siblingName = uniqueText(`${MARK}sibling`);
       await create(api, `/api/v1/work-streams/${id}/programs`, { name: siblingName, ownerPersonId: ownerId }, "/api/v1/programs");
-    } else {
+      await link("PROGRAM", programId, issueKey);
+    } else if (kind === "project") {
       projectName = uniqueText(`${MARK}project`);
       projectId = await create(api, `/api/v1/programs/${programId}/projects`, { name: projectName, ownerPersonId: ownerId }, "/api/v1/projects");
+      if (siblingProject) {
+        siblingName = uniqueText(`${MARK}sibling`);
+        await create(api, `/api/v1/programs/${programId}/projects`, { name: siblingName, ownerPersonId: ownerId }, "/api/v1/projects");
+      }
+      await link("PROJECT", projectId, issueKey);
+    } else {
+      const otherProgramId = await create(api, `/api/v1/work-streams/${id}/programs`, { name: uniqueText(`${MARK}otherprogram`), ownerPersonId: streamOwnerId }, "/api/v1/programs");
+      const otherProjectName = uniqueText(`${MARK}otherproject`);
+      const otherProjectId = await create(api, `/api/v1/programs/${otherProgramId}/projects`, { name: otherProjectName, ownerPersonId: streamOwnerId }, "/api/v1/projects");
+      other = { programId: otherProgramId, projectId: otherProjectId, projectName: otherProjectName };
+      await link("PROGRAM", programId, issueKey);
+      await link("PROJECT", otherProjectId, "IMC-2");
     }
-    const linked = await api.post("/api/v1/integrations/jira/bindings", {
-      data: { connectionId: connection.id, level: kind === "program" ? "PROGRAM" : "PROJECT", nodeId: kind === "program" ? programId : projectId, issueKey },
-    });
-    expect(linked.status(), await linked.text()).toBe(201);
-    return { login: account, ownerName, teamName, streamId: id, streamName, programId, programName, siblingName, projectId, projectName };
+    return { login: account, ownerName, teamName, streamId: id, streamName, programId, programName, siblingName, projectId, projectName, other };
   } finally {
     await api.dispose();
   }
@@ -433,6 +457,132 @@ test("a project's owner imports the linked project's milestones from the project
   // The project page lists the three milestones, all unscheduled: the login manages no team.
   for (const name of ["IMC Epic One", "IMC Epic Two", "IMC Epic Six"]) await expect(page.getByText(name).first()).toBeVisible();
   expect(await projectsOf(world.programId)).toEqual([{ name: projectName, scheduled: [], unscheduled: ["IMC Epic One", "IMC Epic Six", "IMC Epic Two"] }]);
+});
+
+/** The Plan page's project row menu: the button "Operations for <project>" (`exact`: a name that merely starts with it is another row). */
+async function openProjectMenu(page: Page, projectName: string): Promise<void> {
+  await page.getByRole("button", { name: `Operations for ${projectName}`, exact: true }).click();
+  await expect(page.getByRole("menu")).toBeVisible();
+}
+
+const projectImportItem = (page: Page, projectName: string) => page.getByRole("menuitem", { name: `Import from Jira what is listed under ${projectName}`, exact: true });
+
+test("a project's owner starts the import from the Plan page's project row", async ({ page }) => {
+  const world = await seedWorld("project", "IMC-2", true);
+  const projectName = world.projectName ?? "";
+  const siblingName = world.siblingName ?? "";
+  await login(page, world.login.email, world.login.password);
+  await page.goto("/plan");
+
+  // The linked project has the entry (it waits for the Plan page's link read); the unlinked sibling project, owned by the same login, has a menu but no such item.
+  await openProjectMenu(page, projectName);
+  await expect(projectImportItem(page, projectName)).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menu")).toHaveCount(0);
+  await openProjectMenu(page, siblingName);
+  await expect(page.getByRole("menuitem", { name: `Edit ${siblingName}` })).toBeVisible();
+  await expect(projectImportItem(page, siblingName)).toHaveCount(0);
+  await expect(page.getByRole("menuitem", { name: /^Import from Jira what is listed under/ })).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menu")).toHaveCount(0);
+
+  // The dialog: the note names IMC-2 and the project, and asks for nothing the project already decides.
+  await openProjectMenu(page, projectName);
+  await projectImportItem(page, projectName).click();
+  const dialog = modal(page);
+  await expect(dialog.getByRole("note").filter({ hasText: "Importing what Jira lists under" })).toHaveText(projectNote("IMC-2", projectName));
+  for (const label of ["Work stream", "Jira projects", "Default program", "Owner of the new items", "Project for items directly under IMC-2"]) {
+    await expect(dialog.getByLabel(label, { exact: true })).toHaveCount(0);
+  }
+  await pickTeam(page, world);
+  await preview(page);
+
+  // At the defaults only IMC-5 is read (IMC-6 is done, IMC-10 quiet): one milestone to create.
+  await expectTotals(page, { found: 1, create: 1, bind: 0, skip: null });
+  await expect(rowOf(page, "IMC-5")).toHaveCount(1);
+  await importAll(page, 1);
+  await expect(dialog.getByRole("status")).toContainText("Created: 1");
+  await expect(dialog.getByRole("status")).toContainText("Skipped: 0");
+  await dialog.getByRole("button", { name: "Close", exact: true }).last().click();
+  await expect(dialog).toHaveCount(0);
+
+  // The project's page lists the milestone; the API agrees, and the sibling project got nothing.
+  await page.getByRole("link", { name: `Open ${projectName}`, exact: true }).click();
+  await expect(page.getByRole("heading", { level: 2, name: projectName })).toBeVisible();
+  await expect(page.getByText("IMC Epic One").first()).toBeVisible();
+  const planned = await projectsOf(world.programId);
+  expect(planned.find((project) => project.name === projectName)).toEqual({ name: projectName, scheduled: [], unscheduled: ["IMC Epic One"] });
+  expect(planned.find((project) => project.name === siblingName)).toEqual({ name: siblingName, scheduled: [], unscheduled: [] });
+});
+
+test("an administrator starts the import of a linked program from the connection page's list", async ({ page }) => {
+  const world = await seedWorld("program", "IMC-1");
+  // The preview shares a 5-a-minute bucket PER USER: an administrator of this test's own, never the shared one.
+  const admin = await apiAsThrowawayAdmin(`${MARK}admin`);
+  try {
+    await login(page, admin.account.email, admin.account.password);
+    await page.goto(`/integrations/jira/${connection.id}`);
+    await expect(page.getByRole("heading", { level: 2, name: connection.name })).toBeVisible();
+
+    // The linked program's row has the button (it waits for the plan view); the whole-scope button above the list is another one.
+    const rowButton = page.getByRole("button", { name: `Import from Jira what is listed under ${world.programName}`, exact: true });
+    await expect(rowButton).toBeVisible();
+    await expect(rowButton).toHaveText("Import from Jira…");
+    await rowButton.click();
+    const dialog = modal(page);
+    await expect(dialog.getByRole("note").filter({ hasText: "Importing what Jira lists under" })).toHaveText(programNote("IMC-1", world.programName));
+    await expect(dialog.getByLabel("Work stream", { exact: true })).toHaveCount(0);
+    await expect(dialog.getByLabel("Jira projects", { exact: true })).toHaveCount(0);
+    await expect(dialog.getByRole("combobox", { name: "Owner of the new items" })).toHaveValue(world.ownerName);
+    await pickTeam(page, world);
+    await preview(page);
+
+    // The same five rows as the program's owner sees, but an administrator's skipped row is not redacted: IMC-9 shows its key and its reason.
+    await expectTotals(page, { found: 5, create: 4, bind: 0, skip: 1 });
+    await expect(rowOf(page, "IMC-9")).toContainText("Nowhere to put it");
+    await expect(previewTable(page).getByText("Hidden")).toHaveCount(0);
+
+    // Closed without importing: the program has no project.
+    await dialog.getByRole("button", { name: "Close", exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    expect(await projectsOf(world.programId)).toEqual([]);
+  } finally {
+    await admin.dispose();
+  }
+});
+
+test("items under a project that is linked in another program are skipped and the rest of the preview stays", async ({ page }) => {
+  const world = await seedWorld("outside", "IMC-1");
+  const other = world.other;
+  if (other === null) throw new Error("the outside world has a second program");
+  await openProgramImport(page, world);
+  await pickTeam(page, world);
+  await preview(page);
+
+  // At the defaults: IMC-2 (linked to the other program's project), IMC-3 and IMC-7 (the South project and its epic), IMC-5 (under IMC-2: outside the root), IMC-9 (nowhere
+  // to put it). Before 1.15 this preview was refused with a 403 naming the other project. The two skipped rows that are redacted (a filter is on) show no key.
+  await expectTotals(page, { found: 5, create: 2, bind: 0, skip: 3 });
+  await expect(modal(page).getByText("2 of 2 selected")).toBeVisible();
+  await expect(rowOf(page, "IMC-2")).toContainText(`Already linked to ${other.projectName}.`);
+  for (const key of ["IMC-3", "IMC-7"]) await expect(rowOf(page, key)).toContainText("Create");
+  for (const key of ["IMC-5", "IMC-9"]) await expect(rowOf(page, key)).toHaveCount(0);
+  await expect(previewTable(page).getByText("Hidden")).toHaveCount(2);
+  const rows = previewTable(page).getByRole("row");
+  await expect(rows.filter({ hasText: "It belongs under a project of another program" })).toHaveCount(1);
+  await expect(rows.filter({ hasText: "It belongs under a project of another program" })).toContainText("Hidden");
+  await expect(rows.filter({ hasText: "Nowhere to put it" })).toHaveCount(1);
+  await expect(rows.filter({ hasText: "Nowhere to put it" })).toContainText("Hidden");
+
+  // Import creates the two rows under the root program; the other program's project got nothing.
+  await importAll(page, 2);
+  const outcome = modal(page).getByRole("status");
+  await expect(outcome).toContainText("Created: 2");
+  await expect(outcome).toContainText("Linked: 0");
+  await expect(outcome).toContainText("Skipped: 0");
+  await modal(page).getByRole("button", { name: "Close", exact: true }).last().click();
+  await expect(modal(page)).toHaveCount(0);
+  expect(await projectsOf(world.programId)).toEqual([{ name: "IMC Initiative South", scheduled: [], unscheduled: ["IMC Epic Three"] }]);
+  expect(await projectsOf(other.programId)).toEqual([{ name: other.projectName, scheduled: [], unscheduled: [] }]);
 });
 
 /** The rooted dialog under axe: the scope step with its note (empty, then with the default team) and the preview. Nothing is imported. */
