@@ -3,7 +3,7 @@ import { removedProjectDays } from "./baselineOverlay";
 import { EDGES } from "./dependencyArrows";
 import { addDays } from "./isoDate";
 import { jiraRangeDates, type JiraWindow } from "./jiraBars";
-import type { TimelineArrowData } from "./timelineModel";
+import type { BarId, TimelineArrowData } from "./timelineModel";
 
 // The roadmap page's pure model: which projects the filters and the program pick leave visible, the rows they make (ranked rows, the divider,
 // unranked rows), the flag totals and the panel's entries, and the arrows of the rolled-up links. No React and no i18n here — the page's
@@ -181,10 +181,12 @@ export function conflictsByProject(links: readonly RoadmapLink[]): Map<number, n
   return counts;
 }
 
-/** The two sentences an arrow's `<title>` can carry; the page owns the words. */
+/** The three sentences an arrow's `<title>` can carry; the page owns the words. */
 export type ArrowLabels = {
   direct: (link: RoadmapLink) => string;
   bundle: (link: RoadmapLink) => string;
+  /** A rolled-up arrow (1.16): the links between two rows when at least one of them is a folded node. */
+  rollup: (rolled: RolledUpLinks) => string;
 };
 
 /** The key of an ordered project pair in a set of critical pairs (1.7). */
@@ -193,15 +195,61 @@ export const pairKey = (predecessorProjectId: number, successorProjectId: number
 const NO_PAIRS: ReadonlySet<string> = new Set();
 
 /**
+ * The links between two ROWS where at least one is a folded node (1.16, the programs tree): `count` = every link of the folded pairs (a direct link counts
+ * one, the milestone links their `count`), `violated` the violated ones among them, `critical` = any folded pair is on the picked chain.
+ */
+export type RolledUpLinks = { from: BarId; to: BarId; count: number; violated: number; critical: boolean };
+
+/** Does this pair of rows hold the two projects themselves (each project's anchor is its own row, so its id)? Those are the project-pair arrows. */
+const isProjectPair = (link: RoadmapLink, from: BarId, to: BarId) => from === link.predecessorProjectId && to === link.successorProjectId;
+
+/**
+ * The folded pairs, in the order the server lists the links (the first link of an ordered row pair places it): ONE entry per ordered pair of rows, summed
+ * over every link that lands on them. A link with a project on a row of its own on both ends is a project-pair arrow (`arrowSpecsForLinks`), one with
+ * both ends on the SAME row sits inside that row, one with no row at an end is not drawn: none of those is rolled up. `rowOf` answers the row that
+ * stands for a project (its own, or the folded node holding it), else `null`.
+ */
+export function rolledUpLinks(links: readonly RoadmapLink[], rowOf: (projectId: number) => BarId | null, criticalPairs: ReadonlySet<string> = NO_PAIRS): RolledUpLinks[] {
+  const pairs = new Map<string, RolledUpLinks>();
+  for (const link of links) {
+    const from = rowOf(link.predecessorProjectId);
+    const to = rowOf(link.successorProjectId);
+    if (from === null || to === null || from === to || isProjectPair(link, from, to)) continue;
+    const count = (link.direct === null ? 0 : 1) + link.milestoneLinks.count;
+    if (count === 0) continue;
+    const key = `${from}-${to}`;
+    const entry = pairs.get(key) ?? { from, to, count: 0, violated: 0, critical: false };
+    entry.count += count;
+    entry.violated += (link.direct?.check.status === "VIOLATED" ? 1 : 0) + link.milestoneLinks.violated;
+    entry.critical ||= criticalPairs.has(pairKey(link.predecessorProjectId, link.successorProjectId));
+    pairs.set(key, entry);
+  }
+  return [...pairs.values()];
+}
+
+/** How many violated links of the rolled-up arrows end on each row (both ends count, as `conflictsByProject` counts a pair on both projects). */
+export function conflictsByRow(rolled: readonly RolledUpLinks[]): Map<BarId, number> {
+  const counts = new Map<BarId, number>();
+  for (const { from, to, violated } of rolled) {
+    if (violated === 0) continue;
+    for (const row of [from, to]) counts.set(row, (counts.get(row) ?? 0) + violated);
+  }
+  return counts;
+}
+
+/**
  * The arrows of the rolled-up links. A pair's `direct` project-to-project link (unless its check is UNSCHEDULED: no dates, nothing to point at) is drawn
  * as its type says on the two span bars, red when VIOLATED; its milestone links are ONE bundle arrow per ordered pair (`bundle:<pred>-<succ>`,
- * end to start), red when any of them is violated. `rowOf` answers the row of a project that has a span bar on this timeline, else `null` and
- * the arrow is left out. The bar of a project's row is the span bar and has the project's id, like the row. `criticalPairs` (1.7, the pairs the server
- * put on the chain toward the picked project, as `pairKey`s) marks BOTH arrows of such a pair `critical`; without it no spec carries the flag.
+ * end to start), red when any of them is violated. `rowOf` answers the row that stands for a project on this timeline, else `null` and the arrow is
+ * left out: the project's own row (and span bar, which has the project's id, like the row) draws the two arrows above; where a project is
+ * stood for by a folded node (1.16, the programs tree) the links between two different rows are ONE `rollup:<from>-<to>` arrow per ordered pair of
+ * rows (`rolledUpLinks`), end to start on the two rows' bars, red when any link is violated. `criticalPairs` (1.7, the pairs the server put on the
+ * chain toward the picked project, as `pairKey`s) marks BOTH arrows of such a pair, and a rolled-up arrow holding one, `critical`; without it no
+ * spec carries the flag.
  */
 export function arrowSpecsForLinks(
   links: readonly RoadmapLink[],
-  rowOf: (projectId: number) => number | null,
+  rowOf: (projectId: number) => BarId | null,
   labels: ArrowLabels,
   criticalPairs: ReadonlySet<string> = NO_PAIRS,
 ): TimelineArrowData[] {
@@ -209,7 +257,7 @@ export function arrowSpecsForLinks(
   for (const link of links) {
     const from = rowOf(link.predecessorProjectId);
     const to = rowOf(link.successorProjectId);
-    if (from === null || to === null) continue;
+    if (from === null || to === null || !isProjectPair(link, from, to)) continue;
     const { direct, milestoneLinks } = link;
     const emphasis = criticalPairs.has(pairKey(link.predecessorProjectId, link.successorProjectId)) ? { critical: true } : {};
     if (direct !== null && direct.check.status !== "UNSCHEDULED") {
@@ -233,6 +281,16 @@ export function arrowSpecsForLinks(
         ...emphasis,
       });
     }
+  }
+  for (const rolled of rolledUpLinks(links, rowOf, criticalPairs)) {
+    specs.push({
+      id: `rollup:${rolled.from}-${rolled.to}`,
+      from: { row: rolled.from, bar: rolled.from, kind: "END" },
+      to: { row: rolled.to, bar: rolled.to, kind: "START" },
+      violated: rolled.violated > 0,
+      label: labels.rollup(rolled),
+      ...(rolled.critical ? { critical: true } : {}),
+    });
   }
   return specs;
 }

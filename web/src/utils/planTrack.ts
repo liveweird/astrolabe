@@ -2,8 +2,8 @@ import type { TFunction } from "i18next";
 import type { RoadmapLink, RoadmapProject } from "../api/roadmap";
 import { shadowBar } from "./baselineOverlay";
 import { jiraBar, type JiraWindow } from "./jiraBars";
-import { arrowSpecsForLinks, driftBandOf } from "./roadmapRows";
-import type { TimelineArrowData, TimelineBandData, TimelineBarData, TimelineDrawData } from "./timelineModel";
+import { arrowSpecsForLinks, driftBandOf, type RolledUpLinks } from "./roadmapRows";
+import type { BarId, TimelineArrowData, TimelineBandData, TimelineBarData, TimelineDrawData } from "./timelineModel";
 
 // The track of a PROJECT row, shared by the two plan pages (the roadmap and the programs tree): the bars, the drift band, the draw surface and the
 // arrows between projects. ONE builder, so the target window's gestures (move, resize, draw) are on both pages at once. The server's figures
@@ -19,7 +19,7 @@ export function projectOfWindowBar(barId: number | string): number | null {
 }
 
 /** The accessible name of a span bar, with the ", N conflicts" suffix when violated links end on its project. */
-const withConflicts = (t: TFunction, describe: string, count: number) => (count > 0 ? `${describe}, ${t("project.barConflicts", { count })}` : describe);
+export const withConflicts = (t: TFunction, describe: string, count: number) => (count > 0 ? `${describe}, ${t("project.barConflicts", { count })}` : describe);
 
 /**
  * The bars of a project row: its target window (the band-look bar behind - editable when the viewer may change it) and the span its milestones
@@ -83,22 +83,25 @@ export function projectTrack(
 }
 
 /**
- * The arrows between the projects of a page. `names` holds the projects that have a row on the page (their names are the arrows' titles); an
- * arrow is drawn only when both of its projects are in `withSpan` (a row AND a span: the span bar is what an arrow anchors on).
- * `criticalPairs` (1.7, the roadmap's picked critical path) marks the arrows of those ordered project pairs (`pairKey`s) `critical`.
+ * The arrows between the projects of a page. `anchorOf` answers the bar that stands for a project on this timeline (the project's own span bar, which
+ * has its id; on the programs tree, 1.16, the folded program's or work stream's summary bar when the project's row is folded away), else `null`
+ * and the arrow is left out. `names` holds the names of the rows those bars sit on, by bar id (the arrows' titles). The roadmap answers only
+ * its own projects with a span, so it never rolls up. `criticalPairs` (1.7, the roadmap's picked critical path) marks the arrows of those ordered
+ * project pairs (`pairKey`s) `critical`.
  */
 export function planArrows(
   t: TFunction,
   links: readonly RoadmapLink[],
-  names: ReadonlyMap<number, string>,
-  withSpan: ReadonlySet<number>,
+  names: ReadonlyMap<BarId, string>,
+  anchorOf: (projectId: number) => BarId | null,
   criticalPairs?: ReadonlySet<string>,
 ): TimelineArrowData[] {
-  const nameOf = (id: number) => names.get(id) ?? "";
+  const nameOf = (id: BarId) => names.get(id) ?? "";
   const labels = {
     direct: (link: RoadmapLink) => `${nameOf(link.predecessorProjectId)} → ${nameOf(link.successorProjectId)}, ${link.direct?.type ?? ""}`,
     bundle: (link: RoadmapLink) =>
       t("roadmap.bundleLabel", { from: nameOf(link.predecessorProjectId), to: nameOf(link.successorProjectId), count: link.milestoneLinks.count, violated: link.milestoneLinks.violated }),
+    rollup: (rolled: RolledUpLinks) => t("roadmap.rollupLabel", { from: nameOf(rolled.from), to: nameOf(rolled.to), count: rolled.count, violated: rolled.violated }),
   };
-  return arrowSpecsForLinks(links, (projectId) => (withSpan.has(projectId) ? projectId : null), labels, criticalPairs);
+  return arrowSpecsForLinks(links, anchorOf, labels, criticalPairs);
 }

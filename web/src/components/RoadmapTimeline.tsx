@@ -239,7 +239,7 @@ export default function RoadmapTimeline({
 
   const withSpan = new Set(display.flatMap((entry) => (entry.kind === "project" && entry.project.span !== null ? [entry.project.id] : [])));
   const names = new Map(display.flatMap((entry) => (entry.kind === "project" ? [[entry.project.id, entry.project.name] as const] : [])));
-  const arrows = planArrows(t, view.links, names, withSpan, chain.pairs);
+  const arrows = planArrows(t, view.links, names, (id) => (withSpan.has(id) ? id : null), chain.pairs);
 
   return (
     <Timeline

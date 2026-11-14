@@ -18,6 +18,8 @@
 1. The admin signs in, the program pick is set to programs A and B, and they open **Programs** from the Planning section of the sidebar.
    - *Expected*: the heading is "Programs"; the work stream's chevron button ("Work stream <name>") is expanded, the buttons "Program A" and
      "Program B" are collapsed and no project row is shown; the facts line reads "1 work stream", "2 programs", "3 projects" and "1 warning".
+   - *Expected* (1.16): with both programs folded the project link is ONE rolled-up arrow (`data-arrow` starting `rollup:`) between the two program
+     rows, not violated (`data-violated="false"`), titled "<A> → <B>, 1 link (0 violated)" (the only arrow on the page).
 2. They read the summary bars and counts of the nodes.
    - *Expected*: A's bar is named "<A>, program span 2026-02-02 to 2026-04-10, read-only" (the span its two projects cover), B's
      "… 2026-05-04 to 2026-05-08", the work stream's "… work stream span 2026-02-02 to 2026-05-08"; the work stream's and A's Flags cell carry
@@ -25,15 +27,17 @@
 3. They press the chevron button of program A with the pointer.
    - *Expected*: A is expanded; the status region says "<A> expanded, 2 projects"; `late` has its span bar (2026-03-02 to 2026-04-10), its
      target window bar (2026-03-02 to 2026-03-31; the administrator may change it, so it is a draggable named without "read-only") and the orange drift band ("10 days past the target end") and one warning in its Flags cell;
-     `early` has its span bar (2026-02-02 to 2026-02-06) and no flag.
+     `early` has its span bar (2026-02-02 to 2026-02-06) and no flag. With A open and B folded the arrow now starts at `late`'s row and ends at
+     B's row: still one arrow, titled "<late> → <B>, 1 link (0 violated)".
 4. They focus A's chevron button and press Enter.
-   - *Expected*: A is collapsed and its button still has the focus; the status says "<A> collapsed"; the project rows are gone.
+   - *Expected*: A is collapsed and its button still has the focus; the status says "<A> collapsed"; the project rows are gone; the one arrow
+     between the two program rows is back ("<A> → <B>, 1 link (0 violated)").
 5. They press Enter again (A opens), focus B's button and press Enter (B opens).
-   - *Expected*: `other` is shown; exactly one arrow is drawn (`late` to `other`, the project link), not violated. Pressing Enter on B's button once
-     more folds B and the arrow goes with its end row.
+   - *Expected*: `other` is shown; exactly one arrow is drawn (`late` to `other`, the project link), not violated, and none of the page's arrows
+     is a roll-up. Pressing Enter on B's button once more folds B and the arrow ends on B's row again ("<late> → <B>, 1 link (0 violated)").
 6. They press **Collapse all**, then **Expand all**.
-   - *Expected*: after Collapse all the work stream itself is collapsed and no program is shown; after Expand all every project row is shown
-     and the arrow is back.
+   - *Expected*: after Collapse all the work stream itself is collapsed and no program is shown; both projects stand on the work stream's row,
+     so the link is inside one row and no arrow is drawn; after Expand all every project row is shown and the project arrow is back (not a roll-up).
 7. The timeline is on Quarter zoom; they switch to **Year**.
    - *Expected*: at Quarter no header cell reads exactly "2026"; at Year the header shows the year.
 

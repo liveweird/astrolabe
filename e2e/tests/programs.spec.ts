@@ -1,6 +1,7 @@
 // The Programs page (the plan as a tree on a timeline): an admin reads work stream -> program -> project, folds the programs open and shut from
 // the keyboard (the chevron button, said in the status region), checks that a program's bar is the span its projects cover and that the roll-up
-// counts add up the flags of its projects, sees the arrow between two shown project rows, and switches to Year zoom; the program pick set on
+// counts add up the flags of its projects, sees the project link as ONE arrow between the rows that stand for its two projects (the two folded programs'
+// rows, a project row and a folded program's row, the two project rows; none inside a folded work stream), and switches to Year zoom; the program pick set on
 // this page narrows the Roadmap (after a reload) and the one set there narrows this page; a user without any right reads the same tree with
 // read-only bars and a row menu that only opens the project. The pick (a browser setting, `astrolabe.viewSettings.planning.programPick`)
 // narrows every assertion to this spec's own program(s): the compose stack may hold the loaded sample plan, whatever other specs add, and an
@@ -86,6 +87,9 @@ async function openProgramsOf(page: Page, ...programIds: number[]): Promise<void
   await expect(grid(page)).toBeVisible();
 }
 
+/** The rolled-up arrows (1.16): the project link as seen between rows of which at least one is a folded program (ids `rollup:<from row>-<to row>`). */
+const rollups = (page: Page): Locator => page.locator('[data-arrow^="rollup:"]');
+
 /** Pick a program in the filter panel's multi-select (searched by its unique name). */
 async function pickProgram(page: Page, name: string): Promise<void> {
   await openFilters(page);
@@ -112,6 +116,12 @@ test("an admin reads the plan as a tree, folds programs from the keyboard, sees 
   await expect(facts).toContainText("3 projects");
   await expect(facts).toContainText("1 warning");
 
+  // Both programs folded: the project link from `late` (A) to `other` (B) is ONE rolled-up arrow between the two program rows, and it holds, so not red.
+  await expect(page.locator("[data-arrow]")).toHaveCount(1);
+  await expect(rollups(page)).toHaveCount(1);
+  await expect(rollups(page)).toHaveAttribute("data-violated", "false");
+  await expect(rollups(page).locator("title")).toHaveText(`${plan.a} → ${plan.b}, 1 link (0 violated)`);
+
   // A program's bar is the span its projects cover; a work stream's the span of its programs. The late project's warning rolls up to both.
   await expect(nodeRow(page, `Program ${plan.a}`).getByRole("img", { name: `${plan.a}, program span 2026-02-02 to 2026-04-10, read-only` })).toHaveCount(1);
   await expect(nodeRow(page, `Program ${plan.b}`).getByRole("img", { name: `${plan.b}, program span 2026-05-04 to 2026-05-08, read-only` })).toHaveCount(1);
@@ -126,6 +136,9 @@ test("an admin reads the plan as a tree, folds programs from the keyboard, sees 
   await expect(status(page, `${plan.a} expanded, 2 projects`)).toBeAttached();
   await expect(projectRow(page, plan.late).getByRole("img", { name: `${plan.late}, 2026-03-02 to 2026-04-10, read-only` })).toHaveCount(1);
   await expect(projectRow(page, plan.early).getByRole("img", { name: `${plan.early}, 2026-02-02 to 2026-02-06, read-only` })).toHaveCount(1);
+  // A open and B folded: the arrow now starts at the `late` project's row and ends at B's row.
+  await expect(page.locator("[data-arrow]")).toHaveCount(1);
+  await expect(rollups(page).locator("title")).toHaveText(`${plan.late} → ${plan.b}, 1 link (0 violated)`);
   // The administrator may change any window, so the band is a draggable (a button, no "read-only"); its gestures are the roadmap spec's.
   await expect(projectRow(page, plan.late).getByRole("button", { name: `${plan.late}, target window 2026-03-02 to 2026-03-31` })).toHaveCount(1);
   await expect(projectRow(page, plan.late).locator('[title="10 days past the target end"]')).toHaveCount(1);
@@ -140,26 +153,32 @@ test("an admin reads the plan as a tree, folds programs from the keyboard, sees 
   await expect(status(page, `${plan.a} collapsed`)).toBeAttached();
   await expect(grid(page).getByRole("link", { name: /^Open / })).toHaveCount(0);
 
-  // Both programs open: the project link from the late project to the other one is an arrow between two shown rows (and holds, so not red).
-  await expect(page.locator("[data-arrow]")).toHaveCount(0);
+  // Folded again: back to the one arrow between the two program rows.
+  await expect(page.locator("[data-arrow]")).toHaveCount(1);
+  await expect(rollups(page).locator("title")).toHaveText(`${plan.a} → ${plan.b}, 1 link (0 violated)`);
+  // Both programs open: the project link from the late project to the other one is the project arrow between two shown rows (and holds, so not red); nothing is rolled up.
   await page.keyboard.press("Enter");
   await nodeButton(page, `Program ${plan.b}`).focus();
   await page.keyboard.press("Enter");
   await expect(projectRow(page, plan.other)).toBeVisible();
   await expect(page.locator("[data-arrow]")).toHaveCount(1);
   await expect(page.locator("[data-arrow]")).toHaveAttribute("data-violated", "false");
-  // Folding B leaves the arrow's end without a row: no arrow.
+  await expect(rollups(page)).toHaveCount(0);
+  // Folding B puts the arrow's end back on B's row.
   await page.keyboard.press("Enter");
-  await expect(page.locator("[data-arrow]")).toHaveCount(0);
+  await expect(page.locator("[data-arrow]")).toHaveCount(1);
+  await expect(rollups(page).locator("title")).toHaveText(`${plan.late} → ${plan.b}, 1 link (0 violated)`);
 
-  // Expand all / Collapse all.
+  // Expand all / Collapse all. A collapsed work stream stands for both projects: the link is inside its row, so no arrow.
   await page.getByRole("button", { name: "Collapse all" }).click();
   await expect(nodeButton(page, `Work stream ${plan.stream}`)).toHaveAttribute("aria-expanded", "false");
   await expect(nodeButton(page, `Program ${plan.a}`)).toHaveCount(0);
+  await expect(page.locator("[data-arrow]")).toHaveCount(0);
   await page.getByRole("button", { name: "Expand all" }).click();
   await expect(projectRow(page, plan.early)).toBeVisible();
   await expect(projectRow(page, plan.other)).toBeVisible();
   await expect(page.locator("[data-arrow]")).toHaveCount(1);
+  await expect(rollups(page)).toHaveCount(0);
 
   // Quarter by default (years are not a header at that zoom); Year puts the years in the header.
   await expect(grid(page).getByText("2026", { exact: true })).toHaveCount(0);

@@ -6,6 +6,7 @@ import {
   allProjects,
   arrowSpecsForLinks,
   conflictsByProject,
+  conflictsByRow,
   countFlags,
   datesOf,
   displayRows,
@@ -18,9 +19,11 @@ import {
   pairKey,
   pickAmong,
   programOptions,
+  rolledUpLinks,
   visibleProjects,
   visibleRemoved,
   workStreamOptions,
+  type RolledUpLinks,
   type RoadmapFilters,
 } from "./roadmapRows";
 
@@ -227,7 +230,11 @@ const direct = (id: number, type: "FS" | "SS" | "FF" | "SF", status: "OK" | "VIO
   lagDays: 0,
   check: { status, shortfallDays: status === "VIOLATED" ? 2 : null, slackDays: status === "VIOLATED" ? -2 : status === "OK" ? 0 : null, requiredDate: null, actualDate: null },
 });
-const LABELS = { direct: () => "direct", bundle: (l: RoadmapLink) => `bundle ${l.milestoneLinks.count}` };
+const LABELS = {
+  direct: () => "direct",
+  bundle: (l: RoadmapLink) => `bundle ${l.milestoneLinks.count}`,
+  rollup: (r: RolledUpLinks) => `rollup ${r.count}/${r.violated}`,
+};
 const ALL = (id: number) => id;
 
 describe("arrowSpecsForLinks", () => {
@@ -279,6 +286,64 @@ describe("arrowSpecsForLinks: the critical pairs (1.7)", () => {
 
   test("without pairs the specs are exactly the ones drawn before", () => {
     expect(arrowSpecsForLinks([both(1, 2)], ALL, LABELS, new Set())).toEqual(arrowSpecsForLinks([both(1, 2)], ALL, LABELS));
+  });
+});
+
+describe("arrowSpecsForLinks: rolled-up arrows (1.16)", () => {
+  // Projects 1 and 2 sit in a folded program "pg:A", project 3 in an open one (its own row), project 4 in a folded work stream "ws:B".
+  const ANCHORS = new Map<number, number | string>([[1, "pg:A"], [2, "pg:A"], [3, 3], [4, "ws:B"]]);
+  const rowOf = (id: number) => ANCHORS.get(id) ?? null;
+  const bundle = (count: number, violated = 0) => ({ count, violated, unscheduled: 0 });
+
+  test("a project row to a node, a node to a project row and a node to a node: ONE arrow per ordered pair, end to start", () => {
+    const specs = arrowSpecsForLinks([link(3, 1, { milestoneLinks: bundle(2) }), link(1, 3, { milestoneLinks: bundle(1) }), link(2, 4, { milestoneLinks: bundle(1) })], rowOf, LABELS);
+    expect(specs.map((s) => [s.id, s.from, s.to, s.violated])).toEqual([
+      ["rollup:3-pg:A", { row: 3, bar: 3, kind: "END" }, { row: "pg:A", bar: "pg:A", kind: "START" }, false],
+      ["rollup:pg:A-3", { row: "pg:A", bar: "pg:A", kind: "END" }, { row: 3, bar: 3, kind: "START" }, false],
+      ["rollup:pg:A-ws:B", { row: "pg:A", bar: "pg:A", kind: "END" }, { row: "ws:B", bar: "ws:B", kind: "START" }, false],
+    ]);
+  });
+
+  test("the links between two rows are summed: the direct link counts one, the milestone links their count, the violated ones add up", () => {
+    const specs = arrowSpecsForLinks(
+      [link(1, 3, { direct: direct(31, "SS", "VIOLATED"), milestoneLinks: bundle(3, 1) }), link(2, 3, { milestoneLinks: bundle(2, 0) }), link(2, 3, { direct: direct(32, "FS", "UNSCHEDULED") })],
+      rowOf,
+      LABELS,
+    );
+    // The direct links are not drawn by type (a folded end has no project bar to touch); they count, red when violated.
+    expect(specs).toHaveLength(1);
+    expect(specs[0]).toMatchObject({ id: "rollup:pg:A-3", violated: true, label: "rollup 7/2" });
+    expect(rolledUpLinks([link(1, 3, { direct: direct(31, "SS", "OK") })], rowOf)).toEqual([{ from: "pg:A", to: 3, count: 1, violated: 0, critical: false }]);
+  });
+
+  test("a link inside one row is nothing, and so is one with no row at either end", () => {
+    expect(arrowSpecsForLinks([link(1, 2, { direct: direct(31, "FS", "VIOLATED"), milestoneLinks: bundle(4, 2) })], rowOf, LABELS)).toEqual([]);
+    expect(arrowSpecsForLinks([link(1, 9, { milestoneLinks: bundle(1) }), link(9, 3, { milestoneLinks: bundle(1) }), link(8, 9, { milestoneLinks: bundle(1) })], rowOf, LABELS)).toEqual([]);
+  });
+
+  test("two project rows keep today's arrows (the direct link by its type, ONE bundle) and nothing is rolled up", () => {
+    const both = link(3, 5, { direct: direct(31, "SF", "OK"), milestoneLinks: bundle(2, 1) });
+    const flat = arrowSpecsForLinks([both], (id) => (id === 3 || id === 5 ? id : null), LABELS);
+    expect(flat.map((s) => [s.id, s.from.kind, s.to.kind])).toEqual([[31, "START", "END"], ["bundle:3-5", "END", "START"]]);
+    expect(rolledUpLinks([both], (id) => id)).toEqual([]);
+  });
+
+  test("the project-pair arrows come first, in the server's order, then the rolled-up ones in the order their pairs first appear", () => {
+    const specs = arrowSpecsForLinks([link(1, 3, { milestoneLinks: bundle(1) }), link(3, 5, { milestoneLinks: bundle(1) }), link(3, 1, { milestoneLinks: bundle(1) })], (id) => (id === 5 ? 5 : rowOf(id)), LABELS);
+    expect(specs.map((s) => s.id)).toEqual(["bundle:3-5", "rollup:pg:A-3", "rollup:3-pg:A"]);
+  });
+
+  test("critical when ANY folded pair is on the chain; no key otherwise", () => {
+    const links = [link(1, 3, { milestoneLinks: bundle(1) }), link(2, 3, { milestoneLinks: bundle(1) }), link(1, 4, { milestoneLinks: bundle(1) })];
+    const specs = arrowSpecsForLinks(links, rowOf, LABELS, new Set([pairKey(2, 3)]));
+    expect(specs.map((s) => [s.id, s.critical])).toEqual([["rollup:pg:A-3", true], ["rollup:pg:A-ws:B", undefined]]);
+    expect(specs[1]).not.toHaveProperty("critical");
+    expect(arrowSpecsForLinks(links, rowOf, LABELS)).toEqual(arrowSpecsForLinks(links, rowOf, LABELS, new Set()));
+  });
+
+  test("conflictsByRow counts the violated links of the rolled-up arrows on both rows", () => {
+    const rolled = rolledUpLinks([link(1, 3, { milestoneLinks: bundle(2, 2) }), link(3, 4, { direct: direct(31, "FS", "VIOLATED") }), link(2, 4, { milestoneLinks: bundle(1) })], rowOf);
+    expect([...conflictsByRow(rolled)]).toEqual([["pg:A", 2], [3, 3], ["ws:B", 1]]);
   });
 });
 

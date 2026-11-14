@@ -3,7 +3,7 @@ import type { ProgramsProgram, ProgramsView, ProgramsWorkStream } from "../api/p
 import type { RoadmapProject } from "../api/roadmap";
 import { jiraWindow } from "./jiraBars";
 import type { RemovedProjectRow } from "./baselineOverlay";
-import { allOpen, defaultOpen, programChoices, toggled, treeDates, treeFacts, treeRows } from "./programsTree";
+import { allOpen, arrowAnchors, defaultOpen, programChoices, toggled, treeDates, treeFacts, treeRows } from "./programsTree";
 
 const project = (id: number, name: string, over: Partial<RoadmapProject> = {}): RoadmapProject => ({
   jira: null,
@@ -201,6 +201,52 @@ describe("the expanded set", () => {
     expect([...toggled(open, "pg:10")]).toEqual(["ws:1", "pg:10"]);
     expect([...toggled(open, "ws:1")]).toEqual([]);
     expect([...open]).toEqual(["ws:1"]);
+  });
+});
+
+describe("arrowAnchors (1.16)", () => {
+  const anchorsOf = (view: ProgramsView, pick: ReadonlySet<number> | null, open: ReadonlySet<string>) => [...arrowAnchors(view, pick, open)];
+
+  test("the deepest row the tree shows: the project's own, else its program's, else its work stream's", () => {
+    const view = viewOf();
+    // Streams open, programs folded (the default): each project stands on its program's bar.
+    expect(anchorsOf(view, null, defaultOpen(view))).toEqual([[1, "pg:10"], [2, "pg:10"], [3, "pg:11"]]);
+    // Billing open: its projects have their own bars; Reports still stands for Dashboards.
+    expect(anchorsOf(view, null, new Set(["ws:1", "pg:10"]))).toEqual([[1, 1], [2, 2], [3, "pg:11"]]);
+    expect(anchorsOf(view, null, allOpen(view))).toEqual([[1, 1], [2, 2], [3, 3]]);
+    // Everything folded: the work stream's bar.
+    expect(anchorsOf(view, null, new Set())).toEqual([[1, "ws:1"], [2, "ws:1"], [3, "ws:1"]]);
+  });
+
+  test("a program that is open while its work stream is folded still stands on the work stream's bar", () => {
+    expect(anchorsOf(viewOf(), null, new Set(["pg:10"]))).toEqual([[1, "ws:1"], [2, "ws:1"], [3, "ws:1"]]);
+  });
+
+  test("a program the pick hides has no anchor, under an open or a folded stream", () => {
+    const view = viewOf();
+    expect(anchorsOf(view, new Set([11]), defaultOpen(view))).toEqual([[3, "pg:11"]]);
+    expect(anchorsOf(view, new Set([11]), new Set())).toEqual([[3, "ws:1"]]);
+  });
+
+  test("a stream shown in part stands on its roll-up over the programs that remain, none when they have no span", () => {
+    const view = viewOf();
+    view.workStreams[0].span = null;
+    // Shown whole the server's (absent) span means no bar; shown in part the union over the remaining programs is the bar.
+    expect(anchorsOf(view, null, new Set())).toEqual([]);
+    expect(anchorsOf(view, new Set([11]), new Set())).toEqual([[3, "ws:1"]]);
+  });
+
+  test("a row without a span bar anchors nothing: an unscheduled project, a program without a span", () => {
+    const view = viewOf();
+    view.workStreams[0].programs = [program(10, "Billing", [project(1, "Invoices"), project(2, "Taxes", { span: { start: "2026-05-04", end: "2026-06-05" } })], { span: { start: "2026-05-04", end: "2026-06-05" } }), program(11, "Reports", [project(3, "Dashboards")])];
+    expect(anchorsOf(view, null, new Set(["ws:1", "pg:10", "pg:11"]))).toEqual([[2, 2]]);
+    // Folded, the program's span stands for its unscheduled project too; Reports has no span, so Dashboards has no bar to stand on.
+    expect(anchorsOf(view, null, new Set(["ws:1"]))).toEqual([[1, "pg:10"], [2, "pg:10"]]);
+  });
+
+  test("a stream with no program and a program with no project add nothing", () => {
+    const view = viewOf();
+    expect(arrowAnchors(view, new Set([12]), allOpen(view)).size).toBe(0);
   });
 });
 

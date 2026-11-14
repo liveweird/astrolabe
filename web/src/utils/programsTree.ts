@@ -4,6 +4,7 @@ import type { RoadmapProject } from "../api/roadmap";
 import { removedProjectDays, type RemovedProjectRow } from "./baselineOverlay";
 import { jiraRangeDates, type JiraWindow } from "./jiraBars";
 import type { FlagCounts, ProgramOption } from "./roadmapRows";
+import type { BarId } from "./timelineModel";
 
 // The programs page's pure model: the server's tree (work stream -> program -> project) turned into the rows of the timeline for the program
 // pick and the set of expanded nodes. No React and no i18n here - the page's components make cells, bars and sentences. Every figure the server
@@ -128,6 +129,30 @@ export function treeRows(view: ProgramsView, pick: ReadonlySet<number> | null, o
     }
   }
   return rows;
+}
+
+/**
+ * The bar that stands for each project on the timeline (1.16, the arrows' ends): the project's own span bar (its id) while its work stream and program
+ * are open, else its program's summary bar (`pg:<id>`; the stream open, the program folded), else its work stream's (`ws:<id>`; the stream folded). A project
+ * of a program the pick hides has no entry (the stream's bar does not speak for it), and a row with no span bar anchors nothing: no entry either. The folds are
+ * `treeRows`' own (a node with no children is never open; a program's deleted-project rows leave the projects' anchors alone).
+ */
+export function arrowAnchors(view: ProgramsView, pick: ReadonlySet<number> | null, open: ReadonlySet<string>): Map<number, BarId> {
+  const anchors = new Map<number, BarId>();
+  for (const { stream, programs, span } of shownStreams(view, pick)) {
+    const streamOpen = programs.length > 0 && open.has(streamKey(stream.id));
+    for (const program of programs) {
+      const programOpen = streamOpen && program.projects.length > 0 && open.has(programKey(program.id));
+      for (const project of program.projects) {
+        // The deepest row the tree shows for the project, with the span its bar is drawn over.
+        let bar: { id: BarId; span: DateSpan | null } = { id: streamKey(stream.id), span };
+        if (programOpen) bar = { id: project.id, span: project.span };
+        else if (streamOpen) bar = { id: programKey(program.id), span: program.span };
+        if (bar.span !== null) anchors.set(project.id, bar.id);
+      }
+    }
+  }
+  return anchors;
 }
 
 /** Is this row a work stream or program (the expandable ones, with a `key`)? */

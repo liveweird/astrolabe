@@ -16,6 +16,10 @@
   "bundleLabel_few": "{{from}} → {{to}}, powiązania kamieni milowych: {{count}} (naruszone: {{violated}})",
   "bundleLabel_many": "{{from}} → {{to}}, powiązania kamieni milowych: {{count}} (naruszone: {{violated}})",
   "bundleLabel_other": "{{from}} → {{to}}, powiązania kamieni milowych: {{count}} (naruszone: {{violated}})",
+  "rollupLabel_one": "{{from}} → {{to}}, powiązania: {{count}} (naruszone: {{violated}})",
+  "rollupLabel_few": "{{from}} → {{to}}, powiązania: {{count}} (naruszone: {{violated}})",
+  "rollupLabel_many": "{{from}} → {{to}}, powiązania: {{count}} (naruszone: {{violated}})",
+  "rollupLabel_other": "{{from}} → {{to}}, powiązania: {{count}} (naruszone: {{violated}})",
   "column": {
     "rank": "#",
     "project": "Projekt",

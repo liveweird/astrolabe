@@ -14,6 +14,8 @@
   "barAria": "{{name}}, {{start}} to {{end}}",
   "bundleLabel_one": "{{from}} → {{to}}, {{count}} milestone link ({{violated}} violated)",
   "bundleLabel_other": "{{from}} → {{to}}, {{count}} milestone links ({{violated}} violated)",
+  "rollupLabel_one": "{{from}} → {{to}}, {{count}} link ({{violated}} violated)",
+  "rollupLabel_other": "{{from}} → {{to}}, {{count}} links ({{violated}} violated)",
   "column": {
     "rank": "#",
     "project": "Project",

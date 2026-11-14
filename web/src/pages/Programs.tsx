@@ -30,7 +30,7 @@ import { projectTotals, removedProjectRows } from "../utils/baselineOverlay";
 import { localIsoDate } from "../utils/isoDate";
 import { jiraWindow } from "../utils/jiraBars";
 import { projectOfWindowBar } from "../utils/planTrack";
-import { allOpen, defaultOpen, isNodeRow, programChoices, toggled, treeDates, treeFacts, treeProjects, treeRows } from "../utils/programsTree";
+import { allOpen, arrowAnchors, defaultOpen, isNodeRow, programChoices, toggled, treeDates, treeFacts, treeProjects, treeRows } from "../utils/programsTree";
 import { pickAmong } from "../utils/roadmapRows";
 import { applyProgramsWindow } from "../utils/targetWindowUpdate";
 
@@ -112,6 +112,7 @@ function ProgramsBody({ view, pick: baselinePick, onPick, loading }: { view: Pro
   const open = expanded ?? defaultOpen(view);
   const removedRows = removedProjectRows(view.baseline?.removedProjects ?? [], t);
   const rows = treeRows(view, pick, open, removedRows);
+  const anchors = arrowAnchors(view, pick, open);
 
   // A toggle can change what the grid is made of: when it takes the rows across the virtualisation threshold (80) the Timeline switches paths and
   // EVERY row remounts as a new DOM node, so the pressed chevron is gone and the focus falls to `body` (and, going virtual, the first render
@@ -227,6 +228,7 @@ function ProgramsBody({ view, pick: baselinePick, onPick, loading }: { view: Pro
           <ProgramsTimeline
             links={view.links}
             rows={rows}
+            anchors={anchors}
             onToggle={toggle}
             windowActions={windowActions}
             menuClosed={(project) => rowFocus.menuClosed(project.id)}

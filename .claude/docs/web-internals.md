@@ -761,7 +761,7 @@ first). Read for everyone; the one thing written here is a project's target wind
 shared row and write path); the server's spans, flag counts, drift and link checks are only read.
 
 Files: `api/programs.ts` (`getProgramsView`, `programsViewKey` = `["roadmap","programs"]`, the view types), `utils/programsTree.ts` (pure: `treeRows`,
-`defaultOpen`, `allOpen`, `toggled`, `programChoices`, `treeFacts`, `treeDates`), `components/ProgramsTimeline.tsx` (tree rows → `TimelineRowData[]`, the
+`defaultOpen`, `allOpen`, `toggled`, `programChoices`, `treeFacts`, `treeDates`, `arrowAnchors`), `components/ProgramsTimeline.tsx` (tree rows → `TimelineRowData[]`, the
 chevron cell, the arrows), and the pieces it shares with the roadmap: `utils/planTrack.ts`, `components/PlanProjectCells.tsx`,
 `components/ProgramPickField.tsx`, `hooks/usePlanScale.ts`, `hooks/useProgramPick.ts`, `utils/roadmapRows.ts` `pickAmong`.
 
@@ -772,7 +772,8 @@ the owner dimmed (and "(closed)" for a stream with an end date), a read-only `to
 a gray info circle with a visually hidden sentence, `data-flags`); a node with nothing under it (an empty program) shows no chevron. A **project row** is the
 roadmap's row — `projectTrack`: the target-window band, the span bar (with ", N conflicts"), the drift band — with the name as the link into the project (the
 owner dimmed) and a menu that holds "Open project" and, by the project's own `can.editTargetWindow`, the window items. Row ids are `ws:<id>` / `pg:<id>` / the
-project id; bar ids the same (`ws:`/`pg:` keys, the project id) so the arrows anchor on the project ids as on the roadmap.
+project id; bar ids the same (`ws:`/`pg:` keys, the project id) so the arrows anchor on the project ids as on the roadmap, or, for a project whose row is folded away, on the
+bar of the folded row that stands for it ("Arrows" below).
 
 **The baseline overlay (v0.9):** the same picker, shadow bar (`projectTrack`) and totals line as the roadmap (since 1.10 the view lists its removed projects too: the line
 counts them, and each is appended as a dimmed "(removed)" row under its program when that program is shown and expanded - `treeRows`' `removedProject` kind,
@@ -794,13 +795,17 @@ path); **Expand all / Collapse all** buttons in the facts row. The expanded set 
 `common.filter.*`) in a `FilterPanel` (stored `programs.filtersOpen`); read through `pickAmong(programChoices(view), stored)` (a stored id the plan no longer
 has is ignored). A picked program keeps its work stream's row; a stream with no picked program is hidden; a stream the pick shows in part is rolled up over the
 programs that remain ("Roll-up in part" below). The facts line ("N work streams · M programs · K projects", an orange "K warnings" and a gray "J infos" badge)
-counts what is shown. **Arrows**: `planArrows` over `view.links`, only between the project rows that are SHOWN (a folded program leaves its projects' arrows
-out). **Zoom**: Month / Quarter / Year under `timeline.planZoom` (the roadmap's key), the range grows over every span and window of the WHOLE plan. Tests:
+counts what is shown. **Arrows** (1.16): `planArrows` over `view.links` between the rows that STAND FOR the projects (`arrowAnchors(view, pick, open)`: the project's
+own row, else its folded program's row, else its folded work stream's; a project of a program the pick hides, or whose row has no span bar, has none). Two project
+rows keep today's arrows; a link inside one row draws nothing; every other pair of rows gets ONE `rollup:<fromRow>-<toRow>` arrow, END to START, counting every
+link folded into it (a direct link counts one), red when any is violated, titled by `roadmap.rollupLabel` with the two rows' names; a folded node's bar says ", N
+conflicts" for the violated links ending on it. Nothing is opened for the user, and the figures are the server's, only summed over what is folded (`timeline.md` "The
+programs page's use"). **Zoom**: Month / Quarter / Year under `timeline.planZoom` (the roadmap's key), the range grows over every span and window of the WHOLE plan. Tests:
 `utils/programsTree.test.ts`, `pages/Programs.test.tsx`, `api/programs.test.ts`; the real browser is `e2e/tests/programs.spec.ts` and the axe scans in
 `accessibility.spec.ts`.
 
 - **One project-row builder.** `projectTrack(project, t, conflicts)` is the only place a project's bars and drift band are made (`window:<id>` and `<id>` bars,
-  `drift:<id>` band), `planArrows` the only place the rolled-up links become arrows; `RoadmapTimeline` and `ProgramsTimeline` both call them, so the target
+  `drift:<id>` band), `planArrows` (over `arrowSpecsForLinks` and `rolledUpLinks`, in `utils/roadmapRows.ts`) the only place the rolled-up links become arrows; `RoadmapTimeline` and `ProgramsTimeline` both call them (the roadmap's `anchorOf` answers only a project's own id, so it never rolls up), so the target
   window's gestures (an editable `window:<id>` bar by the project's `can.editTargetWindow`, the draw surface on a row without a window) land once; the menu's
   window items are `TargetWindowItems`. Row/bar ids never collide on the programs timeline: project rows use the numeric project id, work stream / program rows
   the strings `ws:<id>` / `pg:<id>` (also their bars' ids).
@@ -820,7 +825,7 @@ out). **Zoom**: Month / Quarter / Year under `timeline.planZoom` (the roadmap's 
   `sumFlags`) for one the pick shows in part. Nothing else on the page is computed.
 - **No `TimelineDndContext`.** Nothing on the page is draggable yet, so the `Timeline` is mounted without a drag context (it works without one); the target-window step wraps it like the roadmap.
 - **Tests.** `Programs.test.tsx` runs the page against a one-endpoint fetch mock (default open set, the chevron by pointer and keyboard, the status sentences,
-  Expand/Collapse all, the project row, the arrows appearing and leaving with the fold, the pick and its shared key, Year zoom, empty and failed loads);
+  Expand/Collapse all, the project row, the arrows following the fold (rolled up onto the program and work stream rows, 1.16), the pick and its shared key, Year zoom, empty and failed loads);
   `programsTree.test.ts` and `api/programs.test.ts` are pure.
 
 ## Baselines (`pages/Baselines.tsx`, `pages/BaselineCompare.tsx`, v0.9)

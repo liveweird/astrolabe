@@ -1,8 +1,8 @@
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test } from "vitest";
 import i18n from "../i18n";
-import type { RoadmapProject } from "../api/roadmap";
+import type { RoadmapLink, RoadmapProject } from "../api/roadmap";
 import type { JiraWindow } from "./jiraBars";
-import { projectOfWindowBar, projectTrack, windowBarId } from "./planTrack";
+import { planArrows, projectOfWindowBar, projectTrack, windowBarId } from "./planTrack";
 
 const t = i18n.t;
 
@@ -138,5 +138,39 @@ describe("projectTrack: the Jira shadow bar (1.3)", () => {
   test("coexists with the baseline's shadow bar, after it", () => {
     const frozen = { span: { start: "2026-03-02", end: "2026-04-01" }, movement: { kind: "MOVED" as const, startDays: 0, endDays: 5, estimateDelta: null }, rankPosition: null, targetStart: null, targetEnd: null };
     expect(projectTrack(project({ jira: link, baseline: frozen }), t, none, WINDOW).bars.map((bar) => bar.tone)).toEqual(["window", "summary", "baseline", "jira"]);
+  });
+});
+
+describe("planArrows: the rolled-up label (1.16)", () => {
+  const link = (count: number, violated: number): RoadmapLink => ({
+    predecessorProjectId: 1,
+    successorProjectId: 2,
+    direct: null,
+    milestoneLinks: { count, violated, unscheduled: 0 },
+  });
+  const names = new Map<number | string, string>([
+    [1, "Invoices"],
+    [2, "Taxes"],
+    ["pg:10", "Billing"],
+    ["ws:1", "Platform"],
+  ]);
+  const anchors = (id: number) => (id === 1 ? "pg:10" : "ws:1");
+  const labelOf = (count: number, violated: number) => planArrows(t, [link(count, violated)], names, anchors)[0].label;
+
+  afterEach(() => i18n.changeLanguage("en"));
+
+  test("names the two ROWS and counts the links, singular and plural", () => {
+    expect(labelOf(1, 0)).toBe("Billing → Platform, 1 link (0 violated)");
+    expect(labelOf(3, 2)).toBe("Billing → Platform, 3 links (2 violated)");
+  });
+
+  test("in Polish the count and the violated figure are the same in every plural form", async () => {
+    await i18n.changeLanguage("pl");
+    for (const count of [1, 2, 5, 22]) expect(labelOf(count, 1)).toBe(`Billing → Platform, powiązania: ${count} (naruszone: 1)`);
+  });
+
+  test("project rows on both ends keep the bundle label and its own id; the roadmap's anchor (the id itself) never rolls up", () => {
+    const arrows = planArrows(t, [link(2, 1)], names, (id) => id);
+    expect(arrows.map((arrow) => [arrow.id, arrow.label])).toEqual([["bundle:1-2", "Invoices → Taxes, 2 milestone links (1 violated)"]]);
   });
 });

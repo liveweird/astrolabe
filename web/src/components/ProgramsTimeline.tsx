@@ -7,10 +7,10 @@ import type { RoadmapLink, RoadmapProject } from "../api/roadmap";
 import { useHolidays } from "../hooks/useHolidays";
 import { shadowBar } from "../utils/baselineOverlay";
 import type { JiraWindow } from "../utils/jiraBars";
-import { planArrows, projectTrack } from "../utils/planTrack";
+import { planArrows, projectTrack, withConflicts } from "../utils/planTrack";
 import { isNodeRow, type NodeRow, type ProjectTreeRow, type RemovedTreeRow, type TreeRow } from "../utils/programsTree";
-import { conflictsByProject, countFlags } from "../utils/roadmapRows";
-import type { RovingTarget, TimelineBarData, TimelineColumn, TimelineRowData } from "../utils/timelineModel";
+import { conflictsByProject, conflictsByRow, countFlags, rolledUpLinks } from "../utils/roadmapRows";
+import type { BarId, RovingTarget, TimelineBarData, TimelineColumn, TimelineRowData } from "../utils/timelineModel";
 import { PLAN_ZOOMS, type TimelineScale, type Zoom } from "../utils/timelineScale";
 import { BaselineRowName } from "./BaselineParts";
 import { FlagCountsCell, OpenProjectItem, ProjectLink, TargetWindowItems, type WindowActions } from "./PlanProjectCells";
@@ -96,14 +96,15 @@ function RemovedLabel({ row }: { row: RemovedTreeRow["removed"] }) {
 
 /**
  * A work stream's or program's summary bar: the span its projects cover, read-only; with a baseline picked the span they had then follows
- * as a thin shadow bar (also where nothing is scheduled any more).
+ * as a thin shadow bar (also where nothing is scheduled any more). `conflicts` = the violated links of the rolled-up arrows that end on the row
+ * (1.16), said after the span like a project row's.
  */
-function summaryBars(row: NodeRow, t: TFunction): TimelineBarData[] {
+function summaryBars(row: NodeRow, t: TFunction, conflicts: number): TimelineBarData[] {
   const bars: TimelineBarData[] = [];
   if (row.span !== null) {
     const { start, end } = row.span;
     const key = row.kind === "workStream" ? "programs.streamBarAria" : "programs.programBarAria";
-    bars.push({ id: row.key, start, end, label: row.name, describe: t(key, { name: row.name, start, end }), editable: false, tone: "summary" });
+    bars.push({ id: row.key, start, end, label: row.name, describe: withConflicts(t, t(key, { name: row.name, start, end }), conflicts), editable: false, tone: "summary" });
   }
   if (row.baseline !== null) bars.push(shadowBar(row.key, row.name, row.baseline.span, row.baseline.movement, t));
   return bars;
@@ -113,13 +114,15 @@ function summaryBars(row: NodeRow, t: TFunction): TimelineBarData[] {
  * The programs page's timeline: the plan as a tree on the shared Timeline - a row per work stream, under an expanded one its programs, under an
  * expanded program its projects. A stream or program row shows its derived span as a summary bar and the roll-up of its projects' flags; a project
  * row is the roadmap's (`projectTrack`: the window and span bars, the drift band; the flag icons; a menu with the link into the project). The
- * arrows are the rolled-up links between the projects whose rows are shown. It must sit inside the page's `TimelineDndContext`; nothing here
+ * arrows are the links between the projects whose rows are shown and, where a project's row is folded away, between the folded program or work stream
+ * that stands for it (`anchors`, one arrow per pair of rows). It must sit inside the page's `TimelineDndContext`; nothing here
  * writes or decides rights - a project's window bar is editable, its draw surface present and its menu offers the window items by the
  * project's own `can.editTargetWindow`, and the page's write path answers the proposals.
  */
 export default function ProgramsTimeline({
   links,
   rows: treeRows,
+  anchors,
   onToggle,
   windowActions,
   menuClosed,
@@ -134,6 +137,8 @@ export default function ProgramsTimeline({
 }: {
   links: readonly RoadmapLink[];
   rows: readonly TreeRow[];
+  /** The bar that stands for each project on the timeline (`arrowAnchors`): the project's own, or its folded program's or work stream's summary bar. */
+  anchors: ReadonlyMap<number, BarId>;
   /** Flip a work stream or program (the page owns the expanded set and says what happened). */
   onToggle: (key: string) => void;
   /** The target window's menu items of a project row (shown only for a project whose `can.editTargetWindow` is set). */
@@ -161,6 +166,8 @@ export default function ProgramsTimeline({
   ];
   const projects = treeRows.filter((row): row is ProjectTreeRow => row.kind === "project").map((row) => row.project);
   const conflicts = conflictsByProject(links);
+  const anchorOf = (projectId: number) => anchors.get(projectId) ?? null;
+  const rowConflicts = conflictsByRow(rolledUpLinks(links, anchorOf));
 
   function rowOf(row: TreeRow): TimelineRowData {
     if (row.kind === "removedProject") return { id: row.removed.id, cells: [<RemovedLabel key="name" row={row.removed} />, "", ""], bars: [row.removed.bar] };
@@ -169,7 +176,7 @@ export default function ProgramsTimeline({
         id: row.key,
         // A node with something to expand puts its chevron button on the roving stop; a leaf node is a static cell (the cell is the stop).
         cells: [row.childCount > 0 ? (stop: RovingTarget) => <NodeLabel row={row} onToggle={onToggle} stop={stop} /> : <NodeLabel key="name" row={row} onToggle={onToggle} />, <FlagCountsCell key="flags" counts={row.flags} />, ""],
-        bars: summaryBars(row, t),
+        bars: summaryBars(row, t, rowConflicts.get(row.key) ?? 0),
       };
     }
     const { project } = row;
@@ -189,12 +196,8 @@ export default function ProgramsTimeline({
     };
   }
 
-  const arrows = planArrows(
-    t,
-    links,
-    new Map(projects.map((project) => [project.id, project.name])),
-    new Set(projects.filter((project) => project.span !== null).map((project) => project.id)),
-  );
+  const names = new Map<BarId, string>([...projects.map((project) => [project.id, project.name] as const), ...treeRows.filter(isNodeRow).map((row) => [row.key, row.name] as const)]);
+  const arrows = planArrows(t, links, names, anchorOf);
 
   return (
     <Timeline

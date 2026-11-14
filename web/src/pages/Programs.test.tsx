@@ -131,7 +131,7 @@ describe("Programs page", () => {
     expect(rowOfLeaf("Legacy").querySelector("[data-flags]")).toBeNull();
     // The summary bars of the streams and programs: read-only, their span as the server derived it; a node with nothing scheduled has none.
     expect(within(platform).getByRole("img", { name: "Platform, work stream span 2026-03-02 to 2026-09-04, read-only" })).toHaveAttribute("data-tone", "summary");
-    expect(within(rowOfNode("Program Billing")).getByRole("img", { name: "Billing, program span 2026-03-02 to 2026-06-05, read-only" })).toBeInTheDocument();
+    expect(within(rowOfNode("Program Billing")).getByRole("img", { name: "Billing, program span 2026-03-02 to 2026-06-05, 1 conflict, read-only" })).toBeInTheDocument();
     expect(within(rowOfNode("Work stream Archive")).queryByRole("img")).toBeNull();
     // Owners are dimmed after the names; a closed stream says so.
     expect(platform).toHaveTextContent("Sam Stream");
@@ -242,21 +242,52 @@ describe("Programs page", () => {
 });
 
 describe("Programs page: arrows", () => {
-  test("arrows are drawn between the project rows that are SHOWN: a folded program leaves its projects' arrows out", async () => {
+  const arrowIds = () => [...document.querySelectorAll("[data-arrow]")].map((arrow) => arrow.getAttribute("data-arrow"));
+
+  test("a folded program still shows its dependencies: one arrow between the rows that stand for the projects, at every fold state", async () => {
     const user = userEvent.setup();
     renderWithProviders(<Programs />);
     await waitForGrid();
-    expect(document.querySelectorAll("[data-arrow]")).toHaveLength(0);
+    // Streams open, programs folded: Invoices -> Taxes sits inside Billing (nothing); Taxes -> Dashboards is ONE arrow between the two program rows.
+    expect(arrowIds()).toEqual(["rollup:pg:10-pg:11"]);
+    const rollup = () => document.querySelector('[data-arrow="rollup:pg:10-pg:11"]');
+    expect(rollup()).toHaveAttribute("data-violated", "true");
+    expect(rollup()?.querySelector("title")).toHaveTextContent("Billing → Reports, 2 links (1 violated)");
+    // The violated link ends both program bars' names; a program with no violated link ending on it keeps the plain name.
+    expect(within(rowOfNode("Program Billing")).getByRole("img", { name: "Billing, program span 2026-03-02 to 2026-06-05, 1 conflict, read-only" })).toBeInTheDocument();
+    expect(within(rowOfNode("Program Reports")).getByRole("img", { name: "Reports, program span 2026-08-03 to 2026-09-04, 1 conflict, read-only" })).toBeInTheDocument();
+
+    // Billing open, Reports folded: the direct link between its two project rows, and Taxes' row to Reports' row.
     await user.click(within(grid()).getByRole("button", { name: "Program Billing" }));
-    // Invoices -> Taxes is a direct link (violated); Taxes -> Dashboards needs Dashboards' program open too.
-    await waitFor(() => expect(document.querySelectorAll("[data-arrow]")).toHaveLength(1));
+    await waitFor(() => expect(arrowIds()).toEqual(["31", "rollup:2-pg:11"]));
     expect(document.querySelector('[data-arrow="31"]')).toHaveAttribute("data-violated", "true");
+    expect(document.querySelector('[data-arrow="rollup:2-pg:11"] title')).toHaveTextContent("Taxes → Reports, 2 links (1 violated)");
+    expect(within(rowOfNode("Program Reports")).getByRole("img", { name: "Reports, program span 2026-08-03 to 2026-09-04, 1 conflict, read-only" })).toBeInTheDocument();
+    expect(within(rowOfNode("Program Billing")).getByRole("img", { name: "Billing, program span 2026-03-02 to 2026-06-05, read-only" })).toBeInTheDocument();
+
+    // Both open: the arrows between the projects themselves, today's, and no roll-up.
     await user.click(within(grid()).getByRole("button", { name: "Program Reports" }));
-    await waitFor(() => expect(document.querySelectorAll("[data-arrow]")).toHaveLength(2));
+    await waitFor(() => expect(arrowIds()).toEqual(["31", "bundle:2-3"]));
     expect(document.querySelector('[data-arrow="bundle:2-3"]')).toHaveAttribute("data-violated", "true");
     expect(document.querySelector('[data-arrow="bundle:2-3"] title')).toHaveTextContent("Taxes → Dashboards, 2 milestone links (1 violated)");
+
+    // Billing folded, Reports open: Billing's row to Dashboards' row.
     await user.click(within(grid()).getByRole("button", { name: "Program Billing" }));
-    await waitFor(() => expect(document.querySelectorAll("[data-arrow]")).toHaveLength(0));
+    await waitFor(() => expect(arrowIds()).toEqual(["rollup:pg:10-3"]));
+    expect(document.querySelector('[data-arrow="rollup:pg:10-3"] title')).toHaveTextContent("Billing → Dashboards, 2 links (1 violated)");
+
+    // Collapse all: every project stands on the one work stream's bar, so every link is inside it.
+    await user.click(screen.getByRole("button", { name: "Collapse all" }));
+    await waitFor(() => expect(arrowIds()).toEqual([]));
+  });
+
+  test("a rolled-up arrow holding no violated link is not red and puts no conflict on the bars", async () => {
+    view = viewOf({ links: [{ ...LINKS[1], milestoneLinks: { count: 2, violated: 0, unscheduled: 0 } }] });
+    renderWithProviders(<Programs />);
+    await waitForGrid();
+    await waitFor(() => expect(arrowIds()).toEqual(["rollup:pg:10-pg:11"]));
+    expect(document.querySelector('[data-arrow="rollup:pg:10-pg:11"]')).toHaveAttribute("data-violated", "false");
+    expect(within(rowOfNode("Program Billing")).getByRole("img", { name: "Billing, program span 2026-03-02 to 2026-06-05, read-only" })).toBeInTheDocument();
   });
 
   test("a violated link ends its project's span bar name with the conflict count", async () => {
