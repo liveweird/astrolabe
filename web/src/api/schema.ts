@@ -964,13 +964,16 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List milestones (the picker list)
+         * List milestones
          * @description Any authenticated user. ACTIVE milestones only, and only those whose project, program and work stream are active. Each row
          *     is the milestone plus the name of its project (`projectName`), so a picker can tell the many milestones called "Design" apart.
-         *     This is a search list for pickers (the dependency dialogs); a project's own milestones are read through the project view.
+         *     This is the search list of the pickers (the dependency dialogs) and the list behind the Milestones page; a project's own
+         *     milestones are read through the project view.
          *
-         *     - Sortable fields: `id`, `name`, `createdAt`, `updatedAt`. Default `id` ascending.
-         *     - Filters: `name` (case- and accent-insensitive substring).
+         *     - Sortable fields: `id`, `name`, `createdAt`, `updatedAt`, `projectName`, `teamName`. Default `id` ascending (also the tiebreaker).
+         *     - Filters, all optional and combined with AND: `name` (case- and accent-insensitive substring), `scheduled` (strictly `true`:
+         *       milestones with dates; `false`: milestones without), `teamId` and `projectId` (the milestones of that team or project).
+         *       An id that names no active team or project matches nothing (an empty page, never a `404`). A malformed or repeated filter is a `400`.
          */
         get: operations["listMilestones"];
         put?: never;
@@ -9415,6 +9418,12 @@ export interface operations {
                  */
                 sort?: components["parameters"]["Sort"];
                 name?: string;
+                /** @description Strictly `true` or `false`. `true` lists the scheduled milestones, `false` the ones without dates. */
+                scheduled?: boolean;
+                /** @description Only the milestones of this team. */
+                teamId?: number;
+                /** @description Only the milestones of this project. */
+                projectId?: number;
             };
             header?: never;
             path?: never;

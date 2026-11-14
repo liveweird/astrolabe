@@ -30,6 +30,9 @@ private val SORTABLE_COLUMNS: Map<String, Column<*>> = mapOf(
     "name" to MilestoneService.Milestones.name,
     "createdAt" to MilestoneService.Milestones.createdAt,
     "updatedAt" to MilestoneService.Milestones.updatedAt,
+    // The joined tables' names (Lettuce's `teamName` entry): the Milestones page sorts by its project and team columns.
+    "projectName" to ProjectService.Projects.name,
+    "teamName" to TeamService.Teams.name,
 )
 
 /** The ONE sortable whitelist of `GET /milestones`, derived from the column map so the two can never drift. */
@@ -72,8 +75,9 @@ class MilestoneService(private val database: R2dbcDatabase) {
     }
 
     /**
-     * The paged milestone list (the dependency pickers): ACTIVE milestones of an ACTIVE project, program and work stream, one predicate
-     * for the count and the rows in ONE read transaction (no lock, no revision). The project's and the team's names ride the joins.
+     * The paged milestone list (the dependency pickers and, since 1.19, the Milestones page): ACTIVE milestones of an ACTIVE project,
+     * program and work stream, one predicate (name, schedule, team and project filters, ANDed) for the count and the rows in ONE read
+     * transaction (no lock, no revision). The project's and the team's names ride the joins, and are sortable.
      */
     suspend fun list(filter: MilestoneListFilter, paging: PageRequest): MilestoneListResult = suspendTransaction(database) {
         val projects = ProjectService.Projects
@@ -82,6 +86,10 @@ class MilestoneService(private val database: R2dbcDatabase) {
         val teams = TeamService.Teams
         var predicate: Op<Boolean> = Milestones.active() and projects.active() and programs.active() and streams.active()
         filter.name?.takeIf { it.isNotBlank() }?.let { predicate = predicate and Milestones.name.containsNormalized(it) }
+        // `ck_milestones_schedule` makes the date pair both-or-neither, so the start date alone says whether a milestone is scheduled.
+        filter.scheduled?.let { predicate = predicate and (if (it) Milestones.startDate.isNotNull() else Milestones.startDate.isNull()) }
+        filter.teamId?.let { predicate = predicate and (Milestones.teamId eq it) }
+        filter.projectId?.let { predicate = predicate and (Milestones.projectId eq it) }
         // The team joins without an `active()` filter: an active milestone's team is always active (`TeamService.delete`'s 409).
         val joined = Milestones.innerJoin(projects, { Milestones.projectId }, { projects.id })
             .innerJoin(programs, { projects.programId }, { programs.id })

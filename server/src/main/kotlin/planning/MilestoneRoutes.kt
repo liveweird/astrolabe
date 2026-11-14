@@ -3,7 +3,9 @@ package ch.nokillswit.planning
 import ch.nokillswit.audit.audit
 import ch.nokillswit.authz.caller
 import ch.nokillswit.authz.orNotFound
+import ch.nokillswit.infra.paging.optionalBoolean
 import ch.nokillswit.infra.paging.optionalString
+import ch.nokillswit.infra.paging.optionalUInt
 import ch.nokillswit.infra.paging.parsePaging
 import ch.nokillswit.infra.paging.toPage
 import io.ktor.http.HttpStatusCode
@@ -36,7 +38,8 @@ class MilestonesRoute {
 private const val MILESTONE = "Milestone"
 
 /**
- * Milestones: `GET /milestones` is the paged picker list (any authenticated user; a name filter; each row carries its project's name).
+ * Milestones: `GET /milestones` is the paged list (the dependency pickers, the Milestones page): any authenticated user; filters `name`,
+ * `scheduled`, `teamId`, `projectId` (a malformed or repeated one is a 400); each row carries its project's and team's name.
  * Created under a project (`POST /projects/{id}/milestones`, in `ProjectRoutes.kt` — the parent id in the path is what the
  * guard needs). Read is any authenticated user. The PLAN FIELDS (update, delete) need an owner on the milestone's project chain — the
  * project's own owner included — or ADMIN; the DATES (`PUT .../schedule`) need the milestone's TEAM manager or ADMIN, and a project owner
@@ -50,7 +53,13 @@ internal fun Route.milestoneRoutes(d: PlanRouteDeps) {
     get<MilestonesRoute> {
         call.caller()
         val paging = call.parsePaging(sortable = MILESTONE_SORT_FIELDS)
-        val filter = MilestoneListFilter(name = call.request.queryParameters.optionalString("name"))
+        val query = call.request.queryParameters
+        val filter = MilestoneListFilter(
+            name = query.optionalString("name"),
+            scheduled = query.optionalBoolean("scheduled"),
+            teamId = query.optionalUInt("teamId"),
+            projectId = query.optionalUInt("projectId"),
+        )
         val result = d.structure.milestones.list(filter, paging)
         call.respond(HttpStatusCode.OK, paging.toPage(result.items, result.total))
     }

@@ -103,8 +103,17 @@ data class MilestoneListItem(
 
 typealias MilestonePageResponse = PageResponse<MilestoneListItem>
 
-/** The one list filter: a case- and accent-insensitive substring of the milestone name. */
-data class MilestoneListFilter(val name: String? = null)
+/**
+ * The list filters of `GET /milestones`, ANDed: [name] is a case- and accent-insensitive substring of the milestone name; [scheduled]
+ * `true` keeps the milestones with dates, `false` those without; [teamId] and [projectId] keep the milestones of that team or project
+ * (an id that names nothing matches nothing).
+ */
+data class MilestoneListFilter(
+    val name: String? = null,
+    val scheduled: Boolean? = null,
+    val teamId: UInt? = null,
+    val projectId: UInt? = null,
+)
 
 data class MilestoneListResult(val items: List<MilestoneListItem>, val total: Long)
 

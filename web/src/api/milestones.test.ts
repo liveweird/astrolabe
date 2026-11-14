@@ -43,6 +43,14 @@ describe("milestones API wrappers", () => {
     expect(lastCall()[0]).toBe("/api/v1/milestones?page=2&pageSize=20");
   });
 
+  test("listMilestones sends the schedule, team and project filters - scheduled=false included", async () => {
+    mockFetch.mockImplementation(() => Promise.resolve(jsonResponse(200, { items: [], page: 1, pageSize: 20, total: 0 })));
+    await listMilestones({ page: 1, pageSize: 20, sort: "-teamName", scheduled: false, teamId: 4, projectId: 9 });
+    expect(lastCall()[0]).toBe("/api/v1/milestones?page=1&pageSize=20&sort=-teamName&scheduled=false&teamId=4&projectId=9");
+    await listMilestones({ page: 1, pageSize: 20, scheduled: true });
+    expect(lastCall()[0]).toBe("/api/v1/milestones?page=1&pageSize=20&scheduled=true");
+  });
+
   test("createMilestone POSTs the plan fields under the project", async () => {
     mockFetch.mockResolvedValue(jsonResponse(201, { id: 5 }));
     expect(await createMilestone(9, BODY)).toEqual({ id: 5 });

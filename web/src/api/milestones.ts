@@ -17,11 +17,31 @@ export type MilestoneBody = Schemas["MilestoneCreateRequest"] & Schemas["Milesto
 export type ScheduleBody = Schemas["MilestoneScheduleRequest"];
 type MilestonePage = Schemas["MilestonePage"];
 
-type MilestoneListQuery = { page: number; pageSize: number; sort?: string; name?: string };
+type MilestoneListQuery = {
+  page: number;
+  pageSize: number;
+  sort?: string;
+  name?: string;
+  /** `true`: only milestones with dates, `false`: only those without; absent: both. */
+  scheduled?: boolean;
+  teamId?: number;
+  projectId?: number;
+};
 
-/** The paged milestone list across every project (each row carries `projectName`) - the dependency pickers' search; `name` is a case- and accent-insensitive substring. */
+/**
+ * The paged milestone list across every project (each row carries `projectName` and `teamName`) - the dependency pickers' search and the
+ * Milestones page; `name` is a case- and accent-insensitive substring, the other filters narrow by schedule, team and project.
+ */
 export async function listMilestones(q: MilestoneListQuery): Promise<MilestonePage> {
-  const params = buildQuery({ page: q.page, pageSize: q.pageSize, sort: q.sort, name: q.name });
+  const params = buildQuery({
+    page: q.page,
+    pageSize: q.pageSize,
+    sort: q.sort,
+    name: q.name,
+    scheduled: q.scheduled,
+    teamId: q.teamId,
+    projectId: q.projectId,
+  });
   return jsonRequest<MilestonePage>(`/api/v1/milestones?${params}`);
 }
 
