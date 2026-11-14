@@ -399,6 +399,40 @@ describe("read-only while a proposal is requested or open", () => {
     expect(putCalls()).toEqual([]);
   });
 
+  test("the dashed Jira row's 'Schedule on Jira's dates' is still offered in the request window but refused out loud with no PUT, and is gone once the proposal is open", async () => {
+    const rollout = milestone(4, "tp-rollout", {
+      jira: { bindingId: 4, connectionId: 1, issueKey: "E2E-8", start: "2027-03-01", end: "2027-03-05", rollup: null },
+    });
+    view = viewOf({
+      jiraSites: [{ connectionId: 1, siteUrl: "https://acme.atlassian.net", state: "CURRENT", mappingOk: true }],
+      unscheduled: [TRAYED, rollout],
+    });
+    const release = heldProposal();
+    const user = userEvent.setup();
+    renderPage();
+    const timeline = await screen.findByRole("grid", { name: "Team milestone timeline" });
+    const dashedRow = () => within(timeline).getAllByRole("row").find((row) => row.textContent?.includes("(unscheduled; dates from Jira)")) as HTMLElement;
+    await user.click(screen.getByRole("button", { name: "Propose schedule" }));
+    expect(screen.getByRole("button", { name: "Propose schedule" })).toBeDisabled();
+    // the request window: nothing is open yet, so the item is still offered on the dashed row ...
+    await user.click(within(dashedRow()).getByRole("button", { name: "Operations for tp-rollout (dates from Jira)" }));
+    const item = await screen.findByRole("menuitem", { name: /^Schedule on Jira's dates/ });
+    // ... and the click is refused: no write, the request window's sentence in the note and the live region
+    await user.click(item);
+    expect(putCalls()).toEqual([]);
+    expect(screen.getAllByRole("note").map((n) => n.textContent)).toContain("A save is still running — try your change again in a moment.");
+    expect(liveText()).toContain("A save is still running");
+    await release(jsonResponse(200, proposalOf()));
+    await screen.findByRole("button", { name: "Discard" });
+    // the preview is open: the dashed row has only 1.16's menu, the refusal note now says why in words, and still nothing was written
+    expect(within(dashedRow()).queryByRole("button", { name: /\(dates from Jira\)/ })).toBeNull();
+    await user.click(within(dashedRow()).getByRole("button", { name: "Operations for tp-rollout" }));
+    expect((await screen.findAllByRole("menuitem")).map((entry) => entry.textContent)).toEqual(["Open project"]);
+    expect(screen.queryByRole("menuitem", { name: /^Schedule on Jira's dates/ })).toBeNull();
+    expect(screen.getAllByRole("note").map((n) => n.textContent).join("|")).toContain("A proposal is open, so the schedule is read-only");
+    expect(putCalls()).toEqual([]);
+  });
+
   test("a schedule dialog that is open when the proposal resolves is gone, stays gone after Discard, and nothing can be written", async () => {
     const release = heldProposal();
     const user = userEvent.setup();
