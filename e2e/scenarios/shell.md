@@ -63,6 +63,17 @@
 4. They click **Open the deviations**.
    - *Expected*: the "Deviations" heading (h2) shows. They click **Home** in the sidebar and the "Astrolabe" heading is back. Nothing is written.
 
+## Scenario: a tab left open across a deploy is told to reload when the user comes back to it, and Reload loads the build that is served
+
+1. The administrator signs in; the test waits for the shell's first read of `/index.html`.
+   - *Expected*: no notice; that response's HTML holds exactly one `<meta name="astrolabe-build" content="…">` with a non-empty content.
+2. The test starts answering `/index.html` with the real response whose meta content is replaced by another value (the shell the server would serve after a deploy), then the tab becomes visible again (`visibilitychange` on the window).
+   - *Expected*: a status region reads "A new version of Astrolabe is available. Reload the page to use it." with a "Reload" button; the page passes an accessibility scan.
+3. They open the Roadmap from the sidebar.
+   - *Expected*: the Roadmap heading shows and the notice is still there.
+4. The test stops rewriting the answer and they press **Reload**.
+   - *Expected*: the page loads again on the Roadmap; after the shell's read of `/index.html` there is no notice.
+
 ## Not covered here (and why)
 
 - **The System (auto) option and OS-preference resolution** — needs color-scheme emulation
@@ -70,3 +81,6 @@
   provider reads back the stored value.
 - **Colour tokens and contrast** — pinned by `web/src/theme.test.ts`; the accessibility sweep
   (`accessibility.spec.ts`) runs `color-contrast` against the rendered (default, light) pages.
+- **The deploy check's five-minute interval, the kept answer after a failed check, the check being off in a build without a commit and the Polish text** — pinned in vitest
+  (`useServedBuild.test.tsx`, `UpdateBanner.test.tsx`, `App.test.tsx`). **A real second build** — one stack serves one build, so the test rewrites the shell's answer in its own browser;
+  a real deploy is the manual check of the release.

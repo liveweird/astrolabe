@@ -1,4 +1,5 @@
-import { accountMenu, expect, login, test } from "./helpers";
+import { type Response } from "@playwright/test";
+import { accountMenu, axeViolations, expect, login, test } from "./helpers";
 
 // The app shell chrome that isn't owned by any single page: the icon rail (desktop navbar
 // collapse) and the account menu's colour-scheme switch. Both are DEVICE-level state (plain
@@ -105,4 +106,47 @@ test("the Home page links to the plan, the roadmap and the deviations", async ({
     await page.getByRole("link", { name: "Home", exact: true }).click();
     await expect(home).toBeVisible();
   }
+});
+
+// The deploy check (1.17): the shell re-reads `/index.html` (served `no-cache`, its `astrolabe-build` meta holds the build's commit) and compares it with
+// the commit baked into its own bundle. A real second build cannot be had inside one stack, so the test answers the shell's read with the real response whose
+// meta content is replaced, in its own browser only: the server and every other spec are untouched, so this spec owns nothing. The five-minute interval, the
+// kept answer after a failed check and the Polish text are pinned in vitest (useServedBuild.test.tsx, UpdateBanner.test.tsx).
+test("a tab left open across a deploy is told to reload when the user comes back to it, and Reload loads the build that is served", async ({ page }) => {
+  const isShellRead = (response: Response) => new URL(response.url()).pathname === "/index.html";
+  const notice = page.getByRole("status").filter({ hasText: "A new version of Astrolabe is available. Reload the page to use it." });
+
+  const firstRead = page.waitForResponse(isShellRead);
+  await login(page);
+  const html = await (await firstRead).text();
+  expect(html.match(/<meta name="astrolabe-build" content="[^"]+"/g)).toHaveLength(1);
+  await expect(accountMenu(page)).toBeVisible();
+  await expect(notice).toHaveCount(0);
+
+  // A deploy happened: the shell the server now serves carries another build's commit. The tab only learns of it when the user comes back to it.
+  await page.route("**/index.html", async (route) => {
+    const response = await route.fetch();
+    const body = (await response.text()).replace(/(<meta name="astrolabe-build" content=")[^"]*/, "$1another-build");
+    const headers = { ...response.headers() };
+    delete headers["content-length"];
+    delete headers["content-encoding"];
+    await route.fulfill({ response, body, headers });
+  });
+  await page.evaluate(() => window.dispatchEvent(new Event("visibilitychange")));
+  await expect(notice).toBeVisible();
+  await expect(notice.getByRole("button", { name: "Reload", exact: true })).toBeVisible();
+  expect(await axeViolations(page)).toEqual([]);
+
+  // The notice belongs to the shell, so it stays across a client-side navigation.
+  await page.getByRole("link", { name: "Roadmap", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 2, name: "Roadmap", exact: true })).toBeVisible();
+  await expect(notice).toBeVisible();
+
+  // The server serves the build the tab runs again, and the user reloads: the new page sees equal stamps and says nothing.
+  await page.unroute("**/index.html");
+  const readAfterReload = page.waitForResponse(isShellRead);
+  await notice.getByRole("button", { name: "Reload", exact: true }).click();
+  await (await readAfterReload).text();
+  await expect(page.getByRole("heading", { level: 2, name: "Roadmap", exact: true })).toBeVisible();
+  await expect(notice).toHaveCount(0);
 });
