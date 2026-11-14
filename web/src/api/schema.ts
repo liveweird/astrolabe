@@ -1222,7 +1222,7 @@ export interface paths {
          *
          *     Jira (1.3): the project (`project.jira`, `project.flags`: its own `JIRA_DEVIATION` flags and the `JIRA_MILESTONES` roll-up) and
          *     every milestone (`scheduled` and `unscheduled`: `jira` and one `JIRA_DEVIATION` flag per OPEN deviation) carry their Jira item,
-         *     as `GET /views/roadmap` describes; `jiraSites` lists the connections the bindings in scope link to. An unbound node answers `jira: null` and
+         *     as `GET /views/roadmap` describes; `jiraSites` lists the connections the bindings in scope link to, each with its sync `state` and `mappingOk`. An unbound node answers `jira: null` and
          *     `flags: []`.
          *
          *     With `?baseline=N` the document gains `baseline` (`ProjectBaseline`): the project's own span then and its movement
@@ -1287,7 +1287,7 @@ export interface paths {
          *
          *     Jira (1.3): every milestone (`scheduled` and `unscheduled`) bound to a Jira item carries `jira` and, through an ENABLED connection,
          *     one `JIRA_DEVIATION` flag per OPEN deviation, as `GET /views/roadmap` describes; `jiraSites` lists the connections the rows link
-         *     to. An unbound milestone answers `jira: null` and `flags: []`; one on a disabled connection keeps its `jira` (dates null) and `flags: []`.
+         *     to, each with its sync `state` and `mappingOk`. An unbound milestone answers `jira: null` and `flags: []`; one on a disabled connection keeps its `jira` (dates null) and `flags: []`.
          *
          *     Flow (1.9): a team linked to a Flow team carries `team.flags` - ONE `FLOW_CAPACITY` roll-up over its OPEN capacity deviations
          *     (`GET /views/capacity-deviations`: a row is open unless its acknowledgement is current; `count` = the open rows, the severity the
@@ -1333,7 +1333,7 @@ export interface paths {
          *     flags over the program's (work stream's) projects. Programs and work streams carry no target window.
          *
          *     Jira (1.3): the project rows carry the roadmap's `jira` and Jira flags (so a program's and work stream's `flags` counts include
-         *     them) and the document carries `jiraSites`, all as `GET /views/roadmap` describes.
+         *     them) and the document carries `jiraSites` (each connection with its sync `state` and `mappingOk`), all as `GET /views/roadmap` describes.
          *
          *     With `?baseline=N` the document gains `baseline` (the baseline's identity), every project row gains its `baseline` block (as
          *     `GET /views/roadmap`'s) and a program (work stream) with at least one project the baseline froze gains `baseline`: the span
@@ -1381,7 +1381,7 @@ export interface paths {
          *     `JIRA_DEVIATION` per OPEN LINE (1.12: a deviation without a current acknowledgement of its own; with its `deviation`) and one `JIRA_MILESTONES` roll-up of its milestones' (`count` of milestones
          *     that raised a flag, the worst severity; never one flag per milestone). A line is open unless its own acknowledgement is current;
          *     `ESTIMATE_NOT_COMPARABLE` never raises a flag. A disabled connection's rows keep their `jira` (so the node reads as linked and can be unlinked) with null dates, no flag and no roll-up contribution.
-         *     `jiraSites` lists the connections the document links to (the client builds `siteUrl + "/browse/" + issueKey`); an unbound plan
+         *     `jiraSites` lists the connections the document links to (the client builds `siteUrl + "/browse/" + issueKey`), each with its derived sync `state` and `mappingOk` (1.16: the values `GET /views/deviations` gives the same connection); an unbound plan
          *     answers `jira: null`, no Jira flag and `jiraSites: []`. Read inside the same snapshot; `?baseline=` leaves all of it as it is.
          *
          *     With `?baseline=N` the document gains `baseline` (the baseline's identity and the projects it froze that are gone) and every
@@ -5350,12 +5350,19 @@ export interface components {
             /** @description A milestone's epic's children as the last census holds them (1.4), the figure `GET /views/deviations` serves as `jira.rollup`; null for a project link, a DISABLED connection, a gone issue, or an epic with no mirrored child. */
             rollup: components["schemas"]["JiraRollup"] | null;
         };
-        /** @description A Jira connection (enabled or not) that a binding in the document's scope links to. Never the connection's name or any credential. */
+        /** @description A Jira connection (enabled or not) that a binding in the document's scope links to, with (1.16) its derived sync state and whether its mapping fits, so a chip can say its figure "may be out of date". `state` and `mappingOk` are operational and already public: `GET /views/deviations` tells every authenticated user both for every active connection (`connections[].status.state` and `connections[].mappingOk`). Never the connection's name, project keys, last run, error code or any credential. */
         JiraSite: {
             /** Format: int32 */
             connectionId: number;
             /** @description The site's origin, e.g. `https://example.atlassian.net`; append `/browse/` and an issue key. */
             siteUrl: string;
+            /**
+             * @description The connection's derived sync state, the very value `GET /views/deviations` answers in `connections[].status.state`, judged inside the view's snapshot against the same clock: `DISABLED` switched off; `FAILED` the newest finished run failed or was abandoned, or the newest run was interrupted; `NEVER_SYNCED` no run ever succeeded; `STALE` the last success is older than three polling intervals; else `CURRENT` (a manual-only connection stays `CURRENT` after any success).
+             * @enum {string}
+             */
+            state: "NEVER_SYNCED" | "CURRENT" | "STALE" | "FAILED" | "DISABLED";
+            /** @description Whether the connection's effective mapping resolves against its stored discovery now (`GET /views/deviations` `connections[].mappingOk`). */
+            mappingOk: boolean;
         };
         /** @description The dependencies between two projects, rolled up for one ORDERED pair. Links inside one project are not listed. */
         RoadmapLink: {

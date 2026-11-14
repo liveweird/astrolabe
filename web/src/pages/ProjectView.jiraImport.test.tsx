@@ -18,7 +18,7 @@ const can = { edit: true, delete: true, editTargetWindow: false, createMilestone
 
 const viewOf = (over: Partial<ProjectViewDocument["project"]["can"]> = {}, jira: JiraLink | null = PROJECT_LINK): ProjectViewDocument => ({
   revision: 10,
-  jiraSites: [{ connectionId: DEV_CONNECTION.id, siteUrl: DEV_CONNECTION.siteUrl }],
+  jiraSites: [{ connectionId: DEV_CONNECTION.id, siteUrl: DEV_CONNECTION.siteUrl, state: "CURRENT" as const, mappingOk: true }],
   project: {
     jira,
     flags: [],

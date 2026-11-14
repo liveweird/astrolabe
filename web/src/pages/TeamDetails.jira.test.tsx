@@ -46,7 +46,7 @@ const milestone = (id: number, name: string, over: Partial<TeamMilestone> = {}):
 });
 
 const TEAM_VIEW: TeamView = {
-  jiraSites: [{ connectionId: 1, siteUrl: "https://acme.atlassian.net" }],
+  jiraSites: [{ connectionId: 1, siteUrl: "https://acme.atlassian.net", state: "CURRENT" as const, mappingOk: true }],
   revision: 10,
   team: { id: 1, name: "Payments", description: null, managerPersonId: 12, managerName: "Cara New", createdAt: 1, updatedAt: 2, can: { schedule: false, editCapacity: false, editOrder: false }, flags: [] },
   order: { custom: false, revision: 4, milestoneIds: [] },
@@ -161,7 +161,7 @@ describe("the team page's Jira markers", () => {
     });
 
     test("the key is a link only for an https site", async () => {
-      teamView = { ...TEAM_VIEW, jiraSites: [{ connectionId: 1, siteUrl: "http://plain.example" }] };
+      teamView = { ...TEAM_VIEW, jiraSites: [{ connectionId: 1, siteUrl: "http://plain.example", state: "CURRENT" as const, mappingOk: true }] };
       renderPage();
       const rowB = within(await timeline()).getByRole("row", { name: /tv-b/ });
       expect(within(rowB).queryByRole("link", { name: /E2E-4/ })).not.toBeInTheDocument();

@@ -52,7 +52,7 @@ const AUDIT = project(3, "Audit", { rankPosition: 3, jira: link(13, "E2E-8", "20
 const FRESH = project(4, "Fresh", { span: { start: "2026-07-06", end: "2026-07-10" } });
 
 const viewOf = (over: Partial<RoadmapView> = {}): RoadmapView => ({
-  jiraSites: [{ connectionId: 2, siteUrl: "https://acme.atlassian.net" }],
+  jiraSites: [{ connectionId: 2, siteUrl: "https://acme.atlassian.net", state: "CURRENT" as const, mappingOk: true }],
   revision: 7,
   can: { editRank: false },
   teams: [],

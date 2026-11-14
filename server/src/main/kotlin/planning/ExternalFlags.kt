@@ -38,9 +38,22 @@ data class JiraLink(
     val rollup: JiraRollup?,
 )
 
-/** A Jira connection a binding in the document's scope links to: the site its keys belong to. Never its name or any credential. */
+/**
+ * A Jira connection's sync state as a site carries it (1.16): the SAME five names, in the same order, as `sync`'s `SyncState`, which
+ * `GET /views/deviations` answers in `connections[].status.state`. `planning` may not name `sync`, so the seam owns its copy;
+ * `JiraFlagSourceTest` pins the two equal and the Jira module converts by name.
+ */
 @Serializable
-data class JiraSite(val connectionId: UInt, val siteUrl: String)
+enum class JiraSiteState { NEVER_SYNCED, CURRENT, STALE, FAILED, DISABLED }
+
+/**
+ * A Jira connection a binding in the document's scope links to: the site its keys belong to, with (1.16) its derived sync [state] and
+ * whether its effective mapping still fits the stored discovery ([mappingOk]) - the two members `GET /views/deviations` already tells
+ * every login for every active connection, so the chips can say "may be out of date". Never its name or any credential. No defaults:
+ * the response encoder writes all four members.
+ */
+@Serializable
+data class JiraSite(val connectionId: UInt, val siteUrl: String, val state: JiraSiteState, val mappingOk: Boolean)
 
 /** What the source answers for ONE node: its [jira] link (null = not bound, or bound through a disabled connection) and its [flags]. */
 data class NodeExternal(val jira: JiraLink?, val flags: List<PlanFlag>) {

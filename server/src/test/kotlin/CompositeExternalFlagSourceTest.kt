@@ -10,6 +10,7 @@ import ch.nokillswit.planning.FlagSeverity
 import ch.nokillswit.planning.FlaggedRange
 import ch.nokillswit.planning.JiraLink
 import ch.nokillswit.planning.JiraSite
+import ch.nokillswit.planning.JiraSiteState
 import ch.nokillswit.planning.NodeExternal
 import ch.nokillswit.planning.PlanFlag
 import ch.nokillswit.planning.TeamExternal
@@ -112,8 +113,9 @@ class CompositeExternalFlagSourceTest {
 
     @Test
     fun `the sites are the union, one per connection, sorted by id`() {
-        val a = Fake(ExternalFlags(sites = listOf(JiraSite(7u, "https://a.example"), JiraSite(3u, "https://b.example"))))
-        val b = Fake(ExternalFlags(sites = listOf(JiraSite(3u, "https://b.example"), JiraSite(5u, "https://c.example"))))
+        fun site(id: UInt, url: String) = JiraSite(id, url, JiraSiteState.CURRENT, mappingOk = true)
+        val a = Fake(ExternalFlags(sites = listOf(site(7u, "https://a.example"), site(3u, "https://b.example"))))
+        val b = Fake(ExternalFlags(sites = listOf(site(3u, "https://b.example"), site(5u, "https://c.example"))))
         assertEquals(listOf(3u, 5u, 7u), ask(a, b).sites.map { it.connectionId })
     }
 }

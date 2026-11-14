@@ -13,6 +13,7 @@ import ch.nokillswit.planning.FlagSeverity
 import ch.nokillswit.planning.JiraLink
 import ch.nokillswit.planning.JiraRollup
 import ch.nokillswit.planning.JiraSite
+import ch.nokillswit.planning.JiraSiteState
 import ch.nokillswit.planning.NodeExternal
 import ch.nokillswit.planning.PlanFlag
 
@@ -30,6 +31,8 @@ import ch.nokillswit.planning.PlanFlag
  * - [JiraLink] otherwise, whatever the deviations: the observed dates are null when the item was never observed or is `gone`; a live
  *   MILESTONE link also carries its census [JiraRollup] (the deviations view's own loader, [loadRollups]; null for a project link, a
  *   disabled connection, a gone issue or an epic with no mirrored child);
+ * - one [JiraSite] per connection the rows link through (1.16: its derived sync state, [DeviationViewService.siteStatesInTransaction] -
+ *   one indexed `sync_runs` read per such connection and none when no row links - and whether its mapping fits);
  * - one [FlagKind.JIRA_DEVIATION] per OPEN LINE (1.12: a deviation whose own acknowledgement is not CURRENT; one that went stale
  *   raises again, an acknowledged line of the same binding raises nothing), at the deviation's severity; `ESTIMATE_NOT_COMPARABLE`
  *   ("a figure exists and cannot be compared") raises nothing;
@@ -45,7 +48,8 @@ internal class JiraFlagSource(private val deviations: DeviationViewService) : Ex
             milestoneIds = request.milestoneIds,
             referencedConnectionsOnly = true,
         )
-        val computed = deviations.computeInTransaction(scope, null, request.calendar, deviations.today())
+        val now = deviations.nowMillis()
+        val computed = deviations.computeInTransaction(scope, null, request.calendar, deviations.today(now))
         val connections = computed.connections.associateBy { it.id }
         val rows = computed.candidates.filter { it.item.connectionId in connections }.map {
             val live = connections.getValue(it.item.connectionId).enabled
@@ -63,7 +67,14 @@ internal class JiraFlagSource(private val deviations: DeviationViewService) : Ex
             val own = ownProjects[id]
             NodeExternal(own?.link, (own?.flags.orEmpty() + listOfNotNull(rollUps[id])).sortedWith(FLAG_ORDER))
         }
-        val sites = rows.map { it.link.connectionId }.distinct().sorted().map { JiraSite(it, connections.getValue(it).siteUrl) }
+        // The sites are the connections the REFERENCED rows link through (1.16: each with its derived state and whether its mapping
+        // fits); a plan with no row reads no runs at all.
+        val siteIds = rows.map { it.link.connectionId }.distinct().sorted()
+        val states = deviations.siteStatesInTransaction(siteIds.map { connections.getValue(it) }, now)
+        val sites = siteIds.map {
+            val facts = connections.getValue(it)
+            JiraSite(it, facts.siteUrl, JiraSiteState.valueOf(states.getValue(it).name), mappingOk = facts.levels != null)
+        }
         return ExternalFlags(
             projects = projects,
             milestones = milestones.associate { it.candidate.node.ref.id to NodeExternal(it.link, it.flags) },

@@ -38,7 +38,7 @@ const milestone = (id: number, name: string, over: Partial<ProjectMilestone> = {
   ...over,
 });
 
-const SITES = [{ connectionId: DEV_CONNECTION.id, siteUrl: DEV_CONNECTION.siteUrl }];
+const SITES = [{ connectionId: DEV_CONNECTION.id, siteUrl: DEV_CONNECTION.siteUrl, state: "CURRENT" as const, mappingOk: true }];
 const DISCOVERY = milestone(1, "Discovery");
 // Build: linked, Jira has both dates, so the Flags column exists and the scheduled row carries its own Jira bar.
 const BUILD = milestone(2, "Build", { startDate: "2027-01-18", endDate: "2027-01-22", jira: link(6, "E2E-3", "2027-01-18", "2027-01-19") });

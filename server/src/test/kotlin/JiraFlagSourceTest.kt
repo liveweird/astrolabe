@@ -14,10 +14,12 @@ import ch.nokillswit.planning.FlagKind
 import ch.nokillswit.planning.FlagSeverity
 import ch.nokillswit.planning.JiraRollup
 import ch.nokillswit.planning.JiraSite
+import ch.nokillswit.planning.JiraSiteState
 import ch.nokillswit.planning.NodeExternal
 import ch.nokillswit.planning.PlanFlag
 import ch.nokillswit.planning.SNAPSHOT
 import ch.nokillswit.planning.loadWorkingCalendar
+import ch.nokillswit.sync.SyncState
 import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
 import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
@@ -220,6 +222,11 @@ class JiraFlagSourceTest {
         }
 
     @Test
+    fun `a site state enum has exactly the names of the sync state, in the same order`() {
+        assertEquals(SyncState.entries.map { it.name }, JiraSiteState.entries.map { it.name })
+    }
+
+    @Test
     fun `a disabled connection raises and draws nothing but keeps its link and site, and its siblings are unaffected`() = testApplication {
         val f = fixture("jfs5")
         val disabled = ledger.track(f.w.admin.client.dvConnection(enabled = false))
@@ -233,9 +240,14 @@ class JiraFlagSourceTest {
         assertEquals(listOf<String?>(null, null), listOf(link.start, link.end), "no dates, so no bar")
         assertEquals(emptyList(), answer.milestone(off).flags)
         assertEquals(1, answer.milestone(live).flags.size)
-        val urls = f.w.admin.client.dvView().connections.associate { it.id to it.siteUrl }
-        val expectedSites = listOf(JiraSite(f.c, urls.getValue(f.c)), JiraSite(disabled, urls.getValue(disabled)))
+        // Each site carries the very state and mapping verdict the deviations view answers for its connection (1.16).
+        val facts = f.w.admin.client.dvView().connections.associateBy { it.id }
+        val expectedSites = listOf(f.c, disabled).map {
+            val c = facts.getValue(it)
+            JiraSite(it, c.siteUrl, JiraSiteState.valueOf(c.status.state.name), c.mappingOk)
+        }
         assertEquals(expectedSites.sortedBy { it.connectionId }, answer.sites)
+        assertEquals(JiraSiteState.DISABLED, answer.sites.single { it.connectionId == disabled }.state)
 
         // The same rule when the connection is switched off AFTER the binding raised a flag.
         jbSql("UPDATE jira_connections SET enabled = FALSE WHERE id = ?", f.c.toInt())

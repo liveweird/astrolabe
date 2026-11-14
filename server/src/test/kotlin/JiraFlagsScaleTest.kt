@@ -86,15 +86,24 @@ class JiraFlagsScaleTest {
         ScaleFigures.print("flags team service with the Jira source median", p50 { TeamViewService(db, jira).view(platform, actor) })
     }
 
+    /** What one fold sent: its statements, and how many sites (referenced connections) it answered. */
+    private class Load(val sql: List<String>, val sites: Int) {
+        /** The 1.16 reads of the referenced connections' newest runs: one indexed `LIMIT` read per site. */
+        val runReads get() = sql.count { "sync_runs" in it }
+
+        /** Every other statement: the loader's, flat whatever the size. */
+        val others get() = sql.size - runReads
+    }
+
     /** The statements [JiraFlagSource.flagsInTransaction] sends for [projectIds]/[milestoneIds] (both null = the whole plan). */
-    private suspend fun flagLoadStatements(jira: JiraFlagSource, projectIds: List<UInt>?, milestoneIds: List<UInt>?): List<String> {
+    private suspend fun flagLoad(jira: JiraFlagSource, projectIds: List<UInt>?, milestoneIds: List<UInt>?): Load {
         val counter = StatementCounter()
         val flags = suspendTransaction(sharedDatabaseForTests()) {
             registerInterceptor(counter)
             jira.flagsInTransaction(ExternalFlagRequest(projectIds, milestoneIds, WorkingCalendar.MON_FRI))
         }
         assertTrue(flags.milestones.isNotEmpty(), "the load must have found bindings to count anything")
-        return counter.sql
+        return Load(counter.sql, flags.sites.size)
     }
 
     /**
@@ -103,16 +112,26 @@ class JiraFlagsScaleTest {
      * query per binding, per milestone or per epic fails here although the 1,000-row world's timing hides it. The loader is called
      * directly in a transaction of its own, which isolates it: an unrelated extra query elsewhere in a view cannot move this count.
      * The exact figure is [LOADER_STATEMENTS]; a deliberate new loader raises it with its line in that constant's comment.
+     * Since 1.16 the one statement that is NOT flat is counted apart: the sites' `sync_runs` read, one per referenced connection. A
+     * whole-plan load reads EVERY active binding of the shared database, leftover connections of earlier classes on the fork included,
+     * so it must equal its own site count, while the one-project load (one connection in this world) reads exactly one.
      */
     private suspend fun assertLoaderStatementsAreFlat(jira: JiraFlagSource, projectId: UInt) {
         val milestoneIds = jbScalar("SELECT array_agg(id) FROM milestones WHERE project_id = ?", projectId.toInt()) { rs ->
             (rs.getArray(1).array as Array<*>).map { (it as Int).toUInt() }
         }
-        val whole = flagLoadStatements(jira, null, null)
-        val one = flagLoadStatements(jira, listOf(projectId), milestoneIds)
-        println("scale-figure flags loader statements, whole plan: ${whole.size}, one project: ${one.size}\n${whole.joinToString("\n")}")
-        assertEquals(whole.size, one.size, "the statement count must not follow the number of bindings:\n${whole.joinToString("\n")}")
-        assertEquals(LOADER_STATEMENTS, whole.size, "the loader's statements:\n${whole.joinToString("\n")}")
+        val whole = flagLoad(jira, null, null)
+        val one = flagLoad(jira, listOf(projectId), milestoneIds)
+        println(
+            "scale-figure flags loader statements, whole plan: ${whole.others} + ${whole.runReads} run reads (${whole.sites} sites), " +
+                "one project: ${one.others} + ${one.runReads} run read\n${whole.sql.joinToString("\n")}",
+        )
+        val shown = whole.sql.joinToString("\n")
+        assertEquals(whole.others, one.others, "the statement count must not follow the number of bindings:\n$shown")
+        assertEquals(LOADER_STATEMENTS, whole.others, "the loader's statements:\n$shown")
+        assertEquals(whole.sites, whole.runReads, "one run read per referenced connection, whole plan:\n$shown")
+        assertEquals(1, one.sites, "this world has one connection")
+        assertEquals(1, one.runReads, "one run read for the one referenced connection:\n${one.sql.joinToString("\n")}")
     }
 
     @Test
@@ -209,7 +228,9 @@ class JiraFlagsScaleTest {
          * derived spans (1), the bound-to map (1), the coverage reads (programs, projects, the Jira children of bound parents and the
          * plan's milestone names: 4), the ONE roll-up `GROUP BY (connection, parent)` (1) and, since 1.12, the per-line stored
          * acknowledgements (`Acknowledgements.storedOf`, 1) = 12. Every one is an `IN (...)` over the scoped ids; none is per
-         * binding. A deliberate new loader raises this figure and gets its entry here.
+         * binding. Not counted here: since 1.16 the referenced connections' newest runs (the sites' `state`), one indexed `LIMIT` read
+         * per referenced connection (one or two in production), which [assertLoaderStatementsAreFlat] pins apart. A deliberate new
+         * loader raises this figure and gets its entry here.
          */
         private const val LOADER_STATEMENTS = 12
         private const val DISABLED_RUNS = 3

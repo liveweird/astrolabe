@@ -7,6 +7,7 @@ import ch.nokillswit.planning.FlagKind
 import ch.nokillswit.planning.FlagSeverity
 import ch.nokillswit.planning.JiraRollup
 import ch.nokillswit.planning.JiraSite
+import ch.nokillswit.planning.JiraSiteState
 import ch.nokillswit.planning.PlanFlag
 import ch.nokillswit.planning.ProgramsView
 import ch.nokillswit.planning.ProjectMilestone
@@ -44,7 +45,8 @@ class TimelineJiraFlagsTest {
     @After
     fun dropConnections() = ledger.drop()
 
-    private class Bound(val w: PlanWorld, val c: UInt, val siteUrl: String) {
+    /** [site] is the site as the views must carry it when the world is built: the deviations view's own verdict for the connection. */
+    private class Bound(val w: PlanWorld, val c: UInt, val site: JiraSite) {
         val team = w.requireTeams().teamId
         val otherTeam = w.requireTeams().otherTeamId
         lateinit var warn: Pair<UInt, UInt>
@@ -63,7 +65,8 @@ class TimelineJiraFlagsTest {
         usePostgresTestcontainer()
         val w = planWorld(prefix, teams = true)
         val c = ledger.track(w.admin.client.dvConnection())
-        val b = Bound(w, c, w.admin.client.dvView().connections.single { it.id == c }.siteUrl)
+        val facts = w.admin.client.dvView().connections.single { it.id == c }
+        val b = Bound(w, c, JiraSite(c, facts.siteUrl, JiraSiteState.valueOf(facts.status.state.name), facts.mappingOk))
         suspend fun milestone(obs: (String) -> DvObs, start: String? = null, end: String? = null): Pair<UInt, UInt> {
             val name = planName("ms")
             val id = TestPlan.milestone(w.projectId, b.team, name)
@@ -123,7 +126,7 @@ class TimelineJiraFlagsTest {
             assertEquals(emptyList(), unbound.flags.filter { it.kind in jiraKinds })
             for (sites in listOf(b.client.roadmap().jiraSites, b.client.programs().jiraSites)) {
                 assertEquals(1, sites.count { it.connectionId == b.c })
-                assertTrue(JiraSite(b.c, b.siteUrl) in sites)
+                assertTrue(b.site in sites)
             }
         }
 
@@ -145,7 +148,7 @@ class TimelineJiraFlagsTest {
         val view = b.client.project(b.w.projectId)
         assertEquals(b.client.roadmap().row(b.w.projectId).flags.filter { it.kind in jiraKinds }, view.project.flags)
         assertEquals(b.projectBinding, view.project.jira?.bindingId)
-        assertEquals(listOf(JiraSite(b.c, b.siteUrl)), view.jiraSites)
+        assertEquals(listOf(b.site), view.jiraSites)
 
         val rows = (view.scheduled + view.unscheduled).associateBy { it.id }
         assertEquals(listOf(DeviationKind.END_DIFFERS to FlagSeverity.WARNING), rows.getValue(b.warn.first).flags.shape())
@@ -192,7 +195,7 @@ class TimelineJiraFlagsTest {
         assertEquals(listOf(DeviationKind.RENAMED to FlagSeverity.INFO), rows.getValue(b.info.first).flags.shape())
         assertEquals(b.warn.second, rows.getValue(b.warn.first).jira?.bindingId)
         assertNull(rows.getValue(b.unbound).jira)
-        assertEquals(listOf(JiraSite(b.c, b.siteUrl)), view.jiraSites)
+        assertEquals(listOf(b.site), view.jiraSites)
         assertTrue(view.scheduled.any { it.id == b.warn.first } && view.unscheduled.any { it.id == b.dated.first })
     }
 
@@ -231,6 +234,23 @@ class TimelineJiraFlagsTest {
         assertEquals(setOf("kind", "detail"), evidence.keys, "the severity is the flag's own, not repeated")
         val detail = evidence.getValue("detail").jsonObject
         assertTrue(detail.values.none { it is JsonNull }, "a detail's null members are absent: $detail")
+    }
+
+    @Test
+    fun `a site's raw JSON has exactly the four keys on all four views, and the state is the deviations view's own`() = testApplication {
+        val b = world("tjf10")
+        val facts = b.w.admin.client.dvView().connections.single { it.id == b.c }
+        val paths = listOf(
+            "/api/v1/views/roadmap", "/api/v1/views/programs", "/api/v1/views/project/${b.w.projectId}", "/api/v1/views/team/${b.team}",
+        )
+        for (path in paths) {
+            val site = b.client.rawJson(path).jsonObject.getValue("jiraSites").jsonArray.map { it.jsonObject }.single { site ->
+                site.getValue("connectionId").toString() == b.c.toString()
+            }
+            assertEquals(setOf("connectionId", "siteUrl", "state", "mappingOk"), site.keys, path)
+            assertEquals("\"${facts.status.state.name}\"", site.getValue("state").toString(), path)
+            assertEquals(facts.mappingOk.toString(), site.getValue("mappingOk").toString(), path)
+        }
     }
 
     @Test

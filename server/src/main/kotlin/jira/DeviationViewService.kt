@@ -12,6 +12,8 @@ import ch.nokillswit.planning.readPlanRevision
 import ch.nokillswit.sync.RunFact
 import ch.nokillswit.sync.SyncKind
 import ch.nokillswit.sync.SyncRunService
+import ch.nokillswit.sync.SyncState
+import ch.nokillswit.sync.SyncStatus
 import ch.nokillswit.sync.SyncStatusKernels
 import io.ktor.util.AttributeKey
 import org.jetbrains.exposed.v1.r2dbc.R2dbcDatabase
@@ -138,14 +140,31 @@ class DeviationViewService(
         return computeInTransaction(scope, null, loadWorkingCalendar(), asOf).candidates.singleOrNull()
     }
 
-    /** Today (a UTC date) on this service's clock: the `asOf` the timeline fold shares with the deviations view. */
-    internal fun today(): LocalDate = asOfOf(clock())
+    /** This service's clock now: the ONE instant the timeline fold derives both its `asOf` ([today]) and its sites' states from. */
+    internal fun nowMillis(): Long = clock()
+
+    /** The UTC date of [now] on this service's clock: the `asOf` the timeline fold shares with the deviations view. */
+    internal fun today(now: Long): LocalDate = asOfOf(now)
 
     private fun asOfOf(now: Long): LocalDate = LocalDate.ofInstant(Instant.ofEpochMilli(now), ZoneOffset.UTC)
 
+    /**
+     * The derived sync state of each of [connections] (1.16: the timeline views' `jiraSites[].state`), read INSIDE the caller's open
+     * transaction - it opens none: one indexed `LIMIT` read of the connection's newest runs each (none for an empty collection), judged
+     * at [now] (the caller's one reading of [nowMillis]) through the very step [toWire] uses, so a site's state and the deviations
+     * view's `status.state` can never differ for the same runs and the same instant.
+     */
+    internal suspend fun siteStatesInTransaction(connections: Collection<ConnectionFacts>, now: Long): Map<UInt, SyncState> {
+        val recent = runs.recentRunsInTransaction(SyncKind.JIRA, connections.map { it.id })
+        return connections.associate { it.id to it.statusOf(recent.getValue(it.id), now).state }
+    }
+
     /** The status is derived against the view's own clock (an unfinished row older than the claim window was interrupted). */
+    private fun ConnectionFacts.statusOf(recent: List<RunFact>, now: Long): SyncStatus =
+        SyncStatusKernels.derive(connector, recent, now, runs.maxRunMinutes)
+
     private fun ConnectionFacts.toWire(recent: List<RunFact>, now: Long): DeviationConnection {
-        val status = SyncStatusKernels.derive(connector, recent, now, runs.maxRunMinutes)
+        val status = statusOf(recent, now)
         return DeviationConnection(
             id = id,
             name = name,

@@ -56,7 +56,7 @@ const PLATFORM: ProgramsWorkStream = {
   flags: { warnings: 1, infos: 0 },
   programs: [BILLING],
 };
-const VIEW: ProgramsView = { jiraSites: [{ connectionId: 2, siteUrl: "https://acme.atlassian.net" }], revision: 9, teams: [], links: [], workStreams: [PLATFORM] };
+const VIEW: ProgramsView = { jiraSites: [{ connectionId: 2, siteUrl: "https://acme.atlassian.net", state: "CURRENT" as const, mappingOk: true }], revision: 9, teams: [], links: [], workStreams: [PLATFORM] };
 
 beforeEach(() => {
   vi.stubGlobal(

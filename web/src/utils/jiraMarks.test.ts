@@ -6,7 +6,7 @@ import type { TeamMilestone } from "../api/teams";
 import { detail, evidence } from "../test/deviations";
 import { markKey, projectMarks, teamMarks } from "./jiraMarks";
 
-const SITES = [{ connectionId: 2, siteUrl: "https://acme.atlassian.net" }];
+const SITES = [{ connectionId: 2, siteUrl: "https://acme.atlassian.net", state: "CURRENT" as const, mappingOk: true }];
 const link = (bindingId: number, key: string, connectionId = 2): JiraLink => ({ bindingId, connectionId, issueKey: key, start: "2044-01-04", end: "2044-01-08", rollup: null });
 const endLater: Deviation = { kind: "END_DIFFERS", severity: "WARNING", detail: detail({ jira: "2044-01-08", plan: "2044-01-13", days: 3 }) };
 const flag = (kind: PlanFlag["kind"], severity: PlanFlag["severity"], over: Partial<PlanFlag> = {}): PlanFlag => ({ kind, severity, ...over });

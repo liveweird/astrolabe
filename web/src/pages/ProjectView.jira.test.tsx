@@ -40,7 +40,7 @@ const milestone = (id: number, name: string, over: Partial<ProjectMilestone> = {
   ...over,
 });
 
-const SITES = [{ connectionId: DEV_CONNECTION.id, siteUrl: DEV_CONNECTION.siteUrl }];
+const SITES = [{ connectionId: DEV_CONNECTION.id, siteUrl: DEV_CONNECTION.siteUrl, state: "CURRENT" as const, mappingOk: true }];
 const projectCan = { edit: true, delete: true, editTargetWindow: false, createMilestone: true, createDependency: false };
 const DISCOVERY = milestone(1, "Discovery");
 // Build: linked, Jira has both dates (the end three working days earlier than the plan's), one open END deviation.
@@ -194,7 +194,7 @@ describe("the project page's Jira markers", () => {
     });
 
     test("the key is a link only for an https site: a site that is not https (or unknown) leaves plain text", async () => {
-      project = viewOf({ jiraSites: [{ connectionId: DEV_CONNECTION.id, siteUrl: "http://plain.example" }] });
+      project = viewOf({ jiraSites: [{ connectionId: DEV_CONNECTION.id, siteUrl: "http://plain.example", state: "CURRENT" as const, mappingOk: true }] });
       renderPage();
       const grid = await timeline();
       const build = within(grid).getByRole("row", { name: /Build/ });
