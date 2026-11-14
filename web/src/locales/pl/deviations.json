@@ -25,6 +25,8 @@
     "noteFailed": "Ostatnie odświeżanie nie powiodło się: {{error}}. Liczby mogą być nieaktualne.",
     "noteInterrupted": "Ostatnie odświeżanie się nie zakończyło. Liczby mogą być nieaktualne.",
     "noteAbandoned": "Ostatnie odświeżanie zostało porzucone. Liczby mogą być nieaktualne.",
+    "noteStale": "Ostatnie udane odświeżanie jest starsze, niż powinno: liczby mogą być nieaktualne.",
+    "noteRetrying": "Ostatnie odświeżanie nie powiodło się, a trwa nowe: liczby mogą być nieaktualne.",
     "noteDisabled": "Połączenie jest wyłączone: jego elementy nie są odświeżane i pokazują to, co odczytano ostatnio.",
     "noteMapping": "Mapowanie nie pasuje teraz do witryny (albo połączenia nigdy nie testowano): poziomy i estymaty jego elementów nie są porównywane. Administrator/ka może to poprawić na stronie połączenia.",
     "openConnectionAria": "Otwórz połączenie {{name}}",
@@ -244,7 +246,7 @@
     "noBindingsHint": "Powiąż projekt lub kamień milowy na stronie projektu (Powiąż z Jirą…).",
     "noBindingsAdminHint": "Powiąż projekt lub kamień milowy na stronie projektu (Powiąż z Jirą…) albo dowolny element planu na stronie połączenia.",
     "noneSoFar": "W dotychczas odczytanych danych nie ma odchyleń.",
-    "noneSoFarHint": "Nie każde połączenie ma za sobą udane odświeżenie, więc to może się zmienić.",
+    "noneSoFarHint": "Nie każde połączenie ma za sobą aktualne odświeżenie, więc to może się zmienić.",
     "noMatch": "Żaden element nie pasuje do filtrów.",
     "noneSince": "Brak odchyleń w danych odczytanych {{time}} (UTC).",
     "noneSinceHint": "Od tego czasu niczego nie sprawdzano: odśwież, żeby ponownie odczytać Jirę.",
@@ -283,7 +285,7 @@
     "unlinkKey": "Odepnij od Jiry: {{key}}",
     "unlinkKeyAria": "Odepnij od Jiry: {{key}} ({{name}})"
   },
-  "staleBanner": "Co najmniej jedno połączenie nie ma za sobą udanego przebiegu albo jego mapowanie nie pasuje do witryny, więc lista poniżej może być nieaktualna. Zobacz sekcję Dane z Jiry.",
+  "staleBanner": "Co najmniej jedno połączenie nie ma za sobą aktualnego odświeżenia albo jego mapowanie nie pasuje do witryny, więc lista poniżej może być nieaktualna. Zobacz sekcję Dane z Jiry.",
   "loadingList": "Aktualizuję listę…",
   "ack": {
     "acknowledge": "Potwierdź",
@@ -384,7 +386,6 @@
       },
       "neverRead": "Jeszcze nie odczytano",
       "noteNever": "Żadne odświeżanie jeszcze się nie zakończyło: Flow nie został odczytany, więc nie ma z czym porównywać.",
-      "noteStale": "Ostatnie udane odświeżanie jest starsze, niż powinno: liczby mogą być nieaktualne.",
       "noteDisabled": "Połączenie jest wyłączone: Flow nie jest odczytywany ponownie, a zespoły pokazują to, co odczytano ostatnio."
     },
     "totals": {

@@ -25,6 +25,8 @@
     "noteFailed": "The last refresh failed: {{error}}. The figures may be out of date.",
     "noteInterrupted": "The last refresh did not finish. The figures may be out of date.",
     "noteAbandoned": "The last refresh was abandoned. The figures may be out of date.",
+    "noteStale": "The last successful refresh is older than expected: the figures may be out of date.",
+    "noteRetrying": "The last refresh failed and a new one is running: the figures may be out of date.",
     "noteDisabled": "The connection is disabled: its items are not refreshed and show what was last read.",
     "noteMapping": "The mapping does not fit the site now (or the connection was never tested): levels and estimates are not compared for its items. An administrator can fix it on the connection page.",
     "openConnectionAria": "Open connection {{name}}",
@@ -206,7 +208,7 @@
     "noBindingsHint": "Link a project or a milestone from its project page (Link to Jira…).",
     "noBindingsAdminHint": "Link a project or a milestone from its project page (Link to Jira…), or any plan item from a connection's page.",
     "noneSoFar": "No deviations in the data read so far.",
-    "noneSoFarHint": "Not every connection has a successful refresh behind it, so this may change.",
+    "noneSoFarHint": "Not every connection has a current refresh behind it, so this may change.",
     "noMatch": "No items match the filters.",
     "noneSince": "No deviations in the data read at {{time}} (UTC).",
     "noneSinceHint": "Nothing has been checked since: refresh to read Jira again.",
@@ -237,7 +239,7 @@
     "unlinkKey": "Unlink from Jira: {{key}}",
     "unlinkKeyAria": "Unlink from Jira: {{key}} ({{name}})"
   },
-  "staleBanner": "At least one connection has no successful run behind it, or its mapping does not fit the site, so the list below may be out of date. See Data from Jira.",
+  "staleBanner": "At least one connection has no current refresh behind it, or its mapping does not fit the site, so the list below may be out of date. See Data from Jira.",
   "loadingList": "Updating the list…",
   "ack": {
     "acknowledge": "Acknowledge",
@@ -322,7 +324,6 @@
       },
       "neverRead": "Not read yet",
       "noteNever": "No refresh has finished yet: Flow has not been read, so there is nothing to compare with.",
-      "noteStale": "The last successful refresh is older than expected: the figures may be out of date.",
       "noteDisabled": "The connection is disabled: Flow is not read again and its teams show what was last read."
     },
     "totals": {

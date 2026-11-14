@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import i18n from "../i18n";
 import type { Deviation, DeviationKind } from "../api/deviations";
-import { DEV_CONNECTION, detail, endLater, item, renamed, startEarlier, stamped } from "../test/deviations";
+import { connectionIn, detail, endLater, item, renamed, startEarlier, stamped } from "../test/deviations";
 import { ageText, countDeviations, deviationAckAllKey, deviationAckKey, deviationKindLabel, deviationSentence, formatPoints, goneBadge, hasStaleSource, isLineOpen, itemAckKeys, rollupSentence, rollupText, splitLines, staleConnection, verifiedAt } from "./deviations";
 
 const en = i18n.getFixedT("en");
@@ -283,33 +283,53 @@ describe("ageText - how long ago the server last READ the item", () => {
   });
 });
 
-describe("hasStaleSource, staleConnection and verifiedAt", () => {
-  const ok = DEV_CONNECTION;
-  const run = ok.lastRun!;
-  test("a missing, failed, abandoned or interrupted newest run of an ENABLED connection makes the list possibly out of date", () => {
+describe("hasStaleSource, staleConnection and verifiedAt (the one rule: the server's derived state and the mapping)", () => {
+  const ok = connectionIn("CURRENT");
+  test.each([
+    ["CURRENT", false],
+    ["CURRENT_RUNNING", false],
+    ["STALE", true],
+    ["NEVER_SYNCED", true],
+    ["NEVER_SYNCED_RUNNING", true],
+    ["FAILED", true],
+    ["FAILED_RUNNING", true],
+    ["FAILED_ABANDONED", true],
+    ["FAILED_INTERRUPTED", true],
+    ["DISABLED", true],
+  ] as const)("a connection in %s: staleConnection is %s", (shape, stale) => {
+    expect(staleConnection(connectionIn(shape))).toBe(stale);
+  });
+  test("a failed, abandoned or interrupted newest run, a STALE connection or a first run still in flight raise the banner; a routine refresh on a CURRENT one does not", () => {
     expect(hasStaleSource([ok])).toBe(false);
-    expect(hasStaleSource([{ ...ok, lastRun: null }])).toBe(true);
-    expect(hasStaleSource([{ ...ok, lastRun: { ...run, outcome: "FAILED", errorCode: "TIMEOUT" } }])).toBe(true);
-    expect(hasStaleSource([{ ...ok, lastRun: { ...run, outcome: "ABANDONED" } }])).toBe(true);
-    expect(hasStaleSource([{ ...ok, lastRun: { ...run, outcome: null, finishedAt: null, running: false } }])).toBe(true);
+    expect(hasStaleSource([connectionIn("CURRENT_RUNNING")])).toBe(false);
+    for (const shape of ["NEVER_SYNCED", "NEVER_SYNCED_RUNNING", "FAILED", "FAILED_RUNNING", "FAILED_ABANDONED", "FAILED_INTERRUPTED", "STALE"] as const) {
+      expect(hasStaleSource([connectionIn(shape)])).toBe(true);
+    }
   });
-  test("a mapping that does not fit makes the list possibly out of date (no level or estimate is compared)", () => {
-    expect(hasStaleSource([{ ...ok, mappingOk: false }])).toBe(true);
+  test("a mapping that does not fit makes the list possibly out of date (no level or estimate is compared), whatever the state", () => {
+    expect(hasStaleSource([connectionIn("CURRENT", { mappingOk: false })])).toBe(true);
+    expect(staleConnection(connectionIn("CURRENT_RUNNING", { mappingOk: false }))).toBe(true);
   });
-  test("a running refresh is not stale yet, and a disabled connection is not asked about (it has its own note)", () => {
-    expect(hasStaleSource([{ ...ok, lastRun: { ...run, outcome: null, finishedAt: null, running: true } }])).toBe(false);
-    expect(hasStaleSource([{ ...ok, enabled: false, lastRun: null }])).toBe(false);
+  test("a disabled connection is not asked about (it has its own note), yet it is stale for the dated claim", () => {
+    expect(hasStaleSource([connectionIn("DISABLED")])).toBe(false);
+    expect(hasStaleSource([connectionIn("DISABLED", { mappingOk: false })])).toBe(false);
+    expect(staleConnection(connectionIn("DISABLED"))).toBe(true);
+    // A fixture that flips only `enabled` keeps meaning what it says.
     expect(staleConnection({ ...ok, enabled: false })).toBe(true);
   });
-  test("an empty list is called 'no deviations' only for a read: the OLDEST finish, withheld for a disabled, unmapped, failed or never-run connection", () => {
+  test("an empty list is called 'no deviations' only for a read: the OLDEST finish, withheld for a STALE, disabled, unmapped, failed, never-run or in-flight connection", () => {
+    const run = ok.lastRun!;
     expect(verifiedAt([ok])).toBe(run.finishedAt);
-    const older = { ...ok, id: 2, lastRun: { ...run, id: 3, finishedAt: 5 } };
+    const older = connectionIn("CURRENT", { id: 2 });
+    older.lastRun = { ...run, id: 3, finishedAt: 5 };
     expect(verifiedAt([ok, older])).toBe(5);
     expect(verifiedAt([])).toBeNull();
-    expect(verifiedAt([ok, { ...ok, id: 2, enabled: false }])).toBeNull();
-    expect(verifiedAt([ok, { ...ok, id: 2, mappingOk: false }])).toBeNull();
-    expect(verifiedAt([{ ...ok, lastRun: null }])).toBeNull();
-    expect(verifiedAt([{ ...ok, lastRun: { ...run, outcome: "FAILED", errorCode: "TIMEOUT" } }])).toBeNull();
+    expect(verifiedAt([ok, connectionIn("DISABLED", { id: 2 })])).toBeNull();
+    expect(verifiedAt([ok, connectionIn("STALE", { id: 2 })])).toBeNull();
+    expect(verifiedAt([connectionIn("CURRENT", { mappingOk: false })])).toBeNull();
+    for (const shape of ["NEVER_SYNCED", "NEVER_SYNCED_RUNNING", "FAILED", "FAILED_RUNNING", "FAILED_ABANDONED", "FAILED_INTERRUPTED", "CURRENT_RUNNING"] as const) {
+      expect(verifiedAt([connectionIn(shape)])).toBeNull();
+    }
   });
 });
 

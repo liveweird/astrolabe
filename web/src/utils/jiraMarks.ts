@@ -3,6 +3,7 @@ import type { ProjectView } from "../api/milestones";
 import type { JiraLink, JiraSite, PlanFlag } from "../api/roadmap";
 import type { TeamView } from "../api/teams";
 import { siteUrls } from "./jiraBars";
+import { isStaleSource } from "./staleness";
 
 // What the project and team pages show of the plan nodes linked to Jira (the chips, the milestone menu's link/unlink item): built from the VIEW's own
 // `jira` blocks and `jiraSites` (1.3), so it is exactly as current as the view and costs no request of its own.
@@ -26,7 +27,7 @@ export type JiraMarks = {
   infos: number;
   /**
    * Some site a marked node links through is not `CURRENT`, or its mapping does not fit (1.16): the figures above are the last observation and may be
-   * out of date. Wider than the Deviations page's banner (it counts `STALE` and a first run in flight too).
+   * out of date. The one rule of the Deviations page's banner too (`isStaleSource`); only a DISABLED connection differs there (the banner skips it).
    */
   stale: boolean;
 };
@@ -54,7 +55,7 @@ function marksOf(sites: readonly JiraSite[], nodes: readonly MarkedNode[]): Jira
     warnings += nodeWarnings;
     infos += own.length - nodeWarnings;
     const site = siteOf.get(jira.connectionId);
-    if (site !== undefined && (site.state !== "CURRENT" || !site.mappingOk)) stale = true;
+    if (site !== undefined && isStaleSource(site)) stale = true;
   }
   return { byNode, warnings, infos, stale };
 }

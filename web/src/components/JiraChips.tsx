@@ -8,7 +8,7 @@ import JiraKeyLink from "./JiraKeyLink";
 
 /**
  * The open-flag count as a link into the Deviations page (orange when it holds a warning, gray when only infos); "No deviations seen" when there is none.
- * With `stale` (1.16: a site behind the chip is not CURRENT, or its mapping does not fit) the count is followed by dimmed "Jira data may be out of date",
+ * With `stale` (1.16: a site behind the chip is not CURRENT, or its mapping does not fit: `isStaleSource`, the Deviations banner's rule too) the count is followed by dimmed "Jira data may be out of date",
  * at any count: three deviations read from a connection that failed last night are as doubtful as none. Plain text, not an alert and not orange: the
  * Deviations page's banner is the warning, the chip only qualifies.
  */

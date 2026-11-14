@@ -1,8 +1,7 @@
 import type { TFunction } from "i18next";
 import type { Deviation, DeviationConnection, DeviationItem, DeviationKind, DeviationLine } from "../api/deviations";
 import type { JiraLink } from "../api/roadmap";
-import { hasStaleSource as hasStaleConnection, verifiedAt as verifiedConnectionsAt } from "./staleness";
-import { runState } from "./syncRuns";
+import { hasStaleSource as hasStaleConnection, isStaleSource, verifiedAt as verifiedConnectionsAt } from "./staleness";
 
 /** The part of an item the phrasing needs besides the deviation itself (the estimate's unit is on Jira's side of the item). */
 type Phrased = { jira: Pick<DeviationItem["jira"], "estimateUnit"> };
@@ -224,13 +223,12 @@ export function ageText(observedAt: number, now: number, t: TFunction): string {
 }
 
 /**
- * Whether what a connection's items show may be out of date: it is disabled, its mapping does not fit the site (no level or estimate is compared),
- * or its newest run is missing or did not succeed (failed, abandoned, interrupted; a running one is not stale yet).
+ * Whether what a connection's items show may be out of date: it is disabled, or the one rule (`isStaleSource`) says so, read off the server's
+ * derived state: anything but CURRENT (never synced, failed, stale; a first run or a retry in flight is still the old state) or a mapping that
+ * does not fit the site (no level or estimate is compared). A routine refresh in flight on a CURRENT connection is not stale.
  */
 export function staleConnection(connection: DeviationConnection): boolean {
-  if (!connection.enabled || !connection.mappingOk || connection.lastRun === null) return true;
-  const state = runState(connection.lastRun);
-  return state === "failed" || state === "abandoned" || state === "interrupted";
+  return !connection.enabled || isStaleSource({ state: connection.status.state, mappingOk: connection.mappingOk });
 }
 
 /** True when an ENABLED connection is stale (a disabled one has its own note): the list may be out of date. */
@@ -240,9 +238,9 @@ export function hasStaleSource(connections: readonly DeviationConnection[]): boo
 
 /**
  * When an empty list may be called "no deviations in the data read at T": the OLDEST finish among the connections' newest runs, and only when
- * there is a connection and none is stale (every one enabled, its mapping fitting and its newest run SUCCEEDED). A disabled connection may hold
- * bindings nobody refreshes, so one anywhere withholds the claim. A connection polls only while it has an interval, is enabled and was tested (a
- * manual-only one re-reads when an administrator asks), so the claim is dated, never in the present tense.
+ * there is a connection and none is stale (every one enabled, CURRENT, its mapping fitting) and every newest run SUCCEEDED. A disabled connection
+ * may hold bindings nobody refreshes, so one anywhere withholds the claim. A connection polls only while it has an interval, is enabled and was
+ * tested (a manual-only one re-reads when an administrator asks), so the claim is dated, never in the present tense.
  */
 export function verifiedAt(connections: readonly DeviationConnection[]): number | null {
   return verifiedConnectionsAt(connections, staleConnection, ({ lastRun }) => (lastRun?.outcome === "SUCCEEDED" ? (lastRun.finishedAt ?? lastRun.startedAt ?? 0) : null));

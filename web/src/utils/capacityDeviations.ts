@@ -1,6 +1,6 @@
 import type { TFunction } from "i18next";
 import type { CapacityDeviation, CapacityDeviationConnection, CapacityDeviationKind } from "../api/capacityDeviations";
-import { hasStaleSource, verifiedAt } from "./staleness";
+import { hasStaleSource, isStaleSource, verifiedAt } from "./staleness";
 
 type Detail = CapacityDeviation["detail"];
 
@@ -121,11 +121,11 @@ export function entryRows(entry: CapacityEntry): readonly CapacityDeviation[] {
 }
 
 /**
- * Whether what a connection's teams show may be out of date: it is disabled, or its derived state is anything but CURRENT (never synced, failed,
- * stale). The Jira rule without the mapping, read off the server's `status` (nothing is judged on the client's clock).
+ * Whether what a connection's teams show may be out of date: it is disabled, or the shared rule (`isStaleSource`: its derived state is anything but
+ * CURRENT; Flow has no mapping to fit) says so, read off the server's `status` (nothing is judged on the client's clock).
  */
 export function staleFlowConnection(connection: Pick<CapacityDeviationConnection, "enabled" | "status">): boolean {
-  return !connection.enabled || connection.status.state !== "CURRENT";
+  return !connection.enabled || isStaleSource(connection.status);
 }
 
 /** True when an ENABLED connection is stale (a disabled one has its own note): the section may be out of date. */

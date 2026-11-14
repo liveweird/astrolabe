@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { hasStaleSource, verifiedAt } from "./staleness";
+import type { SyncState } from "../api/sync";
+import { hasStaleSource, isStaleSource, verifiedAt } from "./staleness";
 
 type C = { enabled: boolean; stale: boolean; at: number | null };
 const isStale = (c: C) => c.stale;
@@ -23,5 +24,24 @@ describe("verifiedAt", () => {
 
   test("the OLDEST success otherwise", () => {
     expect(verifiedAt([{ enabled: true, stale: false, at: 9 }, { enabled: true, stale: false, at: 4 }], isStale, succeededAt)).toBe(4);
+  });
+});
+
+describe("isStaleSource - the one rule: the server's state is anything but CURRENT, or the mapping does not fit", () => {
+  const states: [SyncState, boolean][] = [
+    ["CURRENT", false],
+    ["STALE", true],
+    ["NEVER_SYNCED", true],
+    ["FAILED", true],
+    ["DISABLED", true],
+  ];
+  test.each(states)("%s with a fitting mapping: %s", (state, stale) => {
+    expect(isStaleSource({ state, mappingOk: true })).toBe(stale);
+  });
+  test.each(states)("%s with a mapping that does not fit: stale", (state) => {
+    expect(isStaleSource({ state, mappingOk: false })).toBe(true);
+  });
+  test.each(states)("%s with no mapping to judge (Flow's): the state alone", (state, stale) => {
+    expect(isStaleSource({ state })).toBe(stale);
   });
 });

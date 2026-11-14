@@ -4,7 +4,7 @@ import { Route, Routes, useLocation } from "react-router-dom";
 import { renderWithProviders, screen, waitFor, within } from "../test/render";
 import { headingOutline } from "../test/headings";
 import { jsonResponse } from "../test/http";
-import { DEV_CONNECTION, detail, item, NOW, view } from "../test/deviations";
+import { connectionIn, DEV_CONNECTION, detail, item, NOW, view } from "../test/deviations";
 import { NO_FLOW_VIEW, capacityItem, capacityView, differsRow, missingRow } from "../test/flow";
 import type { CapacityDeviationView } from "../api/capacityDeviations";
 import type { DeviationView } from "../api/deviations";
@@ -176,7 +176,7 @@ describe("Deviations page", () => {
 
   test("an item with no deviation (all) reads 'No deviation'; a gone item and a disabled connection are marked stale", async () => {
     doc = view({
-      connections: [DEV_CONNECTION, { ...DEV_CONNECTION, id: 2, name: "Old Jira", enabled: false }],
+      connections: [DEV_CONNECTION, connectionIn("DISABLED", { id: 2, name: "Old Jira" })],
       items: [
         item({ bindingId: 1, deviations: [] }),
         item({ bindingId: 2, connectionId: 2, node: { ...item().node, id: 12, name: "Gone one" }, jira: { ...item().jira, key: "OLD-1", gone: true }, deviations: [{ kind: "GONE", severity: "WARNING", detail: detail({ jira: "OUT_OF_SCOPE" }), acknowledgement: null }] }),
@@ -277,23 +277,23 @@ describe("Deviations page - how current the figures are", () => {
     localStorage.clear();
   });
 
-  const run = DEV_CONNECTION.lastRun!;
-
   test("a last run that FAILED is shown honestly, with its code in words, and the list is flagged as possibly out of date", async () => {
-    doc = view({ connections: [{ ...DEV_CONNECTION, lastRun: { ...run, outcome: "FAILED", errorCode: "AUTHENTICATION_FAILED" } }] });
+    doc = view({ connections: [connectionIn("FAILED")] });
     renderPage();
     const sources = await screen.findByRole("table", { name: "Data from Jira" });
-    expect(within(sources).getByText("Failed")).toBeInTheDocument();
-    expect(within(sources).getByText(/The last refresh failed: Jira refused the credentials \(AUTHENTICATION_FAILED\)\. The figures may be out of date\./)).toBeInTheDocument();
+    // Two badges: the connection's derived state and its newest run's outcome.
+    expect(within(sources).getAllByText("Failed")).toHaveLength(2);
+    expect(within(sources).getByText(/The last refresh failed: Jira did not answer in time \(TIMEOUT\)\. The figures may be out of date\./)).toBeInTheDocument();
     expect(screen.getByText(/may be out of date\. See Data from Jira/)).toBeInTheDocument();
   });
 
   test("each connection's derived status is a badge in the sources table, with its failure streak or next poll", async () => {
-    const failed = { ...run, outcome: "FAILED" as const, errorCode: "TIMEOUT" };
+    const failed = connectionIn("FAILED");
+    const stale = connectionIn("STALE", { id: 2, name: "Second Jira" });
     doc = view({
       connections: [
-        { ...DEV_CONNECTION, lastRun: failed, status: { state: "FAILED", lastRun: failed, lastSucceededAt: null, consecutiveFailures: 2, nextPollAt: NOW } },
-        { ...DEV_CONNECTION, id: 2, name: "Second Jira", status: { ...DEV_CONNECTION.status, state: "STALE", nextPollAt: Date.now() + 4 * 60_000 - 5_000 } },
+        { ...failed, status: { ...failed.status, consecutiveFailures: 2, nextPollAt: NOW } },
+        { ...stale, status: { ...stale.status, nextPollAt: Date.now() + 4 * 60_000 - 5_000 } },
       ],
     });
     renderPage();
@@ -307,36 +307,63 @@ describe("Deviations page - how current the figures are", () => {
   });
 
   test("never refreshed, interrupted (unfinished and not running) and abandoned each read as not current", async () => {
-    doc = view({ connections: [{ ...DEV_CONNECTION, lastRun: null }] });
+    doc = view({ connections: [connectionIn("NEVER_SYNCED")] });
     const first = renderPage();
     expect(await screen.findByText("No refresh has finished yet: the figures are as they were when each item was linked.")).toBeInTheDocument();
     first.unmount();
 
-    doc = view({ connections: [{ ...DEV_CONNECTION, lastRun: { ...run, outcome: null, finishedAt: null, running: false } }] });
+    doc = view({ connections: [connectionIn("FAILED_INTERRUPTED")] });
     const second = renderPage();
     expect(await screen.findByText("Interrupted")).toBeInTheDocument();
     expect(screen.getByText("The last refresh did not finish. The figures may be out of date.")).toBeInTheDocument();
     second.unmount();
 
-    doc = view({ connections: [{ ...DEV_CONNECTION, lastRun: { ...run, outcome: "ABANDONED" } }] });
+    doc = view({ connections: [connectionIn("FAILED_ABANDONED")] });
     renderPage();
     expect(await screen.findByText("The last refresh was abandoned. The figures may be out of date.")).toBeInTheDocument();
   });
 
-  test("a succeeded last run raises no banner; a running one is announced and not called stale", async () => {
+  test("a succeeded last run raises no banner; a routine refresh running on a CURRENT connection is announced and not called stale", async () => {
     doc = view();
     const first = renderPage();
     await screen.findByRole("table", { name: "Differences between the plan and Jira" });
     expect(screen.queryByText(/may be out of date/)).not.toBeInTheDocument();
     first.unmount();
-    doc = view({ connections: [{ ...DEV_CONNECTION, lastRun: { ...run, outcome: null, finishedAt: null, running: true } }] });
+    doc = view({ connections: [connectionIn("CURRENT_RUNNING")] });
     renderPage();
     expect(await screen.findByText("A refresh is running. This page updates by itself.")).toBeInTheDocument();
     expect(screen.queryByText(/may be out of date/)).not.toBeInTheDocument();
   });
 
+  test("a STALE connection (its last success is older than three polling intervals) raises the banner and says so in 'Data from Jira'", async () => {
+    doc = view({ connections: [connectionIn("STALE")] });
+    renderPage();
+    const sources = await screen.findByRole("table", { name: "Data from Jira" });
+    expect(within(sources).getByText("Stale")).toBeInTheDocument();
+    expect(within(sources).getByText("The last successful refresh is older than expected: the figures may be out of date.")).toBeInTheDocument();
+    expect(screen.getByText(/has no current refresh behind it, or its mapping does not fit the site/)).toBeInTheDocument();
+  });
+
+  test.each([
+    ["a first run still in flight (the data is still the never-synced state's)", "NEVER_SYNCED_RUNNING", "No refresh has finished yet: the figures are as they were when each item was linked."],
+    ["a retry in flight after a failure (the data is still the failed state's)", "FAILED_RUNNING", "The last refresh failed and a new one is running: the figures may be out of date."],
+  ] as const)("%s raises the banner and says why in 'Data from Jira'", async (_label, shape, note) => {
+    doc = view({ connections: [connectionIn(shape)] });
+    renderPage();
+    expect(await screen.findByText("A refresh is running. This page updates by itself.")).toBeInTheDocument();
+    expect(screen.getByText(/has no current refresh behind it, or its mapping does not fit the site/)).toBeInTheDocument();
+    expect(within(screen.getByRole("table", { name: "Data from Jira" })).getByText(note)).toBeInTheDocument();
+  });
+
+  test("a DISABLED connection does not raise the banner (its own row says so)", async () => {
+    doc = view({ connections: [connectionIn("DISABLED")] });
+    renderPage();
+    await screen.findByRole("table", { name: "Data from Jira" });
+    expect(screen.queryByText(/has no current refresh behind it/)).not.toBeInTheDocument();
+  });
+
   test("a disabled connection is marked and says its items show what was last read", async () => {
-    doc = view({ connections: [{ ...DEV_CONNECTION, enabled: false }] });
+    doc = view({ connections: [connectionIn("DISABLED")] });
     renderPage();
     expect(await screen.findByText(/The connection is disabled: its items are not refreshed/)).toBeInTheDocument();
     expect(screen.getAllByText("Disabled").length).toBeGreaterThan(0);
@@ -382,7 +409,7 @@ describe("Deviations page - Refresh now (ADMIN only)", () => {
   test("a 409 run-in-progress is a normal state, not an error", async () => {
     localStorage.setItem(ROLES_KEY, JSON.stringify(["ADMIN"]));
     claim = jsonResponse(409, { type: "urn:astrolabe:problem:run-in-progress", title: "Conflict", status: 409, detail: "running" });
-    doc = view({ connections: [{ ...DEV_CONNECTION, lastRun: { ...DEV_CONNECTION.lastRun!, outcome: null, finishedAt: null, running: false } }] });
+    doc = view({ connections: [connectionIn("FAILED_INTERRUPTED")] });
     const user = userEvent.setup();
     renderPage();
     await user.click(await screen.findByRole("button", { name: "Refresh now: Acme Jira" }));
@@ -393,7 +420,7 @@ describe("Deviations page - Refresh now (ADMIN only)", () => {
   test("a refresh past the per-user bucket (429) reads in words, not as a bare status", async () => {
     localStorage.setItem(ROLES_KEY, JSON.stringify(["ADMIN"]));
     claim = jsonResponse(429, { title: "Too Many Requests", status: 429 });
-    doc = view({ connections: [{ ...DEV_CONNECTION, lastRun: { ...DEV_CONNECTION.lastRun!, outcome: null, finishedAt: null, running: false } }] });
+    doc = view({ connections: [connectionIn("FAILED_INTERRUPTED")] });
     const user = userEvent.setup();
     renderPage();
     await user.click(await screen.findByRole("button", { name: "Refresh now: Acme Jira" }));
@@ -402,7 +429,7 @@ describe("Deviations page - Refresh now (ADMIN only)", () => {
 
   test("a disabled connection cannot be refreshed", async () => {
     localStorage.setItem(ROLES_KEY, JSON.stringify(["ADMIN"]));
-    doc = view({ connections: [{ ...DEV_CONNECTION, enabled: false }] });
+    doc = view({ connections: [connectionIn("DISABLED")] });
     renderPage();
     expect(await screen.findByRole("button", { name: "Refresh now: Acme Jira" })).toBeDisabled();
   });
@@ -456,11 +483,13 @@ describe("Deviations page - empty states", () => {
 
   test("no dated claim for a mapping that does not fit, a disabled connection, or a failed last run", async () => {
     bindingsTotal = 4;
-    const run = DEV_CONNECTION.lastRun!;
     for (const connections of [
-      [{ ...DEV_CONNECTION, mappingOk: false }],
-      [DEV_CONNECTION, { ...DEV_CONNECTION, id: 2, name: "Old", enabled: false }],
-      [{ ...DEV_CONNECTION, lastRun: { ...run, outcome: "FAILED" as const, errorCode: "TIMEOUT" } }],
+      [connectionIn("CURRENT", { mappingOk: false })],
+      [DEV_CONNECTION, connectionIn("DISABLED", { id: 2, name: "Old" })],
+      [connectionIn("FAILED")],
+      [connectionIn("STALE")],
+      [connectionIn("NEVER_SYNCED_RUNNING")],
+      [connectionIn("FAILED_RUNNING")],
     ]) {
       doc = view({ items: [], connections });
       const rendered = renderPage();
@@ -490,7 +519,7 @@ describe("Deviations page - empty states", () => {
 
   test("links exist but a refresh never succeeded: only 'no deviations in the data read so far', never agreement", async () => {
     bindingsTotal = 4;
-    doc = view({ items: [], connections: [{ ...DEV_CONNECTION, lastRun: null }] });
+    doc = view({ items: [], connections: [connectionIn("NEVER_SYNCED")] });
     renderPage();
     expect(await screen.findByText("No deviations in the data read so far.")).toBeInTheDocument();
     expect(screen.queryByText("All linked items agree with Jira.")).not.toBeInTheDocument();
@@ -499,7 +528,7 @@ describe("Deviations page - empty states", () => {
   test("the answer for new filters is on its way: the kept answer may not make an empty-state claim, a busy status stands in", async () => {
     const user = userEvent.setup();
     bindingsTotal = 4;
-    doc = view({ items: [], connections: [{ ...DEV_CONNECTION, lastRun: null }] });
+    doc = view({ items: [], connections: [connectionIn("NEVER_SYNCED")] });
     let release!: (response: Response) => void;
     mockFetch.mockImplementation((url: string) => {
       if (url === "/api/v1/views/deviations?severity=INFO") return new Promise<Response>((resolve) => (release = resolve));

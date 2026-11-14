@@ -36,7 +36,7 @@ function runNotes(connection: CapacityDeviationConnection, t: TFunction): string
         notes.push(t("deviations.sources.noteAbandoned"));
         break;
       default:
-        if (connection.status.state === "STALE") notes.push(t("deviations.flowSection.sources.noteStale"));
+        if (connection.status.state === "STALE") notes.push(t("deviations.sources.noteStale"));
     }
   }
   if (!connection.enabled) notes.push(t("deviations.flowSection.sources.noteDisabled"));

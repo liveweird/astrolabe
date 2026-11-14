@@ -36,7 +36,10 @@ function runNotes(connection: DeviationConnection, t: TFunction): string[] {
         notes.push(t("deviations.sources.noteAbandoned"));
         break;
       default:
-        break;
+        // A run in flight hides the failed or missing run behind it, but the server's state still tells why the banner is up (1.17).
+        if (connection.status.state === "STALE") notes.push(t("deviations.sources.noteStale"));
+        else if (connection.status.state === "NEVER_SYNCED") notes.push(t("deviations.sources.noteNever"));
+        else if (connection.status.state === "FAILED") notes.push(t("deviations.sources.noteRetrying"));
     }
   }
   if (!connection.enabled) notes.push(t("deviations.sources.noteDisabled"));
@@ -46,7 +49,7 @@ function runNotes(connection: DeviationConnection, t: TFunction): string[] {
 
 /**
  * "Data from Jira": one row per Jira connection with the state of its newest run (the SERVER's verdict, `lastRun.running`; an unfinished run
- * the server no longer counts as running reads "Interrupted"), the notes that qualify the figures (never refreshed, last refresh failed, the
+ * the server no longer counts as running reads "Interrupted"), the notes that qualify the figures (never refreshed, last refresh failed, stale, the
  * connection disabled, the mapping not fitting the site) and - ADMIN only - Refresh now. A `409 run-in-progress` is a normal state, never an
  * error. The refresh refreshes the `["jira"]` queries only: no plan view is touched.
  */
