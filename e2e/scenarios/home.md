@@ -20,8 +20,18 @@
 1. The login without a person signs in.
    - *Expected*: under "Yours" the sentence "Your login is not linked to a person…"; the group "The plan in figures" holds a count of projects and a count of milestones and the group "The roadmap in figures" a count of ranked projects (each matched as a number with its word, never as a value); no table on the page and no link to the People page (that link is the administrator's).
 
+## Scenario: a figure under Yours opens the list it counts, and the owner's projects open on the roadmap filtered to them
+
+1. The owner signs in and clicks the project row's "1 not scheduled" link (its accessible name carries the project's name).
+   - *Expected*: the Milestones page (h2) with the chip "Project: <name>", the Schedule select reading "Not scheduled" and exactly one row, the unscheduled milestone.
+2. Back on Home they click "Open your projects on the roadmap".
+   - *Expected*: the Roadmap (h2) whose timeline holds exactly one project, the owner's project (its "Open <name>" link), and the Owner filter reads the owner's person.
+3. Back on Home they click the team row's "1 not scheduled" link.
+   - *Expected*: the Milestones page with exactly one row, the unscheduled milestone, on the owner's team (its "Open team <name>" link).
+
 ## Not covered here (and why)
 
 - The values of the plan-wide figures: four workers share the plan; vitest and `HomeViewTest` pin them.
+- The plan card's and the roadmap card's figure links (not scheduled yet, warnings, infos, the two capacity badges) and a work stream's or program's name link: they are plan-wide or need a ranking/capacity write; vitest pins the hrefs and the Roadmap side is `roadmap.md`'s last scenario.
 - The Jira and Flow figures, both "may be out of date" sentences and the capacity badges: they need a connection, a run or a capacity period per test (vitest and the server tests pin them).
 - The administrator's People link and the Polish text (vitest).

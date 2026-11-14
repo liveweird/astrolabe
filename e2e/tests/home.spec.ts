@@ -9,7 +9,7 @@
 // writes no ranking, no holiday and no connection, and needs no lock.
 import { randomUUID } from "node:crypto";
 import type { APIRequestContext, Locator, Page } from "@playwright/test";
-import { apiAsAdmin, axeViolations, deleteViaApi, expect, login, test, uniqueText } from "./helpers";
+import { apiAsAdmin, axeViolations, deleteViaApi, expect, login, openFilters, test, uniqueText } from "./helpers";
 
 interface Account {
   email: string;
@@ -24,6 +24,7 @@ interface World {
   program: string;
   project: string;
   team: string;
+  unscheduled: string;
 }
 
 let world: World;
@@ -75,12 +76,13 @@ async function seedWorld(): Promise<World> {
       "/api/v1/projects",
     );
     const scheduled = await seed(api, `/api/v1/projects/${projectId}/milestones`, { name: uniqueText("e2e-home-scheduled"), teamId, estimateMd: 2 }, "/api/v1/milestones");
-    await seed(api, `/api/v1/projects/${projectId}/milestones`, { name: uniqueText("e2e-home-unscheduled"), teamId, estimateMd: 1 }, "/api/v1/milestones");
+    const unscheduled = uniqueText("e2e-home-unscheduled");
+    await seed(api, `/api/v1/projects/${projectId}/milestones`, { name: unscheduled, teamId, estimateMd: 1 }, "/api/v1/milestones");
     const view = await api.get(`/api/v1/views/project/${projectId}`);
     const { revision } = (await view.json()) as { revision: number };
     const put = await api.put(`/api/v1/milestones/${scheduled}/schedule`, { data: { expectedRevision: revision, startDate: "2027-03-08", endDate: "2027-03-12" } });
     expect(put.status(), await put.text()).toBe(200);
-    return { owner: owner.account, nobody: nobody.account, personName, stream, program, project, team };
+    return { owner: owner.account, nobody: nobody.account, personName, stream, program, project, team, unscheduled };
   } finally {
     await api.dispose();
   }
@@ -162,4 +164,41 @@ test("the Home page shows the plan in figures on its cards and tells a login wit
 
   await expect(page.getByRole("table")).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Open the People page", exact: true })).toHaveCount(0);
+});
+
+// A figure under "Yours" is a link to the list it counts (1.19): the project's and the team's "1 not scheduled" open the Milestones page for that project
+// or team, and "Open your projects on the roadmap" opens the Roadmap filtered to the owner's projects. Every list is narrowed by an id of the throwaway
+// owner's own, so the rows are counted exactly; the plan-wide figures of the cards are not touched here.
+test("a figure under Yours opens the list it counts, and the owner's projects open on the roadmap filtered to them", async ({ page }) => {
+  await login(page, world.owner.email, world.owner.password);
+  const projects = table(page, "Your projects");
+  const teams = table(page, "Your teams");
+  const milestones = page.getByRole("table", { name: "Milestones", exact: true }).locator("tbody tr");
+
+  // The project's count opens the Milestones page for that project, "Not scheduled": one row, the unscheduled milestone.
+  await bodyRows(projects).first().getByRole("link", { name: `1 not scheduled: ${world.project}`, exact: true }).click();
+  await expect(page.getByRole("heading", { level: 2, name: "Milestones", exact: true })).toBeVisible();
+  await expect(page.getByText(`Project: ${world.project}`, { exact: true })).toBeVisible();
+  await openFilters(page);
+  await expect(page.getByRole("combobox", { name: "Schedule", exact: true })).toHaveValue("Not scheduled");
+  await expect(milestones).toHaveCount(1);
+  await expect(milestones.first()).toContainText(world.unscheduled);
+
+  // Back on Home: the owner's projects on the roadmap - one project row, and the Owner filter shows the person.
+  await page.getByRole("link", { name: "Home", exact: true }).click();
+  await page.getByRole("link", { name: "Open your projects on the roadmap", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 2, name: "Roadmap", exact: true })).toBeVisible();
+  const roadmap = page.getByRole("grid", { name: "Roadmap timeline", exact: true });
+  await expect(roadmap.getByRole("link", { name: `Open ${world.project}`, exact: true })).toBeVisible();
+  await expect(roadmap.locator('a[href^="/projects/"]')).toHaveCount(1);
+  await openFilters(page);
+  await expect(page.getByRole("combobox", { name: "Owner", exact: true })).toHaveValue(world.personName);
+
+  // Back on Home: the team's count opens the Milestones page for that team: one row, on that team.
+  await page.getByRole("link", { name: "Home", exact: true }).click();
+  await bodyRows(teams).first().getByRole("link", { name: `1 not scheduled: ${world.team}`, exact: true }).click();
+  await expect(page.getByRole("heading", { level: 2, name: "Milestones", exact: true })).toBeVisible();
+  await expect(milestones).toHaveCount(1);
+  await expect(milestones.first().getByRole("link", { name: `Open team ${world.team}`, exact: true })).toBeVisible();
+  await expect(milestones.first()).toContainText(world.unscheduled);
 });

@@ -10,7 +10,7 @@
   retries a ranking change that the server refuses as stale (another spec wrote the ranking meanwhile; plan writes elsewhere no longer stale it).
   The page lists EVERY project, so each test sets the **program pick** (the browser setting
   `astrolabe.viewSettings.planning.programPick`, the one key the plan pages share) to its own program before opening the page: only its own rows
-  (and the "Unranked" divider) are on screen, whatever other specs or a loaded sample plan hold, and the grid stays on its plain (non-virtual) path.
+  (and the "Unranked" divider) are on screen, whatever other specs or a loaded sample plan hold, and the grid stays on its plain (non-virtual) path. 1.19: the fourth scenario seeds its own person, team, work stream, program, a flagged and a plain project and one milestone (`e2e-rm-flag*` names), removed by the afterEach through the API; it writes no ranking.
 
 ## Scenario: an admin grants the roadmap editor right; the editor ranks two projects from the row menu, moves and drags them, unranks by drag, and meets the stale notice
 
@@ -84,6 +84,13 @@
    - *Expected*: bare's band is a read-only image (named "…, read-only"), not a button; there is no draw surface anywhere; the row menu offers
      **Open project** and no target-window item (the project's own owner may not change its window, `authorization.md`).
 8. The throwaway users, people, team and plan nodes are removed through the API.
+
+## Scenario: a link that names a filter shows it without changing what the browser remembers
+
+1. The administrator signs in, and through the API a program is seeded with a FLAGGED project (target window 2027-06-07 to 2027-06-11 and a milestone 2027-06-14 to 2027-06-18, so its end runs 7 days past the window) and a plain one (no window, no milestone), on a team of the spec's own. The browser remembers the program pick (the stored setting is set to the spec's program) and opens `/roadmap?flagged=true`.
+   - *Expected*: the flagged project is listed and the plain one is not (the link is shown as written, so the remembered pick does not narrow it; other specs' flagged projects may be listed too); the filter panel's "Flagged projects only" switch reads on.
+2. They open **Roadmap** from the Planning section of the sidebar.
+   - *Expected*: the address now carries `programId=<the program>` (the remembered pick), and both projects are listed.
 
 ## Not covered here (and why)
 

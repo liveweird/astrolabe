@@ -10,7 +10,8 @@
 // on a stale-revision answer. Owns: its throwaway people, team, plan nodes (unique `e2e-rm-*` names), milestones and users, deleted by the end of
 // each test and, if a step fails first, by the afterEach below (the plan nodes, team and people, children first - deleting a project also removes
 // it from the ranking and takes its milestones along; the users through the Users page or, for the API-seeded ones, the API). The window test
-// never writes the ranking.
+// never writes the ranking. The fourth test (1.19, the filters in the URL) seeds its own program with a flagged and a plain project and one team
+// (unique `e2e-rm-flag*` names, removed by the afterEach) and writes no ranking.
 import { randomUUID } from "node:crypto";
 import type { APIRequestContext, Locator, Page } from "@playwright/test";
 import { apiAsAdmin, createUserViaUi, deleteUserRow, deleteViaApi, expect, login, openFilters, rowOperation, signOut, test, uniqueText, updateRankingViaApi } from "./helpers";
@@ -458,4 +459,46 @@ test("a roadmap editor who owns nothing drags the band, draws a window, sets one
   await operations(page, bare.name).click();
   await expect(page.getByRole("menuitem", { name: `Open project ${bare.name}`, exact: true })).toBeVisible();
   await expect(page.getByRole("menuitem", { name: /target window/ })).toHaveCount(0);
+});
+
+// ---- the filters in the URL (1.19): a link that names a filter is shown as written and leaves the browser's memory alone ------------------------
+
+/** A program with a FLAGGED project (a window 2027-06-07..11 and a milestone 2027-06-14..18: its end runs 7 days past the window, a warning) and a plain one (no window, no milestone, no flag). */
+async function seedFlaggedWorld(): Promise<{ programId: number; flagged: string; plain: string }> {
+  const { api } = await apiAsAdmin();
+  try {
+    const person = await seed(api, "/api/v1/people", { name: uniqueText("e2e-rm-flagowner") }, "/api/v1/people");
+    const teamId = await seed(api, "/api/v1/teams", { name: uniqueText("e2e-rm-flagteam") }, "/api/v1/teams");
+    const streamId = await seed(api, "/api/v1/work-streams", { name: uniqueText("e2e-rm-flagstream"), ownerPersonId: person, startDate: "2026-01-05" }, "/api/v1/work-streams");
+    const programId = await seed(api, `/api/v1/work-streams/${streamId}/programs`, { name: uniqueText("e2e-rm-flagprogram"), ownerPersonId: person }, "/api/v1/programs");
+    const flagged = uniqueText("e2e-rm-flagged");
+    const plain = uniqueText("e2e-rm-plain");
+    const flaggedId = await seed(api, `/api/v1/programs/${programId}/projects`, { name: flagged, ownerPersonId: person, targetStart: "2027-06-07", targetEnd: "2027-06-11" }, "/api/v1/projects");
+    await seed(api, `/api/v1/programs/${programId}/projects`, { name: plain, ownerPersonId: person }, "/api/v1/projects");
+    await scheduled(api, flaggedId, teamId, "2027-06-14", "2027-06-18");
+    return { programId, flagged, plain };
+  } finally {
+    await api.dispose();
+  }
+}
+
+test("a link that names a filter shows it without changing what the browser remembers", async ({ page }) => {
+  const { programId, flagged, plain } = await seedFlaggedWorld();
+  await login(page);
+
+  // The browser remembers this spec's program pick. A link naming "flagged only" is shown exactly as written: the pick is off, so the plan's flagged
+  // projects are listed (this spec's among them, other specs' too) and the spec's unflagged project is not.
+  await page.evaluate(([key, value]) => localStorage.setItem(key, value), [PICK_KEY, JSON.stringify([programId])]);
+  await page.goto("/roadmap?flagged=true");
+  await expect(page.getByRole("heading", { level: 2, name: "Roadmap", exact: true })).toBeVisible();
+  await expect(rowOf(page, flagged)).toHaveCount(1);
+  await expect(rowOf(page, plain)).toHaveCount(0);
+  await openFilters(page);
+  await expect(page.getByRole("switch", { name: "Flagged projects only", exact: true })).toBeChecked();
+
+  // Opened from the menu, the Roadmap brings the remembered pick back: both of the spec's projects are listed again and the address says which program.
+  await page.getByRole("group", { name: "Planning" }).getByRole("link", { name: "Roadmap", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`[?&]programId=${programId}(&|$)`));
+  await expect(rowOf(page, flagged)).toHaveCount(1);
+  await expect(rowOf(page, plain)).toHaveCount(1);
 });
