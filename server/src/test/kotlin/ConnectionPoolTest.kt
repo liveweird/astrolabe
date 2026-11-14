@@ -22,7 +22,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /**
- * The bounded R2DBC connection pool (`infra/db/Database.kt`, `.claude/docs/persistence.md`
+ * The bounded R2DBC connection pool (`infra/db/ConnectionPool.kt`, `.claude/docs/persistence.md`
  * "Connection pool", ported from Lettuce): before it existed, a plain `r2dbc:postgresql://`
  * connect opened one PostgreSQL backend per `suspendTransaction` with nothing capping how many
  * ran at once — measured in Lettuce, v3.16.1, a 120-parallel burst produced dozens of concurrent
@@ -115,7 +115,7 @@ class ConnectionPoolTest {
             }
             holderStarted.await()
 
-            // Database.kt pins defaultMaxAttempts = 1, so Exposed adds no attempts of its own; the pool itself
+            // ConnectionPool.kt pins defaultMaxAttempts = 1, so Exposed adds no attempts of its own; the pool itself
             // retries a failed acquire once (r2dbc-pool's acquireRetry = 1, kept on purpose: the same retry
             // replaces a connection that fails LOCAL validation), so a timed-out acquire surfaces after ~2x
             // maxAcquireTimeSeconds — .claude/docs/persistence.md "Connection pool". A generous outer bound

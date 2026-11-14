@@ -269,7 +269,7 @@ design is multi-process-safe (two replicas, a rolling deploy) and kept that way 
   (the image's `ASTROLABE_BUILD_VERSION`/`ASTROLABE_BUILD_COMMIT`, stamped with `--build-arg`; null outside the image), the available processors,
   the heap maximum and the container memory limit. The `ops` tables hold only numbers and these labels.
 - **Seams** (lower layers publish, `telemetry/` reads; nothing imports it — `PackageBoundaryTest`): `plugins/Monitoring.kt`'s `MetricRegistryKey`
-  and `infra/db/Database.kt`'s `PoolStatsKey` (pinned present for r2dbc-pool 1.0.2 by `PoolStatsTest`); the test seams are
+  and `infra/db/ConnectionPool.kt`'s `PoolStatsKey` (pinned present for r2dbc-pool 1.0.2 by `PoolStatsTest`); the test seams are
   `TelemetryOverridesKey` (clock, probes, identity, first-tick delay) and `TelemetrySamplerKey` (the running sampler).
 - **Read API (ADMIN; `TelemetryRoutes.kt`, `TelemetryReads.kt`, `TelemetryCurrent.kt`, `TelemetryHistory.kt`, `TelemetryWire.kt`; `authorization.md`).** Two GETs, registered with the feature
   routes, every statement under a 5 s `queryTimeout`. `GET /api/v1/telemetry/current` answers `{generatedAt, sampleIntervalSeconds, processes[], storage, requests, sync}`:

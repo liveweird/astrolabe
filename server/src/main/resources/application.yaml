@@ -343,7 +343,7 @@ postgres:
   # ~63 s) before failing, so a cold start with Postgres not yet accepting connections waits instead
   # of crash-looping (infra/db/Flyway.kt). 0 = fail fast.
   connectRetries: "$POSTGRES_CONNECT_RETRIES:10"
-  # Bounded R2DBC connection pool (infra/db/Database.kt, `.claude/docs/persistence.md`
+  # Bounded R2DBC connection pool (infra/db/ConnectionPool.kt, `.claude/docs/persistence.md`
   # "Connection pool") — a plain r2dbc:postgresql:// connect opens one PostgreSQL backend
   # per suspendTransaction with nothing capping how many run at once. Sizing assumes a
   # SINGLE replica: `maxSize × replicas` must stay well under PostgreSQL's default

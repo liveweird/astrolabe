@@ -16,7 +16,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /**
- * `infra/db/Database.kt`'s `PoolStatsKey`: the telemetry sampler reads r2dbc-pool's `PoolMetrics` through it. This PINS that
+ * `infra/db/ConnectionPool.kt`'s `PoolStatsKey`: the telemetry sampler reads r2dbc-pool's `PoolMetrics` through it. This PINS that
  * `ConnectionPool.getMetrics()` is present with r2dbc-pool 1.0.2 - an upgrade that dropped it would silently blank the
  * pool section of the panel - and that the figures move with the pool.
  */
