@@ -221,7 +221,7 @@ class JiraFlagsScaleTest {
          * flags on a milestone (about 745 KB on the sample plan), which no realistic plan reaches. The wire is gzip: the realistic
          * projection is about 38 KB there (this synthetic world compresses 50:1, the real Platform view 11.6:1), so the gzip gate has
          * little headroom. 1.15 slimmed the blocks (a flag's null members and an evidence's severity are absent, `timeline.md`
-         * "Measured figures (1.15)"): the gate went from 500,000 to 400,000 B (the plan expected about 354,000 B).
+         * "Measured figures (1.15)"): the gate went from 500,000 to 400,000 B (measured 367,689 B on CI).
          */
         private const val TEAM_VIEW_GATE_BYTES = 400_000
         private const val TEAM_VIEW_GZIP_GATE_BYTES = 40_000
