@@ -282,7 +282,7 @@ describe("Milestones page", () => {
   test("a failed read is the inline alert, with no empty-state claim", async () => {
     answer = () => jsonResponse(500, { title: "x", status: 500 });
     renderPage();
-    expect(await screen.findByText("Could not read the milestones")).toBeInTheDocument();
+    expect(await screen.findByText("Could not load the milestones")).toBeInTheDocument();
     expect(screen.queryByText("The plan has no milestones yet")).not.toBeInTheDocument();
   });
 

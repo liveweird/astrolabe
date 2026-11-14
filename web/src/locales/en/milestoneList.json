@@ -21,5 +21,5 @@
   "empty": "The plan has no milestones yet",
   "noMatch": "No milestone matches the filters",
   "clear": "Clear the filters",
-  "loadFailed": "Could not read the milestones"
+  "loadFailed": "Could not load the milestones"
 }

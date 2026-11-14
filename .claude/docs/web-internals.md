@@ -24,6 +24,7 @@ section of the page you touch before changing it, and put a new page's mechanics
 - [Roadmap](#roadmap-pagesroadmaptsx)
 - [Programs](#programs-pagesprogramstsx)
 - [Milestones](#milestones-pagesmilestonestsx-119)
+- [Team load](#team-load-pagesteamloadtsx-119)
 - [Baselines](#baselines-pagesbaselinestsx-pagesbaselinecomparetsx-v09)
 - [Schedule proposals](#schedule-proposals-pagesscheduleproposalstsx-18)
 - [Deviations, bindings and the Jira chips](#deviations-bindings-and-the-jira-chips-pagesdeviationstsx-v110)
@@ -907,6 +908,26 @@ figures use).
   man-days, start, end; a milestone without dates shows one dimmed "Not scheduled" across the two date cells. Under the title: "N milestones" (the server's
   `total`); empty states "The plan has no milestones yet" / "No milestone matches the filters" with a "Clear the filters" button.
 - **Tests**: `Milestones.test.tsx`, `utils/milestoneFilters.test.ts`, `utils/milestoneLinks.test.ts` (fixtures `test/milestones.ts`).
+
+## Team load (`pages/TeamLoad.tsx`, 1.19)
+
+`/team-load` (nav: Planning after Milestones, `IconGauge`, **everyone**, read-only; palette "Team load" / PL "Obciążenie zespołów") lists every team against its
+capacity from the ONE unpaged `GET /views/team-load` (`api/teamLoad.ts` `getTeamLoadView`, key `TEAM_LOAD_KEY = ["plan","teamLoad"]`, under `["plan"]` so a
+schedule or capacity write refreshes it; at most 200 rows with `truncated`, the same document for every caller, no `can`). The figures are the team page's
+own and are shown as they arrive, never recounted: the facts line (`role="group"`, "N teams" and the two orange badges in Home's own strings
+`home.roadmap.overloadedTeams|wipTeams`, each only when positive) reads the document's `totals` over EVERY team, so a filter or the 200-row cap never changes
+it. The one filter, `warning` = `overloaded` | `wip` | `any` (absent or unknown = every team), is in the URL like the Milestones page's
+(`utils/teamLoadFilters.ts` `parseTeamLoadFilter`, `teamLoadFilterParams`, `matchesWarning`; a change `replace`s the entry; no remembered filter) and is applied
+in the browser over the rows, so changing it makes no second read. `any` means an overloaded week or a week over the WIP limit; weeks without capacity are a
+fact, not a warning. `utils/teamLoadLinks.ts` spells the route once (`teamLoadPath`, `teamLoadWarningPath(warning)`, the builder Home's two capacity badges use).
+
+- **Columns**: Team (the link to the team page, `teams.openAria`), Manager (dimmed "No manager" when none), Milestones, Not scheduled (a link to
+  `unscheduledMilestonesPath({teamId})` named by its row, `teamLoad.notScheduledAria`, only when positive; a plain 0 otherwise), Overloaded and WIP (the team
+  page's two orange badges, only when positive) and Capacity (a gray "N weeks without capacity" badge, only when positive: a team with scheduled work and no
+  capacity period can never be overloaded, and the page says so instead of looking fine). No row or page ever says "fits"; no chart; every figure is worded.
+- **States**: loading (`LoadingBlock`, no facts line and no claim until the read answers), a failed read (`ErrorAlert`, no empty claim), no team at all
+  (`totals.teams === 0`), nothing matches the filter (with "Show every team"), `truncated` (one dimmed line with the rows shown).
+- **Tests**: `TeamLoad.test.tsx`, `api/teamLoad.test.ts`, `utils/teamLoadFilters.test.ts`, `utils/teamLoadLinks.test.ts` (fixtures `test/teamLoad.ts`).
 
 ## Baselines (`pages/Baselines.tsx`, `pages/BaselineCompare.tsx`, v0.9)
 

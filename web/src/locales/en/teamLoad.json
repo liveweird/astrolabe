@@ -1,0 +1,32 @@
+{
+  "title": "Team load",
+  "intro": "Each team's scheduled work against its capacity: the weeks its page marks as overloaded or over the WIP limit. Overload and WIP only warn — nothing moves.",
+  "filter": {
+    "warning": "Show"
+  },
+  "warning": {
+    "all": "Every team",
+    "overloaded": "With an overloaded week",
+    "wip": "Over the WIP limit",
+    "any": "With any warning"
+  },
+  "facts": {
+    "teams_one": "{{count}} team",
+    "teams_other": "{{count}} teams"
+  },
+  "factsAria": "Team load in figures",
+  "tableAria": "Load of every team",
+  "column": {
+    "overloaded": "Overloaded",
+    "wip": "WIP",
+    "capacity": "Capacity"
+  },
+  "withoutCapacity_one": "{{count}} week without capacity",
+  "withoutCapacity_other": "{{count}} weeks without capacity",
+  "empty": "There are no teams yet",
+  "noMatch": "No team has this warning",
+  "showAll": "Show every team",
+  "truncated": "The list shows its first {{count}} teams.",
+  "loadFailed": "Could not load the teams' load",
+  "notScheduledAria": "{{count}} not scheduled: team {{name}}"
+}
