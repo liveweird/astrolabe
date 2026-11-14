@@ -17,6 +17,30 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.15.0",
+    date: "2026-11-14",
+    en: `**Astrolabe 1.15.0: more ways into the Jira import, a suggested link for an item renamed in Jira, an import from a linked item that never writes outside it, and lighter Jira data on the timelines.**
+
+- Plan page: a project linked to Jira has "Import from Jira…" in its row menu, for whoever may add milestones to it. It imports what Jira lists under that project, as the button on the project page does.
+- Jira connection page (administrators): each program and project in "Links to plan items" has its own "Import from Jira…" button, which starts the import from that item.
+- Import from Jira: when a Jira item would be created but the plan already has an unlinked item with the same words in its name under the same parent (upper and lower case, accents, punctuation and word order do not matter; the longer name may only add words; numbers and single letters must be equal), the row says "Looks like … in the plan, which is not linked yet" and offers "Link instead". Press it, then "Preview again": the preview then shows the row as a link and places what is under it beneath the existing item. "Create instead" and "Undo" take it back, and "Possible matches only" lists just those rows. Import stays disabled until the preview shows your change, and your ticks, team and owner choices on the other rows are kept.
+- Import from a linked program: a Jira item that belongs under a project of another program is now skipped, with a sentence saying so, instead of refusing the whole preview or being created under that other program's project. An import started from an item never writes outside it, for administrators too.
+- The Plan page reads which programs and projects are linked to Jira with one small request instead of computing every deviation, so it opens faster.
+- API (\`/api/v1\`): \`GET /views/jira-links\` (every program and project link with its connection, any signed-in user); \`can.createMilestone\` on the plan view's projects; the import's \`suggestion\` on a preview row, \`matches\` on the preview and the apply, the info \`MATCH_CONFIRMED\` and the skip reason \`OUTSIDE_ROOT\`. On the timeline views and \`GET /views/deviations\`, a flag's and a deviation detail's empty members are now left out instead of sent as null, and a flag's evidence no longer repeats the severity. If a tab was open during the upgrade, reload it.
+- Nothing is written to Jira or Flow.
+- Proven against a built-in Jira stub; not yet tested against a real Jira site.`,
+    pl: `**Astrolabe 1.15.0: więcej sposobów na import z Jiry, podpowiedź powiązania dla elementu przemianowanego w Jirze, import spod powiązanego elementu, który nigdy nie zapisuje poza nim, oraz lżejsze dane Jiry na osiach czasu.**
+
+- Strona Plan: projekt powiązany z Jirą ma w menu wiersza „Importuj z Jiry…” dla każdego, kto może dodawać do niego kamienie milowe. Importuje to, co Jira ma pod tym projektem, tak jak przycisk na stronie projektu.
+- Strona połączenia z Jirą (administratorzy/ki): każdy program i projekt w „Powiązania z elementami planu” ma własny przycisk „Importuj z Jiry…”, który zaczyna import od tego elementu.
+- Import z Jiry: gdy element z Jiry miałby powstać, a plan ma już pod tym samym rodzicem niepowiązany element z tymi samymi słowami w nazwie (wielkość liter, polskie znaki, interpunkcja i kolejność słów nie mają znaczenia; dłuższa nazwa może tylko dodawać słowa; liczby i pojedyncze litery muszą się zgadzać), wiersz mówi „Przypomina element planu …, który nie jest jeszcze powiązany” i proponuje „Powiąż zamiast tego”. Kliknij, a potem „Pokaż podgląd ponownie”: podgląd pokaże wtedy wiersz jako powiązanie i umieści to, co jest pod nim, pod istniejącym elementem. „Utwórz zamiast tego” i „Cofnij” to odwracają, a „Tylko możliwe powiązania” pokazuje tylko takie wiersze. Importuj pozostaje wyłączone, dopóki podgląd nie pokaże zmiany, a zaznaczenia oraz wybrane zespoły i właściciele/ki pozostałych wierszy zostają.
+- Import spod powiązanego programu: element z Jiry, który należy do projektu z innego programu, jest teraz pomijany, z wyjaśnieniem, zamiast odrzucać cały podgląd albo powstawać pod projektem tamtego programu. Import zaczęty od elementu nigdy nie zapisuje poza nim, także dla administratorów/ek.
+- Strona Plan sprawdza, które programy i projekty są powiązane z Jirą, jednym małym zapytaniem zamiast liczyć wszystkie odchylenia, więc otwiera się szybciej.
+- API (\`/api/v1\`): \`GET /views/jira-links\` (każde powiązanie programu i projektu z jego połączeniem, dla każdego zalogowanego konta); \`can.createMilestone\` przy projektach w widoku planu; \`suggestion\` w wierszu podglądu importu, \`matches\` w podglądzie i zastosowaniu, informacja \`MATCH_CONFIRMED\` i powód pominięcia \`OUTSIDE_ROOT\`. W widokach osi czasu i \`GET /views/deviations\` puste pola flagi i szczegółów odchylenia są teraz pomijane zamiast wysyłane jako null, a dowód flagi nie powtarza już wagi. Jeśli karta była otwarta podczas aktualizacji, odśwież ją.
+- Niczego nie zapisujemy w Jirze ani we Flow.
+- Sprawdzone na wbudowanej atrapie Jiry; jeszcze nie przetestowane na prawdziwej witrynie Jira.`,
+  },
+  {
     version: "1.14.0",
     date: "2026-11-13",
     en: `**Astrolabe 1.14.0: import what Jira lists under a linked program or project, see how much of a Jira site the plan covers, choose an owner per row and copy a new project's target window in the import, and a new "Children open" deviation.**
