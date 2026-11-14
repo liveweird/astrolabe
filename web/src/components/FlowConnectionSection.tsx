@@ -4,6 +4,7 @@ import { Alert, Anchor, Button, Group, Stack, Table, Text, Title } from "@mantin
 import { IconPlayerPlay, IconPlugConnected } from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { testFlowConnection, type FlowConnection, type FlowTestResult } from "../api/flow";
+import { HOME_VIEW_KEY } from "../api/home";
 import { isRunInProgress, requestSyncRun } from "../api/sync";
 import { useSyncRuns, syncRunsKey } from "../hooks/useSyncRuns";
 import { flowReady, flowTestErrorMessage, untestedKey } from "../utils/flowForm";
@@ -70,7 +71,7 @@ export default function FlowConnectionSection({ connection, readAt }: { connecti
     onSuccess: async (result) => {
       setTestResult(result);
       // The verdict moved with a stored test (and with it whether the connection is polled).
-      await refreshQueriesAfterMutation(queryClient, ["flow", "connection", connection.id], ["flow", "list"]);
+      await refreshQueriesAfterMutation(queryClient, ["flow", "connection", connection.id], ["flow", "list"], HOME_VIEW_KEY);
     },
   });
   const refresh = useMutation({
@@ -82,7 +83,7 @@ export default function FlowConnectionSection({ connection, readAt }: { connecti
     },
     // Either way the registry now holds a run: re-read it, and the list's own polling takes over while it is unfinished.
     // The connection's status and the registry moved with it too (a run that finished before the first poll never shows as live).
-    onSettled: () => refreshQueriesAfterMutation(queryClient, syncRunsKey("FLOW", connection.id), ["flow", "connection", connection.id], ["flow", "list"], ["flow", "teams", connection.id]),
+    onSettled: () => refreshQueriesAfterMutation(queryClient, syncRunsKey("FLOW", connection.id), ["flow", "connection", connection.id], ["flow", "list"], ["flow", "teams", connection.id], HOME_VIEW_KEY),
   });
   // The 409 is a state, not a failure; the note stays only while the server still says a run is running.
   const alreadyRunning = alreadyRunningNoted && live;
@@ -93,7 +94,7 @@ export default function FlowConnectionSection({ connection, readAt }: { connecti
   const wasRunning = useRef(false);
   useEffect(() => {
     if (wasRunning.current && !live) {
-      void refreshQueriesAfterMutation(queryClient, ["flow", "connection", connection.id], ["flow", "list"], ["flow", "teams", connection.id]);
+      void refreshQueriesAfterMutation(queryClient, ["flow", "connection", connection.id], ["flow", "list"], ["flow", "teams", connection.id], HOME_VIEW_KEY);
     }
     wasRunning.current = live;
   }, [live, queryClient, connection.id]);

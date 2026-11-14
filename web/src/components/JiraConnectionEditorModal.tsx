@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Button, Modal, PasswordInput, Select, Stack, Switch, TagsInput, Text, TextInput } from "@mantine/core";
 import { useForm } from "@mantine/form";
+import { HOME_VIEW_KEY } from "../api/home";
 import { ApiError } from "../api/http";
 import {
   createJiraConnection,
@@ -126,7 +127,10 @@ export default function JiraConnectionEditorModal({
       const result = stored ? await testJiraConnection(target.id) : await testJiraConnectionAdHoc(toJiraConnectionRequest(form.values));
       setTestResult(result);
       // A stored test records the verdict and the discovery on the connection: the pages that show them follow.
-      if (stored) void queryClient.invalidateQueries({ queryKey: ["jira"] });
+      if (stored) {
+        void queryClient.invalidateQueries({ queryKey: ["jira"] });
+        void queryClient.invalidateQueries({ queryKey: HOME_VIEW_KEY });
+      }
     } catch (err) {
       setTestError(jiraTestErrorMessage(err, t));
     } finally {

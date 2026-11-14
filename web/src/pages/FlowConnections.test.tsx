@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
+import type { QueryClient } from "@tanstack/react-query";
 import { Route, Routes, useLocation } from "react-router-dom";
 import { act, renderWithProviders, screen, waitFor, within } from "../test/render";
 import { jsonResponse } from "../test/http";
 import { headingOutline } from "../test/headings";
+import { clientWithKeptHome, homeReadIsStale } from "../test/home";
 import { CONNECTION, TEAMS } from "../test/flow";
 import { IDLE_REFRESH_MS } from "../utils/syncRuns";
 import FlowConnections from "./FlowConnections";
@@ -48,13 +50,13 @@ function Probe() {
   return <p>at {pathname}</p>;
 }
 
-function renderPage() {
+function renderPage(queryClient?: QueryClient) {
   return renderWithProviders(
     <Routes>
       <Route path="/integrations/flow" element={<FlowConnections />} />
       <Route path="/integrations/flow/:id" element={<Probe />} />
     </Routes>,
-    { route: "/integrations/flow" },
+    { route: "/integrations/flow", queryClient },
   );
 }
 
@@ -178,10 +180,11 @@ describe("Flow connections page", () => {
     expect(mockFetch.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === "POST")).toBe(false);
   });
 
-  test("edit PUTs a full replace without the token", async () => {
+  test("edit PUTs a full replace without the token and marks Home stale", async () => {
     serve(mockFetch, { [`PUT ${LIST}/1`]: { status: 204 } });
     const user = userEvent.setup();
-    renderPage();
+    const queryClient = clientWithKeptHome();
+    renderPage(queryClient);
     await user.click(await screen.findByRole("button", { name: "Operations for Acme Flow" }));
     await user.click(await screen.findByRole("menuitem", { name: "Edit Acme Flow" }));
     const dialog = await screen.findByRole("dialog");
@@ -189,6 +192,7 @@ describe("Flow connections page", () => {
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
     await waitFor(() => expect(call(mockFetch, "PUT", `${LIST}/1`)).toBeDefined());
     const sent = JSON.parse((call(mockFetch, "PUT", `${LIST}/1`)![1] as RequestInit).body as string);
+    await waitFor(() => expect(homeReadIsStale(queryClient)).toBe(true));
     expect(sent).not.toHaveProperty("apiToken");
     expect(sent).toMatchObject({ name: "Acme Flow", baseUrl: "https://flow.acme.example", enabled: true, pollIntervalMinutes: 60 });
   });
@@ -198,7 +202,8 @@ describe("Flow connections page", () => {
     const confirmSpy = vi.fn();
     vi.stubGlobal("confirm", confirmSpy);
     const user = userEvent.setup();
-    renderPage();
+    const queryClient = clientWithKeptHome();
+    renderPage(queryClient);
     await user.click(await screen.findByRole("button", { name: "Operations for Acme Flow" }));
     await user.click(await screen.findByRole("menuitem", { name: "Delete Acme Flow" }));
     const dialog = await screen.findByRole("dialog");
@@ -207,6 +212,7 @@ describe("Flow connections page", () => {
     expect(call(mockFetch, "GET", "/api/v1/integrations/flow/teams?connectionId=1")).toBeDefined();
     await user.click(within(dialog).getByRole("button", { name: "Delete" }));
     await waitFor(() => expect(call(mockFetch, "DELETE", `${LIST}/1`)).toBeDefined());
+    await waitFor(() => expect(homeReadIsStale(queryClient)).toBe(true));
     expect(confirmSpy).not.toHaveBeenCalled();
   });
 

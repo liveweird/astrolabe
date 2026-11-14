@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
+import type { QueryClient } from "@tanstack/react-query";
 import { Link, Route, Routes } from "react-router-dom";
 import { renderWithProviders, screen, waitFor, within } from "../test/render";
 import { jsonResponse } from "../test/http";
 import { headingOutline } from "../test/headings";
+import { clientWithKeptHome, homeReadIsStale } from "../test/home";
 import { CONNECTION, TEAMS, run } from "../test/flow";
 import FlowConnectionDetails from "./FlowConnectionDetails";
 
@@ -25,7 +27,7 @@ function serve(mockFetch: FetchMock, connection: typeof CONNECTION | null = CONN
   });
 }
 
-function renderPage(route = "/integrations/flow/1") {
+function renderPage(route = "/integrations/flow/1", queryClient?: QueryClient) {
   return renderWithProviders(
     <Routes>
       <Route
@@ -39,7 +41,7 @@ function renderPage(route = "/integrations/flow/1") {
       />
       <Route path="/integrations/flow" element={<p>the list</p>} />
     </Routes>,
-    { route },
+    { route, queryClient },
   );
 }
 
@@ -79,10 +81,11 @@ describe("Flow connection page", () => {
     expect(await screen.findByText("Refresh the connection first")).toBeInTheDocument();
   });
 
-  test("Edit opens the editor on the connection, and a save re-reads the page", async () => {
+  test("Edit opens the editor on the connection, and a save re-reads the page and marks Home stale", async () => {
     serve(mockFetch);
     const user = userEvent.setup();
-    renderPage();
+    const queryClient = clientWithKeptHome();
+    renderPage(undefined, queryClient);
     await user.click(await screen.findByRole("button", { name: "Edit" }));
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByLabelText("Name")).toHaveValue("Acme Flow");
@@ -91,6 +94,7 @@ describe("Flow connection page", () => {
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     await waitFor(() => expect(reads()).toBeGreaterThan(before));
+    expect(homeReadIsStale(queryClient)).toBe(true);
   });
 
   test("Cancel closes the editor without writing anything", async () => {

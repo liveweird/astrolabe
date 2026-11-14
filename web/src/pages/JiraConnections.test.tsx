@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
+import type { QueryClient } from "@tanstack/react-query";
 import { Route, Routes, useLocation } from "react-router-dom";
 import { act, renderWithProviders, screen, waitFor, within } from "../test/render";
 import { jsonResponse } from "../test/http";
 import { headingOutline } from "../test/headings";
+import { clientWithKeptHome, homeReadIsStale } from "../test/home";
 import { CONNECTION } from "../test/jira";
 import { IDLE_REFRESH_MS } from "../utils/syncRuns";
 import JiraConnections from "./JiraConnections";
@@ -46,13 +48,13 @@ function Probe() {
   return <p>at {pathname}</p>;
 }
 
-function renderPage() {
+function renderPage(queryClient?: QueryClient) {
   return renderWithProviders(
     <Routes>
       <Route path="/integrations/jira" element={<JiraConnections />} />
       <Route path="/integrations/jira/:id" element={<Probe />} />
     </Routes>,
-    { route: "/integrations/jira" },
+    { route: "/integrations/jira", queryClient },
   );
 }
 
@@ -193,10 +195,11 @@ describe("Jira connections page", () => {
     expect(JSON.parse((call(mockFetch, "POST", "/api/v1/integrations/jira/connections")![1] as RequestInit).body as string)).toMatchObject({ siteUrl: "https://acme2.atlassian.net", authScheme: "BASIC", enabled: true });
   });
 
-  test("edit PUTs a full replace without the token", async () => {
+  test("edit PUTs a full replace without the token and marks Home stale", async () => {
     serve(mockFetch, { "PUT /api/v1/integrations/jira/connections/1": { status: 204 } });
     const user = userEvent.setup();
-    renderPage();
+    const queryClient = clientWithKeptHome();
+    renderPage(queryClient);
     await user.click(await screen.findByRole("button", { name: "Operations for Acme Jira" }));
     await user.click(await screen.findByRole("menuitem", { name: "Edit Acme Jira" }));
     const dialog = await screen.findByRole("dialog");
@@ -204,6 +207,7 @@ describe("Jira connections page", () => {
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
     await waitFor(() => expect(call(mockFetch, "PUT", "/api/v1/integrations/jira/connections/1")).toBeDefined());
     const sent = JSON.parse((call(mockFetch, "PUT", "/api/v1/integrations/jira/connections/1")![1] as RequestInit).body as string);
+    await waitFor(() => expect(homeReadIsStale(queryClient)).toBe(true));
     expect(sent).not.toHaveProperty("apiToken");
     expect(sent).toMatchObject({ name: "Acme Jira", authScheme: "BASIC", enabled: true, projectKeys: ["E2E", "PF"] });
   });
@@ -213,7 +217,8 @@ describe("Jira connections page", () => {
     const confirmSpy = vi.fn();
     vi.stubGlobal("confirm", confirmSpy);
     const user = userEvent.setup();
-    renderPage();
+    const queryClient = clientWithKeptHome();
+    renderPage(queryClient);
     await user.click(await screen.findByRole("button", { name: "Operations for Acme Jira" }));
     await user.click(await screen.findByRole("menuitem", { name: "Delete Acme Jira" }));
     const dialog = await screen.findByRole("dialog");
@@ -221,6 +226,7 @@ describe("Jira connections page", () => {
     expect(call(mockFetch, "GET", "/api/v1/integrations/jira/bindings?page=1&pageSize=1&connectionId=1")).toBeDefined();
     await user.click(within(dialog).getByRole("button", { name: "Delete" }));
     await waitFor(() => expect(call(mockFetch, "DELETE", "/api/v1/integrations/jira/connections/1")).toBeDefined());
+    await waitFor(() => expect(homeReadIsStale(queryClient)).toBe(true));
     expect(confirmSpy).not.toHaveBeenCalled();
   });
 

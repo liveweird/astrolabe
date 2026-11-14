@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { acknowledgeDeviation, isStaleDeviations, unacknowledgeDeviation, type DeviationItem, type DeviationLine } from "../api/deviations";
+import { HOME_VIEW_KEY } from "../api/home";
 import { ApiError } from "../api/http";
 import { deviationAckAllKey, deviationAckKey } from "../utils/deviations";
 import { refreshJiraAndTimelines, refreshQueriesAfterMutation } from "../utils/queryRefresh";
@@ -123,7 +124,7 @@ export function useAcknowledge(fallback: RefObject<HTMLElement | null>, scope: s
       if (current) setNotice({ key, kind: "failure", text });
       if (err instanceof ApiError && (err.status === 403 || err.status === 404)) {
         if (current) pending.current = [key, ...neighbours];
-        await refresh(() => refreshQueriesAfterMutation(queryClient, ["jira"]));
+        await refresh(() => refreshQueriesAfterMutation(queryClient, ["jira"], HOME_VIEW_KEY));
       }
     },
   });

@@ -109,7 +109,7 @@ describe("useCapacityAcknowledge", () => {
     renderHarness();
     await userEvent.click(screen.getByRole("button", { name: "ack 2" }));
     await waitFor(() => expect(screen.getByTestId("notice")).toHaveTextContent("5:90002 failure: Only the team's manager or an administrator can acknowledge its capacity differences."));
-    expect(invalidated).toEqual([["flow", "teams"], ["flow", "team"], ["flow", "deviations"]]);
+    expect(invalidated).toEqual([["flow", "teams"], ["flow", "team"], ["flow", "deviations"], ["plan", "home"]]);
   });
 
   test("a 404 reads as the link being gone when acknowledging and as already withdrawn when withdrawing", async () => {
@@ -228,7 +228,7 @@ describe("useCapacityAcknowledge", () => {
     renderHarness();
     await userEvent.click(screen.getByRole("button", { name: "ack all" }));
     await waitFor(() => expect(screen.getByTestId("notice")).toHaveTextContent("5:all failure: Only the team's manager or an administrator can acknowledge its capacity differences."));
-    expect(invalidated).toEqual([["flow", "teams"], ["flow", "team"], ["flow", "deviations"]]);
+    expect(invalidated).toEqual([["flow", "teams"], ["flow", "team"], ["flow", "deviations"], ["plan", "home"]]);
   });
 
   test("withdraw all is ONE POST naming every row by sprint only, keyed by the binding, with the same re-read (the 204 has no body)", async () => {

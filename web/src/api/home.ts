@@ -16,7 +16,8 @@ export const HOME_VIEW_KEY = ["plan", "home"] as const;
 /**
  * How long Home keeps its read (ms), like the two deviation counts beside it (`useOpenDeviationCounts`): coming back to Home or refocusing the tab inside
  * the minute makes no request. A change the user makes themselves still shows at once, because every write that moves a Home figure refreshes `["plan"]`
- * or names this key (the ranking, the Teams registry, the People pages, the login-person link); another person's change shows after at most a minute.
+ * or names this key (the ranking, the Teams registry, the People pages, the login-person link, and the Jira and Flow connection, mapping, run, team-link
+ * and refused-acknowledge writes); another person's change, a scheduled poll and a run that ends after the user left its page show after at most a minute.
  */
 export const HOME_STALE_MS = 60_000;
 

@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
+import type { QueryClient } from "@tanstack/react-query";
 import { renderWithProviders, screen, waitFor, within } from "../test/render";
 import { jsonResponse } from "../test/http";
+import { clientWithKeptHome, homeReadIsStale } from "../test/home";
 import { CONNECTION, FAILING_TEST, PASSING_TEST } from "../test/jira";
 import type { JiraConnection } from "../api/jira";
 import JiraConnectionEditorModal from "./JiraConnectionEditorModal";
@@ -32,8 +34,8 @@ describe("JiraConnectionEditorModal", () => {
     localStorage.clear();
   });
 
-  function open(target: JiraConnection | null) {
-    renderWithProviders(<JiraConnectionEditorModal target={target} onClose={onClose} onSaved={onSaved} />);
+  function open(target: JiraConnection | null, queryClient?: QueryClient) {
+    renderWithProviders(<JiraConnectionEditorModal target={target} onClose={onClose} onSaved={onSaved} />, { queryClient });
     return { user: userEvent.setup(), dialog: screen.getByRole("dialog") };
   }
 
@@ -113,22 +115,26 @@ describe("JiraConnectionEditorModal", () => {
     expect(body(mockFetch, "PUT", "/api/v1/integrations/jira/connections/1").apiToken).toBe("new-token");
   });
 
-  test("Test connection with a typed token probes ad hoc and shows every row", async () => {
+  test("Test connection with a typed token probes ad hoc and shows every row and leaves Home alone (nothing is stored)", async () => {
     mockFetch.mockResolvedValue(jsonResponse(200, { ...PASSING_TEST, recorded: false }));
-    const { user, dialog } = open(null);
+    const queryClient = clientWithKeptHome();
+    const { user, dialog } = open(null, queryClient);
     await fillCreate(user, dialog);
     await user.click(within(dialog).getByRole("button", { name: "Test connection" }));
     const table = await within(dialog).findByRole("table", { name: "Connection test results" });
     expect(within(table).getAllByText("OK")).toHaveLength(4);
     expect(call(mockFetch, "POST", "/api/v1/integrations/jira/connections/test")).toBeDefined();
     expect(body(mockFetch, "POST", "/api/v1/integrations/jira/connections/test").apiToken).toBe("tok-123");
+    expect(homeReadIsStale(queryClient)).toBe(false);
   });
 
-  test("Test connection when editing with a blank token probes the STORED connection (no body)", async () => {
+  test("Test connection when editing with a blank token probes the STORED connection (no body) and marks Home stale", async () => {
     mockFetch.mockResolvedValue(jsonResponse(200, FAILING_TEST));
-    const { user, dialog } = open(CONNECTION);
+    const queryClient = clientWithKeptHome();
+    const { user, dialog } = open(CONNECTION, queryClient);
     await user.click(within(dialog).getByRole("button", { name: "Test connection" }));
     expect(await within(dialog).findByText(/needs scope: read:jql:jira/)).toBeInTheDocument();
+    expect(homeReadIsStale(queryClient)).toBe(true);
     const stored = call(mockFetch, "POST", "/api/v1/integrations/jira/connections/1/test");
     expect(stored).toBeDefined();
     expect((stored![1] as RequestInit).body).toBeUndefined();

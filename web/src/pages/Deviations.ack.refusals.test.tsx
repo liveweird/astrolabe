@@ -94,7 +94,7 @@ describe("Deviations page - acknowledge refusals", () => {
       expect(screen.queryByText(/changed since you looked/)).not.toBeInTheDocument();
     });
 
-    test("a DELETE's 404 says the acknowledgement was already withdrawn (not that the link is gone), and re-reads the Jira queries", async () => {
+    test("a DELETE's 404 says the acknowledgement was already withdrawn (not that the link is gone), and re-reads the Jira queries and marks Home stale", async () => {
       const cancel = vi.spyOn(h.queryClient, "cancelQueries");
       h.doc = view({ items: [row(1, "E2E-3", acknowledged())] });
       h.onWrite = () => jsonResponse(404, { title: "x", status: 404 });
@@ -104,10 +104,10 @@ describe("Deviations page - acknowledge refusals", () => {
       expect(await screen.findByRole("alert")).toHaveTextContent("That acknowledgement was already withdrawn. The list has been read again.");
       expect(screen.queryByText(/no longer exists/)).not.toBeInTheDocument();
       expect(writes()[0][1].method).toBe("DELETE");
-      await waitFor(() => expect(keysOf(cancel)).toEqual(['["jira"]']));
+      await waitFor(() => expect(keysOf(cancel)).toEqual(['["jira"]', '["plan","home"]']));
     });
 
-    test("a 403 or 404 re-reads the Jira queries only (the rights or the link changed), a 500 re-reads nothing", async () => {
+    test("a 403 or 404 re-reads the Jira queries and marks Home stale (the rights or the link changed), a 500 re-reads nothing", async () => {
       const cancel = vi.spyOn(h.queryClient, "cancelQueries");
       const user = userEvent.setup();
       renderPage();
@@ -119,7 +119,7 @@ describe("Deviations page - acknowledge refusals", () => {
       h.onWrite = () => jsonResponse(403, { title: "x", status: 403 });
       await user.click(screen.getByRole("button", { name: "Acknowledge E2E-3: End" }));
       await waitFor(() => expect(cancel).toHaveBeenCalled());
-      expect(keysOf(cancel)).toEqual(['["jira"]']);
+      expect(keysOf(cancel)).toEqual(['["jira"]', '["plan","home"]']);
     });
   });
 

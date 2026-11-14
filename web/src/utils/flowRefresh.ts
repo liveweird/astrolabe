@@ -1,14 +1,16 @@
 import type { QueryClient } from "@tanstack/react-query";
+import { HOME_VIEW_KEY } from "../api/home";
 import { refreshQueriesAfterMutation } from "./queryRefresh";
 
 /**
  * After a write that changes which Flow team an Astrolabe team is linked to - a link, an unlink, "Link all suggested": the connection pages'
  * team lists (`["flow","teams"]`), the team pages' Flow panels (`["flow","team"]`, keyed by the team) and the capacity deviations
- * (`["flow","deviations"]`: a link or an unlink changes which teams they compare). Nothing of the timeline views moves (a link carries no plan
- * state), so unlike a Jira bind this never touches `["plan"]` or `["roadmap"]`.
+ * (`["flow","deviations"]`: a link or an unlink changes which teams they compare), and Home's kept read (`HOME_VIEW_KEY`: its Flow sentence follows
+ * the links). Nothing of the timeline views moves (a link carries no plan state), so unlike a Jira bind this never touches `["plan"]` or
+ * `["roadmap"]`.
  */
 export function refreshFlowLinks(queryClient: QueryClient): Promise<void> {
-  return refreshQueriesAfterMutation(queryClient, ["flow", "teams"], ["flow", "team"], ["flow", "deviations"]);
+  return refreshQueriesAfterMutation(queryClient, ["flow", "teams"], ["flow", "team"], ["flow", "deviations"], HOME_VIEW_KEY);
 }
 
 /**

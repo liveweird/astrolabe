@@ -5,6 +5,7 @@ import { Anchor, Badge, Button, Group, Menu, Stack, Table, Text } from "@mantine
 import { IconExternalLink, IconPencil, IconPlugConnected, IconPlus, IconTrash } from "@tabler/icons-react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAdmin } from "../auth";
+import { HOME_VIEW_KEY } from "../api/home";
 import { deleteJiraConnection, listJiraBindings, listJiraConnections, type JiraConnection } from "../api/jira";
 import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
 import ConnectionTestBadge from "../components/ConnectionTestBadge";
@@ -101,7 +102,7 @@ export default function JiraConnections() {
   const titleRef = useRef<HTMLHeadingElement>(null);
   const remove = useDeleteConfirm<JiraConnection>({
     mutationFn: (row) => deleteJiraConnection(row.id),
-    onSuccess: () => refreshQueriesAfterMutation(queryClient, ["jira"]),
+    onSuccess: () => refreshQueriesAfterMutation(queryClient, ["jira"], HOME_VIEW_KEY),
     successMessage: t("jira.toast.deleted"),
     focusAfterDelete: titleRef,
   });
@@ -214,7 +215,7 @@ export default function JiraConnections() {
           onClose={() => setEditorTarget(null)}
           onSaved={async (saved) => {
             setEditorTarget(null);
-            await refreshQueriesAfterMutation(queryClient, ["jira"]);
+            await refreshQueriesAfterMutation(queryClient, ["jira"], HOME_VIEW_KEY);
             // A NEW connection lands on its page: test it, then map it.
             if (saved) navigate(jiraConnectionPath(saved.id));
           }}

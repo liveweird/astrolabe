@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Button, Modal, PasswordInput, Stack, Switch, Text, TextInput } from "@mantine/core";
 import { useForm } from "@mantine/form";
+import { HOME_VIEW_KEY } from "../api/home";
 import { ApiError } from "../api/http";
 import {
   createFlowConnection,
@@ -133,7 +134,10 @@ export default function FlowConnectionEditorModal({
       const result = stored ? await testFlowConnection(target.id) : await testFlowConnectionAdHoc(toFlowConnectionRequest(form.values));
       setTestResult(result);
       // A stored test records the verdict on the connection: the pages that show it follow.
-      if (stored) void queryClient.invalidateQueries({ queryKey: ["flow"] });
+      if (stored) {
+        void queryClient.invalidateQueries({ queryKey: ["flow"] });
+        void queryClient.invalidateQueries({ queryKey: HOME_VIEW_KEY });
+      }
     } catch (err) {
       // A 400 carries the server's own sentence (an origin the operator did not list, a malformed token...): shown under the fixed lead, as a save does.
       const lead = flowTestErrorMessage(err, t);

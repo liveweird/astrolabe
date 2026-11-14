@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
+import type { QueryClient } from "@tanstack/react-query";
 import { renderWithProviders, screen, waitFor, within } from "../test/render";
 import { jsonResponse } from "../test/http";
+import { clientWithKeptHome, homeReadIsStale } from "../test/home";
 import { CONNECTION, PASSING_TEST, REVOKED_TEST } from "../test/flow";
 import type { FlowConnection } from "../api/flow";
 import FlowConnectionEditorModal from "./FlowConnectionEditorModal";
@@ -40,8 +42,8 @@ describe("FlowConnectionEditorModal", () => {
     localStorage.clear();
   });
 
-  function open(target: FlowConnection | null) {
-    renderWithProviders(<FlowConnectionEditorModal target={target} onClose={onClose} onSaved={onSaved} />);
+  function open(target: FlowConnection | null, queryClient?: QueryClient) {
+    renderWithProviders(<FlowConnectionEditorModal target={target} onClose={onClose} onSaved={onSaved} />, { queryClient });
     return { user: userEvent.setup(), dialog: screen.getByRole("dialog") };
   }
 
@@ -236,9 +238,10 @@ describe("FlowConnectionEditorModal", () => {
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
-  test("Test connection with a typed token probes ad hoc and shows the rows with the document's size", async () => {
+  test("Test connection with a typed token probes ad hoc and shows the rows with the document's size and leaves Home alone (nothing is stored)", async () => {
     mockFetch.mockResolvedValue(jsonResponse(200, { ...PASSING_TEST, recorded: false }));
-    const { user, dialog } = open(null);
+    const queryClient = clientWithKeptHome();
+    const { user, dialog } = open(null, queryClient);
     await fillCreate(user, dialog);
     await user.click(within(dialog).getByRole("button", { name: "Test connection" }));
     const table = await within(dialog).findByRole("table", { name: "Connection test results" });
@@ -246,13 +249,16 @@ describe("FlowConnectionEditorModal", () => {
     expect(within(dialog).getByText("Flow's document · teams: 18 · sprints: 640")).toBeInTheDocument();
     expect(within(dialog).getByText("Test passed. OK: 2 of 2.")).toBeInTheDocument();
     expect(body(mockFetch, "POST", `${LIST}/test`)).toMatchObject({ baseUrl: "https://flow.acme.example", apiToken: TOKEN, name: "Acme Flow" });
+    expect(homeReadIsStale(queryClient)).toBe(false);
   });
 
-  test("Test connection when editing with a blank token probes the STORED connection (no body) and says a revoked token in Flow's words", async () => {
+  test("Test connection when editing with a blank token probes the STORED connection (no body) and says a revoked token in Flow's words and marks Home stale", async () => {
     mockFetch.mockResolvedValue(jsonResponse(200, REVOKED_TEST));
-    const { user, dialog } = open(CONNECTION);
+    const queryClient = clientWithKeptHome();
+    const { user, dialog } = open(CONNECTION, queryClient);
     await user.click(within(dialog).getByRole("button", { name: "Test connection" }));
     expect(await within(dialog).findByText(/Flow rejected the token: it was revoked or expired/)).toBeInTheDocument();
+    expect(homeReadIsStale(queryClient)).toBe(true);
     const stored = call(mockFetch, "POST", `${LIST}/1/test`);
     expect(stored).toBeDefined();
     expect((stored![1] as RequestInit).body).toBeUndefined();

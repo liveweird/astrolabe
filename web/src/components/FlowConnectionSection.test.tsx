@@ -4,6 +4,7 @@ import { QueryClient } from "@tanstack/react-query";
 import { act, renderWithProviders, screen, waitFor, within } from "../test/render";
 import { jsonResponse } from "../test/http";
 import { headingOutline } from "../test/headings";
+import { clientWithKeptHome, homeReadIsStale } from "../test/home";
 import { CONNECTION, PASSING_TEST, REVOKED_TEST, run } from "../test/flow";
 import type { FlowConnection, FlowTestResult } from "../api/flow";
 import type { SyncRun } from "../api/sync";
@@ -134,24 +135,27 @@ describe("FlowConnectionSection", () => {
     expect(screen.queryByText(/Test passed/)).not.toBeInTheDocument();
   });
 
-  test("a stored test re-reads the connection and the registry, so the verdict and 'ready' move", async () => {
+  test("a stored test re-reads the connection and the registry, so the verdict and 'ready' move, and marks Home stale", async () => {
     serve(mockFetch);
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const queryClient = clientWithKeptHome();
     const keys = invalidated(queryClient);
     const user = userEvent.setup();
     renderSection(CONNECTION, queryClient);
     await user.click(await screen.findByRole("button", { name: "Test connection" }));
     await screen.findByRole("table", { name: "Connection test results" });
     expect(keys()).toEqual(expect.arrayContaining([["flow", "connection", 1], ["flow", "list"]]));
+    expect(homeReadIsStale(queryClient)).toBe(true);
     // A test writes no mirror: the Teams section is not refreshed by it.
     expect(keys()).not.toContainEqual(["flow", "teams", 1]);
   });
 
-  test("Refresh now claims a FLOW run (202), says it is running and shows the new row, with no error", async () => {
+  test("Refresh now claims a FLOW run (202), says it is running and shows the new row, with no error, and marks Home stale", async () => {
     const world = serve(mockFetch);
+    const queryClient = clientWithKeptHome();
     const user = userEvent.setup();
-    renderSection();
+    renderSection(CONNECTION, queryClient);
     await user.click(await screen.findByRole("button", { name: "Refresh now" }));
+    await waitFor(() => expect(homeReadIsStale(queryClient)).toBe(true));
     await waitFor(() => expect(mockFetch.mock.calls.some(([url, init]) => url === RUNS && (init as RequestInit).method === "POST")).toBe(true));
     const post = mockFetch.mock.calls.find(([url, init]) => url === RUNS && (init as RequestInit).method === "POST")!;
     expect(JSON.parse((post[1] as RequestInit).body as string)).toEqual({ kind: "FLOW", connectionId: 1 });
@@ -275,18 +279,20 @@ describe("FlowConnectionSection", () => {
       expect(await within(screen.getByRole("table", { name: "Recent runs" })).findByText("Scheduled")).toBeInTheDocument();
     });
 
-    test("when the run that was going ends the connection, the registry and the mirrored teams are read again", async () => {
+    test("when the run that was going ends the connection, the registry and the mirrored teams are read again, and Home is marked stale", async () => {
       vi.useFakeTimers({ shouldAdvanceTime: true });
       const world = serve(mockFetch, { runs: [run({ id: 5, outcome: null, finishedAt: null, running: true })] });
-      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      const queryClient = clientWithKeptHome();
       const keys = invalidated(queryClient);
       renderSection(CONNECTION, queryClient);
       await waitFor(() => expect(screen.getByRole("button", { name: "Refresh now" })).toBeDisabled());
       expect(keys()).not.toContainEqual(["flow", "teams", 1]);
+      expect(homeReadIsStale(queryClient)).toBe(false);
       world.runs = [run({ id: 5, outcome: "SUCCEEDED", running: false })];
       await advance(RUN_POLL_MS + 100);
       await waitFor(() => expect(screen.getByRole("button", { name: "Refresh now" })).toBeEnabled());
       await waitFor(() => expect(keys()).toEqual(expect.arrayContaining([["flow", "connection", 1], ["flow", "list"], ["flow", "teams", 1]])));
+      expect(homeReadIsStale(queryClient)).toBe(true);
     });
   });
 });

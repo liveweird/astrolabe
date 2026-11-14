@@ -6,6 +6,7 @@ import { IconActivity, IconExternalLink, IconPencil, IconPlus, IconTrash } from 
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAdmin } from "../auth";
 import { deleteFlowConnection, listFlowConnections, listFlowTeams, type FlowConnection } from "../api/flow";
+import { HOME_VIEW_KEY } from "../api/home";
 import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
 import ConnectionTestBadge from "../components/ConnectionTestBadge";
 import DestructiveMenuItem from "../components/DestructiveMenuItem";
@@ -101,7 +102,7 @@ export default function FlowConnections() {
   const titleRef = useRef<HTMLHeadingElement>(null);
   const remove = useDeleteConfirm<FlowConnection>({
     mutationFn: (row) => deleteFlowConnection(row.id),
-    onSuccess: () => refreshQueriesAfterMutation(queryClient, ["flow"]),
+    onSuccess: () => refreshQueriesAfterMutation(queryClient, ["flow"], HOME_VIEW_KEY),
     successMessage: t("flow.toast.deleted"),
     focusAfterDelete: titleRef,
   });
@@ -212,7 +213,7 @@ export default function FlowConnections() {
           onClose={() => setEditorTarget(null)}
           onSaved={async (saved) => {
             setEditorTarget(null);
-            await refreshQueriesAfterMutation(queryClient, ["flow"]);
+            await refreshQueriesAfterMutation(queryClient, ["flow"], HOME_VIEW_KEY);
             // A NEW connection lands on its page: test it, refresh it, link its teams.
             if (saved) navigate(flowConnectionPath(saved.id));
           }}

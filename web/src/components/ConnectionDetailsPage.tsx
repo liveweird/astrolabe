@@ -5,6 +5,7 @@ import { useParams } from "react-router-dom";
 import { Box, Button, Stack } from "@mantine/core";
 import { IconPencil } from "@tabler/icons-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { HOME_VIEW_KEY } from "../api/home";
 import { ApiError } from "../api/http";
 import { useAdmin } from "../auth";
 import { useDialogFocus } from "../hooks/useDialogFocus";
@@ -90,7 +91,7 @@ function ConnectionPage<C extends { name: string }>({
           onClose={() => setEditing(false)}
           onSaved={async () => {
             setEditing(false);
-            await refreshQueriesAfterMutation(queryClient, [kind]);
+            await refreshQueriesAfterMutation(queryClient, [kind], HOME_VIEW_KEY);
           }}
         />
       )}

@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import { Alert, Stack, Title } from "@mantine/core";
 import { IconInfoCircle } from "@tabler/icons-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { HOME_VIEW_KEY } from "../api/home";
 import { getJiraDiscovery, getJiraMapping, isJiraNotDiscovered, type JiraConnection } from "../api/jira";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import ErrorAlert from "./ErrorAlert";
@@ -58,7 +59,7 @@ export default function JiraMappingSection({ connection }: { connection: JiraCon
             connectionId={connection.id}
             discovery={discovery.data}
             response={mapping.data}
-            onSaved={() => refreshQueriesAfterMutation(queryClient, ["jira"])}
+            onSaved={() => refreshQueriesAfterMutation(queryClient, ["jira"], HOME_VIEW_KEY)}
           />
         </Stack>
         <Stack gap="xs">

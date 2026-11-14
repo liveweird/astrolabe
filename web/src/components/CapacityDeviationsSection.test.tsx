@@ -4,6 +4,7 @@ import { QueryClient } from "@tanstack/react-query";
 import { renderWithProviders, screen, waitFor, within } from "../test/render";
 import { headingOutline } from "../test/headings";
 import { jsonResponse } from "../test/http";
+import { clientWithKeptHome, homeReadIsStale } from "../test/home";
 import { CAPACITY_CONNECTION, GONE_ROW, NO_FLOW_VIEW, capacityItem, capacityView, differsRow, flowTeam, missingRow } from "../test/flow";
 import type { CapacityDeviationView } from "../api/capacityDeviations";
 import type { DeviationFilter } from "../api/deviations";
@@ -34,7 +35,8 @@ function serve(mockFetch: FetchMock) {
   });
 }
 
-const renderSection = (filter: DeviationFilter = {}, admin = false) => renderWithProviders(<CapacityDeviationsSection filter={filter} admin={admin} />);
+const renderSection = (filter: DeviationFilter = {}, admin = false, queryClient?: QueryClient) =>
+  renderWithProviders(<CapacityDeviationsSection filter={filter} admin={admin} />, { queryClient });
 
 describe("CapacityDeviationsSection", () => {
   let mockFetch: FetchMock;
@@ -288,15 +290,17 @@ describe("CapacityDeviationsSection", () => {
       expect(screen.queryByText(/may be out of date/)).not.toBeInTheDocument();
     });
 
-    test("an administrator gets the connection's page and Refresh now, which claims a FLOW run and re-reads the Flow queries only", async () => {
+    test("an administrator gets the connection's page and Refresh now, which claims a FLOW run, re-reads the Flow queries and marks Home stale", async () => {
       localStorage.setItem("astrolabe.auth.roles", JSON.stringify(["ADMIN"]));
-      renderSection({}, true);
+      const queryClient = clientWithKeptHome();
+      renderSection({}, true, queryClient);
       expect(await screen.findByRole("link", { name: "Open connection Acme Flow" })).toHaveAttribute("href", "/integrations/flow/1");
       await userEvent.click(screen.getByRole("button", { name: "Refresh now: Acme Flow" }));
       await waitFor(() => expect(claims()).toHaveLength(1));
       expect(JSON.parse((claims()[0][1] as RequestInit).body as string)).toEqual({ kind: "FLOW", connectionId: 1 });
       await waitFor(() => expect(viewCalls().length).toBeGreaterThan(1));
       expect(mockFetch.mock.calls.some(([url]) => /\/api\/v1\/views\/(plan|project|team|roadmap|programs|deviations)/.test(url as string))).toBe(false);
+      expect(homeReadIsStale(queryClient)).toBe(true);
     });
 
     test("a 409 run-in-progress is a normal state; a 403 is an inline message", async () => {

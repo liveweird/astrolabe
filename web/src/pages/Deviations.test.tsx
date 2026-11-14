@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
+import type { QueryClient } from "@tanstack/react-query";
 import { Route, Routes, useLocation } from "react-router-dom";
 import { renderWithProviders, screen, waitFor, within } from "../test/render";
 import { headingOutline } from "../test/headings";
 import { jsonResponse } from "../test/http";
+import { clientWithKeptHome, homeReadIsStale } from "../test/home";
 import { connectionIn, DEV_CONNECTION, detail, item, NOW, view } from "../test/deviations";
 import { NO_FLOW_VIEW, capacityItem, capacityView, differsRow, missingRow } from "../test/flow";
 import type { CapacityDeviationView } from "../api/capacityDeviations";
@@ -48,7 +50,7 @@ function Where() {
   return <p data-testid="where">{location.pathname + location.search}</p>;
 }
 
-function renderPage(route = "/deviations") {
+function renderPage(route = "/deviations", queryClient?: QueryClient) {
   return renderWithProviders(
     <Routes>
       <Route
@@ -61,7 +63,7 @@ function renderPage(route = "/deviations") {
         }
       />
     </Routes>,
-    { route },
+    { route, queryClient },
   );
 }
 
@@ -395,15 +397,16 @@ describe("Deviations page - Refresh now (ADMIN only)", () => {
     expect(within(sources).queryByRole("link")).not.toBeInTheDocument();
   });
 
-  test("an administrator claims a run for that connection and the page re-reads the deviations (and only the jira queries)", async () => {
+  test("an administrator claims a run for that connection and the page re-reads the deviations (the jira queries, and marks Home stale)", async () => {
     localStorage.setItem(ROLES_KEY, JSON.stringify(["ADMIN"]));
     const user = userEvent.setup();
-    renderPage();
+    const queryClient = clientWithKeptHome();
+    renderPage(undefined, queryClient);
     await user.click(await screen.findByRole("button", { name: "Refresh now: Acme Jira" }));
     await waitFor(() => expect(claims()).toHaveLength(1));
     expect(JSON.parse((claims()[0][1] as RequestInit).body as string)).toEqual({ kind: "JIRA", connectionId: 1 });
     await waitFor(() => expect(mockFetch.mock.calls.filter(([url]) => (url as string).startsWith("/api/v1/views/deviations")).length).toBeGreaterThan(1));
-    expect(mockFetch.mock.calls.some(([url]) => /\/api\/v1\/views\/(project|team|roadmap|programs)/.test(url as string))).toBe(false);
+    expect(mockFetch.mock.calls.some(([url]) => /\/api\/v1\/views\/(project|team|roadmap|programs)/.test(url as string))).toBe(false);    expect(homeReadIsStale(queryClient)).toBe(true);
   });
 
   test("a 409 run-in-progress is a normal state, not an error", async () => {

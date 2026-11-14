@@ -6,6 +6,7 @@ import { Anchor, Badge, Button, Stack, Table, Text, Title } from "@mantine/core"
 import { IconPlayerPlay } from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { CapacityDeviationConnection } from "../api/capacityDeviations";
+import { HOME_VIEW_KEY } from "../api/home";
 import { isRunInProgress, requestSyncRun } from "../api/sync";
 import { useNow } from "../hooks/useNow";
 import { flowConnectionPath } from "../utils/flowLinks";
@@ -46,7 +47,7 @@ function runNotes(connection: CapacityDeviationConnection, t: TFunction): string
 /**
  * "Data from Flow": one row per Flow connection with its derived state, when its document was last mirrored, the notes that qualify the figures
  * (never refreshed, last refresh failed, stale, disabled) and - ADMIN only - Refresh now (`POST /integrations/sync/runs`, kind FLOW). A
- * `409 run-in-progress` is a normal state, never an error. The refresh re-reads the `["flow"]` queries only.
+ * `409 run-in-progress` is a normal state, never an error. The refresh re-reads the `["flow"]` queries and marks Home stale (`HOME_VIEW_KEY`: its Flow side moves with a run).
  */
 export default function CapacityDeviationsSources({ connections, admin, readAt }: { connections: readonly CapacityDeviationConnection[]; admin: boolean; readAt: number }) {
   const { t } = useTranslation();
@@ -62,7 +63,7 @@ export default function CapacityDeviationsSources({ connections, admin, readAt }
       if (!isRunInProgress(err)) setRefreshError(saveErrorMessage(err, t, { tooManyRequests: "common.error.tooManyRequests", forbidden: "deviations.sources.refreshForbidden", notFound: "deviations.sources.refreshInvalid", invalid: "deviations.sources.refreshInvalid", failedStatus: "common.error.actionFailedStatus", failed: "deviations.sources.refreshFailed" }));
     },
     // Either way the registry now holds a run: re-read the section's data, and its own polling takes over while a run is going.
-    onSettled: () => refreshQueriesAfterMutation(queryClient, ["flow"]),
+    onSettled: () => refreshQueriesAfterMutation(queryClient, ["flow"], HOME_VIEW_KEY),
   });
   const running = connections.some((connection) => connection.status.lastRun?.running);
   const label = t("deviations.flowSection.sources.tableAria");

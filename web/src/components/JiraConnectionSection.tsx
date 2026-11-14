@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Alert, Anchor, Button, Group, Stack, Table, Text, Title } from "@mantine/core";
 import { IconPlayerPlay, IconPlugConnected } from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { HOME_VIEW_KEY } from "../api/home";
 import { testJiraConnection, type JiraConnection, type JiraTestResult } from "../api/jira";
 import { isRunInProgress, requestSyncRun } from "../api/sync";
 import { useSyncRuns, syncRunsKey } from "../hooks/useSyncRuns";
@@ -77,7 +78,7 @@ export default function JiraConnectionSection({ connection, readAt }: { connecti
     onSuccess: async (result) => {
       setTestResult(result);
       // The verdict, the discovery and the mapping defaults all moved with a stored test.
-      await refreshQueriesAfterMutation(queryClient, ["jira"]);
+      await refreshQueriesAfterMutation(queryClient, ["jira"], HOME_VIEW_KEY);
     },
   });
   const refresh = useMutation({
@@ -89,7 +90,7 @@ export default function JiraConnectionSection({ connection, readAt }: { connecti
     },
     // Either way the registry now holds a run: re-read it, and the list's own polling takes over while it is unfinished.
     // The connection's status and the registry moved with it too (a run that finished before the first poll never shows as live).
-    onSettled: () => refreshQueriesAfterMutation(queryClient, syncRunsKey("JIRA", connection.id), ["jira", "connection", connection.id], ["jira", "list"]),
+    onSettled: () => refreshQueriesAfterMutation(queryClient, syncRunsKey("JIRA", connection.id), ["jira", "connection", connection.id], ["jira", "list"], HOME_VIEW_KEY),
   });
   // The 409 is a state, not a failure; the note stays only while the server still says a run is running.
   const alreadyRunning = alreadyRunningNoted && live;
@@ -109,7 +110,7 @@ export default function JiraConnectionSection({ connection, readAt }: { connecti
     const ended = before.live && !live;
     const moved = before.stamp !== null && newestStamp !== null && before.stamp !== newestStamp;
     if (ended || moved) {
-      void refreshQueriesAfterMutation(queryClient, ["jira", "connection", connection.id], ["jira", "list"], ["jira", "coverage", connection.id]);
+      void refreshQueriesAfterMutation(queryClient, ["jira", "connection", connection.id], ["jira", "list"], ["jira", "coverage", connection.id], HOME_VIEW_KEY);
     }
     seen.current = { live, stamp: newestStamp ?? before.stamp };
   }, [live, newestStamp, queryClient, connection.id]);

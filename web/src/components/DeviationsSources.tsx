@@ -6,6 +6,7 @@ import { Anchor, Badge, Button, Stack, Table, Text, Title } from "@mantine/core"
 import { IconPlayerPlay } from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { DeviationConnection } from "../api/deviations";
+import { HOME_VIEW_KEY } from "../api/home";
 import { isRunInProgress, requestSyncRun } from "../api/sync";
 import { useNow } from "../hooks/useNow";
 import { formatDateTime } from "../utils/formatDate";
@@ -51,7 +52,7 @@ function runNotes(connection: DeviationConnection, t: TFunction): string[] {
  * "Data from Jira": one row per Jira connection with the state of its newest run (the SERVER's verdict, `lastRun.running`; an unfinished run
  * the server no longer counts as running reads "Interrupted"), the notes that qualify the figures (never refreshed, last refresh failed, stale, the
  * connection disabled, the mapping not fitting the site) and - ADMIN only - Refresh now. A `409 run-in-progress` is a normal state, never an
- * error. The refresh refreshes the `["jira"]` queries only: no plan view is touched.
+ * error. The refresh re-reads the `["jira"]` queries and marks Home stale (`HOME_VIEW_KEY`: its Jira side moves with a run); no plan view is touched.
  */
 export default function DeviationsSources({ connections, admin, readAt }: { connections: readonly DeviationConnection[]; admin: boolean; readAt: number }) {
   const { t } = useTranslation();
@@ -67,7 +68,7 @@ export default function DeviationsSources({ connections, admin, readAt }: { conn
       if (!isRunInProgress(err)) setRefreshError(saveErrorMessage(err, t, { tooManyRequests: "common.error.tooManyRequests", forbidden: "deviations.sources.refreshForbidden", notFound: "deviations.sources.refreshInvalid", invalid: "deviations.sources.refreshInvalid", failedStatus: "common.error.actionFailedStatus", failed: "deviations.sources.refreshFailed" }));
     },
     // Either way the registry now holds a run: re-read the page's data, and its own polling takes over while a run is going.
-    onSettled: () => refreshQueriesAfterMutation(queryClient, ["jira"]),
+    onSettled: () => refreshQueriesAfterMutation(queryClient, ["jira"], HOME_VIEW_KEY),
   });
   const running = connections.some((connection) => connection.lastRun?.running);
   const label = t("deviations.sources.tableAria");

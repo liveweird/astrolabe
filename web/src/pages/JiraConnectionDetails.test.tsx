@@ -4,7 +4,10 @@ import { Link, Route, Routes } from "react-router-dom";
 import { act, renderWithProviders, screen, waitFor, within } from "../test/render";
 import { jsonResponse } from "../test/http";
 import { headingOutline } from "../test/headings";
+import { clientWithKeptHome, homeReadIsStale, homeView } from "../test/home";
+import { HOME_VIEW_KEY } from "../api/home";
 import { CONNECTION, DISCOVERY, FAILING_TEST, MAPPING_DEFAULTS_ONLY, PASSING_TEST, run } from "../test/jira";
+import type { QueryClient } from "@tanstack/react-query";
 import type { JiraConnection } from "../api/jira";
 import type { SyncRun } from "../api/sync";
 import { IDLE_REFRESH_MS } from "../utils/syncRuns";
@@ -46,7 +49,7 @@ function serve(mockFetch: FetchMock, overrides: Partial<World> = {}) {
   return world;
 }
 
-function renderPage(route = "/integrations/jira/1") {
+function renderPage(route = "/integrations/jira/1", queryClient?: QueryClient) {
   return renderWithProviders(
     <Routes>
       <Route
@@ -60,7 +63,7 @@ function renderPage(route = "/integrations/jira/1") {
       />
       <Route path="/integrations/jira" element={<p>the list</p>} />
     </Routes>,
-    { route },
+    { route, queryClient },
   );
 }
 
@@ -245,15 +248,19 @@ describe("Jira connection page", () => {
 
   test("Refresh now is disabled while a run is running (the polled list's verdict) and comes back when it ends, re-reading the connection", async () => {
     const world = serve(mockFetch, { runs: [run({ id: 5, outcome: null, finishedAt: null, running: true })] });
-    renderPage();
+    const queryClient = clientWithKeptHome();
+    renderPage(undefined, queryClient);
     const button = await screen.findByRole("button", { name: "Refresh now" });
     await waitFor(() => expect(button).toBeDisabled());
+    expect(homeReadIsStale(queryClient)).toBe(false);
     const connectionReads = () => mockFetch.mock.calls.filter(([url, init]) => url === BASE && ((init as RequestInit | undefined)?.method ?? "GET") === "GET").length;
     const before = connectionReads();
     // The run ends: the next poll of the list says so (RUN_POLL_MS), and the status facts are read again.
     world.runs = [run({ id: 5, outcome: "SUCCEEDED", running: false })];
     await waitFor(() => expect(button).toBeEnabled(), { timeout: 6_000 });
     await waitFor(() => expect(connectionReads()).toBeGreaterThan(before));
+    // A run that ends while the page is open moved Home's Jira side too.
+    expect(homeReadIsStale(queryClient)).toBe(true);
   });
 
   describe("an open page follows the server without a reload", () => {
@@ -445,5 +452,40 @@ describe("Jira connection page", () => {
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByLabelText("Name")).toHaveValue("Acme Jira");
     expect(within(dialog).getByLabelText("API token")).toHaveValue("");
+  });
+});
+
+describe("Jira connection page - Home's kept read", () => {
+  let mockFetch: FetchMock;
+  beforeEach(() => {
+    mockFetch = vi.fn();
+    vi.stubGlobal("fetch", mockFetch);
+    localStorage.setItem(TOKEN_KEY, "fake-token");
+    localStorage.setItem(ROLES_KEY, JSON.stringify(["ADMIN"]));
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    localStorage.clear();
+  });
+
+  test("the page's own writes mark Home's kept read stale: a stored test, Refresh now and a mapping save", async () => {
+    serve(mockFetch);
+    const base = mockFetch.getMockImplementation() as (url: string, init?: RequestInit) => Promise<Response>;
+    mockFetch.mockImplementation((url: string, init?: RequestInit) =>
+      url === `${BASE}/mapping` && init?.method === "PUT" ? Promise.resolve(new Response(null, { status: 204 })) : base(url, init),
+    );
+    const queryClient = clientWithKeptHome();
+    const user = userEvent.setup();
+    renderPage(undefined, queryClient);
+    await user.click(await screen.findByRole("button", { name: "Test connection" }));
+    await screen.findByRole("table", { name: "Connection test results" });
+    expect(homeReadIsStale(queryClient)).toBe(true);
+    queryClient.setQueryData(HOME_VIEW_KEY, homeView());
+    expect(homeReadIsStale(queryClient)).toBe(false);
+    await user.click(screen.getByRole("button", { name: "Refresh now" }));
+    await waitFor(() => expect(homeReadIsStale(queryClient)).toBe(true));
+    queryClient.setQueryData(HOME_VIEW_KEY, homeView());
+    await user.click(await screen.findByRole("button", { name: "Save mapping" }));
+    await waitFor(() => expect(homeReadIsStale(queryClient)).toBe(true));
   });
 });
