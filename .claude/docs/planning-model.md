@@ -178,6 +178,29 @@ A program's `span` = `SpanKernels.derivedSpan` over its projects' spans, a work 
 **`?criticalPath=N` (1.16).** The view takes the roadmap's parameter and adds `criticalPath` (`@EncodeDefault(NEVER)`, last: byte-identical without it): the roadmap's `RoadmapCriticalPath` for the same target, from the same snapshot's rows (`RoadmapSnapshot.criticalPathTo`, the 400 for an unknown or deleted id included; answered after the baseline's own errors, no further statement). A project the page hides (a fold, the program pick) stays in the block: the page decides what it shows. The picker, the emphasis and the panel are the web's (`web-internals.md`).
 **Tests.** `ProgramsTreeTest` (pure: every ordering, empties, the span and flag roll-ups, orphans dropped), `ProgramsViewTest` (401, the tree through the wire with open/closed/empty nodes, the roll-ups equal the sums of the projects' flags, the rows/`teams`/`links` equal the roadmap's for every kind of caller, the plan-vs-ranking revision, the deletions).
 
+## The home view (1.18.0; `planning/HomeKernels.kt`, `HomeView.kt`)
+
+`GET /views/home` (any authenticated user, no parameter; the route arrives with C3) will answer `{revision, plan, me|null, jiraSites[]}`: the plan's figures and the caller's own items in ONE document. Nothing is stored; every figure is an existing page's own function applied to a subset, so Home cannot disagree with the page it links to. This section is the kernel half (C2: the kernel and the wire types); the service and the route are added by C3.
+**Kernel.** `HomeKernels.plan(streams, programs, facts)` and `HomeKernels.mine(personId, name, streams, programs, facts, teams, maxRows)` are pure (no I/O, no clock) over plain facts: `HomeFacts(projects, milestones, checkedLinks, milestoneFlags, teamWeeks)` - the roadmap snapshot's project rows (flags folded in), `facts`, `checkedLinks`, `milestoneFlags` (an entry may hold an empty list) plus every team's `weeklyLoad` weeks - `HomeStreamFact`, `HomeProgramFact` and `HomeTeamFact(id, name, flags)`.
+
+| Figure | Derived by | The page that says the same |
+|---|---|---|
+| work streams, programs, projects | counts of the facts (a program whose stream is not listed is not counted, as the Programs tree drops it) | Programs facts line, nothing picked |
+| milestones, not scheduled | the snapshot's `facts`; `span == null` | each project's and team's Unscheduled tray, summed |
+| ranked, unranked | `rankPosition` of the project rows | Roadmap facts line, nothing filtered |
+| warnings, infos | `RoadmapKernels.flagCounts` over every project row's `flags` | Roadmap and Programs facts lines |
+| conflicts | the `VIOLATED` checked links, each once, a link inside one project included | the red badge of the project and team pages; NOT the Roadmap's arrows, which draw links between projects only (`RoadmapKernels.aggregate` skips a link inside one project) |
+| teams overloaded, teams over the WIP limit (Q1 b) | teams with at least one `WeekLoad.overloaded` / `wipExceeded` week in `teamWeeks`, which must hold EVERY active team with scheduled work for every caller (never only the managed teams) | the team page's two orange badges |
+| a work stream's / program's projects and flags | `flagCounts` over the projects below it | its row on the Programs page |
+| a project's flags, milestones, not scheduled, conflicts | `flagCounts(row.flags)`; `facts` of the project; violated checked links with an end in the project | its Roadmap row, the project page |
+| a team's milestones, not scheduled, conflicts | `facts` of the team; violated checked links with a MILESTONE end in the team (a link with both ends in the team counts once) | the team page's facts line |
+| a team's weeks overloaded / over the WIP limit | `teamWeeks[team]` | the team page's two orange badges |
+| a team's Jira | `JIRA_DEVIATION` flags of the team's milestones in `milestoneFlags`, by severity, nothing else (the chip's rule) | the team page's Jira chip |
+| a team's flags | passed through (the team view's `team.flags`) | the team header's Flow badge |
+
+**"Yours" is DIRECT ownership.** A work stream, program or project is the person's when its `ownerPersonId` is theirs: a stream's owner gets the stream's row (its program and project counts and flag roll-up), not the projects below it; the teams are the ones the person manages (the caller passes exactly those). Orders: open work streams before closed, then lowercase name then id; programs and teams by lowercase name then id; projects ranked first in rank order, then lowercase name then id. Each of the four lists is cut at `MAX_HOME_ROWS` (100) and `truncated` says one was. A project's row carries the Roadmap vocabulary (warnings and infos, Jira's included), a team's row the team page's two integration figures (`jira`, `flags`), never both on one row.
+**Tests.** `HomeKernelsTest` (pure, hand-built facts: every count of the plan block, the violated links once each, direct ownership, the orders and tie-breaks, a project's and a team's conflict rule, the Jira rule, an empty `milestoneFlags` entry, the cap and `truncated`).
+
 ## Milestones (built — V14, v0.3.0; `planning/Milestone*.kt`)
 
 The fourth level, under a project: a **name**, an optional **description**, **exactly one team** and a **man-day estimate**, **no owner**, and an optional inclusive **start/end** (null = *unscheduled*, the Unscheduled tray).
