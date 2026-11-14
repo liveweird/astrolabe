@@ -5,10 +5,15 @@ import ch.nokillswit.flow.CapacityDeviationServiceKey
 import ch.nokillswit.flow.FlowFlagSource
 import ch.nokillswit.jira.DeviationViewServiceKey
 import ch.nokillswit.jira.JiraFlagSource
+import ch.nokillswit.jira.JiraLevel
 import ch.nokillswit.planning.CompositeExternalFlagSource
 import ch.nokillswit.planning.HomeCaller
 import ch.nokillswit.planning.HomeView
+import ch.nokillswit.planning.ExternalFlagSource
 import ch.nokillswit.planning.HomeViewService
+import ch.nokillswit.planning.PlanActor
+import ch.nokillswit.planning.RoadmapViewService
+import ch.nokillswit.users.UserRole
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.DefaultRequest
@@ -21,6 +26,7 @@ import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
+import org.jetbrains.exposed.v1.r2dbc.R2dbcDatabase
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -41,7 +47,10 @@ import kotlin.test.assertTrue
  * Each caller is read once through the conformance-checked client (the shape), then once more as a warm-up and [RUNS] timed times
  * through a bare bearer client, as `JiraFlagsScaleTest` times its views. The statements of each caller's read are counted (a
  * service built on a database whose connection factory records every statement, [countingDatabase], over the app's own flag sources;
- * the count is pinned: the plan block's 13, one more for a person, one more per managed team while no Flow connection exists).
+ * the count is pinned RELATIVE to the roadmap service's on the same database, because the Jira fold's statements depend on what
+ * earlier classes left in the shared database (CI: 43 against 13 alone): Home = the roadmap's + 5, one more for a person, and per
+ * managed team the seam's bounded team half; ten projects and ten milestones are bound to a live connection in the test itself, so
+ * the leak is reproduced in every run).
  * The roadmap view is timed on the same plan for comparison (what Home adds to the loader it runs). The sizes (plain and
  * gzip), the medians and the statement counts are `scale-figure` lines ([ScaleFigures]), recorded in `timeline.md` "Measured figures
  * (1.18)". The asserted time bounds are loose tripwires (at least 5x the figure measured on the dev machine), never the machine's
@@ -85,31 +94,55 @@ class HomeViewSizeTest {
         return Reading(document, bytes, gzip, ScaleFigures.median(timings), timings.max())
     }
 
-    /**
-     * The statements one read of a Home service sends for [userId], counted below Exposed on a database of its own (the service opens
-     * its own transaction, which an interceptor of another transaction cannot see); the source is the app's own composite.
-     */
-    private suspend fun ApplicationTestBuilder.statements(label: String, userId: UInt): List<String> {
+    /** The statements [read] sends on a counting database of its own (every statement is a SELECT; the dialect probe is not the view's). */
+    private suspend fun ApplicationTestBuilder.statements(
+        label: String,
+        read: suspend (R2dbcDatabase, ExternalFlagSource) -> Unit,
+    ): List<String> {
         val (database, factory) = countingDatabase()
         val jira = JiraFlagSource(application.attributes[DeviationViewServiceKey])
         val flow = FlowFlagSource(application.attributes[CapacityDeviationServiceKey])
-        val service = HomeViewService(database, CompositeExternalFlagSource(listOf(jira, flow)))
-        service.view(HomeCaller(userId))
-        // Every statement is a SELECT; the first read on a fresh database also asks its name (the dialect probe), which is not the view's.
+        read(database, CompositeExternalFlagSource(listOf(jira, flow)))
         val sql = factory.sql.filter { !it.startsWith("SELECT current_database()") }
-        println("scale-figure\thome $label statements\t${sql.size}")
+        println("scale-figure\t$label statements\t${sql.size}")
         return sql
     }
+
+    /**
+     * One read of a Home service for [userId], counted below Exposed (the service opens its own transaction, which an interceptor of
+     * another transaction cannot see) over the app's own flag sources.
+     */
+    private suspend fun ApplicationTestBuilder.homeStatements(label: String, userId: UInt) =
+        statements("home $label") { database, source -> HomeViewService(database, source).view(HomeCaller(userId)) }
+
+    /**
+     * One read of the roadmap service for the actor that may do nothing, counted the same way: the part of Home's cost that is the
+     * roadmap loader PLUS the Jira and Flow sources, which depends on what earlier classes left in the shared database (live
+     * connections and bindings add statements to the Jira fold), so Home is pinned RELATIVE to it, never to an absolute number.
+     */
+    private suspend fun ApplicationTestBuilder.roadmapStatements(label: String) =
+        statements("home reference: the roadmap $label") { database, source -> RoadmapViewService(database, source).view(NEUTRAL_ACTOR) }
 
     @Test
     fun `the home view at the sample's density stays under 40000 bytes and inside its tripwires`() = testApplication {
         usePostgresTestcontainer()
         val prefix = planName("homesize")
         val users = mutableListOf<UInt>()
+        var connection: UInt? = null
         try {
             val sample = CrossTeamSampleFixture.seed(prefix)
             assertEquals(15, sample.teamIds.size)
             assertEquals(1000, sample.milestones)
+
+            // The Jira fold's cost is whatever the shared database holds; bind a few nodes to a live connection HERE so the leak that
+            // other classes cause (the statement count of the source moves) is reproduced deterministically, and prove it moved.
+            val admin = planCaller("homesize-a", UserRole.ADMIN, withPerson = false).also { users += it.userId }
+            val unbound = roadmapStatements("before binding").size
+            connection = admin.client.dvConnection()
+            bind(connection, JiraLevel.PROJECT, "SELECT id FROM projects WHERE name LIKE ? ORDER BY id LIMIT $BOUND", "$prefix-pj%")
+            bind(connection, JiraLevel.MILESTONE, "SELECT id FROM milestones WHERE name LIKE ? ORDER BY id LIMIT $BOUND", "$prefix-m%")
+            val reference = roadmapStatements("after binding")
+            assertTrue(reference.size > unbound, "the bindings must have moved the source's statements ($unbound -> ${reference.size})")
 
             // The worst case: the fixture's owner, linked to a login and the manager of every team.
             val worst = caller("homesize-w").also { users += it.userId }
@@ -123,7 +156,7 @@ class HomeViewSizeTest {
             val managerPerson = TestPeople.seed("$prefix-manager", manager.userId)
 
             val w = worst.read("worst case (one person, 5 + 20 + 100 + 15 rows)")
-            val worstSql = statements("worst case", worst.userId)
+            val worstSql = homeStatements("worst case", worst.userId)
             // The typical manager: one team, taken from the owner after the worst case was read.
             sql("UPDATE teams SET manager_person_id = ? WHERE name = ?", managerPerson.toInt(), "$prefix-t1")
             val m = manager.read("one manager of one team")
@@ -147,14 +180,16 @@ class HomeViewSizeTest {
             assertEquals(0, assertNotNull(n.document.me).let { it.workStreams.size + it.programs.size + it.projects.size + it.teams.size })
             assertNull(p.document.me, "a login without a person has no 'me'")
 
-            val managerSql = statements("one manager of one team", manager.userId)
-            val nothingSql = statements("a person with nothing", nothing.userId)
-            val personlessSql = statements("a login without a person", personless.userId)
+            val managerSql = homeStatements("one manager of one team", manager.userId)
+            val nothingSql = homeStatements("a person with nothing", nothing.userId)
+            val personlessSql = homeStatements("a login without a person", personless.userId)
             println("scale-figure\thome statements, the person-less login\n${personlessSql.joinToString("\n")}")
-            // The plan block is the same statements whoever asks (the roadmap's loader, the streams, the programs, the scheduled
-            // milestones, all the capacity periods) plus the caller's person; a person adds the managed teams' select, and each managed
-            // team the seam's team half (one read here: no Flow connection; at most six with one).
-            assertEquals(PLAN_STATEMENTS, personlessSql.size, "the plan block's statements:\n${personlessSql.joinToString("\n")}")
+            // Relative to the roadmap read on the same database (its loader and both sources): the plan block adds the streams, the
+            // programs, the scheduled milestones, ALL the capacity periods and the caller's person lookup, whoever asks (a read per
+            // team would break this); a person adds the managed teams' select, and each managed team the seam's team half (one read
+            // here: no Flow connection of ours; at most six with one).
+            val shown = personlessSql.joinToString("\n")
+            assertEquals(reference.size + HOME_ONLY_STATEMENTS, personlessSql.size, "Home against the roadmap:\n$shown")
             assertEquals(personlessSql.size + 1, nothingSql.size, "a person with nothing adds the managed teams' select")
             val perTeam = managerSql.size - nothingSql.size
             assertTrue(perTeam in 1..SEAM_STATEMENTS_PER_TEAM, "a managed team adds $perTeam statements")
@@ -171,12 +206,30 @@ class HomeViewSizeTest {
             // NonCancellable: a test cancelled by the 60 s limit must still take its rows out of the shared plan.
             withContext(NonCancellable) {
                 sql("UPDATE people SET user_id = NULL WHERE name LIKE ?", "$prefix-%")
+                connection?.let { id ->
+                    val bindings = "SELECT id FROM jira_bindings WHERE connection_id = ?"
+                    sql("DELETE FROM jira_observations WHERE binding_id IN ($bindings)", id.toInt())
+                    sql("DELETE FROM jira_bindings WHERE connection_id = ?", id.toInt())
+                    sql("UPDATE jira_connections SET marked_as_deleted = TRUE WHERE id = ?", id.toInt())
+                }
                 CrossTeamSampleFixture.remove(prefix)
                 sql("DELETE FROM people WHERE name LIKE ?", "$prefix-%")
                 users.forEach { TestUsers.softDelete(it) }
             }
         }
         assertEquals(0, CrossTeamSampleFixture.remaining(prefix), "the synthetic plan is hard-deleted")
+    }
+
+    /** Binds the [BOUND] nodes [query] finds (ids of the fixture's rows) to a fresh issue each on [connectionId]. */
+    private fun bind(connectionId: UInt, level: JiraLevel, query: String, like: String) {
+        val ids = PostgresTestSupport.connect().use { c ->
+            c.prepareStatement(query).use { st ->
+                st.setString(1, like)
+                st.executeQuery().use { rs -> buildList { while (rs.next()) add(rs.getInt(1).toUInt()) } }
+            }
+        }
+        assertEquals(BOUND, ids.size)
+        ids.forEach { nextIssue().let { (issueId, key) -> dvBind(connectionId, level, it, issueId, key) } }
     }
 
     /** One parameterised statement over raw JDBC (strings and ints only). */
@@ -204,8 +257,14 @@ class HomeViewSizeTest {
          */
         const val P50_TRIPWIRE_MS = 500.0
 
-        /** The plan block's SELECTs: the revision, the roadmap loader's 7, streams, programs, scheduled milestones, periods, the person. */
-        const val PLAN_STATEMENTS = 13
+        /** The statements Home adds to the roadmap read: work streams, programs, scheduled milestones, capacity periods, the person. */
+        const val HOME_ONLY_STATEMENTS = 5
+
+        /** Projects and milestones bound to a live connection before anything is counted (see the test). */
+        const val BOUND = 10
+
+        /** The actor that may do nothing: what Home hands the roadmap loader. */
+        val NEUTRAL_ACTOR = PlanActor(isAdmin = false, personId = null, roadmapEditor = false, managedTeamIds = emptySet())
 
         /** The seam's team half per managed team: Flow's at most six reads (one while no connection exists, as here). */
         const val SEAM_STATEMENTS_PER_TEAM = 6
