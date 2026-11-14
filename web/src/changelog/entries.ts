@@ -17,6 +17,30 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.18.0",
+    date: "2026-11-14",
+    en: `**Astrolabe 1.18.0: Home shows the plan in figures and what is yours.**
+
+- Home, Plan card: how many work streams, programs, projects and milestones the plan has, and how many milestones are not scheduled yet.
+- Home, Roadmap card: ranked and unranked projects, the Roadmap's warnings and infos, violated dependencies (every violated link once, also links inside one project), and how many teams have an overloaded week or a week over the WIP limit.
+- Home, "Yours": the work streams, programs and projects owned by the person linked to your login, and the teams that person manages, each with the figures its own page shows and a link to it. A team's Jira count opens the Deviations page filtered to that team. If your login is not linked to a person, Home says so; administrators link people to logins on the People page.
+- Home adds "may be out of date" next to Jira and Flow figures by the same rule as the other pages.
+- API (\`/api/v1\`): \`GET /views/home\` (any signed-in user) answers the plan's figures and the caller's own items in one read. If a tab was open during the upgrade, reload it.
+- Nothing is written to Jira or Flow.
+- Proven against a built-in Jira stub; not yet tested against a real Jira site.
+- Proven against the built-in Flow stub; not yet compared with a real Flow.`,
+    pl: `**Astrolabe 1.18.0: strona główna pokazuje plan w liczbach i to, co należy do Ciebie.**
+
+- Strona główna, karta Plan: ile strumieni prac, programów, projektów i kamieni milowych ma plan oraz ile kamieni milowych nie jest jeszcze zaplanowanych.
+- Strona główna, karta Roadmapa: projekty z miejscem w rankingu i bez niego, ostrzeżenia i informacje z Roadmapy, naruszone zależności (każde naruszone powiązanie raz, także powiązania wewnątrz jednego projektu) oraz ile zespołów ma przeciążony tydzień albo tydzień ponad limitem WIP.
+- Strona główna, „Twoje”: strumienie prac, programy i projekty, których właścicielem/właścicielką jest osoba powiązana z Twoim loginem, oraz zespoły, którymi ta osoba kieruje, każdy z liczbami ze swojej strony i odnośnikiem do niej. Liczba odchyleń z Jiry przy zespole otwiera stronę Odchylenia zawężoną do tego zespołu. Jeśli Twój login nie jest powiązany z żadną osobą, strona główna to mówi; osoby z loginami powiązują administratorzy/rki na stronie Osoby.
+- Strona główna dodaje „mogą być nieaktualne” przy liczbach z Jiry i Flow według tej samej reguły co pozostałe strony.
+- API (\`/api/v1\`): \`GET /views/home\` (każdy zalogowany użytkownik/zalogowana użytkowniczka) zwraca liczby planu i elementy wywołującego w jednym odczycie. Jeśli karta była otwarta podczas aktualizacji, odśwież ją.
+- Niczego nie zapisujemy w Jirze ani we Flow.
+- Sprawdzone na wbudowanej atrapie Jiry; jeszcze nie przetestowane na prawdziwej witrynie Jira.
+- Sprawdzone na wbudowanej atrapie Flow; jeszcze nie porównane z prawdziwym Flow.`,
+  },
+  {
     version: "1.17.0",
     date: "2026-11-14",
     en: `**Astrolabe 1.17.0: one "may be out of date" rule everywhere, the warning on the Roadmap and Programs pages, scheduling a milestone on Jira's dates in one click, and a notice when a new version is deployed.**
