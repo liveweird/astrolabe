@@ -4,7 +4,8 @@
 // hops away, a milestone with no row on P's timeline); the toggle survives a reload and takes everything away when it goes off. The same
 // world has a five-working-day hole in P's schedule: the hatched idle band, the Idle gaps table and the badge on P's page and on the page of
 // P's team. 1.7 adds the same figures on the team page (the Slack column and the critical bars, the toggle shared with the project page) and the
-// roadmap's critical path TO P (the row menu, the emphasised span bars and bundle arrows, the chain panel with its hops). Owns: its throwaway
+// roadmap's critical path TO P (the row menu, the emphasised span bars and bundle arrows, the chain panel with its hops); 1.16 adds the same question on the
+// programs page (the folded program that stands for the chain is outlined, opening it outlines X, Y and P and their arrows). Owns: its throwaway
 // user, people, two teams, plan nodes (unique `e2e-cp-*` names), all seeded through the API and deleted by
 // the afterEach below (the projects first - their milestones and links go with them - then program, work stream, teams, people, user).
 // Every date is in 2041 and nothing else in the suite touches that year: the holiday dictionary is global, and `public-holidays.spec.ts`
@@ -340,6 +341,76 @@ test("the roadmap shows the critical path to P: X and Y emphasised, the chain pa
   await picker.click();
   await page.getByRole("option", { name: "None", exact: true }).click();
   await expect(picker).toHaveValue("None");
+  await expect(page.locator("[data-critical]")).toHaveCount(0);
+  await expect(page.getByRole("heading", { level: 3, name: /^Critical path to / })).toHaveCount(0);
+  await expect(table).toHaveCount(0);
+});
+
+test("the programs page shows the critical path to P: the folded program is outlined, opening it shows X, Y and P outlined with their arrows, the chain panel lists them, None clears everything", async ({ page }) => {
+  const world = await seedWorld();
+  const { x, y, p, program } = world;
+
+  await login(page, world.owner.email, world.owner.password);
+  // The program pick narrows the page to this world's program (a browser setting; the tree holds every other spec's rows too).
+  await page.evaluate(([key, value]) => localStorage.setItem(key, value), [PICK_KEY, JSON.stringify([program.id])]);
+  await page.goto("/programs");
+  await expect(page.getByRole("heading", { level: 2, name: "Programs" })).toBeVisible();
+  const tree = page.getByRole("grid", { name: "Programs timeline" });
+  await expect(tree).toBeVisible();
+  const picker = page.getByRole("combobox", { name: "Critical path to…" });
+  const programButton = tree.getByRole("button", { name: `Program ${program.name}`, exact: true });
+  const programBar = tree.getByRole("img", { name: `${program.name}, program span ${WEEK_1.start} to ${WEEK_3.end}, holds a project on the critical path, read-only`, exact: true });
+  const projectBar = (name: string) => tree.getByRole("img", { name: new RegExp(`^${name}, .*on the critical path, read-only$`) });
+  const panel = page.getByRole("heading", { level: 3, name: `Critical path to ${p.name}` });
+  const table = page.getByRole("table", { name: `Projects upstream of ${p.name}` });
+
+  // Off by default: the program is folded, the picker reads None, nothing is emphasised and there is no panel.
+  await expect(programButton).toHaveAttribute("aria-expanded", "false");
+  await expect(picker).toHaveValue("None");
+  await expect(page.locator("[data-critical]")).toHaveCount(0);
+  await expect(page.getByRole("heading", { level: 3, name: /^Critical path to / })).toHaveCount(0);
+
+  // Pick P in the picker: the page says so once the chain has arrived.
+  await picker.click();
+  await picker.fill(p.name);
+  await page.getByRole("option", { name: p.name, exact: true }).click();
+  await expect(picker).toHaveValue(p.name);
+  await expect(page.getByRole("status").filter({ hasText: `Showing the critical path to ${p.name}` })).toBeAttached();
+  await expect(panel).toBeVisible();
+
+  // Folded: the one program row stands for X, Y and P, so ITS bar is outlined and says so, no project row exists, and the chain lies inside that one row, so no arrow is drawn.
+  await expect(programBar).toHaveAttribute("data-critical", "true");
+  await expect(page.locator('[data-critical="true"]')).toHaveCount(1);
+  await expect(tree.getByRole("link", { name: /^Open / })).toHaveCount(0);
+  await expect(page.locator("[data-arrow]")).toHaveCount(0);
+
+  // The panel lists Y (1 hop) and X (2 hops), each marked as not on the timeline (folded).
+  await expect(page.getByText(`Target: ${p.name}, ${WEEK_1.start} to ${WEEK_3.end}.`)).toBeVisible();
+  await expect(page.getByText("Projects upstream: 2, on the chain: 2.")).toBeVisible();
+  const rows = table.getByRole("row");
+  await expect(rows).toHaveCount(3); // the header, Y and X
+  await expect(rows.nth(1).getByRole("cell")).toHaveText(["1", `${y.name} (folded or not picked)`, program.name, `${WEEK_2.start} – ${WEEK_2.end}`, "0 working days", "On the chain"]);
+  await expect(rows.nth(2).getByRole("cell")).toHaveText(["2", `${x.name} (folded or not picked)`, program.name, `${WEEK_1.start} – ${WEEK_1.end}`, "0 working days", "On the chain"]);
+
+  // Open the program: the emphasis moves to the project rows X, Y and P and the two bundle arrows; the program's own bar no longer carries it.
+  await programButton.click();
+  await expect(programButton).toHaveAttribute("aria-expanded", "true");
+  await expect(projectBar(x.name)).toHaveAttribute("data-critical", "true");
+  await expect(projectBar(y.name)).toHaveAttribute("data-critical", "true");
+  await expect(projectBar(p.name)).toHaveAttribute("data-critical", "true");
+  await expect(programBar).toHaveCount(0);
+  await expect(page.locator("[data-arrow]")).toHaveCount(2);
+  await expect(page.locator(`[data-arrow="bundle:${x.id}-${y.id}"]`)).toHaveAttribute("data-critical", "true");
+  await expect(page.locator(`[data-arrow="bundle:${y.id}-${p.id}"]`)).toHaveAttribute("data-critical", "true");
+  await expect(page.locator('[data-critical="true"]')).toHaveCount(5);
+  // The three rows are on the timeline now, so the panel no longer marks them.
+  await expect(table.getByText("(folded or not picked)")).toHaveCount(0);
+
+  // None clears the emphasis and the panel, and the page says so at once.
+  await picker.click();
+  await page.getByRole("option", { name: "None", exact: true }).click();
+  await expect(picker).toHaveValue("None");
+  await expect(page.getByRole("status").filter({ hasText: "Critical path hidden" })).toBeAttached();
   await expect(page.locator("[data-critical]")).toHaveCount(0);
   await expect(page.getByRole("heading", { level: 3, name: /^Critical path to / })).toHaveCount(0);
   await expect(table).toHaveCount(0);

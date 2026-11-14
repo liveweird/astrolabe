@@ -143,14 +143,25 @@ async function seedTestedConnection(api: APIRequestContext, label: string, track
   return connection;
 }
 
-/** A milestone of the world's team, scheduled by the administrator with the team view's current plan revision. */
-async function seedMilestone(world: World, label: string, estimateMd: number, startDate: string, endDate: string): Promise<{ id: number; name: string }> {
+/** A milestone of the world's team, left UNSCHEDULED (in the tray). */
+async function createMilestone(world: World, label: string, estimateMd: number): Promise<{ id: number; name: string }> {
   const name = uniqueText(`e2e-jira-${label}`);
   const id = await create(world.api, `/api/v1/projects/${world.projectId}/milestones`, { name, teamId: world.teamId, estimateMd }, "/api/v1/milestones");
+  return { id, name };
+}
+
+/** Schedules a milestone as the administrator, with the team view's current plan revision. */
+async function scheduleMilestone(world: World, id: number, startDate: string, endDate: string): Promise<void> {
   const view = (await (await world.api.get(`/api/v1/views/team/${world.teamId}`)).json()) as { revision: number };
   const placed = await world.api.put(`/api/v1/milestones/${id}/schedule`, { data: { expectedRevision: view.revision, startDate, endDate } });
   expect(placed.status(), await placed.text()).toBe(200);
-  return { id, name };
+}
+
+/** A milestone of the world's team, scheduled by the administrator with the team view's current plan revision. */
+async function seedMilestone(world: World, label: string, estimateMd: number, startDate: string, endDate: string): Promise<{ id: number; name: string }> {
+  const milestone = await createMilestone(world, label, estimateMd);
+  await scheduleMilestone(world, milestone.id, startDate, endDate);
+  return milestone;
 }
 
 /**
@@ -600,4 +611,135 @@ test("the owner's milestone deviation shows as a flag and a Jira bar on the proj
   await expect(page.locator('[data-flags][title*="Jira E2E-6: Deleted in Jira"]')).toHaveCount(1); // the flag is back, now with the "gone" sentence
   flags = await roadmapFlags();
   await expect(flags).toContainText("1 milestone deviates from Jira");
+});
+
+/** The dashed Jira bar of `E2E-4` (Mon 2044-01-04 to Fri 01-08 on the stub, both days) as the timelines name it: the dates, no deviation sentence, read-only. */
+const E2E4_BAR = "Jira E2E-4: 2044-01-04 to 2044-01-08, read-only";
+const UNSCHEDULED_MARK = "(unscheduled; dates from Jira)";
+const jiraToggle = (page: Page) => page.getByRole("button", { name: "Jira dates", exact: true });
+/** The timeline rows that carry a milestone's name (the tray is a table of its own, outside the grid). */
+const gridRows = (grid: Locator, name: string) => grid.getByRole("row").filter({ hasText: name });
+
+test("an unscheduled milestone that Jira dates gets a dashed row on the project and team timelines, and scheduling it puts the bar on its own row", async ({ page }) => {
+  const world = await seedWorld();
+  try {
+    // `dated` is scheduled Mon 2044-01-11 to Fri 01-15 and not linked: it gives both pages their 2044 dates, so the Jira window covers `tray`'s. `tray` waits in the
+    // tray and is linked to E2E-4 (Mon 2044-01-04 to Fri 01-08), which holds both dates: the bind wrote the first reading, so no refresh is needed.
+    await seedMilestone(world, "dated", 2, "2044-01-11", "2044-01-15");
+    const tray = await createMilestone(world, "tray", 2.5);
+    await bindNode(world.api, linking, "MILESTONE", tray.id, "E2E-4");
+
+    await login(page, world.owner.email, world.owner.password);
+    await page.goto(`/projects/${world.projectId}`);
+    await expect(page.getByRole("heading", { level: 2, name: world.project })).toBeVisible();
+    const projectGrid = page.getByRole("grid", { name: "Milestone timeline" });
+    await expect(projectGrid).toBeVisible();
+
+    // The project page: the appended row (dimmed name with its mark) holds the one dashed bar; the tray still lists the milestone with its key link.
+    const projectRow = gridRows(projectGrid, tray.name);
+    await expect(jiraToggle(page)).toHaveAttribute("aria-pressed", "true");
+    await expect(projectRow).toHaveCount(1);
+    await expect(projectRow).toContainText(UNSCHEDULED_MARK);
+    await expect(projectRow.getByRole("img", { name: E2E4_BAR, exact: true })).toHaveCount(1);
+    await expect(projectRow.locator('[data-tone="jira"]')).toHaveCount(1);
+    await expect(page.locator('[data-tone="jira"]')).toHaveCount(1);
+    const trayRow = page.getByRole("table", { name: "Unscheduled milestones" }).getByRole("row").filter({ hasText: tray.name });
+    await expect(trayRow).toHaveCount(1);
+    await expect(trayRow.getByRole("link", { name: "E2E-4 (opens in Jira)", exact: true })).toBeVisible();
+    // The row, as it stands, passes axe.
+    expect(await axeViolations(page)).toEqual([]);
+
+    // "Jira dates" off: the row and every dashed bar go (the tray keeps the milestone); on again: back.
+    await jiraToggle(page).click();
+    await expect(jiraToggle(page)).toHaveAttribute("aria-pressed", "false");
+    await expect(projectRow).toHaveCount(0);
+    await expect(page.locator('[data-tone="jira"]')).toHaveCount(0);
+    await expect(trayRow).toHaveCount(1);
+    await jiraToggle(page).click();
+    await expect(jiraToggle(page)).toHaveAttribute("aria-pressed", "true");
+    await expect(projectRow).toHaveCount(1);
+    await expect(projectRow.locator('[data-tone="jira"]')).toHaveCount(1);
+
+    // The team's page: the same row, with the project's name where the project page has the team's.
+    await page.goto(`/teams/${world.teamId}`);
+    const teamGrid = page.getByRole("grid", { name: "Team milestone timeline" });
+    await expect(teamGrid).toBeVisible();
+    const teamRow = gridRows(teamGrid, tray.name);
+    await expect(teamRow).toHaveCount(1);
+    await expect(teamRow).toContainText(UNSCHEDULED_MARK);
+    await expect(teamRow).toContainText(world.project);
+    await expect(teamRow.getByRole("img", { name: E2E4_BAR, exact: true })).toHaveCount(1);
+    await expect(teamRow.locator('[data-tone="jira"]')).toHaveCount(1);
+    await expect(page.locator('[data-tone="jira"]')).toHaveCount(1);
+
+    // The administrator schedules the milestone (on Jira's own days). After a reload the appended row is gone and the milestone's own row carries the one dashed bar.
+    await scheduleMilestone(world, tray.id, "2044-01-04", "2044-01-08");
+    await page.reload();
+    await expect(teamGrid).toBeVisible();
+    const scheduledRow = gridRows(teamGrid, tray.name);
+    await expect(scheduledRow).toHaveCount(1);
+    await expect(scheduledRow.locator('[data-tone="jira"]')).toHaveCount(1);
+    await expect(teamGrid.getByText(UNSCHEDULED_MARK)).toHaveCount(0);
+    await expect(page.locator('[data-tone="jira"]')).toHaveCount(1);
+    await page.goto(`/projects/${world.projectId}`);
+    await expect(projectGrid).toBeVisible();
+    await expect(gridRows(projectGrid, tray.name)).toHaveCount(1);
+    await expect(gridRows(projectGrid, tray.name).locator('[data-tone="jira"]')).toHaveCount(1);
+    await expect(projectGrid.getByText(UNSCHEDULED_MARK)).toHaveCount(0);
+    await expect(page.getByRole("table", { name: "Unscheduled milestones" })).toHaveCount(0);
+  } finally {
+    await world.api.dispose();
+  }
+});
+
+test("the Jira chip says the data may be out of date until the connection's first successful refresh", async ({ page, browser }) => {
+  test.setTimeout(180_000); // the Test connection call may wait a 429 out (one minute)
+  const world = await seedWorld();
+  let connection: Connection;
+  try {
+    // The test's OWN tested connection on its own throwaway site, never refreshed until the end: its state reads "never synced" (the shared `linking` one is refreshed by
+    // earlier scenarios). One milestone, scheduled on E2E-4's own days, is linked through it.
+    connection = await seedTestedConnection(world.api, "stale");
+    await declareHalfManDayPerPoint(world.api, connection);
+    const milestone = await seedMilestone(world, "stale", 2.5, "2044-01-04", "2044-01-08");
+    await bindNode(world.api, connection, "MILESTONE", milestone.id, "E2E-4");
+  } finally {
+    await world.api.dispose();
+  }
+
+  const chip = (p: Page) => p.getByRole("group", { name: "Links to Jira" });
+  const stale = (p: Page) => chip(p).getByText("Jira data may be out of date", { exact: true });
+  const openProject = async () => {
+    await page.goto(`/projects/${world.projectId}`);
+    await expect(page.getByRole("heading", { level: 2, name: world.project })).toBeVisible();
+    await expect(chip(page)).toContainText("1 milestone linked to Jira");
+  };
+  const openTeam = async () => {
+    await page.goto(`/teams/${world.teamId}`);
+    await expect(page.getByRole("grid", { name: "Team milestone timeline" })).toBeVisible();
+    await expect(chip(page)).toContainText("1 milestone linked to Jira");
+  };
+
+  // Before any refresh: both pages' chips carry the qualifier beside the count.
+  await login(page, world.owner.email, world.owner.password);
+  await openProject();
+  await expect(stale(page)).toBeVisible();
+  const countBefore = (await chip(page).getByRole("link").innerText()).trim();
+  await openTeam();
+  await expect(stale(page)).toBeVisible();
+
+  // The file's throwaway administrator, in a browser of its own, presses Refresh now and waits for the run to succeed.
+  const adminContext = await browser.newContext();
+  try {
+    await refreshAsAdmin(await adminContext.newPage(), connection, world.projectId, (admin) => sourceRow(admin, connection).getByText("Succeeded", { exact: true }));
+  } finally {
+    await adminContext.close();
+  }
+
+  // After a reload the sentence is gone on both pages and the count badge is what it was.
+  await openTeam();
+  await expect(stale(page)).toHaveCount(0);
+  await openProject();
+  await expect(stale(page)).toHaveCount(0);
+  await expect(chip(page).getByRole("link")).toHaveText(countBefore);
 });

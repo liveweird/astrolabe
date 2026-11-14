@@ -1,8 +1,8 @@
-# The critical path and the idle gaps (the project, team and roadmap pages)
+# The critical path and the idle gaps (the project, team, roadmap and programs pages)
 
 - **Spec**: [tests/critical-path.spec.ts](../tests/critical-path.spec.ts)
 - **Actors**: a throwaway project OWNER login (the person who owns the program, so all three projects; not the teams' manager, so the bars
-  are read-only images; it also reads the roadmap); the seed administrator acts only through the API (seeding, the milestones' dates, the links)
+  are read-only images; it also reads the roadmap and the programs page); the seed administrator acts only through the API (seeding, the milestones' dates, the links)
   and, in the third scenario, reads the team page in the browser (the world has no manager login for P's team, and the figures are the same for every viewer)
 - **Owns** (exclusive server-side state): its throwaway user, person, two teams (X's and Y's milestones on one, P's on the other), work
   stream, program, three projects X, Y, P and their milestones and links (unique `e2e-cp-*` names), seeded through the API and removed by
@@ -77,3 +77,23 @@
      2041-01-07 – 2041-01-11, "0 working days", "On the chain"); X's name links to its project page.
 4. They choose **None** in the picker.
    - *Expected*: the picker reads None, no element has `data-critical` and the panel and its table are gone.
+
+## Scenario: the programs page shows the critical path to P: the folded program is outlined, opening it shows X, Y and P outlined with their arrows, the chain panel lists them, None clears everything
+
+1.16. The same world as the roadmap scenario (X, Y and P in ONE program), read by the owner on `/programs` with the program pick set to the world's program. A critical ROLLED-UP arrow
+(a chain between two folded programs) is pinned in vitest only (`Programs.critical.test.tsx`): this world has one program, so no chain crosses two rows here.
+
+1. The owner signs in, sets the program pick to the world's program and opens **Programs**.
+   - *Expected*: the program's chevron button is collapsed; the "Critical path to…" picker reads **None**; no element has `data-critical`; there is no "Critical path to …" panel.
+2. They pick P in the picker (typing its name, choosing the option).
+   - *Expected*: the picker reads P's name and the live region says "Showing the critical path to <P>"; the h3 "Critical path to <P>" appears.
+   - *Expected*: the FOLDED program's bar is named "<program>, program span 2041-01-07 to 2041-01-25, holds a project on the critical path, read-only" and carries `data-critical`;
+     it is the only element that does; no project row (no "Open …" link) is on the timeline and no arrow is drawn (the whole chain is inside that one folded row).
+3. They read the panel.
+   - *Expected*: "Target: <P>, 2041-01-07 to 2041-01-25.", "Projects upstream: 2, on the chain: 2."; the table has the header and Y (1 hop, 2041-01-14 – 2041-01-18) and X (2 hops,
+     2041-01-07 – 2041-01-11), each "0 working days", "On the chain", and each name followed by "(folded or not picked)".
+4. They open the program with its chevron button.
+   - *Expected*: the span bars of X, Y and P are named "..., on the critical path, read-only" and carry `data-critical`; the program's bar no longer has the "holds a project" name; the two
+     bundle arrows `bundle:<X>-<Y>` and `bundle:<Y>-<P>` are the only arrows and carry it too; five elements carry the flag in all; the panel's "(folded or not picked)" marks are gone.
+5. They choose **None** in the picker.
+   - *Expected*: the picker reads None, the live region says "Critical path hidden", no element has `data-critical` and the panel and its table are gone.

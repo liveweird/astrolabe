@@ -14,9 +14,9 @@
   bindings). **It alone flips the stub's `jira-day2` WireMock scenario** (`PUT $E2E_JIRA_STUB_URL/__admin/scenarios/jira-day2/state`, default
   `http://localhost:8096`; the stub is one process with one scenario state): the beforeAll starts it at `Started` and the afterAll puts it back to `Started`
   even after a failure. The file runs serially (`mode: "serial"`) and the parallel pool never runs two copies of it. Test connection and Peek share a
-  per-IP bucket (10 a minute by default, 30 on the e2e stacks), so the file spends five calls: the first scenario's connection (created in the UI, tested once, and kept for the third scenario to map
+  per-IP bucket (10 a minute by default, 30 on the e2e stacks), so the file spends six calls: the first scenario's connection (created in the UI, tested once, and kept for the third scenario to map
   and peek through; run alone, the third seeds and tests its own), the second's ad-hoc probe, the one connection the linking scenarios share (tested once, in the
-  beforeAll, and given 0.5 man-days per story point through the API), and the third scenario's two peeks. Under `retries` (CI: 2) a retried serial group starts again
+  beforeAll, and given 0.5 man-days per story point through the API), the third scenario's two peeks and (1.16) the last scenario's own connection. Under `retries` (CI: 2) a retried serial group starts again
   from the first scenario and spends the bucket again. The three scenarios that show a result table also scan it with axe (WCAG A/AA), at no extra call.
 
 The stub's `E2E` project (`sample-data/jira/expected.json`, key `e2e`): E2E-1 a Program, E2E-2 and E2E-3 Initiatives, E2E-4..E2E-10 Epics, every date in 2044.
@@ -139,6 +139,38 @@ It spends no Test connection call (the shared `linking` connection is already te
      listed, and the GONE line was never acknowledged - it is open, its acknowledgement block does not say "· changed since" (that marks a stored stamp whose line changed) and
      **Acknowledge E2E-6: Gone** is offered; the project page's row has its flag icon back (the "gone" sentence), and the roadmap's flag table says "1 milestone deviates from Jira" again.
 7. The afterEach removes the bindings and the world; the afterAll puts the stub back to `Started`, as the backstop.
+
+## Scenario: an unscheduled milestone that Jira dates gets a dashed row on the project and team timelines, and scheduling it puts the bar on its own row
+
+The seventh scenario of the serial group (1.16). Its world (the usual per-test one, dated 2044): milestone `dated` scheduled Mon 2044-01-11 to Fri 01-15 and not linked (it gives
+both pages their 2044 dates, so the Jira window covers the tray milestone's), and milestone `tray` UNSCHEDULED and linked through the API (as the administrator, on the shared `linking`
+connection) to `E2E-4` (Mon 2044-01-04 to Fri 01-08, the same on both stub days). The bind wrote the first reading, so nothing is refreshed. It spends no Test connection call and
+never flips the stub.
+
+1. The project owner (no administrator right) opens the project page.
+   - *Expected*: the **Jira dates** toggle is on; the timeline grid holds exactly one row reading `tray`'s name and "(unscheduled; dates from Jira)" with one `[data-tone="jira"]` image named
+     "Jira E2E-4: 2044-01-04 to 2044-01-08, read-only" (the only one on the page); the Unscheduled table still lists `tray` with the key link "E2E-4 (opens in Jira)"; an axe scan of the page
+     with the row present reports zero violations.
+2. They press **Jira dates** off, then on again.
+   - *Expected*: off, the grid has no row for `tray` and the page has no `[data-tone="jira"]`, while the tray still lists it; on again the row and its one dashed bar are back.
+3. They open the team's page.
+   - *Expected*: the team timeline holds the same row (name, the mark, the project's name, one dashed bar named as above; one `[data-tone="jira"]` on the page).
+4. The administrator schedules `tray` through the API on Jira's own days (Mon 2044-01-04 to Fri 01-08) and the page is reloaded; then the project page is opened.
+   - *Expected*: on both pages the appended row is gone (no "(unscheduled; dates from Jira)" in the grid) and `tray`'s own row carries the one dashed bar; the project page's Unscheduled
+     table is gone (nothing is left in the tray).
+
+## Scenario: the Jira chip says the data may be out of date until the connection's first successful refresh
+
+The eighth scenario of the serial group (1.16). Its world: the test's OWN connection (made and tested through the API on a unique throwaway `stub-` site, given 0.5 man-days per point,
+never refreshed until the end; it spends ONE call of the Test bucket and is deleted with the test's other rows) and one milestone scheduled on `E2E-4`'s own days (Mon 2044-01-04
+to Fri 01-08) and linked through that connection as the setup. The shared `linking` connection is not used: earlier scenarios refresh it.
+
+1. The project owner opens the project page, then the team's page.
+   - *Expected*: on both, the "Links to Jira" group reads "1 milestone linked to Jira" and holds the dimmed text "Jira data may be out of date" (the connection has never synced); the
+     project page's count badge text is noted.
+2. The file's throwaway administrator, in a browser of their own, presses **Refresh now: <connection>** on the Deviations page for the project and waits for the run to read "Succeeded".
+3. The owner opens the team's page and the project page again (a reload).
+   - *Expected*: neither group holds "Jira data may be out of date" any more, and the project page's count badge reads exactly what it read before the refresh.
 
 ## Not covered here (and why)
 
