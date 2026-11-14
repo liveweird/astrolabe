@@ -17,6 +17,32 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.19.0",
+    date: "2026-11-14",
+    en: `**Astrolabe 1.19.0: Home's figures lead somewhere.**
+
+- Home: "not scheduled yet" opens the new Milestones page with those milestones; the Roadmap card's warnings and infos open the Roadmap showing the flagged projects only; "teams with an overloaded week" and "teams over the WIP limit" open the new Team load page with those teams. Under "Yours", a project's or a team's count of milestones not scheduled opens them, a work stream's or a program's name opens the Roadmap filtered to it, and one link opens your own projects on the Roadmap.
+- Milestones (new, under Planning): every milestone of the plan with its project, team, estimate and dates; filter by schedule, team or name, sort by milestone, project or team. A team's manager (or an administrator) still sets the dates on the team's page.
+- Team load (new, under Planning): every team with its milestones, how many are not scheduled, its overloaded weeks, its weeks over the WIP limit and its weeks without any capacity set. A team's name opens its page.
+- Roadmap: the filters and the program pick are now in the address, so a filtered Roadmap is a link you can copy. A link that names filters is shown as written and does not change the filters your browser remembers; opening the Roadmap from the menu brings yours back.
+- Home keeps its figures for up to a minute before reading them again; a change you make yourself still shows at once.
+- API (\`/api/v1\`): \`GET /milestones\` filters by \`scheduled\`, \`teamId\` and \`projectId\` and sorts by \`projectName\` and \`teamName\`; \`GET /views/team-load\` (any signed-in user) answers the Team load page in one read.
+- Nothing is written to Jira or Flow.
+- Proven against a built-in Jira stub; not yet tested against a real Jira site.
+- Proven against the built-in Flow stub; not yet compared with a real Flow.`,
+    pl: `**Astrolabe 1.19.0: liczby na stronie głównej dokądś prowadzą.**
+
+- Strona główna: „jeszcze niezaplanowane” otwiera nową stronę Kamienie milowe z tymi kamieniami; ostrzeżenia i informacje z karty Roadmapa otwierają roadmapę z samymi projektami z flagami; „zespoły z przeciążonym tygodniem” i „zespoły ponad limitem WIP” otwierają nową stronę Obciążenie zespołów z tymi zespołami. W sekcji „Twoje” liczba niezaplanowanych kamieni milowych projektu albo zespołu otwiera je, nazwa strumienia prac albo programu otwiera roadmapę przefiltrowaną do niego, a jeden link otwiera Twoje projekty na roadmapie.
+- Kamienie milowe (nowa strona w sekcji Planowanie): każdy kamień milowy planu z projektem, zespołem, szacunkiem i datami; filtr po harmonogramie, zespole i nazwie, sortowanie po kamieniu milowym, projekcie i zespole. Daty nadal ustawia kierownik/czka zespołu (albo administrator/ka) na stronie zespołu.
+- Obciążenie zespołów (nowa strona w sekcji Planowanie): każdy zespół z kamieniami milowymi, liczbą niezaplanowanych, przeciążonymi tygodniami, tygodniami ponad limitem WIP i tygodniami bez ustawionej przepustowości. Nazwa zespołu otwiera jego stronę.
+- Roadmapa: filtry i wybór programów są teraz w adresie, więc przefiltrowaną roadmapę możesz skopiować jako link. Link z filtrami pokazuje dokładnie to, co w nim zapisano, i nie zmienia filtrów zapamiętanych w Twojej przeglądarce; roadmapa otwarta z menu przywraca Twoje.
+- Strona główna zachowuje swoje liczby do minuty, zanim odczyta je ponownie; zmianę, którą wprowadzasz sam/a, nadal widać od razu.
+- API (\`/api/v1\`): \`GET /milestones\` filtruje po \`scheduled\`, \`teamId\` i \`projectId\` oraz sortuje po \`projectName\` i \`teamName\`; \`GET /views/team-load\` (każdy zalogowany użytkownik/zalogowana użytkowniczka) zwraca stronę Obciążenie zespołów w jednym odczycie.
+- Niczego nie zapisujemy w Jirze ani we Flow.
+- Sprawdzone na wbudowanej atrapie Jiry; jeszcze nie przetestowane na prawdziwej witrynie Jira.
+- Sprawdzone na wbudowanej atrapie Flow; jeszcze nie porównane z prawdziwym Flow.`,
+  },
+  {
     version: "1.18.0",
     date: "2026-11-14",
     en: `**Astrolabe 1.18.0: Home shows the plan in figures and what is yours.**
