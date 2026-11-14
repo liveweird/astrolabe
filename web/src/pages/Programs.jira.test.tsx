@@ -7,14 +7,14 @@ import type { ProgramsProgram, ProgramsView, ProgramsWorkStream } from "../api/p
 import type { PlanFlag, RoadmapProject } from "../api/roadmap";
 import { jsonResponse } from "../test/http";
 import { renderWithProviders } from "../test/render";
-import { detail } from "../test/deviations";
+import { detail, evidence } from "../test/deviations";
 
 // The 1.3 Jira markers on the Programs page: the "Jira dates" toggle (on by default, remembered) and the shadow bar of each bound PROJECT row. Work stream
 // and program rows are not bound in 1.3: no Jira bar there, and the roll-up counts in the Flags cell stay severity-driven.
 
 const KEY = "astrolabe.viewSettings.timeline.jiraBars";
 
-const flag = (kind: PlanFlag["kind"], severity: PlanFlag["severity"], over: Partial<PlanFlag> = {}): PlanFlag => ({ deviation: null, count: null, kind, severity, days: null, teamId: null, otherProjectId: null, ...over });
+const flag = (kind: PlanFlag["kind"], severity: PlanFlag["severity"], over: Partial<PlanFlag> = {}): PlanFlag => ({ kind, severity, ...over });
 
 const project = (id: number, name: string, over: Partial<RoadmapProject> = {}): RoadmapProject => ({
   jira: null,
@@ -42,7 +42,7 @@ const endLater: Deviation = { kind: "END_DIFFERS", severity: "WARNING", detail: 
 
 const INVOICES = project(1, "Invoices", {
   jira: { bindingId: 11, connectionId: 2, issueKey: "E2E-6", start: "2026-03-02", end: "2026-04-03", rollup: null },
-  flags: [flag("JIRA_DEVIATION", "WARNING", { deviation: endLater })],
+  flags: [flag("JIRA_DEVIATION", "WARNING", { deviation: evidence(endLater) })],
 });
 const TAXES = project(2, "Taxes", { jira: { bindingId: 12, connectionId: 2, issueKey: "E2E-7", start: null, end: null, rollup: null } });
 const BILLING: ProgramsProgram = { id: 10, name: "Billing", ownerName: "Pat Program", span: { start: "2026-03-02", end: "2026-04-10" }, flags: { warnings: 1, infos: 0 }, projects: [INVOICES, TAXES] };

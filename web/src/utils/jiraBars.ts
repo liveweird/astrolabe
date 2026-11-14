@@ -70,12 +70,12 @@ const jiraBarId = (key: number | string) => `jira:${key}`;
 const DATE_KINDS: ReadonlySet<string> = new Set(["START_DIFFERS", "END_DIFFERS", "TARGET_DIFFERS"]);
 
 /** What of a flag the sentences need: its kind and, for a `JIRA_DEVIATION`, the evidence. */
-type FlagLike = { kind: string; deviation: Deviation | null };
+type FlagLike = { kind: string; deviation?: Pick<Deviation, "kind" | "detail"> };
 
 /** The sentences of the row's open DATE deviations, in the flags' order. */
 function dateSentences(flags: readonly FlagLike[], t: TFunction): string[] {
   return flags.flatMap((flag) =>
-    flag.kind === "JIRA_DEVIATION" && flag.deviation !== null && DATE_KINDS.has(flag.deviation.kind) ? [deviationSentence(flag.deviation, { jira: { estimateUnit: null } }, t)] : [],
+    flag.kind === "JIRA_DEVIATION" && flag.deviation !== undefined && DATE_KINDS.has(flag.deviation.kind) ? [deviationSentence(flag.deviation, { jira: { estimateUnit: null } }, t)] : [],
   );
 }
 

@@ -17,7 +17,7 @@ const team = (over: Partial<TeamView["team"]> = {}): TeamView["team"] => ({
   ...over,
 });
 
-const FLAG: TeamView["team"]["flags"][number] = { kind: "FLOW_CAPACITY", severity: "WARNING", days: null, teamId: null, otherProjectId: null, deviation: null, count: 2 };
+const FLAG: TeamView["team"]["flags"][number] = { kind: "FLOW_CAPACITY", severity: "WARNING", count: 2 };
 
 const renderHeader = (t: TeamView["team"]) => renderWithProviders(<TeamPageHeader team={t} admin={false} onEdit={() => undefined} />);
 

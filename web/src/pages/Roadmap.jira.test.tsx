@@ -6,14 +6,14 @@ import type { Deviation } from "../api/deviations";
 import type { PlanFlag, RoadmapProject, RoadmapView } from "../api/roadmap";
 import { jsonResponse } from "../test/http";
 import { renderWithProviders } from "../test/render";
-import { detail } from "../test/deviations";
+import { detail, evidence } from "../test/deviations";
 
 // The 1.3 Jira markers on the Roadmap page: the "Jira dates" toggle (on by default, remembered), the shadow bar of each bound project, and the flag
 // panel's sentences (the deviation page's wording behind the key, the milestones roll-up) with the key as a link through the document's `jiraSites`.
 
 const KEY = "astrolabe.viewSettings.timeline.jiraBars";
 
-const flag = (kind: PlanFlag["kind"], severity: PlanFlag["severity"], over: Partial<PlanFlag> = {}): PlanFlag => ({ deviation: null, count: null, kind, severity, days: null, teamId: null, otherProjectId: null, ...over });
+const flag = (kind: PlanFlag["kind"], severity: PlanFlag["severity"], over: Partial<PlanFlag> = {}): PlanFlag => ({ kind, severity, ...over });
 
 const project = (id: number, name: string, over: Partial<RoadmapProject> = {}): RoadmapProject => ({
   jira: null,
@@ -45,7 +45,7 @@ const link = (id: number, key: string, start: string | null, end: string | null,
 const INVOICES = project(1, "Invoices", {
   rankPosition: 1,
   jira: link(11, "E2E-6", "2026-03-09", "2026-04-03"),
-  flags: [flag("JIRA_DEVIATION", "WARNING", { deviation: endLater }), flag("JIRA_MILESTONES", "INFO", { count: 3 })],
+  flags: [flag("JIRA_DEVIATION", "WARNING", { deviation: evidence(endLater) }), flag("JIRA_MILESTONES", "INFO", { count: 3 })],
 });
 const TAXES = project(2, "Taxes", { rankPosition: 2, jira: link(12, "E2E-7", null, null) });
 const AUDIT = project(3, "Audit", { rankPosition: 3, jira: link(13, "E2E-8", "2026-05-04", "2026-05-29") });
@@ -205,7 +205,7 @@ describe("Roadmap page: the Jira flags in the panel", () => {
 
   test("other kinds of evidence phrase through the same sentences (a level mismatch)", async () => {
     const user = userEvent.setup();
-    const level = flag("JIRA_DEVIATION", "WARNING", { deviation: { kind: "LEVEL_MISMATCH", severity: "WARNING", detail: detail({ jira: "3", plan: "2" }) } });
+    const level = flag("JIRA_DEVIATION", "WARNING", { deviation: { kind: "LEVEL_MISMATCH", detail: detail({ jira: "3", plan: "2" }) } });
     view = viewOf({ ranked: [{ position: 1, project: { ...INVOICES, flags: [level] } }], unranked: [] });
     renderWithProviders(<Roadmap />);
     await waitForGrid();

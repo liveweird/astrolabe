@@ -95,11 +95,7 @@ describe("projectTrack: the Jira shadow bar (1.3)", () => {
   const lateEnd = {
     kind: "JIRA_DEVIATION" as const,
     severity: "WARNING" as const,
-    days: null,
-    teamId: null,
-    otherProjectId: null,
-    count: null,
-    deviation: { kind: "END_DIFFERS" as const, severity: "WARNING" as const, detail: { plan: "2026-04-10", jira: "2026-04-03", days: 5, count: null } },
+    deviation: { kind: "END_DIFFERS" as const, detail: { plan: "2026-04-10", jira: "2026-04-03", days: 5 } },
   };
 
   test("while shown: the bar jira:<id> from the link's dates, read-only, after the span bar", () => {
@@ -125,8 +121,8 @@ describe("projectTrack: the Jira shadow bar (1.3)", () => {
   });
 
   test("the bar's name carries the row's open DATE deviations and nothing else", () => {
-    const level = { ...lateEnd, deviation: { kind: "LEVEL_MISMATCH" as const, severity: "WARNING" as const, detail: { plan: "2", jira: "3", days: null, count: null } } };
-    const roll = { ...lateEnd, kind: "JIRA_MILESTONES" as const, deviation: null, count: 2 };
+    const level = { ...lateEnd, deviation: { kind: "LEVEL_MISMATCH" as const, detail: { plan: "2", jira: "3" } } };
+    const roll = { ...lateEnd, kind: "JIRA_MILESTONES" as const, deviation: undefined, count: 2 };
     const bar = projectTrack(project({ jira: link, flags: [level, roll, lateEnd] }), t, none, WINDOW).bars.at(-1);
     expect(bar?.describe).toBe("Jira E2E-6: 2026-03-09 to 2026-04-03, Ends 5 working days later than Jira (plan 2026-04-10, Jira 2026-04-03)");
   });

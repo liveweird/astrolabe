@@ -61,7 +61,7 @@ const milestone = (id: number, name: string, over: Partial<ProjectMilestone> = {
   ...over,
 });
 
-const NO_WORKING_DAY: PlanFlag = { kind: "NO_WORKING_DAY", severity: "WARNING", days: null, teamId: null, otherProjectId: null, deviation: null, count: null };
+const NO_WORKING_DAY: PlanFlag = { kind: "NO_WORKING_DAY", severity: "WARNING" };
 const DISCOVERY = milestone(1, "Discovery", { description: "Interviews", estimateMd: 12.25, startDate: "2027-01-11", endDate: "2027-01-15" });
 const BUILD = milestone(2, "Build", { startDate: "2027-01-18", endDate: "2027-01-29" });
 const ROLLOUT = milestone(3, "Rollout");

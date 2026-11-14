@@ -26,7 +26,14 @@ export const DEV_CONNECTION: DeviationConnection = {
   status: { state: "CURRENT", lastRun: DEV_LAST_RUN, lastSucceededAt: OBSERVED_AT, consecutiveFailures: 0, nextPollAt: OBSERVED_AT + 15 * 60_000 },
 };
 
-export const detail = (over: Partial<Deviation["detail"]> = {}): Deviation["detail"] => ({ jira: null, plan: null, days: null, count: null, ...over });
+/** A flag's evidence as the server sends it since 1.15: the deviation's kind and detail, no severity (the flag's own is the severity). */
+export const evidence = (deviation: Pick<Deviation, "kind" | "detail">): { kind: Deviation["kind"]; detail: Deviation["detail"] } => ({
+  kind: deviation.kind,
+  detail: deviation.detail,
+});
+
+/** A detail as the server sends it since 1.15: only the members that apply are present (absent, never null). */
+export const detail = (over: Deviation["detail"] = {}): Deviation["detail"] => ({ ...over });
 
 export const endLater = (days: number): DeviationLine => ({
   kind: "END_DIFFERS",

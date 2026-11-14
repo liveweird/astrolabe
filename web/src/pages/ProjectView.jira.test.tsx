@@ -6,7 +6,7 @@ import ProjectView from "./ProjectView";
 import type { Deviation } from "../api/deviations";
 import type { ProjectMilestone, ProjectView as ProjectViewDocument } from "../api/milestones";
 import type { JiraLink, PlanFlag } from "../api/roadmap";
-import { DEV_CONNECTION, detail, endLater, view as deviationsView } from "../test/deviations";
+import { DEV_CONNECTION, detail, endLater, evidence, view as deviationsView } from "../test/deviations";
 import { jsonResponse } from "../test/http";
 import { renderWithProviders } from "../test/render";
 
@@ -16,8 +16,8 @@ import { renderWithProviders } from "../test/render";
 const BARS_KEY = "astrolabe.viewSettings.timeline.jiraBars";
 
 const link = (bindingId: number, key: string, start: string | null = null, end: string | null = null): JiraLink => ({ bindingId, connectionId: DEV_CONNECTION.id, issueKey: key, start, end, rollup: null });
-const flag = (deviation: Deviation, severity: PlanFlag["severity"] = deviation.severity): PlanFlag => ({ kind: "JIRA_DEVIATION", severity, days: null, teamId: null, otherProjectId: null, deviation, count: null });
-const unscheduledInPlan: Deviation = { kind: "UNSCHEDULED_IN_PLAN", severity: "INFO", detail: detail({ jira: "2027-03-01", plan: null }) };
+const flag = (deviation: Deviation, severity: PlanFlag["severity"] = deviation.severity): PlanFlag => ({ kind: "JIRA_DEVIATION", severity, deviation: evidence(deviation) });
+const unscheduledInPlan: Deviation = { kind: "UNSCHEDULED_IN_PLAN", severity: "INFO", detail: detail({ jira: "2027-03-01" }) };
 
 const milestone = (id: number, name: string, over: Partial<ProjectMilestone> = {}): ProjectMilestone => ({
   jira: null,
@@ -124,7 +124,7 @@ describe("the project page's Jira markers", () => {
     });
 
     test("the count is the project's own and the milestones' deviations; the JIRA_MILESTONES roll-up is not counted again", async () => {
-      const rollUp: PlanFlag = { kind: "JIRA_MILESTONES", severity: "WARNING", days: null, teamId: null, otherProjectId: null, deviation: null, count: 1 };
+      const rollUp: PlanFlag = { kind: "JIRA_MILESTONES", severity: "WARNING", count: 1 };
       project = viewOf();
       project.project.flags = [flag({ kind: "START_DIFFERS", severity: "INFO", detail: detail({ days: -1 }) }), rollUp];
       renderPage();

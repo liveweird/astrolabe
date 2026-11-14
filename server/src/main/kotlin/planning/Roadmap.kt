@@ -98,21 +98,28 @@ enum class FlagKind {
 enum class FlagSeverity { WARNING, INFO }
 
 /**
- * One flag raised on a project. [days] is the drift in calendar days (always positive) or, for an inversion, how many calendar days
- * earlier this project starts than [otherProjectId]; [teamId] is the shared team of a per-team inversion (null for the no-shared-team
- * INFO and for drift); [otherProjectId] is the higher-ranked project of an inversion. A [FlagKind.JIRA_DEVIATION] carries its
- * [deviation] (the evidence; [days] stays null, the detail holds them) and a [FlagKind.JIRA_MILESTONES] its [count] of milestones with
- * an open deviation (the severity is the worst among them); both members are null on every other kind. A [FlagKind.FLOW_CAPACITY]
- * carries its [count] too (the open sprint rows). A [FlagKind.NO_WORKING_DAY] carries nothing else (every other member null).
+ * One flag raised on a project. Only [kind] and [severity] are always on the wire; every other member is ABSENT when null (1.15, the
+ * timeline documents' bytes: a flag of one kind never used most of them). [days] is the drift in calendar days (always positive) or,
+ * for an inversion, how many calendar days earlier this project starts than [otherProjectId]; [teamId] is the shared team of a
+ * per-team inversion (absent for the no-shared-team INFO and for drift); [otherProjectId] is the higher-ranked project of an
+ * inversion. A [FlagKind.JIRA_DEVIATION] carries its [deviation] (the evidence; [days] stays absent, the detail holds them) and a
+ * [FlagKind.JIRA_MILESTONES] its [count] of milestones with an open deviation (the severity is the worst among them); both members
+ * are absent on every other kind. A [FlagKind.FLOW_CAPACITY] carries its [count] too (the open sprint rows). A
+ * [FlagKind.NO_WORKING_DAY] carries nothing else.
  */
 @Serializable
 data class PlanFlag(
     val kind: FlagKind,
     val severity: FlagSeverity,
-    val days: Int?,
-    val teamId: UInt?,
-    val otherProjectId: UInt?,
-    val deviation: Deviation? = null,
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val days: Int? = null,
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val teamId: UInt? = null,
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val otherProjectId: UInt? = null,
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val deviation: FlagDeviation? = null,
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
     val count: Int? = null,
 )
 

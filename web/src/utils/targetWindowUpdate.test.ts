@@ -3,7 +3,7 @@ import type { ProgramsView } from "../api/programs";
 import type { PlanFlag, RoadmapProject, RoadmapView } from "../api/roadmap";
 import { applyProgramsWindow, applyRoadmapWindow } from "./targetWindowUpdate";
 
-const flag = (kind: PlanFlag["kind"], severity: PlanFlag["severity"]): PlanFlag => ({ kind, severity, days: 3, teamId: null, otherProjectId: null, deviation: null, count: null });
+const flag = (kind: PlanFlag["kind"], severity: PlanFlag["severity"]): PlanFlag => ({ kind, severity, days: 3 });
 
 const project = (id: number, over: Partial<RoadmapProject> = {}): RoadmapProject => ({
   jira: null,

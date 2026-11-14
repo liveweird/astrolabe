@@ -1,5 +1,9 @@
+@file:OptIn(ExperimentalSerializationApi::class)
+
 package ch.nokillswit.planning
 
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 
 /*
@@ -49,12 +53,29 @@ enum class DeviationSeverity { WARNING, INFO }
  * `, `-joined, never a summary) of open items under the bound issue that no binding covers; `UNLINKED_IN_PLAN` plan = the NAMES of the
  * plan children of the bound node that no binding covers; `CHILDREN_DONE` jira = "done/children", plan = the plan end;
  * `CHILDREN_OPEN` jira = "open/children", plan = the plan end. [days] is in WORKING days, POSITIVE = the plan is later. [count] is the
- * full count behind a truncated list (`UNLINKED_*`) or the children (`CHILDREN_DONE`, `CHILDREN_OPEN`), null for every other kind. It has
- * NO default on purpose: the response `Json` does not encode defaults, so a defaulted member would vanish from the wire; the
- * fingerprint's serializer omits nulls, so a null [count] never enters a hash.
+ * full count behind a truncated list (`UNLINKED_*`) or the children (`CHILDREN_DONE`, `CHILDREN_OPEN`). Every member is ABSENT on
+ * the wire when null (1.15: `@EncodeDefault(NEVER)` with a null default, the response `Json` writes defaults); the fingerprint's own
+ * pinned `Json` omits nulls and defaults, so neither the default nor the annotation touches a hash: a null never enters one, a value
+ * always does.
  */
 @Serializable
-data class DeviationDetail(val jira: String?, val plan: String?, val days: Int?, val count: Int?)
+data class DeviationDetail(
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val jira: String? = null,
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val plan: String? = null,
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val days: Int? = null,
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val count: Int? = null,
+)
 
 @Serializable
 data class Deviation(val kind: DeviationKind, val severity: DeviationSeverity, val detail: DeviationDetail)
+
+/**
+ * The evidence a [PlanFlag] carries (1.15): the [Deviation] without its severity, which is the flag's own (`PlanFlag.severity`, set
+ * from it). The kernel's [Deviation] stays whole - the fingerprints and the Deviations view read it.
+ */
+@Serializable
+data class FlagDeviation(val kind: DeviationKind, val detail: DeviationDetail)

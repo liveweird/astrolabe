@@ -176,6 +176,9 @@ class JiraFlagsScaleTest {
             printSourceCost(platform)
 
             val teamBaseline = bound.getValue("team baseline")
+            // The gated figures on their own lines (plain and gzip, before the asserts), so a CI log carries them even when a gate fails.
+            ScaleFigures.printBytes("flags team view with the overlay (gated) size", teamBaseline.bytes)
+            ScaleFigures.printBytes("flags team view with the overlay (gated) gzip", teamBaseline.gzip)
             assertTrue(teamBaseline.bytes <= TEAM_VIEW_GATE_BYTES, "team view with the overlay: ${teamBaseline.bytes} B")
             assertTrue(teamBaseline.gzip <= TEAM_VIEW_GZIP_GATE_BYTES, "team view with the overlay, gzip: ${teamBaseline.gzip} B")
             assertTrue(bound.getValue("project baseline").bytes <= PROJECT_VIEW_GATE_BYTES, "project view with the overlay")
@@ -217,9 +220,10 @@ class JiraFlagsScaleTest {
          * v0.9's 260 KB to the measurement (`timeline.md` "Measured figures (1.3)"). It is NOT the ceiling: the kernel can raise seven
          * flags on a milestone (about 745 KB on the sample plan), which no realistic plan reaches. The wire is gzip: the realistic
          * projection is about 38 KB there (this synthetic world compresses 50:1, the real Platform view 11.6:1), so the gzip gate has
-         * little headroom and slimming (`BACKLOG.md` "Slim the Jira blocks") is the lever.
+         * little headroom. 1.15 slimmed the blocks (a flag's null members and an evidence's severity are absent, `timeline.md`
+         * "Measured figures (1.15)"): the gate went from 500,000 to 400,000 B (the plan expected about 354,000 B).
          */
-        private const val TEAM_VIEW_GATE_BYTES = 500_000
+        private const val TEAM_VIEW_GATE_BYTES = 400_000
         private const val TEAM_VIEW_GZIP_GATE_BYTES = 40_000
 
         /** The project view with the overlay: a project of ten milestones, about +2 KB for the overlay, +3 KB for the Jira blocks. */

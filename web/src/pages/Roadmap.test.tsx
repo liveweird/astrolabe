@@ -45,14 +45,10 @@ const dropRow = (project: RoadmapProject, position: number, slot: number, count 
   act(() => dndProps?.onDragEnd?.(event as never));
 };
 
-const flag = (kind: PlanFlag["kind"], severity: PlanFlag["severity"], days: number | null, over: Partial<PlanFlag> = {}): PlanFlag => ({
-  deviation: null,
-  count: null,
+const flag = (kind: PlanFlag["kind"], severity: PlanFlag["severity"], days: number | undefined, over: Partial<PlanFlag> = {}): PlanFlag => ({
   kind,
   severity,
   days,
-  teamId: null,
-  otherProjectId: null,
   ...over,
 });
 

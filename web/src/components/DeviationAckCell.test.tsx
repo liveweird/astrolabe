@@ -41,7 +41,7 @@ describe("a line's acknowledgement cell: the button matrix (can x none / current
   });
 
   test("an estimate that cannot be compared (shown under 'all') is a line like any other: it can be acknowledged", () => {
-    const line: DeviationLine = { kind: "ESTIMATE_NOT_COMPARABLE", severity: "INFO", detail: { jira: "5", plan: "3.00", days: null, count: null }, acknowledgement: null };
+    const line: DeviationLine = { kind: "ESTIMATE_NOT_COMPARABLE", severity: "INFO", detail: { jira: "5", plan: "3.00" }, acknowledgement: null };
     renderLine(line, can);
     expect(screen.getByRole("button", { name: "Acknowledge E2E-3: Estimate" })).toBeInTheDocument();
   });

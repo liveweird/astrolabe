@@ -40,8 +40,8 @@ const viewOf = (scheduled: TeamMilestone[], unscheduled: TeamMilestone[] = []): 
   idleGaps: [],
 });
 
-const CALENDAR = { kind: "NO_WORKING_DAY", severity: "WARNING", days: null, teamId: null, otherProjectId: null, deviation: null, count: null } as const;
-const JIRA = { kind: "JIRA_MILESTONES", severity: "WARNING", days: null, teamId: null, otherProjectId: null, deviation: null, count: 1 } as const;
+const CALENDAR = { kind: "NO_WORKING_DAY", severity: "WARNING" } as const;
+const JIRA = { kind: "JIRA_MILESTONES", severity: "WARNING", count: 1 } as const;
 const ids = (list: TeamMilestone[]) => list.map((m) => m.id);
 
 describe("applyTeamSchedule", () => {

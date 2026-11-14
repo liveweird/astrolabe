@@ -4,12 +4,12 @@ import ch.nokillswit.jira.DeviationViewServiceKey
 import ch.nokillswit.jira.JiraFlagSource
 import ch.nokillswit.jira.JiraLevel
 import ch.nokillswit.jira.JiraStatusCategory
-import ch.nokillswit.planning.Deviation
 import ch.nokillswit.planning.DeviationKind
 import ch.nokillswit.planning.DeviationSeverity
 import ch.nokillswit.planning.ExternalFlagRequest
 import ch.nokillswit.planning.ExternalFlags
 import ch.nokillswit.planning.FLAG_ORDER
+import ch.nokillswit.planning.FlagDeviation
 import ch.nokillswit.planning.FlagKind
 import ch.nokillswit.planning.FlagSeverity
 import ch.nokillswit.planning.JiraRollup
@@ -95,8 +95,13 @@ class JiraFlagSourceTest {
         for ((milestone, binding) in listOf(late to lateBinding, level to levelBinding)) {
             val flags = answer.milestone(milestone).flags
             val carried = flags.map { checkNotNull(it.deviation) }
-            val viewed = oracle.getValue(binding).deviations.map { Deviation(it.kind, it.severity, it.detail) }
+            val viewed = oracle.getValue(binding).deviations.map { FlagDeviation(it.kind, it.detail) }
             assertEquals(viewed, carried, "the flags carry the view's deviations")
+            assertEquals(
+                oracle.getValue(binding).deviations.map { it.severity.name },
+                flags.map { it.severity.name },
+                "each flag's severity is its view line's (the evidence no longer repeats it)",
+            )
             assertTrue(flags.all { it.kind == FlagKind.JIRA_DEVIATION && it.days == null && it.teamId == null && it.count == null })
             assertEquals(flags.sortedWith(FLAG_ORDER), flags)
         }

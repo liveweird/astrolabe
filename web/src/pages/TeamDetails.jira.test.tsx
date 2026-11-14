@@ -6,7 +6,7 @@ import TeamDetails from "./TeamDetails";
 import type { Deviation } from "../api/deviations";
 import type { JiraLink, PlanFlag } from "../api/roadmap";
 import type { TeamMilestone, TeamView } from "../api/teams";
-import { detail, endLater } from "../test/deviations";
+import { detail, endLater, evidence } from "../test/deviations";
 import { headingOutline } from "../test/headings";
 import { jsonResponse } from "../test/http";
 import { READ_ONLY_PANEL } from "../test/flow";
@@ -18,8 +18,8 @@ import { renderWithProviders } from "../test/render";
 const BARS_KEY = "astrolabe.viewSettings.timeline.jiraBars";
 
 const link = (bindingId: number, key: string, start: string | null = null, end: string | null = null): JiraLink => ({ bindingId, connectionId: 1, issueKey: key, start, end, rollup: null });
-const flag = (deviation: Deviation): PlanFlag => ({ kind: "JIRA_DEVIATION", severity: deviation.severity, days: null, teamId: null, otherProjectId: null, deviation, count: null });
-const unscheduledInPlan: Deviation = { kind: "UNSCHEDULED_IN_PLAN", severity: "INFO", detail: detail({ jira: "2027-03-01", plan: null }) };
+const flag = (deviation: Deviation): PlanFlag => ({ kind: "JIRA_DEVIATION", severity: deviation.severity, deviation: evidence(deviation) });
+const unscheduledInPlan: Deviation = { kind: "UNSCHEDULED_IN_PLAN", severity: "INFO", detail: detail({ jira: "2027-03-01" }) };
 
 const milestone = (id: number, name: string, over: Partial<TeamMilestone> = {}): TeamMilestone => ({
   jira: null,

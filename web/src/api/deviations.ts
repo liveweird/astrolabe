@@ -8,7 +8,8 @@ type Schemas = components["schemas"];
 
 export type DeviationView = Schemas["DeviationView"];
 export type DeviationItem = Schemas["DeviationItem"];
-export type Deviation = Schemas["Deviation"];
+/** One deviation as the kernel names it: a listed line without its acknowledgement and its item blocks. A flag's evidence is the same without `severity` (`FlagDeviation`). */
+export type Deviation = Pick<DeviationLine, "kind" | "severity" | "detail">;
 /** One listed line of an item: a deviation with the state of its own acknowledgement (1.12). */
 export type DeviationLine = Schemas["DeviationLine"];
 export type DeviationKind = Schemas["DeviationKind"];

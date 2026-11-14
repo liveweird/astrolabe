@@ -9,14 +9,14 @@ type Phrased = { jira: Pick<DeviationItem["jira"], "estimateUnit"> };
 
 const UNKNOWN = "unknown";
 
-/** `detail.days` is in working days, POSITIVE = the plan is later; null or 0 is "no usable figure" and reads as a plain "differs". */
-function shift(days: number | null): { later: boolean; count: number } | null {
-  return days === null || days === 0 ? null : { later: days > 0, count: Math.abs(days) };
+/** `detail.days` is in working days, POSITIVE = the plan is later; absent or 0 is "no usable figure" and reads as a plain "differs". */
+function shift(days: number | undefined): { later: boolean; count: number } | null {
+  return days === undefined || days === 0 ? null : { later: days > 0, count: Math.abs(days) };
 }
 
 /** "(plan 2044-03-07, Jira 2044-03-04)" only when BOTH dates are known: a date is never made up from an absent side. */
 function datesSuffix(detail: Deviation["detail"], t: TFunction): string {
-  return detail.plan !== null && detail.jira !== null ? ` (${t("deviations.phrase.dates", { plan: detail.plan, jira: detail.jira })})` : "";
+  return detail.plan !== undefined && detail.jira !== undefined ? ` (${t("deviations.phrase.dates", { plan: detail.plan, jira: detail.jira })})` : "";
 }
 
 function startOrEnd(kind: "START_DIFFERS" | "END_DIFFERS", detail: Deviation["detail"], t: TFunction): string {
@@ -56,14 +56,14 @@ function gone(detail: Deviation["detail"], t: TFunction): string {
 }
 
 function levelMismatch(detail: Deviation["detail"], t: TFunction): string {
-  if (detail.plan === null) return t("deviations.phrase.levelMismatchBare");
-  if (detail.jira === null || detail.jira === UNKNOWN) return t("deviations.phrase.levelMismatchUnknown", { plan: detail.plan });
+  if (detail.plan === undefined) return t("deviations.phrase.levelMismatchBare");
+  if (detail.jira === undefined || detail.jira === UNKNOWN) return t("deviations.phrase.levelMismatchUnknown", { plan: detail.plan });
   return t("deviations.phrase.levelMismatch", { jira: detail.jira, plan: detail.plan });
 }
 
 function parentMismatch(detail: Deviation["detail"], t: TFunction): string {
-  if (detail.jira === null) return t("deviations.phrase.parentMismatchBare");
-  if (detail.plan === null) return t("deviations.phrase.parentMismatchJira", { jira: detail.jira });
+  if (detail.jira === undefined) return t("deviations.phrase.parentMismatchBare");
+  if (detail.plan === undefined) return t("deviations.phrase.parentMismatchJira", { jira: detail.jira });
   return t("deviations.phrase.parentMismatch", { jira: detail.jira, plan: detail.plan });
 }
 
@@ -78,7 +78,7 @@ function estimateNotComparable(detail: Deviation["detail"], item: Phrased, t: TF
 }
 
 function progress(detail: Deviation["detail"], t: TFunction): string {
-  if (detail.plan === null) return t("deviations.phrase.progressBare");
+  if (detail.plan === undefined) return t("deviations.phrase.progressBare");
   switch (detail.jira) {
     case "DONE":
       return t("deviations.phrase.progressDone", { plan: detail.plan });
@@ -100,7 +100,7 @@ const MAX_LISTED = 10;
  */
 function unlinked(kind: "UNLINKED_IN_JIRA" | "UNLINKED_IN_PLAN", detail: Deviation["detail"], t: TFunction): string {
   const list = kind === "UNLINKED_IN_JIRA" ? detail.jira : detail.plan;
-  if (list === null || list === "" || detail.count === null || detail.count < 1) return t(`deviations.kind.${kind}`);
+  if (list === undefined || list === "" || detail.count === undefined || detail.count < 1) return t(`deviations.kind.${kind}`);
   const { count } = detail;
   const sentence =
     kind === "UNLINKED_IN_JIRA" ? t("deviations.phrase.unlinkedInJira", { count, keys: list }) : t("deviations.phrase.unlinkedInPlan", { count, names: list });
@@ -110,7 +110,7 @@ function unlinked(kind: "UNLINKED_IN_JIRA" | "UNLINKED_IN_PLAN", detail: Deviati
 
 /** `detail.count` is the epic's children, `detail.plan` the plan's end date; either missing degrades to the plain kind label. */
 function childrenDone(detail: Deviation["detail"], t: TFunction): string {
-  if (detail.count === null || detail.count < 1 || detail.plan === null) return t("deviations.kind.CHILDREN_DONE");
+  if (detail.count === undefined || detail.count < 1 || detail.plan === undefined) return t("deviations.kind.CHILDREN_DONE");
   return t("deviations.phrase.childrenDone", { count: detail.count, date: detail.plan });
 }
 
@@ -119,8 +119,8 @@ function childrenDone(detail: Deviation["detail"], t: TFunction): string {
  * while the plan ended 2046-03-01". A missing or unreadable member degrades to the plain kind label.
  */
 function childrenOpen(detail: Deviation["detail"], t: TFunction): string {
-  const open = detail.jira === null ? NaN : Number(detail.jira.split("/")[0]);
-  if (detail.count === null || detail.count < 1 || detail.plan === null || !Number.isInteger(open) || open < 1) return t("deviations.kind.CHILDREN_OPEN");
+  const open = detail.jira === undefined ? NaN : Number(detail.jira.split("/")[0]);
+  if (detail.count === undefined || detail.count < 1 || detail.plan === undefined || !Number.isInteger(open) || open < 1) return t("deviations.kind.CHILDREN_OPEN");
   return t("deviations.phrase.childrenOpen", { count: detail.count, open, date: detail.plan });
 }
 
@@ -129,7 +129,7 @@ function childrenOpen(detail: Deviation["detail"], t: TFunction): string {
  * `DeviationKind` has one; the evidence is the server's `detail` (`days` in WORKING days, positive = the plan is later; the member
  * meanings per kind are in the OpenAPI `DeviationDetail`). A missing member degrades to a plainer sentence, never to an invented value.
  */
-export function deviationSentence(deviation: Deviation, item: Phrased, t: TFunction): string {
+export function deviationSentence(deviation: Pick<Deviation, "kind" | "detail">, item: Phrased, t: TFunction): string {
   const { detail } = deviation;
   switch (deviation.kind) {
     case "GONE":
@@ -139,7 +139,7 @@ export function deviationSentence(deviation: Deviation, item: Phrased, t: TFunct
     case "PARENT_MISMATCH":
       return parentMismatch(detail, t);
     case "RENAMED":
-      return detail.jira === null || detail.plan === null
+      return detail.jira === undefined || detail.plan === undefined
         ? t("deviations.phrase.renamedBare")
         : t("deviations.phrase.renamed", { jira: detail.jira, plan: detail.plan });
     case "START_DIFFERS":
@@ -153,7 +153,7 @@ export function deviationSentence(deviation: Deviation, item: Phrased, t: TFunct
     case "UNSCHEDULED_IN_JIRA":
       return t("deviations.phrase.unscheduledInJira");
     case "ESTIMATE_DIFFERS":
-      return detail.jira === null || detail.plan === null
+      return detail.jira === undefined || detail.plan === undefined
         ? t("deviations.kind.ESTIMATE_DIFFERS")
         : t("deviations.phrase.estimateDiffers", { jira: detail.jira, plan: detail.plan });
     case "ESTIMATE_NOT_COMPARABLE":

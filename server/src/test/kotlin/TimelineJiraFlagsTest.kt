@@ -197,7 +197,7 @@ class TimelineJiraFlagsTest {
     }
 
     @Test
-    fun `an unbound project and team answer null links, empty flags and no sites, with every member present`() = testApplication {
+    fun `an unbound project and team answer null links, empty flags and no sites, as explicit nulls and empty lists`() = testApplication {
         val b = world("tjf5")
         val project = b.client.project(b.otherProject)
         assertNull(project.project.jira)
@@ -222,11 +222,15 @@ class TimelineJiraFlagsTest {
         val flags = flagged.getValue("flags").jsonArray.map { it.jsonObject }
         fun ofKind(kind: String) = flags.filter { it.getValue("kind").toString() == "\"$kind\"" }
         val flag = ofKind("JIRA_MILESTONES").single()
-        assertEquals(JsonNull, flag.getValue("deviation"))
+        // 1.15: a flag's null members are ABSENT (only kind and severity are always there), and its evidence repeats no severity.
+        assertEquals(setOf("kind", "severity", "count"), flag.keys, "the roll-up carries its count and nothing else")
         assertEquals("3", flag.getValue("count").toString())
         val deviation = ofKind("JIRA_DEVIATION").first() // several are legitimate: RENAMED and the 1.4 UNLINKED_IN_PLAN
-        assertEquals(JsonNull, deviation.getValue("count"))
-        assertTrue(deviation.getValue("deviation") is JsonObject)
+        assertEquals(setOf("kind", "severity", "deviation"), deviation.keys, "the evidence flag carries its deviation and nothing else")
+        val evidence = deviation.getValue("deviation").jsonObject
+        assertEquals(setOf("kind", "detail"), evidence.keys, "the severity is the flag's own, not repeated")
+        val detail = evidence.getValue("detail").jsonObject
+        assertTrue(detail.values.none { it is JsonNull }, "a detail's null members are absent: $detail")
     }
 
     @Test

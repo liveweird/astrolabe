@@ -9,7 +9,7 @@ const pl = i18n.getFixedT("pl");
 const POINTS = { jira: { estimateUnit: "POINTS" as const } };
 const NO_UNIT = { jira: { estimateUnit: null } };
 
-const shifted = (kind: "START_DIFFERS" | "END_DIFFERS" | "TARGET_DIFFERS", days: number | null, dates = true): Deviation => ({
+const shifted = (kind: "START_DIFFERS" | "END_DIFFERS" | "TARGET_DIFFERS", days: number | undefined, dates = true): Deviation => ({
   kind,
   severity: "WARNING",
   detail: detail({ days, ...(dates && kind !== "TARGET_DIFFERS" ? { jira: "2044-03-04", plan: "2044-03-07" } : {}) }),
@@ -61,7 +61,7 @@ describe("deviationSentence - the working-day phrasing (positive days = the plan
   });
 
   test("the target window: days is the end's shift, else the start's, so the sentence names no count and no edge; the dates line carries the figures", () => {
-    for (const days of [3, -1, null]) {
+    for (const days of [3, -1, undefined]) {
       expect(deviationSentence(shifted("TARGET_DIFFERS", days), POINTS, en)).toBe("The target window differs from Jira's project dates");
     }
     expect(deviationSentence(shifted("TARGET_DIFFERS", 5), POINTS, pl)).toBe("Okno docelowe różni się od dat projektu w Jirze");
@@ -71,7 +71,7 @@ describe("deviationSentence - the working-day phrasing (positive days = the plan
     const oneSided: Deviation = { kind: "END_DIFFERS", severity: "WARNING", detail: detail({ days: 3, plan: "2044-03-07" }) };
     expect(deviationSentence(oneSided, POINTS, en)).toBe("Ends 3 working days later than Jira");
     expect(deviationSentence(shifted("END_DIFFERS", 0, false), POINTS, en)).toBe("Ends on a different day than in Jira");
-    expect(deviationSentence(shifted("START_DIFFERS", null, false), POINTS, pl)).toBe("Początek w innym dniu niż w Jirze");
+    expect(deviationSentence(shifted("START_DIFFERS", undefined, false), POINTS, pl)).toBe("Początek w innym dniu niż w Jirze");
   });
 });
 
@@ -133,7 +133,7 @@ describe("deviationSentence - every other kind, in both languages", () => {
     ];
     for (const kind of kinds) {
       for (const t of [en, pl]) {
-        expect(deviationSentence({ kind, severity: "INFO", detail: detail() }, POINTS, t)).not.toMatch(/^deviations\./);
+        expect(deviationSentence({ kind, detail: detail() }, POINTS, t)).not.toMatch(/^deviations\./);
         expect(deviationKindLabel(kind, t)).not.toMatch(/^deviations\./);
       }
     }
@@ -195,18 +195,18 @@ describe("deviationSentence - the coverage kinds (1.4)", () => {
   });
 
   test("a CHILDREN_OPEN with a missing or unreadable member degrades to the plain kind label", () => {
-    expect(deviationSentence(coverage("CHILDREN_OPEN", { jira: null, plan: "2046-03-01", count: 4 }), POINTS, en)).toBe("Children open");
+    expect(deviationSentence(coverage("CHILDREN_OPEN", { plan: "2046-03-01", count: 4 }), POINTS, en)).toBe("Children open");
     expect(deviationSentence(coverage("CHILDREN_OPEN", { jira: "x/4", plan: "2046-03-01", count: 4 }), POINTS, en)).toBe("Children open");
-    expect(deviationSentence(coverage("CHILDREN_OPEN", { jira: "2/4", plan: null, count: 4 }), POINTS, en)).toBe("Children open");
-    expect(deviationSentence(coverage("CHILDREN_OPEN", { jira: "2/4", plan: "2046-03-01", count: null }), POINTS, en)).toBe("Children open");
+    expect(deviationSentence(coverage("CHILDREN_OPEN", { jira: "2/4", count: 4 }), POINTS, en)).toBe("Children open");
+    expect(deviationSentence(coverage("CHILDREN_OPEN", { jira: "2/4", plan: "2046-03-01" }), POINTS, en)).toBe("Children open");
   });
 
   test("a missing member degrades to the plain kind label, never to an invented value", () => {
-    expect(deviationSentence(coverage("UNLINKED_IN_JIRA", { jira: "COV-5", count: null }, "WARNING"), POINTS, en)).toBe("Not in plan");
-    expect(deviationSentence(coverage("UNLINKED_IN_JIRA", { jira: null, count: 2 }, "WARNING"), POINTS, en)).toBe("Not in plan");
+    expect(deviationSentence(coverage("UNLINKED_IN_JIRA", { jira: "COV-5" }, "WARNING"), POINTS, en)).toBe("Not in plan");
+    expect(deviationSentence(coverage("UNLINKED_IN_JIRA", { count: 2 }, "WARNING"), POINTS, en)).toBe("Not in plan");
     expect(deviationSentence(coverage("UNLINKED_IN_PLAN", { plan: "", count: 2 }), POINTS, en)).toBe("Not in Jira");
-    expect(deviationSentence(coverage("CHILDREN_DONE", { plan: null, count: 2 }), POINTS, en)).toBe("Children done");
-    expect(deviationSentence(coverage("CHILDREN_DONE", { plan: "2046-03-01", count: null }), POINTS, en)).toBe("Children done");
+    expect(deviationSentence(coverage("CHILDREN_DONE", { count: 2 }), POINTS, en)).toBe("Children done");
+    expect(deviationSentence(coverage("CHILDREN_DONE", { plan: "2046-03-01" }), POINTS, en)).toBe("Children done");
   });
 
   test.each([

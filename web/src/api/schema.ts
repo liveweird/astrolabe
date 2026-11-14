@@ -4867,26 +4867,26 @@ export interface components {
          *     `UNLINKED_IN_JIRA`: jira = the Jira KEYS (at most 10, `, `-joined, ascending by issue id, never a summary) of open items under the
          *     bound issue that no binding covers. `UNLINKED_IN_PLAN`: plan = the NAMES (at most 10, `, `-joined, ascending by id) of the bound
          *     node's plan children that no binding covers. `CHILDREN_DONE`: jira = `done/children`, plan = the plan's end date.
-         *     `CHILDREN_OPEN`: jira = `open/children`, plan = the plan's end date.
+         *     `CHILDREN_OPEN`: jira = `open/children`, plan = the plan's end date. A member that does not apply to the kind (or holds nothing)
+         *     is ABSENT from the object, never `null` (1.15); an `UNSCHEDULED_*` detail is `{}`.
          */
         DeviationDetail: {
-            jira: string | null;
-            plan: string | null;
+            jira?: string;
+            plan?: string;
             /**
              * Format: int32
              * @description Working days, POSITIVE = the plan is later.
              */
-            days: number | null;
+            days?: number;
             /**
              * Format: int32
-             * @description The full count behind a truncated list (`UNLINKED_*`: items, at most 10 listed) or the children (`CHILDREN_DONE`, `CHILDREN_OPEN`); null for every other kind.
+             * @description The full count behind a truncated list (`UNLINKED_*`: items, at most 10 listed) or the children (`CHILDREN_DONE`, `CHILDREN_OPEN`); absent for every other kind.
              */
-            count: number | null;
+            count?: number;
         };
-        Deviation: {
+        /** @description The evidence a `JIRA_DEVIATION` flag carries (1.15): a deviation's `kind` and `detail`. Its severity is the flag's own (`PlanFlag.severity`), so it is not repeated here. */
+        FlagDeviation: {
             kind: components["schemas"]["DeviationKind"];
-            /** @enum {string} */
-            severity: "WARNING" | "INFO";
             detail: components["schemas"]["DeviationDetail"];
         };
         /** @description A connection's newest sync run, any trigger (the run list carries the full row). */
@@ -5297,10 +5297,10 @@ export interface components {
             jira: components["schemas"]["JiraLink"] | null;
             baseline?: components["schemas"]["RoadmapProjectBaseline"];
         };
-        /** @description One flag raised on a project or, for `JIRA_DEVIATION`, a milestone, or (1.9) on a team: `FLOW_CAPACITY`, in `GET /views/team/{id}`'s `team.flags`. Warnings only - nothing is ever moved. */
+        /** @description One flag raised on a project or, for `JIRA_DEVIATION`, a milestone, or (1.9) on a team: `FLOW_CAPACITY`, in `GET /views/team/{id}`'s `team.flags`. Warnings only - nothing is ever moved. Only `kind` and `severity` are always present; every other member is ABSENT (never `null`) when it does not apply to the kind (1.15, the timeline documents' size). */
         PlanFlag: {
             /**
-             * @description `JIRA_DEVIATION` is one open deviation between a node and its Jira item (a binding through an enabled connection that is not currently acknowledged; `ESTIMATE_NOT_COMPARABLE` never raises one), `JIRA_MILESTONES` a project's roll-up of its milestones', `FLOW_CAPACITY` (1.9, only in `GET /views/team/{id}`'s `team.flags`) the team's roll-up of its open Flow capacity deviations. `NO_WORKING_DAY` (the project and team views' milestone rows) the scheduled span holds no working day on the current calendar: a holiday added after the schedule was written (decision D2); every other member is null.
+             * @description `JIRA_DEVIATION` is one open deviation between a node and its Jira item (a binding through an enabled connection that is not currently acknowledged; `ESTIMATE_NOT_COMPARABLE` never raises one), `JIRA_MILESTONES` a project's roll-up of its milestones', `FLOW_CAPACITY` (1.9, only in `GET /views/team/{id}`'s `team.flags`) the team's roll-up of its open Flow capacity deviations. `NO_WORKING_DAY` (the project and team views' milestone rows) the scheduled span holds no working day on the current calendar: a holiday added after the schedule was written (decision D2); it carries no other member.
              * @enum {string}
              */
             kind: "DRIFT_END_LATE" | "DRIFT_START_LATE" | "DRIFT_END_EARLY" | "RANK_INVERSION" | "NO_WORKING_DAY" | "JIRA_DEVIATION" | "JIRA_MILESTONES" | "FLOW_CAPACITY";
@@ -5308,26 +5308,26 @@ export interface components {
             severity: "WARNING" | "INFO";
             /**
              * Format: int32
-             * @description Calendar days: the drift, or for a rank inversion how much earlier this project starts than `otherProjectId`.
+             * @description Calendar days: the drift, or for a rank inversion how much earlier this project starts than `otherProjectId`; absent on every other kind.
              */
-            days: number | null;
+            days?: number;
             /**
              * Format: int32
-             * @description The shared team of a per-team rank inversion; null for drift and for the no-shared-team INFO.
+             * @description The shared team of a per-team rank inversion; absent for drift, for the no-shared-team INFO and on every other kind.
              */
-            teamId: number | null;
+            teamId?: number;
             /**
              * Format: int32
-             * @description The higher-ranked project of a rank inversion; null for drift.
+             * @description The higher-ranked project of a rank inversion; absent for drift and on every other kind.
              */
-            otherProjectId: number | null;
-            /** @description The evidence of a `JIRA_DEVIATION` flag (its severity is the flag's); null on every other kind. */
-            deviation: components["schemas"]["Deviation"] | null;
+            otherProjectId?: number;
+            /** @description The evidence of a `JIRA_DEVIATION` flag (its severity is the flag's, not repeated inside); absent on every other kind. */
+            deviation?: components["schemas"]["FlagDeviation"];
             /**
              * Format: int32
-             * @description The milestones of the project that raised a Jira flag, for `JIRA_MILESTONES` (the flag's severity is the worst among them), or the open sprint rows for `FLOW_CAPACITY`; null on every other kind.
+             * @description The milestones of the project that raised a Jira flag, for `JIRA_MILESTONES` (the flag's severity is the worst among them), or the open sprint rows for `FLOW_CAPACITY`; absent on every other kind.
              */
-            count: number | null;
+            count?: number;
         };
         /** @description A plan node's Jira item (1.3). The browse URL is not per row: find `connectionId` in the document's `jiraSites`. Present for every bound node; through a DISABLED connection the dates and the roll-up are null (nothing refreshes it) and the node raises no flag. */
         JiraLink: {

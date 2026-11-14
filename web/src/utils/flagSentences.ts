@@ -26,12 +26,12 @@ export function flagSentence(t: TFunction, flag: PlanFlag, names: FlagNames, jir
     case "DRIFT_END_EARLY":
       return t("roadmap.flag.endEarly", { count });
     case "RANK_INVERSION": {
-      const other = flag.otherProjectId === null ? "" : names.project(flag.otherProjectId);
-      return flag.teamId === null ? t("roadmap.flag.inversionNoTeam", { count, other }) : t("roadmap.flag.inversion", { count, other, team: names.team(flag.teamId) });
+      const other = flag.otherProjectId === undefined ? "" : names.project(flag.otherProjectId);
+      return flag.teamId === undefined ? t("roadmap.flag.inversionNoTeam", { count, other }) : t("roadmap.flag.inversion", { count, other, team: names.team(flag.teamId) });
     }
     case "JIRA_DEVIATION": {
       // Without the evidence (the contract always sends it) the sentence degrades to the bare "differs", never to an invented figure.
-      const sentence = flag.deviation === null ? t("roadmap.flag.jiraDeviationBare") : deviationSentence(flag.deviation, { jira: { estimateUnit: null } }, t);
+      const sentence = flag.deviation === undefined ? t("roadmap.flag.jiraDeviationBare") : deviationSentence(flag.deviation, { jira: { estimateUnit: null } }, t);
       return jiraKey === null ? sentence : t("roadmap.flag.jiraDeviation", { key: jiraKey, sentence });
     }
     // The roll-up of the project's milestones' open deviations; the detail lives on the project page's rows.

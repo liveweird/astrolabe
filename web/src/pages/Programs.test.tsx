@@ -11,7 +11,7 @@ import { renderWithProviders } from "../test/render";
 const PICK_KEY = "astrolabe.viewSettings.planning.programPick";
 const ZOOM_KEY = "astrolabe.viewSettings.timeline.planZoom";
 
-const flag = (kind: PlanFlag["kind"], severity: PlanFlag["severity"], days: number): PlanFlag => ({ kind, severity, days, teamId: null, otherProjectId: null, deviation: null, count: null });
+const flag = (kind: PlanFlag["kind"], severity: PlanFlag["severity"], days: number): PlanFlag => ({ kind, severity, days });
 
 const project = (id: number, name: string, over: Partial<RoadmapProject> = {}): RoadmapProject => ({
   jira: null,

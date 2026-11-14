@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { renderWithProviders, screen } from "../test/render";
 import type { JiraLink, PlanFlag } from "../api/roadmap";
-import { endLater } from "../test/deviations";
+import { endLater, evidence } from "../test/deviations";
 import { MilestoneFlags, NameWithFlags } from "./MilestoneFlags";
 
 // The roll-up text after the Jira key (1.4): "5/12 · 34 pt", dimmed, its accessible name the full sentence. The page tests carry one fixture row each.
@@ -9,7 +9,7 @@ import { MilestoneFlags, NameWithFlags } from "./MilestoneFlags";
 const SITES = new Map([[1, "https://acme.atlassian.net"]]);
 const link = (rollup: JiraLink["rollup"]): JiraLink => ({ bindingId: 1, connectionId: 1, issueKey: "COV-3", start: null, end: null, rollup });
 const rollup = (over: Partial<NonNullable<JiraLink["rollup"]>> = {}): NonNullable<JiraLink["rollup"]> => ({ children: 12, done: 5, points: 34, observedAt: 1, ...over });
-const flag: PlanFlag = { kind: "JIRA_DEVIATION", severity: "WARNING", days: null, teamId: null, otherProjectId: null, deviation: endLater(3), count: null };
+const flag: PlanFlag = { kind: "JIRA_DEVIATION", severity: "WARNING", deviation: evidence(endLater(3)) };
 
 describe("MilestoneFlags - the roll-up", () => {
   test("the compact text after the key, its name the full sentence (the text itself is hidden from assistive technology)", () => {
@@ -53,7 +53,7 @@ describe("MilestoneFlags - the roll-up", () => {
   });
 
   test("an unlinked row with only the calendar flag shows the triangle, the sentence as its label", () => {
-    const calendar: PlanFlag = { kind: "NO_WORKING_DAY", severity: "WARNING", days: null, teamId: null, otherProjectId: null, deviation: null, count: null };
+    const calendar: PlanFlag = { kind: "NO_WORKING_DAY", severity: "WARNING" };
     const { container } = renderWithProviders(<MilestoneFlags flags={[calendar]} link={null} sites={SITES} />);
     expect(container.querySelector("[data-flags]")).toHaveAttribute("data-flags", "1,0");
     expect(screen.getByText("Covers no working day: only weekends or holidays")).toBeInTheDocument();

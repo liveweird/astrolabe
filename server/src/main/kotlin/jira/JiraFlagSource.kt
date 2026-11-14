@@ -7,6 +7,7 @@ import ch.nokillswit.planning.ExternalFlagRequest
 import ch.nokillswit.planning.ExternalFlagSource
 import ch.nokillswit.planning.ExternalFlags
 import ch.nokillswit.planning.FLAG_ORDER
+import ch.nokillswit.planning.FlagDeviation
 import ch.nokillswit.planning.FlagKind
 import ch.nokillswit.planning.FlagSeverity
 import ch.nokillswit.planning.JiraLink
@@ -93,19 +94,13 @@ internal class JiraFlagSource(private val deviations: DeviationViewService) : Ex
     private fun Deviation.toFlag() = PlanFlag(
         kind = FlagKind.JIRA_DEVIATION,
         severity = if (severity == DeviationSeverity.WARNING) FlagSeverity.WARNING else FlagSeverity.INFO,
-        days = null,
-        teamId = null,
-        otherProjectId = null,
-        deviation = this,
+        deviation = FlagDeviation(kind, detail),
     )
 
     /** One project's roll-up over the milestones in [raising]: how many, at the worst severity any of them raised. */
     private fun rollUp(raising: List<FlagRow>): PlanFlag = PlanFlag(
         kind = FlagKind.JIRA_MILESTONES,
         severity = raising.flatMap { it.flags }.minOf { it.severity },
-        days = null,
-        teamId = null,
-        otherProjectId = null,
         count = raising.size,
     )
 }

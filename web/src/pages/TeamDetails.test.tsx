@@ -54,7 +54,7 @@ const dropRow = (m: TeamMilestone, position: number, y: number) => {
   act(() => dndProps?.onDragEnd?.(event as never));
 };
 
-const NO_WORKING_DAY: PlanFlag = { kind: "NO_WORKING_DAY", severity: "WARNING", days: null, teamId: null, otherProjectId: null, deviation: null, count: null };
+const NO_WORKING_DAY: PlanFlag = { kind: "NO_WORKING_DAY", severity: "WARNING" };
 const milestone = (id: number, name: string, over: Partial<TeamMilestone> = {}): TeamMilestone => ({
   jira: null,
   flags: [],
@@ -341,7 +341,7 @@ describe("Team view page", () => {
   });
 
   test("the header shows the Flow capacity flag from the view, the marked weeks read on the strip and in the weekly table", async () => {
-    const flag = { kind: "FLOW_CAPACITY", severity: "WARNING", days: null, teamId: null, otherProjectId: null, deviation: null, count: 2 } as const;
+    const flag = { kind: "FLOW_CAPACITY", severity: "WARNING", count: 2 } as const;
     const base = viewOf();
     view = viewOf({
       team: { ...base.team, flags: [flag] },

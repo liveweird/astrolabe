@@ -976,7 +976,7 @@ empty-state claim.
 
 **The sentences** (`utils/deviations.ts`, pure, EN/PL with `_one/_few/_many/_other`): `deviationSentence(deviation, item, t)` for every `DeviationKind` - "Ends
 3 working days later than Jira (plan 2044-01-12, Jira 2044-01-08)": **`detail.days` is in working days, POSITIVE = the plan is later** (so a negative figure
-reads "earlier"); the dates are appended only when BOTH sides are known (a date is never made up from an absent one), a missing or zero figure degrades to "ends
+reads "earlier"); **a `detail` member that does not apply is ABSENT (1.15), never `null`, so every check is `=== undefined` (a `=== null` compiles against the generated types and is silently always false); a flag's `deviation` is `{kind, detail}` without a severity, `deviationSentence` takes `Pick<Deviation, "kind" | "detail">`, and the flags' optional members (`days`, `teamId`, `otherProjectId`, `deviation`, `count`) follow the same rule (`utils/flagSentences.ts`, `utils/jiraBars.ts`);** the dates are appended only when BOTH sides are known (a date is never made up from an absent one), a missing or zero figure degrades to "ends
 on a different day", `TARGET_DIFFERS` (days is the end's shift, else the start's) is a neutral sentence with no count (the dates column carries the figures),
 and `ESTIMATE_NOT_COMPARABLE` (no conversion declared, OR the figure was read under another unit than the mapping names now) names neither cause. **Coverage
 kinds (1.4):** `UNLINKED_IN_JIRA` ("3 Jira items are not in the plan: COV-5, COV-6, COV-7", `detail.jira` = the keys), `UNLINKED_IN_PLAN` ("1 plan item is not

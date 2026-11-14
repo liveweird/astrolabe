@@ -2,14 +2,14 @@ import { describe, expect, test } from "vitest";
 import i18n from "../i18n";
 import type { Deviation } from "../api/deviations";
 import type { PlanFlag } from "../api/roadmap";
-import { detail, endLater } from "../test/deviations";
+import { detail, endLater, evidence } from "../test/deviations";
 import { flagSentence, jiraTrayNote, milestoneFlagLabel } from "./flagSentences";
 
 const en = i18n.getFixedT("en");
 const pl = i18n.getFixedT("pl");
 
-const flag = (kind: PlanFlag["kind"], severity: PlanFlag["severity"], over: Partial<PlanFlag> = {}): PlanFlag => ({ deviation: null, count: null, kind, severity, days: null, teamId: null, otherProjectId: null, ...over });
-const deviationFlag = (deviation: Deviation) => flag("JIRA_DEVIATION", deviation.severity, { deviation });
+const flag = (kind: PlanFlag["kind"], severity: PlanFlag["severity"], over: Partial<PlanFlag> = {}): PlanFlag => ({ kind, severity, ...over });
+const deviationFlag = (deviation: Deviation) => flag("JIRA_DEVIATION", deviation.severity, { deviation: evidence(deviation) });
 const unscheduledInPlan: Deviation = { kind: "UNSCHEDULED_IN_PLAN", severity: "INFO", detail: detail({ jira: "2027-03-01" }) };
 const NAMES = { project: (id: number) => `P${id}`, team: (id: number) => `T${id}` };
 
