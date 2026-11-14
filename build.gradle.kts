@@ -183,8 +183,8 @@ val checkVerificationMetadata = tasks.register<CheckVerificationMetadata>("check
             "io.opentelemetry:opentelemetry-bom:1.49.0" to "imported by httpclient5-parent 5.6.4",
             "org.jetbrains.kotlinx:kotlinx-coroutines-bom:1.6.4" to "the BOM of kotlinx-coroutines-core-jvm 1.6.4, a losing transitive version",
             "org.jetbrains.kotlinx:kotlinx-coroutines-bom:1.8.0" to "the BOM of kotlinx-coroutines-core-jvm 1.8.0, a losing transitive version",
-            "com.google.guava:guava-parent:26.0-android" to "the parent of listenablefuture 9999.0-empty-to-avoid-conflict-with-guava",
-            "com.google.guava:guava-parent:33.4.0-android" to "the parent of failureaccess 1.0.3",
+            "com.google.guava:guava-parent:33.8.0-android" to "the parent of listenablefuture 9999.0-empty-to-avoid-conflict-with-guava",
+            "com.google.guava:guava-parent:33.8.0-android" to "the parent of failureaccess 1.0.3",
         ),
     )
 }
