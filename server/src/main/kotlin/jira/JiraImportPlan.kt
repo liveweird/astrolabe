@@ -92,7 +92,16 @@ class ImportInput(
     val ticks: List<JiraImportApplyItem>? = null,
     /** A rooted import's root (1.14); null = a whole-scope import, whose rows the kernel plans as before. */
     val root: ImportRootNode? = null,
+    /**
+     * The suggested matches the user confirmed (1.15), Jira id -> plan node id. An entry is honoured only when it equals the kernel's own
+     * suggestion for that row ([ImportNameMatch]); any other is ignored. Empty = the planner of 1.14, row for row.
+     */
+    val matches: Map<String, UInt> = emptyMap(),
 )
+
+/** The same input with an apply's [ticks] (the apply runs the kernel once as a preview and once ticked, over one input). */
+internal fun ImportInput.withTicks(ticks: List<JiraImportApplyItem>): ImportInput =
+    ImportInput(browse, mapping, discovery, snapshot, defaults, copyDates, asOf, ticks, root, matches)
 
 /** What an apply does with a row. */
 sealed interface ImportApply {

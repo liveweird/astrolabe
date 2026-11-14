@@ -66,10 +66,15 @@ internal class ImportWritten(
     val bound: List<JiraImportBound>,
     val skipped: List<JiraImportSkipped>,
     val released: List<ReleasedBinding>,
+    /** The bindings of the rows written as a confirmed suggested match (1.15), for the audit line. */
+    val confirmedBindingIds: List<UInt> = emptyList(),
 )
 
-/** What the apply commits: the [result] and the dead-node holders it [released] (the route audits both after the commit). */
-class ImportOutcome(val result: JiraImportResult, val released: List<ReleasedBinding>)
+/**
+ * What the apply commits: the [result], the dead-node holders it [released] and the [confirmedBindingIds] of the bindings made through
+ * a confirmed suggested match (the route audits all of it after the commit).
+ */
+class ImportOutcome(val result: JiraImportResult, val released: List<ReleasedBinding>, val confirmedBindingIds: List<UInt> = emptyList())
 
 /** Binding ids per locking statement (an `IN` list; a browse holds at most 2,000 issues). */
 private const val RELEASE_LOCK_CHUNK = 1_000
@@ -120,16 +125,15 @@ internal class LockedApply(
             request.workStreamId, connection.siteUrl, issueIdsOf(ctx.browse), canSchedule(), revision,
         ) ?: throw NotFoundException("Work stream not found")
         val rootNode = ctx.root?.node
+        // The same confirmations (1.15) and root in BOTH kernel runs: the withheld ids and the ticked rows must see the same input.
+        val matches = request.matches.byJiraId()
         val preview = ImportInput(
-            ctx.browse, ctx.mapping, ctx.discovery, read.snapshot, defaults, request.copyDates, ctx.asOf, root = rootNode,
+            ctx.browse, ctx.mapping, ctx.discovery, read.snapshot, defaults, request.copyDates, ctx.asOf,
+            root = rootNode, matches = matches,
         )
         val withheld = withheldIds(preview)
         val ticks = request.items.filter { it.jiraId !in withheld }
-        val plan = JiraImportKernels.plan(
-            ImportInput(
-                ctx.browse, ctx.mapping, ctx.discovery, read.snapshot, defaults, request.copyDates, ctx.asOf, ticks, rootNode,
-            ),
-        )
+        val plan = JiraImportKernels.plan(preview.withTicks(ticks))
         ctx.root?.let(plan::requireRootRow)
         val ticked = plan.rows.filter { it.apply != null && it.apply != ImportApply.NotRequested }.map { it.item }
         requireResolvedTargets(caller, person, ticked, read, guardedByName = named > 0)
@@ -290,6 +294,7 @@ internal class LockedApply(
         val created = ArrayList<JiraImportCreated>()
         val bound = ArrayList<JiraImportBound>()
         val released = ArrayList<ReleasedBinding>()
+        val confirmed = ArrayList<UInt>()
         for (row in writes) {
             val item = row.item
             val nodeId = nodeIds.getValue(item.jiraId)
@@ -297,6 +302,7 @@ internal class LockedApply(
                 JiraBindCommand(ctx.connectionId, item.level, nodeId, row.observation, caller.userId), siteConnectionIds,
             )
             released += inserted.released
+            if (JiraImportInfo.MATCH_CONFIRMED in item.infos) confirmed += inserted.bindingId
             if (item.action == JiraImportAction.BIND) {
                 bound += JiraImportBound(item.jiraId, item.key(), item.level, nodeId, inserted.bindingId)
             } else {
@@ -304,7 +310,7 @@ internal class LockedApply(
                 created += JiraImportCreated(item.jiraId, item.key(), item.level, nodeId, inserted.bindingId, item.name, scheduled)
             }
         }
-        return ImportWritten(created, bound, skippedAnswer(plan.skips, withheld), released)
+        return ImportWritten(created, bound, skippedAnswer(plan.skips, withheld), released, confirmed.sorted())
     }
 }
 

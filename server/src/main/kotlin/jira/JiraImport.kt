@@ -1,6 +1,10 @@
+@file:OptIn(ExperimentalSerializationApi::class)
+
 package ch.nokillswit.jira
 
 import io.ktor.server.plugins.BadRequestException
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 
 // The wire shapes of the Jira import (1.2): the preview (`POST …/connections/{id}/import-preview`) and the apply (`…/import`). The
@@ -50,7 +54,7 @@ data class JiraImportRoot(val level: JiraImportRootLevel, val nodeId: UInt) {
  * project, an optional subset of the connection's [projectKeys] (default: all), the [defaults] and whether Jira's milestone dates are
  * copied (only where the caller may schedule the milestone's team). The optional [filter] narrows what the browse reads (absent = all).
  * The optional [root] (1.14; absent = the whole scope) limits the import to what Jira lists under that linked node: its descendants
- * only, never a row for the root itself.
+ * only, never a row for the root itself. The optional [matches] (1.15) are the suggested matches the user confirmed ([JiraImportMatch]).
  */
 @Serializable
 data class JiraImportScope(
@@ -61,7 +65,19 @@ data class JiraImportScope(
     val copyDates: Boolean = true,
     val filter: JiraImportFilter? = null,
     val root: JiraImportRoot? = null,
+    val matches: List<JiraImportMatch>? = null,
 )
+
+/**
+ * A suggested match the user confirmed (1.15): the CREATE row of Jira item [jiraId] is to BIND the existing, unlinked plan node [nodeId]
+ * instead. The server honours it only when it equals ITS OWN current suggestion for that row ([JiraImportSuggestion]); anything else is
+ * ignored (a preview) or turns the ticked row into `CHANGED` (an apply): the caller never chooses a node.
+ */
+@Serializable
+data class JiraImportMatch(val jiraId: String, val nodeId: UInt)
+
+/** The confirmations by Jira id (the kernel's [ImportInput.matches]). Validated beforehand: each id is named once. */
+internal fun List<JiraImportMatch>?.byJiraId(): Map<String, UInt> = orEmpty().associate { it.jiraId to it.nodeId }
 
 /** What an item does: the preview proposes [CREATE], [BIND] (to an unbound same-name node) or [SKIP]; an apply expects the first two. */
 @Serializable
@@ -93,6 +109,9 @@ enum class JiraImportInfo {
      * visible): 1.13.2.
      */
     PARENT_UNREADABLE,
+
+    /** The row binds a plan item whose name differs from the Jira item's, because the user confirmed the suggested match (1.15). */
+    MATCH_CONFIRMED,
 }
 
 /** Where a created row lands: an [EXISTING] node, the new node of another row ([NEW_ROW]) or the level's [DEFAULT] parent. */
@@ -148,6 +167,9 @@ data class JiraImportItem(
     val canSchedule: Boolean,
     val scheduled: Boolean,
     val infos: List<JiraImportInfo>,
+    /** A CREATE row that looks like an existing, unlinked plan item (1.15); absent otherwise. Never on a redacted row. */
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val suggestion: JiraImportSuggestion? = null,
 ) {
     /**
      * The Jira key of an unredacted row (every row the kernel and the apply handle). Only the route's redaction of a non-admin's preview
@@ -155,6 +177,10 @@ data class JiraImportItem(
      */
     fun key(): String = checkNotNull(issueKey) { "a row that is not redacted has its issue key" }
 }
+
+/** The plan item a CREATE row looks like (1.15): an unlinked sibling under the same parent whose name has the same words. */
+@Serializable
+data class JiraImportSuggestion(val nodeId: UInt, val nodeName: String)
 
 /**
  * [truncated]: what is shown is incomplete and cannot be imported (the user narrows `projectKeys` or the filter): more issues were in
@@ -217,8 +243,9 @@ data class JiraImportApplyRequest(
     val items: List<JiraImportApplyItem>,
     val filter: JiraImportFilter? = null,
     val root: JiraImportRoot? = null,
+    val matches: List<JiraImportMatch>? = null,
 ) {
-    fun scope(): JiraImportScope = JiraImportScope(workStreamId, ownerPersonId, projectKeys, defaults, copyDates, filter, root)
+    fun scope(): JiraImportScope = JiraImportScope(workStreamId, ownerPersonId, projectKeys, defaults, copyDates, filter, root, matches)
 }
 
 @Serializable
@@ -259,6 +286,7 @@ fun validateImportScope(scope: JiraImportScope, connectionKeys: List<String>): L
     if (days != null && days !in MIN_IMPORT_UPDATED_DAYS..MAX_IMPORT_UPDATED_DAYS) {
         throw BadRequestException("filter.updatedWithinDays must be between $MIN_IMPORT_UPDATED_DAYS and $MAX_IMPORT_UPDATED_DAYS")
     }
+    validateMatches(scope.matches)
     return keys
 }
 
@@ -274,6 +302,14 @@ private fun validatedKeys(scope: JiraImportScope, connectionKeys: List<String>):
 }
 
 private const val MAX_KEY_ECHO = 20
+
+/** The confirmations' shape (1.15), a client bug as a `400`: at most [MAX_IMPORT_ITEMS], each Jira id numeric and named once. */
+private fun validateMatches(matches: List<JiraImportMatch>?) {
+    if (matches == null) return
+    if (matches.size > MAX_IMPORT_ITEMS) throw BadRequestException("matches must list at most $MAX_IMPORT_ITEMS entries")
+    if (matches.any { !ISSUE_ID_PATTERN.matches(it.jiraId) }) throw BadRequestException("matches[].jiraId must be a numeric Jira issue id")
+    if (matches.map { it.jiraId }.toSet().size != matches.size) throw BadRequestException("matches must name each Jira item once")
+}
 
 /**
  * The apply items' rules, for client bugs only (the recomputation under the lock is the real protection): between one and

@@ -48,6 +48,8 @@ export function infoText(info: Info, t: TFunction): string {
       return t("jira.import.info.keptAsParent");
     case "PARENT_UNREADABLE":
       return t("jira.import.info.parentUnreadable");
+    case "MATCH_CONFIRMED":
+      return t("jira.import.info.matchConfirmed");
   }
 }
 

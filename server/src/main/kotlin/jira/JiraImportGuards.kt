@@ -28,7 +28,7 @@ internal fun requireResolvedTargets(
     read: ImportRead,
     guardedByName: Boolean,
 ) {
-    val targets = items.mapNotNull { item -> targetOf(item, read) }
+    val targets = items.flatMap { item -> targetsOf(item, read) }
     for (target in targets) {
         try {
             requireOwnerOrAdmin(caller, personId, target.chain)
@@ -44,25 +44,34 @@ internal fun requireResolvedTargets(
     }
 }
 
-/** The node [item] touches that needs a guard, or null (a skipped row, a program-less parent, a parent created in the batch). */
-private fun targetOf(item: JiraImportItem, read: ImportRead): Target? {
-    val created = "under which ${item.key()} would be created"
-    return when {
-        item.action == JiraImportAction.CREATE && item.level == JiraLevel.PROGRAM -> Target(read.streamChain, "the work stream", created)
-        item.action == JiraImportAction.CREATE -> {
-            val parent = item.parent
-            val level = if (item.level == JiraLevel.MILESTONE) JiraLevel.PROJECT else JiraLevel.PROGRAM
-            // A parent the snapshot has no chain for would be a hole in the guard: fail closed, never skip it.
-            parent?.nodeId?.let { id ->
-                Target(chainOf(read, level, id), "${level.label()} ${parent.nodeName}", created)
-            }
-        }
-        item.action == JiraImportAction.BIND -> item.target?.let { target ->
-            val what = "${item.level.label()} ${target.nodeName}"
-            Target(chainOf(read, item.level, target.nodeId), what, "which ${item.key()} would be bound to")
-        }
-        else -> null
+/**
+ * The nodes [item] touches that need a guard, in the order they are checked. A BIND the user confirmed as a suggested match
+ * (`MATCH_CONFIRMED`, 1.15) first answers for the CREATE it replaces - the same chain and the same wording - so a blind `matches`
+ * entry neither turns a `403` into a `200` for a caller who owns only the matched node, nor tells a different sentence; then the
+ * BIND's own target.
+ */
+private fun targetsOf(item: JiraImportItem, read: ImportRead): List<Target> = when {
+    item.action == JiraImportAction.CREATE -> listOfNotNull(createdUnder(item, read))
+    item.action == JiraImportAction.BIND -> {
+        val replaced = createdUnder(item, read).takeIf { JiraImportInfo.MATCH_CONFIRMED in item.infos }
+        listOfNotNull(replaced, boundTo(item, read))
     }
+    else -> emptyList()
+}
+
+/** The guard of a row that WOULD be created (or that replaces a CREATE): the stream for a program, else the parent's chain. */
+private fun createdUnder(item: JiraImportItem, read: ImportRead): Target? {
+    val created = "under which ${item.key()} would be created"
+    if (item.level == JiraLevel.PROGRAM) return Target(read.streamChain, "the work stream", created)
+    val parent = item.parent
+    val level = if (item.level == JiraLevel.MILESTONE) JiraLevel.PROJECT else JiraLevel.PROGRAM
+    // A parent the snapshot has no chain for would be a hole in the guard: fail closed, never skip it.
+    return parent?.nodeId?.let { id -> Target(chainOf(read, level, id), "${level.label()} ${parent.nodeName}", created) }
+}
+
+private fun boundTo(item: JiraImportItem, read: ImportRead): Target? = item.target?.let { target ->
+    val what = "${item.level.label()} ${target.nodeName}"
+    Target(chainOf(read, item.level, target.nodeId), what, "which ${item.key()} would be bound to")
 }
 
 private fun chainOf(read: ImportRead, level: JiraLevel, nodeId: UInt): OwnerChain =

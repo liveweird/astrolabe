@@ -478,7 +478,8 @@
       "noWorkingDay": "Jira's dates hold no working day: created unscheduled",
       "targetNotCopied": "Jira gives one date or an end before the start: created without a target window",
       "keptAsParent": "Kept as a parent of an item shown here",
-      "parentUnreadable": "Its parent in Jira could not be read with the connection's account (Jira answered that it does not exist or is not visible)"
+      "parentUnreadable": "Its parent in Jira could not be read with the connection's account (Jira answered that it does not exist or is not visible)",
+      "matchConfirmed": "Linked to a plan item with a different name, as you confirmed"
     },
     "outcome": {
       "title": "Import finished",

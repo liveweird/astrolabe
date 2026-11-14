@@ -173,4 +173,35 @@ class JiraImportWebBodyTest {
         val body = """{"workStreamId":3,"ownerPersonId":8,"copyDates":true,"items":[$echo]}"""
         assertFailsWith<SerializationException> { DefaultJson.decodeFromString<JiraImportApplyRequest>(body) }
     }
+
+    @Test
+    fun `a body with matches decodes through the strict deserialization and the kernel binds the confirmed row as the preview showed`() {
+        val item = json("""{"jiraId":"200",
+"expected":{"action":"BIND","level":"PROJECT","parentJiraId":"100","nodeId":8}}""")
+        val body = """{"workStreamId":3,"ownerPersonId":8,"matches":[{"jiraId":"200","nodeId":8}],"items":[$item]}"""
+        val request = DefaultJson.decodeFromString<JiraImportApplyRequest>(body)
+        assertEquals(listOf(ch.nokillswit.jira.JiraImportMatch("200", 8u)), request.matches)
+        assertEquals(request.matches, request.scope().matches)
+        val tree = ImportTree(listOf(node(7u, "Platform program")), stream.projects + node(8u, "Initiative North", 7u), emptyList())
+        val case = ImportCase(
+            listOf(issue("100", JIRA_PROGRAM), issue("200", JIRA_PROJECT, "North initiative", parent = "100")),
+            tree = tree, holders = listOf(holder("100", JiraLevel.PROGRAM, 7u, "Platform program")),
+            matches = request.matches.orEmpty().associate { it.jiraId to it.nodeId },
+        )
+        val applied = case.plan(request.items)
+        assertIs<ImportApply.Write>(applied.row("200").apply)
+        assertEquals(ch.nokillswit.jira.JiraImportAction.BIND, applied.row("200").item.action)
+        // Without the member the same body is the 1.14 request, and the strict deserialization still refuses an unknown key inside it.
+        val without = DefaultJson.decodeFromString<JiraImportApplyRequest>("""{"workStreamId":3,"ownerPersonId":8,"items":[$item]}""")
+        assertEquals(null, without.matches)
+        assertFailsWith<SerializationException> {
+            DefaultJson.decodeFromString<JiraImportApplyRequest>(
+                """{"workStreamId":3,"ownerPersonId":8,"matches":[{"jiraId":"200","nodeId":8,"name":"x"}],"items":[$item]}""",
+            )
+        }
+        val preview = DefaultJson.decodeFromString<ch.nokillswit.jira.JiraImportScope>(
+            """{"workStreamId":3,"ownerPersonId":8,"matches":[{"jiraId":"200","nodeId":8}]}""",
+        )
+        assertEquals(1, preview.matches!!.size)
+    }
 }

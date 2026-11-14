@@ -127,12 +127,13 @@ class ImportCase(
     private val mapping: JiraMapping = importMapping(),
     private val browseTruncated: Boolean = false,
     private val root: ImportRootNode? = null,
+    private val matches: Map<String, UInt> = emptyMap(),
 ) {
     fun plan(ticks: List<JiraImportApplyItem>? = null): ImportPlan = JiraImportKernels.plan(
         ImportInput(
             ImportBrowse(issues, browseTruncated), mapping, IMPORT_DISCOVERY,
             ImportSnapshot(tree, programNames, holders, teams, canSchedule, calendar),
-            defaults, copyDates, asOf = 42, ticks = ticks, root = root,
+            defaults, copyDates, asOf = 42, ticks = ticks, root = root, matches = matches,
         ),
     )
 

@@ -496,7 +496,8 @@
       "noWorkingDay": "W datach z Jiry nie ma dnia roboczego: powstanie bez terminu",
       "targetNotCopied": "Jira podaje tylko jedną datę albo koniec przed początkiem: powstanie bez okna docelowego",
       "keptAsParent": "Zostaje jako rodzic pokazanego tu elementu",
-      "parentUnreadable": "Nie udało się odczytać jego rodzica w Jirze kontem połączenia (Jira odpowiedziała, że nie istnieje albo nie jest widoczny)"
+      "parentUnreadable": "Nie udało się odczytać jego rodzica w Jirze kontem połączenia (Jira odpowiedziała, że nie istnieje albo nie jest widoczny)",
+      "matchConfirmed": "Powiązany z elementem planu o innej nazwie, zgodnie z Twoim potwierdzeniem"
     },
     "outcome": {
       "title": "Import zakończony",

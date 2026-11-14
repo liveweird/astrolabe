@@ -75,7 +75,8 @@ class JiraImportService(
         if (ctx.browse.truncated) throw BadRequestException(ctx.root?.let(::rootedImportTruncated) ?: IMPORT_TRUNCATED)
         val write = database.withPlanWrite { revision -> LockedApply(this, teams, bindingService, ctx, revision).run() }
         val written = write.value
-        return ImportOutcome(JiraImportResult(write.revision, written.created, written.bound, written.skipped), written.released)
+        val result = JiraImportResult(write.revision, written.created, written.bound, written.skipped)
+        return ImportOutcome(result, written.released, written.confirmedBindingIds)
     }
 
     /**

@@ -2464,6 +2464,16 @@ export interface paths {
          *     root is one more named target, so the caller must own its chain (or be ADMIN), and the redaction of skipped rows for a non-admin is
          *     unchanged.
          *
+         *     **Suggested matches** (1.15). Linking is by exact name, so a Jira item renamed since its plan item was made previews as a new one. A
+         *     CREATE row under an existing plan item (a program: under the picked work stream) that has the same words as exactly ONE unlinked,
+         *     unclaimed sibling - case, accents, punctuation and word order aside; the longer name may only add words, the shorter one holds at
+         *     least half of its letters, numbering words (a digit, one character, a Roman numeral up to ix) must be equal - and whose sibling
+         *     looks like no other row, carries `suggestion` (the sibling's id and name). A replaced word or a typo is not matched, and an
+         *     ambiguous pair proposes nothing, and a scope with an excessive number of comparisons proposes nothing. Nothing is ever linked by a suggestion: `matches[{jiraId, nodeId}]` is the user's confirmation,
+         *     sent with the next preview; the server honours an entry only when it equals its own current suggestion for that row (any other is
+         *     ignored), and the row then reads BIND with the info `MATCH_CONFIRMED`, its children landing under the existing item. Such a BIND is guarded first as the CREATE it replaces (the parent's owner chain, or the work stream for a program, with the CREATE wording of the `403`), then as every BIND. A redacted
+         *     row never carries a suggestion.
+         *
          *     **The filter** (`filter{excludeDone, updatedWithinDays}`, 1.13.2): `updatedWithinDays` must be a whole number from 1 to
          *     3,650 (`400` otherwise, after the up-front `403`s; the resolved-target `403` comes after the browse). An active filter narrows the read of every mapped level inside the search query (the
          *     window is sent in minutes) and the server also applies the rule to every entry it receives. The direct parent of each item that
@@ -2526,6 +2536,12 @@ export interface paths {
          *     the caller's person, re-reads the plan and re-runs every guard under them (a connection deleted meanwhile is `404`, disabled or
          *     out of scope `400`, its mapping or discovery changed `409`; an ownership revoked meanwhile `403`), recomputes the rows with the preview's rules
          *     over rows read under the lock, and writes. The lock is never held while Jira is called.
+         *
+         *     **Suggested matches** (1.15): `matches` repeats the confirmations of the preview (the web spreads the preview's scope). The apply
+         *     recomputes them under the plan lock, and a confirmation counts only while it still equals the server's own suggestion for that row
+         *     (the plan item unlinked, unrenamed and the only candidate): a ticked row that was previewed as a BIND through a confirmation that
+         *     no longer holds, or whose confirmation is missing from the request, is planned as a CREATE, which is not what was expected -
+         *     `CHANGED`, nothing created and nothing linked. `jira.import_applied` lists the bindings made this way.
          *
          *     **No update, no guess:** each ticked item is compared with `expected` (what the preview showed) after the re-browse and the re-read;
          *     a difference, or an item the site no longer holds, is skipped `CHANGED`; for a CREATE the difference includes where it would land
@@ -6346,6 +6362,22 @@ export interface components {
             filter?: components["schemas"]["JiraImportFilter"] | null;
             /** @description Start the import from one linked node (1.14): only what Jira lists under that node's Jira item is read, and the root itself is never a row. Null or absent = the whole scope, as before. The apply must carry the root its preview was read under. */
             root?: components["schemas"]["JiraImportRoot"] | null;
+            /** @description The suggested matches the user confirmed (1.15), each Jira item named once (`400` otherwise; `jiraId` a numeric Jira id). Honoured only when equal to the server's own current suggestion for that row; null, absent or empty = none. The apply must carry the matches its preview was read under. */
+            matches?: components["schemas"]["JiraImportMatch"][] | null;
+        };
+        JiraImportMatch: {
+            /** @description The numeric Jira issue id of the CREATE row to link. */
+            jiraId: string;
+            /**
+             * Format: int32
+             * @description The unlinked plan item of the row's level that the row's `suggestion` named.
+             */
+            nodeId: number;
+        };
+        JiraImportSuggestion: {
+            /** Format: int32 */
+            nodeId: number;
+            nodeName: string;
         };
         /**
          * @description The linked node a rooted import starts from (1.14): a program or a project of the picked work stream with an ACTIVE link through
@@ -6472,8 +6504,12 @@ export interface components {
              *     `KEPT_AS_PARENT` (1.13.2): the filter would have left this item out, but an item that is read sits under it, so it was fetched by id and
              *     kept. `PARENT_UNREADABLE`: its parent in Jira could not be read with the connection's account (Jira answered `404` by id: that it does not
              *     exist or is not visible); the row is skipped `NO_PARENT` and is never put under a default parent.
+             *     `MATCH_CONFIRMED` (1.15, a BIND): the user confirmed the suggested match, so the row links a plan item whose name differs from the
+             *     Jira item's.
              */
-            infos: ("NAME_TRUNCATED" | "ESTIMATE_NOT_CONVERTED" | "DATES_NOT_COPIED" | "DATES_INVALID" | "NO_WORKING_DAY" | "TARGET_NOT_COPIED" | "KEPT_AS_PARENT" | "PARENT_UNREADABLE")[];
+            infos: ("NAME_TRUNCATED" | "ESTIMATE_NOT_CONVERTED" | "DATES_NOT_COPIED" | "DATES_INVALID" | "NO_WORKING_DAY" | "TARGET_NOT_COPIED" | "KEPT_AS_PARENT" | "PARENT_UNREADABLE" | "MATCH_CONFIRMED")[];
+            /** @description Absent unless the row is a CREATE that looks like exactly one unlinked plan item of its level under the same parent (1.15); never on a redacted row. Confirm it by sending `matches` with the next preview. */
+            suggestion?: components["schemas"]["JiraImportSuggestion"];
         };
         JiraImportTotals: {
             /** Format: int32 */

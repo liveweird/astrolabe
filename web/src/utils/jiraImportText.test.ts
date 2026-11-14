@@ -42,6 +42,10 @@ describe("infoText", () => {
       "Its parent in Jira could not be read with the connection's account (Jira answered that it does not exist or is not visible)",
     );
   });
+
+  test("says a confirmed suggested match links a plan item of another name", () => {
+    expect(infoText("MATCH_CONFIRMED", t)).toBe("Linked to a plan item with a different name, as you confirmed");
+  });
 });
 
 describe("importFailure: a rooted import's 409", () => {

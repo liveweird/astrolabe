@@ -45,7 +45,7 @@ fun redactForNonAdmin(plan: ImportPlan, filterActive: Boolean = false): Redacted
 
 /** The plain redaction (no filter): a skipped row's text goes, its key becomes its name. */
 private fun JiraImportItem.blankedText(): JiraImportItem =
-    if (isRedactedSkip()) copy(summary = "", name = key(), infos = emptyList()) else this
+    if (isRedactedSkip()) copy(summary = "", name = key(), infos = emptyList(), suggestion = null) else this
 
 /** What a redacted row still shows: the only things its position may follow. */
 private data class Shown(val level: JiraLevel, val reason: JiraImportReason?, val typeName: String?, val hierarchyLevel: Int?)
@@ -74,6 +74,7 @@ private fun withoutHandles(rows: List<JiraImportItem>): List<JiraImportItem> {
             summary = "",
             name = "",
             infos = emptyList(),
+            suggestion = null,
             parentJiraId = null,
             parentIssueKey = null,
         )

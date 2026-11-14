@@ -59,7 +59,8 @@ internal class ImportPlanner(private val input: ImportInput) {
     private val rowsById = LinkedHashMap<String, ImportRow>()
     private val claimedNodes = HashSet<Pair<JiraLevel, UInt>>()
     private val takenNames = HashSet<Pair<String, String>>()
-    private val unmatchedTeams = HashSet<String>()
+    /** The Jira team name no team matched, by the id of the milestone row that needed one (a row that becomes a BIND no longer does). */
+    private val unmatchedTeams = HashMap<String, String>()
     private val naturalTeams = HashMap<String, UInt?>()
     private val tickRules = ImportTicks(ticks, naturalTeams)
     private val projectsByParent = tree.projects.groupBy { it.parentId }
@@ -77,11 +78,13 @@ internal class ImportPlanner(private val input: ImportInput) {
         val ordered = kept.sortedWith(
             compareBy<ImportBrowsedIssue> { (levelOf(it) ?: nearestLevel(it)).ordinal }.thenBy(ID_ORDER) { it.observation.issueId },
         )
-        val planned = ordered.map(::planRow)
+        // Level by level (the order of the answer is unchanged): a level's suggestions and confirmed matches are settled before the next
+        // level's rows look for their parents, so what hangs under a confirmed match lands under the EXISTING node.
+        val planned = ordered.groupBy { levelOf(it) ?: nearestLevel(it) }.values.flatMap { settleMatches(it.map(::planRow)) }
         val vanished = ticks.keys.filter { it !in rowsById }
         val rows = if (input.ticks == null) planned else tickRules.applyTicks(planned)
         // Sorted, then one entry per fold ("Zulu" and "zulu" are one name): the first spelling in sort order is kept.
-        val unmatched = unmatchedTeams.sorted().distinctBy(JiraImportKernels::foldName)
+        val unmatched = unmatchedTeams.values.sorted().distinctBy(JiraImportKernels::foldName)
         return ImportPlan(input.asOf, rows, truncated, unmatched, vanished)
     }
 
@@ -121,7 +124,7 @@ internal class ImportPlanner(private val input: ImportInput) {
         val lower = name.text.lowercase(Locale.ROOT)
         // The slot is per CHILD level: node ids of different levels overlap (program 3 and project 3), and so do their name spaces.
         val slot = "$level/${parent?.key.orEmpty()}"
-        val existing = siblings(level, parent).firstOrNull { it.name.lowercase(Locale.ROOT) == lower }
+        val existing = siblings(level, parent?.nodeId).firstOrNull { it.name.lowercase(Locale.ROOT) == lower }
         val taken = existing != null || (level == JiraLevel.PROGRAM && lower in programNames) || (slot to lower) in takenNames
         if (existing != null && !existing.bound && claimedNodes.add(level to existing.id)) {
             val item = base(issue, level, name).copy(
@@ -141,10 +144,50 @@ internal class ImportPlanner(private val input: ImportInput) {
         return row
     }
 
-    private fun siblings(level: JiraLevel, parent: Parent?): List<ImportPlanNode> = when (level) {
+    /** The existing nodes of [level] under the plan node [parentId] (the picked stream's programs for a program; none without a node). */
+    private fun siblings(level: JiraLevel, parentId: UInt?): List<ImportPlanNode> = when (level) {
         JiraLevel.PROGRAM -> tree.programs
-        JiraLevel.PROJECT -> parent?.nodeId?.let { projectsByParent[it] }.orEmpty()
-        JiraLevel.MILESTONE -> parent?.nodeId?.let { milestonesByParent[it] }.orEmpty()
+        JiraLevel.PROJECT -> parentId?.let { projectsByParent[it] }.orEmpty()
+        JiraLevel.MILESTONE -> parentId?.let { milestonesByParent[it] }.orEmpty()
+    }
+
+    // ---- suggested matches (1.15) ----------------------------------------------------------------------------------------------
+
+    /** Whether the row is a CREATE without an apply's team override: a milestone needs a team from its name or the default. */
+    private fun naturallyCreated(item: JiraImportItem): Boolean = item.level != JiraLevel.MILESTONE || naturalTeams[item.jiraId] != null
+
+    /**
+     * One level's rows after the name verdict. Per sibling scope (the rows that would be CREATED under the same EXISTING node, or the
+     * programs of the picked stream), a row that looks like exactly one free sibling, and that sibling like no other row, gets a
+     * suggestion; one the user confirmed ([ImportInput.matches] holds exactly that pair) becomes a BIND instead. Suggestions are computed
+     * on the level's natural state, so a confirmation never changes another suggestion of the level.
+     */
+    private fun settleMatches(rows: List<ImportRow>): List<ImportRow> {
+        val settled = HashMap<String, ImportRow>()
+        // NATURAL create-ness: a milestone the name match and the default team cannot place (NO_TEAM) stays out even when an apply's
+        // `overrides.teamId` made it a CREATE, so an override can neither honour a pair no preview showed nor break an honest one.
+        val eligible = rows.filter {
+            it.item.action == JiraImportAction.CREATE && naturallyCreated(it.item) &&
+                (it.item.level == JiraLevel.PROGRAM || it.item.parent?.nodeId != null)
+        }
+        for ((parentId, group) in eligible.groupBy { it.item.parent?.nodeId }) {
+            val level = group.first().item.level
+            val free = siblings(level, parentId).filter { !it.bound && (level to it.id) !in claimedNodes }.associateBy { it.id }
+            val paired = ImportNameMatch.pairs(group.map { it.item.jiraId to it.item.name }, free.values.map { it.id to it.name })
+            for (row in group) {
+                val node = paired[row.item.jiraId]?.let(free::getValue) ?: continue
+                val replacement = if (input.matches[row.item.jiraId] == node.id) {
+                    claimedNodes.add(level to node.id)
+                    unmatchedTeams.remove(row.item.jiraId)
+                    ImportNameMatch.confirmed(row, node)
+                } else {
+                    ImportNameMatch.suggested(row, node)
+                }
+                settled[row.item.jiraId] = replacement
+                rowsById[row.item.jiraId] = replacement
+            }
+        }
+        return rows.map { settled[it.item.jiraId] ?: it }
     }
 
     private fun createNode(
@@ -319,7 +362,7 @@ internal class ImportPlanner(private val input: ImportInput) {
     private fun teamFor(issue: ImportBrowsedIssue): JiraImportTeam? {
         val name = issue.observation.teamName
         val matched = name?.let { teamsByFold[JiraImportKernels.foldName(it)] }
-        if (matched == null && !name.isNullOrBlank()) unmatchedTeams.add(name.trim())
+        if (matched == null && !name.isNullOrBlank()) unmatchedTeams[issue.observation.issueId] = name.trim()
         val natural = matched?.let { JiraImportTeam(it.id, it.name, JiraImportTeamRule.MATCHED) }
             ?: input.defaults.teamId?.let(teamsById::get)?.let { JiraImportTeam(it.id, it.name, JiraImportTeamRule.DEFAULT) }
         naturalTeams[issue.observation.issueId] = natural?.id

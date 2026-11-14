@@ -96,7 +96,7 @@ internal fun Route.jiraImportRoutes(
             val defaults = scope.defaults ?: JiraImportDefaults()
             val input = ImportInput(
                 browse, admitted.ready.mapping, admitted.ready.discovery, read.snapshot, defaults, scope.copyDates, now,
-                root = admitted.root?.node,
+                root = admitted.root?.node, matches = scope.matches.byJiraId(),
             )
             val whole = JiraImportKernels.plan(input)
             // A rooted import: the root's own row must be what the browse promised, and it is never a row of the answer (1.14).
@@ -280,6 +280,7 @@ private fun auditImportApplied(caller: CallerPrincipal, connectionId: UInt, requ
         "updatedWithinDays" to request.filter?.updatedWithinDays,
         "rootLevel" to request.root?.level?.name,
         "rootNodeId" to request.root?.nodeId?.toLong(),
+        "confirmedMatchBindingIds" to ids(outcome.confirmedBindingIds),
     )
 }
 

@@ -149,4 +149,27 @@ class JiraImportRedactionTest {
         assertTrue(filtered.jiraId.startsWith("hidden-"), filtered.jiraId)
         assertEquals(JiraImportReason.ALREADY_BOUND, redactForNonAdmin(rooted).items.single { it.jiraId == "200" }.reason)
     }
+
+    @Test
+    fun `a redacted row never carries a suggestion, plain or under a filter, while a created row keeps its own`() {
+        val plan = case(teamId = null).plan()
+        val suggestion = ch.nokillswit.jira.JiraImportSuggestion(3u, "Some plan item")
+        // The kernel gives a SKIP no suggestion; the redaction makes that a rule, not a coincidence.
+        val marked = ch.nokillswit.jira.ImportPlan(
+            plan.asOf,
+            plan.rows.map { row -> row.copy(item = row.item.copy(suggestion = suggestion)) },
+            plan.truncated, plan.unmatchedTeams, plan.vanished,
+        )
+        for (filterActive in listOf(false, true)) {
+            val shown = redactForNonAdmin(marked, filterActive).items
+            for (item in shown) {
+                val redacted = item.action == JiraImportAction.SKIP && item.reason != JiraImportReason.ALREADY_BOUND
+                if (redacted) {
+                    assertEquals(null, item.suggestion, "filter=$filterActive ${item.jiraId}")
+                } else {
+                    assertEquals(suggestion, item.suggestion, "filter=$filterActive ${item.jiraId}")
+                }
+            }
+        }
+    }
 }

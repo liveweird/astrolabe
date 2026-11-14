@@ -246,7 +246,8 @@ class ImportFixture(val w: PlanWorld, val connectionId: UInt, val site: String, 
         keys: List<String>? = null,
         filter: JiraImportFilter? = null,
         root: JiraImportRoot? = null,
-    ) = JiraImportScope(w.streamId, w.streamOwner.personId!!, keys, defaults, copyDates, filter, root)
+        matches: List<ch.nokillswit.jira.JiraImportMatch>? = null,
+    ) = JiraImportScope(w.streamId, w.streamOwner.personId!!, keys, defaults, copyDates, filter, root, matches)
 }
 
 /** [keys]: the connection's project keys (`IMP` by default; `IMF` for the filter's own project). */
