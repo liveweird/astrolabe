@@ -17,6 +17,28 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.17.0",
+    date: "2026-11-14",
+    en: `**Astrolabe 1.17.0: one "may be out of date" rule everywhere, the warning on the Roadmap and Programs pages, scheduling a milestone on Jira's dates in one click, and a notice when a new version is deployed.**
+
+- Project and team pages: the dashed Jira row of a milestone that is not scheduled yet has a menu with "Schedule on Jira's dates", for whoever may schedule it (the team's manager or an administrator). It writes both of Jira's dates at once; Unschedule takes it back.
+- Roadmap and Programs pages: the line under the title adds "Jira data may be out of date" while a Jira connection behind any of the plan's links has no current successful synchronisation, is switched off, or its mapping no longer fits the site.
+- Deviations page: the warning above the list now follows the same rule as the "may be out of date" chips. It also shows when the last successful synchronisation is older than expected, during a connection's first synchronisation and while one runs again after a failure; "Data from Jira" says why, and the dated "no deviations" sentence waits for a current synchronisation. A switched-off connection still raises no warning there; its own row says so.
+- Roadmap and Programs pages: a screen reader hears "Showing the critical path to…" once per pick, and no longer again after a baseline is picked.
+- After you sign in: when a new version of Astrolabe has been deployed, a notice at the top of the page offers Reload. Tabs opened before this version need one reload by hand.
+- Nothing is written to Jira or Flow.
+- Proven against a built-in Jira stub; not yet tested against a real Jira site.`,
+    pl: `**Astrolabe 1.17.0: jedna reguła „mogą być nieaktualne” wszędzie, ostrzeżenie na stronach Roadmapa i Programy, planowanie kamienia milowego według dat z Jiry jednym kliknięciem oraz komunikat, gdy wdrożono nową wersję.**
+
+- Strony projektu i zespołu: przerywany wiersz Jiry kamienia milowego, który nie jest jeszcze zaplanowany, ma menu z „Zaplanuj według dat z Jiry” dla każdego, kto może go planować (kierownik/czka zespołu albo administrator/ka). Zapisuje obie daty z Jiry naraz; „Usuń z harmonogramu” to cofa.
+- Strony Roadmapa i Programy: linia pod tytułem dodaje „Dane z Jiry mogą być nieaktualne”, gdy połączenie z Jirą za którymkolwiek z powiązań planu nie ma aktualnej udanej synchronizacji, jest wyłączone albo jego mapowanie nie pasuje już do witryny.
+- Strona Odchylenia: ostrzeżenie nad listą stosuje teraz tę samą regułę co etykiety „mogą być nieaktualne”. Pokazuje się też, gdy ostatnia udana synchronizacja jest starsza, niż powinna, podczas pierwszej synchronizacji połączenia i podczas ponownej próby po błędzie; „Dane z Jiry” wyjaśnia dlaczego, a datowane zdanie „brak odchyleń” czeka na aktualną synchronizację. Wyłączone połączenie nadal nie wywołuje tam ostrzeżenia; mówi o tym jego własny wiersz.
+- Strony Roadmapa i Programy: czytnik ekranu słyszy „Pokazano ścieżkę krytyczną do…” raz na wybór, a nie ponownie po wybraniu wersji bazowej.
+- Po zalogowaniu: gdy wdrożono nową wersję Astrolabe, komunikat u góry strony proponuje „Odśwież”. Karty otwarte przed tą wersją trzeba raz odświeżyć ręcznie.
+- Niczego nie zapisujemy w Jirze ani we Flow.
+- Sprawdzone na wbudowanej atrapie Jiry; jeszcze nie przetestowane na prawdziwej witrynie Jira.`,
+  },
+  {
     version: "1.16.0",
     date: "2026-11-14",
     en: `**Astrolabe 1.16.0: the timelines show more of what the plan already knows - Jira dates for milestones not scheduled yet, a warning when Jira data may be out of date, arrows between folded rows and the critical path on the Programs page.**
