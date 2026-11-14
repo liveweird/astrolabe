@@ -309,4 +309,16 @@ describe("carrying the user's work across a match-driven preview (1.15)", () => 
     expect([...carriedPicks(converted, carry, carry.teams)]).toEqual([["95005", 5]]);
     expect([...carriedPicks(before.filter((item) => item.jiraId !== "95005"), carry, carry.teams)]).toEqual([["95010", 6]]);
   });
+
+  test("a row that is now planned under an old, unticked row stays unticked with it (even though it was ticked before)", () => {
+    // 95009 is a BIND the user unticked; 95010 was ticked under an existing node with no row, and is now planned under that BIND row.
+    const moved = before.map((item) =>
+      item.jiraId === "95010" ? { ...item, parent: { kind: "EXISTING" as const, nodeId: 77, nodeName: "Existing Project", rowJiraId: "95009" } } : item,
+    );
+    const ticked = { ...carry, ticks: new Set(["95001", "95002", "95003", "95004", "95005", "95010"]) };
+    expect(carriedTicks(before, ticked).has("95010")).toBe(true);
+    const ticks = carriedTicks(moved, ticked);
+    expect(ticks.has("95009")).toBe(false);
+    expect(ticks.has("95010")).toBe(false);
+  });
 });

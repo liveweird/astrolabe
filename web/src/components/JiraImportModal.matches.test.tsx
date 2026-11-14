@@ -309,4 +309,38 @@ describe("JiraImportModal: suggested matches", () => {
     expect(line.style.getPropertyValue("--text-line-clamp")).toBe("1");
     expect(line).toHaveAttribute("title", "Looks like “Old epic six” in the plan, which is not linked yet");
   });
+
+  test("while a match-driven Preview again is reading, the row checkbox, team select and owner picker are disabled, and enabled again when it lands", async () => {
+    const releases: Array<(response: Response) => void> = [];
+    let calls = 0;
+    const handler: Handler = () => {
+      calls += 1;
+      if (calls === 2) return new Promise<Response>((resolve) => releases.push(resolve));
+      return jsonResponse(200, answers[0]);
+    };
+    api = installImportApi({ preview: handler });
+    const user = await previewed();
+    const rowOf = (key: string) => within(table()).getByRole("checkbox", { name: `Import ${key}` }).closest("tr")!;
+    await within(rowOf("IMP-5")).findByRole("combobox", { name: "Team for IMP-5" });
+    await user.click(linkInstead());
+    await user.click(previewAgain());
+    await waitFor(() => expect(api.previews()).toHaveLength(2));
+    expect(within(table()).getByRole("checkbox", { name: "Import IMP-5" })).toBeDisabled();
+    expect(within(rowOf("IMP-5")).getByRole("combobox", { name: "Team for IMP-5" })).toBeDisabled();
+    expect(within(rowOf("IMP-2")).getByRole("combobox", { name: "Owner for IMP-2" })).toBeDisabled();
+    act(() => releases[0](jsonResponse(200, answers[1])));
+    await waitFor(() => expect(createInstead()).toBeInTheDocument());
+    expect(within(table()).getByRole("checkbox", { name: "Import IMP-5" })).toBeEnabled();
+    expect(within(rowOf("IMP-5")).getByRole("combobox", { name: "Team for IMP-5" })).toBeEnabled();
+    expect(within(rowOf("IMP-2")).getByRole("combobox", { name: "Owner for IMP-2" })).toBeEnabled();
+  });
+
+  test("the badge gives way (min-width 0, full label in its title) and the match button never shrinks, so a long label cannot push it out of the cell", async () => {
+    await previewed();
+    const row = within(table()).getByRole("checkbox", { name: `Import ${ROW}` }).closest("tr")!;
+    const badge = within(row).getByText("Create").closest(".mantine-Badge-root") as HTMLElement;
+    expect(badge.style.minWidth).toMatch(/^0(rem|px)?$/);
+    expect(badge).toHaveAttribute("title", "Create");
+    expect(within(row).getByRole("button", { name: `Link instead: ${ROW} to Old epic six` })).toHaveStyle({ flex: "none" });
+  });
 });

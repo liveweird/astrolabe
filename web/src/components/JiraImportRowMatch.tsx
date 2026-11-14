@@ -38,17 +38,17 @@ export default function JiraImportRowMatch({
   }
   if (change !== undefined) {
     return (
-      <Button variant="subtle" size="compact-xs" aria-label={t("jira.import.row.undoMatchAria", { key })} onClick={() => onChange(null)} disabled={disabled}>
+      <Button variant="subtle" size="compact-xs" flex="none" aria-label={t("jira.import.row.undoMatchAria", { key })} onClick={() => onChange(null)} disabled={disabled}>
         {t("jira.import.row.undoMatch")}
       </Button>
     );
   }
   return suggested ? (
-    <Button variant="default" size="compact-xs" aria-label={t("jira.import.row.linkInsteadAria", { key, name })} onClick={() => onChange("link")} disabled={disabled}>
+    <Button variant="default" size="compact-xs" flex="none" aria-label={t("jira.import.row.linkInsteadAria", { key, name })} onClick={() => onChange("link")} disabled={disabled}>
       {t("jira.import.row.linkInstead")}
     </Button>
   ) : (
-    <Button variant="default" size="compact-xs" aria-label={t("jira.import.row.createInsteadAria", { key })} onClick={() => onChange("create")} disabled={disabled}>
+    <Button variant="default" size="compact-xs" flex="none" aria-label={t("jira.import.row.createInsteadAria", { key })} onClick={() => onChange("create")} disabled={disabled}>
       {t("jira.import.row.createInstead")}
     </Button>
   );

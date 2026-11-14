@@ -76,7 +76,8 @@ function ActionCell({
   return (
     <>
       <Group gap={6} wrap="nowrap">
-        <Badge color={color} variant={item.action === "CREATE" ? "outline" : "light"} tt="none">
+        {/* The badge is the part that gives way (min-width 0, an ellipsis, the full label in its title) so a long label never pushes the match button out of the cell. */}
+        <Badge color={color} variant={item.action === "CREATE" ? "outline" : "light"} tt="none" miw={0} title={label}>
           {label}
         </Badge>
         <JiraImportRowMatch part="button" item={item} change={change} disabled={locked} onChange={onMatch} />
@@ -100,6 +101,7 @@ function DetailsCell({
   owner,
   ownerPicked,
   onOwner,
+  locked,
   t,
 }: {
   item: JiraImportItem;
@@ -110,6 +112,8 @@ function DetailsCell({
   owner: PickedOption | null;
   ownerPicked: boolean;
   onOwner: (owner: PickedOption | null) => void;
+  /** A call is in flight: the per-row controls wait (an edit made now would be lost when the next preview replaces the step). */
+  locked: boolean;
   t: TFunction;
 }) {
   const figures = figuresText(item, t, copyDates);
@@ -127,6 +131,7 @@ function DetailsCell({
       {teamOptions !== null && (
         <NativeSelect
           size="xs"
+          disabled={locked}
           aria-label={t("jira.import.row.teamAria", { key: item.issueKey })}
           data={teamOptions as TeamOption[]}
           value={String(teamId ?? item.team?.id)}
@@ -136,6 +141,7 @@ function DetailsCell({
       {owner !== null && hasOwnerChoice(item) && (
         <PersonSelect
           compact
+          disabled={locked}
           clearable={ownerPicked}
           label={t("jira.import.row.ownerAria", { key: item.issueKey })}
           placeholder={t("plan.pickOwner")}
@@ -217,7 +223,7 @@ export default function JiraImportRow({
         {item.action === "SKIP" ? (
           <span aria-hidden="true">–</span>
         ) : (
-          <Checkbox checked={ticked} onChange={(event) => onTick(event.currentTarget.checked)} aria-label={t("jira.import.preview.rowAria", { key: item.issueKey })} />
+          <Checkbox checked={ticked} disabled={locked} onChange={(event) => onTick(event.currentTarget.checked)} aria-label={t("jira.import.preview.rowAria", { key: item.issueKey })} />
         )}
       </Table.Td>
       <Table.Td w={150}>
@@ -246,7 +252,7 @@ export default function JiraImportRow({
         <ActionCell item={item} blocker={blocker} change={matchChange} locked={locked} onMatch={onMatch} t={t} />
       </Table.Td>
       <Table.Td w={280}>
-        <DetailsCell item={item} copyDates={copyDates} teams={teams} teamId={teamId} onTeam={onTeam} owner={owner} ownerPicked={ownerPicked} onOwner={onOwner} t={t} />
+        <DetailsCell item={item} copyDates={copyDates} teams={teams} teamId={teamId} onTeam={onTeam} owner={owner} ownerPicked={ownerPicked} onOwner={onOwner} locked={locked} t={t} />
       </Table.Td>
     </Table.Tr>
   );
