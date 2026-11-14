@@ -17,6 +17,28 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.16.0",
+    date: "2026-11-14",
+    en: `**Astrolabe 1.16.0: the timelines show more of what the plan already knows - Jira dates for milestones not scheduled yet, a warning when Jira data may be out of date, arrows between folded rows and the critical path on the Programs page.**
+
+- Project and team pages: a milestone that is not scheduled yet but has both dates in Jira gets a row on the timeline with Jira's dashed bar (while "Jira dates" is on). The row is read-only; you still schedule the milestone from the Unscheduled list.
+- Project and team pages: the Jira line under the title adds "Jira data may be out of date" when a connection behind it has no current successful synchronisation, is switched off, or its mapping no longer fits the site. The Deviations page says why.
+- Programs page: a folded program or work stream still shows what depends on what, as one arrow per pair of rows. The arrow's tooltip counts the links behind it, and it is red when one of them is violated.
+- Programs page: "Critical path to…", as on the Roadmap. Pick a project to see what drives its end; a folded row that holds a project on the path is outlined. A project's row menu offers it too.
+- API (\`/api/v1\`): \`jiraSites\` on the timeline views gives each connection's \`state\` and \`mappingOk\`; \`GET /views/programs\` takes \`?criticalPath=\` and answers a \`criticalPath\` block, as \`GET /views/roadmap\` does. If a tab was open during the upgrade, reload it.
+- Nothing is written to Jira or Flow.
+- Proven against a built-in Jira stub; not yet tested against a real Jira site.`,
+    pl: `**Astrolabe 1.16.0: osie czasu pokazują więcej z tego, co plan już wie - daty z Jiry dla kamieni milowych jeszcze nie zaplanowanych, ostrzeżenie, gdy dane z Jiry mogą być nieaktualne, strzałki między zwiniętymi wierszami i ścieżkę krytyczną na stronie Programy.**
+
+- Strony projektu i zespołu: kamień milowy, który nie jest jeszcze zaplanowany, ale ma w Jirze obie daty, dostaje wiersz na osi czasu z przerywanym paskiem Jiry (gdy „Daty z Jiry” są włączone). Wiersz jest tylko do odczytu; kamień milowy nadal planujesz z listy Niezaplanowane.
+- Strony projektu i zespołu: linia Jiry pod tytułem dodaje „Dane z Jiry mogą być nieaktualne”, gdy połączenie za nią nie ma aktualnej udanej synchronizacji, jest wyłączone albo jego mapowanie nie pasuje już do witryny. Strona Odchylenia wyjaśnia dlaczego.
+- Strona Programy: zwinięty program lub strumień prac nadal pokazuje, co od czego zależy, jedną strzałką na parę wierszy. Podpowiedź strzałki podaje, ile powiązań za nią stoi, a strzałka jest czerwona, gdy któreś z nich jest naruszone.
+- Strona Programy: „Ścieżka krytyczna do…”, jak na Roadmapie. Wybierz projekt, aby zobaczyć, co wyznacza jego koniec; zwinięty wiersz zawierający projekt ze ścieżki ma obramowanie. Proponuje to także menu wiersza projektu.
+- API (\`/api/v1\`): \`jiraSites\` w widokach osi czasu podaje \`state\` i \`mappingOk\` każdego połączenia; \`GET /views/programs\` przyjmuje \`?criticalPath=\` i odpowiada blokiem \`criticalPath\`, tak jak \`GET /views/roadmap\`. Jeśli karta była otwarta podczas aktualizacji, odśwież ją.
+- Niczego nie zapisujemy w Jirze ani we Flow.
+- Sprawdzone na wbudowanej atrapie Jiry; jeszcze nie przetestowane na prawdziwej witrynie Jira.`,
+  },
+  {
     version: "1.15.0",
     date: "2026-11-14",
     en: `**Astrolabe 1.15.0: more ways into the Jira import, a suggested link for an item renamed in Jira, an import from a linked item that never writes outside it, and lighter Jira data on the timelines.**
