@@ -3,17 +3,30 @@
   "intro": "Plan work streams, programs and projects, rank them on the roadmap, and see where the plan differs from Jira and from Flow.",
   "plan": {
     "text": "Work streams, programs and projects with their owners.",
-    "open": "Open the plan"
+    "open": "Open the plan",
+    "factsAria": "The plan in figures",
+    "notScheduled": "{{count}} not scheduled yet"
   },
   "roadmap": {
     "text": "Projects in rank order on one timeline.",
-    "open": "Open the roadmap"
+    "open": "Open the roadmap",
+    "factsAria": "The roadmap in figures",
+    "conflicts_one": "{{count}} violated dependency",
+    "conflicts_other": "{{count}} violated dependencies",
+    "overloadedTeams_one": "{{count}} team with an overloaded week",
+    "overloadedTeams_other": "{{count}} teams with an overloaded week",
+    "wipTeams_one": "{{count}} team over the WIP limit",
+    "wipTeams_other": "{{count}} teams over the WIP limit"
   },
   "deviations": {
     "text": "Where the plan differs from the linked Jira items and from Flow's capacity.",
     "open": "Open the deviations",
     "openJira": "Open differences from Jira:",
     "openFlow": "Open capacity differences from Flow:",
-    "loadFailed": "Could not read the open deviations"
+    "loadFailed": "Could not read the open deviations",
+    "flowStale": "Flow data may be out of date"
+  },
+  "figures": {
+    "loadFailed": "Could not read the plan's figures"
   }
 }

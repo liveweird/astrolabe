@@ -7,15 +7,16 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import App from "./App";
 import { consumeSignedOut } from "./auth";
 import { APP_VERSION } from "./changelog/version";
+import { emptyHomeView } from "./test/home";
 import { jsonResponse } from "./test/http";
 import { currentFixture, historyFixture } from "./test/telemetryFixtures";
 
 const TOKEN_KEY = "astrolabe.auth.token";
 
 /**
- * The two reads the Home page makes at `/` (the open deviation counts). A paged envelope or any other blanket body is not a deviation view, so the
- * stubs answer these two URLs with their own empty documents (no connection: Home shows no figure) and leave every other URL to the test.
- * `undefined` = not a Home read.
+ * The three reads the Home page makes at `/` (the open deviation counts and, since 1.18, the plan's figures). A paged envelope or any other blanket body is
+ * not one of these documents, so the stubs answer the three URLs with their own empty documents (no connection, a plan of zeros, no person) and leave
+ * every other URL to the test. `undefined` = not a Home read.
  */
 function homeViews(input: RequestInfo | URL): Promise<Response> | undefined {
   const url = String(input);
@@ -24,6 +25,9 @@ function homeViews(input: RequestInfo | URL): Promise<Response> | undefined {
   }
   if (url.startsWith("/api/v1/views/capacity-deviations")) {
     return Promise.resolve(jsonResponse(200, { asOf: "2026-11-10", connections: [], totals: { warnings: 0, infos: 0, gone: 0, acknowledged: 0, teams: 0 }, items: [], truncated: false }));
+  }
+  if (url === "/api/v1/views/home") {
+    return Promise.resolve(jsonResponse(200, emptyHomeView()));
   }
   return undefined;
 }

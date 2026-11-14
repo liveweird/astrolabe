@@ -3,17 +3,36 @@
   "intro": "Planuj strumienie prac, programy i projekty, ustalaj ich kolejność na roadmapie i sprawdzaj, gdzie plan różni się od Jiry i od Flow.",
   "plan": {
     "text": "Strumienie prac, programy i projekty wraz z osobami odpowiedzialnymi.",
-    "open": "Otwórz plan"
+    "open": "Otwórz plan",
+    "factsAria": "Plan w liczbach",
+    "notScheduled": "jeszcze niezaplanowanych: {{count}}"
   },
   "roadmap": {
     "text": "Projekty w kolejności rankingu na jednej osi czasu.",
-    "open": "Otwórz roadmapę"
+    "open": "Otwórz roadmapę",
+    "factsAria": "Roadmapa w liczbach",
+    "conflicts_one": "{{count}} naruszona zależność",
+    "conflicts_few": "{{count}} naruszone zależności",
+    "conflicts_many": "{{count}} naruszonych zależności",
+    "conflicts_other": "{{count}} naruszonej zależności",
+    "overloadedTeams_one": "{{count}} zespół z przeciążonym tygodniem",
+    "overloadedTeams_few": "{{count}} zespoły z przeciążonym tygodniem",
+    "overloadedTeams_many": "{{count}} zespołów z przeciążonym tygodniem",
+    "overloadedTeams_other": "{{count}} zespołu z przeciążonym tygodniem",
+    "wipTeams_one": "{{count}} zespół ponad limitem WIP",
+    "wipTeams_few": "{{count}} zespoły ponad limitem WIP",
+    "wipTeams_many": "{{count}} zespołów ponad limitem WIP",
+    "wipTeams_other": "{{count}} zespołu ponad limitem WIP"
   },
   "deviations": {
     "text": "Gdzie plan różni się od powiązanych elementów Jiry i od przepustowości z Flow.",
     "open": "Otwórz odchylenia",
     "openJira": "Otwarte różnice względem Jiry:",
     "openFlow": "Otwarte różnice przepustowości względem Flow:",
-    "loadFailed": "Nie udało się odczytać otwartych odchyleń"
+    "loadFailed": "Nie udało się odczytać otwartych odchyleń",
+    "flowStale": "Dane z Flow mogą być nieaktualne"
+  },
+  "figures": {
+    "loadFailed": "Nie udało się odczytać liczb planu"
   }
 }
