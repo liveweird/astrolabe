@@ -1,0 +1,27 @@
+{
+  "title": "Kamienie milowe",
+  "intro": "Wszystkie kamienie milowe planu. Daty kamienia milowego ustawia kierownik/czka zespołu albo administrator/ka na stronie zespołu.",
+  "count_one": "{{count}} kamień milowy",
+  "count_few": "{{count}} kamienie milowe",
+  "count_many": "{{count}} kamieni milowych",
+  "count_other": "{{count}} kamienia milowego",
+  "filter": {
+    "schedule": "Harmonogram"
+  },
+  "schedule": {
+    "all": "Wszystkie",
+    "unscheduled": "Niezaplanowane",
+    "scheduled": "Zaplanowane"
+  },
+  "column": {
+    "milestone": "Kamień milowy",
+    "estimate": "Szacunek (osobodni)",
+    "start": "Początek",
+    "end": "Koniec"
+  },
+  "notScheduled": "Niezaplanowany",
+  "empty": "Plan nie ma jeszcze kamieni milowych",
+  "noMatch": "Żaden kamień milowy nie pasuje do filtrów",
+  "clear": "Wyczyść filtry",
+  "loadFailed": "Nie udało się wczytać kamieni milowych"
+}

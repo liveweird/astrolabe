@@ -1,0 +1,25 @@
+{
+  "title": "Milestones",
+  "intro": "Every milestone in the plan. A team's manager (or an administrator) sets a milestone's dates on the team's page.",
+  "count_one": "{{count}} milestone",
+  "count_other": "{{count}} milestones",
+  "filter": {
+    "schedule": "Schedule"
+  },
+  "schedule": {
+    "all": "All",
+    "unscheduled": "Not scheduled",
+    "scheduled": "Scheduled"
+  },
+  "column": {
+    "milestone": "Milestone",
+    "estimate": "Estimate (man-days)",
+    "start": "Start",
+    "end": "End"
+  },
+  "notScheduled": "Not scheduled",
+  "empty": "The plan has no milestones yet",
+  "noMatch": "No milestone matches the filters",
+  "clear": "Clear the filters",
+  "loadFailed": "Could not read the milestones"
+}

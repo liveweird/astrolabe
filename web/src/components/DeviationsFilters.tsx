@@ -5,6 +5,7 @@ import type { DeviationConnection, DeviationFilter, DeviationLevel, DeviationSev
 import { getPlanView, type PlanView } from "../api/plan";
 import { listTeams } from "../api/teams";
 import { deviationKindLabel } from "../utils/deviations";
+import { planNames } from "../utils/planNames";
 import { deviationStatus, deviationStatusPatch, narrowingCount, type DeviationStatus } from "../utils/deviationFilters";
 import FilterPanel from "./FilterPanel";
 
@@ -13,19 +14,6 @@ const SEVERITIES: readonly DeviationSeverity[] = ["WARNING", "INFO"];
 const STATUSES: readonly DeviationStatus[] = ["open", "acknowledged", "all"];
 
 const idOf = (value: string | null) => (value === null ? undefined : Number(value));
-
-/** The names the URL's ids stand for, from the plan view (everyone reads it): the scope chips say "Project: Checkout", not a number. */
-function planNames(plan: PlanView | undefined) {
-  const projects = new Map<number, string>();
-  const programs = new Map<number, string>();
-  for (const stream of plan?.workStreams ?? []) {
-    for (const program of stream.programs) {
-      programs.set(program.id, program.name);
-      for (const project of program.projects) projects.set(project.id, project.name);
-    }
-  }
-  return { projects, programs };
-}
 
 /** The filters that are not a select: removable chips for a project, program or deviation kind the URL scopes the page to (visible with the panel collapsed). */
 function ScopeChips({ filter, plan, onChange }: { filter: DeviationFilter; plan: PlanView | undefined; onChange: (patch: Partial<DeviationFilter>) => void }) {

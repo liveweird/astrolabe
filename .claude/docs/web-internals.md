@@ -23,6 +23,7 @@ section of the page you touch before changing it, and put a new page's mechanics
 - [Project view](#project-view-pagesprojectviewtsx)
 - [Roadmap](#roadmap-pagesroadmaptsx)
 - [Programs](#programs-pagesprogramstsx)
+- [Milestones](#milestones-pagesmilestonestsx-119)
 - [Baselines](#baselines-pagesbaselinestsx-pagesbaselinecomparetsx-v09)
 - [Schedule proposals](#schedule-proposals-pagesscheduleproposalstsx-18)
 - [Deviations, bindings and the Jira chips](#deviations-bindings-and-the-jira-chips-pagesdeviationstsx-v110)
@@ -882,6 +883,30 @@ programs page's use"). **Zoom**: Month / Quarter / Year under `timeline.planZoom
 - **Tests.** `Programs.test.tsx` runs the page against a one-endpoint fetch mock (default open set, the chevron by pointer and keyboard, the status sentences,
   Expand/Collapse all, the project row, the arrows following the fold (rolled up onto the program and work stream rows, 1.16), the pick and its shared key, Year zoom, empty and failed loads);
   `programsTree.test.ts` and `api/programs.test.ts` are pure.
+
+## Milestones (`pages/Milestones.tsx`, 1.19)
+
+`/milestones` (nav: Planning after Programs, `IconTimelineEvent`, **everyone**, read-only; palette "Milestones" / PL "Kamienie milowe") lists every milestone of the plan
+from the paged `GET /milestones` (`api/milestones.ts` `listMilestones`; the rows are the ones the dependency pickers search, so a milestone under a deleted
+project or program is absent). It is the list-page template (`FilterPanel`, `SortHeader`, `RegistryListTable`) with the filters in the URL instead of
+`useStoredState` (the Deviations idiom, no remembered filter): `utils/milestoneFilters.ts` (pure: `parseMilestoneFilter`, `milestoneFilterParams`,
+`narrowingCount`, the Schedule choice) reads `scheduled` (the exact words `true`/`false`; `false` is the unscheduled list), `teamId`, `projectId` (positive
+integers, `idOf`) and `name`; a malformed value is dropped, a change `replace`s the entry, so a link, a reload and Back restore the view.
+`utils/milestoneLinks.ts` spells the route once (`milestonesPath`, `unscheduledMilestonesPath({teamId?, projectId?})`, the builder Home's "not scheduled"
+figures use).
+
+- **Filters** (`components/MilestonesFilters.tsx`): the Schedule select (All / Not scheduled / Scheduled, never clearable), the team select (the teams list under
+  `["teams","options"]`, shared with the Deviations panel) and the name search (`ClearableTextInput`); a `projectId` from a link is a removable chip beside the
+  toggle ("Project: Invoices", named from `GET /views/plan` under `["plan","view"]` through `utils/planNames.ts`, the Deviations page's strings). The name
+  input keeps the text as typed and writes it trimmed to the URL at once; the REQUEST waits 300 ms (the debounced value is in the query key), and a URL change
+  from elsewhere (Back, a link, "Clear the filters") that disagrees with the typed text replaces it during render.
+- **Query**: key `["plan","milestones","list", page, pageSize, sortParam, scheduled, teamId, projectId, name]` (under `["plan"]`, so a schedule or plan write refreshes
+  it; the pickers' own search is not a query), `placeholderData: keepPreviousData`, sortable Milestone / Project / Team (`name`, `projectName`, `teamName`),
+  initial sort project name; sort and page size are remembered per browser (`usePagedSort`, key `milestones`).
+- **Rows**: milestone name (text: a milestone has no page), project (link to the project, `plan.openProjectAria`), team (link, `teams.openAria`), estimate in
+  man-days, start, end; a milestone without dates shows one dimmed "Not scheduled" across the two date cells. Under the title: "N milestones" (the server's
+  `total`); empty states "The plan has no milestones yet" / "No milestone matches the filters" with a "Clear the filters" button.
+- **Tests**: `Milestones.test.tsx`, `utils/milestoneFilters.test.ts`, `utils/milestoneLinks.test.ts` (fixtures `test/milestones.ts`).
 
 ## Baselines (`pages/Baselines.tsx`, `pages/BaselineCompare.tsx`, v0.9)
 
