@@ -26,7 +26,7 @@ const ID_KEYS = ["connectionId", "workStreamId", "programId", "projectId", "team
 const oneOf = <T extends string>(allowed: readonly T[], value: string | null): T | undefined => allowed.find((a) => a === value);
 
 /** A positive integer id from a URL value; anything else (blank, `0`, `1e3`, `-2`, `7abc`, out of range) is ignored. */
-function idOf(value: string | null): number | undefined {
+export function idOf(value: string | null): number | undefined {
   if (value === null || !/^[1-9]\d{0,9}$/.test(value)) return undefined;
   const id = Number(value);
   return id <= 2_147_483_647 ? id : undefined;

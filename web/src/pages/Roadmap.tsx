@@ -26,7 +26,6 @@ import { useBaselinePick, useDropUnknownPick } from "../hooks/useBaselinePick";
 import { isRejectedTarget, useCriticalAnnouncement, useCriticalTarget } from "../hooks/useCriticalTarget";
 import { useJiraBarsPick } from "../hooks/useJiraBarsPick";
 import { usePlanScale } from "../hooks/usePlanScale";
-import { useProgramPick } from "../hooks/useProgramPick";
 import { useRoadmapFilters } from "../hooks/useRoadmapFilters";
 import { useRoadmapRanking } from "../hooks/useRoadmapRanking";
 import { useRowMenuFocus } from "../hooks/useRowMenuFocus";
@@ -162,8 +161,7 @@ function RoadmapBody({
   onTarget: (id: number | null) => void;
 }) {
   const { t } = useTranslation();
-  const { filters: storedFilters, set: setFilters } = useRoadmapFilters();
-  const [storedPick, setPick] = useProgramPick();
+  const { filters: urlFilters, pick: urlPick, setFilters, setPick } = useRoadmapFilters();
   const timelineRef = useRef<TimelineHandle>(null);
   // The "Jira dates" toggle (1.3, remembered, on by default; offered only where the view links a Jira site): `jira` is the window the shadow bars are
   // drawn in while they are on - the plan's own dates padded by a year - and their dates join the range only inside it (a mistyped Jira date must not
@@ -173,9 +171,9 @@ function RoadmapBody({
   // Every date of the whole plan, not only of the visible rows: a filter never changes the range under the user.
   const { scale, setZoom, today } = usePlanScale(datesOf(view, jira));
 
-  // Stored values may name things that are gone; the filters and the pick are read through what the view still has.
-  const filters = knownFilters(view, storedFilters);
-  const pick = knownPick(view, storedPick);
+  // The address (or the remembered values) may name things that are gone; the filters and the pick are read through what the view still has.
+  const filters = knownFilters(view, urlFilters);
+  const pick = knownPick(view, urlPick);
   const visible = visibleProjects(view, filters, pick);
   const removed = visibleRemoved(view, filters, pick);
   const rowCount = visible.ranked.length + visible.unranked.length;

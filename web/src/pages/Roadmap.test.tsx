@@ -502,6 +502,80 @@ describe("Roadmap page: filters and the program pick", () => {
   });
 });
 
+describe("Roadmap page: the filters in the address", () => {
+  const WS_KEY = "astrolabe.viewSettings.roadmap.filter.workStream";
+  const facts = () => screen.getByRole("group", { name: "Roadmap facts" });
+
+  async function openFiltersPanel(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(await screen.findByRole("button", { name: /^Filters/ }));
+  }
+
+  test("?flagged=true over a remembered work stream and pick shows every flagged project, the facts equal the view's flag totals, the memory is intact", async () => {
+    localStorage.setItem(WS_KEY, "2");
+    localStorage.setItem(PICK_KEY, JSON.stringify([11]));
+    renderWithProviders(<Roadmap />, { route: "/roadmap?flagged=true" });
+    await screen.findByRole("grid", { name: "Roadmap timeline" });
+    expect(rowLabels()).toEqual(["Invoices", "Taxes", "Audit"]);
+    expect(within(facts()).getByText("2 warnings")).toBeInTheDocument();
+    expect(within(facts()).getByText("2 infos")).toBeInTheDocument();
+    expect(JSON.parse(localStorage.getItem(WS_KEY) ?? "null")).toBe(2);
+    expect(JSON.parse(localStorage.getItem(PICK_KEY) ?? "null")).toEqual([11]);
+    expect(localStorage.getItem("astrolabe.viewSettings.roadmap.filter.flagged")).toBeNull();
+  });
+
+  test("a bare visit restores what the user last set", async () => {
+    localStorage.setItem(WS_KEY, "2");
+    localStorage.setItem(PICK_KEY, JSON.stringify([11]));
+    renderWithProviders(<Roadmap />, { route: "/roadmap" });
+    await screen.findByRole("grid", { name: "Roadmap timeline" });
+    expect(rowLabels()).toEqual(["Taxes", "Unranked", "Ledger"]);
+  });
+
+  test("?ownerPersonId= narrows as the panel does and the panel shows the owner selected", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Roadmap />, { route: "/roadmap?ownerPersonId=6" });
+    await screen.findByRole("grid", { name: "Roadmap timeline" });
+    expect(rowLabels()).toEqual(["Taxes", "Unranked", "Ledger"]);
+    await openFiltersPanel(user);
+    expect(screen.getByRole("combobox", { name: "Owner" })).toHaveValue("Tania Tax");
+  });
+
+  test("?teamId= narrows as the panel does and the panel shows the team selected", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Roadmap />, { route: "/roadmap?teamId=2" });
+    await screen.findByRole("grid", { name: "Roadmap timeline" });
+    expect(rowLabels()).toEqual(["Taxes"]);
+    await openFiltersPanel(user);
+    expect(screen.getByRole("combobox", { name: "Team" })).toHaveValue("Web");
+  });
+
+  test("?workStreamId=999999 filters nothing", async () => {
+    renderWithProviders(<Roadmap />, { route: "/roadmap?workStreamId=999999" });
+    await screen.findByRole("grid", { name: "Roadmap timeline" });
+    expect(rowLabels()).toEqual(["Invoices", "Taxes", "Audit", "Unranked", "Ledger"]);
+  });
+
+  test("?programId=11&programId=12 reads as the pick (program 12 is not in the plan, so only 11 narrows)", async () => {
+    renderWithProviders(<Roadmap />, { route: "/roadmap?programId=11&programId=12" });
+    await screen.findByRole("grid", { name: "Roadmap timeline" });
+    expect(rowLabels()).toEqual(["Taxes", "Unranked", "Ledger"]);
+  });
+
+  test("a change on a linked view is remembered as the whole shown state", async () => {
+    localStorage.setItem(WS_KEY, "2");
+    const user = userEvent.setup();
+    renderWithProviders(<Roadmap />, { route: "/roadmap?flagged=true" });
+    await screen.findByRole("grid", { name: "Roadmap timeline" });
+    await openFiltersPanel(user);
+    await user.click(screen.getByRole("combobox", { name: "Team" }));
+    await user.click(await screen.findByRole("option", { name: "Payments" }));
+    expect(rowLabels()).toEqual(["Invoices", "Taxes"]);
+    expect(localStorage.getItem(WS_KEY)).toBe("null");
+    expect(JSON.parse(localStorage.getItem("astrolabe.viewSettings.roadmap.filter.team") ?? "null")).toBe(1);
+    expect(JSON.parse(localStorage.getItem("astrolabe.viewSettings.roadmap.filter.flagged") ?? "null")).toBe(true);
+  });
+});
+
 describe("Roadmap page: flags", () => {
   test("the panel lists every flag in words, warnings first, behind a disclosure; Show in timeline focuses the row", async () => {
     const user = userEvent.setup();

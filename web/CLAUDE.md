@@ -129,7 +129,7 @@ Everything is lazy under `RequireAuth` unless noted.
 
 - `/` — Overview, everyone — "Home" (links, the plan's figures, the open deviation counts and what is yours).
 - `/plan` — Planning, everyone (actions by the view's `can`) — "Plan"; `/projects/:id` (no nav leaf, linked from Plan) — everyone (`can`) — "Project view" + `timeline.md`.
-- `/roadmap` — Planning, everyone (`can.editRank`, `can.editTargetWindow`) — "Roadmap" + `timeline.md`.
+- `/roadmap` — Planning, everyone (`can.editRank`, `can.editTargetWindow`; filters in the URL, remembered) — "Roadmap" + `timeline.md`.
 - `/programs` — Planning, everyone (the target window by `can`) — "Programs" + `timeline.md`.
 - `/baselines`, `/baselines/:id` — Planning, everyone (`can.manage` writes) — "Baselines".
 - `/schedule-proposals` — Planning, everyone (the teams offered come from `GET /schedule-proposals/teams`; the server's 403 is the rule) — "Schedule proposals".

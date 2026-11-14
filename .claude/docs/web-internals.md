@@ -641,7 +641,7 @@ The global project ranking (V13 + `GET /views/roadmap`, `PUT /roadmap/ranking`) 
 `can.editRank`. Files: `api/roadmap.ts` (`getRoadmapView`, `putRanking`, `isStaleRevision` — a 409 whose problem `type` is
 `urn:astrolabe:problem:stale-revision`; the view's `RoadmapProject` carries the server's `rankPosition`, `teamIds`, `span`, `drift`, `flags[]`,
 `can.editTargetWindow`, and the view `teams[]` and the rolled-up `links[]`), `hooks/useRoadmapRanking.ts` (query + the one write path),
-`hooks/useRoadmapFilters.ts` and `hooks/useProgramPick.ts` (the stored filters and the shared pick), `utils/roadmapOrder.ts` (pure:
+`hooks/useRoadmapFilters.ts` (the filters and the pick, in the address and remembered) and `hooks/useProgramPick.ts` (the programs page's read of the shared pick), `utils/roadmapOrder.ts` (pure:
 `moveBy`/`moveToEdge`/`moveToSlot` — the team page's too —, `moveAmongVisible`, `rankingAfterDrop`, `sameIds`, `appendId`, `removeId`, `applyRanking`),
 `utils/roadmapRows.ts` (pure: filters, the pick, the displayed rows and the divider, the flag totals and panel entries, the drift band, the arrows of the
 rolled-up links) and the components `RoadmapTimeline` (the rows, bars, bands, the row menu, the arrows — inside the page's `TimelineDndContext`),
@@ -663,10 +663,10 @@ bars.
 `components/RoadmapFlagPanel.tsx` (h3 "Flags", behind `TableDisclosure`) is their accessible surface — one table row per flag, severity in words (never colour
 alone), the project link, the sentence by kind (plural keys: "Ends 10 days after the target", "Ranked below X, but starts 7 days earlier on Team", …) and a
 "Show in timeline" button that calls `timelineRef.current.focusRow(projectId)` (the row-header cell, revealed, mounted or not). A `SegmentedControl` above the open table (a labelled radiogroup: All / Warnings / Infos, each label with its count, default All) filters the LIST by severity: panel-local state, never stored or in the URL; the row icons and the disclosure's count stay total, and an empty slice says "No warnings/infos among the flags shown." instead of an empty table (the Programs page has no flag panel). **Filters**
-(`components/RoadmapFilters.tsx` in a `FilterPanel`, stored `roadmap.filter.*` through `hooks/useRoadmapFilters.ts`): work stream, team (a project matches when
-`teamIds` has it), owner, flagged only, and the **program pick** (a `MultiSelect`, empty = all; ONE stored key `planning.programPick` through
-`hooks/useProgramPick.ts`, shared with the programs page) — applied client-side by `utils/roadmapRows.ts` (`visibleProjects`; a stored id the view no longer has
-is ignored, `knownFilters`/`knownPick`), and to the facts line and the panel too. **Arrows** (`arrowSpecsForLinks`): a PROJECT-to-project link by its type on
+(`components/RoadmapFilters.tsx` in a `FilterPanel`, held in the address and remembered through `hooks/useRoadmapFilters.ts`, below): work stream, team (a project matches when
+`teamIds` has it), owner, flagged only, and the **program pick** (a `MultiSelect`, empty = all; its memory is the ONE key `planning.programPick`, which the programs page
+still reads through `hooks/useProgramPick.ts`) — applied client-side by `utils/roadmapRows.ts` (`visibleProjects`; an id the address or the memory names and the
+view no longer has is ignored, `knownFilters`/`knownPick`), and to the facts line and the panel too. **Arrows** (`arrowSpecsForLinks`): a PROJECT-to-project link by its type on
 the two span bars (red when VIOLATED), plus ONE bundle arrow per ordered project pair for the milestone links between them (`bundle:<pred>-<succ>`, end to
 start, red when any is violated, `<title>` "A → B, 3 milestone links (1 violated)"); an arrow whose project has no span or no visible row is left out. **Zoom**:
 Month / Quarter / Year (`PLAN_ZOOMS`, default Quarter) under its own key `timeline.planZoom`; the range only ever grows over every span and window of the WHOLE
@@ -726,6 +726,24 @@ the rows the user sees and puts the row just before the visible row that follows
 their order and their place. A drop is `rankingAfterDrop(full, visibleRanked, id, slot)` with the slot counted over the DISPLAYED rows: a slot beyond the
 divider (`visibleRanked.length`) unranks a ranked row (an unranked row comes back unchanged = no PUT); a slot up to it is a place in the ranking, so an unranked
 row is RANKED there. The page binds `visibleRankedIds` into the hook's `move`/`moveTo`/`dropAt`.
+
+**The URL holds the filters (1.19).** Flow's rule (its `useReportFilter`, ported): the address bar always holds the filters the page shows, and the five
+stored keys (`roadmap.filter.workStream|team|owner|flagged`, `planning.programPick`) are the Roadmap's MEMORY, not its state. Parameters (`utils/roadmapFilterParams.ts`,
+pure: `parseRoadmapFilter`, `roadmapFilterParams`, `hasRoadmapFilterParams`; the ONE spelling of a filtered link is `roadmapFilteredPath` in `utils/planLinks.ts`):
+`workStreamId`, `teamId`, `ownerPersonId` (one positive integer each, `idOf`'s rule), `flagged=true` (the exact word) and `programId` repeated for the pick
+(de-duplicated, ascending, at most 100); a malformed or unknown value is dropped, an id the plan no longer has filters nothing.
+
+| Situation | Shown | Address | Remembered keys |
+|---|---|---|---|
+| bare URL, nothing remembered | no filter | stays bare | untouched |
+| bare URL, something remembered | the remembered filters and pick | rewritten by `replace` to say so | untouched |
+| a URL naming any filter parameter | exactly what it names (anything unnamed is off, the pick included) | as written | untouched |
+| the user changes a filter or the pick | the new whole state | rewritten by `replace` (bare when empty) | all five written with the new state |
+| Back / forward | what that URL names | as navigated | untouched |
+
+The hook answers `{ filters, pick, setFilters, setPick }`; the remembered state is read once at mount; a foreign parameter in the address is kept. A change is
+never a push and no effect writes the memory on a link's arrival. The Programs page is untouched and sees the pick the Roadmap last stored; its pick is not in
+its URL. Tests: `hooks/useRoadmapFilters.test.tsx` (the table), `utils/roadmapFilterParams.test.ts`, `Roadmap.test.tsx` "the filters in the address".
 
 **Dragging.** The row handle (`TimelineRowHandle`, pointer-only) and the page's `TimelineDndContext` `onReorder(id, slot)` are the team page's mechanism
 (`timeline.md` "Row drag"); there is no keyboard drag — the row menu is the keyboard path, and the page restores keyboard focus after a taken menu change
@@ -1869,6 +1887,8 @@ When a feature needs one of these, port the sibling's `web/` implementation and 
 - **localStorage:** `astrolabe.auth.*` (session), `astrolabe.viewSettings.*` (`useStoredState`), `astrolabe.lang`, `astrolabe.changelog`. **sessionStorage:**
   `astrolabe.chunkReloadedAt` (the one-shot reload after a failed lazy chunk, `main.tsx`). **Web Lock:** `astrolabe.auth.refresh`. **CSS variables:**
   `--astrolabe-*`. None of Flow's `flow.*` keys exist; there are no legacy redirects.
+- **The Roadmap's five filter keys** (`roadmap.filter.workStream|team|owner|flagged`, `planning.programPick`, under `astrolabe.viewSettings.`) are its MEMORY since 1.19,
+  not its state: the address holds the state and only the user's own change writes them (this doc, "Roadmap", "The URL holds the filters (1.19)").
 - **Timeline view settings** (`astrolabe.viewSettings.timeline.*`, shared by the pages that show them, each a `useStoredState` with its own validator): `zoom`
   (project, team), `planZoom` (roadmap, programs), `criticalPath` (project and team, default false; `hooks/useCriticalPathPick.ts`), `baseline` (all four, an id or none), **`jiraBars`** (1.3, all four
   pages; a boolean, **default true**: the "Jira dates" toggle of the Jira shadow bar, `hooks/useJiraBarsPick.ts`; a stored non-boolean reads as the default).
