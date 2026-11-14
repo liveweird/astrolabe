@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next";
 import { Link as RouterLink } from "react-router-dom";
 import { getHomeView, HOME_VIEW_KEY, type HomePlan } from "../api/home";
 import ErrorAlert from "../components/ErrorAlert";
+import HomeMine from "../components/HomeMine";
 import { JiraStaleNote } from "../components/JiraChips";
 import PageHeader from "../components/PageHeader";
 import { useOpenDeviationCounts, type OpenCounts } from "../hooks/useOpenDeviationCounts";
@@ -137,8 +138,8 @@ function RoadmapFigures({ plan, jiraStale }: { plan: HomePlan | undefined; jiraS
 /**
  * The landing page: an intro and three cards that link to the plan, the roadmap and the deviations. The Plan and Roadmap cards show the plan's figures
  * from ONE read (`GET /views/home`, shown as the server derives them), the Deviations card the OPEN deviation counts (`useOpenDeviationCounts`). The
- * links never depend on a read; a failed Home read is ONE inline alert under the cards (a failed re-read keeps the figures it has), a failed
- * deviation read the alert inside the Deviations card. "May be out of date" follows the page each figure links to (`isStaleSource` and its folds).
+ * links never depend on a read; a failed Home read is ONE inline alert under the cards (a failed re-read keeps the figures it has and the "Yours" section
+ * below the alert; a failed first read leaves no section), a failed deviation read the alert inside the Deviations card. "May be out of date" follows the page each figure links to (`isStaleSource` and its folds).
  */
 export default function Home() {
   const { t } = useTranslation();
@@ -172,6 +173,7 @@ export default function Home() {
         </HomeCard>
       </SimpleGrid>
       {home.isError && <ErrorAlert error={home.error} title={t("home.figures.loadFailed")} />}
+      {(home.data !== undefined || home.isPending) && <HomeMine view={home.data} flowStale={flowStale} />}
     </Stack>
   );
 }

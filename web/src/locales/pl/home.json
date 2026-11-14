@@ -34,5 +34,38 @@
   },
   "figures": {
     "loadFailed": "Nie udało się odczytać liczb planu"
+  },
+  "mine": {
+    "title": "Twoje",
+    "person": "Twój login jest powiązany z osobą {{name}}.",
+    "noPerson": "Twój login nie jest powiązany z żadną osobą, więc nic z planu nie pokazuje się tu jako Twoje. Osoby z loginami powiązują administratorzy/rki na stronie Osoby.",
+    "openPeople": "Otwórz stronę Osoby",
+    "nothing": "{{name}} nie jest właścicielem/właścicielką żadnego strumienia pracy, programu ani projektu i nie kieruje żadnym zespołem.",
+    "truncated": "Każda lista pokazuje pierwsze {{count}} wierszy.",
+    "projects": "Twoje projekty",
+    "teams": "Twoje zespoły",
+    "nodes": "Twoje programy i strumienie pracy",
+    "openPrograms": "Otwórz programy",
+    "column": {
+      "program": "Program",
+      "rank": "Ranking",
+      "milestones": "Kamienie milowe",
+      "notScheduled": "Niezaplanowane",
+      "conflicts": "Konflikty",
+      "team": "Zespół",
+      "capacity": "Przepustowość",
+      "jira": "Jira",
+      "flow": "Flow",
+      "name": "Nazwa",
+      "level": "Poziom",
+      "in": "W ramach",
+      "programs": "Programy",
+      "projects": "Projekty"
+    },
+    "level": {
+      "workStream": "Strumień pracy",
+      "program": "Program"
+    },
+    "jiraAria": "{{deviations}}: zespół {{name}}"
   }
 }

@@ -1,0 +1,55 @@
+import { Anchor, Badge, Table } from "@mantine/core";
+import { useTranslation } from "react-i18next";
+import { Link as RouterLink } from "react-router-dom";
+import type { HomeMe } from "../api/home";
+import { projectPath } from "../utils/planLinks";
+import HomeFlagBadges from "./HomeFlagBadges";
+import ScrollRegion from "./ScrollRegion";
+
+/** "Your projects": the Roadmap row's flags and rank with the project page's milestone figures and conflicts badge, as the server derives them. */
+export default function HomeProjectsTable({ projects }: { projects: HomeMe["projects"] }) {
+  const { t } = useTranslation();
+  const label = t("home.mine.projects");
+  return (
+    <ScrollRegion label={label} minWidth={760}>
+      <Table aria-label={label}>
+        <Table.Thead>
+          <Table.Tr>
+            <Table.Th>{t("roadmap.column.project")}</Table.Th>
+            <Table.Th>{t("home.mine.column.program")}</Table.Th>
+            <Table.Th>{t("home.mine.column.rank")}</Table.Th>
+            <Table.Th ta="right">{t("home.mine.column.milestones")}</Table.Th>
+            <Table.Th ta="right">{t("home.mine.column.notScheduled")}</Table.Th>
+            <Table.Th>{t("roadmap.column.flags")}</Table.Th>
+            <Table.Th>{t("home.mine.column.conflicts")}</Table.Th>
+          </Table.Tr>
+        </Table.Thead>
+        <Table.Tbody>
+          {projects.map((project) => (
+            <Table.Tr key={project.id}>
+              <Table.Td>
+                <Anchor component={RouterLink} to={projectPath(project.id)} size="sm" fw={500} aria-label={t("plan.openProjectAria", { name: project.name })}>
+                  {project.name}
+                </Anchor>
+              </Table.Td>
+              <Table.Td>{project.programName}</Table.Td>
+              <Table.Td>{project.rankPosition ?? t("roadmap.unrankedDivider")}</Table.Td>
+              <Table.Td ta="right">{project.milestones}</Table.Td>
+              <Table.Td ta="right">{project.unscheduledMilestones}</Table.Td>
+              <Table.Td>
+                <HomeFlagBadges flags={project.flags} />
+              </Table.Td>
+              <Table.Td>
+                {project.conflicts > 0 && (
+                  <Badge color="red" variant="light" tt="none">
+                    {t("project.conflicts", { count: project.conflicts })}
+                  </Badge>
+                )}
+              </Table.Td>
+            </Table.Tr>
+          ))}
+        </Table.Tbody>
+      </Table>
+    </ScrollRegion>
+  );
+}

@@ -25,12 +25,25 @@ export function JiraStaleNote() {
  * at any count: three deviations read from a connection that failed last night are as doubtful as none. Plain text, not an alert and not orange: the
  * Deviations page's banner is the warning, the chip only qualifies.
  */
-function DeviationCount({ to, warnings, infos, stale }: { to: string; warnings: number; infos: number; stale: boolean }) {
+export function DeviationCount({
+  to,
+  warnings,
+  infos,
+  stale,
+  ariaLabel,
+}: {
+  to: string;
+  warnings: number;
+  infos: number;
+  stale: boolean;
+  /** A name that tells this link from its siblings where several sit on one page (Home's team rows); it starts with the visible text. */
+  ariaLabel?: string;
+}) {
   const { t } = useTranslation();
   const count = warnings + infos;
   return (
     <>
-      <Badge color={count > 0 && warnings > 0 ? "orange" : "gray"} variant="light" tt="none" component={RouterLink} to={to}>
+      <Badge color={count > 0 && warnings > 0 ? "orange" : "gray"} variant="light" tt="none" component={RouterLink} to={to} aria-label={ariaLabel}>
         {count === 0 ? t("deviations.chip.inLine") : t("deviations.chip.count", { count })}
       </Badge>
       {stale && <JiraStaleNote />}

@@ -28,5 +28,38 @@
   },
   "figures": {
     "loadFailed": "Could not read the plan's figures"
+  },
+  "mine": {
+    "title": "Yours",
+    "person": "Your login is linked to the person {{name}}.",
+    "noPerson": "Your login is not linked to a person, so nothing in the plan shows here as yours. Administrators link people to logins on the People page.",
+    "openPeople": "Open the People page",
+    "nothing": "{{name}} owns no work stream, program or project and manages no team.",
+    "truncated": "Each list shows its first {{count}} rows.",
+    "projects": "Your projects",
+    "teams": "Your teams",
+    "nodes": "Your programs and work streams",
+    "openPrograms": "Open the programs",
+    "column": {
+      "program": "Program",
+      "rank": "Rank",
+      "milestones": "Milestones",
+      "notScheduled": "Not scheduled",
+      "conflicts": "Conflicts",
+      "team": "Team",
+      "capacity": "Capacity",
+      "jira": "Jira",
+      "flow": "Flow",
+      "name": "Name",
+      "level": "Level",
+      "in": "In",
+      "programs": "Programs",
+      "projects": "Projects"
+    },
+    "level": {
+      "workStream": "Work stream",
+      "program": "Program"
+    },
+    "jiraAria": "{{deviations}}: team {{name}}"
   }
 }

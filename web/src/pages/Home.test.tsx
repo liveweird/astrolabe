@@ -15,12 +15,14 @@ const JIRA_URL = "/api/v1/views/deviations?acknowledged=true";
 const FLOW_URL = "/api/v1/views/capacity-deviations?acknowledged=true";
 const HOME_URL = "/api/v1/views/home";
 
-const OUTLINE = [
+const CARDS = [
   [2, "Astrolabe"],
   [3, "Plan"],
   [3, "Roadmap"],
   [3, "Deviations"],
 ];
+/** The cards and the "Yours" section (shown while the read is pending and once it has answered; absent after a failed first read). */
+const OUTLINE = [...CARDS, [3, "Yours"]];
 
 type JiraConnection = ReturnType<typeof connectionIn>;
 
@@ -46,6 +48,19 @@ function stubViews(answers: Answers = {}) {
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
 }
+
+const PROJECT = { id: 7, name: "Ledger", programName: "Core", rankPosition: 3, milestones: 10, unscheduledMilestones: 2, flags: { warnings: 2, infos: 1 }, conflicts: 0 };
+const TEAM = {
+  id: 4,
+  name: "Payments",
+  milestones: 67,
+  unscheduledMilestones: 7,
+  conflicts: 0,
+  overloadedWeeks: 0,
+  wipExceededWeeks: 0,
+  jira: { warnings: 0, infos: 0 },
+  flags: [],
+};
 
 const homeWith = (over: Partial<HomeView>) => () => jsonResponse(200, homeView(over));
 
@@ -147,12 +162,28 @@ describe("Home", () => {
       expect(screen.queryByText(/arrow|conflict/i)).not.toBeInTheDocument();
     });
 
-    test("a person's block is ignored here: the outline stays the three cards ('Yours' is a later section)", async () => {
-      stubViews({ home: homeWith({ me: homeMe() }) });
+    test("'Yours' is a section under the cards: its h3 and one h4 per table shown", async () => {
+      stubViews({ home: homeWith({ me: homeMe({ projects: [PROJECT], teams: [TEAM] }) }) });
       renderWithProviders(<Home />);
-      await screen.findByText("5 work streams");
+      await screen.findByRole("table", { name: "Your projects" });
+      expect(headingOutline()).toEqual([...OUTLINE, [4, "Your projects"], [4, "Your teams"]]);
+      expect(screen.getByText("Your login is linked to the person Alex Example.")).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Open Ledger" })).toHaveAttribute("href", "/projects/7");
+      expect(screen.getByRole("link", { name: "Open team Payments" })).toHaveAttribute("href", "/teams/4");
+    });
+
+    test("a login without a person reads the sentence under 'Yours'", async () => {
+      stubViews();
+      renderWithProviders(<Home />);
+      expect(await screen.findByText(/Your login is not linked to a person/)).toBeInTheDocument();
       expect(headingOutline()).toEqual(OUTLINE);
-      expect(screen.queryByText(/Alex Example/)).not.toBeInTheDocument();
+    });
+
+    test("while the read is pending 'Yours' shows its heading and the one spinner, and the cards are there", () => {
+      stubViews({ home: () => new Promise<Response>(() => {}) });
+      renderWithProviders(<Home />);
+      expect(headingOutline()).toEqual(OUTLINE);
+      expect(screen.getByRole("status", { name: "Loading…" })).toBeInTheDocument();
     });
 
     test("the cards and their links render, and their groups exist empty, before any read answers", () => {
@@ -175,7 +206,8 @@ describe("Home", () => {
       expect(screen.getByRole("group", { name: "The roadmap in figures" })).toBeEmptyDOMElement();
       expect(screen.getByRole("link", { name: "Open the plan" })).toBeInTheDocument();
       expect(await screen.findByText("3 warnings")).toBeInTheDocument();
-      expect(headingOutline()).toEqual(OUTLINE);
+      expect(headingOutline()).toEqual(CARDS);
+      expect(screen.queryByRole("status")).not.toBeInTheDocument();
     });
 
     test("a re-read that fails after a good one keeps the figures and shows the alert", async () => {
@@ -191,6 +223,23 @@ describe("Home", () => {
       expect(await screen.findByText("Could not read the plan's figures")).toBeInTheDocument();
       expect(screen.getByText("5 work streams")).toBeInTheDocument();
       expect(screen.getByText("80 ranked")).toBeInTheDocument();
+    });
+
+    test("a re-read that fails keeps 'Yours' with its rows, the alert above it", async () => {
+      let ok = true;
+      stubViews({ home: () => (ok ? jsonResponse(200, homeView({ me: homeMe({ projects: [PROJECT] }) })) : jsonResponse(500, { title: "Boom", status: 500 })) });
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      renderWithProviders(<Home />, { queryClient });
+      expect(await screen.findByRole("link", { name: "Open Ledger" })).toBeInTheDocument();
+      ok = false;
+      await act(async () => {
+        await queryClient.invalidateQueries({ queryKey: HOME_VIEW_KEY });
+      });
+      const alert = await screen.findByText("Could not read the plan's figures");
+      expect(screen.getAllByRole("alert")).toHaveLength(1);
+      expect(screen.getByRole("link", { name: "Open Ledger" })).toBeInTheDocument();
+      const yours = screen.getByRole("heading", { level: 3, name: "Yours" });
+      expect(alert.compareDocumentPosition(yours) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
   });
 
@@ -286,5 +335,6 @@ describe("Home", () => {
     expect(screen.getByText("1 zespół ponad limitem WIP")).toBeInTheDocument();
     expect(screen.getByText("Dane z Jiry mogą być nieaktualne")).toBeInTheDocument();
     expect(await screen.findByText("Dane z Flow mogą być nieaktualne")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 3, name: "Twoje" })).toBeInTheDocument();
   });
 });

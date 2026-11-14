@@ -1,0 +1,56 @@
+import { Table } from "@mantine/core";
+import { useTranslation } from "react-i18next";
+import type { HomeMe } from "../api/home";
+import HomeFlagBadges from "./HomeFlagBadges";
+import ScrollRegion from "./ScrollRegion";
+
+/**
+ * "Your programs and work streams": what the person owns directly, work streams first. Neither has a page, so the name is text; the flags are the
+ * Programs page's roll-up over the projects below (a work stream's owner sees its row, not every project under it).
+ */
+export default function HomeNodesTable({ workStreams, programs }: { workStreams: HomeMe["workStreams"]; programs: HomeMe["programs"] }) {
+  const { t } = useTranslation();
+  const label = t("home.mine.nodes");
+  return (
+    <ScrollRegion label={label} minWidth={720}>
+      <Table aria-label={label}>
+        <Table.Thead>
+          <Table.Tr>
+            <Table.Th>{t("home.mine.column.name")}</Table.Th>
+            <Table.Th>{t("home.mine.column.level")}</Table.Th>
+            <Table.Th>{t("home.mine.column.in")}</Table.Th>
+            <Table.Th ta="right">{t("home.mine.column.programs")}</Table.Th>
+            <Table.Th ta="right">{t("home.mine.column.projects")}</Table.Th>
+            <Table.Th>{t("roadmap.column.flags")}</Table.Th>
+          </Table.Tr>
+        </Table.Thead>
+        <Table.Tbody>
+          {workStreams.map((stream) => (
+            <Table.Tr key={`stream-${stream.id}`}>
+              <Table.Td>{stream.endDate === null ? stream.name : t("plan.move.closedName", { name: stream.name })}</Table.Td>
+              <Table.Td>{t("home.mine.level.workStream")}</Table.Td>
+              <Table.Td />
+              <Table.Td ta="right">{stream.programs}</Table.Td>
+              <Table.Td ta="right">{stream.projects}</Table.Td>
+              <Table.Td>
+                <HomeFlagBadges flags={stream.flags} />
+              </Table.Td>
+            </Table.Tr>
+          ))}
+          {programs.map((program) => (
+            <Table.Tr key={`program-${program.id}`}>
+              <Table.Td>{program.name}</Table.Td>
+              <Table.Td>{t("home.mine.level.program")}</Table.Td>
+              <Table.Td>{program.workStreamName}</Table.Td>
+              <Table.Td />
+              <Table.Td ta="right">{program.projects}</Table.Td>
+              <Table.Td>
+                <HomeFlagBadges flags={program.flags} />
+              </Table.Td>
+            </Table.Tr>
+          ))}
+        </Table.Tbody>
+      </Table>
+    </ScrollRegion>
+  );
+}
