@@ -1,15 +1,29 @@
-import { Table } from "@mantine/core";
+import { Anchor, Table, Text } from "@mantine/core";
 import { useTranslation } from "react-i18next";
+import { Link as RouterLink } from "react-router-dom";
 import type { HomeMe } from "../api/home";
+import { roadmapFilteredPath } from "../utils/planLinks";
 import HomeFlagBadges from "./HomeFlagBadges";
 import ScrollRegion from "./ScrollRegion";
 
 /**
- * "Your programs and work streams": what the person owns directly, work streams first. Neither has a page, so the name is text; the flags are the
- * Programs page's roll-up over the projects below (a work stream's owner sees its row, not every project under it).
+ * "Your programs and work streams": what the person owns directly, work streams first. Neither has a page of its own, so the name is the link to the
+ * Roadmap filtered to it (the Work stream filter, the program pick with one program); the flags are the Programs page's roll-up over the projects below
+ * (a work stream's owner sees its row, not every project under it).
  */
 export default function HomeNodesTable({ workStreams, programs }: { workStreams: HomeMe["workStreams"]; programs: HomeMe["programs"] }) {
   const { t } = useTranslation();
+  // A node with no project has nothing on the Roadmap: its id is no filter option there, so the link would open the whole Roadmap unfiltered.
+  const onRoadmap = (to: string, name: string, projects: number) =>
+    projects === 0 ? (
+      <Text size="sm" fw={500}>
+        {name}
+      </Text>
+    ) : (
+      <Anchor component={RouterLink} to={to} size="sm" fw={500} aria-label={t("home.mine.nodeOnRoadmapAria", { name })}>
+        {name}
+      </Anchor>
+    );
   const label = t("home.mine.nodes");
   return (
     <ScrollRegion label={label} minWidth={720}>
@@ -27,7 +41,13 @@ export default function HomeNodesTable({ workStreams, programs }: { workStreams:
         <Table.Tbody>
           {workStreams.map((stream) => (
             <Table.Tr key={`stream-${stream.id}`}>
-              <Table.Td>{stream.endDate === null ? stream.name : t("plan.move.closedName", { name: stream.name })}</Table.Td>
+              <Table.Td>
+                {onRoadmap(
+                  roadmapFilteredPath({ filters: { workStreamId: stream.id } }),
+                  stream.endDate === null ? stream.name : t("plan.move.closedName", { name: stream.name }),
+                  stream.projects,
+                )}
+              </Table.Td>
               <Table.Td>{t("home.mine.level.workStream")}</Table.Td>
               <Table.Td />
               <Table.Td ta="right">{stream.programs}</Table.Td>
@@ -39,7 +59,7 @@ export default function HomeNodesTable({ workStreams, programs }: { workStreams:
           ))}
           {programs.map((program) => (
             <Table.Tr key={`program-${program.id}`}>
-              <Table.Td>{program.name}</Table.Td>
+              <Table.Td>{onRoadmap(roadmapFilteredPath({ pick: [program.id] }), program.name, program.projects)}</Table.Td>
               <Table.Td>{t("home.mine.level.program")}</Table.Td>
               <Table.Td>{program.workStreamName}</Table.Td>
               <Table.Td />

@@ -6,14 +6,17 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink } from "react-router-dom";
 import { getHomeView, HOME_VIEW_KEY, type HomePlan } from "../api/home";
+import BadgeLink from "../components/BadgeLink";
 import ErrorAlert from "../components/ErrorAlert";
 import HomeMine from "../components/HomeMine";
 import { JiraStaleNote } from "../components/JiraChips";
 import PageHeader from "../components/PageHeader";
 import { useOpenDeviationCounts, type OpenCounts } from "../hooks/useOpenDeviationCounts";
 import { deviationsPath } from "../utils/deviationLinks";
-import { planPath, roadmapPath } from "../utils/planLinks";
+import { unscheduledMilestonesPath } from "../utils/milestoneLinks";
+import { planPath, roadmapFilteredPath, roadmapPath } from "../utils/planLinks";
 import { isStaleSource } from "../utils/staleness";
+import { teamLoadWarningPath } from "../utils/teamLoadLinks";
 
 /** The room a card's figure group keeps while the read has not answered (px, about the lines it will hold), so the card's link stays where it is. */
 const PLAN_FIGURES_MIN_HEIGHT = 120;
@@ -70,7 +73,10 @@ function OpenLine({ label, counts, stale }: { label: string; counts: OpenCounts 
   );
 }
 
-/** The Plan card's figures (what there is, nothing filtered, as the Programs page's facts line) - empty, but as tall, until the read answers. */
+/**
+ * The Plan card's figures (what there is, nothing filtered, as the Programs page's facts line) - empty, but as tall, until the read answers. The
+ * "not scheduled yet" line is a link to the Milestones page's unscheduled list when positive: that list's total and this figure count one set.
+ */
 function PlanFigures({ plan }: { plan: HomePlan | undefined }) {
   const { t } = useTranslation();
   return (
@@ -81,7 +87,13 @@ function PlanFigures({ plan }: { plan: HomePlan | undefined }) {
           <Text size="sm">{t("programs.facts.programs", { count: plan.programs })}</Text>
           <Text size="sm">{t("programs.facts.projects", { count: plan.projects })}</Text>
           <Text size="sm">{t("teams.view.milestones", { count: plan.milestones })}</Text>
-          <Text size="sm">{t("home.plan.notScheduled", { count: plan.unscheduledMilestones })}</Text>
+          {plan.unscheduledMilestones > 0 ? (
+            <Anchor component={RouterLink} to={unscheduledMilestonesPath()} size="sm">
+              {t("home.plan.notScheduled", { count: plan.unscheduledMilestones })}
+            </Anchor>
+          ) : (
+            <Text size="sm">{t("home.plan.notScheduled", { count: plan.unscheduledMilestones })}</Text>
+          )}
         </>
       )}
     </Stack>
@@ -90,11 +102,15 @@ function PlanFigures({ plan }: { plan: HomePlan | undefined }) {
 
 /**
  * The Roadmap card's figures: the ranked and unranked counts and the warnings and infos of the Roadmap's facts line, then what else needs attention
- * (a badge only when positive). Violated dependencies count every link once, a link inside one project included, so they are worded as dependencies, not
- * as the arrows the Roadmap draws between projects; the two capacity figures are the teams the team page flags, and no page lists them, so they link nowhere.
+ * (a badge only when positive). Warnings and infos link to the Roadmap with "flagged only" (a link is shown as written, so no remembered filter narrows
+ * it) and the two capacity figures to the Team load page filtered to them. Violated dependencies count every link once, a link inside one project included, so
+ * they are worded as dependencies, not as the arrows the Roadmap draws between projects; no page lists them, so that badge stays plain.
  */
 function RoadmapFigures({ plan, jiraStale }: { plan: HomePlan | undefined; jiraStale: boolean }) {
   const { t } = useTranslation();
+  const warnings = plan ? t("roadmap.facts.warnings", { count: plan.flags.warnings }) : "";
+  const infos = plan ? t("roadmap.facts.infos", { count: plan.flags.infos }) : "";
+  const flaggedPath = roadmapFilteredPath({ filters: { flaggedOnly: true } });
   return (
     <Stack gap={4} role="group" aria-label={t("home.roadmap.factsAria")} mih={ROADMAP_FIGURES_MIN_HEIGHT}>
       {plan && (
@@ -103,14 +119,14 @@ function RoadmapFigures({ plan, jiraStale }: { plan: HomePlan | undefined; jiraS
           <Text size="sm">{t("roadmap.facts.unranked", { count: plan.unrankedProjects })}</Text>
           <Group gap="xs">
             {plan.flags.warnings > 0 && (
-              <Badge color="orange" variant="light" tt="none">
-                {t("roadmap.facts.warnings", { count: plan.flags.warnings })}
-              </Badge>
+              <BadgeLink to={flaggedPath} color="orange" ariaLabel={t("home.roadmap.flaggedAria", { figure: warnings })}>
+                {warnings}
+              </BadgeLink>
             )}
             {plan.flags.infos > 0 && (
-              <Badge color="gray" variant="light" tt="none">
-                {t("roadmap.facts.infos", { count: plan.flags.infos })}
-              </Badge>
+              <BadgeLink to={flaggedPath} color="gray" ariaLabel={t("home.roadmap.flaggedAria", { figure: infos })}>
+                {infos}
+              </BadgeLink>
             )}
             {plan.conflicts > 0 && (
               <Badge color="red" variant="light" tt="none">
@@ -118,14 +134,14 @@ function RoadmapFigures({ plan, jiraStale }: { plan: HomePlan | undefined; jiraS
               </Badge>
             )}
             {plan.overloadedTeams > 0 && (
-              <Badge color="orange" variant="light" tt="none">
+              <BadgeLink to={teamLoadWarningPath("overloaded")} color="orange">
                 {t("home.roadmap.overloadedTeams", { count: plan.overloadedTeams })}
-              </Badge>
+              </BadgeLink>
             )}
             {plan.wipExceededTeams > 0 && (
-              <Badge color="orange" variant="light" tt="none">
+              <BadgeLink to={teamLoadWarningPath("wip")} color="orange">
                 {t("home.roadmap.wipTeams", { count: plan.wipExceededTeams })}
-              </Badge>
+              </BadgeLink>
             )}
           </Group>
           {jiraStale && <JiraStaleNote />}

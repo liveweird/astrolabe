@@ -2,11 +2,15 @@ import { Anchor, Badge, Table } from "@mantine/core";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink } from "react-router-dom";
 import type { HomeMe } from "../api/home";
+import { unscheduledMilestonesPath } from "../utils/milestoneLinks";
 import { projectPath } from "../utils/planLinks";
 import HomeFlagBadges from "./HomeFlagBadges";
 import ScrollRegion from "./ScrollRegion";
 
-/** "Your projects": the Roadmap row's flags and rank with the project page's milestone figures and conflicts badge, as the server derives them. */
+/**
+ * "Your projects": the Roadmap row's flags and rank with the project page's milestone figures and conflicts badge, as the server derives them. A positive
+ * "Not scheduled" count is the link to the Milestones page's list for this project (the same set), named with its row.
+ */
 export default function HomeProjectsTable({ projects }: { projects: HomeMe["projects"] }) {
   const { t } = useTranslation();
   const label = t("home.mine.projects");
@@ -35,7 +39,20 @@ export default function HomeProjectsTable({ projects }: { projects: HomeMe["proj
               <Table.Td>{project.programName}</Table.Td>
               <Table.Td>{project.rankPosition ?? t("roadmap.unrankedDivider")}</Table.Td>
               <Table.Td ta="right">{project.milestones}</Table.Td>
-              <Table.Td ta="right">{project.unscheduledMilestones}</Table.Td>
+              <Table.Td ta="right">
+                {project.unscheduledMilestones > 0 ? (
+                  <Anchor
+                    component={RouterLink}
+                    to={unscheduledMilestonesPath({ projectId: project.id })}
+                    size="sm"
+                    aria-label={t("home.mine.notScheduledAria", { count: project.unscheduledMilestones, name: project.name })}
+                  >
+                    {project.unscheduledMilestones}
+                  </Anchor>
+                ) : (
+                  project.unscheduledMilestones
+                )}
+              </Table.Td>
               <Table.Td>
                 <HomeFlagBadges flags={project.flags} />
               </Table.Td>

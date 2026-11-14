@@ -11,6 +11,7 @@
     "text": "Projekty w kolejności rankingu na jednej osi czasu.",
     "open": "Otwórz roadmapę",
     "factsAria": "Roadmapa w liczbach",
+    "flaggedAria": "{{figure}}: projekty z flagami na roadmapie",
     "conflicts_one": "{{count}} naruszona zależność",
     "conflicts_few": "{{count}} naruszone zależności",
     "conflicts_many": "{{count}} naruszonych zależności",
@@ -46,6 +47,7 @@
     "teams": "Twoje zespoły",
     "nodes": "Twoje programy i strumienie pracy",
     "openPrograms": "Otwórz programy",
+    "onRoadmap": "Otwórz Twoje projekty na roadmapie",
     "column": {
       "program": "Program",
       "rank": "Ranking",
@@ -66,6 +68,8 @@
       "workStream": "Strumień pracy",
       "program": "Program"
     },
-    "jiraAria": "{{deviations}}: zespół {{name}}"
+    "jiraAria": "{{deviations}}: zespół {{name}}",
+    "notScheduledAria": "Niezaplanowane ({{count}}): {{name}}",
+    "nodeOnRoadmapAria": "Otwórz {{name}} na roadmapie"
   }
 }

@@ -5,7 +5,7 @@ import { Link as RouterLink } from "react-router-dom";
 import type { HomeMe, HomeView } from "../api/home";
 import { useAdmin } from "../auth";
 import { peoplePath } from "../utils/peopleLinks";
-import { programsPath } from "../utils/planLinks";
+import { programsPath, roadmapFilteredPath } from "../utils/planLinks";
 import { isStaleSource } from "../utils/staleness";
 import HomeNodesTable from "./HomeNodesTable";
 import HomeProjectsTable from "./HomeProjectsTable";
@@ -37,6 +37,9 @@ function MineTables({ me }: { me: HomeMe }) {
       {me.projects.length > 0 && (
         <TableBlock title={t("home.mine.projects")}>
           <HomeProjectsTable projects={me.projects} />
+          <Anchor component={RouterLink} to={roadmapFilteredPath({ filters: { ownerPersonId: me.personId } })} size="sm" fw={500}>
+            {t("home.mine.onRoadmap")}
+          </Anchor>
         </TableBlock>
       )}
       {me.teams.length > 0 && (

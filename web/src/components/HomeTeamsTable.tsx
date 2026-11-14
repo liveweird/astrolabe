@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Link as RouterLink } from "react-router-dom";
 import type { HomeMe } from "../api/home";
 import { deviationsForTeamPath } from "../utils/deviationLinks";
+import { unscheduledMilestonesPath } from "../utils/milestoneLinks";
 import { teamPath } from "../utils/teamLinks";
 import { DeviationCount } from "./JiraChips";
 import ScrollRegion from "./ScrollRegion";
@@ -11,6 +12,8 @@ import TeamFlags from "./TeamFlags";
 /**
  * "Your teams": the figures of the team page's header and facts line. Capacity is its two orange badges, Jira its chip's count badge (a link into the
  * Deviations page filtered to the team, only when positive; "may be out of date" is said once by the section) and Flow the header's sentence badge.
+ * A positive "Not scheduled" count is the link to the Milestones page's list for this team (the same set), named with its row; the capacity badges stay
+ * badges (the team's name opens the page that shows them first).
  */
 export default function HomeTeamsTable({ teams }: { teams: HomeMe["teams"] }) {
   const { t } = useTranslation();
@@ -38,7 +41,20 @@ export default function HomeTeamsTable({ teams }: { teams: HomeMe["teams"] }) {
                 </Anchor>
               </Table.Td>
               <Table.Td ta="right">{team.milestones}</Table.Td>
-              <Table.Td ta="right">{team.unscheduledMilestones}</Table.Td>
+              <Table.Td ta="right">
+                {team.unscheduledMilestones > 0 ? (
+                  <Anchor
+                    component={RouterLink}
+                    to={unscheduledMilestonesPath({ teamId: team.id })}
+                    size="sm"
+                    aria-label={t("home.mine.notScheduledAria", { count: team.unscheduledMilestones, name: team.name })}
+                  >
+                    {team.unscheduledMilestones}
+                  </Anchor>
+                ) : (
+                  team.unscheduledMilestones
+                )}
+              </Table.Td>
               <Table.Td>
                 <Group gap="xs" wrap="wrap">
                   {team.overloadedWeeks > 0 && (

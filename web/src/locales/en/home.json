@@ -11,6 +11,7 @@
     "text": "Projects in rank order on one timeline.",
     "open": "Open the roadmap",
     "factsAria": "The roadmap in figures",
+    "flaggedAria": "{{figure}}: the flagged projects on the roadmap",
     "conflicts_one": "{{count}} violated dependency",
     "conflicts_other": "{{count}} violated dependencies",
     "overloadedTeams_one": "{{count}} team with an overloaded week",
@@ -40,6 +41,7 @@
     "teams": "Your teams",
     "nodes": "Your programs and work streams",
     "openPrograms": "Open the programs",
+    "onRoadmap": "Open your projects on the roadmap",
     "column": {
       "program": "Program",
       "rank": "Rank",
@@ -60,6 +62,8 @@
       "workStream": "Work stream",
       "program": "Program"
     },
-    "jiraAria": "{{deviations}}: team {{name}}"
+    "jiraAria": "{{deviations}}: team {{name}}",
+    "notScheduledAria": "{{count}} not scheduled: {{name}}",
+    "nodeOnRoadmapAria": "Open {{name}} on the roadmap"
   }
 }
