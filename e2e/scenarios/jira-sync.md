@@ -159,20 +159,25 @@ never flips the stub.
    - *Expected*: on both pages the appended row is gone (no "(unscheduled; dates from Jira)" in the grid) and `tray`'s own row carries the one dashed bar; the project page's Unscheduled
      table is gone (nothing is left in the tray).
 
-## Scenario: the Jira chip says the data may be out of date until the connection's first successful refresh
+## Scenario: the Jira chip says the data may be out of date until the connection's first successful refresh, and the Roadmap and Programs pages say it while the connection is behind
 
-The eighth scenario of the serial group (1.16). Its world: the test's OWN connection (made and tested through the API on a unique throwaway `stub-` site, given 0.5 man-days per point,
+The eighth scenario of the serial group (1.16; 1.17 extends it with the plan pages' line). Its world: the test's OWN connection (made and tested through the API on a unique throwaway `stub-` site, given 0.5 man-days per point,
 never refreshed until the end; it spends ONE call of the Test bucket and is deleted with the test's other rows) and one milestone scheduled on `E2E-4`'s own days (Mon 2044-01-04
 to Fri 01-08) and linked through that connection as the setup. The shared `linking` connection is not used: earlier scenarios refresh it.
 
 1. The project owner opens the project page, then the team's page.
    - *Expected*: on both, the "Links to Jira" group reads "1 milestone linked to Jira" and holds the dimmed text "Jira data may be out of date" (the connection has never synced); the
      project page's count badge text is noted.
+   - *Then (1.17)*: the owner opens `/roadmap`: the group "Roadmap facts" holds the dimmed text "Jira data may be out of date" (exact), and an axe scan of the page with the line present finds nothing;
+     `/programs`: the group "Programs facts" holds it too.
 2. The file's throwaway administrator, in a browser of their own, presses **Refresh now: <connection>** on the Deviations page for the project and waits for the run to read "Succeeded".
 3. The owner opens the team's page and the project page again (a reload).
    - *Expected*: neither group holds "Jira data may be out of date" any more, and the project page's count badge reads exactly what it read before the refresh.
 
 ## Not covered here (and why)
 
+- The plan pages' line after the refresh (1.17): the Roadmap's and Programs' "Jira data may be out of date" is plan-wide (any site of the whole document) and the suite runs four workers, so another
+  file's never-refreshed connection with a link may keep it up; it can be asserted present, never absent. Its going away, per state and per mapping verdict, is pinned in vitest
+  (`Roadmap.jira.test.tsx`, `Programs.jira.test.tsx`).
 - A passing run on a disabled connection, a failing run and the stale banners: the Deviations page's own unit tests; the stub offers no failing site for this
   project beyond the wrong token.
