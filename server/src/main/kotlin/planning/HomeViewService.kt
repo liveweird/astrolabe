@@ -29,8 +29,9 @@ class HomeCaller(val userId: UInt)
  * (`user_id`; the login's own liveness is the per-request access check, as in `PersonService.activePersonIdOf`), the ACTIVE teams it
  * manages and per managed team the seam's team half (Jira reads nothing for a request naming no node; Flow at most six statements);
  * a person deleted or unlinked before the snapshot began reads `me: null`. Statements: the roadmap's, plus 2, plus 1 for the
- * scheduled milestones, plus 1 for ALL the capacity periods of the teams with scheduled work, plus 2 for a caller with a person
- * (the person, the managed teams) and the seam's per managed team. Reads `WorkStreams`, `Programs`, `Projects`, `People`,
+ * scheduled milestones, plus 1 for ALL the capacity periods of the teams with scheduled work, plus 1 for the person lookup
+ * (every caller), plus 1 for a caller with a person (the managed teams) and the seam's per managed team
+ * (`HomeViewSizeTest` pins them). Reads `WorkStreams`, `Programs`, `Projects`, `People`,
  * `Milestones`, `Teams`, `CapacityPeriods`, `Dependencies`, `RoadmapEntries` and `PublicHolidays` and (through [external]) the Jira
  * and Flow tables the seam reads (`persistence.md` matrix); nothing is written. [maxRows] caps each list of `me` ([MAX_HOME_ROWS]).
  */

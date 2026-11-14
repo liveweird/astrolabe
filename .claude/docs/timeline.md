@@ -562,6 +562,23 @@ One-off, **NON-BINDING**, this machine only (Apple M5 Max, in-process `testAppli
 |---|---|
 | `POST /teams/{id}/milestone-schedules` with the proposal's token after a far-off holiday was added: one team of 1,000 milestones, the proposal's own moves, the kernel run plus the multi-row write | **about 160 ms** (159.1 and 162.8 ms in two runs, all 1,000 milestones moved; the same world's plain 1,000-item batch without the token: 182.9-201.1 ms first, 121.3-124.6 ms second, so the kernel run adds about 40 ms; a 15-team run's own kernel is the 1.8 figure above, about 300 ms) |
 
+#### Measured figures (1.18)
+
+One-off, **NON-BINDING**, this machine only (Apple M5 Max, 2026-11-14, in-process `testApplication` against the Postgres container; re-measure rather than quote). `HomeViewSizeTest` seeds `CrossTeamSampleFixture` (5 work streams, 20 programs, 100 projects, 1,000 milestones of which about a tenth unscheduled, 15 teams with capacity periods and WIP limits, about 300 links, ONE owner; no Jira binding, no Flow connection) and reads `GET /views/home` as four logins: the WORST case (one person who owns all 125 nodes and manages all 15 teams), a manager of one team (the largest, 301 milestones), a person who owns and manages nothing and a login without a person. Each is read once through the conformance-checked client (the shape), then one warm-up and five timed reads through a bare bearer client (the median of five); the sizes are the response body, plain and gzip. Four runs, the range of each median.
+
+| Caller | Bytes | Gzip | Median of five | Statements |
+|---|---|---|---|---|
+| Worst case: owns 5 + 20 + 100, manages 15 teams (gate 40,000 B) | **25,179** (14,821 B of headroom) | 1,711 | **54-60 ms** (max 66) | 29 |
+| Manager of one team | 573 | 290 | 37-39 ms | 15 |
+| A person who owns and manages nothing | 390 | 245 | 35-40 ms | 14 |
+| A login without a person | 272 | 189 | 32-39 ms | 13 |
+| For comparison: `GET /views/roadmap` on the same plan | n/a | n/a | 18.4 ms | n/a |
+
+- **Size.** The calculated 25 KB (plan 1.6) held: 25,179 B for the worst case, 1.7 KB gzip; the person-less login is 272 B. The gate stays 40,000 B.
+- **Latency.** Every caller sits at 32-40 ms and the worst case at 54-60 ms, against the 250 ms stop line and the 500 ms tripwire the test asserts. The person-less login costs about what a person with nothing does, because **the capacity load runs for every caller**: Home over the roadmap's loader (18 ms through HTTP on this plan) adds about 15-20 ms of the plan block (two selects, the scheduled milestones, all the capacity periods and 15 `weeklyLoad` runs), and the worst case another 20 ms for 125 rows and 15 team rows with their per-team seam read.
+- **Statements** (counted below Exposed, on a connection factory that records every statement, over the app's own Jira and Flow sources; only `SELECT`s are sent, the dialect probe `SELECT current_database()` of a fresh database not counted): **13 for any caller** (the revision, the roadmap loader's 7 - holidays, bindings, projects, owner names, ranks, milestones, links -, the work streams, the programs, the scheduled milestones, ALL the capacity periods and the caller's person lookup), **+1 for a person** (the managed teams' select) and **+1 per managed team** here (the seam's team half: Flow's first read, which finds no connection; with a linked team it is at most six). No statement grows with the plan: the 15 teams' load is one select of milestones and one of periods, `HomeViewSizeTest` pins the counts.
+- **Not measured here:** the bound plan (the Jira source's per-site `sync_runs` reads and flag computation on 1,000 bound milestones: the roadmap's own 59-80 ms, doubled on Home by the second computation, see "(1.3)"; the figure comes from CI's `JiraFlagsScaleTest` report) and a Flow-linked team (up to six reads for each of the 15 managed teams, 90 at the most).
+
 #### Deliberate departures from the bootstrap sketch
 
 A div grid instead of a `<table>` (virtual rows); `top` instead of `translateY` for virtual rows (stacking); the tray's drag is pointer-only with an explicit Schedule button; the row handle is pointer-only like the tray's (the row menu's Move items are the keyboard path); dnd-kit's live region is the single announcer for drags (the page's polite region announces only non-drag changes).
