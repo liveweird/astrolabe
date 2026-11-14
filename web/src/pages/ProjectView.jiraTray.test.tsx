@@ -283,13 +283,13 @@ describe("the project page's tray milestones that Jira dates (1.16)", () => {
 
     test("the real dates are written even when the bar is drawn cut at the window", async () => {
       const user = userEvent.setup();
-      project = viewOf({ unscheduled: [{ ...SCHEDULER, jira: link(7, "E2E-8", "2027-03-01", "2090-03-05") }] });
+      project = viewOf({ unscheduled: [{ ...SCHEDULER, jira: link(7, "E2E-8", "2027-03-01", "2029-03-05") }] });
       renderPage();
       await timeline();
       await user.click(kebab("Rollout"));
       await user.click(await screen.findByRole("menuitem", { name: /^Schedule on Jira's dates/ }));
       await waitFor(() => expect(puts).toHaveLength(1));
-      expect(puts[0].body).toMatchObject({ startDate: "2027-03-01", endDate: "2090-03-05" });
+      expect(puts[0].body).toMatchObject({ startDate: "2027-03-01", endDate: "2029-03-05" });
     });
 
     test("a 400 rolls the change back (the dashed row and the tray row return) and shows the working-day sentence", async () => {
