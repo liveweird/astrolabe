@@ -176,6 +176,7 @@ function ProgramsBody({
     if (project === null) announce(t("roadmap.announce.criticalCleared"));
   };
   useCriticalAnnouncement(
+    target,
     projects.find((project) => project.id === view.criticalPath?.projectId),
     announce,
   );

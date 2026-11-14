@@ -93,8 +93,15 @@ let puts: string[];
 let threeIsGone: boolean;
 /** When set, ?criticalPath=2 waits for it (the target switched while the new chain is on its way). */
 let holdTwo: Promise<void> | null;
+/** When set, the baseline-picked documents wait for it (the next baseline pick still loading). */
+let holdBaseline: Promise<void> | null;
+const BASELINES = {
+  items: [6, 5].map((id) => ({ id, name: `Plan ${id}`, description: null, planRevision: 4, createdAt: id, createdBy: null, milestoneCount: 3, projectCount: 3 })),
+  can: { manage: false },
+};
 
 beforeEach(() => {
+  holdBaseline = null;
   view = plainView();
   viewUrls = [];
   puts = [];
@@ -103,6 +110,15 @@ beforeEach(() => {
   mockFetch = vi.fn((url: string, init?: RequestInit) => {
     if (url.startsWith("/api/v1/views/programs")) {
       viewUrls.push(url);
+      const params = new URLSearchParams(url.split("?")[1]);
+      if (params.has("baseline"))
+        return (holdBaseline ?? Promise.resolve()).then(() =>
+          jsonResponse(200, {
+            ...view,
+            baseline: { id: Number(params.get("baseline")), name: `Plan ${params.get("baseline")}`, planRevision: 4, removedProjects: [] },
+            ...(params.get("criticalPath") === "3" ? { criticalPath: TOWARD_DASHBOARDS } : {}),
+          }),
+        );
       if (url.endsWith("?criticalPath=3") && threeIsGone) return Promise.resolve(jsonResponse(400, GONE));
       if (url.endsWith("?criticalPath=3")) return Promise.resolve(jsonResponse(200, { ...view, criticalPath: TOWARD_DASHBOARDS }));
       if (url.endsWith("?criticalPath=2")) return (holdTwo ?? Promise.resolve()).then(() => jsonResponse(200, { ...view, criticalPath: TOWARD_TAXES }));
@@ -113,7 +129,7 @@ beforeEach(() => {
       view = applyProgramsWindow(view, Number(/projects\/(\d+)\//.exec(url)?.[1]), null, null);
       return Promise.resolve(new Response(null, { status: 204 }));
     }
-    if (url === "/api/v1/baselines") return Promise.resolve(jsonResponse(200, { items: [], can: { manage: false } }));
+    if (url === "/api/v1/baselines") return Promise.resolve(jsonResponse(200, localStorage.getItem("test.withBaselines") ? BASELINES : { items: [], can: { manage: false } }));
     if (url === "/api/v1/public-holidays") return Promise.resolve(jsonResponse(200, { items: [] }));
     return Promise.resolve(jsonResponse(404, { title: "x", status: 404 }));
   });
@@ -286,6 +302,41 @@ describe("Programs page: the critical path to a picked project", () => {
     expect(criticalBars()).toEqual(["Billing, program span 2026-03-02 to 2026-06-05, holds a project on the critical path, read-only"]);
     expect(arrows()).toEqual([["rollup:pg:10-pg:11", null]]);
     await waitFor(() => expect(liveText()).toContain("Showing the critical path to Taxes"));
+  });
+
+  test("another baseline picked under a target does not say the sentence again; None and the same project again does", async () => {
+    localStorage.setItem("test.withBaselines", "1");
+    const user = userEvent.setup();
+    renderWithProviders(<Programs />);
+    await waitForGrid();
+    await pickFromToolbar(user, "Dashboards");
+    await waitFor(() => expect(liveText()).toContain(ANNOUNCE));
+    // a baseline picked under the target: the kept copy shows no chain while the new document loads, which brings the same chain back
+    let release = () => {};
+    holdBaseline = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await user.click(await screen.findByRole("combobox", { name: "Baseline" }));
+    await user.click(await screen.findByRole("option", { name: "Plan 5" }));
+    await waitFor(() => expect(viewUrls.at(-1)).toBe("/api/v1/views/programs?baseline=5&criticalPath=3"));
+    await waitFor(() => expect(criticalBars()).toEqual([]));
+    const before = liveText();
+    release();
+    await screen.findByText("vs baseline Plan 5:"); // only the new document brings the totals note
+    await waitFor(() => expect(criticalBars()).toHaveLength(2));
+    expect(liveText()).toBe(before); // equal, byte for byte: a sentence said again would have flipped the re-read suffix
+    // a second baseline pick, the same way
+    holdBaseline = null;
+    await user.click(await screen.findByRole("combobox", { name: "Baseline" }));
+    await user.click(await screen.findByRole("option", { name: "Plan 6 (latest)" }));
+    await screen.findByText("vs baseline Plan 6:");
+    await waitFor(() => expect(criticalBars()).toHaveLength(2));
+    expect(liveText()).toBe(before);
+    // None, then the same project: a new pick, said again
+    await pickFromToolbar(user, "None");
+    await waitFor(() => expect(liveText()).toContain("Critical path hidden"));
+    await pickFromToolbar(user, "Dashboards");
+    await waitFor(() => expect(liveText()).toContain(ANNOUNCE));
   });
 
   test("a 400 for the target clears the selection, says so inline with no error flash, and fetches the plain view", async () => {

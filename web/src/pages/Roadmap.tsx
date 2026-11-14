@@ -193,8 +193,9 @@ function RoadmapBody({
     if (project === null) ranking.announce(t("roadmap.announce.criticalCleared"));
   };
   const pickCriticalTarget = (id: number | null) => showCriticalTo(allProjects(view).find((project) => project.id === id) ?? null);
-  // Said once per ARRIVAL of a chain (its target id changes), not per render or refetch; a target with nothing scheduled says so instead.
+  // Said once per PICK (the hook remembers the target, not the chain: another baseline picked under it re-loads the chain without a new sentence); a target with nothing scheduled says so instead.
   useCriticalAnnouncement(
+    target,
     allProjects(view).find((project) => project.id === view.criticalPath?.projectId),
     ranking.announce,
   );

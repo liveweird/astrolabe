@@ -28,18 +28,29 @@ export function useCriticalTarget(): { target: number | null; set: (id: number |
 }
 
 /**
- * The page's sentence for a chain that has ARRIVED, said once per arrival (the chain's target id changes), not per render or refetch: "Showing the critical
- * path to X", or - a target with nothing scheduled - "Nothing is scheduled in X…". `chainProject` is the project of the view's own `criticalPath` block
- * (`undefined` while none has arrived, so a pick the server may still reject is never announced); `announce` is the page's one polite status region.
+ * The page's sentence for a chain that has ARRIVED, said once per PICK (1.17): "Showing the critical path to X", or - a target with nothing scheduled -
+ * "Nothing is scheduled in X…". The memory is the TARGET the sentence was said for, not the chain: while another baseline loads the page shows the
+ * previous document without its chain (`withoutCriticalPath`), and the new document brings the same chain back - that is not a new pick. It is
+ * forgotten only when the target is cleared (None, "Hide critical path", a rejected target) or replaced. `target` is the page's own pick;
+ * `chainProject` is the project of the view's own `criticalPath` block (`undefined` while none has arrived, so a pick the server may still reject, or a
+ * previous target's chain still on screen, is never announced); `announce` is the page's one polite status region. The memory lives in the mounted
+ * page body, so a remount (leaving the page and coming back) says the sentence again.
  */
-export function useCriticalAnnouncement(chainProject: Pick<RoadmapProject, "id" | "name" | "span"> | undefined, announce: (text: string) => void): void {
+export function useCriticalAnnouncement(
+  target: number | null,
+  chainProject: Pick<RoadmapProject, "id" | "name" | "span"> | undefined,
+  announce: (text: string) => void,
+): void {
   const { t } = useTranslation();
+  const picked = useRef<number | null>(null);
   const announced = useRef<number | null>(null);
-  const chainId = chainProject?.id ?? null;
   useEffect(() => {
-    if (chainId === announced.current) return;
-    announced.current = chainId;
-    if (chainProject === undefined) return;
+    if (picked.current !== target) {
+      picked.current = target;
+      announced.current = null; // cleared or replaced: the next arrival is a new pick
+    }
+    if (target === null || chainProject === undefined || chainProject.id !== target || announced.current === target) return;
+    announced.current = target;
     announce(chainProject.span === null ? t("roadmap.critical.nothingScheduled", { name: chainProject.name }) : t("roadmap.announce.criticalShown", { name: chainProject.name }));
   });
 }

@@ -71,8 +71,15 @@ let viewUrls: string[];
 let threeIsGone: boolean;
 /** When set, ?criticalPath=1 waits for it (the target switched A -> B while B's chain is on its way). */
 let holdOne: Promise<void> | null;
+/** When set, the baseline-picked documents wait for it (the next baseline pick still loading). */
+let holdBaseline: Promise<void> | null;
+const BASELINES = {
+  items: [6, 5].map((id) => ({ id, name: `Plan ${id}`, description: null, planRevision: 4, createdAt: id, createdBy: null, milestoneCount: 3, projectCount: 3 })),
+  can: { manage: false },
+};
 
 beforeEach(() => {
+  holdBaseline = null;
   view = plainView();
   viewUrls = [];
   threeIsGone = false;
@@ -80,6 +87,15 @@ beforeEach(() => {
   mockFetch = vi.fn((url: string) => {
     if (url.startsWith("/api/v1/views/roadmap")) {
       viewUrls.push(url);
+      const params = new URLSearchParams(url.split("?")[1]);
+      if (params.has("baseline"))
+        return (holdBaseline ?? Promise.resolve()).then(() =>
+          jsonResponse(200, {
+            ...view,
+            baseline: { id: Number(params.get("baseline")), name: `Plan ${params.get("baseline")}`, planRevision: 4, removedProjects: [] },
+            ...(params.get("criticalPath") === "3" ? { criticalPath: CHAIN } : {}),
+          }),
+        );
       if (url.endsWith("?criticalPath=3") && threeIsGone) return Promise.resolve(jsonResponse(400, GONE));
       if (url.endsWith("?criticalPath=3")) return Promise.resolve(jsonResponse(200, { ...view, criticalPath: CHAIN }));
       if (url.endsWith("?criticalPath=1"))
@@ -88,7 +104,7 @@ beforeEach(() => {
       if (url.endsWith("?criticalPath=99")) return Promise.resolve(jsonResponse(400, GONE));
       return Promise.resolve(jsonResponse(200, view));
     }
-    if (url === "/api/v1/baselines") return Promise.resolve(jsonResponse(200, { items: [], can: { manage: false } }));
+    if (url === "/api/v1/baselines") return Promise.resolve(jsonResponse(200, localStorage.getItem("test.withBaselines") ? BASELINES : { items: [], can: { manage: false } }));
     if (url === "/api/v1/public-holidays") return Promise.resolve(jsonResponse(200, { items: [] }));
     return Promise.resolve(jsonResponse(404, { title: "x", status: 404 }));
   });
@@ -187,6 +203,42 @@ describe("Roadmap page: the critical path to a picked project", () => {
       ["bundle:2-1", "true"],
     ]);
     await waitFor(() => expect(said()).toContain("Showing the critical path to Invoices"));
+  });
+
+  test("another baseline picked under a target does not say the sentence again; None and the same project again does", async () => {
+    localStorage.setItem("test.withBaselines", "1");
+    const user = userEvent.setup();
+    renderWithProviders(<Roadmap />);
+    await waitForGrid();
+    await pickFromToolbar(user, "Audit");
+    const said = () => screen.getAllByRole("status").map((region) => region.textContent).join("|");
+    await waitFor(() => expect(said()).toContain(ANNOUNCE));
+    // a baseline picked under the target: the kept copy shows no chain while the new document loads, which brings the same chain back
+    let release = () => {};
+    holdBaseline = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await user.click(await screen.findByRole("combobox", { name: "Baseline" }));
+    await user.click(await screen.findByRole("option", { name: "Plan 5" }));
+    await waitFor(() => expect(viewUrls.at(-1)).toBe("/api/v1/views/roadmap?baseline=5&criticalPath=3"));
+    await waitFor(() => expect(criticalBars()).toEqual([]));
+    const before = said();
+    release();
+    await screen.findByText("vs baseline Plan 5:"); // only the new document brings the totals note
+    await waitFor(() => expect(criticalBars()).toHaveLength(2));
+    expect(said()).toBe(before); // equal, byte for byte: a sentence said again would have flipped the re-read suffix
+    // a second baseline pick, the same way
+    holdBaseline = null;
+    await user.click(await screen.findByRole("combobox", { name: "Baseline" }));
+    await user.click(await screen.findByRole("option", { name: "Plan 6 (latest)" }));
+    await screen.findByText("vs baseline Plan 6:");
+    await waitFor(() => expect(criticalBars()).toHaveLength(2));
+    expect(said()).toBe(before);
+    // None, then the same project: a new pick, said again
+    await pickFromToolbar(user, "None");
+    await waitFor(() => expect(said()).toContain("Critical path hidden"));
+    await pickFromToolbar(user, "Audit");
+    await waitFor(() => expect(said()).toContain(ANNOUNCE));
   });
 
   test("the row menu's Show critical path to this project sets it, says so in the live region, and the item then reads Hide critical path", async () => {
