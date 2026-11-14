@@ -180,7 +180,7 @@ val checkVerificationMetadata = tasks.register<CheckVerificationMetadata>("check
             "com.fasterxml.jackson:jackson-bom:2.21.3" to "imported by openapi-request-validator 3.0.0",
             "com.fasterxml.jackson:jackson-bom:2.22.1" to "imported by swagger-parser-project 2.1.48",
             "io.netty:netty-bom:4.2.19.Final" to "imported by flyway-parent 13.12.0",
-            "io.opentelemetry:opentelemetry-bom:1.49.0" to "imported by httpclient5-parent 5.6.4",
+            "io.opentelemetry:opentelemetry-bom:1.68.0" to "imported by httpclient5-parent 5.6.4",
             "org.jetbrains.kotlinx:kotlinx-coroutines-bom:1.6.4" to "the BOM of kotlinx-coroutines-core-jvm 1.6.4, a losing transitive version",
             "org.jetbrains.kotlinx:kotlinx-coroutines-bom:1.8.0" to "the BOM of kotlinx-coroutines-core-jvm 1.8.0, a losing transitive version",
             "com.google.guava:guava-parent:26.0-android" to "the parent of listenablefuture 9999.0-empty-to-avoid-conflict-with-guava",
