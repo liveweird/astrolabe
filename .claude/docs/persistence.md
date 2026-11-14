@@ -21,7 +21,7 @@ in-network consumers use `postgres:5432`). There is one persistence stack:
   append-only like any other.)
 - **Exposed + R2DBC** (`infra/db/Database.kt`, `infra/db/ConnectionPool.kt` + the feature services) — runtime DB access.
   `Database.kt` is the composition root (the pool it connects through is `ConnectionPool.kt`): it constructs the
-  services and publishes them into `Application.attributes` (`UserServiceKey`, `PersonServiceKey`, `TeamServiceKey`, the planning keys (`BaselineServiceKey` since V20, `JiraConnectionServiceKey` since V21),
+  services and publishes them into `Application.attributes`, wired by concern (private `wireRegistries`, `wirePlan`, `wireSync`, `wireJira`, `wireFlow`, `wirePlanViews`, `wireAuth`, called in that order: a later group takes what an earlier one answers) (`UserServiceKey`, `PersonServiceKey`, `TeamServiceKey`, the planning keys (`BaselineServiceKey` since V20, `JiraConnectionServiceKey` since V21),
   `TokenBlocklistServiceKey`, `PasswordResetServiceKey` today); each service itself lives next to the feature it serves
   (`users/UserService.kt`, `people/PersonService.kt`, `teams/TeamService.kt`, `planning/{WorkStream,Program,Project,Milestone,Dependency,PlanView,Roadmap}Service.kt`, `auth/TokenBlocklistService.kt`, `auth/PasswordResetService.kt`, `jira/JiraConnectionService.kt`). The Exposed
   table `object`s (e.g. `UserService.Users`, nested inside their service) are used for queries

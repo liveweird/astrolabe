@@ -107,13 +107,24 @@ val R2dbcDatabaseKey = AttributeKey<R2dbcDatabase>("R2dbcDatabase")
  * The DI composition root: connects the one R2DBC database (through the bounded pool of `ConnectionPool.kt`) and
  * publishes every service into [Application.attributes]. Feature modules read their services back
  * via the AttributeKey — application.yaml runs this module before any route module, so the keys
- * are always present.
+ * are always present. The wiring is split by concern into the private `wire…` functions below; their order is
+ * load-bearing (a later group takes what an earlier one answers), and so is the order of the boot-validated config reads.
  */
 suspend fun Application.configureDatabase() {
     val database = connectPooled()
-    val userService = UserService(database)
     attributes.put(R2dbcDatabaseKey, database)
-    attributes.put(UserServiceKey, userService)
+    val (teamService, teamCapacity) = wireRegistries(database)
+    wirePlan(database)
+    val syncRuns = wireSync(database)
+    val deviationView = wireJira(database, syncRuns, teamService)
+    val capacityDeviations = wireFlow(database, syncRuns, teamCapacity)
+    wirePlanViews(database, deviationView, capacityDeviations)
+    wireAuth(database)
+}
+
+/** The registries (users, people, teams and their capacity); answers the team service and the capacity service the later groups take. */
+private fun Application.wireRegistries(database: R2dbcDatabase): Pair<TeamService, TeamCapacityService> {
+    attributes.put(UserServiceKey, UserService(database))
     attributes.put(PersonServiceKey, PersonService(database))
     val teamService = TeamService(database)
     attributes.put(TeamServiceKey, teamService)
@@ -122,6 +133,11 @@ suspend fun Application.configureDatabase() {
     attributes.put(CapacityWriteListenersKey, capacityListeners)
     val teamCapacity = TeamCapacityService(database, capacityListeners)
     attributes.put(TeamCapacityServiceKey, teamCapacity)
+    return teamService to teamCapacity
+}
+
+/** The plan itself (work streams to baselines, ranks, schedules, holidays); needs nothing earlier. */
+private fun Application.wirePlan(database: R2dbcDatabase) {
     attributes.put(WorkStreamServiceKey, WorkStreamService(database))
     attributes.put(ProgramServiceKey, ProgramService(database))
     attributes.put(ProjectServiceKey, ProjectService(database))
@@ -136,15 +152,41 @@ suspend fun Application.configureDatabase() {
     attributes.put(PublicHolidayServiceKey, PublicHolidayService(database))
     attributes.put(BaselineServiceKey, BaselineService(database))
     attributes.put(BaselineViewServiceKey, BaselineViewService(database))
-    // The Jira registry owns the first encrypted-at-rest column (V21); the cipher comes from configureCrypto, registered before Database.
+}
+
+/** The connector-agnostic sync side: the run registry (answered, both connectors' registries read it) and the empty connector registry. */
+private fun Application.wireSync(database: R2dbcDatabase): SyncRunService {
     // The run registry (V21 `sync_runs`) comes first: the connection registry reads each connection's newest run from it.
     val maxRunMinutes = requireConfigInt(environment.config, "sync.maxRunMinutes", min = 1, max = 60)
     val syncRuns = SyncRunService(database, maxRunMinutes)
     attributes.put(SyncRunServiceKey, syncRuns)
+    // The empty connector registry the connectors' modules fill (`configureJira`).
+    attributes.put(SyncConnectorsKey, SyncConnectors())
+    return syncRuns
+}
+
+/** The Jira side; needs the run registry and the team service; answers the deviation view service the flag source and the views take. */
+private fun Application.wireJira(database: R2dbcDatabase, syncRuns: SyncRunService, teamService: TeamService): DeviationViewService {
+    // The Jira registry owns the first encrypted-at-rest column (V21); the cipher comes from configureCrypto, registered before Database.
     attributes.put(JiraConnectionServiceKey, JiraConnectionService(database, attributes[FieldCipherKey], syncRuns))
     // The two stores split out of the registry service: neither is given the cipher, neither selects `api_token`.
     attributes.put(JiraTestRecorderKey, JiraTestRecorder(database))
     attributes.put(JiraMappingStoreKey, JiraMappingStore(database))
+    val jiraBindings = JiraBindingService(database)
+    attributes.put(JiraBindingServiceKey, jiraBindings)
+    attributes.put(JiraImportServiceKey, JiraImportService(database, teamService, jiraBindings))
+    val deviationView = DeviationViewService(database, syncRuns)
+    attributes.put(DeviationViewServiceKey, deviationView)
+    attributes.put(JiraAcknowledgeServiceKey, JiraAcknowledgeService(database, deviationView))
+    return deviationView
+}
+
+/** The Flow side; needs the run registry and the capacity service; answers the capacity deviation service the flag source takes. */
+private fun Application.wireFlow(
+    database: R2dbcDatabase,
+    syncRuns: SyncRunService,
+    teamCapacity: TeamCapacityService,
+): CapacityDeviationService {
     // The Flow registry (V24) is the second encrypted-at-rest service; its mirror and bindings come with it. A registry write is judged by
     // the operator's origin rule (`FlowOrigins.baseUrlVerdict`), which `configureFlow` builds from `flow.*` AFTER this module: the lookup
     // is per call, and an absent rule refuses (fail closed), so a connection can never name an origin the transport would refuse.
@@ -160,13 +202,15 @@ suspend fun Application.configureDatabase() {
     val capacityDeviations = CapacityDeviationService(database, flowBindings, flowMirror, teamCapacity, syncRuns)
     attributes.put(CapacityDeviationServiceKey, capacityDeviations)
     attributes.put(CapacityAcknowledgeServiceKey, CapacityAcknowledgeService(database, capacityDeviations, flowBindings, flowMirror))
-    val jiraBindings = JiraBindingService(database)
-    attributes.put(JiraBindingServiceKey, jiraBindings)
-    attributes.put(JiraImportServiceKey, JiraImportService(database, teamService, jiraBindings))
-    // The empty connector registry the connectors' modules fill (`configureJira`).
-    val deviationView = DeviationViewService(database, syncRuns)
-    attributes.put(DeviationViewServiceKey, deviationView)
-    attributes.put(JiraAcknowledgeServiceKey, JiraAcknowledgeService(database, deviationView))
+    return capacityDeviations
+}
+
+/** The views that read the external flags; needs the Jira deviation view service and the Flow capacity deviation service. */
+private fun Application.wirePlanViews(
+    database: R2dbcDatabase,
+    deviationView: DeviationViewService,
+    capacityDeviations: CapacityDeviationService,
+) {
     // The four timeline views read the Jira links and flags (and, since 1.9, the team view's Flow capacity flag) through planning's seam,
     // inside their own snapshot; the composite merges the two sources.
     val jiraFlags = CompositeExternalFlagSource(listOf(JiraFlagSource(deviationView), FlowFlagSource(capacityDeviations)))
@@ -176,7 +220,10 @@ suspend fun Application.configureDatabase() {
     attributes.put(TeamViewServiceKey, TeamViewService(database, jiraFlags))
     attributes.put(HomeViewServiceKey, HomeViewService(database, jiraFlags))
     attributes.put(TeamLoadViewServiceKey, TeamLoadViewService(database))
-    attributes.put(SyncConnectorsKey, SyncConnectors())
+}
+
+/** The login side: the revoked-token blocklist and the persisted password-reset links, each with its boot-validated config read. */
+private fun Application.wireAuth(database: R2dbcDatabase) {
     attributes.put(
         TokenBlocklistServiceKey,
         TokenBlocklistService(
