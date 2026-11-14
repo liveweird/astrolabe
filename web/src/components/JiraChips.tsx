@@ -6,21 +6,26 @@ import { deviationsForProjectPath, deviationsForTeamPath } from "../utils/deviat
 import { markKey, type JiraMark, type JiraMarks } from "../utils/jiraMarks";
 import JiraKeyLink from "./JiraKeyLink";
 
-/** The open-flag count as a link into the Deviations page (orange when it holds a warning, gray when only infos); "No deviations seen" when there is none. */
-function DeviationCount({ to, warnings, infos }: { to: string; warnings: number; infos: number }) {
+/**
+ * The open-flag count as a link into the Deviations page (orange when it holds a warning, gray when only infos); "No deviations seen" when there is none.
+ * With `stale` (1.16: a site behind the chip is not CURRENT, or its mapping does not fit) the count is followed by dimmed "Jira data may be out of date",
+ * at any count: three deviations read from a connection that failed last night are as doubtful as none. Plain text, not an alert and not orange: the
+ * Deviations page's banner is the warning, the chip only qualifies.
+ */
+function DeviationCount({ to, warnings, infos, stale }: { to: string; warnings: number; infos: number; stale: boolean }) {
   const { t } = useTranslation();
   const count = warnings + infos;
-  if (count === 0) {
-    return (
-      <Badge color="gray" variant="light" tt="none" component={RouterLink} to={to}>
-        {t("deviations.chip.inLine")}
-      </Badge>
-    );
-  }
   return (
-    <Badge color={warnings > 0 ? "orange" : "gray"} variant="light" tt="none" component={RouterLink} to={to}>
-      {t("deviations.chip.count", { count })}
-    </Badge>
+    <>
+      <Badge color={count > 0 && warnings > 0 ? "orange" : "gray"} variant="light" tt="none" component={RouterLink} to={to}>
+        {count === 0 ? t("deviations.chip.inLine") : t("deviations.chip.count", { count })}
+      </Badge>
+      {stale && (
+        <Text size="sm" c="dimmed">
+          {t("deviations.chip.stale")}
+        </Text>
+      )}
+    </>
   );
 }
 
@@ -42,7 +47,7 @@ export function ProjectJiraChip({ projectId, marks }: { projectId: number; marks
         </Text>
       )}
       {milestones > 0 && <Text size="sm">{t("deviations.chip.milestones", { count: milestones })}</Text>}
-      <DeviationCount to={deviationsForProjectPath(projectId)} warnings={marks.warnings} infos={marks.infos} />
+      <DeviationCount to={deviationsForProjectPath(projectId)} warnings={marks.warnings} infos={marks.infos} stale={marks.stale} />
     </Group>
   );
 }
@@ -54,7 +59,7 @@ export function TeamJiraChip({ teamId, marks }: { teamId: number; marks: JiraMar
   return (
     <Group gap="xs" role="group" aria-label={t("deviations.chip.groupAria")}>
       <Text size="sm">{t("deviations.chip.teamLinked", { count: marks.byNode.size })}</Text>
-      <DeviationCount to={deviationsForTeamPath(teamId)} warnings={marks.warnings} infos={marks.infos} />
+      <DeviationCount to={deviationsForTeamPath(teamId)} warnings={marks.warnings} infos={marks.infos} stale={marks.stale} />
     </Group>
   );
 }

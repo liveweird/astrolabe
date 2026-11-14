@@ -24,6 +24,11 @@ export type JiraMarks = {
   /** The open Jira flags of every marked node, by severity (a chip's count). */
   warnings: number;
   infos: number;
+  /**
+   * Some site a marked node links through is not `CURRENT`, or its mapping does not fit (1.16): the figures above are the last observation and may be
+   * out of date. Wider than the Deviations page's banner (it counts `STALE` and a first run in flight too).
+   */
+  stale: boolean;
 };
 
 /** A plan node of a view, as far as the marks need it. */
@@ -36,9 +41,11 @@ type MarkedNode = { level: DeviationItem["level"]; id: number; jira: JiraLink | 
  */
 function marksOf(sites: readonly JiraSite[], nodes: readonly MarkedNode[]): JiraMarks {
   const urls = siteUrls(sites);
+  const siteOf = new Map(sites.map((site) => [site.connectionId, site]));
   const byNode = new Map<string, JiraMark>();
   let warnings = 0;
   let infos = 0;
+  let stale = false;
   for (const { level, id, jira, flags } of nodes) {
     if (jira === null) continue;
     const own = flags.filter((flag) => flag.kind === "JIRA_DEVIATION");
@@ -46,8 +53,10 @@ function marksOf(sites: readonly JiraSite[], nodes: readonly MarkedNode[]): Jira
     byNode.set(markKey(level, id), { bindingId: jira.bindingId, key: jira.issueKey, siteUrl: urls.get(jira.connectionId) ?? null, warnings: nodeWarnings, infos: own.length - nodeWarnings });
     warnings += nodeWarnings;
     infos += own.length - nodeWarnings;
+    const site = siteOf.get(jira.connectionId);
+    if (site !== undefined && (site.state !== "CURRENT" || !site.mappingOk)) stale = true;
   }
-  return { byNode, warnings, infos };
+  return { byNode, warnings, infos, stale };
 }
 
 const milestoneNode = (milestone: { id: number; jira: JiraLink | null; flags: readonly PlanFlag[] }): MarkedNode => ({ level: "MILESTONE", ...milestone });

@@ -271,6 +271,7 @@
     "teamLinked_few": "{{count}} kamienie milowe powiązane z Jirą",
     "teamLinked_many": "{{count}} kamieni milowych powiązanych z Jirą",
     "teamLinked_other": "{{count}} kamienia milowego powiązanego z Jirą",
+    "stale": "Dane z Jiry mogą być nieaktualne",
     "groupAria": "Powiązania z Jirą"
   },
   "link": {

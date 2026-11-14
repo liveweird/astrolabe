@@ -105,8 +105,17 @@ describe("the team page's Jira markers", () => {
       expect(within(group).getByText("2 milestones linked to Jira")).toBeInTheDocument();
       expect(within(group).getByRole("link", { name: "1 Jira deviation" })).toHaveAttribute("href", "/deviations?teamId=1");
       expect(requested().filter((url) => url.includes("views/deviations"))).toEqual([]);
+      expect(within(group).queryByText("Jira data may be out of date")).not.toBeInTheDocument();
       // The outline is the page's own: the chip adds no heading.
       expect(headingOutline().filter(([level]) => level === 2)).toEqual([[2, "Payments"]]);
+    });
+
+    test("a site whose mapping does not fit adds 'Jira data may be out of date' inside the group, beside the unchanged count", async () => {
+      teamView = { ...TEAM_VIEW, jiraSites: [{ ...TEAM_VIEW.jiraSites[0], mappingOk: false }] };
+      renderPage();
+      const group = await screen.findByRole("group", { name: "Links to Jira" });
+      expect(within(group).getByText("Jira data may be out of date")).toBeInTheDocument();
+      expect(within(group).getByRole("link", { name: "1 Jira deviation" })).toBeInTheDocument();
     });
 
     test("with nothing linked there is no chip, no Flags column and no Jira toggle", async () => {

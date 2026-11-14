@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { MemoryRouter } from "react-router-dom";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { MantineProvider } from "@mantine/core";
 import { theme } from "../theme";
 import type { JiraMark, JiraMarks } from "../utils/jiraMarks";
@@ -8,7 +8,8 @@ import { markKey } from "../utils/jiraMarks";
 import { ProjectJiraButton, ProjectJiraChip, TeamJiraChip } from "./JiraChips";
 
 const mark = (over: Partial<JiraMark> = {}): JiraMark => ({ bindingId: 1, key: "E2E-3", siteUrl: "https://acme.atlassian.net", warnings: 0, infos: 0, ...over });
-const marks = (entries: [string, JiraMark][], warnings = 0, infos = 0): JiraMarks => ({ byNode: new Map(entries), warnings, infos });
+const marks = (entries: [string, JiraMark][], warnings = 0, infos = 0, stale = false): JiraMarks => ({ byNode: new Map(entries), warnings, infos, stale });
+const STALE_TEXT = "Jira data may be out of date";
 
 function show(ui: React.ReactElement) {
   return render(
@@ -43,6 +44,41 @@ describe("ProjectJiraChip", () => {
     expect(screen.getByText("1 milestone linked to Jira")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "2 Jira deviations" })).toHaveAttribute("href", "/deviations?projectId=7");
     expect(screen.queryByText("Jira:")).not.toBeInTheDocument();
+  });
+});
+
+describe("the 'may be out of date' qualifier", () => {
+  test("project chip: dimmed text inside the group beside the count, at zero and at a count; absent when current", () => {
+    const one: [string, JiraMark][] = [[markKey("PROJECT", 7), mark({ key: "E2E-1" })]];
+    const { unmount } = show(<ProjectJiraChip projectId={7} marks={marks(one, 0, 0, true)} />);
+    const group = screen.getByRole("group", { name: "Links to Jira" });
+    expect(within(group).getByText(STALE_TEXT)).toBeInTheDocument();
+    expect(within(group).getByRole("link", { name: "No deviations seen" })).toBeInTheDocument();
+    unmount();
+    const second = show(<ProjectJiraChip projectId={7} marks={marks(one, 2, 1, true)} />);
+    expect(within(screen.getByRole("group", { name: "Links to Jira" })).getByText(STALE_TEXT)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "3 Jira deviations" })).toBeInTheDocument();
+    second.unmount();
+    show(<ProjectJiraChip projectId={7} marks={marks(one, 2, 1)} />);
+    expect(screen.queryByText(STALE_TEXT)).not.toBeInTheDocument();
+  });
+
+  test("team chip: the same text at zero and at a count; absent when current", () => {
+    const two: [string, JiraMark][] = [[markKey("MILESTONE", 1), mark()]];
+    const { unmount } = show(<TeamJiraChip teamId={3} marks={marks(two, 0, 0, true)} />);
+    expect(within(screen.getByRole("group", { name: "Links to Jira" })).getByText(STALE_TEXT)).toBeInTheDocument();
+    unmount();
+    const second = show(<TeamJiraChip teamId={3} marks={marks(two, 1, 0, true)} />);
+    expect(screen.getByText(STALE_TEXT)).toBeInTheDocument();
+    second.unmount();
+    show(<TeamJiraChip teamId={3} marks={marks(two, 1, 0)} />);
+    expect(screen.queryByText(STALE_TEXT)).not.toBeInTheDocument();
+  });
+
+  test("nothing at all while nothing is linked, even when stale", () => {
+    show(<ProjectJiraChip projectId={7} marks={marks([], 0, 0, true)} />);
+    expect(screen.queryByRole("group", { name: "Links to Jira" })).not.toBeInTheDocument();
+    expect(screen.queryByText(STALE_TEXT)).not.toBeInTheDocument();
   });
 });
 

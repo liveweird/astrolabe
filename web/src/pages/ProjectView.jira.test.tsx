@@ -121,6 +121,16 @@ describe("the project page's Jira markers", () => {
       expect(within(group).getByRole("link", { name: "1 Jira deviation" })).toHaveAttribute("href", "/deviations?projectId=7");
       expect(within(screen.getByRole("group", { name: "Project facts" })).getByRole("group", { name: "Links to Jira" })).toBe(group);
       expect(gets(/views\/deviations/)).toBe(0);
+      // A CURRENT connection with a fitting mapping says nothing about currency.
+      expect(within(group).queryByText("Jira data may be out of date")).not.toBeInTheDocument();
+    });
+
+    test("a site behind the chip that is not CURRENT adds 'Jira data may be out of date' inside the group, beside the unchanged count", async () => {
+      project = viewOf({ jiraSites: [{ ...SITES[0], state: "STALE" }] });
+      renderPage();
+      const group = await screen.findByRole("group", { name: "Links to Jira" });
+      expect(within(group).getByText("Jira data may be out of date")).toBeInTheDocument();
+      expect(within(group).getByRole("link", { name: "1 Jira deviation" })).toBeInTheDocument();
     });
 
     test("the count is the project's own and the milestones' deviations; the JIRA_MILESTONES roll-up is not counted again", async () => {

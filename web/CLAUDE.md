@@ -172,7 +172,7 @@ Everything is lazy under `RequireAuth` unless noted.
   `requireAdmin` is the rule). A generated password is revealed exactly once (`OneTimePasswordModal`: `closeOnClickOutside={false} closeOnEscape={false}`;
   closing drops the plaintext for good), and the feature-flag PUT is wholesale — a disabled set that omits `MFA` ENABLES it.
 - **Deviations wording**: `totals.bindings` is never worded as "how many are linked"; an empty list is a claim about a READ and is dated; the chips on the
-  project and team pages show the last observation and say nothing about currency.
+  project and team pages show the last observation and add "may be out of date" while a site behind them is not `CURRENT` or its mapping does not fit.
 - The ADMIN telemetry panel (`components/Telemetry*.tsx`) is the only chart surface; it shares `SyncStatusBadge` / `utils/syncStatus.ts` with the Jira pages.
 
 ## Internationalization (i18n)

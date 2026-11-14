@@ -225,6 +225,7 @@
     "milestones_other": "{{count}} milestones linked to Jira",
     "teamLinked_one": "{{count}} milestone linked to Jira",
     "teamLinked_other": "{{count}} milestones linked to Jira",
+    "stale": "Jira data may be out of date",
     "groupAria": "Links to Jira"
   },
   "link": {

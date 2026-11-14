@@ -961,10 +961,10 @@ no note of its own, the page re-reads and its status line says a refresh is runn
 ago", the exact UTC time in its `title`) - it is when Astrolabe last CAPTURED that item (the bind, or a run in which Jira reported it changed), NOT when it was
 linked and not when a run last looked, so it can be older than the connection's last run; a gone item or a disabled connection adds "stale". A gone item's Jira cell badge reads "Gone from Jira", or "Moved out of scope" when its GONE line's `detail.jira` is `MOVED_OUT` (1.12: a probe still read the issue, under a key outside the connection's projects; the sentence is "Moved out of the connection's projects (Jira still has it)", `deviations.phrase.goneMovedOut`), or "Not listed by Jira" for `NOT_LISTED` (1.13: the key it answered with is inside them; "Still in the connection's projects, but Jira no longer lists it (archived, or its type changed)", `deviations.phrase.goneNotListed`); one helper, `goneBadge(reason)` in `utils/deviations.ts`, maps a reason to `movedOut | notListed | gone`, and the key link already shows the binding's current (followed) key. The age is measured
 against the browser's clock (`dataUpdatedAt`) from the server's `observedAt`, so the two clocks can differ by their skew: accepted, the tooltip carries the
-exact UTC time and the age is cosmetic. **The chips on the project and team pages are the exception that proves the rule**: they are built from the timeline
-view, which carries no connection status, so they show the LAST OBSERVATION and say nothing about whether it is current (1.1's "may be out of date" qualifier is
-gone; a `BACKLOG.md` item brings it back with a per-site status on `jiraSites`). Whether a connection is stale, failed or disabled is told on the Deviations
-page and the connection pages only.
+exact UTC time and the age is cosmetic. **The chips on the project and team pages** are built from the timeline view, which carries no run history, so they show the LAST OBSERVATION; since 1.16 each
+`jiraSites[]` entry says how fresh its connection is (`state`, `mappingOk`) and a chip adds the dimmed text "Jira data may be out of date" after its count
+while `JiraMarks.stale` ("The chips and marks" below). Whether a connection is stale, failed or disabled, and why, is told on the Deviations page and the
+connection pages.
 
 **Counting words**: the totals badges are the server's `warnings`/`infos` over every match before the cap (orange / gray, the roadmap flag vocabulary; red is
 never used); **the gone figure is split (1.13)**: "N gone from Jira" shows `totals.gone - totals.stillInJira` and a second gray "N still in Jira, out of scope" shows `totals.stillInJira` (`deviations.totals.stillInJira_*`), each hidden at 0; "N items shown" is `items.length`, `truncated` is an orange note; **`totals.bindings` is never worded as "how many are linked"** - it counts only
@@ -1092,8 +1092,16 @@ exactly as current as the view and any refresh of `["plan"]` (a plan write, a bi
 view lists none for an acknowledged item or a disabled connection - and only `JIRA_DEVIATION` ones: the project's `JIRA_MILESTONES` roll-up repeats its
 milestone rows' flags and counting it would count a deviation twice. The project page's facts row (inside `ProjectFacts`, so nothing under it shifts) has "Jira:
 E2E-1" (the project's own key), "N milestones linked to Jira" and the count (a link to `/deviations?projectId=`, orange with a warning, gray otherwise; "No
-deviations seen" at zero, never "in line"); the team page the same count line (`/deviations?teamId=`); nothing at all while nothing is linked. The old "may be
-out of date" qualifier is gone with the separate query: the view carries no connection status (the Deviations page and the connection pages still do).
+deviations seen" at zero, never "in line"); the team page the same count line (`/deviations?teamId=`); nothing at all while nothing is linked. **The qualifier (1.16).** 1.1's "may be out of date" is back,
+read off the view's own `jiraSites[{connectionId, siteUrl, state, mappingOk}]` (no request): `JiraMarks.stale` (`marksOf`) is true when some site a MARKED node
+links through has `state !== "CURRENT"` (so `NEVER_SYNCED`, `STALE`, `FAILED` and `DISABLED` all count) or `mappingOk === false`; a site no marked node uses, a
+link whose connection is not in `jiraSites` and a document with no mark say nothing. Both chips (`DeviationCount` in `JiraChips.tsx`) render
+`deviations.chip.stale` ("Jira data may be out of date", PL "Dane z Jiry mogą być nieaktualne") as plain dimmed text after the count badge, inside the
+`role="group"`, at ANY count (three deviations read from a connection that failed last night are as doubtful as none); not an `Alert` and not orange - the
+Deviations page's banner is the warning, the chip only qualifies. **Wider than the banner's rule** (`staleConnection`, 1.1's: disabled, mapping, no run, a failed
+newest run) on purpose: it also counts `STALE` (a last success older than three polling intervals) and a first run still in flight, so the chip may qualify a figure
+while the page it links to shows only the connection's orange or gray badge, never the reverse. **Honest limit:** `CURRENT` means the newest run succeeded and,
+for a polled connection, not long ago; a manual-only connection stays `CURRENT` after any success however old (its "Last run" is on the Deviations page).
 `useJiraLinks(projectId, enabled)` (`hooks/useDeviations.ts`) survives ONLY for the bind dialog's `connections[]` (`GET /views/deviations?projectId=`, asked
 while the dialog is open, no `answered` gate on the page); `useJiraColumn` and its `teams.jiraColumn.<id>` key are removed.
 

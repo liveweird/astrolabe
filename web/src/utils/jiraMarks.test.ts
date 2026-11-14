@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { Deviation } from "../api/deviations";
 import type { ProjectMilestone } from "../api/milestones";
-import type { JiraLink, PlanFlag } from "../api/roadmap";
+import type { JiraLink, JiraSite, PlanFlag } from "../api/roadmap";
 import type { TeamMilestone } from "../api/teams";
 import { detail, evidence } from "../test/deviations";
 import { markKey, projectMarks, teamMarks } from "./jiraMarks";
@@ -47,7 +47,7 @@ describe("projectMarks", () => {
   });
 
   test("an unlinked document has no marks at all", () => {
-    expect(projectMarks({ jiraSites: [], project: project(), scheduled: [milestone(1)], unscheduled: [] })).toEqual({ byNode: new Map(), warnings: 0, infos: 0 });
+    expect(projectMarks({ jiraSites: [], project: project(), scheduled: [milestone(1)], unscheduled: [] })).toEqual({ byNode: new Map(), warnings: 0, infos: 0, stale: false });
   });
 });
 
@@ -60,5 +60,39 @@ describe("teamMarks", () => {
     });
     expect([...marks.byNode.keys()]).toEqual([markKey("MILESTONE", 1), markKey("MILESTONE", 3)]);
     expect([marks.warnings, marks.infos]).toEqual([1, 1]);
+  });
+});
+
+describe("stale", () => {
+  const site = (over: Partial<JiraSite> = {}, connectionId = 2): JiraSite => ({ ...SITES[0], connectionId, ...over });
+  const staleOf = (sites: JiraSite[], links: JiraLink[]) =>
+    projectMarks({ jiraSites: sites, project: project(), scheduled: links.map((l, i) => milestone(i + 1, { jira: l })), unscheduled: [] }).stale;
+
+  test.each(["NEVER_SYNCED", "STALE", "FAILED", "DISABLED"] as const)("a linked node behind a %s site is stale", (state) => {
+    expect(staleOf([site({ state })], [link(1, "E2E-3")])).toBe(true);
+  });
+
+  test("a CURRENT site whose mapping does not fit is stale", () => {
+    expect(staleOf([site({ mappingOk: false })], [link(1, "E2E-3")])).toBe(true);
+  });
+
+  test("a CURRENT site with a fitting mapping is not stale", () => {
+    expect(staleOf([site()], [link(1, "E2E-3")])).toBe(false);
+  });
+
+  test("a site no marked node links through does not count", () => {
+    expect(staleOf([site(), site({ state: "FAILED" }, 9)], [link(1, "E2E-3")])).toBe(false);
+  });
+
+  test("a stale site counts when only a tray milestone links through it, and in the team marks", () => {
+    const stale = site({ state: "STALE" });
+    expect(projectMarks({ jiraSites: [stale], project: project(), scheduled: [], unscheduled: [milestone(1, { jira: link(1, "E2E-3") })] }).stale).toBe(true);
+    expect(teamMarks({ jiraSites: [stale], scheduled: [milestone(1, { jira: link(1, "E2E-3") })], unscheduled: [] }).stale).toBe(true);
+  });
+
+  test("no site, or a link whose connection is not in jiraSites: not stale", () => {
+    expect(staleOf([], [link(1, "E2E-3")])).toBe(false);
+    expect(staleOf([site({ state: "FAILED" })], [link(1, "E2E-3", 99)])).toBe(false);
+    expect(staleOf([site({ state: "FAILED" })], [])).toBe(false);
   });
 });
