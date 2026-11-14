@@ -61,6 +61,7 @@ fun Application.configurePlanningRoutes() {
             programs = attributes[ProgramsViewServiceKey],
             baseline = attributes[BaselineViewServiceKey],
             home = attributes[HomeViewServiceKey],
+            teamLoad = attributes[TeamLoadViewServiceKey],
         ),
         scheduling = PlanSchedulingServices(
             teamOrder = attributes[TeamOrderServiceKey],
@@ -99,7 +100,7 @@ internal class PlanStructureServices(
     val dependencies: DependencyService,
 )
 
-/** The read-only view services (`PlanRouteDeps.views`): the plan, project, team, roadmap, programs, baseline and home documents. */
+/** The read-only view services (`PlanRouteDeps.views`): the plan, project, team, roadmap, programs, baseline, home, team-load documents. */
 internal class PlanViewServices(
     val plan: PlanViewService,
     val project: ProjectViewService,
@@ -108,6 +109,7 @@ internal class PlanViewServices(
     val programs: ProgramsViewService,
     val baseline: BaselineViewService,
     val home: HomeViewService,
+    val teamLoad: TeamLoadViewService,
 )
 
 /** The team-scheduling services (`PlanRouteDeps.scheduling`): the team order, the batch accept, the proposal and the cross-team run. */

@@ -1834,6 +1834,29 @@ paths:
                 $ref: '#/components/schemas/HomeView'
         '401': { $ref: '#/components/responses/Unauthorized' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/views/team-load:
+    get:
+      tags: [plan]
+      operationId: getTeamLoadView
+      summary: Every team with its milestones and the weeks its page flags, for the Team load page
+      description: |
+        Any authenticated user; no parameter (an unknown query name is ignored). One document (a deliberate exception to the paged
+        envelope), the same for every caller: every ACTIVE team by name (case-insensitive, then id), at most 200 rows (`truncated`
+        says the list was cut; `totals` always count every team). Every figure is the team page's own (`GET /views/team/{id}`): the
+        team's milestones and the ones not scheduled, the weeks the page flags overloaded and over the WIP limit, and the weeks of
+        its load with no capacity period in force (such a week is never flagged overloaded). `totals.overloadedTeams` and
+        `totals.wipExceededTeams` are `plan.overloadedTeams` and `plan.wipExceededTeams` of `GET /views/home`. `managerName` is null
+        when the team has no active manager. `revision` is the plan revision read before the rows (informational: the view offers no
+        write, so there is no `can`).
+      responses:
+        '200':
+          description: The team-load document
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamLoadView'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   /api/v1/views/project/{id}:
     parameters:
       - $ref: '#/components/parameters/ResourceId'
@@ -6993,6 +7016,51 @@ components:
           description: The team view's `team.flags` - at most one `FLOW_CAPACITY` flag.
           items:
             $ref: '#/components/schemas/PlanFlag'
+    TeamLoadView:
+      type: object
+      required: [revision, totals, teams, truncated]
+      description: >-
+        The Team load page's document (1.19.0): every team's milestones and flagged weeks. Every figure is one the team page shows, so the
+        list never disagrees with the page it links to or with Home.
+      properties:
+        revision:
+          type: integer
+          format: int64
+          minimum: 0
+          description: The PLAN revision, read before the rows. Informational - the page sends nothing back.
+        totals:
+          $ref: '#/components/schemas/TeamLoadTotals'
+        teams:
+          type: array
+          maxItems: 200
+          description: 'The active teams by name (case-insensitive, then id), at most 200.'
+          items:
+            $ref: '#/components/schemas/TeamLoadRow'
+        truncated: { type: boolean, description: True when `teams` was cut at 200 rows. }
+    TeamLoadTotals:
+      type: object
+      required: [teams, overloadedTeams, wipExceededTeams]
+      description: The figures over EVERY active team, whatever the rows cut.
+      properties:
+        teams: { type: integer, format: int32, minimum: 0, description: The active teams. }
+        overloadedTeams: { type: integer, format: int32, minimum: 0, description: 'The teams with at least one week the team page flags overloaded (Home''s `plan.overloadedTeams`).' }
+        wipExceededTeams: { type: integer, format: int32, minimum: 0, description: 'The teams with at least one week over the WIP limit (Home''s `plan.wipExceededTeams`).' }
+    TeamLoadRow:
+      type: object
+      required: [id, name, managerName, milestones, unscheduledMilestones, overloadedWeeks, wipExceededWeeks, weeksWithoutCapacity]
+      description: One team's figures.
+      properties:
+        id: { type: integer, format: int32, minimum: 0 }
+        name: { type: string }
+        managerName:
+          type: string
+          nullable: true
+          description: The team's active manager; null when it has none (a deleted person is none).
+        milestones: { type: integer, format: int32, minimum: 0, description: The team's active milestones. }
+        unscheduledMilestones: { type: integer, format: int32, minimum: 0, description: The team's active milestones without dates. }
+        overloadedWeeks: { type: integer, format: int32, minimum: 0, description: The weeks the team page flags overloaded. }
+        wipExceededWeeks: { type: integer, format: int32, minimum: 0, description: The weeks over the WIP limit. }
+        weeksWithoutCapacity: { type: integer, format: int32, minimum: 0, description: 'The weeks of the team''s load with no capacity period in force (never flagged overloaded).' }
     ProgramsView:
       type: object
       required: [revision, teams, links, workStreams, jiraSites]

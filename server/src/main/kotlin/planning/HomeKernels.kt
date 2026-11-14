@@ -44,7 +44,7 @@ object HomeKernels {
      */
     fun plan(streams: Collection<HomeStreamFact>, programs: Collection<HomeProgramFact>, facts: HomeFacts): HomePlan {
         val streamIds = streams.map { it.id }.toSet()
-        val weeks = facts.teamWeeks.values
+        val warnings = TeamLoadKernels.totals(facts.teamWeeks)
         return HomePlan(
             workStreams = streams.size,
             programs = programs.count { it.workStreamId in streamIds },
@@ -55,8 +55,8 @@ object HomeKernels {
             unscheduledMilestones = facts.milestones.count { it.span == null },
             flags = RoadmapKernels.flagCounts(facts.projects.flatMap { it.flags }),
             conflicts = facts.checkedLinks.count { it.check.status == DependencyStatus.VIOLATED },
-            overloadedTeams = weeks.count { rows -> rows.any { it.overloaded } },
-            wipExceededTeams = weeks.count { rows -> rows.any { it.wipExceeded } },
+            overloadedTeams = warnings.overloadedTeams,
+            wipExceededTeams = warnings.wipExceededTeams,
         )
     }
 

@@ -13,6 +13,8 @@ import ch.nokillswit.planning.ExternalFlagSource
 import ch.nokillswit.planning.HomeViewService
 import ch.nokillswit.planning.PlanActor
 import ch.nokillswit.planning.RoadmapViewService
+import ch.nokillswit.planning.TeamLoadView
+import ch.nokillswit.planning.TeamLoadViewService
 import ch.nokillswit.users.UserRole
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -24,6 +26,7 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
+import kotlinx.serialization.json.Json
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import org.jetbrains.exposed.v1.r2dbc.R2dbcDatabase
@@ -54,11 +57,15 @@ import kotlin.test.assertTrue
  * The roadmap view is timed on the same plan for comparison (what Home adds to the loader it runs). The sizes (plain and
  * gzip), the medians and the statement counts are `scale-figure` lines ([ScaleFigures]), recorded in `timeline.md` "Measured figures
  * (1.18)". The asserted time bounds are loose tripwires (at least 5x the figure measured on the dev machine), never the machine's
- * speed. No Jira or Flow stub: the plan has no binding and no connection, so the seam's Jira half answers nothing; the bound-plan
+ * speed. The team-load document (`GET /views/team-load`, 1.19.0) is read once more on the same plan (bytes, median, statements, pinned
+ * at [TEAM_LOAD_STATEMENTS]: it runs no external source, so its count does not depend on what other classes left behind). No Jira or
+ * Flow stub: the plan has no binding and no connection, so the seam's Jira half answers nothing; the bound-plan
  * figure comes from `JiraFlagsScaleTest`'s own `scale-figure` lines on CI. Every row is hard-deleted in a `finally`.
  */
 class HomeViewSizeTest {
     private class Caller(val userId: UInt, val conformant: HttpClient, val bare: HttpClient)
+
+    private class LoadReading(val document: TeamLoadView, val bytes: Int, val p50: Double)
 
     private class Reading(val document: HomeView, val bytes: Int, val gzip: Int, val p50: Double, val max: Double)
 
@@ -92,6 +99,28 @@ class HomeViewSizeTest {
         ScaleFigures.printBytes("home $label gzip", gzip)
         ScaleFigures.printSeries("home $label", timings)
         return Reading(document, bytes, gzip, ScaleFigures.median(timings), timings.max())
+    }
+
+    /**
+     * The shape through the conformance client, then [RUNS] warm timed reads of the team-load view; its plain and gzip sizes are
+     * only printed ([LoadReading] keeps the plain size), because the endpoint's document holds every team of the shared database
+     * (cut at 200), not the sample's 15: the GATED size is [sampleTeamLoadBytes].
+     */
+    private suspend fun Caller.readTeamLoad(): LoadReading {
+        val shape = conformant.get(TEAM_LOAD_PATH)
+        assertEquals(HttpStatusCode.OK, shape.status)
+        val document = shape.body<TeamLoadView>()
+        val bytes = bare.get(TEAM_LOAD_PATH).bodyAsBytes().size
+        val gzip = bare.get(TEAM_LOAD_PATH) { header(HttpHeaders.AcceptEncoding, "gzip") }.bodyAsBytes().size
+        val timings = List(RUNS) {
+            val started = System.nanoTime()
+            assertEquals(HttpStatusCode.OK, bare.get(TEAM_LOAD_PATH).status)
+            (System.nanoTime() - started) / NANOS_PER_MILLI
+        }
+        ScaleFigures.printBytes("team load size", bytes)
+        ScaleFigures.printBytes("team load gzip", gzip)
+        ScaleFigures.printSeries("team load", timings)
+        return LoadReading(document, bytes, ScaleFigures.median(timings))
     }
 
     /** The statements [read] sends on a counting database of its own (every statement is a SELECT; the dialect probe is not the view's). */
@@ -180,6 +209,22 @@ class HomeViewSizeTest {
             assertEquals(0, assertNotNull(n.document.me).let { it.workStreams.size + it.programs.size + it.projects.size + it.teams.size })
             assertNull(p.document.me, "a login without a person has no 'me'")
 
+            // The team-load view on the same plan: every team, whoever asks; six statements (revision, calendar, teams with managers,
+            // milestone counts, scheduled milestones, capacity periods) and a small document.
+            val load = personless.readTeamLoad()
+            val loadSql = statements("team load") { database, _ -> TeamLoadViewService(database).view() }
+            assertEquals(TEAM_LOAD_STATEMENTS, loadSql.size, "the team-load view's statements:\n${loadSql.joinToString("\n")}")
+            assertTrue(load.p50 <= P50_TRIPWIRE_MS, "team load p50 ${load.p50} ms")
+            // The gated size is a FIXED document: the uncapped view reduced to the sample's 15 teams (the endpoint's own document holds
+            // every team of the shared database, cut at 200, so its size depends on what other classes left behind).
+            val whole = TeamLoadViewService(sharedDatabaseForTests(), maxRows = Int.MAX_VALUE).view()
+            assertFalse(whole.truncated)
+            val sampleRows = whole.teams.filter { it.id in sample.teamIds }
+            assertEquals(sample.teamIds.size, sampleRows.size, "the sample's 15 teams are rows")
+            val sampleBytes = Json.encodeToString(TeamLoadView.serializer(), whole.copy(teams = sampleRows)).toByteArray().size
+            ScaleFigures.printBytes("team load (sample's 15 teams, gated) size", sampleBytes)
+            assertTrue(sampleBytes <= TEAM_LOAD_MAX_BYTES, "the team-load document is $sampleBytes bytes for 15 teams, over the gate")
+
             val managerSql = homeStatements("one manager of one team", manager.userId)
             val nothingSql = homeStatements("a person with nothing", nothing.userId)
             val personlessSql = homeStatements("a login without a person", personless.userId)
@@ -245,6 +290,13 @@ class HomeViewSizeTest {
     private companion object {
         const val PATH = "/api/v1/views/home"
         const val ROADMAP_PATH = "/api/v1/views/roadmap"
+        const val TEAM_LOAD_PATH = "/api/v1/views/team-load"
+
+        /** The team-load view's gate for the sample's 15 teams (calculated about 2.6 KB, measured about 2.9 KB): 1.5 times the figure. */
+        const val TEAM_LOAD_MAX_BYTES = 4_500
+
+        /** The team-load view's statements: revision, calendar, teams with managers, milestone counts, scheduled milestones, periods. */
+        const val TEAM_LOAD_STATEMENTS = 6
         const val RUNS = 5
 
         /** The plan's gate (calculated about 25 KB, plan 1.6). */

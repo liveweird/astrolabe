@@ -2,7 +2,6 @@ package ch.nokillswit.planning
 
 import ch.nokillswit.infra.db.active
 import ch.nokillswit.people.PersonService
-import ch.nokillswit.teams.TeamCapacityService
 import ch.nokillswit.teams.TeamService
 import io.ktor.util.AttributeKey
 import kotlinx.coroutines.flow.toList
@@ -24,8 +23,9 @@ class HomeCaller(val userId: UInt)
  * the PLAN's revision FIRST and the rows after, takes no lock and writes nothing. It runs the roadmap's own loader
  * ([loadRoadmapSnapshot], with the actor that may do nothing: the `can` flags are not read), two selects of its own (the ACTIVE work
  * streams and programs), the capacity load of EVERY team with scheduled milestones for EVERY caller (the plan block's two team figures
- * must not depend on who asks: the team view's own inputs - its scheduled milestones' spans and estimates, [teamCapacityRows],
- * [loadWindow], the snapshot's calendar - through [weeklyLoad]) and the caller's person: the ACTIVE `People` row linked to the login
+ * must not depend on who asks: [teamWeeks] in `TeamLoadRows.kt`, the loader the team-load view runs too - the team view's own inputs,
+ * its scheduled milestones' spans and estimates, [teamCapacityRows], [loadWindow], the snapshot's calendar, through [weeklyLoad]) and
+ * the caller's person: the ACTIVE `People` row linked to the login
  * (`user_id`; the login's own liveness is the per-request access check, as in `PersonService.activePersonIdOf`), the ACTIVE teams it
  * manages and per managed team the seam's team half (Jira reads nothing for a request naming no node; Flow at most six statements);
  * a person deleted or unlinked before the snapshot began reads `me: null`. Statements: the roadmap's, plus 2, plus 1 for the
@@ -46,7 +46,7 @@ class HomeViewService(
         val streams = activeStreams()
         val programs = activePrograms()
         val facts = HomeFacts(
-            snapshot.projects, snapshot.facts, snapshot.checkedLinks, snapshot.milestoneFlags, teamWeeks(snapshot),
+            snapshot.projects, snapshot.facts, snapshot.checkedLinks, snapshot.milestoneFlags, teamWeeks(snapshot.calendar),
         )
         val me = linkedPerson(caller.userId)?.let { (personId, name) ->
             HomeKernels.mine(personId, name, streams, programs, facts, managedTeams(personId, snapshot), maxRows)
@@ -67,34 +67,6 @@ class HomeViewService(
             .map {
                 HomeProgramFact(it[programs.id].value, it[programs.workStreamId].value, it[programs.name], it[programs.ownerPersonId].value)
             }
-    }
-
-    /**
-     * The weeks of EVERY active team with scheduled work, the team page's rule: ONE select of the scheduled milestones' spans and
-     * estimates grouped by team, ONE select of those teams' ACTIVE capacity periods (the team view's ordering, [teamCapacityRows]'s
-     * values), then one [weeklyLoad] run per team with work.
-     */
-    private suspend fun teamWeeks(snapshot: RoadmapSnapshot): Map<UInt, List<WeekLoad>> {
-        val milestones = MilestoneService.Milestones
-        val scheduled = milestones.select(milestones.teamId, milestones.startDate, milestones.endDate, milestones.estimateMd)
-            .where { milestones.active() and milestones.startDate.isNotNull() and milestones.endDate.isNotNull() }
-            .toList()
-            .groupBy({ it[milestones.teamId].value }) { row ->
-                val start = checkNotNull(row[milestones.startDate])
-                val end = checkNotNull(row[milestones.endDate])
-                LoadItem(DaySpan(start, end), row[milestones.estimateMd])
-            }
-        if (scheduled.isEmpty()) return emptyMap()
-        val periods = TeamCapacityService.CapacityPeriods
-        val byTeam = periods.selectAll().where { (periods.teamId inList scheduled.keys) and periods.active() }
-            .orderBy(periods.effectiveFrom to SortOrder.ASC, periods.id to SortOrder.ASC)
-            .toList()
-            .groupBy({ it[periods.teamId].value }) {
-                CapacityPeriod(it[periods.effectiveFrom], it[periods.mdPerWeek], it[periods.wipLimit])
-            }
-        return scheduled.mapValues { (teamId, items) ->
-            weeklyLoad(items, byTeam[teamId].orEmpty(), loadWindow(items.map { it.span })?.span, snapshot.calendar)
-        }
     }
 
     /** The ACTIVE person linked to [userId] (id and name) or null: at most one by the partial unique index `uq_people_user_id_active`. */

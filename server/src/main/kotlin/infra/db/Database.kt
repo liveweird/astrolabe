@@ -72,6 +72,8 @@ import ch.nokillswit.planning.RoadmapViewService
 import ch.nokillswit.planning.RoadmapViewServiceKey
 import ch.nokillswit.planning.ScheduleProposalService
 import ch.nokillswit.planning.ScheduleProposalServiceKey
+import ch.nokillswit.planning.TeamLoadViewService
+import ch.nokillswit.planning.TeamLoadViewServiceKey
 import ch.nokillswit.planning.TeamOrderService
 import ch.nokillswit.planning.TeamOrderServiceKey
 import ch.nokillswit.planning.TeamScheduleService
@@ -173,6 +175,7 @@ suspend fun Application.configureDatabase() {
     attributes.put(ProgramsViewServiceKey, ProgramsViewService(database, jiraFlags))
     attributes.put(TeamViewServiceKey, TeamViewService(database, jiraFlags))
     attributes.put(HomeViewServiceKey, HomeViewService(database, jiraFlags))
+    attributes.put(TeamLoadViewServiceKey, TeamLoadViewService(database))
     attributes.put(SyncConnectorsKey, SyncConnectors())
     attributes.put(
         TokenBlocklistServiceKey,

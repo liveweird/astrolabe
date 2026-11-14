@@ -580,6 +580,20 @@ One-off, **NON-BINDING**, this machine only (Apple M5 Max, 2026-11-14, in-proces
 - **With those 20 bound nodes** (same plan, three runs, the machine busier than for the table above): the worst case **25,293 B** (+114 B of Jira flag counts), 75-107 ms, the person-less login 386 B and 50-55 ms, the roadmap read 28-32 ms; the bytes are not what leftover connections move (a site is about +40 B in `jiraSites`, so even 100 leftovers are +4 KB against 14.7 KB of headroom).
 - **Not measured here:** the bound plan (the Jira source's per-site `sync_runs` reads and flag computation on 1,000 bound milestones: the roadmap's own 59-80 ms, doubled on Home by the second computation, see "(1.3)"; the figure comes from CI's `JiraFlagsScaleTest` report) and a Flow-linked team (up to six reads for each of the 15 managed teams, 90 at the most).
 
+#### Measured figures (1.19)
+
+One-off, **NON-BINDING**, this machine only (Apple M5 Max, 2026-11-14, in-process `testApplication` against the Postgres container; re-measure rather than quote). `HomeViewSizeTest` reads `GET /views/team-load` once more on the 1.18 fixture (the sample plan: 15 teams with capacity periods and WIP limits, 1,000 milestones of which about a tenth unscheduled, no Jira binding, no Flow connection) as the login without a person (the document is the same for every caller): once through the conformance-checked client (the shape), then one warm-up and five timed reads through a bare bearer client (the median of five). Two runs.
+
+| Document | Bytes | Gzip | Median of five | Statements |
+|---|---|---|---|---|
+| `GET /views/team-load`, the sample's 15 teams (gate 4,500 B, 1.5 times the figure) | **2,941-2,950** (about 196 B a team) | 411-415 | **24-25 ms** (max 25-28) | **6** |
+| For comparison: `GET /views/roadmap` on the same plan | n/a | n/a | 23-28 ms | n/a |
+| For comparison: `GET /views/home`, the login without a person | 386 | 275 | 41-44 ms | 22 (13 on an empty Jira side) |
+
+- **Size.** The calculated 2.6 KB held (2.9 KB). A row is about 196 B (the name, the manager's name and the seven figures), so the 200-row cap is about 39 KB at the very most. The gate is 4,500 B and measures a FIXED document, the uncapped view reduced to the sample's 15 teams: the endpoint's own document holds every team of the shared database (cut at 200), so its size depends on what other classes left behind.
+- **Latency.** About the roadmap view's, and well under Home's: the view runs no roadmap loader and no external source, only the team load that Home's plan block runs for every caller (two selects and 15 `weeklyLoad` runs) plus the teams, the milestone counts and the calendar. Nothing here is near the 500 ms tripwire the test asserts.
+- **Statements** (counted below Exposed as for Home, only `SELECT`s): **exactly 6** and independent of the Jira side, because the view reads no external source: the revision, the holidays (the calendar), the teams LEFT-joined to their managers, the active milestones' team and start date, the scheduled milestones, the capacity periods of the teams with scheduled work. No statement grows with the plan (a per-team read would break the pin). Home's own count is unchanged by the move of the loader (`HomeViewSizeTest`'s relative pin, `+ 5`, passes untouched).
+
 #### Deliberate departures from the bootstrap sketch
 
 A div grid instead of a `<table>` (virtual rows); `top` instead of `translateY` for virtual rows (stacking); the tray's drag is pointer-only with an explicit Schedule button; the row handle is pointer-only like the tray's (the row menu's Move items are the keyboard path); dnd-kit's live region is the single announcer for drags (the page's polite region announces only non-drag changes).

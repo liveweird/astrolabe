@@ -1211,6 +1211,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/views/team-load": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Every team with its milestones and the weeks its page flags, for the Team load page
+         * @description Any authenticated user; no parameter (an unknown query name is ignored). One document (a deliberate exception to the paged
+         *     envelope), the same for every caller: every ACTIVE team by name (case-insensitive, then id), at most 200 rows (`truncated`
+         *     says the list was cut; `totals` always count every team). Every figure is the team page's own (`GET /views/team/{id}`): the
+         *     team's milestones and the ones not scheduled, the weeks the page flags overloaded and over the WIP limit, and the weeks of
+         *     its load with no capacity period in force (such a week is never flagged overloaded). `totals.overloadedTeams` and
+         *     `totals.wipExceededTeams` are `plan.overloadedTeams` and `plan.wipExceededTeams` of `GET /views/home`. `managerName` is null
+         *     when the team has no active manager. `revision` is the plan revision read before the rows (informational: the view offers no
+         *     write, so there is no `can`).
+         */
+        get: operations["getTeamLoadView"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/views/project/{id}": {
         parameters: {
             query?: never;
@@ -5619,6 +5646,70 @@ export interface components {
             /** @description The team view's `team.flags` - at most one `FLOW_CAPACITY` flag. */
             flags: components["schemas"]["PlanFlag"][];
         };
+        /** @description The Team load page's document (1.19.0): every team's milestones and flagged weeks. Every figure is one the team page shows, so the list never disagrees with the page it links to or with Home. */
+        TeamLoadView: {
+            /**
+             * Format: int64
+             * @description The PLAN revision, read before the rows. Informational - the page sends nothing back.
+             */
+            revision: number;
+            totals: components["schemas"]["TeamLoadTotals"];
+            /** @description The active teams by name (case-insensitive, then id), at most 200. */
+            teams: components["schemas"]["TeamLoadRow"][];
+            /** @description True when `teams` was cut at 200 rows. */
+            truncated: boolean;
+        };
+        /** @description The figures over EVERY active team, whatever the rows cut. */
+        TeamLoadTotals: {
+            /**
+             * Format: int32
+             * @description The active teams.
+             */
+            teams: number;
+            /**
+             * Format: int32
+             * @description The teams with at least one week the team page flags overloaded (Home's `plan.overloadedTeams`).
+             */
+            overloadedTeams: number;
+            /**
+             * Format: int32
+             * @description The teams with at least one week over the WIP limit (Home's `plan.wipExceededTeams`).
+             */
+            wipExceededTeams: number;
+        };
+        /** @description One team's figures. */
+        TeamLoadRow: {
+            /** Format: int32 */
+            id: number;
+            name: string;
+            /** @description The team's active manager; null when it has none (a deleted person is none). */
+            managerName: string | null;
+            /**
+             * Format: int32
+             * @description The team's active milestones.
+             */
+            milestones: number;
+            /**
+             * Format: int32
+             * @description The team's active milestones without dates.
+             */
+            unscheduledMilestones: number;
+            /**
+             * Format: int32
+             * @description The weeks the team page flags overloaded.
+             */
+            overloadedWeeks: number;
+            /**
+             * Format: int32
+             * @description The weeks over the WIP limit.
+             */
+            wipExceededWeeks: number;
+            /**
+             * Format: int32
+             * @description The weeks of the team's load with no capacity period in force (never flagged overloaded).
+             */
+            weeksWithoutCapacity: number;
+        };
         ProgramsView: {
             /**
              * Format: int64
@@ -9784,6 +9875,28 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HomeView"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    getTeamLoadView: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The team-load document */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeamLoadView"];
                 };
             };
             401: components["responses"]["Unauthorized"];
