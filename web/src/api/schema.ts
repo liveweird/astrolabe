@@ -1179,6 +1179,35 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/views/home": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The plan's figures and the caller's own items, for the Home page
+         * @description Any authenticated user; no parameter (an unknown query name is ignored). One document (a deliberate exception to the paged
+         *     envelope): `plan` holds the whole plan's figures, the same for every caller and each one an existing view's own - the counts
+         *     of `GET /views/programs`, the ranked and unranked projects, the warnings and infos of `GET /views/roadmap`, the milestones the
+         *     project and team pages count, the violated dependencies (every link once, a link inside one project included) and how many
+         *     teams have a week the team page flags overloaded or over its WIP limit. `me` is the caller's OWN: what the ACTIVE person that
+         *     the caller's login is linked to owns directly (a work stream's owner gets the stream, not the projects below it) and the
+         *     teams that person manages, looked up for an administrator too; `null` when the login has no active linked person. Each list of
+         *     `me` holds at most 100 rows in the order of the Plan and Programs pages (`truncated` says one was cut). A row's figures are the
+         *     page's own (the project's Roadmap flags, the team page's header figures); nothing here is new to a login. `revision` is the plan
+         *     revision read before the rows (informational: Home offers no write, so there is no `can`).
+         */
+        get: operations["getHomeView"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/views/project/{id}": {
         parameters: {
             query?: never;
@@ -5419,6 +5448,174 @@ export interface components {
              */
             infos: number;
         };
+        /** @description The Home page's document (1.18.0): the plan's figures and the caller's own items. Every figure is one an existing page shows, so Home never disagrees with the page it links to. */
+        HomeView: {
+            /**
+             * Format: int64
+             * @description The PLAN revision, read before the rows. Informational - Home sends nothing back.
+             */
+            revision: number;
+            plan: components["schemas"]["HomePlan"];
+            /** @description The caller's own items; null when the login is not linked to an ACTIVE person. */
+            me: components["schemas"]["HomeMe"] | null;
+            /** @description The roadmap view's `jiraSites`, entry for entry (the connections behind the bound projects and milestones). */
+            jiraSites: components["schemas"]["JiraSite"][];
+        };
+        /** @description The whole plan in figures; the same for every caller. */
+        HomePlan: {
+            /**
+             * Format: int32
+             * @description The active work streams (the Programs page's facts line, nothing picked).
+             */
+            workStreams: number;
+            /**
+             * Format: int32
+             * @description The active programs.
+             */
+            programs: number;
+            /**
+             * Format: int32
+             * @description The active projects.
+             */
+            projects: number;
+            /**
+             * Format: int32
+             * @description The projects with a position in the global rank (the Roadmap's facts line, nothing filtered).
+             */
+            rankedProjects: number;
+            /**
+             * Format: int32
+             * @description The projects without a position.
+             */
+            unrankedProjects: number;
+            /**
+             * Format: int32
+             * @description The active milestones.
+             */
+            milestones: number;
+            /**
+             * Format: int32
+             * @description The active milestones without dates.
+             */
+            unscheduledMilestones: number;
+            /** @description The warnings and infos the Roadmap raises over every project, Jira's included. */
+            flags: components["schemas"]["FlagCounts"];
+            /**
+             * Format: int32
+             * @description The violated dependencies: each link once, a link inside one project included.
+             */
+            conflicts: number;
+            /**
+             * Format: int32
+             * @description The teams with at least one week the team page flags overloaded.
+             */
+            overloadedTeams: number;
+            /**
+             * Format: int32
+             * @description The teams with at least one week over their WIP limit.
+             */
+            wipExceededTeams: number;
+        };
+        /** @description What the caller's linked person owns DIRECTLY (a work stream's owner does not get the projects below it) and the teams that person manages, each list holding at most 100 rows. */
+        HomeMe: {
+            /** Format: int32 */
+            personId: number;
+            /** @description The person's name. */
+            name: string;
+            /** @description Open work streams first, then closed ones, each by name (case-insensitive, then id). */
+            workStreams: components["schemas"]["HomeWorkStream"][];
+            /** @description By name (case-insensitive, then id). */
+            programs: components["schemas"]["HomeProgram"][];
+            /** @description Ranked projects in rank order, then the unranked ones by name (case-insensitive, then id). */
+            projects: components["schemas"]["HomeProject"][];
+            /** @description By name (case-insensitive, then id). */
+            teams: components["schemas"]["HomeTeam"][];
+            /** @description At least one of the four lists was cut at 100 rows. */
+            truncated: boolean;
+        };
+        /** @description A work stream's row on the Programs page. */
+        HomeWorkStream: {
+            /** Format: int32 */
+            id: number;
+            name: string;
+            /**
+             * Format: date
+             * @description Set only when the work stream is closed.
+             */
+            endDate: string | null;
+            /** Format: int32 */
+            programs: number;
+            /**
+             * Format: int32
+             * @description The projects under all its programs.
+             */
+            projects: number;
+            /** @description The flags of those projects, rolled up. */
+            flags: components["schemas"]["FlagCounts"];
+        };
+        /** @description A program's row on the Programs page. */
+        HomeProgram: {
+            /** Format: int32 */
+            id: number;
+            name: string;
+            workStreamName: string;
+            /** Format: int32 */
+            projects: number;
+            /** @description The flags of its projects, rolled up. */
+            flags: components["schemas"]["FlagCounts"];
+        };
+        /** @description A project's Roadmap row with the project page's milestone figures and conflicts badge. */
+        HomeProject: {
+            /** Format: int32 */
+            id: number;
+            name: string;
+            programName: string;
+            /**
+             * Format: int32
+             * @description The position in the global rank; null = unranked.
+             */
+            rankPosition: number | null;
+            /** Format: int32 */
+            milestones: number;
+            /** Format: int32 */
+            unscheduledMilestones: number;
+            /** @description The warnings and infos the Roadmap counts for this project, Jira's included. */
+            flags: components["schemas"]["FlagCounts"];
+            /**
+             * Format: int32
+             * @description The violated dependencies with an end in this project, each once.
+             */
+            conflicts: number;
+        };
+        /** @description The figures of a managed team's page header. */
+        HomeTeam: {
+            /** Format: int32 */
+            id: number;
+            name: string;
+            /** Format: int32 */
+            milestones: number;
+            /** Format: int32 */
+            unscheduledMilestones: number;
+            /**
+             * Format: int32
+             * @description The violated dependencies with a milestone end in this team, each once.
+             */
+            conflicts: number;
+            /**
+             * Format: int32
+             * @description The weeks the team page flags overloaded.
+             */
+            overloadedWeeks: number;
+            /**
+             * Format: int32
+             * @description The weeks over the WIP limit.
+             */
+            wipExceededWeeks: number;
+            /** @description The open Jira deviations of the team's milestones (the team page's Jira chip), by severity. */
+            jira: components["schemas"]["FlagCounts"];
+            /** @description The team view's `team.flags` - at most one `FLOW_CAPACITY` flag. */
+            flags: components["schemas"]["PlanFlag"][];
+        };
         ProgramsView: {
             /**
              * Format: int64
@@ -9556,6 +9753,28 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PlanView"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    getHomeView: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The home document */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HomeView"];
                 };
             };
             401: components["responses"]["Unauthorized"];

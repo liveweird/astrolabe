@@ -50,6 +50,8 @@ import ch.nokillswit.planning.CrossTeamProposalService
 import ch.nokillswit.planning.CrossTeamProposalServiceKey
 import ch.nokillswit.planning.DependencyService
 import ch.nokillswit.planning.DependencyServiceKey
+import ch.nokillswit.planning.HomeViewService
+import ch.nokillswit.planning.HomeViewServiceKey
 import ch.nokillswit.planning.MilestoneService
 import ch.nokillswit.planning.MilestoneServiceKey
 import ch.nokillswit.planning.PlanViewService
@@ -375,6 +377,7 @@ suspend fun Application.configureDatabase() {
     attributes.put(RoadmapViewServiceKey, RoadmapViewService(database, jiraFlags))
     attributes.put(ProgramsViewServiceKey, ProgramsViewService(database, jiraFlags))
     attributes.put(TeamViewServiceKey, TeamViewService(database, jiraFlags))
+    attributes.put(HomeViewServiceKey, HomeViewService(database, jiraFlags))
     attributes.put(SyncConnectorsKey, SyncConnectors())
     attributes.put(
         TokenBlocklistServiceKey,

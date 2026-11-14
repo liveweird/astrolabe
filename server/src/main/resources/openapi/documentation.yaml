@@ -1791,6 +1791,31 @@ paths:
                 $ref: '#/components/schemas/PlanView'
         '401': { $ref: '#/components/responses/Unauthorized' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/views/home:
+    get:
+      tags: [plan]
+      operationId: getHomeView
+      summary: The plan's figures and the caller's own items, for the Home page
+      description: |
+        Any authenticated user; no parameter (an unknown query name is ignored). One document (a deliberate exception to the paged
+        envelope): `plan` holds the whole plan's figures, the same for every caller and each one an existing view's own - the counts
+        of `GET /views/programs`, the ranked and unranked projects, the warnings and infos of `GET /views/roadmap`, the milestones the
+        project and team pages count, the violated dependencies (every link once, a link inside one project included) and how many
+        teams have a week the team page flags overloaded or over its WIP limit. `me` is the caller's OWN: what the ACTIVE person that
+        the caller's login is linked to owns directly (a work stream's owner gets the stream, not the projects below it) and the
+        teams that person manages, looked up for an administrator too; `null` when the login has no active linked person. Each list of
+        `me` holds at most 100 rows in the order of the Plan and Programs pages (`truncated` says one was cut). A row's figures are the
+        page's own (the project's Roadmap flags, the team page's header figures); nothing here is new to a login. `revision` is the plan
+        revision read before the rows (informational: Home offers no write, so there is no `can`).
+      responses:
+        '200':
+          description: The home document
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HomeView'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   /api/v1/views/project/{id}:
     parameters:
       - $ref: '#/components/parameters/ResourceId'
@@ -6813,6 +6838,143 @@ components:
       properties:
         warnings: { type: integer, format: int32, minimum: 0, description: How many flags are WARNINGs. }
         infos: { type: integer, format: int32, minimum: 0, description: How many flags are INFOs. }
+    HomeView:
+      type: object
+      required: [revision, plan, me, jiraSites]
+      description: >-
+        The Home page's document (1.18.0): the plan's figures and the caller's own items. Every figure is one an existing page shows, so Home never
+        disagrees with the page it links to.
+      properties:
+        revision:
+          type: integer
+          format: int64
+          minimum: 0
+          description: The PLAN revision, read before the rows. Informational - Home sends nothing back.
+        plan:
+          $ref: '#/components/schemas/HomePlan'
+        me:
+          nullable: true
+          description: The caller's own items; null when the login is not linked to an ACTIVE person.
+          allOf:
+            - $ref: '#/components/schemas/HomeMe'
+        jiraSites:
+          type: array
+          description: The roadmap view's `jiraSites`, entry for entry (the connections behind the bound projects and milestones).
+          items:
+            $ref: '#/components/schemas/JiraSite'
+    HomePlan:
+      type: object
+      required: [workStreams, programs, projects, rankedProjects, unrankedProjects, milestones, unscheduledMilestones, flags, conflicts, overloadedTeams, wipExceededTeams]
+      description: The whole plan in figures; the same for every caller.
+      properties:
+        workStreams: { type: integer, format: int32, minimum: 0, description: 'The active work streams (the Programs page''s facts line, nothing picked).' }
+        programs: { type: integer, format: int32, minimum: 0, description: The active programs. }
+        projects: { type: integer, format: int32, minimum: 0, description: The active projects. }
+        rankedProjects: { type: integer, format: int32, minimum: 0, description: 'The projects with a position in the global rank (the Roadmap''s facts line, nothing filtered).' }
+        unrankedProjects: { type: integer, format: int32, minimum: 0, description: The projects without a position. }
+        milestones: { type: integer, format: int32, minimum: 0, description: The active milestones. }
+        unscheduledMilestones: { type: integer, format: int32, minimum: 0, description: The active milestones without dates. }
+        flags:
+          description: The warnings and infos the Roadmap raises over every project, Jira's included.
+          allOf:
+            - $ref: '#/components/schemas/FlagCounts'
+        conflicts: { type: integer, format: int32, minimum: 0, description: 'The violated dependencies: each link once, a link inside one project included.' }
+        overloadedTeams: { type: integer, format: int32, minimum: 0, description: The teams with at least one week the team page flags overloaded. }
+        wipExceededTeams: { type: integer, format: int32, minimum: 0, description: The teams with at least one week over their WIP limit. }
+    HomeMe:
+      type: object
+      required: [personId, name, workStreams, programs, projects, teams, truncated]
+      description: >-
+        What the caller's linked person owns DIRECTLY (a work stream's owner does not get the projects below it) and the teams that person manages,
+        each list holding at most 100 rows.
+      properties:
+        personId: { type: integer, format: int32, minimum: 0 }
+        name: { type: string, description: The person's name. }
+        workStreams:
+          type: array
+          description: Open work streams first, then closed ones, each by name (case-insensitive, then id).
+          items:
+            $ref: '#/components/schemas/HomeWorkStream'
+        programs:
+          type: array
+          description: By name (case-insensitive, then id).
+          items:
+            $ref: '#/components/schemas/HomeProgram'
+        projects:
+          type: array
+          description: Ranked projects in rank order, then the unranked ones by name (case-insensitive, then id).
+          items:
+            $ref: '#/components/schemas/HomeProject'
+        teams:
+          type: array
+          description: By name (case-insensitive, then id).
+          items:
+            $ref: '#/components/schemas/HomeTeam'
+        truncated: { type: boolean, description: At least one of the four lists was cut at 100 rows. }
+    HomeWorkStream:
+      type: object
+      required: [id, name, endDate, programs, projects, flags]
+      description: A work stream's row on the Programs page.
+      properties:
+        id: { type: integer, format: int32, minimum: 0 }
+        name: { type: string }
+        endDate: { type: string, format: date, nullable: true, description: Set only when the work stream is closed. }
+        programs: { type: integer, format: int32, minimum: 0 }
+        projects: { type: integer, format: int32, minimum: 0, description: The projects under all its programs. }
+        flags:
+          description: The flags of those projects, rolled up.
+          allOf:
+            - $ref: '#/components/schemas/FlagCounts'
+    HomeProgram:
+      type: object
+      required: [id, name, workStreamName, projects, flags]
+      description: A program's row on the Programs page.
+      properties:
+        id: { type: integer, format: int32, minimum: 0 }
+        name: { type: string }
+        workStreamName: { type: string }
+        projects: { type: integer, format: int32, minimum: 0 }
+        flags:
+          description: The flags of its projects, rolled up.
+          allOf:
+            - $ref: '#/components/schemas/FlagCounts'
+    HomeProject:
+      type: object
+      required: [id, name, programName, rankPosition, milestones, unscheduledMilestones, flags, conflicts]
+      description: A project's Roadmap row with the project page's milestone figures and conflicts badge.
+      properties:
+        id: { type: integer, format: int32, minimum: 0 }
+        name: { type: string }
+        programName: { type: string }
+        rankPosition: { type: integer, format: int32, minimum: 1, nullable: true, description: The position in the global rank; null = unranked. }
+        milestones: { type: integer, format: int32, minimum: 0 }
+        unscheduledMilestones: { type: integer, format: int32, minimum: 0 }
+        flags:
+          description: The warnings and infos the Roadmap counts for this project, Jira's included.
+          allOf:
+            - $ref: '#/components/schemas/FlagCounts'
+        conflicts: { type: integer, format: int32, minimum: 0, description: 'The violated dependencies with an end in this project, each once.' }
+    HomeTeam:
+      type: object
+      required: [id, name, milestones, unscheduledMilestones, conflicts, overloadedWeeks, wipExceededWeeks, jira, flags]
+      description: The figures of a managed team's page header.
+      properties:
+        id: { type: integer, format: int32, minimum: 0 }
+        name: { type: string }
+        milestones: { type: integer, format: int32, minimum: 0 }
+        unscheduledMilestones: { type: integer, format: int32, minimum: 0 }
+        conflicts: { type: integer, format: int32, minimum: 0, description: 'The violated dependencies with a milestone end in this team, each once.' }
+        overloadedWeeks: { type: integer, format: int32, minimum: 0, description: The weeks the team page flags overloaded. }
+        wipExceededWeeks: { type: integer, format: int32, minimum: 0, description: The weeks over the WIP limit. }
+        jira:
+          description: The open Jira deviations of the team's milestones (the team page's Jira chip), by severity.
+          allOf:
+            - $ref: '#/components/schemas/FlagCounts'
+        flags:
+          type: array
+          description: The team view's `team.flags` - at most one `FLOW_CAPACITY` flag.
+          items:
+            $ref: '#/components/schemas/PlanFlag'
     ProgramsView:
       type: object
       required: [revision, teams, links, workStreams, jiraSites]

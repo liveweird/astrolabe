@@ -16,6 +16,10 @@ import kotlinx.serialization.Serializable
 class PlanViewRoute
 
 @Serializable
+@Resource("/api/v1/views/home")
+class HomeViewRoute
+
+@Serializable
 @Resource("/api/v1/views/project/{id}")
 class ProjectViewRoute(val id: UInt)
 
@@ -48,12 +52,17 @@ internal fun ApplicationCall.baselineParam(): UInt? = request.queryParameters.op
  * (`criticalPathParam`); `GET /views/baseline/{id}` is the comparison document (404 for an unknown or
  * deleted baseline: it is the addressed resource), with `?against=N` (1.7) comparing it with a second baseline instead of the live plan
  * (a repeated or malformed value is a `400` here, an unknown or deleted id the view's typed `400` after the path id's `404`). Any
- * authenticated user; a read: no audit event.
+ * authenticated user; a read: no audit event. `GET /views/home` (1.18.0) takes no parameter: it is always the CALLER's own (their
+ * linked person's items, resolved inside the view's snapshot with no role branch); the plan block is the same for everyone.
  */
 internal fun Route.planViewRoutes(d: PlanRouteDeps) {
     get<PlanViewRoute> {
         val caller = call.caller()
         call.respond(HttpStatusCode.OK, d.views.plan.view(d.actor(caller)))
+    }
+    get<HomeViewRoute> {
+        val caller = call.caller()
+        call.respond(HttpStatusCode.OK, d.views.home.view(HomeCaller(caller.userId)))
     }
     get<ProjectViewRoute> { route ->
         val caller = call.caller()
