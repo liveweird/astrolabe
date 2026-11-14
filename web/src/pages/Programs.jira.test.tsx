@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import Programs from "./Programs";
 import type { Deviation } from "../api/deviations";
 import type { ProgramsProgram, ProgramsView, ProgramsWorkStream } from "../api/programs";
@@ -55,6 +55,14 @@ const PLATFORM: ProgramsWorkStream = {
   span: { start: "2026-03-02", end: "2026-04-10" },
   flags: { warnings: 1, infos: 0 },
   programs: [BILLING],
+};
+const REPORTS: ProgramsProgram = {
+  id: 11,
+  name: "Reports",
+  ownerName: "Pat Program",
+  span: { start: "2026-08-03", end: "2026-08-07" },
+  flags: { warnings: 0, infos: 0 },
+  projects: [project(5, "Dashboards", { programId: 11, programName: "Reports", span: { start: "2026-08-03", end: "2026-08-07" } })],
 };
 const VIEW: ProgramsView = { jiraSites: [{ connectionId: 2, siteUrl: "https://acme.atlassian.net", state: "CURRENT" as const, mappingOk: true }], revision: 9, teams: [], links: [], workStreams: [PLATFORM] };
 
@@ -134,5 +142,72 @@ describe("Programs page: the Jira dates", () => {
     await waitForGrid();
     const picker = screen.getByRole("combobox", { name: "Baseline" });
     expect(picker.compareDocumentPosition(toggle()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});
+
+// 1.17: the facts line ends with the chips' dimmed qualifier while some site the plan's rows link through is behind (`isStaleSource`): plan-wide.
+describe("Programs page: the facts line says the Jira data may be out of date", () => {
+  const STALE = "Jira data may be out of date";
+  const PROGRAM_PICK_KEY = "astrolabe.viewSettings.planning.programPick";
+  const site = (over: Partial<ProgramsView["jiraSites"][number]> = {}): ProgramsView["jiraSites"][number] => ({ ...VIEW.jiraSites[0], ...over });
+  const serve = (over: Partial<ProgramsView>) => {
+    const served = { ...VIEW, ...over };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) => {
+        if (url.startsWith("/api/v1/views/programs")) return Promise.resolve(jsonResponse(200, served));
+        if (url === "/api/v1/baselines") return Promise.resolve(jsonResponse(200, { items: [], can: { manage: false } }));
+        return Promise.resolve(jsonResponse(200, { items: [] }));
+      }),
+    );
+  };
+  const facts = async () => {
+    await waitForGrid();
+    return screen.getByRole("group", { name: "Programs facts" });
+  };
+
+  test("a current site with a fitting mapping says nothing", async () => {
+    renderWithProviders(<Programs />);
+    expect(within(await facts()).queryByText(STALE)).toBeNull();
+  });
+
+  test.each(["NEVER_SYNCED", "STALE", "FAILED", "DISABLED"] as const)("a %s site adds the sentence inside the group, after the badges", async (state) => {
+    serve({ jiraSites: [site({ state })] });
+    renderWithProviders(<Programs />);
+    const group = await facts();
+    const note = within(group).getByText(STALE);
+    expect(group.lastElementChild).toBe(note);
+    const badge = within(group).getByText("1 warning");
+    expect(badge.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(note.closest('[role="alert"], [role="note"], a')).toBeNull();
+  });
+
+  test("a mapping that does not fit adds it on a CURRENT site", async () => {
+    serve({ jiraSites: [site({ mappingOk: false })] });
+    renderWithProviders(<Programs />);
+    expect(within(await facts()).getByText(STALE)).toBeInTheDocument();
+  });
+
+  test("a plan with no site says nothing", async () => {
+    serve({ jiraSites: [] });
+    renderWithProviders(<Programs />);
+    expect(within(await facts()).queryByText(STALE)).toBeNull();
+  });
+
+  test("it shows with the Jira dates toggle off, and neither a fold nor a program pick takes it away", async () => {
+    const user = userEvent.setup();
+    localStorage.setItem(KEY, "false");
+    serve({ jiraSites: [site({ state: "FAILED" })], workStreams: [{ ...PLATFORM, programs: [BILLING, REPORTS] }] });
+    const first = renderWithProviders(<Programs />);
+    expect(within(await facts()).getByText(STALE)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Expand all" }));
+    expect(within(await facts()).getByText(STALE)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Collapse all" }));
+    expect(within(await facts()).getByText(STALE)).toBeInTheDocument();
+    first.unmount();
+    // the pick leaves only the unlinked program: the plan's rows still link through the site that is behind
+    localStorage.setItem(PROGRAM_PICK_KEY, JSON.stringify([11]));
+    renderWithProviders(<Programs />);
+    expect(within(await facts()).getByText(STALE)).toBeInTheDocument();
   });
 });

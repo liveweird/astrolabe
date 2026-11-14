@@ -215,3 +215,74 @@ describe("Roadmap page: the Jira flags in the panel", () => {
     expect(within(table).getAllByRole("cell")[2]).toHaveTextContent("Jira E2E-6: The Jira item is at hierarchy level 3, but the mapping expects level 2 here");
   });
 });
+
+// 1.17: the facts line ends with the chips' dimmed qualifier while some site the plan's rows link through is behind (`isStaleSource`): plan-wide.
+describe("Roadmap page: the facts line says the Jira data may be out of date", () => {
+  const STALE = "Jira data may be out of date";
+  const PROGRAM_PICK_KEY = "astrolabe.viewSettings.planning.programPick";
+  const site = (over: Partial<RoadmapView["jiraSites"][number]> = {}): RoadmapView["jiraSites"][number] => ({
+    connectionId: 2,
+    siteUrl: "https://acme.atlassian.net",
+    state: "CURRENT",
+    mappingOk: true,
+    ...over,
+  });
+  const facts = async () => {
+    await waitForGrid();
+    return screen.getByRole("group", { name: "Roadmap facts" });
+  };
+
+  test("a current site with a fitting mapping says nothing", async () => {
+    renderWithProviders(<Roadmap />);
+    expect(within(await facts()).queryByText(STALE)).toBeNull();
+  });
+
+  test.each(["NEVER_SYNCED", "STALE", "FAILED", "DISABLED"] as const)("a %s site adds the sentence inside the group, after the badges", async (state) => {
+    view = viewOf({ jiraSites: [site({ state })] });
+    renderWithProviders(<Roadmap />);
+    const group = await facts();
+    const note = within(group).getByText(STALE);
+    expect(group.lastElementChild).toBe(note);
+    const badge = within(group).getByText("1 warning");
+    expect(badge.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // plain dimmed text: not an alert and not a link
+    expect(note.closest('[role="alert"], [role="note"], a')).toBeNull();
+  });
+
+  test("a mapping that does not fit adds it on a CURRENT site", async () => {
+    view = viewOf({ jiraSites: [site({ mappingOk: false })] });
+    renderWithProviders(<Roadmap />);
+    expect(within(await facts()).getByText(STALE)).toBeInTheDocument();
+  });
+
+  test("one site behind among several is enough; a plan with no site says nothing", async () => {
+    view = viewOf({ jiraSites: [site(), site({ connectionId: 3, state: "STALE" })] });
+    const first = renderWithProviders(<Roadmap />);
+    expect(within(await facts()).getByText(STALE)).toBeInTheDocument();
+    first.unmount();
+    view = viewOf({ jiraSites: [] });
+    renderWithProviders(<Roadmap />);
+    expect(within(await facts()).queryByText(STALE)).toBeNull();
+  });
+
+  test("it shows with the Jira dates toggle off", async () => {
+    localStorage.setItem(KEY, "false");
+    view = viewOf({ jiraSites: [site({ state: "FAILED" })] });
+    renderWithProviders(<Roadmap />);
+    const group = await facts();
+    expect(screen.getByRole("button", { name: "Jira dates" })).toHaveAttribute("aria-pressed", "false");
+    expect(within(group).getByText(STALE)).toBeInTheDocument();
+  });
+
+  test("a program pick that leaves only an unlinked project does not take it away: the line is about the plan", async () => {
+    view = viewOf({
+      jiraSites: [site({ state: "FAILED" })],
+      unranked: [{ ...FRESH, programId: 11, programName: "Compliance" }],
+    });
+    localStorage.setItem(PROGRAM_PICK_KEY, JSON.stringify([11]));
+    renderWithProviders(<Roadmap />);
+    await waitForGrid();
+    expect(jiraBars()).toEqual([]);
+    expect(within(await facts()).getByText(STALE)).toBeInTheDocument();
+  });
+});

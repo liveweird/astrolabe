@@ -669,6 +669,10 @@ when both are known; `projectTrack(…, jira)`, `utils/jiraBars.ts`; drawn and r
 mistyped Jira date cannot stretch the range; named "Jira E2E-6: start to end" plus the row's open date-deviation sentence). The flag panel phrases
 `JIRA_DEVIATION` as "Jira {{key}}: " + the Deviations page's sentence for `flag.deviation` with an icon-only link to the issue through the view's `jiraSites`
 (`JiraKeyLink`; the URL is never per row), and `JIRA_MILESTONES` as "{{count}} milestones deviate from Jira"; the icons and counts stay severity-driven.
+**The currency line (1.17).** While `view.jiraSites.some(isStaleSource)` (`utils/staleness.ts`: a site's `state` is not `CURRENT`, or `mappingOk` is false; a DISABLED site counts, as on the chips) the facts line ends
+with the chips' dimmed "Jira data may be out of date" (`JiraStaleNote` in `JiraChips.tsx`, key `deviations.chip.stale`), INSIDE the `role="group"` after the badges (nothing under it moves).
+It is about the PLAN, not the rows on screen: `jiraSites` lists every site a project or milestone binding of the whole document links through and a project's milestone roll-up does not say
+which, so no filter, program pick or fold narrows it; it shows with the "Jira dates" toggle off; a plan with no binding lists no site and says nothing. Plain text: the Deviations banner is the warning.
 Reference: `timeline.md` "The Jira markers (1.3)". Tests: `Roadmap.jira.test.tsx`.
 
 **The write path.** Every change — a row-menu move, a row drag, Rank (append), Unrank — becomes the complete new id list and is sent as the wholesale PUT with
@@ -783,7 +787,8 @@ of the shown programs' frozen spans, named without a movement sentence). The que
 
 **The Jira markers (1.3):** the same "Jira dates" toggle (after the baseline picker, the one stored `timeline.jiraBars`, on by default, only when the view lists
 a Jira site) and the same project-row bar `jira:<id>` (`projectTrack`; a project row only - work stream and program rows are not bound); the roll-up counts in
-the Flags cell and the facts badges stay severity-driven. The page has no flag panel. Tests: `Programs.jira.test.tsx`.
+the Flags cell and the facts badges stay severity-driven. The page has no flag panel. **The currency line (1.17)** is the roadmap's: the facts line (`ProgramsFacts`) ends with
+"Jira data may be out of date" while any site in `view.jiraSites` is behind (`isStaleSource`); plan-wide, so neither the program pick nor a fold narrows it. Tests: `Programs.jira.test.tsx`.
 
 **Expand / collapse.** A node with children has a chevron `ActionIcon` as the ONE roving stop of its name cell (a function cell), `aria-expanded`, its name
 telling the level ("Work stream X" / "Program Y", `programs.streamAria`/`programAria`; no `aria-controls` — the child rows are separate grid rows without ids).
@@ -1116,7 +1121,7 @@ link whose connection is not in `jiraSites` and a document with no mark say noth
 `deviations.chip.stale` ("Jira data may be out of date", PL "Dane z Jiry mogą być nieaktualne") as plain dimmed text after the count badge, inside the
 `role="group"`, at ANY count (three deviations read from a connection that failed last night are as doubtful as none); not an `Alert` and not orange - the
 Deviations page's banner is the warning, the chip only qualifies. **One rule with the banner (1.17)**: both read `isStaleSource` (`utils/staleness.ts`: the server's state is not `CURRENT`, or `mappingOk` is false), so, except for a DISABLED site,
-a chip never qualifies a figure the page it links to leaves unwarned. What still differs is deliberate: a DISABLED site counts on the chip, while the banner skips a disabled connection (its own row says "Disabled" with a note) so a retired connection raises no permanent banner. **Honest limit:** `CURRENT` means the newest run succeeded and,
+a chip never qualifies a figure the page it links to leaves unwarned. **The Roadmap and Programs pages' facts line reads the same rule over ALL the document's sites (1.17, "Roadmap" and "Programs")**. What still differs is deliberate: a DISABLED site counts on the chip, while the banner skips a disabled connection (its own row says "Disabled" with a note) so a retired connection raises no permanent banner. **Honest limit:** `CURRENT` means the newest run succeeded and,
 for a polled connection, not long ago; a manual-only connection stays `CURRENT` after any success however old (its "Last run" is on the Deviations page).
 `useJiraLinks(projectId, enabled)` (`hooks/useDeviations.ts`) survives ONLY for the bind dialog's `connections[]` (`GET /views/deviations?projectId=`, asked
 while the dialog is open, no `answered` gate on the page); `useJiraColumn` and its `teams.jiraColumn.<id>` key are removed.

@@ -11,6 +11,7 @@ import ErrorAlert from "../components/ErrorAlert";
 import FilterPanel from "../components/FilterPanel";
 import FormErrorAlert from "../components/FormErrorAlert";
 import JiraBarsToggle from "../components/JiraBarsToggle";
+import { JiraStaleNote } from "../components/JiraChips";
 import LoadingBlock from "../components/LoadingBlock";
 import PageHeader from "../components/PageHeader";
 import RoadmapCriticalChain from "../components/RoadmapCriticalChain";
@@ -34,6 +35,7 @@ import { projectTotals, rankTotals } from "../utils/baselineOverlay";
 import { localIsoDate } from "../utils/isoDate";
 import { jiraWindow } from "../utils/jiraBars";
 import { projectOfWindowBar } from "../utils/planTrack";
+import { isStaleSource } from "../utils/staleness";
 import { applyRoadmapWindow } from "../utils/targetWindowUpdate";
 import {
   activeFilterCount,
@@ -48,8 +50,11 @@ import {
   type FlagCounts,
 } from "../utils/roadmapRows";
 
-/** The facts line under the title: how many visible projects are ranked and unranked, then the flag totals — ORANGE warnings, gray infos (nothing moves). */
-function RoadmapFacts({ ranked, unranked, flags }: { ranked: number; unranked: number; flags: FlagCounts }) {
+/**
+ * The facts line under the title: how many visible projects are ranked and unranked, then the flag totals — ORANGE warnings, gray infos (nothing moves),
+ * then (1.17) the chips' dimmed "Jira data may be out of date" while `jiraStale` (some site the plan's rows link through is behind: plan-wide, not narrowed by the filters).
+ */
+function RoadmapFacts({ ranked, unranked, flags, jiraStale }: { ranked: number; unranked: number; flags: FlagCounts; jiraStale: boolean }) {
   const { t } = useTranslation();
   return (
     <Group gap="md" role="group" aria-label={t("roadmap.facts.aria")}>
@@ -65,6 +70,7 @@ function RoadmapFacts({ ranked, unranked, flags }: { ranked: number; unranked: n
           {t("roadmap.facts.infos", { count: flags.infos })}
         </Badge>
       )}
+      {jiraStale && <JiraStaleNote />}
     </Group>
   );
 }
@@ -218,7 +224,7 @@ function RoadmapBody({
 
   return (
     <>
-      <RoadmapFacts ranked={visible.ranked.length} unranked={visible.unranked.length} flags={flagTotals(visible)} />
+      <RoadmapFacts ranked={visible.ranked.length} unranked={visible.unranked.length} flags={flagTotals(visible)} jiraStale={view.jiraSites.some(isStaleSource)} />
       {view.baseline !== undefined && <BaselineTotals name={view.baseline.name} totals={projectTotals(allProjects(view), view.baseline.removedProjects.length)} ranks={rankTotals(allProjects(view))} />}
       <FilterPanel activeFilterCount={activeFilterCount(filters, pick)} storageKey="roadmap">
         <RoadmapFilterFields view={view} filters={filters} onFilters={setFilters} pick={[...(pick ?? [])]} onPick={setPick} />

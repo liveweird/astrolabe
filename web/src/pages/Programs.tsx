@@ -13,6 +13,7 @@ import ErrorAlert from "../components/ErrorAlert";
 import FilterPanel from "../components/FilterPanel";
 import FormErrorAlert from "../components/FormErrorAlert";
 import JiraBarsToggle from "../components/JiraBarsToggle";
+import { JiraStaleNote } from "../components/JiraChips";
 import LoadingBlock from "../components/LoadingBlock";
 import PageHeader from "../components/PageHeader";
 import type { WindowActions } from "../components/PlanProjectCells";
@@ -37,12 +38,16 @@ import { projectOfWindowBar } from "../utils/planTrack";
 import { allOpen, arrowAnchors, defaultOpen, isNodeRow, programChoices, toggled, treeDates, treeFacts, treeProjects, treeRows } from "../utils/programsTree";
 import { withoutCriticalPath } from "../utils/roadmapCritical";
 import { pickAmong } from "../utils/roadmapRows";
+import { isStaleSource } from "../utils/staleness";
 import { applyProgramsWindow } from "../utils/targetWindowUpdate";
 
 /** Zero-width space: toggled on the live-region text so the same sentence twice is announced twice. */
 const REREAD = "​";
 
-/** The facts line under the title: what the pick leaves of the plan, then the flag totals - ORANGE warnings, gray infos (nothing moves). */
+/**
+ * The facts line under the title: what the pick leaves of the plan, then the flag totals - ORANGE warnings, gray infos (nothing moves), then (1.17) the
+ * chips' dimmed "Jira data may be out of date" while any site the plan's rows link through is behind (plan-wide: neither the pick nor a fold narrows it).
+ */
 function ProgramsFacts({ view, pick }: { view: ProgramsView; pick: ReadonlySet<number> | null }) {
   const { t } = useTranslation();
   const facts = treeFacts(view, pick);
@@ -61,6 +66,7 @@ function ProgramsFacts({ view, pick }: { view: ProgramsView; pick: ReadonlySet<n
           {t("roadmap.facts.infos", { count: facts.flags.infos })}
         </Badge>
       )}
+      {view.jiraSites.some(isStaleSource) && <JiraStaleNote />}
     </Group>
   );
 }

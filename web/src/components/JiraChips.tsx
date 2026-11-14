@@ -7,6 +7,19 @@ import { markKey, type JiraMark, type JiraMarks } from "../utils/jiraMarks";
 import JiraKeyLink from "./JiraKeyLink";
 
 /**
+ * "Jira data may be out of date" (`deviations.chip.stale`) as dimmed plain text: the chips' qualifier and, since 1.17, the Roadmap and Programs pages' facts line.
+ * Not an `Alert`, not orange, not a link: the Deviations page's banner is the warning and says why.
+ */
+export function JiraStaleNote() {
+  const { t } = useTranslation();
+  return (
+    <Text size="sm" c="dimmed">
+      {t("deviations.chip.stale")}
+    </Text>
+  );
+}
+
+/**
  * The open-flag count as a link into the Deviations page (orange when it holds a warning, gray when only infos); "No deviations seen" when there is none.
  * With `stale` (1.16: a site behind the chip is not CURRENT, or its mapping does not fit: `isStaleSource`, the Deviations banner's rule too) the count is followed by dimmed "Jira data may be out of date",
  * at any count: three deviations read from a connection that failed last night are as doubtful as none. Plain text, not an alert and not orange: the
@@ -20,11 +33,7 @@ function DeviationCount({ to, warnings, infos, stale }: { to: string; warnings: 
       <Badge color={count > 0 && warnings > 0 ? "orange" : "gray"} variant="light" tt="none" component={RouterLink} to={to}>
         {count === 0 ? t("deviations.chip.inLine") : t("deviations.chip.count", { count })}
       </Badge>
-      {stale && (
-        <Text size="sm" c="dimmed">
-          {t("deviations.chip.stale")}
-        </Text>
-      )}
+      {stale && <JiraStaleNote />}
     </>
   );
 }
