@@ -308,6 +308,63 @@ describe("App shell", () => {
     });
   });
 
+  describe("the deploy notice", () => {
+    const NOTICE = "A new version of Astrolabe is available. Reload the page to use it.";
+
+    /** Answers the shell's own read of /index.html with the given stamp (`null` = a body with none) and every Home read as usual. */
+    function stubServed(commit: string | null) {
+      const fetchMock = vi.fn((input: RequestInfo | URL) =>
+        homeViews(input) ?? (String(input).endsWith("/index.html")
+          ? Promise.resolve(new Response(commit === null ? "<html></html>" : `<meta name="astrolabe-build" content="${commit}">`, { status: 200 }))
+          : emptyPage()));
+      vi.stubGlobal("fetch", fetchMock);
+      return fetchMock;
+    }
+
+    beforeEach(() => {
+      vi.stubGlobal("__APP_COMMIT__", "bundle1");
+      localStorage.setItem(TOKEN_KEY, "fake-token");
+    });
+
+    test("another served build puts the notice at the top of the main area, above the page, and it survives navigation", async () => {
+      stubServed("other99");
+      const user = userEvent.setup();
+      renderApp("/");
+      // Addressed through its own text: a page may carry status regions of its own.
+      const notice = (await screen.findByText(NOTICE)).closest<HTMLElement>('[role="status"]')!;
+      expect(notice).not.toBeNull();
+      const main = document.getElementById("main-content")!;
+      expect(main).toContainElement(notice);
+      expect(main.firstElementChild).toBe(notice);
+      expect(within(notice).getByRole("button", { name: "Reload" })).toBeInTheDocument();
+      await user.click(screen.getByRole("link", { name: "Teams" }));
+      expect(await screen.findByRole("heading", { level: 2, name: "Teams" })).toBeInTheDocument();
+      expect(screen.getByText(NOTICE)).toBeInTheDocument();
+    });
+
+    test("the same stamp, or one that cannot be read, shows nothing", async () => {
+      const fetchMock = stubServed("bundle1");
+      const { unmount } = renderApp("/");
+      await screen.findByRole("group", { name: "Overview" });
+      await waitFor(() => expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith("/index.html"))).toBe(true));
+      await waitFor(() => expect(screen.queryByText(NOTICE)).not.toBeInTheDocument());
+      unmount();
+      stubServed(null);
+      renderApp("/");
+      await screen.findByRole("group", { name: "Overview" });
+      expect(screen.queryByText(NOTICE)).not.toBeInTheDocument();
+    });
+
+    test("the login page does not check", async () => {
+      localStorage.clear();
+      const fetchMock = stubServed("other99");
+      renderApp("/login");
+      expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
+      expect(screen.queryByText(NOTICE)).not.toBeInTheDocument();
+      expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith("/index.html"))).toBe(false);
+    });
+  });
+
   describe("when not authenticated", () => {
     test("a protected route redirects to the login page", async () => {
       renderApp("/");

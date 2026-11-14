@@ -104,7 +104,8 @@ skips a level going down. A page whose real title needs loaded data passes a sta
   (commit ISO timestamp) via `define`, declared in `src/vite-env.d.ts`. Env vars `GIT_SHA`/`GIT_COMMIT_TIME` override the local-git lookup — the Dockerfile's
   SPA stage sets them explicitly (its worktree never matches the index, so the dirty check would false-positive), and CI can do the same when building without
   `.git`. `src/components/VersionStamp.tsx` renders `v<APP_VERSION> · <sha> · <time>` at the bottom of the navbar (`App.tsx`) and under the login card
-  (`components/AuthCard.tsx`).
+  (`components/AuthCard.tsx`). The same constant is the stamp's SECOND consumer: a small `transformIndexHtml` plugin in `vite.config.ts` writes it into
+  `index.html` as `<meta name="astrolabe-build" content="<commit>">` (nothing else), so a build's shell and bundle always agree; `api/build.ts` reads it back (deploy check below).
 
 - Types are regenerated with `npm run gen:api` (rules: `web/CLAUDE.md`); `openapi-typescript` is installed with `--legacy-peer-deps` because its declared peer
   is TS `^5` while the scaffold uses TS 6 (the generated output is compatible); after a from-scratch `npm install`, use `npm install --legacy-peer-deps`.
@@ -208,6 +209,14 @@ The rules are in `web/CLAUDE.md` "Error handling"; the wiring:
 - **Catch-all 404**: `pages/NotFound.tsx` is the LAST `path="*"` child of the Shell route; new routes go above it.
 - **Chunk-load recovery**: `main.tsx` listens for `vite:preloadError` (a redeploy 404s the old hashed chunks) and reloads once, rate-limited via sessionStorage
   (`astrolabe.chunkReloadedAt`, max one reload/minute) so a genuinely missing chunk falls through to the ErrorBoundary instead of looping.
+- **Deploy check** (1.17): `api/build.ts` `getServedBuild()` fetches `index.html` (`cache: "no-store"`, `timeoutSignal()`, a plain `fetch` with no token: the shell is public) and
+  returns the meta's content; it REJECTS on a non-200, a body without the meta (a JSON stub, an older shell), an empty content or a failed fetch ("could not tell" is never "equal").
+  `hooks/useServedBuild.ts` is the one query `["build"]` (focus refetch with no `staleTime`, every 5 minutes while visible, `retry: false`; off when `__APP_COMMIT__` is `unknown`, a build without git):
+  `outdated` = an answer arrived and differs from the bundle's commit (inequality, so a rollback prompts too); a failed re-check keeps the last answer, an equal one clears it.
+  `components/UpdateBanner.tsx` is mounted once at the top of `AppShell.Main` (outside the route boundary: it survives navigation and a page crash): a gray `role="status"` line and a "Reload"
+  button (`common.action.reload`, shared with the crash fallback), nothing in the DOM otherwise. It sits in the authenticated shell only, so the login page never checks (the shell checks right
+  after sign-in). Limits: a tab opened before 1.17 has no check and must be reloaded by hand once; a rebuilt image of the SAME commit is not noticed; during a rolling deploy a tab may be
+  prompted, reload onto the old build and be prompted again until the rollout ends.
 - **Query retry policy**: the `QueryClient` in `main.tsx` uses `shouldRetryQuery` (`api/http.ts`) — a 4xx is never retried (the answer won't change; retrying
   only delays the error UI), at most two retries for transient failures.
 - **Messages**: `error.message` is the internal `API <status>` / the browser's "Failed to fetch"; statuses map to i18n keys via the shared mappers in

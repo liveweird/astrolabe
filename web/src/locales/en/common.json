@@ -14,7 +14,8 @@
     "unpin": "Unpin dates",
     "unpinAria": "Unpin dates of {{name}}",
     "showPassword": "Show password",
-    "hidePassword": "Hide password"
+    "hidePassword": "Hide password",
+    "reload": "Reload"
   },
   "dateFormatHint": "YYYY-MM-DD",
   "field": {
@@ -69,8 +70,7 @@
   },
   "errorBoundary": {
     "title": "Something went wrong",
-    "message": "This part of the app crashed. Reloading the page usually fixes it.",
-    "reload": "Reload"
+    "message": "This part of the app crashed. Reloading the page usually fixes it."
   },
   "notFound": {
     "title": "Page not found",

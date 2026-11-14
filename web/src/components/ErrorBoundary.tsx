@@ -45,7 +45,7 @@ function CrashFallback() {
         <Stack gap="sm" align="flex-start">
           <Text size="sm">{t("common.errorBoundary.message")}</Text>
           <Button color="red" variant="light" onClick={() => window.location.reload()}>
-            {t("common.errorBoundary.reload")}
+            {t("common.action.reload")}
           </Button>
         </Stack>
       </Alert>

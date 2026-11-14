@@ -42,5 +42,8 @@
     "groupPages": "Strony",
     "nothingFound": "Nic nie znaleziono",
     "groupActions": "Akcje"
+  },
+  "update": {
+    "text": "Jest dostępna nowa wersja Astrolabe. Odśwież stronę, żeby z niej korzystać."
   }
 }

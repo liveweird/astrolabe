@@ -1,4 +1,5 @@
 import { execSync } from 'node:child_process'
+import type { Plugin } from 'vite'
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 
@@ -10,7 +11,9 @@ function git(args: string): string {
   }
 }
 
-// Build stamp shown by src/components/VersionStamp.tsx. Env vars win so the Docker
+// Build stamp: ONE constant, two consumers. It is injected as `__APP_COMMIT__` (shown by src/components/VersionStamp.tsx,
+// compared by src/hooks/useServedBuild.ts) AND written into index.html as <meta name="astrolabe-build"> (read back by
+// src/api/build.ts), so a build's shell and bundle can never disagree. Env vars win so the Docker
 // build (whose worktree never matches the index — a `git status` dirty check there
 // would always be a false positive) and CI can inject exact values; local builds
 // fall back to git, marking uncommitted state with "+dirty".
@@ -19,9 +22,16 @@ const commit =
   process.env.GIT_SHA || (sha ? (git('status --porcelain') ? `${sha}+dirty` : sha) : 'unknown')
 const commitTime = process.env.GIT_COMMIT_TIME || git('log -1 --format=%cI') || ''
 
+// The deploy check's half of the stamp: the build's commit, in the shell the server serves `no-cache`.
+// Keep the name in step with src/api/build.ts.
+const buildMeta: Plugin = {
+  name: 'astrolabe-build-meta',
+  transformIndexHtml: () => [{ tag: 'meta', attrs: { name: 'astrolabe-build', content: commit }, injectTo: 'head' }],
+}
+
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), buildMeta],
   define: {
     __APP_COMMIT__: JSON.stringify(commit),
     __APP_COMMIT_TIME__: JSON.stringify(commitTime),

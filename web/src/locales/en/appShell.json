@@ -42,5 +42,8 @@
     "groupPages": "Pages",
     "nothingFound": "Nothing found",
     "groupActions": "Actions"
+  },
+  "update": {
+    "text": "A new version of Astrolabe is available. Reload the page to use it."
   }
 }

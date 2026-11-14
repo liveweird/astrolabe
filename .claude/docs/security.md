@@ -138,7 +138,7 @@ verbatim in `ServerTest`), `X-Content-Type-Options: nosniff`, `X-Frame-Options: 
 `Cache-Control: no-store` (`plugins/Http.kt`'s `CachingHeaders`, pinned by `ServerTest` together
 with the unchanged caching of the SPA's static assets), so per-user data never lands in a browser
 or proxy cache -- including the `200`/`304` of a validator-answering view GET, which adds an `ETag` to the same `no-store` ("Caching" below). `text/html` (index.html and every SPA deep link answered with it) carries `Cache-Control: no-cache`
-(revalidate every time, so a deploy's new hashed asset names are never masked by a stale shell), while the content-hashed
+(revalidate every time, so a deploy's new hashed asset names are never masked by a stale shell; the SPA's deploy check re-reads this shell for its `astrolabe-build` meta, which holds the commit the login page already prints and nothing else), while the content-hashed
 CSS/JS keep `max-age=86400`. The `Server` header is the fixed generic `astrolabe` (`install(DefaultHeaders) { header(Server, …) }`
 in `Http.kt`) — Ktor's default `Server: Ktor/<version>` disclosed the framework and its exact version; pinned in `ServerTest`
 (no `Ktor` in it).

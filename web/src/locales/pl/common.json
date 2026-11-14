@@ -14,7 +14,8 @@
     "unpin": "Odepnij terminy",
     "unpinAria": "Odepnij terminy: {{name}}",
     "showPassword": "Pokaż hasło",
-    "hidePassword": "Ukryj hasło"
+    "hidePassword": "Ukryj hasło",
+    "reload": "Odśwież"
   },
   "dateFormatHint": "RRRR-MM-DD",
   "field": {
@@ -69,8 +70,7 @@
   },
   "errorBoundary": {
     "title": "Coś poszło nie tak",
-    "message": "Ta część aplikacji uległa awarii. Odświeżenie strony zwykle pomaga.",
-    "reload": "Odśwież"
+    "message": "Ta część aplikacji uległa awarii. Odświeżenie strony zwykle pomaga."
   },
   "notFound": {
     "title": "Nie znaleziono strony",

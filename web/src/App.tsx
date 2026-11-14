@@ -9,6 +9,7 @@ import BrandLogo from "./components/BrandLogo";
 import CommandPalette from "./components/CommandPalette";
 import LoadingBlock from "./components/LoadingBlock";
 import TelemetryPanelCrash from "./components/TelemetryPanelCrash";
+import UpdateBanner from "./components/UpdateBanner";
 import UserMenu from "./components/UserMenu";
 import VersionStamp from "./components/VersionStamp";
 import ErrorBoundary, { RouteErrorBoundary } from "./components/ErrorBoundary";
@@ -196,6 +197,8 @@ function Shell() {
       </AppShell.Navbar>
 
       <AppShell.Main id="main-content" tabIndex={-1}>
+        {/* The deploy notice: above the page and outside the route boundary, so it survives navigation and a page crash. */}
+        <UpdateBanner />
         {/* A page crash stays inside the main area — header/nav keep working, and navigating
             anywhere remounts the boundary (see components/ErrorBoundary.tsx). The inner
             Suspense keeps the shell mounted while a lazy page chunk loads. */}
