@@ -534,19 +534,21 @@ One-off, NON-BINDING, measured on the CI runner (`JiraFlagsScaleTest`'s report i
 
 | Document (gate) | Before (1.15) | After (1.16) |
 |---|---|---|
-| Team view with the overlay (gate 400,000 B) | 367,689 B, gzip 7,870 B | TODO-1.16-CI |
-| Team view without the overlay | 316,724 B, gzip 6,559 B | TODO-1.16-CI |
-| Project view with the overlay (gate 40,000 B) | 12,576 B, gzip 1,193 B | TODO-1.16-CI |
-| Project view | 10,654 B | TODO-1.16-CI |
-| Roadmap, with the overlay | 213,165 B, 295,259 B | TODO-1.16-CI |
-| Programs view, with the overlay | 312,279 B, 471,091 B (gzip 40,128 B) | TODO-1.16-CI |
-| Jira flags loader statements, without the `sync_runs` reads (whole plan, one project) | 12, 12 | TODO-1.16-CI (expected 12, 12) |
-| `sync_runs` reads (whole plan, one project) | 0, 0 | TODO-1.16-CI (expected the whole plan's site count, 1) |
-| `flags ... service with the Jira source` median, the roadmap and the team view | 1.15 CI: team view 81.6 ms with the source, 32.2 ms without | TODO-1.16-CI |
+| Team view with the overlay (gate 400,000 B) | 367,689 B, gzip 7,870 B | 367,729 B (+40 B), gzip 7,907 B; 32,271 B headroom |
+| Team view without the overlay | 316,724 B, gzip 6,559 B | 316,764 B (+40 B), gzip 6,595 B |
+| Project view with the overlay (gate 40,000 B) | 12,576 B, gzip 1,193 B | 12,616 B (+40 B), gzip 1,218 B |
+| Project view | 10,654 B | 10,694 B (+40 B) |
+| Roadmap, with the overlay | 213,165 B, 295,259 B | 214,920 B, 297,014 B (+1,755 B: 44 sites, see below) |
+| Programs view, with the overlay | 312,279 B, 471,091 B (gzip 40,128 B) | 314,034 B, 472,846 B (gzip 39,976 B; +1,755 B) |
+| Jira flags loader statements, without the `sync_runs` reads (whole plan, one project) | 12, 12 | 12, 12 |
+| `sync_runs` reads (whole plan, one project) | 0, 0 | 44 (44 sites), 1 |
+| `flags ... service with the Jira source` median, the roadmap and the team view | run 43557113516 (C1, just before): roadmap 184.9 ms, team 88.4 ms (without a source 32.1 ms, 44.4 ms) | roadmap 200.1 ms, team 131.2 ms (without a source 34.5 ms, 37.6 ms) |
 
-Expected: +35 B on each of the four documents bound and with `?baseline=` (one site), gzip +0 to +20 B, the loader statements still 12 plus one `sync_runs` read per site, the medians within the runner's noise (one more indexed read of at most 50 rows is far under a millisecond). **Gates:** the team view with the overlay 400,000 B (headroom TODO-1.16-CI), gzip 40,000 B, the project view 40,000 B; none moves. The plan's stop line was the team view growing by more than 200 B; TODO-1.16-CI.
+Expected: +35 B on each of the four documents bound and with `?baseline=` (one site), gzip +0 to +20 B, the loader statements still 12 plus one `sync_runs` read per site, the medians within the runner's noise (one more indexed read of at most 50 rows is far under a millisecond). **Gates:** the team view with the overlay 400,000 B (headroom 32,271 B on CI), gzip 40,000 B, the project view 40,000 B; none moves. The plan's stop line was the team view growing by more than 200 B; TODO-1.16-CI.
 
-**`GET /views/programs?criticalPath=N` (C7, not gated, no statement added):** the `criticalPath` block for the chain world of `ProgramsViewCriticalPathTest` (three listed projects and two pairs; the roadmap's block byte for byte) is TODO-1.16-CI B (the test prints no figure: read it off one `?criticalPath=` response); the rule of thumb is about 60 B a listed project and 50 B a pair, and the document without the parameter is byte-identical.
+Measured (one-off, NON-BINDING, CI run 43558233388 at `0198133`, the `server-reports` artifact; the local Docker daemon was down): +40 B a site (the plan expected +35 B), so every one-site document grew by exactly 40 B. The roadmap and the programs view load the WHOLE plan, and the shared CI database held 44 connections with live bindings left by earlier test classes on the same fork, so they carried 44 sites (+1,755 B) and 44 `sync_runs` reads; a production plan has one or two connections. The team service's median rose 88.4 → 131.2 ms between the two runs while the whole team view's request median FELL 140.0 → 113.9 ms in the same runs (the team view makes one `sync_runs` read): read as runner noise, to be re-measured on this machine once Docker is back.
+
+**`GET /views/programs?criticalPath=N` (C7, not gated, no statement added):** the `criticalPath` block for the chain world of `ProgramsViewCriticalPathTest` (three listed projects and two pairs; the roadmap's block byte for byte) was not measured (the test prints no figure and the local Docker daemon was down; by the rule of thumb about 280 B); the rule of thumb is about 60 B a listed project and 50 B a pair, and the document without the parameter is byte-identical.
 
 #### Measured figures (1.13.1)
 
