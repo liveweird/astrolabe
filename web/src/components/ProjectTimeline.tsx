@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactNode, Ref } from "react";
 import { useTranslation } from "react-i18next";
 import type { ProjectView } from "../api/milestones";
 import { useHolidays } from "../hooks/useHolidays";
@@ -11,7 +11,7 @@ import { NameWithFlags } from "./MilestoneFlags";
 import MilestoneMenu, { type MilestoneActions } from "./MilestoneMenu";
 import NameCell from "./MilestoneNameCell";
 import { bandsOf, baselineRows, estimateText, ghostRow, hasMenu, jiraRows, milestoneRows, summaryRow } from "./ProjectTimelineRows";
-import Timeline from "./Timeline";
+import Timeline, { type TimelineHandle } from "./Timeline";
 import TimelineArrows from "./TimelineArrows";
 import TimelineUnscheduledTray, { type TrayItem } from "./TimelineUnscheduledTray";
 
@@ -27,7 +27,8 @@ const COLUMN_WIDTHS = { name: 220, team: 130, estimate: 120, flags: 130, slack: 
  *
  * Jira (1.3, all from the view): while some scheduled milestone is linked or flagged there is a Flags column (the row's Jira key and its flags, the Jira ones and the calendar's
  * `NO_WORKING_DAY`, as the roadmap's icons, the sentences as the accessible label; a cell is empty only for a row that is neither linked nor flagged), and with `jira` (the page's window, the "Jira dates" toggle on) each linked row gets a dashed shadow bar
- * of the dates Jira holds; a TRAY milestone that Jira dates gets a dimmed row of its own for that bar (1.16, after the baseline's appended rows).
+ * of the dates Jira holds; a TRAY milestone that Jira dates gets a dimmed row of its own for that bar (1.16, after the baseline's appended rows), whose menu
+ * schedules it on those dates for whoever may (1.17).
  */
 export default function ProjectTimeline({
   view,
@@ -40,6 +41,7 @@ export default function ProjectTimeline({
   criticalPath,
   toolbar,
   jira,
+  timelineRef,
 }: {
   view: ProjectView;
   scale: TimelineScale;
@@ -54,6 +56,8 @@ export default function ProjectTimeline({
   toolbar: ReactNode;
   /** The page's Jira window while the "Jira dates" toggle is on (each linked row's shadow bar), else `null`. */
   jira: JiraWindow | null;
+  /** The Timeline's imperative handle, for the page's focus after "Schedule on Jira's dates" took the dashed row away. */
+  timelineRef?: Ref<TimelineHandle>;
 }) {
   const { t } = useTranslation();
   const { holidays, failed: holidaysFailed } = useHolidays();
@@ -70,7 +74,7 @@ export default function ProjectTimeline({
     { id: "actions", header: t("common.table.operations"), width: COLUMN_WIDTHS.actions },
   ];
   const upstream = criticalPath ? upstreamIndex(view) : null;
-  const appended = { criticalPath, flagsColumn, trayBars: jiraTrayBars(view.unscheduled, jira, t) };
+  const appended = { criticalPath, flagsColumn, trayBars: jiraTrayBars(view.unscheduled, jira, t), scheduleOnJira: actions.scheduleOnJira };
   const rows = [
     ...(summaryRowNeeded(view) ? [summaryRow(view, t, conflicts, criticalPath, flagsColumn)] : []),
     ...milestoneRows(view, t, { actions, jira, conflicts, criticalPath, flagsColumn }),
@@ -81,6 +85,7 @@ export default function ProjectTimeline({
   const arrows = arrowSpecs(view, criticalPath);
   return (
     <Timeline
+      ref={timelineRef}
       label={label}
       scale={scale}
       onZoomChange={onZoomChange}

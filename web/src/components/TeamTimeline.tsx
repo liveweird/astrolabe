@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactNode, Ref } from "react";
 import { Anchor, Group, Text } from "@mantine/core";
 import { Link as RouterLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -14,13 +14,13 @@ import { proposalBars, proposalRows, type TeamProposalView } from "../utils/sche
 import type { BarId, RovingTarget, TimelineBarData, TimelineColumn, TimelineRowData } from "../utils/timelineModel";
 import type { TimelineScale, Zoom } from "../utils/timelineScale";
 import { jiraTrayNote } from "../utils/flagSentences";
-import { baselineUnscheduledIds, jiraBar, jiraTrayBars, jiraTrayRowId, jiraTrayRows, siteUrls, type JiraWindow } from "../utils/jiraBars";
-import { AppendedRowName, BaselineRowName } from "./BaselineParts";
+import { jiraBar, jiraTrayBars, siteUrls, type JiraWindow } from "../utils/jiraBars";
 import { MilestoneFlags, NameWithFlags } from "./MilestoneFlags";
 import PinMark from "./PinMark";
 import SlackCell from "./SlackCell";
-import MilestoneMenu, { OpenProjectMenu, type TeamActions } from "./TeamTimelineMenu";
-import Timeline from "./Timeline";
+import MilestoneMenu, { type TeamActions } from "./TeamTimelineMenu";
+import { baselineAppendedRows, estimateText, jiraTrayAppendedRows } from "./TeamTimelineRows";
+import Timeline, { type TimelineHandle } from "./Timeline";
 import TimelineArrows from "./TimelineArrows";
 import TimelineLoadStrip from "./TimelineLoadStrip";
 import TimelineRowHandle from "./TimelineRowHandle";
@@ -31,9 +31,6 @@ export type { TeamActions } from "./TeamTimelineMenu";
 /** The Flags column grows to `FLAGS_WITH_ROLLUP_WIDTH` while a scheduled row shows a Jira roll-up ("5/12 · 34 pt"). */
 const FLAGS_WITH_ROLLUP_WIDTH = 210;
 const COLUMN_WIDTHS = { name: 220, project: 150, estimate: 120, flags: 130, slack: 130, actions: 56 } as const;
-
-/** The estimate with its unit ("12.25 man-days"). */
-const estimateText = (t: TFunction, milestone: TeamMilestone) => t("project.estimateUnit", { count: milestone.estimateMd });
 
 /**
  * The name with the description as dimmed text after it; one line (rows are a fixed height), the cell clips the rest. A row a preview appends is
@@ -116,7 +113,8 @@ const proposalBarOf = (proposed: ReadonlyMap<number, TimelineBarData>, milestone
  *
  * Jira (1.3, all from the view): while some scheduled milestone is linked or flagged there is a Flags column (the row's Jira key and its flags, the Jira ones and the calendar's
  * `NO_WORKING_DAY`, as the roadmap's icons, the sentences as the accessible label; a cell is empty only for a row that is neither linked nor flagged), and with `jira` (the page's window, the "Jira dates" toggle on) each linked row gets a dashed shadow bar of the
- * dates Jira holds, beside the baseline's; a TRAY milestone that Jira dates gets a dimmed row of its own for that bar (1.16, after the baseline's rows, before a preview's).
+ * dates Jira holds, beside the baseline's; a TRAY milestone that Jira dates gets a dimmed row of its own for that bar (1.16, after the baseline's rows, before a preview's),
+ * whose menu schedules it on those dates for whoever may schedule the team's milestones (1.17).
  *
  * With `criticalPath` (1.7, the page's toggle; the server's `slackDays`/`critical` per milestone toward ITS OWN project's end and the links' `critical`) a Slack
  * column appears after Flags (the project page's cell), a critical milestone's bar is emphasised (and its accessible name says so) and the critical links' arrows
@@ -134,6 +132,7 @@ export default function TeamTimeline({
   toolbar,
   jira,
   criticalPath = false,
+  timelineRef,
 }: {
   view: TeamView;
   scale: TimelineScale;
@@ -149,6 +148,8 @@ export default function TeamTimeline({
   jira?: JiraWindow | null;
   /** The page's critical-path toggle (1.7): the Slack column, the critical bars' emphasis and the critical arrows. */
   criticalPath?: boolean;
+  /** The Timeline's imperative handle, for the page's focus after "Schedule on Jira's dates" took the dashed row away. */
+  timelineRef?: Ref<TimelineHandle>;
 }) {
   const { t } = useTranslation();
   const { holidays, failed: holidaysFailed } = useHolidays();
@@ -232,47 +233,16 @@ export default function TeamTimeline({
       ...barList(jira == null ? undefined : jiraBar(milestone.id, milestone.name, milestone.jira, milestone.flags, jira, t)),
     ],
   }));
-  // The baseline's rows: gone from the team, or in the tray now though the baseline had them scheduled - dimmed, the shadow bar only (and, on an
-  // "unscheduled" row whose milestone Jira dates, that milestone's Jira bar, 1.16).
-  const trayBars = jiraTrayBars(view.unscheduled, jira ?? null, t);
+  // The baseline's rows and the tray milestones that Jira dates (1.16; `TeamTimelineRows`); the dashed rows' item is offered to whoever may schedule, never while a preview is open (1.17).
   const appended = overlay === undefined ? [] : removedRows(overlay, view.unscheduled, t);
-  for (const row of appended) {
-    rows.push({
-      id: row.id,
-      cells: withOptional([
-        <BaselineRowName key="name" row={row} />,
-        row.projectName === null ? (
-          ""
-        ) : (
-          <Text key="project" component="span" size="sm" c="dimmed" truncate title={row.projectName}>
-            {row.projectName}
-          </Text>
-        ),
-        <Text key="estimate" component="span" size="sm" c="dimmed">
-          {t("project.estimateUnit", { count: row.estimateMd })}
-        </Text>,
-        (stop: RovingTarget) => <OpenProjectMenu row={row} trigger={stop} />,
-      ], null),
-      bars: [row.bar, ...barList(row.reason === "unscheduled" ? trayBars.get(row.milestoneId) : undefined)],
-    });
-  }
-  // The tray milestones that Jira dates and the baseline did not append (1.16): dimmed, the dashed Jira bar only; before the preview's rows.
-  for (const milestone of jiraTrayRows(view.unscheduled, trayBars, baselineUnscheduledIds(appended))) {
-    rows.push({
-      id: jiraTrayRowId(milestone.id),
-      cells: withOptional([
-        <AppendedRowName key="name" name={milestone.name} mark={t("timeline.jiraUnscheduledMark")} />,
-        <Text key="project" component="span" size="sm" c="dimmed" truncate title={milestone.projectName}>
-          {milestone.projectName}
-        </Text>,
-        <Text key="estimate" component="span" size="sm" c="dimmed">
-          {estimateText(t, milestone)}
-        </Text>,
-        (stop: RovingTarget) => <OpenProjectMenu row={milestone} trigger={stop} />,
-      ], null),
-      bars: barList(trayBars.get(milestone.id)),
-    });
-  }
+  const appendedCtx = {
+    view,
+    t,
+    withOptional,
+    trayBars: jiraTrayBars(view.unscheduled, jira ?? null, t),
+    scheduleOnJira: view.team.can.schedule && !previewing ? actions.scheduleOnJira : null,
+  };
+  rows.push(...baselineAppendedRows(appended, appendedCtx), ...jiraTrayAppendedRows(appended, appendedCtx));
   // A preview appends the tray milestones the proposal schedules: only the proposal bar (they have no current one).
   for (const milestone of proposalRows(view, proposal?.moves ?? [])) {
     rows.push({
@@ -294,6 +264,7 @@ export default function TeamTimeline({
   const arrows = criticalPath ? markCriticalArrows(drawn, view.dependencies) : drawn;
   return (
     <Timeline
+      ref={timelineRef}
       label={label}
       scale={scale}
       onZoomChange={onZoomChange}

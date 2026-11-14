@@ -31,7 +31,7 @@ const milestone = (over: Partial<TeamMilestone> = {}): TeamMilestone => ({
 
 const viewOf = (schedule: boolean) => ({ team: { can: { schedule, editCapacity: false, editOrder: false } } }) as unknown as TeamView;
 
-const actions = (): TeamActions => ({ editSchedule: vi.fn(), unschedule: vi.fn(), pin: vi.fn(), schedule: vi.fn(), move: vi.fn(), moveTo: vi.fn() });
+const actions = (): TeamActions => ({ editSchedule: vi.fn(), unschedule: vi.fn(), pin: vi.fn(), schedule: vi.fn(), scheduleOnJira: vi.fn(), move: vi.fn(), moveTo: vi.fn() });
 
 async function open(m: TeamMilestone, view: TeamView, a: TeamActions, previewing = false) {
   const user = userEvent.setup();

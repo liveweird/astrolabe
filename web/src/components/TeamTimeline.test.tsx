@@ -91,7 +91,7 @@ const PROPOSAL = {
   weeks: PROPOSED_WEEKS,
 };
 
-const ACTIONS: TeamActions = { editSchedule: vi.fn(), unschedule: vi.fn(), pin: vi.fn(), schedule: vi.fn(), move: vi.fn(), moveTo: vi.fn() };
+const ACTIONS: TeamActions = { editSchedule: vi.fn(), unschedule: vi.fn(), pin: vi.fn(), schedule: vi.fn(), scheduleOnJira: vi.fn(), move: vi.fn(), moveTo: vi.fn() };
 
 function renderTimeline(view: TeamView, proposal?: typeof PROPOSAL, criticalPath?: boolean, jira?: JiraWindow | null) {
   const scale = makeScale("week", { from: toEpochDay("2042-01-05"), to: toEpochDay("2042-02-22") });
@@ -320,9 +320,15 @@ describe("TeamTimeline with tray milestones that Jira dates (1.16)", () => {
     removed: [],
   };
 
-  test("each gets a dimmed row after the scheduled ones, in (start, end, name) order, with the mark, the project, the estimate and one Jira bar; the menu holds only the project", async () => {
+  /** The team view of a caller who may not schedule (1.16's rows: "Open project" only). */
+  const readOnly = (over: Partial<TeamView> = {}) => {
+    const view = viewOf(over);
+    return { ...view, team: { ...view.team, can: { ...view.team.can, schedule: false } } };
+  };
+
+  test("each gets a dimmed row after the scheduled ones, in (start, end, name) order, with the mark, the project, the estimate and one Jira bar; the menu holds only the project (no right to schedule)", async () => {
     const user = userEvent.setup();
-    renderTimeline(viewOf({ unscheduled: [X, Y] }), undefined, undefined, WINDOW);
+    renderTimeline(readOnly({ unscheduled: [X, Y] }), undefined, undefined, WINDOW);
     expect(bodyRows().map((row) => /tp-[a-z]/.exec(row.textContent ?? "")?.[0])).toEqual(["tp-a", "tp-b", "tp-y", "tp-x"]);
     const row = rowOf("tp-y");
     expect(row).toHaveTextContent(`tp-y ${MARK}`);
@@ -332,6 +338,39 @@ describe("TeamTimeline with tray milestones that Jira dates (1.16)", () => {
     expect(jiraBars()).toEqual(["Jira E2E-9: 2042-02-12 to 2042-02-13, read-only", "Jira E2E-8: 2042-02-16 to 2042-02-20, read-only"]);
     await user.click(within(row).getByRole("button", { name: "Operations for tp-y" }));
     expect((await screen.findAllByRole("menuitem")).map((item) => item.textContent)).toEqual(["Open project"]);
+  });
+
+  test("with the team's can.schedule the menu is named apart and holds the item, a divider and the project; the click asks for exactly that milestone", async () => {
+    const user = userEvent.setup();
+    vi.mocked(ACTIONS.scheduleOnJira).mockClear();
+    renderTimeline(viewOf({ unscheduled: [X, Y] }), undefined, undefined, WINDOW);
+    const row = rowOf("tp-y");
+    expect(within(row).queryByRole("button", { name: "Operations for tp-y" })).toBeNull();
+    await user.click(within(row).getByRole("button", { name: "Operations for tp-y (dates from Jira)" }));
+    const items = await screen.findAllByRole("menuitem");
+    expect(items.map((item) => item.textContent)).toEqual(["Schedule on Jira's dates", "Open project"]);
+    expect(items[0]).toHaveAccessibleName("Schedule on Jira's dates: tp-y, 2042-02-12 to 2042-02-13");
+    expect(document.querySelectorAll(".mantine-Menu-divider")).toHaveLength(1);
+    await user.click(items[0]);
+    expect(ACTIONS.scheduleOnJira).toHaveBeenCalledWith(expect.objectContaining({ id: 4 }));
+  });
+
+  test("the baseline's 'unscheduled since' row that carries the Jira bar has the item too; a reversed pair has none", async () => {
+    const user = userEvent.setup();
+    const reversed = { ...NEW_Y, jira: link("E2E-9", "2042-02-13", "2042-02-12") };
+    renderTimeline(viewOf({ unscheduled: [X, reversed], baseline }), undefined, undefined, WINDOW);
+    expect(within(rowOf("tp-x")).getByRole("button", { name: "Operations for tp-x (dates from Jira)" })).toBeInTheDocument();
+    // tp-y's pair is reversed: its dashed bar is still drawn on a row of its own, but there are no usable dates to write - 1.16's menu
+    await user.click(within(rowOf("tp-y")).getByRole("button", { name: "Operations for tp-y" }));
+    expect((await screen.findAllByRole("menuitem")).map((item) => item.textContent)).toEqual(["Open project"]);
+  });
+
+  test("while a proposal previews, and for a team the caller may not schedule, the rows keep 1.16's menu", () => {
+    renderTimeline(viewOf({ unscheduled: [X, Y] }), PROPOSAL, undefined, WINDOW);
+    expect(screen.queryByRole("button", { name: /\(dates from Jira\)/ })).toBeNull();
+    cleanup();
+    renderTimeline(readOnly({ unscheduled: [X, Y] }), undefined, undefined, WINDOW);
+    expect(screen.queryByRole("button", { name: /\(dates from Jira\)/ })).toBeNull();
   });
 
   test("a milestone the baseline appended as 'unscheduled since' gets its Jira bar on THAT row: one row, two bars, and no row of its own", () => {

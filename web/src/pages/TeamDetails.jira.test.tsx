@@ -315,6 +315,60 @@ describe("the team page's Jira markers", () => {
     });
   });
 
+  describe("Schedule on Jira's dates (1.17)", () => {
+    const trayMilestone = (id: number, name: string, over: Partial<TeamMilestone> = {}) => milestone(id, name, { startDate: null, endDate: null, ...over });
+    const ROLLOUT = trayMilestone(4, "tv-rollout", { jira: link(4, "E2E-8", "2027-03-01", "2027-03-05"), flags: [flag(unscheduledInPlan)] });
+    const MARK = "(unscheduled; dates from Jira)";
+    const appendedRows = (grid: HTMLElement) => within(grid).queryAllByRole("row").filter((row) => row.textContent?.includes(MARK));
+    const asScheduler = (over: Partial<TeamView> = {}): TeamView => ({ ...TEAM_VIEW, team: { ...TEAM_VIEW.team, can: { ...TEAM_VIEW.team.can, schedule: true } }, ...over });
+    const schedulePuts = () => mockFetch.mock.calls.filter(([url, init]) => /\/milestones\/\d+\/schedule$/.test(url as string) && (init as RequestInit | undefined)?.method === "PUT");
+
+    test("with team.can.schedule the dashed row's kebab is named apart and holds the item, a divider and 'Open project'; the click writes Jira's real dates, takes the row away and moves the focus to the milestone's own row", async () => {
+      const user = userEvent.setup();
+      teamView = asScheduler({ unscheduled: [ROLLOUT] });
+      afterSchedule = (body) => {
+        teamView = { ...teamView, revision: 11, scheduled: [...TEAM_VIEW.scheduled, { ...ROLLOUT, startDate: body.startDate, endDate: body.endDate }], unscheduled: [] };
+      };
+      renderPage();
+      const grid = await timeline();
+      const [row] = appendedRows(grid);
+      expect(within(row).queryByRole("button", { name: "Operations for tv-rollout" })).toBeNull();
+      await user.click(within(row).getByRole("button", { name: "Operations for tv-rollout (dates from Jira)" }));
+      const items = await screen.findAllByRole("menuitem");
+      expect(items.map((item) => item.textContent)).toEqual(["Schedule on Jira's dates", "Open project"]);
+      expect(items[0]).toHaveAccessibleName("Schedule on Jira's dates: tv-rollout, 2027-03-01 to 2027-03-05");
+      await user.click(items[0]);
+      await waitFor(() => expect(appendedRows(grid)).toEqual([]));
+      expect(schedulePuts()).toHaveLength(1);
+      const [url, init] = schedulePuts()[0] as [string, RequestInit];
+      expect(url).toBe("/api/v1/milestones/4/schedule");
+      expect(JSON.parse(init.body as string)).toMatchObject({ startDate: "2027-03-01", endDate: "2027-03-05", expectedRevision: 10 });
+      const own = within(grid).getByRole("row", { name: /tv-rollout/ });
+      expect([...own.querySelectorAll('[data-tone="jira"]')]).toHaveLength(1);
+      expect(screen.getAllByRole("status").map((region) => region.textContent).join(" | ")).toContain("tv-rollout scheduled: 2027-03-01 to 2027-03-05");
+      await waitFor(() => expect(own).toContainElement(document.activeElement as HTMLElement));
+    });
+
+    test("without team.can.schedule the kebab is 1.16's: 'Operations for tv-rollout' holding only 'Open project'", async () => {
+      const user = userEvent.setup();
+      teamView = { ...TEAM_VIEW, unscheduled: [ROLLOUT] };
+      renderPage();
+      const grid = await timeline();
+      const [row] = appendedRows(grid);
+      expect(within(row).queryByRole("button", { name: /\(dates from Jira\)/ })).toBeNull();
+      await user.click(within(row).getByRole("button", { name: "Operations for tv-rollout" }));
+      expect((await screen.findAllByRole("menuitem")).map((item) => item.textContent)).toEqual(["Open project"]);
+    });
+
+    test("a reversed pair of Jira dates keeps 1.16's menu even for a team the caller may schedule", async () => {
+      teamView = asScheduler({ unscheduled: [{ ...ROLLOUT, jira: link(4, "E2E-8", "2027-03-05", "2027-03-01") }] });
+      renderPage();
+      const [row] = appendedRows(await timeline());
+      expect(within(row).getByRole("button", { name: "Operations for tv-rollout" })).toBeInTheDocument();
+      expect(within(row).queryByRole("button", { name: /\(dates from Jira\)/ })).toBeNull();
+    });
+  });
+
   describe("a binding through a disabled connection", () => {
     test("the server keeps the link (null dates, no flag): the chip counts it with no deviations, the row shows its key, no bar is drawn", async () => {
       teamView = { ...TEAM_VIEW, scheduled: [milestone(1, "tv-a", { jira: link(1, "E2E-3") })] };

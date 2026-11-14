@@ -146,6 +146,15 @@ export function jiraTrayRows<T extends { id: number; name: string }>(unscheduled
     .map(({ milestone }) => milestone);
 }
 
+/**
+ * The dates "Schedule on Jira's dates" writes (1.17): the link's REAL start and end when both are set and in order, else `null` (the item is then not
+ * offered). Never the bar's dates, which may be cut at the window: the plan gets what Jira holds.
+ */
+export function jiraScheduleDates(link: Pick<JiraLink, "start" | "end"> | null): { start: string; end: string } | null {
+  if (link === null || link.start === null || link.end === null || link.start > link.end) return null;
+  return { start: link.start, end: link.end };
+}
+
 /** `{connectionId → siteUrl}` of a document's `jiraSites` (the browse URL is built from it, never carried per row). */
 export function siteUrls(sites: readonly { connectionId: number; siteUrl: string }[]): ReadonlyMap<number, string> {
   return new Map(sites.map((site) => [site.connectionId, site.siteUrl]));

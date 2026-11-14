@@ -604,10 +604,14 @@ Slack) holding each linked row's Jira key link and flag icon, the tray rows' key
 per linked scheduled row with the toolbar's "Jira dates" toggle (after Critical path; only when `jiraSites` is non-empty; the shared `timeline.jiraBars`). The
 page's range follows `jiraPageRange(...)`: the Jira days join it only inside the plan's own dates padded by a year, so a mistyped Jira date cannot stretch the
 track (it also follows the TRAY's in-window Jira dates, 1.16). A tray milestone whose Jira item holds both dates inside the window gets a dimmed appended row
-`jira-unscheduled:<milestoneId>` ("(unscheduled; dates from Jira)", the bar only, no menu, after the baseline's rows and before the ghost rows) while the toggle
+`jira-unscheduled:<milestoneId>` ("(unscheduled; dates from Jira)", the bar only, after the baseline's rows and before the ghost rows) while the toggle
 is on - or, when the baseline already appended an "unscheduled since the baseline" row for it, its Jira bar on that row (`jiraRows`/`baselineRows` in
-`ProjectTimelineRows.tsx`). The row menu's Link/Unlink item and the header button read the view; the bind dialog asks for its `connections[]` when it opens (`useJiraLinks`).
-Reference: `timeline.md` "The Jira markers (1.3)", "Appended rows for the tray (1.16)". Tests: `ProjectView.jira.test.tsx`.
+`ProjectTimelineRows.tsx`). **Since 1.17 that row has a menu for whoever may schedule THAT milestone** (its own `can.schedule`; none without it, none when Jira's
+two dates are reversed): `JiraRowMenu` ("Operations for X (dates from Jira)", one item "Schedule on Jira's dates") whose click is `actions.scheduleOnJira`: the page
+writes the link's REAL dates (`jiraScheduleDates`, never the bar's, which may be cut at the window) through `schedule.commit(..., { announce: true })`, the one write
+path, so a save in flight refuses it out loud, a 400 is the working-day sentence and a failure rolls the row back; a taken change moves the focus to the milestone's own
+row (`useRowMenuFocus(timelineRef).keep`, the Timeline's `focusRow`). The row menu's Link/Unlink item and the header button read the view; the bind dialog asks for its `connections[]` when it opens (`useJiraLinks`).
+Reference: `timeline.md` "The Jira markers (1.3)", "Appended rows for the tray (1.16)". Tests: `ProjectView.jira.test.tsx`, `ProjectView.jiraTray.test.tsx`, `JiraRowMenu.test.tsx`.
 
 **Tests.** `ProjectView.test.tsx` runs the page against a small fetch-mock server (a schedule PUT applies the dates and bumps the revision; the dependency
 POST/DELETE and the milestone picker list are stubbed) and wraps `DndContext` to hand the test the page's drop handler; fake timers (`Date` only) pin "today"
@@ -1143,7 +1147,7 @@ childless epic) renders nothing of it, and the tray's `NameWithFlags` carries it
 component under the type/status line. **A binding through a DISABLED connection stays a link** (the server keeps `jira` with null dates and no flag): the chip
 counts it with no deviations, the key shows, Unlink works, no bar is drawn. A **tray row** has no column: the same key link and icon sit beside the name and,
 for an open `UNSCHEDULED_IN_PLAN` flag, the name cell adds "Jira: 2027-03-01 to 2027-03-05"; since 1.16 the timeline also gets an appended row for the milestone's Jira bar
-(`timeline.md` "Appended rows for the tray (1.16)"; the tray row itself is unchanged). Tests:
+(`timeline.md` "Appended rows for the tray (1.16)"; the tray row itself is unchanged), whose menu since 1.17 offers "Schedule on Jira's dates" to whoever may schedule. Tests:
 `ProjectView.jira.test.tsx`, `TeamDetails.jira.test.tsx`, `JiraChips.test.tsx`, `utils/jiraMarks.test.ts`, `utils/flagSentences.test.ts`,
 `hooks/useDeviations.test.tsx`, `JiraBindDialog.test.tsx`, `JiraBindingsSection.test.tsx`.
 
@@ -1370,7 +1374,10 @@ old remembered "Jira" column and keeps its per-row key link), the tray rows' key
 column into the name cell), and the shadow bar `jira:<milestoneId>` with the "Jira dates" toggle after the baseline picker (a bar follows the baseline's shadow,
 the proposal bar and the current bar in one row). Since 1.16 a TRAY milestone that Jira dates gets a dimmed appended row `jira-unscheduled:<milestoneId>` (the
 project name, the estimate and an "Open project" menu; after the baseline's rows, before a preview's rows; or its bar on the baseline's own "unscheduled" row)
-and the page's range follows the tray's in-window Jira dates (`timeline.md` "Appended rows for the tray (1.16)"). Tests: `TeamDetails.jira.test.tsx`, `TeamTimeline.test.tsx`.
+and the page's range follows the tray's in-window Jira dates (`timeline.md` "Appended rows for the tray (1.16)"). **Since 1.17** (`components/TeamTimelineRows.tsx`, the
+appended rows' pure builders, split out of `TeamTimeline.tsx`) those two row kinds' menu is "Operations for X (dates from Jira)" = "Schedule on Jira's dates", a divider
+and "Open project" while `team.can.schedule` holds, no proposal previews and Jira's two dates are in order; otherwise 1.16's "Open project" menu. The action is
+`lock.guarded` and writes the REAL dates through the page's one schedule write path; the focus goes to the milestone's own row afterwards (`useRowMenuFocus`). Tests: `TeamDetails.jira.test.tsx`, `TeamTimeline.test.tsx`.
 
 - **Tests.** `TeamDetails.test.tsx` (the page against a fetch-mock server that applies the order and schedule PUTs; the wrapped `DndContext` hands it the bar
   drop and the row drop), `teamViewUpdate.test.ts`, `capacityForm.test.ts`, `dependencyArrows.test.ts`, `api/teams.test.ts`, `roadmapOrder.test.ts`. The real

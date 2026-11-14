@@ -27,6 +27,7 @@ import ProjectDependencies from "../components/ProjectDependencies";
 import ProjectEditors from "../components/ProjectEditors";
 import type { MilestoneActions } from "../components/MilestoneMenu";
 import ProjectTimeline, { ProjectTray } from "../components/ProjectTimeline";
+import type { TimelineHandle } from "../components/Timeline";
 import TimelineDndContext from "../components/TimelineDndContext";
 import TimelineTitle from "../components/TimelineTitle";
 import UnscheduledTraySection from "../components/UnscheduledTraySection";
@@ -38,10 +39,11 @@ import { useJiraLinks } from "../hooks/useDeviations";
 import { useJiraBarsPick } from "../hooks/useJiraBarsPick";
 import { useJiraUnlink } from "../hooks/useJiraUnlink";
 import { useMilestoneSchedule } from "../hooks/useMilestoneSchedule";
+import { useRowMenuFocus } from "../hooks/useRowMenuFocus";
 import { isOneOf, useStoredState } from "../hooks/useStoredState";
 import { baselineDays, spanBadges } from "../utils/baselineOverlay";
 import { localIsoDate } from "../utils/isoDate";
-import { jiraPageRange } from "../utils/jiraBars";
+import { jiraPageRange, jiraScheduleDates } from "../utils/jiraBars";
 import { markKey, projectMarks, type JiraMark, type JiraMarks } from "../utils/jiraMarks";
 import { planPath } from "../utils/planLinks";
 import { needsJiraConnections, type Editor } from "../utils/projectEditor";
@@ -147,6 +149,9 @@ function ProjectPage({ id }: { id: number }) {
 
   const refreshPlan = () => refreshQueriesAfterMutation(queryClient, ["plan"]);
   const titleRef = useRef<HTMLHeadingElement>(null);
+  // "Schedule on Jira's dates" takes the dashed row (and its kebab) away: the focus goes to the milestone's own row (`useRowMenuFocus`).
+  const timelineRef = useRef<TimelineHandle>(null);
+  const rowFocus = useRowMenuFocus(timelineRef);
   const unlinkJira = useJiraUnlink(titleRef);
   const removeMilestone = useDeleteConfirm<{ milestone: ProjectMilestone; links: number }>({
     mutationFn: ({ milestone }) => deleteMilestone(milestone.id),
@@ -216,6 +221,12 @@ function ProjectPage({ id }: { id: number }) {
     if (taken || !schedule.has(target.milestone.id)) setScheduling(null);
   };
 
+  /** The dashed row's item: Jira's REAL dates (never the bar's, which may be cut at the window) through the same write path as every other date change. */
+  const scheduleOnJira = (milestone: ProjectMilestone) => {
+    const dates = jiraScheduleDates(milestone.jira);
+    if (dates !== null) rowFocus.keep(milestone.id, schedule.commit(milestone.id, dates.start, dates.end, { announce: true }));
+  };
+
   const requestUnlink = (mark: JiraMark | undefined, name: string) => {
     if (mark !== undefined) unlinkJira.requestDelete({ bindingId: mark.bindingId, key: mark.key, name });
   };
@@ -226,6 +237,7 @@ function ProjectPage({ id }: { id: number }) {
     pin: (milestone, pinned) => schedule.pin(milestone.id, pinned),
     remove: (milestone) => removeMilestone.requestDelete({ milestone, links: linksOfMilestone(view, milestone.id) }),
     schedule: scheduleByButton,
+    scheduleOnJira,
     addDependency: (milestone) => setEditor({ kind: "dependency", successor: { kind: "MILESTONE", id: milestone.id } }),
     linkJira: (milestone) => setEditor({ kind: "jira", target: { level: "MILESTONE", id: milestone.id, name: milestone.name } }),
     jiraKeyOf: (milestone) => marks.byNode.get(markKey("MILESTONE", milestone.id))?.key,
@@ -301,6 +313,7 @@ function ProjectPage({ id }: { id: number }) {
               criticalPath={criticalPath}
               toolbar={toolbar}
               jira={jiraWindowNow}
+              timelineRef={timelineRef}
             />
           </Stack>
           <UnscheduledTraySection hasItems={view.unscheduled.length > 0} canSchedule={canTrayEdit}>

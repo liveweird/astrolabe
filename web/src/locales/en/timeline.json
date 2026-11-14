@@ -34,6 +34,11 @@
     "badge_other": "{{count}} idle gaps"
   },
   "jiraUnscheduledMark": "(unscheduled; dates from Jira)",
+  "jiraRow": {
+    "operationsAria": "Operations for {{name}} (dates from Jira)",
+    "schedule": "Schedule on Jira's dates",
+    "scheduleAria": "Schedule on Jira's dates: {{name}}, {{start}} to {{end}}"
+  },
   "baseline": {
     "pickerLabel": "Baseline",
     "none": "None",

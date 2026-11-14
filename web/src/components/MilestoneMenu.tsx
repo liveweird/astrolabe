@@ -16,6 +16,8 @@ export type MilestoneActions = {
   remove: (milestone: ProjectMilestone) => void;
   /** The tray's Schedule button: the page chooses the dates (one calendar week from the later of today and the target start). */
   schedule: (milestone: ProjectMilestone) => void;
+  /** "Schedule on Jira's dates" on a tray milestone's dashed row (1.17): the page writes the link's two real dates through its one write path. */
+  scheduleOnJira: (milestone: ProjectMilestone) => void;
   /** "Add dependency…": open the editor with this milestone as the successor (offered only with the project's `can.createDependency`). */
   addDependency: (milestone: ProjectMilestone) => void;
   /** "Link to Jira…" (offered with the milestone's own `can.edit` - the bind's guard is the owner chain, the same arithmetic). Absent = the page offers no Jira link. */

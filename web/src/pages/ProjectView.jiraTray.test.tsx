@@ -66,6 +66,9 @@ const viewOf = (over: Partial<ProjectViewDocument> = {}): ProjectViewDocument =>
 let project: ProjectViewDocument;
 /** What an accepted schedule PUT does to the next read of the view (the stand-in server applies the dates). */
 let afterSchedule: ((body: { startDate: string | null; endDate: string | null }) => void) | null;
+/** The schedule PUTs the page sent (url and body), and what the stand-in server answers them (`null` = accept; `"hang"` = never answer). */
+let puts: { url: string; body: { startDate: string | null; endDate: string | null; expectedRevision: number } }[];
+let putAnswer: { status: number } | "hang" | null;
 
 describe("the project page's tray milestones that Jira dates (1.16)", () => {
   beforeEach(() => {
@@ -77,6 +80,9 @@ describe("the project page's tray milestones that Jira dates (1.16)", () => {
         if (method === "GET" && url === "/api/v1/baselines") return Promise.resolve(jsonResponse(200, { items: [], can: { manage: false } }));
         if (method === "GET" && url === "/api/v1/public-holidays") return Promise.resolve(jsonResponse(200, { items: [] }));
         if (method === "PUT" && /^\/api\/v1\/milestones\/\d+\/schedule$/.test(url)) {
+          puts.push({ url, body: JSON.parse(init?.body as string) as (typeof puts)[number]["body"] });
+          if (putAnswer === "hang") return new Promise<Response>(() => undefined);
+          if (putAnswer !== null) return Promise.resolve(jsonResponse(putAnswer.status, { title: "x", status: putAnswer.status }));
           afterSchedule?.(JSON.parse(init?.body as string) as { startDate: string | null; endDate: string | null });
           return Promise.resolve(jsonResponse(200, { revision: 11 }));
         }
@@ -87,6 +93,8 @@ describe("the project page's tray milestones that Jira dates (1.16)", () => {
     localStorage.setItem("astrolabe.auth.roles", JSON.stringify(["USER"]));
     project = viewOf();
     afterSchedule = null;
+    puts = [];
+    putAnswer = null;
   });
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -228,5 +236,132 @@ describe("the project page's tray milestones that Jira dates (1.16)", () => {
     const own = within(grid).getByRole("row", { name: /Rollout/ });
     expect([...own.querySelectorAll('[data-tone="jira"]')]).toHaveLength(1);
     expect(trayBars()).toHaveLength(1);
+  });
+
+  describe("Schedule on Jira's dates (1.17)", () => {
+    const can = { edit: true, delete: true, schedule: true };
+    const SCHEDULER = { ...ROLLOUT, can };
+    const kebab = (name: string) => screen.getByRole("button", { name: `Operations for ${name} (dates from Jira)` });
+    const scheduledAfterPut = () => {
+      afterSchedule = (body) => {
+        project = viewOf({ revision: 11, scheduled: [DISCOVERY, BUILD, { ...SCHEDULER, startDate: body.startDate, endDate: body.endDate }] });
+      };
+    };
+
+    test("the dashed row of a milestone the caller may schedule has a kebab named apart, holding ONE item named with the real dates; the tray row's kebab keeps its own name", async () => {
+      const user = userEvent.setup();
+      project = viewOf({ unscheduled: [SCHEDULER] });
+      renderPage();
+      const grid = await timeline();
+      const [row] = appendedRows(grid);
+      expect(within(row).getAllByRole("button")).toHaveLength(1);
+      expect(screen.getByRole("button", { name: "Operations for Rollout" })).toBeInTheDocument();
+      await user.click(kebab("Rollout"));
+      const items = await screen.findAllByRole("menuitem");
+      expect(items.map((item) => item.textContent)).toEqual(["Schedule on Jira's dates"]);
+      expect(items[0]).toHaveAccessibleName("Schedule on Jira's dates: Rollout, 2027-03-01 to 2027-03-05");
+    });
+
+    test("the click writes Jira's two real dates with the view's revision; at once the dashed row is gone, the milestone's own row has its plan bar and ONE dashed bar, the page says so and the focus is on that row", async () => {
+      const user = userEvent.setup();
+      project = viewOf({ unscheduled: [SCHEDULER] });
+      scheduledAfterPut();
+      renderPage();
+      const grid = await timeline();
+      await user.click(kebab("Rollout"));
+      await user.click(await screen.findByRole("menuitem", { name: /^Schedule on Jira's dates/ }));
+      await waitFor(() => expect(appendedRows(grid)).toEqual([]));
+      expect(puts).toEqual([{ url: "/api/v1/milestones/3/schedule", body: { startDate: "2027-03-01", endDate: "2027-03-05", expectedRevision: 10 } }]);
+      const own = within(grid).getByRole("row", { name: /Rollout/ });
+      expect(within(own).getByRole("button", { name: /^Rollout, Backend, 2027-03-01 to 2027-03-05/ })).toBeInTheDocument();
+      expect([...own.querySelectorAll('[data-tone="jira"]')]).toHaveLength(1);
+      expect(trayBars()).toHaveLength(1);
+      expect(screen.getAllByRole("status").map((region) => region.textContent).join(" | ")).toContain("Rollout scheduled: 2027-03-01 to 2027-03-05");
+      expect(screen.queryByRole("table", { name: "Unscheduled milestones" })).toBeNull();
+      await waitFor(() => expect(own).toContainElement(document.activeElement as HTMLElement));
+    });
+
+    test("the real dates are written even when the bar is drawn cut at the window", async () => {
+      const user = userEvent.setup();
+      project = viewOf({ unscheduled: [{ ...SCHEDULER, jira: link(7, "E2E-8", "2027-03-01", "2090-03-05") }] });
+      renderPage();
+      await timeline();
+      await user.click(kebab("Rollout"));
+      await user.click(await screen.findByRole("menuitem", { name: /^Schedule on Jira's dates/ }));
+      await waitFor(() => expect(puts).toHaveLength(1));
+      expect(puts[0].body).toMatchObject({ startDate: "2027-03-01", endDate: "2090-03-05" });
+    });
+
+    test("a 400 rolls the change back (the dashed row and the tray row return) and shows the working-day sentence", async () => {
+      const user = userEvent.setup();
+      project = viewOf({ unscheduled: [SCHEDULER] });
+      putAnswer = { status: 400 };
+      renderPage();
+      const grid = await timeline();
+      await user.click(kebab("Rollout"));
+      await user.click(await screen.findByRole("menuitem", { name: /^Schedule on Jira's dates/ }));
+      expect((await screen.findAllByText(/These dates cannot be saved/)).length).toBeGreaterThan(0);
+      await waitFor(() => expect(appendedRows(grid)).toHaveLength(1));
+      expect(within(screen.getByRole("table", { name: "Unscheduled milestones" })).getByRole("row", { name: /Rollout/ })).toBeInTheDocument();
+    });
+
+    test("a click while a save runs is refused out loud and writes nothing", async () => {
+      const user = userEvent.setup();
+      const other = trayMilestone(4, "Cleanup", { jira: link(8, "E2E-9", "2027-03-08", "2027-03-09"), can });
+      project = viewOf({ unscheduled: [SCHEDULER, other] });
+      putAnswer = "hang";
+      renderPage();
+      await timeline();
+      await user.click(kebab("Rollout"));
+      await user.click(await screen.findByRole("menuitem", { name: /^Schedule on Jira's dates/ }));
+      await waitFor(() => expect(puts).toHaveLength(1));
+      await user.click(kebab("Cleanup"));
+      await user.click(await screen.findByRole("menuitem", { name: /^Schedule on Jira's dates/ }));
+      expect((await screen.findAllByText(/A save is still running/)).length).toBeGreaterThan(0);
+      expect(puts).toHaveLength(1);
+    });
+
+    test("with a baseline picked the item sits on the 'unscheduled since the baseline' row", async () => {
+      const user = userEvent.setup();
+      localStorage.setItem("astrolabe.viewSettings.timeline.baseline", "5");
+      const unchanged = { kind: "UNSCHEDULED" as const, startDays: null, endDays: null, estimateDelta: 0 };
+      project = viewOf({
+        unscheduled: [SCHEDULER],
+        baseline: {
+          id: 5,
+          name: "Q1 plan",
+          planRevision: 4,
+          project: { span: { start: "2027-01-04", end: "2027-01-22" }, movement: { kind: "UNCHANGED", startDays: 0, endDays: 0, estimateDelta: 0 } },
+          milestones: [{ milestoneId: 3, teamIdThen: 3, start: "2027-02-01", end: "2027-02-05", estimateMd: 5, movement: unchanged }],
+          removed: [],
+        },
+      });
+      renderPage();
+      const grid = await timeline();
+      const row = await waitFor(() => {
+        const found = within(grid).getAllByRole("row").find((r) => r.textContent?.includes("Rollout (unscheduled since the baseline)"));
+        expect(found).toBeDefined();
+        return found as HTMLElement;
+      });
+      await user.click(within(row).getByRole("button", { name: "Operations for Rollout (dates from Jira)" }));
+      await user.click(await screen.findByRole("menuitem", { name: /^Schedule on Jira's dates/ }));
+      await waitFor(() => expect(puts).toHaveLength(1));
+    });
+
+    test("a reversed pair of Jira dates offers no item: the row has no button", async () => {
+      project = viewOf({ unscheduled: [{ ...SCHEDULER, jira: link(7, "E2E-8", "2027-03-05", "2027-03-01") }] });
+      renderPage();
+      const grid = await timeline();
+      const [row] = appendedRows(grid);
+      expect(row.querySelector("button")).toBeNull();
+    });
+
+    test("without can.schedule on the milestone the row holds no button, whatever the project's other rights", async () => {
+      project = viewOf({ unscheduled: [ROLLOUT] });
+      renderPage();
+      const grid = await timeline();
+      expect(appendedRows(grid)[0].querySelector("button")).toBeNull();
+      expect(screen.queryByRole("button", { name: /\(dates from Jira\)/ })).toBeNull();
+    });
   });
 });

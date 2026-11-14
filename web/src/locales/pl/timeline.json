@@ -38,6 +38,11 @@
     "badge_other": "{{count}} przestoju"
   },
   "jiraUnscheduledMark": "(niezaplanowany; daty z Jiry)",
+  "jiraRow": {
+    "operationsAria": "Operacje dla {{name}} (daty z Jiry)",
+    "schedule": "Zaplanuj według dat z Jiry",
+    "scheduleAria": "Zaplanuj według dat z Jiry: {{name}}, od {{start}} do {{end}}"
+  },
   "baseline": {
     "pickerLabel": "Baza odniesienia",
     "none": "Brak",

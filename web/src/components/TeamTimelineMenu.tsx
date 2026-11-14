@@ -17,6 +17,8 @@ export type TeamActions = {
   pin: (milestone: TeamMilestone, pinned: boolean) => void;
   /** The tray's Schedule button: the page chooses the dates (one calendar week from today). */
   schedule: (milestone: TeamMilestone) => void;
+  /** "Schedule on Jira's dates" on a tray milestone's dashed row (1.17): the page writes the link's two real dates through its one write path. */
+  scheduleOnJira: (milestone: TeamMilestone) => void;
   /** Move one place up (-1) or down (+1) in the team's order. */
   move: (milestone: TeamMilestone, delta: -1 | 1) => void;
   moveTo: (milestone: TeamMilestone, edge: "top" | "bottom") => void;
@@ -94,14 +96,22 @@ export default function MilestoneMenu({
   );
 }
 
+/** The "Open project" item of a row menu without a milestone's own items (a baseline row, a dashed Jira row). */
+export function OpenProjectItem({ projectId }: { projectId: number }) {
+  const { t } = useTranslation();
+  return (
+    <Menu.Item component={RouterLink} to={projectPath(projectId)} leftSection={<IconExternalLink size={14} />}>
+      {t("teams.view.action.openProject")}
+    </Menu.Item>
+  );
+}
+
 /** The menu of a baseline row: it holds only the link to the milestone's project (a removed milestone's project may be gone too: the link then lands on its not-found page). */
 export function OpenProjectMenu({ row, trigger }: { row: Pick<BaselineRow, "name" | "projectId">; trigger: RovingTarget }) {
   const { t } = useTranslation();
   return (
     <RowActionsMenu label={t("common.table.operationsAria", { name: row.name })} trigger={trigger}>
-      <Menu.Item component={RouterLink} to={projectPath(row.projectId)} leftSection={<IconExternalLink size={14} />}>
-        {t("teams.view.action.openProject")}
-      </Menu.Item>
+      <OpenProjectItem projectId={row.projectId} />
     </RowActionsMenu>
   );
 }

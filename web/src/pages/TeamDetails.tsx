@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
 import { Group, Stack, Text } from "@mantine/core";
@@ -31,6 +31,7 @@ import { TeamJiraChip } from "../components/JiraChips";
 import TeamTimeline, { TeamTray, type TeamActions } from "../components/TeamTimeline";
 import IdleGaps from "../components/IdleGaps";
 import TeamWeeklyLoad from "../components/TeamWeeklyLoad";
+import type { TimelineHandle } from "../components/Timeline";
 import TimelineDndContext from "../components/TimelineDndContext";
 import { useBaselinePick, useDropUnknownPick } from "../hooks/useBaselinePick";
 import { useCriticalPathPick } from "../hooks/useCriticalPathPick";
@@ -38,6 +39,7 @@ import { useDialogFocus } from "../hooks/useDialogFocus";
 import { isOneOf, useStoredState } from "../hooks/useStoredState";
 import { useProposalFocus } from "../hooks/useProposalFocus";
 import { useProposalLock } from "../hooks/useProposalLock";
+import { useRowMenuFocus } from "../hooks/useRowMenuFocus";
 import { useScheduleCheck } from "../hooks/useScheduleCheck";
 import { useScheduleProposal } from "../hooks/useScheduleProposal";
 import { useTeamOrder } from "../hooks/useTeamOrder";
@@ -45,7 +47,7 @@ import { useJiraBarsPick } from "../hooks/useJiraBarsPick";
 import { useTeamSchedule } from "../hooks/useTeamSchedule";
 import { baselineDays } from "../utils/baselineOverlay";
 import { localIsoDate } from "../utils/isoDate";
-import { jiraPageRange } from "../utils/jiraBars";
+import { jiraPageRange, jiraScheduleDates } from "../utils/jiraBars";
 import { teamMarks } from "../utils/jiraMarks";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { loadErrorMessage } from "../utils/saveError";
@@ -102,6 +104,9 @@ function TeamPage({ id }: { id: number }) {
   const [scheduling, setScheduling] = useState<Scheduling | null>(null);
   useDialogFocus(scheduling !== null);
   const [confirmReset, setConfirmReset] = useState(false);
+  // "Schedule on Jira's dates" takes the dashed row (and its kebab) away: the focus goes to the milestone's own row (`useRowMenuFocus`).
+  const timelineRef = useRef<TimelineHandle>(null);
+  const rowFocus = useRowMenuFocus(timelineRef);
   // The earliest and latest day this page has shown: the range only ever grows, so a drag never shifts the bars under the pointer.
   const [seen, setSeen] = useState<SeenRange | null>(null);
   // "Today" is the viewer's own calendar day (their local date), not UTC: the today line and the Schedule button agree with their wall calendar.
@@ -155,11 +160,18 @@ function TeamPage({ id }: { id: number }) {
     if (taken || !schedule.has(target.milestone.id)) setScheduling(null);
   });
 
+  /** The dashed row's item: Jira's REAL dates (never the bar's, which may be cut at the window) through the same write path as every other date change. */
+  const scheduleOnJira = (milestone: TeamMilestone) => {
+    const dates = jiraScheduleDates(milestone.jira);
+    if (dates !== null) rowFocus.keep(milestone.id, schedule.commit(milestone.id, dates.start, dates.end, { announce: true }));
+  };
+
   const actions: TeamActions = {
     editSchedule: lock.guarded((milestone: TeamMilestone) => setScheduling({ milestone, revision: view.revision })),
     unschedule: lock.guarded((milestone: TeamMilestone) => schedule.commit(milestone.id, null, null, { announce: true })),
     pin: lock.guarded((milestone: TeamMilestone, pinned: boolean) => schedule.pin(milestone.id, pinned)),
     schedule: lock.guarded(scheduleByButton),
+    scheduleOnJira: lock.guarded(scheduleOnJira),
     move: lock.guarded((milestone: TeamMilestone, delta: -1 | 1) => order.move(milestone.id, delta)),
     moveTo: lock.guarded((milestone: TeamMilestone, edge: "top" | "bottom") => order.moveTo(milestone.id, edge)),
   };
@@ -208,6 +220,7 @@ function TeamPage({ id }: { id: number }) {
               proposal={shown ?? undefined}
               jira={jiraWindowNow}
               criticalPath={criticalPath}
+              timelineRef={timelineRef}
               toolbar={
                 <>
                   <BaselinePicker pick={pick} onPick={setPick} current={view.baseline} disabled={busy || locked} />

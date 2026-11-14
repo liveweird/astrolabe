@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import i18n from "../i18n";
-import { baselineUnscheduledIds, jiraPageRange, jiraRangeDates, jiraTrayBars, jiraTrayRowId, jiraTrayRows, jiraWindow, visibleJiraDates } from "./jiraBars";
+import { baselineUnscheduledIds, jiraPageRange, jiraRangeDates, jiraScheduleDates, jiraTrayBars, jiraTrayRowId, jiraTrayRows, jiraWindow, visibleJiraDates } from "./jiraBars";
 
 const t = i18n.getFixedT("en");
 
@@ -130,5 +130,26 @@ describe("the tray milestones' Jira rows (1.16)", () => {
       ]),
     ).toEqual(new Set([2]));
     expect(jiraTrayRowId(9)).toBe("jira-unscheduled:9");
+  });
+});
+
+describe("jiraScheduleDates (1.17)", () => {
+  test("both dates, in order: exactly the link's dates (also a single day)", () => {
+    expect(jiraScheduleDates({ start: "2026-03-09", end: "2026-04-03" })).toEqual({ start: "2026-03-09", end: "2026-04-03" });
+    expect(jiraScheduleDates({ start: "2026-03-09", end: "2026-03-09" })).toEqual({ start: "2026-03-09", end: "2026-03-09" });
+  });
+
+  test("the REAL dates, even where the bar is drawn cut at the window", () => {
+    const link = { start: "2026-03-09", end: "2090-04-03" };
+    expect(visibleJiraDates(link, { from: "2025-03-02", to: "2028-01-15" })?.end).toBe("2028-01-15");
+    expect(jiraScheduleDates(link)).toEqual(link);
+  });
+
+  test("one date, none, a reversed pair or no link: nothing to write", () => {
+    expect(jiraScheduleDates({ start: "2026-03-09", end: null })).toBeNull();
+    expect(jiraScheduleDates({ start: null, end: "2026-03-09" })).toBeNull();
+    expect(jiraScheduleDates({ start: null, end: null })).toBeNull();
+    expect(jiraScheduleDates({ start: "2026-04-03", end: "2026-03-09" })).toBeNull();
+    expect(jiraScheduleDates(null)).toBeNull();
   });
 });

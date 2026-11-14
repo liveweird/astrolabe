@@ -7,12 +7,13 @@ import type { ProjectMilestone, ProjectView, UpstreamEntity } from "../api/miles
 import { barList, baselineBars, newSince, removedRows } from "../utils/baselineOverlay";
 import { idleBands } from "../utils/idleGaps";
 import { addDays } from "../utils/isoDate";
-import { baselineUnscheduledIds, jiraBar, jiraTrayRowId, jiraTrayRows, siteUrls, type JiraWindow } from "../utils/jiraBars";
+import { baselineUnscheduledIds, jiraBar, jiraScheduleDates, jiraTrayRowId, jiraTrayRows, siteUrls, type JiraWindow } from "../utils/jiraBars";
 import { projectPath } from "../utils/planLinks";
 import { withPinned } from "../utils/pinText";
 import { ghostRowId, projectRowId, summaryCritical, upstreamOf } from "../utils/projectDependencies";
 import type { BarId, RovingTarget, TimelineBandData, TimelineBarData, TimelineRowData } from "../utils/timelineModel";
 import { AppendedRowName, BaselineRowName } from "./BaselineParts";
+import JiraRowMenu from "./JiraRowMenu";
 import { MilestoneFlags } from "./MilestoneFlags";
 import MilestoneMenu, { type MilestoneActions } from "./MilestoneMenu";
 import NameCell from "./MilestoneNameCell";
@@ -224,14 +225,27 @@ export function milestoneRows(
   }));
 }
 
-/** What the appended rows need: the page's options and the tray milestones' Jira bars (`jiraTrayBars`, empty while the "Jira dates" toggle is off). */
-type AppendedOptions = RowOptions & { trayBars: ReadonlyMap<number, TimelineBarData> };
+/**
+ * What the appended rows need: the page's options, the tray milestones' Jira bars (`jiraTrayBars`, empty while the "Jira dates" toggle is off) and the
+ * page's "Schedule on Jira's dates" (1.17).
+ */
+type AppendedOptions = RowOptions & { trayBars: ReadonlyMap<number, TimelineBarData>; scheduleOnJira: (milestone: ProjectMilestone) => void };
+
+/**
+ * The actions cell of a dashed Jira bar's row (1.17): "Schedule on Jira's dates" for a caller who may schedule THIS milestone (its own `can.schedule`)
+ * while Jira's two dates are a usable pair; otherwise `null`, 1.16's cell (no menu, the cell stays a static stop).
+ */
+function jiraRowMenu(milestone: ProjectMilestone | undefined, scheduleOnJira: (milestone: ProjectMilestone) => void): TimelineRowData["cells"][number] {
+  const dates = milestone === undefined || !milestone.can.schedule ? null : jiraScheduleDates(milestone.jira);
+  if (milestone === undefined || dates === null) return null;
+  return (stop: RovingTarget) => <JiraRowMenu name={milestone.name} start={dates.start} end={dates.end} onSchedule={() => scheduleOnJira(milestone)} trigger={stop} />;
+}
 
 /**
  * The baseline's milestones that are gone, and the ones now in the tray that it had scheduled: dimmed rows appended after the current ones, the shadow bar
  * only - plus, on an "unscheduled" row whose milestone Jira dates (1.16), that milestone's dashed Jira bar after the shadow.
  */
-export function baselineRows(view: ProjectView, t: TFunction, { criticalPath, flagsColumn, trayBars }: AppendedOptions): TimelineRowData[] {
+export function baselineRows(view: ProjectView, t: TFunction, { criticalPath, flagsColumn, trayBars, scheduleOnJira }: AppendedOptions): TimelineRowData[] {
   const overlay = view.baseline;
   if (overlay === undefined) return [];
   return removedRows(overlay, view.unscheduled, t).map((row) => ({
@@ -245,7 +259,7 @@ export function baselineRows(view: ProjectView, t: TFunction, { criticalPath, fl
         <Text key="estimate" component="span" size="sm" c="dimmed">
           {t("project.estimateUnit", { count: row.estimateMd })}
         </Text>,
-        null,
+        row.reason === "unscheduled" && trayBars.has(row.milestoneId) ? jiraRowMenu(view.unscheduled.find((m) => m.id === row.milestoneId), scheduleOnJira) : null,
       ],
       flagsColumn ? "" : null,
       criticalPath ? "" : null,
@@ -255,10 +269,10 @@ export function baselineRows(view: ProjectView, t: TFunction, { criticalPath, fl
 }
 
 /**
- * The rows of the tray milestones that Jira dates (1.16) and that have no baseline row: dimmed, the dashed Jira bar only, no menu, never an arrow end,
- * after the baseline's rows. Scheduling stays in the tray; once scheduled the milestone's own row carries the same bar.
+ * The rows of the tray milestones that Jira dates (1.16) and that have no baseline row: dimmed, the dashed Jira bar only, never an arrow end,
+ * after the baseline's rows. Its menu (for whoever may schedule the milestone) is "Schedule on Jira's dates"; once scheduled the milestone's own row carries the same bar.
  */
-export function jiraRows(view: ProjectView, t: TFunction, { criticalPath, flagsColumn, trayBars }: AppendedOptions): TimelineRowData[] {
+export function jiraRows(view: ProjectView, t: TFunction, { criticalPath, flagsColumn, trayBars, scheduleOnJira }: AppendedOptions): TimelineRowData[] {
   const taken = baselineUnscheduledIds(view.baseline === undefined ? [] : removedRows(view.baseline, view.unscheduled, t));
   return jiraTrayRows(view.unscheduled, trayBars, taken).map((milestone) => ({
     id: jiraTrayRowId(milestone.id),
@@ -271,7 +285,7 @@ export function jiraRows(view: ProjectView, t: TFunction, { criticalPath, flagsC
         <Text key="estimate" component="span" size="sm" c="dimmed">
           {estimateText(t, milestone)}
         </Text>,
-        null,
+        jiraRowMenu(milestone, scheduleOnJira),
       ],
       flagsColumn ? "" : null,
       criticalPath ? "" : null,
