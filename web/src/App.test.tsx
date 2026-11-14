@@ -361,13 +361,13 @@ describe("App shell", () => {
       expect(screen.queryByText(NOTICE)).not.toBeInTheDocument();
     });
 
-    test("the login page does not check", async () => {
+    test("the login page checks too (1.20): a signed-out tab learns of a deploy", async () => {
       localStorage.clear();
       const fetchMock = stubServed("other99");
       renderApp("/login");
       expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
-      expect(screen.queryByText(NOTICE)).not.toBeInTheDocument();
-      expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith("/index.html"))).toBe(false);
+      expect(await screen.findByText(NOTICE)).toBeInTheDocument();
+      expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith("/index.html"))).toBe(true);
     });
   });
 

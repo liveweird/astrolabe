@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Center, Group, Paper, Stack, Title } from "@mantine/core";
 import { usePageTitle } from "../hooks/usePageTitle";
 import BrandLogo from "./BrandLogo";
+import UpdateBanner from "./UpdateBanner";
 import VersionStamp from "./VersionStamp";
 
 interface Props {
@@ -14,7 +15,8 @@ interface Props {
 /**
  * The shared scaffold of the unauthenticated pages (Login): a soft brand-tinted canvas
  * (scheme-aware — a faint radial cyan wash) holding a lifted card with the brand lockup,
- * a dimmed page title, and the VersionStamp underneath. The child structure and all text
+ * a dimmed page title, and the VersionStamp underneath. The deploy notice (UpdateBanner) sits above the card, as wide
+ * as it, so a tab left open on a public page learns of a new build too. The child structure and all text
  * are pinned by tests; only the frame is decorative.
  */
 export default function AuthCard({ title, children }: Props) {
@@ -33,6 +35,7 @@ export default function AuthCard({ title, children }: Props) {
       }}
     >
       <Stack gap="sm">
+        <UpdateBanner />
         <Paper shadow="lg" p="xl" radius="lg" w={384} withBorder>
           <Stack>
             <Stack align="center" gap="xs">

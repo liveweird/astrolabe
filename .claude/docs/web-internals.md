@@ -215,9 +215,9 @@ The rules are in `web/CLAUDE.md` "Error handling"; the wiring:
   returns the meta's content; it REJECTS on a non-200, a body without the meta (a JSON stub, an older shell), an empty content or a failed fetch ("could not tell" is never "equal").
   `hooks/useServedBuild.ts` is the one query `["build"]` (focus refetch with no `staleTime`, every 5 minutes while visible, `retry: false`; off when `__APP_COMMIT__` is `unknown`, a build without git):
   `outdated` = an answer arrived and differs from the bundle's commit (inequality, so a rollback prompts too); a failed re-check keeps the last answer, an equal one clears it.
-  `components/UpdateBanner.tsx` is mounted once at the top of `AppShell.Main` (outside the route boundary: it survives navigation and a page crash): a gray `role="status"` line and a "Reload"
-  button (`common.action.reload`, shared with the crash fallback), nothing in the DOM otherwise. It sits in the authenticated shell only, so the login page never checks (the shell checks right
-  after sign-in). Limits: a tab opened before 1.17 has no check and must be reloaded by hand once; a rebuilt image of the SAME commit is not noticed; during a rolling deploy a tab may be
+  `components/UpdateBanner.tsx` is mounted at the top of `AppShell.Main` (outside the route boundary: it survives navigation and a page crash) and, since 1.20, at the top of `AuthCard`
+  (above the card, as wide as it: the login and the two password-reset pages, so a tab left open there learns too; the shell and a public page are never on screen together): a gray `role="status"` line and a "Reload"
+  button (`common.action.reload`, shared with the crash fallback), nothing in the DOM otherwise. The three public pages' tests stub `__APP_COMMIT__` to `unknown` (the check off: under vitest it is the real commit and would fetch `index.html`). Limits: a tab opened before 1.17 has no check and must be reloaded by hand once; a rebuilt image of the SAME commit is not noticed; during a rolling deploy a tab may be
   prompted, reload onto the old build and be prompted again until the rollout ends.
 - **Query retry policy**: the `QueryClient` in `main.tsx` uses `shouldRetryQuery` (`api/http.ts`) — a 4xx is never retried (the answer won't change; retrying
   only delays the error UI), at most two retries for transient failures.

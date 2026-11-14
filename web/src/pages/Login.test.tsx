@@ -24,6 +24,7 @@ const SESSION = {
 describe("Login", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", vi.fn());
+    vi.stubGlobal("__APP_COMMIT__", "unknown"); // the deploy check (AuthCard) is off: it would fetch index.html
   });
 
   afterEach(() => {
@@ -203,5 +204,37 @@ describe("Login", () => {
       "href",
       "/reset-password",
     );
+  });
+
+  describe("the deploy check", () => {
+    function stubServed(body: Response | Error) {
+      vi.stubGlobal("__APP_COMMIT__", "bundle1");
+      fetchMock().mockImplementation(() => (body instanceof Error ? Promise.reject(body) : Promise.resolve(body.clone())));
+    }
+    const served = (commit: string) => new Response(`<meta name="astrolabe-build" content="${commit}">`, { status: 200 });
+
+    test("another served build shows the notice and Reload on the login page", async () => {
+      stubServed(served("other99"));
+      renderWithProviders(<Login />, { route: "/login" });
+      expect(await screen.findByText("A new version of Astrolabe is available. Reload the page to use it.")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Reload" })).toBeInTheDocument();
+    });
+
+    test("the same served build shows nothing", async () => {
+      stubServed(served("bundle1"));
+      renderWithProviders(<Login />, { route: "/login" });
+      await waitFor(() => expect(fetchMock()).toHaveBeenCalled());
+      await act(() => Promise.resolve());
+      expect(screen.queryByRole("button", { name: "Reload" })).not.toBeInTheDocument();
+    });
+
+    test("a shell that cannot be read shows nothing", async () => {
+      stubServed(new Error("offline"));
+      renderWithProviders(<Login />, { route: "/login" });
+      await waitFor(() => expect(fetchMock()).toHaveBeenCalled());
+      await act(() => Promise.resolve());
+      expect(screen.queryByRole("button", { name: "Reload" })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument();
+    });
   });
 });

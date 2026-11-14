@@ -5,7 +5,7 @@ import { useServedBuild } from "../hooks/useServedBuild";
 /**
  * The deploy notice (1.17): one line at the top of the main area, above every page, once the server serves another
  * build than this tab runs. Not a toast and not a dialog; nothing is dismissed (it stays until the reload) and
- * nothing reloads by itself. Gray, the neutral state. Mounted once in the shell (App.tsx).
+ * nothing reloads by itself. Gray, the neutral state. Mounted once in the shell (App.tsx) and once in AuthCard (the three public pages), which are never on screen together.
  */
 export default function UpdateBanner() {
   const { t } = useTranslation();

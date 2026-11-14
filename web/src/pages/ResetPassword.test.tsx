@@ -7,6 +7,7 @@ import { renderWithProviders } from "../test/render";
 describe("ResetPassword page", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", vi.fn());
+    vi.stubGlobal("__APP_COMMIT__", "unknown"); // the deploy check (AuthCard) is off: it would fetch index.html
   });
 
   afterEach(() => {
@@ -75,5 +76,14 @@ describe("ResetPassword page", () => {
       "href",
       "/login",
     );
+  });
+
+  test("another served build shows the deploy notice", async () => {
+    vi.stubGlobal("__APP_COMMIT__", "bundle1");
+    vi.mocked(globalThis.fetch).mockImplementation(() =>
+      Promise.resolve(new Response('<meta name="astrolabe-build" content="other99">', { status: 200 })));
+    renderWithProviders(<ResetPassword />, { route: "/reset-password" });
+    expect(await screen.findByText("A new version of Astrolabe is available. Reload the page to use it.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reload" })).toBeInTheDocument();
   });
 });
