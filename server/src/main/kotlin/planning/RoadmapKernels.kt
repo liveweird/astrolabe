@@ -14,6 +14,17 @@ data class PlanProjectFact(val id: UInt, val rankPosition: Int?, val target: Day
 data class PlanLinkFact(val id: UInt, val predecessor: EndpointRef, val successor: EndpointRef, val type: DependencyType, val lagDays: Int)
 
 /**
+ * A stored link whose two ends resolve to known projects, with the project each end sits in and its [check] on the planned dates
+ * ([RoadmapKernels.checkedLinks]). A link inside one project has equal project ids.
+ */
+data class CheckedLink(
+    val link: PlanLinkFact,
+    val predecessorProjectId: UInt,
+    val successorProjectId: UInt,
+    val check: DependencyCheck,
+)
+
+/**
  * The order of a project's flags: WARNING before INFO, then the kind, the team and the other project (ids start at 1), then a Jira
  * flag's deviation kind (the kernel's own order).
  */
@@ -89,11 +100,36 @@ object RoadmapKernels {
     private fun days(early: LocalDate, late: LocalDate): Int? = ChronoUnit.DAYS.between(early, late).toInt().takeIf { it > 0 }
 
     /**
-     * The links between PROJECTS, rolled up per ORDERED pair (predecessor project, successor project), ordered by that pair. Each end
-     * resolves to its project (a milestone's own, a project itself) and span (the milestone's dates, the project's derived span from
-     * [spans]); a link inside one project, or with an end whose project is not among [projects], is skipped. A PROJECT-to-PROJECT link
-     * is the pair's `direct` entry; every other link counts in `milestoneLinks`, checked on [calendar]'s working days like the
-     * project view's ([DependencyKernels.check]).
+     * Every link whose two ends resolve, checked, in the order of [links]. Each end resolves to its project (a milestone's own, a
+     * project itself) and span (the milestone's dates, the project's derived span from [spans]); a link with an end whose project is not
+     * among [projects] is dropped. A link INSIDE one project is kept (the roll-up [aggregate] skips it; the home figures count it).
+     * Checked on [calendar]'s working days like the project view's ([DependencyKernels.check]).
+     */
+    fun checkedLinks(
+        links: Collection<PlanLinkFact>,
+        projects: Collection<PlanProjectFact>,
+        milestones: Collection<PlanMilestoneFact>,
+        spans: Map<UInt, DaySpan>,
+        calendar: WorkingCalendar,
+    ): List<CheckedLink> {
+        val known = projects.map { it.id }.toSet()
+        val milestoneById = milestones.associateBy { it.id }
+        fun resolve(ref: EndpointRef): Pair<UInt, DaySpan?>? = when (ref.kind) {
+            EndpointKind.PROJECT -> if (ref.id in known) ref.id to spans[ref.id] else null
+            EndpointKind.MILESTONE -> milestoneById[ref.id]?.takeIf { it.projectId in known }?.let { it.projectId to it.span }
+        }
+        return links.mapNotNull { link ->
+            val (predProject, predSpan) = resolve(link.predecessor) ?: return@mapNotNull null
+            val (succProject, succSpan) = resolve(link.successor) ?: return@mapNotNull null
+            CheckedLink(link, predProject, succProject, DependencyKernels.check(link.type, link.lagDays, predSpan, succSpan, calendar))
+        }
+    }
+
+    /**
+     * The links between PROJECTS, rolled up per ORDERED pair (predecessor project, successor project), ordered by that pair; a link
+     * inside one project, or with an end whose project is not among [projects], is skipped. A PROJECT-to-PROJECT link is the pair's
+     * `direct` entry; every other link counts in `milestoneLinks`. Checked like the project view's ([checkedLinks]); this is the
+     * fold [aggregate] of them.
      */
     fun linkAggregates(
         links: Collection<PlanLinkFact>,
@@ -101,26 +137,21 @@ object RoadmapKernels {
         milestones: Collection<PlanMilestoneFact>,
         spans: Map<UInt, DaySpan>,
         calendar: WorkingCalendar,
-    ): List<RoadmapLink> {
-        val known = projects.map { it.id }.toSet()
-        val milestoneById = milestones.associateBy { it.id }
-        fun resolve(ref: EndpointRef): Pair<UInt, DaySpan?>? = when (ref.kind) {
-            EndpointKind.PROJECT -> if (ref.id in known) ref.id to spans[ref.id] else null
-            EndpointKind.MILESTONE -> milestoneById[ref.id]?.takeIf { it.projectId in known }?.let { it.projectId to it.span }
-        }
+    ): List<RoadmapLink> = aggregate(checkedLinks(links, projects, milestones, spans, calendar))
+
+    /** The roll-up of already [checked] links per ordered project pair ([linkAggregates]'s second half; no I/O, no check is redone). */
+    fun aggregate(checked: Collection<CheckedLink>): List<RoadmapLink> {
         val pairs = sortedMapOf<Pair<UInt, UInt>, Bundle>(compareBy<Pair<UInt, UInt>>({ it.first }, { it.second }))
-        for (link in links) {
-            val (predProject, predSpan) = resolve(link.predecessor) ?: continue
-            val (succProject, succSpan) = resolve(link.successor) ?: continue
-            if (predProject == succProject) continue
-            val check = DependencyKernels.check(link.type, link.lagDays, predSpan, succSpan, calendar)
-            val bundle = pairs.getOrPut(predProject to succProject) { Bundle() }
+        for (c in checked) {
+            if (c.predecessorProjectId == c.successorProjectId) continue
+            val link = c.link
+            val bundle = pairs.getOrPut(c.predecessorProjectId to c.successorProjectId) { Bundle() }
             if (link.predecessor.kind == EndpointKind.PROJECT && link.successor.kind == EndpointKind.PROJECT) {
-                bundle.direct = RoadmapDirectLink(link.id, link.type, link.lagDays, check)
+                bundle.direct = RoadmapDirectLink(link.id, link.type, link.lagDays, c.check)
             } else {
                 bundle.count++
-                if (check.status == DependencyStatus.VIOLATED) bundle.violated++
-                if (check.status == DependencyStatus.UNSCHEDULED) bundle.unscheduled++
+                if (c.check.status == DependencyStatus.VIOLATED) bundle.violated++
+                if (c.check.status == DependencyStatus.UNSCHEDULED) bundle.unscheduled++
             }
         }
         return pairs.map { (pair, b) ->

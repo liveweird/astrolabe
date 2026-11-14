@@ -29,6 +29,13 @@ internal class RoadmapSnapshot(
     val linkFacts: List<PlanLinkFact>,
     /** The external-tracker connections the bindings in scope link to ([ExternalFlags.sites]; empty without a source or a binding). */
     val jiraSites: List<JiraSite> = emptyList(),
+    /**
+     * Every active link whose two ends resolve to a project in scope, checked ([RoadmapKernels.checkedLinks]), a link inside one
+     * project included (`links` skips those). Empty when the snapshot skipped the links.
+     */
+    val checkedLinks: List<CheckedLink> = emptyList(),
+    /** The external flags of the milestones the source answered for, by milestone id (empty without a source or a binding). */
+    val milestoneFlags: Map<UInt, List<PlanFlag>> = emptyMap(),
 )
 
 /** A project row with the owner chain `can.editTargetWindow` needs; [loadRoadmapSnapshot] completes it into a [RoadmapProject]. */
@@ -84,8 +91,10 @@ internal suspend fun loadRoadmapSnapshot(
         .map { (id, name) -> RoadmapTeam(id, name) }
         .sortedWith(compareBy({ it.name.lowercase() }, { it.id }))
     val linkRows = if (withLinks) linkFacts() else emptyList()
-    val links = if (withLinks) RoadmapKernels.linkAggregates(linkRows, projectFacts, facts, spans, calendar) else emptyList()
-    return RoadmapSnapshot(projects, teams, links, spans, calendar, facts, linkRows, outside.sites)
+    val checked = if (withLinks) RoadmapKernels.checkedLinks(linkRows, projectFacts, facts, spans, calendar) else emptyList()
+    val links = RoadmapKernels.aggregate(checked)
+    val milestoneFlags = outside.milestones.mapValues { it.value.flags }
+    return RoadmapSnapshot(projects, teams, links, spans, calendar, facts, linkRows, outside.sites, checked, milestoneFlags)
 }
 
 /**

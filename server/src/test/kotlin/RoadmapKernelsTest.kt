@@ -1,6 +1,7 @@
 package ch.nokillswit
 
 import ch.nokillswit.infra.time.WorkingCalendar
+import ch.nokillswit.planning.CheckedLink
 import ch.nokillswit.planning.DaySpan
 import ch.nokillswit.planning.DependencyStatus
 import ch.nokillswit.planning.DependencyType
@@ -19,6 +20,7 @@ import java.time.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /**
  * The pure roadmap arithmetic (no server, no database): table-driven, dates on the 2027 calendar - 2027-02-01 and 2027-03-01 are
@@ -308,6 +310,69 @@ class RoadmapKernelsTest {
             link(36u, projectEnd(1u), projectEnd(2u)),
         )
         assertEquals(listOf(1u to 2u, 2u to 3u, 3u to 1u), links.map { it.predecessorProjectId to it.successorProjectId })
+    }
+
+    // The checked links (1.18): what the roll-up folds, kept per link.
+    private fun checked(vararg links: PlanLinkFact): List<CheckedLink> =
+        RoadmapKernels.checkedLinks(links.toList(), projects, milestones, spans, WorkingCalendar.MON_FRI)
+
+    @Test
+    fun `a link inside one project is listed with its check, which the roll-up then skips`() {
+        val inside = checked(link(40u, milestoneEnd(1u), milestoneEnd(6u))).single()
+        assertEquals(1u to 1u, inside.predecessorProjectId to inside.successorProjectId)
+        assertEquals(DependencyStatus.UNSCHEDULED, inside.check.status, "m6 is unscheduled")
+        assertTrue(RoadmapKernels.aggregate(listOf(inside)).isEmpty())
+        val violated = checked(link(41u, milestoneEnd(2u), milestoneEnd(2u))).single()
+        assertEquals(DependencyStatus.VIOLATED, violated.check.status, "an end cannot follow itself")
+    }
+
+    @Test
+    fun `an end that resolves to no known project drops the link, the others keep the input order`() {
+        val all = checked(
+            link(50u, projectEnd(1u), projectEnd(99u)),
+            link(51u, milestoneEnd(99u), milestoneEnd(1u)),
+            link(52u, projectEnd(2u), projectEnd(1u)),
+            link(53u, milestoneEnd(1u), milestoneEnd(2u)),
+        )
+        assertEquals(listOf(52u, 53u), all.map { it.link.id })
+        assertEquals(listOf(2u to 1u, 1u to 2u), all.map { it.predecessorProjectId to it.successorProjectId })
+    }
+
+    @Test
+    fun `a project end takes the project's derived span and an unscheduled end reads UNSCHEDULED`() {
+        // P1 02-01..02-05 -> P2 02-08..02-12 is fine on the derived spans; the same link read on a milestone of P1 is the same days.
+        assertEquals(DependencyStatus.OK, checked(link(60u, projectEnd(1u), projectEnd(2u))).single().check.status)
+        assertEquals(DependencyStatus.OK, checked(link(61u, milestoneEnd(1u), projectEnd(2u))).single().check.status)
+        assertEquals(DependencyStatus.VIOLATED, checked(link(62u, projectEnd(2u), projectEnd(1u))).single().check.status)
+        assertEquals(DependencyStatus.UNSCHEDULED, checked(link(63u, projectEnd(1u), projectEnd(3u))).single().check.status)
+        assertEquals(DependencyStatus.UNSCHEDULED, checked(link(64u, milestoneEnd(1u), milestoneEnd(3u))).single().check.status)
+    }
+
+    @Test
+    fun `links inside one project and links outside the plan, mixed in anywhere, leave the roll-up unchanged`() {
+        val links = arrayOf(
+            link(70u, milestoneEnd(1u), milestoneEnd(2u)),
+            link(71u, milestoneEnd(1u), projectEnd(2u)),
+            link(72u, projectEnd(1u), milestoneEnd(2u)),
+            link(73u, milestoneEnd(1u), milestoneEnd(3u)),
+            link(74u, projectEnd(1u), projectEnd(2u)),
+            link(75u, milestoneEnd(2u), milestoneEnd(1u)),
+            link(76u, milestoneEnd(2u), milestoneEnd(3u)),
+            link(77u, projectEnd(1u), projectEnd(99u)),
+            link(78u, projectEnd(3u), projectEnd(1u)),
+        )
+        val noise = arrayOf(
+            link(80u, milestoneEnd(1u), milestoneEnd(6u)),
+            link(81u, milestoneEnd(2u), milestoneEnd(2u)),
+            link(82u, milestoneEnd(99u), milestoneEnd(1u)),
+        )
+        val crossOnly = RoadmapKernels.aggregate(checked(*links))
+        assertTrue(crossOnly.isNotEmpty())
+        // The noise interleaved at the front, the middle and the end: the fold over the kept checks reads the same.
+        val mixed = arrayOf(noise[0], *links.copyOfRange(0, 4), noise[1], *links.copyOfRange(4, links.size), noise[2])
+        assertEquals(crossOnly, RoadmapKernels.aggregate(checked(*mixed)))
+        // Every in-plan link is kept with its check; the two with an end outside the plan (77, 82) are dropped.
+        assertEquals(mixed.size - 2, checked(*mixed).size)
     }
 
     // ---------------------------------------------------------------------------------------------------------------- counts
