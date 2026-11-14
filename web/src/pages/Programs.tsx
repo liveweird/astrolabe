@@ -4,6 +4,7 @@ import { IconArrowsMaximize, IconArrowsMinimize, IconListTree } from "@tabler/ic
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { getProgramsView, programsViewKey, type ProgramsView } from "../api/programs";
+import type { RoadmapProject } from "../api/roadmap";
 import BaselinePicker from "../components/BaselinePicker";
 import BaselineTotals from "../components/BaselineTotals";
 import { ShowWithoutBaseline } from "../components/BaselineParts";
@@ -17,10 +18,13 @@ import PageHeader from "../components/PageHeader";
 import type { WindowActions } from "../components/PlanProjectCells";
 import ProgramPickField from "../components/ProgramPickField";
 import ProgramsTimeline from "../components/ProgramsTimeline";
+import RoadmapCriticalChain from "../components/RoadmapCriticalChain";
+import RoadmapCriticalPicker from "../components/RoadmapCriticalPicker";
 import TargetWindowModal from "../components/TargetWindowModal";
 import type { TimelineHandle } from "../components/Timeline";
 import TimelineDndContext from "../components/TimelineDndContext";
 import { useBaselinePick, useDropUnknownPick, withoutStaleOverlay } from "../hooks/useBaselinePick";
+import { isRejectedTarget, useCriticalAnnouncement, useCriticalTarget } from "../hooks/useCriticalTarget";
 import { useJiraBarsPick } from "../hooks/useJiraBarsPick";
 import { usePlanScale } from "../hooks/usePlanScale";
 import { useProgramPick } from "../hooks/useProgramPick";
@@ -31,6 +35,7 @@ import { localIsoDate } from "../utils/isoDate";
 import { jiraWindow } from "../utils/jiraBars";
 import { projectOfWindowBar } from "../utils/planTrack";
 import { allOpen, arrowAnchors, defaultOpen, isNodeRow, programChoices, toggled, treeDates, treeFacts, treeProjects, treeRows } from "../utils/programsTree";
+import { withoutCriticalPath } from "../utils/roadmapCritical";
 import { pickAmong } from "../utils/roadmapRows";
 import { applyProgramsWindow } from "../utils/targetWindowUpdate";
 
@@ -73,25 +78,46 @@ export default function Programs() {
   // v0.9: the baseline pick (one for every timeline page) keys the view's query - the window write path's optimistic step too; the typed 400
   // "unknown baseline" clears it. `keepPreviousData` keeps the page (and the focused picker) while another pick loads, without the old overlay.
   const { pick, setPick } = useBaselinePick();
-  const query = useQuery({ queryKey: programsViewKey(pick), queryFn: () => getProgramsView(pick), placeholderData: keepPreviousData });
-  const view = withoutStaleOverlay(query.data, query.isPlaceholderData);
+  // 1.16: so does the critical-path target (page-local, not stored: a question the viewer asks), whose block belongs to the entry that fetched it - the
+  // kept previous copy shows none of the old target's chain. A plain 400 for the target (the project is gone) clears it and the page says so inline.
+  const critical = useCriticalTarget();
+  const query = useQuery({ queryKey: programsViewKey(pick, critical.target), queryFn: () => getProgramsView(pick, critical.target), placeholderData: keepPreviousData });
+  const overlaid = withoutStaleOverlay(query.data, query.isPlaceholderData);
+  const view = overlaid !== undefined && query.isPlaceholderData ? withoutCriticalPath(overlaid) : overlaid;
   const dropping = useDropUnknownPick(query.error, pick, setPick);
+  if (critical.target !== null && isRejectedTarget(query.error)) critical.reject();
   const empty = view !== undefined && view.workStreams.length === 0;
 
   return (
     <Stack gap="md">
       <PageHeader title={t("programs.title")} description={t("programs.intro")} />
+      {critical.rejected && <FormErrorAlert>{t("roadmap.critical.unknown")}</FormErrorAlert>}
       {query.isError && !dropping && <ErrorAlert error={query.error} title={t("programs.loadFailed")} />}
       {pick !== null && query.isError && !dropping && view === undefined && <ShowWithoutBaseline onClick={() => setPick(null)} />}
       {(query.isLoading || dropping) && <LoadingBlock />}
       {empty && <EmptyState icon={IconListTree} label={t("programs.empty")} hint={t("programs.emptyHint")} />}
-      {view && !empty && <ProgramsBody view={view} pick={pick} onPick={setPick} loading={query.isPlaceholderData} />}
+      {view && !empty && <ProgramsBody view={view} pick={pick} onPick={setPick} target={critical.target} onTarget={critical.set} loading={query.isPlaceholderData} />}
     </Stack>
   );
 }
 
 /** The page below the title once the plan has work streams: the facts, the pick, the expand/collapse buttons and the timeline. */
-function ProgramsBody({ view, pick: baselinePick, onPick, loading }: { view: ProgramsView; pick: number | null; onPick: (id: number | null) => void; loading: boolean }) {
+function ProgramsBody({
+  view,
+  pick: baselinePick,
+  onPick,
+  target,
+  onTarget,
+  loading,
+}: {
+  view: ProgramsView;
+  pick: number | null;
+  onPick: (id: number | null) => void;
+  /** The critical-path target (1.16) and its setter. */
+  target: number | null;
+  onTarget: (id: number | null) => void;
+  loading: boolean;
+}) {
   const { t } = useTranslation();
   const [storedPick, setPick] = useProgramPick();
   // The expanded set is page state, not persisted. Until the user first changes it the defaults apply (every work stream open), so a stream that
@@ -135,16 +161,27 @@ function ProgramsBody({ view, pick: baselinePick, onPick, loading }: { view: Pro
   const announce = (text: string) => setAnnouncement((previous) => (previous.endsWith(REREAD) ? text : text + REREAD));
   const windowWrite = useTargetWindow({
     view,
-    queryKey: programsViewKey(baselinePick),
+    queryKey: programsViewKey(baselinePick, target),
     apply: applyProgramsWindow,
     nameOf: (current, id) => treeProjects(current).find((project) => project.id === id)?.name,
     announce,
     loading,
   });
   const writing = windowWrite.pending;
+  // The critical path toward `project` (or none). Hiding is said at once; showing is said by the hook once the chain has ARRIVED (the change is a bar
+  // outline and a panel, so the live region carries it) - never on the pick itself, which the server may still reject.
+  const projects = treeProjects(view);
+  const showCriticalTo = (project: RoadmapProject | null) => {
+    onTarget(project?.id ?? null);
+    if (project === null) announce(t("roadmap.announce.criticalCleared"));
+  };
+  useCriticalAnnouncement(
+    projects.find((project) => project.id === view.criticalPath?.projectId),
+    announce,
+  );
   // The dialog is open on one project: read from the view on every render, closed when the project has left it.
   const [editingId, setEditingId] = useState<number | null>(null);
-  const editing = editingId === null ? undefined : treeProjects(view).find((project) => project.id === editingId);
+  const editing = editingId === null ? undefined : projects.find((project) => project.id === editingId);
   if (editingId !== null && editing === undefined) setEditingId(null);
   const closeDialog = (id: number) => {
     setEditingId(null);
@@ -195,7 +232,7 @@ function ProgramsBody({ view, pick: baselinePick, onPick, loading }: { view: Pro
           </Button>
         </Group>
       </Group>
-      {view.baseline !== undefined && <BaselineTotals name={view.baseline.name} totals={projectTotals(treeProjects(view), view.baseline.removedProjects.length)} />}
+      {view.baseline !== undefined && <BaselineTotals name={view.baseline.name} totals={projectTotals(projects, view.baseline.removedProjects.length)} />}
       <FilterPanel activeFilterCount={pick === null ? 0 : 1} storageKey="programs">
         <ProgramPickField programs={choices} pick={[...(pick ?? [])]} onPick={setPick} />
       </FilterPanel>
@@ -239,15 +276,26 @@ function ProgramsBody({ view, pick: baselinePick, onPick, loading }: { view: Pro
             label={t("programs.timelineAria")}
             timelineRef={timelineRef}
             jira={jira}
+            criticalPath={view.criticalPath}
+            critical={{ target, disabled: writing, toggle: (project) => showCriticalTo(project.id === target ? null : project) }}
             toolbar={
               <>
                 <BaselinePicker pick={baselinePick} onPick={onPick} current={view.baseline} disabled={writing} />
+                <RoadmapCriticalPicker projects={projects} target={target} onPick={(id) => showCriticalTo(projects.find((project) => project.id === id) ?? null)} disabled={writing} />
                 {view.jiraSites.length > 0 && <JiraBarsToggle shown={jiraBars.shown} onChange={jiraBars.setShown} />}
               </>
             }
           />
         </Stack>
       </TimelineDndContext>
+
+      <RoadmapCriticalChain
+        projects={projects}
+        criticalPath={view.criticalPath}
+        shown={new Set(rows.flatMap((row) => (row.kind === "project" ? [row.project.id] : [])))}
+        intro="programs.critical.intro"
+        notShown="programs.critical.notShown"
+      />
 
       {editing !== undefined && (
         <TargetWindowModal

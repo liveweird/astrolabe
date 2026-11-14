@@ -3,17 +3,18 @@ import { ActionIcon, Group, Text } from "@mantine/core";
 import { IconChevronDown, IconChevronRight } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
-import type { RoadmapLink, RoadmapProject } from "../api/roadmap";
+import type { RoadmapCriticalPath, RoadmapLink, RoadmapProject } from "../api/roadmap";
 import { useHolidays } from "../hooks/useHolidays";
 import { shadowBar } from "../utils/baselineOverlay";
 import type { JiraWindow } from "../utils/jiraBars";
 import { planArrows, projectTrack, withConflicts } from "../utils/planTrack";
 import { isNodeRow, type NodeRow, type ProjectTreeRow, type RemovedTreeRow, type TreeRow } from "../utils/programsTree";
+import { criticalIndex } from "../utils/roadmapCritical";
 import { conflictsByProject, conflictsByRow, countFlags, rolledUpLinks } from "../utils/roadmapRows";
 import type { BarId, RovingTarget, TimelineBarData, TimelineColumn, TimelineRowData } from "../utils/timelineModel";
 import { PLAN_ZOOMS, type TimelineScale, type Zoom } from "../utils/timelineScale";
 import { BaselineRowName } from "./BaselineParts";
-import { FlagCountsCell, OpenProjectItem, ProjectLink, TargetWindowItems, type WindowActions } from "./PlanProjectCells";
+import { CriticalPathItem, FlagCountsCell, OpenProjectItem, ProjectLink, TargetWindowItems, type WindowActions } from "./PlanProjectCells";
 import RowActionsMenu from "./RowActionsMenu";
 import Timeline, { type TimelineHandle } from "./Timeline";
 import TimelineArrows from "./TimelineArrows";
@@ -97,14 +98,17 @@ function RemovedLabel({ row }: { row: RemovedTreeRow["removed"] }) {
 /**
  * A work stream's or program's summary bar: the span its projects cover, read-only; with a baseline picked the span they had then follows
  * as a thin shadow bar (also where nothing is scheduled any more). `conflicts` = the violated links of the rolled-up arrows that end on the row
- * (1.16), said after the span like a project row's.
+ * (1.16), said after the span like a project row's. `holdsCritical` (1.16) = the row is FOLDED over a project on the picked critical path (it stands for
+ * it, `arrowAnchors`): the bar is outlined and says so; an expanded node is not (its children are).
  */
-function summaryBars(row: NodeRow, t: TFunction, conflicts: number): TimelineBarData[] {
+function summaryBars(row: NodeRow, t: TFunction, conflicts: number, holdsCritical: boolean): TimelineBarData[] {
   const bars: TimelineBarData[] = [];
   if (row.span !== null) {
     const { start, end } = row.span;
     const key = row.kind === "workStream" ? "programs.streamBarAria" : "programs.programBarAria";
-    bars.push({ id: row.key, start, end, label: row.name, describe: withConflicts(t, t(key, { name: row.name, start, end }), conflicts), editable: false, tone: "summary" });
+    const describe = withConflicts(t, t(key, { name: row.name, start, end }), conflicts);
+    const bar: TimelineBarData = { id: row.key, start, end, label: row.name, describe, editable: false, tone: "summary" };
+    bars.push(holdsCritical ? { ...bar, describe: `${describe}, ${t("programs.barCriticalInside")}`, emphasis: "critical" } : bar);
   }
   if (row.baseline !== null) bars.push(shadowBar(row.key, row.name, row.baseline.span, row.baseline.movement, t));
   return bars;
@@ -117,7 +121,9 @@ function summaryBars(row: NodeRow, t: TFunction, conflicts: number): TimelineBar
  * arrows are the links between the projects whose rows are shown and, where a project's row is folded away, between the folded program or work stream
  * that stands for it (`anchors`, one arrow per pair of rows). It must sit inside the page's `TimelineDndContext`; nothing here
  * writes or decides rights - a project's window bar is editable, its draw surface present and its menu offers the window items by the
- * project's own `can.editTargetWindow`, and the page's write path answers the proposals.
+ * project's own `can.editTargetWindow`, and the page's write path answers the proposals. The picked critical path (1.16, `criticalPath`, the roadmap's
+ * block) outlines the project rows on the chain and the arrows of its pairs, and - where the row of a chain project is folded - the folded program or work
+ * stream that stands for it; `critical` is the row menu's "Show / Hide critical path" item.
  */
 export default function ProgramsTimeline({
   links,
@@ -134,6 +140,8 @@ export default function ProgramsTimeline({
   timelineRef,
   toolbar,
   jira,
+  criticalPath,
+  critical,
 }: {
   links: readonly RoadmapLink[];
   rows: readonly TreeRow[];
@@ -156,6 +164,10 @@ export default function ProgramsTimeline({
   toolbar?: ReactNode;
   /** The page's Jira window while the "Jira dates" toggle is on (each project's Jira shadow bar), else `null`. */
   jira: JiraWindow | null;
+  /** The view's critical-path block while a target is set (1.16), else `undefined`: with none, nothing here differs from 1.15. */
+  criticalPath: RoadmapCriticalPath | undefined;
+  /** The row menu's critical-path item: the page's target, whether a write is in flight, and the toggle. */
+  critical: { target: number | null; disabled: boolean; toggle: (project: RoadmapProject) => void };
 }) {
   const { t } = useTranslation();
   const { holidays, failed: holidaysFailed } = useHolidays();
@@ -168,6 +180,9 @@ export default function ProgramsTimeline({
   const conflicts = conflictsByProject(links);
   const anchorOf = (projectId: number) => anchors.get(projectId) ?? null;
   const rowConflicts = conflictsByRow(rolledUpLinks(links, anchorOf));
+  const chain = criticalIndex({ criticalPath });
+  // The folded rows that stand for a project on the chain (a node key, never a project id: an open row's own project bar is emphasised instead).
+  const holdsCritical = new Set<BarId>([...chain.projects].flatMap((id) => anchors.get(id) ?? []).filter((bar) => typeof bar === "string"));
 
   function rowOf(row: TreeRow): TimelineRowData {
     if (row.kind === "removedProject") return { id: row.removed.id, cells: [<RemovedLabel key="name" row={row.removed} />, "", ""], bars: [row.removed.bar] };
@@ -176,7 +191,7 @@ export default function ProgramsTimeline({
         id: row.key,
         // A node with something to expand puts its chevron button on the roving stop; a leaf node is a static cell (the cell is the stop).
         cells: [row.childCount > 0 ? (stop: RovingTarget) => <NodeLabel row={row} onToggle={onToggle} stop={stop} /> : <NodeLabel key="name" row={row} onToggle={onToggle} />, <FlagCountsCell key="flags" counts={row.flags} />, ""],
-        bars: summaryBars(row, t, rowConflicts.get(row.key) ?? 0),
+        bars: summaryBars(row, t, rowConflicts.get(row.key) ?? 0, holdsCritical.has(row.key)),
       };
     }
     const { project } = row;
@@ -187,17 +202,18 @@ export default function ProgramsTimeline({
         <FlagCountsCell key="flags" counts={countFlags(project.flags)} />,
         (stop: RovingTarget) => (
           <RowActionsMenu label={t("common.table.operationsAria", { name: project.name })} trigger={{ ...stop, "data-operations-for": project.id }} onClosed={() => menuClosed(project)}>
+            <CriticalPathItem project={project} target={critical.target} disabled={critical.disabled} onToggle={() => critical.toggle(project)} />
             <TargetWindowItems project={project} actions={windowActions} />
             <OpenProjectItem project={project} />
           </RowActionsMenu>
         ),
       ],
-      ...projectTrack(project, t, conflicts, jira),
+      ...projectTrack(project, t, conflicts, jira, chain.projects.has(project.id)),
     };
   }
 
   const names = new Map<BarId, string>([...projects.map((project) => [project.id, project.name] as const), ...treeRows.filter(isNodeRow).map((row) => [row.key, row.name] as const)]);
-  const arrows = planArrows(t, links, names, anchorOf);
+  const arrows = planArrows(t, links, names, anchorOf, chain.pairs);
 
   return (
     <Timeline

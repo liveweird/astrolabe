@@ -226,7 +226,7 @@ the same commit** — this list is the coverage map, the scenario file is the de
   the pointer (the status says it) and folds it from the keyboard (the chevron button keeps focus), sees the project link as ONE arrow between the rows that stand for its projects (1.16: the two folded programs' rows, a project row and a folded program's row, the
   two project rows; none once the work stream is folded), uses Expand all / Collapse all and switches to Year zoom (the year header); the program pick set on this page narrows the Roadmap after a
   reload and the one set on the Roadmap narrows this page (one shared stored key); a user without any right reads the tree with read-only bars and a row menu that
-  only opens the project.
+  opens the project or shows its critical path.
 - [`password-reset.spec.ts`](scenarios/password-reset.md) — the forgot-password flow:
   neutral confirmation + per-email throttle; the emailed single-use link opened through the
   compose stack's Mailpit keeps the old password until the new one is set, then ends the old

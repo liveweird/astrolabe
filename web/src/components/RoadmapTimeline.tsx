@@ -1,6 +1,6 @@
 import type { ReactNode, Ref } from "react";
 import { Group, Menu, Text, VisuallyHidden } from "@mantine/core";
-import { IconListNumbers, IconRoute, IconX } from "@tabler/icons-react";
+import { IconListNumbers, IconX } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import type { RemovedProject, RoadmapProject, RoadmapView } from "../api/roadmap";
 import { useHolidays } from "../hooks/useHolidays";
@@ -12,7 +12,7 @@ import { conflictsByProject, countFlags, displayRows, DIVIDER_ID, type DisplayRo
 import type { RovingTarget, TimelineColumn, TimelineRowData } from "../utils/timelineModel";
 import { PLAN_ZOOMS, type TimelineScale, type Zoom } from "../utils/timelineScale";
 import { BaselineRowName } from "./BaselineParts";
-import { FlagCountsCell, OpenProjectItem, ProjectLink, TargetWindowItems, type WindowActions } from "./PlanProjectCells";
+import { CriticalPathItem, FlagCountsCell, OpenProjectItem, ProjectLink, TargetWindowItems, type WindowActions } from "./PlanProjectCells";
 import MoveItems from "./MoveItems";
 import RowActionsMenu from "./RowActionsMenu";
 import Timeline, { type TimelineHandle } from "./Timeline";
@@ -111,14 +111,7 @@ function ProjectMenu({
           <Menu.Divider />
         </>
       )}
-      <Menu.Item
-        leftSection={<IconRoute size={14} />}
-        disabled={actions.critical.disabled}
-        onClick={() => actions.critical.toggle(project)}
-        aria-label={t(actions.critical.target === project.id ? "roadmap.action.hideCriticalAria" : "roadmap.action.showCriticalAria", { name })}
-      >
-        {t(actions.critical.target === project.id ? "roadmap.action.hideCritical" : "roadmap.action.showCritical")}
-      </Menu.Item>
+      <CriticalPathItem project={project} target={actions.critical.target} disabled={actions.critical.disabled} onToggle={() => actions.critical.toggle(project)} />
       <TargetWindowItems project={project} actions={actions.window} />
       <OpenProjectItem project={project} />
     </RowActionsMenu>

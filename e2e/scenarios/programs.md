@@ -52,7 +52,7 @@
 4. They open **Programs** and reload.
    - *Expected*: the button "Program B" is shown and "Program A" is not.
 
-## Scenario: a user without any right reads the tree with read-only bars and a row menu that only opens the project
+## Scenario: a user without any right reads the tree with read-only bars and a row menu that opens the project or shows its critical path
 
 1. The admin creates a throwaway user through the Users page, seeds the plan through the API and signs out. The user signs in, the program pick
    is set to programs A and B, and they open **Programs** and press **Expand all**.
@@ -61,7 +61,7 @@
    - *Expected*: there is no row handle; `late`'s target window is an image named "<late>, target window 2026-03-02 to 2026-03-31, read-only"
      and no bar of the page is a button.
 3. They open **Operations for <late>**.
-   - *Expected*: the menu offers exactly one item, **Open project <late>**.
+   - *Expected*: the menu offers exactly two items, **Open project <late>** and **Show critical path to this project: <late>** (1.16).
 4. The user signs out; the admin signs back in and deletes the user.
 
 ## Not covered here (and why)

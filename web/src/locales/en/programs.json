@@ -14,6 +14,7 @@
   "programAria": "Program {{name}}",
   "streamBarAria": "{{name}}, work stream span {{start}} to {{end}}",
   "programBarAria": "{{name}}, program span {{start}} to {{end}}",
+  "barCriticalInside": "holds a project on the critical path",
   "expandAll": "Expand all",
   "collapseAll": "Collapse all",
   "facts": {
@@ -33,5 +34,9 @@
     "collapsed": "{{name}} collapsed",
     "expandedAll": "Every work stream and program expanded",
     "collapsedAll": "Every work stream and program collapsed"
+  },
+  "critical": {
+    "intro": "The projects upstream of {{name}}, from the plan's dates; those with no slack drive its end. Projects in a folded row or outside the program pick are listed too.",
+    "notShown": "(folded or not picked)"
   }
 }

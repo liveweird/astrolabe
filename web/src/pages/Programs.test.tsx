@@ -197,8 +197,8 @@ describe("Programs page", () => {
     expect(liveText()).toContain("Every work stream and program collapsed");
   });
 
-  test("a project row is the roadmap's: the window band, the span bar, the drift band, the flag icons, a menu with only Open project, nothing editable without the right", async () => {
-    // A viewer who may change no window (the view's per-project `can`): the band is an image, there is no draw surface and the menu only opens the project.
+  test("a project row is the roadmap's: the window band, the span bar, the drift band, the flag icons, a menu with only Open project and the critical-path item (no window items), nothing editable without the right", async () => {
+    // A viewer who may change no window (the view's per-project `can`): the band is an image, there is no draw surface and the menu only opens the project or shows its critical path.
     view = viewOf({
       workStreams: [PLATFORM, ARCHIVE].map((stream) => ({
         ...stream,
@@ -216,14 +216,14 @@ describe("Programs page", () => {
     expect(invoices.querySelector("[data-flags]")).toHaveAttribute("data-flags", "1,1");
     expect(invoices).toHaveTextContent("Ola Owner");
     expect(within(grid()).getByRole("link", { name: "Open Invoices" })).toHaveAttribute("href", "/projects/1");
-    // No handle, no button-like bar, no draw surface, one menu item.
+    // No handle, no button-like bar, no draw surface, no window item in the menu (1.16: it holds the critical-path item beside Open project).
     expect(document.querySelectorAll("[data-row-handle]")).toHaveLength(0);
     expect(document.querySelectorAll("[data-draw-surface]")).toHaveLength(0);
     expect(within(grid()).queryByRole("button", { name: /^Invoices, / })).toBeNull();
     expect(within(within(grid()).getByRole("link", { name: "Open Drafts" }).closest('[role="row"]') as HTMLElement).queryByRole("img")).toBeNull();
     await user.click(screen.getByRole("button", { name: "Operations for Invoices" }));
     expect(await screen.findByRole("menuitem", { name: "Open project Invoices" })).toBeInTheDocument();
-    expect(screen.getAllByRole("menuitem")).toHaveLength(1);
+    expect(screen.getAllByRole("menuitem").map((item) => item.getAttribute("aria-label"))).toEqual(["Show critical path to this project: Invoices", "Open project Invoices"]);
   });
 
   test("Month / Quarter / Year with Quarter by default, remembered under the plan pages' own zoom key", async () => {

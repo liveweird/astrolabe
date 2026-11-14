@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Alert, Badge, Group, Loader, Stack, Text, Title, VisuallyHidden } from "@mantine/core";
 import { IconFilterOff, IconListNumbers } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
@@ -22,7 +22,7 @@ import TargetWindowModal from "../components/TargetWindowModal";
 import type { TimelineHandle } from "../components/Timeline";
 import TimelineDndContext from "../components/TimelineDndContext";
 import { useBaselinePick, useDropUnknownPick } from "../hooks/useBaselinePick";
-import { isRejectedTarget, useCriticalTarget } from "../hooks/useCriticalTarget";
+import { isRejectedTarget, useCriticalAnnouncement, useCriticalTarget } from "../hooks/useCriticalTarget";
 import { useJiraBarsPick } from "../hooks/useJiraBarsPick";
 import { usePlanScale } from "../hooks/usePlanScale";
 import { useProgramPick } from "../hooks/useProgramPick";
@@ -194,15 +194,10 @@ function RoadmapBody({
   };
   const pickCriticalTarget = (id: number | null) => showCriticalTo(allProjects(view).find((project) => project.id === id) ?? null);
   // Said once per ARRIVAL of a chain (its target id changes), not per render or refetch; a target with nothing scheduled says so instead.
-  const chainProject = allProjects(view).find((project) => project.id === view.criticalPath?.projectId);
-  const chainId = chainProject?.id ?? null;
-  const announcedChain = useRef<number | null>(null);
-  useEffect(() => {
-    if (chainId === announcedChain.current) return;
-    announcedChain.current = chainId;
-    if (chainProject === undefined) return;
-    ranking.announce(chainProject.span === null ? t("roadmap.critical.nothingScheduled", { name: chainProject.name }) : t("roadmap.announce.criticalShown", { name: chainProject.name }));
-  });
+  useCriticalAnnouncement(
+    allProjects(view).find((project) => project.id === view.criticalPath?.projectId),
+    ranking.announce,
+  );
   const actions: RoadmapActions = {
     menuClosed: (project) => focus.menuClosed(project.id),
     move: (project, delta) => focus.keep(project.id, ranking.move(project.id, delta, visibleRankedIds)),
@@ -269,7 +264,7 @@ function RoadmapBody({
               toolbar={
                 <>
                   <BaselinePicker pick={baselinePick} onPick={onPick} current={view.baseline} disabled={ranking.pending} />
-                  <RoadmapCriticalPicker view={view} target={target} onPick={pickCriticalTarget} disabled={ranking.pending} />
+                  <RoadmapCriticalPicker projects={allProjects(view)} target={target} onPick={pickCriticalTarget} disabled={ranking.pending} />
                   {view.jiraSites.length > 0 && <JiraBarsToggle shown={jiraBars.shown} onChange={jiraBars.setShown} />}
                 </>
               }
@@ -280,7 +275,13 @@ function RoadmapBody({
 
       <RoadmapFlagPanel entries={flagEntries(visible)} names={names} jiraSites={view.jiraSites} onShow={(projectId) => timelineRef.current?.focusRow(projectId)} />
 
-      <RoadmapCriticalChain view={view} shown={new Set([...visible.ranked.map((entry) => entry.project.id), ...visible.unranked.map((project) => project.id)])} />
+      <RoadmapCriticalChain
+        projects={allProjects(view)}
+        criticalPath={view.criticalPath}
+        shown={new Set([...visible.ranked.map((entry) => entry.project.id), ...visible.unranked.map((project) => project.id)])}
+        intro="roadmap.critical.intro"
+        notShown="roadmap.critical.notShown"
+      />
 
       {editing !== undefined && (
         <TargetWindowModal

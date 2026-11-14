@@ -1,5 +1,5 @@
-import type { RoadmapCriticalProject, RoadmapProject, RoadmapView } from "../api/roadmap";
-import { allProjects, pairKey } from "./roadmapRows";
+import type { RoadmapCriticalPath, RoadmapCriticalProject, RoadmapProject, RoadmapView } from "../api/roadmap";
+import { pairKey } from "./roadmapRows";
 
 // The roadmap's critical path toward one picked project (1.7, `GET /views/roadmap?criticalPath=N`): pure reads of the server's `criticalPath` block.
 // The server decides the chain, the slack and the hops; nothing here recomputes them.
@@ -31,11 +31,13 @@ export function withoutCriticalPath<V extends { criticalPath?: unknown }>(view: 
 /** An upstream project joined to its row in the view. */
 export type ChainProject = { project: RoadmapProject; slackDays: number; critical: boolean; hops: number };
 
-/** The panel's rows in the server's order (hops, slack, id); a project the view does not hold is left out (it cannot be named or linked). */
-export function chainProjects(view: Pick<RoadmapView, "ranked" | "unranked" | "criticalPath">): ChainProject[] {
-  const block = view.criticalPath;
+/**
+ * The panel's rows in the server's order (hops, slack, id); a project the page does not hold (`projects`: the roadmap's `allProjects`, the programs
+ * page's `treeProjects`) is left out (it cannot be named or linked).
+ */
+export function chainProjects(projects: readonly RoadmapProject[], block: RoadmapCriticalPath | undefined): ChainProject[] {
   if (block === undefined) return [];
-  const byId = new Map(allProjects(view).map((project) => [project.id, project]));
+  const byId = new Map(projects.map((project) => [project.id, project]));
   return block.projects.flatMap((entry: RoadmapCriticalProject) => {
     const project = byId.get(entry.projectId);
     return project === undefined ? [] : [{ project, slackDays: entry.slackDays, critical: entry.critical, hops: entry.hops }];

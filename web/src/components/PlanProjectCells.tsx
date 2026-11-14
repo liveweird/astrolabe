@@ -1,5 +1,5 @@
 import { Anchor, Badge, Group, Menu, VisuallyHidden } from "@mantine/core";
-import { IconAlertTriangle, IconCalendarEvent, IconCalendarOff, IconExternalLink, IconInfoCircle } from "@tabler/icons-react";
+import { IconAlertTriangle, IconCalendarEvent, IconCalendarOff, IconExternalLink, IconInfoCircle, IconRoute } from "@tabler/icons-react";
 import { Link as RouterLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import type { RoadmapProject } from "../api/roadmap";
@@ -83,6 +83,20 @@ export function OpenProjectItem({ project }: { project: Pick<RoadmapProject, "id
   return (
     <Menu.Item component={RouterLink} to={projectPath(project.id)} leftSection={<IconExternalLink size={14} />} aria-label={t("roadmap.action.openProjectAria", { name: project.name })}>
       {t("roadmap.action.openProject")}
+    </Menu.Item>
+  );
+}
+
+/**
+ * The row menu's critical-path item (1.7 roadmap, 1.16 programs): "Show critical path to this project" or, for the project that is the page's target
+ * (`target`), "Hide critical path". `onToggle` is the page's (it sets or clears the page-local target); `disabled` is "a write is in flight".
+ */
+export function CriticalPathItem({ project, target, disabled, onToggle }: { project: Pick<RoadmapProject, "id" | "name">; target: number | null; disabled: boolean; onToggle: () => void }) {
+  const { t } = useTranslation();
+  const hide = target === project.id;
+  return (
+    <Menu.Item leftSection={<IconRoute size={14} />} disabled={disabled} onClick={onToggle} aria-label={t(hide ? "roadmap.action.hideCriticalAria" : "roadmap.action.showCriticalAria", { name: project.name })}>
+      {t(hide ? "roadmap.action.hideCritical" : "roadmap.action.showCritical")}
     </Menu.Item>
   );
 }

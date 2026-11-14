@@ -14,6 +14,7 @@
   "programAria": "Program {{name}}",
   "streamBarAria": "{{name}}, okres strumienia pracy od {{start}} do {{end}}",
   "programBarAria": "{{name}}, okres programu od {{start}} do {{end}}",
+  "barCriticalInside": "zawiera projekt na ścieżce krytycznej",
   "expandAll": "Rozwiń wszystko",
   "collapseAll": "Zwiń wszystko",
   "facts": {
@@ -43,5 +44,9 @@
     "collapsed": "Zwinięto: {{name}}",
     "expandedAll": "Rozwinięto wszystkie strumienie pracy i programy",
     "collapsedAll": "Zwinięto wszystkie strumienie pracy i programy"
+  },
+  "critical": {
+    "intro": "Projekty poprzedzające projekt {{name}}, według dat z planu; te bez luzu wyznaczają jego koniec. Projekty w zwiniętym wierszu albo poza wyborem programów też są wypisane.",
+    "notShown": "(zwinięty albo poza wyborem)"
   }
 }

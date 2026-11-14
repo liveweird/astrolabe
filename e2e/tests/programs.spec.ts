@@ -3,7 +3,7 @@
 // counts add up the flags of its projects, sees the project link as ONE arrow between the rows that stand for its two projects (the two folded programs'
 // rows, a project row and a folded program's row, the two project rows; none inside a folded work stream), and switches to Year zoom; the program pick set on
 // this page narrows the Roadmap (after a reload) and the one set there narrows this page; a user without any right reads the same tree with
-// read-only bars and a row menu that only opens the project. The pick (a browser setting, `astrolabe.viewSettings.planning.programPick`)
+// read-only bars and a row menu that opens the project or shows its critical path. The pick (a browser setting, `astrolabe.viewSettings.planning.programPick`)
 // narrows every assertion to this spec's own program(s): the compose stack may hold the loaded sample plan, whatever other specs add, and an
 // unfolded grid over 80 rows virtualises. Owns: its throwaway person, team, work stream, two programs, three projects with scheduled milestones,
 // the link between two of them (unique `e2e-pg-*` names) and users, all seeded through the API and removed by the afterEach through the API,
@@ -226,7 +226,7 @@ test("the program pick set on the Programs page narrows the Roadmap after a relo
   await expect(nodeButton(page, `Program ${plan.a}`)).toHaveCount(0);
 });
 
-test("a user without any right reads the tree with read-only bars and a row menu that only opens the project", async ({ page }) => {
+test("a user without any right reads the tree with read-only bars and a row menu that opens the project or shows its critical path", async ({ page }) => {
   await login(page);
   const account = await createUserViaUi(page, "E2E Programs Reader");
   const plan = await seedPlan();
@@ -238,13 +238,14 @@ test("a user without any right reads the tree with read-only bars and a row menu
   await expect(projectRow(page, plan.late)).toBeVisible();
   await expect(nodeRow(page, `Program ${plan.a}`).getByRole("img", { name: `${plan.a}, program span 2026-02-02 to 2026-04-10, read-only` })).toHaveCount(1);
 
-  // Read-only: no row handle, no bar that could be picked up (the project's own span and its window are images), one item in the row menu.
+  // Read-only: no row handle, no bar that could be picked up (the project's own span and its window are images), two items in the row menu (open the project, show its critical path).
   await expect(page.locator("[data-row-handle]")).toHaveCount(0);
   await expect(projectRow(page, plan.late).getByRole("img", { name: `${plan.late}, target window 2026-03-02 to 2026-03-31, read-only` })).toHaveCount(1);
   await expect(grid(page).getByRole("button", { name: new RegExp(`^${plan.late}, `) })).toHaveCount(0);
   await page.getByRole("button", { name: `Operations for ${plan.late}`, exact: true }).click();
   await expect(page.getByRole("menuitem", { name: `Open project ${plan.late}`, exact: true })).toBeVisible();
-  await expect(page.getByRole("menuitem")).toHaveCount(1);
+  await expect(page.getByRole("menuitem", { name: `Show critical path to this project: ${plan.late}`, exact: true })).toBeVisible();
+  await expect(page.getByRole("menuitem")).toHaveCount(2);
   await page.keyboard.press("Escape");
 
   await signOut(page);

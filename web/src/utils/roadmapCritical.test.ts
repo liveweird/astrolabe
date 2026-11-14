@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { RoadmapProject, RoadmapView } from "../api/roadmap";
 import { chainProjects, criticalIndex, withoutCriticalPath } from "./roadmapCritical";
-import { pairKey } from "./roadmapRows";
+import { allProjects, pairKey } from "./roadmapRows";
 
 const project = (id: number, name: string): RoadmapProject =>
   ({ id, name, programName: "Billing", span: { start: "2026-03-02", end: "2026-04-10" } }) as unknown as RoadmapProject;
@@ -39,14 +39,14 @@ describe("criticalIndex", () => {
 
 describe("chainProjects", () => {
   test("the server's order, joined to the view's rows; a project the view does not hold is left out", () => {
-    expect(chainProjects(view(BLOCK)).map((row) => [row.project.name, row.slackDays, row.critical, row.hops])).toEqual([
+    expect(chainProjects(allProjects(view(BLOCK)), BLOCK).map((row) => [row.project.name, row.slackDays, row.critical, row.hops])).toEqual([
       ["Gamma", 0, true, 1],
       ["Beta", 4, false, 2],
     ]);
   });
 
   test("without a block there is nothing to list", () => {
-    expect(chainProjects(view())).toEqual([]);
+    expect(chainProjects(allProjects(view()), undefined)).toEqual([]);
   });
 });
 

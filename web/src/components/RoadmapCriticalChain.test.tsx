@@ -3,6 +3,7 @@ import { screen, within } from "@testing-library/react";
 import RoadmapCriticalChain from "./RoadmapCriticalChain";
 import type { RoadmapCriticalPath, RoadmapProject, RoadmapView } from "../api/roadmap";
 import { renderWithProviders } from "../test/render";
+import { allProjects } from "../utils/roadmapRows";
 
 const project = (id: number, name: string, over: Partial<RoadmapProject> = {}): RoadmapProject =>
   ({ id, name, programName: `Prog ${id}`, span: { start: "2027-02-01", end: "2027-02-26" }, ...over }) as unknown as RoadmapProject;
@@ -14,27 +15,32 @@ const viewOf = (criticalPath: RoadmapCriticalPath | undefined, targetOver: Parti
     ...(criticalPath === undefined ? {} : { criticalPath }),
   }) as unknown as RoadmapView;
 
+/** The panel as the roadmap mounts it. */
+const panel = (view: RoadmapView, shown: ReadonlySet<number>) => (
+  <RoadmapCriticalChain projects={allProjects(view)} criticalPath={view.criticalPath} shown={shown} intro="roadmap.critical.intro" notShown="roadmap.critical.notShown" />
+);
+
 const chain = (projects: RoadmapCriticalPath["projects"], projectId = 1): RoadmapCriticalPath => ({ projectId, projects, pairs: [] });
 const ALL = new Set([1, 2, 3]);
 const cells = (table: HTMLElement) => within(table).getAllByRole("row").slice(1).map((row) => within(row).getAllByRole("cell").map((cell) => cell.textContent));
 
 describe("RoadmapCriticalChain", () => {
   test("no block: nothing at all", () => {
-    renderWithProviders(<RoadmapCriticalChain view={viewOf(undefined)} shown={ALL} />);
+    renderWithProviders(panel(viewOf(undefined), ALL));
     expect(screen.queryByRole("heading")).toBeNull();
   });
 
   test("the target's facts, then the upstream projects in the server's order with hops, program, dates, slack and the chain badge", () => {
     renderWithProviders(
-      <RoadmapCriticalChain
-        view={viewOf(
+      panel(
+        viewOf(
           chain([
             { projectId: 3, slackDays: 0, critical: true, hops: 1 },
             { projectId: 2, slackDays: 6, critical: false, hops: 2 },
           ]),
-        )}
-        shown={ALL}
-      />,
+        ),
+        ALL,
+      ),
     );
     expect(screen.getByRole("heading", { level: 3, name: "Critical path to Alpha" })).toBeInTheDocument();
     expect(screen.getByText("Target: Alpha, 2027-02-01 to 2027-02-26.")).toBeInTheDocument();
@@ -48,26 +54,33 @@ describe("RoadmapCriticalChain", () => {
   });
 
   test("an upstream project the filters hide is still listed, with a dimmed (not shown) mark", () => {
-    renderWithProviders(<RoadmapCriticalChain view={viewOf(chain([{ projectId: 3, slackDays: 0, critical: true, hops: 1 }]))} shown={new Set([1, 2])} />);
+    renderWithProviders(panel(viewOf(chain([{ projectId: 3, slackDays: 0, critical: true, hops: 1 }])), new Set([1, 2])));
     const row = screen.getByRole("link", { name: "Open Gamma" }).closest("tr")!;
     expect(row).toHaveTextContent("Gamma (not shown)");
   });
 
   test("nothing scheduled in the target: that sentence, no table", () => {
-    renderWithProviders(<RoadmapCriticalChain view={viewOf(chain([]), { span: null })} shown={ALL} />);
+    renderWithProviders(panel(viewOf(chain([]), { span: null }), ALL));
     expect(screen.getByText("Nothing is scheduled in Alpha, so no chain drives its end.")).toBeInTheDocument();
     expect(screen.queryByRole("table")).toBeNull();
     expect(screen.queryByText(/No other project is upstream/)).toBeNull();
   });
 
   test("a scheduled target with nothing upstream: that sentence, no table", () => {
-    renderWithProviders(<RoadmapCriticalChain view={viewOf(chain([]))} shown={ALL} />);
+    renderWithProviders(panel(viewOf(chain([])), ALL));
     expect(screen.getByText("No other project is upstream of Alpha.")).toBeInTheDocument();
     expect(screen.queryByRole("table")).toBeNull();
   });
 
   test("a target the view does not hold renders nothing", () => {
-    renderWithProviders(<RoadmapCriticalChain view={viewOf(chain([], 99))} shown={ALL} />);
+    renderWithProviders(panel(viewOf(chain([], 99)), ALL));
     expect(screen.queryByRole("heading")).toBeNull();
+  });
+
+  test("the programs page mounts it with its own intro and mark: the same panel, the folded-or-not-picked wording", () => {
+    const view = viewOf(chain([{ projectId: 3, slackDays: 0, critical: true, hops: 1 }]));
+    renderWithProviders(<RoadmapCriticalChain projects={allProjects(view)} criticalPath={view.criticalPath} shown={new Set([1, 2])} intro="programs.critical.intro" notShown="programs.critical.notShown" />);
+    expect(screen.getByText(/Projects in a folded row or outside the program pick are listed too\./)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open Gamma" }).closest("tr")).toHaveTextContent("Gamma (folded or not picked)");
   });
 });
