@@ -159,9 +159,26 @@ never flips the stub.
    - *Expected*: on both pages the appended row is gone (no "(unscheduled; dates from Jira)" in the grid) and `tray`'s own row carries the one dashed bar; the project page's Unscheduled
      table is gone (nothing is left in the tray).
 
+## Scenario: an administrator schedules an unscheduled milestone on Jira's dates from its dashed row, and the project's owner, who may not schedule it, is offered nothing there
+
+The eighth scenario of the serial group (1.17; the chip scenario after it is the ninth). Its world is the dashed-row scenario's (the usual per-test one, dated 2044): milestone `dated` scheduled Mon 2044-01-11 to
+Fri 01-15 and not linked, milestone `tray` UNSCHEDULED and linked through the API (as the administrator, on the shared `linking` connection) to `E2E-4` (Mon 2044-01-04 to Fri 01-08). The world's
+team has no manager, so only an administrator may schedule `tray`; the project's owner may not. It spends no Test connection call and never flips the stub.
+
+1. The project owner opens the project page.
+   - *Expected*: the grid holds the dashed row of `tray` ("(unscheduled; dates from Jira)", one bar named "Jira E2E-4: 2044-01-04 to 2044-01-08, read-only"), and no button named
+     "Operations for <tray> (dates from Jira)" (exact: the tray row's own kebab, "Operations for <tray>", is a prefix of it).
+2. The file's throwaway administrator, in a browser context of its own, opens the same page and opens the kebab of the dashed row.
+   - *Expected*: the menu holds the item "Schedule on Jira's dates: <tray>, 2044-01-04 to 2044-01-08" (exact); an axe scan of the page with the menu open reports zero violations.
+3. They pick it (the test waits for the `PUT …/schedule` answer: 200).
+   - *Expected*: a status region holds "<tray> scheduled: 2044-01-04 to 2044-01-08"; the grid has no "(unscheduled; dates from Jira)" mark; the milestone has exactly one row, carrying the one dashed
+     bar "Jira E2E-4: …"; the "Unscheduled milestones" table is gone (nothing is left in the tray).
+4. They reload the page, then open the team's page.
+   - *Expected*: after the reload the same holds; the team timeline has the milestone's row with the dashed bar and no mark.
+
 ## Scenario: the Jira chip says the data may be out of date until the connection's first successful refresh, and the Roadmap and Programs pages say it while the connection is behind
 
-The eighth scenario of the serial group (1.16; 1.17 extends it with the plan pages' line). Its world: the test's OWN connection (made and tested through the API on a unique throwaway `stub-` site, given 0.5 man-days per point,
+The ninth scenario of the serial group (1.16; 1.17 extends it with the plan pages' line). Its world: the test's OWN connection (made and tested through the API on a unique throwaway `stub-` site, given 0.5 man-days per point,
 never refreshed until the end; it spends ONE call of the Test bucket and is deleted with the test's other rows) and one milestone scheduled on `E2E-4`'s own days (Mon 2044-01-04
 to Fri 01-08) and linked through that connection as the setup. The shared `linking` connection is not used: earlier scenarios refresh it.
 

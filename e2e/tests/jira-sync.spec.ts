@@ -692,6 +692,69 @@ test("an unscheduled milestone that Jira dates gets a dashed row on the project 
   }
 });
 
+test("an administrator schedules an unscheduled milestone on Jira's dates from its dashed row, and the project's owner, who may not schedule it, is offered nothing there", async ({ page, browser }) => {
+  const world = await seedWorld();
+  const adminContext = await browser.newContext();
+  try {
+    // The same world as the dashed-row test: `dated` (Mon 2044-01-11 to Fri 01-15, not linked) puts the Jira window over 2044, `tray` waits in the tray and is linked to E2E-4
+    // (Mon 2044-01-04 to Fri 01-08). The world's team has no manager, so only an administrator may schedule `tray`; the project's owner may not.
+    await seedMilestone(world, "dated", 2, "2044-01-11", "2044-01-15");
+    const tray = await createMilestone(world, "tray", 2.5);
+    await bindNode(world.api, linking, "MILESTONE", tray.id, "E2E-4");
+    const kebabName = `Operations for ${tray.name} (dates from Jira)`;
+
+    // The owner: the dashed row is there, with its bar, and no menu is offered on it ("Operations for <tray>" is a prefix of the dashed row's kebab, so every name here is exact).
+    await login(page, world.owner.email, world.owner.password);
+    await page.goto(`/projects/${world.projectId}`);
+    const ownerGrid = page.getByRole("grid", { name: "Milestone timeline" });
+    await expect(ownerGrid).toBeVisible();
+    const ownerRow = gridRows(ownerGrid, tray.name);
+    await expect(ownerRow).toContainText(UNSCHEDULED_MARK);
+    await expect(ownerRow.getByRole("img", { name: E2E4_BAR, exact: true })).toHaveCount(1);
+    await expect(page.getByRole("button", { name: kebabName, exact: true })).toHaveCount(0);
+
+    // The administrator (the file's throwaway one, in a browser of its own): the dashed row's kebab exists and its menu names the item with Jira's dates.
+    const admin = await adminContext.newPage();
+    await login(admin, runner.account.email, runner.account.password);
+    await admin.goto(`/projects/${world.projectId}`);
+    const grid = admin.getByRole("grid", { name: "Milestone timeline" });
+    await expect(grid).toBeVisible();
+    const dashedRow = gridRows(grid, tray.name);
+    await expect(dashedRow).toContainText(UNSCHEDULED_MARK);
+    await dashedRow.getByRole("button", { name: kebabName, exact: true }).click();
+    const item = admin.getByRole("menuitem", { name: `Schedule on Jira's dates: ${tray.name}, 2044-01-04 to 2044-01-08`, exact: true });
+    await expect(item).toBeVisible();
+    expect(await axeViolations(admin)).toEqual([]);
+
+    // One click writes Jira's two dates: the page says so, the dashed row is gone, the milestone's one row carries the dashed bar and the tray has nothing left.
+    const [written] = await Promise.all([
+      admin.waitForResponse((r) => r.request().method() === "PUT" && r.url().endsWith(`/api/v1/milestones/${tray.id}/schedule`)),
+      item.click(),
+    ]);
+    expect(written.status()).toBe(200);
+    await expect(admin.getByRole("status").filter({ hasText: `${tray.name} scheduled: 2044-01-04 to 2044-01-08` })).toBeAttached();
+    await expect(grid.getByText(UNSCHEDULED_MARK)).toHaveCount(0);
+    await expect(gridRows(grid, tray.name)).toHaveCount(1);
+    await expect(gridRows(grid, tray.name).getByRole("img", { name: E2E4_BAR, exact: true })).toHaveCount(1);
+    await expect(admin.getByRole("table", { name: "Unscheduled milestones" })).toHaveCount(0);
+
+    // After a reload the same holds, and the team's page has the milestone's row with the dashed bar and no mark.
+    await admin.reload();
+    await expect(grid).toBeVisible();
+    await expect(grid.getByText(UNSCHEDULED_MARK)).toHaveCount(0);
+    await expect(gridRows(grid, tray.name).getByRole("img", { name: E2E4_BAR, exact: true })).toHaveCount(1);
+    await expect(admin.getByRole("table", { name: "Unscheduled milestones" })).toHaveCount(0);
+    await admin.goto(`/teams/${world.teamId}`);
+    const teamGrid = admin.getByRole("grid", { name: "Team milestone timeline" });
+    await expect(teamGrid).toBeVisible();
+    await expect(gridRows(teamGrid, tray.name).getByRole("img", { name: E2E4_BAR, exact: true })).toHaveCount(1);
+    await expect(teamGrid.getByText(UNSCHEDULED_MARK)).toHaveCount(0);
+  } finally {
+    await adminContext.close();
+    await world.api.dispose();
+  }
+});
+
 test("the Jira chip says the data may be out of date until the connection's first successful refresh, and the Roadmap and Programs pages say it while the connection is behind", async ({ page, browser }) => {
   test.setTimeout(180_000); // the Test connection call may wait a 429 out (one minute)
   const world = await seedWorld();
