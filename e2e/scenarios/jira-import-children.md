@@ -1,4 +1,4 @@
-# Import what Jira lists under a linked program or project (rooted import, empty root, project page, Plan project row, connection page, outside the root, axe)
+# Import what Jira lists under a linked program or project (rooted import, empty root, project page, Plan project row, connection page, outside the root, a suggested match, axe)
 
 - **Spec**: [tests/jira-import-children.spec.ts](../tests/jira-import-children.spec.ts)
 - **Actors**: a throwaway NON-admin `USER` login per test (seeded through the API, linked to a person; the preview and the apply share a 5-a-minute bucket PER USER, so every
@@ -8,7 +8,7 @@
 - **Owns** (exclusive server-side state): one Jira connection (`e2e-impchild-connection-*`, scoped to the stub's `IMC` project ONLY, on a unique throwaway site
   `https://stub-e2eimpchild<random>.atlassian.net`, tested once in the beforeAll through the API: Test connection shares a per-IP bucket (10 a minute by default, 30 on the e2e
   stacks) with the other Jira specs; a 429 there waits the bucket out once) and, per test, a person for the login, a person who owns the stream, a team (no manager, so the
-  milestones are created unscheduled), a work stream, one program (two in the first test: an unlinked sibling the login owns too), in the project tests a project (the Plan-row test also an unlinked sibling project), in the outside-the-root test a second program owned by the other person with a project linked to `IMC-2`, ONE binding
+  milestones are created unscheduled), a work stream, one program (two in the first test: an unlinked sibling the login owns too; in the suggested-match tests the program also holds ONE unlinked project named exactly "Initiative North", owned by the login), in the project tests a project (the Plan-row test also an unlinked sibling project), in the outside-the-root test a second program owned by the other person with a project linked to `IMC-2`, ONE binding
   (the program to `IMC-1` or `IMC-14`, or the project to `IMC-2`; two in the outside-the-root test) and what the import creates (the stub's own names: "IMC Initiative North/South", "IMC Epic One" ...), all with
   unique `e2e-impchild-*` names and dated **2045** where dated at all. A rooted import creates no program, so there is no global name to guard and no Playwright lock. Teardown
   is the afterEach, even after a failure: the connection's bindings, then the stream's projects (their milestones go with them), programs and the stream, then the team, the people
@@ -96,3 +96,24 @@ put it without a default project). `IMC-11..13` hang under another Program and a
 
 1. The same walk with the browser in the dark colour scheme.
    - *Expected*: the scheme really is dark; no A/AA violations at the three points.
+
+## Scenario: a renamed item is offered as a link to the unlinked plan project, and linking it adds no duplicate
+
+1. The login (who owns the linked root program `IMC-1` and its one unlinked project "Initiative North") opens the program's import from the Plan page, picks the default team and presses **Preview** at the defaults.
+   - *Expected*: "Jira items: 5", "To create: 4", "To link: 0", "Skipped: 1"; the `IMC-2` row reads Create and "Looks like “Initiative North” in the plan, which is not linked yet" with **Link instead: IMC-2 to Initiative North**; it is the only row with a suggestion; a note says "1 item looks like a plan item that is not linked yet." and, because the filter is on, "Items the filter left out are not considered."; **Possible matches only** is off; the plan still holds only "Initiative North" (the preview changed nothing).
+2. They untick `IMC-7`, then press **Link instead** on `IMC-2`.
+   - *Expected*: "3 of 4 selected"; the row says "Will be linked to “Initiative North” after the next preview"; a note says "1 change to the matches is waiting. Preview again to see what the import would do."; **Import** is disabled; the totals are still the first preview's.
+3. They press **Preview again** in the banner.
+   - *Expected*: the banner is gone; "Jira items: 5", "To create: 3", "To link: 1", "Skipped: 1"; `IMC-2` reads "Linked to a plan item with a different name, as you confirmed" with **Create instead: IMC-2 as a new item**; `IMC-5` reads "Under Initiative North"; `IMC-7` is still unticked ("3 of 4 selected") and `IMC-2` is ticked; Import is enabled; the plan is still unchanged.
+4. They tick `IMC-7` again, press **Import (4)** and close the dialog.
+   - *Expected*: "Created: 3", "Linked: 1", "Skipped: 0"; the Plan page lists "Initiative North" and "IMC Initiative South" under the program and NO "IMC Initiative North"; the API shows "Initiative North" holding "IMC Epic One" and South holding "IMC Epic Three", both unscheduled.
+
+## Scenario: the import preview with a possible match has no WCAG A/AA violations
+
+1. The login opens the same program's import (light scheme), picks the default team, previews and scans the preview with the suggestion; then presses **Link instead** and scans again with the banner and the pending row.
+   - *Expected*: no A/AA violations at either point. Nothing is imported.
+
+## Scenario: the import preview with a possible match has no WCAG A/AA violations in the dark scheme
+
+1. The same walk with the browser in the dark colour scheme.
+   - *Expected*: the scheme really is dark; no A/AA violations at either point.

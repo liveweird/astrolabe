@@ -3,11 +3,13 @@
 // program and nothing above it - opens the Plan page's program menu, imports the projects and milestones Jira lists under the link, and the owner of a linked project
 // does the same from the project page. A program linked to an item with nothing under it says so. The dialog (scope note, preview, empty note) passes axe, light and dark.
 // 1.15 adds the other two entries - the Plan page's PROJECT row (the project's owner) and the connection page's program row (an administrator) - and the skip: an item whose
-// Jira parent is linked to a project of ANOTHER program is skipped (`OUTSIDE_ROOT`) while the rest of the preview stays and imports.
+// Jira parent is linked to a project of ANOTHER program is skipped (`OUTSIDE_ROOT`) while the rest of the preview stays and imports. A renamed item is offered as a link to the
+// unlinked plan project it strictly word-matches ("Initiative North" against the stub's "IMC Initiative North"): "Link instead", the banner, "Preview again", then Import binds
+// it and adds no duplicate. That dialog passes axe too, with the suggestion and with the banner, light and dark.
 // Owns: ONE Jira connection (`e2e-impchild-connection-*`, scoped to the stub's `IMC` project ONLY on a unique throwaway site, tested once per worker start of the file
 // through the API in the beforeAll: one call of the shared per-IP Test bucket) and, per test, a throwaway NON-admin login with its person, a second person who owns the
 // work stream, a team, the work stream, one or two programs (and a project) and ONE binding made through the API as the administrator (the program to `IMC-1` or `IMC-14`,
-// or the project to `IMC-2`; the "outside" world adds a second program owned by the other person with a project linked to `IMC-2`), unique `e2e-impchild-*` names, plus what the import creates under the program with the stub's own names ("IMC Initiative North/South", the
+// or the project to `IMC-2`; the "outside" world adds a second program owned by the other person with a project linked to `IMC-2`; the "match" world adds ONE unlinked project "Initiative North" to the linked program), unique `e2e-impchild-*` names, plus what the import creates under the program with the stub's own names ("IMC Initiative North/South", the
 // epics), dated 2045 (the milestones are created unscheduled: the login manages no team). A rooted import creates no program, so there is no global name to guard
 // and no Playwright lock. The preview and the apply share a 5-a-minute bucket PER USER: every test has its own login and spends at most three calls (the connection page's test
 // signs in as a throwaway ADMINISTRATOR of its own, never the shared one, and spends one).
@@ -21,6 +23,8 @@ import { apiAsAdmin, apiAsThrowawayAdmin, axeViolations, deleteViaApi, expect, e
 test.describe.configure({ timeout: 120_000 });
 
 const MARK = "e2e-impchild-";
+/** The "match" world's unlinked project: a plain name on purpose (the `e2e-…` prefix holds digits, which the matcher treats as numbering). The stub's IMC-2 is "IMC Initiative North". */
+const PLAIN_PROJECT = "Initiative North";
 
 interface Account {
   email: string;
@@ -157,9 +161,9 @@ test.afterEach(async () => {
  * `kind: "program"` adds a program owned by the login's person (linked to `issueKey`) and an unlinked sibling program owned by them too; `kind: "project"` adds a program
  * owned by the OTHER person and a project in it owned by the login's person (linked to `issueKey`), plus an unlinked sibling project the login owns when `siblingProject`;
  * `kind: "outside"` adds the "program" world's linked program (no sibling) and a second program owned by the OTHER person with a project linked to `IMC-2`.
- * The links are made through the API as the administrator.
+ * `initiativeNorth` (kind "program") adds ONE unlinked project named exactly {@link PLAIN_PROJECT} to the linked program, owned by the login. The links are made through the API as the administrator.
  */
-async function seedWorld(kind: Kind, issueKey: string, siblingProject = false): Promise<World> {
+async function seedWorld(kind: Kind, issueKey: string, siblingProject = false, initiativeNorth = false): Promise<World> {
   const { api } = await apiAsAdmin();
   try {
     const name = uniqueText(`${MARK}owner`);
@@ -186,6 +190,7 @@ async function seedWorld(kind: Kind, issueKey: string, siblingProject = false): 
     if (kind === "program") {
       siblingName = uniqueText(`${MARK}sibling`);
       await create(api, `/api/v1/work-streams/${id}/programs`, { name: siblingName, ownerPersonId: ownerId }, "/api/v1/programs");
+      if (initiativeNorth) await create(api, `/api/v1/programs/${programId}/projects`, { name: PLAIN_PROJECT, ownerPersonId: ownerId }, "/api/v1/projects");
       await link("PROGRAM", programId, issueKey);
     } else if (kind === "project") {
       projectName = uniqueText(`${MARK}project`);
@@ -606,5 +611,104 @@ test.describe("dark scheme", () => {
   test.use({ colorScheme: "dark" });
   test("the import from a linked program has no WCAG A/AA violations in the dark scheme", async ({ page }) => {
     await scanRootedDialog(page, "dark");
+  });
+});
+
+/** The preview's count line of suggestions (the pending banner is another note). */
+const suggestionsNote = (page: Page): Locator => modal(page).getByRole("note").filter({ hasText: "looks like a plan item that is not linked yet" });
+const pendingBanner = (page: Page): Locator => modal(page).getByRole("note").filter({ hasText: "to the matches" });
+const importButton = (page: Page): Locator => modal(page).getByRole("button", { name: /^Import \(\d+\)$/ });
+const linkInstead = (page: Page): Locator => modal(page).getByRole("button", { name: `Link instead: IMC-2 to ${PLAIN_PROJECT}`, exact: true });
+
+/** The "match" world's program dialog up to the first preview at the defaults: IMC-2 reads Create with its suggestion. */
+async function previewWithSuggestion(page: Page, world: World): Promise<void> {
+  await openProgramImport(page, world);
+  await pickTeam(page, world);
+  await preview(page);
+  await expectTotals(page, { found: 5, create: 4, bind: 0, skip: 1 });
+  await expect(rowOf(page, "IMC-2")).toContainText("Create");
+  await expect(rowOf(page, "IMC-2")).toContainText(`Looks like “${PLAIN_PROJECT}” in the plan, which is not linked yet`);
+  await expect(linkInstead(page)).toBeVisible();
+}
+
+test("a renamed item is offered as a link to the unlinked plan project, and linking it adds no duplicate", async ({ page }) => {
+  const world = await seedWorld("program", "IMC-1", false, true);
+  const dialog = modal(page);
+  await previewWithSuggestion(page, world);
+
+  // Only IMC-2 has a suggestion ("Initiative North" is the one unlinked project and matches no other row); nothing was created or linked by the preview.
+  await expect(suggestionsNote(page)).toContainText("1 item looks like a plan item that is not linked yet.");
+  await expect(suggestionsNote(page)).toContainText("Items the filter left out are not considered.");
+  await expect(dialog.getByRole("button", { name: /^Link instead/ })).toHaveCount(1);
+  await expect(dialog.getByRole("switch", { name: "Possible matches only" })).not.toBeChecked();
+  await expect(pendingBanner(page)).toHaveCount(0);
+  expect((await projectsOf(world.programId)).map((project) => project.name)).toEqual([PLAIN_PROJECT]);
+
+  // A row the user unticks before confirming: IMC-7 (a leaf; nothing is created under it).
+  await rowOf(page, "IMC-7").getByRole("checkbox", { name: "Import IMC-7" }).uncheck();
+  await expect(dialog.getByText("3 of 4 selected")).toBeVisible();
+
+  // "Link instead" only records a change: the banner appears, the row says what will happen, Import waits, and the preview is not re-read yet.
+  await linkInstead(page).click();
+  await expect(pendingBanner(page)).toHaveText(/1 change to the matches is waiting\. Preview again to see what the import would do\./);
+  await expect(rowOf(page, "IMC-2")).toContainText(`Will be linked to “${PLAIN_PROJECT}” after the next preview`);
+  await expect(importButton(page)).toBeDisabled();
+  await expectTotals(page, { found: 5, create: 4, bind: 0, skip: 1 });
+
+  // "Preview again" (the banner's: scoped, the failed-preview alert can show another): 3 to create, 1 to link; IMC-5 now lands under the existing project; the
+  // unticked row stays unticked across the match-driven preview.
+  await pendingBanner(page).getByRole("button", { name: "Preview again", exact: true }).click();
+  await expect(pendingBanner(page)).toHaveCount(0, { timeout: 30_000 });
+  await expectTotals(page, { found: 5, create: 3, bind: 1, skip: 1 });
+  await expect(rowOf(page, "IMC-2")).toContainText("Linked to a plan item with a different name, as you confirmed");
+  await expect(rowOf(page, "IMC-5")).toContainText(`Under ${PLAIN_PROJECT}`);
+  await expect(rowOf(page, "IMC-7").getByRole("checkbox", { name: "Import IMC-7" })).not.toBeChecked();
+  await expect(rowOf(page, "IMC-2").getByRole("checkbox", { name: "Import IMC-2" })).toBeChecked();
+  await expect(dialog.getByText("3 of 4 selected")).toBeVisible();
+  await expect(importButton(page)).toBeEnabled();
+  await expect(dialog.getByRole("button", { name: `Create instead: IMC-2 as a new item`, exact: true })).toBeVisible();
+  expect((await projectsOf(world.programId)).map((project) => project.name)).toEqual([PLAIN_PROJECT]);
+
+  // The user ticks IMC-7 again and imports: three created (South, its epic, the epic under the existing project), one linked.
+  await rowOf(page, "IMC-7").getByRole("checkbox", { name: "Import IMC-7" }).check();
+  await importAll(page, 4);
+  const outcome = dialog.getByRole("status");
+  await expect(outcome).toContainText("Created: 3");
+  await expect(outcome).toContainText("Linked: 1");
+  await expect(outcome).toContainText("Skipped: 0");
+  await dialog.getByRole("button", { name: "Close", exact: true }).last().click();
+  await expect(dialog).toHaveCount(0);
+
+  // The Plan page lists the plan's own project and the new South one, and no duplicate "IMC Initiative North".
+  const table = page.getByRole("table", { name: `Projects of ${world.programName}` });
+  await expect(table.getByRole("link", { name: `Open ${PLAIN_PROJECT}`, exact: true })).toBeVisible();
+  await expect(table.getByRole("link", { name: "Open IMC Initiative South", exact: true })).toBeVisible();
+  await expect(table.getByRole("link", { name: "Open IMC Initiative North", exact: true })).toHaveCount(0);
+  expect(await projectsOf(world.programId)).toEqual([
+    { name: "IMC Initiative South", scheduled: [], unscheduled: ["IMC Epic Three"] },
+    { name: PLAIN_PROJECT, scheduled: [], unscheduled: ["IMC Epic One"] },
+  ]);
+});
+
+/** The "match" world's dialog under axe: the preview with the suggestion, then with the banner (a pending "Link instead"). Nothing is imported. */
+async function scanMatchDialog(page: Page, scheme: Scheme): Promise<void> {
+  const world = await seedWorld("program", "IMC-1", false, true);
+  await previewWithSuggestion(page, world);
+  await expectScheme(page, scheme);
+  await scan(page);
+  await linkInstead(page).click();
+  await expect(pendingBanner(page)).toBeVisible();
+  await expect(rowOf(page, "IMC-2")).toContainText("after the next preview");
+  await scan(page);
+}
+
+test("the import preview with a possible match has no WCAG A/AA violations", async ({ page }) => {
+  await scanMatchDialog(page, "light");
+});
+
+test.describe("dark scheme, possible match", () => {
+  test.use({ colorScheme: "dark" });
+  test("the import preview with a possible match has no WCAG A/AA violations in the dark scheme", async ({ page }) => {
+    await scanMatchDialog(page, "dark");
   });
 });
