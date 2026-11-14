@@ -1,4 +1,4 @@
-import type { JiraImportApplyItem, JiraImportApplyRequest, JiraImportItem, JiraImportRoot, JiraImportScope } from "../api/jira";
+import type { JiraImportApplyItem, JiraImportApplyRequest, JiraImportItem, JiraImportMatch, JiraImportRoot, JiraImportScope } from "../api/jira";
 import type { PickedOption } from "../components/SearchPicker";
 import { foldDiacritics } from "./text";
 
@@ -111,6 +111,76 @@ export function unscheduledForRights(items: readonly JiraImportItem[], ticks: Re
   if (!copyDates) return { count: 0, of: 0 };
   const dated = items.filter((item) => ticks.has(item.jiraId) && item.action === "CREATE" && item.level === "MILESTONE" && item.startDate != null && item.endDate != null);
   return { count: dated.filter((item) => item.infos.includes("DATES_NOT_COPIED")).length, of: dated.length };
+}
+
+/**
+ * A change to a suggested match (1.15) waiting in the preview step until "Preview again": "link" confirms a CREATE row's suggestion, "create"
+ * takes a confirmed link back. Nothing is sent before the next preview, so the preview stays the exact picture of what Import does.
+ */
+export type MatchChange = "link" | "create";
+
+/** A CREATE row the server found a strict name match for among the unlinked plan items beside it (never present on a redacted row). */
+export const hasSuggestion = (item: JiraImportItem): boolean => item.action === "CREATE" && item.suggestion != null;
+
+/** A BIND row that exists because the user confirmed a suggestion (the preview before this one carried `matches`). */
+export const isConfirmedMatch = (item: JiraImportItem): boolean => item.action === "BIND" && item.infos.includes("MATCH_CONFIRMED");
+
+/** A row that offers a match choice: a suggestion to link, or a confirmed link to take back. */
+export const isMatchRow = (item: JiraImportItem): boolean => hasSuggestion(item) || isConfirmedMatch(item);
+
+/**
+ * The `matches` of the next preview: the scope's confirmed ones, minus every row with a pending change, plus the suggestion of each row
+ * whose pending change is "link". A row is named once (the server answers 400 otherwise); a "create" change simply drops its entry.
+ */
+export function nextMatches(scope: JiraImportScope, items: readonly JiraImportItem[], pending: ReadonlyMap<string, MatchChange>): JiraImportMatch[] {
+  const kept = (scope.matches ?? []).filter((match) => !pending.has(match.jiraId));
+  const added = items.flatMap((item) => (pending.get(item.jiraId) === "link" && item.suggestion != null ? [{ jiraId: item.jiraId, nodeId: item.suggestion.nodeId }] : []));
+  return [...kept, ...added];
+}
+
+/**
+ * What the preview step hands over when a match-driven "Preview again" replaces it (1.15): the rows it showed and the user's work on them (ticks,
+ * team overrides, owner picks), so confirming a link does not throw that work away. Only rows still present with the SAME action keep their work
+ * (`carriedTicks`, `carriedPicks`): a row whose action changed (the confirmed row itself, a child re-planned under the existing node) starts afresh.
+ */
+export type PreviewCarry = {
+  items: readonly JiraImportItem[];
+  ticks: ReadonlySet<string>;
+  teams: ReadonlyMap<string, number>;
+  owners: ReadonlyMap<string, PickedOption>;
+};
+
+const sameAction = (before: readonly JiraImportItem[]) => {
+  const actions = new Map(before.map((item) => [item.jiraId, item.action] as const));
+  return (item: JiraImportItem): boolean => actions.get(item.jiraId) === item.action;
+};
+
+/**
+ * The ticks of the next preview: everything ticked (the opening state), except a row the user had unticked that is still there with the same
+ * action. An unticked row also unticks what is created under it in the NEW plan (`tickRow`), so the dependencies stay true.
+ */
+export function carriedTicks(items: readonly JiraImportItem[], carry: PreviewCarry): Set<string> {
+  const same = sameAction(carry.items);
+  const index = indexItems(items);
+  let ticks = allSelectable(items);
+  for (const item of items) {
+    if (isSelectable(item) && same(item) && !carry.ticks.has(item.jiraId)) ticks = tickRow(index, ticks, item.jiraId, false).ticks;
+  }
+  return ticks;
+}
+
+/** The per-row picks (team overrides, owner picks) of the next preview: those of rows still present with the same action. */
+export function carriedPicks<T>(items: readonly JiraImportItem[], carry: PreviewCarry, picks: ReadonlyMap<string, T>): Map<string, T> {
+  const same = sameAction(carry.items);
+  return new Map(items.filter((item) => same(item) && picks.has(item.jiraId)).map((item) => [item.jiraId, picks.get(item.jiraId) as T] as const));
+}
+
+/** The scope with exactly these `matches`; the member is left out when the list is empty (the request of before 1.15). */
+export function withMatches(scope: JiraImportScope, matches: readonly JiraImportMatch[]): JiraImportScope {
+  const next: JiraImportScope = { ...scope };
+  if (matches.length > 0) next.matches = [...matches];
+  else delete next.matches;
+  return next;
 }
 
 /** The scope form's state. Work stream, defaults and keys are ids/strings; the owner and the team keep their label (the pickers hold it). */

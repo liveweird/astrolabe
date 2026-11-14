@@ -31,6 +31,8 @@ export function useJiraImport(connectionId: number | null) {
   const queryClient = useQueryClient();
   const [phase, setPhase] = useState<ImportPhase>("scope");
   const [preview, setPreview] = useState<PreviewState | null>(null);
+  // Counts the previews that were set (two can share an `asOf`): the preview step is keyed by it, so every new preview starts the step afresh.
+  const [previewSeq, setPreviewSeq] = useState(0);
   const [result, setResult] = useState<JiraImportResult | null>(null);
   const [busy, setBusy] = useState<Busy>(null);
   const [failure, setFailure] = useState<ImportFailure | null>(null);
@@ -83,6 +85,7 @@ export function useJiraImport(connectionId: number | null) {
   return {
     phase,
     preview,
+    previewSeq,
     result,
     busy,
     failure,
@@ -93,6 +96,7 @@ export function useJiraImport(connectionId: number | null) {
         (signal) => previewJiraImport(connectionId, scope, signal),
         (data) => {
           setPreview({ scope, data });
+          setPreviewSeq((count) => count + 1);
           setResult(null);
           setPhase("preview");
         },

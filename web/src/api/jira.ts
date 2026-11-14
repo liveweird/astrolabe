@@ -27,6 +27,7 @@ export type JiraLinksView = Schemas["JiraLinksView"];
 export type JiraNodeLink = Schemas["JiraNodeLink"];
 export type JiraImportScope = Schemas["JiraImportScope"];
 export type JiraImportRoot = Schemas["JiraImportRoot"];
+export type JiraImportMatch = Schemas["JiraImportMatch"];
 export type JiraImportPreview = Schemas["JiraImportPreview"];
 export type JiraImportItem = Schemas["JiraImportItem"];
 export type JiraImportApplyItem = Schemas["JiraImportApplyItem"];

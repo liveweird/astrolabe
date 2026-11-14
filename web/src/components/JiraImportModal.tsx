@@ -2,7 +2,8 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button, Group, Loader, Modal, Stack, Text } from "@mantine/core";
 import { useJiraImport } from "../hooks/useJiraImport";
-import { emptyScope, toApplyRequest, toScope, type ImportConnection, type ImportRoot, type ImportSource, type ScopeForm } from "../utils/jiraImport";
+import type { JiraImportMatch } from "../api/jira";
+import { emptyScope, type PreviewCarry, toApplyRequest, toScope, type ImportConnection, type ImportRoot, type ImportSource, type ScopeForm, withMatches } from "../utils/jiraImport";
 import JiraImportOutcomeStep from "./JiraImportOutcomeStep";
 import JiraImportPreviewStep from "./JiraImportPreviewStep";
 import JiraImportScopeStep from "./JiraImportScopeStep";
@@ -55,13 +56,21 @@ export default function JiraImportModal({
   const applying = run.busy === "apply";
   const { phase, preview } = run;
 
+  // The work of a match-driven "Preview again" (1.15), handed to the NEXT preview step only; any other preview starts afresh.
+  const [carry, setCarry] = useState<PreviewCarry | null>(null);
+
   function previewScope() {
     const scope = connection === null ? null : toScope(form, connection.projectKeys, root);
-    if (scope !== null) void run.runPreview(scope);
+    if (scope === null) return;
+    setCarry(null);
+    void run.runPreview(scope);
   }
 
-  const previewAgain = () => {
-    if (preview !== null) void run.runPreview(preview.scope);
+  // Reads again under the scope the rows were read under; `matches` (the preview step's pending changes applied) replaces its confirmed matches (1.15).
+  const previewAgain = (matches?: readonly JiraImportMatch[], keep?: PreviewCarry) => {
+    if (preview === null) return;
+    setCarry(keep ?? null);
+    void run.runPreview(matches === undefined ? preview.scope : withMatches(preview.scope, matches));
   };
 
   return (
@@ -98,11 +107,12 @@ export default function JiraImportModal({
         )}
         {phase === "preview" && preview !== null && connection !== null && (
           <JiraImportPreviewStep
-            key={preview.data.asOf}
+            key={run.previewSeq}
             connection={connection}
             root={root}
             owner={form.owner?.value === String(preview.scope.ownerPersonId) ? form.owner : null}
             preview={preview}
+            carry={carry}
             busy={run.busy}
             failure={run.failure}
             onApply={(ticks, teams, owners) => void run.runApply(toApplyRequest(preview.scope, preview.data.items, ticks, teams, owners))}
@@ -111,7 +121,7 @@ export default function JiraImportModal({
           />
         )}
         {phase === "outcome" && run.result !== null && connection !== null && (
-          <JiraImportOutcomeStep connection={connection} result={run.result} busy={run.busy !== null} failure={run.failure} onPreviewAgain={previewAgain} onClose={onClose} />
+          <JiraImportOutcomeStep connection={connection} result={run.result} busy={run.busy !== null} failure={run.failure} onPreviewAgain={() => previewAgain()} onClose={onClose} />
         )}
         {run.busy === "preview" && (
           <Group gap="xs" role="status">

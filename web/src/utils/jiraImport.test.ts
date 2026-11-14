@@ -1,5 +1,27 @@
 import { describe, expect, test } from "vitest";
-import { allSelectable, blockingParent, emptyScope, indexItems, searchItems, tickRow, tickShown, toApplyRequest, toScope, unscheduledForRights, updatedWithinOf, type ImportRoot } from "./jiraImport";
+import type { JiraImportItem } from "../api/jira";
+import {
+  allSelectable,
+  blockingParent,
+  carriedPicks,
+  carriedTicks,
+  emptyScope,
+  hasSuggestion,
+  indexItems,
+  isConfirmedMatch,
+  isMatchRow,
+  type MatchChange,
+  nextMatches,
+  searchItems,
+  tickRow,
+  tickShown,
+  toApplyRequest,
+  toScope,
+  unscheduledForRights,
+  updatedWithinOf,
+  withMatches,
+  type ImportRoot,
+} from "./jiraImport";
 import { PREVIEW_ITEMS } from "../test/jiraImport";
 
 const SCOPE = { workStreamId: 3, ownerPersonId: 8, copyDates: true };
@@ -230,5 +252,61 @@ describe("the apply body", () => {
   test("only ticked rows are sent, in preview order", () => {
     const body = toApplyRequest(SCOPE, PREVIEW_ITEMS, new Set(["95010", "95001", "95008"]), new Map());
     expect(body.items.map((i) => i.jiraId)).toEqual(["95001", "95010"]);
+  });
+});
+
+describe("suggested matches (1.15)", () => {
+  const suggested = (id: string, nodeId: number): JiraImportItem => ({ ...PREVIEW_ITEMS[0], jiraId: id, suggestion: { nodeId, nodeName: `Node ${nodeId}` } });
+  const items = [suggested("1", 10), suggested("2", 20), PREVIEW_ITEMS[1]];
+  const scope = { workStreamId: 3, ownerPersonId: 8, copyDates: true };
+
+  test("hasSuggestion is a CREATE with a suggestion; isConfirmedMatch a BIND flagged MATCH_CONFIRMED", () => {
+    expect(hasSuggestion(items[0])).toBe(true);
+    expect(hasSuggestion(items[2])).toBe(false);
+    expect(hasSuggestion({ ...items[0], action: "SKIP" })).toBe(false);
+    const bound: JiraImportItem = { ...PREVIEW_ITEMS[6], infos: ["MATCH_CONFIRMED"] };
+    expect(isConfirmedMatch(bound)).toBe(true);
+    expect(isConfirmedMatch(PREVIEW_ITEMS[6])).toBe(false);
+    expect(isMatchRow(bound) && isMatchRow(items[0]) && !isMatchRow(items[2])).toBe(true);
+  });
+
+  test("nextMatches adds the suggestion of a pending link, drops an entry with a pending create and keeps the rest once each", () => {
+    const withConfirmed = { ...scope, matches: [{ jiraId: "3", nodeId: 30 }, { jiraId: "4", nodeId: 40 }] };
+    const pending = new Map<string, MatchChange>([["1", "link"], ["3", "create"]]);
+    expect(nextMatches(withConfirmed, items, pending)).toEqual([{ jiraId: "4", nodeId: 40 }, { jiraId: "1", nodeId: 10 }]);
+    // A stale entry for a row that is linked again is replaced, never doubled.
+    const stale = { ...scope, matches: [{ jiraId: "1", nodeId: 99 }] };
+    expect(nextMatches(stale, items, new Map([["1", "link"]]))).toEqual([{ jiraId: "1", nodeId: 10 }]);
+    expect(nextMatches(scope, items, new Map())).toEqual([]);
+  });
+
+  test("withMatches sets the member, and leaves it out when the list is empty", () => {
+    expect(withMatches(scope, [{ jiraId: "1", nodeId: 10 }])).toEqual({ ...scope, matches: [{ jiraId: "1", nodeId: 10 }] });
+    expect(withMatches({ ...scope, matches: [{ jiraId: "1", nodeId: 10 }] }, [])).not.toHaveProperty("matches");
+  });
+});
+
+describe("carrying the user's work across a match-driven preview (1.15)", () => {
+  const before = PREVIEW_ITEMS;
+  // The user had unticked the project 95002 (and so what is created under it: 95004, 95005) and the BIND 95009.
+  const carry = { items: before, ticks: new Set(["95001", "95003", "95010"]), teams: new Map([["95005", 5], ["95010", 6]]), owners: new Map() };
+  const converted = before.map((item) => (item.jiraId === "95010" ? { ...item, action: "BIND" as const } : item));
+
+  test("an unticked row that keeps its action stays unticked, with what is created under it; a row whose action changed opens ticked again", () => {
+    expect([...carriedTicks(converted, carry)].sort()).toEqual(["95001", "95003", "95010"]);
+    // Unticked before, converted since: the action changed, so the row starts ticked again; had it kept its action, it would stay unticked.
+    const unticked = { ...carry, ticks: new Set(["95001", "95003"]) };
+    expect(carriedTicks(converted, unticked).has("95010")).toBe(true);
+    expect(carriedTicks(before, unticked).has("95010")).toBe(false);
+  });
+
+  test("a row that is new in the next preview opens ticked", () => {
+    const extra = { ...PREVIEW_ITEMS[2], jiraId: "99999", issueKey: "IMP-99" };
+    expect(carriedTicks([...before, extra], carry).has("99999")).toBe(true);
+  });
+
+  test("picks are kept for rows present with the same action only", () => {
+    expect([...carriedPicks(converted, carry, carry.teams)]).toEqual([["95005", 5]]);
+    expect([...carriedPicks(before.filter((item) => item.jiraId !== "95005"), carry, carry.teams)]).toEqual([["95010", 6]]);
   });
 });

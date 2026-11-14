@@ -1,28 +1,34 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Alert, Badge, Button, Checkbox, Group, Loader, Stack, Table, Text, Title } from "@mantine/core";
+import { Button, Checkbox, Group, Loader, Stack, Table, Text, Title } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
 import { listTeams } from "../api/teams";
+import type { JiraImportMatch } from "../api/jira";
 import type { PreviewState } from "../hooks/useJiraImport";
-import { allSelectable, blockingParent, type ImportConnection, type ImportRoot, indexItems, isSelectable, searchItems, tickRow, tickShown, unscheduledForRights } from "../utils/jiraImport";
+import { useImportMatches } from "../hooks/useImportMatches";
+import {
+  allSelectable,
+  blockingParent,
+  carriedPicks,
+  carriedTicks,
+  type ImportConnection,
+  type ImportRoot,
+  indexItems,
+  isSelectable,
+  type PreviewCarry,
+  searchItems,
+  tickRow,
+  tickShown,
+  unscheduledForRights,
+} from "../utils/jiraImport";
 import type { ImportFailure } from "../utils/jiraImportText";
 import ClearableTextInput from "./ClearableTextInput";
 import JiraImportFailureAlert from "./JiraImportFailureAlert";
+import JiraImportMatchNote from "./JiraImportMatchNote";
+import JiraImportPreviewNotes from "./JiraImportPreviewNotes";
 import JiraImportRow, { IMPORT_ROW_HEIGHT, type TeamOption } from "./JiraImportRow";
 import JiraImportVirtualTable from "./JiraImportVirtualTable";
 import type { PickedOption } from "./SearchPicker";
-
-/** The "what was left out" line's key for the filter the rows were read under; null when the filter leaves nothing out. */
-function leftOutKeyOf(excludeDone: boolean, days: number | null) {
-  if (excludeDone) return days === null ? "jira.import.preview.leftOutDone" : "jira.import.preview.leftOutBoth";
-  return days === null ? null : "jira.import.preview.leftOutQuiet";
-}
-
-/** The truncation sentence: a rooted scope has no project picker, so it names the filter (and, below a program, a project to start from). */
-function truncatedKeyFor(root: ImportRoot | undefined) {
-  if (root === undefined) return "jira.import.preview.truncated";
-  return root.level === "PROGRAM" ? "jira.import.preview.truncatedRootProgram" : "jira.import.preview.truncatedRootProject";
-}
 
 /** A row's owner pick put into (or, for a cleared picker, taken out of) the map: no pick means the dialog's owner. */
 function withPick(previous: ReadonlyMap<string, PickedOption>, id: string, pick: PickedOption | null): ReadonlyMap<string, PickedOption> {
@@ -38,6 +44,7 @@ export default function JiraImportPreviewStep({
   root,
   owner,
   preview,
+  carry,
   busy,
   failure,
   onApply,
@@ -50,11 +57,14 @@ export default function JiraImportPreviewStep({
   /** A rooted import (1.14): an empty preview says what Jira listed under the root's key, not that the scope is empty. */
   root?: ImportRoot;
   preview: PreviewState;
+  /** The previous step's work (ticks, overrides, owner picks) when this preview was a match-driven "Preview again"; null/absent = start afresh. */
+  carry?: PreviewCarry | null;
   busy: "preview" | "apply" | null;
   failure: ImportFailure | null;
   onApply: (ticks: ReadonlySet<string>, teamOverrides: ReadonlyMap<string, number>, ownerOverrides: ReadonlyMap<string, number>) => void;
   onBack: () => void;
-  onPreviewAgain: () => void;
+  /** Reads Jira again with the scope the rows were read under; `matches` replaces the scope's confirmed matches (the pending changes applied), `carry` is the work to keep. */
+  onPreviewAgain: (matches?: readonly JiraImportMatch[], carry?: PreviewCarry) => void;
 }) {
   const { t } = useTranslation();
   const { data, scope } = preview;
@@ -63,28 +73,33 @@ export default function JiraImportPreviewStep({
   useEffect(() => headingRef.current?.focus(), []);
   const index = useMemo(() => indexItems(items), [items]);
   const selectable = useMemo(() => items.filter(isSelectable).length, [items]);
-  const [ticks, setTicks] = useState<ReadonlySet<string>>(() => allSelectable(items));
-  const [overrides, setOverrides] = useState<ReadonlyMap<string, number>>(new Map());
-  const [ownerPicks, setOwnerPicks] = useState<ReadonlyMap<string, PickedOption>>(new Map());
+  const [ticks, setTicks] = useState<ReadonlySet<string>>(() => (carry ? carriedTicks(items, carry) : allSelectable(items)));
+  const [overrides, setOverrides] = useState<ReadonlyMap<string, number>>(() => (carry ? carriedPicks(items, carry, carry.teams) : new Map()));
+  const [ownerPicks, setOwnerPicks] = useState<ReadonlyMap<string, PickedOption>>(() => (carry ? carriedPicks(items, carry, carry.owners) : new Map()));
   const [announcement, setAnnouncement] = useState("");
   const [query, setQuery] = useState("");
+  // Suggested matches (1.15): a click records a change and nothing else; Import waits until the preview is read again with it.
+  const matches = useImportMatches(scope, items, onPreviewAgain);
   const teams = useQuery({ queryKey: ["teams", "picker", "import"], queryFn: () => listTeams({ page: 1, pageSize: 100, sort: "name" }) });
   const teamOptions: TeamOption[] | null = teams.data ? teams.data.items.map((team) => ({ value: String(team.id), label: team.name })) : null;
   // Orange only when a skip needs a look: rows that are simply already linked are fine.
   const notable = items.some((item) => item.action === "SKIP" && item.reason !== "ALREADY_BOUND");
   const rights = unscheduledForRights(items, ticks, scope.copyDates);
   const truncated = totals.truncated;
-  const truncatedKey = truncatedKeyFor(root);
   const filter = scope.filter ?? null;
-  const leftOutKey = filter === null ? null : leftOutKeyOf(filter.excludeDone, filter.updatedWithinDays ?? null);
   // The search only HIDES rows: the ticks, the overrides and the global counts below never look at it. Select all / none and the header checkbox act on what is shown.
   const searching = query.trim() !== "";
-  const shown = useMemo(() => searchItems(items, query), [items, query]);
+  const narrowed = searching || matches.onlyMatches;
+  const { narrow } = matches;
+  const shown = useMemo(() => narrow(searchItems(items, query)), [items, query, narrow]);
   const shownSelectable = useMemo(() => shown.filter(isSelectable), [shown]);
   const shownTicked = shownSelectable.filter((item) => ticks.has(item.jiraId)).length;
   const none = ticks.size === 0;
   const applying = busy === "apply";
   const locked = busy !== null;
+  const { waiting } = matches;
+  // One "Preview again" for the footer, the failure alert and the banner: with changes waiting it carries them and the user's work on the rows.
+  const previewAgain = () => matches.previewAgain({ items, ticks, teams: overrides, owners: ownerPicks });
 
   function tick(id: string, on: boolean) {
     const result = tickRow(index, ticks, id, on);
@@ -104,42 +119,20 @@ export default function JiraImportPreviewStep({
       <Title order={3} size="h4" ref={headingRef} tabIndex={-1}>
         {t("jira.import.preview.title")}
       </Title>
-      <Group gap="xs" role="group" aria-label={t("jira.import.preview.totalsAria")}>
-        <Badge color="gray" variant="light" tt="none">
-          {t("jira.import.preview.totalFound", { n: totals.items })}
-        </Badge>
-        <Badge color="gray" variant="outline" tt="none">
-          {t("jira.import.preview.totalCreate", { n: totals.create })}
-        </Badge>
-        <Badge color="gray" variant="light" tt="none">
-          {t("jira.import.preview.totalBind", { n: totals.bind })}
-        </Badge>
-        {totals.skip > 0 && (
-          <Badge color={notable ? "orange" : "gray"} variant="light" tt="none">
-            {t("jira.import.preview.totalSkip", { n: totals.skip })}
-          </Badge>
-        )}
-      </Group>
-      {filter !== null && leftOutKey !== null && (
-        <Text size="sm" role="note">
-          {t(leftOutKey, { count: filter.updatedWithinDays ?? 0 })}
-        </Text>
-      )}
-      {truncated && (
-        <Alert color="orange" variant="light" role="note">
-          {t(truncatedKey)}
-        </Alert>
-      )}
-      {rights.count > 0 && (
-        <Text size="sm" role="note">
-          {t("jira.import.preview.unscheduledRights", { n: rights.count, of: rights.of })}
-        </Text>
-      )}
-      {data.unmatchedTeams.length > 0 && (
-        <Text size="sm" role="note">
-          {t("jira.import.preview.unmatchedTeams", { names: data.unmatchedTeams.join(", ") })}
-        </Text>
-      )}
+      <JiraImportPreviewNotes totals={totals} notable={notable} filter={filter} root={root} rights={rights} unmatchedTeams={data.unmatchedTeams} />
+      <JiraImportMatchNote
+        suggestions={matches.suggestions}
+        hasChoices={matches.hasChoices}
+        filtered={filter !== null}
+        onlyMatches={matches.onlyMatches}
+        onOnlyMatches={(on) => {
+          matches.setOnlyMatches(on);
+          setAnnouncement("");
+        }}
+        pendingCount={matches.pending.size}
+        onPreviewAgain={previewAgain}
+        locked={locked}
+      />
       {items.length > 0 && (
         <Group gap="sm" align="flex-end">
           <ClearableTextInput
@@ -155,16 +148,16 @@ export default function JiraImportPreviewStep({
           />
           {/* Always mounted (so a change is announced); empty without a search. */}
           <Text size="sm" role="status" pb={6}>
-            {searching ? t("jira.import.preview.showing", { shown: shown.length, total: items.length }) : ""}
+            {narrowed ? t("jira.import.preview.showing", { shown: shown.length, total: items.length }) : ""}
           </Text>
         </Group>
       )}
       <Group gap="sm" align="center">
         <Button variant="default" size="compact-sm" onClick={() => setShown(true)} disabled={truncated || shownSelectable.length === 0 || locked}>
-          {t(searching ? "jira.import.preview.tickShown" : "jira.import.preview.selectAll")}
+          {t(narrowed ? "jira.import.preview.tickShown" : "jira.import.preview.selectAll")}
         </Button>
         <Button variant="default" size="compact-sm" onClick={() => setShown(false)} disabled={shownTicked === 0 || locked}>
-          {t(searching ? "jira.import.preview.untickShown" : "jira.import.preview.selectNone")}
+          {t(narrowed ? "jira.import.preview.untickShown" : "jira.import.preview.selectNone")}
         </Button>
         <Text size="sm">{t("jira.import.preview.selected", { ticked: ticks.size, total: selectable })}</Text>
         {/* The live region stays mounted (so a change is announced) but sits in this row: empty, it reserves no height of its own. */}
@@ -198,7 +191,7 @@ export default function JiraImportPreviewStep({
             <Table.Tr aria-rowindex={1}>
               <Table.Th w={44}>
                 <Checkbox
-                  aria-label={t(searching ? "jira.import.preview.selectShownAria" : "jira.import.preview.selectAllAria")}
+                  aria-label={t(narrowed ? "jira.import.preview.selectShownAria" : "jira.import.preview.selectAllAria")}
                   checked={shownSelectable.length > 0 && shownTicked === shownSelectable.length}
                   indeterminate={shownTicked > 0 && shownTicked < shownSelectable.length}
                   disabled={truncated || shownSelectable.length === 0 || locked}
@@ -228,13 +221,16 @@ export default function JiraImportPreviewStep({
                 owner={owner === null ? null : (ownerPicks.get(item.jiraId) ?? owner)}
                 ownerPicked={ownerPicks.has(item.jiraId)}
                 onOwner={(pick) => setOwnerPicks((previous) => withPick(previous, item.jiraId, pick))}
+                matchChange={matches.pending.get(item.jiraId)}
+                locked={locked}
+                onMatch={(change) => matches.setChange(item.jiraId, change)}
                 rowProps={rowProps}
               />
             );
           }}
         />
       )}
-      {failure && <JiraImportFailureAlert failure={failure} onPreviewAgain={onPreviewAgain} disabled={locked} />}
+      {failure && <JiraImportFailureAlert failure={failure} onPreviewAgain={previewAgain} disabled={locked} />}
       {applying && (
         <Group gap="xs" role="status">
           <Loader size="xs" />
@@ -246,11 +242,14 @@ export default function JiraImportPreviewStep({
           <Button variant="default" onClick={onBack} disabled={locked}>
             {t("jira.import.back")}
           </Button>
-          <Button variant="default" onClick={onPreviewAgain} disabled={locked}>
-            {t("jira.import.previewAgain")}
-          </Button>
+          {/* While changes to the matches wait, the banner's button is the one "Preview again" (so the name is never doubled). */}
+          {!waiting && (
+            <Button variant="default" onClick={previewAgain} disabled={locked}>
+              {t("jira.import.previewAgain")}
+            </Button>
+          )}
         </Group>
-        <Button onClick={() => onApply(ticks, overrides, new Map([...ownerPicks].map(([id, pick]) => [id, Number(pick.value)])))} loading={applying} disabled={none || truncated || locked}>
+        <Button onClick={() => onApply(ticks, overrides, new Map([...ownerPicks].map(([id, pick]) => [id, Number(pick.value)])))} loading={applying} disabled={none || truncated || locked || waiting}>
           {t("jira.import.preview.import", { n: ticks.size })}
         </Button>
       </Group>

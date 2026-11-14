@@ -1,10 +1,11 @@
 import { useTranslation } from "react-i18next";
-import { Badge, Checkbox, NativeSelect, Table, Text } from "@mantine/core";
+import { Badge, Checkbox, Group, NativeSelect, Table, Text } from "@mantine/core";
 import type { TFunction } from "i18next";
 import type { JiraImportItem } from "../api/jira";
 import { infoText, reasonText } from "../utils/jiraImportText";
-import { hasOwnerChoice } from "../utils/jiraImport";
+import { hasOwnerChoice, isMatchRow, type MatchChange } from "../utils/jiraImport";
 import JiraKeyLink from "./JiraKeyLink";
+import JiraImportRowMatch from "./JiraImportRowMatch";
 import type { VirtualRowProps } from "./JiraImportVirtualTable";
 import PersonSelect from "./PersonSelect";
 import type { PickedOption } from "./SearchPicker";
@@ -40,7 +41,21 @@ function figuresText(item: JiraImportItem, t: TFunction, copyDates: boolean): st
   return parts.length > 0 ? parts.join(" · ") : "—";
 }
 
-function ActionCell({ item, blocker, t }: { item: JiraImportItem; blocker: JiraImportItem | undefined; t: TFunction }) {
+function ActionCell({
+  item,
+  blocker,
+  change,
+  locked,
+  onMatch,
+  t,
+}: {
+  item: JiraImportItem;
+  blocker: JiraImportItem | undefined;
+  change: MatchChange | undefined;
+  locked: boolean;
+  onMatch: (change: MatchChange | null) => void;
+  t: TFunction;
+}) {
   const skip = item.action === "SKIP";
   // Orange = something to look at; an item that is simply already linked is not a warning.
   const color = blocker || (skip && item.reason !== "ALREADY_BOUND") ? "orange" : "gray";
@@ -56,16 +71,22 @@ function ActionCell({ item, blocker, t }: { item: JiraImportItem; blocker: JiraI
     : skip && item.reason
       ? reasonText(item.reason, t, item.target?.nodeName)
       : null;
+  // A match row (1.15) keeps the fixed row height: the badge and the match button share one line, and the match sentence and this note are ONE line each.
+  const matchRow = change !== undefined || isMatchRow(item);
   return (
     <>
-      <Badge color={color} variant={item.action === "CREATE" ? "outline" : "light"} tt="none">
-        {label}
-      </Badge>
+      <Group gap={6} wrap="nowrap">
+        <Badge color={color} variant={item.action === "CREATE" ? "outline" : "light"} tt="none">
+          {label}
+        </Badge>
+        <JiraImportRowMatch part="button" item={item} change={change} disabled={locked} onChange={onMatch} />
+      </Group>
       {note !== null && (
-        <Text size="xs" c={blocker ? undefined : "dimmed"} lineClamp={3} title={note}>
+        <Text size="xs" c={blocker ? undefined : "dimmed"} lineClamp={matchRow ? 1 : 3} title={note}>
           {note}
         </Text>
       )}
+      <JiraImportRowMatch part="line" item={item} change={change} disabled={locked} onChange={onMatch} />
     </>
   );
 }
@@ -161,6 +182,9 @@ export default function JiraImportRow({
   owner,
   ownerPicked,
   onOwner,
+  matchChange,
+  locked,
+  onMatch,
   rowProps,
 }: {
   item: JiraImportItem;
@@ -176,6 +200,11 @@ export default function JiraImportRow({
   /** The row has its OWN pick (so there is something to clear); otherwise it shows the dialog's owner and offers no clear button. */
   ownerPicked: boolean;
   onOwner: (owner: PickedOption | null) => void;
+  /** The pending change to this row's suggested match (1.15), if any; `onMatch(null)` takes it back. */
+  matchChange: MatchChange | undefined;
+  /** A call is in flight: the row's match buttons wait. */
+  locked: boolean;
+  onMatch: (change: MatchChange | null) => void;
   rowProps: VirtualRowProps;
 }) {
   const { t } = useTranslation();
@@ -214,7 +243,7 @@ export default function JiraImportRow({
         </Text>
       </Table.Td>
       <Table.Td w={250}>
-        <ActionCell item={item} blocker={blocker} t={t} />
+        <ActionCell item={item} blocker={blocker} change={matchChange} locked={locked} onMatch={onMatch} t={t} />
       </Table.Td>
       <Table.Td w={280}>
         <DetailsCell item={item} copyDates={copyDates} teams={teams} teamId={teamId} onTeam={onTeam} owner={owner} ownerPicked={ownerPicked} onOwner={onOwner} t={t} />
