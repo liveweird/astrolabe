@@ -5,6 +5,7 @@ import { Button, Group, Paper, Stack, Switch } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { useQueryClient } from "@tanstack/react-query";
 import { IconMail } from "@tabler/icons-react";
+import { HOME_VIEW_KEY } from "../api/home";
 import { ApiError } from "../api/http";
 import { createUser } from "../api/users";
 import OneTimePasswordModal from "../components/OneTimePasswordModal";
@@ -58,7 +59,7 @@ export default function CreateUser() {
         language: values.language,
         alsoCreatePerson,
       });
-      await refreshQueriesAfterMutation(queryClient, ["users"], ["people"]);
+      await refreshQueriesAfterMutation(queryClient, ["users"], ["people"], HOME_VIEW_KEY);
       setCreated({ name: values.name.trim(), email: values.email.trim().toLowerCase(), password });
     } catch (err) {
       setError(

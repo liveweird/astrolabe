@@ -5,7 +5,7 @@ import type { ParseKeys } from "i18next";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink } from "react-router-dom";
-import { getHomeView, HOME_VIEW_KEY, type HomePlan } from "../api/home";
+import { getHomeView, HOME_STALE_MS, HOME_VIEW_KEY, type HomePlan } from "../api/home";
 import BadgeLink from "../components/BadgeLink";
 import ErrorAlert from "../components/ErrorAlert";
 import HomeMine from "../components/HomeMine";
@@ -160,7 +160,7 @@ function RoadmapFigures({ plan, jiraStale }: { plan: HomePlan | undefined; jiraS
 export default function Home() {
   const { t } = useTranslation();
   const { jira, flow, jiraStale, flowStale, error } = useOpenDeviationCounts();
-  const home = useQuery({ queryKey: HOME_VIEW_KEY, queryFn: getHomeView });
+  const home = useQuery({ queryKey: HOME_VIEW_KEY, queryFn: getHomeView, staleTime: HOME_STALE_MS });
   const plan = home.data?.plan;
   return (
     <Stack gap="md">

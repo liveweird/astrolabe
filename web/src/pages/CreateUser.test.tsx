@@ -5,6 +5,8 @@ import { Route, Routes, useLocation } from "react-router-dom";
 import CreateUser from "./CreateUser";
 import { jsonResponse } from "../test/http";
 import { renderWithProviders } from "../test/render";
+import { clientWithKeptHome, homeReadIsStale } from "../test/home";
+import type { QueryClient } from "@tanstack/react-query";
 
 const TOKEN_KEY = "astrolabe.auth.token";
 const ROLES_KEY = "astrolabe.auth.roles";
@@ -18,14 +20,14 @@ function PathProbe() {
   return <div data-testid="probe">{location.pathname}</div>;
 }
 
-function renderCreate() {
+function renderCreate(queryClient?: QueryClient) {
   return renderWithProviders(
     <Routes>
       <Route path="/users/new" element={<CreateUser />} />
       <Route path="/users" element={<PathProbe />} />
       <Route path="/" element={<PathProbe />} />
     </Routes>,
-    { route: "/users/new" },
+    { route: "/users/new", queryClient },
   );
 }
 
@@ -145,7 +147,8 @@ describe("CreateUser page", () => {
   test("the linked-person switch is on by default, describes itself, and posts alsoCreatePerson", async () => {
     mockPost(mockFetch);
     const user = userEvent.setup();
-    renderCreate();
+    const queryClient = clientWithKeptHome();
+    renderCreate(queryClient);
 
     const toggle = screen.getByRole("switch", { name: /^Also create a linked person/ });
     expect(toggle).toBeChecked();
@@ -154,6 +157,8 @@ describe("CreateUser page", () => {
     await fillAndSubmit(user);
     await screen.findByText("User created");
     expect(postBodyOf(mockFetch).alsoCreatePerson).toBe(true);
+    // The new person is linked to a login: Home's "Yours" moves, and Home keeps its read for a minute.
+    expect(homeReadIsStale(queryClient)).toBe(true);
   });
 
   test("switching it off posts alsoCreatePerson false", async () => {

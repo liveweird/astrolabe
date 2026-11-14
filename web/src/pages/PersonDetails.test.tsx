@@ -5,6 +5,8 @@ import { Route, Routes } from "react-router-dom";
 import PersonDetails from "./PersonDetails";
 import { jsonResponse } from "../test/http";
 import { renderWithProviders } from "../test/render";
+import { clientWithKeptHome, homeReadIsStale } from "../test/home";
+import type { QueryClient } from "@tanstack/react-query";
 
 const TOKEN_KEY = "astrolabe.auth.token";
 const ROLES_KEY = "astrolabe.auth.roles";
@@ -39,12 +41,12 @@ function findCall(mockFetch: FetchMock, method: string, url: string) {
   return mockFetch.mock.calls.find(([u, init]) => ((init as RequestInit | undefined)?.method ?? "GET") === method && u === url);
 }
 
-function renderPage(route = "/people/1") {
+function renderPage(route = "/people/1", queryClient?: QueryClient) {
   return renderWithProviders(
     <Routes>
       <Route path="/people/:id" element={<PersonDetails />} />
     </Routes>,
-    { route },
+    { route, queryClient },
   );
 }
 
@@ -76,13 +78,15 @@ describe("PersonDetails page", () => {
   test("the Edit action opens the prefilled modal and PUTs", async () => {
     serve(mockFetch, { "PUT /api/v1/people/1": { status: 204 } });
     const user = userEvent.setup();
-    renderPage();
+    const queryClient = clientWithKeptHome();
+    renderPage("/people/1", queryClient);
     await user.click(await screen.findByRole("button", { name: /^edit$/i }));
     const modal = await screen.findByRole("dialog");
     expect(within(modal).getByLabelText("Name")).toHaveValue("Anna Nowak");
     await user.type(within(modal).getByLabelText("Name"), " Jr");
     await user.click(within(modal).getByRole("button", { name: /^save$/i }));
     await waitFor(() => expect(findCall(mockFetch, "PUT", "/api/v1/people/1")).toBeDefined());
+    await waitFor(() => expect(homeReadIsStale(queryClient)).toBe(true));
     const body = JSON.parse((findCall(mockFetch, "PUT", "/api/v1/people/1")![1] as RequestInit).body as string);
     expect(body).toEqual({ name: "Anna Nowak Jr", email: "anna@example.com", userId: 7 });
   });

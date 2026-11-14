@@ -6,6 +6,8 @@ import { notifications } from "@mantine/notifications";
 import Users from "./Users";
 import { jsonResponse } from "../test/http";
 import { renderWithProviders } from "../test/render";
+import { clientWithKeptHome, homeReadIsStale } from "../test/home";
+import type { QueryClient } from "@tanstack/react-query";
 
 const TOKEN_KEY = "astrolabe.auth.token";
 const ROLES_KEY = "astrolabe.auth.roles";
@@ -43,13 +45,13 @@ function PathProbe() {
   return <div data-testid="probe">{location.pathname}</div>;
 }
 
-function renderPage() {
+function renderPage(queryClient?: QueryClient) {
   return renderWithProviders(
     <Routes>
       <Route path="/users" element={<Users />} />
       <Route path="/" element={<PathProbe />} />
     </Routes>,
-    { route: "/users" },
+    { route: "/users", queryClient },
   );
 }
 
@@ -301,7 +303,8 @@ describe("Users page", () => {
       return Promise.resolve(jsonResponse(404, {}));
     });
     const user = userEvent.setup();
-    renderPage();
+    const queryClient = clientWithKeptHome();
+    renderPage(queryClient);
 
     await screen.findByText("Bob Basic");
     // Alice already has a person: the item is hidden. Bob has none: it is offered.
@@ -324,6 +327,9 @@ describe("Users page", () => {
       email: "bob@example.com",
       userId: 2,
     });
+
+    // A new login-person link moves Home's "Yours" (a login with no person reads the sentence), which keeps its read for a minute.
+    expect(homeReadIsStale(queryClient)).toBe(true);
 
     // The users list was refetched: Bob's row now carries a personId and no longer offers the action.
     await user.click(screen.getByRole("button", { name: "Operations for Bob Basic" }));

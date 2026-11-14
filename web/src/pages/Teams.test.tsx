@@ -5,6 +5,8 @@ import { Route, Routes, useLocation } from "react-router-dom";
 import Teams from "./Teams";
 import { jsonResponse } from "../test/http";
 import { renderWithProviders } from "../test/render";
+import { clientWithKeptHome, homeReadIsStale } from "../test/home";
+import type { QueryClient } from "@tanstack/react-query";
 
 const TOKEN_KEY = "astrolabe.auth.token";
 const ROLES_KEY = "astrolabe.auth.roles";
@@ -71,13 +73,13 @@ function Probe() {
   return <p>at {pathname}</p>;
 }
 
-function renderPage() {
+function renderPage(queryClient?: QueryClient) {
   return renderWithProviders(
     <Routes>
       <Route path="/teams" element={<Teams />} />
       <Route path="/teams/:id" element={<Probe />} />
     </Routes>,
-    { route: "/teams" },
+    { route: "/teams", queryClient },
   );
 }
 
@@ -147,7 +149,8 @@ describe("Teams page", () => {
   test("an admin edits a team — the modal prefills from the detail and PUTs", async () => {
     serve(mockFetch, { "PUT /api/v1/teams/1": { status: 204 } });
     const user = userEvent.setup();
-    renderPage();
+    const queryClient = clientWithKeptHome();
+    renderPage(queryClient);
     await user.click(await screen.findByRole("button", { name: "Operations for Payments" }));
     await user.click(await screen.findByRole("menuitem", { name: "Edit Payments" }));
     const modal = await screen.findByRole("dialog");
@@ -156,6 +159,8 @@ describe("Teams page", () => {
     await user.click(within(modal).getByRole("button", { name: /^save$/i }));
     await waitFor(() => expect(findCall(mockFetch, "PUT", "/api/v1/teams/1")).toBeDefined());
     const body = JSON.parse((findCall(mockFetch, "PUT", "/api/v1/teams/1")![1] as RequestInit).body as string);
+    // The manager and the name are on Home ("Yours"), which keeps its read for a minute: the save marks it stale.
+    await waitFor(() => expect(homeReadIsStale(queryClient)).toBe(true));
     // Edit keeps the stored manager (a PUT is a full replace).
     expect(body).toEqual({ name: "Payments", description: null, managerPersonId: 7 });
   });
@@ -213,13 +218,15 @@ describe("Teams page", () => {
   test("an admin deletes a team after confirming; a 409 names the conflict", async () => {
     serve(mockFetch, { "DELETE /api/v1/teams/2": { status: 204 }, "DELETE /api/v1/teams/1": { status: 409, body: { title: "Conflict", status: 409 } } });
     const user = userEvent.setup();
-    renderPage();
+    const queryClient = clientWithKeptHome();
+    renderPage(queryClient);
     await user.click(await screen.findByRole("button", { name: "Operations for Identity" }));
     await user.click(await screen.findByRole("menuitem", { name: "Delete Identity" }));
     expect(await screen.findByText(/"Identity" will be deleted/)).toBeInTheDocument();
     await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: /^delete$/i }));
     await waitFor(() => expect(findCall(mockFetch, "DELETE", "/api/v1/teams/2")).toBeDefined());
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(homeReadIsStale(queryClient)).toBe(true);
 
     await user.click(screen.getByRole("button", { name: "Operations for Payments" }));
     await user.click(await screen.findByRole("menuitem", { name: "Delete Payments" }));

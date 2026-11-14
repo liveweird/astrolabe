@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { jsonResponse } from "../test/http";
 import { homeView } from "../test/home";
-import { getHomeView, HOME_VIEW_KEY } from "./home";
+import { getHomeView, HOME_STALE_MS, HOME_VIEW_KEY } from "./home";
 
 beforeEach(() => {
   localStorage.setItem("astrolabe.auth.token", "fake-token");
@@ -21,4 +21,8 @@ test("getHomeView GETs the view without a query", async () => {
 
 test("the view is cached under the plan prefix", () => {
   expect(HOME_VIEW_KEY).toEqual(["plan", "home"]);
+});
+
+test("the read is kept for a minute, like the deviation counts beside it", () => {
+  expect(HOME_STALE_MS).toBe(60_000);
 });

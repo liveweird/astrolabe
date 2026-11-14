@@ -5,6 +5,7 @@ import { Anchor, Button, Menu, Stack, Table, Text } from "@mantine/core";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { IconPencil, IconPlus, IconTrash, IconUsersGroup } from "@tabler/icons-react";
 import { useAdmin } from "../auth";
+import { HOME_VIEW_KEY } from "../api/home";
 import { deleteTeam, getTeam, listTeams, type TeamListItem, type TeamResponse } from "../api/teams";
 import ClearableTextInput from "../components/ClearableTextInput";
 import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
@@ -59,7 +60,7 @@ export default function Teams() {
   const titleRef = useRef<HTMLHeadingElement>(null);
   const remove = useDeleteConfirm<TeamListItem>({
     mutationFn: (row) => deleteTeam(row.id),
-    onSuccess: () => refreshQueriesAfterMutation(queryClient, ["teams"]),
+    onSuccess: () => refreshQueriesAfterMutation(queryClient, ["teams"], HOME_VIEW_KEY),
     successMessage: t("teams.toast.deleted"),
     focusAfterDelete: titleRef,
   });
@@ -166,7 +167,7 @@ export default function Teams() {
           onClose={() => setEditorTarget(null)}
           onSaved={async (saved) => {
             setEditorTarget(null);
-            await refreshQueriesAfterMutation(queryClient, ["teams"]);
+            await refreshQueriesAfterMutation(queryClient, ["teams"], HOME_VIEW_KEY);
             // A NEW team lands on its page.
             if (saved) navigate(teamPath(saved.id));
           }}

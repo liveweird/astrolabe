@@ -1,5 +1,6 @@
 // Shared fixtures for the Home page: whole documents as GET /views/home answers them.
-import type { HomeMe, HomeView } from "../api/home";
+import { QueryClient } from "@tanstack/react-query";
+import { HOME_VIEW_KEY, type HomeMe, type HomeView } from "../api/home";
 
 /** A person's block with nothing owned or managed (the C6 "Yours" section reads it; C5 ignores it). */
 export function homeMe(over: Partial<HomeMe> = {}): HomeMe {
@@ -35,3 +36,13 @@ export function emptyHomeView(): HomeView {
   const zeros = Object.fromEntries(Object.keys(plan).map((key) => [key, 0])) as unknown as HomeView["plan"];
   return homeView({ plan: { ...zeros, flags: { warnings: 0, infos: 0 } } });
 }
+
+/** A query client holding a kept Home read (what a visit to Home left behind within its minute), for the tests of the writes that must mark it stale. */
+export function clientWithKeptHome(): QueryClient {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  queryClient.setQueryData(HOME_VIEW_KEY, homeView());
+  return queryClient;
+}
+
+/** Whether a write has marked the kept Home read stale (so Home re-reads on its next visit instead of showing the kept figures). */
+export const homeReadIsStale = (queryClient: QueryClient): boolean => queryClient.getQueryState(HOME_VIEW_KEY)?.isInvalidated === true;

@@ -14,6 +14,7 @@ import {
   IconUserPlus,
   IconUsers,
 } from "@tabler/icons-react";
+import { HOME_VIEW_KEY } from "../api/home";
 import { createPerson } from "../api/people";
 import { deleteUser, listUsers, type UserResponse } from "../api/users";
 import { getUserId } from "../api/session";
@@ -96,7 +97,7 @@ export default function Users() {
     setCreatingPersonFor(user.id);
     try {
       await createPerson({ name: user.name, email: user.email, userId: user.id });
-      await refreshQueriesAfterMutation(queryClient, ["people"], ["users"]);
+      await refreshQueriesAfterMutation(queryClient, ["people"], ["users"], HOME_VIEW_KEY);
       showSuccessToast(t("users.toast.personCreated"));
     } catch (err) {
       setPersonFailure({

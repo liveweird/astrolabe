@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useRoadmapRanking } from "./useRoadmapRanking";
+import { HOME_VIEW_KEY } from "../api/home";
 import type { RoadmapView } from "../api/roadmap";
 import { jsonResponse } from "../test/http";
 
@@ -101,5 +102,14 @@ describe("useRoadmapRanking across cached targets", () => {
     act(() => void result.current.move(3, -1, [2, 1, 3]));
     await waitFor(() => expect(server).toEqual({ revision: 9, order: [2, 3, 1] }));
     expect(puts.map((put) => put.expectedRevision)).toEqual([7, 8]);
+  });
+
+  test("a saved ranking marks Home's kept read stale: its ranked and rank figures moved and Home keeps its read for a minute", async () => {
+    client.setQueryData(HOME_VIEW_KEY, { revision: 7 });
+    const { result } = renderHook(() => useRoadmapRanking(null, null), { wrapper });
+    await waitFor(() => expect(result.current.view?.revision).toBe(7));
+    expect(client.getQueryState(HOME_VIEW_KEY)?.isInvalidated).toBe(false);
+    act(() => void result.current.move(2, -1, [1, 2, 3]));
+    await waitFor(() => expect(client.getQueryState(HOME_VIEW_KEY)?.isInvalidated).toBe(true));
   });
 });

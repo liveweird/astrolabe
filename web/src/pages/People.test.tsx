@@ -5,6 +5,8 @@ import { Route, Routes, useLocation } from "react-router-dom";
 import People from "./People";
 import { jsonResponse } from "../test/http";
 import { renderWithProviders } from "../test/render";
+import { clientWithKeptHome, homeReadIsStale } from "../test/home";
+import type { QueryClient } from "@tanstack/react-query";
 
 const TOKEN_KEY = "astrolabe.auth.token";
 const ROLES_KEY = "astrolabe.auth.roles";
@@ -55,13 +57,13 @@ function Probe() {
   return <p>at {pathname}</p>;
 }
 
-function renderPage() {
+function renderPage(queryClient?: QueryClient) {
   return renderWithProviders(
     <Routes>
       <Route path="/people" element={<People />} />
       <Route path="/people/:id" element={<Probe />} />
     </Routes>,
-    { route: "/people" },
+    { route: "/people", queryClient },
   );
 }
 
@@ -150,7 +152,8 @@ describe("People page", () => {
   test("an admin edits a person — the modal prefills from the row; clearing the login sends null", async () => {
     serve(mockFetch, { "PUT /api/v1/people/1": { status: 204 } });
     const user = userEvent.setup();
-    renderPage();
+    const queryClient = clientWithKeptHome();
+    renderPage(queryClient);
     await user.click(await screen.findByRole("button", { name: "Operations for Anna Nowak" }));
     await user.click(await screen.findByRole("menuitem", { name: "Edit Anna Nowak" }));
     const modal = await screen.findByRole("dialog");
@@ -161,6 +164,8 @@ describe("People page", () => {
     await user.click(within(modal).getByLabelText("Clear the login"));
     await user.click(within(modal).getByRole("button", { name: /^save$/i }));
     await waitFor(() => expect(findCall(mockFetch, "PUT", "/api/v1/people/1")).toBeDefined());
+    // The person line of Home's "Yours" keeps its read for a minute: the save marks it stale.
+    await waitFor(() => expect(homeReadIsStale(queryClient)).toBe(true));
     expect(bodyOf(mockFetch, "PUT", "/api/v1/people/1")).toEqual({ name: "Anna Nowak", email: "anna@example.com", userId: null });
   });
 
@@ -188,13 +193,15 @@ describe("People page", () => {
   test("an admin deletes a person after confirming; a 409 says to reassign first", async () => {
     serve(mockFetch, { "DELETE /api/v1/people/2": { status: 204 }, "DELETE /api/v1/people/1": { status: 409, body: { title: "Conflict", status: 409 } } });
     const user = userEvent.setup();
-    renderPage();
+    const queryClient = clientWithKeptHome();
+    renderPage(queryClient);
     await user.click(await screen.findByRole("button", { name: "Operations for Piotr Zielinski" }));
     await user.click(await screen.findByRole("menuitem", { name: "Delete Piotr Zielinski" }));
     expect(await screen.findByText(/"Piotr Zielinski" will be deleted/)).toBeInTheDocument();
     await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: /^delete$/i }));
     await waitFor(() => expect(findCall(mockFetch, "DELETE", "/api/v1/people/2")).toBeDefined());
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(homeReadIsStale(queryClient)).toBe(true);
 
     await user.click(screen.getByRole("button", { name: "Operations for Anna Nowak" }));
     await user.click(await screen.findByRole("menuitem", { name: "Delete Anna Nowak" }));

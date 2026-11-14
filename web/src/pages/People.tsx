@@ -5,6 +5,7 @@ import { Anchor, Button, Menu, Stack, Table, Text } from "@mantine/core";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { IconAddressBook, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useAdmin } from "../auth";
+import { HOME_VIEW_KEY } from "../api/home";
 import { deletePerson, listPeople, type PersonListItem, type PersonResponse } from "../api/people";
 import ClearableTextInput from "../components/ClearableTextInput";
 import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
@@ -52,7 +53,7 @@ export default function People() {
   const titleRef = useRef<HTMLHeadingElement>(null);
   const remove = useDeleteConfirm<PersonListItem>({
     mutationFn: (row) => deletePerson(row.id),
-    onSuccess: () => refreshQueriesAfterMutation(queryClient, ["people"]),
+    onSuccess: () => refreshQueriesAfterMutation(queryClient, ["people"], HOME_VIEW_KEY),
     successMessage: t("people.toast.deleted"),
     focusAfterDelete: titleRef,
   });
@@ -157,7 +158,7 @@ export default function People() {
           onClose={() => setEditorTarget(null)}
           onSaved={async (saved) => {
             setEditorTarget(null);
-            await refreshQueriesAfterMutation(queryClient, ["people"]);
+            await refreshQueriesAfterMutation(queryClient, ["people"], HOME_VIEW_KEY);
             // A NEW person lands on their page.
             if (saved) navigate(personPath(saved.id));
           }}

@@ -4,6 +4,7 @@ import { useParams } from "react-router-dom";
 import { Button, Stack, Text } from "@mantine/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { IconPencil } from "@tabler/icons-react";
+import { HOME_VIEW_KEY } from "../api/home";
 import { ApiError } from "../api/http";
 import { useAdmin } from "../auth";
 import { getPerson } from "../api/people";
@@ -12,6 +13,7 @@ import PageHeader from "../components/PageHeader";
 import PersonEditorModal from "../components/PersonEditorModal";
 import { useDialogFocus } from "../hooks/useDialogFocus";
 import { peoplePath } from "../utils/peopleLinks";
+import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { loadErrorMessage } from "../utils/saveError";
 
 /**
@@ -29,7 +31,7 @@ export default function PersonDetails() {
   useDialogFocus(editing);
 
   async function refresh() {
-    await queryClient.invalidateQueries({ queryKey: ["people"] });
+    await refreshQueriesAfterMutation(queryClient, ["people"], HOME_VIEW_KEY);
   }
 
   if (person.isLoading || person.isError || !person.data) {

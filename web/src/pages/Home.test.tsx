@@ -94,6 +94,27 @@ describe("Home", () => {
     expect(fetchMock.mock.calls.map(([url]) => String(url)).sort()).toEqual([FLOW_URL, HOME_URL, JIRA_URL].sort());
   });
 
+  test("keeps its read for a minute: a second visit makes no request and shows the kept figures; a marked-stale read is fetched at once", async () => {
+    const fetchMock = stubViews();
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const first = renderWithProviders(<Home />, { queryClient });
+    await settled(fetchMock);
+    first.unmount();
+
+    renderWithProviders(<Home />, { queryClient });
+    // The kept figures are on screen at once, with no second round of requests.
+    expect(screen.getByText("5 work streams")).toBeInTheDocument();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+
+    // A write that moves a figure marks the read stale (`["plan"]` or its own key): the mounted page re-reads the Home document alone.
+    await act(async () => {
+      await queryClient.invalidateQueries({ queryKey: ["plan"] });
+    });
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
+    expect(fetchMock.mock.calls.map(([url]) => String(url)).filter((url) => url === HOME_URL)).toHaveLength(2);
+  });
+
   test("shows the positive open counts of each source and omits a zero badge", async () => {
     stubViews({ jira: () => jsonResponse(200, jiraView(3, 0)), flow: () => jsonResponse(200, flowView(1, 2)) });
     renderWithProviders(<Home />);
