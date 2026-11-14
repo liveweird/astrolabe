@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import { Route, Routes } from "react-router-dom";
 import TeamDetails from "./TeamDetails";
 import type { Deviation } from "../api/deviations";
@@ -66,20 +66,27 @@ const TEAM_VIEW: TeamView = {
 
 type FetchMock = ReturnType<typeof vi.fn>;
 let teamView: TeamView;
+/** What an accepted schedule PUT does to the next read of the view (the stand-in server applies the dates). */
+let afterSchedule: ((body: { startDate: string | null; endDate: string | null }) => void) | null;
 
 describe("the team page's Jira markers", () => {
   let mockFetch: FetchMock;
   beforeEach(() => {
-    mockFetch = vi.fn((url: string) => {
+    mockFetch = vi.fn((url: string, init?: RequestInit) => {
       if (url === "/api/v1/views/team/1") return Promise.resolve(jsonResponse(200, teamView));
       if (url === "/api/v1/teams/1/flow") return Promise.resolve(jsonResponse(200, READ_ONLY_PANEL));
       if (url === "/api/v1/public-holidays") return Promise.resolve(jsonResponse(200, { items: [] }));
+      if (init?.method === "PUT" && /^\/api\/v1\/milestones\/\d+\/schedule$/.test(url)) {
+        afterSchedule?.(JSON.parse(init.body as string) as { startDate: string | null; endDate: string | null });
+        return Promise.resolve(jsonResponse(200, { revision: 11 }));
+      }
       return Promise.resolve(jsonResponse(404, { title: "Not Found", status: 404 }));
     });
     vi.stubGlobal("fetch", mockFetch);
     localStorage.setItem("astrolabe.auth.token", "fake-token");
     localStorage.setItem("astrolabe.auth.roles", JSON.stringify(["USER"]));
     teamView = TEAM_VIEW;
+    afterSchedule = null;
   });
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -208,6 +215,94 @@ describe("the team page's Jira markers", () => {
       renderPage();
       await timeline();
       expect(within(tray()).getByRole("row", { name: /tv-rollout/ })).not.toHaveTextContent("Jira: 2027-03-01");
+    });
+  });
+
+  describe("the tray milestones that Jira dates (1.16)", () => {
+    const MARK = "(unscheduled; dates from Jira)";
+    const trayMilestone = (id: number, name: string, over: Partial<TeamMilestone> = {}) => milestone(id, name, { startDate: null, endDate: null, ...over });
+    const ROLLOUT = trayMilestone(4, "tv-rollout", { jira: link(4, "E2E-8", "2027-03-01", "2027-03-05"), flags: [flag(unscheduledInPlan)] });
+    /** The Jira bars other than the scheduled tv-a's own. */
+    const trayBars = () => jiraBars().filter((name) => !name?.includes("E2E-3"));
+    const appendedRows = (grid: HTMLElement) => within(grid).queryAllByRole("row").filter((row) => row.textContent?.includes(MARK));
+
+    test("a tray milestone with both Jira dates has a dimmed row after the scheduled ones with the mark, the project, the estimate, ONE dashed bar and only 'Open project' in its menu; the tray row and its note are unchanged", async () => {
+      const user = userEvent.setup();
+      teamView = { ...TEAM_VIEW, unscheduled: [ROLLOUT] };
+      renderPage();
+      const grid = await timeline();
+      const [row] = appendedRows(grid);
+      expect(appendedRows(grid)).toHaveLength(1);
+      expect(row).toHaveTextContent(`tv-rollout ${MARK}`);
+      expect(row).toHaveTextContent("Invoices");
+      expect(row).toHaveTextContent("10 man-days");
+      expect(trayBars()).toEqual(["Jira E2E-8: 2027-03-01 to 2027-03-05, read-only"]);
+      expect([...row.querySelectorAll('[data-tone="jira"]')]).toHaveLength(1);
+      // the Flags column exists (tv-a is linked) and this row's cell is empty
+      expect(within(grid).getByRole("columnheader", { name: "Flags" })).toBeInTheDocument();
+      expect(row.querySelector("[data-flags]")).toBeNull();
+      expect(row.querySelector("a[href^='https://']")).toBeNull();
+      const texts = within(grid).getAllByRole("row").map((r) => r.textContent ?? "");
+      expect(texts.findIndex((text) => text.includes(MARK))).toBeGreaterThan(texts.findIndex((text) => text.includes("tv-c")));
+      await user.click(within(row).getByRole("button", { name: "Operations for tv-rollout" }));
+      expect((await screen.findAllByRole("menuitem")).map((item) => item.textContent)).toEqual(["Open project"]);
+      const tray = within(screen.getByRole("table", { name: "Unscheduled milestones of the team" })).getByRole("row", { name: /tv-rollout/ });
+      expect(tray).toHaveTextContent("Jira: 2027-03-01 to 2027-03-05");
+    });
+
+    test("nothing for one date, no dates, or a range wholly outside the window", async () => {
+      teamView = {
+        ...TEAM_VIEW,
+        unscheduled: [
+          trayMilestone(4, "tv-one", { jira: link(4, "E2E-8", "2027-03-01", null) }),
+          trayMilestone(5, "tv-none", { jira: link(5, "E2E-9") }),
+          trayMilestone(6, "tv-far", { jira: link(6, "E2E-10", "2040-03-01", "2040-03-05") }),
+          trayMilestone(7, "tv-plain"),
+        ],
+      };
+      renderPage();
+      const grid = await timeline();
+      expect(trayBars()).toEqual([]);
+      expect(appendedRows(grid)).toEqual([]);
+    });
+
+    test("the toggle off removes the row and the bar, on again brings them back", async () => {
+      const user = userEvent.setup();
+      teamView = { ...TEAM_VIEW, unscheduled: [ROLLOUT] };
+      renderPage();
+      const grid = await timeline();
+      expect(appendedRows(grid)).toHaveLength(1);
+      await user.click(toggle());
+      expect(appendedRows(grid)).toEqual([]);
+      expect(trayBars()).toEqual([]);
+      await user.click(toggle());
+      expect(appendedRows(grid)).toHaveLength(1);
+      expect(trayBars()).toHaveLength(1);
+    });
+
+    test("the page's range follows the tray's Jira dates inside the window: the bar lies inside the track", async () => {
+      teamView = { ...TEAM_VIEW, unscheduled: [trayMilestone(4, "tv-rollout", { jira: link(4, "E2E-8", "2027-08-02", "2027-08-06") })] };
+      renderPage();
+      const grid = await timeline();
+      const frame = document.querySelector('[data-tone="jira"][aria-label*="E2E-8"]')?.parentElement as HTMLElement;
+      const track = parseFloat(grid.style.width) - parseFloat(grid.style.getPropertyValue("--timeline-left"));
+      expect(parseFloat(frame.style.left) + parseFloat(frame.style.width)).toBeLessThanOrEqual(track);
+    });
+
+    test("scheduling the milestone (optimistic) removes the appended row and puts the one dashed bar on the milestone's own row", async () => {
+      const user = userEvent.setup();
+      teamView = { ...TEAM_VIEW, team: { ...TEAM_VIEW.team, can: { ...TEAM_VIEW.team.can, schedule: true } }, unscheduled: [ROLLOUT] };
+      afterSchedule = (body) => {
+        teamView = { ...teamView, revision: 11, scheduled: [...TEAM_VIEW.scheduled, { ...ROLLOUT, startDate: body.startDate, endDate: body.endDate }], unscheduled: [] };
+      };
+      renderPage();
+      const grid = await timeline();
+      expect(appendedRows(grid)).toHaveLength(1);
+      await user.click(screen.getByRole("button", { name: "Schedule tv-rollout" }));
+      await waitFor(() => expect(appendedRows(grid)).toEqual([]));
+      const own = within(grid).getByRole("row", { name: /tv-rollout/ });
+      expect([...own.querySelectorAll('[data-tone="jira"]')]).toHaveLength(1);
+      expect(trayBars()).toHaveLength(1);
     });
   });
 

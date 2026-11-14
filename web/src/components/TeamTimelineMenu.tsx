@@ -95,7 +95,7 @@ export default function MilestoneMenu({
 }
 
 /** The menu of a baseline row: it holds only the link to the milestone's project (a removed milestone's project may be gone too: the link then lands on its not-found page). */
-export function OpenProjectMenu({ row, trigger }: { row: BaselineRow; trigger: RovingTarget }) {
+export function OpenProjectMenu({ row, trigger }: { row: Pick<BaselineRow, "name" | "projectId">; trigger: RovingTarget }) {
   const { t } = useTranslation();
   return (
     <RowActionsMenu label={t("common.table.operationsAria", { name: row.name })} trigger={trigger}>

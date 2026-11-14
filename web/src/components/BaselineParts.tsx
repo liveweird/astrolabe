@@ -86,14 +86,19 @@ export function TotalsBadges({
   );
 }
 
+/** The name cell of a row appended after the current ones: dimmed, with a parenthesised mark after the name (the one place that renders "name (mark)"). */
+export function AppendedRowName({ name, mark }: { name: string; mark: string }) {
+  return (
+    <Text component="span" size="sm" c="dimmed" truncate>
+      {name} {mark}
+    </Text>
+  );
+}
+
 /** The name cell of a row the overlay appends: dimmed, with what became of the milestone after it ("(removed)", "(unscheduled since the baseline)", "(moved to X)"). */
 export function BaselineRowName({ row }: { row: Pick<BaselineRow, "name" | "reason" | "movedTo"> }) {
   const { t } = useTranslation();
-  return (
-    <Text component="span" size="sm" c="dimmed" truncate>
-      {row.name} {rowSuffix(row, t)}
-    </Text>
-  );
+  return <AppendedRowName name={row.name} mark={rowSuffix(row, t)} />;
 }
 
 /**

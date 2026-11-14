@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
-import { screen, within } from "@testing-library/react";
+import { cleanup, screen, within } from "@testing-library/react";
 import TeamTimeline, { TeamTray, type TeamActions } from "./TeamTimeline";
 import TimelineDndContext from "./TimelineDndContext";
 import type { DependencyEndpoint, ProjectDependency } from "../api/dependencies";
@@ -8,6 +8,8 @@ import type { ScheduleProposalMove, TeamMilestone, TeamView, WeekLoad } from "..
 import { withoutGeneratedIds } from "../test/generatedIds";
 import { jsonResponse } from "../test/http";
 import { renderWithProviders } from "../test/render";
+import type { JiraLink } from "../api/roadmap";
+import type { JiraWindow } from "../utils/jiraBars";
 import { makeScale, toEpochDay } from "../utils/timelineScale";
 
 const milestone = (id: number, name: string, over: Partial<TeamMilestone> = {}): TeamMilestone => ({
@@ -91,11 +93,11 @@ const PROPOSAL = {
 
 const ACTIONS: TeamActions = { editSchedule: vi.fn(), unschedule: vi.fn(), pin: vi.fn(), schedule: vi.fn(), move: vi.fn(), moveTo: vi.fn() };
 
-function renderTimeline(view: TeamView, proposal?: typeof PROPOSAL, criticalPath?: boolean) {
+function renderTimeline(view: TeamView, proposal?: typeof PROPOSAL, criticalPath?: boolean, jira?: JiraWindow | null) {
   const scale = makeScale("week", { from: toEpochDay("2042-01-05"), to: toEpochDay("2042-02-22") });
   return renderWithProviders(
     <TimelineDndContext scale={scale} onSchedule={vi.fn(() => true)} onReorder={vi.fn(() => true)}>
-      <TeamTimeline view={view} scale={scale} onZoomChange={vi.fn()} today="2042-01-06" busy={false} actions={ACTIONS} label="Team milestone timeline" proposal={proposal} criticalPath={criticalPath} />
+      <TeamTimeline view={view} scale={scale} onZoomChange={vi.fn()} today="2042-01-06" busy={false} actions={ACTIONS} label="Team milestone timeline" proposal={proposal} criticalPath={criticalPath} jira={jira} />
       <TeamTray view={view} actions={ACTIONS} label="Unscheduled milestones of the team" previewing={proposal !== undefined} />
     </TimelineDndContext>,
   );
@@ -300,5 +302,77 @@ describe("TeamTimeline with the critical path (1.7)", () => {
     renderTimeline(critical(), PROPOSAL, true);
     expect(within(rowOf("tp-x")).getAllByRole("gridcell")[2].textContent).toBe("");
     expect(within(rowOf("tp-x")).getAllByRole("gridcell")).toHaveLength(within(rowOf("tp-a")).getAllByRole("gridcell").length);
+  });
+});
+
+describe("TeamTimeline with tray milestones that Jira dates (1.16)", () => {
+  const WINDOW: JiraWindow = { from: "2041-02-02", to: "2043-02-10" };
+  const link = (key: string, start: string | null, end: string | null): JiraLink => ({ bindingId: 1, connectionId: 1, issueKey: key, start, end, rollup: null });
+  const X = { ...NEW_X, jira: link("E2E-8", "2042-02-16", "2042-02-20") };
+  const Y = { ...NEW_Y, jira: link("E2E-9", "2042-02-12", "2042-02-13") };
+  const MARK = "(unscheduled; dates from Jira)";
+  const jiraBars = () => [...document.querySelectorAll('[data-tone="jira"]')].map((bar) => bar.getAttribute("aria-label"));
+  const baseline = {
+    id: 5,
+    name: "Q1",
+    planRevision: 4,
+    milestones: [{ milestoneId: 3, teamIdThen: 1, start: "2042-02-16", end: "2042-02-18", estimateMd: 4, movement: { kind: "UNSCHEDULED" as const, startDays: null, endDays: null, estimateDelta: 0 } }],
+    removed: [],
+  };
+
+  test("each gets a dimmed row after the scheduled ones, in (start, end, name) order, with the mark, the project, the estimate and one Jira bar; the menu holds only the project", async () => {
+    const user = userEvent.setup();
+    renderTimeline(viewOf({ unscheduled: [X, Y] }), undefined, undefined, WINDOW);
+    expect(bodyRows().map((row) => /tp-[a-z]/.exec(row.textContent ?? "")?.[0])).toEqual(["tp-a", "tp-b", "tp-y", "tp-x"]);
+    const row = rowOf("tp-y");
+    expect(row).toHaveTextContent(`tp-y ${MARK}`);
+    expect(row).toHaveTextContent("Invoices");
+    expect(row).toHaveTextContent("4 man-days");
+    expect(within(row).getAllByRole("img").map((bar) => bar.getAttribute("data-tone"))).toEqual(["jira"]);
+    expect(jiraBars()).toEqual(["Jira E2E-9: 2042-02-12 to 2042-02-13, read-only", "Jira E2E-8: 2042-02-16 to 2042-02-20, read-only"]);
+    await user.click(within(row).getByRole("button", { name: "Operations for tp-y" }));
+    expect((await screen.findAllByRole("menuitem")).map((item) => item.textContent)).toEqual(["Open project"]);
+  });
+
+  test("a milestone the baseline appended as 'unscheduled since' gets its Jira bar on THAT row: one row, two bars, and no row of its own", () => {
+    renderTimeline(viewOf({ unscheduled: [X, Y], baseline }), undefined, undefined, WINDOW);
+    const rows = bodyRows().map((row) => /tp-[a-z]/.exec(row.textContent ?? "")?.[0]);
+    expect(rows).toEqual(["tp-a", "tp-b", "tp-x", "tp-y"]);
+    expect(rowOf("tp-x")).toHaveTextContent("tp-x (unscheduled since the baseline)");
+    expect(rowOf("tp-x")).not.toHaveTextContent(MARK);
+    expect(within(rowOf("tp-x")).getAllByRole("img").map((bar) => bar.getAttribute("data-tone"))).toEqual(["baseline", "jira"]);
+    expect(rowOf("tp-y")).toHaveTextContent(MARK);
+  });
+
+  test("the rows come before a preview's appended rows, which are untouched and carry no Jira bar", () => {
+    renderTimeline(viewOf({ unscheduled: [X, Y] }), PROPOSAL, undefined, WINDOW);
+    const rows = bodyRows();
+    // the Jira rows (tp-y then tp-x), then the preview's rows for the tray (tp-x, tp-y in the tray's order)
+    expect(rows.map((row) => /tp-[a-z]/.exec(row.textContent ?? "")?.[0])).toEqual(["tp-a", "tp-b", "tp-y", "tp-x", "tp-x", "tp-y"]);
+    expect(rows.slice(4).map((row) => within(row).getAllByRole("img").map((bar) => bar.getAttribute("data-tone")))).toEqual([["proposal"], ["proposal"]]);
+    expect(rows.slice(4).every((row) => row.textContent?.includes("(new)"))).toBe(true);
+  });
+
+  test("no `jira` window (the toggle off or none passed), one date, or a range outside the window: no row", () => {
+    renderTimeline(viewOf({ unscheduled: [X, Y] }));
+    expect(bodyRows()).toHaveLength(2);
+    expect(jiraBars()).toEqual([]);
+    cleanup();
+    renderTimeline(viewOf({ unscheduled: [X, Y] }), undefined, undefined, null);
+    expect(bodyRows()).toHaveLength(2);
+    cleanup();
+    const odd = { ...NEW_X, jira: link("E2E-8", "2042-02-16", null) };
+    const far = { ...NEW_Y, jira: link("E2E-9", "2050-02-12", "2050-02-13") };
+    renderTimeline(viewOf({ unscheduled: [odd, far, milestone(5, "tp-z")] }), undefined, undefined, WINDOW);
+    expect(bodyRows()).toHaveLength(2);
+    expect(jiraBars()).toEqual([]);
+  });
+
+  test("the Flags and Slack cells of the row are empty and line up with the other rows", () => {
+    const linked = { ...A, jira: link("E2E-1", "2042-02-02", "2042-02-06") };
+    renderTimeline(viewOf({ scheduled: [linked, B], unscheduled: [Y] }), undefined, true, WINDOW);
+    expect(within(rowOf("tp-y")).getAllByRole("gridcell")).toHaveLength(within(rowOf("tp-a")).getAllByRole("gridcell").length);
+    expect(within(grid()).getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["Milestone", "Project", "Estimate", "Flags", "Slack", "Operations"]);
+    expect(rowOf("tp-y").querySelector("[data-flags], a")).toBeNull();
   });
 });

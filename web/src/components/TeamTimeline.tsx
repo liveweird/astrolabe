@@ -14,8 +14,8 @@ import { proposalBars, proposalRows, type TeamProposalView } from "../utils/sche
 import type { BarId, RovingTarget, TimelineBarData, TimelineColumn, TimelineRowData } from "../utils/timelineModel";
 import type { TimelineScale, Zoom } from "../utils/timelineScale";
 import { jiraTrayNote } from "../utils/flagSentences";
-import { jiraBar, siteUrls, type JiraWindow } from "../utils/jiraBars";
-import { BaselineRowName } from "./BaselineParts";
+import { baselineUnscheduledIds, jiraBar, jiraTrayBars, jiraTrayRowId, jiraTrayRows, siteUrls, type JiraWindow } from "../utils/jiraBars";
+import { AppendedRowName, BaselineRowName } from "./BaselineParts";
 import { MilestoneFlags, NameWithFlags } from "./MilestoneFlags";
 import PinMark from "./PinMark";
 import SlackCell from "./SlackCell";
@@ -116,7 +116,7 @@ const proposalBarOf = (proposed: ReadonlyMap<number, TimelineBarData>, milestone
  *
  * Jira (1.3, all from the view): while some scheduled milestone is linked or flagged there is a Flags column (the row's Jira key and its flags, the Jira ones and the calendar's
  * `NO_WORKING_DAY`, as the roadmap's icons, the sentences as the accessible label; a cell is empty only for a row that is neither linked nor flagged), and with `jira` (the page's window, the "Jira dates" toggle on) each linked row gets a dashed shadow bar of the
- * dates Jira holds, beside the baseline's.
+ * dates Jira holds, beside the baseline's; a TRAY milestone that Jira dates gets a dimmed row of its own for that bar (1.16, after the baseline's rows, before a preview's).
  *
  * With `criticalPath` (1.7, the page's toggle; the server's `slackDays`/`critical` per milestone toward ITS OWN project's end and the links' `critical`) a Slack
  * column appears after Flags (the project page's cell), a critical milestone's bar is emphasised (and its accessible name says so) and the critical links' arrows
@@ -232,8 +232,11 @@ export default function TeamTimeline({
       ...barList(jira == null ? undefined : jiraBar(milestone.id, milestone.name, milestone.jira, milestone.flags, jira, t)),
     ],
   }));
-  // The baseline's rows: gone from the team, or in the tray now though the baseline had them scheduled - dimmed, the shadow bar only.
-  for (const row of overlay === undefined ? [] : removedRows(overlay, view.unscheduled, t)) {
+  // The baseline's rows: gone from the team, or in the tray now though the baseline had them scheduled - dimmed, the shadow bar only (and, on an
+  // "unscheduled" row whose milestone Jira dates, that milestone's Jira bar, 1.16).
+  const trayBars = jiraTrayBars(view.unscheduled, jira ?? null, t);
+  const appended = overlay === undefined ? [] : removedRows(overlay, view.unscheduled, t);
+  for (const row of appended) {
     rows.push({
       id: row.id,
       cells: withOptional([
@@ -250,7 +253,24 @@ export default function TeamTimeline({
         </Text>,
         (stop: RovingTarget) => <OpenProjectMenu row={row} trigger={stop} />,
       ], null),
-      bars: [row.bar],
+      bars: [row.bar, ...barList(row.reason === "unscheduled" ? trayBars.get(row.milestoneId) : undefined)],
+    });
+  }
+  // The tray milestones that Jira dates and the baseline did not append (1.16): dimmed, the dashed Jira bar only; before the preview's rows.
+  for (const milestone of jiraTrayRows(view.unscheduled, trayBars, baselineUnscheduledIds(appended))) {
+    rows.push({
+      id: jiraTrayRowId(milestone.id),
+      cells: withOptional([
+        <AppendedRowName key="name" name={milestone.name} mark={t("timeline.jiraUnscheduledMark")} />,
+        <Text key="project" component="span" size="sm" c="dimmed" truncate title={milestone.projectName}>
+          {milestone.projectName}
+        </Text>,
+        <Text key="estimate" component="span" size="sm" c="dimmed">
+          {estimateText(t, milestone)}
+        </Text>,
+        (stop: RovingTarget) => <OpenProjectMenu row={milestone} trigger={stop} />,
+      ], null),
+      bars: barList(trayBars.get(milestone.id)),
     });
   }
   // A preview appends the tray milestones the proposal schedules: only the proposal bar (they have no current one).

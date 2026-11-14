@@ -316,11 +316,8 @@ describe("the project page's Jira markers", () => {
       expect(jiraBars()).toHaveLength(1);
     });
 
-    test("a link with only one date, or a tray row, draws no bar", async () => {
-      project = viewOf({
-        scheduled: [DISCOVERY, { ...BUILD, jira: link(6, "E2E-3", "2027-01-18", null) }],
-        unscheduled: [milestone(3, "Rollout", { startDate: null, endDate: null, jira: link(7, "E2E-8", "2027-03-01", "2027-03-05") })],
-      });
+    test("a link with only one date draws no bar", async () => {
+      project = viewOf({ scheduled: [DISCOVERY, { ...BUILD, jira: link(6, "E2E-3", "2027-01-18", null) }] });
       renderPage();
       await timeline();
       expect(jiraBars()).toEqual([]);

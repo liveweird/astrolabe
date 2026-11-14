@@ -132,7 +132,7 @@ function TeamPage({ id }: { id: number }) {
     (d): d is string => d !== null,
   );
   // The Jira window (the plan's own dates padded by a year) bounds the shadow bars and what they add to the range: a mistyped Jira date cannot stretch the page.
-  const { window: jiraWindowNow, dates } = jiraPageRange(jiraBars.shown, planDates, view.scheduled, today);
+  const { window: jiraWindowNow, dates } = jiraPageRange(jiraBars.shown, planDates, [...view.scheduled, ...view.unscheduled], today);
   const grown = growSeenRange(seen, dates);
   if (grown !== null) setSeen(grown);
   const scale = makeScale(zoom, defaultRange(seen === null ? [] : [seen.min, seen.max], today, zoom));

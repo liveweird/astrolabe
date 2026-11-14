@@ -37,6 +37,7 @@
     "badge_many": "{{count}} przestojów",
     "badge_other": "{{count}} przestoju"
   },
+  "jiraUnscheduledMark": "(niezaplanowany; daty z Jiry)",
   "baseline": {
     "pickerLabel": "Baza odniesienia",
     "none": "Brak",

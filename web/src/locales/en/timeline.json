@@ -33,6 +33,7 @@
     "badge_one": "{{count}} idle gap",
     "badge_other": "{{count}} idle gaps"
   },
+  "jiraUnscheduledMark": "(unscheduled; dates from Jira)",
   "baseline": {
     "pickerLabel": "Baseline",
     "none": "None",

@@ -1,6 +1,7 @@
 import type { TFunction } from "i18next";
 import type { Deviation } from "../api/deviations";
 import type { JiraLink } from "../api/roadmap";
+import type { BaselineRow } from "./baselineOverlay";
 import { deviationSentence } from "./deviations";
 import { addDays } from "./isoDate";
 import type { TimelineBarData } from "./timelineModel";
@@ -98,6 +99,51 @@ export function jiraBar(
   const dates = t("timeline.bar.jira", { key: link.issueKey, start: link.start, end: link.end });
   const sentences = dateSentences(flags, t);
   return { id: jiraBarId(key), start: drawn.start, end: drawn.end, label: name, describe: [dates, ...sentences].join(", "), editable: false, tone: "jira" };
+}
+
+/** The part of a tray milestone the Jira rows read (either view's unscheduled row). */
+type TrayMilestone = { id: number; name: string; jira: Pick<JiraLink, "issueKey" | "start" | "end"> | null; flags: readonly FlagLike[] };
+
+/** The id of the row a tray milestone gets for its Jira bar alone (1.16): `jira-unscheduled:<milestoneId>`, apart from the baseline's `baseline-removed:<id>`. */
+export const jiraTrayRowId = (milestoneId: number) => `jira-unscheduled:${milestoneId}`;
+
+/**
+ * The dashed Jira bars of the TRAY milestones (1.16), by milestone id: the scheduled rows' rule (`jiraBar`: both dates inside the window, an
+ * acknowledged deviation keeps its bar). `window` null (the "Jira dates" toggle is off) = no bar at all.
+ */
+export function jiraTrayBars(unscheduled: readonly TrayMilestone[], window: JiraWindow | null, t: TFunction): Map<number, TimelineBarData> {
+  const bars = new Map<number, TimelineBarData>();
+  if (window === null) return bars;
+  for (const milestone of unscheduled) {
+    const bar = jiraBar(milestone.id, milestone.name, milestone.jira, milestone.flags, window, t);
+    if (bar !== undefined) bars.set(milestone.id, bar);
+  }
+  return bars;
+}
+
+/** The ids of the tray milestones the baseline overlay already gave an appended row ("unscheduled since the baseline"): their Jira bar goes on that row. */
+export const baselineUnscheduledIds = (rows: readonly Pick<BaselineRow, "reason" | "milestoneId">[]): Set<number> =>
+  new Set(rows.filter((row) => row.reason === "unscheduled").map((row) => row.milestoneId));
+
+/**
+ * The tray milestones that get a row of their own for their Jira bar (1.16): those with a bar in `bars` that no baseline row `taken`, in (drawn
+ * start, drawn end, name, id) order - the baseline idiom's order.
+ */
+export function jiraTrayRows<T extends { id: number; name: string }>(unscheduled: readonly T[], bars: ReadonlyMap<number, TimelineBarData>, taken: ReadonlySet<number>): T[] {
+  const compare = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+  return unscheduled
+    .flatMap((milestone) => {
+      const bar = bars.get(milestone.id);
+      return bar === undefined || taken.has(milestone.id) ? [] : [{ milestone, bar }];
+    })
+    .sort(
+      (a, b) =>
+        compare(a.bar.start, b.bar.start) ||
+        compare(a.bar.end, b.bar.end) ||
+        a.milestone.name.toLowerCase().localeCompare(b.milestone.name.toLowerCase()) ||
+        a.milestone.id - b.milestone.id,
+    )
+    .map(({ milestone }) => milestone);
 }
 
 /** `{connectionId → siteUrl}` of a document's `jiraSites` (the browse URL is built from it, never carried per row). */
