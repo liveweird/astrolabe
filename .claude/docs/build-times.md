@@ -160,6 +160,16 @@ Local (`local-times.mjs report`): `server-build` last five median 2m05s (previou
 
 **Outcome.** Budgets set from these figures (`budgets.json`; each `why` holds its figure). Tightened: the local `web-gates`, `e2e-static` and `e2e-playwright`, which were far looser than measured. Raised: the CI `server`, `web`, `e2e-static`, `images`, `e2e` targets, and the `web`, `e2e-static` and `images` alarms, so one cold-cache run does not alarm. `ci.server-tests` stays 3 min against the measured 2m55s on purpose: its next breach is the cue for fork balancing. The `ci-steps` rows and the two one-off local rows rest on a single run each, so treat them as weaker. The Kover and vitest floors were re-measured the same day (`server/build.gradle.kts`, `web/vite.config.ts`).
 
+### Astrolabe WHY 2: the server gate beside the running compose stack (status check, 2026-11-15)
+
+**Symptom.** One local `server-build` run was red at `b43bb95` (2026-11-14 11:56 UTC, after 190.9 s, the length of a full run) while the compose stack ran and web and e2e gates ran within minutes of it; its report was not kept. The guess was that the gate "needs 127.0.0.1:8096", the port of the stack's `astrolabe-jira-stub`.
+
+**Evidence.** Nothing in the server suite binds 8096: `StubServer.kt` starts every in-JVM WireMock on `.dynamicPort()`, and the only `8096` literals (`JiraBootTest`, `JiraClientTest`) are strings for a host that is never dialled. The gate was green at `0ae59bc` (2026-11-14 00:17 UTC) with the stack up. Tonight, with `astrolabe-jira-stub` holding 127.0.0.1:8096 and nothing else heavy running, `scripts/gates.sh server` at `71313e1` passed twice, exit 0: 3m40s (219.9 s) and 3m14s (194.6 s).
+
+**Cause.** Not reproduced. The one red run is best explained by the load of the neighbouring gates, and was not the port.
+
+**Outcome.** No harness change. `StubPortGuardTest` pins the premise (the shared stub takes `dynamicPort()`, no other test source builds a WireMock server, no `ServerSocket` on a literal port other than 0), and `testing.md`, `test-fixtures.md` and `ci.md` say the gate runs beside the stack. A next unexplained red run gets its failing classes and first exception lines recorded here at once.
+
 ## Review cadence
 
 - Run `node scripts/timings/ci-times.mjs --branch master` at every milestone / PR, and in every

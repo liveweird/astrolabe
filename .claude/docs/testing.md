@@ -66,7 +66,7 @@ file order is the bug.
 **Fork warm-up.** `ForkWarmup<k>Test` (k = 1..`-Pforks`, at most 3) is pinned as the FIRST class of fork k, so the one-time Postgres + Flyway +
 first-boot cost lands outside `testApplication`'s hard 60 s limit and outside any real test; a full run fails if a warm-up did not run first in its own JVM
 (`test-fixtures.md` "Fork warm-up"). The shared fixtures are the Jira and Flow stubs (`JiraStubFixture`, `FlowStubFixture`): a reader warms it
-in a `@BeforeClass` (the WireMock start stays outside the 60 s limit) and `StubWarmupGuardTest` fails a class that forgets (Flow's `SyncedStubFixture` pair is the donor shape).
+in a `@BeforeClass` (the WireMock start stays outside the 60 s limit) and `StubWarmupGuardTest` fails a class that forgets (Flow's `SyncedStubFixture` pair is the donor shape). The stubs take a free port, so the gate runs beside a running compose stack (`StubPortGuardTest`).
 
 **Runtime OpenAPI conformance.** Every `/api/` interaction in the server suite is validated against
 `documentation.yaml` by the `OpenApiConformance` client plugin, installed via `jsonClient()`/`authedClient()`;
