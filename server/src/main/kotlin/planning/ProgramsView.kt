@@ -31,6 +31,12 @@ data class ProgramsView(
      */
     @EncodeDefault(EncodeDefault.Mode.NEVER)
     val baseline: RoadmapBaseline? = null,
+    /**
+     * Present only for `?criticalPath=N` (1.16): the chain toward project N, the roadmap's [RoadmapCriticalPath] from the same step
+     * over the same rows, for the programs page's picker and panel.
+     */
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val criticalPath: RoadmapCriticalPath? = null,
 )
 
 /**

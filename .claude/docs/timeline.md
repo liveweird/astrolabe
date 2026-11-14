@@ -546,6 +546,8 @@ One-off, NON-BINDING, measured on the CI runner (`JiraFlagsScaleTest`'s report i
 Expected: +35 B on each of the four documents bound and with `?baseline=` (one site), gzip +0 to +20 B, the loader statements still 12 plus one `sync_runs` read per site, the medians within the runner's noise (one more indexed read of at most 50 rows is far under a millisecond). **Gates:** the team view with the overlay 400,000 B (headroom TODO-1.16-CI), gzip 40,000 B, the project view 40,000 B; none moves. The plan's stop line was the team view growing by more than 200 B; TODO-1.16-CI.
 
 #### Measured figures (1.13.1)
+**`GET /views/programs?criticalPath=N` (C7, not gated, no statement added):** the `criticalPath` block for the chain world of `ProgramsViewCriticalPathTest` (three listed projects and two pairs; the roadmap's block byte for byte) is TODO-1.16-CI B (the test prints no figure: read it off one `?criticalPath=` response); the rule of thumb is about 60 B a listed project and 50 B a pair, and the document without the parameter is byte-identical.
+
 
 One-off, **NON-BINDING**, this machine only (Apple M5 Max, in-process `testApplication` against the Postgres container; re-measure rather than quote). The accept's look-again path (`planning-model.md` "The scope check": a holiday changed under an open proposal, the kernel runs once under the plan lock before the write), printed by `TeamScheduleBatchHoldTimeTest` (no gate).
 

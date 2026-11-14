@@ -23,10 +23,11 @@ class RoadmapViewRoute
 class RoadmapRankingRoute
 
 /**
- * The optional `?criticalPath=N` of the roadmap view (1.7): absent/blank = no block, a repeated key or a value that is not a
- * non-negative integer is a plain `400` (`optionalUInt`, as `?baseline=`). Whether N names an ACTIVE project is the service's question.
+ * The optional `?criticalPath=N` of the roadmap view (1.7) and the programs view (1.16): absent/blank = no block, a repeated key or a
+ * value that is not a non-negative integer is a plain `400` (`optionalUInt`, as `?baseline=`). Whether N names an ACTIVE project is the
+ * service's question ([criticalPathTo]).
  */
-private fun ApplicationCall.criticalPathParam(): UInt? = request.queryParameters.optionalUInt("criticalPath")
+internal fun ApplicationCall.criticalPathParam(): UInt? = request.queryParameters.optionalUInt("criticalPath")
 
 /**
  * The global project rank. `GET /views/roadmap`: any authenticated user reads it; `can.editRank` and each project's

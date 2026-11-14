@@ -44,7 +44,8 @@ internal fun ApplicationCall.baselineParam(): UInt? = request.queryParameters.op
  * capacity and load (404 when the project, an ancestor or the team is gone, for every caller: plan ids are sequential and the plan is
  * open to read); the caller's rights ride in the `can` flags. The view services travel in
  * [PlanRouteDeps.views] ([PlanViewServices]). The project, team, programs (here) and
- * roadmap (`RoadmapRoutes.kt`) views take `?baseline=N`; `GET /views/baseline/{id}` is the comparison document (404 for an unknown or
+ * roadmap (`RoadmapRoutes.kt`) views take `?baseline=N`, and the roadmap and programs views (1.16) `?criticalPath=N`
+ * (`criticalPathParam`); `GET /views/baseline/{id}` is the comparison document (404 for an unknown or
  * deleted baseline: it is the addressed resource), with `?against=N` (1.7) comparing it with a second baseline instead of the live plan
  * (a repeated or malformed value is a `400` here, an unknown or deleted id the view's typed `400` after the path id's `404`). Any
  * authenticated user; a read: no audit event.
@@ -62,7 +63,7 @@ internal fun Route.planViewRoutes(d: PlanRouteDeps) {
     }
     get<ProgramsViewRoute> {
         val caller = call.caller()
-        call.respond(HttpStatusCode.OK, d.views.programs.view(d.actor(caller), call.baselineParam()))
+        call.respond(HttpStatusCode.OK, d.views.programs.view(d.actor(caller), call.baselineParam(), call.criticalPathParam()))
     }
     get<TeamViewRoute> { route ->
         val caller = call.caller()

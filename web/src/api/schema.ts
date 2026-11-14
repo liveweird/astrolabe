@@ -1338,6 +1338,12 @@ export interface paths {
          *     With `?baseline=N` the document gains `baseline` (the baseline's identity), every project row gains its `baseline` block (as
          *     `GET /views/roadmap`'s) and a program (work stream) with at least one project the baseline froze gains `baseline`: the span
          *     those projects (its programs) had, derived like the live span, and its movement against the live span.
+         *
+         *     With `?criticalPath=N` (1.16) the document gains `criticalPath`, exactly the block `GET /views/roadmap?criticalPath=N` answers for
+         *     the same plan (the critical chain toward project N's end over the whole plan graph on the planned dates, rolled up to projects and
+         *     project pairs; same snapshot, same rows): the programs page uses it to outline the projects on the chain, or the folded rows that
+         *     hold them. A project hidden by a fold or by the page's program pick stays in the block. The parameter combines with `baseline`
+         *     (independent blocks), and the rest of the document is unchanged.
          */
         get: operations["getProgramsView"];
         put?: never;
@@ -5211,7 +5217,7 @@ export interface components {
             baseline?: components["schemas"]["RoadmapBaseline"];
             criticalPath?: components["schemas"]["RoadmapCriticalPath"];
         };
-        /** @description Present only with `?criticalPath=N`: the critical chain toward project N's end, rolled up to projects and project pairs. */
+        /** @description Present only with `?criticalPath=N`, on `GET /views/roadmap` and (1.16) `GET /views/programs` (the same block for the same plan): the critical chain toward project N's end, rolled up to projects and project pairs. */
         RoadmapCriticalPath: {
             /**
              * Format: int32
@@ -5428,6 +5434,7 @@ export interface components {
             /** @description The Jira connections, enabled or not, that a binding in this document's scope links to (a roadmap or programs document also lists a connection that only has milestone bindings), by connection id, once per document; the client builds a row's browse URL as `siteUrl + "/browse/" + jira.issueKey`. Empty when nothing is linked. */
             jiraSites: components["schemas"]["JiraSite"][];
             baseline?: components["schemas"]["RoadmapBaseline"];
+            criticalPath?: components["schemas"]["RoadmapCriticalPath"];
         };
         ProgramsWorkStream: {
             /** Format: int32 */
@@ -7618,6 +7625,8 @@ export interface components {
          *     still `404`. The comparison is computed in the same snapshot as the view, so its figures are consistent with the rows.
          */
         BaselineQuery: number;
+        /** @description The id of an ACTIVE project to show the critical chain toward (the page's pick; the roadmap's and, since 1.16, the programs page's). Absent: no `criticalPath` block, and the document is byte-identical to the one without the parameter; a blank value (`?criticalPath=`) means absent. A repeated key or a value that is not a non-negative integer is a `400`, as is an id that is unknown or soft-deleted (a plain `400`: plan ids are no secret and the page clears its own pick). When `baseline` is also given, the baseline's own errors are answered first (malformed: `400`; unknown or deleted: the typed `unknown-baseline` `400`), then the project id is checked. */
+        CriticalPathQuery: number;
         /** @description 1-based page index. Defaults to 1. */
         Page: number;
         /** @description Rows per page. Defaults to 20, maximum 100. */
@@ -9650,6 +9659,8 @@ export interface operations {
                  *     still `404`. The comparison is computed in the same snapshot as the view, so its figures are consistent with the rows.
                  */
                 baseline?: components["parameters"]["BaselineQuery"];
+                /** @description The id of an ACTIVE project to show the critical chain toward (the page's pick; the roadmap's and, since 1.16, the programs page's). Absent: no `criticalPath` block, and the document is byte-identical to the one without the parameter; a blank value (`?criticalPath=`) means absent. A repeated key or a value that is not a non-negative integer is a `400`, as is an id that is unknown or soft-deleted (a plain `400`: plan ids are no secret and the page clears its own pick). When `baseline` is also given, the baseline's own errors are answered first (malformed: `400`; unknown or deleted: the typed `unknown-baseline` `400`), then the project id is checked. */
+                criticalPath?: components["parameters"]["CriticalPathQuery"];
             };
             header?: never;
             path?: never;
@@ -9666,7 +9677,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProgramsView"];
                 };
             };
-            /** @description Malformed request (an id, or `baseline`, that is not a non-negative integer; a repeated `baseline`), or `baseline` names an unknown or deleted baseline (`type` `urn:astrolabe:problem:unknown-baseline`). */
+            /** @description Malformed request (an id, `baseline` or `criticalPath` that is not a non-negative integer; a repeated `baseline` or `criticalPath`), `baseline` names an unknown or deleted baseline (`type` `urn:astrolabe:problem:unknown-baseline`), or `criticalPath` names an unknown or deleted project (a plain `400`). */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -9690,8 +9701,8 @@ export interface operations {
                  *     still `404`. The comparison is computed in the same snapshot as the view, so its figures are consistent with the rows.
                  */
                 baseline?: components["parameters"]["BaselineQuery"];
-                /** @description The id of an ACTIVE project to show the critical chain toward (the roadmap's pick). Absent: no `criticalPath` block, and the document is byte-identical to the one without the parameter; a blank value (`?criticalPath=`) means absent. A repeated key or a value that is not a non-negative integer is a `400`, as is an id that is unknown, soft-deleted or not on the roadmap (a plain `400`: plan ids are no secret and the page clears its own pick). When `baseline` is also given, the baseline's own errors are answered first (malformed: `400`; unknown or deleted: the typed `unknown-baseline` `400`), then the project id is checked. */
-                criticalPath?: number;
+                /** @description The id of an ACTIVE project to show the critical chain toward (the page's pick; the roadmap's and, since 1.16, the programs page's). Absent: no `criticalPath` block, and the document is byte-identical to the one without the parameter; a blank value (`?criticalPath=`) means absent. A repeated key or a value that is not a non-negative integer is a `400`, as is an id that is unknown or soft-deleted (a plain `400`: plan ids are no secret and the page clears its own pick). When `baseline` is also given, the baseline's own errors are answered first (malformed: `400`; unknown or deleted: the typed `unknown-baseline` `400`), then the project id is checked. */
+                criticalPath?: components["parameters"]["CriticalPathQuery"];
             };
             header?: never;
             path?: never;

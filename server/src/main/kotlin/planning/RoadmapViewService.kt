@@ -1,6 +1,5 @@
 package ch.nokillswit.planning
 
-import io.ktor.server.plugins.BadRequestException
 import io.ktor.util.AttributeKey
 import org.jetbrains.exposed.v1.r2dbc.R2dbcDatabase
 import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
@@ -23,12 +22,7 @@ class RoadmapViewService(private val database: R2dbcDatabase, private val extern
             val revision = readRankingRevision()
             val header = baselineId?.let { requireActiveBaseline(it) }
             val snapshot = loadRoadmapSnapshot(actor, external = external)
-            // A plain 400 (no typed problem): the id is a query value, plan ids are no secret and the page clears its own selection.
-            val criticalPath = criticalPathFor?.let { root ->
-                if (snapshot.projects.none { it.id == root }) throw BadRequestException("Unknown or deleted project id: $root")
-                val result = CriticalPathKernels.analyse(root, snapshot.facts, snapshot.linkFacts, snapshot.calendar)
-                RoadmapCriticalPathKernels.rollUp(root, result, snapshot.facts, snapshot.linkFacts)
-            }
+            val criticalPath = criticalPathFor?.let { snapshot.criticalPathTo(it) }
             val overlay = header?.let { overlayRoadmap(it, snapshot.projects, snapshot.spans, snapshot.calendar) }
             val (ranked, unranked) = (overlay?.projects ?: snapshot.projects).partition { it.rankPosition != null }
             RoadmapView(

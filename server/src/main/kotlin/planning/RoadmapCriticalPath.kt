@@ -1,12 +1,14 @@
 package ch.nokillswit.planning
 
+import io.ktor.server.plugins.BadRequestException
 import kotlinx.serialization.Serializable
 
 /**
  * `GET /views/roadmap?criticalPath=N` (1.7): the chain toward ONE picked project, rolled up to the roadmap's grain. [projectId] is the
  * target; [projects] are the OTHER projects upstream of its end (the target itself is implied: critical, slack 0), by hops, slack, id;
  * [pairs] are the ordered project pairs holding at least one link on the chain, by (predecessor, successor). Both are empty while the
- * target has nothing scheduled. Present only with the parameter (`planning-model.md` "The roadmap view").
+ * target has nothing scheduled. Present only with the parameter, on `GET /views/roadmap` and (1.16) `GET /views/programs` - the same block
+ * from the same step ([criticalPathTo]) (`planning-model.md` "The roadmap view").
  */
 @Serializable
 data class RoadmapCriticalPath(
@@ -64,4 +66,15 @@ object RoadmapCriticalPathKernels {
             .map { RoadmapCriticalPair(it.first, it.second) }
         return RoadmapCriticalPath(root, upstream, pairs)
     }
+}
+
+/**
+ * The chain toward [root] over the snapshot's own rows, the ONE step both `?criticalPath=N` views call (the roadmap's, 1.7, and the
+ * programs view's, 1.16): no further statement. A plain `400` (no typed problem) when [root] is no ACTIVE project of the snapshot -
+ * the id is a query value, plan ids are no secret and the page clears its own selection.
+ */
+internal fun RoadmapSnapshot.criticalPathTo(root: UInt): RoadmapCriticalPath {
+    if (projects.none { it.id == root }) throw BadRequestException("Unknown or deleted project id: $root")
+    val result = CriticalPathKernels.analyse(root, facts, linkFacts, calendar)
+    return RoadmapCriticalPathKernels.rollUp(root, result, facts, linkFacts)
 }
