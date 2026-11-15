@@ -1833,13 +1833,13 @@ for each NOT found, plus a gray line for a legacy Epic/Parent Link field.
 **Peek** (`components/JiraPeek.tsx`): an issue-key field with the `ISSUE_KEY_PATTERN` check, `GET …/peek?key=`, the result as ONE table (the issue with
 `JiraKeyLink`, what the mapping resolves, the raw values); a result belongs to the mapping it was read under (`resetKey`: the saved mapping and the discovery),
 so a save or a new test hides it while the typed key stays; the raw values are arbitrary JSON and are rendered as TEXT NODES only (a string as is, anything else
-as clamped JSON). 400 / 404 / 409 / 429 / 502 show inline (the 400 with the server's sentence, the 502 with Jira's failure code put in words).
+as clamped JSON). 400 / 404 / 409 / 429 / 502 show inline (the 400 with the server's sentence, the 502 with Jira's failure code put in words). The status table of Peek, of the bind dialog (`utils/jiraBind.ts` `bindFailure`) and of the import modal (`utils/jiraImportText.ts` `importFailure`) is ONE mapper, `utils/jiraFailure.ts` `jiraFailure(err, t, keys)` giving `{ message, detail? }` (each dialog passes its own key table; `detailFor` lists the statuses that carry the server's sentence, the 400 alone by default; `upstreamCode`, which lifts Jira's code out of "Jira did not answer (CODE)", lives there only); the problem-type branches (409 `already-bound` / mapping / discovery / token) and the import's apply and timeout preamble stay with each dialog.
 **`components/JiraKeyLink.tsx`** (Flow's, ported; C9 uses it too) takes the connection's `siteUrl`: an external link `{site}/browse/{KEY}`,
 `target="_blank" rel="noopener noreferrer"`, plain text when the site is not `https://`. **`components/JiraKeyWithPrevious.tsx`** (1.13) is the key cell of the connection page's bindings list (`observation.issueKey`) and of the Deviations Jira cell (`jira.previousKey`): the current key as the link and, only when the key the issue was last read under differs (a moved item), a muted "was OLD-1" / "wcześniej OLD-1" beside it, the pair a `role="group"` named "NEW-1, was OLD-1"; the timeline chips show the current key only. Strings: `jira.*` (`jira.link.was`, `jira.link.keyWas`) (the `errorCode.*` table is shared by the probe rows
 and the runs). Tests: `JiraConnections.test.tsx`, `JiraConnectionDetails.test.tsx`, `JiraConnectionEditorModal.test.tsx`, `ConnectionTestResults.test.tsx`,
 `ConnectionTestStatus.test.tsx`, `SyncRunsTable.test.tsx`, `JiraMappingEditor.test.tsx`, `JiraDiscoveryReport.test.tsx`, `JiraPeek.test.tsx`,
 `useSyncRuns.test.tsx` (fake timers, incl. a second claim after the bound), `SyncStatusBadge.test.tsx`, `useNow.test.tsx`,
-`utils/jiraForm|jiraMappingForm|syncRuns|syncStatus|jiraLinks.test.ts`; shared fixtures in `test/jira.ts`.
+`utils/jiraForm|jiraMappingForm|jiraFailure|syncRuns|syncStatus|jiraLinks.test.ts`; shared fixtures in `test/jira.ts`.
 
 ## Flow connections (`pages/FlowConnections.tsx`, `pages/FlowConnectionDetails.tsx`, v1.5.0)
 

@@ -1,16 +1,20 @@
 import type { TFunction } from "i18next";
 import { ApiError, isDatabaseTimeout, isTimeoutError } from "../api/http";
 import { isAlreadyBound, isJiraMappingInvalid, isJiraNotDiscovered, isJiraTokenUnreadable } from "../api/jira";
-import { errorCodeText } from "./syncRuns";
+import { jiraFailure, type JiraFailure, type JiraFailureKeys } from "./jiraFailure";
 
 /** An inline failure of a bind: a fixed localized lead, and the server's own English sentence under it when it adds the specifics (the C8 pattern). */
-export type BindFailure = { message: string; detail?: string };
+export type BindFailure = JiraFailure;
 
-/** "Jira did not answer (AUTHENTICATION_FAILED)": only the code is lifted out and put in words. */
-export function upstreamCode(detail: string | undefined, t: TFunction): string | undefined {
-  const code = /\(([A-Z_]+)\)/.exec(detail ?? "")?.[1];
-  return code === undefined ? undefined : errorCodeText(code, t);
-}
+/** The bind dialog's status table (`jiraFailure`). */
+const BIND_KEYS: JiraFailureKeys = {
+  invalid: "jira.bind.error.invalid",
+  forbidden: "jira.bind.error.forbidden",
+  notFound: "jira.bind.error.gone",
+  rateLimited: "jira.bind.error.rateLimited",
+  upstream: "jira.bind.error.upstream",
+  failedStatus: "jira.bind.error.failedStatus",
+};
 
 /**
  * Every answer a bind can give, in words (never `error.message`): 400 (unknown issue, outside the connection's projects, wrong level - the
@@ -24,21 +28,6 @@ export function bindFailure(err: unknown, t: TFunction): BindFailure {
   if (isJiraMappingInvalid(err)) return { message: t("jira.bind.error.mappingInvalid"), detail: (err as ApiError).detail };
   if (isJiraNotDiscovered(err)) return { message: t("jira.bind.error.notDiscovered") };
   if (isJiraTokenUnreadable(err)) return { message: t("jira.bind.error.tokenUnreadable") };
-  if (err instanceof ApiError) {
-    switch (err.status) {
-      case 400:
-        return { message: t("jira.bind.error.invalid"), detail: err.detail };
-      case 403:
-        return { message: t("jira.bind.error.forbidden") };
-      case 404:
-        return { message: t("jira.bind.error.gone") };
-      case 429:
-        return { message: t("jira.bind.error.rateLimited") };
-      case 502:
-        return { message: t("jira.bind.error.upstream"), detail: upstreamCode(err.detail, t) };
-      default:
-        return { message: t("jira.bind.error.failedStatus", { status: err.status }) };
-    }
-  }
+  if (err instanceof ApiError) return jiraFailure(err, t, BIND_KEYS);
   return { message: isTimeoutError(err) ? t("common.error.timeout") : t("jira.bind.error.failed") };
 }

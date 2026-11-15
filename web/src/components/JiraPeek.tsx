@@ -6,8 +6,8 @@ import { useForm } from "@mantine/form";
 import { useMutation } from "@tanstack/react-query";
 import { ApiError, isDatabaseTimeout } from "../api/http";
 import { isJiraMappingInvalid, isJiraNotDiscovered, isJiraTokenUnreadable, peekJiraIssue, type JiraPeekResponse } from "../api/jira";
+import { jiraFailure, type JiraFailureKeys } from "../utils/jiraFailure";
 import { ISSUE_KEY_PATTERN } from "../utils/jiraForm";
-import { errorCodeText } from "../utils/syncRuns";
 import FormErrorAlert from "./FormErrorAlert";
 import JiraKeyLink from "./JiraKeyLink";
 import ScrollRegion from "./ScrollRegion";
@@ -20,24 +20,23 @@ function rawText(value: unknown): string {
   return text.length > MAX_RAW_CHARS ? `${text.slice(0, MAX_RAW_CHARS)}…` : text;
 }
 
+/** Peek's status table (`jiraFailure`); a 409 other than the three problem types reads the generic status line. */
+const PEEK_KEYS: JiraFailureKeys = {
+  invalid: "jira.peek.invalid",
+  forbidden: "jira.saveForbidden",
+  notFound: "jira.peek.notFound",
+  rateLimited: "sync.test.rateLimited",
+  upstream: "jira.peek.upstream",
+  failedStatus: "common.error.actionFailedStatus",
+};
+
 /** An inline failure of a Peek in words: the 400 with the server's own sentence (it says which rule), the 409s by problem type, the 502 with Jira's failure code. */
 function peekFailure(err: unknown, t: TFunction): { message: string; detail?: string } {
   if (isDatabaseTimeout(err)) return { message: t("common.error.timeout") };
   if (isJiraNotDiscovered(err)) return { message: t("jira.peek.notDiscovered") };
   if (isJiraTokenUnreadable(err)) return { message: t("jira.peek.tokenUnreadable") };
   if (isJiraMappingInvalid(err)) return { message: t("jira.peek.mappingInvalid"), detail: (err as ApiError).detail };
-  if (err instanceof ApiError) {
-    if (err.status === 400) return { message: t("jira.peek.invalid"), detail: err.detail };
-    if (err.status === 404) return { message: t("jira.peek.notFound") };
-    if (err.status === 429) return { message: t("sync.test.rateLimited") };
-    if (err.status === 502) {
-      // The detail is "Jira did not answer (AUTHENTICATION_FAILED)": only the code is lifted out and put in words.
-      const code = /\(([A-Z_]+)\)/.exec(err.detail ?? "")?.[1];
-      return { message: t("jira.peek.upstream"), detail: code ? errorCodeText(code, t) : undefined };
-    }
-    if (err.status === 403) return { message: t("jira.saveForbidden") };
-    return { message: t("common.error.actionFailedStatus", { status: err.status }) };
-  }
+  if (err instanceof ApiError) return jiraFailure(err, t, PEEK_KEYS);
   return { message: t("common.error.actionFailed") };
 }
 

@@ -1,7 +1,7 @@
 import type { TFunction } from "i18next";
 import { ApiError, isDatabaseTimeout } from "../api/http";
 import { isJiraMappingInvalid, isJiraNotDiscovered, isJiraRootUnusable, isJiraTokenUnreadable, type JiraImportItem, type JiraImportSkipReason } from "../api/jira";
-import { upstreamCode } from "./jiraBind";
+import { jiraFailure, type JiraFailureKeys } from "./jiraFailure";
 
 // The import modal's sentences: every skip reason and info in words (never the raw enum), and every failure of the two calls.
 
@@ -64,6 +64,18 @@ export function applyMayHaveLanded(err: unknown, timedOut: boolean): boolean {
   return timedOut || !(err instanceof ApiError) || (err.status >= 500 && err.status !== 502);
 }
 
+/** The import modal's status table (`jiraFailure`): the server's sentence rides on the 400, 403 and 404. */
+const IMPORT_KEYS: JiraFailureKeys = {
+  invalid: "jira.import.error.invalid",
+  forbidden: "jira.import.error.forbidden",
+  notFound: "jira.import.error.gone",
+  conflict: "jira.import.error.conflict",
+  rateLimited: "jira.import.error.rateLimited",
+  upstream: "jira.import.error.upstream",
+  failedStatus: "jira.import.error.failedStatus",
+  detailFor: [400, 403, 404],
+};
+
 /**
  * Every answer the two calls can give, in words (never `error.message`). `null` = the user cancelled a preview: nothing to say. A client
  * abort (`timedOut`, the 180 s mark) is told apart, and for the APPLY so is any answer that leaves the write in doubt (`applyMayHaveLanded`). 409 in the apply
@@ -80,20 +92,5 @@ export function importFailure(err: unknown, t: TFunction, ctx: { apply: boolean;
   if (isJiraNotDiscovered(err)) return { message: t("jira.import.error.notDiscovered"), repreview: false };
   if (isJiraTokenUnreadable(err)) return { message: t("jira.import.error.tokenUnreadable"), repreview: false };
   if (isJiraRootUnusable(err)) return { message: t("jira.import.error.rootUnusable"), repreview: false };
-  switch (err.status) {
-    case 400:
-      return { message: t("jira.import.error.invalid"), detail: err.detail, repreview: ctx.apply };
-    case 403:
-      return { message: t("jira.import.error.forbidden"), detail: err.detail, repreview: false };
-    case 404:
-      return { message: t("jira.import.error.gone"), detail: err.detail, repreview: false };
-    case 409:
-      return { message: t("jira.import.error.conflict"), repreview: ctx.apply };
-    case 429:
-      return { message: t("jira.import.error.rateLimited"), repreview: false };
-    case 502:
-      return { message: t("jira.import.error.upstream"), detail: upstreamCode(err.detail, t), repreview: false };
-    default:
-      return { message: t("jira.import.error.failedStatus", { status: err.status }), repreview: false };
-  }
+  return { ...jiraFailure(err, t, IMPORT_KEYS), repreview: (err.status === 400 || err.status === 409) && ctx.apply };
 }
