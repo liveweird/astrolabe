@@ -661,7 +661,7 @@ The global project ranking (V13 + `GET /views/roadmap`, `PUT /roadmap/ranking`) 
 `can.editRank`. Files: `api/roadmap.ts` (`getRoadmapView`, `putRanking`, `isStaleRevision` — a 409 whose problem `type` is
 `urn:astrolabe:problem:stale-revision`; the view's `RoadmapProject` carries the server's `rankPosition`, `teamIds`, `span`, `drift`, `flags[]`,
 `can.editTargetWindow`, and the view `teams[]` and the rolled-up `links[]`), `hooks/useRoadmapRanking.ts` (query + the one write path),
-`hooks/useRoadmapFilters.ts` (the filters and the pick, in the address and remembered) and `hooks/useProgramPick.ts` (the programs page's read of the shared pick), `utils/roadmapOrder.ts` (pure:
+`hooks/useRoadmapFilters.ts` (the filters and the pick, in the address and remembered) and `hooks/useProgramPick.ts` (the programs page's pick, in its address and remembered under the shared key), `utils/roadmapOrder.ts` (pure:
 `moveBy`/`moveToEdge`/`moveToSlot` — the team page's too —, `moveAmongVisible`, `rankingAfterDrop`, `sameIds`, `appendId`, `removeId`, `applyRanking`),
 `utils/roadmapRows.ts` (pure: filters, the pick, the displayed rows and the divider, the flag totals and panel entries, the drift band, the arrows of the
 rolled-up links) and the components `RoadmapTimeline` (the rows, bars, bands, the row menu, the arrows — inside the page's `TimelineDndContext`),
@@ -685,7 +685,7 @@ alone), the project link, the sentence by kind (plural keys: "Ends 10 days after
 "Show in timeline" button that calls `timelineRef.current.focusRow(projectId)` (the row-header cell, revealed, mounted or not). A `SegmentedControl` above the open table (a labelled radiogroup: All / Warnings / Infos, each label with its count, default All) filters the LIST by severity: panel-local state, never stored or in the URL; the row icons and the disclosure's count stay total, and an empty slice says "No warnings/infos among the flags shown." instead of an empty table (the Programs page has no flag panel). **Filters**
 (`components/RoadmapFilters.tsx` in a `FilterPanel`, held in the address and remembered through `hooks/useRoadmapFilters.ts`, below): work stream, team (a project matches when
 `teamIds` has it), owner, flagged only, and the **program pick** (a `MultiSelect`, empty = all; its memory is the ONE key `planning.programPick`, which the programs page
-still reads through `hooks/useProgramPick.ts`) — applied client-side by `utils/roadmapRows.ts` (`visibleProjects`; an id the address or the memory names and the
+reads and writes through `hooks/useProgramPick.ts`, below) — applied client-side by `utils/roadmapRows.ts` (`visibleProjects`; an id the address or the memory names and the
 view no longer has is ignored, `knownFilters`/`knownPick`), and to the facts line and the panel too. **Arrows** (`arrowSpecsForLinks`): a PROJECT-to-project link by its type on
 the two span bars (red when VIOLATED), plus ONE bundle arrow per ordered project pair for the milestone links between them (`bundle:<pred>-<succ>`, end to
 start, red when any is violated, `<title>` "A → B, 3 milestone links (1 violated)"); an arrow whose project has no span or no visible row is left out. **Zoom**:
@@ -762,8 +762,7 @@ pure: `parseRoadmapFilter`, `roadmapFilterParams`, `hasRoadmapFilterParams`; the
 | Back / forward | what that URL names | as navigated | untouched |
 
 The hook answers `{ filters, pick, setFilters, setPick }`; the remembered state is read once at mount; a foreign parameter in the address is kept. A change is
-never a push and no effect writes the memory on a link's arrival. The Programs page is untouched and sees the pick the Roadmap last stored; its pick is not in
-its URL. Tests: `hooks/useRoadmapFilters.test.tsx` (the table), `utils/roadmapFilterParams.test.ts`, `Roadmap.test.tsx` "the filters in the address".
+never a push and no effect writes the memory on a link's arrival. The Programs page follows the same rule for the pick alone (1.21, "Programs" below): `programId` in its address, the same key remembered. Tests: `hooks/useRoadmapFilters.test.tsx` (the table), `utils/roadmapFilterParams.test.ts`, `Roadmap.test.tsx` "the filters in the address".
 
 **Dragging.** The row handle (`TimelineRowHandle`, pointer-only) and the page's `TimelineDndContext` `onReorder(id, slot)` are the team page's mechanism
 (`timeline.md` "Row drag"); there is no keyboard drag — the row menu is the keyboard path, and the page restores keyboard focus after a taken menu change
@@ -853,9 +852,15 @@ Enter/Space flips it, the focus stays on that chevron ("The expanded set" below)
 programs", "X collapsed"). Defaults: every work stream open, every program closed (≈ 25 rows on the sample plan; "Expand all" there is ~125 rows = the virtual
 path); **Expand all / Collapse all** buttons in the facts row. The expanded set is **page state, not persisted**.
 
-**The program pick** is the roadmap's — ONE stored key `planning.programPick` (`hooks/useProgramPick.ts`), the same `ProgramPickField` (its labels
-`common.filter.*`) in a `FilterPanel` (stored `programs.filtersOpen`); read through `pickAmong(programChoices(view), stored)` (a stored id the plan no longer
-has is ignored). A picked program keeps its work stream's row; a stream with no picked program is hidden; a stream the pick shows in part is rolled up over the
+**The program pick** is the roadmap's and **in the address since 1.21** (`hooks/useProgramPick.ts`, Flow's rule exactly as the Roadmap's 1.19 hook, for the
+pick alone): `programId` repeated (`parseProgramPick` / `withProgramPick` in `utils/roadmapFilterParams.ts`, the Roadmap's own spelling: de-duplicated, ascending,
+at most 100). A bare address with nothing remembered stays bare and shows every program; with a pick remembered it shows it and is rewritten by `replace` to say
+so; an address naming `programId` (even a malformed one) is shown exactly as written (none valid = every program) and remembers nothing; only the user's own
+change writes the ONE key `planning.programPick` (shared with the Roadmap) and rewrites the address by `replace` (bare when empty); Back/forward shows what
+that address names. The remembered value is read once when the page's body mounts, a foreign parameter is kept, no effect writes the memory on a link's
+arrival, and nothing links into the page (the address is there to be copied). The same `ProgramPickField` (its labels `common.filter.*`) sits in a
+`FilterPanel` (stored `programs.filtersOpen`); read through `pickAmong(programChoices(view), pick)` (an id the plan no longer has is ignored, and stays in the
+address as written). A picked program keeps its work stream's row; a stream with no picked program is hidden; a stream the pick shows in part is rolled up over the
 programs that remain ("Roll-up in part" below). The facts line ("N work streams · M programs · K projects", an orange "K warnings" and a gray "J infos" badge)
 counts what is shown. **Arrows** (1.16): `planArrows` over `view.links` between the rows that STAND FOR the projects (`arrowAnchors(view, pick, open)`: the project's
 own row, else its folded program's row, else its folded work stream's; a project of a program the pick hides, or whose row has no span bar, has none). Two project
@@ -893,7 +898,7 @@ programs page's use"). **Zoom**: Month / Quarter / Year under `timeline.planZoom
   focus alone only when `[data-node-key=<key>]` is the active element and otherwise calls `timelineRef.focusRow(key)` (the roadmap's `refocus` pattern; the
   virtual path scrolls to the row and the Timeline's layout effect focuses it once mounted). Pinned by `Programs.virtual.test.tsx` (Expand all, an Enter
   collapse staying over 80 and falling under it, a single toggle crossing up and back).
-- **The pick.** `programChoices(view)` lists every program (empty ones too) and `pickAmong` reads the stored ids against them; the roadmap passes its own
+- **The pick.** `programChoices(view)` lists every program (empty ones too) and `pickAmong` reads the address's ids against them; the roadmap passes its own
   `programOptions(view)` (programs with projects) to the same function. An id only one of the pages knows is ignored there, not dropped from storage. The
   `MultiSelect`'s clear button is `aria-hidden` (Mantine), so tests and e2e find it by its label (`getByLabel`), not by role.
 - **Roll-up in part.** `shownStreams` (inside `programsTree.ts`) keeps the server's span/counts for a stream shown whole and recomputes them (`unionSpan`,
@@ -1981,7 +1986,8 @@ When a feature needs one of these, port the sibling's `web/` implementation and 
   `astrolabe.chunkReloadedAt` (the one-shot reload after a failed lazy chunk, `main.tsx`). **Web Lock:** `astrolabe.auth.refresh`. **CSS variables:**
   `--astrolabe-*`. None of Flow's `flow.*` keys exist; there are no legacy redirects.
 - **The Roadmap's five filter keys** (`roadmap.filter.workStream|team|owner|flagged`, `planning.programPick`, under `astrolabe.viewSettings.`) are its MEMORY since 1.19,
-  not its state: the address holds the state and only the user's own change writes them (this doc, "Roadmap", "The URL holds the filters (1.19)").
+  not its state: the address holds the state and only the user's own change writes them (this doc, "Roadmap", "The URL holds the filters (1.19)"); the Programs page
+  reads and writes `planning.programPick` alone on the same terms since 1.21 (its pick is in its address).
 - **Timeline view settings** (`astrolabe.viewSettings.timeline.*`, shared by the pages that show them, each a `useStoredState` with its own validator): `zoom`
   (project, team), `planZoom` (roadmap, programs), `criticalPath` (project and team, default false; `hooks/useCriticalPathPick.ts`), `baseline` (all four, an id or none), **`jiraBars`** (1.3, all four
   pages; a boolean, **default true**: the "Jira dates" toggle of the Jira shadow bar, `hooks/useJiraBarsPick.ts`; a stored non-boolean reads as the default).

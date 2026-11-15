@@ -77,7 +77,7 @@ function ProgramsFacts({ view, pick }: { view: ProgramsView; pick: ReadonlySet<n
  * band, the span bar, the drift band, the flag icons). Work streams open expanded and programs collapsed; the chevron button of a node is its
  * keyboard path and the page SAYS what it did. Everyone reads it; the one thing written here is a project's target window - the band's move
  * and resize, a draw on a row without one, the row menu's dialog - wherever the project's own `can.editTargetWindow` is set, through the
- * roadmap's write path (`hooks/useTargetWindow.ts`). The program pick is the one the roadmap shares.
+ * roadmap's write path (`hooks/useTargetWindow.ts`). The program pick is the Roadmap's, in the address and remembered under the one key they share.
  */
 export default function Programs() {
   const { t } = useTranslation();
@@ -125,7 +125,7 @@ function ProgramsBody({
   loading: boolean;
 }) {
   const { t } = useTranslation();
-  const [storedPick, setPick] = useProgramPick();
+  const [addressPick, setPick] = useProgramPick();
   // The expanded set is page state, not persisted. Until the user first changes it the defaults apply (every work stream open), so a stream that
   // arrives with a refetch opens too; the first change freezes the set as the user sees it.
   const [expanded, setExpanded] = useState<ReadonlySet<string> | null>(null);
@@ -138,9 +138,9 @@ function ProgramsBody({
   // Every date of the whole plan, not only of the shown rows: neither the pick nor a fold changes the range under the user.
   const { scale, setZoom, today } = usePlanScale(treeDates(view, jira));
 
-  // A stored id of a program the plan no longer has filters nothing instead of hiding every row.
+  // The pick is the address's (1.21; a bare visit shows the remembered one): an id of a program the plan no longer has filters nothing instead of hiding every row.
   const choices = programChoices(view);
-  const pick = pickAmong(choices, storedPick);
+  const pick = pickAmong(choices, addressPick);
   const open = expanded ?? defaultOpen(view);
   const removedRows = removedProjectRows(view.baseline?.removedProjects ?? [], t);
   const rows = treeRows(view, pick, open, removedRows);

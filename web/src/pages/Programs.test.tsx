@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
 import { screen, waitFor, within } from "@testing-library/react";
+import { useLocation } from "react-router-dom";
 import Programs from "./Programs";
 import type { ProgramsProgram, ProgramsView, ProgramsWorkStream } from "../api/programs";
 import type { PlanFlag, RoadmapLink, RoadmapProject } from "../api/roadmap";
@@ -301,6 +302,13 @@ describe("Programs page: arrows", () => {
   });
 });
 
+/** The current address, for the tests that read or write the pick in it. */
+function Where() {
+  const location = useLocation();
+  return <p data-testid="where">{location.pathname + location.search}</p>;
+}
+const where = () => screen.getByTestId("where").textContent;
+
 describe("Programs page: the program pick", () => {
   async function openFilters(user: ReturnType<typeof userEvent.setup>) {
     await user.click(await screen.findByRole("button", { name: /^Filters/ }));
@@ -335,6 +343,68 @@ describe("Programs page: the program pick", () => {
     renderWithProviders(<Programs />);
     await waitForGrid();
     expect(rowLabels()).toEqual(["Work stream Platform", "Program Billing", "Program Reports", "Work stream Archive", LEGACY_ROW]);
+  });
+
+  test("a link naming a program shows that program only and leaves the remembered pick alone", async () => {
+    localStorage.setItem(PICK_KEY, JSON.stringify([10]));
+    renderWithProviders(
+      <>
+        <Programs />
+        <Where />
+      </>,
+      { route: "/programs?programId=11" },
+    );
+    await waitForGrid();
+    expect(rowLabels()).toEqual(["Work stream Platform", "Program Reports"]);
+    expect(where()).toBe("/programs?programId=11");
+    expect(JSON.parse(localStorage.getItem(PICK_KEY) ?? "null")).toEqual([10]);
+  });
+
+  test("a bare visit with a pick remembered writes it into the address", async () => {
+    localStorage.setItem(PICK_KEY, JSON.stringify([12, 11]));
+    renderWithProviders(
+      <>
+        <Programs />
+        <Where />
+      </>,
+      { route: "/programs" },
+    );
+    await waitForGrid();
+    await waitFor(() => expect(where()).toBe("/programs?programId=11&programId=12"));
+    expect(rowLabels()).toEqual(["Work stream Platform", "Program Reports", "Work stream Archive", LEGACY_ROW]);
+    expect(JSON.parse(localStorage.getItem(PICK_KEY) ?? "null")).toEqual([12, 11]);
+  });
+
+  test("picking a program rewrites the address and keeps a foreign parameter; clearing leaves it bare", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(
+      <>
+        <Programs />
+        <Where />
+      </>,
+      { route: "/programs?x=1" },
+    );
+    await waitForGrid();
+    await openFilters(user);
+    await user.click(screen.getByRole("combobox", { name: "Programs" }));
+    await user.click(await screen.findByRole("option", { name: "Reports" }));
+    expect(where()).toBe("/programs?x=1&programId=11");
+    await user.click(screen.getByLabelText("Clear the program pick"));
+    expect(where()).toBe("/programs?x=1");
+    expect(JSON.parse(localStorage.getItem(PICK_KEY) ?? "null")).toEqual([]);
+  });
+
+  test("a link naming only an unknown program filters nothing and stays as written", async () => {
+    renderWithProviders(
+      <>
+        <Programs />
+        <Where />
+      </>,
+      { route: "/programs?programId=99" },
+    );
+    await waitForGrid();
+    expect(rowLabels()).toEqual(["Work stream Platform", "Program Billing", "Program Reports", "Work stream Archive", LEGACY_ROW]);
+    expect(where()).toBe("/programs?programId=99");
   });
 });
 

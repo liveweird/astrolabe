@@ -1,5 +1,13 @@
 import { describe, expect, test } from "vitest";
-import { hasRoadmapFilterParams, isRoadmapFilterEmpty, parseRoadmapFilter, roadmapFilterParams, withRoadmapFilterParams } from "./roadmapFilterParams";
+import {
+  hasRoadmapFilterParams,
+  isRoadmapFilterEmpty,
+  parseProgramPick,
+  parseRoadmapFilter,
+  roadmapFilterParams,
+  withProgramPick,
+  withRoadmapFilterParams,
+} from "./roadmapFilterParams";
 import type { RoadmapFilters } from "./roadmapRows";
 
 const NONE: RoadmapFilters = { workStreamId: null, teamId: null, ownerPersonId: null, flaggedOnly: false };
@@ -75,5 +83,30 @@ describe("roadmapFilterParams", () => {
     expect(isRoadmapFilterEmpty({ filters: NONE, pick: [] })).toBe(true);
     expect(isRoadmapFilterEmpty({ filters: { ...NONE, flaggedOnly: true }, pick: [] })).toBe(false);
     expect(isRoadmapFilterEmpty({ filters: NONE, pick: [1] })).toBe(false);
+  });
+});
+
+describe("the program pick alone (the Programs page's)", () => {
+  test("parseProgramPick drops malformed values, de-duplicates, sorts ascending and ignores every other parameter", () => {
+    expect(parseProgramPick(new URLSearchParams("programId=12&programId=x&programId=11&programId=12&programId=-3&teamId=4"))).toEqual([11, 12]);
+    expect(parseProgramPick(new URLSearchParams("flagged=true"))).toEqual([]);
+  });
+
+  test("parseProgramPick cuts the pick at 100 programs", () => {
+    const query = Array.from({ length: 120 }, (_, i) => `programId=${i + 1}`).join("&");
+    const pick = parseProgramPick(new URLSearchParams(query));
+    expect(pick).toHaveLength(100);
+    expect(pick.at(-1)).toBe(100);
+  });
+
+  test("withProgramPick writes the canonical pick, keeps every other parameter and leaves no programId for an empty pick", () => {
+    expect(withProgramPick(new URLSearchParams("x=1&programId=9"), [12, 11, 12]).toString()).toBe("x=1&programId=11&programId=12");
+    expect(withProgramPick(new URLSearchParams("x=1&programId=9&programId=8"), []).toString()).toBe("x=1");
+    expect(withProgramPick(new URLSearchParams(), Array.from({ length: 120 }, (_, i) => i + 1)).getAll("programId")).toHaveLength(100);
+  });
+
+  test("the Roadmap's and the pick's own spelling agree", () => {
+    const state = { filters: NONE, pick: [12, 11] };
+    expect(roadmapFilterParams(state).getAll("programId")).toEqual(withProgramPick(new URLSearchParams(), [12, 11]).getAll("programId"));
   });
 });

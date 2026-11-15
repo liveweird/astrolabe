@@ -4,8 +4,8 @@ import type { ProgramOption } from "../utils/roadmapRows";
 
 /**
  * The program pick ("which programs am I looking at"): a multi-select over the programs of the page's view, empty = every program. The same field
- * serves the roadmap and the programs page - the stored value is ONE key (`hooks/useProgramPick.ts`), so a pick made on one page is in force on
- * the other. A program name two work streams share is told apart by its stream.
+ * serves the roadmap and the programs page - the pick is in each page's address (`programId`) and remembered under ONE key (`hooks/useProgramPick.ts`),
+ * so a pick made on one page is what a bare visit to the other shows. A program name two work streams share is told apart by its stream.
  */
 export default function ProgramPickField({ programs, pick, onPick }: { programs: readonly ProgramOption[]; pick: readonly number[]; onPick: (ids: number[]) => void }) {
   const { t } = useTranslation();
