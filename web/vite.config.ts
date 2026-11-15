@@ -101,14 +101,14 @@ export default defineConfig({
         'src/vite-env.d.ts',
         '**/*.d.ts',
       ],
-      // Floors set just below current measured coverage so they gate regressions without
+      // Floors sit at the whole point below the measured actual so they gate regressions without
       // blocking unrelated work. Raise as coverage improves, never lower.
-      // (2026-11-05, the 1.0.0 checkup: lines 98.65, statements 97.87, functions 97.62, branches 93.74; 2026-10-31: measured after trimming Flow to Astrolabe's foundation.)
+      // Measured 2026-11-15: lines 98.99, statements 98.45, functions 98.35, branches 95.54.
       thresholds: {
         lines: 98,
-        statements: 97,
-        functions: 97,
-        branches: 93,
+        statements: 98,
+        functions: 98,
+        branches: 95,
       },
     },
   },
