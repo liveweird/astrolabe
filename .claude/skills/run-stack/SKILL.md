@@ -100,7 +100,7 @@ side on one machine; host ports bind to 127.0.0.1:
   per-instance in-memory state; CI pins `replicas: 1`). The base `k8s/front-door.yaml` is the production posture for a
   TLS-terminating ingress and is unsafe behind a bare LoadBalancer. `k8s/network-policies.yaml` (default-deny + the few allowed flows)
   is applied with the rest and OrbStack's cluster enforces it: an in-cluster SMTP relay is blocked until you add an
-  egress policy for it (`.claude/docs/security.md`, "Kubernetes pod and network hardening"). **Teardown:** retain database data by scaling the
+  egress policy for it (`.claude/docs/security.md`, "Pods and network policies"). **Teardown:** retain database data by scaling the
   deployments to zero, or delete the deployments, services, network policies and PVC-holding resources explicitly.
   The overlay also applies `k8s/local/jira-stub.yaml` (the `jira-stub` Deployment/Service and the app → jira-stub NetworkPolicy pair; `apply-local.sh`
   builds `astrolabe-jira-stub:<tag>` itself, one `docker build` of `sample-data/jira-stub`, and the overlay ConfigMap carries `JIRA_STUB_BASE_URL`). If Test
