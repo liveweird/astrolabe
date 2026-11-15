@@ -5,9 +5,10 @@ FROM node:24.22.1-alpine@sha256:06d7adf3e0ef61a13f1d28682726366f97a15aa1888c934d
 RUN apk add --no-cache git
 WORKDIR /web
 # Install deps first for layer caching. --legacy-peer-deps per web/ README
-# (openapi-typescript declares TS ^5 while the scaffold uses TS 6).
+# (openapi-typescript declares TS ^5 while the scaffold uses TS 6). --no-audit: npm ci's built-in audit cost ~30 s
+# (1.24 G3, measured in build-times.md WHY 3); CI audits in its own steps.
 COPY web/package.json web/package-lock.json ./
-RUN npm ci --legacy-peer-deps
+RUN npm ci --legacy-peer-deps --no-audit --no-fund
 COPY web/ ./
 # .git is copied last so a new commit only busts the build layer, and the version
 # stamp is computed explicitly here: the vite config's `git status` dirty check
