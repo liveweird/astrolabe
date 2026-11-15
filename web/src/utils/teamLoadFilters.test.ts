@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { teamLoadRow } from "../test/teamLoad";
-import { matchesWarning, parseTeamLoadFilter, teamLoadFilterParams } from "./teamLoadFilters";
+import { teamLoadRow, teamLoadWeek } from "../test/teamLoad";
+import { matchesWarning, matchesWeek, parseTeamLoadFilter, teamLoadFilterParams } from "./teamLoadFilters";
 
 const parse = (query: string) => parseTeamLoadFilter(new URLSearchParams(query));
 
@@ -46,5 +46,23 @@ describe("matchesWarning", () => {
 
   test("any keeps the rows with either, and weeks without capacity are no warning", () => {
     expect([none, overloaded, wip, both, noCapacityOnly].map((row) => matchesWarning(row, "any"))).toEqual([false, true, true, true, false]);
+  });
+});
+
+describe("matchesWeek", () => {
+  const overloaded = teamLoadWeek();
+  const wip = teamLoadWeek({ overloaded: false, overloadMd: null, wipExceeded: true });
+  const both = teamLoadWeek({ wipExceeded: true });
+
+  test("no warning and any keep every listed week", () => {
+    for (const warning of [undefined, "any"] as const) expect([overloaded, wip, both].map((week) => matchesWeek(week, warning))).toEqual([true, true, true]);
+  });
+
+  test("overloaded keeps the weeks carrying that verdict, a week with both included", () => {
+    expect([overloaded, wip, both].map((week) => matchesWeek(week, "overloaded"))).toEqual([true, false, true]);
+  });
+
+  test("wip keeps the weeks over the limit, a week with both included", () => {
+    expect([overloaded, wip, both].map((week) => matchesWeek(week, "wip"))).toEqual([false, true, true]);
   });
 });

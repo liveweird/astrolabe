@@ -35,3 +35,10 @@ export function teamLoadView(teams: Row[], over: Partial<View> = {}): View {
     ...over,
   };
 }
+
+type Week = components["schemas"]["WeekLoad"];
+
+/** One listed warning week as GET /views/team-load answers it (no `flowCapacity`): a plain overloaded week by default; override any member. */
+export function teamLoadWeek(over: Partial<Week> = {}): Week {
+  return { weekStart: "2027-02-01", load: 14, capacity: 10, overloaded: true, overloadMd: 4, maxWip: 3, wipExceeded: false, ...over };
+}

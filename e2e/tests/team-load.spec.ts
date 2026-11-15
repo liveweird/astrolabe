@@ -64,7 +64,11 @@ test("the Team load page lists a team with an overloaded week, and its name open
   await page.getByRole("combobox", { name: "Show", exact: true }).click();
   await page.getByRole("option", { name: "Every team", exact: true }).click();
   await expect(page).not.toHaveURL(/warning=/);
-  await page.getByRole("link", { name: `Open team ${team}`, exact: true }).click();
+  // Scoped to the teams table: since 1.21 the "Weeks with a warning" table names the team again (strict mode refuses a page-wide match).
+  await page
+    .getByRole("table", { name: "Load of every team", exact: true })
+    .getByRole("link", { name: `Open team ${team}`, exact: true })
+    .click();
   await expect(page.getByRole("heading", { level: 2, name: team, exact: true })).toBeVisible();
   await expect(page.getByRole("group", { name: "Team facts", exact: true })).toContainText("1 week overloaded");
 });

@@ -32,5 +32,11 @@
   "showAll": "Pokaż wszystkie zespoły",
   "truncated": "Lista pokazuje pierwsze {{count}} zespołów.",
   "loadFailed": "Nie udało się wczytać obciążenia zespołów",
-  "notScheduledAria": "Niezaplanowane ({{count}}): zespół {{name}}"
+  "notScheduledAria": "Niezaplanowane ({{count}}): zespół {{name}}",
+  "weeks": {
+    "title": "Tygodnie z ostrzeżeniem",
+    "intro": "Tygodnie, z których biorą się obie liczby ostrzeżeń, zespół po zespole, od najstarszego: obciążenie na tle przepustowości i najwięcej kamieni milowych w toku. Wszystkie tygodnie zespołu pokazuje jego strona.",
+    "tableAria": "Tygodnie z ostrzeżeniem według zespołów",
+    "truncated": "Lista nie zawiera wszystkich tygodni: kończy się po {{count}}, zespół po zespole, więc późniejszy zespół może mieć ich mniej albo żadnego."
+  }
 }

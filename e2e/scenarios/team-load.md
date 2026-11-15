@@ -8,7 +8,7 @@
 
 1. The administrator signs in and opens `/team-load?warning=overloaded`.
    - *Expected*: the heading (h2) "Team load"; the spec's team is exactly one row, with the badge "1 week overloaded"; the group "Team load in figures" shows a count of teams and a count of teams with an overloaded week (each present, never a value).
-2. They open the filter panel, choose "Every team" in the Show select, then click the team's name.
+2. They open the filter panel, choose "Every team" in the Show select, then click the team's name in the teams table ("Load of every team").
    - *Expected*: the address has no `warning`; the team page's heading (h2) is the team's name and its "Team facts" group reads "1 week overloaded".
 
 ## Not covered here (and why)

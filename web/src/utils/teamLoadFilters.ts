@@ -1,4 +1,5 @@
 import type { TeamLoadRow } from "../api/teamLoad";
+import type { WeekLoad } from "../api/teams";
 
 /** Which teams the Team load page lists: those with an overloaded week, those over the WIP limit, or those with either. Unset = every team. */
 export type TeamLoadWarning = "overloaded" | "wip" | "any";
@@ -32,5 +33,21 @@ export function matchesWarning(row: TeamLoadRow, warning: TeamLoadWarning | unde
       return row.wipExceededWeeks > 0;
     case "any":
       return row.overloadedWeeks > 0 || row.wipExceededWeeks > 0;
+  }
+}
+
+/**
+ * Whether a listed week belongs under a warning filter (`undefined` = every listed week). The document lists only warning weeks, so "any" keeps all;
+ * "overloaded" and "wip" keep the weeks carrying that verdict (a week can carry both).
+ */
+export function matchesWeek(week: WeekLoad, warning: TeamLoadWarning | undefined): boolean {
+  switch (warning) {
+    case undefined:
+    case "any":
+      return true;
+    case "overloaded":
+      return week.overloaded;
+    case "wip":
+      return week.wipExceeded;
   }
 }

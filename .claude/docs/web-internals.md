@@ -984,6 +984,16 @@ fact, not a warning. `utils/teamLoadLinks.ts` spells the route once (`teamLoadPa
   capacity period can never be overloaded, and the page says so instead of looking fine). No row or page ever says "fits"; no chart; every figure is worded.
 - **States**: loading (`LoadingBlock`, no facts line and no claim until the read answers), a failed read (`ErrorAlert`, no empty claim), no team at all
   (`totals.teams === 0`), nothing matches the filter (with "Show every team"), `truncated` (one dimmed line with the rows shown).
+- **Weeks with a warning (1.21, `components/TeamLoadWeeks.tsx`)**: under the teams table an h3 "Weeks with a warning", one dimmed sentence and the table "Weeks
+  with a warning, by team" (a `ScrollRegion`, min width 720, max height 420, sticky header): one row per team and week, in the document's order (team by team,
+  oldest week first) — Team (the same `teams.openAria` link as the teams table; tests and e2e scope by table), Week, Load, Capacity, In progress (peak) and
+  Status. The weeks are the document's `warningWeeks` (the team page's own `WeekLoad`, no `flowCapacity`), shown as they arrive; the cells are
+  `components/WeekLoadCells.tsx` (`WeekStatus`, with `weekLabel` and `mdText` in `utils/weekLoadText.ts`, moved out of `TeamWeeklyLoad.tsx`, which imports them back). The "Show" filter keeps
+  the teams the table above keeps AND narrows their weeks (`matchesWeek`: `overloaded` the overloaded weeks, `wip` the weeks over the limit, `any` or none
+  every listed week), in the browser, from the same one read. The section is ABSENT when no week is left (zero is no claim, and no sentence says "no
+  warnings"), while the first read runs and after a failed first read; a failed re-read keeps the kept document's weeks under the alert. The weeks without
+  capacity stay a count. `warningWeeksTruncated` shows one dimmed line, "Not every week is listed: the list stops after N weeks, team by team, so a later team may show fewer weeks or none" (N = the weeks the document
+  lists), under the section or alone when it is absent, so a short or missing list is never read as "none".
 - **Tests**: `TeamLoad.test.tsx`, `api/teamLoad.test.ts`, `utils/teamLoadFilters.test.ts`, `utils/teamLoadLinks.test.ts` (fixtures `test/teamLoad.ts`).
 
 ## Baselines (`pages/Baselines.tsx`, `pages/BaselineCompare.tsx`, v0.9)
@@ -1443,7 +1453,7 @@ page's one polite live region. A refused Reset keeps its confirm dialog open and
 **Capacity** (`components/TeamCapacity.tsx`, `CapacityPeriodModal.tsx`, `utils/capacityForm.ts`): the periods table is where the limits are READ ("—" = no WIP
 limit); Add/Edit/Delete only with `can.editCapacity`; a period takes effect on ANY date (no weekday rule — a weekend date applies from the next working day),
 man-days per week (0 ≤ x < 1,000,000, two decimals) and an optional WIP limit 1..99 (empty sends `null`); a date clash (409) marks the date field. **The weekly
-load table** (`components/TeamWeeklyLoad.tsx`, behind a `TableDisclosure`) is the accessible surface of the decorative strip: load, capacity ("—" when none),
+load table** (`components/TeamWeeklyLoad.tsx`, behind a `TableDisclosure`; its week, load and verdict cells are `components/WeekLoadCells.tsx`, shared with the Team load page) is the accessible surface of the decorative strip: load, capacity ("—" when none),
 peak WIP and the verdict in words (orange "Overloaded · +X MD", orange "Over WIP limit", gray "OK" / "No capacity", plus the 1.9 "Differs from Flow" badge). **Row drag:** a manager (`can.editOrder`)
 also drags a row by its pointer-only handle (`TimelineRowHandle`, the first thing in the name cell) — a drop becomes `onReorder(id, slot)` on the
 `TimelineDndContext` → `order.dropAt` → the same `commit` as the menu, so the save, the rollback and the stale notice are one path; the menu stays the keyboard

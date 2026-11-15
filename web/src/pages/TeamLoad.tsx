@@ -10,6 +10,7 @@ import FilterPanel from "../components/FilterPanel";
 import LoadingBlock from "../components/LoadingBlock";
 import PageHeader from "../components/PageHeader";
 import ScrollRegion from "../components/ScrollRegion";
+import TeamLoadWeeks from "../components/TeamLoadWeeks";
 import { unscheduledMilestonesPath } from "../utils/milestoneLinks";
 import { matchesWarning, parseTeamLoadFilter, teamLoadFilterParams } from "../utils/teamLoadFilters";
 import { teamPath } from "../utils/teamLinks";
@@ -90,7 +91,9 @@ function TeamLoadTableRow({ row }: { row: TeamLoadRow }) {
  * The Team load page (`/team-load`, everyone, read-only): every team with its milestones, how many are not scheduled, its overloaded weeks, its weeks
  * over the WIP limit and its weeks without any capacity, from the one unpaged `GET /views/team-load` (at most 200 rows; the figures are the team
  * page's own, shown as they arrive). The "warning" filter is in the URL (`utils/teamLoadFilters.ts`; a change `replace`s the entry, so Home's two
- * capacity badges, a reload and Back all restore the view) and only hides rows: the facts line always shows the totals over every team.
+ * capacity badges, a reload and Back all restore the view) and only hides rows: the facts line always shows the totals over every team. Under the
+ * teams table, "Weeks with a warning" (`components/TeamLoadWeeks.tsx`) lists the weeks behind the two warning figures from the same document
+ * (1.21); it follows the filter, is absent when no week is left (never a "no warnings" claim) and a cut document says so in one line.
  */
 export default function TeamLoad() {
   const { t } = useTranslation();
@@ -155,6 +158,13 @@ export default function TeamLoad() {
       {data?.truncated && (
         <Text size="sm" c="dimmed">
           {t("teamLoad.truncated", { count: data.teams.length })}
+        </Text>
+      )}
+      {data && <TeamLoadWeeks rows={rows} warning={filter.warning} />}
+      {data?.warningWeeksTruncated && (
+        // Whenever the document was cut, also when the section is absent or short: an absent list is never read as "none".
+        <Text size="sm" c="dimmed">
+          {t("teamLoad.weeks.truncated", { count: data.teams.reduce((sum, row) => sum + row.warningWeeks.length, 0) })}
         </Text>
       )}
     </Stack>
