@@ -262,17 +262,17 @@ class HomeViewSizeTest {
             println("scale-figure\tteam load warning weeks listed for the sample's 15 teams\t${sampleRows.sumOf { it.warningWeeks.size }}")
             assertTrue(sampleBytes <= TEAM_LOAD_MAX_BYTES, "the team-load document is $sampleBytes bytes for 15 teams, over the gate")
 
-            // The dependency list on the same plan: every link, whoever asks; FIVE statements (revision, calendar, milestones, links,
-            // project names) and a document of about 360 B a row.
+            // The dependency list on the same plan: every link, with the caller's own `can` per row; FIVE statements (revision, calendar,
+            // milestones, links, project names with their owner chains) and a document of about 400 B a row.
             val dependencies = personless.readDependencies()
-            val dependenciesSql = statements("dependencies") { database, _ -> DependencyListViewService(database).view() }
+            val dependenciesSql = statements("dependencies") { database, _ -> DependencyListViewService(database).view(NEUTRAL_ACTOR) }
             val listed = dependenciesSql.joinToString("\n")
             assertEquals(DEPENDENCIES_STATEMENTS, dependenciesSql.size, "the dependency list's statements:\n$listed")
             assertTrue(dependencies.p50 <= P50_TRIPWIRE_MS, "dependencies p50 ${dependencies.p50} ms")
             // The gated size is a FIXED document: the uncapped view reduced to the links whose two ends are on the sample's teams (the
             // endpoint's own document holds every link of the shared database, cut at 1,000), with the three name lists reduced to what
             // those rows name (a test-local reduction; the ends resolve through the lists, so a project end has no team and is left out).
-            val allLinks = DependencyListViewService(sharedDatabaseForTests(), maxRows = Int.MAX_VALUE).view()
+            val allLinks = DependencyListViewService(sharedDatabaseForTests(), maxRows = Int.MAX_VALUE).view(NEUTRAL_ACTOR)
             val sampleTeams = sample.teamIds.toSet()
             val sampleLinks = allLinks.dependencies.filter {
                 allLinks.endOf(it.predecessor).teamId in sampleTeams && allLinks.endOf(it.successor).teamId in sampleTeams
@@ -410,7 +410,7 @@ class HomeViewSizeTest {
          */
         const val DEPENDENCIES_MAX_BYTES = 170_000
 
-        /** The dependency list's statements: revision, calendar, milestones with teams, links, active projects' names. */
+        /** The dependency list's statements: revision, calendar, milestones with teams, links, active projects' names with owner chains. */
         const val DEPENDENCIES_STATEMENTS = 5
 
         /**

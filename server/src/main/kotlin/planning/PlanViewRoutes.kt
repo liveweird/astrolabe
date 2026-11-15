@@ -62,8 +62,8 @@ internal fun ApplicationCall.baselineParam(): UInt? = request.queryParameters.op
  * authenticated user; a read: no audit event. `GET /views/home` (1.18.0) takes no parameter: it is always the CALLER's own (their
  * linked person's items, resolved inside the view's snapshot with no role branch); the plan block is the same for everyone.
  * `GET /views/team-load` (1.19.0) takes no parameter either and is the same document for every caller (every team's milestones and
- * weeks). `GET /views/dependencies` (1.20.0) takes no parameter and is the same document for every caller (every link of the plan,
- * the ones that do not hold first).
+ * weeks). `GET /views/dependencies` (1.20.0: every link of the plan, the ones that do not hold first) takes no parameter and is the
+ * same document for every caller but for each row's `can` (1.22.0).
  */
 internal fun Route.planViewRoutes(d: PlanRouteDeps) {
     get<PlanViewRoute> {
@@ -80,7 +80,7 @@ internal fun Route.planViewRoutes(d: PlanRouteDeps) {
     }
     get<DependencyListViewRoute> {
         val caller = call.caller()
-        call.respondRevalidated(caller.userId, d.views.dependencyList.view())
+        call.respondRevalidated(caller.userId, d.views.dependencyList.view(d.actor(caller)))
     }
     get<ProjectViewRoute> { route ->
         val caller = call.caller()

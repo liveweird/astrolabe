@@ -1,21 +1,25 @@
 package ch.nokillswit
 
+import ch.nokillswit.authz.OwnerChain
 import ch.nokillswit.infra.time.WorkingCalendar
 import ch.nokillswit.planning.CheckedLink
 import ch.nokillswit.planning.DaySpan
 import ch.nokillswit.planning.DependencyListKernels
 import ch.nokillswit.planning.DependencyListRow
 import ch.nokillswit.planning.DependencyListTotals
+import ch.nokillswit.planning.DependencyListView
 import ch.nokillswit.planning.DependencyStatus
 import ch.nokillswit.planning.DependencyType
 import ch.nokillswit.planning.EndpointKind
 import ch.nokillswit.planning.EndpointRef
 import ch.nokillswit.planning.MilestoneFactRow
+import ch.nokillswit.planning.PlanActor
 import ch.nokillswit.planning.PlanLinkFact
 import ch.nokillswit.planning.PlanMilestoneFact
 import ch.nokillswit.planning.PlanProjectFact
 import ch.nokillswit.planning.ProjectDependency
 import ch.nokillswit.planning.ProjectDependencyCan
+import ch.nokillswit.planning.ProjectNameChain
 import ch.nokillswit.planning.RoadmapKernels
 import ch.nokillswit.planning.DEPENDENCY_ORDER
 import java.time.LocalDate
@@ -47,7 +51,17 @@ class DependencyListKernelsTest {
         milestone(24u, 2u, 6u, "Dup", span("2027-03-15", "2027-03-19")),
     )
     private val facts = milestones.map { it.fact }
-    private val projectNames = mapOf(1u to "Alpha", 2u to "Beta", 3u to "Gamma")
+
+    // Persons: 101 owns work stream 1, 102 program 1, 103 project Alpha, 104 project Beta, 105 project Gamma (all under that
+    // stream and program); 106 owns nothing.
+    private val chain = listOf(101u, 102u)
+    private val projects = mapOf(
+        1u to ProjectNameChain("Alpha", OwnerChain(chain + 103u)),
+        2u to ProjectNameChain("Beta", OwnerChain(chain + 104u)),
+        3u to ProjectNameChain("Gamma", OwnerChain(chain + 105u)),
+    )
+    private fun actor(person: UInt?, admin: Boolean = false) = PlanActor(admin, person, roadmapEditor = false, managedTeamIds = emptySet())
+    private val nobody = actor(null)
     private val spans = RoadmapKernels.projectSpans(facts)
 
     private fun m(id: UInt) = EndpointRef(EndpointKind.MILESTONE, id)
@@ -70,11 +84,11 @@ class DependencyListKernelsTest {
     )
 
     private val checked: List<CheckedLink> = RoadmapKernels.checkedLinks(
-        links, projectNames.keys.map { PlanProjectFact(it, null, null) }, facts, spans, WorkingCalendar.MON_FRI,
+        links, projects.keys.map { PlanProjectFact(it, null, null) }, facts, spans, WorkingCalendar.MON_FRI,
     )
 
-    private fun view(maxRows: Int = 1_000, revision: Long = 7) =
-        DependencyListKernels.view(revision, checked, milestones, projectNames, maxRows)
+    private fun view(maxRows: Int = 1_000, revision: Long = 7, actor: PlanActor = nobody, over: Map<UInt, ProjectNameChain> = projects) =
+        DependencyListKernels.view(revision, checked, milestones, over, actor, maxRows)
 
     @Test
     fun `the totals count every link once, a violated link inside one project included`() {
@@ -144,12 +158,12 @@ class DependencyListKernelsTest {
     fun `a link between two projects names those projects and no milestone, no team`() {
         val projectsOnly = RoadmapKernels.checkedLinks(
             listOf(link(1u, p(1u), p(3u))),
-            projectNames.keys.map { PlanProjectFact(it, null, null) },
+            projects.keys.map { PlanProjectFact(it, null, null) },
             facts,
             spans,
             WorkingCalendar.MON_FRI,
         )
-        val document = DependencyListKernels.view(1, projectsOnly, milestones, projectNames, 1_000)
+        val document = DependencyListKernels.view(1, projectsOnly, milestones, projects, nobody, 1_000)
         assertEquals(emptyList(), document.milestones)
         assertEquals(emptyList(), document.teams)
         assertEquals(listOf(1u to "Alpha", 3u to "Gamma"), document.projects.map { it.id to it.name })
@@ -177,10 +191,52 @@ class DependencyListKernelsTest {
         cut.assertListsHoldExactlyWhatTheRowsName()
         assertFalse(view(maxRows = 9).truncated, "exactly the cap is not a cut")
         assertTrue(view(maxRows = 8).truncated)
-        val none = DependencyListKernels.view(1, emptyList(), emptyList(), emptyMap(), 1_000)
+        val none = DependencyListKernels.view(1, emptyList(), emptyList(), emptyMap(), nobody, 1_000)
         assertEquals(emptyList<DependencyListRow>(), none.dependencies)
         assertTrue(none.projects.isEmpty() && none.teams.isEmpty() && none.milestones.isEmpty(), "no row, no name")
         assertFalse(none.truncated)
         assertEquals(DependencyListTotals(0, 0, 0), none.totals)
+    }
+
+    @Test
+    fun `a row's can is true for the administrator and every owner at or above the successor project, for nobody else`() {
+        // Link 1 is m11 (Alpha) -> m21 (Beta); link 4 is project Alpha -> m21 (Beta); link 7 is m21 (Beta) -> project Alpha.
+        val all = view(actor = actor(null, admin = true)).dependencies
+        assertTrue(all.all { it.can == ProjectDependencyCan(edit = true, delete = true) }, "an administrator may change every link")
+        val owners = listOf(
+            "the stream owner" to 101u, "the program owner" to 102u,
+        )
+        for ((label, person) in owners) {
+            assertTrue(view(actor = actor(person)).dependencies.all { it.can.edit && it.can.delete }, label)
+        }
+        val beta = view(actor = actor(104u)).dependencies.associate { it.id to it.can }
+        // Beta's owner: true where the SUCCESSOR sits in Beta (links 1, 3, 4, 5, 6, 8, 9 end in Beta), false for link 7 (into Alpha)
+        // and link 2 (inside Alpha): the predecessor's owner alone gets nothing.
+        for (id in listOf(1u, 3u, 4u, 5u, 6u, 8u, 9u)) assertEquals(ProjectDependencyCan(true, true), beta.getValue(id), "link $id")
+        for (id in listOf(2u, 7u)) assertEquals(ProjectDependencyCan(false, false), beta.getValue(id), "link $id")
+        val alpha = view(actor = actor(103u)).dependencies.associate { it.id to it.can }
+        assertEquals(setOf(2u, 7u), alpha.filterValues { it.edit }.keys, "Alpha's owner: the links into Alpha only")
+        for (stranger in listOf(actor(null), actor(106u))) {
+            assertTrue(view(actor = stranger).dependencies.all { it.can == ProjectDependencyCan(false, false) })
+        }
+    }
+
+    @Test
+    fun `a successor project without a chain (its program or work stream is gone) is never changeable, even for an administrator`() {
+        val admin = actor(null, admin = true)
+        val noChain = projects + (2u to ProjectNameChain("Beta", null))
+        val flags = view(actor = admin, over = noChain).dependencies.associate { it.id to it.can.edit }
+        assertEquals(setOf(2u, 7u), flags.filterValues { it }.keys, "only the links into Alpha still have a chain")
+        assertTrue(view(actor = admin, over = noChain).dependencies.none { it.can.delete && it.id !in setOf(2u, 7u) })
+    }
+
+    @Test
+    fun `a cut keeps the flags of the kept rows and the document differs between callers in can alone`() {
+        val whole = view(actor = actor(104u))
+        val cut = view(maxRows = 3, actor = actor(104u))
+        assertEquals(whole.dependencies.take(3), cut.dependencies, "the cut rows keep their flags")
+        val admin = view(actor = actor(null, admin = true))
+        fun DependencyListView.withoutCan() = copy(dependencies = dependencies.map { it.copy(can = ProjectDependencyCan(false, false)) })
+        assertEquals(whole.withoutCan(), admin.withoutCan(), "nothing but each row's can differs between two callers")
     }
 }

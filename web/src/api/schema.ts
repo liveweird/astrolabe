@@ -1254,16 +1254,20 @@ export interface paths {
         /**
          * Every dependency of the plan, the ones that do not hold first, for the Dependencies page
          * @description Any authenticated user; no parameter (an unknown query name is ignored). One document (a deliberate exception to the paged
-         *     envelope), the same for every caller: every ACTIVE dependency whose two ends resolve to a project, in the project view's order
+         *     envelope), the same for every caller except each row's `can` (1.22.0): every ACTIVE dependency whose two ends resolve to a project, in the project view's order
          *     (violated first, the largest shortfall first, then OK, then unscheduled; the successor's name, the predecessor's name
          *     case-insensitively, then id), at most 1000 rows (`truncated` says the list was cut, which drops the kept and unscheduled
          *     links first; `totals` always count every link). A row names its two ends by kind and id (the item `GET /views/project/{id}`
-         *     answers for the same link, without `critical` and `can`, but with the ends' names stated once): the names are in `milestones`
+         *     answers for the same link, without `critical`, but with the ends' names stated once): the names are in `milestones`
          *     (a milestone end: name, project, team), `projects` (a project end, and the project of every named milestone) and `teams` (the
          *     team of every named milestone), which hold exactly what the LISTED rows name, each once, by ascending id - every reference
          *     resolves, and a row the cut dropped contributes nothing. The check is the project view's, on working days. `totals.violated` is
          *     `plan.conflicts` of `GET /views/home`. Filtering by status, team or project is the client's. `revision` is the plan revision
-         *     read before the rows (informational: the view offers no write, so there is no `can`).
+         *     read before the rows (informational: the view offers no write of its own, so there is no document-level `can`). Each row's
+         *     `can{edit, delete}` is what THIS caller may do with the link, the project view's own member: `edit` is true exactly when
+         *     `PUT /dependencies/{id}` would not be refused with `403` for them (it may still answer `409` for a cycle or `400` for a bad
+         *     lag), `delete` exactly when `DELETE` would not (an owner on the SUCCESSOR's project chain, or ADMIN); the owner chain itself
+         *     is not on the wire. A non-administrator who owns nothing gets `false` and `false`.
          */
         get: operations["getDependencyListView"];
         put?: never;
@@ -4613,12 +4617,14 @@ export interface components {
             check: components["schemas"]["DependencyCheck"];
             /** @description A zero-slack link on the viewed project's critical chain. On the team view (1.7): on the chain of a project one of the team's milestones belongs to. */
             critical: boolean;
-            can: {
-                /** @description The caller may change the link's type and lag (`PUT /dependencies/{id}`): an owner on the SUCCESSOR's project chain, or ADMIN. */
-                edit: boolean;
-                /** @description The caller may delete the link: an owner on the SUCCESSOR's project chain, or ADMIN. */
-                delete: boolean;
-            };
+            can: components["schemas"]["DependencyCan"];
+        };
+        /** @description What THIS caller may do with one dependency, from the same arithmetic as the writes (an owner on the SUCCESSOR's project chain, or ADMIN; the predecessor's owner is asked nothing). Each flag is true exactly when the write would not be refused with `403` for the caller. */
+        DependencyCan: {
+            /** @description The caller may change the link's type and lag (`PUT /dependencies/{id}`): an owner on the SUCCESSOR's project chain, or ADMIN. */
+            edit: boolean;
+            /** @description The caller may delete the link: an owner on the SUCCESSOR's project chain, or ADMIN. */
+            delete: boolean;
         };
         /**
          * @description VIOLATED = the successor is short of what the type requires (a warning only); UNSCHEDULED = an end has no dates (a milestone without dates, a project with no scheduled milestone): not evaluated.
@@ -5750,7 +5756,7 @@ export interface components {
             /** @description The weeks of the team's load that are overloaded or over the WIP limit, oldest first, each the team page's own week (never with `flowCapacity`). While nothing is cut, `overloadedWeeks` is the number of listed weeks with `overloaded` and `wipExceededWeeks` the number with `wipExceeded`; the document lists at most 2,000 weeks in all (`warningWeeksTruncated`), so a later row may list none or only its first weeks. */
             warningWeeks: components["schemas"]["WeekLoad"][];
         };
-        /** @description The Dependencies page's document (1.20.0; the ends' names stated once since 1.21.0): every dependency of the plan. A row names its ends by kind and id and carries the project view's own type, lag and check, so the list never disagrees with the page it links to; `totals.violated` is Home's `plan.conflicts`. `projects`, `teams` and `milestones` hold exactly what the listed rows name. */
+        /** @description The Dependencies page's document (1.20.0; the ends' names stated once since 1.21.0): every dependency of the plan. A row names its ends by kind and id and carries the project view's own type, lag and check, so the list never disagrees with the page it links to; `totals.violated` is Home's `plan.conflicts`. `projects`, `teams` and `milestones` hold exactly what the listed rows name. The document is the same for every caller except each row's `can` (1.22.0). */
         DependencyListView: {
             /**
              * Format: int64
@@ -5809,7 +5815,7 @@ export interface components {
              */
             teamId: number;
         };
-        /** @description One dependency: the project view's item (`ProjectDependency`) without `critical` and `can`, its two ends by kind and id; the names are in the document's `milestones`, `projects` and `teams`. */
+        /** @description One dependency: the project view's item (`ProjectDependency`) without `critical`, its two ends by kind and id; the names are in the document's `milestones`, `projects` and `teams`. `can` is the CALLER's own (1.22.0). */
         DependencyListRow: {
             /** Format: int32 */
             id: number;
@@ -5822,6 +5828,7 @@ export interface components {
              */
             lagDays: number;
             check: components["schemas"]["DependencyCheck"];
+            can: components["schemas"]["DependencyCan"];
         };
         ProgramsView: {
             /**

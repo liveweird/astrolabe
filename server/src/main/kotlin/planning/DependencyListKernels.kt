@@ -21,21 +21,25 @@ object DependencyListKernels {
      * The document over [checked] (every link whose two ends resolve): rows in [dependencyOrder] (violated first, the largest shortfall
      * first, then OK, then unscheduled; successor name, predecessor name, id), cut at [maxRows] ([DependencyListView.truncated] says
      * it was; the cut drops the kept and unscheduled links first). A row names its ends by [EndpointRef]; the names are looked up from
-     * [milestones] (a milestone's own name and team) and [projectNames] (a project end, or a milestone's project) for the ORDER, and
+     * [milestones] (a milestone's own name and team) and [projects] (a project end, or a milestone's project) for the ORDER, and
      * the three lists hold exactly what the rows KEPT by the cut name, each once, by ascending id. [DependencyListTotals] count every
      * link, whatever [maxRows] cuts. Every referenced milestone and project must be present (the checked links resolved them).
+     * Each kept row's `can` is the project view's own flag pair for [actor]: [PlanPermissions] over the owner chain of the SUCCESSOR's
+     * project (`CheckedLink.successorProjectId`), false when that chain is missing (no write could succeed); the chain itself never
+     * leaves this function.
      */
     internal fun view(
         revision: Long,
         checked: Collection<CheckedLink>,
         milestones: Collection<MilestoneFactRow>,
-        projectNames: Map<UInt, String>,
+        projects: Map<UInt, ProjectNameChain>,
+        actor: PlanActor,
         maxRows: Int,
     ): DependencyListView {
         val milestoneById = milestones.associateBy { it.fact.id }
         fun nameOf(ref: EndpointRef): String = when (ref.kind) {
             EndpointKind.MILESTONE -> milestoneById.getValue(ref.id).name
-            EndpointKind.PROJECT -> projectNames.getValue(ref.id)
+            EndpointKind.PROJECT -> projects.getValue(ref.id).name
         }
         val order = dependencyOrder<CheckedLink>(
             { it.check }, { nameOf(it.link.successor) }, { nameOf(it.link.predecessor) }, { it.link.id },
@@ -43,7 +47,12 @@ object DependencyListKernels {
         val ordered = checked.sortedWith(order)
         val kept = ordered.take(maxRows)
         val rows = kept.map { c ->
-            DependencyListRow(c.link.id, c.link.predecessor, c.link.successor, c.link.type, c.link.lagDays, c.check)
+            val chain = projects[c.successorProjectId]?.chain
+            val can = ProjectDependencyCan(
+                edit = chain?.let { PlanPermissions.canEditDependency(actor, it) } ?: false,
+                delete = chain?.let { PlanPermissions.canDeleteDependency(actor, it) } ?: false,
+            )
+            DependencyListRow(c.link.id, c.link.predecessor, c.link.successor, c.link.type, c.link.lagDays, c.check, can)
         }
         val ends = rows.flatMap { listOf(it.predecessor, it.successor) }
         val namedMilestones = ends.filter { it.kind == EndpointKind.MILESTONE }.map { it.id }.distinct().sorted()
@@ -54,7 +63,7 @@ object DependencyListKernels {
         return DependencyListView(
             revision = revision,
             totals = totals(checked),
-            projects = projectIds.map { DependencyListProject(it, projectNames.getValue(it)) },
+            projects = projectIds.map { DependencyListProject(it, projects.getValue(it).name) },
             teams = teamNames.toSortedMap().map { (id, name) -> RoadmapTeam(id, name) },
             milestones = namedMilestones.map { DependencyListMilestone(it.fact.id, it.name, it.fact.projectId, it.fact.teamId) },
             dependencies = rows,

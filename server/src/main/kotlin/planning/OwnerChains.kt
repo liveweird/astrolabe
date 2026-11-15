@@ -110,6 +110,39 @@ internal suspend fun projectChains(ids: Collection<UInt>): Map<UInt, OwnerChain>
 }
 
 /**
+ * An ACTIVE project's name and its owner [chain] (work stream first, the project's own owner last), or a null chain when its program
+ * or work stream is gone or deleted: no write on a link into such a project can succeed (`dependencyChain` is null, the route's 404).
+ */
+internal class ProjectNameChain(val name: String, val chain: OwnerChain?)
+
+/**
+ * Every ACTIVE project's name and owner chain in ONE statement (the dependency list's read, 1.22.0): [activeProjectNames]'s row set
+ * exactly (an active project under a deleted program stays, with a null chain), plus the three owner ids of [projectChains]' join,
+ * read with the same active predicates. The chain stays server-side: only the flags computed from it reach the wire.
+ */
+internal suspend fun activeProjectNamesAndChains(): Map<UInt, ProjectNameChain> {
+    val streams = WorkStreamService.WorkStreams
+    val programs = ProgramService.Programs
+    val projects = ProjectService.Projects
+    return projects
+        .leftJoin(programs, { projects.programId }, { programs.id }, additionalConstraint = { programs.active() })
+        .leftJoin(streams, { programs.workStreamId }, { streams.id }, additionalConstraint = { streams.active() })
+        .select(projects.id, projects.name, streams.ownerPersonId, programs.ownerPersonId, projects.ownerPersonId)
+        .where { projects.active() }
+        .toList()
+        .associate { row ->
+            val streamOwner = row.getOrNull(streams.ownerPersonId)
+            val programOwner = row.getOrNull(programs.ownerPersonId)
+            val chain = if (streamOwner != null && programOwner != null) {
+                OwnerChain(listOf(streamOwner.value, programOwner.value, row[projects.ownerPersonId].value))
+            } else {
+                null
+            }
+            row[projects.id].value to ProjectNameChain(row[projects.name], chain)
+        }
+}
+
+/**
  * A milestone's chain: the [owners] of its project's chain (work stream first, the project's own last — a milestone has no owner of
  * its own), the milestone's [teamId] (who may schedule it) and its [projectId].
  */

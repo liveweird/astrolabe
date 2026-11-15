@@ -1888,16 +1888,20 @@ paths:
       summary: Every dependency of the plan, the ones that do not hold first, for the Dependencies page
       description: |
         Any authenticated user; no parameter (an unknown query name is ignored). One document (a deliberate exception to the paged
-        envelope), the same for every caller: every ACTIVE dependency whose two ends resolve to a project, in the project view's order
+        envelope), the same for every caller except each row's `can` (1.22.0): every ACTIVE dependency whose two ends resolve to a project, in the project view's order
         (violated first, the largest shortfall first, then OK, then unscheduled; the successor's name, the predecessor's name
         case-insensitively, then id), at most 1000 rows (`truncated` says the list was cut, which drops the kept and unscheduled
         links first; `totals` always count every link). A row names its two ends by kind and id (the item `GET /views/project/{id}`
-        answers for the same link, without `critical` and `can`, but with the ends' names stated once): the names are in `milestones`
+        answers for the same link, without `critical`, but with the ends' names stated once): the names are in `milestones`
         (a milestone end: name, project, team), `projects` (a project end, and the project of every named milestone) and `teams` (the
         team of every named milestone), which hold exactly what the LISTED rows name, each once, by ascending id - every reference
         resolves, and a row the cut dropped contributes nothing. The check is the project view's, on working days. `totals.violated` is
         `plan.conflicts` of `GET /views/home`. Filtering by status, team or project is the client's. `revision` is the plan revision
-        read before the rows (informational: the view offers no write, so there is no `can`).
+        read before the rows (informational: the view offers no write of its own, so there is no document-level `can`). Each row's
+        `can{edit, delete}` is what THIS caller may do with the link, the project view's own member: `edit` is true exactly when
+        `PUT /dependencies/{id}` would not be refused with `403` for them (it may still answer `409` for a cycle or `400` for a bad
+        lag), `delete` exactly when `DELETE` would not (an owner on the SUCCESSOR's project chain, or ADMIN); the owner chain itself
+        is not on the wire. A non-administrator who owns nothing gets `false` and `false`.
       parameters:
         - $ref: '#/components/parameters/IfNoneMatch'
       responses:
@@ -6103,12 +6107,16 @@ components:
         lagDays: { type: integer, format: int32, minimum: -365, maximum: 365, description: Working days; negative = a lead. }
         check: { $ref: '#/components/schemas/DependencyCheck' }
         critical: { type: boolean, description: 'A zero-slack link on the viewed project''s critical chain. On the team view (1.7): on the chain of a project one of the team''s milestones belongs to.' }
-        can:
-          type: object
-          required: [edit, delete]
-          properties:
-            edit: { type: boolean, description: 'The caller may change the link''s type and lag (`PUT /dependencies/{id}`): an owner on the SUCCESSOR''s project chain, or ADMIN.' }
-            delete: { type: boolean, description: 'The caller may delete the link: an owner on the SUCCESSOR''s project chain, or ADMIN.' }
+        can: { $ref: '#/components/schemas/DependencyCan' }
+    DependencyCan:
+      type: object
+      required: [edit, delete]
+      description: >-
+        What THIS caller may do with one dependency, from the same arithmetic as the writes (an owner on the SUCCESSOR's project chain,
+        or ADMIN; the predecessor's owner is asked nothing). Each flag is true exactly when the write would not be refused with `403` for the caller.
+      properties:
+        edit: { type: boolean, description: 'The caller may change the link''s type and lag (`PUT /dependencies/{id}`): an owner on the SUCCESSOR''s project chain, or ADMIN.' }
+        delete: { type: boolean, description: 'The caller may delete the link: an owner on the SUCCESSOR''s project chain, or ADMIN.' }
     DependencyStatus:
       type: string
       enum: [OK, VIOLATED, UNSCHEDULED]
@@ -7197,7 +7205,7 @@ components:
         The Dependencies page's document (1.20.0; the ends' names stated once since 1.21.0): every dependency of the plan. A row names
         its ends by kind and id and carries the project view's own type, lag and check, so the list never disagrees with the page it
         links to; `totals.violated` is Home's `plan.conflicts`. `projects`, `teams` and `milestones` hold exactly what the listed
-        rows name.
+        rows name. The document is the same for every caller except each row's `can` (1.22.0).
       properties:
         revision:
           type: integer
@@ -7259,10 +7267,10 @@ components:
         teamId: { type: integer, format: int32, minimum: 1, description: 'Its team, in the document''s `teams`.' }
     DependencyListRow:
       type: object
-      required: [id, predecessor, successor, type, lagDays, check]
+      required: [id, predecessor, successor, type, lagDays, check, can]
       description: >-
-        One dependency: the project view's item (`ProjectDependency`) without `critical` and `can`, its two ends by kind and id; the
-        names are in the document's `milestones`, `projects` and `teams`.
+        One dependency: the project view's item (`ProjectDependency`) without `critical`, its two ends by kind and id; the names are in
+        the document's `milestones`, `projects` and `teams`. `can` is the CALLER's own (1.22.0).
       properties:
         id: { type: integer, format: int32, minimum: 0 }
         predecessor: { $ref: '#/components/schemas/EndpointRef' }
@@ -7270,6 +7278,7 @@ components:
         type: { $ref: '#/components/schemas/DependencyType' }
         lagDays: { type: integer, format: int32, minimum: -365, maximum: 365, description: Working days; negative = a lead. }
         check: { $ref: '#/components/schemas/DependencyCheck' }
+        can: { $ref: '#/components/schemas/DependencyCan' }
     ProgramsView:
       type: object
       required: [revision, teams, links, workStreams, jiraSites]

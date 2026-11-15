@@ -33,7 +33,7 @@ export function projectEnd(over: Partial<DependencyListEnd> = {}): DependencyLis
   };
 }
 
-/** A dependency that holds (milestone to milestone, finish to start); override any member. */
+/** A dependency that holds (milestone to milestone, finish to start) that the caller may not change; override any member. */
 export function dependencyRow(over: Partial<Row> = {}): Row {
   return {
     id: 77,
@@ -42,6 +42,7 @@ export function dependencyRow(over: Partial<Row> = {}): Row {
     type: "FS",
     lagDays: 0,
     check: { status: "OK", shortfallDays: null, slackDays: 2, requiredDate: "2027-06-14", actualDate: "2027-06-16" },
+    can: { edit: false, delete: false },
     ...over,
   };
 }

@@ -15,7 +15,8 @@ const val MAX_DEPENDENCY_ROWS = 1_000
  * stated ONCE in [projects], [teams] and [milestones], which hold exactly what the LISTED rows name (by ascending id; a row the cap
  * cut contributes nothing), so every reference resolves and the list can never disagree with the page it links to. [totals] is
  * Home's `plan.conflicts` function ([DependencyListKernels.totals]). [revision] is the PLAN's, read first (informational: the view
- * offers no write, so there is no `can`). The document is the same for every caller. [truncated] says [dependencies] was cut at
+ * offers no write, so there is no document-level `can`). Since 1.22.0 each row carries the CALLER's own `can` ([DependencyListRow.can]);
+ * nothing else of the document differs between callers. [truncated] says [dependencies] was cut at
  * [MAX_DEPENDENCY_ROWS]; [totals] always count every link. No defaults: the response encoder writes every member.
  */
 @Serializable
@@ -46,8 +47,10 @@ data class DependencyListMilestone(val id: UInt, val name: String, val projectId
 data class DependencyListTotals(val links: Int, val violated: Int, val unscheduled: Int)
 
 /**
- * One link: the project view's [ProjectDependency] without `critical` and `can`, its two ends as plain [EndpointRef]s (resolved
- * through the document's lists), the type, the lag and the check.
+ * One link: the project view's [ProjectDependency] without `critical`, its two ends as plain [EndpointRef]s (resolved through the
+ * document's lists), the type, the lag, the check and (1.22.0) the CALLER's [can]: the project view's own member, from the owner chain
+ * of the SUCCESSOR's project and [PlanPermissions], the very rule of `PUT` and `DELETE /dependencies/{id}`. No default: the encoder
+ * writes every member.
  */
 @Serializable
 data class DependencyListRow(
@@ -57,4 +60,5 @@ data class DependencyListRow(
     val type: DependencyType,
     val lagDays: Int,
     val check: DependencyCheck,
+    val can: ProjectDependencyCan,
 )
