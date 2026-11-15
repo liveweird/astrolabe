@@ -4,7 +4,7 @@ import { useForm } from "@mantine/form";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { ApiError } from "../api/http";
-import { createPerson, updatePerson, type PersonResponse } from "../api/people";
+import { createPerson, isPersonLoginTaken, updatePerson, type PersonResponse } from "../api/people";
 import { getUser } from "../api/users";
 import LoadingBlock from "./LoadingBlock";
 import RegistryEditorActions from "./RegistryEditorActions";
@@ -75,10 +75,10 @@ function PersonEditorForm({ target, onClose, onSaved, loginLabel }: EditorProps 
       }
       await onSaved(saved);
     } catch (err) {
-      // The 409 is about the email or the login (each unique among active people) — the server's fixed detail says which;
-      // mark that control.
+      // The 409 is about the email or the login (each unique among active people) — the problem's type says which;
+      // mark that control (an untyped 409, an older server's, reads as the email).
       if (err instanceof ApiError && err.status === 409) {
-        if (err.detail?.includes("linked")) form.setFieldError("userId", t("people.saveLoginConflict"));
+        if (isPersonLoginTaken(err)) form.setFieldError("userId", t("people.saveLoginConflict"));
         else form.setFieldError("email", t("people.saveEmailConflict"));
       } else {
         setError(personSaveErrorMessage(err, t));

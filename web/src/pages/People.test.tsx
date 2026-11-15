@@ -171,7 +171,7 @@ describe("People page", () => {
 
   test("a 409 marks the email field, or the login field when the link is taken", async () => {
     serve(mockFetch, {
-      "POST /api/v1/people": { status: 409, body: { title: "Conflict", status: 409, detail: "A person with this email already exists" } },
+      "POST /api/v1/people": { status: 409, body: { type: "urn:astrolabe:problem:person-email-taken", title: "Conflict", status: 409, detail: "A person with this email already exists" } },
     });
     const user = userEvent.setup();
     renderPage();
@@ -184,10 +184,32 @@ describe("People page", () => {
     expect(within(modal).getByLabelText("Email")).toHaveAttribute("aria-invalid", "true");
 
     serve(mockFetch, {
-      "POST /api/v1/people": { status: 409, body: { title: "Conflict", status: 409, detail: "Another person is already linked to this user" } },
+      "POST /api/v1/people": { status: 409, body: { type: "urn:astrolabe:problem:person-login-taken", title: "Conflict", status: 409, detail: "Another person is already linked to this user" } },
     });
     await user.click(within(modal).getByRole("button", { name: /^create$/i }));
     expect(await screen.findByText("Another person is already linked to this login")).toBeInTheDocument();
+  });
+
+  test("the conflict is told apart by its problem type, not its sentence; an untyped 409 reads as the email", async () => {
+    serve(mockFetch, {
+      "POST /api/v1/people": { status: 409, body: { type: "urn:astrolabe:problem:person-login-taken", title: "Conflict", status: 409, detail: "The seat is taken" } },
+    });
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: /new person/i }));
+    const modal = screen.getByRole("dialog");
+    await user.type(within(modal).getByLabelText("Name"), "Anna");
+    await user.type(within(modal).getByLabelText("Email"), "anna@example.com");
+    await user.click(within(modal).getByRole("button", { name: /^create$/i }));
+    expect(await screen.findByText("Another person is already linked to this login")).toBeInTheDocument();
+    expect(within(modal).getByLabelText("Email")).not.toHaveAttribute("aria-invalid", "true");
+
+    serve(mockFetch, {
+      "POST /api/v1/people": { status: 409, body: { title: "Conflict", status: 409, detail: "Another person is already linked to this user" } },
+    });
+    await user.click(within(modal).getByRole("button", { name: /^create$/i }));
+    expect(await screen.findByText("A person with this email already exists")).toBeInTheDocument();
+    expect(within(modal).getByLabelText("Email")).toHaveAttribute("aria-invalid", "true");
   });
 
   test("an admin deletes a person after confirming; a 409 says to reassign first", async () => {

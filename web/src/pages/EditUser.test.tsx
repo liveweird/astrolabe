@@ -124,6 +124,7 @@ describe("EditUser page", () => {
 
   test("a last-administrator 409 shows its dedicated message", async () => {
     mockGetAndPut(mockFetch, 409, {
+      type: "urn:astrolabe:problem:last-admin",
       title: "Conflict",
       status: 409,
       detail: "The last administrator cannot be demoted",
@@ -137,6 +138,35 @@ describe("EditUser page", () => {
 
     expect(await screen.findByText(/last administrator cannot be removed/i)).toBeInTheDocument();
     expect(screen.queryByTestId("probe")).not.toBeInTheDocument();
+  });
+
+  test("the last-admin type picks its branch whatever the sentence says", async () => {
+    mockGetAndPut(mockFetch, 409, {
+      type: "urn:astrolabe:problem:last-admin",
+      title: "Conflict",
+      status: 409,
+      detail: "Refused: nobody else could sign in with full access",
+    });
+    const user = userEvent.setup();
+    renderEdit();
+
+    const nameInput = (await screen.findByLabelText(/^name( \*)?$/i)) as HTMLInputElement;
+    await waitFor(() => expect(nameInput.value).toBe("Bob Basic"));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    expect(await screen.findByText(/last administrator cannot be removed/i)).toBeInTheDocument();
+  });
+
+  test("an untyped 409 whose sentence mentions an administrator still reads as email-in-use", async () => {
+    mockGetAndPut(mockFetch, 409, { title: "Conflict", status: 409, detail: "The administrator list is unchanged" });
+    const user = userEvent.setup();
+    renderEdit();
+
+    const nameInput = (await screen.findByLabelText(/^name( \*)?$/i)) as HTMLInputElement;
+    await waitFor(() => expect(nameInput.value).toBe("Bob Basic"));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    expect(await screen.findByText(/already used by another account/i)).toBeInTheDocument();
   });
 
   test("a plain 409 reads as email-in-use", async () => {

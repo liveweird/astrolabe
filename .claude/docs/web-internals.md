@@ -1663,7 +1663,7 @@ The people directory (V10), a Teams clone under Administration after Teams, **vi
 `components/UserSelect.tsx`, an ADMIN-only users search). A list row carries every field of the detail, so Edit takes the row as it stands (no detail fetch).
 `components/PersonSelect.tsx` is the owner/manager picker (`["people","picker",term]`, enabled for every session, options `name (email)` or `name`); it and
 `UserSelect` are thin wrappers over `components/SearchPicker.tsx` (debounced server-side search, the picked entry held by the caller). A 409 on save marks the
-email field, or the login field when the server's detail says the link is taken. The family is spelled out in `utils/peopleLinks.ts`; the team editor's manager
+email field, or the login field when the problem `type` is `person-login-taken` (`isPersonLoginTaken`, `api/people.ts`; an untyped 409, what an older server answers, reads as the email). The family is spelled out in `utils/peopleLinks.ts`; the team editor's manager
 is a person (`managerPersonId`). `PersonSelect` also takes `disabled` and `error` (the plan editors' Owner: read-only for a caller who may edit only another
 part of the modal, and the required-owner message).
 
@@ -1713,15 +1713,15 @@ plaintext from state for good — the server never returns it. The admin Reset-p
 flow; the confirm is the shared `ConfirmActionModal` (its optional `error` slot carries the inline `FormErrorAlert`). `NavLeaf.adminOnly` gates the Users nav item (the Shell filters by `isAdmin()`); the management routes sit under ONE `<Route element={<RequireAdmin />}>`
 in `App.tsx` (`auth.tsx`, beside `RequireAuth` — a regular user is sent home), so no page redirects itself; their queries additionally stay `enabled: isAdmin()`
 so a redirected caller fires no request. UX only — the server's `requireAdmin` is the rule. The pages live under `/users` (`utils/userLinks.ts` is the one place
-the family is spelled out; Flow's `/flow-users` rename and its legacy `/users…` redirect do not exist here).
+the family is spelled out; Flow's `/flow-users` rename and its legacy `/users…` redirect do not exist here). The edit page tells the last-administrator 409 (`users.lastAdminError`) from the email-in-use one by the problem `type` `last-admin` (`isLastAdminConflict`, `api/users.ts`), never by the sentence.
 
 **Login and person in one step (unreleased, after 1.13.3).** The new-login form (`CreateUser.tsx` only, not the shared `UserFormFields`, so the edit page has none) has a `Switch`
 "Also create a linked person", ON by default (a page-local `useState`), posted as `alsoCreatePerson`; the server creates the person (the login's name and email, linked) in
-the same transaction, and the create refreshes `["users"]` and `["people"]`. A 409 whose problem `detail` names a person gets its own message (`users.personAlreadyExists`),
+the same transaction, and the create refreshes `["users"]` and `["people"]`. A 409 of problem `type` `person-email-taken` (`isPersonEmailTaken`) gets its own message (`users.personAlreadyExists`),
 the plain 409 stays the email-in-use one; a refused person means no login. The Users row menu offers "Create a person" (`POST /people` with the login's name, email and
 `userId`, success toast `users.toast.personCreated`, a failure inline) only when the row's `personId` is null (`UserResponse.personId`: the id of the ACTIVE person linked to the login, read by the server with every list and detail
 read); a success refreshes `["people"]` and `["users"]`. The inline failure belongs to the view it happened in (a filter, sort or page change drops it) and is cleared when
-another row action starts. The person 409 is told from the user 409 by the problem `detail` text (no distinct problem type: the 23505 handler maps constraints to details only). e2e: the helper `createUserViaUi` turns the switch OFF unless asked, so a throwaway login leaves no person behind.
+another row action starts. The person 409 is told from the user 409 by the problem `type` (`person-email-taken`, `person-login-taken`; every other 23505 stays `about:blank`), never by the sentence. e2e: the helper `createUserViaUi` turns the switch OFF unless asked, so a throwaway login leaves no person behind.
 
 ### Feature flags (`pages/FeatureFlags.tsx`, `pages/UserFeatures.tsx`)
 

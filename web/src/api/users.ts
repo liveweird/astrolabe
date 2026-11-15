@@ -1,7 +1,7 @@
 // users API (`/api/v1/users`) — the ADMIN management surface plus the self password change.
 // Thin endpoint wrappers: transport (authedFetch/ApiError) in ./http, types from ./schema.
 
-import { buildQuery, jsonRequest, voidRequest } from "./http";
+import { ApiError, buildQuery, jsonRequest, voidRequest } from "./http";
 import type { paths } from "./schema";
 
 export type UserPage =
@@ -41,6 +41,14 @@ type UserListQuery = {
   feature?: Feature;
   featureEnabled?: boolean;
 };
+
+/** The RFC 7807 `type` of the 409 when the last active administrator would be demoted or deleted. */
+const LAST_ADMIN_TYPE = "urn:astrolabe:problem:last-admin";
+
+/** A 409 telling the last active administrator cannot be demoted or deleted. */
+export function isLastAdminConflict(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 409 && err.type === LAST_ADMIN_TYPE;
+}
 
 export async function listUsers(q: UserListQuery): Promise<UserPage> {
   const params = buildQuery({

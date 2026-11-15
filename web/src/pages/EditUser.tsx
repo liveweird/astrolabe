@@ -4,7 +4,7 @@ import { Link as RouterLink, Navigate, useNavigate, useParams } from "react-rout
 import { Button, Group, Paper, Stack } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getUser, setUserLanguage, updateUser } from "../api/users";
+import { getUser, isLastAdminConflict, setUserLanguage, updateUser } from "../api/users";
 import { ApiError } from "../api/http";
 import { getUserId } from "../api/session";
 import { useAdmin } from "../auth";
@@ -12,7 +12,7 @@ import i18n, { asSupportedLanguage } from "../i18n";
 import EditPageLoadState from "../components/EditPageLoadState";
 import UserFormFields from "../components/UserFormFields";
 import { EMPTY_USER_FORM, rolesOf, userFormValidation, type UserFormValues } from "../utils/userForm";
-import { isLastAdminConflict, loadErrorMessage, saveErrorMessage } from "../utils/saveError";
+import { loadErrorMessage, saveErrorMessage } from "../utils/saveError";
 import { showSuccessToast } from "../utils/toast";
 import PageHeader from "../components/PageHeader";
 import { FORM_MAX_WIDTH } from "../utils/layout";

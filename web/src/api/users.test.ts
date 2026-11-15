@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { jsonResponse } from "../test/http";
+import { ApiError } from "./http";
 import {
   changeUserPassword,
   createUser,
   deleteUser,
   getUser,
+  isLastAdminConflict,
   listUsers,
   updateUser,
   updateUserPermissions,
@@ -103,5 +105,15 @@ describe("users API wrappers", () => {
     expect(url).toBe("/api/v1/users/2/permissions");
     expect(init.method).toBe("PUT");
     expect(JSON.parse(init.body as string)).toEqual({ permissions: ["ROADMAP_EDITOR"] });
+  });
+
+  test.each([
+    { status: 409, type: "urn:astrolabe:problem:last-admin", detail: "any sentence", expected: true },
+    { status: 409, type: "about:blank", detail: "The last administrator cannot be demoted", expected: false },
+    { status: 409, type: undefined, detail: "The last administrator cannot be demoted", expected: false },
+    { status: 403, type: "urn:astrolabe:problem:last-admin", detail: undefined, expected: false },
+  ])("isLastAdminConflict: $status $type -> $expected", ({ status, type, detail, expected }) => {
+    expect(isLastAdminConflict(new ApiError(status, { type, title: "Conflict", status, detail }))).toBe(expected);
+    expect(isLastAdminConflict(new Error("net"))).toBe(false);
   });
 });

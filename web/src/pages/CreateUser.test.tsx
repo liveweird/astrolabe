@@ -176,7 +176,12 @@ describe("CreateUser page", () => {
     mockFetch.mockImplementation((url: string, init?: RequestInit) =>
       Promise.resolve(
         (init?.method ?? "GET") === "POST" && url === "/api/v1/users"
-          ? jsonResponse(409, { title: "Conflict", status: 409, detail: "A person with this email already exists" })
+          ? jsonResponse(409, {
+              type: "urn:astrolabe:problem:person-email-taken",
+              title: "Conflict",
+              status: 409,
+              detail: "A person with this email already exists",
+            })
           : jsonResponse(404, {}),
       ),
     );
@@ -186,6 +191,26 @@ describe("CreateUser page", () => {
     await fillAndSubmit(user);
     expect(await screen.findByText(/A person with this email already exists, so nothing was created/)).toBeInTheDocument();
     expect(screen.queryByText(/already used by another account/i)).not.toBeInTheDocument();
+  });
+
+  test("the person-email-taken type picks its branch whatever the sentence says; an untyped 409 mentioning a person reads as the login's email", async () => {
+    const answer = (body: Record<string, unknown>) =>
+      mockFetch.mockImplementation((url: string, init?: RequestInit) =>
+        Promise.resolve(
+          (init?.method ?? "GET") === "POST" && url === "/api/v1/users" ? jsonResponse(409, { title: "Conflict", status: 409, ...body }) : jsonResponse(404, {}),
+        ),
+      );
+    answer({ type: "urn:astrolabe:problem:person-email-taken", detail: "Somebody in the directory has it" });
+    const user = userEvent.setup();
+    renderCreate();
+
+    await fillAndSubmit(user);
+    expect(await screen.findByText(/A person with this email already exists, so nothing was created/)).toBeInTheDocument();
+
+    answer({ detail: "A person with this email already exists" });
+    await user.click(screen.getByRole("button", { name: /^create$/i }));
+    expect(await screen.findByText(/already used by another account/i)).toBeInTheDocument();
+    expect(screen.queryByText(/A person with this email already exists, so nothing was created/)).not.toBeInTheDocument();
   });
 
   test("client-side validation blocks an empty submission", async () => {

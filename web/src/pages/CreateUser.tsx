@@ -6,7 +6,7 @@ import { useForm } from "@mantine/form";
 import { useQueryClient } from "@tanstack/react-query";
 import { IconMail } from "@tabler/icons-react";
 import { HOME_VIEW_KEY } from "../api/home";
-import { ApiError } from "../api/http";
+import { isPersonEmailTaken } from "../api/people";
 import { createUser } from "../api/users";
 import OneTimePasswordModal from "../components/OneTimePasswordModal";
 import UserFormFields from "../components/UserFormFields";
@@ -18,11 +18,6 @@ import PageHeader from "../components/PageHeader";
 import { FORM_MAX_WIDTH } from "../utils/layout";
 import { usersPath } from "../utils/userLinks";
 import FormErrorAlert from "../components/FormErrorAlert";
-
-/** The create's 409 that came from the people directory (an active person already has this email). */
-function isPersonConflict(err: unknown): boolean {
-  return err instanceof ApiError && err.status === 409 && (err.detail?.toLowerCase().includes("person") ?? false);
-}
 
 export default function CreateUser() {
   const { t } = useTranslation();
@@ -64,8 +59,8 @@ export default function CreateUser() {
     } catch (err) {
       setError(
         saveErrorMessage(err, t, {
-          // A 409 is the login's email or, with the switch on, the person's: the problem's detail names which.
-          conflict: isPersonConflict(err) ? "users.personAlreadyExists" : "users.emailAlreadyInUse",
+          // A 409 is the login's email or, with the switch on, the person's: the problem's type names which.
+          conflict: isPersonEmailTaken(err) ? "users.personAlreadyExists" : "users.emailAlreadyInUse",
           failedStatus: "common.error.createFailedStatus",
           failed: "common.error.createFailedNetwork",
         }),
