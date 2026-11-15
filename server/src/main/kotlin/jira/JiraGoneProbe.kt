@@ -1,5 +1,6 @@
 package ch.nokillswit.jira
 
+import ch.nokillswit.infra.fetch.FetchCodes
 import ch.nokillswit.infra.fetch.FetchException
 import ch.nokillswit.infra.time.MILLIS_PER_HOUR
 import ch.nokillswit.sync.ClaimedRun
@@ -35,13 +36,10 @@ internal const val GONE_MOVED_OUT = "MOVED_OUT"
  */
 internal const val GONE_NOT_LISTED = "NOT_LISTED"
 
-private const val NOT_FOUND = "NOT_FOUND"
-private const val FORBIDDEN_SCOPE = "FORBIDDEN_SCOPE"
-
 /** What a failed probe's transport code says about the issue: null for any code that says nothing (the row keeps the sweep's verdict). */
 internal fun goneReasonFor(code: String): String? = when (code) {
-    NOT_FOUND -> GONE_DELETED
-    FORBIDDEN_SCOPE -> GONE_FORBIDDEN
+    FetchCodes.NOT_FOUND -> GONE_DELETED
+    FetchCodes.FORBIDDEN_SCOPE -> GONE_FORBIDDEN
     else -> null
 }
 

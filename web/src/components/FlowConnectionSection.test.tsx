@@ -256,7 +256,7 @@ describe("FlowConnectionSection", () => {
   });
 
   test("a failing connection counts its streak with the code; an untested one says to test first", async () => {
-    const failed = { id: 7, startedAt: 5, finishedAt: 6, outcome: "FAILED" as const, errorCode: "AUTHENTICATION_FAILED", trigger: "SCHEDULED" as const, running: false };
+    const failed = { id: 7, startedAt: 5, finishedAt: 6, outcome: "FAILED" as const, errorCode: "AUTHENTICATION_FAILED" as const, trigger: "SCHEDULED" as const, running: false };
     serve(mockFetch);
     const { unmount } = renderSection({ ...CONNECTION, status: { state: "FAILED", lastRun: failed, lastSucceededAt: null, consecutiveFailures: 3, nextPollAt: null } });
     const facts = await screen.findByRole("table", { name: "Connection facts" });

@@ -43,22 +43,22 @@ describe("ConnectionTestResults", () => {
   });
 
   test("no scope note when myself fails too (the credentials are the problem)", () => {
-    const rows = FAILING_TEST.rows.map((row) => (row.name === "myself" ? { ...row, ok: false, status: 401, code: "AUTHENTICATION_FAILED" } : row));
+    const rows = FAILING_TEST.rows.map((row) => (row.name === "myself" ? { ...row, ok: false, status: 401, code: "AUTHENTICATION_FAILED" as const } : row));
     renderWithProviders(<ConnectionTestResults result={{ ...FAILING_TEST, rows }} />);
     expect(screen.queryByRole("note")).not.toBeInTheDocument();
   });
 
   test("a stored token that cannot be decrypted reads in words", () => {
-    const rows = [{ name: "stored_token", path: "stored API token", required: true, ok: false, code: "TOKEN_UNREADABLE" }];
+    const rows = [{ name: "stored_token", path: "stored API token", required: true, ok: false, code: "TOKEN_UNREADABLE" as const }];
     renderWithProviders(<ConnectionTestResults result={{ rows, recorded: true, stub: false }} />);
     expect(screen.getByText("The stored token cannot be decrypted; enter it again (TOKEN_UNREADABLE)")).toBeInTheDocument();
   });
 
   test("rows skipped after a failed tenant_info read Skipped, not Failed, with a plain reason", () => {
     const rows = [
-      { name: "tenant_info", path: "/_edge/tenant_info", required: true, ok: false, status: 404, code: "NOT_FOUND" },
-      { name: "myself", path: "/rest/api/3/myself", required: true, ok: false, code: "SKIPPED" },
-      { name: "field", path: "/rest/api/3/field", required: true, ok: false, code: "SKIPPED" },
+      { name: "tenant_info", path: "/_edge/tenant_info", required: true, ok: false, status: 404, code: "NOT_FOUND" as const },
+      { name: "myself", path: "/rest/api/3/myself", required: true, ok: false, code: "SKIPPED" as const },
+      { name: "field", path: "/rest/api/3/field", required: true, ok: false, code: "SKIPPED" as const },
     ];
     renderWithProviders(<ConnectionTestResults result={{ rows, recorded: true, stub: false }} />);
     const myself = screen.getByText("myself").closest("tr")!;
@@ -100,7 +100,7 @@ describe("ConnectionTestResults", () => {
     });
 
     test("a 404 says Flow 1.57.0 once, in the code's sentence, not again as a hint", () => {
-      const rows = [{ name: "me", path: "/api/v1/integration/me", required: true, ok: false, status: 404, code: "NOT_FOUND", scopeHint: "Flow 1.57.0 or later" }];
+      const rows = [{ name: "me", path: "/api/v1/integration/me", required: true, ok: false, status: 404, code: "NOT_FOUND" as const, scopeHint: "Flow 1.57.0 or later" }];
       renderWithProviders(<ConnectionTestResults result={{ ...FLOW_PASSING, rows }} kind="FLOW" />);
       const text = screen.getByText(/^404 · /).textContent!;
       expect(text).toBe("404 · Flow does not serve this endpoint; it needs Flow 1.57.0 or later (NOT_FOUND)");

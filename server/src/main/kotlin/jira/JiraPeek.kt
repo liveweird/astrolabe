@@ -1,5 +1,6 @@
 package ch.nokillswit.jira
 
+import ch.nokillswit.infra.fetch.FetchCodes
 import ch.nokillswit.infra.fetch.FetchException
 import ch.nokillswit.infra.validation.parseIsoDate
 import io.ktor.server.plugins.BadRequestException
@@ -65,7 +66,7 @@ internal suspend fun JiraConnector.readIssue(target: JiraTestTarget, token: Stri
     return try {
         client.issue(key, fields)
     } catch (failure: FetchException) {
-        if (failure.code == "NOT_FOUND") null else throw failure
+        if (failure.code == FetchCodes.NOT_FOUND) null else throw failure
     }
 }
 
@@ -115,7 +116,7 @@ fun statusCategoryOf(key: String?): JiraStatusCategory = when (key) {
 
 internal const val MAX_ID = 64
 
-private fun invalidIssue() = FetchException(JIRA_SOURCE, "INVALID_RESPONSE", null, ISSUE_ENDPOINT)
+private fun invalidIssue() = FetchException(JIRA_SOURCE, FetchCodes.INVALID_RESPONSE, null, ISSUE_ENDPOINT)
 
 /** A string member clamped to [max], or null when absent, `null` or not a string - a malformed entry never throws. */
 internal fun JsonElement?.text(max: Int): String? = (this as? JsonPrimitive)?.takeIf { it.isString }?.content?.take(max)

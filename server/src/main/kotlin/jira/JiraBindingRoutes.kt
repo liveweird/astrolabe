@@ -8,6 +8,7 @@ import ch.nokillswit.authz.isAdmin
 import ch.nokillswit.authz.orNotFound
 import ch.nokillswit.authz.requireOwnerOrAdmin
 import ch.nokillswit.infra.db.nowMillis
+import ch.nokillswit.infra.fetch.FetchCodes
 import ch.nokillswit.infra.fetch.FetchException
 import ch.nokillswit.infra.fetch.PermitWait
 import ch.nokillswit.infra.paging.optionalEnum
@@ -174,7 +175,7 @@ private suspend fun observeForBind(
     val issue = connector.readIssue(target, token, request.issueKey, observationFields(mapping))
         ?: throw BadRequestException("Unknown Jira issue: ${request.issueKey}")
     val observation = JiraObservation.of(issue, mapping, discovery, request.level, nowMillis())
-        ?: throw FetchException(JIRA_SOURCE, "INVALID_RESPONSE", null, "/rest/api/3/issue/{id}")
+        ?: throw FetchException(JIRA_SOURCE, FetchCodes.INVALID_RESPONSE, null, "/rest/api/3/issue/{id}")
     // A moved issue answers under its NEW key: that project must be in scope too.
     requireInScope(observation.issueKey, target.projectKeys)
     if (observation.hierarchyLevel != mapped.hierarchyLevel) {

@@ -2,6 +2,7 @@ package ch.nokillswit.jira
 
 import ch.nokillswit.authz.ConflictException
 import ch.nokillswit.authz.NotFoundException
+import ch.nokillswit.infra.fetch.FetchCodes
 import ch.nokillswit.infra.fetch.FetchException
 import ch.nokillswit.sync.RunnableState
 import io.ktor.server.plugins.BadRequestException
@@ -88,7 +89,7 @@ internal suspend fun browseScope(
     return withTimeoutOrNull(deadlineMillis) {
         read(connector, context, token, keys, typeIds, mapping, discovery, now, beforePage, cap, active)
     }
-        ?: throw FetchException(JIRA_SOURCE, "TIMEOUT", null, "/rest/api/3/search/jql", "the browse passed its deadline")
+        ?: throw FetchException(JIRA_SOURCE, FetchCodes.TIMEOUT, null, "/rest/api/3/search/jql", "the browse passed its deadline")
 }
 
 private suspend fun read(

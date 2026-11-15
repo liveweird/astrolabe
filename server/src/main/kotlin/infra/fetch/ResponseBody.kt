@@ -20,11 +20,11 @@ private const val READ_BUFFER_SIZE = 8_192
 
 /** The failure code of a status the transport does not otherwise interpret (a caller's `statusCodeOverrides` win over it). */
 internal fun codeForStatus(status: Int): String = when (status) {
-    401 -> "AUTHENTICATION_FAILED"
-    403 -> "FORBIDDEN_SCOPE"
-    404 -> "NOT_FOUND"
-    in 300..399 -> "REDIRECT"
-    else -> "INVALID_RESPONSE"
+    401 -> FetchCodes.AUTHENTICATION_FAILED
+    403 -> FetchCodes.FORBIDDEN_SCOPE
+    404 -> FetchCodes.NOT_FOUND
+    in 300..399 -> FetchCodes.REDIRECT
+    else -> FetchCodes.INVALID_RESPONSE
 }
 
 /** Reads the body of [response] into memory, failing `LIMIT_EXCEEDED` the moment it passes [maxResponseBytes]. */
@@ -37,7 +37,7 @@ internal suspend fun readBoundedBody(response: HttpResponse, source: FetchSource
         val count = channel.readAvailable(buffer)
         if (count == -1) break
         total += count
-        if (total > maxResponseBytes) throw FetchException(source, "LIMIT_EXCEEDED", response.status.value, null)
+        if (total > maxResponseBytes) throw FetchException(source, FetchCodes.LIMIT_EXCEEDED, response.status.value, null)
         output.write(buffer, 0, count)
     }
     // A one-shot answer (GET /field) cannot be halved: one past half the cap is the operator's early warning to raise it.
@@ -55,5 +55,5 @@ internal suspend fun readBoundedBody(response: HttpResponse, source: FetchSource
 internal fun parseJsonBody(bytes: ByteArray, source: FetchSource, status: Int, url: String): JsonElement = try {
     Json.decodeFromStream<JsonElement>(ByteArrayInputStream(bytes))
 } catch (cause: Exception) {
-    throw FetchException(source, "INVALID_RESPONSE", status, url).also { it.initCause(cause) }
+    throw FetchException(source, FetchCodes.INVALID_RESPONSE, status, url).also { it.initCause(cause) }
 }

@@ -2520,7 +2520,7 @@ export interface paths {
          *     one of the connection's project keys (a moved issue is judged by its new key; a repeated `key` is a `400` too); `404` for an unknown connection or a key Jira does
          *     not know; `409` before a discovery (`urn:astrolabe:problem:jira-not-discovered`), when the stored token cannot be decrypted
          *     (`urn:astrolabe:problem:jira-token-unreadable`, enter it again) or for an unusable mapping (above); `502` (`urn:astrolabe:problem:jira-upstream`) when Jira cannot
-         *     be reached or refuses - the detail names the failure code only (`AUTHENTICATION_FAILED`, `UPSTREAM_UNAVAILABLE`, ...).
+         *     be reached or refuses - the detail names the failure code only (a `SyncFailureCode`).
          */
         get: operations["peekJiraIssue"];
         put?: never;
@@ -3324,12 +3324,8 @@ export interface paths {
          *
          *     - Filters: `kind` (equality, by name: `JIRA` or `FLOW`) and `connectionId` (equality; an id belongs to one kind's registry, so pair
          *       it with `kind`). A repeated key is a `400`.
-         *     - `errorCode` is the run's failure code: an upstream fetch code (`AUTHENTICATION_FAILED`, `FORBIDDEN_SCOPE` (Jira only), `NOT_FOUND`,
-         *       `RATE_LIMITED`, `UPSTREAM_UNAVAILABLE`, `TIMEOUT`, `INVALID_RESPONSE`, `LIMIT_EXCEEDED`, `BLOCKED_HOST`, `REDIRECT`,
-         *       `CURSOR_EXPIRED` (Jira only)) or the run's own (`TOKEN_UNREADABLE`, `NOT_DISCOVERED` (Jira), `MAPPING_INVALID` (Jira),
-         *       `MAPPING_UNREADABLE` (Jira), `TIME_ZONE_INVALID` (Flow), `CONNECTION_GONE`, `CONNECTION_DISABLED`, `RUN_DEADLINE`, `SHUTDOWN`,
-         *       `INTERNAL`, `ABANDONED`). For a `FLOW` run `observedCount` is the Flow teams the document carried, `goneCount` the bound Flow teams
-         *       missing from it, and `callCount` is 1. `errorDetail` is a short hint of at most 500 characters and never holds a URL, a query string
+         *     - `errorCode` is the run's failure code (`SyncFailureCode`). For a `FLOW` run `observedCount` is the Flow teams the document
+         *       carried, `goneCount` the bound Flow teams missing from it, and `callCount` is 1. `errorDetail` is a short hint of at most 500 characters and never holds a URL, a query string
          *       or a credential.
          */
         get: operations["listSyncRuns"];
@@ -3397,6 +3393,42 @@ export interface components {
         JiraImportParentKind: "EXISTING" | "NEW_ROW" | "DEFAULT";
         /** @enum {string|null} */
         SyncOutcome: "SUCCEEDED" | "FAILED" | "ABANDONED" | null;
+        /**
+         * @description Why a run failed, or why a test row failed; null when nothing failed. Values are only ever added, never renamed or removed. A newer
+         *     server may write a code an older client's list lacks, and a rolled-back server may serve one a newer version stored (it never
+         *     rewrites or filters a stored code), so a client must tolerate an unknown value.
+         *     The transport and the probes:
+         *     - `AUTHENTICATION_FAILED`: the upstream answered 401 (Jira: a bad or expired token, and a scoped token missing a scope also answers 401, so one failing probe while `myself` passes means a missing scope; Flow: its one uniform 401, the token is revoked, expired or wrong).
+         *     - `FORBIDDEN_SCOPE`: the upstream answered 403.
+         *     - `NOT_FOUND`: the upstream answered 404 (Flow: a Flow older than 1.57.0).
+         *     - `REDIRECT`: the upstream answered a 3xx; redirects are never followed.
+         *     - `INVALID_RESPONSE`: the answer could not be read, had an unexpected shape or status, or carried a page token the guard refused.
+         *     - `LIMIT_EXCEEDED`: a response, an answer or a run passed one of its size or page ceilings.
+         *     - `BUSY`: no outbound slot was free within an interactive request's wait.
+         *     - `TIMEOUT`: the call, the probe, its budget or a browse passed its deadline.
+         *     - `RATE_LIMITED`: the upstream answered 429, or a `Retry-After` crossed the request's budget.
+         *     - `BLOCKED_HOST`: the origin is not allowed (Jira: not a genuine site of the tenant; Flow: no longer on the operator's list of origins).
+         *     - `UPSTREAM_UNAVAILABLE`: the upstream could not be reached or answered 5xx (Flow: an outage).
+         *     - `SKIPPED`: a test row only: the probe did not run because the first probe (`tenant_info` for Jira, `me` for Flow) failed, so `ok` is false with no `status` and no `scopeHint`; read the first failed row.
+         *     The run itself:
+         *     - `RUN_DEADLINE`: the run was cut at its deadline.
+         *     - `SHUTDOWN`: the application stopped while the run was in flight.
+         *     - `INTERNAL`: an unexpected exception; `errorDetail` names its class only.
+         *     - `ABANDONED`: written by a later claim for a run that never finished (its outcome is `ABANDONED`).
+         *     - `CONNECTION_GONE`: the connection was deleted before or during the run.
+         *     - `CONNECTION_DISABLED`: the connection was disabled before or during the run.
+         *     - `TOKEN_UNREADABLE`: the stored token cannot be decrypted; a run, or the `stored_token` test row (enter it again).
+         *     Jira only:
+         *     - `NOT_DISCOVERED`: the connection has not been tested yet, so there is no discovery snapshot.
+         *     - `MAPPING_UNREADABLE`: the stored mapping cannot be read by this version.
+         *     - `MAPPING_INVALID`: the stored mapping no longer fits the site.
+         *     - `PROJECT_NOT_VISIBLE`: a test row only: a configured project key the token cannot see.
+         *     - `CURSOR_EXPIRED`: a search page's token expired and the one restart failed the same way.
+         *     Flow only:
+         *     - `TIME_ZONE_INVALID`: the connection's time zone is not known to this server.
+         * @enum {string|null}
+         */
+        SyncFailureCode: "AUTHENTICATION_FAILED" | "FORBIDDEN_SCOPE" | "NOT_FOUND" | "REDIRECT" | "INVALID_RESPONSE" | "LIMIT_EXCEEDED" | "BUSY" | "TIMEOUT" | "RATE_LIMITED" | "BLOCKED_HOST" | "UPSTREAM_UNAVAILABLE" | "SKIPPED" | "RUN_DEADLINE" | "SHUTDOWN" | "INTERNAL" | "ABANDONED" | "CONNECTION_GONE" | "CONNECTION_DISABLED" | "TOKEN_UNREADABLE" | "NOT_DISCOVERED" | "MAPPING_UNREADABLE" | "MAPPING_INVALID" | "PROJECT_NOT_VISIBLE" | "CURSOR_EXPIRED" | "TIME_ZONE_INVALID" | null;
         HealthResponse: {
             /**
              * @description Always `ok` on a 200 — a failed probe is a problem body, never a status word.
@@ -5050,7 +5082,7 @@ export interface components {
             /** Format: int64 */
             finishedAt: number | null;
             outcome: components["schemas"]["SyncOutcome"];
-            errorCode: string | null;
+            errorCode: components["schemas"]["SyncFailureCode"];
             trigger: components["schemas"]["SyncTrigger"];
             /** @description True only for an unfinished run younger than `sync.maxRunMinutes`; an older unfinished run was interrupted. */
             running: boolean;
@@ -6598,8 +6630,7 @@ export interface components {
              * @description The upstream HTTP status when one answered.
              */
             status?: number | null;
-            /** @description The failure code: `AUTHENTICATION_FAILED`, `FORBIDDEN_SCOPE`, `NOT_FOUND`, `RATE_LIMITED`, `UPSTREAM_UNAVAILABLE`, `TIMEOUT`, `INVALID_RESPONSE`, `LIMIT_EXCEEDED`, `BLOCKED_HOST`, `REDIRECT`, `PROJECT_NOT_VISIBLE` (a configured key the token cannot see), `TOKEN_UNREADABLE` (the stored token cannot be decrypted), or `SKIPPED` (the probe did not run because `tenant_info` failed, so there is no gateway to call: `ok` is false, with no `status` and no `scopeHint`; read the first failed row). A scoped token missing a scope answers 401, not 403, so one failing probe while `myself` passes means a missing scope, not bad credentials. */
-            code?: string | null;
+            code?: components["schemas"]["SyncFailureCode"];
             /** @description The Atlassian scope(s) the probe needs; a comma+space separated list. */
             scopeHint?: string | null;
         };
@@ -7283,8 +7314,7 @@ export interface components {
              * @description The upstream HTTP status when one answered.
              */
             status?: number | null;
-            /** @description The failure code: `AUTHENTICATION_FAILED` (Flow's one uniform 401: the token is revoked, expired or wrong), `NOT_FOUND` (a Flow older than 1.57.0), `RATE_LIMITED`, `UPSTREAM_UNAVAILABLE` (a Flow outage, 5xx), `TIMEOUT`, `INVALID_RESPONSE`, `LIMIT_EXCEEDED`, `BLOCKED_HOST` (the origin is no longer on the operator's list), `REDIRECT`, `TOKEN_UNREADABLE` (the stored token cannot be decrypted) or `SKIPPED` (the probe did not run because `me` failed: `ok` is false, with no `status` and no `scopeHint`; read the first failed row). */
-            code?: string | null;
+            code?: components["schemas"]["SyncFailureCode"];
             /** @description What the probe needs of Flow (`Flow 1.57.0 or later`); absent on a row that never ran. */
             scopeHint?: string | null;
         };
@@ -7923,7 +7953,7 @@ export interface components {
             finishedAt?: number | null;
             /** @description `ABANDONED` is written by a later claim for a run that never finished. */
             outcome?: components["schemas"]["SyncOutcome"] | null;
-            errorCode?: string | null;
+            errorCode?: components["schemas"]["SyncFailureCode"];
             errorDetail?: string | null;
             /** @description The server's verdict: true only for an unfinished run younger than `sync.maxRunMinutes`. An unfinished run that is not running was interrupted; no client judges a run's age by its own clock. */
             running: boolean;

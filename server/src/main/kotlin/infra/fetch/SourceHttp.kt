@@ -203,7 +203,7 @@ class SourceHttp(
             val remaining = deadline?.let { it - clock() }
             val busy = interactive != null && interactive <= (remaining ?: interactive)
             val limit = listOfNotNull(interactive, remaining).minOrNull()
-            if (!permit.acquire(limit)) throw FetchException(source, if (busy) "BUSY" else "TIMEOUT")
+            if (!permit.acquire(limit)) throw FetchException(source, if (busy) FetchCodes.BUSY else FetchCodes.TIMEOUT)
             if (tenantPauses.pending(pauseKey, seen) == null) return deadline ?: 0L
             permit.release()
         }
@@ -222,7 +222,9 @@ class SourceHttp(
         if (attempt >= maxRetries) throw retry.terminal()
         // A Retry-After that crosses the total per-request budget is reported as RATE_LIMITED specifically (the upstream told us how
         // long to wait; we're refusing that wait, not failing on our own account); any other backoff reports its own terminal code.
-        val refusal = { if (retry.retryAfterSeconds != null) FetchException(source, "RATE_LIMITED", null, call.url) else retry.terminal() }
+        val refusal = {
+            if (retry.retryAfterSeconds != null) FetchException(source, FetchCodes.RATE_LIMITED, null, call.url) else retry.terminal()
+        }
         if (clock() + delayMs > deadline) throw refusal()
         permit.release()
         call.tally?.addBackoff(delayMs)
@@ -260,16 +262,16 @@ class SourceHttp(
             // do) never reads it.
             statement.execute { response -> handleResponse(response, call) }
         } catch (cause: BlockedHostException) {
-            throw FetchException(source, "BLOCKED_HOST", null, call.url).also { it.initCause(cause) }
+            throw FetchException(source, FetchCodes.BLOCKED_HOST, null, call.url).also { it.initCause(cause) }
         } catch (_: HttpRequestTimeoutException) {
             // [LOW-5] Deliberately no `initCause`: HttpRequestTimeoutException's own message
             // embeds the full request URL INCLUDING its query string (which may carry a token) —
             // `endpoint` (host+path only, no query — query params are never string-concatenated
             // into `url`) is the safe substitute (`.claude/docs/security.md` "never log secrets").
-            throw FetchException(source, "TIMEOUT", null, call.url)
+            throw FetchException(source, FetchCodes.TIMEOUT, null, call.url)
         } catch (cause: IOException) {
             Retry(null, pausesOthers = false) {
-                FetchException(source, "UPSTREAM_UNAVAILABLE", null, call.url).also { it.initCause(cause) }
+                FetchException(source, FetchCodes.UPSTREAM_UNAVAILABLE, null, call.url).also { it.initCause(cause) }
             }
         }
     }
@@ -281,7 +283,8 @@ class SourceHttp(
             if (status == RATE_LIMITED_STATUS) call.tally?.countRateLimited()
             val retryAfter = retryAfterSeconds(response)
             return Retry(retryAfter, pausesOthers = status == RATE_LIMITED_STATUS || retryAfter != null) {
-                FetchException(source, if (status == RATE_LIMITED_STATUS) "RATE_LIMITED" else "UPSTREAM_UNAVAILABLE", status, url)
+                val code = if (status == RATE_LIMITED_STATUS) FetchCodes.RATE_LIMITED else FetchCodes.UPSTREAM_UNAVAILABLE
+                FetchException(source, code, status, url)
             }
         }
         // [CURSOR_EXPIRED] `statusCodeOverrides` lets a specific endpoint reinterpret a status this
@@ -301,7 +304,7 @@ class SourceHttp(
                 "A {} response was refused ({}); ceilings: {} tokens, {} levels",
                 source.label, breach, maxResponseNodes, MAX_RESPONSE_DEPTH,
             )
-            throw FetchException(source, LIMIT_EXCEEDED_CODE, status, null, breach)
+            throw FetchException(source, FetchCodes.LIMIT_EXCEEDED, status, null, breach)
         }
         // One big tree is built at a time (the lock is held for the parse only, never the network read or the permit's wait):
         // a hostile host cannot make the process build several dense trees at once. A small body takes no lock.

@@ -386,7 +386,7 @@ describe("Jira connection page", () => {
     expect(within(untested).getAllByText("not polled: test the connection first")).toHaveLength(2);
     second.unmount();
 
-    const failed = { id: 7, startedAt: 1, finishedAt: 2, outcome: "FAILED" as const, errorCode: "TOKEN_UNREADABLE", trigger: "SCHEDULED" as const, running: false };
+    const failed = { id: 7, startedAt: 1, finishedAt: 2, outcome: "FAILED" as const, errorCode: "TOKEN_UNREADABLE" as const, trigger: "SCHEDULED" as const, running: false };
     serve(mockFetch, { connection: { ...CONNECTION, status: { state: "FAILED", lastRun: failed, lastSucceededAt: null, consecutiveFailures: 3, nextPollAt: 99 } } });
     renderPage();
     const failing = await screen.findByRole("table", { name: "Connection facts" });

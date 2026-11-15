@@ -1,5 +1,6 @@
 package ch.nokillswit.flow
 
+import ch.nokillswit.infra.fetch.FetchCodes
 import ch.nokillswit.infra.fetch.FetchException
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -110,5 +111,5 @@ private inline fun <reified T> decodeFlow(json: JsonElement, endpoint: String): 
     FLOW_JSON.decodeFromJsonElement<T>(json)
 } catch (cause: Exception) {
     // A SerializationException or IllegalArgumentException: the message may quote the offending value, so it is kept as the cause only.
-    throw FetchException(FLOW_SOURCE, "INVALID_RESPONSE", null, endpoint).also { it.initCause(cause) }
+    throw FetchException(FLOW_SOURCE, FetchCodes.INVALID_RESPONSE, null, endpoint).also { it.initCause(cause) }
 }

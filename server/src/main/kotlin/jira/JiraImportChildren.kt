@@ -1,6 +1,7 @@
 package ch.nokillswit.jira
 
 import ch.nokillswit.authz.ConflictException
+import ch.nokillswit.infra.fetch.FetchCodes
 import ch.nokillswit.infra.fetch.FetchException
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonObject
@@ -81,7 +82,7 @@ internal suspend fun browseChildren(
     val walk = ChildWalk(connector.clientFor(context.target, token), connector.pageSize, spec, mapping, discovery, now, beforePage, cap)
     // `withTimeoutOrNull` handles ONLY its own deadline (null); a real cancellation of the caller, or another scope's timeout, propagates.
     return withTimeoutOrNull(deadlineMillis) { walk.run() }
-        ?: throw FetchException(JIRA_SOURCE, "TIMEOUT", null, SEARCH_ENDPOINT, "the browse passed its deadline")
+        ?: throw FetchException(JIRA_SOURCE, FetchCodes.TIMEOUT, null, SEARCH_ENDPOINT, "the browse passed its deadline")
 }
 
 /** One rooted walk: the rows held so far, by id (a restart after an expired cursor re-delivers pages, and a repeat counts once). */

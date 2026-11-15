@@ -7,6 +7,7 @@ import ch.nokillswit.sync.Connector
 import ch.nokillswit.sync.ConnectorConnection
 import ch.nokillswit.sync.RunProblem
 import ch.nokillswit.sync.RunProgress
+import ch.nokillswit.sync.SyncErrorCodes
 import ch.nokillswit.sync.SyncKind
 import ch.nokillswit.sync.SyncResult
 import ch.nokillswit.sync.runWithTally
@@ -23,14 +24,6 @@ private val log = LoggerFactory.getLogger("ch.nokillswit.sync")
 
 /** `400` text of a manual request for a connection that cannot run now (unknown, deleted or disabled). */
 const val UNKNOWN_FLOW_CONNECTION = "Unknown or disabled Flow connection"
-
-/** Run failure codes that involve no call to Flow (the run's own, beside a [FetchException]'s). */
-internal object FlowRunCodes {
-    const val TOKEN_UNREADABLE = "TOKEN_UNREADABLE"
-    const val CONNECTION_GONE = "CONNECTION_GONE"
-    const val CONNECTION_DISABLED = "CONNECTION_DISABLED"
-    const val TIME_ZONE_INVALID = "TIME_ZONE_INVALID"
-}
 
 /**
  * The Flow connector's run (`flow-sync.md` "The run"): ONE `GET /integration/teams?sprintsSince=` and, from that single document, a
@@ -74,10 +67,10 @@ class FlowObserver internal constructor(
     }
 
     private suspend fun execute(run: ClaimedRun, progress: RunProgress) {
-        val target = connections.readForRun(run.connectionId) ?: throw RunProblem(FlowRunCodes.CONNECTION_GONE, GONE_DETAIL)
-        if (!target.enabled) throw RunProblem(FlowRunCodes.CONNECTION_DISABLED, DISABLED_DETAIL)
+        val target = connections.readForRun(run.connectionId) ?: throw RunProblem(SyncErrorCodes.CONNECTION_GONE, GONE_DETAIL)
+        if (!target.enabled) throw RunProblem(SyncErrorCodes.CONNECTION_DISABLED, DISABLED_DETAIL)
         val token = target.apiToken ?: throw RunProblem(
-            FlowRunCodes.TOKEN_UNREADABLE, "The stored service token cannot be decrypted - ask an administrator to enter it again",
+            SyncErrorCodes.TOKEN_UNREADABLE, "The stored service token cannot be decrypted - ask an administrator to enter it again",
         )
         val sprintsSince = sprintsSince(target)
         progress.calls++
@@ -98,8 +91,8 @@ class FlowObserver internal constructor(
         )
         when (write) {
             FlowMirrorWrite.WRITTEN -> reportCleared(run, cleared)
-            FlowMirrorWrite.GONE -> throw RunProblem(FlowRunCodes.CONNECTION_GONE, GONE_DETAIL)
-            FlowMirrorWrite.DISABLED -> throw RunProblem(FlowRunCodes.CONNECTION_DISABLED, DISABLED_DETAIL)
+            FlowMirrorWrite.GONE -> throw RunProblem(SyncErrorCodes.CONNECTION_GONE, GONE_DETAIL)
+            FlowMirrorWrite.DISABLED -> throw RunProblem(SyncErrorCodes.CONNECTION_DISABLED, DISABLED_DETAIL)
         }
         progress.observed = teams.size
         if (document.sprintsTruncated) {

@@ -1,7 +1,7 @@
 package ch.nokillswit.jira
 
 import ch.nokillswit.infra.fetch.FetchException
-import ch.nokillswit.infra.fetch.LIMIT_EXCEEDED_CODE
+import ch.nokillswit.infra.fetch.FetchCodes
 import ch.nokillswit.infra.time.MILLIS_PER_HOUR
 import ch.nokillswit.sync.ClaimedRun
 import kotlinx.serialization.json.JsonArray
@@ -263,7 +263,7 @@ internal class JiraCensus(
             search(jql, fields, onPage)
             true
         } catch (failure: FetchException) {
-            if (failure.code == LIMIT_EXCEEDED_CODE) false else throw failure
+            if (failure.code == FetchCodes.LIMIT_EXCEEDED) false else throw failure
         }
 
     /** Deletes the [index] rows that are [doomed] and not seen this run, in [chunkSize] batches. */

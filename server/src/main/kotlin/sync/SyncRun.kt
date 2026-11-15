@@ -18,14 +18,6 @@ enum class SyncOutcome { SUCCEEDED, FAILED, ABANDONED }
 /** `409` problem type: a run of this kind is already unfinished for the connection (the claim's unique index answered). */
 const val RUN_IN_PROGRESS_PROBLEM = "urn:astrolabe:problem:run-in-progress"
 
-/** The run's own failure codes besides the connector's (a `FetchException` code or a connector-typed one). */
-object SyncErrorCodes {
-    const val DEADLINE = "RUN_DEADLINE"
-    const val SHUTDOWN = "SHUTDOWN"
-    const val INTERNAL = "INTERNAL"
-    const val ABANDONED = "ABANDONED"
-}
-
 /** `POST /integrations/sync/runs`. */
 @Serializable
 data class SyncRunRequest(val kind: SyncKind, val connectionId: UInt)

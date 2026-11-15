@@ -1,5 +1,6 @@
 package ch.nokillswit.jira
 
+import ch.nokillswit.infra.fetch.FetchCodes
 import ch.nokillswit.infra.fetch.FetchException
 import ch.nokillswit.infra.fetch.SourceHttp
 import ch.nokillswit.infra.outbound.ATLASSIAN_GATEWAY_HOST
@@ -131,8 +132,8 @@ class HttpJiraClient(
         val endpoint = "/_edge/tenant_info"
         val json = http.request(HttpMethod.Get, "$tenantInfoBaseUrl$endpoint", authHeader = null)
         val rawCloudId = decode<JsonObject>(json, endpoint).primitiveOrNull("cloudId", endpoint)?.contentOrNull
-            ?: throw FetchException(JIRA_SOURCE, "INVALID_RESPONSE", null, endpoint)
-        if (!CLOUD_ID_PATTERN.matches(rawCloudId)) throw FetchException(JIRA_SOURCE, "INVALID_RESPONSE", null, endpoint)
+            ?: throw FetchException(JIRA_SOURCE, FetchCodes.INVALID_RESPONSE, null, endpoint)
+        if (!CLOUD_ID_PATTERN.matches(rawCloudId)) throw FetchException(JIRA_SOURCE, FetchCodes.INVALID_RESPONSE, null, endpoint)
         val cloudId = rawCloudId.lowercase()
         val gatewayHost = stubBaseUrl ?: "https://$ATLASSIAN_GATEWAY_HOST"
         gatewayBase = "$gatewayHost/ex/jira/$cloudId"
@@ -154,7 +155,8 @@ class HttpJiraClient(
         val endpoint = "/rest/api/3/search/jql"
         // CURSOR_EXPIRED (Flow's `jira-integration.md`): only meaningful once a page carries a `nextPageToken` - the FIRST page's own
         // 400/410 (a malformed or rejected JQL, say) is a genuine INVALID_RESPONSE, not an expired token that never existed.
-        val overrides = if (nextPageToken != null) mapOf(400 to "CURSOR_EXPIRED", 410 to "CURSOR_EXPIRED") else emptyMap()
+        val expired = JiraRunCodes.CURSOR_EXPIRED
+        val overrides = if (nextPageToken != null) mapOf(400 to expired, 410 to expired) else emptyMap()
         val json = http.request(
             HttpMethod.Get, "${requireGateway()}$endpoint", query, null, auth, overrides, pauseKey = gatewayBase,
         )
@@ -205,7 +207,7 @@ class HttpJiraClient(
      */
     private fun requireIssueIdOrKey(idOrKey: String, endpoint: String): String {
         if (!ISSUE_ID_PATTERN.matches(idOrKey) && !ISSUE_KEY_PATTERN.matches(idOrKey)) {
-            throw FetchException(JIRA_SOURCE, "INVALID_RESPONSE", null, endpoint)
+            throw FetchException(JIRA_SOURCE, FetchCodes.INVALID_RESPONSE, null, endpoint)
         }
         return idOrKey
     }
@@ -224,12 +226,12 @@ private val LENIENT_JSON = Json { ignoreUnknownKeys = true }
 private inline fun <reified T> decode(json: JsonElement, endpoint: String? = null): T = try {
     LENIENT_JSON.decodeFromJsonElement(json)
 } catch (cause: Exception) {
-    throw FetchException(JIRA_SOURCE, "INVALID_RESPONSE", null, endpoint).also { it.initCause(cause) }
+    throw FetchException(JIRA_SOURCE, FetchCodes.INVALID_RESPONSE, null, endpoint).also { it.initCause(cause) }
 }
 
 /** `JsonObject["key"]?.jsonPrimitive` also raw-casts on a non-primitive value - same mapping. */
 private fun JsonObject.primitiveOrNull(key: String, endpoint: String): JsonPrimitive? = try {
     this[key]?.jsonPrimitive
 } catch (cause: IllegalArgumentException) {
-    throw FetchException(JIRA_SOURCE, "INVALID_RESPONSE", null, endpoint).also { it.initCause(cause) }
+    throw FetchException(JIRA_SOURCE, FetchCodes.INVALID_RESPONSE, null, endpoint).also { it.initCause(cause) }
 }

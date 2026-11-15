@@ -4,12 +4,9 @@ package ch.nokillswit.infra.fetch
 // [FetchSource]. (Flow's answer and run ceilings, its halving of an oversized batch and its single-id `SkipBudget` are stream-only
 // and not ported: Astrolabe reads whole pages, so an oversized response simply fails the run with `LIMIT_EXCEEDED`.)
 
-/** The `FetchException` code of a response, an answer or a run past a ceiling; never retried by `SourceHttp`. */
-internal const val LIMIT_EXCEEDED_CODE = "LIMIT_EXCEEDED"
-
 /** The typed failure of the page ceiling: `LIMIT_EXCEEDED`, so it ends the run. */
 internal fun answerCeilingExceeded(source: FetchSource, endpoint: String, what: String) =
-    FetchException(source, LIMIT_EXCEEDED_CODE, null, endpoint, "answer ceiling: $what")
+    FetchException(source, FetchCodes.LIMIT_EXCEEDED, null, endpoint, "answer ceiling: $what")
 
 /**
  * The page ceiling alone, for a loop that follows a host's paging and holds nothing (or something else bounds what it holds):

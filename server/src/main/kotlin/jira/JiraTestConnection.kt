@@ -1,11 +1,13 @@
 package ch.nokillswit.jira
 
 import ch.nokillswit.infra.fetch.ConnectionTestRow
+import ch.nokillswit.infra.fetch.FetchCodes
 import ch.nokillswit.infra.fetch.FetchException
 import ch.nokillswit.infra.fetch.ProbeFailure
 import ch.nokillswit.infra.fetch.ProbeRun
 import ch.nokillswit.infra.maskedSecret
 import ch.nokillswit.infra.outbound.isAllowedTenantHost
+import ch.nokillswit.sync.SyncErrorCodes
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
@@ -61,11 +63,11 @@ class JiraConnector(
         val run = ProbeRun(now)
         val token = target.apiToken
         if (token == null) {
-            run.fail(STORED_TOKEN_ROW, "stored API token", required = true, code = TOKEN_UNREADABLE_CODE)
+            run.fail(STORED_TOKEN_ROW, "stored API token", required = true, code = SyncErrorCodes.TOKEN_UNREADABLE)
             return JiraTestOutcome(JiraTestResult(run.rows), null)
         }
         if (!hasGenuineSite(target)) {
-            run.fail("tenant_info", "/_edge/tenant_info", required = true, code = BLOCKED_HOST_CODE)
+            run.fail("tenant_info", "/_edge/tenant_info", required = true, code = FetchCodes.BLOCKED_HOST)
             return JiraTestOutcome(JiraTestResult(run.rows), null)
         }
         // `stub` says who ANSWERED: only the probe path makes calls, so the two refusals above (no call made) never claim the stub.
@@ -78,7 +80,7 @@ class JiraConnector(
      * client exists, so no request can name it.
      */
     internal fun clientFor(target: JiraTestTarget, token: String): JiraClient {
-        if (!hasGenuineSite(target)) throw FetchException(JIRA_SOURCE, BLOCKED_HOST_CODE, null, "/_edge/tenant_info")
+        if (!hasGenuineSite(target)) throw FetchException(JIRA_SOURCE, FetchCodes.BLOCKED_HOST, null, "/_edge/tenant_info")
         return newClient(target.siteUrl, target.email, token, target.authScheme)
     }
 
@@ -139,7 +141,7 @@ class JiraConnector(
         seen.visibleProjectKeys?.let { visible ->
             projectKeys.forEach { key ->
                 run.probe("project:$key", "/rest/api/3/project/search", required = true, scopeHint = "read:project:jira") {
-                    if (key !in visible) throw ProbeFailure(PROJECT_NOT_VISIBLE_CODE)
+                    if (key !in visible) throw ProbeFailure(JiraRunCodes.PROJECT_NOT_VISIBLE)
                 }
             }
         }
@@ -169,17 +171,15 @@ class JiraConnector(
             startAt += page.values.size
             if (page.values.isEmpty() || page.isLast == true || (page.isLast == null && startAt >= page.total)) return keys
         }
-        throw FetchException(JIRA_SOURCE, "LIMIT_EXCEEDED", null, "/rest/api/3/project/search", "more than $MAX_PROJECT_PAGES pages")
+        throw FetchException(
+            JIRA_SOURCE, FetchCodes.LIMIT_EXCEEDED, null, "/rest/api/3/project/search", "more than $MAX_PROJECT_PAGES pages",
+        )
     }
 
     companion object {
         /** The row of a stored token that cannot be decrypted (`TOKEN_UNREADABLE`: re-enter it). */
         const val STORED_TOKEN_ROW = "stored_token"
-        const val TOKEN_UNREADABLE_CODE = "TOKEN_UNREADABLE"
-        const val PROJECT_NOT_VISIBLE_CODE = "PROJECT_NOT_VISIBLE"
         const val DEFAULT_CENSUS_HOURS = 24
-
-        const val BLOCKED_HOST_CODE = "BLOCKED_HOST"
 
         /** The milestone level's defaults (`JiraMappingDefaults`): an Epic, else a Story/Task/Bug - used until a mapping names one. */
         private const val EPIC_LEVEL = 1

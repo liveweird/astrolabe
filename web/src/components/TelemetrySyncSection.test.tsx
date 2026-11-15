@@ -48,7 +48,7 @@ describe("TelemetrySyncSection", () => {
   });
 
   test("a failing connection shows the streak and the newest run's code; a running one says so", () => {
-    const failed = { ...LAST_RUN, outcome: "FAILED" as const, errorCode: "AUTHENTICATION_FAILED" };
+    const failed = { ...LAST_RUN, outcome: "FAILED" as const, errorCode: "AUTHENTICATION_FAILED" as const };
     renderSection({
       schedulerEnabled: true,
       tickSeconds: 60,

@@ -1,5 +1,6 @@
 package ch.nokillswit.jira
 
+import ch.nokillswit.infra.fetch.FetchCodes
 import ch.nokillswit.infra.fetch.FetchException
 import ch.nokillswit.infra.fetch.PageCeiling
 import ch.nokillswit.infra.fetch.PageTokenGuard
@@ -13,7 +14,6 @@ private const val SEARCH_ENDPOINT = "/rest/api/3/search/jql"
  * rounds, 1.14) passes one [newSearchCeiling] to all of them, so the 200 is shared.
  */
 internal const val MAX_SEARCH_PAGES = 200
-private const val CURSOR_EXPIRED = "CURSOR_EXPIRED"
 
 /** A fresh page counter of [MAX_SEARCH_PAGES]: the default of [searchPages], one per query; shared when several queries are one read. */
 internal fun newSearchCeiling() = PageCeiling(JIRA_SOURCE, SEARCH_ENDPOINT, MAX_SEARCH_PAGES)
@@ -52,7 +52,7 @@ internal suspend fun searchPages(
         val page = try {
             client.searchJql(query, fields, token, pageSize)
         } catch (failure: FetchException) {
-            if (failure.code != CURSOR_EXPIRED || restarted) throw failure
+            if (failure.code != JiraRunCodes.CURSOR_EXPIRED || restarted) throw failure
             restarted = true
             token = null
             tokens.restart()
@@ -66,4 +66,4 @@ internal suspend fun searchPages(
     }
 }
 
-private fun invalidPage(detail: String) = FetchException(JIRA_SOURCE, "INVALID_RESPONSE", null, SEARCH_ENDPOINT, detail)
+private fun invalidPage(detail: String) = FetchException(JIRA_SOURCE, FetchCodes.INVALID_RESPONSE, null, SEARCH_ENDPOINT, detail)

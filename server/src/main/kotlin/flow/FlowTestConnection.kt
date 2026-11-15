@@ -3,13 +3,13 @@ package ch.nokillswit.flow
 import ch.nokillswit.infra.fetch.ConnectionTestRow
 import ch.nokillswit.infra.fetch.ProbeRun
 import ch.nokillswit.infra.maskedSecret
+import ch.nokillswit.sync.SyncErrorCodes
 import kotlinx.serialization.Serializable
 import java.time.Instant
 import java.time.ZoneId
 
 /** The row of a stored token that cannot be decrypted (`TOKEN_UNREADABLE`: re-enter it). */
 const val FLOW_STORED_TOKEN_ROW = "stored_token"
-const val FLOW_TOKEN_UNREADABLE_CODE = "TOKEN_UNREADABLE"
 
 /** What each probe needs of Flow (the rows' `scopeHint`): the service-token surface arrived in Flow 1.57.0, an older Flow answers 404. */
 private const val FLOW_VERSION_HINT = "Flow 1.57.0 or later"
@@ -61,7 +61,7 @@ suspend fun FlowConnector.testConnection(target: FlowTestTarget, now: () -> Long
     val run = ProbeRun(now)
     val token = target.apiToken
     if (token == null) {
-        run.fail(FLOW_STORED_TOKEN_ROW, "stored service token", required = true, code = FLOW_TOKEN_UNREADABLE_CODE)
+        run.fail(FLOW_STORED_TOKEN_ROW, "stored service token", required = true, code = SyncErrorCodes.TOKEN_UNREADABLE)
         return FlowTestResult(run.rows)
     }
     val client = client(target.baseUrl, token)

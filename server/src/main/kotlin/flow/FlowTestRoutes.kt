@@ -4,7 +4,7 @@ import ch.nokillswit.audit.audit
 import ch.nokillswit.authz.caller
 import ch.nokillswit.authz.orNotFound
 import ch.nokillswit.authz.requireAdmin
-import ch.nokillswit.infra.fetch.SKIPPED_CODE
+import ch.nokillswit.infra.fetch.FetchCodes
 import ch.nokillswit.infra.outbound.FlowOrigins
 import ch.nokillswit.plugins.RateLimits
 import io.ktor.http.HttpStatusCode
@@ -71,7 +71,7 @@ private fun auditTest(byUserId: UInt, connectionId: UInt?, baseUrl: String, resu
         "connectionId" to connectionId?.toLong(),
         "host" to flowHostOf(baseUrl),
         "ok" to result.passed,
-        "failedProbes" to result.rows.filter { !it.ok && it.code != SKIPPED_CODE }.map { it.name },
+        "failedProbes" to result.rows.filter { !it.ok && it.code != FetchCodes.SKIPPED }.map { it.name },
         "recorded" to result.recorded,
     )
 }

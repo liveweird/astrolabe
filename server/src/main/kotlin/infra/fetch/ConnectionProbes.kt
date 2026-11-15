@@ -22,9 +22,6 @@ data class ConnectionTestRow(
     val scopeHint: String? = null,
 )
 
-/** The row code of a probe that never ran because an earlier probe failed (`ok: false`, so a skipped REQUIRED row still fails the test). */
-const val SKIPPED_CODE = "SKIPPED"
-
 /** A probe's own verdict that is not an upstream failure (a configured project key the token cannot see): the row's [code]. */
 class ProbeFailure(val code: String) : RuntimeException(code)
 
@@ -49,8 +46,8 @@ class ProbeRun(
         collected += ConnectionTestRow(name, path, required, ok = false, code = code, scopeHint = scopeHint)
     }
 
-    /** Records a row for a probe that was not run because an earlier probe failed: not a failure of its own endpoint ([SKIPPED_CODE]). */
-    fun skip(name: String, path: String, required: Boolean) = fail(name, path, required, SKIPPED_CODE)
+    /** Records a row for a probe that was not run because an earlier probe failed, not a failure of its endpoint ([FetchCodes.SKIPPED]). */
+    fun skip(name: String, path: String, required: Boolean) = fail(name, path, required, FetchCodes.SKIPPED)
 
     @Suppress("LongParameterList") // the row's own fields: one call shape for every probe
     suspend fun probe(name: String, path: String, required: Boolean, scopeHint: String? = null, block: suspend () -> Unit) {
@@ -58,14 +55,14 @@ class ProbeRun(
         // timeout, so a run of near-the-cap probes could together run well past the documented 30 s. The smaller of the two wins.
         val remaining = deadline - now()
         if (remaining <= 0) {
-            fail(name, path, required, "TIMEOUT", scopeHint)
+            fail(name, path, required, FetchCodes.TIMEOUT, scopeHint)
             return
         }
         try {
             withTimeout(minOf(probeTimeoutMs, remaining)) { block() }
             collected += ConnectionTestRow(name, path, required, ok = true, scopeHint = scopeHint)
         } catch (_: TimeoutCancellationException) {
-            fail(name, path, required, "TIMEOUT", scopeHint)
+            fail(name, path, required, FetchCodes.TIMEOUT, scopeHint)
         } catch (cause: CancellationException) {
             // A GENUINE coroutine cancellation (the caller's scope was cancelled) is not a probe outcome: it propagates, never a row.
             // Distinct from TimeoutCancellationException above, this function's own bounded wait expiring.
@@ -79,7 +76,7 @@ class ProbeRun(
         } catch (_: RuntimeException) {
             // A raw `.jsonObject`/`.jsonArray`/`.jsonPrimitive` cast (here, or one a future client forgets to route through its decode
             // helper) throws `IllegalArgumentException` on a shape mismatch: reported as the one malformed probe, never a crashed test.
-            fail(name, path, required, "INVALID_RESPONSE", scopeHint)
+            fail(name, path, required, FetchCodes.INVALID_RESPONSE, scopeHint)
         }
     }
 

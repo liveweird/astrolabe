@@ -3,7 +3,7 @@ package ch.nokillswit.jira
 import ch.nokillswit.audit.audit
 import ch.nokillswit.infra.db.nowMillis
 import ch.nokillswit.infra.fetch.FetchException
-import ch.nokillswit.infra.fetch.LIMIT_EXCEEDED_CODE
+import ch.nokillswit.infra.fetch.FetchCodes
 import ch.nokillswit.infra.time.MILLIS_PER_MINUTE
 import ch.nokillswit.sync.ClaimedRun
 import ch.nokillswit.sync.Connector
@@ -11,6 +11,7 @@ import ch.nokillswit.sync.ConnectorConnection
 import ch.nokillswit.sync.RunProblem
 import ch.nokillswit.sync.RunProgress
 import ch.nokillswit.sync.RunnableState
+import ch.nokillswit.sync.SyncErrorCodes
 import ch.nokillswit.sync.SyncKind
 import ch.nokillswit.sync.SyncResult
 import ch.nokillswit.sync.SyncRunService
@@ -91,19 +92,20 @@ class JiraObserver internal constructor(
     private suspend fun execute(run: ClaimedRun, progress: JiraRunProgress) {
         val context = connections.readForBind(run.connectionId)
             ?: throw connectionGone(run.connectionId)
-        if (!context.enabled) throw RunProblem("CONNECTION_DISABLED", "The Jira connection is disabled")
+        if (!context.enabled) throw RunProblem(SyncErrorCodes.CONNECTION_DISABLED, "The Jira connection is disabled")
         releaseDeadNodeBindings(run)
         val token = context.target.apiToken ?: throw RunProblem(
-            JiraConnector.TOKEN_UNREADABLE_CODE, "The stored API token cannot be decrypted - ask an administrator to enter it again",
+            SyncErrorCodes.TOKEN_UNREADABLE, "The stored API token cannot be decrypted - ask an administrator to enter it again",
         )
-        val discovery = context.state.discovery ?: throw RunProblem("NOT_DISCOVERED", "The connection has not been tested yet")
+        val discovery = context.state.discovery ?: throw RunProblem(JiraRunCodes.NOT_DISCOVERED, "The connection has not been tested yet")
         val mapping = when (val resolved = resolveEffectiveMapping(context.state, discovery)) {
             is MappingResolution.Usable -> resolved.mapping
-            MappingResolution.Unreadable -> throw RunProblem("MAPPING_UNREADABLE", "The stored mapping cannot be read by this version")
-            is MappingResolution.Invalid -> throw RunProblem("MAPPING_INVALID", resolved.problem)
+            MappingResolution.Unreadable ->
+                throw RunProblem(JiraRunCodes.MAPPING_UNREADABLE, "The stored mapping cannot be read by this version")
+            is MappingResolution.Invalid -> throw RunProblem(JiraRunCodes.MAPPING_INVALID, resolved.problem)
         }
         val sweepTypes = sweepTypeIds(mapping, discovery)
-            ?: throw RunProblem("MAPPING_INVALID", "A mapped level has no issue type in the discovery snapshot")
+            ?: throw RunProblem(JiraRunCodes.MAPPING_INVALID, "A mapped level has no issue type in the discovery snapshot")
         val bound = store.snapshot(run.connectionId)
         if (bound.isEmpty()) {
             goneDamper.forget(run.connectionId) // nothing bound, nothing to probe: a stale streak must not outlive the bindings
@@ -114,9 +116,10 @@ class JiraObserver internal constructor(
                 RunnableState.RUNNABLE -> Unit
                 RunnableState.GONE -> {
                     goneDamper.forget(run.connectionId) // a run that finds the connection deleted forgets its streak
-                    throw RunProblem("CONNECTION_GONE", "The Jira connection was deleted during the run")
+                    throw RunProblem(SyncErrorCodes.CONNECTION_GONE, "The Jira connection was deleted during the run")
                 }
-                RunnableState.DISABLED -> throw RunProblem("CONNECTION_DISABLED", "The Jira connection was disabled during the run")
+                RunnableState.DISABLED ->
+                    throw RunProblem(SyncErrorCodes.CONNECTION_DISABLED, "The Jira connection was disabled during the run")
             }
         }
 
@@ -137,7 +140,7 @@ class JiraObserver internal constructor(
         } catch (failure: FetchException) {
             // A long gap on a busy site: the incremental window only grows, so a ceiling hit would wedge every later run. The full read
             // is limited to the mapped types and is bounded by the site, not by the gap.
-            if (shape !is ReadPlan.Incremental || failure.code != LIMIT_EXCEEDED_CODE) throw failure
+            if (shape !is ReadPlan.Incremental || failure.code != FetchCodes.LIMIT_EXCEEDED) throw failure
             shape = ReadPlan.Full
             readAs(shape)
         }
@@ -272,7 +275,7 @@ class JiraObserver internal constructor(
     private fun connectionGone(connectionId: UInt): RunProblem {
         loopGuard.forget(connectionId)
         goneDamper.forget(connectionId)
-        return RunProblem("CONNECTION_GONE", "The Jira connection no longer exists")
+        return RunProblem(SyncErrorCodes.CONNECTION_GONE, "The Jira connection no longer exists")
     }
 
     private suspend fun releaseDeadNodeBindings(run: ClaimedRun) {

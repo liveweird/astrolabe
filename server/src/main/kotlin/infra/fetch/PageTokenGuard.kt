@@ -24,10 +24,12 @@ internal class PageTokenGuard(private val source: FetchSource, private val endpo
     fun accept(token: String?) {
         if (token == null) return
         if (token.length > MAX_PAGE_TOKEN_CHARS) {
-            throw FetchException(source, "INVALID_RESPONSE", null, endpoint, "a page token longer than $MAX_PAGE_TOKEN_CHARS characters")
+            throw FetchException(
+                source, FetchCodes.INVALID_RESPONSE, null, endpoint, "a page token longer than $MAX_PAGE_TOKEN_CHARS characters",
+            )
         }
         if (!seen.add(sha256Hex(token))) {
-            throw FetchException(source, "INVALID_RESPONSE", null, endpoint, "a page token the host already sent in this run")
+            throw FetchException(source, FetchCodes.INVALID_RESPONSE, null, endpoint, "a page token the host already sent in this run")
         }
     }
 }

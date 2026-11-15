@@ -39,7 +39,7 @@ describe("nextPollText", () => {
 
 describe("syncStatusDetail", () => {
   test("the failure streak wins over the next poll, with the newest run's code when it has one", () => {
-    const lastRun = { id: 1, startedAt: 1, finishedAt: 2, outcome: "FAILED" as const, errorCode: "TIMEOUT", trigger: "SCHEDULED" as const, running: false };
+    const lastRun = { id: 1, startedAt: 1, finishedAt: 2, outcome: "FAILED" as const, errorCode: "TIMEOUT" as const, trigger: "SCHEDULED" as const, running: false };
     expect(syncStatusDetail({ status: status({ state: "FAILED", consecutiveFailures: 2, lastRun, nextPollAt: NOW + MIN }), now: NOW }, t)).toBe("2 failures in a row · TIMEOUT");
     expect(syncStatusDetail({ status: status({ state: "FAILED", consecutiveFailures: 1, lastRun: { ...lastRun, errorCode: null } }), now: NOW }, t)).toBe("1 failure in a row");
     expect(syncStatusDetail({ status: status({ nextPollAt: NOW + MIN }), now: NOW }, t)).toBe("next poll in 1 min");
