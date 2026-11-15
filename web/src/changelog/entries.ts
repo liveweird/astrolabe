@@ -17,6 +17,30 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.23.0",
+    date: "2026-11-15",
+    en: `**Astrolabe 1.23.0: a database time limit, the Flow capacity flag on the Roadmap and Programs, everything you manage on Home.**
+
+- A database that does not answer no longer leaves a page waiting. Every statement the server sends has a limit of 15 seconds (\`POSTGRES_STATEMENT_TIMEOUT_SECONDS\`; 0 switches it off). When it is reached the page says "The request timed out. Try again." at once, instead of trying again for up to a minute and a half. The step that was cut is undone; if a new item you try again is then refused because its name is taken, the first try had already saved it.
+- Roadmap and Programs: a project with a milestone scheduled in a sprint where its team's capacity in the plan differs from Flow now carries a flag that names the team (a warning when the plan holds more than Flow, an info otherwise). It counts in the warnings and infos of both pages, in the roll-ups of programs and work streams, and on Home. A difference the team's manager has acknowledged raises none. The Roadmap's Flags list links to the team.
+- Home: "Yours" now lists every program and project under a work stream or program you own, not only what you own yourself, and each row names its owner. "Only what I own myself" narrows the lists back to your own; this browser remembers the choice. "Your teams" has not changed.
+- Keyboard: after deleting a row you had just edited, the focus goes to the heading on every page; it could be lost.
+- API (\`/api/v1\`): a \`500\` may carry \`type: urn:astrolabe:problem:database-timeout\`; the flags of \`GET /views/roadmap\` and \`GET /views/programs\` may hold the new kind \`FLOW_CAPACITY_MILESTONES\` (\`teamId\`, \`count\`); the program and project rows of \`GET /views/home\` add \`ownerName\` and \`direct\`. If a tab was open during the upgrade, reload it.
+- Nothing is written to Jira or Flow.
+- Proven against a built-in Jira stub; not yet tested against a real Jira site.
+- Proven against the built-in Flow stub; not yet compared with a real Flow.`,
+    pl: `**Astrolabe 1.23.0: limit czasu bazy danych, flaga przepustowości z Flow na Roadmapie i w Programach, wszystko, czym zarządzasz, na stronie głównej.**
+
+- Baza danych, która nie odpowiada, nie zostawia już strony w oczekiwaniu. Każde zapytanie wysyłane przez serwer ma limit 15 sekund (\`POSTGRES_STATEMENT_TIMEOUT_SECONDS\`; 0 go wyłącza). Po jego przekroczeniu strona od razu pokazuje „Przekroczono limit czasu żądania. Spróbuj ponownie.”, zamiast ponawiać próby nawet przez półtorej minuty. Przerwany krok zostaje wycofany; jeśli przy ponownej próbie nowy element zostanie odrzucony, bo jego nazwa jest już zajęta, pierwsza próba zdążyła go zapisać.
+- Roadmapa i Programy: projekt z kamieniem milowym zaplanowanym na sprint, w którym przepustowość jego zespołu w planie różni się od Flow, ma teraz flagę z nazwą zespołu (ostrzeżenie, gdy plan ma więcej niż Flow, w przeciwnym razie informacja). Flaga liczy się w ostrzeżeniach i informacjach obu stron, w podsumowaniach programów i strumieni pracy oraz na stronie głównej. Różnica, którą kierownik/czka zespołu potwierdził/a, nie daje flagi. Lista flag na Roadmapie prowadzi do zespołu.
+- Strona główna: sekcja „Twoje” pokazuje teraz wszystkie programy i projekty pod strumieniem pracy lub programem, którego jesteś właścicielem/ką, a nie tylko to, co należy bezpośrednio do Ciebie, a każdy wiersz podaje właściciela/kę. „Tylko to, czego jestem osobiście właścicielem/ką” zawęża listy z powrotem do Twoich; ta przeglądarka zapamiętuje wybór. „Twoje zespoły” się nie zmieniły.
+- Klawiatura: po usunięciu wiersza, który przed chwilą edytowałeś/aś, fokus przechodzi na nagłówek na każdej stronie; wcześniej mógł zniknąć.
+- API (\`/api/v1\`): odpowiedź \`500\` może mieć \`type: urn:astrolabe:problem:database-timeout\`; flagi w \`GET /views/roadmap\` i \`GET /views/programs\` mogą zawierać nowy rodzaj \`FLOW_CAPACITY_MILESTONES\` (\`teamId\`, \`count\`); wiersze programów i projektów w \`GET /views/home\` mają dodatkowo \`ownerName\` i \`direct\`. Jeśli karta była otwarta podczas aktualizacji, odśwież ją.
+- Niczego nie zapisujemy w Jirze ani we Flow.
+- Sprawdzone na wbudowanej atrapie Jiry; jeszcze nie przetestowane na prawdziwej witrynie Jira.
+- Sprawdzone na wbudowanej atrapie Flow; jeszcze nie porównane z prawdziwym Flow.`,
+  },
+  {
     version: "1.22.0",
     date: "2026-11-15",
     en: `**Astrolabe 1.22.0: lighter re-reads of the plan pages, dependencies changed from their list, the team load from this week on.**
