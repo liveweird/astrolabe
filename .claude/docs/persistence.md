@@ -204,7 +204,7 @@ Files: `people/PersonService.kt`.
 
 ### Teams
 
-Files: `teams/TeamService.kt`, `teams/TeamCapacityService.kt`, `teams/TeamCapacityListeners.kt`.
+Files: `teams/TeamService.kt`, `teams/TeamCapacityService.kt`, `teams/TeamCapacityImportStore.kt` (the import's reads and writes behind the service's delegates), `teams/TeamCapacityListeners.kt`.
 
 - `TeamService` reads `PersonService.People` for the manager: the active manager's name (one batched lookup per page); the manager id check on create AND update, which locks the person row `FOR SHARE` (a delete racing an assignment either commits first and the assignment is a 400, or waits and then sees the team and answers 409); and `isActiveManager`'s `Teams` ⋈ `People` ⋈ `Users` join (the team-manager guard: an ACTIVE team, an ACTIVE person whose `user_id` is the caller, that user ACTIVE).
   `teams.manager_person_id` has no `ON DELETE` rule: `PersonService.delete` refuses (409) while an ACTIVE team names the person.
